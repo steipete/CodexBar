@@ -835,22 +835,159 @@ extension CostUsageScanner {
             pricingArtifactStamp: artifactStamps.pricing)
     }
 
+    static func buildClaudeReportFromCache(
+        cache: CostUsageCache,
+        range: CostUsageDayRange,
+        now: Date = Date(),
+        modelsDevCacheRoot: URL? = nil) -> CostUsageDailyReport
+    {
+        self.buildClaudeReportFromCache(
+            cache: cache,
+            range: range,
+            pricingResolver: CostUsagePricing.ClaudeResolver(now: now, cacheRoot: modelsDevCacheRoot))
+    }
+
     private static func buildClaudeReportFromCache(
         cache: CostUsageCache,
         range: CostUsageDayRange,
         pricingResolver: CostUsagePricing.ClaudeResolver) -> CostUsageDailyReport
     {
         var entries: [CostUsageDailyReport.Entry] = []
-        var totalInput = 0
-        var totalOutput = 0
-        var totalCacheRead = 0
-        var totalCacheCreate = 0
-        var totalTokens = 0
+        var temporalBuckets = TemporalBuckets()
+        var totalInput = CostUsageDailyReport.OptionalCountAccumulator(0)
+        var totalOutput = CostUsageDailyReport.OptionalCountAccumulator(0)
+        var totalCacheRead = CostUsageDailyReport.OptionalCountAccumulator(0)
+        var totalCacheCreate = CostUsageDailyReport.OptionalCountAccumulator(0)
+        var totalTokens = CostUsageDailyReport.OptionalCountAccumulator(0)
         var totalCost: Double = 0
         var costSeen = false
+        let repricedCosts = self.claudeTemporalPricing(
+            rows: Self.reconciledClaudeRows(cache: cache),
+            range: range,
+            pricingResolver: pricingResolver,
+            temporalBuckets: &temporalBuckets)
+
+        let dayKeys = cache.days.keys.sorted().filter {
+            CostUsageDayRange.isInRange(dayKey: $0, since: range.sinceKey, until: range.untilKey)
+        }
+
+        for day in dayKeys {
+            guard let models = cache.days[day] else { continue }
+            let modelNames = models.keys.sorted()
+
+            var dayInput = CostUsageDailyReport.OptionalCountAccumulator(0)
+            var dayOutput = CostUsageDailyReport.OptionalCountAccumulator(0)
+            var dayCacheRead = CostUsageDailyReport.OptionalCountAccumulator(0)
+            var dayCacheCreate = CostUsageDailyReport.OptionalCountAccumulator(0)
+            var daySampleCount = 0
+            var dayIncompleteCount = 0
+            var dayPricedCount = 0
+
+            var breakdown: [CostUsageDailyReport.ModelBreakdown] = []
+            var dayCost: Double = 0
+            var dayCostSeen = false
+
+            for model in modelNames {
+                let packed = models[model] ?? [0, 0, 0, 0]
+                let input = packed[safe: 0] ?? 0
+                let cacheRead = packed[safe: 1] ?? 0
+                let cacheCreate = packed[safe: 2] ?? 0
+                let output = packed[safe: 3] ?? 0
+                let sampleCount = packed[safe: 5] ?? 0
+                let totalTokens = CheckedSum.integers([input, cacheRead, cacheCreate, output])
+                daySampleCount += sampleCount
+
+                // Cache tokens are tracked separately; totalTokens includes input + cache.
+                dayInput.add(input)
+                dayCacheRead.add(cacheRead)
+                dayCacheCreate.add(cacheCreate)
+                dayOutput.add(output)
+
+                let repricedCost = repricedCosts[ClaudeDayModelKey(day: day, model: model)]
+                let incompleteCount = repricedCost?.incompleteRequestCount ?? 0
+                dayIncompleteCount += incompleteCount
+                let currentPricingCost: Double? = if let repricedCost,
+                                                     sampleCount > 0,
+                                                     repricedCost.sampleCount == sampleCount,
+                                                     !repricedCost.unresolved
+                {
+                    repricedCost.total
+                } else {
+                    nil
+                }
+                let cost = currentPricingCost
+                breakdown.append(
+                    CostUsageDailyReport.ModelBreakdown(
+                        modelName: model,
+                        costUSD: cost,
+                        totalTokens: sampleCount > 0 ? totalTokens : nil,
+                        incompleteRequestCount: incompleteCount > 0 ? incompleteCount : nil))
+                if let cost {
+                    dayPricedCount += sampleCount
+                    dayCost += cost
+                    dayCostSeen = true
+                }
+            }
+
+            let sortedBreakdown = Self.sortedModelBreakdowns(breakdown)
+
+            var dayTokens = dayInput
+            dayTokens.merge(dayCacheRead)
+            dayTokens.merge(dayCacheCreate)
+            dayTokens.merge(dayOutput)
+            let dayTotal = dayTokens.value
+            let entryCost = dayCostSeen && dayCost.isFinite ? dayCost : nil
+            entries.append(CostUsageDailyReport.Entry(
+                date: day,
+                inputTokens: daySampleCount > 0 ? dayInput.value : nil,
+                outputTokens: daySampleCount > 0 ? dayOutput.value : nil,
+                cacheReadTokens: daySampleCount > 0 ? dayCacheRead.value : nil,
+                cacheCreationTokens: daySampleCount > 0 ? dayCacheCreate.value : nil,
+                totalTokens: daySampleCount > 0 ? dayTotal : nil,
+                costUSD: entryCost,
+                modelsUsed: modelNames,
+                modelBreakdowns: sortedBreakdown,
+                unpricedRequestCount: dayIncompleteCount > 0 ? daySampleCount - dayPricedCount : nil,
+                unmeteredRequestCount: dayIncompleteCount > 0 ? dayIncompleteCount : nil,
+                estimatedRequestCount: dayIncompleteCount > 0 ? dayPricedCount : nil))
+
+            totalInput.merge(dayInput)
+            totalOutput.merge(dayOutput)
+            totalCacheRead.merge(dayCacheRead)
+            totalCacheCreate.merge(dayCacheCreate)
+            totalTokens.merge(dayTokens)
+            if let entryCost {
+                totalCost += entryCost
+                costSeen = true
+            }
+        }
+
+        let hasTokens = entries.contains { $0.totalTokens != nil }
+        let summary: CostUsageDailyReport.Summary? = entries.isEmpty
+            ? nil
+            : CostUsageDailyReport.Summary(
+                totalInputTokens: hasTokens ? totalInput.value : nil,
+                totalOutputTokens: hasTokens ? totalOutput.value : nil,
+                cacheReadTokens: hasTokens ? totalCacheRead.value : nil,
+                cacheCreationTokens: hasTokens ? totalCacheCreate.value : nil,
+                totalTokens: hasTokens ? totalTokens.value : nil,
+                totalCostUSD: costSeen && totalCost.isFinite ? totalCost : nil)
+
+        return CostUsageDailyReport(
+            data: entries,
+            summary: summary,
+            hourly: self.sortedHourlyEntries(temporalBuckets.hourly),
+            quotaSlices: self.sortedQuotaSlices(temporalBuckets.quotaSlices))
+    }
+
+    private static func claudeTemporalPricing(
+        rows: [ClaudeUsageRow],
+        range: CostUsageDayRange,
+        pricingResolver: CostUsagePricing.ClaudeResolver,
+        temporalBuckets: inout TemporalBuckets) -> [ClaudeDayModelKey: ClaudeRepricedCost]
+    {
         let costScale = 1_000_000_000.0
         var repricedCosts: [ClaudeDayModelKey: ClaudeRepricedCost] = [:]
-        let rows = Self.reconciledClaudeRows(cache: cache)
         if !rows.isEmpty {
             pricingResolver.prepareCatalog()
         }
@@ -893,110 +1030,10 @@ extension CostUsageScanner {
                 aggregate.unresolved = true
             }
             repricedCosts[key] = aggregate
+
+            self.addClaudeTemporal(row: row, costUSD: cost, range: range, into: &temporalBuckets)
         }
 
-        let dayKeys = cache.days.keys.sorted().filter {
-            CostUsageDayRange.isInRange(dayKey: $0, since: range.sinceKey, until: range.untilKey)
-        }
-
-        for day in dayKeys {
-            guard let models = cache.days[day] else { continue }
-            let modelNames = models.keys.sorted()
-
-            var dayInput = 0
-            var dayOutput = 0
-            var dayCacheRead = 0
-            var dayCacheCreate = 0
-            var daySampleCount = 0
-            var dayIncompleteCount = 0
-            var dayPricedCount = 0
-
-            var breakdown: [CostUsageDailyReport.ModelBreakdown] = []
-            var dayCost: Double = 0
-            var dayCostSeen = false
-
-            for model in modelNames {
-                let packed = models[model] ?? [0, 0, 0, 0]
-                let input = packed[safe: 0] ?? 0
-                let cacheRead = packed[safe: 1] ?? 0
-                let cacheCreate = packed[safe: 2] ?? 0
-                let output = packed[safe: 3] ?? 0
-                let sampleCount = packed[safe: 5] ?? 0
-                let totalTokens = input + cacheRead + cacheCreate + output
-                daySampleCount += sampleCount
-
-                // Cache tokens are tracked separately; totalTokens includes input + cache.
-                dayInput += input
-                dayCacheRead += cacheRead
-                dayCacheCreate += cacheCreate
-                dayOutput += output
-
-                let repricedCost = repricedCosts[ClaudeDayModelKey(day: day, model: model)]
-                let incompleteCount = repricedCost?.incompleteRequestCount ?? 0
-                dayIncompleteCount += incompleteCount
-                let currentPricingCost: Double? = if let repricedCost,
-                                                     sampleCount > 0,
-                                                     repricedCost.sampleCount == sampleCount,
-                                                     !repricedCost.unresolved
-                {
-                    repricedCost.total
-                } else {
-                    nil
-                }
-                let cost = currentPricingCost
-                breakdown.append(
-                    CostUsageDailyReport.ModelBreakdown(
-                        modelName: model,
-                        costUSD: cost,
-                        totalTokens: sampleCount > 0 ? totalTokens : nil,
-                        incompleteRequestCount: incompleteCount > 0 ? incompleteCount : nil))
-                if let cost {
-                    dayPricedCount += sampleCount
-                    dayCost += cost
-                    dayCostSeen = true
-                }
-            }
-
-            let sortedBreakdown = Self.sortedModelBreakdowns(breakdown)
-
-            let dayTotal = dayInput + dayCacheRead + dayCacheCreate + dayOutput
-            let entryCost = dayCostSeen ? dayCost : nil
-            entries.append(CostUsageDailyReport.Entry(
-                date: day,
-                inputTokens: daySampleCount > 0 ? dayInput : nil,
-                outputTokens: daySampleCount > 0 ? dayOutput : nil,
-                cacheReadTokens: daySampleCount > 0 ? dayCacheRead : nil,
-                cacheCreationTokens: daySampleCount > 0 ? dayCacheCreate : nil,
-                totalTokens: daySampleCount > 0 ? dayTotal : nil,
-                costUSD: entryCost,
-                modelsUsed: modelNames,
-                modelBreakdowns: sortedBreakdown,
-                unpricedRequestCount: dayIncompleteCount > 0 ? daySampleCount - dayPricedCount : nil,
-                unmeteredRequestCount: dayIncompleteCount > 0 ? dayIncompleteCount : nil,
-                estimatedRequestCount: dayIncompleteCount > 0 ? dayPricedCount : nil))
-
-            totalInput += dayInput
-            totalOutput += dayOutput
-            totalCacheRead += dayCacheRead
-            totalCacheCreate += dayCacheCreate
-            totalTokens += dayTotal
-            if let entryCost {
-                totalCost += entryCost
-                costSeen = true
-            }
-        }
-
-        let hasTokens = entries.contains { $0.totalTokens != nil }
-        let summary: CostUsageDailyReport.Summary? = entries.isEmpty
-            ? nil
-            : CostUsageDailyReport.Summary(
-                totalInputTokens: hasTokens ? totalInput : nil,
-                totalOutputTokens: hasTokens ? totalOutput : nil,
-                cacheReadTokens: hasTokens ? totalCacheRead : nil,
-                cacheCreationTokens: hasTokens ? totalCacheCreate : nil,
-                totalTokens: hasTokens ? totalTokens : nil,
-                totalCostUSD: costSeen ? totalCost : nil)
-
-        return CostUsageDailyReport(data: entries, summary: summary)
+        return repricedCosts
     }
 }

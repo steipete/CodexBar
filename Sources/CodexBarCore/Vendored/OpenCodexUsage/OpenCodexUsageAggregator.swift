@@ -29,11 +29,7 @@ enum OpenCodexUsageAggregator {
         var models: [String: ModelAccumulator] = [:]
     }
 
-    struct HourAccumulator {
-        var tokens = CostUsageDailyReport.OptionalCountAccumulator()
-        var cost: Double = 0
-        var sawCost = false
-    }
+    typealias HourAccumulator = CostUsageTemporalTotals
 
     /// Aggregates OpenCodex usage entries into a per-window token/cost snapshot.
     ///
@@ -142,10 +138,7 @@ enum OpenCodexUsageAggregator {
 
         let hourly = hoursByStart.keys.sorted().map { hour in
             let bucket = hoursByStart[hour] ?? HourAccumulator()
-            return CostUsageHourlyEntry(
-                hour: hour,
-                totalTokens: bucket.tokens.value,
-                costUSD: bucket.sawCost ? bucket.cost : nil)
+            return bucket.hourlyEntry(hour: hour)
         }
 
         let todayEntry = CostUsageTokenSnapshot.entry(
@@ -229,11 +222,7 @@ enum OpenCodexUsageAggregator {
         cost: Double?,
         into hour: inout HourAccumulator)
     {
-        hour.tokens.merge(entry.resolvedTotalCount)
-        if let cost {
-            hour.cost += cost
-            hour.sawCost = true
-        }
+        hour.add(totalTokens: entry.resolvedTotalCount.value, costUSD: cost)
     }
 
     private static func merge(

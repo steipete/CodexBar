@@ -407,14 +407,18 @@ extension CostUsageScanner {
             guard CostUsageDayRange.isInRange(dayKey: row.day, since: range.sinceKey, until: range.untilKey)
             else { continue }
 
-            let tokenCount = row.input + row.output
+            guard let tokenCount = CheckedSum.integers([row.input, row.output]) else { return (nil, nil) }
             let priorityMetadata = row.turnID.flatMap { priorityTurns[$0] }
             let isPriority = priorityMetadata != nil || row.pricingMode == "priority"
 
             if isPriority {
-                priorityTokens[row.day, default: [:]][row.model, default: 0] += tokenCount
+                guard let total = CheckedSum.integers([priorityTokens[row.day]?[row.model] ?? 0, tokenCount])
+                else { return (nil, nil) }
+                priorityTokens[row.day, default: [:]][row.model] = total
             } else {
-                standardTokens[row.day, default: [:]][row.model, default: 0] += tokenCount
+                guard let total = CheckedSum.integers([standardTokens[row.day]?[row.model] ?? 0, tokenCount])
+                else { return (nil, nil) }
+                standardTokens[row.day, default: [:]][row.model] = total
             }
         }
 
@@ -1401,7 +1405,12 @@ extension CostUsageScanner {
                 priorityTurns: priorityTurns)
         }
         var entries: [CostUsageDailyReport.Entry] = []
-        var (totalInput, totalCacheRead, totalOutput, totalReasoning, totalTokens) = (0, 0, 0, 0, 0)
+        var temporalBuckets = TemporalBuckets()
+        var totalInput = CostUsageDailyReport.OptionalCountAccumulator(0)
+        var totalCacheRead = CostUsageDailyReport.OptionalCountAccumulator(0)
+        var totalOutput = CostUsageDailyReport.OptionalCountAccumulator(0)
+        var totalReasoning = CostUsageDailyReport.OptionalCountAccumulator(0)
+        var totalTokens = CostUsageDailyReport.OptionalCountAccumulator(0)
         var (totalCost, costSeen) = (0.0, false)
 
         let unmeteredByDay = Self.unresolvedForkUnmeteredCounts(cache: reportCache, range: range)
@@ -1478,11 +1487,22 @@ extension CostUsageScanner {
                 pricing: pricing)
             else { continue }
             entries.append(entry)
-            totalInput += entry.inputTokens ?? 0
-            totalCacheRead += entry.cacheReadTokens ?? 0
-            totalOutput += entry.outputTokens ?? 0
-            totalReasoning += entry.reasoningTokens ?? 0
-            totalTokens += entry.totalTokens ?? 0
+            for breakdown in entry.modelBreakdowns ?? [] {
+                let packed = models[breakdown.modelName] ?? []
+                totalInput.add(packed[safe: 0])
+                totalCacheRead.add(packed[safe: 1])
+                totalOutput.add(packed[safe: 2])
+                totalTokens.add(packed[safe: 0])
+                totalTokens.add(packed[safe: 2])
+                for row in pricing.rowsByDayModel[day]?[breakdown.modelName] ?? [] {
+                    totalReasoning.add(row.reasoning)
+                }
+                Self.addCodexHourly(
+                    rows: pricing.rowsByDayModel[day]?[breakdown.modelName] ?? [],
+                    pricing: pricing,
+                    calendar: range.calendar,
+                    into: &temporalBuckets)
+            }
             if let entryCost = entry.costUSD {
                 totalCost += entryCost
                 costSeen = true
@@ -1492,14 +1512,18 @@ extension CostUsageScanner {
         let summary: CostUsageDailyReport.Summary? = entries.isEmpty
             ? nil
             : CostUsageDailyReport.Summary(
-                totalInputTokens: totalInput,
-                totalOutputTokens: totalOutput,
-                cacheReadTokens: totalCacheRead > 0 ? totalCacheRead : nil,
-                reasoningTokens: totalReasoning > 0 ? totalReasoning : nil,
-                totalTokens: totalTokens,
-                totalCostUSD: costSeen ? totalCost : nil)
+                totalInputTokens: totalInput.value,
+                totalOutputTokens: totalOutput.value,
+                cacheReadTokens: totalCacheRead.value.flatMap { $0 > 0 ? $0 : nil },
+                reasoningTokens: totalReasoning.value.flatMap { $0 > 0 ? $0 : nil },
+                totalTokens: totalTokens.value,
+                totalCostUSD: costSeen && totalCost.isFinite ? totalCost : nil)
 
-        return CostUsageDailyReport(data: entries, summary: summary)
+        return CostUsageDailyReport(
+            data: entries,
+            summary: summary,
+            hourly: self.sortedHourlyEntries(temporalBuckets.hourly),
+            quotaSlices: self.sortedQuotaSlices(temporalBuckets.quotaSlices))
     }
 
     static func sortedModelBreakdowns(_ breakdowns: [CostUsageDailyReport.ModelBreakdown])

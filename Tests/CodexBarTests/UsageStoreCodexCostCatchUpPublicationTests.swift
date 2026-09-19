@@ -223,6 +223,32 @@ struct UsageStoreCodexCostCatchUpPublicationTests {
         }
     }
 
+    @Test
+    func `catch-up publishes recovered temporal evidence with unchanged daily totals`() async throws {
+        let store = try Self.makeStore(suite: "temporal-evidence")
+        let now = Date()
+        let previous = Self.snapshot(tokens: 100, now: now)
+        let recovered = CostUsageTokenSnapshot(
+            sessionTokens: previous.sessionTokens,
+            sessionCostUSD: previous.sessionCostUSD,
+            last30DaysTokens: previous.last30DaysTokens,
+            last30DaysCostUSD: previous.last30DaysCostUSD,
+            daily: previous.daily,
+            quotaSlices: [.init(
+                timestamp: now.addingTimeInterval(-1800),
+                totalTokens: 100,
+                costUSD: 0,
+                costIsComplete: false)],
+            updatedAt: now)
+        store.publishTokenSnapshot(previous, for: .codex)
+        Self.stubCompletion(on: store)
+        store._test_cachedCodexTokenSnapshotLoaderOverride = { _, _, _ in (recovered, now, nil) }
+        store.startCodexCostCatchUpIfNeeded(mode: .accelerated)
+        await store.codexCostCatchUpTask?.value
+        #expect(store.tokenSnapshot(for: .codex)?.quotaSlices == recovered.quotaSlices)
+        #expect(store.tokenSnapshotPublicationRevision(for: .codex) > 1)
+    }
+
     private static func stubCompletion(on store: UsageStore) {
         var advanced = false
         store._test_codexCostCatchUpStatusOverride = { _ in
@@ -264,7 +290,10 @@ struct UsageStoreCodexCostCatchUpPublicationTests {
         settings.costUsageEnabled = true
         settings.costUsageHistoryDays = 30
         let metadata = try #require(ProviderRegistry.shared.metadata[.codex])
-        settings.setProviderEnabled(provider: .codex, metadata: metadata, enabled: true)
+        settings.setProviderEnabled(
+            provider: .codex,
+            metadata: metadata,
+            enabled: true)
         let store = UsageStore(
             fetcher: UsageFetcher(environment: [:]),
             browserDetection: BrowserDetection(cacheTTL: 0),

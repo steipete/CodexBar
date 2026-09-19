@@ -43,11 +43,21 @@ struct InlineUsageDashboardModel: Equatable {
         case points
     }
 
+    struct QuotaWindow: Equatable, Identifiable {
+        let id: String
+        let title: String
+        let range: String
+        let value: String
+        var note: String?
+    }
+
     let accessibilityLabel: String
     let valueStyle: ValueStyle
     let kpis: [KPI]
     let points: [Point]
     let detailLines: [String]
+    /// Codex/Claude weekly quota windows, newest first. Empty for other cost dashboards.
+    var quotaWindows: [QuotaWindow] = []
     /// Provider branding color used to fill the mini usage bars. When nil the bars fall back to a
     /// neutral palette derived from `valueStyle`.
     var barColor: Color?
@@ -119,24 +129,14 @@ extension UsageMenuCardView.Model {
            let tokenSnapshot = primaryCostHistorySnapshot(input: input),
            !tokenSnapshot.daily.isEmpty
         {
-            return self.costHistoryInlineDashboard(
-                provider: input.provider,
-                snapshot: tokenSnapshot,
-                comparisonPeriodsEnabled: input.costComparisonPeriodsEnabled,
-                preferredCurrencyCode: input.preferredCurrencyCode,
-                calendar: input.costUsageBucketCalendar)
+            return self.costHistoryInlineDashboard(input: input, snapshot: tokenSnapshot)
         }
         if menuCard.supportsInlineTokenCostDashboard,
            input.costSummaryInlineEnabled,
            let tokenSnapshot = input.tokenSnapshot,
            !tokenSnapshot.daily.isEmpty || tokenSnapshot.meteredCostUSD != nil
         {
-            return Self.costHistoryInlineDashboard(
-                provider: input.provider,
-                snapshot: tokenSnapshot,
-                comparisonPeriodsEnabled: input.costComparisonPeriodsEnabled,
-                preferredCurrencyCode: input.preferredCurrencyCode,
-                calendar: input.costUsageBucketCalendar)
+            return Self.costHistoryInlineDashboard(input: input, snapshot: tokenSnapshot)
         }
         return nil
     }
@@ -152,34 +152,133 @@ extension UsageMenuCardView.Model {
             tokenSnapshot: input.tokenSnapshot)
     }
 
-    private static func costHistoryInlineDashboard(
-        provider: UsageProvider,
+    static func showsQuotaWeekCost(for provider: UsageProvider) -> Bool {
+        ProviderDescriptorRegistry.descriptor(for: provider).presentation.menuCard.showsQuotaWeekCost
+    }
+
+    private static func weeklyQuotaWindow(from input: Input) -> RateWindow? {
+        guard let snapshot = input.snapshot else { return nil }
+        return ProviderDescriptorRegistry.descriptor(for: input.provider)
+            .presentation.semanticWindows(snapshot: snapshot).weekly
+    }
+
+    private struct CostHistoryQuotaPresentation {
+        let rows: [InlineUsageDashboardModel.QuotaWindow]
+        let insertsKPIs: Bool
+        let relabelsHistory: Bool
+        let boundariesAreEstimated: Bool
+        let costValue: String
+        let tokenValue: String
+    }
+
+    private static func costHistoryQuotaPresentation(
+        input: Input,
         snapshot: CostUsageTokenSnapshot,
-        comparisonPeriodsEnabled: Bool,
-        preferredCurrencyCode: String,
-        calendar: Calendar) -> InlineUsageDashboardModel
+        historyDays: Int,
+        convertedString: (Double) -> String) -> CostHistoryQuotaPresentation
     {
-        if ProviderDescriptorRegistry.descriptor(for: provider).tokenCost.presentation == .tokensOnly {
+        let weeklyWindow = Self.weeklyQuotaWindow(from: input)
+        var observations = input.observedWeeklyResets
+        if let resetAt = CostUsageTokenSnapshot.quotaWeekReset(from: weeklyWindow),
+           let capturedAt = input.snapshot?.updatedAt
+        {
+            observations.append(.init(capturedAt: capturedAt, resetsAt: resetAt))
+        }
+        let quotaWeeks = Self.showsQuotaWeekCost(for: input.provider) && historyDays >= 7
+            ? snapshot.quotaWeekSummaries(
+                resetAt: CostUsageTokenSnapshot.quotaWeekReset(from: weeklyWindow),
+                windowMinutes: weeklyWindow?.windowMinutes,
+                observedResetInstants: Self.redeemedWeeklyResetInstants(from: input.snapshot),
+                resetObservations: observations,
+                now: input.now,
+                calendar: input.costUsageBucketCalendar)
+            : []
+        let currentWeek = quotaWeeks.first { $0.isCurrent }
+        let rows = quotaWeeks.compactMap { week -> InlineUsageDashboardModel.QuotaWindow? in
+            guard week.isCurrent || week.entryCount > 0 else { return nil }
+            return Self.quotaWindowRow(
+                week: week,
+                cost: week.totalCostUSD.map(convertedString) ?? "—",
+                calendar: input.costUsageBucketCalendar)
+        }
+        return CostHistoryQuotaPresentation(
+            rows: rows,
+            insertsKPIs: currentWeek != nil && historyDays > 7 && snapshot.last30DaysRequests == nil,
+            relabelsHistory: currentWeek != nil && historyDays == 7 && snapshot.last30DaysRequests == nil,
+            boundariesAreEstimated: currentWeek?.boundariesAreEstimated == true,
+            costValue: Self.quotaMetricValue(
+                currentWeek?.totalCostUSD.map(convertedString), complete: currentWeek?.costIsComplete == true),
+            tokenValue: Self.quotaMetricValue(
+                currentWeek?.totalTokens.map(UsageFormatter.tokenCountString),
+                complete: currentWeek?.tokensAreComplete == true))
+    }
+
+    private static func costHistoryDetailLines(
+        input: Input,
+        snapshot: CostUsageTokenSnapshot,
+        requestHistoryTitle: String,
+        displayCurrencyCode: String) -> [String]
+    {
+        let incompleteCount = CostUsageIncompleteRequests.sum(snapshot.daily.map(\.incompleteRequestCount))
+        var details: [String] = []
+        if input.costComparisonPeriodsEnabled {
+            details.append(contentsOf: snapshot.comparisonSummaries(calendar: input.costUsageBucketCalendar).map {
+                Self.costWindowLine(
+                    summary: $0,
+                    currencyCode: displayCurrencyCode,
+                    sourceCurrencyCode: snapshot.currencyCode)
+            })
+        }
+        if let note = UsageFormatter.incompleteUsageNote(incompleteCount) { details.append(note) }
+        if let topModel = Self.topCostModel(from: snapshot.daily) {
+            details.append("\(L("Top model")): \(Self.shortModelName(topModel))")
+        }
+        let tokenCost = ProviderDescriptorRegistry.descriptor(for: input.provider).tokenCost
+        let hintLines = Self.tokenUsageHintLines(provider: input.provider)
+        if tokenCost.hintPlacement == .beforeRequestHistory {
+            details.append(contentsOf: hintLines)
+        }
+        if tokenCost.showsRequestHistory {
+            if let requestCount = snapshot.last30DaysRequests {
+                details
+                    .append("\(requestHistoryTitle): \(UsageFormatter.tokenCountString(requestCount)) \(L("requests"))")
+            }
+            if tokenCost.hintPlacement == .afterRequestHistory {
+                if hintLines.isEmpty == false {
+                    details.append(contentsOf: hintLines)
+                } else {
+                    details.append(L("cost_estimate_hint"))
+                }
+            }
+        }
+        return details
+    }
+
+    private static func costHistoryInlineDashboard(
+        input: Input,
+        snapshot: CostUsageTokenSnapshot) -> InlineUsageDashboardModel
+    {
+        if ProviderDescriptorRegistry.descriptor(for: input.provider).tokenCost.presentation == .tokensOnly {
             return self.tokenHistoryInlineDashboard(
-                provider: provider,
+                provider: input.provider,
                 snapshot: snapshot,
-                comparisonPeriodsEnabled: comparisonPeriodsEnabled,
-                calendar: calendar)
+                comparisonPeriodsEnabled: input.costComparisonPeriodsEnabled,
+                calendar: input.costUsageBucketCalendar)
         }
         let displayCurrencyCode = UsageFormatter.convertedCost(
             0,
-            preferredCurrency: preferredCurrencyCode,
+            preferredCurrency: input.preferredCurrencyCode,
             providerCurrency: snapshot.currencyCode).currencyCode
         func convertedValue(_ value: Double) -> Double {
             UsageFormatter.convertedCost(
                 value,
-                preferredCurrency: preferredCurrencyCode,
+                preferredCurrency: input.preferredCurrencyCode,
                 providerCurrency: snapshot.currencyCode).value
         }
         func convertedString(_ value: Double) -> String {
             UsageFormatter.convertedCostString(
                 value,
-                preferredCurrency: preferredCurrencyCode,
+                preferredCurrency: input.preferredCurrencyCode,
                 providerCurrency: snapshot.currencyCode)
         }
 
@@ -196,7 +295,7 @@ extension UsageMenuCardView.Model {
                 : historyDays == 30
                 ? "30d"
                 : String(format: L("Last %d days"), historyDays))
-        let tokenCost = ProviderDescriptorRegistry.descriptor(for: provider).tokenCost
+        let tokenCost = ProviderDescriptorRegistry.descriptor(for: input.provider).tokenCost
         let historyTitle = tokenCost.historyTitleStyle == .compact ? codexHistoryPeriod : defaultHistoryTitle
         let tokenHistoryTitle = snapshot.historyLabel.map { "\($0) \(L("tokens"))" }
             ?? (historyDays == 1
@@ -222,7 +321,7 @@ extension UsageMenuCardView.Model {
                 snapshot: snapshot,
                 historyDays: historyDays,
                 preservesCalendarDays: tokenCost.preservesCalendarDaysInCharts,
-                calendar: calendar),
+                calendar: input.costUsageBucketCalendar),
             displayCurrencyCode: displayCurrencyCode,
             convertedValue: convertedValue)
         let latest = CostUsageTokenSnapshot.latestEntry(in: snapshot.daily)
@@ -230,68 +329,65 @@ extension UsageMenuCardView.Model {
         let primaryCostUSD = usesLatestPrimary ? latest?.costUSD : snapshot.sessionCostUSD
         let incompleteCount = CostUsageIncompleteRequests.sum(snapshot.daily.map(\.incompleteRequestCount))
         let primaryIncompleteCount = usesLatestPrimary ? latest?.incompleteRequestCount ?? 0
-            : snapshot.summary(forLastDays: 1, calendar: calendar).incompleteRequestCount
+            : snapshot.summary(forLastDays: 1, calendar: input.costUsageBucketCalendar).incompleteRequestCount
         let primarySuffix = UsageFormatter.incompleteUsageSuffix(primaryIncompleteCount)
         let historySuffix = UsageFormatter.incompleteUsageSuffix(incompleteCount)
-        var details: [String] = []
-        if comparisonPeriodsEnabled {
-            details.append(contentsOf: snapshot.comparisonSummaries(calendar: calendar).map {
-                Self.costWindowLine(
-                    summary: $0,
-                    currencyCode: displayCurrencyCode,
-                    sourceCurrencyCode: snapshot.currencyCode)
-            })
-        }
-        if let note = UsageFormatter.incompleteUsageNote(incompleteCount) { details.append(note) }
-        if let topModel = Self.topCostModel(from: snapshot.daily) {
-            details.append("\(L("Top model")): \(Self.shortModelName(topModel))")
-        }
-        let hintLines = Self.tokenUsageHintLines(provider: provider)
-        if tokenCost.hintPlacement == .beforeRequestHistory {
-            details.append(contentsOf: hintLines)
-        }
-        if tokenCost.showsRequestHistory {
-            if let requestCount = snapshot.last30DaysRequests {
-                details
-                    .append("\(requestHistoryTitle): \(UsageFormatter.tokenCountString(requestCount)) \(L("requests"))")
-            }
-            if tokenCost.hintPlacement == .afterRequestHistory {
-                if hintLines.isEmpty == false {
-                    details.append(contentsOf: hintLines)
-                } else {
-                    details.append(L("cost_estimate_hint"))
-                }
-            }
-        }
-        let providerName = ProviderDefaults.metadata[provider]?.displayName ?? provider.rawValue
+        let quota = Self.costHistoryQuotaPresentation(
+            input: input,
+            snapshot: snapshot,
+            historyDays: historyDays,
+            convertedString: convertedString)
+        let weekCostTitle = quota.boundariesAreEstimated ? L("Estimated: %@", L("Current window")) : L("Current window")
+        let rawTokenTitle = L("%@ tokens", L("Current window"))
+        let weekTokenTitle = quota.boundariesAreEstimated ? L("Estimated: %@", rawTokenTitle) : rawTokenTitle
+        let details = Self.costHistoryDetailLines(
+            input: input,
+            snapshot: snapshot,
+            requestHistoryTitle: requestHistoryTitle,
+            displayCurrencyCode: displayCurrencyCode)
+        let providerName = ProviderDefaults.metadata[input.provider]?.displayName ?? input.provider.rawValue
         let accessibilityLabel = L(
             "%@: %@",
             providerName,
             accessibilityCostLabel)
-        var kpis = [
-            InlineUsageDashboardModel.KPI(
-                title: usesLatestPrimary ? L("Latest") : L("Today"),
-                value: (primaryCostUSD.map(convertedString) ?? "—") + primarySuffix,
-                emphasis: true),
-            .init(
-                title: historyTitle,
-                value: (snapshot.last30DaysCostUSD
-                    .map(convertedString) ?? "—") + historySuffix,
-                emphasis: false),
-        ]
+        let todayKPI = InlineUsageDashboardModel.KPI(
+            title: usesLatestPrimary ? L("Latest") : L("Today"),
+            value: (primaryCostUSD.map(convertedString) ?? "—") + primarySuffix,
+            emphasis: true)
+        let historyCostKPI = InlineUsageDashboardModel.KPI(
+            title: quota.relabelsHistory ? weekCostTitle : historyTitle,
+            value: quota.relabelsHistory
+                ? quota.costValue
+                : (snapshot.last30DaysCostUSD.map(convertedString) ?? "—") + historySuffix,
+            emphasis: quota.relabelsHistory)
         let tokenHistoryKPI = InlineUsageDashboardModel.KPI(
-            title: tokenHistoryTitle,
-            value: (snapshot.last30DaysTokens.map(UsageFormatter.tokenCountString) ?? "—") + historySuffix,
+            title: quota.relabelsHistory ? weekTokenTitle : tokenHistoryTitle,
+            value: quota.relabelsHistory
+                ? quota.tokenValue
+                : (snapshot.last30DaysTokens.map(UsageFormatter.tokenCountString) ?? "—") + historySuffix,
             emphasis: false)
         let trailingKPIs = Self.costHistoryTrailingKPIs(snapshot: snapshot, latest: latest)
-        if snapshot.last30DaysRequests == nil {
-            kpis.append(contentsOf: trailingKPIs)
-            kpis.append(tokenHistoryKPI)
+        var kpis: [InlineUsageDashboardModel.KPI]
+        if quota.insertsKPIs, let latestTokensKPI = trailingKPIs.first {
+            kpis = [
+                todayKPI,
+                .init(title: weekCostTitle, value: quota.costValue, emphasis: true),
+                latestTokensKPI,
+                .init(title: weekTokenTitle, value: quota.tokenValue, emphasis: false),
+                historyCostKPI,
+                tokenHistoryKPI,
+            ]
         } else {
-            kpis.append(tokenHistoryKPI)
-            kpis.append(contentsOf: trailingKPIs)
+            kpis = [todayKPI, historyCostKPI]
+            if snapshot.last30DaysRequests == nil {
+                kpis.append(contentsOf: trailingKPIs)
+                kpis.append(tokenHistoryKPI)
+            } else {
+                kpis.append(tokenHistoryKPI)
+                kpis.append(contentsOf: trailingKPIs)
+            }
         }
-        if provider == .cursor, let meteredCostUSD = snapshot.meteredCostUSD {
+        if input.provider == .cursor, let meteredCostUSD = snapshot.meteredCostUSD {
             kpis.insert(
                 .init(
                     title: "Cursor-metered",
@@ -305,8 +401,85 @@ extension UsageMenuCardView.Model {
             kpis: kpis,
             points: points,
             detailLines: details)
+        model.quotaWindows = quota.rows
         model.currencyCode = displayCurrencyCode
         return model
+    }
+
+    private static func redeemedWeeklyResetInstants(from snapshot: UsageSnapshot?) -> [Date] {
+        snapshot?.codexResetCredits?.credits.compactMap { credit in
+            guard credit.status == .redeemed else { return nil }
+            return credit.redeemedAt
+        } ?? []
+    }
+
+    static func quotaMetricValue(_ value: String?, complete: Bool) -> String {
+        guard let value else { return "—" }
+        return complete ? value : "≥ \(value)"
+    }
+
+    static func quotaWindowRow(
+        week: CostUsageQuotaWeek,
+        cost: String,
+        calendar: Calendar) -> InlineUsageDashboardModel.QuotaWindow
+    {
+        let costValue = Self.quotaMetricValue(week.totalCostUSD == nil ? nil : cost, complete: week.costIsComplete)
+        let tokenValue = Self.quotaMetricValue(
+            week.totalTokens.map(UsageFormatter.tokenCountString), complete: week.tokensAreComplete)
+        let value: String = if week.totalTokens != nil {
+            "\(costValue) · \(tokenValue)"
+        } else {
+            costValue
+        }
+        let range = Self.quotaWindowRangeLabel(start: week.start, end: week.end, calendar: calendar)
+        return InlineUsageDashboardModel.QuotaWindow(
+            id: "\(week.offset)-\(Int(week.start.timeIntervalSince1970))",
+            title: Self.quotaWeekHistoryLabel(week: week),
+            range: week.boundariesAreEstimated ? L("Estimated: %@", range) : range,
+            value: value,
+            note: (!week.costIsComplete && week.totalCostUSD != nil)
+                || (!week.tokensAreComplete && week.totalTokens != nil) ? L("Partial estimate") : nil)
+    }
+
+    static func quotaWindowRangeLabel(
+        start: Date,
+        end: Date,
+        calendar: Calendar,
+        locale: Locale = codexBarLocalizedResourceLocale()) -> String
+    {
+        let startDay = calendar.dateComponents([.year, .month, .day], from: start)
+        let endDay = calendar.dateComponents([.year, .month, .day], from: end)
+        let sameDay = startDay.year == endDay.year
+            && startDay.month == endDay.month
+            && startDay.day == endDay.day
+        let sameYear = startDay.year == endDay.year
+        func formatter(template: String) -> DateFormatter {
+            let formatter = DateFormatter()
+            formatter.locale = locale
+            formatter.calendar = calendar
+            formatter.timeZone = calendar.timeZone
+            formatter.setLocalizedDateFormatFromTemplate(template)
+            return formatter
+        }
+        if sameDay {
+            let startText = formatter(template: "MMMdjmm").string(from: start)
+            let endText = formatter(template: "jmm").string(from: end)
+            return "\(startText) – \(endText)"
+        }
+        let template = sameYear ? "MMMdjmm" : "yMMMdjmm"
+        let rangeFormatter = formatter(template: template)
+        return "\(rangeFormatter.string(from: start)) – \(rangeFormatter.string(from: end))"
+    }
+
+    private static func quotaWeekHistoryLabel(week: CostUsageQuotaWeek) -> String {
+        switch week.offset {
+        case 0:
+            L("Current window")
+        case 1:
+            L("Previous window")
+        default:
+            L("%d windows ago", week.offset)
+        }
     }
 
     private static func tokenHistoryInlineDashboard(
@@ -497,7 +670,11 @@ extension UsageMenuCardView.Model {
     }
 
     private static func topCostModel(from entries: [CostUsageDailyReport.Entry]) -> String? {
-        guard entries.allSatisfy({ $0.incompleteRequestCount == 0 }) else { return nil }
+        guard entries.allSatisfy({
+            $0.incompleteRequestCount == 0
+                && $0.coverageCounts.unpriced == 0
+                && $0.coverageCounts.unmetered == 0
+        }) else { return nil }
         var scores: [String: (cost: Double, tokens: Int)] = [:]
         for entry in entries {
             for model in entry.modelBreakdowns ?? [] {
@@ -535,6 +712,9 @@ struct InlineUsageDashboardContent: View {
                     .accessibilityElement(children: .contain)
                     .accessibilityLabel(self.model.accessibilityLabel)
             }
+            if !self.model.quotaWindows.isEmpty {
+                self.quotaWindows
+            }
             self.detailLines
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -551,6 +731,44 @@ struct InlineUsageDashboardContent: View {
         {
             ForEach(Array(self.model.kpis.enumerated()), id: \.offset) { _, kpi in
                 KPIBlock(title: kpi.title, value: kpi.value, emphasis: kpi.emphasis)
+            }
+        }
+    }
+
+    private var quotaWindows: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(L("Recent windows"))
+                .font(.caption2)
+                .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
+            ForEach(self.model.quotaWindows) { window in
+                VStack(alignment: .leading, spacing: 1) {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text(window.title)
+                            .font(.caption)
+                            .foregroundStyle(MenuHighlightStyle.primary(self.isHighlighted))
+                            .lineLimit(1)
+                        Spacer(minLength: 8)
+                        Text(window.value)
+                            .font(.caption)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(MenuHighlightStyle.primary(self.isHighlighted))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
+                            .monospacedDigit()
+                    }
+                    if let note = window.note {
+                        Text(note)
+                            .font(.caption2)
+                            .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Text(window.range)
+                        .font(.caption2)
+                        .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                }
+                .accessibilityElement(children: .combine)
             }
         }
     }

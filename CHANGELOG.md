@@ -4,6 +4,7 @@
 
 ### Added
 
+- Codex and Claude: align local cost and token history to current and recent quota windows, preserving partial subtotals, exact reset boundaries, and history across restarts (#3358). Thanks @stabey and @ramapitecusment!
 - Muse Code: show local session token history and comparisons in the menu and CLI without inventing dollar costs, while retaining the bundled JavaScript subscription provider (#3340, #3587). Thanks @sanjay3290 and @Srimi1!
 - CLI: compare native Codex costs with one SSH host using bounded, versioned summaries that preserve separate host totals, coverage, and day boundaries (#3538). Thanks @ECuteri!
 - Widgets: pin saved accounts in a dedicated Account Usage widget, with opt-in refresh for up to six accounts per provider, privacy-aware labels, and verified ownership that survives credential rotation (#3585). Thanks @rokas-tarasevicius!

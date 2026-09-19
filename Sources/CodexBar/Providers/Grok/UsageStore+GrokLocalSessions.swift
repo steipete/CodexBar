@@ -41,6 +41,7 @@ extension UsageStore {
             projects: published.projects,
             sessions: published.sessions,
             hourly: published.hourly,
+            quotaSlices: published.quotaSlices,
             updatedAt: published.updatedAt)
     }
 

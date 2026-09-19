@@ -148,10 +148,40 @@ struct CostUsageScannerClaudeMemoTests {
 
         #expect(restarted.data == initial.data)
         #expect(restarted.summary == initial.summary)
+        #expect(!initial.quotaSlices.isEmpty)
+        #expect(restarted.hourly == initial.hourly)
+        #expect(restarted.quotaSlices == initial.quotaSlices)
         #expect(metrics == CostUsageScanner.ClaudeScanWorkMetrics())
     }
 
-    @Test(arguments: [nil, 0, CostUsageClaudeReportMemo.reportSemanticsVersion + 1] as [Int?])
+    @Test
+    func `cold memo preserves priced and unpriced requests at one timestamp`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let day = try env.makeLocalNoon(year: 2026, month: 7, day: 1)
+        _ = try self.writeEvent(env: env, day: day, path: "project/priced.jsonl", id: "priced", input: 100)
+        _ = try self.writeEvent(
+            env: env,
+            day: day,
+            path: "project/unpriced.jsonl",
+            id: "unpriced",
+            input: 200,
+            model: "fixture-model-without-price")
+        let options = self.options(env: env)
+        let initial = self.load(day: day, options: options)
+        let slice = try #require(initial.quotaSlices.first)
+        #expect(slice.totalTokens == 300)
+        #expect(slice.tokensAreComplete)
+        #expect(slice.costUSD != nil)
+        #expect(!slice.costIsComplete)
+        CostUsageScanner.evictClaudeReportMemoForTesting(provider: .claude, cacheRoot: env.cacheRoot)
+        let (restarted, metrics) = self.recordedLoad(day: day, options: options)
+        #expect(restarted.quotaSlices == initial.quotaSlices)
+        #expect(restarted.hourly == initial.hourly)
+        #expect(metrics == CostUsageScanner.ClaudeScanWorkMetrics())
+    }
+
+    @Test(arguments: [nil, 0, 4, CostUsageClaudeReportMemo.reportSemanticsVersion + 1] as [Int?])
     func `cold process rejects reports from incompatible semantics`(revision: Int?) throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }
@@ -174,6 +204,9 @@ struct CostUsageScannerClaudeMemoTests {
 
         #expect(restarted.data == initial.data)
         #expect(restarted.summary == initial.summary)
+        #expect(!initial.quotaSlices.isEmpty)
+        #expect(restarted.hourly == initial.hourly)
+        #expect(restarted.quotaSlices == initial.quotaSlices)
         #expect(metrics.cacheDecodes == 1)
         #expect(metrics.transcriptParses == 0)
         #expect(CostUsageClaudeFileStamp.read(at: sourceURL) == sourceStamp)
@@ -201,6 +234,9 @@ struct CostUsageScannerClaudeMemoTests {
 
         #expect(restarted.data == initial.data)
         #expect(restarted.summary == initial.summary)
+        #expect(!initial.quotaSlices.isEmpty)
+        #expect(restarted.hourly == initial.hourly)
+        #expect(restarted.quotaSlices == initial.quotaSlices)
         #expect(metrics.cacheDecodes == 1)
         #expect(metrics.transcriptParses == 0)
     }

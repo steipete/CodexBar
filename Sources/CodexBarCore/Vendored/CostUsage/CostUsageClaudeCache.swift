@@ -67,7 +67,7 @@ final class CostUsageClaudeReportMemo: @unchecked Sendable {
     static let shared = CostUsageClaudeReportMemo()
     static let persistedVersion = 1
     /// Bump when bundled pricing, model aliases, or daily-report aggregation changes without new artifact stamps.
-    static let reportSemanticsVersion = 4
+    static let reportSemanticsVersion = 5
 
     private struct StoredEntry {
         let entry: Entry
@@ -80,6 +80,8 @@ final class CostUsageClaudeReportMemo: @unchecked Sendable {
         var sourceInventory: [String: CostUsageClaudeFileStamp]
         var reportKey: CostUsageClaudeReportMemoKey
         var report: CostUsageDailyReport
+        var hourly: [CostUsageCodexPreviousReport.HourlyEntry]?
+        var quotaSlices: [CostUsageCodexPreviousReport.QuotaSlice]?
     }
 
     private let lock = NSLock()
@@ -168,7 +170,11 @@ final class CostUsageClaudeReportMemo: @unchecked Sendable {
         return Entry(
             sourceInventory: envelope.sourceInventory,
             reportKey: envelope.reportKey,
-            report: envelope.report)
+            report: CostUsageDailyReport(
+                data: envelope.report.data,
+                summary: envelope.report.summary,
+                hourly: (envelope.hourly ?? []).map(\.hourlyValue),
+                quotaSlices: (envelope.quotaSlices ?? []).map(\.timedValue)))
     }
 
     private static func hasValidIncompleteCounts(_ report: CostUsageDailyReport) -> Bool {
@@ -183,7 +189,9 @@ final class CostUsageClaudeReportMemo: @unchecked Sendable {
             reportSemanticsVersion: Self.reportSemanticsVersion,
             sourceInventory: entry.sourceInventory,
             reportKey: entry.reportKey,
-            report: entry.report)
+            report: entry.report,
+            hourly: entry.report.hourly.map(CostUsageCodexPreviousReport.HourlyEntry.init),
+            quotaSlices: entry.report.quotaSlices.map(CostUsageCodexPreviousReport.QuotaSlice.init))
         guard let data = try? JSONEncoder().encode(envelope) else { return }
         let directory = url.deletingLastPathComponent()
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
