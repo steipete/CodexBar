@@ -396,8 +396,32 @@ enum ShareStatsPayloadFactory {
 }
 
 enum ShareStatsFormatting {
+    /// Plural-safe subscription count for the share card. The single-subscription card is the
+    /// most common one there is, and it used to read "1 subscriptions".
     static func subscriptionSummary(count: Int) -> String {
         count == 1 ? "1 subscription" : "\(count) subscriptions"
+    }
+
+    /// Formats the spend coverage footnote on the share card hero.
+    /// Retains explicit totals for secondary currencies so multi-currency users never lose
+    /// spend visibility even when subscription rows overflow their display limit.
+    static func spendCoverage(
+        currencies: [ShareStatsCurrencyPayload],
+        coverageDenominator: String,
+        spendFormatter: (ShareStatsCurrencyPayload) -> String) -> String
+    {
+        guard let primary = currencies.first else { return "No spend recorded" }
+        let primaryCoverage = "\(primary.currencyCode) \u{00B7} \(primary.coveredDayCount)/\(coverageDenominator)"
+        guard currencies.count > 1 else { return primaryCoverage }
+
+        let secondary = currencies[1]
+        let secondarySpend = spendFormatter(secondary)
+        let secondarySummary = "\(secondary.currencyCode) \(secondarySpend)"
+        let hiddenCount = currencies.count - 2
+        guard hiddenCount > 0 else {
+            return "\(primaryCoverage) \u{00B7} \(secondarySummary)"
+        }
+        return "\(primaryCoverage) \u{00B7} \(secondarySummary) \u{00B7} +\(hiddenCount) more in rows below"
     }
 
     static func compactCount(_ value: Int) -> String {

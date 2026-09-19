@@ -11,6 +11,54 @@ struct ShareStatsTests {
     }
 
     @Test
+    func `spend coverage preserves secondary currency when subscriptions overflow`() {
+        let usd = ShareStatsCurrencyPayload(
+            currencyCode: "USD",
+            estimatedCost: 120.0,
+            coveredDayCount: 30,
+            isPartial: false)
+        let eur = ShareStatsCurrencyPayload(
+            currencyCode: "EUR",
+            estimatedCost: 45.0,
+            coveredDayCount: 30,
+            isPartial: false)
+        let gbp = ShareStatsCurrencyPayload(
+            currencyCode: "GBP",
+            estimatedCost: 15.0,
+            coveredDayCount: 30,
+            isPartial: false)
+
+        let formatter: (ShareStatsCurrencyPayload) -> String = { curr in
+            switch curr.currencyCode {
+            case "EUR": "€45.00"
+            case "GBP": "£15.00"
+            default: "$120.00"
+            }
+        }
+
+        // Single currency
+        let single = ShareStatsFormatting.spendCoverage(
+            currencies: [usd],
+            coverageDenominator: "30d",
+            spendFormatter: formatter)
+        #expect(single == "USD \u{00B7} 30/30d")
+
+        // Two currencies - secondary total is explicitly preserved
+        let dual = ShareStatsFormatting.spendCoverage(
+            currencies: [usd, eur],
+            coverageDenominator: "30d",
+            spendFormatter: formatter)
+        #expect(dual == "USD \u{00B7} 30/30d \u{00B7} EUR €45.00")
+
+        // Three currencies - secondary total preserved plus overflow counter
+        let triple = ShareStatsFormatting.spendCoverage(
+            currencies: [usd, eur, gbp],
+            coverageDenominator: "30d",
+            spendFormatter: formatter)
+        #expect(triple == "USD \u{00B7} 30/30d \u{00B7} EUR €45.00 \u{00B7} +1 more in rows below")
+    }
+
+    @Test
     func `descriptor share plan labels preserve the legacy central table`() throws {
         var fingerprint: UInt64 = 1_469_598_103_934_665_603
         for descriptor in ProviderDescriptorRegistry.all where !descriptor.metadata.sharePlanLabels.isEmpty {

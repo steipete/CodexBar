@@ -52,67 +52,71 @@ struct ShareStatsCardView: View {
                     .font(.system(size: 26, weight: .semibold, design: .rounded))
             }
             Spacer()
-            Text("LOCAL SNAPSHOT")
-                .font(.system(size: 14, weight: .semibold, design: .rounded))
-                .tracking(1.8)
-                .foregroundStyle(self.secondary)
-                .padding(.horizontal, 15)
-                .padding(.vertical, 9)
-                .overlay {
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(self.secondary.opacity(0.45), lineWidth: 1)
-                }
         }
     }
 
+    /// Spend leads. It is the number the card exists to communicate and the reason someone
+    /// shares a snapshot at all; tokens are supporting context. Both columns anchor from the
+    /// top with the same label / value / detail hierarchy.
     private var hero: some View {
-        HStack(alignment: .bottom, spacing: 52) {
+        HStack(alignment: .top, spacing: 52) {
             VStack(alignment: .leading, spacing: 2) {
-                Text("TRACKED TOKENS · \(self.periodLabel)")
+                Text("EST. \(self.spendLabel)")
+                    .font(.system(size: 20, weight: .semibold, design: .rounded))
+                    .tracking(1.8)
+                    .foregroundStyle(self.secondary)
+                Text(self.primarySpendText)
+                    .font(.system(size: 76, weight: .semibold, design: .rounded))
+                    .monospacedDigit()
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+                Text(self.spendCoverageText)
+                    .font(.system(size: 16, weight: .medium, design: .rounded))
+                    .foregroundStyle(self.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("TRACKED TOKENS")
                     .font(.system(size: 20, weight: .semibold, design: .rounded))
                     .tracking(1.8)
                     .foregroundStyle(self.secondary)
                 Text(self.trackedTokensText)
-                    .font(.system(size: 104, weight: .semibold, design: .rounded))
+                    .font(.system(size: 42, weight: .semibold, design: .rounded))
                     .monospacedDigit()
                     .lineLimit(1)
                     .minimumScaleFactor(0.72)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-
-            VStack(alignment: .leading, spacing: 9) {
-                Text("EST. \(self.spendLabel)")
-                    .font(.system(size: 18, weight: .semibold, design: .rounded))
-                    .tracking(1.2)
-                    .foregroundStyle(self.secondary)
-                ForEach(self.payload.currencies.prefix(2)) { currency in
-                    HStack(alignment: .firstTextBaseline) {
-                        Text("\(currency.currencyCode) · \(currency.coveredDayCount)/\(self.coverageDenominator)")
-                            .font(.system(size: 17, weight: .semibold, design: .rounded))
-                            .foregroundStyle(self.secondary)
-                        Spacer()
-                        Text(self.spendText(for: currency))
-                            .font(.system(size: 32, weight: .semibold, design: .rounded))
-                            .monospacedDigit()
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.72)
-                    }
-                }
-                Text(self.currencySummary)
+                Text(self.subscriptionSummary)
                     .font(.system(size: 16, weight: .medium, design: .rounded))
                     .foregroundStyle(self.secondary)
             }
             .frame(width: 390, alignment: .leading)
         }
-        .frame(height: 132, alignment: .bottom)
+        .frame(height: 140, alignment: .top)
     }
 
-    private var currencySummary: String {
-        let hiddenCount = self.payload.currencies.count - min(self.payload.currencies.count, 2)
-        return hiddenCount > 0
-            ? "+\(hiddenCount) more currencies · see subscription rows"
-            : ShareStatsFormatting.subscriptionSummary(count: self.payload.providers.count)
-            + " · native currencies kept separate"
+    private var primaryCurrency: ShareStatsCurrencyPayload? {
+        self.payload.currencies.first
+    }
+
+    private var primarySpendText: String {
+        guard let currency = self.primaryCurrency else { return "\u{2014}" }
+        return self.spendText(for: currency)
+    }
+
+    /// Coverage for the headline currency, plus explicit totals for secondary currencies so
+    /// multi-currency users never lose spend visibility when subscription rows overflow.
+    private var spendCoverageText: String {
+        ShareStatsFormatting.spendCoverage(
+            currencies: self.payload.currencies,
+            coverageDenominator: self.coverageDenominator,
+            spendFormatter: { self.spendText(for: $0) })
+    }
+
+    private var subscriptionSummary: String {
+        ShareStatsFormatting.subscriptionSummary(count: self.payload.providers.count)
     }
 
     private var rankings: some View {
@@ -142,9 +146,16 @@ struct ShareStatsCardView: View {
                 VStack(alignment: .leading, spacing: 6) {
                     self.sectionHeader("TOP MODELS", detail: "BY USAGE")
                     if self.payload.topModels.isEmpty {
-                        Text("No model-level history in this local snapshot")
+                        Text("No model breakdown recorded")
                             .font(.system(size: 18, weight: .medium, design: .rounded))
                             .foregroundStyle(self.secondary)
+                            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                            .padding(.horizontal, 9)
+                            .background(Color.white.opacity(0.02), in: RoundedRectangle(cornerRadius: 9))
+                            .overlay {
+                                RoundedRectangle(cornerRadius: 9)
+                                    .stroke(Color.white.opacity(0.07), lineWidth: 1)
+                            }
                             .padding(.top, 4)
                     } else {
                         ForEach(
@@ -158,10 +169,6 @@ struct ShareStatsCardView: View {
                         }
                     }
                 }
-                Text("Only aggregate usage, plan tier, and estimated spend are included.")
-                    .font(.system(size: 16, weight: .medium, design: .rounded))
-                    .foregroundStyle(self.secondary)
-                    .padding(.top, 18)
             }
             .frame(maxWidth: .infinity, alignment: .topLeading)
         }
@@ -173,10 +180,6 @@ struct ShareStatsCardView: View {
 
     private var isAllTime: Bool {
         self.payload.days >= SpendDashboardSource.scanDays
-    }
-
-    private var periodLabel: String {
-        self.isAllTime ? "ALL" : "\(self.payload.days) DAYS"
     }
 
     private var spendLabel: String {
