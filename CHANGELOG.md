@@ -5,6 +5,7 @@
 ### Added
 
 - Muse Code: show local session token history and comparisons in the menu and CLI without inventing dollar costs, while retaining the bundled JavaScript subscription provider (#3340, #3587). Thanks @sanjay3290 and @Srimi1!
+- CLI: compare native Codex costs with one SSH host using bounded, versioned summaries that preserve separate host totals, coverage, and day boundaries (#3538). Thanks @ECuteri!
 - Widgets: pin saved accounts in a dedicated Account Usage widget, with opt-in refresh for up to six accounts per provider, privacy-aware labels, and verified ownership that survives credential rotation (#3585). Thanks @rokas-tarasevicius!
 - Widgets: make the binding quota easier to read, retain full provider names and secondary allowances, and share responsive tiles across Usage and Switcher widgets (#3137). Thanks @iamenahs!
 - Hooks: run opt-in `usage_updated` commands after successful current app refreshes and CLI watcher polls, with shared quota metadata, private account throttling, and explicit first-attempt behavior (#3512). Thanks @guillem-gelabert!

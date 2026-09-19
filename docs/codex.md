@@ -206,6 +206,11 @@ and stable account numbers distinguish rows while usable workspace labels remain
 - CLI PTY diagnostics can still parse `Credits:` from saved/manual `/status` output.
 
 ## Cost usage (local log scan)
+
+For a manual comparison with another development machine, run `codexbar cost --provider codex --remote <ssh-host>`.
+Both hosts scan their own native Codex logs once and return separate summaries, retaining their own day boundaries,
+pricing provenance, missing values, and incomplete-request counts. Only bounded totals cross SSH. A remote error keeps
+the local result and returns a nonzero exit code. See [CLI host reporting](cli.md) for the versioned summary contract.
 - Menu source selection:
   - By default, a selected managed account keeps its own `CODEX_HOME` session history.
   - **Local session cost estimates** is a Codex-only opt-in that instead scans this Mac's ambient `$CODEX_HOME`
