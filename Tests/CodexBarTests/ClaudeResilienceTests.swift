@@ -3,6 +3,10 @@ import Testing
 @testable import CodexBar
 @testable import CodexBarCore
 
+// One suite covers Claude's refresh-resilience matrix; the cases share a fixture vocabulary.
+// swiftlint:disable file_length
+
+// swiftlint:disable:next type_body_length
 struct ClaudeResilienceTests {
     @Test
     func `cancelled Claude refresh never publishes an error`() async throws {

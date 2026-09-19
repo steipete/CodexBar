@@ -1,4 +1,5 @@
 import Foundation
+import SweetCookieKit
 import Testing
 @testable import CodexBarCore
 
@@ -408,6 +409,7 @@ struct ClaudeWebBackgroundRecoveryTests {
     }
 
     @Test
+    // swiftlint:disable:next line_length
     func `user initiated refresh does not mask a skipped candidate when another browser was genuinely read`() async throws {
         try await self.withIsolatedCookieCache {
             CookieHeaderCache.store(
@@ -513,35 +515,41 @@ struct ClaudeWebBackgroundRecoveryTests {
                 key: "sk-ant-recovered-but-revoked",
                 sourceLabel: "Safari",
                 cookieCount: 1)
+            let browserOverride: @Sendable (Browser) throws -> ClaudeWebAPIFetcher.SessionKeyInfo? = { browser in
+                guard browser == .safari else { return nil }
+                return recovered
+            }
 
             do {
                 try await KeychainAccessGate.withTaskOverrideForTesting(false) {
                     try await KeychainAccessPreflight.withCheckGenericPasswordOverrideForTesting { _, _ in
                         .temporarilyUnavailable
                     } operation: {
-                        try await ClaudeWebSessionKeyImport.$browserOverrideForTesting.withValue({ browser in
-                            guard browser == .safari else { return nil }
-                            return recovered
-                        }) {
-                            try await ProviderInteractionContext.$current.withValue(.background) {
-                                try await self.withClaudeWebStub { request in
-                                    // The stale cached cookie must itself be rejected first (mirroring every
-                                    // other test in this file) so the code proceeds into invalidation +
-                                    // recovery at all; the recovered cookie is then rejected too, simulating
-                                    // the confirmed post-recovery auth failure this test guards.
-                                    let cookie = request.value(forHTTPHeaderField: "Cookie")
-                                    let isStale = cookie == "sessionKey=sk-ant-stale-token"
-                                    let isRecoveredCookie = cookie == "sessionKey=sk-ant-recovered-but-revoked"
-                                    if request.url?.path == "/api/organizations", isStale || isRecoveredCookie {
-                                        let url = try #require(request.url)
-                                        return Self.jsonResponse(url: url, body: "{}", statusCode: 401, setCookie: nil)
+                        try await ClaudeWebSessionKeyImport.$browserOverrideForTesting
+                            .withValue(browserOverride) {
+                                try await ProviderInteractionContext.$current.withValue(.background) {
+                                    try await self.withClaudeWebStub { request in
+                                        // The stale cached cookie must itself be rejected first (mirroring every
+                                        // other test in this file) so the code proceeds into invalidation +
+                                        // recovery at all; the recovered cookie is then rejected too, simulating
+                                        // the confirmed post-recovery auth failure this test guards.
+                                        let cookie = request.value(forHTTPHeaderField: "Cookie")
+                                        let isStale = cookie == "sessionKey=sk-ant-stale-token"
+                                        let isRecoveredCookie = cookie == "sessionKey=sk-ant-recovered-but-revoked"
+                                        if request.url?.path == "/api/organizations", isStale || isRecoveredCookie {
+                                            let url = try #require(request.url)
+                                            return Self.jsonResponse(
+                                                url: url,
+                                                body: "{}",
+                                                statusCode: 401,
+                                                setCookie: nil)
+                                        }
+                                        return try Self.response(for: request, setCookie: nil)
+                                    } operation: {
+                                        _ = try await ClaudeWebAPIFetcher.fetchUsage(browserDetection: detection)
                                     }
-                                    return try Self.response(for: request, setCookie: nil)
-                                } operation: {
-                                    _ = try await ClaudeWebAPIFetcher.fetchUsage(browserDetection: detection)
                                 }
                             }
-                        }
                     }
                 }
                 Issue.record("Expected the confirmed .unauthorized error to propagate")
