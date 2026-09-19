@@ -1,46 +1,51 @@
 import CodexBarCore
 import Foundation
 
-/// Which quota window the menu bar percent reads from, expressed as a single choice.
-///
-/// The menu bar renders from a `MenuBarLayout`, whose `%` tokens each carry their own
-/// `PercentWindow`. That is expressive but only reachable through the layout editor, so an account
-/// whose stored preference resolves to the weekly lane can end up showing a nearly-full weekly
-/// percent with no obvious way to switch to the session lane. This maps the common case — every
-/// percent in the layout reading the same window — onto one picker.
-///
-/// Only top-level percent tokens are considered. A conditional token carries its own then/else
-/// tokens, which stay under the layout editor's control. The picker hides when no top-level percent
-/// exists; mixed layouts expose only their top-level percent choice.
+/// Maps the layout's common top-level percentage tokens onto one picker. Conditional branches
+/// and direct primary/secondary lane tokens remain under the layout editor's control.
 enum MenuBarPercentWindowPreference: String, CaseIterable, Identifiable, Sendable {
     case automatic
     case session
     case weekly
+    case tertiary
 
     var id: String {
         self.rawValue
     }
 
-    var percentWindow: PercentWindow {
+    private var percentWindow: PercentWindow? {
         switch self {
         case .automatic: .automatic
         case .session: .session
         case .weekly: .weekly
+        case .tertiary: nil
         }
     }
 
-    var label: String {
+    private var layoutToken: MenuBarLayoutToken {
         switch self {
-        case .automatic: L("menu_bar_layout_token_auto")
-        case .session: L("menu_bar_layout_token_session")
-        case .weekly: L("menu_bar_layout_token_weekly")
+        case .automatic: .percent(window: .automatic)
+        case .session: .percent(window: .session)
+        case .weekly: .percent(window: .weekly)
+        case .tertiary: .lanePercent(lane: .tertiary)
         }
     }
 
-    /// Windows this provider can actually render as a menu-bar percent, in picker order.
-    ///
-    /// Extra-rate and plan metrics (monthly plan, extra usage, tertiary, average) still resolve
-    /// through Automatic — they do not invent a session/weekly lane the snapshot cannot feed.
+    func label(for provider: UsageProvider) -> String {
+        guard self != .automatic else { return L("menu_bar_layout_token_auto") }
+        if self == .tertiary {
+            return MenuBarLayoutLaneLabels(provider: provider, snapshot: nil).label(for: .tertiary)
+        }
+        let descriptor = ProviderDescriptorRegistry.descriptor(for: provider)
+        let primary = Self.percentWindow(descriptor.presentation.primarySemanticWindow)
+        let presentation = descriptor.presentation
+        return L(self.percentWindow == primary
+            ? presentation.menuBarLayoutPrimaryLabel ?? descriptor.metadata.sessionLabel
+            : presentation.menuBarLayoutSecondaryLabel ?? descriptor.metadata.weeklyLabel)
+    }
+
+    /// Semantic windows keep their existing mapping; an independently selectable tertiary pool
+    /// uses the already-supported direct lane token and its provider-owned label.
     static func available(
         metrics: ProviderMenuBarMetricCapabilities,
         primarySemanticWindow: ProviderSemanticWindow = .session,
@@ -53,19 +58,29 @@ enum MenuBarPercentWindowPreference: String, CaseIterable, Identifiable, Sendabl
                 primarySemanticWindow: primarySemanticWindow,
                 secondarySemanticWindow: secondarySemanticWindow))
         }
-        return Self.allCases.filter { windows.contains($0.percentWindow) }
+        var options = Self.allCases.filter { preference in
+            guard let window = preference.percentWindow else { return false }
+            return windows.contains(window)
+        }
+        if metrics.supported.contains(.tertiary), !metrics.tertiaryRequiresWindow {
+            options.append(.tertiary)
+        }
+        return options
     }
 
-    static func available(for provider: UsageProvider) -> [Self] {
+    static func available(for provider: UsageProvider, layout: MenuBarLayout? = nil) -> [Self] {
         let descriptor = ProviderDescriptorRegistry.descriptor(for: provider)
-        return Self.available(
+        let options = Self.available(
             metrics: descriptor.menuBarMetrics,
             primarySemanticWindow: descriptor.presentation.primarySemanticWindow,
             secondarySemanticWindow: descriptor.presentation.secondarySemanticWindow)
+        if let layout, !self.percentWindows(in: layout).isEmpty, self.hasTertiaryPercent(in: layout) {
+            return options.filter { $0 != .tertiary }
+        }
+        return options
     }
 
-    /// The simplified picker is a percent-layout control. Critters and Bars keep their global style,
-    /// and a single remaining option (or no session/weekly lane at all) is not worth a dead control.
+    /// The simplified picker controls percent layouts without changing the global icon style.
     static func isVisible(
         iconStyle: MenuBarIconStyle,
         layout: MenuBarLayout,
@@ -84,45 +99,38 @@ enum MenuBarPercentWindowPreference: String, CaseIterable, Identifiable, Sendabl
         self.isVisible(
             iconStyle: iconStyle,
             layout: layout,
-            available: self.available(for: provider))
+            available: self.available(for: provider, layout: layout))
     }
 
-    /// Writes the per-provider layout override without flipping `menuBarIconStyle`.
-    @MainActor
-    static func persist(
-        _ preference: Self,
-        appliedTo layout: MenuBarLayout,
-        for provider: UsageProvider,
-        settings: SettingsStore)
-    {
-        settings.setMenuBarLayout(preference.applied(to: layout), for: provider)
-    }
-
-    /// The preference a layout expresses, or nil when its percent tokens mix windows — a
-    /// combination only the layout editor can describe, which the picker must not silently flatten.
+    /// Ordinary percentages own the choice when a custom layout also has an independent tertiary
+    /// token. Only layouts without ordinary percentages treat tertiary tokens as the controlled group.
     static func current(in layout: MenuBarLayout) -> Self? {
         let windows = Self.percentWindows(in: layout)
-        guard let first = windows.first, windows.allSatisfy({ $0 == first }) else { return nil }
+        guard let first = windows.first else { return self.hasTertiaryPercent(in: layout) ? .tertiary : nil }
+        guard windows.allSatisfy({ $0 == first }) else { return nil }
         return Self.allCases.first { $0.percentWindow == first }
     }
 
-    /// True when the layout shows a percent at all. A layout built from icon-only or reset-time
-    /// tokens has nothing for this preference to act on.
     static func hasPercentToken(in layout: MenuBarLayout) -> Bool {
-        !self.percentWindows(in: layout).isEmpty
+        !self.percentWindows(in: layout).isEmpty || self.hasTertiaryPercent(in: layout)
     }
 
-    /// Layout with every percent token pointed at this preference's window; all other tokens,
-    /// including line breaks and separators, are left exactly as the user arranged them.
+    /// Changes only the common percentage group, preserving pace, resets and custom tokens.
     func applied(to layout: MenuBarLayout) -> MenuBarLayout {
-        MenuBarLayout(lines: layout.lines.map { line in
+        let hasOrdinaryPercent = !Self.percentWindows(in: layout).isEmpty
+        // Collapsing an ordinary percent and an independent tertiary token would lose their identities.
+        if self == .tertiary, hasOrdinaryPercent, Self.hasTertiaryPercent(in: layout) { return layout }
+        return MenuBarLayout(lines: layout.lines.map { line in
             line.map { token in
-                if case .percent = token {
-                    return .percent(window: self.percentWindow)
-                }
+                if case .percent = token { return self.layoutToken }
+                if !hasOrdinaryPercent, token == .lanePercent(lane: .tertiary) { return self.layoutToken }
                 return token
             }
         })
+    }
+
+    private static func hasTertiaryPercent(in layout: MenuBarLayout) -> Bool {
+        layout.lines.joined().contains(.lanePercent(lane: .tertiary))
     }
 
     private static func percentWindows(in layout: MenuBarLayout) -> [PercentWindow] {
@@ -132,8 +140,7 @@ enum MenuBarPercentWindowPreference: String, CaseIterable, Identifiable, Sendabl
         }
     }
 
-    /// Same mapping the layout migration uses: primary/secondary become the provider's semantic
-    /// session or weekly lane; every other metric, including monthly plan, stays on Automatic.
+    /// Same semantic mapping as layout migration: other metrics retain Automatic as an option.
     private static func percentWindow(
         for metric: ProviderMenuBarMetric,
         primarySemanticWindow: ProviderSemanticWindow,

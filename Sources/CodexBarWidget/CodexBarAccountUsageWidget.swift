@@ -24,6 +24,7 @@ struct AccountUsageSelectionIntent: AppIntent, WidgetConfigurationIntent {
     static let title: LocalizedStringResource = "Account Usage"
     static let description = IntentDescription("Select the provider and account to display in the widget.")
 
+    /// Provider-specific by design: keep the same initial provider as the established Usage widget intent.
     @Parameter(title: "Provider", default: .codex)
     var provider: ProviderChoice
 
@@ -47,9 +48,7 @@ struct CodexBarAccountWidgetEntry: TimelineEntry {
         let provider = self.usageEntry.provider.instanceID
         guard let accountID, self.usageEntry.snapshot.enabledProviders.contains(provider) else { return nil }
         // Saved intent labels may predate privacy changes; only the current snapshot may supply identity.
-        return self.usageEntry.snapshot.accounts.first {
-            $0.id == accountID && $0.provider == provider
-        }?.label
+        return self.usageEntry.snapshot.account(id: accountID, provider: provider)?.label
     }
 }
 
@@ -57,6 +56,7 @@ struct CodexBarAccountTimelineProvider: AppIntentTimelineProvider {
     func placeholder(in context: Context) -> CodexBarAccountWidgetEntry {
         let now = Date()
         let usage = WidgetSnapshot.ProviderEntry(
+            // Provider-specific by design: gallery previews use the established synthetic Codex quota fixture.
             provider: .codex,
             updatedAt: now,
             primary: RateWindow(usedPercent: 35, windowMinutes: 300, resetsAt: nil, resetDescription: "Resets in 4h"),
@@ -69,11 +69,11 @@ struct CodexBarAccountTimelineProvider: AppIntentTimelineProvider {
             creditsRemaining: nil,
             codeReviewRemainingPercent: nil,
             tokenUsage: nil,
-            dailyUsage: [],
-            accountLabel: "Personal")
+            dailyUsage: [])
         return Self.makeEntry(
             snapshot: WidgetSnapshot(
                 entries: [],
+                // Provider-specific by design: this preview account and its provider belong to the same fixture.
                 accounts: [.init(id: "preview", provider: .codex, label: "Personal", usage: usage)],
                 enabledProviders: [.codex],
                 generatedAt: now),
@@ -136,6 +136,7 @@ struct CodexBarAccountTimelineProvider: AppIntentTimelineProvider {
 }
 
 struct CodexBarAccountUsageWidgetView: View {
+    @Environment(\.widgetFamily) private var family
     let entry: CodexBarAccountWidgetEntry
 
     var body: some View {
@@ -144,10 +145,26 @@ struct CodexBarAccountUsageWidgetView: View {
                 title: "Choose an account",
                 message: "Enable account widgets in CodexBar → Settings → Menu → Widgets. "
                     + "Then edit this widget to choose an account.")
-        } else if self.entry.usageEntry.snapshot.entries.contains(where: {
+        } else if let usage = self.entry.usageEntry.snapshot.entries.first(where: {
             $0.provider == self.entry.usageEntry.provider.instanceID
         }) {
-            CodexBarUsageWidgetView(entry: self.entry.usageEntry)
+            UsageTile(entry: usage, size: WidgetTileSize(family: self.family)) {
+                VStack(alignment: .leading, spacing: 3) {
+                    TileHeader(
+                        provider: usage.provider,
+                        updatedAt: usage.updatedAt,
+                        size: WidgetTileSize(family: self.family))
+                    if let label = self.entry.accountLabel {
+                        Text(label)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .containerBackground(.fill.tertiary, for: .widget)
+            .environment(\.widgetUsageShowsUsed, self.entry.usageEntry.snapshot.usageBarsShowUsed)
         } else {
             self.notice(
                 title: "Account unavailable",

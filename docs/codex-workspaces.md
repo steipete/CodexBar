@@ -8,11 +8,28 @@ public CLI JSON contract.
 ## Internal navigation scaffold
 
 Debug builds can expose a Codex-only **Workspaces** menu action with
-`CODEXBAR_ENABLE_WORKSPACES_MENU=1`. It opens one reusable native window showing
-**No data yet**; this preparatory navigation slice does not load the index,
-start scans, read account data, or persist window geometry. Release builds
-always disable this gate, even if the environment variable is present. A
-data-backed inspector and an explicit user opt-in remain separate follow-ups.
+`CODEXBAR_ENABLE_WORKSPACES_MENU=1`. It opens one reusable native project and
+session inspector. The inspector is cache-first: it shows the latest available
+local snapshot immediately, keeps that content visible while an explicit
+**Refresh usage data** action requests a new scan, and does not force a refresh
+merely by opening the window. When detailed cached content is
+absent, the inspector performs one normal sidecar-backed detail load. A
+successful refresh that returns partial source data replaces the rendered snapshot
+and remains labeled partial. A refresh that fails preserves the previously
+rendered snapshot—complete or partial—and adds a recoverable failure notice. The existing hide-personal-information
+projection is applied before paths, workspace names, working directories, or
+session titles reach the inspector. Release builds always disable this gate,
+even if the environment variable is present. Changing the selected source,
+history range, or Hide Personal Info clears the old presentation and reloads the
+visible window with the new configuration. An earlier request cannot publish
+content from the old scope after that change.
+Closing cancels this window's pending request. Reopening reuses a completed
+snapshot, or starts a cache-first load after an interrupted initial load.
+
+The basic inspector excludes Models analytics, charts, CSV/export,
+search/filter controls, preference or opt-in changes, background indexing, and
+index rebuild controls. Those remain separate follow-ups; this navigation layer
+does not alter the foundation's scanner, sidecar, or persistence contracts.
 
 ## Data flow
 
@@ -21,13 +38,19 @@ deltas, fork and subagent accounting, pricing, and incremental cursors. The
 Workspaces index combines that scan cache with the read-only Codex thread
 catalog:
 
-1. Scan local rollout JSONL into the Codex v11 cost cache.
+1. Scan local rollout JSONL into the SQLite cost cache.
 2. Read catalog metadata without modifying the Codex catalog.
 3. Canonicalize workspace attribution and scope it to the selected Codex home.
 4. Publish the complete source state and derived snapshot in one SQLite
    transaction.
 5. Expose project, session, model, daily, source-status, progress, and CSV
    library models to presentation consumers.
+
+Project indexing reads exact usage rows and daily aggregates without loading
+raw token snapshots. The read stays within one SQLite transaction, so a
+concurrent scanner commit cannot turn a consistent project report into empty
+history. This optimization applies to Workspaces indexing; the menu-bar scanner
+already loads token snapshots lazily.
 
 The supported internal presentation boundary is:
 
@@ -42,7 +65,7 @@ The supported internal presentation boundary is:
 The Codex cost cache is:
 
 ```text
-~/Library/Caches/CodexBar/cost-usage/codex-v11.json
+~/Library/Caches/CodexBar/cost-usage/cost-usage.sqlite
 ```
 
 The Workspaces sidecar is:
@@ -55,19 +78,22 @@ The sidecar currently uses SQLite schema version 5 and snapshot payload format
 3. This is the first released Workspaces schema. A database with any other
 `PRAGMA user_version` is rejected as incompatible and is never modified.
 
-### v10 to v11
+### Legacy JSON cache cutover
 
-`codex-v10.json` is not migrated in place and is not accepted as a v11
-incremental cursor. Parser and attribution semantics changed, so the first scan
-after upgrading performs a one-time rebuild and writes a separate v11 artifact.
-The v10 file remains untouched and recoverable. The v11 file is replaced
-atomically only after a successful scan; later v11 refreshes can use the normal
-incremental cursor.
+The SQLite store rebuilds derived usage from session files instead of importing
+the old monolithic `codex-v11.json` cache. When that legacy artifact is found,
+the store removes it and its temporary copies and rebuilds the SQLite cache.
+Source session files remain unchanged; subsequent scans reuse SQLite cursors.
 
 ### Sidecar rollback
 
 Publication is transactional: a failed synchronization or snapshot write rolls
 back and leaves the previous complete snapshot available.
+
+Before importing source rows, the indexer validates the raw cost cache against
+the selected Codex home. A failed read or retained cache from another home fails
+the refresh before changing saved project history. A successfully scanned,
+same-scope empty history remains valid and can replace earlier usage.
 
 ## Catalog completeness and last-good data
 

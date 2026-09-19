@@ -95,7 +95,6 @@ struct MenuBarLayoutTests {
 
     @Test
     func `conditional normalization clamps thresholds and clause count`() {
-        let predicate = MenuBarConditionalPredicate(metric: .session, comparison: .greaterThan, threshold: 0)
         let manyClauses = (0..<6).map { index in
             MenuBarConditionalClause(
                 combinator: index == 0 ? .or : .and,
@@ -828,7 +827,7 @@ struct MenuBarLayoutTests {
     @Test
     func `direct lane tokens only expose provider supported metrics`() {
         #expect(MenuBarLayoutLane.available(for: nil).isEmpty)
-        #expect(MenuBarLayoutLane.available(for: .mistral).isEmpty)
+        #expect(MenuBarLayoutLane.available(for: .mistral) == [.primary])
         #expect(MenuBarLayoutLane.available(for: .openrouter) == [.primary])
         #expect(MenuBarLayoutLane.available(for: .cursor) == [.primary, .secondary])
 
@@ -848,8 +847,8 @@ struct MenuBarLayoutTests {
     }
 
     @Test
-    func `opencode go exposes the monthly tertiary lane once a window exists`() {
-        #expect(MenuBarLayoutLane.available(for: .opencodego) == [.primary, .secondary])
+    func `opencode go exposes the monthly tertiary lane before data arrives`() {
+        #expect(MenuBarLayoutLane.available(for: .opencodego) == [.primary, .secondary, .tertiary])
 
         let usageSnapshot = UsageSnapshot(
             primary: nil,
@@ -939,34 +938,21 @@ struct MenuBarLayoutTests {
     }
 
     @Test
-    func `migration maps every legacy style mode metric and reset combination`() {
-        var visited = 0
-        for style in MenuBarIconStyle.allCases {
-            for mode in MenuBarDisplayMode.allCases {
-                for metric in MenuBarMetricPreference.allCases {
-                    for resetStyle in [ResetTimeDisplayStyle.countdown, .absolute] {
-                        let resolution = MenuBarLayoutResolution.legacy(
-                            iconStyle: style,
-                            displayMode: mode,
-                            metricPreference: metric,
-                            resetTimeDisplayStyle: resetStyle)
-                        let layout = resolution.layout
-                        #expect((1...2).contains(layout.lines.count))
-                        #expect(layout.lines.allSatisfy { !$0.isEmpty })
-                        #expect(resolution.legacySettings == MenuBarLayoutResolution.LegacySettings(
-                            iconStyle: style,
-                            displayMode: mode,
-                            metricPreference: metric,
-                            resetTimeDisplayStyle: resetStyle))
-                        #expect(resolution.usesLegacyRendering)
-                        visited += 1
-                    }
+    func `migration emits nonempty layouts for every legacy selection`() {
+        for mode in MenuBarDisplayMode.allCases {
+            for metric in MenuBarMetricPreference.allCases {
+                for resetStyle in [ResetTimeDisplayStyle.countdown, .absolute] {
+                    let resolution = MenuBarLayoutResolution.legacy(
+                        displayMode: mode,
+                        metricPreference: metric,
+                        resetTimeDisplayStyle: resetStyle)
+                    let layout = resolution.layout
+                    #expect((1...2).contains(layout.lines.count))
+                    #expect(layout.lines.allSatisfy { !$0.isEmpty })
+                    #expect(resolution.usesLegacyRendering)
                 }
             }
         }
-
-        #expect(visited == MenuBarIconStyle.allCases.count * MenuBarDisplayMode.allCases.count
-            * MenuBarMetricPreference.allCases.count * 2)
     }
 
     @Test
@@ -980,12 +966,10 @@ struct MenuBarLayoutTests {
             ],
         ])
         #expect(MenuBarLayout.migrated(
-            iconStyle: .iconAndPercent,
             displayMode: .percent,
             metricPreference: .primaryAndSecondary,
             resetTimeDisplayStyle: .countdown) == combinedLayout)
         #expect(MenuBarLayout.migrated(
-            iconStyle: .iconAndPercent,
             displayMode: .resetTime,
             metricPreference: .automatic,
             resetTimeDisplayStyle: .absolute) == MenuBarLayout(lines: [[.icon, .resetAbsolute]]))
@@ -994,13 +978,11 @@ struct MenuBarLayoutTests {
     @Test
     func `migration preserves Kimi primary and secondary lane identity`() {
         #expect(MenuBarLayout.migrated(
-            iconStyle: .iconAndPercent,
             displayMode: .percent,
             metricPreference: .primary,
             resetTimeDisplayStyle: .countdown,
             provider: .kimi) == MenuBarLayout(lines: [[.icon, .percent(window: .weekly)]]))
         #expect(MenuBarLayout.migrated(
-            iconStyle: .iconAndPercent,
             displayMode: .percent,
             metricPreference: .secondary,
             resetTimeDisplayStyle: .countdown,
@@ -1013,7 +995,6 @@ struct MenuBarLayoutTests {
 
         for displayMode in MenuBarDisplayMode.allCases {
             #expect(MenuBarLayout.migrated(
-                iconStyle: .iconAndPercent,
                 displayMode: displayMode,
                 metricPreference: .automatic,
                 resetTimeDisplayStyle: .countdown,
@@ -1021,7 +1002,6 @@ struct MenuBarLayoutTests {
         }
 
         #expect(MenuBarLayout.migrated(
-            iconStyle: .iconAndPercent,
             displayMode: .percent,
             metricPreference: .primary,
             resetTimeDisplayStyle: .countdown,

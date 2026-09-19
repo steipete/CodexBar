@@ -250,12 +250,6 @@ final class CopilotAllowanceFixture {
             provider: .copilot,
             settings: settings,
             store: self.store,
-            boolBinding: { path in Binding(
-                get: { settings[keyPath: path] },
-                set: { settings[keyPath: path] = $0 }) },
-            stringBinding: { path in Binding(
-                get: { settings[keyPath: path] },
-                set: { settings[keyPath: path] = $0 }) },
             statusText: { _ in nil },
             setStatusText: { _, _ in },
             lastAppActiveRunAt: { _ in nil },

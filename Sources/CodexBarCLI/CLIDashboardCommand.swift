@@ -59,6 +59,7 @@ struct DashboardSnapshotProducer: Sendable {
     let now: @Sendable () -> Date
     var collectClaudeSwapAccounts: @Sendable (CodexBarConfig) async -> DashboardClaudeSwapCollection? = { _ in nil }
     var weeklyWorkDays: @Sendable () -> Int? = { nil }
+    var usageBarsShowUsed: @Sendable () -> Bool = { false }
 
     func collect(
         config: CodexBarConfig,
@@ -95,7 +96,8 @@ struct DashboardSnapshotProducer: Sendable {
                     accounts: $0.accounts,
                     adapterError: $0.adapterError,
                     weeklyWorkDays: self.weeklyWorkDays())
-            })
+            },
+            usageBarsShowUsed: self.usageBarsShowUsed())
         return DashboardSnapshotResult(
             payload: payload,
             usageCacheKeys: usageOutput.payload.map(\.cacheAccountKey))
@@ -153,7 +155,8 @@ struct DashboardSnapshotProducer: Sendable {
                         adapterError: diagnostic.isEmpty ? "claude-swap list failed." : diagnostic)
                 }
             },
-            weeklyWorkDays: { CodexBarCLI.weeklyProgressWorkDaysFromDefaults() })
+            weeklyWorkDays: { CodexBarCLI.weeklyProgressWorkDaysFromDefaults() },
+            usageBarsShowUsed: { CodexBarCLI.usageBarsShowUsedFromDefaults() })
     }
 }
 

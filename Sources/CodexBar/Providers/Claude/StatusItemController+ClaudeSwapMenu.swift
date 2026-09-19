@@ -15,6 +15,9 @@ extension StatusItemController {
             errorAccountID: self.store.claudeSwapTransientState.lastErrorAccountID,
             inspectedAccountID: self.claudeSwapInspectedAccountID)
         if display.showsSwitcher {
+            let switcherHeading = NSMenuItem(title: L("Switch Claude Code account"), action: nil, keyEquivalent: "")
+            switcherHeading.isEnabled = false
+            menu.addItem(switcherHeading)
             let item = NSMenuItem()
             item.view = ClaudeSwapAccountSwitcherView(
                 display: display,
@@ -67,7 +70,8 @@ extension StatusItemController {
                 },
                 planAction: { [weak self] account in
                     self?.claudeSwapAccountSwitchAction(account, menu: captureMenu)
-                }),
+                },
+                privacyOrdinal: ClaudeSwapAccountMenuDisplay.privacyOrdinal),
             to: menu,
             captureMenu: captureMenu,
             context: context)
@@ -83,18 +87,44 @@ extension StatusItemController {
         guard self.store.claudeSwapTransientState.task == nil,
               let account = self.store.claudeSwapAccountSnapshots.first(where: { $0.id == id })
         else { return }
-        self.advanceMenuInteraction(for: menu)
-        if account.isActive || !account.canActivate {
+        if !ClaudeSwapAccountMenuDisplay.activatesAccount(account) {
             // Inspect sentinel diagnostics without asking the adapter to activate that slot.
+            self.advanceMenuInteraction(for: menu)
             self.claudeSwapInspectedAccountID = id
             self.invalidateMenus()
         } else {
-            self.claudeSwapInspectedAccountID = nil
-            self.store.switchClaudeSwapAccount(id)
+            self.startClaudeSwapAccountSwitch(id, menu: menu)
         }
         if let menu {
             self.deferSwitcherMenuRebuildIfStillVisible(menu, provider: .claude)
         }
+    }
+
+    private func startClaudeSwapAccountSwitch(_ accountID: ProviderAccountIdentity, menu: NSMenu?) {
+        guard self.store.claudeSwapTransientState.task == nil,
+              self.store.shouldFetchClaudeSwapAccounts(),
+              self.store.claudeSwapAccountSnapshots.contains(where: { $0.id == accountID && $0.canActivate })
+        else { return }
+        self.advanceMenuInteraction(for: menu)
+        self.claudeSwapInspectedAccountID = nil
+        let executablePath = self.settings.claudeSwapExecutablePath
+        let configurationGeneration = self.store.claudeSwapTransientState.configurationGeneration
+        let interactionGeneration = menu.flatMap {
+            self.menuSession.menuInteractionGeneration(for: ObjectIdentifier($0))
+        }
+        self.store.switchClaudeSwapAccount(accountID, progressDidChange: { [weak self, weak menu] in
+            guard let self, let menu, let interactionGeneration else { return }
+            self.scheduleOpenRootMenuDataRebuildIfStillVisible(menu, provider: .claude) { [weak self, weak menu] in
+                guard let self, let menu else { return false }
+                return self.store.isCurrentClaudeSwapConfiguration(
+                    executablePath: executablePath,
+                    configurationGeneration: configurationGeneration) &&
+                    self.menuSession.isCurrentMenuInteraction(interactionGeneration, for: ObjectIdentifier(menu)) &&
+                    self.claudeSwapInspectedAccountID == nil &&
+                    (self.store.claudeSwapTransientState.switchingAccountID == accountID ||
+                        self.store.claudeSwapTransientState.task == nil)
+            }
+        })
     }
 
     private func addStackedClaudeSwapMenuCards(
@@ -121,33 +151,24 @@ extension StatusItemController {
     private func claudeSwapCardModel(for account: ProviderAccountUsageSnapshot) -> UsageMenuCardView.Model? {
         self.menuCardModel(
             for: .claude,
-            snapshotOverride: account.snapshot,
-            errorOverride: ClaudeSwapAccountProjection.displayError(
-                accountError: account.error,
+            context: ClaudeSwapAccountMenuDisplay.cardContext(
+                for: account,
+                planLabel: self.claudeSwapAccountActionLabel(account),
                 adapterError: self.store.claudeSwapLastError,
                 switchError: self.store.claudeSwapTransientState.lastErrorAccountID == account.id
                     ? self.store.claudeSwapTransientState.lastError
-                    : nil),
-            forceOverrideCard: account.snapshot == nil,
-            accountOverride: AccountInfo(
-                email: account.displayLabel,
-                plan: nil),
-            planOverride: self.claudeSwapAccountActionLabel(account),
-            sourceLabelOverride: ClaudeSwapAccountProjection.sourceLabel)
+                    : nil))
     }
 
     private func claudeSwapAccountActionLabel(_ account: ProviderAccountUsageSnapshot) -> String? {
-        if account.isActive {
-            return L("Active")
-        }
-        if self.store.claudeSwapTransientState.switchingAccountID == account.id {
-            return L("Loading…")
-        }
-        guard self.store.claudeSwapTransientState.task == nil, account.canActivate else { return nil }
-        return L("Switch Account...")
+        ClaudeSwapAccountMenuDisplay.actionLabel(
+            for: account,
+            switchingAccountID: self.store.claudeSwapTransientState.switchingAccountID,
+            switchInFlight: self.store.claudeSwapTransientState.task != nil,
+            switchPhase: self.store.claudeSwapTransientState.switchPhase)
     }
 
-    private func claudeSwapAccountSwitchAction(
+    func claudeSwapAccountSwitchAction(
         _ account: ProviderAccountUsageSnapshot,
         menu: NSMenu)
         -> (() -> Void)?
@@ -156,8 +177,7 @@ extension StatusItemController {
         let accountID = account.id
         return { [weak self, weak menu] in
             guard let self else { return }
-            self.advanceMenuInteraction(for: menu)
-            self.store.switchClaudeSwapAccount(accountID)
+            self.startClaudeSwapAccountSwitch(accountID, menu: menu)
         }
     }
 }

@@ -28,7 +28,9 @@ final class HooksPaneNativeProofTests: XCTestCase {
             defer: false)
         window.isReleasedWhenClosed = false
         window.title = "CodexBar Hooks — synthetic settings fixture"
-        window.contentView = NSHostingView(rootView: HooksProofForm().preferredColorScheme(.dark))
+        window.contentView = NSHostingView(rootView: HooksProofForm(
+            usageUpdated: environment["CODEXBAR_HOOKS_PROOF_EVENT"] == "usage_updated")
+            .preferredColorScheme(.dark))
         defer {
             window.close()
             _ = application.setActivationPolicy(previousPolicy)
@@ -55,16 +57,25 @@ final class HooksPaneNativeProofTests: XCTestCase {
 /// Production row bindings with no SettingsStore, config persistence, provider, or hook runner.
 @MainActor
 private struct HooksProofForm: View {
-    @State private var rules: [HookRule] = [90, 95, 98].map { percent in
-        HookRule(
-            id: "fixture-\(percent)",
-            enabled: false,
-            event: .quotaLow,
-            provider: "codex",
-            threshold: Double(percent) / 100,
-            executable: "/fixture/quota-alert",
-            arguments: ["--message", "Quota warning"])
-    } + [HookRule(id: "fixture-empty", enabled: false, event: .quotaLow, executable: "", arguments: [""])]
+    @State private var rules: [HookRule]
+
+    init(usageUpdated: Bool = false) {
+        var rules = [90, 95, 98].map { percent in
+            HookRule(
+                id: "fixture-\(percent)",
+                enabled: false,
+                event: .quotaLow,
+                provider: "codex",
+                threshold: Double(percent) / 100,
+                executable: "/fixture/quota-alert",
+                arguments: ["--message", "Quota warning"])
+        } + [HookRule(id: "fixture-empty", enabled: false, event: .quotaLow, executable: "", arguments: [""])]
+        if usageUpdated {
+            rules[0].event = .usageUpdated
+            rules[0].threshold = nil
+        }
+        self._rules = State(initialValue: rules)
+    }
 
     var body: some View {
         Form {

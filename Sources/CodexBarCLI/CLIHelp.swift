@@ -337,16 +337,16 @@ extension CodexBarCLI {
         Description:
           Run external commands when quota/provider events occur. Rules are stored in the
           shared config file and are disabled by default. Events:
-          quota_low, quota_reached, quota_reset, provider_unavailable, provider_recovered,
-          refresh_failed.
+          quota_low, quota_reached, quota_reset, usage_updated, provider_unavailable,
+          provider_recovered, refresh_failed.
 
           Commands run directly (no shell), receive event metadata via CODEXBAR_* environment
           variables and a JSON payload on stdin, and are timed out. Only configure commands you trust.
 
           `watch` polls the selected providers and fires rules on real transitions, so hooks
           work without the macOS app. Events are edge-triggered against the previous poll, so a
-          persisting condition does not re-fire. Baselines are in-memory: the first poll of a
-          lane establishes state without firing. Keep one continuous process running so transition
+          persisting condition does not re-fire. The first successful poll can emit usage_updated;
+          quota-transition baselines are established without firing. Keep one continuous process so transition
           baselines and event rate limits survive between polls. Default interval 300s, minimum 60s.
 
         Examples:

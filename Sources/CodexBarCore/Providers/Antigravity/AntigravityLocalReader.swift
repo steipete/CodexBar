@@ -32,7 +32,7 @@ enum AntigravityLocalReader {
         init?(session: String, row: Int64, turn: AntigravityProtoReader.ParsedTurn, cacheWrite: Int) {
             guard let usage = turn.usage, turn.timestampMs != nil,
                   let input = AntigravityLocalReader.checkedAdd(usage.systemPrompt, usage.newInput),
-                  let total = AntigravityLocalReader.checkedSum(
+                  let total = CheckedSum.integers(
                       [input, usage.output, usage.cacheRead, cacheWrite, usage.reasoning])
             else { return nil }
             self.session = session
@@ -47,6 +47,7 @@ enum AntigravityLocalReader {
     struct SourceResult {
         var events: [Event] = []
         var isComplete = true
+        var containsHistorySource = false
     }
 
     private struct RowIdentity: Hashable {
@@ -72,15 +73,6 @@ enum AntigravityLocalReader {
     static func checkedAdd(_ lhs: Int, _ rhs: Int) -> Int? {
         let (result, overflow) = lhs.addingReportingOverflow(rhs)
         return overflow ? nil : result
-    }
-
-    static func checkedSum(_ values: [Int]) -> Int? {
-        var total = 0
-        for value in values {
-            guard let next = self.checkedAdd(total, value) else { return nil }
-            total = next
-        }
-        return total
     }
 
     static func makeDailyReportWithStatus(
@@ -121,6 +113,10 @@ enum AntigravityLocalReader {
     {
         var isComplete = discoveryComplete && source.isComplete
             && budget.statistics.sqliteHandlesOpened == budget.statistics.sqliteHandlesClosed
+        if isComplete, !source.containsHistorySource {
+            return DailyReportResult(
+                report: .init(data: [], summary: nil), coverage: .unavailable, statistics: budget.statistics)
+        }
         var models: [LabelIdentity: String] = [:]
         var conflicts = Set<LabelIdentity>()
         for event in source.events {
@@ -177,7 +173,7 @@ enum AntigravityLocalReader {
             if let response { responses[response] = event }
         }
         let daily = entries.values.sorted { $0.date < $1.date }
-        let total = self.checkedSum(daily.compactMap(\.totalTokens))
+        let total = CheckedSum.integers(daily.compactMap(\.totalTokens))
         return DailyReportResult(
             report: .init(
                 data: daily,

@@ -80,6 +80,14 @@ envelope. CodexBar does not need
   windows. Unknown extra JSON fields remain ignored. Empty `organizationName` is not an error; `alias` is not required.
 - Use optional `usageFetchedAt` for the measurement's last-updated time, so polling the adapter's cache does not make
   old usage appear freshly measured. Missing or malformed timestamps retain the refresh-time fallback and valid windows.
+- Parse optional display-only `usage.spend`, `disabled`, and `lastGoodUsage` with `lastGoodFetchedAt`. Malformed additive
+  fields fail independently of valid live windows; ignore the row's free-form `message`. Source-declared last-known
+  measurements keep their own timestamp and a visible age beside diagnostics, and never drive the age-less menu icon
+  or ready-account suggestions. Cache only numeric quota data, capture time, provenance, and the existing account fingerprint.
+- `unavailable` does not establish a polling-failure cause. Retain the existing same-account, unexpired at-limit
+  windows only when the source supplies no explicit last-good measurement; preserve their freshness provenance.
+- Disabled slots are excluded only from source-owned automatic rotation. They remain explicit switch targets;
+  `foreign_credential` is also recoverable through the existing explicit slot activation contract.
 - Treat email, organization name, and alias as display-only. Never log or persist them. Respect Hide Personal Info.
   When two or more slots share an email, disambiguate with `email · organizationName` or `email · Account N`; a
   user-chosen alias wins. Unique emails stay email-only.
@@ -97,7 +105,13 @@ last refresh, adapter errors, and a link to the upstream project; CodexBar shoul
 
 ## Phase 2 explicit activation contract
 
-- Only an explicit click on an inactive, actionable account card can start a switch.
+- Only an explicit click on an actionable account card or actionable inactive account chip can start a switch.
+  Normal activation targets inactive slots.
+  An active slot reporting `foreign_credential` offers **Re-authenticate**, using the same slot command so claude-swap
+  can reconcile its proven credential mismatch. No force flag is used; selecting the active segment remains inspection-only.
+- The Segmented layout labels its chips **Switch Claude Code account**. An inactive actionable chip switches Claude
+  Code's credentials; active and unavailable chips only inspect that slot. Chips retain their short account identities,
+  with action-specific tooltips and accessibility labels that respect Hide Personal Info.
 - Derive the numeric slot from the already validated account snapshot and execute exactly
   `cswap --switch-to <slot> --json`; never accept free-form arguments or invoke a shell.
 - Serialize switches, validate `schemaVersion == 1` and the returned target slot, and bound captured output.
@@ -107,6 +121,13 @@ last refresh, adapter errors, and a link to the upstream project; CodexBar shoul
 - Refresh ambient Claude usage and the adapter account list after completion. Publish known switch errors before
   waiting for that refresh, independently from list-refresh errors, and preserve the last successful usage snapshots.
   Keep the transaction guard until reconciliation finishes; discard the error if its configuration changes.
+- Show **Switching account…** while the external command is running, then **Refreshing account status…** while
+  ambient usage and the independently scheduled adapter account list are reconciled. Wait for a replacement list read
+  while its configuration is still current. Update the open menu through its tracking-safe rebuild scheduler; keep the
+  requested slot and disabled controls through both phases. The adapter's refreshed account list alone determines active styling,
+  and a known switch error remains visible beside progress. This feedback does not diagnose or shorten a slow refresh.
+- Configuration invalidation clears visible progress without cancelling the transaction. Returning to the same
+  executable path cannot revive the old phase or error, and another activation waits for the original task to drain.
 - Keep expired, missing, unknown, and Keychain-inaccessible credential slots non-actionable. Never auto-switch, launch
   sessions, add/import/export/purge accounts, or mutate credentials directly.
 

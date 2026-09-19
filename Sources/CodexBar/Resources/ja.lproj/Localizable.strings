@@ -1430,6 +1430,33 @@
 "Cost today unavailable" = "今日のコスト: 利用不可";
 "30-day cost unavailable" = "30日間のコスト: 利用不可";
 "Resets" = "リセット";
+"codex_workspaces_cost_unavailable" = "コストを利用できません";
+"codex_workspaces_elevated_usage" = "使用量がやや多い";
+"codex_workspaces_estimated_cost_short" = "推定コスト";
+"codex_workspaces_estimated_cost_value" = "推定 %@";
+"codex_workspaces_estimated_local_logs" = "ローカルの Codex ログから推定";
+"codex_workspaces_failed_read_logs" = "Codex ログを読み込めませんでした";
+"codex_workspaces_high_usage" = "使用量が多い";
+"codex_workspaces_indexing_local_logs" = "ローカル Codex ログをインデックス作成中…";
+"codex_workspaces_indexing_projects" = "プロジェクトをインデックス作成中…";
+"codex_workspaces_local_codex_chat" = "ローカル Codex チャット";
+"codex_workspaces_model" = "モデル";
+"codex_workspaces_no_local_usage" = "ローカルの Codex 使用状況はまだありません";
+"codex_workspaces_no_sessions" = "このワークスペースにはセッションがありません";
+"codex_workspaces_normal_usage" = "通常の使用量";
+"codex_workspaces_partial_data" = "一部のデータ";
+"codex_workspaces_refresh_usage_data" = "使用状況データを更新";
+"codex_workspaces_retry" = "再試行";
+"codex_workspaces_saving_project_index" = "プロジェクトインデックスを保存中…";
+"codex_workspaces_scanning_logs" = "Codex ログをスキャン中…";
+"codex_workspaces_session" = "セッション";
+"codex_workspaces_session_count" = "セッション: %@";
+"codex_workspaces_sessions" = "セッション";
+"codex_workspaces_started" = "開始日時";
+"codex_workspaces_title" = "ワークスペース";
+"codex_workspaces_token_count_accessibility" = "%@ トークン";
+"codex_workspaces_tokens" = "トークン";
+"codex_workspaces_top_model" = "上位のモデル";
 "Finish now" = "今すぐ完了";
 "Continue in background" = "バックグラウンドで続行";
 
@@ -1553,3 +1580,20 @@
 
 "agent_sessions_hide_unreachable_title" = "接続できないホストを非表示";
 "agent_sessions_hide_unreachable_subtitle" = "セッションの取得に失敗したホストを非表示にします。";
+
+/* Overview share flow */
+"Share Usage Snapshot…" = "使用状況の概要を共有…";
+"Usage snapshot unavailable" = "使用状況の概要を利用できません";
+"CodexBar couldn't prepare a shareable usage snapshot. Refresh Usage & Spend and try again." = "CodexBar で共有用の使用状況の概要を準備できませんでした。「使用状況と支出」を更新して、もう一度お試しください。";
+"Incomplete" = "不完全";
+"Est. subtotal (%@): %@" = "推定小計 (%@): %@";
+"Excluded requests with missing final usage: %d" = "最終的な使用量が未記録のため除外されたリクエスト: %d";
+
+"overview_layout_title" = "概要のレイアウト";
+"overview_layout_subtitle" = "概要に表示する情報量を選択します。";
+"overview_layout_detailed" = "詳細";
+"overview_layout_compact" = "コンパクト";
+
+"section_widgets" = "ウィジェット";
+"account_widgets_title" = "ウィジェット用にアカウントを更新する";
+"account_widgets_description" = "各 Account Usage ウィジェットでアカウントを選択します。プロバイダーごとに最大6つのアカウントを更新します。";

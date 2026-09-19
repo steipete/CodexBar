@@ -7,13 +7,13 @@ public enum XAISettingsReader {
     public static func apiKey(
         environment: [String: String] = ProcessInfo.processInfo.environment) -> String?
     {
-        self.cleaned(environment[self.apiKeyEnvironmentKey])
+        SettingsValue.cleaned(environment[self.apiKeyEnvironmentKey])
     }
 
     public static func teamID(
         environment: [String: String] = ProcessInfo.processInfo.environment) -> String?
     {
-        self.cleaned(environment[self.teamIDEnvironmentKey])
+        SettingsValue.cleaned(environment[self.teamIDEnvironmentKey])
     }
 
     static func validatedTeamID(environment: [String: String]) throws -> String {
@@ -24,19 +24,6 @@ public enum XAISettingsReader {
             throw XAISettingsError.invalidTeamID
         }
         return teamID
-    }
-
-    static func cleaned(_ raw: String?) -> String? {
-        guard var value = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else {
-            return nil
-        }
-        if (value.hasPrefix("\"") && value.hasSuffix("\"")) ||
-            (value.hasPrefix("'") && value.hasSuffix("'"))
-        {
-            value = String(value.dropFirst().dropLast())
-        }
-        value = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        return value.isEmpty ? nil : value
     }
 }
 

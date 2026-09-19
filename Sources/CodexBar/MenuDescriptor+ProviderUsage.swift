@@ -47,29 +47,34 @@ extension MenuDescriptor {
                 preferredCurrency: preferredCurrencyCode,
                 providerCurrency: usage.currency)
             entries.append(.text(
-                "\(L("Latest")): \(cost) · " +
-                    "\(UsageFormatter.tokenCountString(latest.totalTokens)) \(L("tokens"))",
+                "\(L("Latest")): \(cost)" + Self.mistralTokenSuffix(latest.checkedTotalTokens),
                 .secondary))
         }
-        let totalTokens = usage.totalInputTokens + usage.totalCachedTokens + usage.totalOutputTokens
         let totalCost = UsageFormatter.convertedCostString(
             usage.totalCost,
             preferredCurrency: preferredCurrencyCode,
             providerCurrency: usage.currency)
         entries.append(.text(
-            "\(L("Month")): \(totalCost) · " +
-                "\(UsageFormatter.tokenCountString(totalTokens)) \(L("tokens"))",
+            "\(L("Month")): \(totalCost)" + Self.mistralTokenSuffix(usage.checkedTotalTokens),
             .secondary))
         if let top = Self.topMistralModel(from: usage.daily) {
             entries.append(.text("\(L("Top model")): \(top)", .secondary))
         }
     }
 
+    private static func mistralTokenSuffix(_ tokens: Int?) -> String {
+        guard let tokens else { return "" }
+        return " · \(UsageFormatter.tokenCountString(tokens)) \(L("tokens"))"
+    }
+
     private static func topMistralModel(from entries: [MistralDailyUsageBucket]) -> String? {
         var tokens: [String: Int] = [:]
         for entry in entries {
             for model in entry.models {
-                tokens[model.name, default: 0] += model.totalTokens
+                guard let total = model.checkedTotalTokens,
+                      let sum = CheckedSum.integers([tokens[model.name, default: 0], total])
+                else { return nil }
+                tokens[model.name] = sum
             }
         }
         return tokens.max {

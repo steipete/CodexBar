@@ -104,6 +104,7 @@ final class MenuBarPercentWindowNativeProofTests: XCTestCase {
             ampCookieStore: InMemoryCookieHeaderStore(),
             copilotTokenStore: InMemoryCopilotTokenStore(),
             tokenAccountStore: InMemoryTokenAccountStore(),
+            keychainAccessPolicy: .init(setDisabled: { _ in }, isExplicitlyDisabled: { false }),
             performInitialProviderDetection: false)
     }
 }

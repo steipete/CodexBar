@@ -4,28 +4,43 @@ import Foundation
 
 extension UsageStore {
     func makeWidgetAccountEntries(now: Date) -> [WidgetSnapshot.AccountEntry] {
-        guard self.settings.accountWidgetsEnabled else { return [] }
-        return self.enabledProviders().compactMap(\.firstPartyProvider).flatMap { provider in
+        defer { self.widgetAccountSnapshotStore?.save(self.widgetVerifiedTokenSnapshots) }
+        guard self.settings.accountWidgetsEnabled else {
+            self.widgetVerifiedTokenSnapshots = [:]
+            return []
+        }
+        let providers = self.enabledProviders().compactMap(\.firstPartyProvider)
+        self.widgetVerifiedTokenSnapshots = self.widgetVerifiedTokenSnapshots.filter { providers.contains($0.key) }
+        return providers.flatMap { provider in
             self.widgetAccounts(for: provider, now: now)
         }
     }
 
     private func widgetAccounts(for provider: UsageProvider, now: Date) -> [WidgetSnapshot.AccountEntry] {
+        // Provider-specific by design: Claude Swap owns its account polling and retained-owner guards.
         if provider == .claude, self.settings.claudeSwapEnabled,
            !self.claudeSwapAccountSnapshots.isEmpty
         {
-            return self.claudeSwapAccountSnapshots.compactMap { account in
+            var accounts = Array(self.claudeSwapAccountSnapshots.prefix(Self.tokenAccountMenuSnapshotLimit))
+            if let active = self.claudeSwapAccountSnapshots.first(where: \.isActive),
+               !accounts.contains(where: { $0.id == active.id })
+            {
+                accounts.removeLast()
+                accounts.append(active)
+            }
+            return accounts.compactMap { account in
                 // Slots can be reused. Bind the pin to the same opaque ownership guard as retained usage,
                 // without persisting the adapter's email, organization, or display label.
                 guard let owner = ClaudeSwapRetainedUsageStore.ownershipFingerprint(for: account) else { return nil }
                 return self.widgetAccountEntry(
-                    provider: .claude,
+                    provider: provider,
                     id: "claude/swap:\(account.id.opaqueID):\(owner)",
                     label: "Account \(account.id.opaqueID)",
                     snapshot: account.snapshot,
                     now: now)
             }
         }
+        // Provider-specific by design: Codex accounts come from its reconciled managed/profile projection.
         if provider == .codex {
             // Use the reconciled visible projection to drop removed accounts and retain unavailable ones.
             let projection = self.settings.codexVisibleAccountProjectionForMenuDisplay
@@ -41,26 +56,97 @@ extension UsageStore {
                 }
                 let snapshot = matches.count == 1 ? matches.first?.snapshot : nil
                 return self.widgetAccountEntry(
-                    provider: .codex,
+                    provider: provider,
                     id: id,
                     label: self.settings.hidePersonalInfo ? "Account \(index + 1)" : account.menuDisplayName,
                     snapshot: snapshot,
                     now: now)
             }
         }
-        guard self.settings.effectiveSelectedTokenAccount(for: provider) != nil else { return [] }
+        guard self.settings.effectiveSelectedTokenAccount(for: provider) != nil else {
+            self.widgetVerifiedTokenSnapshots[provider] = nil
+            return []
+        }
         let accounts = self.settings.tokenAccounts(for: provider)
+        let uniqueIDs = Set(Dictionary(grouping: accounts, by: \.id).filter { $0.value.count == 1 }.keys)
         let snapshots = self.validTokenAccountSnapshots(provider: provider, accounts: accounts)
-        return self.limitedTokenAccounts(
+        let previous = self.widgetVerifiedTokenSnapshots[provider] ?? [:]
+        var verified: [UUID: WidgetVerifiedTokenSnapshot] = [:]
+        let entries = self.limitedTokenAccounts(
             accounts, selected: self.settings.effectiveSelectedTokenAccount(for: provider))
-            .enumerated().map { index, account in
-                self.widgetAccountEntry(
-                    provider: provider,
-                    id: "\(provider.rawValue)/token:\(account.id.uuidString)",
+            .enumerated().compactMap { index, account -> WidgetSnapshot.AccountEntry? in
+                guard uniqueIDs.contains(account.id) else { return nil }
+                let scope = self.widgetTokenCredentialScope(provider: provider, account: account)
+                let matches = snapshots.filter { $0.id == account.id }
+                guard matches.count <= 1 else { return nil }
+                let current = matches.first
+                let record: WidgetVerifiedTokenSnapshot
+                if let snapshot = current?.snapshot,
+                   let id = Self.widgetTokenAccountID(provider: provider, account: account, snapshot: snapshot)
+                {
+                    record = WidgetVerifiedTokenSnapshot(
+                        credentialScope: scope,
+                        widgetID: id,
+                        usage: self.widgetAccountQuota(provider: provider, snapshot: snapshot, now: now))
+                } else if let prior = previous[account.id], prior.credentialScope == scope,
+                          prior.usage.provider == provider.instanceID,
+                          Self.canRetainWidgetSnapshot(after: current)
+                {
+                    // Keep the last verified quota at its original age only while the exact credential scope remains.
+                    record = prior
+                } else {
+                    return nil
+                }
+                verified[account.id] = record
+                return WidgetSnapshot.AccountEntry(
+                    id: record.widgetID,
+                    provider: provider.instanceID,
                     label: self.settings.hidePersonalInfo ? "Account \(index + 1)" : account.displayName,
-                    snapshot: snapshots.first { $0.id == account.id }?.snapshot,
-                    now: now)
+                    usage: record.usage)
             }
+        self.widgetVerifiedTokenSnapshots[provider] = verified
+        return entries
+    }
+
+    private static func canRetainWidgetSnapshot(
+        after current: TokenAccountUsageSnapshot?) -> Bool
+    {
+        guard let current, current.error != nil else { return true }
+        guard let error = current.fetchError else { return false }
+        return Self.shouldPreservePriorSnapshot(after: error, hadPriorData: true)
+    }
+
+    static func widgetTokenAccountID(
+        provider: UsageProvider,
+        account: ProviderTokenAccount,
+        snapshot: UsageSnapshot) -> String?
+    {
+        // withAccountLabel may fill a missing email with a user label. Only a returned account ID proves ownership.
+        let identity = snapshot.identity(for: provider.instanceID)
+        guard let owner = CodexIdentityResolver
+            .normalizeAccountID(identity?.widgetAccountOwnerID ?? identity?.accountID),
+            let data = try? JSONEncoder().encode([
+                "v1", provider.rawValue, account.id.uuidString.lowercased(), owner,
+                account.sanitizedUsageScope ?? "", account.sanitizedOrganizationID ?? "",
+                account.sanitizedWorkspaceID ?? "",
+            ])
+        else { return nil }
+        return "\(provider.rawValue)/token:" + SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+    }
+
+    private func widgetTokenCredentialScope(provider: UsageProvider, account: ProviderTokenAccount) -> String {
+        let scoped = ProviderTokenAccount(
+            id: account.id,
+            label: "",
+            token: account.token,
+            addedAt: 0,
+            lastUsed: nil,
+            externalIdentifier: account.externalIdentifier,
+            usageScope: account.usageScope,
+            organizationID: account.organizationID,
+            workspaceID: account.workspaceID,
+            seatCreditEntitlement: account.seatCreditEntitlement)
+        return self.tokenAccountSnapshotCacheKey(provider: provider, account: scoped)
     }
 
     static func widgetOpaqueAccountID(_ identity: String) -> String {
@@ -76,9 +162,11 @@ extension UsageStore {
             identity = "profile\0\(path)\0\(owner)"
         } else if let storedID = account.storedAccountID {
             // A managed account keeps its identity when promoted to the live system account.
-            identity = "managed\0\(storedID.uuidString.lowercased())"
+            guard let owner = Self.widgetCodexOwnerIdentity(account) else { return nil }
+            identity = "managed\0\(storedID.uuidString.lowercased())\0\(owner)"
         } else if case let .managedAccount(id) = account.selectionSource {
-            identity = "managed\0\(id.uuidString.lowercased())"
+            guard let owner = Self.widgetCodexOwnerIdentity(account) else { return nil }
+            identity = "managed\0\(id.uuidString.lowercased())\0\(owner)"
         } else {
             guard let owner = Self.widgetCodexOwnerIdentity(account) else { return nil }
             identity = "system\0\(owner)"
@@ -118,22 +206,26 @@ extension UsageStore {
         snapshot: UsageSnapshot?,
         now: Date) -> WidgetSnapshot.AccountEntry
     {
-        let usage = snapshot.map { snapshot in
-            // Only account-owned quota data is available here. Provider-wide cost scans, dashboard
-            // extras and history must never be copied into another account's widget.
-            WidgetSnapshot.ProviderEntry(
-                provider: provider,
-                updatedAt: snapshot.updatedAt,
-                primary: snapshot.primary,
-                secondary: snapshot.secondary,
-                tertiary: snapshot.tertiary,
-                usageRows: self.widgetUsageRows(provider: provider, snapshot: snapshot, now: now),
-                creditsRemaining: nil,
-                codeReviewRemainingPercent: nil,
-                tokenUsage: nil,
-                dailyUsage: [],
-                accountLabel: label)
-        }
+        let usage = snapshot.map { self.widgetAccountQuota(provider: provider, snapshot: $0, now: now) }
         return WidgetSnapshot.AccountEntry(id: id, provider: provider.instanceID, label: label, usage: usage)
+    }
+
+    private func widgetAccountQuota(
+        provider: UsageProvider,
+        snapshot: UsageSnapshot,
+        now: Date) -> WidgetSnapshot.ProviderEntry
+    {
+        // Only account-owned quotas cross this boundary. Provider-level scans and dashboard extras have other owners.
+        WidgetSnapshot.ProviderEntry(
+            provider: provider,
+            updatedAt: snapshot.updatedAt,
+            primary: snapshot.primary,
+            secondary: snapshot.secondary,
+            tertiary: snapshot.tertiary,
+            usageRows: self.widgetUsageRows(provider: provider, snapshot: snapshot, now: now),
+            creditsRemaining: nil,
+            codeReviewRemainingPercent: nil,
+            tokenUsage: nil,
+            dailyUsage: [])
     }
 }

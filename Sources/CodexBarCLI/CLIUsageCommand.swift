@@ -127,26 +127,8 @@ extension CodexBarCLI {
                 kind: .args)
         }
 
-        if tokenSelection.usesOverride {
-            guard providerList.count == 1 else {
-                Self.exit(
-                    code: .failure,
-                    message: "Error: account selection requires a single provider.",
-                    output: output,
-                    kind: .args)
-            }
-            // Provider-specific by design: Codex exposes reconciled accounts beyond config token accounts.
-            let supportsAllCodexAccounts = providerList[0] == .codex
-                && tokenSelection.allAccounts
-                && tokenSelection.label == nil
-                && tokenSelection.index == nil
-            guard supportsAllCodexAccounts || TokenAccountSupportCatalog.support(for: providerList[0]) != nil else {
-                Self.exit(
-                    code: .failure,
-                    message: "Error: \(providerList[0].rawValue) does not support token accounts.",
-                    output: output,
-                    kind: .args)
-            }
+        if let message = tokenSelection.providerSelectionError(providerList) {
+            Self.exit(code: .failure, message: "Error: \(message)", output: output, kind: .args)
         }
 
         let browserDetection = BrowserDetection()
@@ -307,7 +289,9 @@ extension CodexBarCLI {
 
         let accounts: [ProviderTokenAccount]
         do {
-            accounts = try tokenContext.resolvedAccounts(for: provider)
+            accounts = try tokenContext.resolvedAccounts(
+                for: provider,
+                sourceMode: command.sourceModeOverride ?? tokenContext.preferredSourceMode(for: provider))
         } catch {
             return Self.usageOutputForAccountResolutionError(
                 provider: provider,
@@ -544,7 +528,7 @@ extension CodexBarCLI {
 
             var usage = result.usage.scoped(to: provider)
             if let account {
-                usage = tokenContext.applyAccountLabel(usage, provider: provider, account: account)
+                usage = usage.withAccountLabel(account.label, for: provider)
             } else if let codexVisibleAccount {
                 usage = tokenContext.applyCodexVisibleAccountLabel(usage, account: codexVisibleAccount)
             }
@@ -611,11 +595,15 @@ extension CodexBarCLI {
                 } else {
                     Self.writeStderr("Error: \(error.localizedDescription)\n")
                 }
-                if let summary = Self.kiloAutoFallbackSummary(
+                let autoFallbackSummary = Self.kiloAutoFallbackSummary(
                     provider: provider,
                     sourceMode: effectiveSourceMode,
                     attempts: outcome.attempts)
-                {
+                    ?? Self.antigravityAutoFallbackSummary(
+                        provider: provider,
+                        sourceMode: effectiveSourceMode,
+                        attempts: outcome.attempts)
+                if let summary = autoFallbackSummary {
                     Self.writeStderr("\(summary)\n")
                 }
             }

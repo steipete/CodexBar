@@ -1,3 +1,4 @@
+import AppKit
 import CodexBarCore
 import Foundation
 import SwiftUI
@@ -132,15 +133,82 @@ struct OverviewSpendSummaryCardView: View {
         .padding(.horizontal, UsageMenuCardLayout.horizontalPadding)
         .padding(.vertical, 10)
         .frame(width: self.width, alignment: .leading)
-        .background {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color.accentColor.opacity(0.08))
-                .padding(.horizontal, 6)
-        }
     }
 }
 
+/// The in-flight overview share presentation. `generation` identifies it so a task that resumes
+/// after being superseded clears only its own handle and never its successor's.
+struct OverviewSharePresentation {
+    var task: Task<Void, Never>?
+    var generation: UInt64 = 0
+}
+
 extension StatusItemController {
+    func makeOverviewShareStatsMenuItem(model: SpendDashboardModel) -> NSMenuItem? {
+        guard ShareStatsPayloadFactory.make(model: model, store: self.store) != nil else { return nil }
+        let title = L("Share Usage Snapshot…")
+        let item = NSMenuItem(
+            title: title,
+            action: #selector(self.presentOverviewShareStats),
+            keyEquivalent: "")
+        item.target = self
+        item.representedObject = "overviewShareStats"
+        if let image = NSImage(systemSymbolName: "square.and.arrow.up", accessibilityDescription: title) {
+            image.isTemplate = true
+            image.size = NSSize(width: 16, height: 16)
+            item.image = image
+        }
+        return item
+    }
+
+    @objc func presentOverviewShareStats() {
+        if let payload = self.overviewShareStatsPayload() {
+            self.overviewSharePresentation.task?.cancel()
+            self.overviewSharePresentation.task = nil
+            ShareStatsPresenter.shared.present(payload: payload)
+            return
+        }
+        guard self.overviewSharePresentation.task == nil else { return }
+
+        let dashboard = self.store.sharedSpendDashboardController()
+        let configuration = SpendDashboardSource.configuration(settings: self.settings, store: self.store)
+        dashboard.update(configuration: configuration)
+        if !dashboard.isRefreshing {
+            dashboard.refresh()
+        }
+        self.overviewSharePresentation.generation &+= 1
+        let generation = self.overviewSharePresentation.generation
+        self.overviewSharePresentation.task = Task { @MainActor [weak self, weak dashboard] in
+            defer {
+                if self?.overviewSharePresentation.generation == generation {
+                    self?.overviewSharePresentation.task = nil
+                }
+            }
+            guard let dashboard else { return }
+            for _ in 0..<200 where dashboard.isRefreshing {
+                try? await Task.sleep(for: .milliseconds(50))
+                guard !Task.isCancelled else { return }
+            }
+            guard !Task.isCancelled, let self else { return }
+            if let payload = self.overviewShareStatsPayload() {
+                ShareStatsPresenter.shared.present(payload: payload)
+            } else {
+                NSApp.activate(ignoringOtherApps: true)
+                self.presentLoginAlert(
+                    title: "Usage snapshot unavailable",
+                    message: "CodexBar couldn't prepare a shareable usage snapshot. "
+                        + "Refresh Usage & Spend and try again.")
+            }
+        }
+    }
+
+    func overviewShareStatsPayload(now: Date = Date()) -> ShareStatsPayload? {
+        let enabledProviders = self.store.enabledFirstPartyProvidersForDisplay()
+        let providers = self.overviewProviderScopes(enabledProviders: enabledProviders).spend
+        let model = self.overviewSpendDashboardModel(providers: providers, now: now)
+        return ShareStatsPayloadFactory.make(model: model, store: self.store)
+    }
+
     func overviewSpendSubscriptionCount(providers: [UsageProvider]) -> Int {
         let providerScope = Set(providers)
         let publication = self.store.spendDashboardPublication
@@ -209,6 +277,8 @@ extension StatusItemController {
                 providerScope: Set(providers))
         }
         let inputs = providers.compactMap { provider -> SpendDashboardModel.ProviderInput? in
+            // Provider-level snapshots cannot honor account-level source exclusions before publication.
+            guard self.settings.spendDashboardHiddenSourceIDs.isEmpty else { return nil }
             guard let snapshot = self.store.tokenSnapshotForCurrentProviderConfig(for: provider)?.snapshot else {
                 return nil
             }

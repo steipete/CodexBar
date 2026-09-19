@@ -63,6 +63,7 @@ struct ProviderRegistry {
                             provider: provider,
                             settings: settings,
                             override: nil),
+                        includeAccountIdentity: settings.accountWidgetsEnabled && account != nil,
                         webTimeout: 60,
                         webDebugDumpHTML: false,
                         verbose: verbose,
@@ -134,7 +135,6 @@ struct ProviderRegistry {
         tokenOverride: TokenAccountOverride?,
         codexActiveSourceOverride: CodexActiveSource? = nil) -> ProviderSettingsSnapshot
     {
-        settings.ensureTokenAccountsLoaded()
         var builder = ProviderSettingsSnapshotBuilder(
             debugMenuEnabled: settings.debugMenuEnabled,
             debugKeepCLISessionsAlive: settings.debugKeepCLISessionsAlive)

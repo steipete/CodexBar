@@ -3,7 +3,8 @@
     "lib": ["ES2022"],
     "noEmit": true,
     "strict": true,
-    "target": "ES2022"
+    "target": "ES2022",
+    "types": []
   },
   "include": [
     "Sources/CodexBarCore/Resources/Plugins/*.ts"

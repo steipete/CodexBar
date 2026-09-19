@@ -79,7 +79,9 @@ public enum Sub2APIProviderDescriptor {
                     tertiary: metadata.opusLabel ?? "Sonnet",
                     showsTertiary: metadata.supportsOpus)
             },
-            menuCard: ProviderMenuCardPresentation(usesRawPrimaryResetDescription: true),
+            menuCard: ProviderMenuCardPresentation(
+                extraRateWindowUsesResetDescriptionAsDetail: { _ in true },
+                usesRawPrimaryResetDescription: true),
             menu: ProviderMenuDescriptorPresentation(
                 primaryDescriptionIsDetail: { _ in true },
                 secondaryDescriptionMode: .resetOverride,

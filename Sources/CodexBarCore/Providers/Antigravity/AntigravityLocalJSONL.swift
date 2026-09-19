@@ -16,6 +16,7 @@ extension AntigravityLocalReader {
             let source = try self.readJSONLFile(url, budget: budget)
             result.events.append(contentsOf: source.events)
             result.isComplete = result.isComplete && source.isComplete
+            result.containsHistorySource = result.containsHistorySource || source.containsHistorySource
         }
         return result
     }
@@ -76,6 +77,7 @@ extension AntigravityLocalReader {
         if !line.isEmpty {
             try self.consumeJSONLLine(line, session: &session, result: &result, budget: budget)
         }
+        result.containsHistorySource = session.id != nil
         if session.id == nil { result.isComplete = false }
         return result
     }

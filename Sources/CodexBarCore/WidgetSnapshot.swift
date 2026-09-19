@@ -28,7 +28,6 @@ public struct WidgetSnapshot: Codable, Sendable {
         public let dailyUsage: [DailyUsagePoint]
         public let providerCost: ProviderCostSnapshot?
         public let quotaOwnerKey: String?
-        public let accountLabel: String?
 
         public init(
             instanceID: ProviderInstanceID,
@@ -42,8 +41,7 @@ public struct WidgetSnapshot: Codable, Sendable {
             tokenUsage: TokenUsageSummary?,
             dailyUsage: [DailyUsagePoint],
             providerCost: ProviderCostSnapshot? = nil,
-            quotaOwnerKey: String? = nil,
-            accountLabel: String? = nil)
+            quotaOwnerKey: String? = nil)
         {
             self.provider = instanceID
             self.updatedAt = updatedAt
@@ -57,7 +55,6 @@ public struct WidgetSnapshot: Codable, Sendable {
             self.dailyUsage = dailyUsage
             self.providerCost = providerCost
             self.quotaOwnerKey = quotaOwnerKey
-            self.accountLabel = accountLabel
         }
 
         public init(
@@ -72,8 +69,7 @@ public struct WidgetSnapshot: Codable, Sendable {
             tokenUsage: TokenUsageSummary?,
             dailyUsage: [DailyUsagePoint],
             providerCost: ProviderCostSnapshot? = nil,
-            quotaOwnerKey: String? = nil,
-            accountLabel: String? = nil)
+            quotaOwnerKey: String? = nil)
         {
             self.init(
                 instanceID: provider.instanceID,
@@ -87,8 +83,7 @@ public struct WidgetSnapshot: Codable, Sendable {
                 tokenUsage: tokenUsage,
                 dailyUsage: dailyUsage,
                 providerCost: providerCost,
-                quotaOwnerKey: quotaOwnerKey,
-                accountLabel: accountLabel)
+                quotaOwnerKey: quotaOwnerKey)
         }
     }
 
@@ -216,7 +211,9 @@ public struct WidgetSnapshot: Codable, Sendable {
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(self.entries, forKey: .entries)
-        try container.encode(self.accounts, forKey: .accounts)
+        if !self.accounts.isEmpty {
+            try container.encode(self.accounts, forKey: .accounts)
+        }
         try container.encode(self.enabledProviders, forKey: .enabledProviders)
         try container.encode(self.usageBarsShowUsed, forKey: .usageBarsShowUsed)
         try container.encode(self.generatedAt, forKey: .generatedAt)
@@ -255,7 +252,7 @@ public enum WidgetSnapshotStore {
     }
 
     public static func load(bundleID: String? = Bundle.main.bundleIdentifier) -> WidgetSnapshot? {
-        guard !self.isBoundedIOCircuitBreakerTripped() else { return nil }
+        guard !TestProcessSafety.isRunning, !self.isBoundedIOCircuitBreakerTripped() else { return nil }
         return self.load(from: self.snapshotURL(bundleID: bundleID))
     }
 
@@ -270,7 +267,7 @@ public enum WidgetSnapshotStore {
     }
 
     public static func save(_ snapshot: WidgetSnapshot, bundleID: String? = Bundle.main.bundleIdentifier) {
-        guard !self.isBoundedIOCircuitBreakerTripped() else { return }
+        guard !TestProcessSafety.isRunning, !self.isBoundedIOCircuitBreakerTripped() else { return }
         self.save(snapshot, to: self.snapshotURL(bundleID: bundleID))
     }
 

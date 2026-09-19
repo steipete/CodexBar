@@ -659,7 +659,7 @@ public struct MiniMaxUsageFetcher: Sendable {
     }
 
     static func url(from raw: String, path: String? = nil, query: String? = nil) -> URL? {
-        guard let cleaned = MiniMaxSettingsReader.cleaned(raw) else { return nil }
+        guard let cleaned = SettingsValue.cleaned(raw) else { return nil }
 
         func compose(_ base: URL) -> URL? {
             var components = URLComponents(url: base, resolvingAgainstBaseURL: false)!
@@ -670,17 +670,6 @@ public struct MiniMaxUsageFetcher: Sendable {
 
         guard let base = ProviderEndpointOverrideValidator.normalizedHTTPSURL(from: cleaned) else { return nil }
         return compose(base)
-    }
-
-    private static func logCodingPlanStatus(payload: MiniMaxCodingPlanPayload) {
-        let baseResponse = payload.data.baseResp ?? payload.baseResp
-        guard let status = baseResponse?.statusCode else { return }
-        let message = baseResponse?.statusMessage ?? ""
-        if !message.isEmpty {
-            Self.log.debug("MiniMax coding plan status \(status): \(message)")
-        } else {
-            Self.log.debug("MiniMax coding plan status \(status)")
-        }
     }
 
     private static func looksSignedOut(html: String) -> Bool {

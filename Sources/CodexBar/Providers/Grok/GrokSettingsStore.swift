@@ -13,27 +13,14 @@ extension SettingsStore {
     }
 
     var grokCookieHeader: String {
-        get { self.configSnapshot.providerConfig(for: .grok)?.sanitizedCookieHeader ?? "" }
-        set {
-            self.updateProviderConfig(provider: .grok) { entry in
-                entry.cookieHeader = self.normalizedConfigValue(newValue)
-            }
-            self.logSecretUpdate(provider: .grok, field: "cookieHeader", value: newValue)
-        }
+        get { self[providerConfig: .grok, field: .cookieHeader] }
+        set { self[providerConfig: .grok, field: .cookieHeader] = newValue }
     }
 
     var grokCookieSource: ProviderCookieSource {
         get { self.resolvedCookieSource(provider: .grok, fallback: .auto) }
-        set {
-            self.updateProviderConfig(provider: .grok) { entry in
-                entry.cookieSource = newValue
-            }
-            self.logProviderModeChange(
-                provider: .grok, field: "cookieSource", value: newValue.rawValue)
-        }
+        set { self.setCookieSource(newValue, provider: .grok) }
     }
-
-    func ensureGrokCookieLoaded() {}
 }
 
 extension SettingsStore {

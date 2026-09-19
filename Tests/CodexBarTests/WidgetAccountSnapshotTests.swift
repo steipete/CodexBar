@@ -19,8 +19,8 @@ struct WidgetAccountSnapshotTests {
 
     @Test
     func `two widgets select different accounts without changing the provider default`() {
-        let first = self.entry(left: 15, label: "Work")
-        let second = self.entry(left: 90, label: "Personal")
+        let first = self.entry(left: 15)
+        let second = self.entry(left: 90)
         let snapshot = self.snapshot(first: first, second: second)
 
         let work = snapshot.selectingAccount("claude/token:work", for: .claude)
@@ -28,7 +28,7 @@ struct WidgetAccountSnapshotTests {
         #expect(work.entries.first?.primary?.remainingPercent == 15)
         #expect(personal.entries.first?.primary?.remainingPercent == 90)
         #expect(snapshot.entries.first?.primary?.remainingPercent == 15)
-        #expect(snapshot.selectingAccount(nil, for: .claude).entries.first?.accountLabel == "Work")
+        #expect(snapshot.accounts.first?.label == "Work")
         #expect(personal.entries.first?.updatedAt == self.date)
     }
 
@@ -44,11 +44,11 @@ struct WidgetAccountSnapshotTests {
 
     @Test
     func `account snapshots round trip and preserve unavailable identities`() throws {
-        let snapshot = self.snapshot(first: self.entry(left: 15, label: "Work"), second: nil)
+        let snapshot = self.snapshot(first: self.entry(left: 15), second: nil)
         let data = try JSONEncoder().encode(snapshot)
         let decoded = try JSONDecoder().decode(WidgetSnapshot.self, from: data)
         #expect(decoded.accounts.map(\.id) == snapshot.accounts.map(\.id))
-        #expect(decoded.accounts.first?.usage?.accountLabel == "Work")
+        #expect(decoded.accounts.first?.label == "Work")
         #expect(decoded.accounts.last?.usage == nil)
     }
 
@@ -61,10 +61,10 @@ struct WidgetAccountSnapshotTests {
         let legacy = try JSONDecoder().decode(
             WidgetSnapshot.self, from: JSONSerialization.data(withJSONObject: object))
         #expect(legacy.accounts.isEmpty)
-        #expect(legacy.selectingAccount(nil, for: .claude).entries.first?.primary?.remainingPercent == 25)
+        #expect(legacy.entries.first?.primary?.remainingPercent == 25)
     }
 
-    private func entry(left: Double, label: String? = nil) -> WidgetSnapshot.ProviderEntry {
+    private func entry(left: Double) -> WidgetSnapshot.ProviderEntry {
         WidgetSnapshot.ProviderEntry(
             provider: .claude,
             updatedAt: self.date,
@@ -74,8 +74,7 @@ struct WidgetAccountSnapshotTests {
             creditsRemaining: nil,
             codeReviewRemainingPercent: nil,
             tokenUsage: nil,
-            dailyUsage: [],
-            accountLabel: label)
+            dailyUsage: [])
     }
 
     private func snapshot(
@@ -113,7 +112,7 @@ struct WidgetAccountPublicationTests {
         store.accountSnapshots[.claude] = accounts.enumerated().map { index, account in
             TokenAccountUsageSnapshot(
                 account: account,
-                snapshot: self.usage(percent: Double(index * 60)),
+                snapshot: self.usage(percent: Double(index * 60), owner: "fixture-owner-\(index)"),
                 error: nil,
                 sourceLabel: "fixture",
                 cacheKey: store.tokenAccountSnapshotCacheKey(provider: .claude, account: account))
@@ -151,12 +150,12 @@ struct WidgetAccountPublicationTests {
         store.accountSnapshots[.claude] = [TokenAccountUsageSnapshot(
             account: account, snapshot: self.usage(percent: 10), error: nil, sourceLabel: nil, cacheKey: "obsolete")]
         let result = store.makeWidgetAccountEntries(now: Date())
-        #expect(result.count == 2)
-        #expect(result.allSatisfy { $0.usage == nil })
+        #expect(result.isEmpty)
     }
 
     private func makeStore() -> (SettingsStore, UsageStore) {
-        let settings = testSettingsStore(suiteName: "WidgetAccountPublicationTests-\(UUID().uuidString)")
+        let settings = testSettingsStore(
+            suiteName: "WidgetAccountPublicationTests", userDefaults: InMemoryUserDefaults())
         settings.providerDetectionCompleted = true
         settings.setProviderEnabled(provider: .claude, metadata: ProviderDefaults.metadata[.claude]!, enabled: true)
         settings.setProviderEnabled(provider: .codex, metadata: ProviderDefaults.metadata[.codex]!, enabled: false)
@@ -170,11 +169,17 @@ struct WidgetAccountPublicationTests {
             environmentBase: [:]))
     }
 
-    private func usage(percent: Double) -> UsageSnapshot {
+    private func usage(percent: Double, owner: String = "fixture-owner") -> UsageSnapshot {
         UsageSnapshot(
             primary: RateWindow(usedPercent: percent, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
             secondary: nil,
             tertiary: nil,
-            updatedAt: Date(timeIntervalSince1970: 1_700_000_000))
+            updatedAt: Date(timeIntervalSince1970: 1_700_000_000),
+            identity: ProviderIdentitySnapshot(
+                providerID: .claude,
+                accountEmail: nil,
+                accountOrganization: nil,
+                loginMethod: nil,
+                widgetAccountOwnerID: owner))
     }
 }

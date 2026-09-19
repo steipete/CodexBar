@@ -195,10 +195,13 @@ final class InMemoryTokenAccountStore: ProviderTokenAccountStoring, @unchecked S
     }
 }
 
+private let testConfigStoreProcessRoot = FileManager.default.temporaryDirectory
+    .appendingPathComponent("codexbar-tests", isDirectory: true)
+    .appendingPathComponent(UUID().uuidString, isDirectory: true)
+
 func testConfigStore(suiteName: String, reset: Bool = true) -> CodexBarConfigStore {
     let sanitized = suiteName.replacingOccurrences(of: "/", with: "-")
-    let base = FileManager.default.temporaryDirectory
-        .appendingPathComponent("codexbar-tests", isDirectory: true)
+    let base = testConfigStoreProcessRoot
         .appendingPathComponent(sanitized, isDirectory: true)
     let url = base.appendingPathComponent("config.json")
     if reset {
@@ -225,6 +228,7 @@ func testSettingsStore(
     userDefaults: UserDefaults? = nil,
     tokenAccountStore: any ProviderTokenAccountStoring = InMemoryTokenAccountStore(),
     config: CodexBarConfig? = nil,
+    keychainAccessPolicy: SettingsStoreKeychainAccessPolicy = .live,
     prepareDefaults: ((UserDefaults) -> Void)? = nil) -> SettingsStore
 {
     let isolatedSuiteName = "\(suiteName)-\(UUID().uuidString)"
@@ -257,7 +261,23 @@ func testSettingsStore(
         augmentCookieStore: InMemoryCookieHeaderStore(),
         ampCookieStore: InMemoryCookieHeaderStore(),
         copilotTokenStore: InMemoryCopilotTokenStore(),
-        tokenAccountStore: tokenAccountStore)
+        tokenAccountStore: tokenAccountStore,
+        keychainAccessPolicy: keychainAccessPolicy)
+}
+
+/// Arrange provider selection without persisting every already-correct entry. Actions under test use the setter
+/// directly.
+@MainActor
+func enableTestProviders(_ enabledProviders: Set<UsageProvider>, settings: SettingsStore) {
+    let metadata = ProviderRegistry.shared.metadata
+    for provider in UsageProvider.allCases {
+        guard let providerMetadata = metadata[provider] else { continue }
+        let enabled = enabledProviders.contains(provider)
+        let isSelected = settings.selectedMenuProvider == provider.instanceID
+        guard settings.config.providerConfig(for: provider.instanceID)?.enabled != enabled || isSelected
+        else { continue }
+        settings.setProviderEnabled(provider: provider, metadata: providerMetadata, enabled: enabled)
+    }
 }
 
 #if os(macOS)

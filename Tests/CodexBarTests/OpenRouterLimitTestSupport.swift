@@ -12,7 +12,10 @@ enum OpenRouterLimitTestSupport {
     static func snapshot(
         engine: ProviderPluginEngineKind = .quickJS,
         keyBody: String = Self.keyBody,
-        keyStatus: Int = 200) async throws -> UsageSnapshot
+        keyStatus: Int = 200,
+        creditsBody: String? = nil,
+        creditsStatus: Int = 200,
+        activityBody: String? = nil) async throws -> UsageSnapshot
     {
         let transport = ProviderHTTPTransportHandler { request in
             #expect(request.httpMethod == "GET")
@@ -21,11 +24,14 @@ enum OpenRouterLimitTestSupport {
             let statusCode: Int
             switch request.url?.absoluteString {
             case "https://openrouter.ai/api/v1/credits":
-                body = #"{"data":{"total_credits":5,"total_usage":3.10}}"#
-                statusCode = 200
+                body = creditsBody ?? #"{"data":{"total_credits":5,"total_usage":3.10}}"#
+                statusCode = creditsStatus
             case "https://openrouter.ai/api/v1/key":
                 body = keyBody
                 statusCode = keyStatus
+            case "https://openrouter.ai/api/v1/activity", "https://openrouter.ai/api/v1/activity?date=2026-08-17":
+                body = try #require(activityBody)
+                statusCode = 200
             default:
                 Issue.record("Unexpected OpenRouter fixture request: \(String(describing: request.url))")
                 throw URLError(.unsupportedURL)
@@ -39,7 +45,11 @@ enum OpenRouterLimitTestSupport {
     }
 
     @MainActor
-    static func model(_ snapshot: UsageSnapshot, showUsed: Bool = false) throws -> UsageMenuCardView.Model {
+    static func model(
+        _ snapshot: UsageSnapshot,
+        showUsed: Bool = false,
+        showSummary: Bool = false) throws -> UsageMenuCardView.Model
+    {
         let metadata = try #require(ProviderDefaults.metadata[.openrouter])
         return UsageMenuCardView.Model.make(.init(
             provider: .openrouter,
@@ -47,7 +57,6 @@ enum OpenRouterLimitTestSupport {
             snapshot: snapshot,
             credits: nil,
             creditsError: nil,
-            dashboard: nil,
             dashboardError: nil,
             tokenSnapshot: nil,
             tokenError: nil,
@@ -56,7 +65,7 @@ enum OpenRouterLimitTestSupport {
             lastError: nil,
             usageBarsShowUsed: showUsed,
             resetTimeDisplayStyle: .countdown,
-            tokenCostUsageEnabled: false,
+            tokenCostUsageEnabled: showSummary,
             showOptionalCreditsAndExtraUsage: true,
             hidePersonalInfo: true,
             usesLiveSubtitle: false,

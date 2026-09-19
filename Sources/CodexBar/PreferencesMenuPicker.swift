@@ -71,6 +71,7 @@ enum MenuBarSettingsMenuOptions {
 }
 
 enum MenuSettingsMenuOptions {
+    static let mergedOverviewLayouts = MergedOverviewLayout.allCases
     static let weeklyProgressWorkDays: [Int?] = [nil, 4, 5, 7]
     static let workdayTickAppearances = WorkdayTickAppearance.allCases
     static let multiAccountLayouts = MultiAccountMenuLayout.allCases

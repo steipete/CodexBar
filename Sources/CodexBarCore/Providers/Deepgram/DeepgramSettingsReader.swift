@@ -9,43 +9,28 @@ public struct DeepgramSettingsReader: Sendable {
     public static func apiKey(
         environment: [String: String] = ProcessInfo.processInfo.environment) -> String?
     {
-        self.cleaned(environment[self.apiKeyEnvironmentKey])
+        SettingsValue.cleaned(environment[self.apiKeyEnvironmentKey])
     }
 
     public static func projectID(
         environment: [String: String] = ProcessInfo.processInfo.environment) -> String?
     {
-        self.cleaned(environment[self.projectIDEnvironmentKey])
+        SettingsValue.cleaned(environment[self.projectIDEnvironmentKey])
     }
 
     public static func apiURL(
         environment: [String: String] = ProcessInfo.processInfo.environment) -> URL
     {
-        guard let raw = self.cleaned(environment[self.apiURLEnvironmentKey]) else { return self.defaultAPIURL }
+        guard let raw = SettingsValue.cleaned(environment[self.apiURLEnvironmentKey]) else { return self.defaultAPIURL }
         return ProviderEndpointOverrideValidator.normalizedHTTPSURL(from: raw) ?? self.defaultAPIURL
     }
 
     public static func validateEndpointOverride(
         environment: [String: String] = ProcessInfo.processInfo.environment) throws
     {
-        guard let raw = self.cleaned(environment[self.apiURLEnvironmentKey]) else { return }
+        guard let raw = SettingsValue.cleaned(environment[self.apiURLEnvironmentKey]) else { return }
         guard ProviderEndpointOverrideValidator.normalizedHTTPSURL(from: raw) != nil else {
             throw DeepgramSettingsError.invalidEndpointOverride(self.apiURLEnvironmentKey)
         }
-    }
-
-    private static func cleaned(_ raw: String?) -> String? {
-        guard var value = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else {
-            return nil
-        }
-
-        if (value.hasPrefix("\"") && value.hasSuffix("\"")) ||
-            (value.hasPrefix("'") && value.hasSuffix("'"))
-        {
-            value = String(value.dropFirst().dropLast())
-        }
-
-        value = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        return value.isEmpty ? nil : value
     }
 }

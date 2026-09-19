@@ -6,19 +6,27 @@ public struct ProviderIdentitySnapshot: Codable, Sendable {
     public let accountOrganization: String?
     public let loginMethod: String?
     public let accountID: String?
+    /// Live-only verified ownership for saved-account widgets; never changes sync or hook identity.
+    public private(set) var widgetAccountOwnerID: String?
+
+    private enum CodingKeys: String, CodingKey {
+        case providerID, accountEmail, accountOrganization, loginMethod, accountID
+    }
 
     public init(
         providerID: ProviderInstanceID?,
         accountEmail: String?,
         accountOrganization: String?,
         loginMethod: String?,
-        accountID: String? = nil)
+        accountID: String? = nil,
+        widgetAccountOwnerID: String? = nil)
     {
         self.providerID = providerID
         self.accountEmail = accountEmail
         self.accountOrganization = accountOrganization
         self.loginMethod = loginMethod
         self.accountID = accountID
+        self.widgetAccountOwnerID = widgetAccountOwnerID
     }
 
     public func scoped(to instanceID: ProviderInstanceID) -> ProviderIdentitySnapshot {

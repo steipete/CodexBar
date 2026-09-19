@@ -25,6 +25,8 @@ public struct ProviderFetchContext: Sendable {
     public let sourceMode: ProviderSourceMode
     public let includeCredits: Bool
     public let includeOptionalUsage: Bool
+    /// Requests verified ownership for account-scoped publication without enabling browser enrichment.
+    public let includeAccountIdentity: Bool
     /// Whether this fetch should wait for optional usage data (such as prepaid balances) to
     /// complete instead of bounding it with the short optional join grace. Usage-snapshot
     /// reads enable this; guard and diagnostic commands keep the bounded join so a slow
@@ -63,6 +65,7 @@ public struct ProviderFetchContext: Sendable {
         sourceMode: ProviderSourceMode,
         includeCredits: Bool,
         includeOptionalUsage: Bool = true,
+        includeAccountIdentity: Bool = false,
         requiresOptionalUsageCompleteness: Bool = false,
         webTimeout: TimeInterval,
         webDebugDumpHTML: Bool,
@@ -85,6 +88,7 @@ public struct ProviderFetchContext: Sendable {
         self.sourceMode = sourceMode
         self.includeCredits = includeCredits
         self.includeOptionalUsage = includeOptionalUsage
+        self.includeAccountIdentity = includeAccountIdentity
         self.requiresOptionalUsageCompleteness = requiresOptionalUsageCompleteness
         self.webTimeout = webTimeout
         self.webDebugDumpHTML = webDebugDumpHTML
@@ -118,6 +122,8 @@ public struct ProviderFetchResult: Sendable {
     public let sourceLabel: String
     public let strategyID: String
     public let strategyKind: ProviderFetchKind
+    /// Optional provider data that may complete after the primary usage result is published.
+    public let supplementalUsageTask: Task<ProviderSupplementalUsageUpdate, Never>?
     /// True when the Codex OAuth strategy already attempted reset-credit enrichment with its
     /// winning in-memory credential snapshot. Generic enrichment must not reload auth.json after
     /// that attempt fails, or it could attach another account's credits to this usage result.
@@ -150,6 +156,7 @@ public struct ProviderFetchResult: Sendable {
         sourceLabel: String,
         strategyID: String,
         strategyKind: ProviderFetchKind,
+        supplementalUsageTask: Task<ProviderSupplementalUsageUpdate, Never>? = nil,
         codexResetCreditsAttempted: Bool = false,
         codexMonthlyLimitEnrichmentFailed: Bool = false,
         diagnostic: String? = nil,
@@ -166,6 +173,7 @@ public struct ProviderFetchResult: Sendable {
         self.sourceLabel = sourceLabel
         self.strategyID = strategyID
         self.strategyKind = strategyKind
+        self.supplementalUsageTask = supplementalUsageTask
         self.codexResetCreditsAttempted = codexResetCreditsAttempted
         self.codexMonthlyLimitEnrichmentFailed = codexMonthlyLimitEnrichmentFailed
         self.diagnostic = diagnostic
@@ -186,6 +194,7 @@ public struct ProviderFetchResult: Sendable {
             sourceLabel: self.sourceLabel,
             strategyID: self.strategyID,
             strategyKind: self.strategyKind,
+            supplementalUsageTask: self.supplementalUsageTask,
             codexResetCreditsAttempted: self.codexResetCreditsAttempted,
             codexMonthlyLimitEnrichmentFailed: true,
             diagnostic: self.diagnostic,
@@ -198,7 +207,21 @@ public struct ProviderFetchResult: Sendable {
     }
 }
 
+public enum ProviderSupplementalUsageUpdate: Sendable {
+    case grokResetCredits(GrokRateLimitResetCreditsSnapshot?)
+}
+
 public struct ProviderFetchAttempt: Sendable {
+    /// What happened to one strategy during a pipeline run.
+    public enum Outcome: String, Sendable {
+        /// The strategy produced the pipeline's result.
+        case succeeded
+        /// The strategy was skipped because `isAvailable` reported false.
+        case skipped
+        /// The strategy was attempted and threw.
+        case failed
+    }
+
     public let strategyID: String
     public let kind: ProviderFetchKind
     public let wasAvailable: Bool
@@ -209,6 +232,13 @@ public struct ProviderFetchAttempt: Sendable {
         self.kind = kind
         self.wasAvailable = wasAvailable
         self.errorDescription = errorDescription
+    }
+
+    public var outcome: Outcome {
+        if !self.wasAvailable {
+            return .skipped
+        }
+        return self.errorDescription == nil ? .succeeded : .failed
     }
 }
 
@@ -291,6 +321,7 @@ extension ProviderFetchStrategy {
         credits: CreditsSnapshot? = nil,
         dashboard: OpenAIDashboardSnapshot? = nil,
         sourceLabel: String,
+        supplementalUsageTask: Task<ProviderSupplementalUsageUpdate, Never>? = nil,
         diagnostic: String? = nil) -> ProviderFetchResult
     {
         ProviderFetchResult(
@@ -300,6 +331,7 @@ extension ProviderFetchStrategy {
             sourceLabel: sourceLabel,
             strategyID: self.id,
             strategyKind: self.kind,
+            supplementalUsageTask: supplementalUsageTask,
             diagnostic: diagnostic)
     }
 }
@@ -311,6 +343,7 @@ public struct ProviderFetchPipeline: Sendable {
     public let resolveStrategies: @Sendable (ProviderFetchContext) async -> [any ProviderFetchStrategy]
     private let retrySleeper: RetrySleeper
     private let resolveFallbackError: FallbackErrorResolver
+    private let logger: CodexBarLogger?
 
     public init(
         resolveStrategies: @escaping @Sendable (ProviderFetchContext) async -> [any ProviderFetchStrategy],
@@ -318,11 +351,13 @@ public struct ProviderFetchPipeline: Sendable {
             guard seconds > 0 else { return }
             try await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
         },
-        resolveFallbackError: @escaping FallbackErrorResolver = { _, error in error })
+        resolveFallbackError: @escaping FallbackErrorResolver = { _, error in error },
+        logger: CodexBarLogger? = nil)
     {
         self.resolveStrategies = resolveStrategies
         self.retrySleeper = retrySleeper
         self.resolveFallbackError = resolveFallbackError
+        self.logger = logger
     }
 
     public func fetch(context: ProviderFetchContext, provider: UsageProvider) async -> ProviderFetchOutcome {
@@ -377,12 +412,44 @@ public struct ProviderFetchPipeline: Sendable {
                 if strategy.shouldFallback(on: error, context: context) {
                     continue
                 }
-                return ProviderFetchOutcome(result: .failure(error), attempts: attempts)
+                let surfacedError = lastAvailableError ?? error
+                self.logPerSourceOutcomes(provider: provider, attempts: attempts, surfacedError: surfacedError)
+                return ProviderFetchOutcome(result: .failure(surfacedError), attempts: attempts)
             }
         }
 
         let error = lastAvailableError ?? ProviderFetchError.noAvailableStrategy(provider)
+        self.logPerSourceOutcomes(provider: provider, attempts: attempts, surfacedError: error)
         return ProviderFetchOutcome(result: .failure(error), attempts: attempts)
+    }
+
+    /// One debug line recording what every evaluated source did, so failure
+    /// reports can show per-source outcomes instead of a single masked error.
+    private func logPerSourceOutcomes(
+        provider: UsageProvider,
+        attempts: [ProviderFetchAttempt],
+        surfacedError: Error)
+    {
+        guard !attempts.isEmpty else { return }
+        let outcomes = attempts.map { attempt in
+            let detail = switch attempt.outcome {
+            case .failed:
+                "failed: \(ProviderDiagnosticFetchAttempt.errorCategoryLabel(attempt.errorDescription))"
+            case .skipped:
+                "skipped: unavailable"
+            case .succeeded:
+                "succeeded"
+            }
+            return "\(attempt.strategyID) (\(ProviderDiagnosticFetchAttempt.kindLabel(attempt.kind))): \(detail)"
+        }.joined(separator: " -> ")
+        let logger = self.logger ?? CodexBarLog.logger(LogCategories.provider(provider))
+        logger.debug(
+            "Provider fetch failed",
+            metadata: [
+                "provider": provider.rawValue,
+                "errorCategory": ProviderDiagnosticError(from: surfacedError, authConfigured: true).category,
+                "sources": outcomes,
+            ])
     }
 }
 

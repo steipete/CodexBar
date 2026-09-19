@@ -83,9 +83,9 @@ extension StatusItemController {
         let label = snapshot.displayLabel.trimmingCharacters(in: .whitespacesAndNewlines)
         return self.menuCardModel(
             for: provider,
-            snapshotOverride: snapshot.usage,
-            forceOverrideCard: true,
-            accountOverride: AccountInfo(email: label.isEmpty ? nil : label, plan: nil),
-            subtitleOverride: badge)
+            context: .account(.init(
+                snapshot: snapshot.usage,
+                info: AccountInfo(email: label.isEmpty ? nil : label, plan: nil),
+                subtitle: badge)))
     }
 }

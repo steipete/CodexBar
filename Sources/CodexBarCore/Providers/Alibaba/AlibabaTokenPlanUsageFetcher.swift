@@ -513,19 +513,17 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
             throw AlibabaTokenPlanUsageError.parseFailed("Could not encode request parameters")
         }
 
-        var body = URLComponents()
-        var queryItems = [
-            URLQueryItem(name: "product", value: self.personalConsoleProduct),
-            URLQueryItem(name: "action", value: context.region.personalAPIAction),
-            URLQueryItem(name: "region", value: context.region.currentRegionID),
-            URLQueryItem(name: "language", value: "en-US"),
-            URLQueryItem(name: "params", value: paramsJSON),
+        var fields = [
+            ("product", self.personalConsoleProduct),
+            ("action", context.region.personalAPIAction),
+            ("region", context.region.currentRegionID),
+            ("language", "en-US"),
+            ("params", paramsJSON),
         ]
         if let secToken = context.secToken, !secToken.isEmpty {
-            queryItems.append(URLQueryItem(name: "sec_token", value: secToken))
+            fields.append(("sec_token", secToken))
         }
-        body.queryItems = queryItems
-        return Data((body.percentEncodedQuery ?? "").utf8)
+        return FormURLEncoding.body(fields)
     }
 
     private static func subscriptionSummaryRequestBody(region: AlibabaTokenPlanAPIRegion, secToken: String?) -> Data {
@@ -536,18 +534,16 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
             return Data()
         }
 
-        var components = URLComponents()
-        var queryItems = [
-            URLQueryItem(name: "product", value: Self.bssServiceCode),
-            URLQueryItem(name: "action", value: Self.subscriptionSummaryAction),
-            URLQueryItem(name: "params", value: paramsString),
-            URLQueryItem(name: "region", value: region.currentRegionID),
+        var fields = [
+            ("product", Self.bssServiceCode),
+            ("action", Self.subscriptionSummaryAction),
+            ("params", paramsString),
+            ("region", region.currentRegionID),
         ]
         if let secToken, !secToken.isEmpty {
-            queryItems.append(URLQueryItem(name: "sec_token", value: secToken))
+            fields.append(("sec_token", secToken))
         }
-        components.queryItems = queryItems
-        return Data((components.percentEncodedQuery ?? "").utf8)
+        return FormURLEncoding.body(fields)
     }
 
     private static func resolveSECToken(
@@ -671,7 +667,7 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
     }
 
     private static func quotaURL(from rawHost: String, region: AlibabaTokenPlanAPIRegion) -> URL? {
-        let cleaned = AlibabaTokenPlanSettingsReader.cleaned(rawHost)
+        let cleaned = SettingsValue.cleaned(rawHost)
         guard let cleaned else { return nil }
         guard let base = ProviderEndpointOverrideValidator.normalizedHTTPSURL(from: cleaned) else { return nil }
         var components = URLComponents(url: base, resolvingAgainstBaseURL: false)

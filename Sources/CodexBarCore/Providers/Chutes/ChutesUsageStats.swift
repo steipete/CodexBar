@@ -233,7 +233,7 @@ public struct ChutesUsageFetcher: Sendable {
         transport: any ProviderHTTPTransport = ProviderHTTPClient.shared,
         now: Date = Date()) async throws -> ChutesUsageSnapshot
     {
-        guard let token = ChutesSettingsReader.cleaned(apiKey) else {
+        guard let token = SettingsValue.cleaned(apiKey) else {
             throw ChutesUsageError.missingCredentials
         }
         try ChutesSettingsReader.validateEndpointOverrides(environment: environment)

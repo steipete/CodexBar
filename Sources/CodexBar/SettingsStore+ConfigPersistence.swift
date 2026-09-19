@@ -69,15 +69,9 @@ extension SettingsStore {
             reason: "provider-\(provider.rawValue)",
             affectsBackgroundWork: affectsBackgroundWork)
         { config in
-            if let index = config.providers.firstIndex(where: { $0.id == provider.instanceID }) {
-                var entry = config.providers[index]
-                mutate(&entry)
-                config.providers[index] = entry
-            } else {
-                var entry = ProviderConfig(id: provider.instanceID)
-                mutate(&entry)
-                config.providers.append(entry)
-            }
+            var entry = config.providerConfig(for: provider.instanceID) ?? ProviderConfig(id: provider.instanceID)
+            mutate(&entry)
+            config.setProviderConfig(entry)
         }
     }
 
@@ -100,15 +94,9 @@ extension SettingsStore {
     {
         guard !self.configLoading else { return }
         var config = self.config
-        if let index = config.providers.firstIndex(where: { $0.id == provider.instanceID }) {
-            var entry = config.providers[index]
-            mutate(&entry)
-            config.providers[index] = entry
-        } else {
-            var entry = ProviderConfig(id: provider.instanceID)
-            mutate(&entry)
-            config.providers.append(entry)
-        }
+        var entry = config.providerConfig(for: provider.instanceID) ?? ProviderConfig(id: provider.instanceID)
+        mutate(&entry)
+        config.setProviderConfig(entry)
         self.config = config.normalized()
         self.updateProviderState(config: self.config)
         self.schedulePersistConfig()
@@ -154,8 +142,12 @@ extension SettingsStore {
             }
 
             for provider in UsageProvider.allCases where !seen.contains(provider.instanceID) {
+                seen.insert(provider.instanceID)
                 ordered.append(configsByID[provider.instanceID] ?? ProviderConfig(id: provider.instanceID))
             }
+
+            // A loaded plugin can become unavailable without losing its retained configuration.
+            ordered.append(contentsOf: config.providers.filter { !seen.contains($0.id) })
 
             config.providers = ordered
         }

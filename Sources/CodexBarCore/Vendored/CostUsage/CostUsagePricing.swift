@@ -493,16 +493,8 @@ enum CostUsagePricing {
                   self.codexModelsDevProviderIDs.contains(routeID)
             else { return [] }
 
-            var providerIDs = [routeID]
-            switch routeID {
-            case "kimi-coding":
-                providerIDs.append("kimi-for-coding")
-            case "opencode-free":
-                providerIDs.append("opencode")
-            default:
-                break
-            }
-            var targets = providerIDs.map { ($0, modelID) }
+            var targets = ModelsDevPricingTargetResolver.targets(providerID: routeID, modelID: trimmed)
+                .map { ($0.providerID, $0.modelID) }
             if routeID == self.codexModelsDevProviderID {
                 let normalized = self.normalizeCodexModel(modelID)
                 if normalized != modelID {
@@ -846,17 +838,18 @@ enum CostUsagePricing {
             + Double(max(0, tokens.output)) * outputRate
     }
 
-    private static func claudeCostUSD(
-        pricing: ModelsDevPricingInfo,
-        tokens: ClaudeCostTokens) -> Double
-    {
-        self.claudeCostUSD(
+    private static func claudeCostUSD(pricing: ModelsDevPricingInfo, tokens: ClaudeCostTokens) -> Double {
+        // Provider-specific by design: OpenAI's threshold also applies to usage recorded by Claude Code.
+        let bundledThreshold = pricing.providerID == self.codexModelsDevProviderID
+            ? self.codex[self.normalizeCodexModel(pricing.modelID)]?.thresholdTokens
+            : nil
+        return self.claudeCostUSD(
             pricing: ClaudePricing(
                 inputCostPerToken: pricing.inputCostPerToken,
                 outputCostPerToken: pricing.outputCostPerToken,
                 cacheCreationInputCostPerToken: pricing.cacheCreationInputCostPerToken ?? pricing.inputCostPerToken,
                 cacheReadInputCostPerToken: pricing.cacheReadInputCostPerToken ?? pricing.inputCostPerToken,
-                thresholdTokens: pricing.thresholdTokens,
+                thresholdTokens: bundledThreshold ?? pricing.thresholdTokens,
                 inputCostPerTokenAboveThreshold: pricing.inputCostPerTokenAboveThreshold,
                 outputCostPerTokenAboveThreshold: pricing.outputCostPerTokenAboveThreshold,
                 cacheCreationInputCostPerTokenAboveThreshold: pricing.cacheCreationInputCostPerTokenAboveThreshold,

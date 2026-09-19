@@ -162,17 +162,6 @@ enum ClaudeOAuthUsageFetcher {
         return try decoder.decode(OAuthUsageResponse.self, from: data)
     }
 
-    static func parseISO8601Date(_ string: String?) -> Date? {
-        guard let string, !string.isEmpty else { return nil }
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = formatter.date(from: string) {
-            return date
-        }
-        formatter.formatOptions = [.withInternetDateTime]
-        return formatter.date(from: string)
-    }
-
     private static func retryAfterDate(from response: HTTPURLResponse, now: Date = Date()) -> Date? {
         guard let raw = response.value(forHTTPHeaderField: "Retry-After")?
             .trimmingCharacters(in: .whitespacesAndNewlines),
@@ -213,6 +202,7 @@ enum ClaudeOAuthUsageFetcher {
 }
 
 struct OAuthProfileResponse: Decodable, Sendable {
+    let accountUuid: String?
     let emailAddress: String?
     let organizationUuid: String?
 
@@ -220,6 +210,8 @@ struct OAuthProfileResponse: Decodable, Sendable {
         let container = try decoder.container(keyedBy: DynamicCodingKey.self)
         let account = try Self.decodeNestedContainer(in: container, key: "account")
         let organization = try Self.decodeNestedContainer(in: container, key: "organization")
+        self.accountUuid = account.flatMap { Self.decodeString(in: $0, keys: ["uuid"]) }
+            ?? Self.decodeString(in: container, keys: ["accountUuid", "account_uuid"])
         self.emailAddress =
             account.flatMap { Self.decodeString(in: $0, keys: ["emailAddress", "email_address", "email"]) }
                 ?? Self.decodeString(in: container, keys: ["emailAddress", "email_address", "email"])
@@ -228,7 +220,8 @@ struct OAuthProfileResponse: Decodable, Sendable {
                 ?? Self.decodeString(in: container, keys: ["organizationUuid", "organization_uuid"])
     }
 
-    init(emailAddress: String?, organizationUuid: String?) {
+    init(emailAddress: String?, organizationUuid: String?, accountUuid: String? = nil) {
+        self.accountUuid = accountUuid
         self.emailAddress = emailAddress
         self.organizationUuid = organizationUuid
     }

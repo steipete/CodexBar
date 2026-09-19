@@ -11,6 +11,8 @@ read_when:
 ## Snapshot pipeline
 - `WidgetSnapshotStore` writes compact JSON snapshots to the app-group container.
 - Widgets read the snapshot and render usage/credits/history states.
+- Usage and Switcher tiles emphasize the most constrained general quota, preserve other allowances as detail rows, and show full provider names. Code-review and model-specific allowances do not replace a provider's general quota headline. Providers without quota bars keep credits or local-cost information useful.
+- WidgetKit owns the outer margins. Small, medium, and large tiles share the same rendering and quota-selection rules; overflow labels disclose omitted detail rows. Snapshot and reset dates remain live relative text between timeline updates.
 - Snapshot age labels advance between timeline reloads. Stale token-cost rows track their own saved timestamp once they lag quota data by more than ten minutes. Fetching new usage still depends on app refresh and WidgetKit accepting a timeline.
 - The app writes snapshots after the main refresh pipeline and token-usage refreshes; narrow single-provider refresh paths may wait for the next snapshot write.
 - Scheduled provider refreshes trigger regular token/cost refreshes; the token/cost TTL determines eligibility when
@@ -64,7 +66,9 @@ its widget choices remain available when only one slot remains. Slot labels and 
 keep a replacement account from inheriting an old pin without persisting the adapter's personal identity fields.
 **Hide personal info** replaces other account labels with ordinals without changing widget account identities.
 
-Codex pins use managed account UUIDs or normalized source/owner identities, not the menu's email-disambiguated
+Saved-token pins combine the source UUID with a verified returned owner and any explicit usage scope. Claude OAuth requests the account profile with the same token only when account widgets are enabled. A profile failure keeps the last verified quota at its original age while the credential scope matches; labels never establish ownership. The general usage identity stays unchanged for Cloud Sync and hook throttling. A private app cache stores the verified opaque pin, a one-way credential-scope guard, and quota-only data for offline restarts; it stores no account labels or credentials and is separate from the shared widget JSON. Opt-out, removal, authentication failure, and credential replacement retire the corresponding cached data.
+
+Codex pins combine managed account UUIDs with verified owners or normalized source/owner identities, not the menu's email-disambiguated
 row IDs. Adding or removing a same-email sibling does not change an existing pin. Profile homes remain distinct,
 and rotating credentials does not change a pin's identity.
 
@@ -84,7 +88,7 @@ uses a new `CodexBarAccountUsageWidget` kind and a separate `AccountUsageSelecti
 persisted configurations of existing widgets. The new intent has no default account. Enabling background account
 refresh is a separate opt-in, off by default.
 
-The shared JSON format is additive: older snapshots omit `accounts` and `accountLabel`, and the new reader accepts
+The shared JSON format is additive: older snapshots omit `accounts`, and the new reader accepts
 them. Older readers ignore those fields in new snapshots. A rollback can rewrite the provider snapshot without
 account data; a feature widget reading that rewritten snapshot shows unavailable rather than another account’s quota.
 The old app does not provide the new Account Usage widget kind; rollback support applies to the existing provider widgets.

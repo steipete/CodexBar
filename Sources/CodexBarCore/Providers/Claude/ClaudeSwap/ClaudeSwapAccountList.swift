@@ -5,10 +5,9 @@ import Foundation
 ///
 /// Only the fields allow-listed in `docs/claude-multi-account-and-status-items.md`
 /// are decoded: slot number, display email, display-only `organizationName`,
-/// optional display-only `alias`, active state, usage status, and the
-/// 5-hour/7-day windows and optional model-scoped weekly windows (percent +
-/// reset timestamp), and optional usage measurement time. Everything else in the payload is ignored; unknown schema
-/// versions and partial top-level shapes are rejected.
+/// optional display-only `alias`, active/disabled state, usage status, quota
+/// windows, spend, and measurement times. `lastGoodUsage` is display-only.
+/// Extra fields are ignored; unknown schema versions and partial top-level shapes are rejected.
 public struct ClaudeSwapAccountList: Equatable, Sendable {
     public let activeAccountNumber: Int?
     public let accounts: [ClaudeSwapAccountRow]
@@ -36,6 +35,10 @@ public struct ClaudeSwapAccountRow: Equatable, Sendable {
     public let scoped: [ClaudeSwapScopedUsageWindow]
     /// The adapter's measurement time, which can precede this list refresh.
     public let usageFetchedAt: Date?
+    public let spend: ClaudeSwapSpendWindow?
+    /// Excluded from source-owned rotation, but still eligible for explicit switching.
+    public let isDisabled: Bool
+    public let lastGoodUsage: ClaudeSwapLastGoodUsage?
 
     public init(
         number: Int,
@@ -47,7 +50,10 @@ public struct ClaudeSwapAccountRow: Equatable, Sendable {
         fiveHour: ClaudeSwapUsageWindow?,
         sevenDay: ClaudeSwapUsageWindow?,
         scoped: [ClaudeSwapScopedUsageWindow] = [],
-        usageFetchedAt: Date? = nil)
+        usageFetchedAt: Date? = nil,
+        spend: ClaudeSwapSpendWindow? = nil,
+        isDisabled: Bool = false,
+        lastGoodUsage: ClaudeSwapLastGoodUsage? = nil)
     {
         self.number = number
         self.email = email
@@ -59,6 +65,17 @@ public struct ClaudeSwapAccountRow: Equatable, Sendable {
         self.sevenDay = sevenDay
         self.scoped = scoped
         self.usageFetchedAt = usageFetchedAt
+        self.spend = spend
+        self.isDisabled = isDisabled
+        self.lastGoodUsage = lastGoodUsage
+    }
+
+    public var measurement: ClaudeSwapUsageMeasurement {
+        ClaudeSwapUsageMeasurement(
+            fiveHour: self.fiveHour,
+            sevenDay: self.sevenDay,
+            scoped: self.scoped,
+            spend: self.spend)
     }
 }
 
@@ -94,6 +111,7 @@ public enum ClaudeSwapUsageStatus: Equatable, Sendable {
     case apiKey
     case keychainUnavailable
     case noCredentials
+    case foreignCredential
     case unavailable
     case unknown(String)
 
@@ -105,6 +123,7 @@ public enum ClaudeSwapUsageStatus: Equatable, Sendable {
         case "api_key": self = .apiKey
         case "keychain_unavailable": self = .keychainUnavailable
         case "no_credentials": self = .noCredentials
+        case "foreign_credential": self = .foreignCredential
         case "unavailable": self = .unavailable
         default: self = .unknown(rawValue)
         }
@@ -216,7 +235,40 @@ public enum ClaudeSwapListParser {
             fiveHour: self.parseWindow(usage?["fiveHour"], slot: number, name: "fiveHour"),
             sevenDay: self.parseWindow(usage?["sevenDay"], slot: number, name: "sevenDay"),
             scoped: self.parseScopedWindows(usage?["scoped"]),
-            usageFetchedAt: (row["usageFetchedAt"] as? String).flatMap(self.parseTimestamp))
+            usageFetchedAt: ISO8601DateParser.parse(row["usageFetchedAt"] as? String),
+            spend: self.parseSpendWindow(usage?["spend"]),
+            isDisabled: row["disabled"] as? Bool ?? false,
+            lastGoodUsage: self.parseLastGoodUsage(row, slot: number))
+    }
+
+    private static func parseLastGoodUsage(_ row: [String: Any], slot: Int) -> ClaudeSwapLastGoodUsage? {
+        guard let raw = row["lastGoodUsage"] as? [String: Any],
+              let fetchedAt = ISO8601DateParser.parse(row["lastGoodFetchedAt"] as? String)
+        else { return nil }
+        // Malformed additive fields must not discard the row's valid live windows.
+        let measurement = ClaudeSwapUsageMeasurement(
+            fiveHour: try? self.parseWindow(raw["fiveHour"], slot: slot, name: "lastGoodUsage.fiveHour"),
+            sevenDay: try? self.parseWindow(raw["sevenDay"], slot: slot, name: "lastGoodUsage.sevenDay"),
+            scoped: self.parseScopedWindows(raw["scoped"]),
+            spend: self.parseSpendWindow(raw["spend"]))
+        guard !measurement.isEmpty else { return nil }
+        return ClaudeSwapLastGoodUsage(measurement: measurement, fetchedAt: fetchedAt)
+    }
+
+    private static func parseSpendWindow(_ raw: Any?) -> ClaudeSwapSpendWindow? {
+        guard let window = raw as? [String: Any],
+              let used = self.finiteDouble(window["used"]),
+              let limit = self.finiteDouble(window["limit"]),
+              let percent = self.finiteDouble(window["pct"]),
+              used >= 0, limit > 0
+        else { return nil }
+        let currency = (window["currency"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return ClaudeSwapSpendWindow(
+            used: used,
+            limit: limit,
+            usedPercent: min(max(percent, 0), 100),
+            currencyCode: currency.flatMap { $0.isEmpty ? nil : $0 } ?? "USD",
+            resetsAt: ISO8601DateParser.parse(window["resetsAt"] as? String))
     }
 
     private static func parseWindow(_ raw: Any?, slot: Int, name: String) throws -> ClaudeSwapUsageWindow? {
@@ -229,7 +281,7 @@ public enum ClaudeSwapListParser {
         }
         var resetsAt: Date?
         if let rawResetsAt = window["resetsAt"] {
-            guard let text = rawResetsAt as? String, let date = Self.parseTimestamp(text) else {
+            guard let text = rawResetsAt as? String, let date = ISO8601DateParser.parse(text) else {
                 throw ClaudeSwapListParserError.malformedShape("slot \(slot) \(name) resetsAt is not a timestamp")
             }
             resetsAt = date
@@ -250,7 +302,7 @@ public enum ClaudeSwapListParser {
 
             var resetsAt: Date?
             if let rawResetsAt = row["resetsAt"] {
-                guard let text = rawResetsAt as? String, let date = self.parseTimestamp(text) else { return nil }
+                guard let text = rawResetsAt as? String, let date = ISO8601DateParser.parse(text) else { return nil }
                 resetsAt = date
             }
             return ClaudeSwapScopedUsageWindow(
@@ -274,16 +326,5 @@ public enum ClaudeSwapListParser {
         guard CFGetTypeID(number) != CFBooleanGetTypeID() else { return nil }
         let value = number.doubleValue
         return value.isFinite ? value : nil
-    }
-
-    private static func parseTimestamp(_ text: String) -> Date? {
-        let withFraction = ISO8601DateFormatter()
-        withFraction.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = withFraction.date(from: text) {
-            return date
-        }
-        let plain = ISO8601DateFormatter()
-        plain.formatOptions = [.withInternetDateTime]
-        return plain.date(from: text)
     }
 }

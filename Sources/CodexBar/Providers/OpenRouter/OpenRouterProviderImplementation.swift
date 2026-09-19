@@ -1,7 +1,5 @@
-import AppKit
 import CodexBarCore
 import Foundation
-import SwiftUI
 
 struct OpenRouterProviderImplementation: ProviderImplementation {
     let id: UsageProvider = .openrouter
@@ -35,25 +33,18 @@ struct OpenRouterProviderImplementation: ProviderImplementation {
     }
 
     @MainActor
-    func settingsPickers(context _: ProviderSettingsContext) -> [ProviderSettingsPickerDescriptor] {
-        []
-    }
-
-    @MainActor
     func settingsFields(context: ProviderSettingsContext) -> [ProviderSettingsFieldDescriptor] {
         [
             ProviderSettingsFieldDescriptor(
                 id: "openrouter-api-key",
                 title: "API key",
-                subtitle: "Stored in ~/.codexbar/config.json. "
-                    + "Get your key from openrouter.ai/settings/keys and set a key spending limit "
-                    + "there to enable API key quota tracking.",
+                subtitle: "Stored in your CodexBar config. Shows spend for this key. "
+                    + "Management keys also enable account Activity on the official OpenRouter API.",
                 kind: .secure,
                 placeholder: "sk-or-v1-...",
                 binding: context.providerConfigBinding(.apiKey),
                 actions: [],
-                isVisible: nil,
-                onActivate: nil),
+                isVisible: nil),
             ProviderSettingsFieldDescriptor(
                 id: "openrouter-api-url",
                 title: "API URL",
@@ -62,20 +53,18 @@ struct OpenRouterProviderImplementation: ProviderImplementation {
                 placeholder: "https://openrouter.ai/api/v1",
                 binding: context.providerConfigBinding(.endpoint),
                 actions: [],
-                isVisible: nil,
-                onActivate: nil),
+                isVisible: nil),
             ProviderSettingsFieldDescriptor(
                 id: "openrouter-management-api-key",
                 title: "Management API key",
-                subtitle: "Optional. Enables exact 30-day account spend from OpenRouter Activity.",
+                subtitle: "Optional account Activity key. Takes precedence over a management key in the API key field.",
                 kind: .secure,
                 placeholder: "sk-or-v1-...",
                 binding: context.providerConfigSecretBinding(
                     key: OpenRouterSettingsReader.managementAPIKeyEnvironmentKey,
                     logField: "managementAPIKey"),
                 actions: [],
-                isVisible: nil,
-                onActivate: nil),
+                isVisible: nil),
         ]
     }
 }

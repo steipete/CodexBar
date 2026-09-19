@@ -54,7 +54,6 @@ struct ZaiMenuCardTests {
             snapshot: snapshot,
             credits: nil,
             creditsError: nil,
-            dashboard: nil,
             dashboardError: nil,
             tokenSnapshot: nil,
             tokenError: nil,
@@ -76,6 +75,37 @@ struct ZaiMenuCardTests {
         let mcp = try #require(rows.first(where: { $0.label == "MCP quota" }))
         #expect(mcp.value == "50% used")
         #expect(mcp.secondaryValue == "100 limit · 50 remaining")
+    }
+
+    @MainActor
+    @Test
+    func `quota details can be hidden while keeping rate metrics`() throws {
+        let model = try Self.costSummaryModel(style: .inlineSummary)
+
+        #expect(model.providerDetailRawTitles == ["Quota details", "Hourly tokens", "Daily tokens"])
+        #expect(model.usageItemDescriptors.map(\.id.rawValue).contains("detailSection:Quota details"))
+
+        let projected = model.applyingUsageItemVisibility(hiddenItemIDs: [.detailSection("Quota details")])
+
+        #expect(projected.providerDetails.map(\.title) == ["Hourly tokens", "Daily tokens"])
+        #expect(projected.metrics.map(\.title) == ["5-hour"])
+    }
+
+    @MainActor
+    @Test
+    func `detail section visibility keys on raw titles across localized rendering`() throws {
+        let model = try CodexBarLocalizationOverride.$appLanguage.withValue("zh-Hans") {
+            try Self.costSummaryModel(style: .inlineSummary)
+        }
+
+        // Display titles localize, the paired visibility keys do not.
+        #expect(model.providerDetails.map(\.title) == ["配额详情", "每小时 token", "每日 token"])
+        #expect(model.providerDetailRawTitles == ["Quota details", "Hourly tokens", "Daily tokens"])
+        #expect(model.usageItemDescriptors.last?.id.rawValue == "detailSection:Quota details")
+        #expect(model.usageItemDescriptors.last?.title == "配额详情")
+
+        let projected = model.applyingUsageItemVisibility(hiddenItemIDs: [.detailSection("Quota details")])
+        #expect(projected.providerDetails.map(\.title) == ["每小时 token", "每日 token"])
     }
 
     @MainActor
@@ -133,7 +163,6 @@ struct ZaiMenuCardTests {
                 snapshot: snapshot,
                 credits: nil,
                 creditsError: nil,
-                dashboard: nil,
                 dashboardError: nil,
                 tokenSnapshot: nil,
                 tokenError: nil,
@@ -214,7 +243,6 @@ struct ZaiMenuCardTests {
             snapshot: snapshot,
             credits: nil,
             creditsError: nil,
-            dashboard: nil,
             dashboardError: nil,
             tokenSnapshot: nil,
             tokenError: nil,

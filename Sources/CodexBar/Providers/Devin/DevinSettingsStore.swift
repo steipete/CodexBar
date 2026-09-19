@@ -3,23 +3,13 @@ import Foundation
 
 extension SettingsStore {
     var devinBearerToken: String {
-        get { self.configSnapshot.providerConfig(for: .devin)?.sanitizedCookieHeader ?? "" }
-        set {
-            self.updateProviderConfig(provider: .devin) { entry in
-                entry.cookieHeader = self.normalizedConfigValue(newValue)
-            }
-            self.logSecretUpdate(provider: .devin, field: "cookieHeader", value: newValue)
-        }
+        get { self[providerConfig: .devin, field: .cookieHeader] }
+        set { self[providerConfig: .devin, field: .cookieHeader] = newValue }
     }
 
     var devinCookieSource: ProviderCookieSource {
         get { self.resolvedCookieSource(provider: .devin, fallback: .auto) }
-        set {
-            self.updateProviderConfig(provider: .devin) { entry in
-                entry.cookieSource = newValue
-            }
-            self.logProviderModeChange(provider: .devin, field: "cookieSource", value: newValue.rawValue)
-        }
+        set { self.setCookieSource(newValue, provider: .devin) }
     }
 
     var devinOrganization: String {

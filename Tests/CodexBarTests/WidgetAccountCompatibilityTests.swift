@@ -115,6 +115,20 @@ struct WidgetAccountCompatibilityTests {
     }
 
     @Test
+    func `managed Codex slot cannot transfer a pin to a replacement member or workspace`() throws {
+        let id = UUID()
+        let original = self.visibleAccount(source: .managedAccount(id: id), storedID: id)
+        let originalID = try #require(UsageStore.widgetCodexAccountID(original))
+        let replacements = [
+            self.visibleAccount(source: .managedAccount(id: id), email: "other@example.com", storedID: id),
+            self.visibleAccount(source: .liveSystem, workspace: "other-workspace", storedID: id),
+        ]
+        for replacement in replacements {
+            #expect(UsageStore.widgetCodexAccountID(replacement) != originalID)
+        }
+    }
+
+    @Test
     func `separate Codex profile homes have private independent pins for the same owner`() throws {
         let firstPath = CodexCredentialFixtures.root.appendingPathComponent("private-work-profile").path
         let secondPath = CodexCredentialFixtures.root.appendingPathComponent("private-personal-profile").path

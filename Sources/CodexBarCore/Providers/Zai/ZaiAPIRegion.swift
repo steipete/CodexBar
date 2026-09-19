@@ -124,7 +124,7 @@ public enum ZaiEndpointRouter {
     }
 
     private static func endpointURL(baseURLString: String, path: String) -> URL? {
-        guard let cleaned = ZaiSettingsReader.cleaned(baseURLString),
+        guard let cleaned = SettingsValue.cleaned(baseURLString),
               let url = ProviderEndpointOverrideValidator.normalizedHTTPSURL(from: cleaned)
         else { return nil }
         if url.path.isEmpty || url.path == "/" {

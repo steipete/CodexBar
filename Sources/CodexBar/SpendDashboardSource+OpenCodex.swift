@@ -2,11 +2,44 @@ import CodexBarCore
 import Foundation
 
 extension SpendDashboardSource {
-    static func mergingOpenCodexInputs(
+    static func mergingOpenCodexInputsAfterRefreshingPricing(
         _ inputs: [SpendDashboardModel.ProviderInput],
-        request: SpendDashboardLoadRequest) -> [SpendDashboardModel.ProviderInput]
+        request: SpendDashboardLoadRequest,
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        entryLoader: (@Sendable (URL) throws -> [OpenCodexUsageEntry])? = nil,
+        pricingRefresher: @escaping @Sendable ([OpenCodexUsageEntry], Date) async -> Void = { entries, now in
+            await OpenCodexUsageStore.refreshPricingIfNeeded(entries: entries, now: now)
+        }) async -> (
+        inputs: [SpendDashboardModel.ProviderInput],
+        observation: SpendDashboardLoadResult.OpenCodexObservation)
     {
-        self.mergingOpenCodexInputsWithObservation(inputs, request: request).inputs
+        guard request.configuration.openCodexUsageLogsEnabled,
+              !request.configuration.hiddenSourceIDs.contains(SpendDashboardModel.openCodexSourceID)
+        else {
+            return (
+                inputs.filter { $0.id != SpendDashboardModel.openCodexSourceID },
+                .disabled)
+        }
+        guard let logURL = OpenCodexUsageLog.usageLogURL(environment: environment) else {
+            return (inputs.filter { $0.id != SpendDashboardModel.openCodexSourceID }, .unavailable)
+        }
+        let store = OpenCodexUsageStore(cacheRoot: OpenCodexUsageLog.cacheRoot())
+        let entries: [OpenCodexUsageEntry]
+        do {
+            entries = try entryLoader?(logURL) ?? store.loadEntries(logURL: logURL)
+        } catch {
+            return (inputs.filter { $0.id != SpendDashboardModel.openCodexSourceID }, .unavailable)
+        }
+        guard !entries.isEmpty else {
+            return (inputs.filter { $0.id != SpendDashboardModel.openCodexSourceID }, .confirmedEmpty)
+        }
+
+        await pricingRefresher(entries, request.now)
+        return self.mergingOpenCodexInputsWithObservation(
+            inputs,
+            request: request,
+            environment: environment,
+            entryLoader: { _ in entries })
     }
 
     static func mergingOpenCodexInputsWithObservation(

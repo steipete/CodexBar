@@ -87,6 +87,35 @@ struct StatusMenuSwitcherLayoutTests {
     }
 
     @Test
+    func `long stacked provider title stays inside its row`() throws {
+        let view = ProviderSwitcherView(
+            providers: [
+                .codex, .claude, .cursor, .antigravity, .copilot, .warp, .perplexity,
+                .deepseek, .commandcode, .grok, .notion, .gemini, .devin,
+            ],
+            selected: .overview,
+            includesOverview: true,
+            width: 310,
+            showsIcons: true,
+            iconProvider: { _ in NSImage(size: NSSize(width: 16, height: 16)) },
+            weeklyRemainingProvider: { _ in nil },
+            onSelect: { _ in })
+        view.updateConstraintsForSubtreeIfNeeded()
+        view.layoutSubtreeIfNeeded()
+
+        #expect(view._test_rowCount() == 3)
+        let commandIndex = try #require(view._test_segmentTitles().firstIndex(of: "Command Code"))
+        let buttonFrame = view._test_buttonFrames()[commandIndex]
+        let contentFrames = view._test_buttonContentFrames()
+        let contentFrame = try #require(contentFrames[commandIndex])
+        let referenceFrame = try #require(contentFrames.compactMap(\.self).first)
+        #expect(contentFrame.minY >= -0.01)
+        #expect(contentFrame.maxY <= buttonFrame.height + 0.01)
+        #expect(abs(contentFrame.height - referenceFrame.height) < 0.01)
+        #expect(abs(contentFrame.midY - referenceFrame.midY) < 0.01)
+    }
+
+    @Test
     func `localized inline switcher titles fit without losing equal sizing`() throws {
         try CodexBarLocalizationOverride.$appLanguage.withValue("tr") {
             for width in stride(from: CGFloat(280), through: CGFloat(330), by: 1) {

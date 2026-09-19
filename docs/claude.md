@@ -17,6 +17,8 @@ pending. For the exact current-state parity contract, see
 When an Anthropic Admin API key is configured, Claude can also show organization-level spend/messages/tokens in the
 same inline dashboard pattern used by the OpenAI API provider.
 
+Incomplete proxy records with an explicit null `stop_reason`, positive input, zero output, and no cache counters are excluded from token and cost totals until a completed record arrives. Their day and model stay visible with an **Incomplete** marker and an excluded-request count. Known usage remains a partial subtotal; an incomplete-only period stays unavailable rather than becoming zero. Older caches are rebuilt once to apply this distinction. Missing `stop_reason` alone retains compatibility with older complete logs.
+
 ## Data sources + selection order
 
 ### Default selection (debug menu disabled)
@@ -24,6 +26,9 @@ same inline dashboard pattern used by the OpenAI API provider.
 - App runtime main pipeline: OAuth API → CLI PTY → Web API.
 - CLI runtime main pipeline: Web API → CLI PTY.
 - Explicit picker modes (OAuth/Web/CLI) bypass automatic fallback.
+- Explicit OAuth retains the last successful quota measurement through recognized temporary network failures,
+  including localized DNS/offline errors. Its original timestamp remains visible; authentication rejection still
+  follows the existing invalidation and credential-owner rules.
 - A lower-level direct Claude fetcher still contains a separate `.auto` order. That inconsistency is tracked in
   [docs/refactor/claude-current-baseline.md](refactor/claude-current-baseline.md).
 
@@ -61,6 +66,7 @@ Admin API key setup:
 - Web extras are internal-only (not exposed in the Providers pane).
 
 ## OAuth API (preferred)
+- OAuth refresh form-encodes credential values, preserving literal plus signs and other reserved characters.
 - Credentials:
   - CodexBar OAuth cache when available.
   - File fallback: `~/.claude/.credentials.json`.
@@ -68,6 +74,7 @@ Admin API key setup:
 - For the default CLI profile, expired cached credentials can adopt a changed, fresh CLI Keychain token after file fallback. Existing direct-read consent, prompt policy, cooldown, and noninteractive-read checks still apply. Custom profiles are not recovered from the unscoped global item, and CLI credentials are never rewritten by this synchronization.
 - On Claude Code 2.1.x, `Claude Code-credentials` may contain only MCP server OAuth state (`mcpOAuth`) with no `claudeAiOauth`. CodexBar treats that as an OAuth configuration error, does not run background delegated `claude /status` refresh, and surfaces re-auth guidance. Use Web or CLI usage source, or restore a valid Claude OAuth keychain entry. See #1844.
 - Requires `user:profile` scope (CLI tokens with only `user:inference` cannot call usage).
+- Missing-scope errors require a Claude Code sign-in token with usage access. `claude setup-token` produces a token for model requests and is not a usage-scope recovery step ([Claude Code authentication](https://code.claude.com/docs/en/authentication#generate-a-long-lived-token)). Remove any configured OAuth token override before switching Claude Source to Web/CLI.
 - Endpoints:
   - `GET https://api.anthropic.com/api/oauth/usage`
   - `GET https://api.anthropic.com/api/oauth/profile` → account identity used to verify that optional Web enrichment
@@ -109,6 +116,7 @@ Admin API key setup:
   (`default_claude_max_5x` / `default_claude_max_20x`), it is surfaced in the label as "Max 5x" / "Max 20x".
 
 ## Web API (cookies)
+- Session quota warnings ignore a weekly quota promoted into the primary field when the five-hour payload is missing. Existing session warning history stays tied to its account, and weekly warnings continue independently.
 - Preferences → Providers → Claude → Cookie source (Automatic or Manual).
 - Manual mode accepts a `Cookie:` header from a claude.ai request.
 - Multi-account manual tokens: add entries to `~/.codexbar/config.json` (`tokenAccounts`) and set Claude cookies to
@@ -126,6 +134,9 @@ Admin API key setup:
   - `sessionKey` (value prefix `sk-ant-...`).
 - Cached cookies: Keychain cache `com.steipete.codexbar.cache` (account `cookie.claude`, source + timestamp).
   Reused before re-importing from browsers.
+- After replacing an expired cached cookie, failures from the recovered session retain their actual error type,
+  including temporary network failures, server outages, Cloudflare challenges, and cancellation. The original
+  sign-in error is retained only when browser recovery itself fails to find a usable session.
 - API calls (all include `Cookie: sessionKey=<value>`):
   - `GET https://claude.ai/api/organizations` → org UUID.
   - `GET https://claude.ai/api/organizations/{orgId}/usage` → session/weekly/opus.
@@ -156,15 +167,30 @@ The accepted multi-account design in
   shell, fixed arguments, bounded runtime and output), requires `schemaVersion == 1`, and parses only slot number,
   active state, usage status, email (display only), display-only `organizationName` (always present, may be empty),
   optional display-only `alias` when non-empty, the 5-hour/7-day windows, and optional display-only model-scoped
-  weekly windows from `usage.scoped`. Identity stays `claude-swap:<slot>`; organization name and alias are never
+  weekly windows from `usage.scoped`, optional `usage.spend`, and source measurement times. Identity stays
+  `claude-swap:<slot>`; organization name and alias are never
   used as identity. When two or more slots share an email, cards append ` · organizationName` or ` · Account N`;
   a user-chosen cswap alias replaces that label. Unique emails stay email-only.
+- Menu and terminal cards can show the source's `lastGoodUsage` when live usage is unavailable. Its required
+  `lastGoodFetchedAt` remains the measurement time, and the card shows a last-known marker and capture age alongside
+  the diagnostic. Terminal cards also show the capture timestamp. Malformed additive spend or last-good fields do not
+  discard valid live quota windows. The free-form row `message` is not parsed.
+  Brief terminal output keeps the diagnostic and excludes historical metrics from its warnings and next-reset summary.
+- Last-known usage keeps its provenance through quota retention and cache reload. It never drives the menu-bar icon,
+  whose compact display cannot show its age. Compact account rows show the capture age and do not recommend or fold
+  last-known rows into the ready-account group. Explicit source measurements take precedence over locally retained
+  quota windows.
+- Slots excluded from claude-swap's automatic rotation are marked `(disabled)` but remain valid explicit switch
+  targets. The active account label is emphasized.
 - Display: when claude-swap reports more than one account, its accounts replace ambient/token-account Claude cards.
   The app honors **Menu → Multi-account layout**: Segmented shows account buttons and one active account card;
   pending or failed switches show the requested account's details while the active marker stays source-owned.
   Expired or otherwise unavailable accounts remain inspectable without activation; selecting the active account
   returns to its card. If the adapter reports no active account, the menu says so instead of selecting the first row.
-  Buttons wrap into two rows above three accounts. Hide Personal Info uses stable `Account N` slot labels.
+  Buttons wrap into two rows above three accounts. Hide Personal Info uses stable `Account N` slot labels across
+  segmented buttons, native account cards, compact menu rows, and accessibility text, including unavailable accounts.
+  These numbers come from validated claude-swap slots and remain stable when accounts are reordered; aliases,
+  organization names, and email addresses stay hidden.
   Stacked shows one card per account (active account first, then numeric slot). With four or more
   accounts the stacked menu switches to a compact layout (`AccountMenuLayoutPlanner`): the active account keeps its full
   card, inactive accounts become one-line rows sorted by remaining headroom (most constrained first, red/amber below
@@ -188,12 +214,13 @@ The accepted multi-account design in
   stale data, surface the error in provider settings, and never affect the ambient Claude usage card. In terminal
   cards, a list failure retains the current ambient output, adds a distinct `Claude (claude-swap)` footer entry, and
   exits non-zero.
-- Sentinel statuses (`token_expired`, `api_key`, `keychain_unavailable`, `no_credentials`,
-  and unknown future values) render as per-account notes instead of usage bars in both full and brief cards. When
-  `unavailable` means claude-swap deferred polling because a window is at 100%, CodexBar keeps that slot's last
+- Sentinel statuses (`token_expired`, `relogin_required`, `api_key`, `keychain_unavailable`, `no_credentials`,
+  `foreign_credential`, and unknown future values) retain per-account diagnostics. Full cards can show explicitly
+  reported last-known usage alongside its age; without it they remain notes-only. Brief terminal cards keep the
+  diagnostic. When no explicit last-good measurement is supplied and a window is still at 100%, CodexBar keeps that slot's last
   projected usage bars and names the exhausted window (5-hour session, 7-day weekly, and/or a scoped model such as
   Fable) plus its reset time — not "Usage fetch failed." A first refresh that is already `unavailable` with no
-  retained windows still notes that polling is deferred. Active rows are marked `[active]`; no claude-swap row infers
+  retained windows says usage is unavailable, without assuming why the source could not fetch it. Active rows are marked `[active]`; no claude-swap row infers
   a plan badge.
 - Switching: an inactive account with usable source credentials shows “Switch Account…”. Clicking it runs exactly
   `cswap --switch-to <slot> --json`, validates the versioned result and requested slot, then refreshes both ambient
@@ -203,6 +230,10 @@ The accepted multi-account design in
 - Expired, missing, unknown, or Keychain-inaccessible credentials stay non-actionable. A failed switch remains visible
   on that account without discarding its last successful usage. A running Claude Code process can take up to the
   claude-swap Keychain cache interval to observe the new account.
+- A `foreign_credential` row explains that the live credential belongs to another account. An inactive row can use
+  the existing explicit slot switch. An active row offers **Re-authenticate**, which runs the same
+  `cswap --switch-to <slot> --json` command to let claude-swap reconcile its own credential state, without `--force`. Clicking the active segment
+  still only inspects it; repair requires its explicit button.
 - Multiple claude-swap accounts—and a single account when explicitly enabled—take precedence over Claude
   token-account presentation (stacked cards and the segmented switcher).
 
@@ -219,6 +250,8 @@ Model-scoped weekly-window proof (synthetic data, no real accounts or credential
 ## CLI PTY (fallback)
 - Runs `claude` in a PTY session (`ClaudeCLISession`).
 - Default behavior: exit after each probe; Debug → "Keep CLI sessions alive" keeps it running between probes.
+- Both PTY probes and the non-PTY `/usage` fallback pass `--settings '{"remoteControlAtStartup":false}'` to disable Remote Control startup for the probe process. This process-local override leaves the user's saved settings unchanged; Claude's managed-settings policy still applies.
+- A PTY timeout or usage-loading failure can trigger the non-PTY `/usage` fallback. Cancellation and rate limits stop the probe; a subscription-only notice from the fallback takes precedence over the original PTY failure.
 - Probe working directory: `~/Library/Application Support/CodexBar/ClaudeProbe` with local Claude settings that disable
   deep-link URL handler registration during headless probes.
 - After transient probes exit, CodexBar removes Claude Code `.jsonl` session artifacts for that dedicated
@@ -259,14 +292,20 @@ Model-scoped weekly-window proof (synthetic data, no real accounts or credential
 - Parsing:
   - Native Claude logs parse lines with `type: "assistant"` and `message.usage`.
   - Uses per-model token counts (input, cache read/create, output).
-  - Deduplicates streaming chunks by `message.id + requestId` (usage is cumulative per chunk).
+  - Deduplicates cumulative streaming chunks by `message.id + requestId`. When `requestId` is absent,
+    exact, nonblank `sessionId + message.id` identifies repeated response snapshots. Distinct explicit request
+    IDs and distinct fallback sessions remain separate. Rows without sufficient identity are counted individually.
+    Within a file, the final complete cumulative chunk wins, including later appends. Copied records retain the
+    existing preference for parent and non-sidechain records.
   - pi and OMP sessions attribute `anthropic` assistant usage to Claude and bucket it by assistant-turn timestamp, so a
     single pi-compatible session can contribute to multiple models/days.
   - Matching assistant entry IDs within the same session are counted once across roots; distinct turns are retained.
 - Cache:
+  - GPT usage recorded through Claude Code uses the bundled OpenAI model's long-context boundary (272K for supported models), while retaining catalog rates. Uncached input and cache-read/create tokens all contribute to the prompt length. Saved reports are recalculated after pricing corrections without discarding retained Codex history.
   - Native provider cache: `~/Library/Caches/CodexBar/cost-usage/claude-v6.json`
   - Report memo: `~/Library/Caches/CodexBar/cost-usage/claude-v6.report-memo.json` stores source stamps and the daily report across launches. It is reused only while transcript inventory, cache/pricing artifacts, requested window, and report-semantics revision still match.
   - The Claude/Vertex cache artifact retains source file identities independently of the shared Codex parser fingerprint. Replacing a transcript rebuilds its rows rather than merging an old prefix into a new suffix; genuine appends still use the saved parse offset. Older entries without identity are rebuilt once before reuse, including during the normal refresh debounce.
+  - Older Claude/Vertex native caches and report memos are rebuilt once from unchanged transcripts to apply the corrected response deduplication. Corrected reports remain eligible for memo reuse across launches.
   - pi-compatible session cache: `~/Library/Caches/CodexBar/cost-usage/pi-sessions-v8.json`
 
 ## Key files

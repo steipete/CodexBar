@@ -43,9 +43,6 @@ struct CodexBarAccountTimelineProviderTests {
         #expect(work.date == self.now)
         #expect(personal.date == self.now)
         #expect(snapshot.entries.first { $0.provider == .claude }?.primary?.usedPercent == 80)
-        #expect(snapshot.selectingAccount(nil, for: .claude).entries.first {
-            $0.provider == .claude
-        }?.primary?.usedPercent == 80)
     }
 
     @Test
@@ -110,6 +107,40 @@ struct CodexBarAccountTimelineProviderTests {
         #expect(entry.accountLabel == nil)
         #expect(self.displayedUsage(entry) == nil)
         #expect(entry.usageEntry.snapshot.generatedAt == self.measuredAt)
+    }
+
+    @Test
+    func `picker and timeline labels follow current privacy and provider visibility`() {
+        let original = self.snapshot()
+        let entity = WidgetAccountEntity(id: "claude/work")
+        #expect(entity.displayLabel(in: original) == "Work")
+        let hidden = self.snapshot(accounts: original.accounts.map {
+            .init(id: $0.id, provider: $0.provider, label: "Account", usage: $0.usage)
+        })
+        #expect(entity.displayLabel(in: hidden) == "Account")
+        #expect(entity.displayLabel(in: nil) == "Unavailable account")
+        #expect(entity.displayLabel(in: self.snapshot(enabledProviders: [.codex])) == "Unavailable account")
+        let choices = WidgetAccountQuery.suggestedEntities(in: hidden, provider: .claude)
+        #expect(choices.map(\.id) == ["claude/work", "claude/personal", "claude/unavailable"])
+        #expect(WidgetAccountQuery.suggestedEntities(
+            in: self.snapshot(enabledProviders: [.codex]), provider: .claude).isEmpty)
+        let entry = CodexBarAccountTimelineProvider.makeEntry(
+            snapshot: hidden, provider: .claude, accountID: entity.id, now: self.now)
+        #expect(entry.accountLabel == "Account")
+        #expect(self.displayedUsage(entry)?.primary?.usedPercent == 10)
+    }
+
+    @Test
+    func `ambiguous saved IDs expose neither quota nor labels or picker choices`() throws {
+        let original = self.snapshot()
+        let duplicate = try #require(original.accounts.first)
+        let snapshot = self.snapshot(accounts: original.accounts + [duplicate])
+        let entry = CodexBarAccountTimelineProvider.makeEntry(
+            snapshot: snapshot, provider: .claude, accountID: duplicate.id, now: self.now)
+        #expect(entry.accountLabel == nil)
+        #expect(self.displayedUsage(entry) == nil)
+        #expect(WidgetAccountEntity(id: duplicate.id).displayLabel(in: snapshot) == "Unavailable account")
+        #expect(!WidgetAccountQuery.suggestedEntities(in: snapshot, provider: nil).contains { $0.id == duplicate.id })
     }
 
     private func displayedUsage(_ entry: CodexBarAccountWidgetEntry) -> WidgetSnapshot.ProviderEntry? {

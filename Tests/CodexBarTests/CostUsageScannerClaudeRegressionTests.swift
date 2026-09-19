@@ -65,6 +65,69 @@ struct CostUsageScannerClaudeRegressionTests {
     }
 
     @Test
+    func `claude proxy usage keeps the last chunk across refreshes`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let day = try env.makeLocalNoon(year: 2025, month: 12, day: 21)
+
+        func chunk(output: Int) -> [String: Any] {
+            [
+                "type": "assistant",
+                "timestamp": env.isoString(for: day.addingTimeInterval(Double(output))),
+                "sessionId": "proxy-session",
+                "message": [
+                    "id": "resp_proxy",
+                    "model": "claude-sonnet-4-20250514",
+                    "usage": [
+                        "input_tokens": 50,
+                        "cache_read_input_tokens": 100,
+                        "output_tokens": output,
+                    ],
+                ],
+            ]
+        }
+
+        let fileURL = try env.writeClaudeProjectFile(
+            relativePath: "project-a/proxy-session.jsonl",
+            contents: env.jsonl([chunk(output: 7), chunk(output: 19), chunk(output: 19)]))
+        var options = CostUsageScanner.Options(
+            codexSessionsRoot: nil,
+            claudeProjectsRoots: [env.claudeProjectsRoot],
+            cacheRoot: env.cacheRoot)
+        options.refreshMinIntervalSeconds = 0
+
+        let firstReport = CostUsageScanner.loadDailyReport(
+            provider: .claude, since: day, until: day, now: day, options: options)
+        let first = try #require(firstReport.data.first)
+        #expect(first.inputTokens == 50)
+        #expect(first.cacheReadTokens == 100)
+        #expect(first.outputTokens == 19)
+        #expect(first.totalTokens == 169)
+        #expect(try abs(#require(first.costUSD) - 0.000465) < 0.000000001)
+
+        let handle = try FileHandle(forWritingTo: fileURL)
+        try handle.seekToEnd()
+        try handle.write(contentsOf: Data(env.jsonl([chunk(output: 31), chunk(output: 31)]).utf8))
+        try handle.close()
+
+        let secondReport = CostUsageScanner.loadDailyReport(
+            provider: .claude, since: day, until: day, now: day.addingTimeInterval(60), options: options)
+        let second = try #require(secondReport.data.first)
+        #expect(second.inputTokens == 50)
+        #expect(second.cacheReadTokens == 100)
+        #expect(second.outputTokens == 31)
+        #expect(second.totalTokens == 181)
+        #expect(try abs(#require(second.costUSD) - 0.000645) < 0.000000001)
+
+        _ = try env.writeClaudeProjectFile(
+            relativePath: "project-a/proxy-session/subagents/agent-copy.jsonl",
+            contents: env.jsonl([chunk(output: 31)]))
+        let copiedReport = CostUsageScanner.loadDailyReport(
+            provider: .claude, since: day, until: day, now: day.addingTimeInterval(120), options: options)
+        #expect(copiedReport.summary?.totalTokens == 181)
+    }
+
+    @Test
     func `parseClaudeFile snapshots keep missing id rows distinct`() throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }

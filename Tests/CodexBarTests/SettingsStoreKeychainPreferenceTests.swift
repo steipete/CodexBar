@@ -44,22 +44,6 @@ struct SettingsStoreKeychainPreferenceTests {
         #expect(local.dictionaryRepresentation().isEmpty)
     }
 
-    @Test
-    func `settings test detection uses the shared runner detector and XCTest fallback`() {
-        #expect(SettingsStore.resolveIsRunningTests(
-            processName: "swiftpm-testing-helper",
-            environment: [:],
-            hasLoadedXCTestCase: false))
-        #expect(SettingsStore.resolveIsRunningTests(
-            processName: "CodexBar",
-            environment: [:],
-            hasLoadedXCTestCase: true))
-        #expect(!SettingsStore.resolveIsRunningTests(
-            processName: "CodexBar",
-            environment: [:],
-            hasLoadedXCTestCase: false))
-    }
-
     @Test(arguments: [false, true])
     func `settings initialization isolates app group migration and keychain policy`(disabled: Bool) throws {
         let local = InMemoryUserDefaults()

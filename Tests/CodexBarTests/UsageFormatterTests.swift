@@ -167,6 +167,16 @@ struct UsageFormatterTests {
     }
 
     @Test
+    func `formatted remaining value uses localized left template`() {
+        UsageFormatter.setLocalizationProvider { key in
+            key == "%@ left" ? "%@ übrig" : key
+        }
+        defer { UsageFormatter.clearLocalizationProvider() }
+
+        #expect(UsageFormatter.remainingString(from: "€24.99") == "€24.99 übrig")
+    }
+
+    @Test
     func `tomorrow reset description uses localized format`() throws {
         UsageFormatter.setLocalizationProvider { key in
             key == "reset_tomorrow_format" ? "明日 %@" : key

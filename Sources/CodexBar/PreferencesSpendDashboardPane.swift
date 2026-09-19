@@ -48,20 +48,15 @@ func spendDashboardTokenMixValue(_ value: Int?) -> String {
 func spendDashboardMetricText(
     cost: Double?,
     tokens: Int?,
-    currencyCode: String) -> String
+    currencyCode: String,
+    incompleteRequestCount: Int = 0) -> String
 {
-    let costText = cost.map { UsageFormatter.currencyString($0, currencyCode: currencyCode) }
-    let tokenText = tokens.map(UsageFormatter.tokenCountString)
-    switch (costText, tokenText) {
-    case let (cost?, tokens?):
-        return "\(cost) · \(L("%@ tokens", tokens))"
-    case let (cost?, nil):
-        return cost
-    case let (nil, tokens?):
-        return L("%@ tokens", tokens)
-    case (nil, nil):
-        return "—"
-    }
+    let parts = [
+        cost.map { UsageFormatter.currencyString($0, currencyCode: currencyCode) },
+        tokens.map { L("%@ tokens", UsageFormatter.tokenCountString($0)) },
+    ].compactMap(\.self)
+    return (parts.isEmpty ? "—" : parts.joined(separator: " · "))
+        + UsageFormatter.incompleteUsageSuffix(incompleteRequestCount)
 }
 
 func spendDashboardCoverageChipText(_ coverage: CostUsageCoverageCounts) -> String {
@@ -512,36 +507,7 @@ struct SpendDashboardPane: View {
     }
 
     private var sharePayload: ShareStatsPayload? {
-        ShareStatsBuilder.make(
-            model: self.controller.model,
-            subscriptionNames: self.subscriptionNames)
-    }
-
-    private var subscriptionNames: [String: ShareStatsSubscriptionName] {
-        var names: [String: ShareStatsSubscriptionName] = [:]
-        let codexRowCount = self.controller.model.groups
-            .flatMap(\.providers)
-            .count { $0.provider == .codex }
-        for group in self.controller.model.groups {
-            for row in group.providers {
-                let snapshots: [UsageSnapshot?] = if row.provider == .codex,
-                                                     row.id.hasPrefix("codex:")
-                {
-                    [
-                        self.store.codexAccountSnapshots.first {
-                            row.id == "codex:\($0.id)"
-                        }?.snapshot,
-                        codexRowCount == 1 ? self.store.snapshot(for: .codex) : nil,
-                    ]
-                } else {
-                    [self.store.snapshot(for: row.provider.instanceID)]
-                }
-                if let name = ShareStatsSubscriptionName.first(from: snapshots, provider: row.provider) {
-                    names[row.id] = name
-                }
-            }
-        }
-        return names
+        ShareStatsPayloadFactory.make(model: self.controller.model, store: self.store)
     }
 
     private var daysBinding: Binding<Int> {
@@ -691,12 +657,13 @@ private struct SpendProviderPanel: View {
                         Text(row.displayName).lineLimit(1)
                         Spacer()
                         Text(
-                            row.totalCost == nil && row.totalTokens == nil
+                            row.totalCost == nil && row.totalTokens == nil && row.incompleteRequestCount == 0
                                 ? L("Spend unavailable")
                                 : spendDashboardMetricText(
                                     cost: row.totalCost,
                                     tokens: row.totalTokens,
-                                    currencyCode: self.group.currencyCode))
+                                    currencyCode: self.group.currencyCode,
+                                    incompleteRequestCount: row.incompleteRequestCount))
                             .foregroundStyle(row.totalCost == nil && row.totalTokens == nil ? .secondary : .primary)
                             .monospacedDigit()
                     }
@@ -756,7 +723,8 @@ private struct SpendModelPanel: View {
                             Text(spendDashboardMetricText(
                                 cost: row.totalCost,
                                 tokens: row.totalTokens,
-                                currencyCode: self.group.currencyCode))
+                                currencyCode: self.group.currencyCode,
+                                incompleteRequestCount: row.incompleteRequestCount))
                                 .monospacedDigit()
                         }
                         .padding(.vertical, 9)
@@ -1199,9 +1167,7 @@ private struct SpendDailyLedgerRow: View {
                 .frame(width: SpendDailyLedgerLayout.trackedTokensWidth, alignment: .trailing)
             Text(self.summary.requestCount.map(codexBarLocalizedInteger) ?? "—")
                 .frame(width: SpendDailyLedgerLayout.requestsWidth, alignment: .trailing)
-            Text(self.summary.totalCost.map {
-                UsageFormatter.currencyString($0, currencyCode: self.currencyCode)
-            } ?? "—")
+            Text(spendDashboardLedgerCostText(self.summary, currencyCode: self.currencyCode))
                 .fontWeight(.medium)
                 .frame(width: SpendDailyLedgerLayout.estimatedSpendWidth, alignment: .trailing)
         }
@@ -1244,9 +1210,7 @@ private struct SpendDailyLedgerRow: View {
             : self.activeProviders.map(\.displayName).joined(separator: ", ")
         let tokens = self.summary.totalTokens.map(UsageFormatter.tokenCountString) ?? "—"
         let requests = self.summary.requestCount.map(codexBarLocalizedInteger) ?? "—"
-        let spend = self.summary.totalCost.map {
-            UsageFormatter.currencyString($0, currencyCode: self.currencyCode)
-        } ?? "—"
+        let spend = spendDashboardLedgerCostText(self.summary, currencyCode: self.currencyCode)
         return "\(day), \(L("Providers")): \(providers), \(L("Tracked tokens")): \(tokens), "
             + "\(L("Requests")): \(requests), \(L("Estimated spend")): \(spend)"
     }
@@ -1360,6 +1324,7 @@ struct SpendDashboardExportPayload: Encodable, Sendable {
         let currencyCode: String
         let totalTokens: Int?
         let totalCost: Double?
+        let incompleteRequestCount: Int?
         let meteredCost: Double?
         let provenance: String
         let coverage: CostUsageCoverageCounts
@@ -1374,6 +1339,7 @@ struct SpendDashboardExportPayload: Encodable, Sendable {
         let sourceKind: String
         let totalTokens: Int?
         let totalCost: Double?
+        let incompleteRequestCount: Int?
     }
 
     struct Model: Encodable, Sendable {
@@ -1381,6 +1347,7 @@ struct SpendDashboardExportPayload: Encodable, Sendable {
         let modelName: String
         let totalTokens: Int?
         let totalCost: Double?
+        let incompleteRequestCount: Int?
     }
 
     static func make(model: SpendDashboardModel, hiddenSourceIDs: [String]) -> Self {
@@ -1392,6 +1359,7 @@ struct SpendDashboardExportPayload: Encodable, Sendable {
                     currencyCode: group.currencyCode,
                     totalTokens: group.totalTokens,
                     totalCost: group.totalCost,
+                    incompleteRequestCount: group.incompleteRequestCount > 0 ? group.incompleteRequestCount : nil,
                     meteredCost: group.meteredCost,
                     provenance: group.provenance.rawValue,
                     coverage: group.coverage,
@@ -1402,14 +1370,16 @@ struct SpendDashboardExportPayload: Encodable, Sendable {
                             displayName: $0.displayName,
                             sourceKind: $0.sourceKind.rawValue,
                             totalTokens: $0.totalTokens,
-                            totalCost: $0.totalCost)
+                            totalCost: $0.totalCost,
+                            incompleteRequestCount: $0.incompleteRequestCount > 0 ? $0.incompleteRequestCount : nil)
                     },
                     models: group.models.map {
                         Model(
                             provider: $0.provider.rawValue,
                             modelName: $0.modelName,
                             totalTokens: $0.totalTokens,
-                            totalCost: $0.totalCost)
+                            totalCost: $0.totalCost,
+                            incompleteRequestCount: $0.incompleteRequestCount > 0 ? $0.incompleteRequestCount : nil)
                     })
             },
             hiddenSourceIDs: hiddenSourceIDs)
@@ -1503,6 +1473,12 @@ func spendDashboardGroupCostText(_ group: SpendDashboardModel.CurrencyGroup) -> 
     guard let cost = group.totalCost else { return L("Spend unavailable") }
     let formatted = UsageFormatter.currencyString(cost, currencyCode: group.currencyCode)
     return group.hasPartialCost ? "~\(formatted)" : formatted
+}
+
+func spendDashboardLedgerCostText(_ summary: SpendDashboardModel.DailySummary, currencyCode: String) -> String {
+    guard let cost = summary.totalCost else { return "—" }
+    let formatted = UsageFormatter.currencyString(cost, currencyCode: currencyCode)
+    return summary.hasPartialCost ? "~\(formatted)" : formatted
 }
 
 func spendDashboardGroupTokenText(_ group: SpendDashboardModel.CurrencyGroup) -> String {

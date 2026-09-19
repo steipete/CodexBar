@@ -14,26 +14,14 @@ extension SettingsStore {
     }
 
     var opencodeCookieHeader: String {
-        get { self.configSnapshot.providerConfig(for: .opencode)?.sanitizedCookieHeader ?? "" }
-        set {
-            self.updateProviderConfig(provider: .opencode) { entry in
-                entry.cookieHeader = self.normalizedConfigValue(newValue)
-            }
-            self.logSecretUpdate(provider: .opencode, field: "cookieHeader", value: newValue)
-        }
+        get { self[providerConfig: .opencode, field: .cookieHeader] }
+        set { self[providerConfig: .opencode, field: .cookieHeader] = newValue }
     }
 
     var opencodeCookieSource: ProviderCookieSource {
         get { self.resolvedCookieSource(provider: .opencode, fallback: .auto) }
-        set {
-            self.updateProviderConfig(provider: .opencode) { entry in
-                entry.cookieSource = newValue
-            }
-            self.logProviderModeChange(provider: .opencode, field: "cookieSource", value: newValue.rawValue)
-        }
+        set { self.setCookieSource(newValue, provider: .opencode) }
     }
-
-    func ensureOpenCodeCookieLoaded() {}
 }
 
 extension SettingsStore {

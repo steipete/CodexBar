@@ -425,7 +425,6 @@ extension SettingsStore {
     var menuBarLayout: MenuBarLayout {
         get {
             self.defaultsState.storedMenuBarLayout ?? MenuBarLayout.migrated(
-                iconStyle: self.menuBarIconStyle,
                 displayMode: self.menuBarDisplayMode,
                 metricPreference: .automatic,
                 resetTimeDisplayStyle: self.resetTimeDisplayStyle)
@@ -488,7 +487,6 @@ extension SettingsStore {
             return .stored(stored)
         }
         return .legacy(
-            iconStyle: self.menuBarIconStyle,
             displayMode: self.menuBarDisplayMode,
             metricPreference: self.menuBarMetricPreference(for: provider),
             resetTimeDisplayStyle: self.resetTimeDisplayStyle,
@@ -947,6 +945,14 @@ extension SettingsStore {
         set {
             self.defaultsState.mergeIcons = newValue
             self.userDefaults.set(newValue, forKey: "mergeIcons")
+        }
+    }
+
+    var mergedOverviewLayout: MergedOverviewLayout {
+        get { MergedOverviewLayout(rawValue: self.defaultsState.mergedOverviewLayoutRaw) ?? .detailed }
+        set {
+            self.defaultsState.mergedOverviewLayoutRaw = newValue.rawValue
+            self.userDefaults.set(newValue.rawValue, forKey: "mergedOverviewLayout")
         }
     }
 

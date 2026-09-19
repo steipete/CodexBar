@@ -35,8 +35,7 @@ struct DeepgramProviderImplementation: ProviderImplementation {
                 placeholder: "dg_...",
                 binding: context.providerConfigBinding(.apiKey),
                 actions: [],
-                isVisible: nil,
-                onActivate: nil),
+                isVisible: nil),
             ProviderSettingsFieldDescriptor(
                 id: "deepgram-project-id",
                 title: "Project ID",
@@ -45,8 +44,7 @@ struct DeepgramProviderImplementation: ProviderImplementation {
                 placeholder: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
                 binding: context.providerConfigBinding(.workspace),
                 actions: [],
-                isVisible: nil,
-                onActivate: nil),
+                isVisible: nil),
         ]
     }
 }

@@ -235,13 +235,11 @@ public struct AlibabaCodingPlanUsageFetcher: Sendable {
             return Data()
         }
 
-        var components = URLComponents()
-        components.queryItems = [
-            URLQueryItem(name: "params", value: paramsString),
-            URLQueryItem(name: "region", value: region.currentRegionID),
-            URLQueryItem(name: "sec_token", value: secToken),
-        ]
-        return Data((components.percentEncodedQuery ?? "").utf8)
+        return FormURLEncoding.body([
+            ("params", paramsString),
+            ("region", region.currentRegionID),
+            ("sec_token", secToken),
+        ])
     }
 
     static func resolveConsoleQuotaURL(
@@ -287,7 +285,7 @@ public struct AlibabaCodingPlanUsageFetcher: Sendable {
     }
 
     static func url(from rawHost: String, region: AlibabaCodingPlanAPIRegion) -> URL? {
-        let cleaned = AlibabaCodingPlanSettingsReader.cleaned(rawHost)
+        let cleaned = SettingsValue.cleaned(rawHost)
         guard let cleaned else { return nil }
 
         let base = ProviderEndpointOverrideValidator.normalizedHTTPSURL(from: cleaned)
@@ -307,7 +305,7 @@ public struct AlibabaCodingPlanUsageFetcher: Sendable {
     }
 
     static func consoleURL(from rawHost: String, region: AlibabaCodingPlanAPIRegion) -> URL? {
-        let cleaned = AlibabaCodingPlanSettingsReader.cleaned(rawHost)
+        let cleaned = SettingsValue.cleaned(rawHost)
         guard let cleaned else { return nil }
 
         let base = ProviderEndpointOverrideValidator.normalizedHTTPSURL(from: cleaned)
@@ -368,7 +366,7 @@ public struct AlibabaCodingPlanUsageFetcher: Sendable {
     }
 
     static func dashboardURL(from rawHost: String, region: AlibabaCodingPlanAPIRegion) -> URL? {
-        let cleaned = AlibabaCodingPlanSettingsReader.cleaned(rawHost)
+        let cleaned = SettingsValue.cleaned(rawHost)
         guard let cleaned else { return nil }
 
         let base = ProviderEndpointOverrideValidator.normalizedHTTPSURL(from: cleaned)
@@ -428,7 +426,7 @@ public struct AlibabaCodingPlanUsageFetcher: Sendable {
     }
 
     private static func baseURL(from rawHost: String) -> URL? {
-        let cleaned = AlibabaCodingPlanSettingsReader.cleaned(rawHost)
+        let cleaned = SettingsValue.cleaned(rawHost)
         guard let cleaned else { return nil }
 
         let base = ProviderEndpointOverrideValidator.normalizedHTTPSURL(from: cleaned)
@@ -883,15 +881,6 @@ public struct AlibabaCodingPlanUsageFetcher: Sendable {
     private static func anyDate(for keys: [String], in dict: [String: Any]) -> Date? {
         for key in keys {
             if let value = OneConsoleJSON.date(dict[key]) {
-                return value
-            }
-        }
-        return nil
-    }
-
-    private static func anyPercent(for keys: [String], in dict: [String: Any]) -> Double? {
-        for key in keys {
-            if let value = self.parsePercent(dict[key]) {
                 return value
             }
         }

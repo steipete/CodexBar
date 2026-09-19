@@ -88,7 +88,10 @@ def fixture(mode, directory, ready_delay=0):
     signal.signal(signal.SIGTERM, lambda *_: os._exit(0))
     if ready_delay:
         ready_at = time.monotonic() + ready_delay
-        wait_until(lambda: time.monotonic() >= ready_at or (root / "stop").exists())
+        wait_until(
+            lambda: time.monotonic() >= ready_at or (root / "stop").exists(),
+            timeout=ready_delay + 3,
+        )
         if (root / "stop").exists():
             return
     subprocess.Popen(
@@ -355,6 +358,26 @@ class ProcessCleanupTests(unittest.TestCase):
 
 
 class FixtureReadinessTests(unittest.TestCase):
+    def test_startup_delay_does_not_race_its_wait_deadline(self):
+        with tempfile.TemporaryDirectory(prefix="codexbar-fixture-readiness-") as directory:
+            root = Path(directory)
+            child = runner.TestProcess(20, 10, 20, (101, 0))
+            # A scheduler interruption crosses 3s between the predicate and deadline check.
+            ticks = iter((0.0, 0.0, 2.99, 3.01))
+
+            def spawn(*_args, **_kwargs):
+                self.assertGreaterEqual(time.monotonic(), 3)
+                (root / "ready").write_text(json.dumps(dict(pid=child.pid, birth=child.birth)))
+                self.assertTrue(release_observed_fixture(root, {child.pid: child}))
+
+            with patch.object(subprocess, "Popen", side_effect=spawn) as popen, \
+                    patch.object(signal, "signal"), \
+                    patch.object(time, "monotonic", side_effect=lambda: next(ticks, 3.06)), \
+                    patch.object(time, "sleep"):
+                fixture("success", directory, ready_delay=3)
+            popen.assert_called_once()
+            self.assertTrue((root / "observed").exists())
+
     def test_delayed_startup_releases_observed_ancestry_within_two_seconds(self):
         with tempfile.TemporaryDirectory(prefix="codexbar-fixture-readiness-") as directory:
             root = Path(directory)

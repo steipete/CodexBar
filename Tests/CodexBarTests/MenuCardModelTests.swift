@@ -14,7 +14,6 @@ struct OverviewMenuCardVisibilityTests {
             snapshot: nil,
             credits: nil,
             creditsError: nil,
-            dashboard: nil,
             dashboardError: nil,
             tokenSnapshot: nil,
             tokenError: nil,
@@ -40,7 +39,6 @@ struct OverviewMenuCardVisibilityTests {
             snapshot: nil,
             credits: nil,
             creditsError: nil,
-            dashboard: nil,
             dashboardError: nil,
             tokenSnapshot: nil,
             tokenError: nil,
@@ -55,6 +53,42 @@ struct OverviewMenuCardVisibilityTests {
             now: Date()))
 
         #expect(model.placeholder == "Limits not available")
+        #expect(!model.isOverviewErrorOnly)
+    }
+
+    @Test
+    func `overview keeps Grok cards with reset credits and an error subtitle`() throws {
+        let metadata = try #require(ProviderDefaults.metadata[.grok])
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let snapshot = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            grokResetCredits: GrokRateLimitResetCreditsSnapshot(
+                expirations: [now.addingTimeInterval(86400)],
+                updatedAt: now),
+            updatedAt: now)
+        let model = UsageMenuCardView.Model.make(.init(
+            provider: .grok,
+            metadata: metadata,
+            snapshot: snapshot,
+            credits: nil,
+            creditsError: nil,
+            dashboardError: nil,
+            tokenSnapshot: nil,
+            tokenError: nil,
+            account: AccountInfo(email: nil, plan: nil),
+            isRefreshing: false,
+            lastError: GrokStatusProbe.usageUnavailableMessage,
+            usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: false,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
+            now: now))
+
+        #expect(model.subtitleStyle == .error)
+        #expect(model.metrics.isEmpty)
+        #expect(model.limitResetCredits != nil)
         #expect(!model.isOverviewErrorOnly)
     }
 
@@ -77,7 +111,6 @@ struct OverviewMenuCardVisibilityTests {
             snapshot: nil,
             credits: nil,
             creditsError: nil,
-            dashboard: nil,
             dashboardError: nil,
             tokenSnapshot: tokenSnapshot,
             tokenError: nil,
@@ -124,7 +157,6 @@ struct ProviderInlineDashboardModelTests {
             snapshot: snapshot,
             credits: nil,
             creditsError: nil,
-            dashboard: nil,
             dashboardError: nil,
             tokenSnapshot: nil,
             tokenError: nil,
@@ -160,7 +192,6 @@ struct ProviderInlineDashboardModelTests {
             keyUsageDaily: 1.25,
             keyUsageWeekly: 7.5,
             keyUsageMonthly: 18.75,
-            rateLimit: OpenRouterRateLimit(requests: 100, interval: "10s"),
             updatedAt: now)
 
         let model = UsageMenuCardView.Model.make(.init(
@@ -169,7 +200,6 @@ struct ProviderInlineDashboardModelTests {
             snapshot: usage.toUsageSnapshot(),
             credits: nil,
             creditsError: nil,
-            dashboard: nil,
             dashboardError: nil,
             tokenSnapshot: nil,
             tokenError: nil,
@@ -186,8 +216,7 @@ struct ProviderInlineDashboardModelTests {
         #expect(model.inlineUsageDashboard == nil)
         #expect(model.providerDetails.first?.rows.first?.value == "$60.00")
         #expect(model.providerDetails.last?.chart?.points.map(\.label) == ["Today", "This week", "This month"])
-        #expect(model.providerDetails.flatMap(\.rows).first { $0.label == "Rate limit" }?.value ==
-            "100 requests / 10s")
+        #expect(!model.providerDetails.flatMap(\.rows).contains { $0.label == "Rate limit" })
     }
 
     @Test
@@ -239,7 +268,6 @@ struct ProviderInlineDashboardModelTests {
                 updatedAt: now),
             credits: nil,
             creditsError: nil,
-            dashboard: nil,
             dashboardError: nil,
             tokenSnapshot: tokenSnapshot,
             tokenError: nil,
@@ -298,7 +326,6 @@ struct ProviderInlineDashboardModelTests {
             snapshot: snapshot.toUsageSnapshot(),
             credits: nil,
             creditsError: nil,
-            dashboard: nil,
             dashboardError: nil,
             tokenSnapshot: nil,
             tokenError: nil,
@@ -365,7 +392,6 @@ struct ProviderInlineDashboardModelTests {
             snapshot: snapshot.toUsageSnapshot(),
             credits: nil,
             creditsError: nil,
-            dashboard: nil,
             dashboardError: nil,
             tokenSnapshot: snapshot.toCostUsageTokenSnapshot(historyDays: 30),
             tokenError: nil,
@@ -417,7 +443,6 @@ struct ProviderInlineDashboardModelTests {
             snapshot: snapshot,
             credits: nil,
             creditsError: nil,
-            dashboard: nil,
             dashboardError: nil,
             tokenSnapshot: nil,
             tokenError: nil,
@@ -463,7 +488,6 @@ struct FactoryMenuCardModelTests {
             snapshot: snapshot,
             credits: nil,
             creditsError: nil,
-            dashboard: nil,
             dashboardError: nil,
             tokenSnapshot: nil,
             tokenError: nil,
@@ -498,7 +522,6 @@ struct FactoryMenuCardModelTests {
                 snapshot: snapshot,
                 credits: nil,
                 creditsError: nil,
-                dashboard: nil,
                 dashboardError: nil,
                 tokenSnapshot: nil,
                 tokenError: nil,
@@ -532,7 +555,6 @@ struct FactoryMenuCardModelTests {
             snapshot: snapshot,
             credits: nil,
             creditsError: nil,
-            dashboard: nil,
             dashboardError: nil,
             tokenSnapshot: nil,
             tokenError: nil,
@@ -572,7 +594,6 @@ struct FactoryMenuCardModelTests {
             snapshot: snapshot,
             credits: nil,
             creditsError: nil,
-            dashboard: nil,
             dashboardError: nil,
             tokenSnapshot: nil,
             tokenError: nil,
@@ -596,7 +617,6 @@ struct FactoryMenuCardModelTests {
             snapshot: snapshot,
             credits: nil,
             creditsError: nil,
-            dashboard: nil,
             dashboardError: nil,
             tokenSnapshot: nil,
             tokenError: nil,
@@ -646,7 +666,6 @@ struct MiniMaxMenuCardModelTests {
             snapshot: snapshot,
             credits: nil,
             creditsError: nil,
-            dashboard: nil,
             dashboardError: nil,
             tokenSnapshot: nil,
             tokenError: nil,
@@ -706,7 +725,6 @@ struct MiniMaxMenuCardModelTests {
             snapshot: snapshot,
             credits: nil,
             creditsError: nil,
-            dashboard: nil,
             dashboardError: nil,
             tokenSnapshot: nil,
             tokenError: nil,
@@ -769,7 +787,6 @@ struct MiniMaxMenuCardModelTests {
             snapshot: snapshot,
             credits: nil,
             creditsError: nil,
-            dashboard: nil,
             dashboardError: nil,
             tokenSnapshot: nil,
             tokenError: nil,
@@ -848,7 +865,6 @@ struct MenuCardModelTests {
             codexProjection: codexProjection,
             credits: CreditsSnapshot(remaining: 12, events: [], updatedAt: now),
             creditsError: nil,
-            dashboard: nil,
             dashboardError: nil,
             tokenSnapshot: nil,
             tokenError: nil,
@@ -899,7 +915,6 @@ struct MenuCardModelTests {
             snapshot: snapshot,
             credits: nil,
             creditsError: nil,
-            dashboard: nil,
             dashboardError: nil,
             tokenSnapshot: nil,
             tokenError: nil,
@@ -927,7 +942,6 @@ struct MenuCardModelTests {
             snapshot: nil,
             credits: nil,
             creditsError: nil,
-            dashboard: nil,
             dashboardError: nil,
             tokenSnapshot: nil,
             tokenError: nil,
@@ -968,7 +982,6 @@ struct MenuCardModelTests {
             snapshot: snapshot,
             credits: nil,
             creditsError: nil,
-            dashboard: nil,
             dashboardError: nil,
             tokenSnapshot: tokenSnapshot,
             tokenError: nil,
@@ -996,7 +1009,6 @@ struct MenuCardModelTests {
             snapshot: nil,
             credits: nil,
             creditsError: nil,
-            dashboard: nil,
             dashboardError: nil,
             tokenSnapshot: nil,
             tokenError: nil,
@@ -1037,7 +1049,6 @@ struct MenuCardModelTests {
             snapshot: snapshot,
             credits: nil,
             creditsError: nil,
-            dashboard: nil,
             dashboardError: nil,
             tokenSnapshot: nil,
             tokenError: nil,
@@ -1066,7 +1077,6 @@ struct MenuCardModelTests {
             usedPercent: 90.779119265,
             keyLimit: 20,
             keyUsage: 0.5,
-            rateLimit: nil,
             updatedAt: now).toUsageSnapshot()
 
         let model = UsageMenuCardView.Model.make(.init(
@@ -1075,7 +1085,6 @@ struct MenuCardModelTests {
             snapshot: snapshot,
             credits: nil,
             creditsError: nil,
-            dashboard: nil,
             dashboardError: nil,
             tokenSnapshot: nil,
             tokenError: nil,
@@ -1114,7 +1123,6 @@ struct MenuCardModelTests {
             keyDataFetched: true,
             keyLimit: nil,
             keyUsage: nil,
-            rateLimit: nil,
             updatedAt: now).toUsageSnapshot()
 
         let model = UsageMenuCardView.Model.make(.init(
@@ -1123,7 +1131,6 @@ struct MenuCardModelTests {
             snapshot: snapshot,
             credits: nil,
             creditsError: nil,
-            dashboard: nil,
             dashboardError: nil,
             tokenSnapshot: nil,
             tokenError: nil,
@@ -1157,7 +1164,6 @@ struct MenuCardModelTests {
             keyDataFetched: false,
             keyLimit: nil,
             keyUsage: nil,
-            rateLimit: nil,
             updatedAt: now).toUsageSnapshot()
 
         let model = UsageMenuCardView.Model.make(.init(
@@ -1166,7 +1172,6 @@ struct MenuCardModelTests {
             snapshot: snapshot,
             credits: nil,
             creditsError: nil,
-            dashboard: nil,
             dashboardError: nil,
             tokenSnapshot: nil,
             tokenError: nil,
@@ -1208,7 +1213,6 @@ struct MenuCardModelTests {
             snapshot: snapshot,
             credits: nil,
             creditsError: nil,
-            dashboard: nil,
             dashboardError: "OpenAI dashboard signed in as codex@example.com.",
             tokenSnapshot: nil,
             tokenError: nil,
@@ -1253,7 +1257,6 @@ struct MenuCardModelTests {
             snapshot: snapshot,
             credits: nil,
             creditsError: nil,
-            dashboard: nil,
             dashboardError: nil,
             tokenSnapshot: nil,
             tokenError: nil,
@@ -1295,7 +1298,6 @@ struct MenuCardModelTests {
             snapshot: snapshot,
             credits: nil,
             creditsError: nil,
-            dashboard: nil,
             dashboardError: nil,
             tokenSnapshot: nil,
             tokenError: nil,
@@ -1338,7 +1340,6 @@ struct MenuCardModelTests {
             snapshot: snapshot,
             credits: nil,
             creditsError: nil,
-            dashboard: nil,
             dashboardError: nil,
             tokenSnapshot: nil,
             tokenError: nil,
@@ -1360,7 +1361,6 @@ struct MenuCardModelTests {
             snapshot: snapshot,
             credits: nil,
             creditsError: nil,
-            dashboard: nil,
             dashboardError: nil,
             tokenSnapshot: nil,
             tokenError: nil,
@@ -1405,7 +1405,6 @@ struct MenuCardModelTests {
             snapshot: snapshot,
             credits: nil,
             creditsError: nil,
-            dashboard: nil,
             dashboardError: nil,
             tokenSnapshot: nil,
             tokenError: nil,
@@ -1443,7 +1442,6 @@ struct MenuCardModelTests {
             snapshot: snapshot,
             credits: nil,
             creditsError: nil,
-            dashboard: nil,
             dashboardError: nil,
             tokenSnapshot: nil,
             tokenError: nil,
@@ -1489,7 +1487,6 @@ struct MenuCardModelTests {
             snapshot: snapshot,
             credits: nil,
             creditsError: nil,
-            dashboard: nil,
             dashboardError: nil,
             tokenSnapshot: nil,
             tokenError: nil,

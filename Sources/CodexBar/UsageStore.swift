@@ -20,7 +20,7 @@ extension UsageStore {
         _ = self.claudeSwapAccountSnapshots
         _ = self.claudeSwapLastError
         _ = self.claudeSwapRevision
-        _ = self.tokenSnapshots
+        _ = self.tokenSnapshotPublications
         _ = self.tokenErrors
         _ = self.tokenRefreshInFlight
         _ = self.codexCostCatchUpActivity
@@ -97,14 +97,6 @@ extension UsageStore {
         return self.openAIDashboard
     }
 
-    private static func isRunningTestsProcess() -> Bool {
-        let environment = ProcessInfo.processInfo.environment
-        let testKeys = ["XCTestConfigurationFilePath", "XCTestSessionIdentifier", "SWIFT_TESTING_ENABLED"]
-        return testKeys.contains(where: { environment[$0] != nil }) || CommandLine.arguments.contains { argument in
-            argument.contains("xctest") || argument.contains("swift-testing")
-        }
-    }
-
     /// Returns the login method (plan type) for the specified provider, if available.
     private func loginMethod(for provider: UsageProvider) -> String? {
         self.snapshots[provider.instanceID]?.loginMethod(for: provider)
@@ -173,6 +165,8 @@ final class UsageStore {
     var lastSourceLabels: [ProviderInstanceID: String] = [:]
     var lastFetchAttempts: [ProviderInstanceID: [ProviderFetchAttempt]] = [:]
     var accountSnapshots: [ProviderInstanceID: [TokenAccountUsageSnapshot]] = [:]
+    @ObservationIgnored var widgetVerifiedTokenSnapshots: WidgetVerifiedTokenSnapshots = [:]
+    @ObservationIgnored let widgetAccountSnapshotStore: (any WidgetAccountSnapshotStoring)?
     var tokenAccountLiveStateProviders: Set<ProviderInstanceID> = []
     var codexAccountSnapshots: [CodexAccountUsageSnapshot] = []
     var kiloScopeSnapshots: [KiloScopeSnapshot] = []
@@ -183,7 +177,6 @@ final class UsageStore {
     var claudeSwapRevision: UInt64 = 0
     @ObservationIgnored var claudeSwapRefreshTask: Task<Void, Never>?
     @ObservationIgnored var claudeSwapTransientState = ClaudeSwapTransientState()
-    var tokenSnapshots: [ProviderInstanceID: CostUsageTokenSnapshot] = [:]
     var tokenSnapshotPublications: [ProviderInstanceID: TokenSnapshotPublication] = [:]
     var tokenSnapshotPublicationRevisions: [ProviderInstanceID: UInt64] = [:]
     var spendDashboardTokenPublications: [ProviderInstanceID: TokenSnapshotPublication] = [:]
@@ -277,6 +270,10 @@ final class UsageStore {
     @ObservationIgnored var _test_providerRefreshOverride: (@MainActor (UsageProvider) async -> Void)?
     @ObservationIgnored var _test_providerFetchOutcomeOverride: (@MainActor (
         UsageProvider) async -> ProviderFetchOutcome)?
+    #if DEBUG
+    @ObservationIgnored var _test_codexAccountScopedRefreshDidComplete: (@MainActor () -> Void)?
+    @ObservationIgnored var _test_cursorCostCredentialFingerprintOverride: (() -> String?)?
+    #endif
     @ObservationIgnored var _test_tokenUsageRefreshOverride: (@MainActor (UsageProvider, Bool) async -> Void)?
     @ObservationIgnored var _test_tokenUsageSnapshotLoaderOverride: (@MainActor (
         UsageProvider,
@@ -499,6 +496,7 @@ final class UsageStore {
         environmentBase: [String: String] = ProcessInfo.processInfo.environment,
         pluginApprovalStore: ProviderPluginApprovalStore = ProviderPluginApprovalStore(),
         widgetSnapshotURL: URL? = nil,
+        widgetAccountSnapshotStore: (any WidgetAccountSnapshotStoring)? = nil,
         widgetTimelineReloader: @escaping @MainActor () -> Void = UsageStore.reloadWidgetTimelines,
         planUtilizationHistoryLoadGateForTesting: PlanUtilizationHistoryLoadGate? = nil)
     {
@@ -513,12 +511,20 @@ final class UsageStore {
         self.widgetSnapshotURL = widgetSnapshotURL
         self.widgetTimelineReloader = widgetTimelineReloader
         self.historicalUsageHistoryStore = historicalUsageHistoryStore
-        self.startupBehavior = startupBehavior.resolved(isRunningTests: Self.isRunningTestsProcess())
+        self.startupBehavior = startupBehavior.resolved(isRunningTests: TestProcessSafety.isRunning)
         let planHistoryStore = Self.resolvedPlanHistoryStore(planUtilizationHistoryStore, startup: self.startupBehavior)
         self.planUtilizationHistoryStore = planHistoryStore
         self.sessionQuotaNotifier = sessionQuotaNotifier
         self.codexAccountUsageSnapshotStore = codexAccountUsageSnapshotStore ??
             (self.startupBehavior.automaticallyStartsBackgroundWork ? FileCodexAccountUsageSnapshotStore() : nil)
+        let widgetStore = widgetAccountSnapshotStore ??
+            (self.startupBehavior.automaticallyStartsBackgroundWork ? FileWidgetAccountSnapshotStore() : nil)
+        self.widgetAccountSnapshotStore = widgetStore
+        if settings.accountWidgetsEnabled {
+            self.widgetVerifiedTokenSnapshots = widgetStore?.load() ?? [:]
+        } else {
+            widgetStore?.save([:])
+        }
         self.planUtilizationPersistenceCoordinator = PlanUtilizationHistoryPersistenceCoordinator(
             store: planHistoryStore)
         self.providerMetadata = registry.metadata
@@ -1008,22 +1014,6 @@ final class UsageStore {
 }
 
 extension UsageStore {
-    func debugDumpClaude() async {
-        // Provider-specific by design: Claude's debug command owns a raw CLI/web probe artifact and error lane.
-        let fetcher = ClaudeUsageFetcher(
-            browserDetection: self.browserDetection,
-            keepCLISessionsAlive: self.settings.debugKeepCLISessionsAlive)
-        let output = await fetcher.debugRawProbe(model: "sonnet")
-        let url = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("codexbar-claude-probe.txt")
-        try? output.write(to: url, atomically: true, encoding: .utf8)
-        await MainActor.run {
-            let snippet = String(output.prefix(180)).replacingOccurrences(of: "\n", with: " ")
-            self.knownLimitsAvailabilityByProvider.removeValue(forKey: .claude)
-            self.errors[.claude] = "[Claude] \(snippet) (saved: \(url.path))"
-            NSWorkspace.shared.open(url)
-        }
-    }
-
     func dumpLog(toFileFor provider: UsageProvider) async -> URL? {
         let text = await self.debugLog(for: provider)
         let filename = "codexbar-\(provider.rawValue)-probe.txt"
@@ -1039,10 +1029,6 @@ extension UsageStore {
             }
             return nil
         }
-    }
-
-    func debugAugmentDump() async -> String {
-        await AugmentStatusProbe.latestDumps()
     }
 
     func debugLog(for provider: UsageProvider) async -> String {
@@ -1508,8 +1494,8 @@ extension UsageStore {
         }
         let costScope = self.tokenCostScope(for: provider)
         let costScopeSignature = self.tokenSnapshotScopeSignature(for: provider)
-        let publicationRevision = self.providerPublicationRevision(for: provider)
-        let providerConfigRevision = self.settings.providerConfigRevision(for: provider)
+        let publicationScope = self.tokenRefreshPublicationScope(
+            for: provider, historyDays: historyDays, costScopeSignature: costScopeSignature)
         if !force, self.tokenRefreshCanReuseCurrentSnapshot(
             provider: provider,
             now: now,
@@ -1551,19 +1537,18 @@ extension UsageStore {
                 historyDays: historyDays,
                 initialSignature: costScopeSignature,
                 snapshot: snapshot)
-            guard self.tokenRefreshPublicationIsCurrent(
+            let publicationDisposition = self.tokenRefreshPublicationDisposition(
                 provider: provider,
-                publicationRevision: publicationRevision,
-                providerConfigRevision: providerConfigRevision,
-                historyDays: historyDays,
-                costScopeSignature: costScopeSignature,
+                scope: publicationScope,
                 fetchedCredentialScopeFingerprint: snapshot.credentialScopeFingerprint)
-            else {
+            guard publicationDisposition == .current else {
                 self.clearTokenFetchMetadataIfMatching(
                     provider: provider,
                     attemptedAt: now,
                     costScopeSignature: costScopeSignature)
-                self.requestTokenRefreshAfterStaleCompletion(for: provider)
+                if publicationDisposition == .scopeChanged {
+                    self.requestTokenRefreshAfterStaleCompletion(for: provider)
+                }
                 return
             }
             self.lastTokenFetchScope[provider.instanceID] = completedCostScopeSignature
@@ -1585,12 +1570,9 @@ extension UsageStore {
             self.tokenFailureGates[provider.instanceID]?.recordSuccess()
             self.persistWidgetSnapshot(reason: "token-usage")
         } catch {
-            guard self.tokenRefreshPublicationIsCurrent(
+            guard self.tokenRefreshPublicationDisposition(
                 provider: provider,
-                publicationRevision: publicationRevision,
-                providerConfigRevision: providerConfigRevision,
-                historyDays: historyDays,
-                costScopeSignature: costScopeSignature)
+                scope: publicationScope) == .current
             else {
                 self.clearTokenFetchMetadataIfMatching(
                     provider: provider,
@@ -1617,7 +1599,7 @@ extension UsageStore {
                     attemptedAt: now,
                     costScopeSignature: costScopeSignature)
             }
-            let hadPriorData = self.tokenSnapshots[provider.instanceID] != nil
+            let hadPriorData = self.tokenSnapshotPublications[provider.instanceID]?.snapshot != nil
             let shouldSurface = self.tokenFailureGates[provider.instanceID]?
                 .shouldSurfaceError(onFailureWithPriorData: hadPriorData) ?? true
             if shouldSurface {

@@ -17,14 +17,20 @@ extension WidgetSnapshot {
         }
     }
 
+    /// Duplicate IDs are ambiguous even across providers; do not restore a saved pin or label from one.
+    public func account(id: String, provider: ProviderInstanceID? = nil) -> AccountEntry? {
+        let matches = self.accounts.filter { $0.id == id }
+        guard matches.count == 1, let account = matches.first,
+              self.enabledProviders.contains(account.provider),
+              provider == nil || account.provider == provider
+        else { return nil }
+        return account
+    }
+
     /// Keep the existing widget renderers and their provider-only configuration unchanged.
     /// Explicit selections fail closed on removal, disabled providers, or a mismatched provider.
-    public func selectingAccount(_ accountID: String?, for provider: UsageProvider) -> WidgetSnapshot {
-        guard let accountID else { return self }
-        let account = self.accounts.first {
-            $0.id == accountID && $0.provider == provider.instanceID
-                && self.enabledProviders.contains(provider.instanceID)
-        }
+    public func selectingAccount(_ accountID: String, for provider: UsageProvider) -> WidgetSnapshot {
+        let account = self.account(id: accountID, provider: provider.instanceID)
         var entries = self.entries.filter { $0.provider != provider.instanceID }
         if let usage = account?.usage, usage.provider == provider.instanceID {
             entries.append(usage)

@@ -9,7 +9,7 @@ import Testing
 struct MenuCardClaudeSwapAccountTests {
     private func makeModel(
         hidePersonalInfo: Bool,
-        planOverride: String? = nil,
+        planOverride: UsageMenuCardView.Model.PlanOverride = .automatic,
         additionalRateWindows: [NamedRateWindow] = []) throws -> UsageMenuCardView.Model
     {
         let now = Date(timeIntervalSince1970: 1_782_000_000)
@@ -42,12 +42,12 @@ struct MenuCardClaudeSwapAccountTests {
             snapshot: snapshot,
             credits: nil,
             creditsError: nil,
-            dashboard: nil,
             dashboardError: nil,
             tokenSnapshot: nil,
             tokenError: nil,
             account: AccountInfo(email: account.displayLabel, plan: nil),
             accountIsAuthoritative: true,
+            accountPrivacyOrdinal: ClaudeSwapAccountMenuDisplay.privacyOrdinal(for: account),
             planOverride: planOverride,
             isRefreshing: false,
             lastError: account.error,
@@ -62,9 +62,16 @@ struct MenuCardClaudeSwapAccountTests {
 
     @Test
     func `claude swap action overrides adapter login method`() throws {
-        let model = try self.makeModel(hidePersonalInfo: false, planOverride: "Switch Account...")
+        let model = try self.makeModel(hidePersonalInfo: false, planOverride: .label("Switch Account..."))
 
         #expect(model.planText == "Switch Account...")
+    }
+
+    @Test
+    func `an explicit absent plan cannot fall back to the adapter login method`() throws {
+        let model = try self.makeModel(hidePersonalInfo: false, planOverride: .label(nil))
+
+        #expect(model.planText == nil)
     }
 
     @Test
@@ -109,8 +116,7 @@ struct MenuCardClaudeSwapAccountTests {
     func `claude swap account card respects hide personal info`() throws {
         let model = try self.makeModel(hidePersonalInfo: true)
 
-        #expect(!model.email.contains("personal@example.com"))
-        #expect(!model.email.contains("example.com"))
+        #expect(model.email == "Account 2")
     }
 
     @Test
@@ -144,7 +150,6 @@ struct MenuCardClaudeSwapAccountTests {
                 snapshot: account.snapshot,
                 credits: nil,
                 creditsError: nil,
-                dashboard: nil,
                 dashboardError: nil,
                 tokenSnapshot: nil,
                 tokenError: nil,
@@ -191,7 +196,6 @@ struct MenuCardClaudeSwapAccountTests {
             snapshot: snapshot,
             credits: nil,
             creditsError: nil,
-            dashboard: nil,
             dashboardError: nil,
             tokenSnapshot: nil,
             tokenError: nil,

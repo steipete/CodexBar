@@ -9,6 +9,6 @@ extension ProviderConfig {
     }
 
     public var sanitizedAccountSlug: String? {
-        Self.clean(self.accountSlug)
+        SettingsValue.cleaned(self.accountSlug)
     }
 }

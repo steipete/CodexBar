@@ -168,7 +168,6 @@ struct ProviderSettingsFieldRowView: View {
         }
         .labelsHidden()
         .textFieldStyle(.plain)
-        .onTapGesture { self.field.onActivate?() }
     }
 
     @ViewBuilder

@@ -53,7 +53,7 @@ struct CodexAccountScopedRefreshTests {
         #expect(store.lastCreditsSource == .none)
         #expect(store.openAIDashboard == nil)
         #expect(store.lastOpenAIDashboardSnapshot == nil)
-        #expect(store.tokenSnapshots[.codex] == tokenSnapshot)
+        #expect(store.tokenSnapshotPublications[.codex]?.snapshot == tokenSnapshot)
         #expect(widgetSnapshots.count == 1)
         #expect(widgetSnapshots[0].entries.contains(where: { $0.provider == .codex }) == false)
     }

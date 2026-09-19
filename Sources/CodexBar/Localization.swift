@@ -32,29 +32,13 @@ private func appLanguageDefaults() -> UserDefaults {
     return UserDefaults(suiteName: "CodexBar") ?? .standard
 }
 
-private let isRunningTestsProcessAtStartup: Bool = {
-    let env = ProcessInfo.processInfo.environment
-    if env["XCTestConfigurationFilePath"] != nil {
-        return true
-    }
-    if env["TESTING_LIBRARY_VERSION"] != nil {
-        return true
-    }
-    if env["SWIFT_TESTING"] != nil {
-        return true
-    }
-    return NSClassFromString("XCTestCase") != nil
-}()
-
-private func isRunningTestsProcess() -> Bool {
-    isRunningTestsProcessAtStartup
-}
+private let isRunningTestsProcessAtStartup = TestProcessSafety.isRunning
 
 private func resolvedAppLanguage() -> String {
     if let override = CodexBarLocalizationOverride.appLanguage {
         return override
     }
-    if isRunningTestsProcess() {
+    if isRunningTestsProcessAtStartup {
         return "en"
     }
     return appLanguageDefaults().string(forKey: "appLanguage") ?? ""

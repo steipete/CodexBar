@@ -44,7 +44,6 @@ struct CodexWeeklyCapSurfaceTests {
             codexProjection: projection,
             credits: nil,
             creditsError: nil,
-            dashboard: nil,
             dashboardError: nil,
             tokenSnapshot: nil,
             tokenError: nil,
@@ -206,9 +205,10 @@ struct CodexWeeklyCapSurfaceTests {
             for: .codex,
             snapshot: expiredSessionSnapshot,
             now: now))
-        let resetIcon = IconRemainingResolver.resolvedRemaining(
+        let resetIcon = IconRemainingResolver.resolvedPercents(
             snapshot: expiredSessionSnapshot,
             style: .codex,
+            showUsed: false,
             now: now)
         #expect(resetPrimary.remainingPercent == 60)
         #expect(controller.menuBarDisplayText(for: .codex, snapshot: expiredSessionSnapshot, now: now) == "60%")

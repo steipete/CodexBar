@@ -32,7 +32,8 @@ extension UsageStore {
             snapshot: self.resolvingCurrentCopilotAllowance(in: snapshot, provider: provider, account: account),
             error: cached.error,
             sourceLabel: cached.sourceLabel,
-            cacheKey: cached.cacheKey)
+            cacheKey: cached.cacheKey,
+            fetchError: cached.fetchError)
     }
 
     /// Capture a validated cache before saving: the allowance is part of the account cache key.
@@ -78,7 +79,8 @@ extension UsageStore {
                     sourceLabel: cached.sourceLabel,
                     cacheKey: self.tokenAccountSnapshotCacheKey(
                         provider: .copilot,
-                        account: account))
+                        account: account),
+                    fetchError: cached.fetchError)
             }
         }
         self.reconcileSelectedTokenAccountSnapshotBeforeRefresh(
@@ -111,7 +113,8 @@ extension UsageStore {
                 snapshot: entry.snapshot?.updatingCopilotSeatCreditEntitlement(nil) ?? entry.snapshot,
                 error: entry.error,
                 sourceLabel: entry.sourceLabel,
-                cacheKey: entry.cacheKey)
+                cacheKey: entry.cacheKey,
+                fetchError: entry.fetchError)
         }
         guard let selected = self.settings.effectiveSelectedTokenAccount(for: .copilot) else {
             self.updateCopilotSeatCreditEntitlement(nil)

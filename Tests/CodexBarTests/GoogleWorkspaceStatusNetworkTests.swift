@@ -1,3 +1,4 @@
+import CodexBarCore
 import Foundation
 import os
 import Testing
@@ -32,7 +33,7 @@ struct GoogleWorkspaceStatusNetworkTests {
             return (body, response)
         }
 
-        let status = try await UsageStore.fetchWorkspaceStatus(
+        let status = try await ProviderStatusFetcher.fetchWorkspaceStatus(
             productID: "npdyhgECDJ6tB66MxXyo",
             transport: transport)
 
@@ -57,7 +58,7 @@ struct GoogleWorkspaceStatusNetworkTests {
             return (Data("[]".utf8), response)
         }
 
-        let status = try await UsageStore.fetchWorkspaceStatus(
+        let status = try await ProviderStatusFetcher.fetchWorkspaceStatus(
             productID: "npdyhgECDJ6tB66MxXyo",
             transport: transport,
             beforeDecoding: {

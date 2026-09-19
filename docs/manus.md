@@ -18,6 +18,9 @@ The Manus provider tracks credit usage on [manus.im](https://manus.im) via brows
 - **Cookie auth**: Automatic browser cookie import (Safari, Chrome, Firefox) or manual cookie header.
 - **Env var support**: `MANUS_SESSION_TOKEN` (raw token) or `MANUS_COOKIE` (full cookie header) for CLI/headless usage.
 
+Monthly and daily credit counts remain visible as details in menus and CLI output. Only a supplied daily reset date
+produces a reset clock; monthly renewal dates remain unavailable.
+
 ## Setup
 
 1. Open **Settings → Providers**

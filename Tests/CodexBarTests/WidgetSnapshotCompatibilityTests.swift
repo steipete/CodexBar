@@ -11,19 +11,17 @@ struct WidgetSnapshotCompatibilityTests {
         #expect(snapshot.enabledProviders == [.claude, .codex])
         #expect(snapshot.usageBarsShowUsed)
         let claude = try #require(snapshot.entries.first { $0.provider == .claude })
-        #expect(claude.accountLabel == nil)
         #expect(claude.primary?.remainingPercent == 75)
         #expect(claude.secondary?.remainingPercent == 60)
         #expect(claude.usageRows?.map(\.id) == ["session", "weekly"])
         #expect(claude.quotaOwnerKey == "fixture-claude-owner")
         #expect(claude.updatedAt == snapshot.generatedAt)
-        let codex = try #require(snapshot.selectingAccount(nil, for: .codex).entries.first { $0.provider == .codex })
+        let codex = try #require(snapshot.entries.first { $0.provider == .codex })
         #expect(codex.primary?.remainingPercent == 90)
         #expect(codex.creditsRemaining == 12.5)
         #expect(codex.tokenUsage?.sessionCostUSD == 1.25)
         #expect(codex.tokenUsage?.currencyCode == "USD")
         #expect(codex.dailyUsage.first?.totalTokens == 1200)
-        #expect(codex.accountLabel == nil)
     }
 
     @Test
@@ -42,8 +40,7 @@ struct WidgetSnapshotCompatibilityTests {
         #expect(snapshot.accounts.isEmpty)
         #expect(snapshot.enabledProviders == [.claude])
         #expect(!snapshot.usageBarsShowUsed)
-        #expect(snapshot.selectingAccount(nil, for: .claude).entries.first?.primary?.remainingPercent == 75)
-        #expect(snapshot.entries.first?.accountLabel == nil)
+        #expect(snapshot.entries.first?.primary?.remainingPercent == 75)
     }
 
     @Test
@@ -58,8 +55,7 @@ struct WidgetSnapshotCompatibilityTests {
             creditsRemaining: nil,
             codeReviewRemainingPercent: nil,
             tokenUsage: nil,
-            dailyUsage: [],
-            accountLabel: "Work")
+            dailyUsage: [])
         let snapshot = WidgetSnapshot(
             entries: [accountUsage] + old.entries.filter { $0.provider == .codex },
             accounts: [
@@ -83,8 +79,7 @@ struct WidgetSnapshotCompatibilityTests {
 
         let rewritten = try self.decoder().decode(WidgetSnapshot.self, from: encoder.encode(legacy))
         #expect(rewritten.accounts.isEmpty)
-        #expect(rewritten.entries.allSatisfy { $0.accountLabel == nil })
-        #expect(rewritten.selectingAccount(nil, for: .claude).entries.first?.primary?.remainingPercent == 20)
+        #expect(rewritten.entries.first?.primary?.remainingPercent == 20)
         #expect(!rewritten.selectingAccount("claude/token:work", for: .claude).entries.contains {
             $0.provider == .claude
         })

@@ -72,4 +72,20 @@ struct KeyboardShortcutsBundleTests {
             #expect(recorder.placeholderString == "设置快捷键")
         }
     }
+
+    @Test func `reattaching leaves the previous recorder placeholder alone`() {
+        let previous = KeyboardShortcuts.RecorderCocoa(for: .init("test.keyboardshortcuts.previous"))
+        let current = KeyboardShortcuts.RecorderCocoa(for: .init("test.keyboardshortcuts.current"))
+        let coordinator = OpenMenuShortcutRecorder.Coordinator()
+
+        CodexBarLocalizationOverride.$appLanguage.withValue("zh-Hans") {
+            coordinator.attach(to: previous)
+            coordinator.attach(to: current)
+            previous.placeholderString = "Detached recorder"
+            current.placeholderString = "Dependency recording prompt"
+
+            #expect(previous.placeholderString == "Detached recorder")
+            #expect(current.placeholderString == "设置快捷键")
+        }
+    }
 }

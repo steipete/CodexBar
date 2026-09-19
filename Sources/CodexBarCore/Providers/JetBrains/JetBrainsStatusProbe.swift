@@ -239,7 +239,7 @@ public struct JetBrainsStatusProbe: Sendable {
         let used = currentStr.flatMap { Double($0) } ?? 0
         let maximum = maximumStr.flatMap { Double($0) } ?? 0
         let available = availableStr.flatMap { Double($0) }
-        let until = untilStr.flatMap { Self.parseDate($0) }
+        let until = ISO8601DateParser.parse(untilStr)
 
         return JetBrainsQuotaInfo(type: type, used: used, maximum: maximum, available: available, until: until)
     }
@@ -258,7 +258,7 @@ public struct JetBrainsStatusProbe: Sendable {
         let amountStr = json["amount"] as? String
         let duration = json["duration"] as? String
 
-        let next = nextStr.flatMap { Self.parseDate($0) }
+        let next = ISO8601DateParser.parse(nextStr)
         let amount = amountStr.flatMap { Double($0) }
 
         let tariff = json["tariff"] as? [String: Any]
@@ -268,17 +268,6 @@ public struct JetBrainsStatusProbe: Sendable {
         let finalDuration = duration ?? tariffDuration
 
         return JetBrainsRefillInfo(type: type, next: next, amount: finalAmount, duration: finalDuration)
-    }
-
-    private static func parseDate(_ string: String) -> Date? {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = formatter.date(from: string) {
-            return date
-        }
-
-        formatter.formatOptions = [.withInternetDateTime]
-        return formatter.date(from: string)
     }
 }
 

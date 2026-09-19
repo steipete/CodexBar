@@ -32,7 +32,7 @@ struct CodexAccountScopedRefreshGuard: Equatable {
 extension UsageStore {
     func accountScopedTokenSnapshot(for provider: UsageProvider) -> CostUsageTokenSnapshot? {
         guard provider == .codex, !self.settings.codexLocalSessionCostLedgerEnabled else {
-            return self.tokenSnapshots[provider.instanceID]
+            return self.tokenSnapshotPublications[provider.instanceID]?.snapshot
         }
         return self.tokenSnapshotForCurrentProviderConfig(for: provider)?.snapshot
     }
@@ -72,6 +72,9 @@ extension UsageStore {
 
         self.persistWidgetSnapshot(reason: "codex-account-refresh")
         phaseDidChange?(.completed)
+        #if DEBUG
+        self._test_codexAccountScopedRefreshDidComplete?()
+        #endif
     }
 
     @discardableResult

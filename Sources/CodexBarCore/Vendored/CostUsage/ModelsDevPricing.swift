@@ -68,9 +68,13 @@ struct ModelsDevCatalog: Codable, Equatable {
         try container.encode(self.providers, forKey: ModelsDevAnyCodingKey(stringValue: "providers")!)
     }
 
-    func pricing(providerID rawProviderID: String, modelID rawModelID: String) -> ModelsDevPricingLookup? {
+    func pricing(
+        providerID rawProviderID: String,
+        modelID rawModelID: String,
+        exactModelID: Bool = false) -> ModelsDevPricingLookup?
+    {
         let providerID = ModelsDevProvider.normalizeProviderID(rawProviderID)
-        return self.providers[providerID]?.pricing(modelID: rawModelID)
+        return self.providers[providerID]?.pricing(modelID: rawModelID, exactModelID: exactModelID)
     }
 
     func isPlausibleRefresh() -> Bool {
@@ -165,8 +169,10 @@ struct ModelsDevProvider: Codable, Equatable {
         raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     }
 
-    func pricing(modelID rawModelID: String) -> ModelsDevPricingLookup? {
-        let candidates = ModelsDevModelIDNormalizer.candidates(rawModelID)
+    func pricing(modelID rawModelID: String, exactModelID: Bool = false) -> ModelsDevPricingLookup? {
+        let candidates = exactModelID
+            ? [ModelsDevModelIDNormalizer.normalize(rawModelID)]
+            : ModelsDevModelIDNormalizer.candidates(rawModelID)
         for candidate in candidates {
             if let model = self.models[candidate],
                let pricing = model.pricing(providerID: self.id ?? self.mapKey ?? "", providerName: self.name)
@@ -678,6 +684,7 @@ enum ModelsDevPricingPipeline {
     static func refreshForUnknownModelsIfNeeded(
         providerID: String,
         modelIDs: Set<String>,
+        exactModelIDs: Bool = false,
         now: Date = Date(),
         cacheRoot: URL? = nil,
         client: ModelsDevClient = ModelsDevClient()) async -> ModelsDevUnknownModelRefreshOutcome
@@ -685,7 +692,7 @@ enum ModelsDevPricingPipeline {
         guard !modelIDs.isEmpty else { return .unavailable }
         let load = ModelsDevCache.load(now: now, cacheRoot: cacheRoot)
         let unknownModelIDs = modelIDs.filter {
-            load.artifact?.catalog.pricing(providerID: providerID, modelID: $0) == nil
+            load.artifact?.catalog.pricing(providerID: providerID, modelID: $0, exactModelID: exactModelIDs) == nil
         }
         guard !unknownModelIDs.isEmpty else { return .pricingAvailable }
         if let fetchedAt = load.artifact?.fetchedAt,
@@ -704,7 +711,7 @@ enum ModelsDevPricingPipeline {
 
         let refreshedCatalog = ModelsDevCache.load(now: now, cacheRoot: cacheRoot).artifact?.catalog
         let pricingBecameAvailable = unknownModelIDs.contains {
-            refreshedCatalog?.pricing(providerID: providerID, modelID: $0) != nil
+            refreshedCatalog?.pricing(providerID: providerID, modelID: $0, exactModelID: exactModelIDs) != nil
         }
         return pricingBecameAvailable ? .pricingAvailable : .unavailable
     }

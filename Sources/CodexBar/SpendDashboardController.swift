@@ -570,7 +570,7 @@ enum SpendDashboardSource {
         failedSourceIDs.formUnion(lateInvalidatedSourceIDs)
         invalidatedSourceIDs.formUnion(lateInvalidatedSourceIDs)
         inputs.removeAll { lateInvalidatedSourceIDs.contains($0.id) }
-        let openCodex = self.mergingOpenCodexInputsWithObservation(inputs, request: request)
+        let openCodex = await self.mergingOpenCodexInputsAfterRefreshingPricing(inputs, request: request)
         return SpendDashboardLoadResult(
             inputs: openCodex.inputs,
             failedSourceIDs: failedSourceIDs,
@@ -777,6 +777,7 @@ enum SpendDashboardSource {
             encoder.append(entry.modelBreakdowns?.count)
             for breakdown in entry.modelBreakdowns ?? [] {
                 encoder.append(breakdown.modelName)
+                encoder.append(breakdown.incompleteRequestCount)
                 encoder.append(breakdown.totalTokens)
                 encoder.append(breakdown.requestCount)
                 encoder.append(breakdown.costUSD)

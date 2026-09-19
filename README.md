@@ -10,7 +10,7 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-6e5aff?style=flat-square)](LICENSE)
 [![Site](https://img.shields.io/badge/site-codexbar.app-16d3b4?style=flat-square)](https://codexbar.app)
 
-<a href="https://codexbar.app"><img src="docs/social.png" alt="CodexBar — every AI coding limit in your menu bar. 69 providers." width="100%" /></a>
+<a href="https://codexbar.app"><img src="docs/social.png" alt="CodexBar — every AI coding limit in your menu bar. 74 providers." width="100%" /></a>
 
 Tiny macOS 14+ menu bar app that keeps **AI coding-provider limits visible** and shows when each window resets. Codex, OpenAI, Claude, Cursor, Gemini, Copilot, Grok, GroqCloud, ElevenLabs, Deepgram, z.ai, MiniMax, Kiro, Zed, Vertex AI, Augment, OpenRouter, LiteLLM, LLM Proxy, Codebuff, Command Code, ClinePass, AWS Bedrock, and many newer coding providers. One status item per provider, or Merge Icons mode with a provider switcher. No Dock icon, minimal UI, dynamic bar icons.
 
@@ -38,40 +38,18 @@ brew install --cask codexbar
 ### Linux desktop and Omarchy
 
 The Qt 6 desktop app supports Wayland and X11, with an optional Omarchy widget.
-Release binaries target x86_64 and ARM64 and require glibc 2.39+ and Qt 6.4+.
-The installer requires Python 3.
-On Arch/Omarchy, install the runtime dependencies with:
+Published desktop archives target x86_64 and ARM64 and require glibc 2.39+,
+Qt 6.4+, and a separately installed CodexBar CLI. Python 3 runs the per-user installer.
 
-```bash
-sudo pacman -S --needed python qt6-base qt6-declarative qt6-svg qt6-wayland
-```
+Follow the [Linux installation guide](Integrations/Linux/README.md#install-release-archives)
+for Arch/Omarchy, Fedora, and Debian/Ubuntu runtime packages, verified release
+downloads, and upgrades. It keeps the CLI's resource bundle beside its executable
+and installs a launcher and optional login startup. Open Settings to choose
+providers, then authenticate through the provider's CLI or configure its API key.
+GNOME may need a tray extension; the app's windows work without a tray.
 
-Desktop archives will be attached automatically to published releases that include
-this integration. From [GitHub Releases](https://github.com/steipete/CodexBar/releases), download
-`CodexBarDesktop-v<version>-linux-x86_64.tar.gz` (or `aarch64`) and its `.sha256` file.
-Install the matching **CodexBarCLI separately** using the options below; when using
-its archive, keep the resource bundle beside the CLI executable.
-
-Replace the archive name and CLI path below with your downloads:
-
-```bash
-archive='CodexBarDesktop-v<version>-linux-x86_64.tar.gz'
-sha256sum -c "$archive.sha256"
-tar -xzf "$archive"
-cd "${archive%.tar.gz}"
-python3 Integrations/Linux/install.py --cli /absolute/path/to/codexbar --omarchy
-~/.local/bin/codexbar-linux --settings
-```
-
-Omit `--omarchy` on other desktops. The installer adds a per-user launcher and
-starts the app at login; add `--no-autostart` to disable that. Open Settings to
-choose providers, then sign in through the provider’s CLI or configure its API key.
-GNOME may need a tray extension; the app’s windows work without a tray.
-
-See the [Linux guide](Integrations/Linux/README.md) for source builds, upgrades,
-and desktop compatibility, and the [macOS feature comparison](Integrations/Linux/MAC_COMPARISON.md)
-for supported features and remaining gaps. Until desktop release assets are
-available, use the source build instructions.
+See the [macOS feature comparison](Integrations/Linux/MAC_COMPARISON.md) for
+supported features and remaining gaps.
 
 ### CLI Tarballs (macOS/Linux)
 Homebrew formula (Linux today):

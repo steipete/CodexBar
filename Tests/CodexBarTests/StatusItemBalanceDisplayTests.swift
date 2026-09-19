@@ -380,7 +380,6 @@ struct StatusItemBalanceDisplayTests {
             snapshot: snapshot,
             credits: nil,
             creditsError: nil,
-            dashboard: nil,
             dashboardError: nil,
             tokenSnapshot: nil,
             tokenError: nil,
@@ -893,7 +892,6 @@ struct StatusItemBalanceDisplayTests {
             usedPercent: 75.32,
             keyLimit: 20,
             keyUsage: 5,
-            rateLimit: nil,
             updatedAt: Date()).toUsageSnapshot()
     }
 
@@ -1570,7 +1568,6 @@ extension StatusItemBalanceDisplayTests {
             balance: 12.34,
             usedPercent: 75.32,
             keyLimit: nil,
-            rateLimit: nil,
             updatedAt: Date()).toUsageSnapshot()
 
         store._setSnapshotForTesting(snapshot, provider: .openrouter)
@@ -1623,7 +1620,6 @@ extension StatusItemBalanceDisplayTests {
             usedPercent: 75.32,
             keyLimit: 20,
             keyUsage: 5,
-            rateLimit: nil,
             updatedAt: Date()).toUsageSnapshot()
 
         store._setSnapshotForTesting(snapshot, provider: .openrouter)

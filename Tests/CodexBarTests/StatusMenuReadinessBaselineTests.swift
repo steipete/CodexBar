@@ -18,7 +18,7 @@ extension StatusMenuTests {
         settings.refreshFrequency = .manual
         settings.mergeIcons = false
         settings.costUsageEnabled = true
-        self.enableOnlyCodexForReadinessBaseline(settings)
+        enableTestProviders([.codex], settings: settings)
 
         let snapshotA = self.makeReadinessBaselineTokenSnapshot(
             sessionTokens: 111,
@@ -77,7 +77,7 @@ extension StatusMenuTests {
         settings.refreshFrequency = .manual
         settings.mergeIcons = false
         settings.costUsageEnabled = true
-        self.enableOnlyCodexForReadinessBaseline(settings)
+        enableTestProviders([.codex], settings: settings)
 
         let snapshotA = self.makeReadinessBaselineTokenSnapshot(
             sessionTokens: 111,
@@ -136,7 +136,7 @@ extension StatusMenuTests {
         settings.refreshFrequency = .manual
         settings.mergeIcons = true
         settings.costUsageEnabled = true
-        self.enableOnlyCodexForReadinessBaseline(settings)
+        enableTestProviders([.codex], settings: settings)
         if let claudeMetadata = ProviderRegistry.shared.metadata[.claude] {
             settings.setProviderEnabled(provider: .claude, metadata: claudeMetadata, enabled: true)
         }
@@ -193,7 +193,7 @@ extension StatusMenuTests {
         settings.refreshFrequency = .manual
         settings.mergeIcons = false
         settings.costUsageEnabled = true
-        self.enableOnlyCodexForReadinessBaseline(settings)
+        enableTestProviders([.codex], settings: settings)
 
         let snapshotA = self.makeReadinessBaselineTokenSnapshot(
             sessionTokens: 111,
@@ -254,7 +254,7 @@ extension StatusMenuTests {
         settings.refreshFrequency = .manual
         settings.mergeIcons = false
         settings.costUsageEnabled = true
-        self.enableOnlyCodexForReadinessBaseline(settings)
+        enableTestProviders([.codex], settings: settings)
 
         let snapshotA = self.makeReadinessBaselineTokenSnapshot(
             sessionTokens: 111,
@@ -311,7 +311,7 @@ extension StatusMenuTests {
         settings.refreshFrequency = .manual
         settings.mergeIcons = false
         settings.costUsageEnabled = true
-        self.enableOnlyCodexForReadinessBaseline(settings)
+        enableTestProviders([.codex], settings: settings)
 
         let snapshotA = self.makeReadinessBaselineTokenSnapshot(
             sessionTokens: 111,
@@ -367,7 +367,7 @@ extension StatusMenuTests {
         settings.refreshFrequency = .manual
         settings.mergeIcons = false
         settings.costUsageEnabled = true
-        self.enableOnlyCodexForReadinessBaseline(settings)
+        enableTestProviders([.codex], settings: settings)
 
         let snapshotA = self.makeReadinessBaselineTokenSnapshot(
             sessionTokens: 111,
@@ -426,7 +426,7 @@ extension StatusMenuTests {
         settings.refreshFrequency = .manual
         settings.mergeIcons = false
         settings.costUsageEnabled = true
-        self.enableOnlyCodexForReadinessBaseline(settings)
+        enableTestProviders([.codex], settings: settings)
 
         let snapshotA = self.makeReadinessBaselineTokenSnapshot(
             sessionTokens: 111,
@@ -492,7 +492,7 @@ extension StatusMenuTests {
         settings.refreshFrequency = .manual
         settings.mergeIcons = false
         settings.costUsageEnabled = true
-        self.enableOnlyCodexForReadinessBaseline(settings)
+        enableTestProviders([.codex], settings: settings)
 
         let snapshotA = self.makeReadinessBaselineTokenSnapshot(
             sessionTokens: 111,
@@ -554,7 +554,7 @@ extension StatusMenuTests {
         settings.refreshFrequency = .manual
         settings.mergeIcons = false
         settings.costUsageEnabled = true
-        self.enableProvidersForReadinessBaseline(settings, providers: [.claude, .codex])
+        enableTestProviders([.claude, .codex], settings: settings)
 
         let snapshotA = self.makeReadinessBaselineTokenSnapshot(
             sessionTokens: 111,
@@ -604,18 +604,6 @@ extension StatusMenuTests {
         #expect(controller.menuNeedsRefresh(codexMenu))
         #expect(controller.menuNeedsRefresh(claudeMenu))
         #expect(!controller.didMenuAdjunctReadinessChange())
-    }
-
-    private func enableOnlyCodexForReadinessBaseline(_ settings: SettingsStore) {
-        self.enableProvidersForReadinessBaseline(settings, providers: [.codex])
-    }
-
-    private func enableProvidersForReadinessBaseline(_ settings: SettingsStore, providers: Set<UsageProvider>) {
-        let registry = ProviderRegistry.shared
-        for provider in UsageProvider.allCases {
-            guard let metadata = registry.metadata[provider] else { continue }
-            settings.setProviderEnabled(provider: provider, metadata: metadata, enabled: providers.contains(provider))
-        }
     }
 
     private func makeReadinessBaselineTokenSnapshot(

@@ -4,6 +4,25 @@ import Testing
 
 struct CostUsageWindowSummaryTests {
     @Test
+    func `overflow invalidates only its total while unavailable rows stay absent`() {
+        let snapshot = CostUsageTokenSnapshot(
+            sessionTokens: nil,
+            sessionCostUSD: nil,
+            last30DaysTokens: nil,
+            last30DaysCostUSD: nil,
+            daily: [
+                Self.entry(day: "2026-06-29", cost: 1, tokens: Int.max, requests: 3),
+                Self.entry(day: "2026-06-30", cost: nil, tokens: nil, requests: nil),
+                Self.entry(day: "2026-07-01", cost: 2, tokens: 1, requests: 4),
+            ],
+            updatedAt: Self.now)
+        let summary = snapshot.summary(forLastDays: 7, calendar: Self.utcCalendar)
+        #expect(summary.totalTokens == nil)
+        #expect(summary.totalRequests == 7)
+        #expect(summary.totalCostUSD == 3)
+    }
+
+    @Test
     func `summaries use calendar windows instead of the last nonempty rows`() {
         let snapshot = Self.snapshot(historyDays: 90)
         let summary = snapshot.summary(forLastDays: 7, calendar: Self.utcCalendar)

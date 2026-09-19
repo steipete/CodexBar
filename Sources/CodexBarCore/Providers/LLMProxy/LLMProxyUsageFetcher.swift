@@ -271,7 +271,7 @@ public struct LLMProxyUsageFetcher: Sendable {
             // Ignore already-elapsed reset times so a stale past reset can't win over the real
             // upcoming one; mirrors GrokWebBillingFetcher and ClaudeStatusProbe.
             let reset = quotaGroups
-                .compactMap { Self.parseDate($0.resetTime) }
+                .compactMap { ISO8601DateParser.parse($0.resetTime) }
                 .filter { $0 > updatedAt }
                 .min()
 
@@ -296,22 +296,6 @@ public struct LLMProxyUsageFetcher: Sendable {
 
     private static func tokenTotal(_ tokens: LLMProxyQuotaStatsResponse.ProviderStats.Tokens?) -> Int {
         (tokens?.inputCached ?? 0) + (tokens?.inputUncached ?? 0) + (tokens?.output ?? 0)
-    }
-
-    private static func parseDate(_ raw: String?) -> Date? {
-        guard let raw else { return nil }
-        if let date = self.iso8601DateFormatter(fractionalSeconds: true).date(from: raw) {
-            return date
-        }
-        return self.iso8601DateFormatter(fractionalSeconds: false).date(from: raw)
-    }
-
-    private static func iso8601DateFormatter(fractionalSeconds: Bool) -> ISO8601DateFormatter {
-        let formatter = ISO8601DateFormatter()
-        if fractionalSeconds {
-            formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        }
-        return formatter
     }
 
     private static func responseSummary(_ data: Data) -> String {

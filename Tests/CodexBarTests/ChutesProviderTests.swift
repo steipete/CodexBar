@@ -330,7 +330,7 @@ struct ChutesProviderTests {
         #expect(descriptor.metadata.displayName == "Chutes")
         #expect(ProviderDescriptorRegistry.all.contains { $0.id == .chutes })
 
-        let implementation = try #require(ProviderImplementationRegistry.implementation(for: .chutes))
+        let implementation = try #require(ProviderCatalog.implementation(for: .chutes))
         #expect(implementation is ChutesProviderImplementation)
     }
 

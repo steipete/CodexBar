@@ -88,6 +88,9 @@ struct AntigravityLocalReaderTests {
         #expect(snapshot.costProvenance == .unknown)
         #expect(snapshot.daily.allSatisfy { $0.costUSD == nil })
         #expect(snapshot.daily.flatMap { $0.modelBreakdowns ?? [] }.allSatisfy { $0.costUSD == nil })
+        let window = snapshot.summary(forLastDays: 30, calendar: Fixture.calendar)
+        #expect(window.coverage == CostUsageCoverageCounts(unpriced: 4))
+        #expect(window.totalRequests == 4)
     }
 
     @Test

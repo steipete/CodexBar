@@ -230,12 +230,7 @@ public enum ClaudeProviderDescriptor {
               context.snapshot.tertiary == nil,
               context.snapshot.primary == nil || context.snapshot.primary?.isSyntheticPlaceholder == true
         else { return .unhandled }
-        let usedPercent = max(0, min(100, (cost.used / cost.limit) * 100))
-        return .resolved(RateWindow(
-            usedPercent: usedPercent,
-            windowMinutes: nil,
-            resetsAt: cost.resetsAt,
-            resetDescription: nil))
+        return .resolved(cost.spendLimitWindow)
     }
 
     private static func resolveStrategies(context: ProviderFetchContext) async -> [any ProviderFetchStrategy] {
@@ -695,7 +690,8 @@ struct ClaudeOAuthFetchStrategy: ProviderFetchStrategy {
             manualCookieHeader: webEnrichmentAccess.manualCookieHeader,
             webOrganizationID: context.settings?.claude?.organizationID,
             webExtrasTimeout: context.webTimeout,
-            includePrepaidBalance: includePrepaidBalance)
+            includePrepaidBalance: includePrepaidBalance,
+            includeAccountIdentity: context.includeAccountIdentity)
         let usage = try await fetcher.loadLatestUsage(model: "sonnet")
         return ProviderFetchResult(
             usage: Self.snapshot(from: usage),
@@ -745,7 +741,8 @@ struct ClaudeOAuthFetchStrategy: ProviderFetchStrategy {
             providerID: .claude,
             accountEmail: usage.accountEmail,
             accountOrganization: usage.accountOrganization,
-            loginMethod: usage.loginMethod)
+            loginMethod: usage.loginMethod,
+            widgetAccountOwnerID: usage.accountID)
         let primary = usage.primaryWindowKind == .spendLimit ? nil : usage.primary
         return UsageSnapshot(
             primary: primary,
@@ -924,7 +921,8 @@ struct ClaudeWebFetchStrategy: ProviderFetchStrategy {
                 useWebExtras: false,
                 manualCookieHeader: Self.manualCookieHeader(from: context),
                 webOrganizationID: context.settings?.claude?.organizationID,
-                includePrepaidBalance: context.includeOptionalUsage)
+                includePrepaidBalance: context.includeOptionalUsage,
+                includeAccountIdentity: context.includeAccountIdentity)
             return try await fetcher.loadLatestUsage(model: "sonnet")
         }
         let race = BoundedTaskJoin(sourceTask: sourceTask)

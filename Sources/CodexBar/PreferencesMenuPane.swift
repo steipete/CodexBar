@@ -66,6 +66,15 @@ struct MenuPane: View {
             Section {
                 Toggle(L("show_provider_changelog_links_title"), isOn: self.$settings.providerChangelogLinksEnabled)
 
+                SettingsMenuPicker(
+                    selection: self.$settings.mergedOverviewLayout,
+                    options: MenuSettingsMenuOptions.mergedOverviewLayouts,
+                    label: {
+                        SettingsRowLabel(L("overview_layout_title"), subtitle: L("overview_layout_subtitle"))
+                    },
+                    optionLabel: { Text($0.label) })
+                    .disabled(!self.settings.mergeIcons)
+
                 Toggle(isOn: self.$settings.showOptionalCreditsAndExtraUsage) {
                     SettingsRowLabel(
                         L("show_credits_extra_usage_title"),
@@ -85,12 +94,11 @@ struct MenuPane: View {
                 Text(L("section_content"))
             }
 
-            Section("Widgets") {
+            Section(L("section_widgets")) {
                 Toggle(isOn: self.$settings.accountWidgetsEnabled) {
                     SettingsRowLabel(
-                        "Keep accounts updated for widgets",
-                        subtitle: "Choose an account in each Account Usage widget. "
-                            + "Refreshes up to six accounts per provider.")
+                        L("account_widgets_title"),
+                        subtitle: L("account_widgets_description"))
                 }
                 .onChange(of: self.settings.accountWidgetsEnabled) { _, enabled in
                     self.store.persistWidgetSnapshot(reason: "account-widgets-setting")

@@ -100,7 +100,7 @@ public enum DoubaoProviderDescriptor {
             environment[DoubaoSettingsReader.accessKeyIDEnvironmentKeys[0]] = accessKeyID
             environment[DoubaoSettingsReader.secretAccessKeyEnvironmentKeys[0]] = secretAccessKey
             let region = config.sanitizedRegion ?? DoubaoSettingsReader.regionEnvironmentKeys.lazy
-                .compactMap { DoubaoSettingsReader.cleaned(base[$0]) }
+                .compactMap { SettingsValue.cleaned(base[$0]) }
                 .first
             if let region {
                 environment[DoubaoSettingsReader.regionEnvironmentKeys[0]] = region

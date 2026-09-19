@@ -23,8 +23,63 @@ struct ClaudeSwapAccountMenuDisplay {
     }
 
     static func label(for account: ProviderAccountUsageSnapshot, hidePersonalInfo: Bool) -> String {
-        hidePersonalInfo
-            ? String(format: L("Account %@"), account.id.opaqueID)
-            : account.displayLabel
+        PersonalInfoRedactor.redactAccountLabel(
+            account.displayLabel,
+            isEnabled: hidePersonalInfo,
+            ordinal: self.privacyOrdinal(for: account))
+    }
+
+    static func activatesAccount(_ account: ProviderAccountUsageSnapshot) -> Bool {
+        !account.isActive && account.canActivate
+    }
+
+    static func chipHelp(for account: ProviderAccountUsageSnapshot, hidePersonalInfo: Bool) -> String {
+        let label = self.label(for: account, hidePersonalInfo: hidePersonalInfo)
+        return self.activatesAccount(account) ? L("Switch Claude Code to %@", label) : L("Details for %@", label)
+    }
+
+    static func privacyOrdinal(for account: ProviderAccountUsageSnapshot) -> PersonalInfoRedactor.AccountOrdinal? {
+        guard account.provider == .claude,
+              account.id.source == ClaudeSwapAccountProjection.sourceName,
+              let number = Int(account.id.opaqueID)
+        else { return nil }
+        return PersonalInfoRedactor.AccountOrdinal(number)
+    }
+
+    static func cardContext(
+        for account: ProviderAccountUsageSnapshot,
+        planLabel: String?,
+        adapterError: String?,
+        switchError: String?) -> UsageMenuCardContext
+    {
+        .account(.init(
+            snapshot: account.snapshot,
+            error: ClaudeSwapAccountProjection.displayError(
+                accountError: account.error,
+                adapterError: adapterError,
+                switchError: switchError),
+            info: AccountInfo(email: account.displayLabel, plan: nil),
+            privacyOrdinal: self.privacyOrdinal(for: account),
+            plan: .label(planLabel),
+            planEmphasis: account.isActive ? .active : .none,
+            lastKnownUsageCapturedAt: account.usesLastKnownUsage ? account.snapshot?.updatedAt : nil,
+            sourceLabel: ClaudeSwapAccountProjection.sourceLabel))
+    }
+
+    static func actionLabel(
+        for account: ProviderAccountUsageSnapshot,
+        switchingAccountID: ProviderAccountIdentity?,
+        switchInFlight: Bool,
+        switchPhase: ClaudeSwapSwitchPhase?) -> String?
+    {
+        if switchingAccountID == account.id, let switchPhase {
+            return switch switchPhase {
+            case .activating: L("Switching account…")
+            case .reconciling: L("Refreshing account status…")
+            }
+        }
+        if account.isActive, !account.canActivate { return L("Active") }
+        guard !switchInFlight, account.canActivate else { return nil }
+        return account.isActive ? L("Re-authenticate") : L("Switch Account...")
     }
 }

@@ -14,6 +14,7 @@ struct AzureOpenAIProviderImplementation: ProviderImplementation {
         _ = settings.azureOpenAIAPIKey
         _ = settings.azureOpenAIEndpoint
         _ = settings.azureOpenAIDeploymentName
+        _ = settings.azureOpenAIAPIVersion
     }
 
     @MainActor
@@ -30,6 +31,28 @@ struct AzureOpenAIProviderImplementation: ProviderImplementation {
     }
 
     @MainActor
+    func settingsPickers(context: ProviderSettingsContext) -> [ProviderSettingsPickerDescriptor] {
+        var options = [
+            ProviderSettingsPickerOption(id: "", title: "Default"),
+            ProviderSettingsPickerOption(id: "v1", title: "OpenAI-compatible v1"),
+        ]
+        let configuredVersion = context.settings.azureOpenAIAPIVersion
+        if !options.contains(where: { $0.id == configuredVersion }) {
+            options.append(ProviderSettingsPickerOption(id: configuredVersion, title: configuredVersion))
+        }
+        return [
+            ProviderSettingsPickerDescriptor(
+                id: "azure-openai-api-version",
+                title: "API version",
+                subtitle: "Default uses AZURE_OPENAI_API_VERSION when set.",
+                binding: context.binding(\.azureOpenAIAPIVersion),
+                options: options,
+                isVisible: nil,
+                onChange: nil),
+        ]
+    }
+
+    @MainActor
     func settingsFields(context: ProviderSettingsContext) -> [ProviderSettingsFieldDescriptor] {
         [
             ProviderSettingsFieldDescriptor(
@@ -38,30 +61,27 @@ struct AzureOpenAIProviderImplementation: ProviderImplementation {
                 subtitle: "Stored in ~/.codexbar/config.json. AZURE_OPENAI_API_KEY is also supported.",
                 kind: .secure,
                 placeholder: "Azure OpenAI key",
-                binding: context.stringBinding(\.azureOpenAIAPIKey),
+                binding: context.binding(\.azureOpenAIAPIKey),
                 actions: [],
-                isVisible: nil,
-                onActivate: nil),
+                isVisible: nil),
             ProviderSettingsFieldDescriptor(
                 id: "azure-openai-endpoint",
                 title: "Endpoint",
                 subtitle: "Azure OpenAI resource endpoint. AZURE_OPENAI_ENDPOINT is also supported.",
                 kind: .plain,
                 placeholder: "https://resource.openai.azure.com",
-                binding: context.stringBinding(\.azureOpenAIEndpoint),
+                binding: context.binding(\.azureOpenAIEndpoint),
                 actions: [],
-                isVisible: nil,
-                onActivate: nil),
+                isVisible: nil),
             ProviderSettingsFieldDescriptor(
                 id: "azure-openai-deployment-name",
                 title: "Deployment",
                 subtitle: "Azure OpenAI deployment name. AZURE_OPENAI_DEPLOYMENT_NAME is also supported.",
                 kind: .plain,
                 placeholder: "gpt-4o-mini",
-                binding: context.stringBinding(\.azureOpenAIDeploymentName),
+                binding: context.binding(\.azureOpenAIDeploymentName),
                 actions: [],
-                isVisible: nil,
-                onActivate: nil),
+                isVisible: nil),
         ]
     }
 }

@@ -236,27 +236,27 @@ public struct ProviderConfig: Codable, Sendable, Identifiable {
     }
 
     public var sanitizedAPIKey: String? {
-        Self.clean(self.apiKey)
+        SettingsValue.cleaned(self.apiKey)
     }
 
     public var sanitizedSecretKey: String? {
-        Self.clean(self.secretKey)
+        SettingsValue.cleaned(self.secretKey)
     }
 
     public var sanitizedCookieHeader: String? {
-        Self.clean(self.cookieHeader)
+        SettingsValue.cleaned(self.cookieHeader)
     }
 
     public var sanitizedRegion: String? {
-        Self.clean(self.region)
+        SettingsValue.cleaned(self.region)
     }
 
     public var sanitizedWorkspaceID: String? {
-        Self.clean(self.workspaceID)
+        SettingsValue.cleaned(self.workspaceID)
     }
 
     public var sanitizedEnterpriseHost: String? {
-        Self.clean(self.enterpriseHost)
+        SettingsValue.cleaned(self.enterpriseHost)
     }
 
     public func sanitizedForDump() -> ProviderConfig {
@@ -277,19 +277,6 @@ public struct ProviderConfig: Codable, Sendable, Identifiable {
             copy.tokenAccounts = tokenAccounts.sanitizedForDump()
         }
         return copy
-    }
-
-    static func clean(_ raw: String?) -> String? {
-        guard var value = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else {
-            return nil
-        }
-        if (value.hasPrefix("\"") && value.hasSuffix("\"")) ||
-            (value.hasPrefix("'") && value.hasSuffix("'"))
-        {
-            value = String(value.dropFirst().dropLast())
-        }
-        value = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        return value.isEmpty ? nil : value
     }
 }
 

@@ -34,39 +34,38 @@ You can store the API key through the CLI:
 printf '%s' "$AZURE_OPENAI_API_KEY" | codexbar config set-api-key --provider azure-openai --stdin
 ```
 
-The endpoint and deployment are stored as `enterpriseHost` and `workspaceID` in the `azureopenai` provider config:
+Example v1 config (`enterpriseHost` is the endpoint; `workspaceID` is the deployment name):
 
 ```json
 {
   "id": "azureopenai",
   "apiKey": "<AZURE_OPENAI_API_KEY>",
   "enterpriseHost": "https://resource.openai.azure.com",
-  "workspaceID": "chat-prod"
+  "workspaceID": "chat-prod",
+  "azureOpenAIAPIVersion": "v1"
 }
 ```
 
+## API version
+
+Settings -> Providers -> Azure OpenAI -> API version has two built-in options:
+
+- **Default**: clears `azureOpenAIAPIVersion`, reads `AZURE_OPENAI_API_VERSION`, and uses `2024-10-21` if unset or blank.
+- **OpenAI-compatible v1**: saves `azureOpenAIAPIVersion: "v1"`, overriding the environment variable.
+
+The app and CLI share this config. Custom dated versions can be set in `azureOpenAIAPIVersion` or
+`AZURE_OPENAI_API_VERSION`; a nonblank config value takes precedence. A custom configured value appears in the picker.
+
 ## Data source
 
-CodexBar sends a minimal chat-completions request to validate the deployment:
+CodexBar sends a JSON POST request with the `api-key` header and one `ping` message:
 
-```http
-POST https://resource.openai.azure.com/openai/deployments/<deployment>/chat/completions?api-version=2024-10-21
-api-key: <api key>
-Accept: application/json
-Content-Type: application/json
-```
+| API version | Path relative to the resource endpoint | Request parameters |
+| --- | --- | --- |
+| `v1` | `/openai/v1/chat/completions` | `model: <deployment>`, `max_completion_tokens: 64` |
+| Dated version | `/openai/deployments/<deployment>/chat/completions?api-version=<version>` | `max_tokens: 1` |
 
-For dated API versions, the request body contains one `ping` message and `max_tokens: 1`. A successful response is
-parsed only for the returned `model` field so the menu can show deployment detail.
-
-Set `AZURE_OPENAI_API_VERSION` to override the API version. When it is set to `v1`, CodexBar uses Azure's
-OpenAI-compatible v1 path, includes the deployment name as the request `model`, and uses
-`max_completion_tokens: 64`. This small total completion budget leaves room for hidden reasoning tokens while keeping
-the validation probe bounded. Dated API versions continue to request at most one output token.
-
-```http
-POST https://resource.openai.azure.com/openai/v1/chat/completions
-```
+The v1 completion budget includes reasoning tokens. The response's `model` field supplies the displayed model name.
 
 ## Endpoint handling
 

@@ -42,7 +42,9 @@ public enum AmpProviderDescriptor {
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "Amp cost summary is not supported." }),
-            pace: .calendarMonthResetWindow,
+            pace: ProviderPaceCapability(resetWindowPace: .custom { window, _ in
+                window.windowMinutes != nil && window.resetDescription?.hasPrefix("renews in ") == true
+            }),
             presentation: ProviderUsagePresentation(
                 rateWindowLabeler: { metadata, snapshot, _ in
                     ProviderRateWindowLabels(
@@ -65,7 +67,10 @@ public enum AmpProviderDescriptor {
     }
 
     public static func primaryLabel(snapshot: UsageSnapshot) -> String? {
-        snapshot.secondary == nil ? nil : "Other usage"
+        if snapshot.detailRow(label: "Agent") != nil {
+            return "Agent usage"
+        }
+        return snapshot.secondary == nil ? nil : "Other usage"
     }
 
     public static func secondaryLabel(snapshot: UsageSnapshot) -> String? {

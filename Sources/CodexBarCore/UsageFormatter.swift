@@ -205,7 +205,11 @@ public enum UsageFormatter {
     }
 
     public static func creditsString(from value: Double) -> String {
-        self.localized("%@ left", self.creditsNumberString(from: value))
+        self.remainingString(from: self.creditsNumberString(from: value))
+    }
+
+    public static func remainingString(from formattedValue: String) -> String {
+        self.localized("%@ left", formattedValue)
     }
 
     public static func creditsNumberString(from value: Double) -> String {

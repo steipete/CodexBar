@@ -17,12 +17,16 @@ struct MenuCardCompactAccountRowView: View {
             row: AccountMenuLayoutPlanner.CompactRow,
             resetTimeDisplayStyle: ResetTimeDisplayStyle,
             hidePersonalInfo: Bool = false,
+            privacyOrdinal: PersonalInfoRedactor.AccountOrdinal? = nil,
             now: Date = .init())
         {
-            self.label = PersonalInfoRedactor.redactEmail(row.label, isEnabled: hidePersonalInfo)
+            self.label = PersonalInfoRedactor.redactAccountLabel(
+                row.label,
+                isEnabled: hidePersonalInfo,
+                ordinal: privacyOrdinal)
             self.headroomPercent = row.headroomPercent
             self.severity = row.severity
-            self.detailLines = row.windowDetails.map { detail in
+            var details = row.windowDetails.map { detail in
                 let title = localizedSessionQuotaLabel(detail.label, windowMinutes: detail.window.windowMinutes)
                 let percent = UsageFormatter.percentText(
                     detail.window.remainingPercent,
@@ -39,6 +43,10 @@ struct MenuCardCompactAccountRowView: View {
                     .joined(separator: " · ")
                 return PersonalInfoRedactor.redactEmails(in: line, isEnabled: hidePersonalInfo) ?? line
             }
+            if let capturedAt = row.lastKnownUsageCapturedAt {
+                details.append(LastKnownUsagePresentation.message(capturedAt: capturedAt, now: now))
+            }
+            self.detailLines = details
             self.hasError = row.hasError
             self.showsBestBadge = row.isBestCandidate
         }

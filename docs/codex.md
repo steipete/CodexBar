@@ -77,6 +77,9 @@ Usage source picker:
   refresh is running discards the old workspace's result.
 - System Account promotion fails closed when a managed selection differs from the auth file's default workspace.
   CodexBar keeps that selection managed rather than silently promoting the default or rewriting Codex-owned auth.
+- In the segmented layout, selecting an account refreshes its card while the menu stays open. Delayed results stay
+  scoped to that selection. An open chart submenu or highlighted menu command can defer the update until the submenu
+  closes or the highlight clears.
 - Reusing OpenCode OAuth enables remote account quota, not OpenCode session token/cost ingestion. See
   [OpenCode with Codex or OpenAI](opencode.md#using-opencode-with-codex-or-openai) for the current history boundary.
 
@@ -110,6 +113,8 @@ that workspace and never exposes the full provider identifier. This is display-o
 credential selection are unchanged. Separate profile homes for the same workspace also include a hashed source identity,
 so their labels stay distinct without exposing paths. Compact switcher buttons keep the discriminator visible when space
 is limited, using additional rows when needed.
+Hide Personal Info applies to the System Account submenu as well as the switcher: email addresses are removed,
+and stable account numbers distinguish rows while usable workspace labels remain visible.
 
 ### OpenAI web dashboard (optional, off by default)
 - Subscription renewal or expiration dates load after the app publishes dashboard usage. CodexBar first tries the subscription API, then captures only the date and renewal flag from ChatGPT's own billing request in the same account-scoped web session, within an eight-second budget.
@@ -253,13 +258,28 @@ is limited, using additional rows when needed.
     and replay bodies. File cursor metadata, including JSONL resume state, remains available for progress tracking.
     Fresh and cached fetches use progress metadata to recognize retained reports during catch-up, skipping
     detail-row decoding that would be discarded. Reports without a matching retained result still load exact details.
+    During historical catch-up, a validated reporting window can publish once its discovery, parser, materialization,
+    and fork-ownership checks are complete. Metadata-only reads do not establish day coverage; unresolved or unparsed
+    work retains the previous report. Cached publication is attempted before duty-cycle and resource-pause sleeps and
+    after bounded passes, preserving power limits and actual cache timestamps rather than stamping publication as a new scan.
     A native scan loads exact usage rows once, deferring raw token history and checkpoints until a file changes
     or a fork needs its ancestors. A single-use receipt binds those deferred reads and saves to the original
     connection, database identity and SQLite change observations,
     checking again under the writer lock. Filesystem/anchor and catch-up reconciliation still run at comparison
     time; a concurrent database change requests a rescan. Fresh database opens retain integrity validation.
+  - Up to four recently used cache roots retain validated reader connections and decoded status/activity data.
+    External writes invalidate cached data; database replacement or incompatible metadata reopens the reader through
+    existing validation on its next access. Every read still reconciles file identities, and detailed report history
+    remains transient. Scanner and writer connections keep separate ownership.
   - Saved day/model aggregates group each file's usage rows in one pass per aggregate build. Packed token totals,
     authoritative costs (including zero), and standard/priority estimation buckets retain their existing meanings.
+  - Excess cached request rows trigger bounded revalidation of readable, unchanged session files. Ordered source
+    replay determines the request sequence; matching token totals alone cannot establish a request partition.
+    Unanimous saved pricing survives partial scans and restarts. Files with authoritative monetary amounts, existing
+    unpriced markers, or conflicting saved pricing retain their rows without automatic rewriting. Recovered requests
+    without matching historical pricing remain unpriced. The repair retains the existing database and scan checkpoints.
+    Resumes retain the original target anchor alongside the parsed-prefix anchor and follow the scanner's existing
+    append-only log contract; identity changes, anchor mismatches, and unexplained same-size large-file edits invalidate pricing.
   - Fully read empty session fragments retain completion records even when another file contributes the same session.
     They contribute no usage and reparse from the start if they grow. Usage-bearing duplicates and incomplete fragments
     keep their existing accounting and retry rules. Existing 0.56.4 cost caches are adopted without rebuilding
@@ -271,6 +291,7 @@ is limited, using additional rows when needed.
     results with no priority turns; validated pricing outside that window remains intact.
 - Window: configurable 1-365 day rolling history.
 - Pending cost scans retain their discovery range when the same cache receives narrower or wider history requests ending on the same day. Reports still use the requested dates, and compatible existing caches retain stored usage and partial-scan progress on upgrade. A new ending day, changed roots/timezone, or a forced rescan keeps the usual discovery reset behavior.
+- Routine rescans of changed sessions replace request-pricing rows within the scan window alongside token totals. Cached rows outside that window remain available; obsolete rows cannot make an otherwise priceable day lose its cost estimate. Budget-limited scans retain matching request-pricing evidence and the parser position across restarts, without counting unparsed requests in active totals. Upgrades from 0.60.1 retain saved history, including sessions whose source files are no longer available.
 - App cadence: regular timer-driven local-history refreshes have a 15-minute minimum (30 minutes in Low Power Mode).
   Manual disables the recurring refresh timer, not all scan activity: startup refreshes and pending Codex catch-up can
   still scan local history. Faster provider refreshes still update quota/status. The scanner's default 60-second

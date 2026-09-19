@@ -140,6 +140,8 @@ supply standard ECMAScript built-ins, but no browser or Node host environment. T
 - `await ctx.http.get(url, opts?)` performs a GET and returns `{status, headers, bodyText}`.
 - `await ctx.http.postJSON(url, {body, headers?})` performs a POST and returns `{status, headers, json}`. `body` must be
   JSON-serializable. The serialized body is passed directly to the broker and is never logged.
+- `await ctx.http.post(url, {body, headers?})` sends the same JSON POST and returns `{status, headers, bodyText}`.
+  Use it to classify HTTP failures before parsing a response that may contain a non-JSON error page.
 - `opts.headers` may contain string header values. `opts.timeoutSeconds` sets a hard deadline from 1 through 30 seconds
   (default 15), responses are capped at 5 MiB, and transport uses `ProviderHTTPClient`, including its same-origin HTTPS
   redirect policy.

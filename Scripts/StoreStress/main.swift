@@ -10,6 +10,7 @@
 //   rebuild <cacheRoot> [passes] [root]   full cold rebuild from a real sessions corpus
 //   incremental <cacheRoot> [root]        one incremental pass over unchanged corpus
 //   fdcycles <cacheRoot> [cycles]         repeatedly open/close the store and report descriptor counts
+//   memory <cacheRoot> [none|full|lean]    footprint of a codex cache read (see loadCodexCache)
 
 import Foundation
 
@@ -429,11 +430,101 @@ func runHolder(dbPath: String, seconds: Double) {
     print("HOLDER released")
 }
 
+// MARK: - memory probe (local verification only)
+
+#if canImport(Darwin)
+func physFootprint() -> UInt64 {
+    var info = task_vm_info_data_t()
+    var count = mach_msg_type_number_t(MemoryLayout<task_vm_info_data_t>.size / MemoryLayout<natural_t>.size)
+    let result = withUnsafeMutablePointer(to: &info) { pointer -> kern_return_t in
+        pointer.withMemoryRebound(to: integer_t.self, capacity: Int(count)) { rebound in
+            task_info(mach_task_self_, task_flavor_t(TASK_VM_INFO), rebound, &count)
+        }
+    }
+    guard result == KERN_SUCCESS else { return 0 }
+    return info.phys_footprint
+}
+
+func megabytes(_ bytes: UInt64) -> String {
+    String(format: "%.1f", Double(bytes) / 1_048_576)
+}
+
+final class FootprintSampler: @unchecked Sendable {
+    private let lock = NSLock()
+    private var peak: UInt64 = 0
+    private var running = true
+    private var thread: Thread?
+
+    init() {
+        self.thread = nil
+        let thread = Thread { [weak self] in
+            while let self, self.isRunning() {
+                let value = physFootprint()
+                self.record(value)
+                Thread.sleep(forTimeInterval: 0.005)
+            }
+        }
+        self.thread = thread
+        thread.start()
+    }
+
+    private func isRunning() -> Bool {
+        self.lock.lock()
+        defer { self.lock.unlock() }
+        return self.running
+    }
+
+    private func record(_ value: UInt64) {
+        self.lock.lock()
+        self.peak = max(self.peak, value)
+        self.lock.unlock()
+    }
+
+    func stop() -> UInt64 {
+        self.lock.lock()
+        self.running = false
+        let value = self.peak
+        self.lock.unlock()
+        return value
+    }
+}
+
+func runMemory(cacheRoot: URL, mode: String) {
+    let calendar = Calendar.current
+    let before = physFootprint()
+    let sampler = FootprintSampler()
+    var cache = CostUsageCache()
+    switch mode {
+    case "none":
+        break
+    case "full":
+        cache = CostUsageStoreAccess.read(cacheRoot: cacheRoot, calendar: calendar)
+    case "lean":
+        cache = CostUsageStoreAccess.readWithoutTokenSnapshots(cacheRoot: cacheRoot, calendar: calendar)
+    default:
+        fail("memory mode must be none|full|lean")
+    }
+    let after = physFootprint()
+    let sampledPeak = sampler.stop()
+    let files = cache.files.count
+    let rows = cache.files.values.reduce(0) { $0 + ($1.codexRows?.count ?? 0) }
+    let snapshots = cache.files.values.reduce(0) { $0 + ($1.codexTokenSnapshots?.count ?? 0) }
+    let peak = megabytes(max(sampledPeak, after))
+    print("MEM mode=\(mode) before=\(megabytes(before)) after=\(megabytes(after)) peak=\(peak) "
+        + "files=\(files) rows=\(rows) snapshots=\(snapshots)")
+    withExtendedLifetime(cache) {}
+}
+#else
+func runMemory(cacheRoot: URL, mode: String) {
+    fail("memory footprint sampling requires macOS")
+}
+#endif
+
 // MARK: - main
 
 let arguments = CommandLine.arguments
 guard arguments.count >= 3 else {
-    fail("usage: storestress <writer|read|crashwriter|vacuumcrasher|verify|rebuild|incremental> <path> [args]")
+    fail("usage: storestress <writer|read|crashwriter|vacuumcrasher|verify|rebuild|incremental|memory> <path> [args]")
 }
 
 let command = arguments[1]
@@ -463,6 +554,8 @@ case "incremental":
     runIncremental(
         cacheRoot: URL(fileURLWithPath: target),
         sessionsRoot: arguments.count > 3 ? URL(fileURLWithPath: arguments[3]) : nil)
+case "memory":
+    runMemory(cacheRoot: URL(fileURLWithPath: target), mode: arguments.count > 3 ? arguments[3] : "full")
 case "fdcycles":
     await runFDCycles(
         cacheRoot: URL(fileURLWithPath: target),

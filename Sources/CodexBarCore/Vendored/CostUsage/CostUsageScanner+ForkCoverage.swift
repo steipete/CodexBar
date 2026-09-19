@@ -47,7 +47,7 @@ extension CostUsageScanner {
         var rowsByDayModel: [String: [String: [CodexUsageRow]]]
         var unresolvedRowGroups: Set<CodexDayModelKey>
         var modeOwnershipMismatchGroups: Set<CodexDayModelKey>
-        var priorityEvidenceGroups: Set<CodexDayModelKey>
+        var requestPricingEvidenceGroups: Set<CodexDayModelKey>
         var incompletePricingEvidenceGroups: Set<CodexDayModelKey>
         var authoritativeCostEvidenceGroups: Set<CodexDayModelKey>
         var priorityTurns: [String: CodexPriorityTurnMetadata]
@@ -118,7 +118,7 @@ extension CostUsageScanner {
             let rowCostIsTrusted = !pricing.unresolvedRowGroups.contains(group)
                 && !pricing.modeOwnershipMismatchGroups.contains(group)
                 && rowCost?.isTrusted(canonicalTotalTokens: totalTokens) == true
-            let aggregateCost = pricing.priorityEvidenceGroups.contains(group)
+            let aggregateCost = pricing.requestPricingEvidenceGroups.contains(group)
                 || pricing.incompletePricingEvidenceGroups.contains(group)
                 || (pricing.unresolvedRowGroups.contains(group)
                     && pricing.authoritativeCostEvidenceGroups.contains(group))

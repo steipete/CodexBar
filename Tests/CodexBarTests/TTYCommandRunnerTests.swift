@@ -641,7 +641,7 @@ struct TTYCommandRunnerEnvTests {
 
     @Test
     func `rolling buffer detects needle across boundary`() {
-        var scanner = TTYCommandRunner.RollingBuffer(maxNeedle: 6)
+        var scanner = StreamScanBuffer(maxNeedle: 6)
         let needle = Data("hello".utf8)
         let first = scanner.append(Data("he".utf8))
         #expect(first.range(of: needle) == nil)
@@ -652,7 +652,7 @@ struct TTYCommandRunnerEnvTests {
     @Test
     func `lowercased ASCII only touches ascii`() {
         let data = Data("UpDaTe".utf8)
-        let lowered = TTYCommandRunner.lowercasedASCII(data)
+        let lowered = StreamScanBuffer.lowercasedASCII(data)
         #expect(String(data: lowered, encoding: .utf8) == "update")
     }
 }

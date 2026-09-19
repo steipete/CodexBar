@@ -50,7 +50,8 @@ struct ClaudeWebBackgroundRecoveryTests {
                 #expect(error.localizedDescription == Self.challengeMessage)
             }
 
-            let cached = try? #require(CookieHeaderCache.load(provider: .claude))
+            let cached = CookieHeaderCache.load(provider: .claude)
+            #expect(cached != nil)
             #expect(cached?.cookieHeader == "sessionKey=sk-ant-current-token")
             #expect(cached?.sourceLabel == "Chrome")
         }
@@ -124,6 +125,77 @@ struct ClaudeWebBackgroundRecoveryTests {
             let cached = try #require(CookieHeaderCache.load(provider: .claude))
             #expect(cached.cookieHeader == "sessionKey=sk-ant-imported-token")
             #expect(cached.sourceLabel == "Safari")
+        }
+    }
+
+    enum RecoveredRequestFailure: CaseIterable, Sendable {
+        case timeout, unavailable, challenge, cancelled
+    }
+
+    @Test(arguments: RecoveredRequestFailure.allCases)
+    func `recovered session failures are not replaced by stale cookie auth errors`(
+        _ failure: RecoveredRequestFailure) async
+    {
+        await self.withIsolatedCookieCache {
+            CookieHeaderCache.store(
+                provider: .claude,
+                cookieHeader: "sessionKey=sk-ant-stale-token",
+                sourceLabel: "Chrome")
+            defer { CookieHeaderCache.clear(provider: .claude) }
+            let imported = ClaudeWebAPIFetcher.SessionKeyInfo(
+                key: "sk-ant-imported-token",
+                sourceLabel: "Safari",
+                cookieCount: 1)
+            let requests = LockIsolated<[String]>([])
+
+            do {
+                _ = try await ProviderInteractionContext.$current.withValue(.background) {
+                    try await ClaudeWebSessionKeyImport.$overrideForTesting.withValue(imported) {
+                        try await self.withClaudeWebStub { request in
+                            let url = try #require(request.url)
+                            #expect(url.path == "/api/organizations")
+                            let cookie = request.value(forHTTPHeaderField: "Cookie") ?? ""
+                            requests.setValue(requests.value + [cookie])
+                            if cookie == "sessionKey=sk-ant-stale-token" {
+                                return Self.jsonResponse(url: url, body: "{}", statusCode: 401, setCookie: nil)
+                            }
+                            #expect(cookie == "sessionKey=sk-ant-imported-token")
+                            switch failure {
+                            case .timeout: throw URLError(.timedOut)
+                            case .cancelled: throw URLError(.cancelled)
+                            case .unavailable:
+                                return Self.jsonResponse(url: url, body: "{}", statusCode: 503, setCookie: nil)
+                            case .challenge:
+                                let response = try #require(HTTPURLResponse(
+                                    url: url,
+                                    statusCode: 403,
+                                    httpVersion: nil,
+                                    headerFields: ["cf-mitigated": "challenge"]))
+                                return (response, Data("challenge".utf8))
+                            }
+                        } operation: {
+                            try await ClaudeWebAPIFetcher.fetchUsage(browserDetection: BrowserDetection(cacheTTL: 0))
+                        }
+                    }
+                }
+                Issue.record("Expected recovered request to fail")
+            } catch {
+                switch failure {
+                case .timeout: #expect((error as? URLError)?.code == .timedOut)
+                case .cancelled: #expect((error as? URLError)?.code == .cancelled)
+                case .challenge: #expect(error.localizedDescription == Self.challengeMessage)
+                case .unavailable:
+                    if case let .serverError(code) = error as? ClaudeWebAPIFetcher.FetchError {
+                        #expect(code == 503)
+                    } else {
+                        Issue.record("Expected the recovered request's server error")
+                    }
+                }
+            }
+            #expect(requests.value == [
+                "sessionKey=sk-ant-stale-token",
+                "sessionKey=sk-ant-imported-token",
+            ])
         }
     }
 

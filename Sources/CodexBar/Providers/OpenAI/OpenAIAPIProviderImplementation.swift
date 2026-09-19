@@ -1,4 +1,3 @@
-import AppKit
 import CodexBarCore
 import Foundation
 
@@ -37,21 +36,12 @@ struct OpenAIAPIProviderImplementation: ProviderImplementation {
                 placeholder: "sk-admin-...",
                 binding: context.providerConfigBinding(.apiKey),
                 actions: [
-                    ProviderSettingsActionDescriptor(
+                    ProviderSettingsActionDescriptor.openURL(
                         id: "openai-open-billing",
                         title: "Open billing",
-                        style: .link,
-                        isVisible: nil,
-                        perform: {
-                            if let url = URL(
-                                string: "https://platform.openai.com/settings/organization/billing/overview")
-                            {
-                                NSWorkspace.shared.open(url)
-                            }
-                        }),
+                        url: URL(string: "https://platform.openai.com/settings/organization/billing/overview")),
                 ],
-                isVisible: nil,
-                onActivate: nil),
+                isVisible: nil),
             ProviderSettingsFieldDescriptor(
                 id: "openai-project-id",
                 title: "Project ID",
@@ -61,19 +51,12 @@ struct OpenAIAPIProviderImplementation: ProviderImplementation {
                 placeholder: "proj_...",
                 binding: context.providerConfigBinding(.secretWorkspace(logField: "projectID")),
                 actions: [
-                    ProviderSettingsActionDescriptor(
+                    ProviderSettingsActionDescriptor.openURL(
                         id: "openai-open-projects",
                         title: "Open projects",
-                        style: .link,
-                        isVisible: nil,
-                        perform: {
-                            if let url = URL(string: "https://platform.openai.com/settings/organization/projects") {
-                                NSWorkspace.shared.open(url)
-                            }
-                        }),
+                        url: URL(string: "https://platform.openai.com/settings/organization/projects")),
                 ],
-                isVisible: nil,
-                onActivate: nil),
+                isVisible: nil),
         ]
     }
 }

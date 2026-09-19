@@ -44,8 +44,7 @@ struct WayfinderProviderImplementation: ProviderImplementation {
                 placeholder: WayfinderSettingsReader.defaultBaseURL.absoluteString,
                 binding: context.providerConfigBinding(.endpoint),
                 actions: [],
-                isVisible: nil,
-                onActivate: nil),
+                isVisible: nil),
         ]
     }
 }

@@ -146,44 +146,8 @@ enum MiniMaxLocalStorageImporter {
             .helium,
         ]
 
-        // Filter to browsers with profile data to avoid unnecessary filesystem access
-        let installedBrowsers = browsers.browsersWithProfileData(using: browserDetection)
-
-        let roots = ChromiumProfileLocator
-            .roots(for: installedBrowsers, homeDirectories: BrowserCookieClient.defaultHomeDirectories())
-            .map { (url: $0.url, labelPrefix: $0.labelPrefix) }
-
-        var candidates: [LocalStorageCandidate] = []
-        for root in roots {
-            candidates.append(contentsOf: self.chromeProfileLocalStorageDirs(
-                root: root.url,
-                labelPrefix: root.labelPrefix))
-        }
-        return candidates
-    }
-
-    private static func chromeProfileLocalStorageDirs(root: URL, labelPrefix: String) -> [LocalStorageCandidate] {
-        guard let entries = try? FileManager.default.contentsOfDirectory(
-            at: root,
-            includingPropertiesForKeys: [.isDirectoryKey],
-            options: [.skipsHiddenFiles])
-        else { return [] }
-
-        let profileDirs = entries.filter { url in
-            guard let isDir = (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory), isDir else {
-                return false
-            }
-            let name = url.lastPathComponent
-            return name == "Default" || name.hasPrefix("Profile ") || name.hasPrefix("user-")
-        }
-        .sorted { $0.lastPathComponent < $1.lastPathComponent }
-
-        return profileDirs.compactMap { dir in
-            let levelDBURL = dir.appendingPathComponent("Local Storage").appendingPathComponent("leveldb")
-            guard FileManager.default.fileExists(atPath: levelDBURL.path) else { return nil }
-            let label = "\(labelPrefix) \(dir.lastPathComponent)"
-            return LocalStorageCandidate(label: label, kind: .chromeLevelDB(levelDBURL))
-        }
+        return ChromiumLocalStorageDiscovery.candidates(browserDetection: browserDetection, browsers: browsers)
+            .map { LocalStorageCandidate(label: $0.label, kind: .chromeLevelDB($0.url)) }
     }
 
     private static func chromeSessionStorageCandidates(browserDetection: BrowserDetection)

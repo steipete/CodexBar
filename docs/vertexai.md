@@ -16,6 +16,8 @@ read_when:
 - Authenticate: `gcloud auth application-default login`.
 - Project: `gcloud config set project PROJECT_ID`.
 - Fallback project env vars: `GOOGLE_CLOUD_PROJECT`, `GCLOUD_PROJECT`, `CLOUDSDK_CORE_PROJECT`.
+- Refresh responses must contain a usable access token; malformed responses fail without extending the previous token's expiry.
+- gcloud retains ownership of credential-file updates; refreshed tokens are used in memory.
 
 ## API endpoints
 - Cloud Monitoring timeSeries:
@@ -26,7 +28,10 @@ read_when:
 ## Mapping
 - Matches usage + limit series by quota metric + limit name + location.
 - Reports the highest usage percent across matched series.
-- Displayed as "Quota usage" with period "Current quota".
+- The current provider snapshot publishes gcloud identity without quota windows; local token costs are fetched
+  separately. Recognized temporary network failures during token refresh or monitoring requests retain the last
+  successful identity snapshot and timestamp, including localized errors. Authentication and IAM failures keep their
+  existing behavior.
 
 ## Token Cost Tracking
 

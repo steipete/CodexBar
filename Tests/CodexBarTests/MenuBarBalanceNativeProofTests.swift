@@ -177,7 +177,6 @@ final class MenuBarBalanceNativeProofTests: XCTestCase {
                 usedPercent: 75.32,
                 keyLimit: 20,
                 keyUsage: 5,
-                rateLimit: nil,
                 updatedAt: now).toUsageSnapshot(),
         ]
     }

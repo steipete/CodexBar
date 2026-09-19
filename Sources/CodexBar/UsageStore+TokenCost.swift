@@ -161,12 +161,10 @@ extension UsageStore {
 
     func publishTokenSnapshot(_ snapshot: CostUsageTokenSnapshot, for provider: UsageProvider) {
         if self.retainsEstablishedTokenHistory(snapshot, for: provider) { return }
-        self.tokenSnapshots[provider.instanceID] = snapshot
         self.publishTokenSnapshotState(snapshot, for: provider)
     }
 
     func publishConfirmedEmptyTokenSnapshot(for provider: UsageProvider) {
-        self.tokenSnapshots.removeValue(forKey: provider.instanceID)
         self.publishTokenSnapshotState(nil, for: provider)
     }
 
@@ -181,7 +179,6 @@ extension UsageStore {
     }
 
     func installCachedTokenSnapshot(_ snapshot: CostUsageTokenSnapshot, for provider: UsageProvider) {
-        self.tokenSnapshots[provider.instanceID] = snapshot
         self.tokenSnapshotPublications[provider.instanceID] = TokenSnapshotPublication(
             snapshot: snapshot,
             publicationRevision: self.tokenSnapshotPublicationRevision(for: provider),
@@ -190,12 +187,10 @@ extension UsageStore {
     }
 
     func clearTokenSnapshot(for provider: UsageProvider) {
-        self.tokenSnapshots.removeValue(forKey: provider.instanceID)
         self.tokenSnapshotPublications.removeValue(forKey: provider.instanceID)
     }
 
     func clearTokenSnapshots() {
-        self.tokenSnapshots.removeAll()
         self.tokenSnapshotPublications.removeAll()
         self.spendDashboardTokenPublications.removeAll()
         self.spendDashboardTokenPublicationRevisions.removeAll()
@@ -404,13 +399,20 @@ extension UsageStore {
             return "\(base)|cursorCookie=manual:\(headerFingerprint)"
         }
 
-        let credentialFingerprint = CookieHeaderCache.loadForDisplay(provider: .cursor)
-            .map { CookieHeaderCache.credentialFingerprint($0.cookieHeader) } ?? "unresolved"
+        let credentialFingerprint = self.cursorCostCredentialFingerprintForDisplay() ?? "unresolved"
         return self.cursorCostScopeSignature(
             historyDays: historyDays,
             source: source,
             credentialFingerprint: credentialFingerprint,
             includeSettingsRevision: includeSettingsRevision)
+    }
+
+    private func cursorCostCredentialFingerprintForDisplay() -> String? {
+        #if DEBUG
+        if let override = self._test_cursorCostCredentialFingerprintOverride { return override() }
+        #endif
+        return CookieHeaderCache.loadForDisplay(provider: .cursor)
+            .map { CookieHeaderCache.credentialFingerprint($0.cookieHeader) }
     }
 
     func cursorCostScopeSignature(
@@ -442,35 +444,62 @@ extension UsageStore {
         return now.timeIntervalSince(last) < tokenFetchTTL
     }
 
-    func tokenRefreshPublicationIsCurrent(
-        provider: UsageProvider,
-        publicationRevision: ProviderPublicationRevision,
-        providerConfigRevision: UInt64,
+    struct TokenRefreshPublicationScope {
+        let publicationRevision: ProviderPublicationRevision
+        let providerConfigRevision: UInt64
+        let costSettingsRevision: UInt64
+        let historyDays: Int
+        let signature: String
+    }
+
+    func tokenRefreshPublicationScope(
+        for provider: UsageProvider,
         historyDays: Int,
-        costScopeSignature: String,
-        fetchedCredentialScopeFingerprint: String? = nil) -> Bool
+        costScopeSignature: String) -> TokenRefreshPublicationScope
     {
-        guard self.providerPublicationRevisionIsCurrent(publicationRevision, for: provider),
-              self.settings.providerConfigRevision(for: provider) == providerConfigRevision,
+        TokenRefreshPublicationScope(
+            publicationRevision: self.providerPublicationRevision(for: provider),
+            providerConfigRevision: self.settings.providerConfigRevision(for: provider),
+            costSettingsRevision: self.settings.costUsageSettingsRevision,
+            historyDays: historyDays,
+            signature: costScopeSignature)
+    }
+
+    enum TokenRefreshPublicationDisposition {
+        case current
+        case scopeChanged
+        case unchangedCredentialMismatch
+    }
+
+    func tokenRefreshPublicationDisposition(
+        provider: UsageProvider,
+        scope: TokenRefreshPublicationScope,
+        fetchedCredentialScopeFingerprint: String? = nil) -> TokenRefreshPublicationDisposition
+    {
+        guard self.providerPublicationRevisionIsCurrent(scope.publicationRevision, for: provider),
+              self.settings.providerConfigRevision(for: provider) == scope.providerConfigRevision,
+              self.settings.costUsageSettingsRevision == scope.costSettingsRevision,
               self.settings.isCostUsageEffectivelyEnabled(for: provider),
               self.isEnabled(provider),
-              self.settings.costUsageHistoryDays == historyDays
+              self.settings.costUsageHistoryDays == scope.historyDays
         else {
-            return false
+            return .scopeChanged
         }
         let currentSignature = self.tokenSnapshotScopeSignature(for: provider)
         if provider == .cursor,
            self.settings.cursorCookieSource == .auto,
-           costScopeSignature.contains("|cursorCookie=auto:"),
+           scope.signature.contains("|cursorCookie=auto:"),
            let fetchedCredentialScopeFingerprint
         {
             let resolvedSignature = self.cursorCostScopeSignature(
-                historyDays: historyDays,
+                historyDays: scope.historyDays,
                 source: .auto,
                 credentialFingerprint: fetchedCredentialScopeFingerprint)
-            return currentSignature == resolvedSignature
+            if currentSignature == resolvedSignature { return .current }
+            // The fetched account is still unconfirmed; retry only after the attempted scope changes.
+            return currentSignature == scope.signature ? .unchangedCredentialMismatch : .scopeChanged
         }
-        return currentSignature == costScopeSignature
+        return currentSignature == scope.signature ? .current : .scopeChanged
     }
 
     func completedTokenCostScopeSignature(

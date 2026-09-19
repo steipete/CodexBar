@@ -39,6 +39,18 @@ enum UsageBarsFillOption: String, CaseIterable {
     }
 }
 
+enum MergedOverviewLayout: String, CaseIterable {
+    case detailed
+    case compact
+
+    var label: String {
+        switch self {
+        case .detailed: L("overview_layout_detailed")
+        case .compact: L("overview_layout_compact")
+        }
+    }
+}
+
 enum ResetTimesOption: String, CaseIterable {
     case countdown
     case clock
@@ -274,7 +286,7 @@ extension SettingsStore {
 }
 
 extension MenuBarMetricPreference {
-    fileprivate var providerMetric: ProviderMenuBarMetric {
+    var providerMetric: ProviderMenuBarMetric {
         switch self {
         case .automatic: .automatic
         case .primary: .primary

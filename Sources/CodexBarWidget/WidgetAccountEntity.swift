@@ -6,10 +6,14 @@ struct WidgetAccountEntity: AppEntity {
     static let defaultQuery = WidgetAccountQuery()
 
     let id: String
-    let label: String
 
     var displayRepresentation: DisplayRepresentation {
-        DisplayRepresentation(title: "\(self.label)")
+        // Resolve labels afresh so a saved intent cannot restore identity hidden by current privacy settings.
+        DisplayRepresentation(title: "\(self.displayLabel(in: WidgetSnapshotStore.load()))")
+    }
+
+    func displayLabel(in snapshot: WidgetSnapshot?) -> String {
+        snapshot?.account(id: self.id)?.label ?? "Unavailable account"
     }
 }
 
@@ -18,17 +22,21 @@ struct WidgetAccountQuery: EntityQuery {
     var intent
 
     func entities(for identifiers: [String]) async throws -> [WidgetAccountEntity] {
-        let accounts = WidgetSnapshotStore.load()?.accounts ?? []
-        return identifiers.map { id in
-            // Keep unavailable references resolvable without restoring a previous private label.
-            WidgetAccountEntity(id: id, label: accounts.first { $0.id == id }?.label ?? "Unavailable account")
+        identifiers.map { id in
+            WidgetAccountEntity(id: id)
         }
     }
 
     func suggestedEntities() async throws -> [WidgetAccountEntity] {
-        let provider = self.intent?.provider.provider.instanceID
-        return (WidgetSnapshotStore.load()?.accounts ?? [])
-            .filter { provider == nil || $0.provider == provider }
-            .map { WidgetAccountEntity(id: $0.id, label: $0.label) }
+        Self.suggestedEntities(in: WidgetSnapshotStore.load(), provider: self.intent?.provider.provider.instanceID)
+    }
+
+    static func suggestedEntities(
+        in snapshot: WidgetSnapshot?,
+        provider: ProviderInstanceID?) -> [WidgetAccountEntity]
+    {
+        (snapshot?.accounts ?? [])
+            .filter { snapshot?.account(id: $0.id, provider: provider) != nil }
+            .map { WidgetAccountEntity(id: $0.id) }
     }
 }
