@@ -92,6 +92,7 @@ public enum UsageProvider: String, CaseIterable, Sendable, Codable {
     case muse
     case coderabbit
     case replicate
+    case typesafe
     case huggingface
 }
 

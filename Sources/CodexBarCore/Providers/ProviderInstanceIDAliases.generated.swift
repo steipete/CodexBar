@@ -76,6 +76,7 @@ extension ProviderInstanceID {
     public static let muse = UsageProvider.muse.instanceID
     public static let coderabbit = UsageProvider.coderabbit.instanceID
     public static let replicate = UsageProvider.replicate.instanceID
+    public static let typesafe = UsageProvider.typesafe.instanceID
     public static let huggingface = UsageProvider.huggingface.instanceID
 }
 

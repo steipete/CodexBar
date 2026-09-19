@@ -212,6 +212,7 @@ struct SettingsStoreAdditionalTests {
             .nous: [.automatic, .primary],
             .coderabbit: [.automatic],
             .replicate: [.automatic],
+            .typesafe: [.automatic],
             .huggingface: [.automatic, .secondary],
             .deepseek: [.automatic],
             .deepinfra: [.automatic],

@@ -4,6 +4,7 @@
 
 ### Added
 
+- TypeSafe: show billing spend, credit balance, plan, and non-zero credit expirations through a bundled console-session plugin with Chrome or manual Cookie authentication.
 - Muse Code: show local session token history and comparisons in the menu and CLI without inventing dollar costs, while retaining the bundled JavaScript subscription provider (#3340, #3587). Thanks @sanjay3290 and @Srimi1!
 - Widgets: pin saved accounts in a dedicated Account Usage widget, with opt-in refresh for up to six accounts per provider, privacy-aware labels, and verified ownership that survives credential rotation (#3585). Thanks @rokas-tarasevicius!
 - Widgets: make the binding quota easier to read, retain full provider names and secondary allowances, and share responsive tiles across Usage and Switcher widgets (#3137). Thanks @iamenahs!
