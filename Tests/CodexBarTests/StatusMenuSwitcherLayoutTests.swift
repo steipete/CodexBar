@@ -87,7 +87,7 @@ struct StatusMenuSwitcherLayoutTests {
     }
 
     @Test
-    func `long stacked provider title stays inside its row`() throws {
+    func `long stacked provider title stays inside its four-column grid`() throws {
         let view = ProviderSwitcherView(
             providers: [
                 .codex, .claude, .cursor, .antigravity, .copilot, .warp, .perplexity,
@@ -103,7 +103,7 @@ struct StatusMenuSwitcherLayoutTests {
         view.updateConstraintsForSubtreeIfNeeded()
         view.layoutSubtreeIfNeeded()
 
-        #expect(view._test_rowCount() == 3)
+        #expect(view._test_rowCount() == 4)
         let commandIndex = try #require(view._test_segmentTitles().firstIndex(of: "Command Code"))
         let buttonFrame = view._test_buttonFrames()[commandIndex]
         let contentFrames = view._test_buttonContentFrames()
@@ -116,7 +116,7 @@ struct StatusMenuSwitcherLayoutTests {
     }
 
     @Test
-    func `multi-row stacked switcher centers shorter rows`() throws {
+    func `multi-row stacked switcher uses a balanced four-column grid`() throws {
         let view = ProviderSwitcherView(
             providers: [
                 .codex, .claude, .cursor, .antigravity, .copilot, .warp, .perplexity,
@@ -132,13 +132,18 @@ struct StatusMenuSwitcherLayoutTests {
         view.updateConstraintsForSubtreeIfNeeded()
         view.layoutSubtreeIfNeeded()
 
-        #expect(view._test_rowCount() == 3)
+        #expect(view._test_rowCount() == 4)
         let frames = view._test_buttonFrames()
         var rowOrigins: [CGFloat] = []
         for frame in frames.map(\.minY) where !rowOrigins.contains(where: { abs($0 - frame) < 0.01 }) {
             rowOrigins.append(frame)
         }
-        #expect(rowOrigins.count == 3)
+        #expect(rowOrigins.count == 4)
+
+        let rowCounts = rowOrigins.map { rowOrigin in
+            frames.filter { abs($0.minY - rowOrigin) < 0.01 }.count
+        }
+        #expect(rowCounts == [3, 4, 4, 3])
 
         for rowOrigin in rowOrigins {
             let rowFrames = frames.filter { abs($0.minY - rowOrigin) < 0.01 }

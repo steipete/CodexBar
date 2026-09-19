@@ -34,7 +34,7 @@ final class StatusMenuSwitcherLayoutNativeProofTests: XCTestCase {
         defer { window.close() }
         window.layoutIfNeeded()
         view.layoutSubtreeIfNeeded()
-        XCTAssertEqual(view._test_rowCount(), 3)
+        XCTAssertEqual(view._test_rowCount(), 4)
         let representation = try XCTUnwrap(view.bitmapImageRepForCachingDisplay(in: view.bounds))
         view.cacheDisplay(in: view.bounds, to: representation)
         let png = try XCTUnwrap(representation.representation(using: .png, properties: [:]))
