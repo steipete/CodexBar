@@ -329,7 +329,8 @@ struct ProviderSettingsDescriptorTests {
 
         #expect(usagePicker.options.map(\.title) == ["Auto", "Google OAuth", "Local API / agy CLI"])
         #expect(usagePicker.subtitle ==
-            "Auto skips agy reports without account identity for selected or injected Google accounts. " +
+            "Auto uses agy reports for a selected Google account only when the local agy login matches it; " +
+            "otherwise it skips agy reports without account identity for selected or injected accounts. " +
             "Try Local API / agy CLI to use the local app or agy's signed-in account, which may differ.")
         if let directory = ProcessInfo.processInfo.environment["CODEXBAR_ANTIGRAVITY_GUIDANCE_PROOF_DIR"] {
             let previous = ProviderSettingsPickerDescriptor(

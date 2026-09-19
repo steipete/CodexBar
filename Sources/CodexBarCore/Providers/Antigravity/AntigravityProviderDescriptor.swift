@@ -533,7 +533,8 @@ struct AntigravityCLIHTTPSFetchStrategy: ProviderFetchStrategy {
         } catch {
             try Task.checkCancellation()
             if error is CancellationError { throw error }
-            // Identity-free reports must not replace a selected or injected OAuth account's fallback.
+            // Identity-free reports must not replace a selected or injected OAuth account's fallback here;
+            // AntigravityOAuthFetchStrategy re-consults the report only after matching the local agy login.
             guard context.sourceMode != .auto || (context.selectedTokenAccountID == nil &&
                 context.env[AntigravityOAuthCredentialsStore.environmentCredentialsKey] == nil)
             else { throw error }
@@ -882,6 +883,59 @@ struct AntigravityOAuthFetchStrategy: ProviderFetchStrategy {
                 await updater(.antigravity, accountID, token)
             })
         let snapshot = try await fetcher.fetch()
+
+        if snapshot.modelQuotas.isEmpty, context.sourceMode == .auto, context.selectedTokenAccountID != nil {
+            let expected = AntigravitySelectedAccountGuard.selectedAccountEmail(context: context)
+            if let cliEmail = AntigravityCLIIdentityResolver.resolveCLIEmail(env: context.env),
+               AntigravitySelectedAccountGuard.matches(snapshotAccountEmail: cliEmail, expectedAccountEmail: expected)
+            {
+                if let binary = BinaryLocator.resolveAntigravityBinary(env: context.env) {
+                    let cliStrategy = AntigravityCLIHTTPSFetchStrategy()
+                    if let reportResult = try? await cliStrategy.fetchPrintUsage(
+                        binary: binary,
+                        environment: context.env)
+                    {
+                        let snap = reportResult.usage
+                        let newIdentity = ProviderIdentitySnapshot(
+                            providerID: .antigravity,
+                            accountEmail: expected,
+                            accountOrganization: snap.identity?.accountOrganization,
+                            loginMethod: "cli")
+
+                        let updatedSnap = UsageSnapshot(
+                            primary: snap.primary,
+                            secondary: snap.secondary,
+                            tertiary: snap.tertiary,
+                            extraRateWindows: snap.extraRateWindows,
+                            providerCost: snap.providerCost,
+                            costUsage: snap.costUsage,
+                            details: snap.details,
+                            deepseekDetailedUsageState: snap.deepseekDetailedUsageState,
+                            deepseekPlatformProfiles: snap.deepseekPlatformProfiles,
+                            deepseekPlatformBalanceOwner: snap.deepseekPlatformBalanceOwner,
+                            opencodegoUsage: snap.opencodegoUsage,
+                            openAIAPIUsage: snap.openAIAPIUsage,
+                            codexResetCredits: snap.codexResetCredits,
+                            mistralUsage: snap.mistralUsage,
+                            copilotMeteredZeroCredits: snap.copilotMeteredZeroCredits,
+                            commandCodeSubscriptionEnrichmentUnavailable: snap
+                                .commandCodeSubscriptionEnrichmentUnavailable,
+                            commandCodeHasSubscriptionPlan: snap.commandCodeHasSubscriptionPlan,
+                            commandCodeMonthlyGrantDepleted: snap.commandCodeMonthlyGrantDepleted,
+                            subscriptionExpiresAt: snap.subscriptionExpiresAt,
+                            subscriptionRenewsAt: snap.subscriptionRenewsAt,
+                            updatedAt: snap.updatedAt,
+                            identity: newIdentity,
+                            dataConfidence: snap.dataConfidence)
+
+                        return self.makeResult(
+                            usage: updatedSnap,
+                            sourceLabel: reportResult.sourceLabel)
+                    }
+                }
+            }
+        }
+
         let usage = try Self.usageSnapshot(from: snapshot)
         return self.makeResult(
             usage: usage,

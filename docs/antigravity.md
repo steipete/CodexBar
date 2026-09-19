@@ -32,9 +32,18 @@ or later before using print mode; [Google introduced non-interactive usage repor
 It requires a successful `usage` command report with known,
 enabled quota buckets, bounds the command to 90 seconds and its output to 1 MiB, and terminates the command
 on cancellation. It runs in a private empty directory and does not send a model prompt or parse TUI output.
-The report contains no account or plan identity: explicit CLI mode remains authoritative, while Auto uses
-this fallback only without a selected token account or explicitly injected OAuth credentials. Successful
-HTTPS results retain their verified identity. Failed command diagnostics do not include raw stderr.
+The report contains no account or plan identity: explicit CLI mode remains authoritative, while the `agy` CLI
+source in Auto uses this fallback only without a selected token account or explicitly injected OAuth credentials.
+Successful HTTPS results retain their verified identity. Failed command diagnostics do not include raw stderr.
+
+With a selected token account, Auto consults the report once more, after the account-scoped OAuth fetch identifies
+the account but returns no model quotas (for example, quota endpoints answering `403`). CodexBar resolves the local
+`agy` login email from the `gemini`/`antigravity` generic-password Keychain item, else from the first email found in
+`~/.gemini/antigravity-cli/settings.json`, `auth.json`, or `jetski_state.pbtxt`, and runs `agy -p /usage` only when
+that email matches the selected account (a selected account without a known email accepts any resolved email). The
+report is then attributed to the selected account with the `cli` source label. No resolved email, a mismatch, a
+missing `agy`, or a failed report leaves the OAuth identity-only result (`Limits not available`). See
+`AntigravityCLIIdentityResolver` and `AntigravityOAuthFetchStrategy`.
 
 Antigravity supports four usage data sources:
 
@@ -70,8 +79,10 @@ when CodexBar has a selected/injected Google account or an existing shared crede
 `fetchAvailableModels` payload is only accepted after `retrieveUserQuota` echoes bucket fractions; this can be an
 availability-style fallback rather than the full Antigravity quota summary.
 When OAuth identifies the account but quota endpoints deny access, CodexBar shows `Limits not available` instead of an
-empty quota card. Auto also skips `agy` reports without account identity when a Google account is selected or injected,
-because it cannot verify that those quotas belong to that account. Settings explains this beside **Usage source**.
+empty quota card, unless the selected account's local `agy` login matches it; then Auto shows that account's `agy`
+usage report under the identity-match rule described with the print-mode fallback above. Auto otherwise skips `agy`
+reports without account identity when a Google account is selected or injected, because it cannot verify that those
+quotas belong to that account. Settings explains this beside **Usage source**.
 To try the local app or `agy` account instead, select **Local API / agy CLI** (CLI: `--source cli`).
 That source may use a different signed-in account from the Google account selected in CodexBar; it does not verify a match.
 
@@ -220,7 +231,9 @@ When source mode is `auto`, OAuth is used after app, `agy` CLI, and IDE paths fa
 Google account or an existing shared credentials file. The app, `agy` CLI, and IDE probes still run first, but in
 `auto` mode their snapshots are accepted only when the reported account matches the selected account; otherwise the
 pipeline falls through to this account-scoped OAuth fetch. When source mode is `oauth`, only OAuth is used and the
-shared OAuth file can still be used as a fallback credential source.
+shared OAuth file can still be used as a fallback credential source. If the account-scoped fetch identifies the
+selected account but returns no model quotas, Auto may still show that account's `agy` usage report under the
+identity-match rule described with the print-mode fallback above.
 
 ## Request body (summary)
 - Minimal metadata payload:
