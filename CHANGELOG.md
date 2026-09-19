@@ -15,6 +15,7 @@
 
 ### Fixed
 
+- Sharing: keep retained top-model families on the shared usage card when another provider in the same currency is unpriced or incomplete, and label that ranking as partial instead of showing an empty card (#3747). Thanks @Chipagosfinest!
 - Codex costs: recover excess cached request rows from their original session files, retain pricing through interrupted scans, and avoid guessing request boundaries or conflicting prices (#3741, related to #3618). Thanks @BUKOWSKIREAL!
 
 ## 0.61.0 — 2026-09-18

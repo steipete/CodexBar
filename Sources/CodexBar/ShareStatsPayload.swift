@@ -113,6 +113,9 @@ struct ShareStatsPayload: Sendable, Equatable {
     let currencies: [ShareStatsCurrencyPayload]
     let totalTokens: Int?
     let hasPartialTokens: Bool
+    /// True when at least one currency group retained model rows while sibling coverage is still
+    /// incomplete. The card may list those rows; it must not present them as a closed ranking.
+    let hasPartialModels: Bool
 
     init(
         days: Int,
@@ -122,6 +125,7 @@ struct ShareStatsPayload: Sendable, Equatable {
         currencies: [ShareStatsCurrencyPayload],
         totalTokens: Int?,
         hasPartialTokens: Bool = false,
+        hasPartialModels: Bool = false,
         periodEndTimeZone: TimeZone = .current)
     {
         self.days = days
@@ -132,6 +136,7 @@ struct ShareStatsPayload: Sendable, Equatable {
         self.currencies = currencies
         self.totalTokens = totalTokens
         self.hasPartialTokens = hasPartialTokens
+        self.hasPartialModels = hasPartialModels
     }
 
     var hasShareableData: Bool {
@@ -276,12 +281,18 @@ enum ShareStatsBuilder {
                     coveredDayCount: row.coveredDayCount)
             }
         }
+        // Settings already lists retained `group.models` when sibling providers in the same
+        // currency are unpriced. The share card used to also require complete model history,
+        // which blanked Codex/Claude families whenever an unpriced USD source made the group
+        // incomplete. Keep the window-level incomplete-request guard so a selected complete
+        // day inside an incomplete range cannot be exported as the advertised period ranking.
         let sanitizedModels = model.groups.filter {
-            $0.modelHistoryCompleteness == .complete && $0.incompleteRequestCount == 0
+            $0.incompleteRequestCount == 0 && $0.selectedDay == nil
         }.flatMap { group in
             group.models.compactMap { row -> ShareStatsModelPayload? in
                 let estimatedCost = self.finiteCost(row.totalCost)
-                guard let modelName = ShareStatsSanitizer.modelName(row.modelName),
+                guard row.incompleteRequestCount == 0,
+                      let modelName = ShareStatsSanitizer.modelName(row.modelName),
                       row.totalTokens != nil
                 else { return nil }
                 return ShareStatsModelPayload(
@@ -328,6 +339,9 @@ enum ShareStatsBuilder {
         }
         let totalTokens = self.combinedTotalTokens(model.groups.map(\.totalTokens))
         let hasPartialTokens = model.groups.contains(where: \.hasPartialTokens)
+        let hasPartialModels = model.groups.contains {
+            $0.modelHistoryCompleteness == .incomplete || $0.incompleteRequestCount > 0
+        }
         guard let periodGroup = model.groups.max(by: { $0.chartDomain.upperBound < $1.chartDomain.upperBound }) else {
             return nil
         }
@@ -344,6 +358,7 @@ enum ShareStatsBuilder {
             currencies: currencies,
             totalTokens: totalTokens,
             hasPartialTokens: hasPartialTokens,
+            hasPartialModels: hasPartialModels,
             periodEndTimeZone: periodGroup.timeZone)
         return payload.hasShareableData ? payload : nil
     }
@@ -483,7 +498,7 @@ enum ShareStatsFormatting {
             return "\(provider.providerName)\(subscription): \(metrics.joined(separator: " · "))"
         })
         if !payload.topModels.isEmpty {
-            lines.append("Top models:")
+            lines.append(payload.hasPartialModels ? "Top models (partial):" : "Top models:")
             lines.append(contentsOf: payload.topModels.prefix(5).map { model in
                 var metrics: [String] = []
                 if let tokens = model.totalTokens {
