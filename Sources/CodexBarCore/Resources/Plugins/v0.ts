@@ -3,6 +3,8 @@ type V0BillingResponse = {
   data?: unknown;
 };
 
+const V0_API_BASE = "https://api.v0.dev/v1";
+
 defineProvider({
   id: "v0",
   name: "v0",
@@ -63,32 +65,65 @@ defineProvider({
       return timestamp >= 1_000_000_000_000 ? ctx.date.unixMillis(timestamp) : ctx.date.unixSeconds(timestamp);
     }
 
+    function optionalNumber(value: unknown, field: string): number | undefined {
+      if (value === undefined || value === null) return undefined;
+      return number(value, field);
+    }
+
     function quota(value: unknown, field: string) {
       const payload = object(value, field);
       const limit = number(payload.limit, `${field}.limit`);
-      const remaining = number(payload.remaining, `${field}.remaining`);
+      const remaining = optionalNumber(payload.remaining, `${field}.remaining`);
       if (limit < 0) return fail(`${field}.limit must not be negative`);
-      const used = Math.max(0, limit - remaining);
       return {
-        usedPercent: ctx.pct(used, limit),
+        usedPercent: remaining === undefined ? undefined : ctx.pct(Math.max(0, limit - remaining), limit),
         resetsAt: reset(payload.reset, `${field}.reset`),
         remaining,
         limit,
       };
     }
 
-    const billingResponse = await ctx.http.getJSON(`https://api.v0.dev/user/billing${query}`);
+    function legacyBilling(value: unknown, field: string) {
+      const parsed = quota(value, field);
+      if (parsed.remaining === undefined) return fail(`${field}.remaining`);
+      return {
+        usedPercent: ctx.pct(Math.max(0, parsed.limit - parsed.remaining), parsed.limit),
+        resetsAt: parsed.resetsAt,
+        remaining: parsed.remaining,
+        limit: parsed.limit,
+      };
+    }
+
+    function tokenBilling(value: unknown, field: string) {
+      const payload = object(value, field);
+      const balance = object(payload.balance, `${field}.balance`);
+      const total = number(balance.total, `${field}.balance.total`);
+      const remaining = number(balance.remaining, `${field}.balance.remaining`);
+      const billingCycle = object(payload.billingCycle, `${field}.billingCycle`);
+      if (total < 0) return fail(`${field}.balance.total must not be negative`);
+      return {
+        usedPercent: ctx.pct(Math.max(0, total - remaining), total),
+        resetsAt: reset(billingCycle.end, `${field}.billingCycle.end`),
+        remaining,
+        limit: total,
+      };
+    }
+
+    const billingResponse = await ctx.http.getJSON(`${V0_API_BASE}/user/billing${query}`);
     if (billingResponse.status !== 200) apiError(billingResponse);
     const billing = object(billingResponse.json as V0BillingResponse, "billing response");
-    const billingData = quota(billing.data, "billing.data");
+    const billingType = text(billing.billingType, "billingType");
+    const billingData =
+      billingType === "token"
+        ? tokenBilling(billing.data, "billing.data")
+        : legacyBilling(billing.data, "billing.data");
 
-    const rateLimitResponse = await ctx.http.getJSON(`https://api.v0.dev/rate-limits${query}`);
+    const rateLimitResponse = await ctx.http.getJSON(`${V0_API_BASE}/rate-limits${query}`);
     if (rateLimitResponse.status !== 200) apiError(rateLimitResponse);
     const rateLimit = quota(rateLimitResponse.json, "rate limit response");
+    const rateRemaining = rateLimit.remaining;
 
-    const billingType = text(billing.billingType, "billingType");
     const billingRemaining = ctx.format.number(billingData.remaining, { maximumFractionDigits: 2 });
-    const rateRemaining = ctx.format.number(rateLimit.remaining, { maximumFractionDigits: 2 });
     const rows: CodexBarDetailRow[] = [
       {
         label: "Billing remaining",
@@ -97,8 +132,12 @@ defineProvider({
       },
       {
         label: "Rate-limit remaining",
-        value: rateRemaining,
-        secondaryValue: `of ${ctx.format.number(rateLimit.limit, { maximumFractionDigits: 2 })}`,
+        value:
+          rateRemaining === undefined ? "Unavailable" : ctx.format.number(rateRemaining, { maximumFractionDigits: 2 }),
+        secondaryValue:
+          rateRemaining === undefined
+            ? `limit ${ctx.format.number(rateLimit.limit, { maximumFractionDigits: 2 })}`
+            : `of ${ctx.format.number(rateLimit.limit, { maximumFractionDigits: 2 })}`,
       },
     ];
     if (billingType) rows.push({ label: "Billing type", value: billingType });
@@ -106,7 +145,13 @@ defineProvider({
 
     return {
       primary: { usedPercent: billingData.usedPercent, resetsAt: billingData.resetsAt },
-      secondary: { usedPercent: rateLimit.usedPercent, resetsAt: rateLimit.resetsAt },
+      secondary:
+        rateRemaining === undefined
+          ? null
+          : {
+              usedPercent: ctx.pct(Math.max(0, rateLimit.limit - rateRemaining), rateLimit.limit),
+              resetsAt: rateLimit.resetsAt,
+            },
       details: [{ title: "v0 API", rows }],
       identity: { loginMethod: "API key" },
       dataConfidence: "exact",

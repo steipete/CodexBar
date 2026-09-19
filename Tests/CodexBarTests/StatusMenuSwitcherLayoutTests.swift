@@ -116,6 +116,39 @@ struct StatusMenuSwitcherLayoutTests {
     }
 
     @Test
+    func `multi-row stacked switcher centers shorter rows`() throws {
+        let view = ProviderSwitcherView(
+            providers: [
+                .codex, .claude, .cursor, .antigravity, .copilot, .warp, .perplexity,
+                .deepseek, .commandcode, .grok, .notion, .gemini, .devin,
+            ],
+            selected: .overview,
+            includesOverview: true,
+            width: 310,
+            showsIcons: true,
+            iconProvider: { _ in NSImage(size: NSSize(width: 16, height: 16)) },
+            weeklyRemainingProvider: { _ in nil },
+            onSelect: { _ in })
+        view.updateConstraintsForSubtreeIfNeeded()
+        view.layoutSubtreeIfNeeded()
+
+        #expect(view._test_rowCount() == 3)
+        let frames = view._test_buttonFrames()
+        var rowOrigins: [CGFloat] = []
+        for frame in frames.map(\.minY) where !rowOrigins.contains(where: { abs($0 - frame) < 0.01 }) {
+            rowOrigins.append(frame)
+        }
+        #expect(rowOrigins.count == 3)
+
+        for rowOrigin in rowOrigins {
+            let rowFrames = frames.filter { abs($0.minY - rowOrigin) < 0.01 }
+            let rowMinX = try #require(rowFrames.map(\.minX).min())
+            let rowMaxX = try #require(rowFrames.map(\.maxX).max())
+            #expect(abs((rowMinX + rowMaxX) / 2 - view.bounds.midX) < 0.5)
+        }
+    }
+
+    @Test
     func `localized inline switcher titles fit without losing equal sizing`() throws {
         try CodexBarLocalizationOverride.$appLanguage.withValue("tr") {
             for width in stride(from: CGFloat(280), through: CGFloat(330), by: 1) {

@@ -509,8 +509,11 @@ final class ProviderSwitcherView: NSView {
         for (rowIndex, rowButtons) in rows.enumerated() {
             guard rowIndex < rowViews.count else { continue }
             let rowView = rowViews[rowIndex]
+            let rowWidth = uniformWidth * CGFloat(rowButtons.count)
+                + computedGap * CGFloat(max(0, rowButtons.count - 1))
+            let rowOffset = max(0, (availableWidth - rowWidth) / 2)
             for (columnIndex, button) in rowButtons.enumerated() {
-                let xOffset = CGFloat(columnIndex) * (uniformWidth + computedGap)
+                let xOffset = rowOffset + CGFloat(columnIndex) * (uniformWidth + computedGap)
                 NSLayoutConstraint.activate([
                     button.leadingAnchor.constraint(equalTo: gridContainer.leadingAnchor, constant: xOffset),
                     button.centerYAnchor.constraint(equalTo: rowView.centerYAnchor),
