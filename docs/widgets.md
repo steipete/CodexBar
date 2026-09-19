@@ -53,7 +53,8 @@ Switcher widgets share one remembered provider selection, so switching one updat
 
 ## Provider picker support
 The configurable provider widgets currently expose:
-Codex, Claude, Cursor, Gemini, Alibaba, Antigravity, z.ai, Copilot, MiniMax, Kilo, OpenCode, and OpenCode Go.
+Codex, Claude, Cursor, Gemini, Alibaba, Antigravity, z.ai, Copilot, MiniMax, Kilo, OpenCode, OpenCode Go,
+DeepSeek, and OpenRouter.
 
 Providers without a `ProviderChoice` case can still be present in the app snapshot, but they are not selectable from the widget configuration UI yet.
 

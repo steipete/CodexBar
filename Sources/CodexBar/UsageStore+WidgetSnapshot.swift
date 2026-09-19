@@ -274,6 +274,13 @@ extension UsageStore {
         } else {
             nil
         }
+        // Provider-specific by design: DeepSeek and OpenRouter expose their widget value as balance text.
+        let balanceText: String? = switch provider {
+        case .deepseek, .openrouter:
+            StatusItemController.menuBarBalanceDisplayText(provider: provider, snapshot: snapshot)
+        default:
+            nil
+        }
 
         return WidgetSnapshot.ProviderEntry(
             provider: provider,
@@ -287,7 +294,8 @@ extension UsageStore {
             tokenUsage: tokenUsage,
             dailyUsage: dailyUsage,
             providerCost: providerCost,
-            quotaOwnerKey: quotaOwnerKey)
+            quotaOwnerKey: quotaOwnerKey,
+            balanceText: balanceText)
     }
 
     private struct PreservedClaudeWidgetUsage {

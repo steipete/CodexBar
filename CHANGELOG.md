@@ -5,6 +5,7 @@
 ### Added
 
 - Widgets: make the binding quota easier to read, retain full provider names and secondary allowances, and share responsive tiles across Usage and Switcher widgets (#3137). Thanks @iamenahs!
+- Widgets: make DeepSeek and OpenRouter selectable, show their balances, hide DeepSeek's denominator-free progress bar, and round update ages to minutes.
 - Hooks: run opt-in `usage_updated` commands after successful current app refreshes and CLI watcher polls, with shared quota metadata, private account throttling, and explicit first-attempt behavior (#3512). Thanks @guillem-gelabert!
 - Overview: choose Detailed or Compact in Menu settings, with labeled usage bars, the existing provider navigation, and useful details for providers without quota bars (#2616). Thanks @Zihao-Qi!
 - Overview: share the displayed Usage & Spend summary through the local snapshot preview, with hidden sources excluded and truthful clipboard feedback (#3677). Thanks @Chipagosfinest!

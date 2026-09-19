@@ -403,7 +403,7 @@ struct TileHeader: View {
                     FreshnessLabel(updatedAt: self.updatedAt)
                 }
             }
-            if self.size == .small, WidgetFreshness.isStale(self.updatedAt) {
+            if self.size == .small {
                 FreshnessLabel(updatedAt: self.updatedAt)
             }
         }
@@ -422,12 +422,15 @@ struct FreshnessLabel: View {
     let updatedAt: Date
 
     var body: some View {
-        // WidgetKit's live date layout cannot use fixedSize; it can erase the rest of the tile.
-        Text(self.updatedAt, style: .relative)
-            .font(.caption2)
-            .foregroundStyle(WidgetFreshness
-                .isStale(self.updatedAt) ? AnyShapeStyle(Color.orange) : AnyShapeStyle(.secondary))
-            .lineLimit(1)
+        TimelineView(.everyMinute) { context in
+            Text(WidgetFormat.updateAge(self.updatedAt, now: context.date))
+                .font(.caption2)
+                .foregroundStyle(WidgetFreshness
+                    .isStale(self.updatedAt, now: context.date)
+                    ? AnyShapeStyle(Color.orange)
+                    : AnyShapeStyle(.secondary))
+                .lineLimit(1)
+        }
     }
 }
 
