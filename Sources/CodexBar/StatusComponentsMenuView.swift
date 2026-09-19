@@ -76,10 +76,12 @@ struct StatusComponentsMenuView: View {
         let isExpanded = self.expandedGroupIDs.contains(group.id)
         return VStack(alignment: .leading, spacing: 6) {
             Button {
-                if isExpanded {
-                    self.expandedGroupIDs.remove(group.id)
-                } else {
-                    self.expandedGroupIDs.insert(group.id)
+                withAnimation(.easeInOut(duration: 0.16)) {
+                    if isExpanded {
+                        self.expandedGroupIDs.remove(group.id)
+                    } else {
+                        self.expandedGroupIDs.insert(group.id)
+                    }
                 }
                 self.onToggle?()
             } label: {
@@ -91,9 +93,12 @@ struct StatusComponentsMenuView: View {
                         .font(.system(size: 13))
                         .foregroundStyle(.primary)
                         .lineLimit(1)
-                    Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                    // A rotated single glyph (rather than swapping systemName) keeps the chevron
+                    // itself continuous through the animation instead of hard-cutting to a new shape.
+                    Image(systemName: "chevron.right")
                         .font(.system(size: 9, weight: .semibold))
                         .foregroundStyle(.secondary)
+                        .rotationEffect(.degrees(isExpanded ? 90 : 0))
                     Spacer(minLength: 16)
                     Text(group.statusLabel)
                         .font(.system(size: 12))
@@ -110,7 +115,9 @@ struct StatusComponentsMenuView: View {
                         self.statusRow(child, indented: true)
                     }
                 }
+                .transition(.opacity)
             }
         }
+        .clipped()
     }
 }

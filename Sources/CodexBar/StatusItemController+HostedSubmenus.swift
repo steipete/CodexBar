@@ -546,6 +546,12 @@ extension StatusItemController {
                         }
                     })
                 let hosting = MenuHostingView(rootView: listView)
+                // SwiftUI applies the expand/collapse before the row is re-measured (below), so for
+                // one runloop tick the live content can be taller than the still-old row frame. Without
+                // clipping that briefly bleeds into the menu item underneath instead of staying tucked
+                // inside the row, which is what actually reads as janky.
+                hosting.wantsLayer = true
+                hosting.layer?.masksToBounds = true
                 relay.hosting = hosting
                 hosting.applyMeasuredHeight(width: width, height: hosting.measuredFittingHeight(width: width))
 
