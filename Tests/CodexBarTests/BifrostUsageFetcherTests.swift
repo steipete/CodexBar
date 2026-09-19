@@ -262,7 +262,98 @@ struct BifrostUsageFetcherTests {
         let section = try #require(snapshot.details.first { $0.title == "Models" })
 
         #expect(section.rows.count == 24)
-        #expect(section.rows.first?.label == "acme · model-0")
+        // All rows share provider "acme": the provider prefix is redundant and omitted.
+        #expect(section.rows.first?.label == "model-0")
+    }
+
+    @Test
+    func `omits the provider prefix when every model shares one provider`() throws {
+        let json = """
+        {
+          "budgets": [
+            { "id": "b1", "max_limit": 1000, "current_usage": 10,
+              "per_model_usage": [
+                { "model": "us.anthropic.claude-sonnet-5", "provider": "bedrock", "total_cost": 5 }
+              ]
+            }
+          ]
+        }
+        """
+
+        let parsed = try BifrostUsageFetcher._parseQuotaForTesting(Data(json.utf8), updatedAt: Date())
+        let snapshot = parsed.toUsageSnapshot()
+        let section = try #require(snapshot.details.first { $0.title == "Models" })
+
+        #expect(section.rows.first?.label == "claude-sonnet-5")
+    }
+
+    @Test
+    func `keeps the provider prefix when models span multiple providers`() throws {
+        let json = """
+        {
+          "budgets": [
+            { "id": "b1", "max_limit": 1000, "current_usage": 10,
+              "per_model_usage": [
+                { "model": "us.anthropic.claude-sonnet-5", "provider": "bedrock", "total_cost": 5 },
+                { "model": "gpt-4o", "provider": "openai", "total_cost": 2 }
+              ]
+            }
+          ]
+        }
+        """
+
+        let parsed = try BifrostUsageFetcher._parseQuotaForTesting(Data(json.utf8), updatedAt: Date())
+        let snapshot = parsed.toUsageSnapshot()
+        let section = try #require(snapshot.details.first { $0.title == "Models" })
+
+        let labels = section.rows.map(\.label)
+        #expect(labels.contains("bedrock · claude-sonnet-5"))
+        #expect(labels.contains("openai · gpt-4o"))
+    }
+
+    @Test
+    func `falls back to raw model IDs when normalization collides`() throws {
+        let json = """
+        {
+          "budgets": [
+            { "id": "b1", "max_limit": 1000, "current_usage": 10,
+              "per_model_usage": [
+                { "model": "us.anthropic.claude-sonnet-5", "provider": "bedrock", "total_cost": 5 },
+                { "model": "eu.anthropic.claude-sonnet-5", "provider": "bedrock", "total_cost": 2 }
+              ]
+            }
+          ]
+        }
+        """
+
+        let parsed = try BifrostUsageFetcher._parseQuotaForTesting(Data(json.utf8), updatedAt: Date())
+        let snapshot = parsed.toUsageSnapshot()
+        let section = try #require(snapshot.details.first { $0.title == "Models" })
+
+        let labels = section.rows.map(\.label)
+        #expect(labels.contains("us.anthropic.claude-sonnet-5"))
+        #expect(labels.contains("eu.anthropic.claude-sonnet-5"))
+    }
+
+    @Test
+    func `formats per-model token counts compactly`() throws {
+        let json = """
+        {
+          "budgets": [
+            { "id": "b1", "max_limit": 1000, "current_usage": 10,
+              "per_model_usage": [
+                { "model": "gpt-4o", "provider": "openai", "total_cost": 5, "total_tokens": 1200000 }
+              ]
+            }
+          ]
+        }
+        """
+
+        let parsed = try BifrostUsageFetcher._parseQuotaForTesting(Data(json.utf8), updatedAt: Date())
+        let snapshot = parsed.toUsageSnapshot()
+        let section = try #require(snapshot.details.first { $0.title == "Models" })
+
+        #expect(section.rows.first?.secondaryValue == "1.2M tokens")
     }
 
     @Test
