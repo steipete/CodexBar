@@ -1,0 +1,28 @@
+{
+  "command": "/Applications/CodexBar.app/Contents/Helpers/CodexBarCLI usage --provider v0 --format json --pretty --no-color",
+  "capturedAt": "2026-09-19T09:59:12Z",
+  "output": [
+    {
+      "provider": "v0",
+      "source": "api",
+      "usage": {
+        "dataConfidence": "exact",
+        "details": [
+          {
+            "title": "v0 API",
+            "rows": [
+              { "label": "Billing remaining", "value": "5", "secondaryValue": "of 5" },
+              { "label": "Rate-limit remaining", "value": "250", "secondaryValue": "of 250" },
+              { "label": "Billing type", "value": "token" }
+            ]
+          }
+        ],
+        "identity": { "loginMethod": "API key", "providerID": "v0" },
+        "primary": { "usedPercent": 0, "resetsAt": "2026-10-19T00:00:00Z" },
+        "secondary": { "usedPercent": 0, "resetsAt": "2026-09-20T00:00:00Z" },
+        "updatedAt": "2026-09-19T09:59:12Z"
+      }
+    }
+  ],
+  "redaction": "The API key itself is not present in CLI output and was not included here."
+}
