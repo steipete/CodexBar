@@ -602,6 +602,49 @@ struct CostUsageCodexSourceRecoveryTests {
         case monetary
     }
 
+    @Test
+    func `stale parser revision keeps priority pricing when traces are gone`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let day = try env.makeLocalNoon(year: 2026, month: 9, day: 10)
+        let file = try env.writeCodexSessionFile(
+            day: day,
+            filename: "revision-upgrade-priority.jsonl",
+            contents: Self.sourceLines(inputs: [200_000, 200_000, 200_000], day: day, env: env)
+                .joined(separator: "\n") + "\n")
+        var options = Self.options(env: env)
+        let original = Self.report(day: day, options: options)
+        #expect(original.summary?.totalTokens == 600_000)
+
+        var cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        var usage = try #require(cache.files[file.path])
+        usage.codexRows = usage.codexRows?.map { row in
+            var row = row
+            row.pricingMode = "priority"
+            row.pricingModel = row.pricingModel ?? row.model
+            return row
+        }
+        usage.codexParserRevision = CostUsageFileUsage.currentCodexParserRevision - 1
+        cache.files[file.path] = usage
+        #expect(!CostUsageStoreAccess.replace(cacheRoot: env.cacheRoot, cache: cache).catchUpRequired)
+        #expect(CostUsageStoreAccess.read(cacheRoot: env.cacheRoot).files[file.path]?.hasCurrentCodexParser == false)
+
+        let repaired = Self.report(day: day, options: options, elapsed: 1)
+        #expect(repaired.summary?.totalTokens == 600_000)
+        let reopened = CostUsageStore(cacheRoot: env.cacheRoot).syncLoadCodexCache(calendar: .current)
+        let recovered = try #require(reopened.files[file.path])
+        #expect(recovered.hasCurrentCodexParser)
+        #expect(recovered.codexRows?.map(\.input) == [200_000, 200_000, 200_000])
+        #expect(recovered.codexRows?.allSatisfy { $0.pricingMode == "priority" } == true)
+        #expect(reopened.codexScanCatchUpPending != true)
+
+        options.refreshMinIntervalSeconds = 0
+        let again = Self.report(day: day, options: options, elapsed: 2)
+        #expect(again.summary?.totalTokens == 600_000)
+        let persisted = CostUsageStore(cacheRoot: env.cacheRoot).syncLoadCodexCache(calendar: .current)
+        #expect(persisted.files[file.path]?.codexRows?.allSatisfy { $0.pricingMode == "priority" } == true)
+    }
+
     private static func options(env: CostUsageTestEnvironment) -> CostUsageScanner.Options {
         var options = CostUsageScanner.Options(
             codexSessionsRoot: env.codexSessionsRoot,

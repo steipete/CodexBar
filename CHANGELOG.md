@@ -14,6 +14,7 @@
 
 ### Fixed
 
+- Codex costs: stop billing a paginated rollout page for its whole inherited thread. Continuation files keep the original `forked_from_id` while `total_token_usage` continues from the previous page; only pages whose `history_base.thread_id` is not that ancestor raise the baseline. A parser-revision bump reparses inflated caches without dropping saved priority pricing for unchanged requests whose traces are gone (#3753).
 - Codex costs: recover excess cached request rows from their original session files, retain pricing through interrupted scans, and avoid guessing request boundaries or conflicting prices (#3741, related to #3618). Thanks @BUKOWSKIREAL!
 
 ## 0.61.0 — 2026-09-18

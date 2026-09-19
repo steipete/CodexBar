@@ -265,7 +265,7 @@ struct CostUsageCodexRetryBufferPresence: Codable, Equatable, Sendable {
 
 struct CostUsageFileUsage: Codable, Equatable {
     /// Increment for native parser corrections; older or absent revisions use bounded reparsing.
-    static let currentCodexParserRevision = 2
+    static let currentCodexParserRevision = 3
 
     var mtimeUnixMs: Int64
     var size: Int64

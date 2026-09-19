@@ -1124,11 +1124,25 @@ extension CostUsageScanner {
             metadata: input.metadata,
             range: context.range,
             recoveringSourceRows: recoveringSourceRows)
-        let sourceAnchor = recoveringSourceRows
-            ? input.cached?.codexTokenIndexAnchor : input.cached?.codexPendingSourcePricingAnchor
+        let staleParserRevision = input.cached?.hasCurrentCodexParser != true
         // Legacy rows can combine events that the corrected parser splits; do not merge them back.
-        let replaceCachedRows = context.dropDeferredCodexRows || input.cached?.hasCurrentCodexParser != true
-        if replaceCachedRows { sourcePricing = nil }
+        let replaceCachedRows = context.dropDeferredCodexRows || staleParserRevision
+        if context.dropDeferredCodexRows {
+            sourcePricing = nil
+        } else if staleParserRevision,
+                  sourcePricing == nil || sourcePricing?.isEmpty == true,
+                  let cached = input.cached,
+                  cached.codexScanFileId != nil,
+                  cached.codexScanFileId == input.metadata.fileId,
+                  cached.size == input.metadata.size,
+                  cached.mtimeUnixMs == input.metadata.mtimeUnixMs
+        {
+            // Parser-revision migration must recount tokens without discarding observed pricing
+            // for unchanged requests whose traces have since been pruned.
+            sourcePricing = Self.codexParserRevisionMigrationPricing(cached, range: context.range)
+        }
+        let sourceAnchor = recoveringSourceRows || (staleParserRevision && sourcePricing != nil)
+            ? input.cached?.codexTokenIndexAnchor : input.cached?.codexPendingSourcePricingAnchor
         let migratedCached = replaceCachedRows ? nil : input.cached.map {
             sourcePricing == nil ? Self.codexFileUsageWithPricingMetadata($0, context: context) : $0
         }

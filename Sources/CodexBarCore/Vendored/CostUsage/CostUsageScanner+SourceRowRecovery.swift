@@ -212,6 +212,40 @@ extension CostUsageScanner {
         return pricing.isEmpty ? nil : pricing
     }
 
+    /// Historical pricing for an unchanged file whose parser revision is stale.
+    /// Token identity must still match; split/combined events stay unpriced rather than
+    /// inheriting a previous row's dollars.
+    static func codexParserRevisionMigrationPricing(
+        _ usage: CostUsageFileUsage,
+        range: CostUsageDayRange) -> [CodexSourcePricingKey: CodexPricingEvidence]?
+    {
+        guard !usage.hasCurrentCodexParser,
+              usage.codexScanComplete == true,
+              usage.parsedBytes == usage.size,
+              usage.codexJSONLResumeState == nil,
+              !usage.hasBufferedCodexForkRetryLines,
+              usage.sessionId != nil,
+              let rows = usage.codexRows, !rows.isEmpty
+        else { return nil }
+
+        var pricing: [CodexSourcePricingKey: CodexPricingEvidence] = [:]
+        for row in rows where CostUsageDayRange.isInRange(
+            dayKey: row.day, since: range.scanSinceKey, until: range.scanUntilKey)
+        {
+            guard row.knownCostNanos == nil, row.unpricedTokens == nil,
+                  let key = CodexSourcePricingKey(row),
+                  let model = row.pricingModel, !model.isEmpty,
+                  row.pricingMode == "standard" || row.pricingMode == "priority"
+            else { continue }
+            let evidence = CodexPricingEvidence(pricingModel: model, pricingMode: row.pricingMode)
+            if let previous = pricing[key], previous != evidence {
+                return [:]
+            }
+            pricing[key] = evidence
+        }
+        return pricing.isEmpty ? nil : pricing
+    }
+
     static func codexRowsWithSourceRecoveryPricing(
         _ rows: [CodexUsageRow],
         pricing: [CodexSourcePricingKey: CodexPricingEvidence],

@@ -80,6 +80,8 @@ actor CostUsageStore {
         parserHash: CodexParserHash.value)
     static let cacheGeneration = "sqlite:\(CostUsageStore.schemaVersion)"
     static let compatiblePredecessorParserHashes: Set<String> = [
+        "6a4df886696f4ab5", // Pre-pagination main; revision 3 reparses files while preserving row pricing.
+        "d1fa7b39b5023e73", // Pagination accounting before pricing-preserving revision migration.
         "6d48baf0ed980828", // Source-backed row recovery preserves native history and scan checkpoints.
         "c2ac37e84074d2b2", // Native rows are unchanged by Claude completion metadata.
         "710f475c3d1cfb61", // 0.60.4 native rows and checkpoints are unchanged by Claude pricing corrections.
