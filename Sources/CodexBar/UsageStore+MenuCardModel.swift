@@ -65,9 +65,13 @@ extension UsageStore {
         if isSettings {
             tokenSnapshot = supportsTokenCost ? self.tokenSnapshot(for: provider) : nil
         } else {
-            let projected = isLive || snapshot != nil
-                ? self.tokenSnapshot(fromProviderSnapshot: snapshot, provider: provider)
-                : nil
+            let projected: CostUsageTokenSnapshot? = if isLive {
+                self.tokenSnapshotForLiveProviderConsumer(fromProviderSnapshot: snapshot, provider: provider)
+            } else if snapshot != nil {
+                self.tokenSnapshot(fromProviderSnapshot: snapshot, provider: provider)
+            } else {
+                nil
+            }
             let stored = isLive && supportsTokenCost && !Self.tokenCostRequiresProviderSnapshot(provider)
                 ? self.tokenSnapshot(for: provider)
                 : nil

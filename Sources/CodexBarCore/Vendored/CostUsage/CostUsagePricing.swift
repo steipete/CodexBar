@@ -464,11 +464,7 @@ enum CostUsagePricing {
     ]
 
     static let codexModelsDevProviderID = "openai"
-    /// Provider IDs emitted by Codex-compatible clients that have matching entries in models.dev.
-    ///
-    /// The route prefix is part of the model identity for local usage estimates. Keep both the
-    /// client-facing aliases and their models.dev provider IDs here so pricing-cache fingerprints
-    /// invalidate when any supported route's rates change.
+    /// Provider IDs whose rates contribute to Codex pricing-cache fingerprints.
     static let codexModelsDevProviderIDs: Set<String> = [
         "deepseek",
         "kimi-coding",
@@ -478,6 +474,9 @@ enum CostUsagePricing {
         "opencode-free",
         "opencode-go",
     ]
+    /// xAI rates price native Grok session summaries, not Codex subscription history. Keep their fingerprint scope
+    /// separate so an xAI catalog update cannot invalidate the unrelated Codex session cache.
+    static let xaiModelsDevProviderIDs: Set<String> = ["xai"]
     private static let claudeModelsDevProviderID = "anthropic"
 
     /// Returns the provider/model identities that may price a Codex model. Keep this mapping
@@ -490,11 +489,20 @@ enum CostUsagePricing {
             let routeID = String(trimmed[..<slash]).lowercased()
             let modelID = String(trimmed[trimmed.index(after: slash)...])
             guard !routeID.isEmpty, !modelID.isEmpty,
-                  self.codexModelsDevProviderIDs.contains(routeID)
+                  self.codexCompatibleModelsDevProviderIDs.contains(routeID)
             else { return [] }
 
             var targets = ModelsDevPricingTargetResolver.targets(providerID: routeID, modelID: trimmed)
                 .map { ($0.providerID, $0.modelID) }
+            // Provider-specific by design: xAI serves `-build` response aliases at the base model's catalog
+            // rate; `grok-build-0.1` does not end in `-build` and must remain an exact catalog identity.
+            if routeID == "xai",
+               modelID.hasPrefix("grok-"),
+               modelID.hasSuffix("-build"),
+               modelID.count > "grok-".count + "-build".count
+            {
+                targets.append((routeID, String(modelID.dropLast("-build".count))))
+            }
             if routeID == self.codexModelsDevProviderID {
                 let normalized = self.normalizeCodexModel(modelID)
                 if normalized != modelID {

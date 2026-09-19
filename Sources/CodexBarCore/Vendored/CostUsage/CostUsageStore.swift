@@ -80,6 +80,7 @@ actor CostUsageStore {
         parserHash: CodexParserHash.value)
     static let cacheGeneration = "sqlite:\(CostUsageStore.schemaVersion)"
     static let compatiblePredecessorParserHashes: Set<String> = [
+        "6a4df886696f4ab5", // Current main; Grok pricing preserves native rows and parser-revision migration.
         "6d48baf0ed980828", // Source-backed row recovery preserves native history and scan checkpoints.
         "c2ac37e84074d2b2", // Native rows are unchanged by Claude completion metadata.
         "710f475c3d1cfb61", // 0.60.4 native rows and checkpoints are unchanged by Claude pricing corrections.
@@ -92,6 +93,10 @@ actor CostUsageStore {
         "9ca89383b9957b07", // Warm refresh cursor retention preserves native rows, checkpoints, and reports.
         "9547dc9d7b7675f6", // Report lookup memos preserve native usage rows and checkpoints.
         "ba2eca901de4c53d", // Shared report accumulation preserves native usage rows and checkpoints.
+        "1a4afd74939160fd", // Previous Grok branch; report refactors preserve native rows and checkpoints.
+        "0bd6588c70196700", // Previous Grok branch; atomic catalog replacement preserves parsed rows and checkpoints.
+        "d2e66225d0b33672", // 0.56.6 main; Grok pricing additions preserve native rows and checkpoints.
+        "b974e5782bad3f29", // Previous Grok branch; native persisted rows remain compatible.
         "2590d36e1cc4a2ea", // Lazy token history reads preserve persisted rows and scan checkpoints.
         "edd0a6ad56c0e4e7", // Astra pricing changes report costs without changing native rows or scan checkpoints.
         "f043ae98075c8e4d", // Retained scan-range scheduling preserves native rows, checkpoints, and reports.

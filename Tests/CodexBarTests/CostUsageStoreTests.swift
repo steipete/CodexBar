@@ -1023,6 +1023,7 @@ extension CostUsageStoreTests {
 
 extension CostUsageStoreTests {
     @Test(arguments: [
+        "6a4df886696f4ab5",
         "6d48baf0ed980828", // Released in 0.60.5.
         "c2ac37e84074d2b2",
         "710f475c3d1cfb61", // Released in 0.60.4.
@@ -1033,8 +1034,10 @@ extension CostUsageStoreTests {
         "ca4bc3875600536f",
         "7f00691fa96c78d1",
         "9ca89383b9957b07",
+        "1a4afd74939160fd",
         "ba2eca901de4c53d",
-        "9547dc9d7b7675f6", // Released in 0.56.7.
+        "9547dc9d7b7675f6",
+        "0bd6588c70196700",
         "2590d36e1cc4a2ea",
         "edd0a6ad56c0e4e7",
         "f043ae98075c8e4d",
@@ -1057,6 +1060,7 @@ extension CostUsageStoreTests {
         let fixture = try StoreFixture()
         defer { fixture.remove() }
         #expect(CostUsageStore.compatiblePredecessorParserHashes == [
+            "6a4df886696f4ab5",
             "6d48baf0ed980828",
             "c2ac37e84074d2b2",
             "710f475c3d1cfb61",
@@ -1067,8 +1071,12 @@ extension CostUsageStoreTests {
             "ca4bc3875600536f",
             "7f00691fa96c78d1",
             "9ca89383b9957b07",
+            "1a4afd74939160fd",
             "ba2eca901de4c53d",
             "9547dc9d7b7675f6",
+            "0bd6588c70196700",
+            "d2e66225d0b33672",
+            "b974e5782bad3f29",
             "2590d36e1cc4a2ea",
             "edd0a6ad56c0e4e7",
             "f043ae98075c8e4d",

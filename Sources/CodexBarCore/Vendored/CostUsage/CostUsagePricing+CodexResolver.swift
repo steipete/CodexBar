@@ -1,6 +1,10 @@
 import Foundation
 
 extension CostUsagePricing {
+    /// Routes that may price a Codex-compatible model: the Codex fingerprint set plus the separately scoped xAI rates.
+    static let codexCompatibleModelsDevProviderIDs: Set<String> = CostUsagePricing.codexModelsDevProviderIDs
+        .union(CostUsagePricing.xaiModelsDevProviderIDs)
+
     /// One synchronous report collection owns one immutable catalog and bounded exact-input memos.
     /// Dates, token thresholds, custom overlays and priority multipliers stay in the scalar pricing path.
     final class CodexResolver {

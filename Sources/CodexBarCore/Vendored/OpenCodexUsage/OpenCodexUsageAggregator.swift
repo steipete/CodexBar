@@ -186,20 +186,21 @@ enum OpenCodexUsageAggregator {
     {
         day.mix.merge(entry.usage?.tokenMix ?? .init())
         day.tokens.merge(entry.resolvedTotalCount)
-        day.priced += entry.usageStatus == .reported ? 1 : 0
-        day.estimated += entry.usageStatus == .estimated ? 1 : 0
+        let usesGrokEstimate = entry.credentialSource == .grokOAuth
+        day.priced += entry.usageStatus == .reported && !usesGrokEstimate ? 1 : 0
+        day.estimated += entry.usageStatus == .estimated || usesGrokEstimate ? 1 : 0
         day.unmetered += entry.usageStatus == .unsupported ? 1 : 0
         day.unpriced += entry.usageStatus == .unreported ? 1 : 0
 
         if let cost {
             day.cost += cost
             day.sawCost = true
-        } else if entry.usageStatus == .reported {
+        } else if entry.usageStatus == .reported && !usesGrokEstimate {
             day.unpriced += 1
             if day.priced > 0 {
                 day.priced -= 1
             }
-        } else if entry.usageStatus == .estimated {
+        } else if entry.usageStatus == .estimated || usesGrokEstimate {
             day.unpriced += 1
             if day.estimated > 0 {
                 day.estimated -= 1
@@ -322,6 +323,14 @@ enum OpenCodexUsageAggregator {
                 outputTokens: output,
                 cacheReadTokens: cacheRead,
                 cacheWriteTokens: cacheWrite)
+        }
+        // Provider-specific by design: raw xAI rows need an explicit price to establish a standalone estimate.
+        // Subscription attribution remains gated separately by physical Grok OAuth attempts in the fan-out.
+        let isXAI = pricingProvider == "xai" || entry.model.lowercased().hasPrefix("xai/")
+        if isXAI, entry.credentialSource != .grokOAuth,
+           customPricingOverlay.rates(providerID: pricingProvider, model: entry.model) == nil
+        {
+            return nil
         }
         return CostUsagePricing.providerCostUSD(
             providerID: pricingProvider,

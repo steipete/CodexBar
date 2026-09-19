@@ -55,6 +55,12 @@ struct SpendDashboardModel: Equatable, Sendable {
 
         let incompleteRequestCount: Int
 
+        var costDisclaimer: String? {
+            // Provider-specific by design: Grok local-session dollars are list-price estimates, not billed spend.
+            guard self.provider == .grok, self.totalCost != nil else { return nil }
+            return UsageFormatter.costEstimateHint(provider: self.provider)
+        }
+
         init(
             id: String,
             rank: Int,
@@ -551,7 +557,15 @@ struct SpendDashboardModel: Equatable, Sendable {
                 metered = (metered ?? 0) + meteredCost * summary.costMultiplier
             }
             if summary.totalCost != nil {
-                switch summary.input.snapshot.costProvenance {
+                // Provider-specific by design: Grok owns the recorded-versus-estimated meaning of its row coverage.
+                let provenance = if summary.input.provider == .grok {
+                    GrokLocalSessionSummary.costProvenance(
+                        for: summary.entries.map(\.entry),
+                        fallback: summary.input.snapshot.costProvenance)
+                } else {
+                    summary.input.snapshot.costProvenance
+                }
+                switch provenance {
                 case .vendorMetered:
                     sawVendorMeteredProvenance = true
                 case .listPriceEstimate:
