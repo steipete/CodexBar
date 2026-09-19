@@ -7,6 +7,36 @@ enum ProviderSwitcherSelection: Hashable {
     case provider(ProviderInstanceID)
 }
 
+private func balancedSwitcherRowSizes(itemCount: Int, rowCount: Int) -> [Int] {
+    let base = itemCount / rowCount
+    var rowSizes = Array(repeating: base, count: rowCount)
+    var remainingExtra = itemCount % rowCount
+
+    // Keep the grid visually balanced: an odd extra item belongs in the
+    // middle row, while pairs are placed symmetrically around the middle.
+    if rowCount % 2 == 1, remainingExtra % 2 == 1 {
+        rowSizes[rowCount / 2] += 1
+        remainingExtra -= 1
+    }
+    var distance = rowCount % 2 == 1 ? 1 : 0
+    while remainingExtra >= 2 {
+        let left = (rowCount - 1) / 2 - distance
+        let right = rowCount / 2 + distance
+        guard left >= 0, right < rowCount, left != right else { break }
+        rowSizes[left] += 1
+        rowSizes[right] += 1
+        remainingExtra -= 2
+        distance += 1
+    }
+    if remainingExtra > 0 {
+        for index in rowSizes.indices where remainingExtra > 0 {
+            rowSizes[index] += 1
+            remainingExtra -= 1
+        }
+    }
+    return rowSizes
+}
+
 final class ProviderSwitcherView: NSView {
     private struct Segment {
         let selection: ProviderSwitcherSelection
@@ -509,10 +539,23 @@ final class ProviderSwitcherView: NSView {
         for (rowIndex, rowButtons) in rows.enumerated() {
             guard rowIndex < rowViews.count else { continue }
             let rowView = rowViews[rowIndex]
+            let rowWidth = uniformWidth * CGFloat(rowButtons.count)
+                + computedGap * CGFloat(max(0, rowButtons.count - 1))
+
+            let rowContainer = NSView()
+            rowContainer.translatesAutoresizingMaskIntoConstraints = false
+            gridContainer.addSubview(rowContainer)
+            NSLayoutConstraint.activate([
+                rowContainer.widthAnchor.constraint(equalToConstant: rowWidth),
+                rowContainer.heightAnchor.constraint(equalToConstant: self.rowHeight),
+                rowContainer.centerXAnchor.constraint(equalTo: rowView.centerXAnchor),
+                rowContainer.centerYAnchor.constraint(equalTo: rowView.centerYAnchor),
+            ])
+
             for (columnIndex, button) in rowButtons.enumerated() {
                 let xOffset = CGFloat(columnIndex) * (uniformWidth + computedGap)
                 NSLayoutConstraint.activate([
-                    button.leadingAnchor.constraint(equalTo: gridContainer.leadingAnchor, constant: xOffset),
+                    button.leadingAnchor.constraint(equalTo: rowContainer.leadingAnchor, constant: xOffset),
                     button.centerYAnchor.constraint(equalTo: rowView.centerYAnchor),
                 ])
             }
@@ -527,7 +570,10 @@ final class ProviderSwitcherView: NSView {
     {
         guard count > 1 else { return 1 }
         let maxRows = min(4, count)
-        let fourRowThreshold = 15
+        // Four columns leave enough room for the longer provider names. Once the
+        // switcher reaches this size, a fifth column makes the labels look cramped
+        // and causes otherwise balanced rows to jump horizontally.
+        let fourRowThreshold = 13
         let minimumComfortableAverage: CGFloat = stackedIcons ? 50 : 54
         if count >= fourRowThreshold { return maxRows }
         if maxAllowedSegmentWidth >= minimumComfortableAverage { return 1 }
@@ -553,12 +599,11 @@ final class ProviderSwitcherView: NSView {
 
     private static func splitRows(for buttons: [NSButton], rowCount: Int) -> [[NSButton]] {
         guard rowCount > 1 else { return [buttons] }
-        let base = buttons.count / rowCount
-        let extra = buttons.count % rowCount
+        let rowSizes = balancedSwitcherRowSizes(itemCount: buttons.count, rowCount: rowCount)
         var rows: [[NSButton]] = []
         var start = 0
         for index in 0..<rowCount {
-            let size = base + (index < extra ? 1 : 0)
+            let size = rowSizes[index]
             if size == 0 {
                 rows.append([])
                 continue
