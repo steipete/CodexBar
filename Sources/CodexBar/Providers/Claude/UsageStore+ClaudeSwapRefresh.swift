@@ -179,7 +179,16 @@ extension UsageStore {
                 progressDidChange?()
                 // Claude Code owns the ambient credential, so reconcile both
                 // the provider snapshot and the adapter's active-row marker.
-                await self.refreshProvider(.claude)
+                //
+                // The ambient wait is bounded: it reads Claude Code's own
+                // credential, and that read can fail to return at all. An
+                // unbounded wait leaves the switch state set, so the menu keeps
+                // showing the requested account as pending and every later
+                // selection is refused — the segmented control stays inert until
+                // relaunch. Past the bound, reconciliation continues on the
+                // adapter list and the ambient snapshot lands when it lands.
+                await self.awaitAmbientClaudeRefresh(
+                    timeout: Self.claudeSwapAmbientReconcileTimeout)
                 // The ambient refresh schedules this independent read; a replacement read still owns reconciliation.
                 while self.isCurrentClaudeSwapConfiguration(
                     executablePath: executablePath,
@@ -203,6 +212,24 @@ extension UsageStore {
             if isCurrent { progressDidChange?() }
         }
         progressDidChange?()
+    }
+
+    /// How long a switch waits for the ambient Claude refresh before it
+    /// reconciles from the adapter list alone.
+    static let claudeSwapAmbientReconcileTimeout: Duration = .seconds(5)
+
+    /// Awaits the ambient Claude refresh, giving up after `timeout`.
+    /// The refresh itself keeps running; only the wait ends.
+    private func awaitAmbientClaudeRefresh(timeout: Duration) async {
+        let ambient = Task { @MainActor [weak self] in
+            await self?.refreshProvider(.claude)
+        }
+        await withTaskGroup(of: Void.self) { group in
+            group.addTask { await ambient.value }
+            group.addTask { try? await Task.sleep(for: timeout) }
+            await group.next()
+            group.cancelAll()
+        }
     }
 
     private func probeClaudeSwapVersionIfNeeded(executablePath: String) async {
