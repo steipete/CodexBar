@@ -216,18 +216,36 @@ public struct BifrostUsageSnapshot: Codable, Sendable, Equatable {
 
     private func modelUsageSection(from budget: Budget) -> ProviderDetailSection? {
         guard !budget.perModelUsage.isEmpty else { return nil }
-        let rows = budget.perModelUsage
-            .sorted { ($0.totalCost ?? 0) > ($1.totalCost ?? 0) }
-            .map { usage -> ProviderDetailSection.Row in
-                let label = [usage.provider, usage.model].compactMap(\.self).joined(separator: " · ")
-                let cost = usage.totalCost.map(UsageFormatter.usdString) ?? "—"
-                let secondary: String? = usage.totalTokens.map { "\($0) tokens" }
-                return ProviderDetailSection.Row.makeRow(
-                    label: label.isEmpty ? "Model" : label,
-                    value: cost,
-                    secondaryValue: secondary,
-                    usageValue: usage.totalCost)
-            }
+        let sorted = budget.perModelUsage.sorted { ($0.totalCost ?? 0) > ($1.totalCost ?? 0) }
+
+        // Only show the upstream provider when the section actually mixes providers; on a
+        // single-provider key it is pure redundancy that squeezes the model name out of the
+        // fixed-width menu.
+        let distinctProviders = Set(sorted.compactMap(\.provider))
+        let showsProvider = distinctProviders.count > 1
+
+        var seenLabels: Set<String> = []
+        var collidingLabels: Set<String> = []
+        let displayNames = sorted.map { BifrostModelName.display($0.model ?? "") }
+        for name in displayNames where !name.isEmpty {
+            if !seenLabels.insert(name).inserted { collidingLabels.insert(name) }
+        }
+
+        let rows = zip(sorted, displayNames).map { usage, displayName -> ProviderDetailSection.Row in
+            // A normalization collision (e.g. two regional variants of the same model) is worse
+            // than a long label: fall back to the raw model ID so the rows stay distinguishable.
+            let modelLabel = collidingLabels.contains(displayName) ? (usage.model ?? displayName) : displayName
+            let label = showsProvider
+                ? [usage.provider, modelLabel].compactMap(\.self).joined(separator: " · ")
+                : modelLabel
+            let cost = usage.totalCost.map(UsageFormatter.usdString) ?? "—"
+            let secondary: String? = usage.totalTokens.map { "\(UsageFormatter.tokenCountString($0)) tokens" }
+            return ProviderDetailSection.Row.makeRow(
+                label: label.isEmpty ? "Model" : label,
+                value: cost,
+                secondaryValue: secondary,
+                usageValue: usage.totalCost)
+        }
         return ProviderDetailSection.makeSection(title: "Models", rows: rows)
     }
 
