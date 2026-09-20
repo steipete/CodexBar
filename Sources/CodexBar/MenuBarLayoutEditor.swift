@@ -338,24 +338,33 @@ struct MenuBarLayoutEditor: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            self.header
-            self.preview
-            self.overridesDisclosure
-            self.layoutStrip
-            self.removeDropTarget
-
-            Divider()
-
-            ForEach(self.paletteGroups) { group in
-                self.palette(group)
+            self.standardWidth {
+                self.header
             }
+            self.preview
+            self.standardWidth {
+                self.overridesDisclosure
+            }
+            self.layoutStrip
+            self.standardWidth {
+                VStack(alignment: .leading, spacing: 12) {
+                    self.removeDropTarget
 
-            self.conditionalsPalette
+                    Divider()
 
-            Divider()
+                    ForEach(self.paletteGroups) { group in
+                        self.palette(group)
+                    }
 
-            self.displayOptions
+                    self.conditionalsPalette
+
+                    Divider()
+
+                    self.displayOptions
+                }
+            }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.vertical, 4)
         .onDeleteCommand {
             self.removeSelectedToken()
@@ -374,6 +383,12 @@ struct MenuBarLayoutEditor: View {
         .onChange(of: self.scope) { _, _ in
             self.selectedPosition = nil
         }
+    }
+
+    private func standardWidth(@ViewBuilder content: () -> some View) -> some View {
+        content()
+            .frame(maxWidth: SettingsPane.detailMaxWidth, alignment: .leading)
+            .frame(maxWidth: .infinity, alignment: .center)
     }
 
     private var header: some View {
@@ -606,14 +621,10 @@ struct MenuBarLayoutEditor: View {
             Text(group.title)
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
-            LazyVGrid(
-                columns: [GridItem(.adaptive(minimum: 88), spacing: 6)],
-                alignment: .leading,
-                spacing: 6)
-            {
+            MenuBarLayoutChipFlowLayout(spacing: 6) {
                 ForEach(group.tokens, id: \.self) { token in
                     MenuBarLayoutEditorChip(
-                        title: token.editorLabel(
+                        title: token.editorChipLabel(
                             provider: self.persistenceProvider,
                             snapshot: self.persistenceSnapshot),
                         systemImage: token.editorSystemImage,
@@ -622,6 +633,7 @@ struct MenuBarLayoutEditor: View {
                             snapshot: self.persistenceSnapshot),
                         accessibilityHint: L("menu_bar_layout_palette_hint"),
                         dragItem: .palette(token),
+                        allowsTitleWrapping: true,
                         activate: {
                             self.write(MenuBarLayoutEditorMutations.append(token, to: self.layout))
                         })
@@ -634,11 +646,13 @@ struct MenuBarLayoutEditor: View {
                         accessibilityLabel: L("menu_bar_layout_token_line_break"),
                         accessibilityHint: L("menu_bar_layout_palette_hint"),
                         dragItem: .lineBreak,
+                        allowsTitleWrapping: true,
                         activate: {
                             self.write(MenuBarLayoutEditorMutations.addLineBreak(to: self.layout))
                         })
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
@@ -686,6 +700,7 @@ struct MenuBarLayoutEditor: View {
             systemImage: "switch.2",
             accessibilityLabel: conditional.displayName,
             dragItem: .palette(.conditional(id: conditional.id)),
+            allowsTitleWrapping: true,
             activate: {
                 self.write(MenuBarLayoutEditorMutations.append(.conditional(id: conditional.id), to: self.layout))
             })
@@ -718,48 +733,83 @@ struct MenuBarLayoutEditor: View {
     }
 
     private var displayOptions: some View {
-        HStack(spacing: 18) {
-            Picker(L("menu_bar_layout_size"), selection: self.sizeBinding) {
-                ForEach(MenuBarLayoutSize.allCases) { size in
-                    Text(size.label).tag(size)
-                }
-            }
-            .pickerStyle(.menu)
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 18) {
+                self.sizePicker
+                    .fixedSize(horizontal: true, vertical: false)
+                self.gapPicker
+                    .fixedSize(horizontal: true, vertical: false)
+                self.verticalAdjustment
 
-            Picker(L("menu_bar_layout_gap"), selection: self.gapBinding) {
-                ForEach(MenuBarLayoutGap.allCases) { gap in
-                    Text(gap.label).tag(gap)
-                }
-            }
-            .pickerStyle(.menu)
+                Spacer()
 
-            HStack(spacing: 8) {
-                Text(L("menu_bar_layout_vertical_adjustment"))
-                    .lineLimit(1)
-                    .fixedSize()
-
-                TextField(
-                    "",
-                    value: self.$settings.menuBarLayoutVerticalAdjustment,
-                    format: .number)
-                    .labelsHidden()
-                    .textFieldStyle(.roundedBorder)
-                    .multilineTextAlignment(.trailing)
-                    .monospacedDigit()
-                    .frame(width: 44)
-
-                Stepper(value: self.$settings.menuBarLayoutVerticalAdjustment, in: -20...20, step: 1) {
-                    EmptyView()
-                }
-                .labelsHidden()
+                self.keyboardHint
             }
 
-            Spacer()
-
-            Text(L("menu_bar_layout_keyboard_hint"))
-                .font(.caption)
-                .foregroundStyle(.tertiary)
+            VStack(alignment: .leading, spacing: 8) {
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 18) {
+                        self.sizePicker
+                            .fixedSize(horizontal: true, vertical: false)
+                        self.gapPicker
+                            .fixedSize(horizontal: true, vertical: false)
+                    }
+                    VStack(alignment: .leading, spacing: 8) {
+                        self.sizePicker
+                        self.gapPicker
+                    }
+                }
+                self.verticalAdjustment
+                self.keyboardHint
+            }
         }
+    }
+
+    private var sizePicker: some View {
+        Picker(L("menu_bar_layout_size"), selection: self.sizeBinding) {
+            ForEach(MenuBarLayoutSize.allCases) { size in
+                Text(size.label).tag(size)
+            }
+        }
+        .pickerStyle(.menu)
+    }
+
+    private var gapPicker: some View {
+        Picker(L("menu_bar_layout_gap"), selection: self.gapBinding) {
+            ForEach(MenuBarLayoutGap.allCases) { gap in
+                Text(gap.label).tag(gap)
+            }
+        }
+        .pickerStyle(.menu)
+    }
+
+    private var verticalAdjustment: some View {
+        HStack(spacing: 8) {
+            Text(L("menu_bar_layout_vertical_adjustment"))
+                .lineLimit(1)
+                .fixedSize()
+
+            TextField(
+                "",
+                value: self.$settings.menuBarLayoutVerticalAdjustment,
+                format: .number)
+                .labelsHidden()
+                .textFieldStyle(.roundedBorder)
+                .multilineTextAlignment(.trailing)
+                .monospacedDigit()
+                .frame(width: 44)
+
+            Stepper(value: self.$settings.menuBarLayoutVerticalAdjustment, in: -20...20, step: 1) {
+                EmptyView()
+            }
+            .labelsHidden()
+        }
+    }
+
+    private var keyboardHint: some View {
+        Text(L("menu_bar_layout_keyboard_hint"))
+            .font(.caption)
+            .foregroundStyle(.tertiary)
     }
 
     private func applyPreset(_ preset: MenuBarLayoutPreset) {
@@ -806,7 +856,7 @@ struct MenuBarLayoutEditor: View {
                 .first(where: { $0.id == id })?.displayName
                 ?? L("menu_bar_layout_token_conditional")
         }
-        return token.editorLabel(provider: self.persistenceProvider, snapshot: self.persistenceSnapshot)
+        return token.editorChipLabel(provider: self.persistenceProvider, snapshot: self.persistenceSnapshot)
     }
 
     private func chipAccessibilityLabel(for token: MenuBarLayoutToken) -> String {
@@ -830,6 +880,7 @@ struct MenuBarLayoutChipLabel: View {
     let title: String
     let systemImage: String
     let isSelected: Bool
+    var allowsTitleWrapping = false
 
     var body: some View {
         HStack(spacing: 5) {
@@ -837,7 +888,9 @@ struct MenuBarLayoutChipLabel: View {
                 .font(.caption.weight(.medium))
             Text(self.title)
                 .font(.caption)
-                .lineLimit(1)
+                .lineLimit(self.allowsTitleWrapping ? nil : 1)
+                .fixedSize(horizontal: false, vertical: self.allowsTitleWrapping)
+                .multilineTextAlignment(.leading)
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 5)
@@ -853,7 +906,7 @@ struct MenuBarLayoutChipLabel: View {
 
 /// Left-aligned wrapping row layout for palette chips.
 ///
-/// The conditionals palette holds user-named chips of widely varying width. An adaptive
+/// Palette chips have widely varying localized and user-defined widths. An adaptive
 /// `LazyVGrid` would size them into equal columns and spread the leftover pane width between
 /// them, and a plain `HStack` would push later chips outside the settings pane; this places each
 /// chip at its natural width and wraps to the next row.
@@ -884,11 +937,30 @@ struct MenuBarLayoutChipFlowLayout: Layout {
         return rows
     }
 
+    static func constrainedWidths(_ widths: [CGFloat], maxWidth: CGFloat) -> [CGFloat] {
+        guard maxWidth.isFinite else { return widths }
+        return widths.map { min($0, max(0, maxWidth)) }
+    }
+
+    private func sizes(subviews: Subviews, maxWidth: CGFloat) -> [CGSize] {
+        let naturalSizes = subviews.map { $0.sizeThatFits(.unspecified) }
+        guard maxWidth.isFinite else { return naturalSizes }
+        let constrainedWidths = Self.constrainedWidths(naturalSizes.map(\.width), maxWidth: maxWidth)
+        return zip(subviews.indices, naturalSizes).map { index, naturalSize in
+            guard naturalSize.width > constrainedWidths[index] else { return naturalSize }
+            let fitted = subviews[index].sizeThatFits(ProposedViewSize(
+                width: constrainedWidths[index],
+                height: nil))
+            return CGSize(width: min(fitted.width, constrainedWidths[index]), height: fitted.height)
+        }
+    }
+
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        let sizes = subviews.map { $0.sizeThatFits(.unspecified) }
+        let maxWidth = proposal.width ?? .infinity
+        let sizes = self.sizes(subviews: subviews, maxWidth: maxWidth)
         let rows = Self.rows(
             widths: sizes.map(\.width),
-            maxWidth: proposal.width ?? .infinity,
+            maxWidth: maxWidth,
             spacing: self.spacing)
         let rowWidths = rows.map { row in
             row.reduce(CGFloat.zero) { $0 + sizes[$1].width }
@@ -903,7 +975,7 @@ struct MenuBarLayoutChipFlowLayout: Layout {
     }
 
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        let sizes = subviews.map { $0.sizeThatFits(.unspecified) }
+        let sizes = self.sizes(subviews: subviews, maxWidth: bounds.width)
         let rows = Self.rows(widths: sizes.map(\.width), maxWidth: bounds.width, spacing: self.spacing)
         var y = bounds.minY
         for row in rows {
@@ -1232,6 +1304,28 @@ extension MenuBarLayoutGap {
 }
 
 extension MenuBarLayoutToken {
+    /// Compact visual label used beside the chip's SF Symbol. Text-only choices and accessibility
+    /// keep `editorLabel`, including the explicit percent unit.
+    func editorChipLabel(provider: UsageProvider?, snapshot: UsageSnapshot? = nil) -> String {
+        switch self {
+        case let .percent(window):
+            if let providerLabel = window.providerLabel(provider: provider) {
+                return providerLabel
+            }
+            return switch window {
+            case .session: L("Session")
+            case .weekly: L("Weekly")
+            case .scopedWeekly: L("menu_bar_layout_conditional_metric_scoped_weekly")
+            case .automatic: L("Auto")
+            }
+        case let .lanePercent(lane):
+            guard let provider else { return lane.rawValue.capitalized }
+            return MenuBarLayoutLaneLabels(provider: provider, snapshot: snapshot).label(for: lane)
+        default:
+            return self.editorLabel(provider: provider, snapshot: snapshot)
+        }
+    }
+
     func editorLabel(provider: UsageProvider?, snapshot: UsageSnapshot? = nil) -> String {
         if case let .lanePercent(lane) = self {
             return self.laneEditorLabel(lane: lane, provider: provider, snapshot: snapshot)

@@ -17,6 +17,14 @@ struct SettingsWindowAppearanceTests {
     }
 
     @Test
+    func `only the menu bar pane uses the full detail width`() {
+        #expect(SettingsPane.menuBar.usesFullDetailWidth)
+        #expect(!SettingsPane.general.usesFullDetailWidth)
+        #expect(!SettingsPane.menu.usesFullDetailWidth)
+        #expect(!SettingsPane.provider(.codex).usesFullDetailWidth)
+    }
+
+    @Test
     func `sidebar resize handle clamps drags and re-anchors on mouse down`() {
         let view = SidebarResizeHandleView()
         var stored = Double(SettingsPane.sidebarWidth)

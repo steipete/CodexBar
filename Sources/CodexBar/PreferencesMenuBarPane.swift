@@ -4,6 +4,7 @@ import SwiftUI
 @MainActor
 struct MenuBarPane: View {
     private static let maxOverviewProviders = SettingsStore.mergedOverviewProviderLimit
+    private static let layoutHorizontalGutter: CGFloat = 20
 
     @State private var isOverviewProviderPopoverPresented = false
     @Bindable var settings: SettingsStore
@@ -26,100 +27,107 @@ struct MenuBarPane: View {
                 L("menu_bar_layout_token_auto_pace"),
             ].joined(separator: ", ")
 
-        Form {
-            Section {
-                SettingsMenuPicker(
-                    selection: self.$settings.menuBarIconStyle,
-                    options: MenuBarSettingsMenuOptions.iconStyles,
-                    label: {
+        GeometryReader { geometry in
+            Form {
+                Section {
+                    SettingsMenuPicker(
+                        selection: self.$settings.menuBarIconStyle,
+                        options: MenuBarSettingsMenuOptions.iconStyles,
+                        label: {
+                            SettingsRowLabel(
+                                L("menu_bar_style_title"),
+                                subtitle: L("menu_bar_style_subtitle"))
+                        },
+                        optionLabel: { style in
+                            Text(style.label)
+                        })
+
+                    Toggle(isOn: self.$settings.menuBarHighContrastOnInactiveDisplays) {
                         SettingsRowLabel(
-                            L("menu_bar_style_title"),
-                            subtitle: L("menu_bar_style_subtitle"))
-                    },
-                    optionLabel: { style in
-                        Text(style.label)
-                    })
+                            L("menu_bar_inactive_display_contrast_title"),
+                            subtitle: "\(MenuBarIconStyle.iconAndPercent.label): "
+                                + L("menu_bar_inactive_display_contrast_subtitle"))
+                    }
+                    .disabled(!Self.inactiveDisplayContrastAvailable(for: self.settings.menuBarIconStyle))
 
-                Toggle(isOn: self.$settings.menuBarHighContrastOnInactiveDisplays) {
-                    SettingsRowLabel(
-                        L("menu_bar_inactive_display_contrast_title"),
-                        subtitle: "\(MenuBarIconStyle.iconAndPercent.label): "
-                            + L("menu_bar_inactive_display_contrast_subtitle"))
-                }
-                .disabled(!Self.inactiveDisplayContrastAvailable(for: self.settings.menuBarIconStyle))
-
-                Toggle(isOn: self.$settings.menuBarColorPace) {
-                    SettingsRowLabel(
-                        L("Color Pace Indicator"),
-                        subtitle: paceColorSubtitle)
-                }
-                .disabled(self.settings.menuBarIconStyle != .iconAndPercent)
-            } header: {
-                Text(L("section_icon"))
-            }
-
-            Section {
-                MenuBarLayoutEditor(settings: self.settings, store: self.store)
+                    Toggle(isOn: self.$settings.menuBarColorPace) {
+                        SettingsRowLabel(
+                            L("Color Pace Indicator"),
+                            subtitle: paceColorSubtitle)
+                    }
                     .disabled(self.settings.menuBarIconStyle != .iconAndPercent)
-            } header: {
-                Text(L("menu_bar_layout_title"))
-            } footer: {
-                SettingsSectionFooter(L("menu_bar_layout_footer"))
-            }
+                } header: {
+                    Text(L("section_icon"))
+                }
+                .menuBarSettingsWidth()
 
-            Section {
-                Toggle(isOn: self.$settings.mergeIcons) {
-                    SettingsRowLabel(L("merge_icons_title"), subtitle: L("merge_icons_subtitle"))
+                Section {
+                    MenuBarLayoutEditor(settings: self.settings, store: self.store)
+                        .disabled(self.settings.menuBarIconStyle != .iconAndPercent)
+                        .frame(width: max(0, geometry.size.width - Self.layoutHorizontalGutter * 2))
+                } header: {
+                    Text(L("menu_bar_layout_title"))
+                } footer: {
+                    SettingsSectionFooter(L("menu_bar_layout_footer"))
                 }
 
-                SettingsMenuPicker(
-                    selection: self.$settings.switcherRowsOption,
-                    options: MenuBarSettingsMenuOptions.switcherRows,
-                    label: { Text(L("switcher_rows_title")) },
-                    optionLabel: { option in
-                        Text(option.label)
-                    })
+                Section {
+                    Toggle(isOn: self.$settings.mergeIcons) {
+                        SettingsRowLabel(L("merge_icons_title"), subtitle: L("merge_icons_subtitle"))
+                    }
+
+                    SettingsMenuPicker(
+                        selection: self.$settings.switcherRowsOption,
+                        options: MenuBarSettingsMenuOptions.switcherRows,
+                        label: { Text(L("switcher_rows_title")) },
+                        optionLabel: { option in
+                            Text(option.label)
+                        })
+                        .disabled(!self.settings.mergeIcons)
+
+                    Toggle(isOn: self.$settings.menuBarShowsHighestUsage) {
+                        SettingsRowLabel(
+                            L("show_most_used_provider_title"),
+                            subtitle: L("show_most_used_provider_subtitle"))
+                    }
                     .disabled(!self.settings.mergeIcons)
 
-                Toggle(isOn: self.$settings.menuBarShowsHighestUsage) {
-                    SettingsRowLabel(
-                        L("show_most_used_provider_title"),
-                        subtitle: L("show_most_used_provider_subtitle"))
+                    self.overviewProviderRow
+                        .disabled(!self.settings.mergeIcons)
+                } header: {
+                    Text(L("section_combined_icon"))
                 }
-                .disabled(!self.settings.mergeIcons)
+                .menuBarSettingsWidth()
 
-                self.overviewProviderRow
-                    .disabled(!self.settings.mergeIcons)
-            } header: {
-                Text(L("section_combined_icon"))
-            }
-
-            Section {
-                Toggle(isOn: self.$settings.randomBlinkEnabled) {
-                    SettingsRowLabel(L("surprise_me_title"), subtitle: L("surprise_me_subtitle"))
+                Section {
+                    Toggle(isOn: self.$settings.randomBlinkEnabled) {
+                        SettingsRowLabel(L("surprise_me_title"), subtitle: L("surprise_me_subtitle"))
+                    }
+                } header: {
+                    Text(L("section_animation"))
                 }
-            } header: {
-                Text(L("section_animation"))
+                .menuBarSettingsWidth()
             }
-        }
-        .formStyle(.grouped)
-        .toggleStyle(.switch)
-        .scrollContentBackground(.hidden)
-        .onAppear {
-            self.reconcileOverviewSelection()
-        }
-        .onChange(of: self.settings.mergeIcons) { _, isEnabled in
-            guard isEnabled else {
-                self.isOverviewProviderPopoverPresented = false
-                return
+            .frame(width: geometry.size.width, height: geometry.size.height)
+            .formStyle(.grouped)
+            .toggleStyle(.switch)
+            .scrollContentBackground(.hidden)
+            .onAppear {
+                self.reconcileOverviewSelection()
             }
-            self.reconcileOverviewSelection()
-        }
-        .onChange(of: self.activeProvidersInOrder) { _, _ in
-            if self.activeProvidersInOrder.isEmpty {
-                self.isOverviewProviderPopoverPresented = false
+            .onChange(of: self.settings.mergeIcons) { _, isEnabled in
+                guard isEnabled else {
+                    self.isOverviewProviderPopoverPresented = false
+                    return
+                }
+                self.reconcileOverviewSelection()
             }
-            self.reconcileOverviewSelection()
+            .onChange(of: self.activeProvidersInOrder) { _, _ in
+                if self.activeProvidersInOrder.isEmpty {
+                    self.isOverviewProviderPopoverPresented = false
+                }
+                self.reconcileOverviewSelection()
+            }
         }
     }
 
@@ -217,5 +225,13 @@ struct MenuBarPane: View {
         _ = self.settings.reconcileMergedOverviewSelectedProviders(
             activeProviders: self.activeProvidersInOrder,
             maxVisibleProviders: Self.maxOverviewProviders)
+    }
+}
+
+extension View {
+    fileprivate func menuBarSettingsWidth() -> some View {
+        self
+            .frame(maxWidth: SettingsPane.detailMaxWidth, alignment: .leading)
+            .frame(maxWidth: .infinity, alignment: .center)
     }
 }

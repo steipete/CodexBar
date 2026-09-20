@@ -46,6 +46,10 @@ enum SettingsPane: Hashable {
                 ?? instanceID.rawValue
         }
     }
+
+    var usesFullDetailWidth: Bool {
+        self == .menuBar
+    }
 }
 
 @MainActor
@@ -111,38 +115,33 @@ struct PreferencesView: View {
             Divider()
                 .ignoresSafeArea()
 
-            self.detailView
-                .frame(
-                    maxWidth: SettingsPane.detailMaxWidth,
-                    maxHeight: .infinity,
-                    alignment: .topLeading)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            self.sizedDetailView
                 // The panes hide their scroll background, and the window uses a transparent full-size
                 // titlebar, so without an opaque detail backing the grouped Form content renders through
                 // the titlebar region and overlaps the window title. Mirror the sidebar's material so the
                 // detail-side titlebar region has a stable backing in every pane and appearance. The
                 // zero-sized reader reports the window's titlebar height so the cover below matches it.
-                .background {
-                    SettingsDetailMaterial()
-                        .ignoresSafeArea()
-                        .overlay {
-                            SettingsTitlebarInsetReader(inset: self.$detailTitlebarInset)
-                                .frame(width: 0, height: 0)
-                        }
-                }
-                // Cover the transparent titlebar strip over the detail so scrolling Form content stays
-                // below it — matching the sidebar's clean top edge instead of riding up over the window
-                // title. The window draws its title above this cover.
-                .overlay(alignment: .top) {
-                    SettingsDetailTitlebarCoverMaterial()
-                        .frame(height: self.detailTitlebarInset)
-                        .frame(maxWidth: .infinity)
-                        .ignoresSafeArea(edges: .top)
-                        .allowsHitTesting(false)
-                }
-                .overlay(alignment: .leading) {
-                    self.sidebarResizeHandle
-                }
+                    .background {
+                        SettingsDetailMaterial()
+                            .ignoresSafeArea()
+                            .overlay {
+                                SettingsTitlebarInsetReader(inset: self.$detailTitlebarInset)
+                                    .frame(width: 0, height: 0)
+                            }
+                    }
+                    // Cover the transparent titlebar strip over the detail so scrolling Form content stays
+                    // below it — matching the sidebar's clean top edge instead of riding up over the window
+                    // title. The window draws its title above this cover.
+                    .overlay(alignment: .top) {
+                        SettingsDetailTitlebarCoverMaterial()
+                            .frame(height: self.detailTitlebarInset)
+                            .frame(maxWidth: .infinity)
+                            .ignoresSafeArea(edges: .top)
+                            .allowsHitTesting(false)
+                    }
+                    .overlay(alignment: .leading) {
+                        self.sidebarResizeHandle
+                    }
         }
         .frame(
             minWidth: SettingsPane.windowMinWidth,
@@ -165,6 +164,21 @@ struct PreferencesView: View {
         .onChange(of: self.settings.shouldRequestAdaptiveActivityScanConsent) { _, shouldRequest in
             guard shouldRequest else { return }
             AdaptiveActivityConsentPresenter.presentIfNeeded(settings: self.settings)
+        }
+    }
+
+    @ViewBuilder
+    private var sizedDetailView: some View {
+        if self.selection.pane.usesFullDetailWidth {
+            self.detailView
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        } else {
+            self.detailView
+                .frame(
+                    maxWidth: SettingsPane.detailMaxWidth,
+                    maxHeight: .infinity,
+                    alignment: .topLeading)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
     }
 

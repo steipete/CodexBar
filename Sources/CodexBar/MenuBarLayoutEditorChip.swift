@@ -16,6 +16,7 @@ struct MenuBarLayoutEditorChip: View {
     let accessibilityLabel: String
     let accessibilityHint: String?
     let dragItem: MenuBarLayoutDragItem
+    let allowsTitleWrapping: Bool
     let activate: () -> Void
     var removeActionTitle: String?
     var remove: (() -> Void)?
@@ -28,6 +29,7 @@ struct MenuBarLayoutEditorChip: View {
         accessibilityLabel: String,
         accessibilityHint: String? = nil,
         dragItem: MenuBarLayoutDragItem,
+        allowsTitleWrapping: Bool = false,
         activate: @escaping () -> Void,
         removeActionTitle: String? = nil,
         remove: (() -> Void)? = nil)
@@ -39,6 +41,7 @@ struct MenuBarLayoutEditorChip: View {
         self.accessibilityLabel = accessibilityLabel
         self.accessibilityHint = accessibilityHint
         self.dragItem = dragItem
+        self.allowsTitleWrapping = allowsTitleWrapping
         self.activate = activate
         self.removeActionTitle = removeActionTitle
         self.remove = remove
@@ -48,7 +51,8 @@ struct MenuBarLayoutEditorChip: View {
         MenuBarLayoutChipLabel(
             title: self.title,
             systemImage: self.systemImage,
-            isSelected: self.isSelected)
+            isSelected: self.isSelected,
+            allowsTitleWrapping: self.allowsTitleWrapping)
             .opacity(self.isDisabled ? 0.4 : 1)
             .contentShape(Capsule(style: .continuous))
             .draggable(self.dragItem)

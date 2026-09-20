@@ -161,6 +161,38 @@ struct MenuBarLayoutEditorTests {
     }
 
     @Test
+    func `percent chip labels omit the visual unit without changing text or accessibility labels`() {
+        let session = MenuBarLayoutToken.percent(window: .session)
+        let scopedWeekly = MenuBarLayoutToken.percent(window: .scopedWeekly)
+        let automatic = MenuBarLayoutToken.percent(window: .automatic)
+
+        #expect(session.editorChipLabel(provider: .codex) == L("Session"))
+        #expect(scopedWeekly.editorChipLabel(provider: .codex)
+            == L("menu_bar_layout_conditional_metric_scoped_weekly"))
+        #expect(automatic.editorChipLabel(provider: .codex) == L("Auto"))
+        #expect(session.editorLabel(provider: .codex) == L("menu_bar_layout_token_session"))
+        #expect(session.editorAccessibilityLabel(provider: .codex) == L("menu_bar_layout_token_session"))
+        #expect(session.editorSystemImage == "percent")
+    }
+
+    @Test
+    func `percent chip labels preserve provider window and lane names`() {
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 25, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            secondary: RateWindow(usedPercent: 50, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
+            updatedAt: Date())
+        let notionWeekly = MenuBarLayoutToken.percent(window: .weekly)
+        let cursorPrimary = MenuBarLayoutToken.lanePercent(lane: .primary)
+
+        #expect(notionWeekly.editorChipLabel(provider: .notion) == L("Monthly"))
+        #expect(notionWeekly.editorLabel(provider: .notion) == L("%@ %@", L("Monthly"), "%"))
+        #expect(notionWeekly.editorAccessibilityLabel(provider: .notion) == L("%@ %@", L("Monthly"), "%"))
+        #expect(cursorPrimary.editorChipLabel(provider: .cursor, snapshot: snapshot) == "Total")
+        #expect(cursorPrimary.editorLabel(provider: .cursor, snapshot: snapshot) == "Total %")
+        #expect(cursorPrimary.editorAccessibilityLabel(provider: .cursor, snapshot: snapshot) == "Total %")
+    }
+
+    @Test
     func `palette tokens append and insert at a drop index`() {
         let initial = MenuBarLayout(lines: [[.icon, .resetCountdown]])
 
@@ -355,7 +387,7 @@ struct MenuBarLayoutEditorTests {
     }
 
     @Test
-    func `conditional palette chips wrap instead of overflowing the pane`() {
+    func `all palette chips use natural widths and wrap instead of overflowing the pane`() {
         let spacing: CGFloat = 6
 
         // Two 100pt chips fit in 220pt (100 + 6 + 100); the third has to wrap.
@@ -379,5 +411,9 @@ struct MenuBarLayoutEditorTests {
             widths: [80, 90],
             maxWidth: 220,
             spacing: spacing) == [[0, 1]])
+
+        // The layout proposes the finite row width to oversize chips so their text can grow vertically.
+        #expect(MenuBarLayoutChipFlowLayout.constrainedWidths([400, 120], maxWidth: 220) == [220, 120])
+        #expect(MenuBarLayoutChipFlowLayout.constrainedWidths([400, 120], maxWidth: .infinity) == [400, 120])
     }
 }
