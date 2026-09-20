@@ -76,7 +76,8 @@ enum WindsurfDevinSessionImporter {
 
     static func importSessions(
         browserDetection: BrowserDetection,
-        logger: ((String) -> Void)? = nil) -> [SessionInfo]
+        logger: ((String) -> Void)? = nil,
+        localStorage: BrowserLocalStorageAPI = .live) -> [SessionInfo]
     {
         #if DEBUG
         if let override = self.taskImportSessionsOverrideStore?.importSessions {
@@ -93,11 +94,11 @@ enum WindsurfDevinSessionImporter {
             return preferredSessions
         }
 
-        log("No Windsurf devin session found in Chrome; trying fallback Chromium browsers")
-        let sessions = self.importSessions(
+        log("No Windsurf devin session found in Chrome; trying fallback Chromium browsers, then Firefox")
+        let sessions = self.importFallbackStorageSessions(
             browserDetection: browserDetection,
-            browsers: self.fallbackBrowsersExcluding(self.defaultPreferredBrowsers),
-            logger: log)
+            logger: log,
+            localStorage: localStorage)
 
         if sessions.isEmpty {
             log("No Windsurf devin session found in browser local storage")
@@ -124,7 +125,8 @@ enum WindsurfDevinSessionImporter {
 
     static func importFallbackSessions(
         browserDetection: BrowserDetection,
-        logger: ((String) -> Void)? = nil) -> [SessionInfo]
+        logger: ((String) -> Void)? = nil,
+        localStorage: BrowserLocalStorageAPI = .live) -> [SessionInfo]
     {
         #if DEBUG
         if let override = self.taskImportFallbackSessionsOverrideStore?.importSessions {
@@ -132,10 +134,10 @@ enum WindsurfDevinSessionImporter {
         }
         #endif
         let log: (String) -> Void = { msg in logger?("[windsurf-storage] \(msg)") }
-        return self.importSessions(
+        return self.importFallbackStorageSessions(
             browserDetection: browserDetection,
-            browsers: self.fallbackBrowsersExcluding(self.defaultPreferredBrowsers),
-            logger: log)
+            logger: log,
+            localStorage: localStorage)
     }
 
     static func fallbackBrowsersExcluding(_ preferredBrowsers: [Browser]) -> [Browser] {
@@ -200,6 +202,77 @@ enum WindsurfDevinSessionImporter {
         URL(string: "https://app.devin.ai")!,
         URL(string: "https://windsurf.com")!,
     ]
+
+    private static func importFallbackStorageSessions(
+        browserDetection: BrowserDetection,
+        logger: @escaping (String) -> Void,
+        localStorage: BrowserLocalStorageAPI) -> [SessionInfo]
+    {
+        let chromiumSessions = self.importSessions(
+            browserDetection: browserDetection,
+            browsers: self.fallbackBrowsersExcluding(self.defaultPreferredBrowsers),
+            logger: logger)
+        return self.fallbackSessions(
+            after: chromiumSessions,
+            browserDetection: browserDetection,
+            logger: logger,
+            localStorage: localStorage)
+    }
+
+    private static func fallbackSessions(
+        after chromiumSessions: [SessionInfo],
+        browserDetection: BrowserDetection,
+        logger: @escaping (String) -> Void,
+        localStorage: BrowserLocalStorageAPI) -> [SessionInfo]
+    {
+        let firefoxSessions = self.importFirefoxSessions(
+            browserDetection: browserDetection,
+            logger: logger,
+            localStorage: localStorage)
+        return self.deduplicateSessions(chromiumSessions + firefoxSessions)
+    }
+
+    #if DEBUG
+    static func _fallbackSessionsForTesting(
+        chromiumSessions: [SessionInfo],
+        browserDetection: BrowserDetection,
+        localStorage: BrowserLocalStorageAPI) -> [SessionInfo]
+    {
+        self.fallbackSessions(
+            after: chromiumSessions,
+            browserDetection: browserDetection,
+            logger: { _ in },
+            localStorage: localStorage)
+    }
+    #endif
+
+    private static func importFirefoxSessions(
+        browserDetection: BrowserDetection,
+        logger: @escaping (String) -> Void,
+        localStorage: BrowserLocalStorageAPI = .live) -> [SessionInfo]
+    {
+        var sessions: [SessionInfo] = []
+        for origin in self.localStorageOrigins {
+            let profiles = localStorage.profiles(
+                for: origin.absoluteString,
+                browsers: [.firefox],
+                using: browserDetection,
+                logger: { _ in })
+            for profile in profiles {
+                var storage: [String: String] = [:]
+                for entry in profile.entries where Self.targetKeys.contains(entry.key) && storage[entry.key] == nil {
+                    storage[entry.key] = self.decodedStorageValue(entry.value)
+                }
+                guard let session = self.session(
+                    from: storage,
+                    sourceLabel: self.sourceLabel(profile.label, suffix: origin.host))
+                else { continue }
+                logger("Found Windsurf devin session in \(profile.id)")
+                sessions.append(session)
+            }
+        }
+        return self.deduplicateSessions(sessions)
+    }
 
     private static func importSessions(
         browserDetection: BrowserDetection,

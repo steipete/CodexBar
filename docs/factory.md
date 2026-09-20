@@ -26,7 +26,7 @@ Fetch attempts run in this exact order:
 2) **Stored session** (`~/Library/Application Support/CodexBar/factory-session.json`).
 3) **Stored bearer token** (same session file).
 4) **Stored WorkOS refresh token** (same session file).
-5) **Local storage WorkOS tokens** (Safari + Chrome/Chromium/Arc leveldb).
+5) **Local storage WorkOS tokens** (Safari, Chromium LevelDB, and Firefox localStorage).
 6) **Browser cookies (Safari only)** for Factory domains.
 7) **WorkOS cookies (Safari)** to mint tokens.
 8) **Browser cookies (Chrome, Firefox)** for Factory domains.
@@ -121,6 +121,8 @@ Endpoints:
   - Roots under `~/Library/Application Support/<Browser>/User Data/<Profile>/Local Storage/leveldb`.
   - Helium uses `~/Library/Application Support/net.imput.helium/<Profile>/Local Storage/leveldb` (no `User Data`).
   - Scans LevelDB files for `workos:refresh-token` and `workos:access-token`.
+- Firefox:
+  - Reads the exact `app.factory.ai` and `auth.factory.ai` origins from each Firefox profile localStorage database.
 - Parsed tokens:
   - `workos:refresh-token` (required)
   - `workos:access-token` (optional)

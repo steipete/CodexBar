@@ -13,7 +13,8 @@ enum MiniMaxLocalStorageImporter {
 
     static func importAccessTokens(
         browserDetection: BrowserDetection,
-        logger: ((String) -> Void)? = nil) -> [TokenInfo]
+        logger: ((String) -> Void)? = nil,
+        localStorage: BrowserLocalStorageAPI = .live) -> [TokenInfo]
     {
         let log: (String) -> Void = { msg in logger?("[minimax-storage] \(msg)") }
         var tokens: [TokenInfo] = []
@@ -26,17 +27,7 @@ enum MiniMaxLocalStorageImporter {
         for candidate in chromeCandidates {
             guard case let .chromeLevelDB(levelDBURL) = candidate.kind else { continue }
             let snapshot = self.readLocalStorage(from: levelDBURL, logger: log)
-            if !snapshot.tokens.isEmpty {
-                let groupID = snapshot.groupID ?? self.groupID(fromJWT: snapshot.tokens.first ?? "")
-                if groupID != nil {
-                    log("Found MiniMax group id in \(candidate.label)")
-                }
-                for token in snapshot.tokens {
-                    let hint = token.contains(".") ? "jwt" : "opaque"
-                    log("Found MiniMax access token in \(candidate.label): \(token.count) chars (\(hint))")
-                    tokens.append(TokenInfo(accessToken: token, groupID: groupID, sourceLabel: candidate.label))
-                }
-            }
+            self.append(snapshot: snapshot, sourceLabel: candidate.label, tokens: &tokens, logger: log)
         }
 
         if tokens.isEmpty {
@@ -73,6 +64,17 @@ enum MiniMaxLocalStorageImporter {
             }
         }
 
+        // Firefox supports localStorage only. Keep its candidates after every existing Chromium store so a
+        // stale Chromium token does not prevent a later Firefox candidate from being tried.
+        for profile in self.firefoxLocalStorageProfiles(
+            browserDetection: browserDetection,
+            localStorage: localStorage)
+        {
+            let snapshot = self.firefoxLocalStorageSnapshot(entries: profile.entries)
+            self.append(snapshot: snapshot, sourceLabel: profile.label, tokens: &tokens, logger: log)
+        }
+        tokens = self.deduplicate(tokens)
+
         if tokens.isEmpty {
             log("No MiniMax access token found in browser storage")
         }
@@ -82,7 +84,8 @@ enum MiniMaxLocalStorageImporter {
 
     static func importGroupIDs(
         browserDetection: BrowserDetection,
-        logger: ((String) -> Void)? = nil) -> [String: String]
+        logger: ((String) -> Void)? = nil,
+        localStorage: BrowserLocalStorageAPI = .live) -> [String: String]
     {
         let log: (String) -> Void = { msg in logger?("[minimax-storage] \(msg)") }
         var results: [String: String] = [:]
@@ -98,6 +101,16 @@ enum MiniMaxLocalStorageImporter {
             if let groupID = snapshot.groupID, results[candidate.label] == nil {
                 log("Found MiniMax group id in \(candidate.label)")
                 results[candidate.label] = groupID
+            }
+        }
+        for profile in self.firefoxLocalStorageProfiles(
+            browserDetection: browserDetection,
+            localStorage: localStorage)
+        {
+            let snapshot = self.firefoxLocalStorageSnapshot(entries: profile.entries)
+            if let groupID = snapshot.groupID, results[profile.label] == nil {
+                log("Found MiniMax group id in \(profile.id)")
+                results[profile.label] = groupID
             }
         }
 
@@ -304,18 +317,93 @@ enum MiniMaxLocalStorageImporter {
         let groupID: String?
     }
 
+    private static let localStorageOrigins = [
+        "https://platform.minimax.io",
+        "https://www.minimax.io",
+        "https://minimax.io",
+        "https://platform.minimaxi.com",
+        "https://www.minimaxi.com",
+        "https://minimaxi.com",
+    ]
+
+    private static func append(
+        snapshot: LocalStorageSnapshot,
+        sourceLabel: String,
+        tokens: inout [TokenInfo],
+        logger: (String) -> Void)
+    {
+        guard !snapshot.tokens.isEmpty else { return }
+        let groupID = snapshot.groupID ?? self.groupID(fromJWT: snapshot.tokens.first ?? "")
+        if groupID != nil { logger("Found MiniMax group id in \(sourceLabel)") }
+        for token in snapshot.tokens {
+            let hint = token.contains(".") ? "jwt" : "opaque"
+            logger("Found MiniMax access token in \(sourceLabel): \(token.count) chars (\(hint))")
+            tokens.append(TokenInfo(accessToken: token, groupID: groupID, sourceLabel: sourceLabel))
+        }
+    }
+
+    private static func deduplicate(_ tokens: [TokenInfo]) -> [TokenInfo] {
+        var deduplicated: [TokenInfo] = []
+        var seen = Set<String>()
+        for token in tokens where seen.insert(token.accessToken).inserted {
+            deduplicated.append(token)
+        }
+        return deduplicated
+    }
+
+    private struct FirefoxLocalStorageProfile {
+        let id: String
+        let label: String
+        var entries: [BrowserLocalStorageAPI.Entry]
+    }
+
+    private static func firefoxLocalStorageProfiles(
+        browserDetection: BrowserDetection,
+        localStorage: BrowserLocalStorageAPI = .live) -> [FirefoxLocalStorageProfile]
+    {
+        var profiles: [FirefoxLocalStorageProfile] = []
+        var indexes: [String: Int] = [:]
+        for origin in self.localStorageOrigins {
+            for profile in localStorage.profiles(
+                for: origin,
+                browsers: [.firefox],
+                using: browserDetection,
+                logger: { _ in })
+            {
+                if let index = indexes[profile.id] {
+                    profiles[index].entries.append(contentsOf: profile.entries)
+                } else {
+                    indexes[profile.id] = profiles.count
+                    profiles.append(FirefoxLocalStorageProfile(
+                        id: profile.id,
+                        label: profile.label,
+                        entries: profile.entries))
+                }
+            }
+        }
+        return profiles
+    }
+
+    private static func firefoxLocalStorageSnapshot(entries: [BrowserLocalStorageAPI.Entry]) -> LocalStorageSnapshot {
+        var tokens: [String] = []
+        var seen = Set<String>()
+        var groupID: String?
+        for entry in entries {
+            for token in self.extractAccessTokens(from: entry.value) where seen.insert(token).inserted {
+                tokens.append(token)
+            }
+            if groupID == nil, let match = self.extractGroupID(from: entry.value) {
+                groupID = match
+            }
+        }
+        return LocalStorageSnapshot(tokens: tokens, groupID: groupID)
+    }
+
     private static func readLocalStorage(
         from levelDBURL: URL,
         logger: ((String) -> Void)? = nil) -> LocalStorageSnapshot
     {
-        let origins = [
-            "https://platform.minimax.io",
-            "https://www.minimax.io",
-            "https://minimax.io",
-            "https://platform.minimaxi.com",
-            "https://www.minimaxi.com",
-            "https://minimaxi.com",
-        ]
+        let origins = self.localStorageOrigins
         var entries: [SweetCookieKit.ChromiumLocalStorageEntry] = []
         for origin in origins {
             entries.append(contentsOf: SweetCookieKit.ChromiumLocalStorageReader.readEntries(
@@ -418,14 +506,7 @@ enum MiniMaxLocalStorageImporter {
             logger: logger)
         guard !entries.isEmpty else { return [] }
 
-        let origins = [
-            "https://platform.minimax.io",
-            "https://www.minimax.io",
-            "https://minimax.io",
-            "https://platform.minimaxi.com",
-            "https://www.minimaxi.com",
-            "https://minimaxi.com",
-        ]
+        let origins = self.localStorageOrigins
         let mapIDs = self.sessionStorageMapIDs(in: entries, origins: origins, logger: logger)
         if mapIDs.isEmpty {
             logger?("[minimax-storage] No MiniMax session storage namespaces found")
@@ -823,6 +904,27 @@ enum MiniMaxLocalStorageImporter {
 
 #if DEBUG && os(macOS)
 extension MiniMaxLocalStorageImporter {
+    static let _storageFallbackOrderForTesting = [
+        "chromiumLocalStorage",
+        "chromiumSessionStorage",
+        "chromiumIndexedDB",
+        "firefoxLocalStorage",
+    ]
+
+    static func _appendFirefoxTokensForTesting(
+        existing: [TokenInfo],
+        label: String,
+        entries: [BrowserLocalStorageAPI.Entry]) -> [TokenInfo]
+    {
+        var tokens = existing
+        self.append(
+            snapshot: self.firefoxLocalStorageSnapshot(entries: entries),
+            sourceLabel: label,
+            tokens: &tokens,
+            logger: { _ in })
+        return self.deduplicate(tokens)
+    }
+
     static func _extractAccessTokensForTesting(_ value: String) -> [String] {
         self.extractAccessTokens(from: value)
     }

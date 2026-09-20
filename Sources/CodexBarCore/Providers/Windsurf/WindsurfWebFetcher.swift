@@ -118,8 +118,8 @@ public enum WindsurfWebFetcherError: LocalizedError, Sendable {
     public var errorDescription: String? {
         switch self {
         case .noSessionData:
-            "No Windsurf web session found in Chromium localStorage. " +
-                "Sign in to app.devin.ai or windsurf.com in Chrome first."
+            "No Windsurf web session found in supported browser localStorage. " +
+                "Sign in to app.devin.ai or windsurf.com in Chrome or Firefox first."
         case let .invalidManualSession(message):
             "Invalid Windsurf session payload: \(message)"
         case let .apiCallFailed(message):

@@ -36,11 +36,14 @@ struct BrowserLocalStorageAPI: Sendable {
     }
 
     static let live = BrowserLocalStorageAPI { origin, browsers, detection, logger in
-        let installedBrowsers = browsers.browsersWithProfileData(using: detection)
+        // Keep Chromium discovery byte-for-byte ordered as before. Firefox is intentionally appended so a caller
+        // can request it without changing Chromium precedence.
+        let chromiumBrowsers = browsers.filter { $0 != .firefox }
+        let installedBrowsers = chromiumBrowsers.browsersWithProfileData(using: detection)
         let roots = ChromiumProfileLocator.roots(
             for: installedBrowsers,
             homeDirectories: BrowserCookieClient.defaultHomeDirectories())
-        return roots.flatMap { root in
+        let chromiumProfiles = roots.flatMap { root in
             Self.loadProfiles(
                 origin: origin,
                 root: root.url,
@@ -48,6 +51,19 @@ struct BrowserLocalStorageAPI: Sendable {
                 labelPrefix: root.labelPrefix,
                 logger: logger)
         }
+        guard browsers.contains(.firefox), detection.hasUsableProfileData(.firefox) else {
+            return chromiumProfiles
+        }
+        let firefoxProfiles = FirefoxLocalStorageReader(
+            profileRoots: FirefoxLocalStorageReader.defaultProfileRoots())
+            .profiles(for: origin, logger: logger)
+            .map { profile in
+                Profile(
+                    id: profile.id,
+                    label: profile.label,
+                    entries: profile.entries.map { Entry(key: $0.key, value: $0.value) })
+            }
+        return chromiumProfiles + firefoxProfiles
     }
 
     private static func loadProfiles(

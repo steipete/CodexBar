@@ -15,7 +15,8 @@ enum FactoryLocalStorageImporter {
 
     static func importWorkOSTokens(
         browserDetection: BrowserDetection,
-        logger: ((String) -> Void)? = nil) -> [TokenInfo]
+        logger: ((String) -> Void)? = nil,
+        localStorage: BrowserLocalStorageAPI = .live) -> [TokenInfo]
     {
         let log: (String) -> Void = { msg in logger?("[factory-storage] \(msg)") }
         var tokens: [TokenInfo] = []
@@ -46,6 +47,27 @@ enum FactoryLocalStorageImporter {
                 sourceLabel: candidate.label))
         }
 
+        // Firefox entries are read origin-by-origin so a refresh/access pair can never be combined across
+        // profiles or origins. Safari and Chromium retain their existing precedence above this fallback.
+        for origin in ["https://app.factory.ai", "https://auth.factory.ai"] {
+            let profiles = localStorage.profiles(
+                for: origin,
+                browsers: [.firefox],
+                using: browserDetection,
+                logger: { _ in })
+            for profile in profiles {
+                guard let token = self.extractWorkOSToken(from: profile.entries) else { continue }
+                log("Found WorkOS refresh token in \(profile.id)")
+                tokens.append(TokenInfo(
+                    refreshToken: token.refreshToken,
+                    accessToken: token.accessToken,
+                    organizationID: token.organizationID,
+                    sourceLabel: profile.label))
+            }
+        }
+
+        var seenRefreshTokens = Set<String>()
+        tokens = tokens.filter { seenRefreshTokens.insert($0.refreshToken).inserted }
         if tokens.isEmpty {
             log("No WorkOS refresh token found in browser local storage")
         }
@@ -198,6 +220,21 @@ enum FactoryLocalStorageImporter {
             refreshToken: refreshToken,
             accessToken: accessToken,
             organizationID: organizationID)
+    }
+
+    private static func extractWorkOSToken(from entries: [BrowserLocalStorageAPI.Entry]) -> WorkOSTokenMatch? {
+        let refreshValue = entries.first(where: { $0.key == "workos:refresh-token" })?.value
+        guard let refreshValue, let refreshToken = self.standaloneToken(from: refreshValue) else { return nil }
+        let accessToken = entries.first(where: { $0.key == "workos:access-token" })
+            .flatMap { self.standaloneToken(from: $0.value) }
+        return WorkOSTokenMatch(
+            refreshToken: refreshToken,
+            accessToken: accessToken,
+            organizationID: self.extractOrganizationID(from: accessToken))
+    }
+
+    private static func standaloneToken(from value: String) -> String? {
+        self.matchToken(in: value, pattern: #"([A-Za-z0-9._-]{20,})"#)
     }
 
     private static func readWorkOSTokenFromSafariSQLite(

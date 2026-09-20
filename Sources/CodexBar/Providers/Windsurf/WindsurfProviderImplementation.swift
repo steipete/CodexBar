@@ -55,7 +55,7 @@ struct WindsurfProviderImplementation: ProviderImplementation {
                 allowsOff: true,
                 subtitles: {
                     .init(
-                        auto: L("Automatic imports Windsurf session data from Chromium browser localStorage."),
+                        auto: L("Automatic imports Windsurf session data from supported browser localStorage."),
                         manual: L("Paste the %@ JSON bundle from %@.", "Windsurf session", "localStorage"),
                         off: L("%@ web API access is disabled.", "Windsurf"))
                 },

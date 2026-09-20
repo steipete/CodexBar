@@ -42,8 +42,8 @@ struct DeepSeekProviderImplementation: ProviderImplementation {
         return [
             ProviderSettingsPickerDescriptor(
                 id: "deepseek-chrome-profile",
-                title: "Chrome profile",
-                subtitle: "Choose which signed-in DeepSeek Platform session supplies detailed usage.",
+                title: "Browser profile",
+                subtitle: "Choose which signed-in Chrome or Firefox DeepSeek Platform session supplies detailed usage.",
                 dynamicSubtitle: {
                     context.store.refreshingProviders.contains(.deepseek)
                         ? "Refreshing"

@@ -21,8 +21,8 @@ Usage source picker:
 
 ### Web API fetch order
 1) **Manual session bundle** (when Cookie source = Manual).
-2) **Browser localStorage import** — extracts complete `devin_*` session bundles from Chromium browsers, checking
-   `app.devin.ai` before the legacy `windsurf.com` origin.
+2) **Browser localStorage import** — uses Chrome sessions first. When Chrome has no session, it tries fallback
+   Chromium sessions followed by Firefox sessions, checking `app.devin.ai` before the legacy `windsurf.com` origin.
 
 ### Local SQLite cache
 - File: `~/Library/Application Support/Windsurf/User/globalStorage/state.vscdb`.
@@ -35,7 +35,8 @@ Usage source picker:
 
 Preferences → Providers → Windsurf → Cookie source:
 
-- **Automatic** (default): imports the active Windsurf session bundle from Chromium browser localStorage.
+- **Automatic** (default): uses Chrome sessions first; if none are found, imports fallback Chromium and then
+  Firefox browser localStorage sessions.
 - **Manual**: paste a JSON bundle with `devin_session_token`, `devin_auth1_token`, `devin_account_id`, and `devin_primary_org_id`.
 - **Off**: disables web API access entirely; only local SQLite cache is used.
 
@@ -98,8 +99,11 @@ UsageSnapshot (daily/weekly quota %)
 
 ## Browser session extraction
 
-- **Browsers scanned**: Chrome, Edge, Brave, Arc, Vivaldi, Chromium, and compatible Chromium forks.
-- **Local storage path**: `~/Library/Application Support/<Browser>/<Profile>/Local Storage/leveldb/`
+- **Browsers scanned**: Chrome first, then Edge, Brave, Arc, Vivaldi, Chromium, and compatible Chromium forks,
+  then Firefox.
+- **Local storage path**: Chromium uses
+  `~/Library/Application Support/<Browser>/<Profile>/Local Storage/leveldb/`; Firefox uses its profile localStorage
+  database.
 - **Origins**: `https://app.devin.ai`, then legacy `https://windsurf.com`
 - Values from different structured origins are never combined. A partial app-origin bundle cannot contaminate a
   complete legacy-origin fallback.
@@ -145,9 +149,9 @@ UsageSnapshot (daily/weekly quota %)
 
 ## Troubleshooting
 
-### "No Windsurf web session found in Chromium localStorage"
-- Sign in to [app.devin.ai](https://app.devin.ai) or [windsurf.com](https://windsurf.com) in Chrome, Edge, or another
-  Chromium browser.
+### "No Windsurf web session found in browser localStorage"
+- Sign in to [app.devin.ai](https://app.devin.ai) or [windsurf.com](https://windsurf.com) in Chrome, Firefox, or
+  another Chromium browser.
 - Grant Full Disk Access to CodexBar (System Settings → Privacy & Security → Full Disk Access).
 - Try Manual mode and paste the JSON session bundle directly.
 
@@ -165,7 +169,7 @@ UsageSnapshot (daily/weekly quota %)
 
 ## Key files
 - `Sources/CodexBarCore/Providers/Windsurf/WindsurfStatusProbe.swift` (local SQLite)
-- `Sources/CodexBarCore/Providers/Windsurf/WindsurfDevinSessionImporter.swift` (Chromium localStorage extraction)
+- `Sources/CodexBarCore/Providers/Windsurf/WindsurfDevinSessionImporter.swift` (Chrome/Firefox localStorage extraction)
 - `Sources/CodexBarCore/Providers/Windsurf/WindsurfWebFetcher.swift` (protobuf request + response parsing)
 - `Sources/CodexBarCore/Providers/Windsurf/WindsurfProviderDescriptor.swift` (fetch strategies)
 - `Sources/CodexBar/Providers/Windsurf/WindsurfProviderImplementation.swift` (settings UI)

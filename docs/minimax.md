@@ -26,7 +26,8 @@ falls back across the provider's supported web requests when needed.
 
 3) **Browser cookie import** (automatic)
    - Uses provider metadata for browser order and MiniMax domain filters.
-   - Chromium browser storage can supplement imported cookies with access-token context when available.
+   - Chromium local/session/IndexedDB storage and Firefox localStorage can supplement imported cookies with
+     access-token context when available.
 
 4) **Manual session cookie header** (optional web-path override)
    - Stored in `~/.codexbar/config.json` via Preferences → Providers → MiniMax (Cookie source → Manual).

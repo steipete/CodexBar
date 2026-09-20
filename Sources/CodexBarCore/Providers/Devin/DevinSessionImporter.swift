@@ -57,7 +57,8 @@ enum DevinSessionImporter {
     static func importSessions(
         browserDetection: BrowserDetection,
         organizationOverride: String? = nil,
-        logger: ((String) -> Void)? = nil) -> [SessionInfo]
+        logger: ((String) -> Void)? = nil,
+        localStorage: BrowserLocalStorageAPI = .live) -> [SessionInfo]
     {
         #if DEBUG
         if let override = self.taskImportSessionOverrideStore?.importSession {
@@ -88,7 +89,30 @@ enum DevinSessionImporter {
                     "\(session.internalOrganizationID != nil)")
             sessions.append(session)
         }
-        sessions = self.rankSessions(self.deduplicateSessions(sessions))
+        let chromiumSessions = self.rankSessions(self.deduplicateSessions(sessions))
+        sessions = []
+
+        let firefoxProfiles = localStorage.profiles(
+            for: self.storageOrigin,
+            browsers: [.firefox],
+            using: browserDetection,
+            logger: { _ in })
+        for profile in firefoxProfiles {
+            var storage: [String: String] = [:]
+            for entry in profile.entries where storage[entry.key] == nil {
+                storage[entry.key] = self.decodedStorageValue(entry.value)
+            }
+            guard let session = self.session(
+                from: storage,
+                organizationOverride: organizationOverride,
+                sourceLabel: profile.label)
+            else { continue }
+            log("Found Devin session in \(profile.id)")
+            sessions.append(session)
+        }
+        let firefoxSessions = self.rankSessions(self.deduplicateSessions(sessions))
+        let chromiumTokens = Set(chromiumSessions.map(\.accessToken))
+        sessions = chromiumSessions + firefoxSessions.filter { !chromiumTokens.contains($0.accessToken) }
 
         if sessions.isEmpty {
             log("No Devin session found in browser local storage")

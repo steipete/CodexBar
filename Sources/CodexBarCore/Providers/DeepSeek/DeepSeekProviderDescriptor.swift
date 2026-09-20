@@ -114,10 +114,12 @@ public enum DeepSeekProviderDescriptor {
                         let state = context.snapshot?.deepseekDetailedUsageState
                         if context.snapshot?.primary == nil {
                             if state == .webSessionRequired {
-                                return .localized(["Sign in to DeepSeek Platform in Chrome for detailed usage."])
+                                return .localized([
+                                    "Sign in to DeepSeek Platform in Chrome or Firefox for detailed usage.",
+                                ])
                             }
                             if state == .profileSelectionRequired {
-                                return .localized(["Select a DeepSeek Chrome profile in Settings."])
+                                return .localized(["Select a DeepSeek browser profile in Settings."])
                             }
                         }
                         guard context.costSummaryInlineEnabled, context.showOptionalUsage else {
@@ -125,10 +127,12 @@ public enum DeepSeekProviderDescriptor {
                         }
                         guard context.snapshot?.details.isEmpty == false else {
                             if state == .webSessionRequired {
-                                return .localized(["Sign in to DeepSeek Platform in Chrome for detailed usage."])
+                                return .localized([
+                                    "Sign in to DeepSeek Platform in Chrome or Firefox for detailed usage.",
+                                ])
                             }
                             if state == .profileSelectionRequired {
-                                return .localized(["Select a DeepSeek Chrome profile in Settings."])
+                                return .localized(["Select a DeepSeek browser profile in Settings."])
                             }
                             return .localized(["Detailed usage unavailable."])
                         }

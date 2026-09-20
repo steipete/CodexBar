@@ -110,7 +110,7 @@ enum DeepSeekPlatformTokenImporter {
         let log: @Sendable (String) -> Void = { message in logger?("[deepseek-storage] \(message)") }
         let profiles = localStorage.profiles(
             for: "https://platform.deepseek.com",
-            browsers: [.chrome],
+            browsers: [.chrome, .firefox],
             using: browserDetection,
             logger: log)
 
@@ -129,7 +129,7 @@ enum DeepSeekPlatformTokenImporter {
         }
 
         if results.isEmpty {
-            log("No DeepSeek userToken found in Chrome local storage")
+            log("No DeepSeek userToken found in browser local storage")
         }
         return results
     }
