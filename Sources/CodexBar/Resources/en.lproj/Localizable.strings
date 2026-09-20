@@ -603,6 +603,12 @@
 "cost_summary_off" = "Off";
 "merge_icons_title" = "Merge icons";
 "merge_icons_subtitle" = "Use a single menu bar icon with a provider switcher.";
+"merged_icon_style_title" = "Combined icon style";
+"merged_icon_style_subtitle" = "Switcher cycles through providers one at a time; Stacked shows two providers at once, one row each.";
+"merged_icon_style_switcher" = "Switcher";
+"merged_icon_style_stacked" = "Stacked";
+"merge_icon_stacked_top_provider_title" = "Top row";
+"merge_icon_stacked_bottom_provider_title" = "Bottom row";
 "show_most_used_provider_title" = "Show most-used provider";
 "show_most_used_provider_subtitle" = "Menu bar auto-shows the provider closest to its rate limit.";
 "display_mode_title" = "Display mode";

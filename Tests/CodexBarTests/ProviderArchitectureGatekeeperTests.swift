@@ -848,7 +848,7 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This is the mathematical constant π used by the renderer, not a provider selection."),
         SuppressedProviderReference(
             path: "Sources/CodexBar/StatusItemController+Animation.swift",
-            line: 321,
+            line: 341,
             anchor: "style == .combined ? 0 : self.tiltAmount(for: primaryProvider) * .pi / 28",
             expectedProviderIDs: ["pi"],
             reason: "This is the mathematical constant π used for an animation angle, not a provider selection."),
@@ -980,13 +980,13 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact provider-owned construct passes a fixed identity to shared infrastructure."),
         SuppressedProviderReference(
             path: "Sources/CodexBar/SettingsStore+MenuObservation.swift",
-            line: 107,
+            line: 110,
             anchor: "_ = self[providerConfig: .synthetic, field: .apiKey]",
             expectedProviderIDs: ["synthetic"],
             reason: "This observation touchpoint reads a fixed provider field so UI invalidation tracks that setting."),
         SuppressedProviderReference(
             path: "Sources/CodexBar/SettingsStore+MenuObservation.swift",
-            line: 126,
+            line: 129,
             anchor: "_ = self[providerConfig: .warp, field: .apiKey]",
             expectedProviderIDs: ["warp"],
             reason: "This observation touchpoint reads a fixed provider field so UI invalidation tracks that setting."),
@@ -2393,7 +2393,7 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact shared construct dispatches a provider-owned capability at the generic integration boundary."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/SettingsStore+MenuPreferences.swift",
-            line: 271,
+            line: 311,
             anchor: "(provider == .codex && self.codexLocalSessionCostLedgerEnabled)",
             expectedProviderIDs: ["codex"],
             expectedReferenceCount: 1,
@@ -2401,7 +2401,7 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact app-runtime bridge coordinates provider-owned state through the shared controller."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/SettingsStore.swift",
-            line: 1194,
+            line: 1200,
             anchor: "if !seen.contains(.factory), let zaiIndex = ordered.firstIndex(of: .zai) {",
             expectedProviderIDs: ["factory", "minimax", "zai"],
             expectedReferenceCount: 8,
@@ -2565,7 +2565,7 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact app-runtime bridge coordinates provider-owned state through the shared controller."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/StatusItemController+Animation.swift",
-            line: 572,
+            line: 592,
             anchor: "guard isLoading, style == .warp, let phase else {",
             expectedProviderIDs: ["warp"],
             expectedReferenceCount: 1,
@@ -2573,7 +2573,7 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact app-runtime bridge coordinates provider-owned state through the shared controller."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/StatusItemController+Animation.swift",
-            line: 893,
+            line: 913,
             anchor: "if provider == .kiro {",
             expectedProviderIDs: ["cursor", "kiro", "mimo", "mistral", "openrouter"],
             expectedReferenceCount: 5,
@@ -2589,11 +2589,11 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact shared renderer maps provider-owned presentation data into the generic UI model."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/StatusItemController+CountdownRefresh.swift",
-            line: 163,
+            line: 166,
             anchor: "if providers.contains(.codex) {",
             expectedProviderIDs: ["codex"],
             expectedReferenceCount: 2,
-            expectedReferenceFingerprint: ["codex@0", "codex@9"],
+            expectedReferenceFingerprint: ["codex@0", "codex@11"],
             reason: "This exact app-runtime bridge coordinates provider-owned state through the shared controller."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/StatusItemController+HostedSubmenus.swift",
@@ -2629,7 +2629,7 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact app-runtime bridge coordinates provider-owned state through the shared controller."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/StatusItemController+MenuBarLayout.swift",
-            line: 249,
+            line: 331,
             anchor: "if provider == .codex,",
             expectedProviderIDs: ["codex"],
             expectedReferenceCount: 1,

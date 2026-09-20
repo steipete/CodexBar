@@ -171,7 +171,7 @@ show an incident indicator.
 - Configurable cost-usage scans for Codex + Claude, plus reused chart UI for supported provider histories. Codex history uses a WAL-enabled SQLite store capped at 25,000 retained session entries and 256 MiB.
 - A persistent Settings → Usage & Spend view for local 7/30-day estimates, grouped by native currency and limited to providers that expose cost history.
 - Provider status polling with incident badges in the menu and icon overlay.
-- Merge Icons mode to combine providers into one status item + switcher.
+- Merge Icons mode to combine providers into one status item + switcher. With **Icon + Percent** and two enabled built-in providers, choose **Stacked** to show their first layout lines together. Automatic rows follow provider order and reserve explicit choices; disabling a selected provider uses a fallback and restores the saved choice when re-enabled. The dropdown menu stays available, and each provider keeps its own layout settings.
 - Display controls for provider icons, labels, bars, reset-time style, and highest-usage auto-selection.
 - Fresh installs default to Adaptive refresh. Existing users keep every valid stored choice, while legacy unset or
   invalid preferences resolve to 5 minutes. Manual and fixed 1m, 2m, 5m, 15m, and 30m alternatives remain available.

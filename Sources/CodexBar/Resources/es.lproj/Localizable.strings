@@ -608,6 +608,12 @@
 "cost_summary_off" = "Desactivado";
 "merge_icons_title" = "Combinar iconos";
 "merge_icons_subtitle" = "Usar un único icono en la barra de menús con un selector de proveedor.";
+"merged_icon_style_title" = "Estilo de icono combinado";
+"merged_icon_style_subtitle" = "El selector recorre los proveedores uno a uno; Apilado muestra dos proveedores a la vez, uno por fila.";
+"merged_icon_style_switcher" = "Selector";
+"merged_icon_style_stacked" = "Apilado";
+"merge_icon_stacked_top_provider_title" = "Fila superior";
+"merge_icon_stacked_bottom_provider_title" = "Fila inferior";
 "show_most_used_provider_title" = "Mostrar el proveedor más usado";
 "show_most_used_provider_subtitle" = "La barra de menús muestra automáticamente el proveedor más cercano a su límite.";
 "display_mode_title" = "Modo de visualización";

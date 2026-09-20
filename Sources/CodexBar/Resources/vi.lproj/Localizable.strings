@@ -612,6 +612,12 @@
 "cost_summary_off" = "Tắt";
 "merge_icons_title" = "Hợp nhất các biểu tượng";
 "merge_icons_subtitle" = "Sử dụng một biểu tượng thanh menu duy nhất với trình chuyển đổi Nhà cung cấp.";
+"merged_icon_style_title" = "Kiểu biểu tượng kết hợp";
+"merged_icon_style_subtitle" = "Bộ chuyển đổi lần lượt hiển thị từng nhà cung cấp; Xếp chồng hiển thị hai nhà cung cấp cùng lúc, mỗi nhà cung cấp một dòng.";
+"merged_icon_style_switcher" = "Bộ chuyển đổi";
+"merged_icon_style_stacked" = "Xếp chồng";
+"merge_icon_stacked_top_provider_title" = "Dòng trên";
+"merge_icon_stacked_bottom_provider_title" = "Dòng dưới";
 "show_most_used_provider_title" = "Hiển thị Nhà cung cấp";
 "show_most_used_provider_subtitle" = "thanh menu được sử dụng nhiều nhất tự động hiển thị Nhà cung cấp gần nhất với giới hạn tốc độ của nó.";
 "display_mode_title" = "Chế độ hiển thị";

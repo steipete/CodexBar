@@ -622,6 +622,12 @@
 "cost_summary_off" = "خاموش";
 "merge_icons_title" = "آیکون های ادغام";
 "merge_icons_subtitle" = "از یک آیکون نوار منو با یک تغییر دهنده ارائه دهنده استفاده کنید.";
+"merged_icon_style_title" = "سبک نماد ترکیبی";
+"merged_icon_style_subtitle" = "تعویض‌گر بین ارائه‌دهنده‌ها یکی‌یکی می‌چرخد؛ پشته‌ای دو ارائه‌دهنده را همزمان، هرکدام در یک ردیف، نمایش می‌دهد.";
+"merged_icon_style_switcher" = "تعویض‌گر";
+"merged_icon_style_stacked" = "پشته‌ای";
+"merge_icon_stacked_top_provider_title" = "ردیف بالا";
+"merge_icon_stacked_bottom_provider_title" = "ردیف پایین";
 "show_most_used_provider_title" = "نمایش ارائه دهنده پرکاربرد";
 "show_most_used_provider_subtitle" = "نوار منو به طور خودکار ارائه دهنده ای را نشان می دهد که به محدودیت نرخ خود نزدیک تر است.";
 "display_mode_title" = "حالت نمایش";
