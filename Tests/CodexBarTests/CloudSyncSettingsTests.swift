@@ -98,6 +98,7 @@ struct CloudSyncSettingsTests {
         try original.write(to: url, options: .atomic)
         let changes = LockedCounter()
         let watcher = ConfigFileWatcher(fileURL: url) { changes.increment() }
+        defer { watcher.stop() }
         watcher.start()
         try await Task.sleep(for: .milliseconds(150))
 
@@ -109,8 +110,10 @@ struct CloudSyncSettingsTests {
         #expect(changes.value == 0)
 
         try Data("{\"value\":3}".utf8).write(to: url, options: .atomic)
-        try await Task.sleep(for: .milliseconds(500))
-        watcher.stop()
+        let deadline = ContinuousClock.now.advanced(by: .seconds(10))
+        while changes.value == 0, ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(20))
+        }
         #expect(changes.value >= 1)
     }
 

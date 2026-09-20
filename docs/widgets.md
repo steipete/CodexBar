@@ -13,7 +13,7 @@ read_when:
 - Widgets read the snapshot and render usage/credits/history states.
 - Usage and Switcher tiles emphasize the most constrained general quota, preserve other allowances as detail rows, and show full provider names. Code-review and model-specific allowances do not replace a provider's general quota headline. Providers without quota bars keep credits or local-cost information useful.
 - WidgetKit owns the outer margins. Small, medium, and large tiles share the same rendering and quota-selection rules; overflow labels disclose omitted detail rows. Snapshot and reset dates remain live relative text between timeline updates.
-- Snapshot age labels advance between timeline reloads. Stale token-cost rows track their own saved timestamp once they lag quota data by more than ten minutes. Fetching new usage still depends on app refresh and WidgetKit accepting a timeline.
+- Snapshot age labels use WidgetKit's native relative-date text to advance between timeline reloads, including on small widgets. Stale token-cost rows track their own saved timestamp once they lag quota data by more than ten minutes. Fetching new usage still depends on app refresh and WidgetKit accepting a timeline.
 - The app writes snapshots after the main refresh pipeline and token-usage refreshes; narrow single-provider refresh paths may wait for the next snapshot write.
 - Scheduled provider refreshes trigger regular token/cost refreshes; the token/cost TTL determines eligibility when
   that refresh runs. Timer-driven local-history refreshes have a 15-minute minimum (30 minutes in low-power mode).
@@ -110,7 +110,12 @@ identifiers, signing team, and app group:
 
 ## Provider picker support
 The configurable provider widgets currently expose:
-Codex, Claude, Cursor, Gemini, Alibaba, Antigravity, z.ai, Copilot, MiniMax, Kilo, OpenCode, and OpenCode Go.
+Codex, Claude, Gemini, Alibaba, Alibaba Token Plan, Qwen Cloud, Antigravity, Cursor, z.ai / GLM,
+Copilot, Devin, MiniMax, Kilo, OpenCode, OpenCode Go, Mistral, Kimi Code, DeepSeek, and OpenRouter.
+
+DeepSeek shows its credit balance without a quota bar because it reports no quota denominator.
+OpenRouter shows its remaining credits alongside a configured API-key limit, or as the headline when
+the key is uncapped. The Metric widget's **Credits left** choice shows the same balance for both providers.
 
 Providers without a `ProviderChoice` case can still be present in the app snapshot, but they are not selectable from the widget configuration UI yet.
 

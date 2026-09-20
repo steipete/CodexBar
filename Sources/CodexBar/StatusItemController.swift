@@ -330,8 +330,9 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
             autosaveName: identity.autosaveName,
             legacyDefaultItemIndex: legacyDefaultItemIndex)
         let item = statusBar.statusItem(withLength: NSStatusItem.variableLength)
-        onCreated?(item)
+        // Registration must see the stable identity before its callback can re-enter setup.
         item.autosaveName = identity.autosaveName
+        onCreated?(item)
         if let button = item.button {
             let title = self.statusItemAccessibilityTitle(
                 isDebugApp: self.isDebugApp(bundleIdentifier: Bundle.main.bundleIdentifier))

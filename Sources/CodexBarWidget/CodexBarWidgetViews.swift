@@ -148,6 +148,9 @@ enum CompactMetricFormatter {
                     label: "Extra usage balance",
                     detail: nil)
             }
+            if let balance = WidgetBalanceFormatter.providerBalance(for: entry) {
+                return CompactMetricDisplay(value: balance.value, label: balance.title, detail: nil)
+            }
             let value = entry.creditsRemaining.map(WidgetFormat.credits) ?? "—"
             return CompactMetricDisplay(value: value, label: "Credits left", detail: nil)
         case .todayCost:
@@ -222,7 +225,7 @@ struct ProviderPagerHeader: View {
                         .layoutPriority(1)
                 }
             }
-            if self.size == .small, WidgetFreshness.isStale(self.updatedAt) {
+            if self.size == .small {
                 FreshnessLabel(updatedAt: self.updatedAt)
             }
         }
@@ -325,6 +328,8 @@ struct WidgetUsageRow: Identifiable, Equatable {
         applyBindingCap: Bool = true,
         now: Date = Date()) -> [WidgetUsageRow]
     {
+        // Provider-specific by design: DeepSeek exposes no quota denominator, so a 100% bar would be misleading.
+        guard entry.provider != .deepseek else { return [] }
         let rows: [WidgetUsageRow]
         if let usageRows = entry.usageRows {
             let resolvedSnapshots = usageRows.map { row in
@@ -661,6 +666,15 @@ struct WidgetBalanceLine: Equatable {
 }
 
 enum WidgetBalanceFormatter {
+    static func providerBalance(for entry: WidgetSnapshot.ProviderEntry) -> WidgetBalanceLine? {
+        // Provider-specific by design: these providers publish their widget value through the balance-text field.
+        guard entry.provider == .deepseek || entry.provider == .openrouter,
+              let value = entry.balanceText?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !value.isEmpty
+        else { return nil }
+        return WidgetBalanceLine(title: "Balance", value: value)
+    }
+
     static func extraUsageCost(for entry: WidgetSnapshot.ProviderEntry) -> ProviderCostSnapshot? {
         // Provider-specific by design: Devin encodes its extra-usage balance as a named provider-cost period.
         guard entry.provider == .devin,

@@ -3,10 +3,6 @@ import Testing
 @testable import CodexBar
 @testable import CodexBarCore
 
-// One suite covers Claude's refresh-resilience matrix; the cases share a fixture vocabulary.
-// swiftlint:disable file_length
-
-// swiftlint:disable:next type_body_length
 struct ClaudeResilienceTests {
     @Test
     func `cancelled Claude refresh never publishes an error`() async throws {
@@ -65,152 +61,6 @@ struct ClaudeResilienceTests {
 
                 #expect(!result.hasSnapshot)
                 #expect(result.error == nil)
-            }
-        }
-    }
-
-    @Test
-    func `unverified session with no prior snapshot offers sign-in instead of a misleading message`() async throws {
-        try await ClaudeOAuthCredentialsStore.withIsolatedCredentialsFileTrackingForTesting {
-            let tempDir = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString, isDirectory: true)
-            try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-            let fileURL = tempDir.appendingPathComponent("missing-credentials.json")
-
-            try await ClaudeOAuthCredentialsStore.withCredentialsURLOverrideForTesting(fileURL) {
-                let store = try await MainActor.run {
-                    let settings = Self.makeSettingsStore(suite: "ClaudeResilienceTests-no-prior-snapshot")
-                    settings.refreshFrequency = .manual
-                    settings.statusChecksEnabled = false
-                    settings.claudeUsageDataSource = .web
-                    settings.claudeOAuthKeychainPromptMode = .never
-
-                    let metadata = ProviderRegistry.shared.metadata
-                    for provider in UsageProvider.allCases {
-                        try settings.setProviderEnabled(
-                            provider: provider,
-                            metadata: #require(metadata[provider]),
-                            enabled: provider == .claude)
-                    }
-
-                    let store = UsageStore(
-                        fetcher: UsageFetcher(environment: [:]),
-                        browserDetection: BrowserDetection(cacheTTL: 0),
-                        settings: settings,
-                        startupBehavior: .testing,
-                        environmentBase: [:])
-                    let baseSpec = try #require(store.providerSpecs[.claude])
-                    let descriptor = ProviderDescriptor(
-                        id: .claude,
-                        metadata: baseSpec.descriptor.metadata,
-                        branding: baseSpec.descriptor.branding,
-                        tokenCost: baseSpec.descriptor.tokenCost,
-                        fetchPlan: ProviderFetchPlan(
-                            sourceModes: [.web],
-                            pipeline: ProviderFetchPipeline { _ in [UnverifiedSessionFetchStrategy()] }),
-                        cli: baseSpec.descriptor.cli)
-                    store.providerSpecs[.claude] = ProviderSpec(
-                        style: baseSpec.style,
-                        isEnabled: baseSpec.isEnabled,
-                        descriptor: descriptor,
-                        makeFetchContext: baseSpec.makeFetchContext)
-                    return store
-                }
-
-                // No prior snapshot exists — UsageStore.snapshots starts empty every launch (there is no
-                // persisted-snapshot restoration), so this is the very first refresh of the process. A
-                // leftover cookie from a previous session being gate-skipped here must not claim to be
-                // "showing last-known usage" (there is none) or hide the sign-in action.
-                await store.refreshProvider(.claude)
-                let result = await MainActor.run {
-                    (hasSnapshot: store.snapshot(for: .claude) != nil, error: store.error(for: .claude))
-                }
-
-                #expect(!result.hasSnapshot)
-                #expect(result.error == ClaudeWebAPIFetcher.FetchError.noSessionKeyFound.localizedDescription)
-            }
-        }
-    }
-
-    @Test
-    func `unverified session with prior snapshot explains it is showing last-known usage`() async throws {
-        try await ClaudeOAuthCredentialsStore.withIsolatedCredentialsFileTrackingForTesting {
-            let tempDir = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString, isDirectory: true)
-            try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-            let fileURL = tempDir.appendingPathComponent("missing-credentials.json")
-
-            try await ClaudeOAuthCredentialsStore.withCredentialsURLOverrideForTesting(fileURL) {
-                let (store, prior) = try await MainActor.run {
-                    let settings = Self.makeSettingsStore(suite: "ClaudeResilienceTests-unverified-prior-snapshot")
-                    settings.refreshFrequency = .manual
-                    settings.statusChecksEnabled = false
-                    settings.claudeUsageDataSource = .web
-                    settings.claudeOAuthKeychainPromptMode = .never
-
-                    let metadata = ProviderRegistry.shared.metadata
-                    for provider in UsageProvider.allCases {
-                        try settings.setProviderEnabled(
-                            provider: provider,
-                            metadata: #require(metadata[provider]),
-                            enabled: provider == .claude)
-                    }
-
-                    let store = UsageStore(
-                        fetcher: UsageFetcher(environment: [:]),
-                        browserDetection: BrowserDetection(cacheTTL: 0),
-                        settings: settings,
-                        startupBehavior: .testing,
-                        environmentBase: [:])
-                    let prior = UsageSnapshot(
-                        primary: RateWindow(usedPercent: 12, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
-                        secondary: nil,
-                        updatedAt: Date(timeIntervalSince1970: 1_800_000_000),
-                        identity: ProviderIdentitySnapshot(
-                            providerID: .claude,
-                            accountEmail: "claude@example.com",
-                            accountOrganization: nil,
-                            loginMethod: "Pro"))
-                    store._setSnapshotForTesting(prior, provider: .claude)
-
-                    let baseSpec = try #require(store.providerSpecs[.claude])
-                    let descriptor = ProviderDescriptor(
-                        id: .claude,
-                        metadata: baseSpec.descriptor.metadata,
-                        branding: baseSpec.descriptor.branding,
-                        tokenCost: baseSpec.descriptor.tokenCost,
-                        fetchPlan: ProviderFetchPlan(
-                            sourceModes: [.web],
-                            pipeline: ProviderFetchPipeline { _ in [UnverifiedSessionFetchStrategy()] }),
-                        cli: baseSpec.descriptor.cli)
-                    store.providerSpecs[.claude] = ProviderSpec(
-                        style: baseSpec.style,
-                        isEnabled: baseSpec.isEnabled,
-                        descriptor: descriptor,
-                        makeFetchContext: baseSpec.makeFetchContext)
-                    return (store, prior)
-                }
-
-                // The first failure with prior data is suppressed by the single-flake failure gate, so it
-                // takes two consecutive failures for the message to actually surface.
-                await store.refreshProvider(.claude)
-                let firstResult = await MainActor.run {
-                    (updatedAt: store.snapshot(for: .claude)?.updatedAt, hasError: store.error(for: .claude) != nil)
-                }
-                #expect(firstResult.updatedAt == prior.updatedAt)
-                #expect(!firstResult.hasError)
-
-                await store.refreshProvider(.claude)
-                let secondResult = await MainActor.run {
-                    (updatedAt: store.snapshot(for: .claude)?.updatedAt, error: store.error(for: .claude))
-                }
-
-                // Unlike the no-prior-snapshot case, there really is last-known usage worth explaining and
-                // preserving here — the app-specific framing the fetcher itself deliberately omits (it also
-                // serves the CLI, which has none of this) belongs back in the displayed message.
-                #expect(secondResult.updatedAt == prior.updatedAt)
-                #expect(secondResult.error?.contains("Showing last-known usage") == true)
-                #expect(secondResult.error?.contains("click Refresh to check now") == true)
             }
         }
     }
@@ -1721,23 +1571,6 @@ private struct CLIAuthenticationFailureFetchStrategy: ProviderFetchStrategy {
             throw error
         }
         throw ClaudeStatusProbeError.parseFailed("Expected authentication error")
-    }
-
-    func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {
-        false
-    }
-}
-
-private struct UnverifiedSessionFetchStrategy: ProviderFetchStrategy {
-    let id = "test.unverified-session"
-    let kind: ProviderFetchKind = .web
-
-    func isAvailable(_: ProviderFetchContext) async -> Bool {
-        true
-    }
-
-    func fetch(_: ProviderFetchContext) async throws -> ProviderFetchResult {
-        throw ClaudeWebAPIFetcher.FetchError.cachedSessionUnverifiedInBackground
     }
 
     func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {

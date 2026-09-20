@@ -367,8 +367,14 @@ enum WidgetMetricRows {
     }
 
     private static func balanceRows(for entry: WidgetSnapshot.ProviderEntry) -> [WidgetMetricRow] {
-        guard let balance = WidgetBalanceFormatter.extraUsageBalance(for: entry) else { return [] }
-        return [WidgetMetricRow(id: "extra-usage", title: balance.title, value: balance.value)]
+        var rows: [WidgetMetricRow] = []
+        if let balance = WidgetBalanceFormatter.providerBalance(for: entry) {
+            rows.append(WidgetMetricRow(id: "provider-balance", title: balance.title, value: balance.value))
+        }
+        if let balance = WidgetBalanceFormatter.extraUsageBalance(for: entry) {
+            rows.append(WidgetMetricRow(id: "extra-usage", title: balance.title, value: balance.value))
+        }
+        return rows
     }
 }
 
@@ -387,6 +393,13 @@ enum WidgetFallbackHero {
     /// Balance-only and credit-only providers report no quota lanes, so the headline falls back to
     /// the figure those tiles do have instead of leaving the tile blank.
     static func make(for entry: WidgetSnapshot.ProviderEntry) -> WidgetFallbackHeroContent? {
+        if let balance = WidgetBalanceFormatter.providerBalance(for: entry) {
+            return WidgetFallbackHeroContent(
+                value: balance.value,
+                caption: balance.title,
+                detail: nil,
+                consumedMetricID: "provider-balance")
+        }
         if let cost = WidgetBalanceFormatter.extraUsageCost(for: entry) {
             return WidgetFallbackHeroContent(
                 value: WidgetFormat.currency(cost.used, code: cost.currencyCode),

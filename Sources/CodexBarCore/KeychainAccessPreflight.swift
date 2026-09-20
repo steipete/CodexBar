@@ -134,9 +134,11 @@ public enum KeychainAccessPreflight {
     #if DEBUG
     final class CheckGenericPasswordOverrideStore: @unchecked Sendable {
         let check: (String, String?) -> Outcome
+        let retryDelay: () -> Void
 
-        init(check: @escaping (String, String?) -> Outcome) {
+        init(check: @escaping (String, String?) -> Outcome, retryDelay: @escaping () -> Void) {
             self.check = check
+            self.retryDelay = retryDelay
         }
     }
 
@@ -148,10 +150,11 @@ public enum KeychainAccessPreflight {
 
     static func withCheckGenericPasswordOverrideForTesting<T>(
         _ override: ((String, String?) -> Outcome)?,
+        retryDelay: @escaping () -> Void = {},
         operation: () throws -> T) rethrows -> T
     {
         try self.$taskCheckGenericPasswordOverrideStore.withValue(
-            override.map(CheckGenericPasswordOverrideStore.init(check:)))
+            override.map { CheckGenericPasswordOverrideStore(check: $0, retryDelay: retryDelay) })
         {
             try operation()
         }
@@ -159,11 +162,12 @@ public enum KeychainAccessPreflight {
 
     static func withCheckGenericPasswordOverrideForTesting<T>(
         _ override: ((String, String?) -> Outcome)?,
+        retryDelay: @escaping () -> Void = {},
         isolation _: isolated (any Actor)? = #isolation,
         operation: () async throws -> T) async rethrows -> T
     {
         try await self.$taskCheckGenericPasswordOverrideStore.withValue(
-            override.map(CheckGenericPasswordOverrideStore.init(check:)))
+            override.map { CheckGenericPasswordOverrideStore(check: $0, retryDelay: retryDelay) })
         {
             try await operation()
         }
@@ -190,11 +194,7 @@ public enum KeychainAccessPreflight {
         return self.checkGenericPasswordUncached(service: service, account: account)
     }
 
-    /// `.temporarilyUnavailable` is documented as possibly differing on retry (a locked keychain, a busy
-    /// keychain daemon, or a momentary ACL-inspection failure racing another process), unlike the stable
-    /// `.interactionRequired`/`.rejected` outcome. A background refresh that treats the two identically
-    /// gives up on cookie recovery for the rest of its refresh interval even when the underlying state
-    /// would have cleared within milliseconds — retry a few times, cheaply, before accepting it as final.
+    /// Retry only inconclusive no-UI checks; the operation memo above stores their final outcome.
     private static let temporarilyUnavailableRetryCount = 3
     private static let temporarilyUnavailableRetryDelayMicroseconds: UInt32 = 30000
 
@@ -203,7 +203,7 @@ public enum KeychainAccessPreflight {
         var outcome = self.performGenericPasswordPreflightAttempt(service: service, account: account)
         var attempt = 1
         while case .temporarilyUnavailable = outcome, attempt < self.temporarilyUnavailableRetryCount {
-            usleep(self.temporarilyUnavailableRetryDelayMicroseconds)
+            self.waitBeforePreflightRetry()
             outcome = self.performGenericPasswordPreflightAttempt(service: service, account: account)
             attempt += 1
         }
@@ -214,6 +214,16 @@ public enum KeychainAccessPreflight {
     }
 
     #if os(macOS)
+    private static func waitBeforePreflightRetry() {
+        #if DEBUG
+        if let override = self.taskCheckGenericPasswordOverrideStore {
+            override.retryDelay()
+            return
+        }
+        #endif
+        usleep(self.temporarilyUnavailableRetryDelayMicroseconds)
+    }
+
     private static func performGenericPasswordPreflightAttempt(service: String, account: String?) -> Outcome {
         #if DEBUG
         if let override = self.taskCheckGenericPasswordOverrideStore {
@@ -222,10 +232,7 @@ public enum KeychainAccessPreflight {
         #endif
         guard !KeychainAccessGate.isDisabled else { return .notFound }
         let query = self.makeGenericPasswordPreflightQuery(service: service, account: account)
-        return self.performGenericPasswordPreflight(query: query, service: service)
-    }
 
-    private static func performGenericPasswordPreflight(query: [String: Any], service: String) -> Outcome {
         var result: AnyObject?
         let status = KeychainSecurity.copyMatching(query as CFDictionary, &result)
         switch status {

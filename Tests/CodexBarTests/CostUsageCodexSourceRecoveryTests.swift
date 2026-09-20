@@ -166,11 +166,18 @@ struct CostUsageCodexSourceRecoveryTests {
         #expect(cached.summary?.totalCostUSD == nil)
     }
 
-    @Test(arguments: [false, true], [false, true])
+    @Test(arguments: [
+        (priority: false, cutHeader: false, staleRevision: false),
+        (priority: false, cutHeader: true, staleRevision: false),
+        (priority: true, cutHeader: false, staleRevision: false),
+        (priority: true, cutHeader: true, staleRevision: false),
+        (priority: true, cutHeader: false, staleRevision: true),
+        (priority: true, cutHeader: true, staleRevision: true),
+    ])
     func `bounded source recovery retains unanimous pricing after reopening its store`(
-        priority: Bool,
-        cutHeader: Bool) throws
+        _ scenario: (priority: Bool, cutHeader: Bool, staleRevision: Bool)) throws
     {
+        let (priority, cutHeader, staleRevision) = scenario
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }
         let day = try env.makeLocalNoon(year: 2026, month: 9, day: 10)
@@ -224,11 +231,21 @@ struct CostUsageCodexSourceRecoveryTests {
         if cutHeader { #expect(initialOffset < lines[0].utf8.count) }
         #expect(partialFile.codexRows?.contains { $0.input == 400_000 } == false)
         #expect(partialFile.codexRows?.allSatisfy { $0.pricingMode == (priority ? "priority" : "standard") } == true)
+        let recoveryAnchor = try #require(partialFile.codexPendingSourcePricingAnchor)
+        #expect(recoveryAnchor.indexedBytes == partialFile.size)
+        #expect(partialFile.codexTokenIndexAnchor?.indexedBytes == initialOffset)
+        if staleRevision {
+            partial.files[file.path]?.codexParserRevision = CostUsageFileUsage.currentCodexParserRevision - 1
+            #expect(!CostUsageStoreAccess.replace(cacheRoot: env.cacheRoot, cache: partial).catchUpRequired)
+        }
 
         var completed = false
         for pass in (initialPass + 1)..<(initialPass + 60) {
             _ = Self.report(day: day, options: options, elapsed: Double(pass))
             let reopened = CostUsageStore(cacheRoot: env.cacheRoot).syncLoadCodexCache(calendar: .current)
+            if reopened.files[file.path]?.codexPendingSourcePricing != nil {
+                #expect(reopened.files[file.path]?.codexPendingSourcePricingAnchor == recoveryAnchor)
+            }
             if reopened.codexScanCatchUpPending != true {
                 completed = true
                 break
@@ -608,6 +625,77 @@ struct CostUsageCodexSourceRecoveryTests {
         case mode
         case model
         case monetary
+    }
+
+    @Test(arguments: [(append: false, partial: false), (append: true, partial: false), (append: false, partial: true)])
+    func `stale parser revision keeps priority pricing when traces are gone`(
+        _ scenario: (append: Bool, partial: Bool)) throws
+    {
+        let (appendBeforeUpgrade, partialBeforeUpgrade) = scenario
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let day = try env.makeLocalNoon(year: 2026, month: 9, day: 10)
+        let lines = try Self.sourceLines(inputs: [200_000, 200_000, 200_000], day: day, env: env)
+        let file = try env.writeCodexSessionFile(
+            day: day,
+            filename: "revision-upgrade-priority.jsonl",
+            contents: lines.joined(separator: "\n") + "\n")
+        var options = Self.options(env: env)
+        if partialBeforeUpgrade {
+            options.maxCodexSessionFileBytes = Int64((lines.prefix(4).joined(separator: "\n") + "\n").utf8.count)
+        }
+        let original = Self.report(day: day, options: options)
+        #expect(original.summary?.totalTokens == (partialBeforeUpgrade ? 200_000 : 600_000))
+
+        var cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        var usage = try #require(cache.files[file.path])
+        usage.codexRows = usage.codexRows?.map { row in
+            var row = row
+            row.pricingMode = "priority"
+            row.pricingModel = row.pricingModel ?? row.model
+            return row
+        }
+        usage.codexParserRevision = CostUsageFileUsage.currentCodexParserRevision - 1
+        let historicalRows = try #require(usage.codexRows)
+        #expect(historicalRows.count == (partialBeforeUpgrade ? 1 : 3))
+        cache.files[file.path] = usage
+        #expect(!CostUsageStoreAccess.replace(cacheRoot: env.cacheRoot, cache: cache).catchUpRequired)
+        #expect(CostUsageStoreAccess.read(cacheRoot: env.cacheRoot).files[file.path]?.hasCurrentCodexParser == false)
+
+        if appendBeforeUpgrade {
+            // The appended request has the same pricing key; only the validated historical prefix owns its old price.
+            let line = try #require(Self.sourceLines(inputs: [200_000], day: day, env: env).last)
+            let handle = try FileHandle(forWritingTo: file)
+            try handle.seekToEnd()
+            try handle.write(contentsOf: Data((line + "\n").utf8))
+            try handle.close()
+        }
+        options.maxCodexSessionFileBytes = 0
+        var repaired = Self.report(day: day, options: options, elapsed: 1)
+        for pass in 2...5 {
+            let checkpoint = CostUsageStore(cacheRoot: env.cacheRoot).syncLoadCodexCache(calendar: .current)
+            let fileUsage = checkpoint.files[file.path]
+            if checkpoint.codexScanCatchUpPending != true,
+               fileUsage?.parsedBytes == fileUsage?.size { break }
+            repaired = Self.report(day: day, options: options, elapsed: Double(pass))
+        }
+        let expectedInputs = appendBeforeUpgrade ? [200_000, 200_000, 200_000, 200_000] : [200_000, 200_000, 200_000]
+        let expectedModes: [String?] = Array(repeating: "priority", count: historicalRows.count)
+            + Array(repeating: "standard", count: expectedInputs.count - historicalRows.count)
+        #expect(repaired.summary?.totalTokens == expectedInputs.reduce(0, +))
+        let reopened = CostUsageStore(cacheRoot: env.cacheRoot).syncLoadCodexCache(calendar: .current)
+        let recovered = try #require(reopened.files[file.path])
+        #expect(recovered.hasCurrentCodexParser)
+        #expect(recovered.codexRows?.map(\.input) == expectedInputs)
+        #expect(recovered.codexRows?.map(\.pricingMode) == expectedModes)
+        #expect(recovered.codexRows.map { Array($0.prefix(historicalRows.count)) } == historicalRows)
+        #expect(reopened.codexScanCatchUpPending != true)
+
+        options.refreshMinIntervalSeconds = 0
+        let again = Self.report(day: day, options: options, elapsed: 6)
+        #expect(again.summary?.totalTokens == expectedInputs.reduce(0, +))
+        let persisted = CostUsageStore(cacheRoot: env.cacheRoot).syncLoadCodexCache(calendar: .current)
+        #expect(persisted.files[file.path]?.codexRows?.map(\.pricingMode) == expectedModes)
     }
 
     private static func options(env: CostUsageTestEnvironment) -> CostUsageScanner.Options {

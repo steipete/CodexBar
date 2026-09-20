@@ -83,7 +83,7 @@ public enum DeepSeekProviderDescriptor {
                 toggleTitle: "Show DeepSeek usage",
                 cliName: "deepseek",
                 defaultEnabled: false,
-                widgetSelectable: false,
+                widgetSelectable: true,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
                 balanceOnly: true,

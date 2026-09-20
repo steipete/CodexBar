@@ -40,19 +40,22 @@ extension CostUsageScanner {
         recoveringSourceRows: Bool) -> [CodexSourcePricingKey: CodexPricingEvidence]?
     {
         guard let cached else { return nil }
-        let pricing = recoveringSourceRows
+        let startsRecovery = cached.codexPendingSourcePricing == nil
+            && (recoveringSourceRows || !cached.hasCurrentCodexParser)
+        let pricing = cached.codexPendingSourcePricing ?? (recoveringSourceRows
             ? Self.codexSourceRowRecoveryPricing(cached, range: range) ?? [:]
-            : cached.codexPendingSourcePricing
+            : Self.codexParserRevisionMigrationPricing(cached, range: range))
         guard let pricing else { return nil }
         if pricing.isEmpty { return [:] }
         // A same-session replacement can contain identical requests with different historical pricing.
         // Keep an empty recovery map so an invalidated source stays unpriced through subsequent slices.
-        let sourceAnchor = recoveringSourceRows ? cached.codexTokenIndexAnchor : cached.codexPendingSourcePricingAnchor
+        let sourceAnchor = Self.codexSourcePricingAnchor(cached: cached, recoveringSourceRows: recoveringSourceRows)
         guard cached.codexScanFileId != nil, cached.codexScanFileId == metadata.fileId,
               metadata.size >= cached.size,
               let sourceAnchor,
               sourceAnchor.indexedBytes <= (cached.codexScanTargetSize ?? cached.size),
-              !recoveringSourceRows || sourceAnchor.indexedBytes == cached.size,
+              !startsRecovery || sourceAnchor.indexedBytes == (recoveringSourceRows
+                  ? cached.size : cached.parsedBytes),
               Self.codexTokenIndexAnchorMatches(
                   sourceAnchor, fileURL: URL(fileURLWithPath: metadata.path), metadata: metadata)
         else { return [:] }
@@ -61,7 +64,7 @@ extension CostUsageScanner {
         if metadata.size == cached.size, metadata.mtimeUnixMs != cached.mtimeUnixMs,
            sourceAnchor.windowStart > 0 { return [:] }
         let parsedBytes = cached.parsedBytes ?? 0
-        if recoveringSourceRows || parsedBytes == 0 { return pricing }
+        if startsRecovery || parsedBytes == 0 { return pricing }
         guard let anchor = cached.codexTokenIndexAnchor, anchor.indexedBytes == parsedBytes,
               Self.codexTokenIndexAnchorMatches(
                   anchor,
@@ -71,20 +74,26 @@ extension CostUsageScanner {
         return pricing
     }
 
+    static func codexSourcePricingAnchor(
+        cached: CostUsageFileUsage?,
+        recoveringSourceRows: Bool) -> CostUsageCodexTokenIndexAnchor?
+    {
+        guard let cached else { return nil }
+        // Pending evidence owns its original boundary, including an empty invalidation map.
+        if cached.codexPendingSourcePricing != nil { return cached.codexPendingSourcePricingAnchor }
+        return recoveringSourceRows || !cached.hasCurrentCodexParser ? cached.codexTokenIndexAnchor : nil
+    }
+
     static func parseCodexRescan(
         input: CodexFileScanInput,
         context: CodexFileScanContext,
-        recoveringSourceRows: Bool,
-        preservingSourcePricing: Bool,
+        sourcePricingBoundary: Int64?,
         maxBytesToRead: Int64?) throws -> CodexParseResult
     {
-        let frozenTarget = preservingSourcePricing
-            ? recoveringSourceRows ? input.cached?.size : input.cached?.codexPendingSourcePricingAnchor?.indexedBytes
-            : nil
-        return try parseCodexFileCancellable(
+        try parseCodexFileCancellable(
             fileURL: input.fileURL,
             range: context.range,
-            scanTargetSize: min(frozenTarget ?? input.metadata.size, input.metadata.size),
+            scanTargetSize: min(sourcePricingBoundary ?? input.metadata.size, input.metadata.size),
             maxBytesToRead: maxBytesToRead,
             shouldStopReading: context.scanBudget.map { budget in
                 { bytesRead in budget.shouldYield(additionalBytes: bytesRead) }
@@ -207,6 +216,39 @@ extension CostUsageScanner {
             else { return nil }
             let evidence = CodexPricingEvidence(pricingModel: model, pricingMode: row.pricingMode)
             if let previous = pricing[key], previous != evidence { return nil }
+            pricing[key] = evidence
+        }
+        return pricing.isEmpty ? nil : pricing
+    }
+
+    /// Historical pricing for a validated source prefix whose parser revision is stale.
+    /// Token identity must still match; split/combined events stay unpriced rather than
+    /// inheriting a previous row's dollars.
+    static func codexParserRevisionMigrationPricing(
+        _ usage: CostUsageFileUsage,
+        range: CostUsageDayRange) -> [CodexSourcePricingKey: CodexPricingEvidence]?
+    {
+        guard !usage.hasCurrentCodexParser,
+              let parsedBytes = usage.parsedBytes, parsedBytes > 0, parsedBytes <= usage.size,
+              usage.codexTokenIndexAnchor?.indexedBytes == parsedBytes,
+              !usage.hasBufferedCodexForkRetryLines,
+              usage.sessionId != nil,
+              let rows = usage.codexRows, !rows.isEmpty
+        else { return nil }
+
+        var pricing: [CodexSourcePricingKey: CodexPricingEvidence] = [:]
+        for row in rows where CostUsageDayRange.isInRange(
+            dayKey: row.day, since: range.scanSinceKey, until: range.scanUntilKey)
+        {
+            guard row.knownCostNanos == nil, row.unpricedTokens == nil,
+                  let key = CodexSourcePricingKey(row),
+                  let model = row.pricingModel, !model.isEmpty,
+                  row.pricingMode == "standard" || row.pricingMode == "priority"
+            else { continue }
+            let evidence = CodexPricingEvidence(pricingModel: model, pricingMode: row.pricingMode)
+            if let previous = pricing[key], previous != evidence {
+                return [:]
+            }
             pricing[key] = evidence
         }
         return pricing.isEmpty ? nil : pricing

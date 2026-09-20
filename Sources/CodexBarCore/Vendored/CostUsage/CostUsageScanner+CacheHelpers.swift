@@ -224,6 +224,7 @@ extension CostUsageScanner {
         codexScanTargetSize: Int64? = nil,
         codexScanComplete: Bool? = nil,
         codexJSONLResumeState: CostUsageJsonl.ResumeState? = nil,
+        codexForkAccountingState: CodexForkAccountingState? = nil,
         codexBufferedSubagentLines: [CodexBufferedFastLine]? = nil,
         codexBufferedUnresolvedForkLines: [CodexBufferedFastLine]? = nil) -> CostUsageFileUsage
     {
@@ -265,6 +266,7 @@ extension CostUsageScanner {
             codexScanTargetSize: codexScanTargetSize,
             codexScanComplete: codexScanComplete,
             codexJSONLResumeState: codexJSONLResumeState,
+            codexForkAccountingState: codexForkAccountingState,
             codexBufferedSubagentLines: codexBufferedSubagentLines,
             codexBufferedUnresolvedForkLines: codexBufferedUnresolvedForkLines)
     }
@@ -518,7 +520,7 @@ extension CostUsageScanner {
         var unique: [CodexUsageRow] = []
         var acceptedKeys = Set<String>()
         for row in rows {
-            let key = Self.codexUsageRowKey(sessionId: sessionId, fileIdentity: fileIdentity, row: row)
+            let key = Self.codexCrossFileRowKey(sessionId: sessionId, fileIdentity: fileIdentity, row: row)
             if !state.seenCodexUsageRowKeys.contains(key) {
                 unique.append(row)
                 acceptedKeys.insert(key)
@@ -535,11 +537,21 @@ extension CostUsageScanner {
         state: inout CodexScanState)
     {
         for row in rows {
-            state.seenCodexUsageRowKeys.insert(self.codexUsageRowKey(
+            state.seenCodexUsageRowKeys.insert(self.codexCrossFileRowKey(
                 sessionId: sessionId,
                 fileIdentity: fileIdentity,
                 row: row))
         }
+    }
+
+    private static func codexCrossFileRowKey(
+        sessionId: String?,
+        fileIdentity: String,
+        row: CodexUsageRow) -> String
+    {
+        // Page-local event indices restart; timestamps distinguish new requests from archived copies.
+        self.codexUsageRowKey(sessionId: sessionId, fileIdentity: fileIdentity, row: row)
+            + "\u{1F}" + (row.timestampUnixMs.map(String.init) ?? "")
     }
 
     static func codexFileDays(rows: [CodexUsageRow]) -> [String: [String: [Int]]] {
@@ -923,6 +935,11 @@ extension CostUsageScanner {
                     && !hasIncompleteInterleaveState))
         guard canIncremental, let nextUsageRowIndex = cached.codexNextUsageRowIndex else { return false }
 
+        let resumesResolvedFork = cached.forkedFromId != nil && !cached.hasBufferedCodexForkRetryLines
+        if resumesResolvedFork {
+            guard isResumablePartial,
+                  try Self.canResumeCodexForkAccounting(cached, context: context) else { return false }
+        }
         let delta = try Self.parseCodexFileCancellable(
             fileURL: input.fileURL,
             range: context.range,
@@ -939,6 +956,7 @@ extension CostUsageScanner {
             initialBufferedSubagentLines: cached.codexBufferedSubagentLines,
             initialBufferedUnresolvedForkLines: cached.codexBufferedUnresolvedForkLines,
             initialJSONLResumeState: cached.codexJSONLResumeState,
+            initialForkAccountingState: resumesResolvedFork ? cached.codexForkAccountingState : nil,
             scanTargetSize: resumableTargetSize ?? input.metadata.size,
             maxBytesToRead: maxBytesToRead,
             shouldStopReading: context.scanBudget.map { budget in
@@ -1094,6 +1112,7 @@ extension CostUsageScanner {
             codexScanTargetSize: delta.scanTargetSize,
             codexScanComplete: delta.parsedBytes >= delta.scanTargetSize && delta.jsonlResumeState == nil,
             codexJSONLResumeState: delta.jsonlResumeState,
+            codexForkAccountingState: delta.forkAccountingState,
             codexBufferedSubagentLines: delta.bufferedSubagentLines,
             codexBufferedUnresolvedForkLines: delta.bufferedUnresolvedForkLines)
             .refreshingCodexWorkspaceUsageFingerprint()
@@ -1128,11 +1147,11 @@ extension CostUsageScanner {
             metadata: input.metadata,
             range: context.range,
             recoveringSourceRows: recoveringSourceRows)
-        let sourceAnchor = recoveringSourceRows
-            ? input.cached?.codexTokenIndexAnchor : input.cached?.codexPendingSourcePricingAnchor
         // Legacy rows can combine events that the corrected parser splits; do not merge them back.
         let replaceCachedRows = context.dropDeferredCodexRows || input.cached?.hasCurrentCodexParser != true
-        if replaceCachedRows { sourcePricing = nil }
+        if context.dropDeferredCodexRows { sourcePricing = nil }
+        let sourceAnchor = Self.codexSourcePricingAnchor(
+            cached: input.cached, recoveringSourceRows: recoveringSourceRows)
         let migratedCached = replaceCachedRows ? nil : input.cached.map {
             sourcePricing == nil ? Self.codexFileUsageWithPricingMetadata($0, context: context) : $0
         }
@@ -1141,8 +1160,7 @@ extension CostUsageScanner {
         let parsed = try Self.parseCodexRescan(
             input: input,
             context: context,
-            recoveringSourceRows: recoveringSourceRows,
-            preservingSourcePricing: sourcePricing?.isEmpty == false,
+            sourcePricingBoundary: sourcePricing?.isEmpty == false ? sourceAnchor?.indexedBytes : nil,
             maxBytesToRead: maxBytesToRead)
         if sourcePricing != nil, !FileManager.default.isReadableFile(atPath: input.metadata.path) {
             state.deferredCachePaths.insert(input.metadata.path)
@@ -1252,6 +1270,7 @@ extension CostUsageScanner {
             codexScanTargetSize: parsed.scanTargetSize,
             codexScanComplete: parsed.parsedBytes >= parsed.scanTargetSize && parsed.jsonlResumeState == nil,
             codexJSONLResumeState: parsed.jsonlResumeState,
+            codexForkAccountingState: parsed.forkAccountingState,
             codexBufferedSubagentLines: parsed.bufferedSubagentLines,
             codexBufferedUnresolvedForkLines: parsed.bufferedUnresolvedForkLines)
             .refreshingCodexWorkspaceUsageFingerprint()

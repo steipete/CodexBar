@@ -1,6 +1,20 @@
 import Foundation
 
 extension CostUsageScanner {
+    static func canResumeCodexForkAccounting(
+        _ cached: CostUsageFileUsage,
+        context: CodexFileScanContext) throws -> Bool
+    {
+        guard let parentID = cached.forkedFromId,
+              let saved = cached.codexForkAccountingState,
+              !saved.metadata.isSubagentThread,
+              saved.metadata.sessionId == cached.sessionId,
+              saved.metadata.forkedFromId == parentID,
+              let dependency = cached.forkBaselineDependencyKey
+        else { return false }
+        return try dependency == context.resources.inheritedResolver.currentDependencyKey(for: parentID)
+    }
+
     /// Missing-parent forks stay out of priced totals. Count them as unmetered so Spend
     /// coverage can show the gap instead of silently dropping the session.
     static func unresolvedForkUnmeteredCounts(

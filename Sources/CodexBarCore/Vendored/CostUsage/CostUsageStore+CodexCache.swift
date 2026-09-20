@@ -358,6 +358,7 @@ extension CostUsageStore {
         var interleavedTotals: Bool?
         var parserRevision: Int?
         var hasExactUsageRowIndex: Bool?
+        var forkAccountingState: CostUsageScanner.CodexForkAccountingState?
     }
 
     private struct StoredPriorityState: Codable {
@@ -565,6 +566,7 @@ extension CostUsageStore {
                 codexJSONLResumeState: file.scanState.resumePayload.flatMap {
                     try? JSONDecoder().decode(CostUsageJsonl.ResumeState.self, from: $0)
                 },
+                codexForkAccountingState: details.forkAccountingState,
                 codexBufferedSubagentLines: Self.bufferedLines(buffers, kind: .subagent),
                 codexBufferedUnresolvedForkLines: Self.bufferedLines(buffers, kind: .unresolvedFork),
                 codexReadRetryBufferPresence: retryPresence.map { $0[file.path] ?? .init() },
@@ -950,7 +952,8 @@ extension CostUsageStore {
             divergentTotals: usage.hasDivergentTotals,
             interleavedTotals: usage.hasInterleavedTotals,
             parserRevision: usage.codexParserRevision,
-            hasExactUsageRowIndex: usage.codexNextUsageRowIndex != nil)
+            hasExactUsageRowIndex: usage.codexNextUsageRowIndex != nil,
+            forkAccountingState: usage.codexForkAccountingState)
         let file = CostUsageStoreFile(
             path: path,
             inode: Self.inode(from: usage.codexScanFileId),

@@ -884,7 +884,6 @@ extension CodexBackgroundRefreshCoalescingTests {
         #expect(await dashboardLoader.callCount() == 2)
         #expect(store.openAIDashboardRequiresLogin)
         #expect(providerInteractions == [.background, .userInitiated])
-        #expect(creditsInteractions == [.background, .userInitiated])
 
         await tokenGate.resumeNext()
         await store.awaitForcedRefreshEnrichment()
@@ -892,7 +891,7 @@ extension CodexBackgroundRefreshCoalescingTests {
         #expect(await dashboardLoader.callCount() == 3)
         #expect(!store.openAIDashboardRequiresLogin)
         #expect(providerInteractions.count == 2)
-        #expect(creditsInteractions.count == 2)
+        #expect(creditsInteractions == [.background, .userInitiated])
         #expect(!store.hasForcedRefreshEnrichmentInFlight)
     }
 
