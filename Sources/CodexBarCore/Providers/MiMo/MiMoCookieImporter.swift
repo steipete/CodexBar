@@ -328,7 +328,7 @@ enum MiMoFirefoxSessionCookieImporter {
     enum ResourceLimit: Equatable, Sendable {
         case inputBytes
         case outputBytes
-        case cookieRecords
+        case relevantCookieRecords
     }
 
     enum ImportError: LocalizedError {
@@ -341,8 +341,8 @@ enum MiMoFirefoxSessionCookieImporter {
                 "Firefox session restore file exceeds the 64 MiB safety limit."
             case .resourceLimit(.outputBytes):
                 "Firefox session restore data exceeds the 128 MiB safety limit."
-            case .resourceLimit(.cookieRecords):
-                "Firefox session restore contains too many cookie records."
+            case .resourceLimit(.relevantCookieRecords):
+                "Firefox session restore contains too many relevant MiMo cookie records."
             case let .invalidData(message):
                 message
             }
@@ -358,17 +358,17 @@ enum MiMoFirefoxSessionCookieImporter {
     struct Limits: Sendable {
         var inputBytes: Int
         var outputBytes: Int
-        var cookieRecords: Int
+        var relevantCookieRecords: Int
 
         static let `default` = Limits(
             inputBytes: MiMoFirefoxSessionCookieImporter.maxInputBytes,
             outputBytes: MiMoFirefoxSessionCookieImporter.maxOutputBytes,
-            cookieRecords: MiMoFirefoxSessionCookieImporter.maxCookieRecords)
+            relevantCookieRecords: MiMoFirefoxSessionCookieImporter.maxRelevantCookieRecords)
     }
 
     private static let maxInputBytes = 64 * 1024 * 1024
     private static let maxOutputBytes = 128 * 1024 * 1024
-    private static let maxCookieRecords = 4096
+    private static let maxRelevantCookieRecords = 4096
     private static let sessionRestoreFileNames = [
         "recovery.jsonlz4",
         "recovery.baklz4",
@@ -401,7 +401,7 @@ enum MiMoFirefoxSessionCookieImporter {
                 let records = try self.cookieRecords(
                     fromJSONData: jsonData,
                     now: now,
-                    maxRecords: limits.cookieRecords)
+                    maxRelevantRecords: limits.relevantCookieRecords)
                 logger?(
                     "\(profileDirectory.lastPathComponent): read \(records.count) MiMo session cookie(s) " +
                         "from \(file.lastPathComponent)")
@@ -492,7 +492,8 @@ enum MiMoFirefoxSessionCookieImporter {
     static func cookieRecords(
         fromJSONData data: Data,
         now: Date = Date(),
-        maxRecords: Int = MiMoFirefoxSessionCookieImporter.maxCookieRecords) throws -> [BrowserCookieRecord]
+        maxRelevantRecords: Int = MiMoFirefoxSessionCookieImporter
+            .maxRelevantCookieRecords) throws -> [BrowserCookieRecord]
     {
         guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             throw ImportError.invalidData("Firefox session restore root is not an object.")
@@ -501,8 +502,8 @@ enum MiMoFirefoxSessionCookieImporter {
         guard let cookies = rawCookies as? [Any] else {
             throw ImportError.invalidData("Firefox session restore cookies are not an array.")
         }
-        guard cookies.count <= maxRecords else {
-            throw ImportError.resourceLimit(.cookieRecords)
+        guard maxRelevantRecords >= 0 else {
+            throw ImportError.resourceLimit(.relevantCookieRecords)
         }
         var records: [BrowserCookieRecord] = []
         for rawCookie in cookies {
@@ -510,6 +511,9 @@ enum MiMoFirefoxSessionCookieImporter {
                 throw ImportError.invalidData("Firefox session restore contains a malformed cookie record.")
             }
             if let record = self.cookieRecord(from: cookie, now: now) {
+                guard records.count < maxRelevantRecords else {
+                    throw ImportError.resourceLimit(.relevantCookieRecords)
+                }
                 records.append(record)
             }
         }

@@ -94,19 +94,51 @@ struct MiMoFirefoxSessionCookieImporterTests {
     }
 
     @Test
-    func `cookie count is bounded before filtering`() throws {
+    func `imports MiMo cookies after irrelevant raw cookie limit`() throws {
+        let (temp, profile, backups) = try self.makeFirefoxProfile()
+        defer { try? FileManager.default.removeItem(at: temp) }
+
+        let irrelevantCookie = #"{"host":"example.com","name":"irrelevant","value":"value"}"#
+        let miMoCookies = [
+            #"{"host":".platform.xiaomimimo.com","name":"api-platform_serviceToken","value":"token"}"#,
+            #"{"host":".xiaomimimo.com","name":"userId","value":"user"}"#,
+            #"{"host":".platform.xiaomimimo.com","name":"api-platform_ph","value":"ph"}"#,
+            #"{"host":".platform.xiaomimimo.com","name":"api-platform_slh","value":"slh"}"#,
+        ]
+        let cookies = Array(repeating: irrelevantCookie, count: 6535) + miMoCookies +
+            Array(repeating: irrelevantCookie, count: 22)
+        #expect(cookies.count == 6561)
+        let json = #"{"cookies":[\#(cookies.joined(separator: ","))]}"#
+        try self.mozillaLZ4LiteralFile(json).write(to: backups.appendingPathComponent("recovery.jsonlz4"))
+
+        let outcome = MiMoFirefoxSessionCookieImporter.load(profileDirectory: profile)
+
+        guard case let .loaded(records) = outcome else {
+            Issue.record("Expected Firefox session restore cookies after irrelevant raw cookies to load")
+            return
+        }
+        #expect(records.map(\.name) == [
+            "api-platform_serviceToken",
+            "userId",
+            "api-platform_ph",
+            "api-platform_slh",
+        ])
+    }
+
+    @Test
+    func `relevant MiMo cookie count is bounded after filtering`() throws {
         let data = Data(#"""
         {"cookies":[
-          {"host":"example.com","name":"irrelevant","value":"one"},
-          {"host":"example.com","name":"irrelevant","value":"two"}
+          {"host":".platform.xiaomimimo.com","name":"api-platform_serviceToken","value":"token"},
+          {"host":".xiaomimimo.com","name":"userId","value":"user"}
         ]}
         """#.utf8)
 
         do {
-            _ = try MiMoFirefoxSessionCookieImporter.cookieRecords(fromJSONData: data, maxRecords: 1)
-            Issue.record("Expected Firefox session restore cookie count to be bounded")
+            _ = try MiMoFirefoxSessionCookieImporter.cookieRecords(fromJSONData: data, maxRelevantRecords: 1)
+            Issue.record("Expected relevant Firefox session restore cookie count to be bounded")
         } catch let error as MiMoFirefoxSessionCookieImporter.ImportError {
-            guard case .resourceLimit = error else {
+            guard case .resourceLimit(.relevantCookieRecords) = error else {
                 Issue.record("Unexpected Firefox session restore error: \(error)")
                 return
             }
@@ -114,27 +146,19 @@ struct MiMoFirefoxSessionCookieImporterTests {
     }
 
     @Test
-    func `mixed cookie array is malformed after applying count bound`() throws {
-        let oversized = Data(#"{"cookies":[1,2]}"#.utf8)
-        let mixed = Data(#"{"cookies":[{"host":"example.com"},1]}"#.utf8)
+    func `malformed cookie entries fail before and after relevant records`() throws {
+        let malformed = Data(#"{"cookies":[1,2]}"#.utf8)
+        let mixed = Data(#"{"cookies":[{"host":".xiaomimimo.com","name":"userId","value":"user"},1]}"#.utf8)
 
-        do {
-            _ = try MiMoFirefoxSessionCookieImporter.cookieRecords(fromJSONData: oversized, maxRecords: 1)
-            Issue.record("Expected mixed Firefox session restore cookie count to be bounded")
-        } catch let error as MiMoFirefoxSessionCookieImporter.ImportError {
-            guard case .resourceLimit = error else {
-                Issue.record("Unexpected Firefox session restore error: \(error)")
-                return
-            }
-        }
-
-        do {
-            _ = try MiMoFirefoxSessionCookieImporter.cookieRecords(fromJSONData: mixed, maxRecords: 2)
-            Issue.record("Expected mixed Firefox session restore cookies to be malformed")
-        } catch let error as MiMoFirefoxSessionCookieImporter.ImportError {
-            guard case .invalidData = error else {
-                Issue.record("Unexpected Firefox session restore error: \(error)")
-                return
+        for data in [malformed, mixed] {
+            do {
+                _ = try MiMoFirefoxSessionCookieImporter.cookieRecords(fromJSONData: data, maxRelevantRecords: 1)
+                Issue.record("Expected malformed Firefox session restore cookies to fail")
+            } catch let error as MiMoFirefoxSessionCookieImporter.ImportError {
+                guard case .invalidData = error else {
+                    Issue.record("Unexpected Firefox session restore error: \(error)")
+                    return
+                }
             }
         }
     }
@@ -150,7 +174,7 @@ struct MiMoFirefoxSessionCookieImporterTests {
 
         let outcome = MiMoFirefoxSessionCookieImporter.load(
             profileDirectory: profile,
-            limits: .init(inputBytes: 4, outputBytes: 1024, cookieRecords: 10))
+            limits: .init(inputBytes: 4, outputBytes: 1024, relevantCookieRecords: 10))
 
         guard case .resourceLimited(.inputBytes) = outcome else {
             Issue.record("Expected the current Firefox input limit to stop backup recovery")
@@ -179,21 +203,26 @@ struct MiMoFirefoxSessionCookieImporterTests {
     }
 
     @Test
-    func `cookie limit stops before older backup`() throws {
+    func `relevant cookie limit stops before older backup`() throws {
         let (temp, profile, backups) = try self.makeFirefoxProfile()
         defer { try? FileManager.default.removeItem(at: temp) }
 
-        try self.mozillaLZ4LiteralFile(#"{"cookies":[1,2]}"#)
-            .write(to: backups.appendingPathComponent("recovery.jsonlz4"))
+        try self.mozillaLZ4LiteralFile(#"""
+        {"cookies":[
+          {"host":".platform.xiaomimimo.com","name":"api-platform_serviceToken","value":"token"},
+          {"host":".xiaomimimo.com","name":"userId","value":"user"}
+        ]}
+        """#)
+        .write(to: backups.appendingPathComponent("recovery.jsonlz4"))
         try self.mozillaLZ4LiteralFile(#"{"cookies":[]}"#)
             .write(to: backups.appendingPathComponent("recovery.baklz4"))
 
         let outcome = MiMoFirefoxSessionCookieImporter.load(
             profileDirectory: profile,
-            limits: .init(inputBytes: 1024, outputBytes: 1024, cookieRecords: 1))
+            limits: .init(inputBytes: 1024, outputBytes: 1024, relevantCookieRecords: 1))
 
-        guard case .resourceLimited(.cookieRecords) = outcome else {
-            Issue.record("Expected the current Firefox cookie limit to stop backup recovery")
+        guard case .resourceLimited(.relevantCookieRecords) = outcome else {
+            Issue.record("Expected the relevant Firefox cookie limit to stop backup recovery")
             return
         }
     }
