@@ -79,5 +79,6 @@ enum ProviderImplementationManifest {
         CodeRabbitProviderImplementation(),
         ReplicateProviderImplementation(),
         HuggingFaceProviderImplementation(),
+        JevProviderImplementation(),
     ]
 }
