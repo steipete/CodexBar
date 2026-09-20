@@ -387,3 +387,83 @@ test('a sub-hour cadence is named in minutes rather than rounded away', () => {
         usage: {primary: {usedPercent: 40, windowMinutes: 45}}}]));
     assert.equal(model.barLabel(rows, 'remaining'), '45M 60%');
 });
+
+test('a cadence the provider summarises resolves across that summary set', () => {
+    // Antigravity names one family per cadence as the positional window and marks every
+    // family in the extras with a quota-summary id, so the tighter family sits there.
+    const rows = model.rows(JSON.stringify([{provider: 'antigravity', usage: {
+        primary: {usedPercent: 90, windowMinutes: 10080},
+        secondary: {usedPercent: 60, windowMinutes: 300},
+        extraRateWindows: [
+            {id: 'antigravity-quota-summary-gemini-5h', title: 'Gemini 5-hour',
+                window: {usedPercent: 80, windowMinutes: 300}},
+            {id: 'antigravity-quota-summary-gemini-weekly', title: 'Gemini weekly',
+                window: {usedPercent: 90, windowMinutes: 10080}},
+            {id: 'antigravity-quota-summary-3p-5h', title: 'Claude/GPT 5-hour',
+                window: {usedPercent: 60, windowMinutes: 300}},
+            {id: 'antigravity-quota-summary-3p-weekly', title: 'Claude/GPT weekly',
+                window: {usedPercent: 50, windowMinutes: 10080}}]}}]));
+    assert.equal(model.barLabel(rows, 'remaining'), '5H 20% · 7D 10%');
+});
+test('a general quota that merely coincides with a scoped cap is not replaced by one', () => {
+    // Claude can report several independently valued scoped caps, and one may land on the
+    // same rounded percentage as the general weekly window. That is a coincidence, not a
+    // statement that the caps summarise the cadence.
+    const rows = model.rows(JSON.stringify([{provider: 'claude', usage: {
+        secondary: {usedPercent: 71, windowMinutes: 10080, resetsAt: '2030-01-02T00:00:00Z'},
+        extraRateWindows: [
+            {id: 'claude-weekly-scoped-opus', title: 'Opus only',
+                window: {usedPercent: 71, windowMinutes: 10080}},
+            {id: 'claude-weekly-scoped-nova', title: 'Nova only',
+                window: {usedPercent: 93, windowMinutes: 10080}}]},
+        pace: {secondary: {deltaPercent: -8}}}]));
+    assert.equal(model.barLabel(rows, 'remaining'), '7D 29% · -8%');
+    assert.equal(model.barLabel(rows, 'remaining', {scopedCaps: true}), '7D 29% · Nova 7% · -8%');
+    assert.equal(model.summary(rows, 'remaining'), 'CL 29%');
+});
+test("a general lane absent from the extras is not replaced by a cap scoped beneath it", () => {
+    // Claude's weekly window has no twin among its per-model caps, so the cap must not take
+    // over the lane the way an Antigravity family representative does.
+    const rows = model.rows(JSON.stringify([{provider: 'claude', usage: {
+        primary: {usedPercent: 2, windowMinutes: 300},
+        secondary: {usedPercent: 71, windowMinutes: 10080},
+        extraRateWindows: [{id: 'f', title: 'Fable only',
+            window: {usedPercent: 93, windowMinutes: 10080}}]}}]));
+    assert.equal(model.barLabel(rows, 'remaining', {scopedCaps: true}), '5H 98% · 7D 29% · Fable 7%');
+});
+test('a window already shown as a cadence headline is not repeated as a scoped cap', () => {
+    const rows = model.rows(JSON.stringify([{provider: 'kimi', usage: {
+        extraRateWindows: [{id: 'kimi-monthly', title: 'Total usage',
+            window: {usedPercent: 80, windowMinutes: 43200}}]}}]));
+    assert.equal(model.barLabel(rows, 'remaining', {scopedCaps: true}), '30D 20%');
+});
+test('the tray summary names the lane the bar leads with, not the tightest subquota', () => {
+    // Cursor bills its total, Auto/Composer and API usage over one cycle.
+    const rows = model.rows(JSON.stringify([{provider: 'cursor', usage: {
+        primary: {usedPercent: 25, windowMinutes: 43200},
+        secondary: {usedPercent: 90, windowMinutes: 43200},
+        tertiary: {usedPercent: 10, windowMinutes: 43200}}}]));
+    assert.equal(model.barLabel(rows, 'remaining'), '30D 75%');
+    assert.equal(model.summary(rows, 'remaining'), 'cursor 75%');
+});
+
+test('the lane bound keeps the tightest pools, so a summary set cannot lose an exhausted one', () => {
+    // Antigravity's parser accepts an unbounded bucket array; an exhausted pool listed last
+    // must not be truncated away before the cadence resolves across the set.
+    const buckets = Array.from({length: 9}, (_, index) => ({
+        id: 'antigravity-quota-summary-m' + index, title: 'M' + index,
+        window: {usedPercent: index === 8 ? 100 : 10, windowMinutes: 300}}));
+    const rows = model.rows(JSON.stringify([{provider: 'antigravity', usage: {
+        primary: {usedPercent: 100, windowMinutes: 300}, extraRateWindows: buckets}}]));
+    assert.equal(model.barLabel(rows, 'remaining'), '5H 0%');
+    assert.equal(model.summary(rows, 'remaining'), 'antigravity 0%');
+    assert.equal(rows[0].windows.filter(window => window.scoped).length, 8, 'bound must still hold');
+});
+
+test('every configured provider reaches the bar rather than collapsing into a count', () => {
+    const rows = model.rows(JSON.stringify(['codex', 'claude', 'gemini', 'copilot', 'cursor'].map(provider => (
+        {provider, usage: {secondary: weekly}}))));
+    const label = model.barLabel(rows, 'remaining');
+    for (const tag of ['CX', 'CL', 'gemini', 'copilot', 'cursor']) assert.ok(label.includes(tag + ' 7D 61%'), tag);
+    assert.ok(!/\+\d/.test(label), 'no overflow count should remain');
+});

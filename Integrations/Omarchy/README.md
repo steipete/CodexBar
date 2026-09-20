@@ -37,6 +37,12 @@ Used or remaining percentages follow the quota preference. A cap scoped to one
 model stays out of the bar unless **Show scoped caps** is enabled, because most
 providers that publish them restate a general lane; the popup always lists them.
 
+Each provider is marked by its own logo, recoloured to the bar's foreground so
+themes still apply. A provider whose logo is not installed keeps a short text tag
+rather than a gap. The installer and the release archive carry the marks beside
+the adapter, and `barEntries` supplies one tag-and-text pair per displayed
+provider; an older backend publishes none and gets the joined label instead.
+
 The widget reads the desktop's private IPC snapshot every five seconds; it never
 runs provider queries itself. If the backend is absent, opening Usage & Spend or
 Settings starts it. Refresh requests one shared backend refresh. Unknown quota

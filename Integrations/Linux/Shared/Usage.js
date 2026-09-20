@@ -40,8 +40,16 @@ function rows(text, showIdentity) {
         });
         // Extras come last: a consumer resolving a cadence by first match must still find the
         // provider's general window rather than a lane scoped to one model.
-        (Array.isArray(usage.extraRateWindows) ? usage.extraRateWindows : [])
-            .filter(measured).slice(0, 8).forEach(function(extra, index) {
+        // The bound exists so a provider-controlled list cannot grow the popup without limit.
+        // Keep the tightest when it bites, rather than whichever arrived first: a lane resolved
+        // from a summary set would otherwise miss an exhausted pool that was simply listed last.
+        var extras = (Array.isArray(usage.extraRateWindows) ? usage.extraRateWindows : []).filter(measured);
+        if (extras.length > 8) {
+            extras = extras.slice().sort(function(a, b) {
+                return remaining(a.window) - remaining(b.window);
+            }).slice(0, 8);
+        }
+        extras.forEach(function(extra, index) {
             var scopedWindow = extra.window;
             // These labels are exported over IPC, whose contract excludes account identity,
             // so a provider-supplied title is redacted whatever the display preference says.
@@ -140,15 +148,22 @@ function costs(text, today) {
     });
 }
 
+// The lane the bar shows first for a provider: its session, else its weekly, else the first
+// cadence it reports for itself.
+function headlineWindow(windows) {
+    var list = windows || [];
+    return sessionWindow(list) || weeklyWindow(list) || otherCadences(list, [])[0] || null;
+}
+
 function providerTag(provider) {
     return provider === "codex" ? "CX" : provider === "claude" ? "CL" : provider;
 }
 
 function summary(entries, mode) {
     var label = entries.slice(0, 2).map(function(entry) {
-        // Report the lane that binds, so the tray tooltip cannot claim a healthy figure for a
-        // provider the bar shows exhausted.
-        var lane = tightest(entry.windows);
+        // Name the lane the bar leads with, so the tooltip cannot report a provider's tightest
+        // subquota as its headline while the bar reports the provider's own quota.
+        var lane = headlineWindow(entry.windows);
         return providerTag(entry.provider) + " " + (lane ? quotaValue(lane.remaining, mode) + "%" : "—");
     }).join("  ·  ");
     return label + (entries.length > 2 ? "  +" + (entries.length - 2) : "");
@@ -165,15 +180,24 @@ function tightest(windows) {
 
 function laneOfCadence(windows, matches) {
     var general = windows.filter(function(item) { return !item.scoped && matches(item); });
-    // Antigravity reports one pool per model family at the same cadence, and Core resolves the
-    // lane to whichever binds hardest. Taking the first would hide an exhausted family behind
-    // an idle one.
+    var scoped = windows.filter(function(item) { return item.scoped && matches(item); });
+    // A provider can mark a set of extras as the summary of a cadence rather than caps beneath
+    // it: Antigravity emits one per model family, ids carrying a quota-summary segment, and its
+    // positional window is only whichever family it chose to represent them. Where the provider
+    // says so, resolve across the summary set, or a tighter family hides behind the
+    // representative. Percentages cannot stand in for that marker: Claude's general weekly can
+    // coincide with one of its per-model caps, and treating that as a summary replaces the
+    // general quota with a cap scoped beneath it.
+    var summarised = scoped.filter(function(item) { return item.key.indexOf("quota-summary") !== -1; });
+    if (summarised.length) return tightest(summarised);
+    // Core resolves a cadence to whichever pool binds hardest; taking the first would hide an
+    // exhausted family behind an idle one.
     if (general.length) return tightest(general);
     // A provider can publish only per-model lanes and no general window of the cadence;
     // Antigravity reports two session windows and no weekly one. Core derives the lane as
     // the most constrained of those, so do the same rather than leaving the cadence blank
     // and letting every per-model lane render in its place.
-    return tightest(windows.filter(function(item) { return item.scoped && matches(item); }));
+    return tightest(scoped);
 }
 
 function sessionWindow(windows) {
@@ -266,13 +290,16 @@ function laneSegments(entry, mode, options) {
     // A provider's own quota can use neither cadence: Cursor bills on a monthly cycle beside a
     // weekly allowance. Every cadence it reports itself gets a lane, so the main quota cannot be
     // dropped, while a second window of a cadence already shown adds nothing.
-    otherCadences(windows, [session, weekly]).forEach(function(item) {
+    var extra = otherCadences(windows, [session, weekly]);
+    extra.forEach(function(item) {
         segments.push((laneLabel(item.minutes) || item.label) + " " + quotaValue(item.remaining, mode) + "%");
     });
+    var rendered = [session, weekly].concat(extra);
     // A scoped cap is named by the provider, not by its cadence, because it usually
     // shares one with the general lane it sits beside.
     windows.forEach(function(item) {
-        if (!settings.scopedCaps || !item.scoped || !bindingScope(item, session, weekly, windows)) return;
+        if (!settings.scopedCaps || !item.scoped || rendered.indexOf(item) !== -1) return;
+        if (!bindingScope(item, session, weekly, windows)) return;
         // The popup keeps the provider's full title; the bar drops the qualifier it
         // appends to distinguish a scoped cap from the general lane next to it.
         segments.push(item.label.replace(/\s+only$/i, "") + " " + quotaValue(item.remaining, mode) + "%");
@@ -287,14 +314,13 @@ function laneSegments(entry, mode, options) {
 
 // Persistent bar label. Absent lanes contribute no text and no separator.
 function barLabel(entries, mode, options) {
-    var shown = entries.slice(0, 2).map(function(entry) {
+    var shown = entries.map(function(entry) {
         var segments = laneSegments(entry, mode, options);
         return {tag: providerTag(entry.provider), text: segments.length ? segments.join(" · ") : "—"};
     });
-    var label = shown.map(function(entry) {
+    return shown.map(function(entry) {
         return (shown.length > 1 ? entry.tag + " " : "") + entry.text;
     }).join("  ·  ");
-    return label + (entries.length > 2 ? "  +" + (entries.length - 2) : "");
 }
 
 function resetLabel(value, now) {
