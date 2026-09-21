@@ -278,8 +278,8 @@ struct DevinSessionImporterTests {
                 value: #"{"body":{"access_token":"\#(otherEnterpriseToken)"}}"#),
         ], to: directory)
 
-        let standardStorage = DevinSessionImporter.readLocalStorage(from: directory)
-        let enterpriseStorage = DevinSessionImporter.readLocalStorage(
+        let standardStorage = try DevinSessionImporter.readLocalStorage(from: directory)
+        let enterpriseStorage = try DevinSessionImporter.readLocalStorage(
             from: directory,
             origin: "https://your-team.devinenterprise.com")
         let standard = try #require(DevinSessionImporter.session(
