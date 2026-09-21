@@ -1022,7 +1022,6 @@
 "Open Augment (Log Out & Back In)" = "Obriu Augment (tanqueu la sessió i torneu a iniciar-la)";
 "Open Codebuff Dashboard" = "Obriu el tauler de Codebuff";
 "Open Command Code Settings" = "Obriu la configuració de Command Code";
-"Open Crof dashboard" = "Obriu el tauler de Crof";
 "Open Manus" = "Obriu Manus";
 "Open MiMo Balance" = "Obriu el saldo de MiMo";
 "Open Moonshot Console" = "Obriu la consola de Moonshot";
@@ -1090,7 +1089,6 @@
 "Stored in ~/.codexbar/config.json. Requires an Anthropic Admin API key." = "Desat a ~/.codexbar/config.json. Requereix una clau Anthropic Admin API.";
 "Stored in ~/.codexbar/config.json. Used for /v1/quota-stats." = "Desat a ~/.codexbar/config.json. S'usa per a /v1/quota-stats.";
 "Stored in ~/.codexbar/config.json. You can also provide CODEBUFF_API_KEY or let CodexBar read ~/.config/manicode/credentials.json (created by `codebuff login`)." = "Desat a ~/.codexbar/config.json. També podeu proporcionar CODEBUFF_API_KEY o deixar que CodexBar llegeixi ~/.config/manicode/credentials.json (creat per `codebuff login`).";
-"Stored in ~/.codexbar/config.json. You can also provide CROF_API_KEY." = "Desat a ~/.codexbar/config.json. També podeu proporcionar CROF_API_KEY.";
 "Stored in ~/.codexbar/config.json. You can also provide KILO_API_KEY or ~/.local/share/kilo/auth.json (kilo.access)." = "Desat a ~/.codexbar/config.json. També podeu proporcionar KILO_API_KEY o ~/.local/share/kilo/auth.json (kilo.access).";
 "T3 Chat cookie" = "Galeta de T3 Chat";
 "Team mode" = "Mode d'equip";
@@ -1619,3 +1617,8 @@
 "section_widgets" = "Ginys";
 "account_widgets_title" = "Mantén els comptes actualitzats per als ginys";
 "account_widgets_description" = "Tria un compte a cada giny Account Usage. Actualitza fins a sis comptes per proveïdor.";
+
+/* Antigravity local cost estimates */
+"antigravity_cost_estimate_hint" = "Ús local × preus públics de l'API · no són càrrecs ni crèdits d'Antigravity";
+"antigravity_quota_window_note" = "El cost de la finestra inclou tots els models · la finestra mostrada és la família més limitada";
+"antigravity_no_priced_token_history" = "No hi ha historial de tokens d'Antigravity amb preu disponible.";

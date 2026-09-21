@@ -177,7 +177,7 @@ struct CodexBarTimelineProvider: AppIntentTimelineProvider {
 struct CodexBarSwitcherTimelineProvider: TimelineProvider {
     func placeholder(in context: Context) -> CodexBarSwitcherEntry {
         let snapshot = WidgetPreviewData.snapshot()
-        let providers = self.availableProviders(from: snapshot)
+        let providers = Self.supportedProviders(from: snapshot)
         return CodexBarSwitcherEntry(
             date: Date(),
             provider: providers.first ?? .codex,
@@ -200,7 +200,7 @@ struct CodexBarSwitcherTimelineProvider: TimelineProvider {
 
     private func makeEntry() -> CodexBarSwitcherEntry {
         let snapshot = WidgetSnapshotStore.load() ?? WidgetPreviewData.emptySnapshot()
-        let providers = self.availableProviders(from: snapshot)
+        let providers = Self.supportedProviders(from: snapshot)
         let stored = WidgetSelectionStore.loadSelectedProvider()
         let selected = providers.first { $0.instanceID == stored } ?? providers.first ?? .codex
         if selected.instanceID != stored {
@@ -211,10 +211,6 @@ struct CodexBarSwitcherTimelineProvider: TimelineProvider {
             provider: selected,
             availableProviders: providers,
             snapshot: snapshot)
-    }
-
-    private func availableProviders(from snapshot: WidgetSnapshot) -> [UsageProvider] {
-        Self.supportedProviders(from: snapshot)
     }
 
     static func supportedProviders(from snapshot: WidgetSnapshot) -> [UsageProvider] {

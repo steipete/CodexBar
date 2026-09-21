@@ -56,7 +56,7 @@ Gotchas fixed:
 - Manual sanity check before uploading: `find CodexBar.app -name '._*'` should return nothing; then `spctl --assess --type execute --verbose CodexBar.app` and `codesign --verify --deep --strict --verbose CodexBar.app` should both pass on the packaged bundle.
 
 ## iCloud sync (CloudKit)
-Release builds embed `Scripts/profiles/CodexBar-DeveloperID.provisionprofile` at `Contents/embedded.provisionprofile` and claim the iCloud entitlements (`Scripts/package_app.sh` does both automatically; it fails hard if the profile file is missing). The profile expires 2044-07-29; Gatekeeper re-validates it at every launch.
+Upstream-team identity-signed release builds embed `Scripts/profiles/CodexBar-DeveloperID.provisionprofile` at `Contents/embedded.provisionprofile` and claim the iCloud entitlements (`Scripts/package_app.sh` does both automatically; it fails hard if the profile file is missing). Packaging derives the team from the selected `APP_IDENTITY`; other teams omit upstream CloudKit resources. `sign-and-notarize.sh` honors that same identity, with required timestamping and hardened runtime. The profile expires 2044-07-29; Gatekeeper re-validates it at every launch.
 
 Schema changes: any new record type or field in `Sources/CodexBar*/Sync/` must be reflected in `Scripts/cloudkit/schema.ckdb` and deployed **before** shipping the build:
 ```

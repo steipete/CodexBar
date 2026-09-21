@@ -348,6 +348,7 @@ struct AntigravityLocalWALTests {
             // The immutable read cannot prove one snapshot once the file changed underneath it.
             #expect(statistics.immutableFallbacks == 1)
             #expect(!source.isComplete)
+            #expect(source.evidenceIsUnstable)
             // The writer has closed, so the next scan sees one stable file with both rows.
             let next = try fixture.report()
             #expect(next.coverage == .complete)
@@ -356,6 +357,7 @@ struct AntigravityLocalWALTests {
             // The ordinary read-only snapshot excludes the coordinated later write, as on any WAL database.
             #expect(statistics.immutableFallbacks == 0)
             #expect(source.isComplete)
+            #expect(!source.evidenceIsUnstable)
             #expect(source.events.count == 1)
         }
     }

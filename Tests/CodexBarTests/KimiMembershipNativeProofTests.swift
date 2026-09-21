@@ -24,7 +24,7 @@ final class KimiMembershipNativeProofTests: XCTestCase {
                     "detail":{"limit":"100","used":"10","remaining":"90"}}]}
         """
         let now = Date(timeIntervalSince1970: 1_788_000_000)
-        let after = try KimiUsageFetcher._parseCodeAPIUsageForTesting(Data(json.utf8), now: now)
+        let after = try KimiUsageFetcher.parseCodeAPIUsage(from: Data(json.utf8), now: now)
         let before = KimiUsageSnapshot(
             weekly: after.weekly,
             rateLimit: after.rateLimit,

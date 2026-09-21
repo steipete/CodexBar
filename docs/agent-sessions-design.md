@@ -1,3 +1,10 @@
+---
+summary: "Agent Sessions discovery, protocol versions, presentation, and privacy boundaries."
+read_when:
+  - Changing local or SSH agent-session discovery
+  - Reviewing Agent Sessions architecture
+---
+
 # Agent Sessions design
 
 CodexBar tracks live Codex, Claude Code, and Pi-family agent sessions locally and over SSH. Discovery is process-backed: a transcript, session file, or terminal breadcrumb by itself is not evidence that a session is live.

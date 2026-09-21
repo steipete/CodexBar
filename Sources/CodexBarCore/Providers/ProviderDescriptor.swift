@@ -121,13 +121,16 @@ public struct ProviderMenuBarMetricCapabilities: Sendable, Equatable {
 
     public let supported: Set<ProviderMenuBarMetric>
     public let tertiaryRequiresWindow: Bool
+    public let namedExtras: [String: String]
 
     public init(
         supported: Set<ProviderMenuBarMetric>,
-        tertiaryRequiresWindow: Bool = false)
+        tertiaryRequiresWindow: Bool = false,
+        namedExtras: [String: String] = [:])
     {
         self.supported = supported
         self.tertiaryRequiresWindow = tertiaryRequiresWindow
+        self.namedExtras = namedExtras
     }
 
     public func supports(_ metric: ProviderMenuBarMetric) -> Bool {

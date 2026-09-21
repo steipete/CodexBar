@@ -10,10 +10,12 @@ struct RemoteCodexCostsTests {
         tokens: Int? = 1500,
         cost: Double? = 0.25,
         complete: Bool = true,
-        days: Int = 30) -> CodexCostSummary
+        days: Int = 30,
+        updatedAt: Date? = nil,
+        timeZone: TimeZone = .gmt) -> CodexCostSummary
     {
         var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = .gmt
+        calendar.timeZone = timeZone
         let entry = CostUsageDailyReport.Entry(
             date: "2026-08-31",
             inputTokens: tokens,
@@ -35,7 +37,7 @@ struct RemoteCodexCostsTests {
             historyCoverageIsEstablished: complete,
             costProvenance: .listPriceEstimate,
             daily: [entry],
-            updatedAt: Self.now), calendar: calendar)
+            updatedAt: updatedAt ?? Self.now), calendar: calendar)
     }
 
     private static func wire(_ summary: CodexCostSummary) throws -> String {
@@ -70,11 +72,37 @@ struct RemoteCodexCostsTests {
         let text = CodexBarCLI.renderHostCostText(.init(host: "local", source: "local", summary: zero))
         #expect(text.contains("$0.00"))
         #expect(text.contains("0 tokens"))
+        #expect(text.contains("Snapshot updated: 2026-08-31T12:00:00Z"))
         let missing = CodexBarCLI.renderHostCostText(.init(
             host: "qa-linux", source: "ssh", summary: Self.summary(tokens: nil, cost: nil, complete: false)))
         #expect(!missing.contains("$0"))
         #expect(missing.contains("Partial history"))
         #expect(missing.contains("3 incomplete requests excluded"))
+        #expect(missing.contains("Snapshot updated: 2026-08-31T12:00:00Z"))
+    }
+
+    @Test
+    func `host text shows each source snapshot timestamp in UTC`() throws {
+        let local = try Self.summary(timeZone: #require(TimeZone(identifier: "America/Los_Angeles")))
+        let remote = try Self.summary(
+            updatedAt: Date(timeIntervalSince1970: 946_684_800),
+            timeZone: #require(TimeZone(identifier: "Asia/Tokyo")))
+        let localText = CodexBarCLI.renderHostCostText(.init(host: "local", source: "local", summary: local))
+        let remoteText = CodexBarCLI.renderHostCostText(.init(host: "qa-linux", source: "ssh", summary: remote))
+
+        #expect(localText.contains("Snapshot updated: 2026-08-31T12:00:00Z"))
+        // A retained source snapshot must not acquire this invocation's time or the other host's time.
+        #expect(remoteText.contains("Snapshot updated: 2000-01-01T00:00:00Z"))
+        #expect(localText.contains("Day boundaries: America/Los_Angeles"))
+        #expect(remoteText.contains("Day boundaries: Asia/Tokyo"))
+    }
+
+    @Test(arguments: ["local", "ssh"])
+    func `failed host text does not invent a snapshot timestamp`(source: String) {
+        let text = CodexBarCLI.renderHostCostText(.init(
+            host: "qa-linux", source: source, summary: nil, error: "Fixture unavailable."))
+        let title = source == "local" ? "This machine" : "qa-linux"
+        #expect(text == "\(title): Fixture unavailable.")
     }
 
     @Test(arguments: ["", "-oProxyCommand=bad", "user@host other", "host,other", "host\nother", "host'", "host;bad"])
@@ -204,6 +232,8 @@ struct RemoteCodexCostsTests {
             host: "local", source: "local", summary: Self.summary(days: 1)))
         #expect(text.components(separatedBy: "Today:").count == 2)
         #expect(!text.contains("Last 1 days"))
+        #expect(text.components(separatedBy: "Snapshot updated:").count == 2)
+        #expect(text.contains("Snapshot updated: 2026-08-31T12:00:00Z"))
     }
 
     @Test

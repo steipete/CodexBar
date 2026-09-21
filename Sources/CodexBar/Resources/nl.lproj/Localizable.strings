@@ -1168,7 +1168,6 @@
 "Open Augment (Log Out & Back In)" = "Augment openen (uitloggen en weer inloggen)";
 "Open Codebuff Dashboard" = "Open het Codebuff-dashboard";
 "Open Command Code Settings" = "Open de opdrachtcode-instellingen";
-"Open Crof dashboard" = "Open het Crof-dashboard";
 "Open Manus" = "Manus openen";
 "Open MiMo Balance" = "Open MiMo-saldo";
 "Open Moonshot Console" = "Open de Moonshot-console";
@@ -1236,7 +1235,6 @@
 "Stored in ~/.codexbar/config.json. Requires an Anthropic Admin API key." = "Opgeslagen in ~/.codexbar/config.json. Vereist een Anthropic Admin API-sleutel.";
 "Stored in ~/.codexbar/config.json. Used for /v1/quota-stats." = "Opgeslagen in ~/.codexbar/config.json. Gebruikt voor /v1/quota-stats.";
 "Stored in ~/.codexbar/config.json. You can also provide CODEBUFF_API_KEY or let CodexBar read ~/.config/manicode/credentials.json (created by `codebuff login`)." = "Opgeslagen in ~/.codexbar/config.json. Je kunt ook CODEBUFF_API_KEY opgeven of CodexBar ~/.config/manicode/credentials.json laten lezen (gemaakt door `codebuff login`).";
-"Stored in ~/.codexbar/config.json. You can also provide CROF_API_KEY." = "Opgeslagen in ~/.codexbar/config.json. U kunt ook CROF_API_KEY opgeven.";
 "Stored in ~/.codexbar/config.json. You can also provide KILO_API_KEY or ~/.local/share/kilo/auth.json (kilo.access)." = "Opgeslagen in ~/.codexbar/config.json. U kunt ook KILO_API_KEY of ~/.local/share/kilo/auth.json (kilo.access) opgeven.";
 "T3 Chat cookie" = "T3 Chat-cookie";
 "Team mode" = "Teammodus";
@@ -1616,3 +1614,8 @@
 "section_widgets" = "Widgets";
 "account_widgets_title" = "Accounts voor widgets actueel houden";
 "account_widgets_description" = "Kies een account in elke Account Usage-widget. Werkt maximaal zes accounts per aanbieder bij.";
+
+/* Antigravity local cost estimates */
+"antigravity_cost_estimate_hint" = "Lokaal gebruik × publieke API-prijzen · geen Antigravity-kosten of -tegoeden";
+"antigravity_quota_window_note" = "Vensterkosten omvatten alle modellen · getoond venster is de meest beperkte familie";
+"antigravity_no_priced_token_history" = "Geen geprijsde Antigravity-tokengeschiedenis beschikbaar.";

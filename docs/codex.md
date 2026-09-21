@@ -247,6 +247,14 @@ the local result and returns a nonzero exit code. See [CLI host reporting](cli.m
     they contain delivery markers or the file ends before child-owned history arrives. Later appends count only
     the child's own deltas. Older per-file parser revisions refresh through the normal scan budget while stored
     history and checkpoints remain available.
+  - Compact forks with an opening cumulative snapshot and zero input/cached/output `last_token_usage`
+    components treat that snapshot as inherited, even when the parent file is unavailable. At the first owned
+    event, component-wise `total_token_usage - last_token_usage` establishes the baseline when available;
+    it need not exactly match an earlier inherited snapshot. Later cumulative deltas retain replay deduplication.
+    Unchanged snapshots remain inherited. A nondecreasing snapshot whose `last` repeats the cumulative
+    usage is also inherited when a nonzero baseline is known; equality alone cannot establish a reset.
+    Zero baselines and counter decreases preserve fresh child counters. The aggregate `total_tokens`
+    field does not override the component counters.
   - Paginated continuation files count only their own suffix when `history_base.thread_id` identifies a previous
     page rather than the original fork ancestor. Bounded scans retain the resolved fork baseline across restarts
     and revalidate its parent before resuming. Cross-file request identity includes the timestamp so restarted

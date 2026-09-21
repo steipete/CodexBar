@@ -73,6 +73,152 @@ struct SpendDashboardPartialCostTests {
     }
 
     @Test
+    func `Antigravity day with unpriced requests keeps its spend but marks it partial`() throws {
+        // The reader sums the priced models into the day's cost, so the total stays available;
+        // the unpriced requests make it a floor, which the UI must show as `~`.
+        let entry = CostUsageDailyReport.Entry(
+            date: "2026-07-15",
+            inputTokens: nil,
+            outputTokens: nil,
+            totalTokens: 100,
+            costUSD: 2,
+            modelsUsed: nil,
+            modelBreakdowns: [
+                .init(modelName: "gemini-3.8-flash", costUSD: 2, totalTokens: 60),
+                .init(modelName: "unknown", costUSD: nil, totalTokens: 40),
+            ],
+            unpricedRequestCount: 1,
+            estimatedRequestCount: 1)
+        let snapshot = Self.snapshot(
+            entries: [entry],
+            last30DaysTokens: 100,
+            last30DaysCostUSD: 2,
+            costProvenance: .listPriceEstimate)
+        let group = try Self.group(inputs: [
+            .init(provider: .antigravity, displayName: "Antigravity", snapshot: snapshot),
+        ])
+
+        #expect(group.totalCost == 2)
+        #expect(group.dailyPoints.map(\.cost) == [2])
+        #expect(group.hasPartialCost)
+        #expect(group.hasUnpricedProviders == false)
+        #expect(group.models.map(\.modelName) == ["gemini-3.8-flash", "unknown"])
+        #expect(group.models.first?.totalCost == 2)
+        #expect(group.models.last?.totalCost == nil)
+    }
+
+    @Test
+    func `a truncated Antigravity scan marks cost and tokens as lower bounds`() throws {
+        let entry = CostUsageDailyReport.Entry(
+            date: "2026-07-15",
+            inputTokens: nil,
+            outputTokens: nil,
+            totalTokens: 100,
+            costUSD: 2,
+            modelsUsed: nil,
+            modelBreakdowns: [.init(modelName: "gemini-3.8-flash", costUSD: 2, totalTokens: 100)],
+            unpricedRequestCount: 0,
+            estimatedRequestCount: 1)
+        // What a truncated local scan really produces: rows, but no claim over the window.
+        let snapshot = Self.snapshot(
+            entries: [entry],
+            historyCoverageIsEstablished: false,
+            last30DaysTokens: 100,
+            last30DaysCostUSD: 2,
+            costProvenance: .listPriceEstimate,
+            historyScanIsPartial: true)
+        let group = try Self.group(inputs: [
+            .init(provider: .antigravity, displayName: "Antigravity", snapshot: snapshot),
+        ])
+
+        #expect(group.totalCost == 2)
+        #expect(group.totalTokens == 100)
+        #expect(group.hasPartialCost)
+        #expect(group.hasPartialTokens)
+        #expect(group.dailySummaries.contains { $0.hasPartialCost })
+        #expect(group.dailySummaries.contains { !$0.hasPartialCost } == false)
+    }
+
+    @Test
+    func `a partial Antigravity scan retains its priced subtotal beside an unpriced day`() throws {
+        let priced = Self.entry(day: "2026-07-15", cost: 2, tokens: 60, model: "gemini-3.8-flash")
+        let unpriced = CostUsageDailyReport.Entry(
+            date: "2026-07-16",
+            inputTokens: nil,
+            outputTokens: nil,
+            totalTokens: 40,
+            costUSD: nil,
+            modelsUsed: nil,
+            modelBreakdowns: [.init(modelName: "unknown", costUSD: nil, totalTokens: 40)],
+            unpricedRequestCount: 1,
+            estimatedRequestCount: 1)
+        let snapshot = Self.snapshot(
+            entries: [priced, unpriced],
+            historyCoverageIsEstablished: false,
+            last30DaysTokens: 100,
+            last30DaysCostUSD: 2,
+            costProvenance: .listPriceEstimate,
+            historyScanIsPartial: true)
+
+        let group = try Self.group(inputs: [
+            .init(provider: .antigravity, displayName: "Antigravity", snapshot: snapshot),
+        ])
+
+        #expect(group.totalCost == 2)
+        #expect(group.hasPartialCost)
+        #expect(group.dailyPoints.map(\.cost) == [2])
+    }
+
+    @Test
+    func `a partial scan does not render an unread gap as zero tokens`() throws {
+        let snapshot = Self.snapshot(
+            entries: [
+                Self.entry(day: "2026-07-14", cost: 2, tokens: 60, model: "gemini-3.8-flash"),
+                Self.entry(day: "2026-07-16", cost: 1, tokens: 40, model: "gemini-3.8-flash"),
+            ],
+            historyCoverageIsEstablished: false,
+            last30DaysTokens: 100,
+            last30DaysCostUSD: 3,
+            costProvenance: .listPriceEstimate,
+            historyScanIsPartial: true,
+            historyDays: 3)
+
+        let group = try Self.group(inputs: [
+            .init(provider: .antigravity, displayName: "Antigravity", snapshot: snapshot),
+        ])
+
+        let missingDay = try #require(group.dailySummaries.first { $0.totalTokens == nil })
+        #expect(missingDay.totalTokens == nil)
+        #expect(missingDay.providers.first?.totalTokens == nil)
+    }
+
+    @Test
+    func `a complete Antigravity scan without unpriced requests reports an exact total`() throws {
+        let entry = CostUsageDailyReport.Entry(
+            date: "2026-07-15",
+            inputTokens: nil,
+            outputTokens: nil,
+            totalTokens: 100,
+            costUSD: 2,
+            modelsUsed: nil,
+            modelBreakdowns: [.init(modelName: "gemini-3.8-flash", costUSD: 2, totalTokens: 100)],
+            unpricedRequestCount: 0,
+            estimatedRequestCount: 1)
+        let snapshot = Self.snapshot(
+            entries: [entry],
+            last30DaysTokens: 100,
+            last30DaysCostUSD: 2,
+            costProvenance: .listPriceEstimate)
+        let group = try Self.group(inputs: [
+            .init(provider: .antigravity, displayName: "Antigravity", snapshot: snapshot),
+        ])
+
+        #expect(group.totalCost == 2)
+        #expect(group.hasPartialCost == false)
+        #expect(group.hasPartialTokens == false)
+    }
+
+    @Test
     func `unestablished Cursor history with an unresolved day keeps spend unavailable`() throws {
         let snapshot = Self.snapshot(
             entries: [
@@ -396,15 +542,20 @@ struct SpendDashboardPartialCostTests {
         entries: [CostUsageDailyReport.Entry],
         historyCoverageIsEstablished: Bool = true,
         last30DaysTokens: Int?,
-        last30DaysCostUSD: Double?) -> CostUsageTokenSnapshot
+        last30DaysCostUSD: Double?,
+        costProvenance: CostProvenance = .unknown,
+        historyScanIsPartial: Bool = false,
+        historyDays: Int = 2) -> CostUsageTokenSnapshot
     {
         CostUsageTokenSnapshot(
             sessionTokens: nil,
             sessionCostUSD: nil,
             last30DaysTokens: last30DaysTokens,
             last30DaysCostUSD: last30DaysCostUSD,
-            historyDays: 2,
+            historyDays: historyDays,
             historyCoverageIsEstablished: historyCoverageIsEstablished,
+            historyScanIsPartial: historyScanIsPartial,
+            costProvenance: costProvenance,
             daily: entries,
             updatedAt: self.now)
     }

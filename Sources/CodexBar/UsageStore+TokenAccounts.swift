@@ -31,6 +31,7 @@ struct TokenAccountUsageSnapshot: Identifiable {
 extension UsageStore {
     func activateCachedTokenAccountSnapshot(provider: UsageProvider, accountID: UUID) {
         guard self.settings.effectiveSelectedTokenAccount(for: provider)?.id == accountID else { return }
+        self.invalidateGenericWidgetUsage(for: provider)
         self.tokenAccountLiveStateProviders.insert(provider.instanceID)
         guard let account = self.uniqueTokenAccount(provider: provider, accountID: accountID),
               let cached = self.accountSnapshots[provider.instanceID]?.first(where: {
@@ -124,6 +125,7 @@ extension UsageStore {
     }
 
     private func clearTokenAccountLiveSnapshot(provider: UsageProvider) {
+        self.invalidateGenericWidgetUsage(for: provider)
         self.snapshots.removeValue(forKey: provider.instanceID)
         self.resetProviderDerivedTokenSnapshot(for: provider)
         self.errors.removeValue(forKey: provider.instanceID)
@@ -1299,6 +1301,7 @@ extension UsageStore {
             .shouldSurfaceError(onFailureWithPriorData: hadPriorData) ?? true
         self.errors[provider.instanceID] = shouldSurface ? message : nil
         if shouldSurface, snapshot == nil {
+            self.invalidateGenericWidgetUsage(for: provider)
             self.snapshots.removeValue(forKey: provider.instanceID)
             self.clearProviderDerivedTokenSnapshot(for: provider)
         }

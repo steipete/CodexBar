@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+@testable import CodexBar
 @testable import CodexBarCore
 
 struct GrokAccountContextTests {
@@ -263,6 +264,69 @@ struct GrokAccountContextTests {
             urlCancellation ? (error as? URLError)?.code == .cancelled : error is CancellationError
         }
         #expect(calls.value == (stage == "proxy" ? ["proxy"] : ["proxy", stage]))
+    }
+
+    @Test
+    func `missing RPC billing retains local tokens through the proxy fallback`() async throws {
+        let fixture = try GrokAccountFixture()
+        defer { fixture.remove() }
+        try fixture.write(account: "a")
+        let context = fixture.context(sourceMode: .auto)
+        let binary = try #require(context.env["GROK_CLI_PATH"])
+        let script = """
+        #!/bin/sh
+        if [ "$1" = "--version" ]; then
+            printf '%s\\n' 'grok synthetic-version'
+            exit 0
+        fi
+        IFS= read -r initialize_request
+        printf '%s\\n' '{"jsonrpc":"2.0","id":1,"result":{}}'
+        IFS= read -r billing_request || exit 0
+        printf '%s\\n' '{"jsonrpc":"2.0","id":2,"error":{"code":-32601,"message":"Method not found"}}'
+        """
+        try script.write(toFile: binary, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: binary)
+        let session = fixture.home.appendingPathComponent("sessions/project/session", isDirectory: true)
+        try FileManager.default.createDirectory(at: session, withIntermediateDirectories: true)
+        try Data("""
+        {"totalTokensBeforeCompaction":40,"contextTokensUsed":2,"primaryModelId":"example-model"}
+        """.utf8).write(to: session.appendingPathComponent("signals.json"))
+        var web = GrokWebFetchStrategy()
+        web.remainingResetsLookup = { _, _, _ in .empty }
+        let oauth = GrokOAuthFetchStrategy(
+            proxyBilling: { _ in GrokWebBillingSnapshot(usedPercent: 37, resetsAt: nil) },
+            grpcBilling: { _ in
+                Issue.record("Known proxy usage does not need gRPC enrichment")
+                throw GrokWebBillingError.invalidResponse
+            },
+            webStrategy: web,
+            settingsTier: { _ in nil })
+        let pipeline = ProviderFetchPipeline(resolveStrategies: { _ in [GrokCLIFetchStrategy(), oauth] })
+        let outcome = await pipeline.fetch(context: context, provider: .grok)
+        let result = try outcome.result.get()
+
+        #expect(outcome.attempts.count == 2)
+        #expect(outcome.attempts.first?.wasAvailable == true)
+        #expect(outcome.attempts.first?.errorDescription?.contains("Method not found") == true)
+        #expect(result.sourceLabel == "grok-cli-proxy")
+        #expect(result.usage.primary?.usedPercent == 37)
+        let history = try #require(result.usage.costUsage)
+        #expect(history.last30DaysTokens == 42)
+        #expect(history.daily.map(\.totalTokens) == [42])
+        #expect(history.last30DaysCostUSD == nil)
+        #expect(history.costProvenance == .unknown)
+        let model = SpendDashboardModel.build(
+            inputs: [.init(provider: .grok, displayName: "Grok", snapshot: history)],
+            requestedDays: 30,
+            now: history.updatedAt)
+        let shared = try #require(ShareStatsBuilder.make(model: model))
+        #expect(shared.providers.map(\.provider) == [.grok])
+        #expect(shared.providers.first?.totalTokens == 42)
+        #expect(shared.providers.first?.estimatedCost == nil)
+        // Usage JSON intentionally omits live-only history; its absence is not evidence of lost app data.
+        let data = try JSONEncoder().encode(result.usage)
+        let json = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        #expect(json["costUsage"] == nil)
     }
 
     private static func expectAccountA(_ credentials: GrokCredentials?) {

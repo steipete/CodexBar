@@ -2,21 +2,66 @@
 
 ## 0.63.1 — Unreleased
 
+### Highlights
+
+- **Three new providers:** track Helmcode quotas and prepaid balances, v0 billing and rate limits, and TypeSafe spending and credits.
+- **Two providers in one icon:** stack your chosen providers in a single menu-bar icon, with automatic or explicit row choices.
+- **Clearer Usage & Spend:** browse sources and models by provider, use simpler chart controls, and follow Antigravity's local cost estimates.
+- **More reliable cost history:** correct inherited Codex fork totals, reduce repeated history scans, and prevent crashes from oversized history.
+- **Smoother provider recovery:** restore OpenCode Console quotas and prepaid balances, improve Claude account switching, and make credential recovery more reliable after app updates.
+
 ### Added
 
+- Hugging Face: show prepaid Credits from an eligible browser session only when its user ID matches the API token account; keep API-only refreshes free of cookie access (#3399). Thanks @sambokai!
+- Helmcode: track Cloud and NaN Builders model quotas, rolling reset windows, and Cloud prepaid balances through a bundled provider plugin (#3422). Thanks @luisgonzaleznf!
+- Cursor: pin Grok Bot usage with the “Grok Bot %” menu-bar layout token, hiding it when the allowance is unavailable and preserving reset selections when downgrading (#3712, fixes #3309). Thanks @yicone!
+- Currency: add Turkish lira (TRY) to the preferred-currency picker and cost conversions, with live exchange rates and an offline fallback (#3624). Thanks @aguvener!
 - Menu bar: show two providers in a stacked merged icon, using each provider's first layout line, with automatic or explicit row choices and consistent refreshes when either provider changes (#3628, #3596). Thanks @ysyyork!
+- Antigravity: estimate local history costs at public API prices, retain unknown and partial usage honestly, preserve complete history across partial refreshes, and keep routine local reads independent of pricing downloads (#3757). Thanks @Niclassslua!
+- v0: track Platform API billing and rate limits with an API key and optional project scope through a bundled JavaScript provider; preserve unknown balances without inventing quota or dollar amounts (#3751). Thanks @jeffloo886!
+- TypeSafe: show console billing spend and credit balances through a bundled JavaScript provider, with scoped Chrome/manual cookies, bounded credit details, and actionable session errors (#3756). Thanks @jangisaac-dev!
 
 ### Fixed
 
-- Claude/Vertex costs: prevent crashes from oversized local history values, preserving valid token components and finite spend when an aggregate exceeds the cache's numeric range; preserve retained Codex history during the upgrade.
+- Widgets: retain eligible last-known measurements at their original age when a failed refresh leaves every provider entry empty, while respecting provider and account invalidation (#3500). Thanks @jaxleezhang!
+- Menu bar: assign stable item names before normal sizing and clear saved positions beyond the widest attached display on creation, including visibility recovery (#3355, #3201).
+- Kimi: select China or International regions for usage, cookies, and dashboard links, while preventing unscoped CLI credentials from crossing hosts (#3752). Thanks @LPFchan!
+- Crof: remove the provider after the service shut down; existing config entries are ignored on read and removed on the next save (#3657). Thanks @baanish!
+- Grok: send a nonempty billing request while preserving legacy monthly usage and leaving unknown percentages unchanged (#3336). Thanks @CharlieLZ!
+- Claude: recover expired default-profile OAuth credentials from an already-observed live Keychain token, preserving existing consent, prompt policy, and cooldown checks (#3390).
+- Codex costs: exclude inherited fork totals when the first owned counters differ from the copied baseline or the parent history is unavailable, and reparse older cached files (#3524). Thanks @vnnkl!
+- Muse Code: name Disable Keychain access when it blocks a Keychain-only login, and preserve plan and identity when an active subscription response omits quota windows (#3772). Thanks @oldcai!
+- Claude: bound the ambient refresh wait after claude-swap account activation, keeping switches serialized through adapter reconciliation without leaving account chips stuck (#3750, #3736). Thanks @keepitmello!
+- Provider plugins: keep multi-domain browser sessions isolated and evict only the rejected session without erasing newer cookies; expose cookie availability without reading credentials and block cookie resolution in API-only mode (#3422).
+
+- CLI: show each host's source snapshot timestamp in SSH cost text reports, making stale remote totals visible without changing JSON output (#3765). Thanks @A-l-an!
+- Packaging: derive app/widget Team IDs from the selected signing identity, reject ambiguous or mismatched identities, and honor the same identity during notarized packaging without weakening widget or signature checks; use Developer ID or ad-hoc signing for local builds (#3372). Thanks @krazybean!
+- Claude/Vertex costs: prevent crashes from oversized local history values, preserving valid token components and finite spend when an aggregate exceeds the cache's numeric range; preserve retained Codex history during the upgrade (#3793).
 - Linux quotas: show measured provider-specific windows, omit synthetic or unmeasured quota, and keep scoped identities private in IPC without colliding with notification state (#3785). Thanks @jsonMartin!
-- Claude/Vertex costs: isolate menu and Usage & Spend scan caches, avoiding repeated full rescans and preserving window-specific duplicate totals after upgrades (#3769). Thanks @postoso!
+- Claude/Vertex costs: isolate menu and Usage & Spend scan caches, avoiding repeated full rescans and preserving window-specific duplicate totals after upgrades (#3792, #3769). Thanks @postoso!
+- Devin: distinguish unreadable Chrome session storage from missing sessions and rejected tokens, and document exactly how to find and paste manual credentials (#3660, #3781). Thanks @dzienisz!
 - Linux installation: preserve managed configuration symlinks and UTF-8 glyphs across reinstalls, and recover dangling Omarchy adapter links (#3784). Thanks @jsonMartin!
+- Keychain: rebuild CodexBar-owned caches from fresh credentials after an app update invalidates their ACL, with bounded retries; honor Claude's user-action-only prompt policy for the experimental security reader (#3249, #3798).
+- Sharing: preserve complete providers' model breakdowns when another source in the same currency is unpriced or incomplete, and label omitted history as partial on cards and copied text (#3714, #3747). Thanks @Chipagosfinest!
+- Claude: preserve verified account quota-threshold warning history through temporary identity gaps and OAuth/CLI fallback, and retain warnings in a stable fallback scope while OAuth/CLI account identity is unresolved (#3450). Thanks @JonLaliberte!
 - Linux packaging: include executable contents when the selected binary is a symlink, keeping archives self-contained (#3784).
+- OpenCode Go: restore migrated Console quota windows and prepaid Zen balances, preserve independent legacy sessions, and keep missing reset times unknown instead of reporting expired credentials or immediate resets (#3796, fixes #3783). Thanks @kays0x and @NOIPJohnny!
+- Kimi: honor Manual cookie source even when the token is empty or invalid, preventing automatic Desktop or browser credential discovery (#3536, #3537). Thanks @OttoPrua!
 
 ### Improved
 
+- LiteLLM: run budget fetching through the bundled plugin while preserving private-network proxies, key-bound identities, team budgets, and spend-only accounts.
+- LLM Proxy: run quota fetching through the bundled plugin while preserving self-hosted origins, aggregate usage, and provider summaries.
+- Documentation: link every registered provider from the README and provider index, add ClinePass and OpenCode Go guides, and distinguish historical fork notes from current setup instructions.
+- Updates: add manual checks to the status menu, show the running version in About and General, and retain the About version row when updates are unavailable (#3695). Thanks @Chipagosfinest!
+- Status: rotate group disclosure chevrons smoothly while keeping menu height changes immediate (#3745). Thanks @elijahfriedman!
+- Settings: remove the redundant provider accent swatch; the color picker continues to show the selected color (#3721). Thanks @elijahfriedman!
 - Usage & Spend: group sources and models by provider, consolidate detail and daily/hourly chart selectors, and add a clear selected-day control while preserving incomplete-history warnings, local-history labels, calendar boundaries, privacy, and exports (#3353). Thanks @Yuxin-Qiao!
+- ElevenLabs: move subscription fetching into the bundled JavaScript plugin on macOS and Linux, preserving credit and voice-slot windows, reset dates, endpoint overrides, and API-key diagnostics while removing the native fetch/parser twin.
+
+### Development
+
+- Tests: require explicit Keychain access consent before the live Claude PTY test can launch either its usage probe or diagnostic subprocess, preventing a feature flag alone from bypassing routine test isolation (#2562).
 
 ## 0.63.0 — 2026-09-20
 

@@ -153,7 +153,11 @@ extension UsageMenuCardView.Model {
     }
 
     static func showsQuotaWeekCost(for provider: UsageProvider) -> Bool {
-        ProviderDescriptorRegistry.descriptor(for: provider).presentation.menuCard.showsQuotaWeekCost
+        self.menuCardPresentation(for: provider).showsQuotaWeekCost
+    }
+
+    static func menuCardPresentation(for provider: UsageProvider) -> ProviderMenuCardPresentation {
+        ProviderDescriptorRegistry.descriptor(for: provider).presentation.menuCard
     }
 
     private static func weeklyQuotaWindow(from input: Input) -> RateWindow? {
@@ -178,8 +182,14 @@ extension UsageMenuCardView.Model {
         convertedString: (Double) -> String) -> CostHistoryQuotaPresentation
     {
         let weeklyWindow = Self.weeklyQuotaWindow(from: input)
-        var observations = input.observedWeeklyResets
-        if let resetAt = CostUsageTokenSnapshot.quotaWeekReset(from: weeklyWindow),
+        // A provider whose surfaced reset is not one stable account-wide quota cannot derive past
+        // boundaries from observed resets: those instants belong to different quotas. Nominal
+        // weekly strides from the live reset remain correct, so only the observations are dropped.
+        let ignoresObservedResets = Self.menuCardPresentation(for: input.provider)
+            .ignoresObservedQuotaResetBoundaries
+        var observations = ignoresObservedResets ? [] : input.observedWeeklyResets
+        if !ignoresObservedResets,
+           let resetAt = CostUsageTokenSnapshot.quotaWeekReset(from: weeklyWindow),
            let capturedAt = input.snapshot?.updatedAt
         {
             observations.append(.init(capturedAt: capturedAt, resetsAt: resetAt))
@@ -188,7 +198,8 @@ extension UsageMenuCardView.Model {
             ? snapshot.quotaWeekSummaries(
                 resetAt: CostUsageTokenSnapshot.quotaWeekReset(from: weeklyWindow),
                 windowMinutes: weeklyWindow?.windowMinutes,
-                observedResetInstants: Self.redeemedWeeklyResetInstants(from: input.snapshot),
+                observedResetInstants: ignoresObservedResets
+                    ? [] : Self.redeemedWeeklyResetInstants(from: input.snapshot),
                 resetObservations: observations,
                 now: input.now,
                 calendar: input.costUsageBucketCalendar)
@@ -220,6 +231,7 @@ extension UsageMenuCardView.Model {
         displayCurrencyCode: String) -> [String]
     {
         let incompleteCount = CostUsageIncompleteRequests.sum(snapshot.daily.map(\.incompleteRequestCount))
+        let unpricedCount = snapshot.daily.reduce(0) { $0 + max(0, $1.unpricedRequestCount ?? 0) }
         var details: [String] = []
         if input.costComparisonPeriodsEnabled {
             details.append(contentsOf: snapshot.comparisonSummaries(calendar: input.costUsageBucketCalendar).map {
@@ -229,6 +241,8 @@ extension UsageMenuCardView.Model {
                     sourceCurrencyCode: snapshot.currencyCode)
             })
         }
+        if let coverage = Self.tokenHistoryCoverageHint(snapshot) { details.append(coverage) }
+        if unpricedCount > 0 { details.append("\(L("Partial estimate")) · \(L("Unpriced")) \(unpricedCount)") }
         if let note = UsageFormatter.incompleteUsageNote(incompleteCount) { details.append(note) }
         if let topModel = Self.topCostModel(from: snapshot.daily) {
             details.append("\(L("Top model")): \(Self.shortModelName(topModel))")
@@ -340,11 +354,14 @@ extension UsageMenuCardView.Model {
         let weekCostTitle = quota.boundariesAreEstimated ? L("Estimated: %@", L("Current window")) : L("Current window")
         let rawTokenTitle = L("%@ tokens", L("Current window"))
         let weekTokenTitle = quota.boundariesAreEstimated ? L("Estimated: %@", rawTokenTitle) : rawTokenTitle
-        let details = Self.costHistoryDetailLines(
+        var details = Self.costHistoryDetailLines(
             input: input,
             snapshot: snapshot,
             requestHistoryTitle: requestHistoryTitle,
             displayCurrencyCode: displayCurrencyCode)
+        if !quota.rows.isEmpty, let note = menuCardPresentation(for: input.provider).quotaWindowNote {
+            details.append(L(note))
+        }
         let providerName = ProviderDefaults.metadata[input.provider]?.displayName ?? input.provider.rawValue
         let accessibilityLabel = L(
             "%@: %@",
@@ -607,8 +624,8 @@ extension UsageMenuCardView.Model {
             // A missing date is zero only after the scan has covered the requested history.
             return (
                 date: dayKey,
-                costUSD: snapshot.historyCoverageIsEstablished ? 0 : nil,
-                totalTokens: snapshot.historyCoverageIsEstablished ? 0 : nil,
+                costUSD: snapshot.historyIsFullyScanned ? 0 : nil,
+                totalTokens: snapshot.historyIsFullyScanned ? 0 : nil,
                 incompleteRequestCount: 0)
         }
     }

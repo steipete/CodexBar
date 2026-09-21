@@ -324,7 +324,7 @@ extension UsageMenuCardView.Model {
     }
 
     static func tokenHistoryCoverageHint(_ snapshot: CostUsageTokenSnapshot) -> String? {
-        guard !snapshot.historyCoverageIsEstablished else { return nil }
+        guard !snapshot.historyIsFullyScanned else { return nil }
         return snapshot.last30DaysTokens != nil || snapshot.sessionTokens != nil
             ? L("Partial local history · recorded token subtotal")
             : L("Local token history is unavailable or incomplete.")

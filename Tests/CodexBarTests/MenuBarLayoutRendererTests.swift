@@ -96,6 +96,109 @@ struct MenuBarLayoutRendererTests {
     }
 
     @Test
+    func `Cursor Grok Bot extra percentage renders independently`() {
+        let renderer = MenuBarLayoutRenderer()
+        let output = renderer.render(
+            layout: MenuBarLayout(lines: [[
+                .lanePercent(lane: .primary),
+                .lanePercent(lane: .secondary),
+                .lanePercent(lane: .tertiary),
+                .extraPercent(id: "cursor-grok-bot"),
+            ]]),
+            data: self.data(
+                provider: .cursor,
+                extraRateWindows: [MenuBarLayoutRenderExtra(NamedRateWindow(
+                    id: "cursor-grok-bot",
+                    title: "Grok Bot",
+                    window: RateWindow(usedPercent: 42, windowMinutes: nil, resetsAt: nil, resetDescription: nil)))]),
+            icon: nil,
+            options: self.options())
+
+        #expect(output.attributedTitle.string == "10%\u{2009}9%\u{2009}17%\u{2009}42%")
+        #expect(output.accessibilityLabel == "Total 10%, Cursor 9%, Third Party 17%, Grok Bot 42%")
+    }
+
+    @Test
+    func `missing Grok Bot extra percentage keeps sibling tokens visible`() {
+        let renderer = MenuBarLayoutRenderer()
+        let output = renderer.render(
+            layout: MenuBarLayout(lines: [[.lanePercent(lane: .primary), .extraPercent(id: "cursor-grok-bot")]]),
+            data: self.data(provider: .cursor),
+            icon: nil,
+            options: self.options())
+
+        #expect(output.attributedTitle.string == "10%")
+        #expect(output.accessibilityLabel == "Total 10%")
+    }
+
+    @Test
+    func `Grok Bot respects remaining mode provider ownership and cache refresh`() {
+        let renderer = MenuBarLayoutRenderer()
+        let layout = MenuBarLayout(lines: [[.lanePercent(lane: .primary)], [.extraPercent(id: "cursor-grok-bot")]])
+        for used in [42.0, 43.0] {
+            let extra = MenuBarLayoutRenderExtra(NamedRateWindow(
+                id: "cursor-grok-bot",
+                title: "Grok Bot",
+                window: RateWindow(usedPercent: used, windowMinutes: nil, resetsAt: nil, resetDescription: nil)))
+            let output = renderer.render(
+                layout: layout,
+                data: self.data(provider: .cursor, extraRateWindows: [extra]),
+                icon: nil,
+                options: self.options(showUsed: false))
+            #expect(output.attributedTitle.string == "90%\n\(Int(100 - used))%")
+            let other = renderer.render(
+                layout: layout,
+                data: self.data(provider: .codex, extraRateWindows: [extra]),
+                icon: nil,
+                options: self.options())
+            #expect(other.attributedTitle.string == "10%")
+        }
+        let missing = renderer.render(
+            layout: layout, data: self.data(provider: .cursor), icon: nil, options: self.options())
+        #expect(missing.attributedTitle.string == "10%")
+    }
+
+    @Test
+    func `synthetic Grok Bot before and after proof`() throws {
+        guard let directory = ProcessInfo.processInfo.environment["CODEXBAR_GROK_LAYOUT_SCREENSHOT_DIR"] else { return }
+        let extra = MenuBarLayoutRenderExtra(NamedRateWindow(
+            id: "cursor-grok-bot",
+            title: "Grok Bot",
+            window: RateWindow(usedPercent: 42, windowMinutes: nil, resetsAt: nil, resetDescription: nil)))
+        for includeExtra in [false, true] {
+            let name = includeExtra ? "after" : "before"
+            let tokens: [MenuBarLayoutToken] = [
+                .lanePercent(lane: .primary), .lanePercent(lane: .secondary), .lanePercent(lane: .tertiary),
+            ] + (includeExtra ? [.extraPercent(id: "cursor-grok-bot")] : [])
+            let rendered = MenuBarLayoutRenderer().render(
+                layout: MenuBarLayout(lines: [tokens]),
+                data: self.data(provider: .cursor, extraRateWindows: [extra]),
+                icon: nil,
+                options: self.options())
+            let image = NSImage(size: NSSize(width: 480, height: 110))
+            image.lockFocus()
+            NSColor.white.setFill()
+            NSRect(x: 0, y: 0, width: 480, height: 110).fill()
+            let caption = "\(name.capitalized): Cursor \(includeExtra ? "+ Grok Bot" : "standard lanes")"
+                + " · Synthetic data"
+            (caption as NSString).draw(at: NSPoint(x: 16, y: 80), withAttributes: [
+                .font: NSFont.systemFont(ofSize: 14), .foregroundColor: NSColor.black,
+            ])
+            let transform = NSAffineTransform()
+            transform.scale(by: 2)
+            transform.concat()
+            let text = NSMutableAttributedString(attributedString: rendered.attributedTitle)
+            text.addAttribute(.foregroundColor, value: NSColor.black, range: NSRange(location: 0, length: text.length))
+            text.draw(at: NSPoint(x: 8, y: 16))
+            image.unlockFocus()
+            let tiff = try #require(image.tiffRepresentation)
+            let bitmap = try #require(NSBitmapImageRep(data: tiff))
+            let png = try #require(bitmap.representation(using: .png, properties: [:]))
+            try png.write(to: URL(fileURLWithPath: directory).appendingPathComponent("grok-layout-\(name).png"))
+        }
+    }
+
+    @Test
     func `automatic balance text replaces the automatic percent window`() {
         let renderer = MenuBarLayoutRenderer()
         // DeepSeek's funded balance window arrives with usedPercent 0; the balance text must win
@@ -1738,6 +1841,7 @@ struct MenuBarLayoutRendererTests {
         automaticText: String? = nil,
         automaticBalanceFallback: String? = nil,
         accountLabel: String? = "user@example.com",
+        extraRateWindows: [MenuBarLayoutRenderExtra] = [],
         metrics: MenuBarLayoutRenderMetrics? = nil)
         -> MenuBarLayoutRenderData
     {
@@ -1762,6 +1866,7 @@ struct MenuBarLayoutRendererTests {
                 windowMinutes: 30 * 24 * 60,
                 resetsAt: nil,
                 resetDescription: nil)),
+            extraRateWindows: extraRateWindows,
             session: MenuBarLayoutRenderWindow(RateWindow(
                 usedPercent: 25,
                 windowMinutes: 300,
@@ -1806,6 +1911,7 @@ struct MenuBarLayoutRendererTests {
 
     func options(
         now: Date? = nil,
+        showUsed: Bool = true,
         verticalAdjustment: Int = 0,
         isStale: Bool = false,
         conditionals: [MenuBarLayoutConditional] = [],
@@ -1818,7 +1924,7 @@ struct MenuBarLayoutRendererTests {
         MenuBarLayoutRenderOptions(
             size: .regular,
             highContrast: highContrast,
-            showUsed: true,
+            showUsed: showUsed,
             conditionals: conditionals,
             appearanceName: appearanceName,
             isDebugApp: isDebugApp,

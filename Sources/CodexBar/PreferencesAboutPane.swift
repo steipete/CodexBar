@@ -10,12 +10,6 @@ struct AboutPane: View {
     private var updateChannelRaw: String = UpdateChannel.defaultChannel.rawValue
     @State private var didLoadUpdaterState = false
 
-    private var versionString: String {
-        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "–"
-        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String
-        return build.map { "\(version) (\($0))" } ?? version
-    }
-
     private var buildTimestamp: String? {
         guard let raw = Bundle.main.object(forInfoDictionaryKey: "CodexBuildTimestamp") as? String else { return nil }
         let parser = ISO8601DateFormatter()
@@ -37,8 +31,8 @@ struct AboutPane: View {
                     .listRowBackground(Color.clear)
             }
 
-            if self.updater.isAvailable {
-                Section {
+            Section {
+                if self.updater.isAvailable {
                     Toggle(L("check_updates_auto"), isOn: self.$autoUpdateEnabled)
 
                     Picker(selection: self.updateChannelBinding) {
@@ -48,21 +42,20 @@ struct AboutPane: View {
                     } label: {
                         SettingsRowLabel(L("update_channel"), subtitle: self.updateChannel.description)
                     }
+                }
 
-                    LabeledContent(String(format: L("version_format"), self.versionString)) {
+                LabeledContent(String(format: L("version_format"), AppVersion.displayString)) {
+                    if self.updater.isAvailable {
                         Button(L("check_for_updates")) { self.updater.checkForUpdates(nil) }
                     }
-                } header: {
-                    Text(L("section_updates"))
                 }
-            } else {
-                Section {
+                if !self.updater.isAvailable {
                     AboutUpdatesUnavailableView(
                         reason: self.updater.unavailableReason ?? L("updates_unavailable"),
                         command: self.updater.manualUpdateCommand)
-                } header: {
-                    Text(L("section_updates"))
                 }
+            } header: {
+                Text(L("section_updates"))
             }
 
             Section {
@@ -120,7 +113,7 @@ struct AboutPane: View {
             VStack(spacing: 2) {
                 Text("CodexBar")
                     .font(.title3).bold()
-                Text(String(format: L("version_format"), self.versionString))
+                Text(String(format: L("version_format"), AppVersion.displayString))
                     .foregroundStyle(.secondary)
                 if let buildTimestamp {
                     Text(String(format: L("built_format"), buildTimestamp))

@@ -92,6 +92,7 @@ enum PreferredCurrencyOption: String, CaseIterable, Identifiable {
     case inr = "INR"
     case chf = "CHF"
     case aed = "AED"
+    case `try` = "TRY"
 
     var id: String {
         self.rawValue
@@ -115,6 +116,7 @@ enum PreferredCurrencyOption: String, CaseIterable, Identifiable {
         case .inr: "INR (₹)"
         case .chf: "CHF (Fr.)"
         case .aed: "AED (د.إ)"
+        case .try: "TRY (₺)"
         }
     }
 }
@@ -215,10 +217,15 @@ struct GeneralPane: View {
             } header: {
                 Text(L("section_keyboard_shortcut"))
             } footer: {
-                Button(L("quit_app")) { NSApp.terminate(nil) }
-                    .buttonStyle(.borderedProminent)
-                    .frame(maxWidth: .infinity, alignment: .trailing)
-                    .padding(.top, 8)
+                HStack(alignment: .firstTextBaseline) {
+                    Text(String(format: L("version_format"), AppVersion.displayString))
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Button(L("quit_app")) { NSApp.terminate(nil) }
+                        .buttonStyle(.borderedProminent)
+                }
+                .padding(.top, 8)
             }
         }
         .formStyle(.grouped)

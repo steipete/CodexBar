@@ -71,8 +71,9 @@ For tests or self-hosted/proxy setups, override the API base URL with `NEURALWAT
 - `subscription` may be `null`; prepaid balance remains visible without a subscription window.
 - Transient quota failures are retried once, including `Retry-After` handling for rate limits.
 
-The native fetcher remains authoritative because that delayed retry behavior is not expressible through the current
-plugin HTTP API, which has no retry-policy or sleep capability.
+The native fetcher remains authoritative. The plugin host supports a single delayed retry and capped `Retry-After`
+for classified HTTP failures, but its transport bridge currently erases URL-error codes and cancellation. Neuralwatt
+also retries selected transient transport failures while preserving cancellation; a cutover must retain that distinction.
 
 ## Troubleshooting
 

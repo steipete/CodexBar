@@ -25,6 +25,7 @@ final class HuggingFaceScreenshotRenderTests: XCTestCase {
             engine: .quickJS,
             optionalStatus: 503)
         let full = try await HuggingFacePluginTests.fetch(engine: .quickJS)
+        let wallet = try await HuggingFaceWalletPluginTests.fetch(engine: .quickJS)
         // Golden output of the original Swift proposal when spend exists without a quota denominator.
         let before = try UsageSnapshot(
             primary: RateWindow(usedPercent: 0, windowMinutes: 43200, resetsAt: nil, resetDescription: nil),
@@ -37,7 +38,10 @@ final class HuggingFaceScreenshotRenderTests: XCTestCase {
                 providerID: .huggingface, accountEmail: nil, accountOrganization: nil, loginMethod: "API token"),
             dataConfidence: .exact)
         try CodexBarLocalizationOverride.$appLanguage.withValue("en") {
-            for (name, snapshot) in [("before-no-quota", before), ("after-no-quota", after), ("after-full", full)] {
+            for (name, snapshot) in [
+                ("before-no-quota", before), ("after-no-quota", after), ("after-full", full),
+                ("wallet-before", full), ("wallet-after", wallet),
+            ] {
                 let model = try Self.model(snapshot)
                 let view = AnyView(UsageMenuCardView(model: model, width: 360)
                     .environment(\.locale, Locale(identifier: "en_US_POSIX"))

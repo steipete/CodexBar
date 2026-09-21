@@ -2,6 +2,8 @@ import Foundation
 
 public enum ElevenLabsProviderDescriptor {
     public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
+    private static let missingCredentialMessage =
+        "Missing ElevenLabs API key. Set apiKey in ~/.codexbar/config.json or ELEVENLABS_API_KEY."
     private static let credentials = ProviderCredentialAdapter.apiKey(
         environmentKey: ElevenLabsSettingsReader.apiKeyEnvironmentKey,
         apiKeyDebugLabel: ElevenLabsSettingsReader.apiKeyEnvironmentKey,
@@ -13,7 +15,7 @@ public enum ElevenLabsProviderDescriptor {
             injection: .environment(key: ElevenLabsSettingsReader.apiKeyEnvironmentKey),
             requiresManualCookieSource: false,
             cookieName: nil),
-        missingCredentialMessage: { _ in ElevenLabsUsageError.missingCredentials.errorDescription })
+        missingCredentialMessage: { _ in ElevenLabsProviderDescriptor.missingCredentialMessage })
 
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
@@ -58,18 +60,41 @@ public enum ElevenLabsProviderDescriptor {
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "ElevenLabs cost history is not available via API yet." }),
-            fetchPlan: .apiToken(
-                strategyID: "elevenlabs.api",
-                resolveToken: { ProviderTokenResolver.token(for: .elevenlabs, environment: $0) },
-                missingCredentialsError: { ElevenLabsUsageError.missingCredentials },
-                loadUsage: { apiKey, context in
-                    try await ElevenLabsUsageFetcher.fetchUsage(
-                        apiKey: apiKey,
-                        environment: context.env).toUsageSnapshot()
-                }),
+            fetchPlan: self.fetchPlan(),
             cli: ProviderCLIConfig(
                 name: "elevenlabs",
                 aliases: ["11labs", "eleven"],
                 versionDetector: nil))
+    }
+
+    private static func fetchPlan() -> ProviderFetchPlan {
+        ProviderFetchPlan(
+            sourceModes: [.auto, .api],
+            pipeline: ProviderFetchPipeline(resolveStrategies: { _ in
+                [ScriptFetchStrategy(
+                    id: "elevenlabs.js",
+                    provider: .elevenlabs,
+                    bundledPlugin: "elevenlabs",
+                    secretKey: ElevenLabsSettingsReader.apiKeyEnvironmentKey,
+                    sourceLabel: "api",
+                    validateContext: { context in
+                        guard self.credentials.resolveToken(environment: context.env) != nil else {
+                            throw ProviderFetchClassifiedError(
+                                kind: .missingCredential, message: self.missingCredentialMessage)
+                        }
+                        try ElevenLabsSettingsReader.validateEndpointOverrides(environment: context.env)
+                    },
+                    resolveValues: { self.scriptValues(environment: $0.env) },
+                    isEnabled: { _ in true })]
+            }))
+    }
+
+    static func scriptValues(environment: [String: String]) -> ScriptFetchStrategy.Values? {
+        guard let token = self.credentials.resolveToken(environment: environment)?.token else { return nil }
+        var url = ElevenLabsSettingsReader.apiURL(environment: environment)
+        url.append(path: url.path.split(separator: "/").last == "v1" ? "user/subscription" : "v1/user/subscription")
+        return .init(
+            settings: ["BASE_URL": url.absoluteString],
+            secrets: [ElevenLabsSettingsReader.apiKeyEnvironmentKey: token])
     }
 }

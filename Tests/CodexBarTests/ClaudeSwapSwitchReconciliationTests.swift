@@ -5,6 +5,55 @@ import Testing
 
 @MainActor
 struct ClaudeSwapSwitchReconciliationTests {
+    @Test
+    func `later switch reconciles its adapter while ambient refresh waits for a stalled predecessor`() async throws {
+        try await self.withFixture(failure: .switchFailure) { fixture in
+            let first = try fixture.startSwitch()
+            try await fixture.waitForBothReads()
+            try fixture.releaseList(1)
+            try await fixture.waitUntil { fixture.switchCompleted }
+            await first.value
+
+            fixture.expectedAmbientCalls = 2
+            let second = try fixture.startSwitch()
+            try await fixture.waitUntil { fixture.listEntered(2) }
+            #expect(fixture.ambientGate.callCount == 1)
+            #expect(fixture.store.claudeSwapTransientState.switchPhase == .reconciling)
+            #expect(!fixture.switchCompleted)
+            try fixture.releaseList(2)
+            try await fixture.waitUntil { fixture.switchCompleted }
+            await second.value
+            #expect(fixture.store.claudeSwapTransientState.task == nil)
+            #expect(try fixture.switchArguments() == "--switch-to\n2\n--json\n--switch-to\n2\n--json\n")
+            try await fixture.finishAmbientRefresh()
+            #expect(fixture.ambientGate.callCount == 2)
+        }
+    }
+
+    @Test(arguments: [ClaudeSwapReconciliationFailure.none, .switchFailure])
+    func `stalled ambient refresh releases switching after adapter reconciliation`(
+        failure: ClaudeSwapReconciliationFailure) async throws
+    {
+        try await self.withFixture(failure: failure) { fixture in
+            let task = try fixture.startSwitch()
+            try await fixture.waitForBothReads()
+            try await Task.sleep(for: .seconds(5.2))
+            #expect(fixture.store.claudeSwapTransientState.switchPhase == .reconciling)
+            #expect(!fixture.switchCompleted)
+            try fixture.releaseList(1)
+            try await fixture.waitUntil { fixture.switchCompleted }
+            await task.value
+            #expect(fixture.store.claudeSwapTransientState.task == nil)
+            #expect(fixture.store.claudeSwapTransientState.switchingAccountID == nil)
+            #expect(fixture.activeSlots == (failure.switchFails ? ["1"] : ["2"]))
+            #expect((fixture.store.claudeSwapTransientState.lastError != nil) == failure.switchFails)
+            #expect(fixture.store.refreshingProviders.contains(.claude))
+            try await fixture.finishAmbientRefresh()
+            #expect(fixture.store.snapshot(for: .claude)?.primary?.usedPercent == (failure.switchFails ? 61 : 17))
+            #expect(fixture.phases == [.activating, .reconciling, nil])
+        }
+    }
+
     @Test(arguments: ClaudeSwapReconciliationFailure.allCases)
     func `ambient completion keeps switching serialized until the real adapter list finishes`(
         failure: ClaudeSwapReconciliationFailure) async throws

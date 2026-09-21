@@ -25,6 +25,7 @@ extension UsageStore {
     /// request already invalidated predecessors, so canceling the current coordinator state here
     /// would make it cancel itself before its waiters can drain.
     func clearProviderRuntimeState(_ provider: UsageProvider) {
+        self.invalidateGenericWidgetUsage(for: provider)
         self.providerCleanupRevisions[provider.instanceID, default: 0] &+= 1
         self.refreshingProviders.remove(provider.instanceID)
         self.snapshots.removeValue(forKey: provider.instanceID)

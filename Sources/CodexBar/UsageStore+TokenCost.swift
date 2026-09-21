@@ -249,13 +249,11 @@ extension UsageStore {
     }
 
     func retainsEstablishedTokenHistory(_ snapshot: CostUsageTokenSnapshot, for provider: UsageProvider) -> Bool {
-        // A bounded Codex refresh can succeed with partial rows while catch-up remains pending.
-        // Account and history-window changes fail the current-publication lookup below.
-        // Provider-specific by design: only Codex retains established history during bounded catch-up.
-        if provider == .codex,
-           !snapshot.historyCoverageIsEstablished,
-           self.tokenSnapshotPublicationForCurrentProviderConfig(for: provider)?
-               .snapshot?.historyCoverageIsEstablished == true
+        // Provider-specific by design: bounded Codex and partial Antigravity scans retain complete same-scope history.
+        if (provider == .codex && !snapshot.historyCoverageIsEstablished)
+            || (provider == .antigravity && snapshot.historyScanIsPartial),
+            self.tokenSnapshotPublicationForCurrentProviderConfig(for: provider)?
+                .snapshot?.historyCoverageIsEstablished == true
         {
             return true
         }
@@ -743,8 +741,10 @@ extension UsageStore {
         return nil
     }
 
+    /// Descriptors live in CodexBarCore and cannot localize, so the message is resolved here.
+    /// `L` returns its argument unchanged for providers whose message is a plain English literal.
     nonisolated static func tokenCostNoDataMessage(for provider: UsageProvider) -> String {
-        ProviderDescriptorRegistry.descriptor(for: provider).tokenCost.noDataMessage()
+        L(ProviderDescriptorRegistry.descriptor(for: provider).tokenCost.noDataMessage())
     }
 
     func regularTokenSnapshotIsConfirmedEmpty(

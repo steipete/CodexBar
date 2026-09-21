@@ -1,11 +1,15 @@
 ---
-summary: "Quotio analysis: UX and architecture patterns for inspiration."
+summary: "Historical Quotio analysis template; not a current feature inventory or roadmap."
 read_when:
-  - Evaluating external inspiration
-  - Planning UX or architecture improvements
+  - Reviewing the original fork's Quotio research template
 ---
 
 # Quotio Analysis & Pattern Adaptation
+
+> Historical fork research template. The unchecked tasks and feature counts below are not a current assessment:
+> CodexBar now has multi-account support and a much larger provider registry. See [Providers](providers.md),
+> [Configuration](configuration.md#tokenaccounts), and [Vision](../VISION.md) for current capabilities and scope.
+> `Scripts/analyze_quotio.sh` still exists, so this template is retained as background rather than active guidance.
 
 **Purpose:** Learn from quotio's implementation patterns without copying code  
 **Repository:** https://github.com/nguyenphutrong/quotio  

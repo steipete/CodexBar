@@ -139,6 +139,26 @@ extension SpendDashboardModel {
         }
     }
 
+    /// Provider-specific by design: only Antigravity prices an entire local history through a
+    /// catalog that may not know some of its recorded routing variants; other list-price providers
+    /// keep their own retention rules so this cannot widen their breakdowns.
+    /// Antigravity can have a valid aggregate estimate while individual model aliases are
+    /// not present in the pricing catalog. Keep those named token rows visible instead of
+    /// dropping the entire provider breakdown.
+    static func canRetainPartialEstimatedModelHistory(_ summary: InputSummary) -> Bool {
+        guard summary.input.provider == .antigravity,
+              summary.input.snapshot.costProvenance == .listPriceEstimate
+        else { return false }
+        return summary.entries.allSatisfy { windowEntry in
+            guard let breakdowns = windowEntry.entry.modelBreakdowns else { return true }
+            return breakdowns.allSatisfy { breakdown in
+                !breakdown.modelName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    && Self.nonnegative(breakdown.totalTokens) != nil
+                    && (breakdown.costUSD == nil || Self.validCost(breakdown.costUSD) != nil)
+            }
+        }
+    }
+
     /// Unpriced named models still belong in the breakdown list. Malformed costs and model-less
     /// gaps stay fail-closed so the list cannot present a lower bound as if it were complete.
     static func canRetainUnpricedModelHistory(_ summary: InputSummary) -> Bool {

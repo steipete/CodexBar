@@ -1,3 +1,9 @@
+---
+summary: "Issue 2037 file-local overcount containment specification and historical PR notes."
+read_when:
+  - Reviewing interleaved-lineage containment and its accounting limits
+---
+
 # Spec: Contain Ultra-mode interleaved-lineage token overcounting (issue #2037)
 
 - **Issue:** [steipete/CodexBar#2037](https://github.com/steipete/CodexBar/issues/2037) — "Ultra-mode Terra and Sol sessions can overcount forked context"

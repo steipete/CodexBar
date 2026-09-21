@@ -13,10 +13,22 @@ struct KimiProviderImplementation: ProviderImplementation {
 
     @MainActor
     func observeSettings(_ settings: SettingsStore) {
+        _ = settings.kimiRegion
         _ = settings.kimiUsageDataSource
         _ = settings.kimiAPIKey
         _ = settings.kimiCookieSource
         _ = settings.kimiManualCookieHeader
+    }
+
+    @MainActor
+    func settingsSnapshot(context: ProviderSettingsSnapshotContext) -> ProviderSettingsSnapshotContribution? {
+        let cookies: CookieProviderSettings = context.settings.resolvedCookieSettings(
+            provider: .kimi,
+            tokenOverride: context.tokenOverride)
+        return .kimi(.init(
+            cookieSource: cookies.cookieSource,
+            manualCookieHeader: cookies.manualCookieHeader,
+            region: context.settings.kimiRegion))
     }
 
     @MainActor
@@ -44,9 +56,17 @@ struct KimiProviderImplementation: ProviderImplementation {
 
         return [
             ProviderSettingsPickerDescriptor(
+                id: "kimi-region",
+                title: "Region",
+                subtitle: "Use credentials issued for the selected region. CLI credential reuse requires China.",
+                binding: context.rawValueBinding(\.kimiRegion, fallback: .china),
+                options: KimiRegion.allCases.map { .init(id: $0.rawValue, title: $0.displayName) },
+                isVisible: nil,
+                onChange: nil),
+            ProviderSettingsPickerDescriptor(
                 id: "kimi-usage-source",
                 title: "Usage source",
-                subtitle: "Kimi Code subscription usage from api.kimi.com. Auto tries your configured API key, " +
+                subtitle: "Kimi Code subscription usage for the selected region. Auto tries your configured API key, " +
                     "then a signed-in Kimi Code CLI credential, then web cookies. China Open Platform balance " +
                     "is a separate provider.",
                 binding: usageBinding,
@@ -78,7 +98,7 @@ struct KimiProviderImplementation: ProviderImplementation {
             ProviderSettingsFieldDescriptor(
                 id: "kimi-api-key",
                 title: "Kimi Code API key",
-                subtitle: "Kimi Code key from www.kimi.com/code. For China Open Platform balance, use " +
+                subtitle: "Kimi Code key for the selected region. For China Open Platform balance, use " +
                     "Moonshot / Kimi Open Platform.",
                 kind: .secure,
                 placeholder: "Paste Kimi Code API key...",
@@ -87,7 +107,7 @@ struct KimiProviderImplementation: ProviderImplementation {
                     ProviderSettingsActionDescriptor.openURL(
                         id: "kimi-open-api-docs",
                         title: "Open API docs",
-                        url: URL(string: "https://www.kimi.com/code/docs/en/")),
+                        url: context.settings.kimiRegion.webBaseURL.appendingPathComponent("code/docs/en/")),
                 ],
                 isVisible: nil),
             ProviderSettingsFieldDescriptor(
@@ -101,7 +121,7 @@ struct KimiProviderImplementation: ProviderImplementation {
                     ProviderSettingsActionDescriptor.openURL(
                         id: "kimi-open-console",
                         title: "Open Console",
-                        url: URL(string: "https://www.kimi.com/code/console")),
+                        url: context.settings.kimiRegion.consoleURL),
                 ],
                 isVisible: { context.settings.kimiCookieSource == .manual }),
         ]

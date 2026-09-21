@@ -1,3 +1,9 @@
+---
+summary: "Historical PR 1848 description for the Claude MCP-only credential guard."
+read_when:
+  - Reviewing the scope and evidence of PR 1848
+---
+
 ## Summary
 
 Fixes the background browser-launch regression in https://github.com/steipete/CodexBar/issues/1844: when Claude Code stores only MCP OAuth state in `Claude Code-credentials` (no `claudeAiOauth`), CodexBar no longer runs background delegated `claude /status` refresh—which can launch the default browser via `/usr/bin/open`.

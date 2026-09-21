@@ -74,7 +74,7 @@ struct CodexSubagentOrdinalBoundaryTests {
         #expect(!legacy.hasCurrentCodexParser)
     }
 
-    @Test(arguments: [false, true], [nil, 1] as [Int?])
+    @Test(arguments: [false, true], [nil, 1, 3] as [Int?])
     func `older parser revisions replace unchanged inherited rows without rebuilding`(
         bounded: Bool,
         revision: Int?) async throws

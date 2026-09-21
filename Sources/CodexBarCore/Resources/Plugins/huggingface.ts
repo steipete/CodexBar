@@ -1,5 +1,6 @@
 type HuggingFaceIdentity = {
   fetchedAt: number;
+  userID?: string;
   username?: string;
   email?: string;
   plan?: string;
@@ -9,9 +10,9 @@ defineProvider({
   id: "huggingface",
   name: "Hugging Face",
   endpoints: ["https://huggingface.co"],
-  auth: { type: "bearer", secret: "HF_TOKEN" },
   settings: [{ key: "HF_TOKEN", title: "Access token", type: "secure" }],
-  capabilities: ["http-status"],
+  capabilities: ["browser-cookies", "http-status"],
+  cookieDomains: ["huggingface.co"],
   async fetchUsage(ctx) {
     const fail = (field: string): never => {
       throw ctx.fail.parseFailure(`Hugging Face billing response format changed: ${field}`);
@@ -53,12 +54,18 @@ defineProvider({
     };
     const text = (value: unknown): string | undefined =>
       typeof value === "string" ? value.trim() || undefined : undefined;
+    const userID = (profile: Record<string, unknown>): string | undefined =>
+      profile.type === "user" && typeof profile.id === "string" && profile.id.trim() ? profile.id : undefined;
+    // Keep bearer authority off requests that verify the browser session.
+    const token = ctx.settings.getSecret("HF_TOKEN");
+    if (!token) throw ctx.fail.missingCredential("Missing Hugging Face access token.");
+    const apiHeaders = { Authorization: `Bearer ${token}`, "User-Agent": "CodexBar" };
     const now = ctx.date.now();
     const start = Math.floor(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1) / 1000);
     const end = Math.floor(now.getTime() / 1000);
     const response = await ctx.http.get(
       `https://huggingface.co/api/settings/billing/usage-v2?startDate=${start}&endDate=${end}`,
-      { timeoutSeconds: 15, headers: { "User-Agent": "CodexBar" } },
+      { timeoutSeconds: 15, headers: apiHeaders },
     );
     if (response.status === 401) {
       throw ctx.fail.authenticationExpired("Hugging Face rejected the token. Check that it is valid and not expired.");
@@ -85,7 +92,10 @@ defineProvider({
     let secondary: CodexBarRateWindow | undefined;
     let gpuRows: CodexBarDetailRow[] = [];
     try {
-      const gpuResponse = await ctx.http.get("https://huggingface.co/api/spaces/zero-gpu/quota", { timeoutSeconds: 2 });
+      const gpuResponse = await ctx.http.get("https://huggingface.co/api/spaces/zero-gpu/quota", {
+        timeoutSeconds: 2,
+        headers: apiHeaders,
+      });
       if (gpuResponse.status >= 200 && gpuResponse.status < 300) {
         const gpu = parse(gpuResponse.bodyText);
         const total = number(gpu.base, "ZeroGPU base");
@@ -111,19 +121,23 @@ defineProvider({
     } catch (error) {
       void error;
     }
-    const cacheKey = "whoami-v2:" + ctx.settings.getSecret("HF_TOKEN");
+    const cacheKey = "whoami-v2:" + token;
     let identity = ctx.cache.get<HuggingFaceIdentity>(cacheKey);
     if (!identity || now.getTime() - identity.fetchedAt < 0 || now.getTime() - identity.fetchedAt >= 43200000) {
       identity = undefined;
       try {
-        const whoami = await ctx.http.get("https://huggingface.co/api/whoami-v2", { timeoutSeconds: 2 });
+        const whoami = await ctx.http.get("https://huggingface.co/api/whoami-v2", {
+          timeoutSeconds: 2,
+          headers: apiHeaders,
+        });
         if (whoami.status >= 200 && whoami.status < 300) {
           const profile = parse(whoami.bodyText);
           const username = text(profile.name);
           const email = text(profile.email);
-          if (username || email) {
+          if (username || email || userID(profile)) {
             identity = {
               fetchedAt: now.getTime(),
+              userID: userID(profile),
               username,
               email,
               plan: typeof profile.isPro === "boolean" ? (profile.isPro ? "PRO" : "Free") : undefined,
@@ -131,6 +145,75 @@ defineProvider({
             ctx.cache.set(cacheKey, identity, 43200);
           }
         }
+      } catch (error) {
+        void error;
+      }
+    }
+    let balance: number | undefined;
+    const availability = ctx.browser.availability("huggingface.co");
+    if (identity?.userID && (availability === "available" || availability === "manual")) {
+      try {
+        const cookie = await ctx.browser.cookieHeader("huggingface.co");
+        const web = async (path: string, accept: string): Promise<CodexBarHTTPTextResponse> => {
+          const result = await ctx.http.get(`https://huggingface.co${path}`, {
+            headers: { Cookie: cookie, Accept: accept },
+            timeoutSeconds: 2,
+          });
+          if (result.status === 401 || result.status === 403) ctx.browser.rejectCookie("huggingface.co");
+          if (result.status !== 200) return fail("wallet unavailable");
+          return result;
+        };
+        const billing = await web("/settings/billing", "text/html");
+        if (!billing.headers["content-type"]?.toLowerCase().includes("text/html")) return fail("wallet content type");
+        const current: unknown[] = [];
+        const legacy: unknown[] = [];
+        const entities = new Map([
+          ["amp", "&"],
+          ["apos", "'"],
+          ["gt", ">"],
+          ["lt", "<"],
+          ["nbsp", "\u00a0"],
+          ["quot", '"'],
+        ]);
+        const decode = (raw: string): string =>
+          raw.replace(/&([^;]*);/g, (_, entity: string) => {
+            const named = entities.get(entity);
+            if (named !== undefined) return named;
+            const scalar = /^#x[0-9a-f]+$/i.test(entity)
+              ? parseInt(entity.slice(2), 16)
+              : /^#[0-9]+$/.test(entity)
+                ? Number(entity.slice(1))
+                : NaN;
+            if (!Number.isInteger(scalar) || scalar > 0x10ffff || (scalar >= 0xd800 && scalar <= 0xdfff))
+              return fail("wallet HTML entity");
+            return String.fromCodePoint(scalar);
+          });
+        for (const tag of billing.bodyText.match(/<div\b[^>]*>/gi) ?? []) {
+          const props = /\bdata-props\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i.exec(tag);
+          if (!props) continue;
+          const payload = JSON.parse(decode(props[1] ?? props[2] ?? props[3]));
+          if (!payload || typeof payload !== "object" || Array.isArray(payload)) continue;
+          const entity = payload.entity;
+          if (entity && Object.prototype.hasOwnProperty.call(entity, "currentBalanceUsd")) {
+            if (entity.type !== "user") return fail("wallet entity type");
+            current.push(entity.currentBalanceUsd);
+          }
+          if (Object.prototype.hasOwnProperty.call(payload, "invoiceCreditsCents"))
+            legacy.push(payload.invoiceCreditsCents);
+        }
+        let candidate: number;
+        if (current.length) {
+          if (current.length !== 1) return fail("ambiguous current wallet");
+          candidate = number(current[0], "currentBalanceUsd");
+        } else {
+          if (legacy.length !== 1) return fail("missing or ambiguous legacy wallet");
+          const cents = number(legacy[0], "invoiceCreditsCents");
+          if (!Number.isSafeInteger(cents)) return fail("invoiceCreditsCents");
+          candidate = cents / 100;
+        }
+        // The billing page's display names are not ownership proof. Resolve the same cookie without a bearer.
+        const profile = parse((await web("/api/whoami-v2", "application/json")).bodyText);
+        if (userID(profile) === identity.userID) balance = candidate;
       } catch (error) {
         void error;
       }
@@ -146,13 +229,16 @@ defineProvider({
     if (requests !== undefined) rows.push({ label: "Requests", value: String(requests) });
     const details: CodexBarDetailSection[] = [{ title: "Inference Providers", rows }];
     if (gpuRows.length) details.push({ title: "ZeroGPU", rows: gpuRows });
+    if (balance !== undefined)
+      details.push({ title: "Credits", rows: [{ label: "Prepaid balance", value: ctx.format.usd(balance) }] });
     return {
       secondary,
-      cost: { used: billable, limit: limit > 0 ? limit : undefined, currency: "USD", period: "This month" },
+      cost: { used: billable, balance, limit: limit > 0 ? limit : undefined, currency: "USD", period: "This month" },
       details,
-      identity: identity
-        ? { email: identity.email, accountID: identity.username, loginMethod: identity.plan }
-        : undefined,
+      identity:
+        identity && (identity.username || identity.email || identity.plan)
+          ? { email: identity.email, accountID: identity.username, loginMethod: identity.plan }
+          : undefined,
       dataConfidence: "exact",
     };
   },

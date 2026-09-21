@@ -1,3 +1,10 @@
+---
+summary: "Codex Workspaces local index, cache persistence, and debug inspector."
+read_when:
+  - Changing Codex project or session indexing
+  - Debugging Workspaces cache completeness
+---
+
 # Codex Workspaces local index
 
 Codex Workspaces attributes the existing local Codex cost scan to projects,

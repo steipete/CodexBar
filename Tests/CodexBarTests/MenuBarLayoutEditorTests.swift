@@ -96,6 +96,33 @@ struct MenuBarLayoutEditorTests {
     }
 
     @Test
+    func `Cursor exposes Grok Bot after its named window is available`() {
+        let grokBot = NamedRateWindow(
+            id: "cursor-grok-bot",
+            title: "Grok Bot",
+            window: RateWindow(usedPercent: 42, windowMinutes: nil, resetsAt: nil, resetDescription: nil))
+        let cursor = UsageSnapshot(primary: nil, secondary: nil, extraRateWindows: [grokBot], updatedAt: Date())
+
+        #expect(MenuBarLayoutPaletteTokens.usage(provider: .cursor, snapshot: cursor) == [
+            .percent(window: .session),
+            .percent(window: .weekly),
+            .percent(window: .scopedWeekly),
+            .lanePercent(lane: .primary),
+            .lanePercent(lane: .secondary),
+            .extraPercent(id: "cursor-grok-bot"),
+            .percent(window: .automatic),
+            .usageBar,
+            .pace(window: .session),
+            .pace(window: .weekly),
+            .pace(window: .automatic),
+        ])
+        #expect(!MenuBarLayoutPaletteTokens.usage(provider: .codex, snapshot: cursor)
+            .contains(.extraPercent(id: "cursor-grok-bot")))
+        #expect(!MenuBarLayoutPaletteTokens.usage(provider: .cursor, snapshot: nil)
+            .contains(.extraPercent(id: "cursor-grok-bot")))
+    }
+
+    @Test
     func `reset window choices are available in layout and conditional palettes`() {
         let choices: [MenuBarLayoutToken] = [
             .resetCountdown,

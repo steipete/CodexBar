@@ -1,3 +1,9 @@
+---
+summary: "Synthetic before/after proof for the Codex single-quota status badge."
+read_when:
+  - Reviewing status-badge placement on single-quota icons
+---
+
 # Codex single-quota status badge proof
 
 These screenshots use a fixed synthetic input: one full quota, no secondary quota or credits, and a minor

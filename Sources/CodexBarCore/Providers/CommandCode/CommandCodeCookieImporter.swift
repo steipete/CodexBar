@@ -39,23 +39,11 @@ public enum CommandCodeCookieImporter {
             return cached
         }
 
-        var sessions: [SessionInfo] = []
-        let candidates = self.cookieImportOrder.cookieImportCandidates(using: browserDetection)
-        for browserSource in candidates {
-            do {
-                let perSource = try self.importSessions(from: browserSource, logger: logger)
-                sessions.append(contentsOf: perSource)
-            } catch {
-                BrowserCookieAccessGate.recordIfNeeded(error)
-                self.emit(
-                    "\(browserSource.displayName) cookie import failed: \(error.localizedDescription)",
-                    logger: logger)
-            }
-        }
-
-        guard !sessions.isEmpty else {
-            throw CommandCodeCookieImportError.noCookies
-        }
+        let sessions = try BrowserCookieImportSupport.collectSessions(
+            from: self.cookieImportOrder.cookieImportCandidates(using: browserDetection),
+            missingError: CommandCodeCookieImportError.noCookies,
+            logger: { self.emit($0, logger: logger) },
+            load: { try self.importSessions(from: $0, logger: logger) })
         self.storeImportSessions(sessions)
         return sessions
     }
@@ -64,22 +52,14 @@ public enum CommandCodeCookieImporter {
         from browserSource: Browser,
         logger: ((String) -> Void)? = nil) throws -> [SessionInfo]
     {
-        let query = BrowserCookieQuery(domains: self.cookieDomains)
-        let log: (String) -> Void = { msg in self.emit(msg, logger: logger) }
-        let sources = try Self.cookieClient.codexBarRecords(
-            matching: query,
-            in: browserSource,
+        let log: (String) -> Void = { message in self.emit(message, logger: logger) }
+        let profiles = try BrowserCookieImportSupport.loadProfiles(
+            from: browserSource,
+            domains: self.cookieDomains,
+            client: self.cookieClient,
             logger: log)
-
         var sessions: [SessionInfo] = []
-
-        for profile in BrowserCookieProfiles.merge(sources) {
-            let label = profile.label
-            let mergedRecords = profile.records
-            guard !mergedRecords.isEmpty else { continue }
-            let httpCookies = BrowserCookieClient.makeHTTPCookies(mergedRecords, origin: query.origin)
-            guard !httpCookies.isEmpty else { continue }
-
+        for (label, httpCookies) in profiles {
             let session = SessionInfo(cookies: httpCookies, sourceLabel: label)
             if let sessionCookie = session.sessionCookie {
                 log("Found \(sessionCookie.name) cookie in \(label)")

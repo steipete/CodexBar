@@ -9,6 +9,7 @@ struct ProviderPayload: Encodable {
     let source: String
     let status: ProviderStatusPayload?
     let usage: UsageSnapshot?
+    let rateWindowLabels: ProviderWindowLabelsPayload?
     let credits: CreditsSnapshot?
     let antigravityPlanInfo: AntigravityPlanInfoSummary?
     let openaiDashboard: OpenAIDashboardSnapshot?
@@ -23,6 +24,7 @@ struct ProviderPayload: Encodable {
         case source
         case status
         case usage
+        case rateWindowLabels
         case credits
         case antigravityPlanInfo
         case openaiDashboard
@@ -84,6 +86,7 @@ struct ProviderPayload: Encodable {
         self.source = source
         self.status = status
         self.usage = usage
+        self.rateWindowLabels = Self.makeRateWindowLabels(providerID: providerID, usage: usage)
         self.credits = credits
         self.antigravityPlanInfo = antigravityPlanInfo
         self.openaiDashboard = openaiDashboard
@@ -91,6 +94,26 @@ struct ProviderPayload: Encodable {
         self.error = error
         self.pace = pace
     }
+
+    private static func makeRateWindowLabels(
+        providerID: String,
+        usage: UsageSnapshot?) -> ProviderWindowLabelsPayload?
+    {
+        guard let usage, let provider = UsageProvider(rawValue: providerID),
+              usage.primary != nil || usage.secondary != nil || usage.tertiary != nil else { return nil }
+        let descriptor = ProviderDescriptorRegistry.descriptor(for: provider)
+        let labels = descriptor.presentation.rateWindowLabels(metadata: descriptor.metadata, snapshot: usage)
+        return ProviderWindowLabelsPayload(
+            primary: usage.primary == nil ? nil : labels.primary,
+            secondary: usage.secondary == nil ? nil : labels.secondary,
+            tertiary: usage.tertiary == nil ? nil : labels.tertiary)
+    }
+}
+
+struct ProviderWindowLabelsPayload: Encodable, Equatable {
+    let primary: String?
+    let secondary: String?
+    let tertiary: String?
 }
 
 struct ProviderPacePayload: Encodable {

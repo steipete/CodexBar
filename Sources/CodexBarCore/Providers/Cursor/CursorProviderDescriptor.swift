@@ -26,7 +26,8 @@ public enum CursorProviderDescriptor {
             id: .cursor,
             menuBarMetrics: ProviderMenuBarMetricCapabilities(
                 supported: [.automatic, .primary, .secondary, .tertiary, .extraUsage],
-                tertiaryRequiresWindow: true),
+                tertiaryRequiresWindow: true,
+                namedExtras: [CursorSandUsageStatus.extraWindowID: CursorSandUsageStatus.extraWindowTitle]),
             settingsSection: .init(CursorProviderSettingsKey.self, cookieSettings: CursorProviderSettings.self),
             credentials: self.credentials,
             metadata: ProviderMetadata(

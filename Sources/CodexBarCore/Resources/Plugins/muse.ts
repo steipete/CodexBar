@@ -60,23 +60,31 @@ defineProvider({
     if (root.is_subs_active !== true) {
       throw ctx.fail.permissionDenied("No Muse Code subscription is active on this login.");
     }
-    const usage = object(root.subs_usage, "missing subs_usage");
+    const plan = text(root.subs_tier_name, "subs_tier_name");
+    const rows: CodexBarDetailRow[] = [];
+    if (plan) rows.push({ label: "Plan", value: plan });
+    const snapshot: CodexBarUsageSnapshot = {
+      details: [{ title: "Muse Code subscription", rows }],
+      identity: { email: text(root.user_email, "user_email"), loginMethod: plan ?? "Muse login" },
+      dataConfidence: "unknown",
+    };
+    if (root.subs_usage === undefined || root.subs_usage === null) {
+      rows.push({ label: "Quota", value: "Not included in this login response" });
+      return snapshot;
+    }
+    const usage = object(root.subs_usage, "subs_usage");
     const window = object(usage.window, "missing subscription window");
     const weekly = object(usage.weekly, "missing weekly window");
     const minutes = Math.round(number(window.window_duration_mins, "window_duration_mins"));
     if (!Number.isSafeInteger(minutes) || minutes <= 0) return fail("window_duration_mins");
     const primaryPercent = Math.min(100, Math.max(0, number(window.used_percent, "window.used_percent")));
     const weeklyPercent = Math.min(100, Math.max(0, number(weekly.used_percent, "weekly.used_percent")));
-    const plan = text(root.subs_tier_name, "subs_tier_name");
-    const rows: CodexBarDetailRow[] = [];
-    if (plan) rows.push({ label: "Plan", value: plan });
     rows.push({ label: "5 hours", value: `${ctx.format.number(primaryPercent, { maximumFractionDigits: 0 })}%` });
     rows.push({ label: "Weekly", value: `${ctx.format.number(weeklyPercent, { maximumFractionDigits: 0 })}%` });
     return {
+      ...snapshot,
       primary: { usedPercent: primaryPercent, windowMinutes: minutes, resetsAt: reset(window.resets_at) },
       secondary: { usedPercent: weeklyPercent, windowMinutes: 10080, resetsAt: reset(weekly.resets_at) },
-      details: [{ title: "Muse Code subscription", rows }],
-      identity: { email: text(root.user_email, "user_email"), loginMethod: plan ?? "Muse login" },
       dataConfidence: "exact",
     };
   },

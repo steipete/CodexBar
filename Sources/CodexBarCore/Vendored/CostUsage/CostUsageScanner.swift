@@ -424,11 +424,11 @@ enum CostUsageScanner {
         case unresolved
     }
 
-    private static func codexTotalsEqual(_ lhs: CostUsageCodexTotals?, _ rhs: CostUsageCodexTotals?) -> Bool {
+    static func codexTotalsEqual(_ lhs: CostUsageCodexTotals?, _ rhs: CostUsageCodexTotals?) -> Bool {
         lhs?.input == rhs?.input && lhs?.cached == rhs?.cached && lhs?.output == rhs?.output
     }
 
-    private static func codexTotalsAtLeast(_ lhs: CostUsageCodexTotals, _ rhs: CostUsageCodexTotals) -> Bool {
+    static func codexTotalsAtLeast(_ lhs: CostUsageCodexTotals, _ rhs: CostUsageCodexTotals) -> Bool {
         lhs.input >= rhs.input && lhs.cached >= rhs.cached && lhs.output >= rhs.output
     }
 
@@ -499,7 +499,7 @@ enum CostUsageScanner {
             reasoning: self.codexMinOptional(lhs.reasoning, rhs.reasoning))
     }
 
-    private static func codexTotalDelta(
+    static func codexTotalDelta(
         from baseline: CostUsageCodexTotals?,
         to current: CostUsageCodexTotals) -> CostUsageCodexTotals
     {
@@ -5186,7 +5186,7 @@ enum CostUsageScanner {
                           })
                     else { return nil }
 
-                    let inheritedTotal = pendingSubagentLines
+                    var inheritedTotal = pendingSubagentLines
                         .prefix(while: { ($0.ordinal ?? Int.min) < startOrdinal })
                         .compactMap { buffered -> CostUsageCodexTotals? in
                             guard case let .tokenCount(record) = buffered.line else { return nil }
@@ -5195,15 +5195,21 @@ enum CostUsageScanner {
                         .last
                     let firstOwnedToken = pendingSubagentLines.first { buffered in
                         guard (buffered.ordinal ?? Int.min) >= startOrdinal,
-                              case .tokenCount = buffered.line
+                              case let .tokenCount(record) = buffered.line
                         else { return false }
-                        return true
+                        if let total = record.total, let baseline = inheritedTotal,
+                           Self.codexTotalsEqual(total, baseline)
+                           || (CodexSubagentRolloutShape.totalsContainUsage(baseline)
+                               && Self.codexTotalsEqual(total, record.last) && Self.codexTotalsAtLeast(total, baseline))
+                        {
+                            inheritedTotal = total
+                            return false
+                        }
+                        return record.total != nil || record.last != nil
                     }
                     let inferredTotal = firstOwnedToken.flatMap { buffered -> CostUsageCodexTotals? in
                         guard case let .tokenCount(record) = buffered.line else { return nil }
-                        if let total = record.total, let last = record.last,
-                           Self.codexTotalsAtLeast(total, last)
-                        {
+                        if let total = record.total, let last = record.last {
                             return Self.codexTotalDelta(from: last, to: total)
                         }
                         if record.total == nil, record.last != nil {
@@ -5211,10 +5217,12 @@ enum CostUsageScanner {
                         }
                         return nil
                     }
-                    guard let rawTotalsBaseline = inheritedTotal ?? inferredTotal else { return nil }
+                    guard let rawTotalsBaseline = inferredTotal ?? inheritedTotal else { return nil }
+                    // No owned token means every buffered token snapshot is inherited.
                     return .init(
                         startLineIndex: firstOwnedLine.lineIndex,
-                        rawTotalsBaseline: rawTotalsBaseline)
+                        rawTotalsBaseline: rawTotalsBaseline,
+                        firstTokenLineIndex: firstOwnedToken?.lineIndex ?? Int.max)
                 }()
 
                 // An explicit ordinal excludes earlier inferred markers even before owned records arrive.
@@ -5283,6 +5291,9 @@ enum CostUsageScanner {
                 for buffered in pendingSubagentLines
                     where ownedSuffix.map({ buffered.lineIndex >= $0.startLineIndex }) ?? true
                 {
+                    if case .tokenCount = buffered.line,
+                       let firstTokenLineIndex = ownedSuffix?.firstTokenLineIndex,
+                       buffered.lineIndex < firstTokenLineIndex { continue }
                     try processFastLine(buffered.line, sourceEndOffset: buffered.endOffset)
                 }
             }

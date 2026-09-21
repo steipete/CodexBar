@@ -580,7 +580,7 @@ struct ClaudeUsageTests {
 
     @Test
     func `live claude fetch PTY`() async throws {
-        guard ProcessInfo.processInfo.environment["LIVE_CLAUDE_FETCH"] == "1" else {
+        guard Self.allowsLiveClaudeFetch(environment: ProcessInfo.processInfo.environment) else {
             return
         }
         let fetcher = ClaudeUsageFetcher(browserDetection: BrowserDetection(cacheTTL: 0), dataSource: .cli)
@@ -875,6 +875,32 @@ struct ClaudeUsageTests {
 }
 
 extension ClaudeUsageTests {
+    private static func allowsLiveClaudeFetch(environment: [String: String]) -> Bool {
+        environment["LIVE_CLAUDE_FETCH"] == "1"
+            && environment[KeychainTestSafety.allowAccessEnvironmentKey] == "1"
+    }
+
+    @Test
+    func `live Claude PTY access requires both explicit opt ins`() {
+        let feature = "LIVE_CLAUDE_FETCH"
+        let access = KeychainTestSafety.allowAccessEnvironmentKey
+        let suppression = KeychainTestSafety.suppressAccessEnvironmentKey
+        let blockedEnvironments: [[String: String]] = [
+            [:],
+            [feature: "1"],
+            [access: "1"],
+            [feature: "1", suppression: "1"],
+            [feature: "1", access: "0"],
+            [feature: "1", access: "true"],
+            [feature: "true", access: "1"],
+        ]
+        for environment in blockedEnvironments {
+            #expect(Self.allowsLiveClaudeFetch(environment: environment) == false)
+        }
+        #expect(Self.allowsLiveClaudeFetch(environment: [feature: "1", access: "1"]))
+        #expect(Self.allowsLiveClaudeFetch(environment: [feature: "1", access: "1", suppression: "1"]))
+    }
+
     private static func makeOAuthUsageResponse() throws -> OAuthUsageResponse {
         let json = """
         {

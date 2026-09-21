@@ -263,10 +263,10 @@ extension StatusItemController {
 
         // `selectedLanes` never walks conditional branches, so read the flattened tokens instead: a
         // `lanePercent` inside a then/else branch renders and must be signed like any placed token.
-        let lanes = Set(resolution.layout
-            .flattenedTokens(conditionals: self.settings.menuBarLayoutConditionals)
-            .compactMap(\.selectedLane))
-        guard !lanes.isEmpty else { return nil }
+        let tokens = resolution.layout.flattenedTokens(conditionals: self.settings.menuBarLayoutConditionals)
+        let lanes = Set(tokens.compactMap(\.selectedLane))
+        let extras = MenuBarLayoutRenderExtra.signature(tokens: tokens, provider: provider, snapshot: snapshot)
+        guard !lanes.isEmpty || extras != nil else { return nil }
 
         let windows = self.menuBarLayoutWindows(provider: provider, snapshot: snapshot, now: Date())
         let showUsed = self.settings.usageBarsShowUsed
@@ -278,7 +278,7 @@ extension StatusItemController {
                     : Self.laneWindow(lane, in: windows)?.remainingPercent
                 return "\(lane.rawValue)=\(Self.iconSignatureValue(percent))"
             }
-            .joined(separator: ",")
+            .joined(separator: ",") + "@\(extras.map(String.init) ?? "nil")"
     }
 
     /// Window readings conditional predicates depend on but no display token exposes.

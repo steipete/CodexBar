@@ -1164,7 +1164,6 @@
 "Open Augment (Log Out & Back In)" = "Mở phần mở rộng (Đăng xuất và quay lại)";
 "Open Codebuff Dashboard" = "Mở bảng điều khiển Codebuff";
 "Open Command Code Settings" = "Mở mã lệnh Cài đặt";
-"Open Crof dashboard" = "Mở bảng điều khiển Crof";
 "Open Manus" = "Mở Manus";
 "Open MiMo Balance" = "Mở MiMo Balance";
 "Open Moonshot Console" = "Mở Bảng điều khiển Moonshot";
@@ -1232,7 +1231,6 @@
 "Stored in ~/.codexbar/config.json. Requires an Anthropic Admin API key." = "Được lưu trữ trong ~/.codexbar/config.json. Yêu cầu khóa Anthropic Quản trị viên API.";
 "Stored in ~/.codexbar/config.json. Used for /v1/quota-stats." = "Được lưu trữ trong ~/.codexbar/config.json. Được sử dụng cho /v1/ Hạn mức -stats.";
 "Stored in ~/.codexbar/config.json. You can also provide CODEBUFF_API_KEY or let CodexBar read ~/.config/manicode/credentials.json (created by `codebuff login`)." = "Được lưu trữ trong ~/.codexbar/config.json. Bạn cũng có thể cung cấp CODEBUFF_API_KEY hoặc để CodexBar đọc ~/.config/manicode/credentials.json (được tạo bởi `codebuff login`).";
-"Stored in ~/.codexbar/config.json. You can also provide CROF_API_KEY." = "Được lưu trữ trong ~/.codexbar/config.json. Bạn cũng có thể cung cấp CROF_API_KEY.";
 "Stored in ~/.codexbar/config.json. You can also provide KILO_API_KEY or ~/.local/share/kilo/auth.json (kilo.access)." = "Được lưu trữ trong ~/.codexbar/config.json. Bạn cũng có thể cung cấp KILO_API_KEY hoặc ~/.local/share/kilo/auth.json (kilo.access).";
 "T3 Chat cookie" = "Cookie trò chuyện T3";
 "Team mode" = "Chế độ nhóm";
@@ -1618,3 +1616,8 @@
 "section_widgets" = "Tiện ích";
 "account_widgets_title" = "Cập nhật tài khoản cho tiện ích";
 "account_widgets_description" = "Chọn một tài khoản trong mỗi tiện ích Account Usage. Làm mới tối đa sáu tài khoản cho mỗi nhà cung cấp.";
+
+/* Antigravity local cost estimates */
+"antigravity_cost_estimate_hint" = "Mức dùng cục bộ × giá API công khai · không phải phí hay tín dụng Antigravity";
+"antigravity_quota_window_note" = "Chi phí cửa sổ bao gồm mọi mô hình · cửa sổ hiển thị là nhóm bị giới hạn nhất";
+"antigravity_no_priced_token_history" = "Không có lịch sử token Antigravity được định giá.";

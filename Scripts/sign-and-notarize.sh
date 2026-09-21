@@ -2,7 +2,7 @@
 set -euo pipefail
 
 APP_NAME="CodexBar"
-APP_IDENTITY="Developer ID Application: Peter Steinberger (Y5PE65HELJ)"
+APP_IDENTITY="${APP_IDENTITY:-Developer ID Application: Peter Steinberger (Y5PE65HELJ)}"
 APP_BUNDLE="CodexBar.app"
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 source "$ROOT/version.env"
@@ -52,7 +52,7 @@ trap 'rm -rf "$NOTARIZATION_TEMP_DIR"' EXIT
 chmod 600 "$API_KEY_PATH"
 
 ARCH_LIST=( ${ARCHES_VALUE} )
-ARCHES="${ARCHES_VALUE}" CODEXBAR_SIGNING=identity ./Scripts/package_app.sh release
+APP_IDENTITY="$APP_IDENTITY" ARCHES="${ARCHES_VALUE}" CODEXBAR_SIGNING=identity ./Scripts/package_app.sh release
 
 ENTITLEMENTS_DIR="$ROOT/.build/entitlements"
 APP_ENTITLEMENTS="${ENTITLEMENTS_DIR}/CodexBar.entitlements"

@@ -1,3 +1,9 @@
+---
+summary: "Historical regression and isolated-app proof for the Claude MCP-only Keychain guard."
+read_when:
+  - Reviewing the verification artifact for issue 1844 and PR 1848
+---
+
 # Verification: Claude MCP-only keychain guard
 
 Verification artifact for https://github.com/steipete/CodexBar/pull/1848, related to https://github.com/steipete/CodexBar/issues/1844.

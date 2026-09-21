@@ -8,6 +8,9 @@ read_when:
 # UI & icon
 
 ## Settings
+- General → Preferred Currency supports Turkish lira (`TRY`, `₺`) alongside the existing currencies, using the shared daily exchange rates and offline fallback for cost estimates.
+- General shows the app version and build beside Quit; About keeps its Version row even for Homebrew or unsigned builds.
+- Provider accent colors use a hex field and a color picker that also previews the selected color; Reset restores the provider default.
 - General → Default terminal supports installed Terminal, iTerm, Ghostty, and stable Warp. Terminal is the default and fallback. Warp launches target its app directly and use owner-only temporary tab configs, removed after one minute; interrupted-launch leftovers are cleaned on the next app start.
 - Provider → Visible usage items includes titled provider detail sections. Choices persist across language changes and apply to provider cards and Overview. Untitled details remain visible; cost-summary sections stay controlled by their existing display setting.
 - The empty SwiftUI Settings placeholder is dismissed once per presentation. Retained hidden windows are left alone; the real Settings window remains reusable.
@@ -17,15 +20,17 @@ read_when:
 - Homebrew-managed installs show a compact Updates section in About, with a selectable monospaced upgrade command and a trailing copy control. The control confirms successful copies briefly; copying does not run an update.
 
 ## Menu bar
+- About CodexBar includes the running version. When the updater is available, the menu offers Check for Updates… or the existing staged-update action.
 - Overview offers Share Usage Snapshot when its Usage & Spend summary has shareable data. The local preview uses the same spend sources, hidden-source choices, calendar, and currency as that summary; Copy Image exports PNG and TIFF without uploading anything.
+- Shared cards and copied statistics keep model families from providers with complete model history, even when another provider in the same currency has unpriced or incomplete history. A ranking that omits providers or model rows is labeled **PARTIAL** on the image and **Top models (partial)** in copied text; complete rankings retain **BY USAGE**. Selected-day model rows are omitted because the shared totals describe the full reporting window.
 - LSUIElement app: no Dock icon; status item uses custom NSImage.
 - Cached status menus and previously opened submenus follow macOS appearance changes before reopening, preserving the effective Light/Dark and accessibility appearance.
 - Merge Icons toggle combines providers into one status item with a switcher.
 - With the automatic metric selected, switcher progress honors a provider's exhausted-quota selection before
   showing normal weekly progress. Healthy allowances, explicit metric choices, and separate provider pools
   retain their existing selection rules.
-- Provider status items use stable autosave names and are reused across provider toggles so macOS can preserve icon
-  positions.
+- Status items receive stable autosave names before normal sizing, including during visibility recovery. Saved
+  positions beyond the widest attached display plus 512 points are cleared before creation; valid placements remain.
 - When Overview has selected providers, the switcher includes an Overview tab that renders up to 6 provider rows.
 - Overview row order follows provider order; selecting a row jumps to that provider detail card.
 - Menu → Overview layout offers Detailed (default) and Compact. Compact keeps provider/account headers and labeled quota bars, omits their reset/detail lines and supplemental sections, and retains detail-only providers. Select a provider for its full card. Visibility choices and the shared Usage & Spend summary continue to apply.
@@ -36,7 +41,9 @@ read_when:
   per provider. Manual edits select the Custom preset.
 - Time tokens offer Session and Weekly variants of Resets in and Reset at, including in conditional branches.
   The original unqualified reset tokens continue to follow the automatic window. A selected window that is
-  unavailable displays a dash rather than substituting another window. Saved layouts use V3 keys alongside a
+  unavailable displays a dash rather than substituting another window. Cursor also exposes **Grok Bot %**
+  while its named allowance is available; a missing allowance hides that token. Saved layouts use V4 keys
+  alongside a V3 projection that drops named-extra tokens but keeps explicit reset selections, and a
   v0.56.8-readable V2 projection, which omits the new tokens and conditional rules that use them while preserving
   existing conditional placements, direct lane selections, and other providers' overrides. Re-upgrading restores
   the full layout unless an older release changed its saved projection. The oldest-format projection is also retained.
@@ -53,6 +60,7 @@ read_when:
 | --- | --- | --- |
 | Identity | Icon, Provider name, Account | Provider-scoped branding and identity |
 | Usage | Session %, Weekly %, Scoped weekly %, Auto %, Usage bar | Window percentage or a compact three-glyph usage bar |
+| Usage | Grok Bot % (Cursor) | Named allowance percentage; hidden when the allowance is absent |
 | Usage | Session pace, Weekly pace, Auto pace | Signed pace delta for that window |
 | Time | Resets in, Reset at (automatic, Session, Weekly), Runs out | Selected-window relative reset, absolute reset, or pace estimate |
 | Money | Balance, Cost today, Cost 30d | OpenRouter credit balance, or local cost estimate for the selected period |

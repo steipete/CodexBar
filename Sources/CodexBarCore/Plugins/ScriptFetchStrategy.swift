@@ -116,10 +116,15 @@ public final class ScriptFetchStrategy: ProviderFetchStrategy, @unchecked Sendab
             throw ProviderPluginError.invalidManifest(
                 "bundled plugin id '\(runtime.manifest.id.rawValue)' does not match '\(self.provider.rawValue)'")
         }
+        let cookies = ProviderPluginCookieBroker(
+            provider: self.provider, domains: runtime.manifest.cookieDomains, context: context)
         let usage = try await runtime.fetchUsage(
             settings: values.settings,
             secrets: values.secrets,
-            cookieResolver: ProviderPluginCookieBroker.resolver(context: context))
+            sourceMode: context.sourceMode,
+            cookieSource: cookies.cookieSource,
+            cookieInvalidator: { cookies.rejectCookie(domain: $0) },
+            cookieResolver: { _, domain in try cookies.cookieHeader(domain: domain) })
         return self.makeResult(usage: usage, sourceLabel: self.sourceLabel)
     }
 

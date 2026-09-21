@@ -1,12 +1,15 @@
 ---
-summary: "Fork quick start: differences, commands, and planned features."
+summary: "Historical topoffunnel fork quick start; superseded by the main README and development guide."
 read_when:
-  - Onboarding to the fork workflow
-  - Reviewing fork-specific changes
-  - Running fork maintenance commands
+  - Reviewing the original topoffunnel fork workflow
 ---
 
 # CodexBar Fork - Quick Start Guide
+
+> Historical guide for `topoffunnel/CodexBar`, not the current `steipete/CodexBar` setup process. Use the
+> [README](../README.md), [Development guide](DEVELOPMENT.md), and [release checklist](RELEASING.md) instead.
+> Augment and multi-account support are now part of the main repository. The claim below that Keychain prompts
+> are eliminated is obsolete; current boundaries and troubleshooting are in [Keychain prompts](keychain-prompts.md).
 
 **Fork Maintainer:** Brandon Charleson ([topoffunnel.com](https://topoffunnel.com))  
 **Original Author:** Peter Steinberger ([steipete](https://twitter.com/steipete))  

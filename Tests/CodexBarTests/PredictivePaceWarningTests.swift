@@ -440,28 +440,29 @@ struct PredictivePaceWarningTests {
     @Test
     func `stable Claude account identity spans OAuth and CLI observations`() {
         let now = Date(timeIntervalSince1970: 1_780_000_000)
-        let settings = self.makeSettings(suiteName: "PredictivePaceWarningTests-claude-active-account")
+        let settings = self.makeSettings(
+            suiteName: "PredictivePaceWarningTests-claude-active-account", defaults: InMemoryUserDefaults())
         settings.predictivePaceWarningNotificationsEnabled = true
         let notifier = NotifierSpy()
         let store = self.makeStore(settings: settings, notifier: notifier)
-        let firstAccount = UsageStore.warningClaudeAccountDiscriminator(
+        let firstAccount = store.warningClaudeAccountDiscriminators(
             strategyKind: .oauth,
-            observation: .stable(identity: "account-a"))
-        let secondAccount = UsageStore.warningClaudeAccountDiscriminator(
+            observation: .stable(identity: "account-a")).source
+        let secondAccount = store.warningClaudeAccountDiscriminators(
             strategyKind: .cli,
-            observation: .stable(identity: "account-b"))
-        #expect(UsageStore.warningClaudeAccountDiscriminator(
+            observation: .stable(identity: "account-b")).source
+        #expect(store.warningClaudeAccountDiscriminators(
             strategyKind: .oauth,
-            observation: .stable(identity: nil)) == nil)
-        #expect(UsageStore.warningClaudeAccountDiscriminator(
+            observation: .stable(identity: nil)).source == "claude-account:unknown")
+        #expect(store.warningClaudeAccountDiscriminators(
             strategyKind: .cli,
-            observation: .changed) == nil)
-        #expect(UsageStore.warningClaudeAccountDiscriminator(
+            observation: .changed).source == "claude-account:unknown")
+        #expect(store.warningClaudeAccountDiscriminators(
             strategyKind: .web,
-            observation: .stable(identity: "account-a")) == nil)
-        #expect(UsageStore.warningClaudeAccountDiscriminator(
+            observation: .stable(identity: "account-a")).source == nil)
+        #expect(store.warningClaudeAccountDiscriminators(
             strategyKind: .apiToken,
-            observation: .stable(identity: "account-a")) == nil)
+            observation: .stable(identity: "account-a")).source == nil)
         let noEmailRisk = self.snapshot(
             now: now,
             sessionUsed: 80,
@@ -506,23 +507,48 @@ struct PredictivePaceWarningTests {
     @Test
     func `Claude OAuth owner keeps no email warnings account scoped when active metadata is missing`() {
         let owner = String(repeating: "a", count: 64)
+        let settings = self.makeSettings(
+            suiteName: "PredictivePaceWarningTests-owner-fallback", defaults: InMemoryUserDefaults())
+        let store = self.makeStore(settings: settings, notifier: NotifierSpy())
 
-        #expect(UsageStore.warningClaudeAccountDiscriminator(
+        #expect(store.warningClaudeAccountDiscriminators(
             strategyKind: .oauth,
             observation: .stable(identity: nil),
-            oauthHistoryOwnerIdentifier: owner) == "claude-oauth-owner:\(owner)")
-        #expect(UsageStore.warningClaudeAccountDiscriminator(
+            oauthHistoryOwnerIdentifier: owner).source == "claude-oauth-owner:\(owner)")
+        #expect(store.warningClaudeAccountDiscriminators(
             strategyKind: .oauth,
             observation: .changed,
-            oauthHistoryOwnerIdentifier: "  \(owner.uppercased())  ") == "claude-oauth-owner:\(owner)")
-        #expect(UsageStore.warningClaudeAccountDiscriminator(
+            oauthHistoryOwnerIdentifier: "  \(owner.uppercased())  ").source == "claude-oauth-owner:\(owner)")
+        #expect(store.warningClaudeAccountDiscriminators(
             strategyKind: .cli,
             observation: .stable(identity: nil),
-            oauthHistoryOwnerIdentifier: owner) == nil)
-        #expect(UsageStore.warningClaudeAccountDiscriminator(
+            oauthHistoryOwnerIdentifier: owner).source == "claude-account:unknown")
+        #expect(store.warningClaudeAccountDiscriminators(
             strategyKind: .web,
             observation: .stable(identity: nil),
-            oauthHistoryOwnerIdentifier: owner) == nil)
+            oauthHistoryOwnerIdentifier: owner).source == nil)
+    }
+
+    @Test(arguments: [ProviderFetchKind.oauth, .cli])
+    func `unresolved Claude sources still emit predictive warnings once per risk episode`(
+        strategyKind: ProviderFetchKind)
+    {
+        let settings = self.makeSettings(
+            suiteName: "PredictivePaceWarningTests-unresolved", defaults: InMemoryUserDefaults())
+        settings.predictivePaceWarningNotificationsEnabled = true
+        let notifier = NotifierSpy()
+        let store = self.makeStore(settings: settings, notifier: notifier)
+        let now = Date(timeIntervalSince1970: 1_780_000_000)
+        for used in [80.0, 81, 20, 80] {
+            let scopes = store.warningClaudeAccountDiscriminators(strategyKind: strategyKind, observation: .changed)
+            #expect(scopes.source == "claude-account:unknown")
+            store.handlePredictivePaceWarningTransitions(
+                provider: .claude,
+                snapshot: self.snapshot(now: now, sessionUsed: used, weeklyUsed: 20, accountEmail: nil),
+                accountDiscriminatorOverride: scopes.source,
+                requiresKnownAccount: true)
+        }
+        #expect(notifier.predictivePosts.map(\.event.window) == [.session, .session])
     }
 
     @Test
@@ -638,8 +664,10 @@ struct PredictivePaceWarningTests {
         #expect(notifier.predictivePosts.isEmpty)
     }
 
-    private func makeSettings(suiteName: String, clear: Bool = true) -> SettingsStore {
-        let defaults = UserDefaults(suiteName: suiteName)!
+    private func makeSettings(
+        suiteName: String, clear: Bool = true, defaults suppliedDefaults: UserDefaults? = nil) -> SettingsStore
+    {
+        let defaults = suppliedDefaults ?? UserDefaults(suiteName: suiteName)!
         if clear {
             defaults.removePersistentDomain(forName: suiteName)
         }

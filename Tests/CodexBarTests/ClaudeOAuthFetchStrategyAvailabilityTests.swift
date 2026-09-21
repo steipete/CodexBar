@@ -670,7 +670,7 @@ struct ClaudeOAuthFetchStrategyAvailabilityTests {
     }
 
     @Test
-    func `auto mode experimental reader ignores prompt policy cooldown gate`() async {
+    func `auto mode experimental reader honors background prompt policy`() async {
         let context = self.makeContext(sourceMode: .auto)
         let strategy = ClaudeOAuthFetchStrategy()
         let securityData = Data("""
@@ -715,7 +715,7 @@ struct ClaudeOAuthFetchStrategyAvailabilityTests {
             }
         }
 
-        #expect(available == true)
+        #expect(available == false)
     }
 
     @Test

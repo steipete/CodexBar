@@ -94,6 +94,132 @@ struct AntigravityLocalReaderTests {
     }
 
     @Test
+    func `known model gets list price estimate while unknown model stays unpriced`() async throws {
+        let fixture = try Fixture()
+        let catalog = try JSONDecoder().decode(ModelsDevCatalog.self, from: Data(#"""
+        {
+            "google": {
+                "id": "google",
+                "name": "Google",
+                "models": {
+                    "gemini-fixture-a": {
+                        "id": "gemini-fixture-a",
+                        "cost": {"input": 1, "output": 2, "cache_read": 0.2}
+                    }
+                }
+            }
+        }
+        """#.utf8))
+        let cacheRoot = fixture.root.appendingPathComponent("scanner-cache")
+        #expect(ModelsDevCache.save(catalog: catalog, fetchedAt: Fixture.now, cacheRoot: cacheRoot))
+        try fixture.database(blobs: [
+            Fixture.blob(model: "gemini-fixture-a"),
+            Fixture.blob(model: "fixture-unpriced"),
+        ])
+
+        let snapshot = try await fixture.snapshot()
+        let expected = 111e-6 + 50 * 0.2e-6 + 37 * 2e-6
+        #expect(snapshot.last30DaysCostUSD == expected)
+        #expect(snapshot.sessionCostUSD == expected)
+        #expect(snapshot.costProvenance == .listPriceEstimate)
+        #expect(snapshot.daily.first?.modelBreakdowns?.first?.costUSD == expected)
+        #expect(snapshot.daily.first?.modelBreakdowns?.last?.costUSD == nil)
+        #expect(snapshot.summary(forLastDays: 30, calendar: Fixture.calendar).coverage
+            == CostUsageCoverageCounts(unpriced: 1, estimated: 1))
+    }
+
+    @Test
+    func `routing variants price from their base model without widening shared Claude pricing`()
+        async throws
+    {
+        let fixture = try Fixture()
+        let catalog = try JSONDecoder().decode(ModelsDevCatalog.self, from: Data(#"""
+        {
+            "google": {
+                "id": "google",
+                "name": "Google",
+                "models": {
+                    "gemini-fixture-a": {
+                        "id": "gemini-fixture-a",
+                        "cost": {"input": 1, "output": 2, "cache_read": 0.2}
+                    }
+                }
+            }
+        }
+        """#.utf8))
+        let cacheRoot = fixture.root.appendingPathComponent("scanner-cache")
+        #expect(ModelsDevCache.save(catalog: catalog, fetchedAt: Fixture.now, cacheRoot: cacheRoot))
+        try fixture.database(blobs: [Fixture.blob(model: "gemini-fixture-a-tiered")])
+
+        let snapshot = try await fixture.snapshot()
+        let expected = 111e-6 + 50 * 0.2e-6 + 37 * 2e-6
+        #expect(snapshot.last30DaysCostUSD == expected)
+        // The recorded variant keeps its own identity in the breakdown; only pricing falls back.
+        #expect(snapshot.daily.first?.modelBreakdowns?.first?.modelName == "gemini-fixture-a-tiered")
+
+        #expect(AntigravityLocalReader.pricingBaseModelID(for: "gemini-3.8-flash-tiered")
+            == "gemini-3.8-flash")
+        #expect(AntigravityLocalReader.pricingBaseModelID(for: "gemini-3.1-pro-low") == "gemini-3.1-pro")
+        #expect(AntigravityLocalReader.pricingBaseModelID(for: "claude-opus-4-6-thinking")
+            == "claude-opus-4-6")
+        #expect(AntigravityLocalReader.pricingBaseModelID(for: "gemini-3.8-flash") == nil)
+        #expect(AntigravityLocalReader.pricingBaseModelID(for: "-low") == nil)
+
+        // The shared Claude resolver must keep reporting an unknown variant as unpriced rather
+        // than silently billing it at the base model's rate.
+        let claudeTargets = CostUsagePricing.claudeModelsDevPricingTargets(for: "claude-fixture-9-thinking")
+        #expect(claudeTargets.isEmpty == false)
+        #expect(claudeTargets.contains { $0.modelID == "claude-fixture-9" } == false)
+    }
+
+    @Test(arguments: ["claude-sonnet-4-6", "claude-sonnet-4-6-thinking"])
+    func `historical long context prices use event time for exact and routed models`(model: String) throws {
+        let fixture = try Fixture()
+        try fixture.database(blobs: [
+            Fixture.blob(
+                model: model,
+                system: 0,
+                input: 250_000,
+                output: 0,
+                cacheRead: 0,
+                reasoning: 0,
+                seconds: 1_771_588_800),
+            Fixture.blob(
+                model: model,
+                system: 0,
+                input: 250_000,
+                output: 0,
+                cacheRead: 0,
+                reasoning: 0,
+                seconds: 1_773_446_400),
+        ])
+        let result = try AntigravityLocalReader.makeDailyReportWithStatus(
+            context: fixture.context,
+            calendar: Fixture.calendar,
+            estimateCost: true,
+            pricingCacheRoot: fixture.root.appendingPathComponent("pricing"))
+        let costs = result.report.data.sorted { $0.date < $1.date }.map(\.costUSD)
+        #expect(costs == [1.5, 0.75])
+    }
+
+    @Test
+    func `a partial scan keeps its rows and marks the snapshot as partially scanned`() async throws {
+        let fixture = try Fixture()
+        try fixture.database(blobs: [Fixture.blob(), [0x08, 0xFF]])
+
+        let result = try fixture.report()
+        #expect(result.coverage == .partial)
+        #expect(result.report.data.isEmpty == false)
+
+        let snapshot = try await fixture.snapshot()
+        #expect(snapshot.last30DaysTokens == 198)
+        // Rows stay usable, but the scan may not claim days it never reached.
+        #expect(snapshot.historyCoverageIsEstablished == false)
+        #expect(snapshot.historyScanIsPartial)
+        #expect(snapshot.historyIsFullyScanned == false)
+    }
+
+    @Test
     func `complete empty out of window absent and corrupt sources remain distinct`() async throws {
         let fixture = try Fixture()
         #expect(try fixture.report().coverage == .unavailable)
@@ -129,9 +255,12 @@ struct AntigravityLocalReaderTests {
         #expect(report.coverage == .partial)
         #expect(report.report.summary?.totalTokens == 396)
         let snapshot = try await fixture.snapshot()
+        // Rows read before the broken database are kept as an explicitly partial lower bound
+        // rather than discarded; coverage still may not be claimed.
         #expect(!snapshot.historyCoverageIsEstablished)
-        #expect(snapshot.daily.isEmpty)
-        #expect(snapshot.last30DaysTokens == nil)
+        #expect(snapshot.historyScanIsPartial)
+        #expect(snapshot.daily.isEmpty == false)
+        #expect(snapshot.last30DaysTokens == 396)
     }
 
     @Test

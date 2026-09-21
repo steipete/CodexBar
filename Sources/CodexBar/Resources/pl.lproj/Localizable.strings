@@ -1187,7 +1187,6 @@
 "Open Augment (Log Out & Back In)" = "Otwórz Augment (wyloguj się i zaloguj ponownie)";
 "Open Codebuff Dashboard" = "Otwórz panel Codebuff";
 "Open Command Code Settings" = "Otwórz ustawienia Command Code";
-"Open Crof dashboard" = "Otwórz panel Crof";
 "Open Manus" = "Otwórz Manus";
 "Open MiMo Balance" = "Otwórz saldo MiMo";
 "Open Moonshot Console" = "Otwórz konsolę Moonshot";
@@ -1255,7 +1254,6 @@
 "Stored in ~/.codexbar/config.json. Requires an Anthropic Admin API key." = "Przechowywane w ~/.codexbar/config.json. Wymaga klucza Anthropic Admin API.";
 "Stored in ~/.codexbar/config.json. Used for /v1/quota-stats." = "Przechowywane w ~/.codexbar/config.json. Używane dla `/v1/quota-stats`.";
 "Stored in ~/.codexbar/config.json. You can also provide CODEBUFF_API_KEY or let CodexBar read ~/.config/manicode/credentials.json (created by `codebuff login`)." = "Przechowywane w ~/.codexbar/config.json. Możesz też podać CODEBUFF_API_KEY albo pozwolić CodexBar odczytać ~/.config/manicode/credentials.json (utworzony przez `codebuff login`).";
-"Stored in ~/.codexbar/config.json. You can also provide CROF_API_KEY." = "Przechowywane w ~/.codexbar/config.json. Możesz też podać CROF_API_KEY.";
 "Stored in ~/.codexbar/config.json. You can also provide KILO_API_KEY or ~/.local/share/kilo/auth.json (kilo.access)." = "Przechowywane w ~/.codexbar/config.json. Możesz też podać KILO_API_KEY albo ~/.local/share/kilo/auth.json (kilo.access).";
 "T3 Chat cookie" = "Plik cookie T3 Chat";
 "Team mode" = "Tryb zespołu";
@@ -1620,3 +1618,8 @@
 "section_widgets" = "Widżety";
 "account_widgets_title" = "Aktualizuj konta dla widżetów";
 "account_widgets_description" = "Wybierz konto w każdym widżecie Account Usage. Odświeża do sześciu kont na dostawcę.";
+
+/* Antigravity local cost estimates */
+"antigravity_cost_estimate_hint" = "Lokalne użycie × publiczne ceny API · to nie opłaty ani kredyty Antigravity";
+"antigravity_quota_window_note" = "Koszt okna obejmuje wszystkie modele · pokazane okno to najbardziej ograniczona rodzina";
+"antigravity_no_priced_token_history" = "Brak wycenionej historii tokenów Antigravity.";

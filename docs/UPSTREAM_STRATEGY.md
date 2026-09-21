@@ -1,11 +1,16 @@
 ---
-summary: "Upstream strategy for forks: remotes, cherry-picks, and contribution policy."
+summary: "Historical topoffunnel multi-upstream strategy and helper-script background."
 read_when:
-  - Managing fork/upstream workflow
-  - Planning contributions or syncs
+  - Reviewing the original fork's upstream helper workflow
 ---
 
 # Multi-Upstream Fork Management Strategy
+
+> Historical policy for the `topoffunnel/CodexBar` fork. Its claim that multi-account support must stay out of
+> upstream is obsolete; see [Configuration](configuration.md#tokenaccounts) for current support. Main-repository
+> scope is defined in [Vision](../VISION.md), with development and release instructions in
+> [Development](DEVELOPMENT.md) and [Releasing](RELEASING.md). The helper scripts and upstream-monitor workflow
+> below remain in the tree, so this document is retained as their historical context, not a current contribution policy.
 
 **Fork:** topoffunnel/CodexBar  
 **Upstream 1:** steipete/CodexBar (original)  

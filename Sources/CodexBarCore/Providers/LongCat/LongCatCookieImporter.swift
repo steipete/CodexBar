@@ -26,46 +26,25 @@ public enum LongCatCookieImporter {
         browserDetection: BrowserDetection = BrowserDetection(),
         logger: ((String) -> Void)? = nil) throws -> [SessionInfo]
     {
-        var sessions: [SessionInfo] = []
-        let candidates = self.cookieImportOrder.cookieImportCandidates(using: browserDetection)
-        for browserSource in candidates {
-            do {
-                let perSource = try self.importSessions(from: browserSource, logger: logger)
-                sessions.append(contentsOf: perSource)
-            } catch {
-                BrowserCookieAccessGate.recordIfNeeded(error)
-                self.emit(
-                    "\(browserSource.displayName) cookie import failed: \(error.localizedDescription)",
-                    logger: logger)
-            }
-        }
-
-        guard !sessions.isEmpty else {
-            throw LongCatCookieImportError.noCookies
-        }
-        return sessions
+        try BrowserCookieImportSupport.collectSessions(
+            from: self.cookieImportOrder.cookieImportCandidates(using: browserDetection),
+            missingError: LongCatCookieImportError.noCookies,
+            logger: { self.emit($0, logger: logger) },
+            load: { try self.importSessions(from: $0, logger: logger) })
     }
 
     public static func importSessions(
         from browserSource: Browser,
         logger: ((String) -> Void)? = nil) throws -> [SessionInfo]
     {
-        let query = BrowserCookieQuery(domains: self.cookieDomains)
-        let log: (String) -> Void = { msg in self.emit(msg, logger: logger) }
-        let sources = try Self.cookieClient.codexBarRecords(
-            matching: query,
-            in: browserSource,
+        let log: (String) -> Void = { message in self.emit(message, logger: logger) }
+        let profiles = try BrowserCookieImportSupport.loadProfiles(
+            from: browserSource,
+            domains: self.cookieDomains,
+            client: self.cookieClient,
             logger: log)
-
         var sessions: [SessionInfo] = []
-
-        for profile in BrowserCookieProfiles.merge(sources) {
-            let label = profile.label
-            let mergedRecords = profile.records
-            guard !mergedRecords.isEmpty else { continue }
-            let httpCookies = BrowserCookieClient.makeHTTPCookies(mergedRecords, origin: query.origin)
-            guard !httpCookies.isEmpty else { continue }
-
+        for (label, httpCookies) in profiles {
             log("Found \(httpCookies.count) longcat.chat cookie(s) in \(label)")
             sessions.append(SessionInfo(cookies: httpCookies, sourceLabel: label))
         }

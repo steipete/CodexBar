@@ -21,6 +21,8 @@ CodexBar reads the same Keychain item the CLI stores (`ai.meta.dev.credentials` 
 
 Credential precedence: when `providers.meta.access_token` is present inline in the CLI metadata file `~/.config/muse/auth.json`, that token selects the account queried and takes precedence over Keychain. Otherwise CodexBar reads the device-code token from the CLI's Keychain item. An `auth.json` with `"mechanism": "oauth"` but no inline token still counts as a login; the token then comes from Keychain. Override the file path with `MUSE_AUTH_PATH` if needed. CodexBar never prompts Keychain.
 
+When a Keychain-only login cannot be read because Keychain access is disabled, the diagnostic names **Disable Keychain access** in **Settings → Advanced**. Inline CLI tokens still work with Keychain access disabled. CodexBar continues to read Keychain without prompts.
+
 ## Data shown
 
 The bundled `muse.ts` plugin owns the JSON request and subscription parsing on macOS and Linux. Native code only
@@ -34,6 +36,8 @@ discarded; CodexBar never writes them to the CLI's credential store.
 Reset timestamps outside the supported date range are omitted without discarding the window's usage percentage.
 
 Pay-as-you-go accounts without `is_subs_active` are reported as having no subscription rather than a fake 0% bar. Accounts that still need a payment method are reported as billing-incomplete.
+
+An active subscription whose mint response omits `subs_usage` or returns it as `null` keeps its plan and identity, with **Quota: Not included in this login response** and no quota bars. Malformed quota objects still fail parsing; missing windows never become invented 0% usage.
 
 ## Local token history
 

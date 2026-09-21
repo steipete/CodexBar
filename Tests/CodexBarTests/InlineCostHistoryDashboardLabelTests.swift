@@ -5,6 +5,151 @@ import Testing
 
 struct InlineCostHistoryDashboardLabelTests {
     @Test
+    func `Antigravity renders cost windows and names the window's model-family scope`() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try #require(TimeZone(secondsFromGMT: 0))
+        let now = try #require(calendar.date(from: DateComponents(
+            timeZone: calendar.timeZone,
+            year: 2026,
+            month: 7,
+            day: 15,
+            hour: 12)))
+        let resetAt = try #require(calendar.date(from: DateComponents(
+            timeZone: calendar.timeZone,
+            year: 2026,
+            month: 7,
+            day: 18,
+            hour: 15)))
+        let metadata = try #require(ProviderDefaults.metadata[.antigravity])
+        let model = UsageMenuCardView.Model.make(.init(
+            provider: .antigravity,
+            metadata: metadata,
+            snapshot: UsageSnapshot(
+                primary: nil,
+                secondary: nil,
+                extraRateWindows: [
+                    NamedRateWindow(
+                        id: "antigravity-quota-summary-gemini",
+                        title: "Gemini",
+                        window: RateWindow(
+                            usedPercent: 40,
+                            windowMinutes: CostUsageTokenSnapshot.quotaWeekMinutes,
+                            resetsAt: resetAt,
+                            resetDescription: nil)),
+                ],
+                updatedAt: now),
+            credits: nil,
+            creditsError: nil,
+            dashboardError: nil,
+            tokenSnapshot: Self.antigravitySnapshot(now: now),
+            tokenError: nil,
+            account: AccountInfo(email: nil, plan: nil),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: true,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
+            costUsageBucketCalendar: calendar,
+            now: now))
+
+        let dashboard = try #require(model.inlineUsageDashboard)
+        #expect(dashboard.kpis.map(\.title).contains("Today"))
+        #expect(dashboard.kpis.map(\.title).contains { $0.contains("Current window") })
+        #expect(dashboard.quotaWindows.map(\.title) == ["Current window", "Previous window"])
+        #expect(dashboard.quotaWindows.map(\.value) == ["$10.00 · 1K", "$4.00 · 400"])
+        #expect(dashboard.detailLines.contains(L("antigravity_quota_window_note")))
+    }
+
+    @Test
+    func `a truncated Antigravity scan neither zero-fills days nor claims a complete window`() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try #require(TimeZone(secondsFromGMT: 0))
+        let now = try #require(calendar.date(from: DateComponents(
+            timeZone: calendar.timeZone,
+            year: 2026,
+            month: 7,
+            day: 15,
+            hour: 12)))
+        let metadata = try #require(ProviderDefaults.metadata[.antigravity])
+        let partial = Self.antigravitySnapshot(now: now, historyDays: 4, scanIsPartial: true)
+        #expect(partial.historyIsFullyScanned == false)
+
+        let model = UsageMenuCardView.Model.make(.init(
+            provider: .antigravity,
+            metadata: metadata,
+            snapshot: UsageSnapshot(primary: nil, secondary: nil, updatedAt: now),
+            credits: nil,
+            creditsError: nil,
+            dashboardError: nil,
+            tokenSnapshot: partial,
+            tokenError: nil,
+            account: AccountInfo(email: nil, plan: nil),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: true,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
+            costUsageBucketCalendar: calendar,
+            now: now))
+
+        let points = try #require(model.inlineUsageDashboard?.points)
+        // 2026-07-14 was never read, so it must stay unknown instead of rendering as a $0 day.
+        let unscanned = try #require(points.first { $0.id == "2026-07-14" })
+        #expect(unscanned.hoverDetail == nil)
+        #expect(UsageMenuCardView.Model.tokenHistoryCoverageHint(partial) != nil)
+        #expect(model.inlineUsageDashboard?.detailLines
+            .contains("Partial local history · recorded token subtotal") == true)
+    }
+
+    private static func antigravitySnapshot(
+        now: Date,
+        historyDays: Int = 30,
+        scanIsPartial: Bool = false) -> CostUsageTokenSnapshot
+    {
+        CostUsageTokenSnapshot(
+            sessionTokens: 1000,
+            sessionCostUSD: 10,
+            last30DaysTokens: 1400,
+            last30DaysCostUSD: 14,
+            historyDays: historyDays,
+            historyScanIsPartial: scanIsPartial,
+            costProvenance: .listPriceEstimate,
+            daily: [
+                CostUsageDailyReport.Entry(
+                    date: "2026-07-08",
+                    inputTokens: 300,
+                    outputTokens: 100,
+                    totalTokens: 400,
+                    costUSD: 4,
+                    modelsUsed: ["gemini-3.8-flash"],
+                    modelBreakdowns: [
+                        CostUsageDailyReport.ModelBreakdown(
+                            modelName: "gemini-3.8-flash",
+                            costUSD: 4,
+                            totalTokens: 400),
+                    ]),
+                CostUsageDailyReport.Entry(
+                    date: "2026-07-13",
+                    inputTokens: 800,
+                    outputTokens: 200,
+                    totalTokens: 1000,
+                    costUSD: 10,
+                    modelsUsed: ["gemini-3.8-flash"],
+                    modelBreakdowns: [
+                        CostUsageDailyReport.ModelBreakdown(
+                            modelName: "gemini-3.8-flash",
+                            costUSD: 10,
+                            totalTokens: 1000),
+                    ]),
+            ],
+            updatedAt: now)
+    }
+
+    @Test
     func `local cost history Today KPI uses current day session value`() throws {
         let now = Date(timeIntervalSince1970: 1_700_179_200)
         let metadata = try #require(ProviderDefaults.metadata[.claude])

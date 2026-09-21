@@ -32,49 +32,6 @@ public struct OpenCodeUsageFetcher: Sendable {
     /// Customer/billing server function, the same one `OpenCodeGoUsageFetcher` reads the Zen
     /// balance from. It carries the monthly spend fields pay-as-you-go workspaces bill against.
     private static let billingServerID = "c83b78a614689c38ebee981f9b39a8b377716db85c1fd7dbab604adc02d3313d"
-    private static let percentKeys = [
-        "usagePercent",
-        "usedPercent",
-        "percentUsed",
-        "percent",
-        "usage_percent",
-        "used_percent",
-        "utilization",
-        "utilizationPercent",
-        "utilization_percent",
-        "usage",
-    ]
-    private static let resetInKeys = [
-        "resetInSec",
-        "resetInSeconds",
-        "resetSeconds",
-        "reset_sec",
-        "reset_in_sec",
-        "resetsInSec",
-        "resetsInSeconds",
-        "resetIn",
-        "resetSec",
-    ]
-    private static let resetAtKeys = [
-        "resetAt",
-        "resetsAt",
-        "reset_at",
-        "resets_at",
-        "nextReset",
-        "next_reset",
-        "renewAt",
-        "renew_at",
-    ]
-    private static let renewAtKeys = [
-        "renewAt",
-        "renew_at",
-    ]
-    private static func makeISO8601Formatter() -> ISO8601DateFormatter {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return formatter
-    }
-
     private static let userAgent =
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) " +
         "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36"
@@ -165,7 +122,7 @@ extension OpenCodeUsageFetcher {
             cookieHeader: cookieHeader,
             timeout: timeout,
             transport: transport)
-        if self.looksSignedOut(text: text) {
+        if OpenCodeWebParsing.looksSignedOut(text: text) {
             throw OpenCodeUsageError.invalidCredentials
         }
         guard let billing = OpenCodeZenBillingParser.parse(text: text) else {
@@ -201,7 +158,7 @@ extension OpenCodeUsageFetcher {
             cookieHeader: cookieHeader,
             timeout: timeout,
             transport: transport)
-        if self.looksSignedOut(text: text) {
+        if OpenCodeWebParsing.looksSignedOut(text: text) {
             throw OpenCodeUsageError.invalidCredentials
         }
         var ids = OpenCodeWebParsing.parseWorkspaceIDs(text: text)
@@ -219,7 +176,7 @@ extension OpenCodeUsageFetcher {
                 cookieHeader: cookieHeader,
                 timeout: timeout,
                 transport: transport)
-            if self.looksSignedOut(text: fallback) {
+            if OpenCodeWebParsing.looksSignedOut(text: fallback) {
                 throw OpenCodeUsageError.invalidCredentials
             }
             ids = OpenCodeWebParsing.parseWorkspaceIDs(text: fallback)
@@ -251,7 +208,7 @@ extension OpenCodeUsageFetcher {
             cookieHeader: cookieHeader,
             timeout: timeout,
             transport: transport)
-        if self.looksSignedOut(text: text) {
+        if OpenCodeWebParsing.looksSignedOut(text: text) {
             throw OpenCodeUsageError.invalidCredentials
         }
         if self.isExplicitNullPayload(text: text) {
@@ -273,7 +230,7 @@ extension OpenCodeUsageFetcher {
                 cookieHeader: cookieHeader,
                 timeout: timeout,
                 transport: transport)
-            if self.looksSignedOut(text: fallback) {
+            if OpenCodeWebParsing.looksSignedOut(text: fallback) {
                 throw OpenCodeUsageError.invalidCredentials
             }
             if self.isExplicitNullPayload(text: fallback) {
@@ -355,13 +312,13 @@ extension OpenCodeUsageFetcher {
             let contentType = response.response.value(forHTTPHeaderField: "Content-Type") ?? "unknown"
             Self.log
                 .error("OpenCode returned \(response.statusCode) (type=\(contentType) length=\(response.data.count))")
-            if self.looksSignedOut(text: bodyText) {
+            if OpenCodeWebParsing.looksSignedOut(text: bodyText) {
                 throw OpenCodeUsageError.invalidCredentials
             }
             if response.statusCode == 401 || response.statusCode == 403 {
                 throw OpenCodeUsageError.invalidCredentials
             }
-            if let message = self.extractServerErrorMessage(from: bodyText) {
+            if let message = OpenCodeWebParsing.extractServerErrorMessage(from: bodyText) {
                 throw OpenCodeUsageError.apiError("HTTP \(response.statusCode): \(message)")
             }
             throw OpenCodeUsageError.apiError("HTTP \(response.statusCode)")
@@ -424,73 +381,6 @@ extension OpenCodeUsageFetcher {
         return nil
     }
 
-    private static func doubleValue(from value: Any?) -> Double? {
-        let number: Double? = switch value {
-        case let number as Double:
-            number
-        case let number as NSNumber:
-            number.doubleValue
-        case let string as String:
-            Double(string.trimmingCharacters(in: .whitespacesAndNewlines))
-        default:
-            nil
-        }
-        guard let number, number.isFinite else { return nil }
-        return number
-    }
-
-    private static func intValue(from value: Any?) -> Int? {
-        switch value {
-        case let number as Int:
-            number
-        case let number as NSNumber:
-            number.intValue
-        case let string as String:
-            Int(string.trimmingCharacters(in: .whitespacesAndNewlines))
-        default:
-            nil
-        }
-    }
-
-    private static func looksSignedOut(text: String) -> Bool {
-        let lower = text.lowercased()
-        if lower.contains("login") ||
-            lower.contains("sign in") ||
-            lower.contains("auth/authorize") ||
-            lower.contains("not associated with an account") ||
-            lower.contains("actor of type \"public\"")
-        {
-            return true
-        }
-        return false
-    }
-
-    private static func extractServerErrorMessage(from text: String) -> String? {
-        guard let data = text.data(using: .utf8),
-              let object = try? JSONSerialization.jsonObject(with: data, options: [])
-        else {
-            // If it's not JSON, try to extract error from HTML if possible
-            if let match = text.range(of: #"(?i)<title>([^<]+)</title>"#, options: .regularExpression) {
-                return String(text[match].dropFirst(7).dropLast(8)).trimmingCharacters(in: .whitespacesAndNewlines)
-            }
-            return nil
-        }
-
-        guard let dict = object as? [String: Any] else { return nil }
-
-        if let message = dict["message"] as? String, !message.isEmpty {
-            return message
-        }
-        if let error = dict["error"] as? String, !error.isEmpty {
-            return error
-        }
-        // Check for common error fields in some frameworks
-        if let detail = dict["detail"] as? String, !detail.isEmpty {
-            return detail
-        }
-        return nil
-    }
-
     private static func serverRequestURL(serverID: String, args: [Any]?, method: String) -> URL {
         guard method.uppercased() == "GET" else {
             return self.serverURL
@@ -510,7 +400,9 @@ extension OpenCodeUsageFetcher {
 
     private static func parseUsageJSON(object: Any, now: Date) -> OpenCodeUsageSnapshot? {
         guard let dict = object as? [String: Any] else { return nil }
-        let renewsAt = self.dateValue(from: OpenCodeWebParsing.value(from: dict, keys: self.renewAtKeys))
+        let renewsAt = OpenCodeWebParsing.dateValue(from: OpenCodeWebParsing.value(
+            from: dict,
+            keys: OpenCodeWebParsing.renewAtKeys))
         if let snapshot = self.parseUsageDictionary(dict, now: now, inheritedRenewsAt: renewsAt) {
             return snapshot
         }
@@ -534,8 +426,9 @@ extension OpenCodeUsageFetcher {
         now: Date,
         inheritedRenewsAt: Date?) -> OpenCodeUsageSnapshot?
     {
-        let renewsAt = self
-            .dateValue(from: OpenCodeWebParsing.value(from: dict, keys: self.renewAtKeys)) ?? inheritedRenewsAt
+        let renewsAt = OpenCodeWebParsing
+            .dateValue(from: OpenCodeWebParsing.value(from: dict, keys: OpenCodeWebParsing.renewAtKeys)) ??
+            inheritedRenewsAt
         if let usage = dict["usage"] as? [String: Any],
            let snapshot = self.parseUsageDictionary(usage, now: now, inheritedRenewsAt: renewsAt)
         {
@@ -562,8 +455,9 @@ extension OpenCodeUsageFetcher {
         inheritedRenewsAt: Date?) -> OpenCodeUsageSnapshot?
     {
         if depth > 3 { return nil }
-        let renewsAt = self
-            .dateValue(from: OpenCodeWebParsing.value(from: dict, keys: self.renewAtKeys)) ?? inheritedRenewsAt
+        let renewsAt = OpenCodeWebParsing
+            .dateValue(from: OpenCodeWebParsing.value(from: dict, keys: OpenCodeWebParsing.renewAtKeys)) ??
+            inheritedRenewsAt
         var rolling: [String: Any]?
         var weekly: [String: Any]?
 
@@ -628,9 +522,9 @@ extension OpenCodeUsageFetcher {
 
         guard let rolling, let weekly else { return nil }
 
-        let renewsAt = self.dateValue(from: OpenCodeWebParsing.value(
+        let renewsAt = OpenCodeWebParsing.dateValue(from: OpenCodeWebParsing.value(
             from: object as? [String: Any] ?? [:],
-            keys: self.renewAtKeys))
+            keys: OpenCodeWebParsing.renewAtKeys))
             ?? inheritedRenewsAt
         return OpenCodeUsageSnapshot(
             rollingUsagePercent: rolling.percent,
@@ -663,14 +557,18 @@ extension OpenCodeUsageFetcher {
     }
 
     private static func parseWindow(_ dict: [String: Any], now: Date) -> (percent: Double, resetInSec: Int)? {
-        var percent = self.doubleValue(from: dict, keys: self.percentKeys)
+        var percent = OpenCodeWebParsing.doubleValue(from: dict, keys: OpenCodeWebParsing.percentKeys)
         // A direct percent field may arrive as a fraction (0...1) or a percent (0...100), so it goes
         // through the `<= 1` heuristic below. A computed used/limit percent is already 0...100 and must not.
         let percentIsDirect = percent != nil
 
         if percent == nil {
-            let used = self.doubleValue(from: dict, keys: ["used", "usage", "consumed", "count", "usedTokens"])
-            let limit = self.doubleValue(from: dict, keys: ["limit", "total", "quota", "max", "cap", "tokenLimit"])
+            let used = OpenCodeWebParsing.doubleValue(
+                from: dict,
+                keys: ["used", "usage", "consumed", "count", "usedTokens"])
+            let limit = OpenCodeWebParsing.doubleValue(
+                from: dict,
+                keys: ["limit", "total", "quota", "max", "cap", "tokenLimit"])
             if let used, let limit, limit > 0 {
                 percent = (used / limit) * 100
             }
@@ -682,10 +580,10 @@ extension OpenCodeUsageFetcher {
         }
         resolvedPercent = max(0, min(100, resolvedPercent))
 
-        var resetInSec = self.intValue(from: dict, keys: self.resetInKeys)
+        var resetInSec = OpenCodeWebParsing.intValue(from: dict, keys: OpenCodeWebParsing.resetInKeys)
         if resetInSec == nil {
-            let resetAtValue = OpenCodeWebParsing.value(from: dict, keys: self.resetAtKeys)
-            if let resetAt = self.dateValue(from: resetAtValue),
+            let resetAtValue = OpenCodeWebParsing.value(from: dict, keys: OpenCodeWebParsing.resetAtKeys)
+            if let resetAt = OpenCodeWebParsing.dateValue(from: resetAtValue),
                let interval = OpenCodeWebParsing.resetInterval(from: resetAt, now: now)
             {
                 resetInSec = interval
@@ -694,45 +592,6 @@ extension OpenCodeUsageFetcher {
 
         let resolvedReset = max(0, resetInSec ?? 0)
         return (resolvedPercent, resolvedReset)
-    }
-
-    private static func doubleValue(from dict: [String: Any], keys: [String]) -> Double? {
-        for key in keys {
-            if let value = self.doubleValue(from: dict[key]) {
-                return value
-            }
-        }
-        return nil
-    }
-
-    private static func intValue(from dict: [String: Any], keys: [String]) -> Int? {
-        for key in keys {
-            if let value = self.intValue(from: dict[key]) {
-                return value
-            }
-        }
-        return nil
-    }
-
-    private static func dateValue(from value: Any?) -> Date? {
-        guard let value else { return nil }
-        if let number = self.doubleValue(from: value) {
-            if number > 1_000_000_000_000 {
-                return Date(timeIntervalSince1970: number / 1000)
-            }
-            if number > 1_000_000_000 {
-                return Date(timeIntervalSince1970: number)
-            }
-        }
-        if let string = value as? String {
-            if let number = Double(string.trimmingCharacters(in: .whitespacesAndNewlines)) {
-                return self.dateValue(from: number)
-            }
-            if let parsed = self.makeISO8601Formatter().date(from: string) {
-                return parsed
-            }
-        }
-        return nil
     }
 
     private static func logParseSummary(text: String) {

@@ -15,6 +15,7 @@ read_when:
 - WidgetKit owns the outer margins. Small, medium, and large tiles share the same rendering and quota-selection rules; overflow labels disclose omitted detail rows. Snapshot and reset dates remain live relative text between timeline updates.
 - Snapshot age labels use WidgetKit's native relative-date text to advance between timeline reloads, including on small widgets. Stale token-cost rows track their own saved timestamp once they lag quota data by more than ten minutes. Fetching new usage still depends on app refresh and WidgetKit accepting a timeline.
 - The app writes snapshots after the main refresh pipeline and token-usage refreshes; narrow single-provider refresh paths may wait for the next snapshot write.
+- If every provider entry disappears during a failed refresh, the writer can retain its last queued entries while their providers remain enabled and preservation has not been invalidated. Measurement timestamps stay unchanged, so the widgets show the data's original age. Account invalidation keeps a queued publication retired until valid replacement usage is published. This fallback is limited to the current app session; it does not restore generic provider entries from disk across account changes or restarts. Claude keeps its existing ownership-checked preservation path.
 - Scheduled provider refreshes trigger regular token/cost refreshes; the token/cost TTL determines eligibility when
   that refresh runs. Timer-driven local-history refreshes have a 15-minute minimum (30 minutes in low-power mode).
   Manual disables the recurring refresh timer, not all scan activity: startup refreshes and pending Codex catch-up can
@@ -124,6 +125,38 @@ Burn-down widgets currently support Codex and Claude. Their dedicated configurat
 ## Visibility troubleshooting (macOS 14+)
 When widgets do not appear in the gallery at all, the issue is almost always
 registration, signing, or daemon caching (not SwiftUI code).
+
+### Widgets removed during Homebrew upgrades
+
+Homebrew replaces the app bundle during a cask upgrade. Even when it preserves the outer
+`CodexBar.app` directory, its removal of the old contents temporarily removes the embedded
+widget extension. macOS can treat that as an uninstall and remove placed widgets (#3627).
+If CodexBar is still in the gallery but desktop or Notification Center widgets disappeared,
+re-registering the extension or reloading timelines does not restore their saved placements
+and configuration. WidgetCenter exposes configuration queries and reload requests, not an
+API for restoring removed widget placements. Add and configure those widgets again.
+
+`brew upgrade --formula` upgrades formulae only and can defer cask replacement until you are
+ready to reconfigure widgets; it does not update CodexBar. Neither `--no-quit` nor `--no-binaries`
+prevents replacement of the app's embedded extension. For an alternative update mechanism,
+use a standalone GitHub release installation with Sparkle; Homebrew-managed installations
+disable Sparkle. Widget placement preservation with that alternative still needs native
+upgrade testing and is not guaranteed here.
+
+### Timelines remain stale despite successful extension logs
+
+`reloadAllTimelines()` requests an update; it does not confirm that `chronod` accepted the
+rendered timeline. An extension-side success log can therefore coexist with
+`CHSErrorDomain` 1050 (`timelineReloadFailed`), as reported in #3339. Current providers emit
+one timeline entry and request the next update 5–30 minutes later (30 minutes for Metric).
+Expired reset dates do not schedule a reload in the past. The snapshot reader does not
+impose a byte limit, so a problematic payload still needs to be examined before ruling
+out resource pressure.
+
+For this specific failure, collect app/extension versions, snapshot byte size, and matching
+extension and `chronod` logs. The reporter recovered by quitting only the `CodexBarWidget`
+extension process and allowing macOS to relaunch it. This is a manual diagnostic workaround,
+not an automatic recovery policy; restarting the main app may leave that process alive.
 
 ### 1) Verify the extension bundle exists where macOS expects it
 ```

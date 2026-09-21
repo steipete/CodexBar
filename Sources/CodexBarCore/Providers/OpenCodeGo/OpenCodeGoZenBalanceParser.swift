@@ -3,6 +3,26 @@ import Foundation
 enum OpenCodeGoZenBalanceParser {
     private static let billingScale = 100_000_000.0
 
+    static func parseConsoleBillingStatus(text: String) throws -> Double? {
+        guard let data = text.data(using: .utf8),
+              let root = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+              let billingMode = root["billingMode"] as? String,
+              ["prepaid", "legacy", "seat", "credit"].contains(billingMode),
+              let mode = root["mode"] as? String,
+              ["pay-as-you-go", "invoiceable"].contains(mode)
+        else { throw OpenCodeGoUsageError.parseFailed("Invalid Console billing payload.") }
+        guard billingMode == "prepaid", mode == "pay-as-you-go" else { return nil }
+        guard let raw = root["balanceMicroCents"] as? String else {
+            throw OpenCodeGoUsageError.parseFailed("Missing Console balance.")
+        }
+        let digits = raw.hasPrefix("-") ? raw.dropFirst() : raw[...]
+        guard !digits.isEmpty,
+              digits.utf8.allSatisfy({ $0 >= 48 && $0 <= 57 }),
+              let balance = Double(raw), balance.isFinite
+        else { throw OpenCodeGoUsageError.parseFailed("Invalid Console balance.") }
+        return balance / self.billingScale
+    }
+
     static func parse(text: String) -> Double? {
         if let value = self.parseJSON(text: text) {
             return value

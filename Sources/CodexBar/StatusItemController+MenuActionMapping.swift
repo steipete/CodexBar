@@ -4,6 +4,7 @@ extension StatusItemController {
     func selector(for action: MenuDescriptor.MenuAction) -> (Selector, Any?) {
         switch action {
         case .installUpdate: (#selector(self.installUpdate), nil)
+        case .checkForUpdates: (#selector(self.checkForUpdates), nil)
         case .refresh: (#selector(self.refreshMenuItem(_:)), nil)
         case .refreshAugmentSession: (#selector(self.refreshAugmentSession), nil)
         case .dashboard: (#selector(self.openDashboard), nil)

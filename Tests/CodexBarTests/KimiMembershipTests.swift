@@ -16,7 +16,7 @@ struct KimiMembershipTests {
         {"user":{"membership":{"level":"\(level)"}},"version":"GOODS_VERSION_V1",
         "usage":{"limit":"100","used":"25","remaining":"75"}}
         """
-        let snapshot = try KimiUsageFetcher._parseCodeAPIUsageForTesting(Data(json.utf8))
+        let snapshot = try KimiUsageFetcher.parseCodeAPIUsage(from: Data(json.utf8))
         #expect(snapshot.toUsageSnapshot().loginMethod(for: .kimi) == title)
     }
 
@@ -30,7 +30,7 @@ struct KimiMembershipTests {
     func `absent or malformed optional membership preserves valid usage`(_ fields: String) throws {
         var json = try #require(JSONSerialization.jsonObject(with: Data(fields.utf8)) as? [String: Any])
         json["usage"] = ["limit": "100", "used": "25", "remaining": "75"]
-        let snapshot = try KimiUsageFetcher._parseCodeAPIUsageForTesting(JSONSerialization.data(withJSONObject: json))
+        let snapshot = try KimiUsageFetcher.parseCodeAPIUsage(from: JSONSerialization.data(withJSONObject: json))
         #expect(snapshot.weekly?.used == "25")
         #expect(snapshot.planName == nil)
     }
@@ -41,7 +41,7 @@ struct KimiMembershipTests {
         {"user":{"membership":{"level":"LEVEL_ADVANCED"}},
         "version":\(version),"usage":{"limit":"100","used":"25"}}
         """
-        let snapshot = try KimiUsageFetcher._parseCodeAPIUsageForTesting(Data(json.utf8))
+        let snapshot = try KimiUsageFetcher.parseCodeAPIUsage(from: Data(json.utf8))
         #expect(snapshot.planName == "LEVEL_ADVANCED")
     }
 

@@ -139,7 +139,7 @@ public struct DevinUsageFetcher: Sendable {
 
         #if os(macOS)
         let normalizedOrganizationOverride = Self.normalizedOrganization(organizationOverride)
-        let sessions = DevinSessionImporter.importSessions(
+        let sessions = try DevinSessionImporter.importSessions(
             browserDetection: self.browserDetection,
             organizationOverride: normalizedOrganizationOverride,
             logger: logger)

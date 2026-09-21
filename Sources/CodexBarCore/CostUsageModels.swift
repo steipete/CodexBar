@@ -214,6 +214,10 @@ public struct CostUsageTokenSnapshot: Sendable, Equatable {
     public let currencyCode: String
     public let historyDays: Int
     public let historyCoverageIsEstablished: Bool
+    /// `true` when the source was read but the read stopped short — a missing SQLite sidecar, an
+    /// exhausted scan budget, or rows that failed to decode. The rows present are usable, but every
+    /// total derived from them is a lower bound, so no surface may present them as complete.
+    public let historyScanIsPartial: Bool
     public let historyLabel: String?
     /// Provider-metered spend over the same window as `last30DaysCostUSD` — what the plan
     /// actually deducts, as opposed to the API-rate estimate. Only some providers (e.g. Cursor)
@@ -244,6 +248,7 @@ public struct CostUsageTokenSnapshot: Sendable, Equatable {
         currencyCode: String = "USD",
         historyDays: Int = 30,
         historyCoverageIsEstablished: Bool = true,
+        historyScanIsPartial: Bool = false,
         historyLabel: String? = nil,
         meteredCostUSD: Double? = nil,
         costProvenance: CostProvenance = .unknown,
@@ -265,6 +270,7 @@ public struct CostUsageTokenSnapshot: Sendable, Equatable {
         self.currencyCode = normalizedCurrencyCode.isEmpty ? "XXX" : normalizedCurrencyCode
         self.historyDays = historyDays
         self.historyCoverageIsEstablished = historyCoverageIsEstablished
+        self.historyScanIsPartial = historyScanIsPartial
         self.historyLabel = historyLabel
         self.meteredCostUSD = meteredCostUSD
         self.costProvenance = costProvenance
@@ -275,6 +281,13 @@ public struct CostUsageTokenSnapshot: Sendable, Equatable {
         self.hourly = hourly
         self.quotaSlices = quotaSlices
         self.updatedAt = updatedAt
+    }
+
+    /// Coverage is established *and* the read of that coverage ran to completion. Surfaces that
+    /// fabricate certainty — zero-filling absent days, dropping a partial-history hint, marking a
+    /// window complete — must gate on this rather than on `historyCoverageIsEstablished` alone.
+    public var historyIsFullyScanned: Bool {
+        self.historyCoverageIsEstablished && !self.historyScanIsPartial
     }
 
     public func currentDayEntry(calendar: Calendar = .current) -> CostUsageDailyReport.Entry? {

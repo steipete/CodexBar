@@ -6,6 +6,31 @@ import Testing
 @testable import CodexBarCore
 
 struct KimiDesktopAuthTokenTests {
+    @Test(arguments: ["www.kimi.ai", ".kimi.ai"])
+    func `desktop cookie selection never crosses regions`(internationalHost: String) throws {
+        let environment = try Self.makeEnvironment()
+        defer { try? FileManager.default.removeItem(at: environment.root) }
+        try Self.createDatabase(at: environment.databaseURL)
+        try Self.insertCookie(
+            databaseURL: environment.databaseURL,
+            host: "www.kimi.com",
+            value: "china-token",
+            lastAccess: 1)
+        #expect(KimiDesktopAuthToken.load(region: .international, homeDirectory: environment.root) == nil)
+        try Self.insertCookie(
+            databaseURL: environment.databaseURL,
+            host: internationalHost,
+            value: "global-token",
+            lastAccess: 2)
+        try Self.insertCookie(
+            databaseURL: environment.databaseURL,
+            host: "kimi.ai.example.com",
+            value: "wrong-token",
+            lastAccess: 3)
+        #expect(KimiDesktopAuthToken.load(region: .international, homeDirectory: environment.root) == "global-token")
+        #expect(KimiDesktopAuthToken.load(region: .china, homeDirectory: environment.root) == "china-token")
+    }
+
     @Test(arguments: [false, true])
     func `desktop loader rejects expired JWTs in the real SQLite path`(expired: Bool) throws {
         let environment = try Self.makeEnvironment()

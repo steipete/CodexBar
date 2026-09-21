@@ -132,6 +132,7 @@ extension UsageStore {
     }
 
     func clearCodexPublishedUsageState(preserveSessionQuotaTransitionState: Bool = false) {
+        self.invalidateGenericWidgetUsage(for: .codex)
         self.snapshots.removeValue(forKey: .codex)
         self.errors[.codex] = nil
         self.lastSourceLabels.removeValue(forKey: .codex)

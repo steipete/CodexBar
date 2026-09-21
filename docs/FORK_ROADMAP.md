@@ -1,11 +1,14 @@
 ---
-summary: "Fork roadmap: phases, milestones, and planned improvements."
+summary: "Historical January 2026 topoffunnel fork roadmap; not the current product plan."
 read_when:
-  - Planning fork work
-  - Reviewing fork milestones
+  - Reviewing historical topoffunnel fork milestones
 ---
 
 # CodexBar Fork Roadmap
+
+> Historical January 2026 fork plan. Its phases and completion claims are preserved as context, not current tasks.
+> Augment, token accounts, and upstream helper scripts already exist in the main repository. Consult
+> [Vision](../VISION.md), [Providers](providers.md), and [Configuration](configuration.md) for current scope and behavior.
 
 This document outlines the development roadmap for the CodexBar fork maintained by Brandon Charleson.
 

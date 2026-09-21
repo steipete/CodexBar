@@ -44,6 +44,21 @@ struct MenuBarLayoutDragItem: Codable, Hashable, Transferable, Sendable {
 }
 
 enum MenuBarLayoutPaletteTokens {
+    static func usage(provider: UsageProvider?, snapshot: UsageSnapshot?) -> [MenuBarLayoutToken] {
+        [
+            .percent(window: .session),
+            .percent(window: .weekly),
+            .percent(window: .scopedWeekly),
+        ] + MenuBarLayoutLane.available(for: provider, snapshot: snapshot).map { .lanePercent(lane: $0) }
+            + MenuBarLayoutNamedExtra.availableTokens(provider: provider, snapshot: snapshot) + [
+                .percent(window: .automatic),
+                .usageBar,
+                .pace(window: .session),
+                .pace(window: .weekly),
+                .pace(window: .automatic),
+            ]
+    }
+
     static let time: [MenuBarLayoutToken] = [
         .resetCountdown,
         .resetAbsolute,
@@ -301,17 +316,9 @@ struct MenuBarLayoutEditor: View {
             MenuBarLayoutPaletteGroup(
                 id: "usage",
                 title: L("menu_bar_layout_group_usage"),
-                tokens: [
-                    .percent(window: .session),
-                    .percent(window: .weekly),
-                    .percent(window: .scopedWeekly),
-                ] + self.providerLaneTokens + [
-                    .percent(window: .automatic),
-                    .usageBar,
-                    .pace(window: .session),
-                    .pace(window: .weekly),
-                    .pace(window: .automatic),
-                ],
+                tokens: MenuBarLayoutPaletteTokens.usage(
+                    provider: self.persistenceProvider,
+                    snapshot: self.persistenceSnapshot),
                 includesLineBreak: false),
             MenuBarLayoutPaletteGroup(
                 id: "time",
@@ -329,11 +336,6 @@ struct MenuBarLayoutEditor: View {
                 tokens: [.separatorDot, .space],
                 includesLineBreak: true),
         ]
-    }
-
-    private var providerLaneTokens: [MenuBarLayoutToken] {
-        MenuBarLayoutLane.available(for: self.persistenceProvider, snapshot: self.persistenceSnapshot)
-            .map { .lanePercent(lane: $0) }
     }
 
     var body: some View {
@@ -1039,6 +1041,7 @@ struct MenuBarLayoutPreview: View {
             primary: MenuBarLayoutRenderWindow(primary),
             secondary: MenuBarLayoutRenderWindow(secondary),
             tertiary: MenuBarLayoutRenderWindow(tertiary),
+            extraRateWindows: (snapshot.extraRateWindows ?? []).map(MenuBarLayoutRenderExtra.init),
             session: MenuBarLayoutRenderWindow(session),
             weekly: MenuBarLayoutRenderWindow(weekly),
             scopedWeekly: MenuBarLayoutRenderWindow(scopedNamed?.window),
@@ -1133,6 +1136,7 @@ struct MenuBarLayoutPreview: View {
             primary: MenuBarLayoutRenderWindow(session),
             secondary: MenuBarLayoutRenderWindow(weekly),
             tertiary: MenuBarLayoutRenderWindow(scopedWeekly),
+            extraRateWindows: [],
             session: MenuBarLayoutRenderWindow(session),
             weekly: MenuBarLayoutRenderWindow(weekly),
             scopedWeekly: MenuBarLayoutRenderWindow(scopedWeekly),
@@ -1236,6 +1240,9 @@ extension MenuBarLayoutToken {
         if case let .lanePercent(lane) = self {
             return self.laneEditorLabel(lane: lane, provider: provider, snapshot: snapshot)
         }
+        if case let .extraPercent(id) = self, let title = MenuBarLayoutNamedExtra.title(id: id) {
+            return L("%@ %@", title, "%")
+        }
         if let providerLabel = self.providerEditorLabel(provider: provider) {
             return providerLabel
         }
@@ -1270,6 +1277,7 @@ extension MenuBarLayoutToken {
         case .percent(window: .scopedWeekly): L("menu_bar_layout_token_scoped_weekly")
         case .percent(window: .automatic): L("menu_bar_layout_token_auto")
         case let .lanePercent(lane): L("%@ %@", lane.rawValue.capitalized, "%")
+        case .extraPercent: L("%@ %@", L("Usage"), "%")
         case .pace(window: .session): L("menu_bar_layout_token_session_pace")
         case .pace(window: .weekly): L("menu_bar_layout_token_weekly_pace")
         case .pace(window: .scopedWeekly): L("menu_bar_layout_token_weekly_pace")
@@ -1325,7 +1333,7 @@ extension MenuBarLayoutToken {
         case .icon: "app.dashed"
         case .providerName: "textformat"
         case .accountLabel: "person.crop.circle"
-        case .percent, .lanePercent: "percent"
+        case .percent, .lanePercent, .extraPercent: "percent"
         case .pace: "speedometer"
         case .usageBar: "chart.bar.fill"
         case .resetCountdown, .windowResetCountdown: "timer"

@@ -12,7 +12,7 @@ read_when:
 - Updater: `SPUStandardUpdaterController` owned by `AppDelegate` (see `Sources/CodexBar/CodexbarApp.swift:1`).
 - Feed: `SUFeedURL` in Info.plist points to GitHub Releases appcast (`appcast.xml`).
 - Key: `SUPublicEDKey` set to `AGCY8w5vHirVfGGDGc8Szc5iuOqupZSh9pMj/Qs67XI=`. Keep the Ed25519 private key safe; use it when generating the appcast.
-- UI: auto-check toggle (About) enables auto-downloads; menu only shows “Update ready, restart now?” once an update is downloaded. Both that action and About → Check for Updates open Sparkle's update UI, including its install confirmation for a staged update.
+- UI: auto-check toggle (About) enables auto-downloads; menu shows “Check for Updates…” when no update is staged, or “Update ready, restart now?” once an update is downloaded. These actions and About → Check for Updates open Sparkle's update UI, including its install confirmation for a staged update.
 - LSUIElement: works; updater window will show when checking. App is non-sandboxed.
 - Channels: stable vs beta are served from the same appcast. Beta items are tagged with `sparkle:channel="beta"`; About → Update Channel controls `allowedChannels`.
 

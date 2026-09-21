@@ -16,10 +16,8 @@ public enum MuseCredentials {
         environment: [String: String] = ProcessInfo.processInfo.environment,
         homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser) -> Bool
     {
-        if self.authFileRecord(environment: environment, homeDirectory: homeDirectory) != nil {
-            return true
-        }
-        return (try? self.keychainAccessToken()) != nil
+        self.authFileRecord(environment: environment, homeDirectory: homeDirectory) != nil ||
+            (try? self.keychainAccessToken()) != nil
     }
 
     public static func accessToken(
@@ -34,8 +32,8 @@ public enum MuseCredentials {
             if let token = try self.keychainAccessToken() {
                 return token
             }
-        } catch MuseUsageError.keychainUnavailable {
-            if authFile != nil { throw MuseUsageError.keychainUnavailable }
+        } catch let error as MuseUsageError where error == .keychainAccessDisabled || error == .keychainUnavailable {
+            if authFile != nil { throw error }
         }
         throw MuseUsageError.missingCredentials
     }
@@ -60,10 +58,7 @@ public enum MuseCredentials {
         {
             return URL(fileURLWithPath: override)
         }
-        return homeDirectory
-            .appendingPathComponent(".config", isDirectory: true)
-            .appendingPathComponent("muse", isDirectory: true)
-            .appendingPathComponent("auth.json")
+        return homeDirectory.appendingPathComponent(".config/muse/auth.json")
     }
 
     private static func authFileRecord(
@@ -87,7 +82,7 @@ public enum MuseCredentials {
     private static func keychainAccessToken() throws -> String? {
         #if os(macOS)
         guard !KeychainAccessGate.isDisabled else {
-            throw MuseUsageError.keychainUnavailable
+            throw MuseUsageError.keychainAccessDisabled
         }
         var query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
@@ -108,8 +103,6 @@ public enum MuseCredentials {
             return try self.accessToken(fromKeychainPayload: data)
         case errSecItemNotFound:
             return nil
-        case errSecInteractionNotAllowed, errSecAuthFailed, errSecNoAccessForItem:
-            throw MuseUsageError.keychainUnavailable
         default:
             throw MuseUsageError.keychainUnavailable
         }
@@ -120,9 +113,6 @@ public enum MuseCredentials {
 
     private static func requireAccessToken(_ raw: String?) throws -> String {
         let token = raw?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        guard !token.isEmpty else {
-            throw MuseUsageError.invalidCredentials
-        }
         guard token.hasPrefix(self.accessTokenPrefix) else {
             throw MuseUsageError.invalidCredentials
         }

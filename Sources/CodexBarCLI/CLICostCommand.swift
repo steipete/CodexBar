@@ -184,7 +184,12 @@ extension CodexBarCLI {
     {
         let descriptor = ProviderDescriptorRegistry.descriptor(for: provider)
         let name = descriptor.metadata.displayName
-        if descriptor.tokenCost.presentation == .tokensOnly {
+        // Provider-specific by design: Antigravity is the one cost provider whose local models can
+        // all be absent from the pricing catalog, so it falls back to the token-only rendering.
+        // Other providers keep the cost shape and render their unknown values as dashes.
+        let costIsEntirelyUnknown = provider == .antigravity
+            && (snapshot.last30DaysCostUSD == nil || (snapshot.daily.isEmpty && snapshot.last30DaysCostUSD == 0))
+        if descriptor.tokenCost.presentation == .tokensOnly || costIsEntirelyUnknown {
             return Self.renderLocalTokenHistoryText(name: name, snapshot: snapshot, useColor: useColor)
         }
         // Provider-specific by design: Codex cost is explicitly an API-equivalent local-session estimate.
@@ -201,6 +206,7 @@ extension CodexBarCLI {
 
         let todayIncomplete = snapshot.summary(forLastDays: 1, calendar: calendar).incompleteRequestCount
         let incomplete = CostUsageIncompleteRequests.sum(snapshot.daily.map(\.incompleteRequestCount))
+        let unpriced = snapshot.daily.reduce(0) { $0 + max(0, $1.unpricedRequestCount ?? 0) }
         let todayCost = snapshot.sessionCostUSD
             .map { UsageFormatter.currencyString($0, currencyCode: snapshot.currencyCode) } ?? "—"
         let todayTokens = snapshot.sessionTokens.map { UsageFormatter.tokenCountString($0) }
@@ -232,6 +238,12 @@ extension CodexBarCLI {
         if incomplete > 0 {
             lines
                 .append("Incomplete: \(incomplete) requests lacked final usage and were excluded from tokens and cost.")
+        }
+        if unpriced > 0 {
+            lines.append("Partial estimate: \(unpriced) recorded request\(unpriced == 1 ? "" : "s") had no price.")
+        }
+        if !snapshot.historyIsFullyScanned {
+            lines.append("Partial local history · recorded token subtotal")
         }
         // Provider-specific by design: only Claude local history currently guarantees model attribution.
         if includeBreakdown, provider == .claude, !snapshot.daily.isEmpty {
@@ -394,7 +406,7 @@ extension CodexBarCLI {
             }
         }
         guard !modelAgg.isEmpty else { return [] }
-        let isPartial = !snapshot.historyCoverageIsEstablished || hasUnattributedDay
+        let isPartial = !snapshot.historyIsFullyScanned || hasUnattributedDay
             || modelAgg.values.contains { !$0.hasUsage || $0.cost == nil || $0.tokens == nil }
         let sorted = modelAgg.sorted { lhs, rhs in
             let lCost = lhs.value.hasUsage ? lhs.value.cost ?? -1 : -1
@@ -449,7 +461,7 @@ extension CodexBarCLI {
             snapshot.historyDays == 1 ? nil : "\(historyLabel): \(total)",
             snapshot.daily.isEmpty && snapshot.historyCoverageIsEstablished
                 ? "No token usage found in the selected period." : nil,
-            snapshot.historyCoverageIsEstablished ? nil : "Partial local history · recorded token subtotal",
+            snapshot.historyIsFullyScanned ? nil : "Partial local history · recorded token subtotal",
             hint,
         ]
         return lines.compactMap(\.self).joined(separator: "\n")

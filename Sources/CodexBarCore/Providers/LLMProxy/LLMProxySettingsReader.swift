@@ -31,3 +31,15 @@ public enum LLMProxySettingsReader {
         SettingsValue.cleaned(environment[self.baseURLEnvironmentKey]) != nil
     }
 }
+
+public enum LLMProxyUsageError: LocalizedError, Sendable {
+    case invalidEndpointOverride(String)
+
+    public var errorDescription: String? {
+        switch self {
+        case let .invalidEndpointOverride(key):
+            "LLM Proxy base URL override \(key) is invalid. Use an HTTPS URL, or plain HTTP for " +
+                "loopback or private-network addresses and .local hosts, without embedded credentials."
+        }
+    }
+}
