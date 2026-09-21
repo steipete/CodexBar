@@ -85,6 +85,7 @@ else:
         for _ in range(3):
             self.assertEqual(self.client('--background')['pid'], first['pid'])
         self.assertEqual(first['summary'], 'CX 60%')
+        self.assertEqual(first['barLabel'], '5H 60%')
         self.assertNotIn('private@example.com', json.dumps(first))
         self.assertNotIn('executable', first)
         socket = self.runtime / 'codexbar-linux' / 'desktop.sock'
@@ -154,7 +155,9 @@ else:
         self.assertEqual([(window['label'], window['remaining']) for window in windows], [
             ('Gemini weekly', 5), ('Claude/GPT 5-hour', 0), ('Gemini 5-hour', 97), ('Claude/GPT weekly', 100)])
         self.assertEqual(len({window['key'] for window in windows}), 4)
-        self.assertEqual(value['summary'], 'antigravity 5%')
+        # The bar and the tooltip lead with the session, bound by the exhausted Claude/GPT pool.
+        self.assertEqual(value['barLabel'], '5H 0% · 7D 5%')
+        self.assertEqual(value['summary'], 'antigravity 0%')
 
     def test_invalid_config_is_not_overwritten(self):
         self.client('--quit')
@@ -167,6 +170,27 @@ else:
         self.wait_for(lambda value: bool(value.get('entries')))
         self.assertFalse(self.client('--configure', '{"provider":"claude"}', check=False)['ok'])
         self.assertEqual(settings.read_text(), '{broken')
+
+    def test_settings_from_before_the_bar_preferences_survive_an_upgrade(self):
+        self.client('--quit')
+        self.process.wait(timeout=4)
+        settings = self.root / 'config/codexbar/linux.json'
+        settings.parent.mkdir(parents=True, exist_ok=True)
+        # Written by a release without showScopedCaps or barProviders.
+        settings.write_text(json.dumps({'provider': 'custom', 'providerOrder': ['claude', 'codex'],
+                                        'quotaDisplay': 'used', 'showPace': False, 'refreshSeconds': 600}))
+        self.process = subprocess.Popen([str(APP), '--background', '--no-tray', '--cli', str(self.fake)],
+                                        env=self.environment, stdout=self.log, stderr=self.log)
+        value = self.wait_for(lambda value: len(value.get('entries', [])) == 2 and not value['busy'])
+        self.assertEqual([entry['provider'] for entry in value['entries']], ['claude', 'codex'])
+        self.assertEqual(value['quotaDisplay'], 'used')
+        self.assertEqual(value['barLabel'], 'CL 5H 40%  ·  CX 5H 40%')
+        self.assertTrue(self.client('--configure', '{"notifyThreshold":20}')['ok'])
+        saved = json.loads(settings.read_text())
+        self.assertEqual({key: saved[key] for key in ['provider', 'providerOrder', 'quotaDisplay', 'showPace', 'refreshSeconds']},
+                         {'provider': 'custom', 'providerOrder': ['claude', 'codex'], 'quotaDisplay': 'used',
+                          'showPace': False, 'refreshSeconds': 600})
+        self.assertEqual((saved['showScopedCaps'], saved['barProviders']), (False, 2))
 
     def test_old_response_cannot_replace_new_selection(self):
         (self.root / 'state.json').write_text('{"delay":0.5}')
@@ -250,6 +274,7 @@ else:
         self.client('--configure', '{"quotaDisplay":"used","resetDisplay":"absolute"}')
         value = self.client('--snapshot')
         self.assertEqual(value['summary'], 'CX 40%')
+        self.assertEqual(value['barLabel'], '5H 40%')
         self.assertEqual(value['entries'][0]['windows'][0]['displayValue'], 40)
         self.assertEqual(value['entries'][0]['windows'][0]['displaySuffix'], 'used')
         self.assertFalse(value['busy'])

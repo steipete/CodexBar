@@ -65,11 +65,12 @@ private:
     bool m_usageBatch = false, m_batchFailed = false;
     void nextProvider();
     void loadProviders();
+    void updateLabels();
     QTimer m_poll, m_clock;
     QLocalServer m_server;
     QVariantMap m_settings;
     QVariantList m_entries, m_spending;
-    QString m_configPath, m_error, m_costError, m_configError, m_summary;
+    QString m_configPath, m_error, m_costError, m_configError, m_summary, m_barLabel;
     qint64 m_updated = 0, m_costUpdated = 0;
     int m_generation = 0;
     bool m_configBlocked = false;

@@ -15,7 +15,9 @@ Panel {
     readonly property string executable: String(setting("desktopExecutable", "codexbar-linux"))
     implicitWidth: button.implicitWidth
     implicitHeight: button.implicitHeight
-    function poll() { if (!reader.running) reader.running = true; }
+    // Clear the body first: a reader that exits without emitting would otherwise leave the
+    // previous cycle's text to be parsed again and accepted as a fresh, healthy snapshot.
+    function poll() { if (!reader.running) { response = ""; reader.running = true; } }
     function launch(page) { Quickshell.execDetached([executable, "--" + page]); close(); }
     function refresh() { Quickshell.execDetached([executable, "--refresh"]); }
     Component.onCompleted: Qt.callLater(poll)
@@ -40,7 +42,10 @@ Panel {
         id: button
         anchors.fill: parent
         bar: root.bar
-        text: !root.available ? "CodexBar —" : (root.snapshot.stale ? "! " : "") + (root.snapshot.summary || "CodexBar —")
+        // The backend formats the lanes and the weekly pace; the bar only marks stale data.
+        // An older backend publishes no barLabel and still gets its compact summary.
+        text: !root.available ? "CodexBar —" : (root.snapshot.stale ? "! " : "") +
+            (root.snapshot.barLabel || root.snapshot.summary || "CodexBar —")
         tooltipText: "CodexBar · quota " + (root.snapshot.quotaDisplay || "remaining") + "\nClick for usage · middle-click to refresh"
         onPressed: function(code) { if (code === Qt.MiddleButton) root.refresh(); else root.toggle(); }
     }

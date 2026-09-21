@@ -41,7 +41,7 @@ void stop(QProcess &process) {
 }
 
 DesktopController::DesktopController(const QString &cliOverride, QObject *parent) : QObject(parent) {
-    m_usageModel = module(m_engine, ":/Shared/Usage.js", "rows:rows, costs:costs, command:command, summary:summary, resetText:resetText");
+    m_usageModel = module(m_engine, ":/Shared/Usage.js", "rows:rows, costs:costs, command:command, summary:summary, barLabel:barLabel, resetText:resetText");
     m_noticeModel = module(m_engine, ":/Shared/Notifications.js", "transition:transition, summary:summary");
     m_noticeState = m_engine.newObject();
     loadSettings(cliOverride);
@@ -72,11 +72,12 @@ bool DesktopController::validate(QVariantMap &values) {
     if (values.value("executable").toString().trimmed().isEmpty()) {
         m_configError = "Specify the CodexBar CLI executable."; return false;
     }
-    for (const auto &key : {"refreshSeconds", "accountIndex", "notifyThreshold"}) {
+    for (const auto &key : {"refreshSeconds", "accountIndex", "notifyThreshold", "barProviders"}) {
         bool ok = false;
         const int number = values.value(key).toInt(&ok);
         const int min = QString(key) == "refreshSeconds" ? 60 : QString(key) == "notifyThreshold" ? 1 : 0;
-        const int max = QString(key) == "refreshSeconds" ? 3600 : QString(key) == "notifyThreshold" ? 99 : 999;
+        const int max = QString(key) == "refreshSeconds" ? 3600 : QString(key) == "notifyThreshold" ? 99
+            : QString(key) == "barProviders" ? 80 : 999;
         if (!ok || number < min || number > max) { m_configError = QString("Invalid %1.").arg(key); return false; }
         values[key] = number;
     }
@@ -98,7 +99,7 @@ bool DesktopController::validate(QVariantMap &values) {
         !QStringList{"meters", "icon"}.contains(values.value("trayStyle").toString())) {
         m_configError = "Unsupported display preference."; return false;
     }
-    for (const auto &key : {"allAccounts", "showIdentity", "showCosts", "showStatus", "notifications", "showTray", "refreshOnOpen", "showPace", "warningColors", "followOmarchyTheme"})
+    for (const auto &key : {"allAccounts", "showIdentity", "showCosts", "showStatus", "notifications", "showTray", "refreshOnOpen", "showPace", "showScopedCaps", "warningColors", "followOmarchyTheme"})
         values[key] = values.value(key).toBool();
     return true;
 }
@@ -107,7 +108,7 @@ void DesktopController::loadSettings(const QString &cliOverride) {
     m_settings = {{"executable", "codexbar"}, {"provider", "codex"}, {"source", "auto"},
         {"refreshSeconds", 300}, {"accountIndex", 0}, {"notifyThreshold", 10}, {"allAccounts", false},
         {"showIdentity", false}, {"showCosts", true}, {"showStatus", true}, {"notifications", false}, {"showTray", true}, {"refreshOnOpen", false}, {"providerOrder", QStringList{}},
-        {"quotaDisplay", "remaining"}, {"resetDisplay", "countdown"}, {"showPace", true},
+        {"quotaDisplay", "remaining"}, {"resetDisplay", "countdown"}, {"showPace", true}, {"showScopedCaps", false}, {"barProviders", 2},
         {"warningColors", true}, {"trayStyle", "meters"}, {"followOmarchyTheme", false}};
     m_configPath = QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation) + "/codexbar/linux.json";
     QFile file(m_configPath);
@@ -157,7 +158,7 @@ bool DesktopController::saveSettings(const QVariantMap &changes) {
         if (m_usage.state() == QProcess::NotRunning) { m_usageBatch = false; m_pendingProviders.clear(); }
         m_entries.clear(); m_spending.clear(); m_updated = 0; m_costUpdated = 0;
     }
-    m_summary = call(m_usageModel, "summary", {m_engine.toScriptValue(m_entries), m_settings.value("quotaDisplay").toString()}).toString();
+    updateLabels();
     m_noticeState = m_engine.newObject();
     m_poll.start(m_settings.value("refreshSeconds").toInt() * 1000);
     emit settingsChanged(); emit changed(); if (queryChanged) refresh();
@@ -241,8 +242,7 @@ void DesktopController::probe(QProcess &process, const QStringList &command, boo
             }
             m_usageBatch = false;
             m_entries = m_batchEntries;
-            const auto rows = m_engine.toScriptValue(m_entries);
-            m_summary = call(m_usageModel, "summary", {rows, m_settings.value("quotaDisplay").toString()}).toString();
+            updateLabels();
             if (m_batchFailed) {
                 m_error = "Some usage could not be refreshed. Previous results may be out of date.";
                 m_noticeState = m_engine.newObject();
@@ -293,6 +293,20 @@ void DesktopController::showWindow(const QString &page) {
     emit windowRequested(page);
 }
 
+void DesktopController::updateLabels() {
+    const auto rows = m_engine.toScriptValue(m_entries);
+    const auto mode = m_settings.value("quotaDisplay").toString();
+    // The bar honours the same pace preference as the native cards, and keeps caps scoped to a
+    // single model opt-in: most providers that publish them restate a general lane.
+    auto options = m_engine.newObject();
+    options.setProperty("pace", m_settings.value("showPace").toBool());
+    options.setProperty("scopedCaps", m_settings.value("showScopedCaps").toBool());
+    // Display only: providers beyond the limit are still polled and still appear in the popup.
+    options.setProperty("maxProviders", m_settings.value("barProviders").toInt());
+    m_summary = call(m_usageModel, "summary", {rows, mode}).toString();
+    m_barLabel = call(m_usageModel, "barLabel", {rows, mode, options}).toString();
+}
+
 QJsonObject DesktopController::snapshot() const {
     static const auto extraKeySalt = QUuid::createUuid().toRfc4122();
     QJsonArray compact;
@@ -321,7 +335,7 @@ QJsonObject DesktopController::snapshot() const {
             {"windows", windows},
             {"error", row.value("error").toString()}});
     }
-    return {{"schemaVersion", 1}, {"pid", QCoreApplication::applicationPid()}, {"summary", m_summary},
+    return {{"schemaVersion", 1}, {"pid", QCoreApplication::applicationPid()}, {"summary", m_summary}, {"barLabel", m_barLabel},
         {"entries", compact}, {"quotaDisplay", m_settings.value("quotaDisplay").toString()}, {"busy", busy()}, {"stale", stale()}, {"error", m_error},
         {"updated", updated()}, {"costBusy", costBusy()}, {"costProviders", m_spending.size()}, {"costError", m_costError}};
 }

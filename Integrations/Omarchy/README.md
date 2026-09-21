@@ -27,6 +27,22 @@ additional windows, so a consumer resolving a cadence by first match still finds
 the general quota. A window the provider cannot measure, such as Zed's overdue
 invoice or a reset-only pool, is omitted rather than shown as exhausted.
 
+The bar shows each provider's session quota, weekly quota and weekly pace, as in
+`5H 37% · 7D 61% · +14%`. A positive pace is a deficit against the sustainable
+weekly rate and a negative one a reserve, matching the menu bar on macOS. A lane
+the provider does not report contributes no text and no separator, so a
+weekly-only account reads `7D 61% · +14%`, and a pace CodexBar cannot compute
+contributes nothing rather than a placeholder. **Show pace** hides it entirely.
+Used or remaining percentages follow the quota preference. A cap scoped to one
+model stays out of the bar unless **Show per-model caps in the bar** is enabled,
+because most providers that publish them restate a general lane; the popup
+always lists them.
+**Providers in the bar** limits how many providers the bar shows, two by default,
+and counts the rest, as in `CX 5H 37% · 7D 61%  ·  CL 7D 11%  +2`. It is display
+only: every configured provider is still polled and listed in the popup. Four
+providers each showing a session lane, a weekly lane and a pace take about 1500
+logical pixels, so raise it, or set it to **All**, where the display has room.
+
 The widget reads the desktop's private IPC snapshot every five seconds; it never
 runs provider queries itself. If the backend is absent, opening Usage & Spend or
 Settings starts it. Refresh requests one shared backend refresh. Unknown quota

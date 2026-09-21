@@ -186,7 +186,8 @@ token-account editing and Mac managed profiles are not implemented here.
 
 Usage displays used or remaining quota, reset times, pace, credits, status, generic provider
 details, and charts. Unknown values stay unknown. Identity is hidden by default. Display preferences control reset countdowns,
-absolute times, pace visibility, and low-quota colors. The tray can show two quota
+absolute times, pace visibility, per-model caps and the number of providers in the Omarchy
+bar, and low-quota colors. The tray can show two quota
 meters for the first displayed provider or a static icon. Unknown meters remain
 empty tracks. The tooltip identifies the displayed providers and stale data.
 Omarchy's popup shares the quota/reset preferences.
@@ -235,7 +236,11 @@ start one when needed. IPC clients load no GUI plugin. `--cli PATH` and `--no-tr
 apply when starting a new instance. The private, same-user local socket lives at
 `$XDG_RUNTIME_DIR/codexbar-linux/desktop.sock`; requests and replies are newline
 terminated JSON. Snapshot schema version 1 includes compact provider windows,
-summary, update time, busy/stale/error state, and spending availability. It excludes account identity, CLI paths, and credential configuration.
+summary, bar label, update time, busy/stale/error state, and spending availability.
+Each window carries its cadence in minutes, a `scoped` flag when the provider
+reported it beside a general quota rather than as one, and the signed pace delta
+where the provider reports one. Window labels are redacted for identity
+regardless of display preferences. It excludes account identity, CLI paths, and credential configuration.
 It includes display values and reset text for adapters. Adapters should check `schemaVersion`, tolerate
 unknown fields, and treat a missing backend as unavailable.
 Measured provider-scoped windows follow the standard windows and require a stable, nonempty identifier.
