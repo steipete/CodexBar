@@ -214,24 +214,56 @@ public struct BifrostUsageSnapshot: Codable, Sendable, Equatable {
             updatedAt: self.updatedAt)
     }
 
-    private func modelUsageSection(from budget: Budget) -> ProviderDetailSection? {
-        guard !budget.perModelUsage.isEmpty else { return nil }
-        let sorted = budget.perModelUsage.sorted { ($0.totalCost ?? 0) > ($1.totalCost ?? 0) }
+    /// Visible model rows before an overflow row takes over; mirrors the per-model caps other
+    /// providers apply before handing rows to `makeSection` (e.g. `GroqConsoleUsageSnapshot`'s
+    /// `topModels.prefix(20)`), but tighter, since this section is meant to fit without scrolling.
+    static let maximumModelRows = 5
 
-        // Only show the upstream provider when the section actually mixes providers; on a
+    private func modelUsageSection(from budget: Budget) -> ProviderDetailSection? {
+        // A model that failed entirely upstream still appears in `per_model_usage` with zero cost
+        // and zero tokens (only `total_requests` is non-zero). That row carries no information, so
+        // drop it — but only when *both* axes are zero: a real zero-cost row with non-zero tokens
+        // (or vice versa) is still meaningful and stays.
+        let nonEmpty = budget.perModelUsage.filter { usage in
+            (usage.totalCost ?? 0) != 0 || (usage.totalTokens ?? 0) != 0
+        }
+        guard !nonEmpty.isEmpty else { return nil }
+
+        // `sorted(by:)` is not stable, so equal-cost rows need an explicit tiebreak or the menu can
+        // reshuffle them between refreshes — and with only `maximumModelRows` visible slots, the
+        // ordering also decides which models are shown at all.
+        let sorted = nonEmpty.sorted { lhs, rhs in
+            let lCost = lhs.totalCost ?? 0
+            let rCost = rhs.totalCost ?? 0
+            if lCost != rCost {
+                return lCost > rCost
+            }
+            let lTokens = lhs.totalTokens ?? 0
+            let rTokens = rhs.totalTokens ?? 0
+            if lTokens != rTokens {
+                return lTokens > rTokens
+            }
+            return (lhs.model ?? "") < (rhs.model ?? "")
+        }
+
+        let overflowCount = max(0, sorted.count - Self.maximumModelRows)
+        let visible = Array(sorted.prefix(Self.maximumModelRows))
+
+        // Only show the upstream provider when the visible rows actually mix providers; on a
         // single-provider key it is pure redundancy that squeezes the model name out of the
-        // fixed-width menu.
-        let distinctProviders = Set(sorted.compactMap(\.provider))
+        // fixed-width menu. Computed from `visible`, not `sorted` — a hidden model on a second
+        // provider must not force a prefix onto every rendered row.
+        let distinctProviders = Set(visible.compactMap(\.provider))
         let showsProvider = distinctProviders.count > 1
 
         var seenLabels: Set<String> = []
         var collidingLabels: Set<String> = []
-        let displayNames = sorted.map { BifrostModelName.display($0.model ?? "") }
+        let displayNames = visible.map { BifrostModelName.display($0.model ?? "") }
         for name in displayNames where !name.isEmpty {
             if !seenLabels.insert(name).inserted { collidingLabels.insert(name) }
         }
 
-        let rows = zip(sorted, displayNames).map { usage, displayName -> ProviderDetailSection.Row in
+        var rows = zip(visible, displayNames).map { usage, displayName -> ProviderDetailSection.Row in
             // A normalization collision (e.g. two regional variants of the same model) is worse
             // than a long label: fall back to the raw model ID so the rows stay distinguishable.
             let modelLabel = collidingLabels.contains(displayName) ? (usage.model ?? displayName) : displayName
@@ -246,6 +278,13 @@ public struct BifrostUsageSnapshot: Codable, Sendable, Equatable {
                 secondaryValue: secondary,
                 usageValue: usage.totalCost)
         }
+
+        if overflowCount > 0 {
+            // Static label so the app layer's L() catalog lookup can translate it; the count lives
+            // in the value, which stays canonical like every other row's value.
+            rows.append(ProviderDetailSection.Row.makeRow(label: "More models", value: "\(overflowCount)"))
+        }
+
         return ProviderDetailSection.makeSection(title: "Models", rows: rows)
     }
 
