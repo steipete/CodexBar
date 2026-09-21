@@ -8,7 +8,7 @@ read_when:
 
 # Providers
 
-CodexBar currently registers 77 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
+CodexBar currently registers 78 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
 OpenCode vs OpenCode Go, because the auth source and quota shape differ.
 
 ## Fetch strategies (current)
@@ -679,3 +679,12 @@ failures. Authentication failures and invalidated account scopes do not restore 
 ## Helmcode
 
 [Helmcode](helmcode.md) reads model quotas from a Chrome dashboard session for Helmcode Cloud or NaN Builders. Cloud is preferred when both tenants are signed in; Manual cookie source uses the selected tenant. Prepaid balance is Cloud-only.
+
+## GitKraken AI
+- Sources: Auto (API → CLI), API, or CLI. Explicit sources do not fall back.
+- API: GitKraken access token (`apiKey` / `GITKRAKEN_API_TOKEN`), with optional organization
+  ID (`workspaceID` / `GITKRAKEN_ORG_ID`). Pinning an API organization disables Auto's CLI fallback.
+- CLI: the account already signed in with `gk auth login`; reads `gk ai tokens` without an interactive prompt.
+- API reports personal and shared-pool weekly credits. CLI preserves its reported allowance units and
+  date-only reset; it does not invent a shared pool or convert legacy tokens into credits.
+- Details and setup: [GitKraken AI](gitkraken.md).

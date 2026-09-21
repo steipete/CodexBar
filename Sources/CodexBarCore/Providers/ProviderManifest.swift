@@ -82,5 +82,6 @@ public enum ProviderManifest {
         PiProviderDescriptor.descriptor,
         V0ProviderDescriptor.descriptor,
         TypeSafeProviderDescriptor.descriptor,
+        GitKrakenProviderDescriptor.descriptor,
     ]
 }
