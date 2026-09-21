@@ -1146,7 +1146,6 @@
 "Open Augment (Log Out & Back In)" = "打开 Augment（退出后重新登录）";
 "Open Codebuff Dashboard" = "打开 Codebuff 仪表盘";
 "Open Command Code Settings" = "打开 Command Code 设置";
-"Open Crof dashboard" = "打开 Crof 仪表盘";
 "Open Manus" = "打开 Manus";
 "Open MiMo Balance" = "打开 MiMo 余额";
 "Open Moonshot Console" = "打开 Moonshot 控制台";
@@ -1214,7 +1213,6 @@
 "Stored in ~/.codexbar/config.json. Requires an Anthropic Admin API key." = "存储在 ~/.codexbar/config.json 中。需要 Anthropic Admin API 密钥。";
 "Stored in ~/.codexbar/config.json. Used for /v1/quota-stats." = "存储在 ~/.codexbar/config.json 中。用于 /v1/quota-stats。";
 "Stored in ~/.codexbar/config.json. You can also provide CODEBUFF_API_KEY or let CodexBar read ~/.config/manicode/credentials.json (created by `codebuff login`)." = "存储在 ~/.codexbar/config.json 中。你也可以提供 CODEBUFF_API_KEY，或让 CodexBar 读取由 `codebuff login` 创建的 ~/.config/manicode/credentials.json。";
-"Stored in ~/.codexbar/config.json. You can also provide CROF_API_KEY." = "存储在 ~/.codexbar/config.json 中。你也可以提供 CROF_API_KEY。";
 "Stored in ~/.codexbar/config.json. You can also provide KILO_API_KEY or ~/.local/share/kilo/auth.json (kilo.access)." = "存储在 ~/.codexbar/config.json 中。你也可以提供 KILO_API_KEY 或 ~/.local/share/kilo/auth.json（kilo.access）。";
 "T3 Chat cookie" = "T3 Chat Cookie";
 "Team mode" = "团队模式";
@@ -1632,3 +1630,8 @@
 "section_widgets" = "小组件";
 "account_widgets_title" = "为小组件保持账户更新";
 "account_widgets_description" = "在每个 Account Usage 小组件中选择一个账户。每个服务商最多刷新六个账户。";
+
+/* Antigravity local cost estimates */
+"antigravity_cost_estimate_hint" = "本地用量 × 公开 API 价格 · 并非 Antigravity 账单或额度";
+"antigravity_quota_window_note" = "窗口费用涵盖所有模型 · 所示窗口为最受限的模型系列";
+"antigravity_no_priced_token_history" = "没有可计价的 Antigravity 令牌历史记录。";

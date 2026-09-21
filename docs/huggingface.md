@@ -11,7 +11,8 @@ read_when:
 CodexBar shows month-to-date Inference Providers charges and optional ZeroGPU quota. Billing details include
 billable usage, reported gross/included amounts, and a configured spending limit when available. The billing
 report does not establish a remaining-credit allowance or quota reset, so CodexBar does not invent either.
-The prepaid/general compute-credit wallet is a separate billing concept and is not included here.
+The prepaid/general compute-credit wallet appears separately under **Credits** when an eligible browser session
+can be verified as belonging to the same account as the API token.
 Identity (username and PRO/Free plan) comes from `whoami-v2`, cached for hours because Hugging Face rate-limits that
 endpoint far more strictly than the rest of the Hub API.
 
@@ -41,6 +42,7 @@ endpoints return HTTP 403, which CodexBar surfaces with a pointer to this requir
 - Reported gross/included inference amounts and the configured spending limit, when present.
 - ZeroGPU GPU-time used/remaining and its reset, when the account has ZeroGPU quota.
 - Username and plan (PRO/Free).
+- Prepaid Credits balance, including a reported zero, when the browser and token identities match.
 
 ## Endpoint contract
 
@@ -52,3 +54,22 @@ fetched best-effort — their failures preserve billing data.
 Live verification confirmed `periodEnd` follows the requested `endDate`: it is the report cutoff, not a reset.
 The public billing frontend deducts `includedNanoUsd` to calculate the charge; this does not establish monthly
 credits remaining. PRO compute credits are shared with other products, so `isPro` does not imply an inference-only allowance.
+
+## Prepaid Credits wallet
+
+In Auto mode, the plugin checks browser-cookie eligibility before resolving a session for `huggingface.co`.
+It uses the shared cookie broker, then reads `/settings/billing` and verifies the same cookie with a separate
+`/api/whoami-v2` request that carries no bearer token. Both identities must be users with exactly matching opaque
+user IDs; display names and email addresses are not ownership evidence. The opaque ID stays in the plugin's
+in-memory identity cache and is not included in the displayed account identity.
+
+Only server-rendered billing `div` `data-props` are parsed: `entity.currentBalanceUsd` takes precedence over the
+legacy `invoiceCreditsCents` value, which is converted from cents once. Missing, malformed, ambiguous, unavailable,
+or mismatched wallet data is omitted while API usage remains visible. The balance has no inferred percentage,
+allowance, or reset; it appears as a Credits detail section and as `providerCost.balance` in snapshot output.
+
+Explicit API mode (`codexbar usage --provider huggingface --source api`) never resolves cookies or requests the
+browser billing page. The plugin also honors Off and Manual policies when supplied by the host; this change does
+not add a Hugging Face cookie picker or a browser-only source. Browser identity is verified afresh for each wallet
+observation, even when the token identity is cached. Wallets for other or unverified accounts are omitted rather
+than presented as a separate account or reconciled across token accounts.

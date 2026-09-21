@@ -331,6 +331,7 @@ final class UsageStore {
         TimeInterval) async throws -> Void)?
     @ObservationIgnored var widgetSnapshotPersistTask: Task<Void, Never>?
     @ObservationIgnored var lastQueuedWidgetSnapshot: WidgetSnapshot?
+    @ObservationIgnored var lastQueuedWidgetSnapshotIsPreservable = false
     @ObservationIgnored let widgetSnapshotURL: URL?
     @ObservationIgnored let widgetTimelineReloader: @MainActor () -> Void
     @ObservationIgnored var widgetUsagePreservationBlockedProviders: Set<ProviderInstanceID> = []

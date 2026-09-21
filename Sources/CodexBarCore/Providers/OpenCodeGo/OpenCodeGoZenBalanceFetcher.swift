@@ -156,6 +156,33 @@ extension OpenCodeGoUsageFetcher {
         timeout: TimeInterval,
         session: URLSession) async throws -> Double?
     {
+        try await OpenCodeGoLegacyFallback.fetch(
+            cookieHeader: cookieHeader,
+            isUsableLegacyValue: { $0 != nil },
+            console: {
+                let text = try await self.fetchConsoleText(
+                    url: self.consoleBillingStatusURL,
+                    workspaceID: workspaceID,
+                    cookieHeader: cookieHeader,
+                    timeout: timeout,
+                    session: session)
+                return try OpenCodeGoZenBalanceParser.parseConsoleBillingStatus(text: text)
+            },
+            legacy: {
+                try await self.fetchLegacyZenBalance(
+                    workspaceID: workspaceID,
+                    cookieHeader: cookieHeader,
+                    timeout: timeout,
+                    session: session)
+            })
+    }
+
+    private static func fetchLegacyZenBalance(
+        workspaceID: String,
+        cookieHeader: String,
+        timeout: TimeInterval,
+        session: URLSession) async throws -> Double?
+    {
         let text = try await self.fetchPageText(
             url: self.zenDashboardURL(workspaceID: workspaceID),
             cookieHeader: cookieHeader,

@@ -116,6 +116,11 @@ so portable third-party plugins must use the host helpers below instead of ECMA-
   retry field—declares `http-status`, receives the response, and throws `ctx.fail.rateLimited(message,
   {retryAfterSeconds})` or another transient classified failure. Both paths share one retry budget and never retry the
   retry. Cancellation during the delay stops the retry.
+- `ctx.browser.availability(domain)` returns `"available"`, `"manual"`, or `"off"` for a declared cookie domain.
+  It inspects source/cookie policy only, without accessing the broker, Keychain, or browser. It does not promise a
+  usable session. API-only (and other non-web) source modes report `"off"`; Manual reports `"manual"`, so plugins can
+  route an origin-less pasted header to one explicitly selected tenant. Missing cookie resolvers report `"off"`.
+  `cookieHeader` also enforces Off/API-only policy, even if the plugin skips this check.
 - `await ctx.browser.cookieHeader(domain)` returns a cookie header only with the `browser-cookies` capability and for a
   declared domain. The app imports from Chrome only. Cookie values are secret-equivalent and redacted.
 - `ctx.html.metaContent(html, name)` returns the first matching quoted meta value or `null`.
@@ -266,3 +271,14 @@ enabled. Refresh and Cmd-R refresh the selected plugin; each card’s refresh bu
 refreshes update visible plugin cards, and repeated requests for the same plugin share its in-flight refresh.
 Overview continues to summarize built-in providers. This setting changes placement only: it grants no additional host
 capabilities and does not change network approval.
+
+## Browser session cache
+
+Bundled plugins that declare multiple cookie domains use separate Keychain-backed cache scopes for each requested
+domain. Single-domain plugins retain their existing provider cache. Automatic imports query only the requested domain;
+the default browser is Chrome, with existing provider browser-order overrides preserved. Manual headers bypass the
+cache and browser import, and Off fails before either is accessed.
+
+Call `ctx.browser.rejectCookie(domain)` after the server rejects a session. The host checks the declared domain and
+evicts only the cached entry observed by that fetch (each domain is pinned for the fetch lifetime); a newer session and other domains remain intact. Manual headers
+are never erased. User plugins have no persistent cookie cache, so rejection is a validated no-op for them.

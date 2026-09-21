@@ -113,6 +113,12 @@ public enum KeychainAccessPreflight {
         private let lock = NSLock()
         private var outcomes: [GenericPasswordKey: Outcome] = [:]
 
+        func invalidate(service: String) {
+            self.lock.withLock {
+                self.outcomes = self.outcomes.filter { $0.key.service != service }
+            }
+        }
+
         func outcome(
             for key: GenericPasswordKey,
             check: () -> Outcome) -> Outcome
@@ -192,6 +198,10 @@ public enum KeychainAccessPreflight {
             }
         }
         return self.checkGenericPasswordUncached(service: service, account: account)
+    }
+
+    static func invalidateGenericPasswordChecks(service: String) {
+        self.genericPasswordCheckMemo?.invalidate(service: service)
     }
 
     /// Retry only inconclusive no-UI checks; the operation memo above stores their final outcome.

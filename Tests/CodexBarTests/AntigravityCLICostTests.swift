@@ -22,6 +22,66 @@ struct AntigravityCLICostTests {
     }
 
     @Test
+    func `priced local history shows an estimate and its billing scope`() {
+        let snapshot = CostUsageTokenSnapshot(
+            sessionTokens: 198,
+            sessionCostUSD: 0.25,
+            last30DaysTokens: 198,
+            last30DaysCostUSD: 0.25,
+            costProvenance: .listPriceEstimate,
+            daily: [],
+            updatedAt: Date(timeIntervalSince1970: 1_700_000_000))
+        let text = CodexBarCLI.renderCostText(provider: .antigravity, snapshot: snapshot, useColor: false)
+        #expect(text.contains("Antigravity Cost (API-rate estimate)"))
+        #expect(text.contains("Today: $0.25 · 198 tokens"))
+        #expect(text.contains("not Antigravity charges or credits"))
+        #expect(!text.contains("dollar costs unavailable"))
+    }
+
+    @Test
+    func `priced partial local history names its recorded subtotal`() {
+        let snapshot = CostUsageTokenSnapshot(
+            sessionTokens: 198,
+            sessionCostUSD: 0.25,
+            last30DaysTokens: 198,
+            last30DaysCostUSD: 0.25,
+            historyCoverageIsEstablished: false,
+            historyScanIsPartial: true,
+            costProvenance: .listPriceEstimate,
+            daily: [],
+            updatedAt: Date(timeIntervalSince1970: 1_700_000_000))
+
+        let text = CodexBarCLI.renderCostText(provider: .antigravity, snapshot: snapshot, useColor: false)
+
+        #expect(text.contains("Antigravity Cost (API-rate estimate)"))
+        #expect(text.contains("Partial local history · recorded token subtotal"))
+    }
+
+    @Test
+    func `priced history names recorded requests without a price`() {
+        let snapshot = CostUsageTokenSnapshot(
+            sessionTokens: 198,
+            sessionCostUSD: 0.25,
+            last30DaysTokens: 198,
+            last30DaysCostUSD: 0.25,
+            costProvenance: .listPriceEstimate,
+            daily: [.init(
+                date: "2026-07-15",
+                inputTokens: nil,
+                outputTokens: nil,
+                totalTokens: 198,
+                costUSD: 0.25,
+                modelsUsed: nil,
+                modelBreakdowns: nil,
+                unpricedRequestCount: 1)],
+            updatedAt: Date(timeIntervalSince1970: 1_700_000_000))
+
+        let text = CodexBarCLI.renderCostText(provider: .antigravity, snapshot: snapshot, useColor: false)
+
+        #expect(text.contains("Partial estimate: 1 recorded request had no price."))
+    }
+
+    @Test
     func `local Antigravity history participates in explicit and combined cost selections`() {
         #expect(CodexBarCLI.costProviders(from: .single(.antigravity)) == [.antigravity])
         #expect(CodexBarCLI.costProviders(from: .custom([.codex, .antigravity])) == [.codex, .antigravity])

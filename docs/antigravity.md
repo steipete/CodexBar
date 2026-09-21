@@ -292,11 +292,16 @@ Local history reads only the existing recognized roots: `~/.gemini/antigravity-c
 `~/.config/tokscale/antigravity-cache/sessions/*.jsonl`; `TOKSCALE_CONFIG_DIR` replaces `~/.config/tokscale`.
 Both overrides and `HOME` come from the same refresh environment. Declared roots and session files may be symlinks;
 discovery still visits only the immediate entries of the recognized directories. This is machine-local token history,
-not account attribution or dollar pricing. No language server, provider CLI, browser, credentials, or network is used.
+not account attribution. Reading that history uses no language server, provider CLI, browser, credentials, or network.
+Pricing it is a separate step: when a recorded model has no cached price, CodexBar requests the public models.dev
+catalog over the network. That request carries no account identity and no usage data, and a failure leaves the
+affected models unpriced rather than failing the scan.
 
 Use `codexbar cost --provider antigravity --format json` to read this same local history from the CLI.
-The cost endpoint and dashboard also include it when Antigravity is selected. Token counts do not imply known dollar
-costs, and these entry points do not expand the supported timestamp layouts described below.
+The cost endpoint and dashboard also include it when Antigravity is selected. Known models receive local token ×
+public API-price estimates from the pricing catalog. Unknown models stay unpriced. These figures are not Antigravity
+charges or credit deductions, and these entry points do not expand the supported timestamp layouts described below.
+Local reads use cached or built-in prices first. Routine catalog updates run in the background; `codexbar cost --provider antigravity --refresh` may wait for a bounded pricing refresh when a recorded model has no known rate. Empty or absent history never starts a pricing download. Historical requests use prices applicable to their event timestamps.
 
 SQLite is authoritative when present. An unreadable root, malformed database, unsupported event layout, or exhausted
 budget never authorizes replacement by a smaller/stale JSONL cache. A database that describes its own tables and no
@@ -311,10 +316,11 @@ and no `-wal` sidecar exists, the reader retries that one database with an `immu
 never creates sidecars. The retry counts only when the file and its sidecar state are unchanged afterwards. A database
 with a `-wal` sidecar present stays unavailable, because a WAL connection may still hold it. Complete empty databases
 and complete histories outside the selected window establish empty history; absent sources and partial scans do not.
-Partial reports remain diagnostic only: the fetcher withholds their rows. Regular refresh applies its existing
-failure/retention policy, and neither regular refresh nor the dashboard publishes unavailable results as confirmed
-zero. Failed dashboard attempts do not acknowledge successful incorporation of a refresh trigger. Overflowed aggregate
+Incomplete reads that return validated rows may publish those rows, with their totals explicitly marked a lower bound in
+the menu, Usage & Spend, exported JSON, and the CLI; they never establish empty history. A partial refresh preserves any previously complete report for the same source and history scope, independently for the menu and dashboard. A pricing rescan also preserves a complete first scan if the files become partial meanwhile. Neither regular refresh nor the dashboard publishes unavailable results as confirmed
+zero. Failed or retained-partial dashboard attempts do not acknowledge successful incorporation of a refresh trigger. Overflowed aggregate
 totals remain unknown rather than becoming saturated or wrapping.
+Hard database-count, row-count, cumulative-byte, or duration budget exhaustion does not publish a newly truncated report; it remains unavailable and preserves prior complete history.
 
 The schema evidence is [Tokscale's pinned SQLite parser](https://github.com/junhoyeo/tokscale/blob/62ca1eb1677556972ba963fdfa3a41ab23c1eb4b/crates/tokscale-core/src/sessions/antigravity_cli.rs),
 whose header records six databases and 140 turns. SQLite usage fields 1 + 2 are input, 5 is cache read,

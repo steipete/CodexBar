@@ -1,3 +1,10 @@
+---
+summary: "Agent Sessions setup, SSH hosts, refresh behavior, and privacy controls."
+read_when:
+  - Configuring local or remote Agent Sessions
+  - Troubleshooting unreachable session hosts
+---
+
 # Agent Sessions
 
 CodexBar can list live Codex, Claude Code, pi, and OMP sessions on this Mac and on macOS or Linux hosts reachable over SSH.

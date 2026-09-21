@@ -27,6 +27,26 @@ test('malformed and unrecognized responses cannot replace the last good snapshot
     for (const value of ['', '[]', '{}', 'null', '[null]', 'oops'])
         assert.throws(() => model.rows(value));
 });
+test('durationless quota uses provider labels without inventing a weekly cadence', () => {
+    const input = {provider: 'v0', rateWindowLabels: {secondary: ' Rate limit '},
+        usage: {secondary: {usedPercent: 20}}};
+    const row = model.rows(JSON.stringify(input))[0].windows[0];
+    assert.equal(row.key, 'secondary');
+    assert.equal(row.label, 'Rate limit');
+    assert.equal(row.remaining, 80);
+    input.usage.secondary.windowMinutes = 300;
+    assert.equal(model.rows(JSON.stringify(input))[0].windows[0].label, '5 hour');
+});
+test('provider labels preserve fallback and IPC identity privacy', () => {
+    for (const label of [null, '', '  ', 42, {}, []]) {
+        const input = {provider: 'v0', rateWindowLabels: {secondary: label},
+            usage: {secondary: {usedPercent: 20}}};
+        assert.equal(model.rows(JSON.stringify(input))[0].windows[0].label, 'Weekly');
+    }
+    const input = {provider: 'v0', rateWindowLabels: {secondary: 'private@example.com rate limit'},
+        usage: {secondary: {usedPercent: 20}}};
+    assert.equal(model.rows(JSON.stringify(input), true)[0].windows[0].label, '[hidden email] rate limit');
+});
 test('reset countdown handles invalid and elapsed timestamps', () => {
     const now = Date.parse('2026-01-01T00:00:00Z');
     assert.equal(model.resetLabel('bad', now), 'Reset time unavailable');

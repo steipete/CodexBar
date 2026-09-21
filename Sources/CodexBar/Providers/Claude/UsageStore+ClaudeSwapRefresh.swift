@@ -179,7 +179,19 @@ extension UsageStore {
                 progressDidChange?()
                 // Claude Code owns the ambient credential, so reconcile both
                 // the provider snapshot and the adapter's active-row marker.
-                await self.refreshProvider(.claude)
+                let previousAdapterTask = self.claudeSwapRefreshTask
+                let ambient = Task { await self.refreshProvider(.claude) }
+                // Cancel only the waiter: cancelling refreshProvider would cancel its provider request too.
+                let waiter = Task<Void, Error> { await ambient.value }
+                if case .timedOut = await BoundedTaskJoin(sourceTask: waiter).value(joinGrace: .seconds(5)),
+                   self.isCurrentClaudeSwapConfiguration(
+                       executablePath: executablePath,
+                       configurationGeneration: configurationGeneration),
+                   self.claudeSwapRefreshTask == previousAdapterTask
+                {
+                    // A stalled predecessor can prevent the ambient refresh from scheduling its adapter read.
+                    self.scheduleClaudeSwapAccountRefresh()
+                }
                 // The ambient refresh schedules this independent read; a replacement read still owns reconciliation.
                 while self.isCurrentClaudeSwapConfiguration(
                     executablePath: executablePath,

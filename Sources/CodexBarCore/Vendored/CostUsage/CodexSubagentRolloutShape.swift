@@ -8,9 +8,9 @@ extension CostUsageScanner {
 
     /// Subagent source is lineage evidence, not counter semantics. The first session metadata
     /// owns leaf identity. Embedded ancestor metadata proves a copied prefix by itself. Compact
-    /// rollouts need a first-turn boundary plus either local `total - last` proof or an exact parent
-    /// snapshot match in the scanner. Do not restore a blanket "all subagents are
-    /// independent/inherited" rule.
+    /// rollouts can establish inheritance from a zero-usage opening snapshot or a first-turn
+    /// boundary. The first owned event supplies its component baseline; inherited snapshots
+    /// need not exactly match it. Independently restarted counters still count their opening usage.
     struct CodexSubagentRolloutShape {
         let counterSemantics: CodexSubagentCounterSemantics
         let ownedSuffix: CodexSubagentOwnedSuffix?
@@ -20,6 +20,7 @@ extension CostUsageScanner {
         struct CodexSubagentOwnedSuffix {
             let startLineIndex: Int
             let rawTotalsBaseline: CostUsageCodexTotals
+            var firstTokenLineIndex: Int?
         }
 
         struct CodexSubagentOwnedSuffixCandidate {
@@ -46,21 +47,15 @@ extension CostUsageScanner {
         {
             let normalizedLeafID = Self.normalizedSessionID(leafSessionID)
 
-            let hasEmbeddedAncestor: Bool = if let normalizedLeafID {
-                observedSessionIDs.contains { Self.normalizedSessionID($0) != normalizedLeafID }
-            } else {
-                observedSessionIDs.count > 1 || observedSessionIDs.contains { Self.normalizedSessionID($0) != nil }
-            }
-            let distinctAncestorIDs = Set(observedSessionIDs
-                .compactMap(Self.normalizedSessionID)
-                .filter { normalizedLeafID == nil || $0 != normalizedLeafID })
-            let inferredParentSessionID = distinctAncestorIDs.count == 1 ? distinctAncestorIDs.first : nil
+            let ancestorIDs = observedSessionIDs.map(Self.normalizedSessionID).filter { $0 != normalizedLeafID }
+            let hasEmbeddedAncestor = !ancestorIDs.isEmpty || (normalizedLeafID == nil && observedSessionIDs.count > 1)
+            let distinctAncestorIDs = Set(ancestorIDs.compactMap(\.self))
 
             return Self(
                 counterSemantics: hasEmbeddedAncestor ? .copiedPrefix : .independent,
                 ownedSuffix: nil,
                 ownedSuffixCandidate: nil,
-                inferredParentSessionID: inferredParentSessionID)
+                inferredParentSessionID: distinctAncestorIDs.count == 1 ? distinctAncestorIDs.first : nil)
         }
 
         static func classify(
@@ -89,6 +84,7 @@ extension CostUsageScanner {
             var inspectedOwnedSuffixFirstTotal = false
             var observedAuthoritativeMetadata = false
             var observedTurnContext = false
+            var inheritedOpening = false
 
             for observation in observations {
                 switch observation.kind {
@@ -119,6 +115,12 @@ extension CostUsageScanner {
                     pendingTurnContext = acceptsBoundary
                         ? lastRawTotals.map { (observation.lineIndex, $0) }
                         : nil
+                    if inheritedOpening, isFirstTurnContext, let pendingTurnContext {
+                        ownedSuffix = .init(
+                            startLineIndex: pendingTurnContext.lineIndex,
+                            rawTotalsBaseline: pendingTurnContext.baseline)
+                        inspectedOwnedSuffixFirstTotal = false
+                    }
 
                 case let .interAgentCommunication(triggerTurn):
                     if ownedSuffix == nil,
@@ -138,28 +140,41 @@ extension CostUsageScanner {
                     pendingTurnContext = nil
 
                 case let .tokenCount(total, last):
+                    if lastRawTotals == nil, canProposeParentConfirmedSuffix, !observedTurnContext,
+                       let total, let last, Self.totalsContainUsage(total), !Self.totalsContainUsage(last)
+                    {
+                        // A zero-component opening event carries inherited context, not child usage.
+                        inheritedOpening = true
+                        ownedSuffix = .init(startLineIndex: observation.lineIndex, rawTotalsBaseline: total)
+                        parentTotalsAtBoundary = total
+                        locallyConfirmedBoundary = true
+                    }
+                    if inheritedOpening, !observedTurnContext,
+                       let total, let last, Self.totalsContainUsage(last),
+                       !CostUsageScanner.codexTotalsEqual(total, lastRawTotals)
+                    {
+                        inheritedOpening = false
+                        ownedSuffix = .init(
+                            startLineIndex: observation.lineIndex,
+                            rawTotalsBaseline: lastRawTotals ?? total)
+                        inspectedOwnedSuffixFirstTotal = false
+                    }
                     if !inspectedOwnedSuffixFirstTotal,
                        let suffix = ownedSuffix,
-                       let total
+                       let total,
+                       !CostUsageScanner.codexTotalsEqual(total, suffix.rawTotalsBaseline)
                     {
                         inspectedOwnedSuffixFirstTotal = true
-                        if let last,
-                           Self.totalsEqual(total, last),
-                           !Self.totalsAtLeast(total, suffix.rawTotalsBaseline)
-                        {
-                            // Some future protocol may copy history and then restart its counter.
-                            // Require both a strong boundary and total==last reset evidence.
-                            ownedSuffix = Self.CodexSubagentOwnedSuffix(
+                        if let last {
+                            let copiedSnapshot = Self.totalsContainUsage(suffix.rawTotalsBaseline)
+                                && CostUsageScanner.codexTotalsEqual(total, last)
+                                && CostUsageScanner.codexTotalsAtLeast(total, suffix.rawTotalsBaseline)
+                            ownedSuffix = .init(
                                 startLineIndex: suffix.startLineIndex,
-                                rawTotalsBaseline: .init(input: 0, cached: 0, output: 0))
-                        } else if let last,
-                                  let inferredBaseline = Self.subtract(last, from: total),
-                                  Self.totalsEqual(inferredBaseline, suffix.rawTotalsBaseline)
-                        {
-                            // Local delivery metadata is not part of copied model history. When
-                            // the first owned cumulative row also proves total - last == the
-                            // pre-boundary snapshot, the child can establish its inherited
-                            // baseline without rereading the parent rollout.
+                                rawTotalsBaseline: copiedSnapshot ? total : CostUsageScanner
+                                    .codexTotalDelta(from: last, to: total),
+                                firstTokenLineIndex: observation.lineIndex)
+                            inspectedOwnedSuffixFirstTotal = !copiedSnapshot
                             locallyConfirmedBoundary = true
                         }
                     }
@@ -200,36 +215,8 @@ extension CostUsageScanner {
             return lhs == rhs
         }
 
-        private static func totalsEqual(_ lhs: CostUsageCodexTotals, _ rhs: CostUsageCodexTotals) -> Bool {
-            lhs.input == rhs.input && lhs.cached == rhs.cached && lhs.output == rhs.output
-        }
-
-        private static func totalsAtLeast(_ lhs: CostUsageCodexTotals, _ rhs: CostUsageCodexTotals) -> Bool {
-            lhs.input >= rhs.input && lhs.cached >= rhs.cached && lhs.output >= rhs.output
-        }
-
-        private static func totalsContainUsage(_ totals: CostUsageCodexTotals) -> Bool {
+        static func totalsContainUsage(_ totals: CostUsageCodexTotals) -> Bool {
             totals.input > 0 || totals.cached > 0 || totals.output > 0
-        }
-
-        private static func subtract(
-            _ delta: CostUsageCodexTotals,
-            from total: CostUsageCodexTotals) -> CostUsageCodexTotals?
-        {
-            guard self.totalsAtLeast(total, delta) else { return nil }
-            let reasoning: Int? = if let totalReasoning = total.reasoning,
-                                     let deltaReasoning = delta.reasoning,
-                                     totalReasoning >= deltaReasoning
-            {
-                totalReasoning - deltaReasoning
-            } else {
-                nil
-            }
-            return CostUsageCodexTotals(
-                input: total.input - delta.input,
-                cached: total.cached - delta.cached,
-                output: total.output - delta.output,
-                reasoning: reasoning)
         }
 
         private static func normalizedSessionID(_ value: String?) -> String? {

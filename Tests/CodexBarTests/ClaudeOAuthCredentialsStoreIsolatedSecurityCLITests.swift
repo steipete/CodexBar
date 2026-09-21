@@ -70,7 +70,7 @@ struct ClaudeOAuthCredentialsStoreIsolatedSecurityCLITests {
             ClaudeOAuthCredentialsStore.isolatedSecurityCLIKeychainEnvironmentKey: "/tmp/verify.keychain-db",
         ]
 
-        ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.onlyOnUserAction) {
+        ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.always) {
             let isMcpOnly = ClaudeOAuthCredentialsStore
                 .withSecurityCLIReadOverrideForTesting(.data(mcpOnlyPayload)) {
                     ClaudeOAuthCredentialsStore.isMcpOAuthOnlyClaudeKeychainPayloadPresent(

@@ -341,6 +341,10 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
         self.updater.installUpdate()
     }
 
+    @objc func checkForUpdates() {
+        self.updater.checkForUpdates(nil)
+    }
+
     @objc func openDashboard() {
         // Provider-specific by design: Codex remains the historical action fallback when no provider is selected.
         let preferred = self.lastMenuProvider?.firstPartyProvider
@@ -356,6 +360,9 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
         environment: [String: String] = ProcessInfo.processInfo.environment) -> URL?
     {
         // Provider-specific by design: these dashboards depend on region, source label, scope, or subscription plan.
+        if provider == .kimi {
+            return self.settings.kimiRegion.consoleURL
+        }
         if provider == .alibaba {
             return self.settings.alibabaCodingPlanAPIRegion.dashboardURL
         }
@@ -389,6 +396,11 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
             return QoderProviderDescriptor.dashboardURL(
                 settings: self.settings.resolvedCookieSettings(provider: provider, tokenOverride: nil),
                 sourceLabel: self.store.sourceLabel(for: .qoder))
+        }
+
+        // Provider-specific by design: the successful Helmcode snapshot owns the detected tenant.
+        if provider == .helmcode {
+            return HelmcodeProviderDescriptor.dashboardURL(snapshot: self.store.snapshot(for: provider.instanceID))
         }
 
         let meta = self.store.metadata(for: provider)

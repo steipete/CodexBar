@@ -139,6 +139,7 @@ extension CodexBarCLI {
         let history = summary.historyDays == 1 ? "" : line("Last \(summary.historyDays) days", summary.history) + "\n"
         return "\(title) — Codex API-equivalent estimate (not billed)\n" +
             line("Today", summary.today) + "\n" + history +
+            "Snapshot updated: \(summary.updatedAt.ISO8601Format())\n" +
             "Day boundaries: \(summary.bucketTimeZone)\(coverage)"
     }
 }

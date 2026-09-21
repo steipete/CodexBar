@@ -1187,7 +1187,6 @@
 "Open Augment (Log Out & Back In)" = "Apri Augment (Esci e rientra)";
 "Open Codebuff Dashboard" = "Apri dashboard Codebuff";
 "Open Command Code Settings" = "Apri impostazioni Command Code";
-"Open Crof dashboard" = "Apri dashboard Crof";
 "Open Manus" = "Apri Manus";
 "Open MiMo Balance" = "Apri saldo MiMo";
 "Open Moonshot Console" = "Apri console Moonshot";
@@ -1255,7 +1254,6 @@
 "Stored in ~/.codexbar/config.json. Requires an Anthropic Admin API key." = "Memorizzato in ~/.codexbar/config.json. Richiede una chiave Anthropic Admin API.";
 "Stored in ~/.codexbar/config.json. Used for /v1/quota-stats." = "Memorizzato in ~/.codexbar/config.json. Usato per /v1/quota-stats.";
 "Stored in ~/.codexbar/config.json. You can also provide CODEBUFF_API_KEY or let CodexBar read ~/.config/manicode/credentials.json (created by `codebuff login`)." = "Memorizzato in ~/.codexbar/config.json. Puoi anche fornire CODEBUFF_API_KEY o lasciare che CodexBar legga ~/.config/manicode/credentials.json (creato da `codebuff login`).";
-"Stored in ~/.codexbar/config.json. You can also provide CROF_API_KEY." = "Memorizzato in ~/.codexbar/config.json. Puoi anche fornire CROF_API_KEY.";
 "Stored in ~/.codexbar/config.json. You can also provide KILO_API_KEY or ~/.local/share/kilo/auth.json (kilo.access)." = "Memorizzato in ~/.codexbar/config.json. Puoi anche fornire KILO_API_KEY o ~/.local/share/kilo/auth.json (kilo.access).";
 "T3 Chat cookie" = "Cookie T3 Chat";
 "Team mode" = "Modalità team";
@@ -1620,3 +1618,8 @@
 "section_widgets" = "Widget";
 "account_widgets_title" = "Mantieni aggiornati gli account per i widget";
 "account_widgets_description" = "Scegli un account in ogni widget Account Usage. Aggiorna fino a sei account per fornitore.";
+
+/* Antigravity local cost estimates */
+"antigravity_cost_estimate_hint" = "Uso locale × prezzi API pubblici · non sono addebiti o crediti Antigravity";
+"antigravity_quota_window_note" = "Il costo della finestra copre tutti i modelli · la finestra mostrata è la famiglia più vincolata";
+"antigravity_no_priced_token_history" = "Nessuna cronologia di token Antigravity con prezzo disponibile.";

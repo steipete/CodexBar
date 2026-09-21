@@ -124,7 +124,8 @@ extension CodexBarCLI {
 
         Description:
           Print local token cost usage from Claude/Codex native logs plus supported pi and OMP sessions.
-          Antigravity and Muse Code token history are also read locally, with dollar costs left unknown.
+          Antigravity token history is read locally, with API-price estimates for known models; Muse Code remains
+          token-only.
           Local readers need no web or provider CLI access; Cursor uses its authenticated dashboard API.
           Use --refresh to bypass cached scan results.
           Use --breakdown with Claude text output to show daily and model details.

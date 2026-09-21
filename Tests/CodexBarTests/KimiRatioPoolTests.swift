@@ -246,6 +246,6 @@ struct KimiRatioPoolTests {
     """
 
     private static func parse(_ json: String) throws -> UsageSnapshot {
-        try KimiUsageFetcher._parseCodeAPIUsageForTesting(Data(json.utf8)).toUsageSnapshot()
+        try KimiUsageFetcher.parseCodeAPIUsage(from: Data(json.utf8)).toUsageSnapshot()
     }
 }

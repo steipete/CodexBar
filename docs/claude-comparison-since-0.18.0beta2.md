@@ -1,16 +1,20 @@
 ---
-summary: "Claude fetch behavior comparison covering OAuth, web, CLI, and Keychain prompt changes."
+summary: "Historical Claude fetch comparison between two pinned revisions; see claude.md for current behavior."
 read_when:
   - Reviewing Claude fetch regressions since 0.18.0 beta 2
-  - Changing Claude OAuth, web, CLI, or Keychain prompt behavior
-  - Comparing old and current Claude credential flows
+  - Comparing historical Claude credential flows
 ---
 
-# Claude Fetch Comparison (`7b79b2d` vs `HEAD`)
+# Claude Fetch Comparison (historical snapshot)
+
+> This is a pinned historical comparison, not a description of current `HEAD`. References to “Now” below mean
+> the compared revision. For current source ordering, credential ownership, and prompt policy, use
+> [Claude](claude.md) and [Keychain prompts](keychain-prompts.md). The current app Auto planner orders OAuth → CLI →
+> Web, rather than the historical OAuth → Web → CLI diagram below.
 
 This document compares Claude data fetching behavior between:
 - Baseline commit: `7b79b2d080c6b00f6c8f52f89ac115f33a7ca8b0`
-- Current `HEAD`: `37841489f849567a598d2a8ba601eb6f1228644e`
+- Compared revision: `37841489f849567a598d2a8ba601eb6f1228644e`
 
 Focus areas:
 - OAuth
@@ -48,7 +52,7 @@ flowchart TD
     I -- "no" --> L["Invalidate cache, surface OAuth error"]
 ```
 
-### OAuth (Now: `HEAD`)
+### OAuth (compared revision)
 
 ```mermaid
 flowchart TD
@@ -203,14 +207,14 @@ stateDiagram-v2
   - Denials cause cooldown suppression to avoid repeated prompts.
   - Refresh failures can suppress repeated attempts until either timeout (transient) or credential change (terminal).
 
-## Related Files
+## Related files at the compared revision
 
-- `/Users/ratulsarna/Developer/staipete/CodexBar/Sources/CodexBarCore/Providers/Claude/ClaudeUsageFetcher.swift`
-- `/Users/ratulsarna/Developer/staipete/CodexBar/Sources/CodexBarCore/Providers/Claude/ClaudeProviderDescriptor.swift`
-- `/Users/ratulsarna/Developer/staipete/CodexBar/Sources/CodexBarCore/Providers/Claude/ClaudeOAuth/ClaudeOAuthCredentials.swift`
-- `/Users/ratulsarna/Developer/staipete/CodexBar/Sources/CodexBarCore/Providers/Claude/ClaudeOAuth/ClaudeOAuthKeychainAccessGate.swift`
-- `/Users/ratulsarna/Developer/staipete/CodexBar/Sources/CodexBarCore/Providers/Claude/ClaudeOAuth/ClaudeOAuthRefreshFailureGate.swift`
-- `/Users/ratulsarna/Developer/staipete/CodexBar/Sources/CodexBarCore/KeychainAccessPreflight.swift`
-- `/Users/ratulsarna/Developer/staipete/CodexBar/Sources/CodexBarCore/KeychainNoUIQuery.swift`
-- `/Users/ratulsarna/Developer/staipete/CodexBar/Sources/CodexBarCore/BrowserCookieImportOrder.swift`
-- `/Users/ratulsarna/Developer/staipete/CodexBar/Sources/CodexBarCore/BrowserCookieAccessGate.swift`
+- `Sources/CodexBarCore/Providers/Claude/ClaudeUsageFetcher.swift`
+- `Sources/CodexBarCore/Providers/Claude/ClaudeProviderDescriptor.swift`
+- `Sources/CodexBarCore/Providers/Claude/ClaudeOAuth/ClaudeOAuthCredentials.swift`
+- `Sources/CodexBarCore/Providers/Claude/ClaudeOAuth/ClaudeOAuthKeychainAccessGate.swift`
+- `Sources/CodexBarCore/Providers/Claude/ClaudeOAuth/ClaudeOAuthRefreshFailureGate.swift`
+- `Sources/CodexBarCore/KeychainAccessPreflight.swift`
+- `Sources/CodexBarCore/KeychainNoUIQuery.swift`
+- `Sources/CodexBarCore/BrowserCookieImportOrder.swift`
+- `Sources/CodexBarCore/BrowserCookieAccessGate.swift`

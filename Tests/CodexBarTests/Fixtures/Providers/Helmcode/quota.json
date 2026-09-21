@@ -1,0 +1,52 @@
+{
+  "periodStart": "2026-09-01",
+  "models": [
+    {
+      "model": "helm-monthly",
+      "cap": 2000000000,
+      "tokensUsed": 73854494,
+      "remaining": 1926145506,
+      "periodEnd": "2026-10-01T00:00:00Z",
+      "updatedAt": "2026-09-05T01:30:34Z"
+    },
+    {
+      "model": "helm-rolling-a",
+      "cap": 3000000000,
+      "tokensUsed": 0,
+      "remaining": 3000000000,
+      "periodEnd": "2026-10-04T19:25:48Z",
+      "windowHours": 4,
+      "fullWindowTokens": 400000000
+    },
+    {
+      "model": "helm-rolling-b",
+      "cap": 3000000000,
+      "tokensUsed": 0,
+      "remaining": 3000000000,
+      "periodEnd": "2026-10-04T19:25:48Z",
+      "windowHours": 4,
+      "fullWindowTokens": 400000000
+    },
+    {
+      "model": "helm-monthly-b",
+      "cap": 3000000000,
+      "tokensUsed": 0,
+      "remaining": 3000000000,
+      "periodEnd": "2026-10-01T00:00:00Z"
+    },
+    {
+      "model": "helm-monthly-c",
+      "cap": 500000000,
+      "tokensUsed": 0,
+      "remaining": 500000000,
+      "periodEnd": "2026-10-01T00:00:00Z"
+    },
+    {
+      "model": "helm-monthly-d",
+      "cap": 1000000000,
+      "tokensUsed": 0,
+      "remaining": 1000000000,
+      "periodEnd": "2026-10-01T00:00:00Z"
+    }
+  ]
+}

@@ -63,6 +63,11 @@ query construction checks, source audits, and store doubles. No test source exce
 direct Security item API call, and routine verification must not query the real Keychain, import browser cookies, or
 launch live provider probes.
 
+The live Claude PTY fetch test requires both `LIVE_CLAUDE_FETCH=1` and
+`CODEXBAR_ALLOW_TEST_KEYCHAIN_ACCESS=1`. The provider CLI owns its Keychain access and does not honor CodexBar's
+suppression flag, so the explicit access opt-in gates both the fetch and its raw diagnostic subprocess. Regression
+tests exercise that decision with synthetic environments without launching Claude.
+
 Relevant implementation files:
 
 - `Sources/CodexBarCore/KeychainSecurity.swift`

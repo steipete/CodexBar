@@ -53,7 +53,11 @@ struct StatusComponentsMenuView: View {
     }
 
     /// A single leaf row: dot · name · right-aligned status.
-    private func statusRow(_ component: ProviderStatusComponent, indented: Bool = false) -> some View {
+    private func statusRow(
+        _ component: ProviderStatusComponent,
+        indented: Bool = false,
+        isExpanded: Bool? = nil) -> some View
+    {
         HStack(spacing: 8) {
             Circle()
                 .fill(component.indicator.dotColor)
@@ -62,6 +66,13 @@ struct StatusComponentsMenuView: View {
                 .font(.system(size: 13))
                 .foregroundStyle(.primary)
                 .lineLimit(1)
+            if let isExpanded {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                    .animation(.easeInOut(duration: 0.16), value: isExpanded)
+            }
             Spacer(minLength: 16)
             Text(component.statusLabel)
                 .font(.system(size: 12))
@@ -83,24 +94,8 @@ struct StatusComponentsMenuView: View {
                 }
                 self.onToggle?()
             } label: {
-                HStack(spacing: 8) {
-                    Circle()
-                        .fill(group.indicator.dotColor)
-                        .frame(width: 8, height: 8)
-                    Text(group.name)
-                        .font(.system(size: 13))
-                        .foregroundStyle(.primary)
-                        .lineLimit(1)
-                    Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
-                        .font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                    Spacer(minLength: 16)
-                    Text(group.statusLabel)
-                        .font(.system(size: 12))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-                .contentShape(Rectangle())
+                self.statusRow(group, isExpanded: isExpanded)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
 

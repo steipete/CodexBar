@@ -30,6 +30,20 @@ struct OpenCodeGoOptionalZenBalanceTimeoutTests {
         OptionalZenBalanceTimeoutURLProtocol.handler = { request in
             guard let url = request.url else { throw URLError(.badURL) }
             timeouts.append(request.timeoutInterval)
+            if url.path == "/console/api/orgs" {
+                return Self.makeResponse(
+                    url: url,
+                    body: #"[{"id":"wrk_TEST123","name":"Default"}]"#,
+                    contentType: "application/json")
+            }
+            if url.path == "/console/api/billing/status" {
+                // This workspace has not migrated, so the console has no balance for it.
+                return Self.makeResponse(
+                    url: url,
+                    body: #"{"_tag":"NotFound"}"#,
+                    statusCode: 404,
+                    contentType: "application/json")
+            }
             if url.path == "/_server" {
                 return Self.makeResponse(
                     url: url,
@@ -51,17 +65,19 @@ struct OpenCodeGoOptionalZenBalanceTimeoutTests {
             session: URLSession(configuration: configuration))
 
         #expect(balance == 98.76)
-        #expect(timeouts.values == [5, 5])
+        // Workspace lookup, console balance probe, then the legacy page.
+        #expect(timeouts.values == [5, 5, 5])
     }
 
     private static func makeResponse(
         url: URL,
         body: String,
+        statusCode: Int = 200,
         contentType: String) -> (HTTPURLResponse, Data)
     {
         let response = HTTPURLResponse(
             url: url,
-            statusCode: 200,
+            statusCode: statusCode,
             httpVersion: "HTTP/1.1",
             headerFields: ["Content-Type": contentType])!
         return (response, Data(body.utf8))

@@ -44,6 +44,9 @@ struct CLIToonSnapshotTests {
                 loginMethod: OAuth
               accountEmail: dev@example.com
               loginMethod: OAuth
+            rateWindowLabels:
+              primary: Session
+              secondary: Weekly
         """)
     }
 

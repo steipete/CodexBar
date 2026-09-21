@@ -1168,7 +1168,6 @@
 "Open Augment (Log Out & Back In)" = "Ouvrir l'augmentation (déconnexion et reconnexion)";
 "Open Codebuff Dashboard" = "Ouvrir le tableau de bord Codebuff";
 "Open Command Code Settings" = "Ouvrir les paramètres du code de commande";
-"Open Crof dashboard" = "Ouvrir le tableau de bord Crof";
 "Open Manus" = "Ouvrir Manus";
 "Open MiMo Balance" = "Ouvrir la balance MiMo";
 "Open Moonshot Console" = "Ouvrir la console Moonshot";
@@ -1236,7 +1235,6 @@
 "Stored in ~/.codexbar/config.json. Requires an Anthropic Admin API key." = "Stocké dans ~/.codexbar/config.json. Nécessite une clé API Anthropic Admin.";
 "Stored in ~/.codexbar/config.json. Used for /v1/quota-stats." = "Stocké dans ~/.codexbar/config.json. Utilisé pour /v1/quota-stats.";
 "Stored in ~/.codexbar/config.json. You can also provide CODEBUFF_API_KEY or let CodexBar read ~/.config/manicode/credentials.json (created by `codebuff login`)." = "Stocké dans ~/.codexbar/config.json. Vous pouvez également fournir CODEBUFF_API_KEY ou laisser CodexBar lire ~/.config/manicode/credentials.json (créé par `codebuff login`).";
-"Stored in ~/.codexbar/config.json. You can also provide CROF_API_KEY." = "Stocké dans ~/.codexbar/config.json. Vous pouvez également fournir CROF_API_KEY.";
 "Stored in ~/.codexbar/config.json. You can also provide KILO_API_KEY or ~/.local/share/kilo/auth.json (kilo.access)." = "Stocké dans ~/.codexbar/config.json. Vous pouvez également fournir KILO_API_KEY ou ~/.local/share/kilo/auth.json (kilo.access).";
 "T3 Chat cookie" = "Cookie de discussion T3";
 "Team mode" = "Mode équipe";
@@ -1616,3 +1614,8 @@
 "section_widgets" = "Widgets";
 "account_widgets_title" = "Actualiser les comptes pour les widgets";
 "account_widgets_description" = "Choisissez un compte dans chaque widget Account Usage. Actualise jusqu’à six comptes par fournisseur.";
+
+/* Antigravity local cost estimates */
+"antigravity_cost_estimate_hint" = "Usage local × tarifs API publics · ni frais ni crédits Antigravity";
+"antigravity_quota_window_note" = "Le coût de la fenêtre couvre tous les modèles · la fenêtre affichée est la famille la plus contrainte";
+"antigravity_no_priced_token_history" = "Aucun historique de tokens Antigravity tarifé n'est disponible.";

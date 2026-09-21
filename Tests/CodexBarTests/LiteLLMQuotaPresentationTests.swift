@@ -10,31 +10,25 @@ struct LiteLLMQuotaPresentationTests {
     private static let personalDetail = "$403.99 / $900.00"
     private static let teamDetail = "Team Platform: $70.00 / $1,000.00"
 
-    private func snapshot(hasReset: Bool, teamOnly: Bool) -> UsageSnapshot {
-        let reset = hasReset ? Self.now.addingTimeInterval(7200) : nil
-        return LiteLLMUsageSnapshot(
-            userID: teamOnly ? nil : "synthetic-user",
-            accountEmail: nil,
-            personalSpendUSD: teamOnly ? 0 : 403.99,
-            personalBudgetUSD: teamOnly ? nil : 900,
-            personalResetAt: teamOnly ? nil : reset,
-            teamUsage: .init(
-                id: "synthetic-team",
-                alias: "Platform",
-                spendUSD: 70,
-                budgetUSD: 1000,
-                resetAt: reset,
-                budgetDuration: nil),
-            keyName: nil,
-            keyExpiresAt: nil,
-            updatedAt: Self.now).toUsageSnapshot()
+    private func snapshot(hasReset: Bool, teamOnly: Bool) async throws -> UsageSnapshot {
+        let reset = hasReset ? "\"\(Self.now.addingTimeInterval(7200).ISO8601Format())\"" : "null"
+        let team = """
+        {"team_id":"synthetic-team","team_alias":"Platform","spend":70,"max_budget":1000,"budget_reset_at":\(reset)}
+        """
+        let body = teamOnly ? "{\"team_info\":\(team)}" : """
+        {"user_info":{"user_id":"synthetic-user","spend":403.99,"max_budget":900,"budget_reset_at":\(reset)},
+         "teams":[\(team)]}
+        """
+        let key = teamOnly ? #"{"info":{"team_id":"synthetic-team"}}"#
+            : #"{"info":{"user_id":"synthetic-user","team_id":"synthetic-team"}}"#
+        return try await LiteLLMPluginTestSupport.fetch(body, key: key, now: Self.now)
     }
 
     @Test(arguments: [false, true], [false, true])
     func `CLI text and cards preserve budget amounts separately from resets`(
-        hasReset: Bool, teamOnly: Bool) throws
+        hasReset: Bool, teamOnly: Bool) async throws
     {
-        let snapshot = self.snapshot(hasReset: hasReset, teamOnly: teamOnly)
+        let snapshot = try await self.snapshot(hasReset: hasReset, teamOnly: teamOnly)
         let card = CLICardsRenderer.makeCard(CLICardBuildInput(
             provider: .litellm,
             snapshot: snapshot,
@@ -84,9 +78,9 @@ struct LiteLLMQuotaPresentationTests {
 
     @Test(arguments: [false, true], [false, true])
     func `native menus preserve personal and team amounts alongside reset dates`(
-        hasReset: Bool, teamOnly: Bool) throws
+        hasReset: Bool, teamOnly: Bool) async throws
     {
-        let snapshot = self.snapshot(hasReset: hasReset, teamOnly: teamOnly)
+        let snapshot = try await self.snapshot(hasReset: hasReset, teamOnly: teamOnly)
         let settings = testSettingsStore(
             suiteName: "LiteLLMQuotaPresentationTests-\(hasReset)-\(teamOnly)",
             userDefaults: InMemoryUserDefaults())

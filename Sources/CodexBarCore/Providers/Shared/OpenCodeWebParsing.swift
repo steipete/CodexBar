@@ -2,6 +2,144 @@ import Foundation
 
 /// Shared OpenCode web protocol parsing. Callers retain their own quota encodings and required lanes.
 enum OpenCodeWebParsing {
+    static let percentKeys = [
+        "usagePercent",
+        "usedPercent",
+        "percentUsed",
+        "percent",
+        "usage_percent",
+        "used_percent",
+        "utilization",
+        "utilizationPercent",
+        "utilization_percent",
+        "usage",
+    ]
+    static let resetInKeys = [
+        "resetInSec",
+        "resetInSeconds",
+        "resetSeconds",
+        "reset_sec",
+        "reset_in_sec",
+        "resetsInSec",
+        "resetsInSeconds",
+        "resetIn",
+        "resetSec",
+    ]
+    static let resetAtKeys = [
+        "resetAt",
+        "resetsAt",
+        "reset_at",
+        "resets_at",
+        "nextReset",
+        "next_reset",
+        "renewAt",
+        "renew_at",
+    ]
+    static let renewAtKeys = [
+        "renewAt",
+        "renew_at",
+    ]
+    static func doubleValue(from value: Any?) -> Double? {
+        let number: Double? = switch value {
+        case let number as Double:
+            number
+        case let number as NSNumber:
+            number.doubleValue
+        case let string as String:
+            Double(string.trimmingCharacters(in: .whitespacesAndNewlines))
+        default:
+            nil
+        }
+        guard let number, number.isFinite else { return nil }
+        return number
+    }
+
+    static func intValue(from value: Any?) -> Int? {
+        switch value {
+        case let number as Int:
+            number
+        case let number as NSNumber:
+            number.intValue
+        case let string as String:
+            Int(string.trimmingCharacters(in: .whitespacesAndNewlines))
+        default:
+            nil
+        }
+    }
+
+    static func looksSignedOut(text: String) -> Bool {
+        let lower = text.lowercased()
+        return lower.contains("login") ||
+            lower.contains("sign in") ||
+            lower.contains("auth/authorize") ||
+            lower.contains("not associated with an account") ||
+            lower.contains("actor of type \"public\"")
+    }
+
+    static func extractServerErrorMessage(from text: String) -> String? {
+        guard let data = text.data(using: .utf8),
+              let object = try? JSONSerialization.jsonObject(with: data, options: [])
+        else {
+            if let match = text.range(of: #"(?i)<title>([^<]+)</title>"#, options: .regularExpression) {
+                return String(text[match].dropFirst(7).dropLast(8)).trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+            return nil
+        }
+
+        guard let dict = object as? [String: Any] else { return nil }
+        if let message = dict["message"] as? String, !message.isEmpty {
+            return message
+        }
+        if let error = dict["error"] as? String, !error.isEmpty {
+            return error
+        }
+        if let detail = dict["detail"] as? String, !detail.isEmpty {
+            return detail
+        }
+        return nil
+    }
+
+    static func doubleValue(from dict: [String: Any], keys: [String]) -> Double? {
+        for key in keys {
+            if let value = self.doubleValue(from: dict[key]) {
+                return value
+            }
+        }
+        return nil
+    }
+
+    static func intValue(from dict: [String: Any], keys: [String]) -> Int? {
+        for key in keys {
+            if let value = self.intValue(from: dict[key]) {
+                return value
+            }
+        }
+        return nil
+    }
+
+    static func dateValue(from value: Any?) -> Date? {
+        guard let value else { return nil }
+        if let number = self.doubleValue(from: value) {
+            if number > 1_000_000_000_000 {
+                return Date(timeIntervalSince1970: number / 1000)
+            }
+            if number > 1_000_000_000 {
+                return Date(timeIntervalSince1970: number)
+            }
+        }
+        if let string = value as? String {
+            if let number = Double(string.trimmingCharacters(in: .whitespacesAndNewlines)) {
+                return self.dateValue(from: number)
+            }
+            let formatter = ISO8601DateFormatter()
+            formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            if let parsed = formatter.date(from: string) {
+                return parsed
+            }
+        }
+        return nil
+    }
+
     typealias WindowParser = ([String: Any]) -> (percent: Double, resetInSec: Int)?
 
     static func normalizeWorkspaceID(_ raw: String?) -> String? {

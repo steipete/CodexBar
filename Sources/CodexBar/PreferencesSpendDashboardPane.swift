@@ -49,14 +49,28 @@ func spendDashboardMetricText(
     cost: Double?,
     tokens: Int?,
     currencyCode: String,
-    incompleteRequestCount: Int = 0) -> String
+    incompleteRequestCount: Int = 0,
+    costIsLowerBound: Bool = false,
+    tokensAreLowerBound: Bool = false) -> String
 {
+    // A truncated scan or an unpriced request makes the subtotal a floor, not an exact value.
+    // The row must say so with the same `≥` marker the header and menu card already use.
     let parts = [
-        cost.map { UsageFormatter.currencyString($0, currencyCode: currencyCode) },
-        tokens.map { L("%@ tokens", UsageFormatter.tokenCountString($0)) },
+        cost.map {
+            spendDashboardLowerBoundText(
+                UsageFormatter.currencyString($0, currencyCode: currencyCode), isLowerBound: costIsLowerBound)
+        },
+        tokens.map {
+            spendDashboardLowerBoundText(
+                L("%@ tokens", UsageFormatter.tokenCountString($0)), isLowerBound: tokensAreLowerBound)
+        },
     ].compactMap(\.self)
     return (parts.isEmpty ? "—" : parts.joined(separator: " · "))
         + UsageFormatter.incompleteUsageSuffix(incompleteRequestCount)
+}
+
+func spendDashboardLowerBoundText(_ value: String, isLowerBound: Bool) -> String {
+    isLowerBound ? "≥ \(value)" : value
 }
 
 func spendDashboardCoverageChipText(_ coverage: CostUsageCoverageCounts) -> String {
@@ -1200,9 +1214,9 @@ private struct SpendDailyLedgerRow: View {
                     minWidth: SpendDailyLedgerLayout.providerMinimumWidth,
                     maxWidth: .infinity,
                     alignment: .leading)
-            Text(self.summary.totalTokens.map(UsageFormatter.tokenCountString) ?? "—")
+            Text(self.tokensText)
                 .frame(width: SpendDailyLedgerLayout.trackedTokensWidth, alignment: .trailing)
-            Text(self.summary.requestCount.map(codexBarLocalizedInteger) ?? "—")
+            Text(self.requestsText)
                 .frame(width: SpendDailyLedgerLayout.requestsWidth, alignment: .trailing)
             Text(spendDashboardLedgerCostText(self.summary, currencyCode: self.currencyCode))
                 .fontWeight(.medium)
@@ -1240,16 +1254,28 @@ private struct SpendDailyLedgerRow: View {
         self.summary.providers.filter { !$0.isKnownIdle }
     }
 
+    private var tokensText: String {
+        self.countText(self.summary.totalTokens, format: UsageFormatter.tokenCountString)
+    }
+
+    private var requestsText: String {
+        self.countText(self.summary.requestCount, format: codexBarLocalizedInteger)
+    }
+
+    private func countText(_ count: Int?, format: (Int) -> String) -> String {
+        guard let count else { return "—" }
+        let text = format(count)
+        return self.summary.hasPartialCounts ? "≥\(text)" : text
+    }
+
     private var accessibilityLabel: String {
         let day = spendDashboardLedgerDateText(self.summary.day, timeZone: self.timeZone, accessibility: true)
         let providers = self.activeProviders.isEmpty
             ? L("No usage yet")
             : self.activeProviders.map(\.displayName).joined(separator: ", ")
-        let tokens = self.summary.totalTokens.map(UsageFormatter.tokenCountString) ?? "—"
-        let requests = self.summary.requestCount.map(codexBarLocalizedInteger) ?? "—"
         let spend = spendDashboardLedgerCostText(self.summary, currencyCode: self.currencyCode)
-        return "\(day), \(L("Providers")): \(providers), \(L("Tracked tokens")): \(tokens), "
-            + "\(L("Requests")): \(requests), \(L("Estimated spend")): \(spend)"
+        return "\(day), \(L("Providers")): \(providers), \(L("Tracked tokens")): \(self.tokensText), "
+            + "\(L("Requests")): \(self.requestsText), \(L("Estimated spend")): \(spend)"
     }
 }
 
@@ -1346,6 +1372,10 @@ struct SpendDashboardExportPayload: Encodable, Sendable {
         let provenance: String
         let coverage: CostUsageCoverageCounts
         let tokenMix: CostUsageTokenMix
+        /// True when this group's totals are floors rather than exact values, so a consumer never
+        /// mistakes a truncated or partly unpriced scan for complete history.
+        let costIsLowerBound: Bool
+        let tokensAreLowerBound: Bool
         let providers: [Provider]
         let models: [Model]
     }
@@ -1357,6 +1387,8 @@ struct SpendDashboardExportPayload: Encodable, Sendable {
         let totalTokens: Int?
         let totalCost: Double?
         let incompleteRequestCount: Int?
+        let costIsLowerBound: Bool
+        let tokensAreLowerBound: Bool
     }
 
     struct Model: Encodable, Sendable {
@@ -1381,6 +1413,8 @@ struct SpendDashboardExportPayload: Encodable, Sendable {
                     provenance: group.provenance.rawValue,
                     coverage: group.coverage,
                     tokenMix: group.tokenMix,
+                    costIsLowerBound: group.hasPartialCost,
+                    tokensAreLowerBound: group.hasPartialTokens,
                     providers: group.providers.map {
                         Provider(
                             id: $0.id,
@@ -1388,7 +1422,9 @@ struct SpendDashboardExportPayload: Encodable, Sendable {
                             sourceKind: $0.sourceKind.rawValue,
                             totalTokens: $0.totalTokens,
                             totalCost: $0.totalCost,
-                            incompleteRequestCount: $0.incompleteRequestCount > 0 ? $0.incompleteRequestCount : nil)
+                            incompleteRequestCount: $0.incompleteRequestCount > 0 ? $0.incompleteRequestCount : nil,
+                            costIsLowerBound: $0.costIsLowerBound,
+                            tokensAreLowerBound: $0.tokensAreLowerBound)
                     },
                     models: group.models.map {
                         Model(
@@ -1531,7 +1567,7 @@ func spendDashboardHistoryCaption(
     var parts: [String] = []
     if group.hasPartialCost || group.hasPartialTokens {
         parts.append(L("Partial estimate"))
-        if group.hasPartialCost {
+        if group.hasUnpricedProviders {
             parts.append(spendDashboardPartialSourceCoverageText(group))
         }
     } else {

@@ -157,6 +157,14 @@ extension UsageStore {
             guard hasUsage || snapshot.historyCoverageIsEstablished else {
                 throw TokenSnapshotError.historyUnavailable
             }
+            // Provider-specific by design: partial Antigravity scans cannot replace this scope's complete history.
+            if provider == .antigravity, snapshot.historyScanIsPartial,
+               self.spendDashboardTokenSnapshotPublicationForCurrentConfig(for: provider)?
+                   .snapshot?.historyCoverageIsEstablished == true
+            {
+                self.spendDashboardTokenFailedTriggers[provider.instanceID] = trigger
+                return
+            }
             self.lastSpendDashboardTokenFetchScope[provider.instanceID] = completedCostScopeSignature
             self.spendDashboardTokenIncorporatedTriggers[provider.instanceID] = SpendDashboardTokenRefreshTrigger(
                 providerConfigRevision: providerConfigRevision,

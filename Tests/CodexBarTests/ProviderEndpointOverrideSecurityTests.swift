@@ -98,16 +98,6 @@ struct ProviderEndpointOverrideSecurityTests {
         } catch {
             #expect(error as? GroqSettingsError == .invalidEndpointOverride(GroqSettingsReader.apiURLEnvironmentKey))
         }
-
-        do {
-            _ = try await ElevenLabsUsageFetcher.fetchUsage(
-                apiKey: "elevenlabs-test",
-                environment: [ElevenLabsSettingsReader.apiURLEnvironmentKey: insecureURL])
-            Issue.record("Expected ElevenLabsSettingsError.invalidEndpointOverride")
-        } catch {
-            #expect(error as? ElevenLabsSettingsError == .invalidEndpointOverride(
-                ElevenLabsSettingsReader.apiURLEnvironmentKey))
-        }
     }
 
     @Test

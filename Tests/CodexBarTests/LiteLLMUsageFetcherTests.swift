@@ -1,10 +1,10 @@
-import CodexBarCore
 import Foundation
 import Testing
+@testable import CodexBarCore
 
 struct LiteLLMUsageFetcherTests {
-    @Test
-    func `parses user usage with personal and team budgets`() throws {
+    @Test(arguments: BundledPluginTestSupport.engines)
+    func `parses user usage with personal and team budgets`(engine: ProviderPluginEngineKind) async throws {
         let json = """
         {
           "user_id": "user-123",
@@ -58,27 +58,7 @@ struct LiteLLMUsageFetcherTests {
         }
         """
 
-        let parsed = try LiteLLMUsageFetcher._parseUserInfoForTesting(
-            Data(json.utf8),
-            keyInfo: LiteLLMKeyInfoSnapshot(
-                userID: "user-123",
-                teamID: "team-456",
-                keyName: "sk-...IAAw",
-                spendUSD: 212.3537162499998,
-                expiresAt: Date(timeIntervalSince1970: 2)),
-            updatedAt: Date(timeIntervalSince1970: 1))
-
-        #expect(parsed.userID == "user-123")
-        #expect(parsed.accountEmail == "litellm-user@example.com")
-        #expect(abs(parsed.personalSpendUSD - 212.3537162499998) < 0.000001)
-        #expect(parsed.personalBudgetUSD == 300)
-        #expect(parsed.teamUsage?.alias == "ai")
-        #expect(parsed.teamUsage?.spendUSD == 215.3245658499998)
-        #expect(parsed.teamUsage?.budgetUSD == 1000)
-        #expect(parsed.keyName == "sk-...IAAw")
-        #expect(parsed.keyExpiresAt == Date(timeIntervalSince1970: 2))
-
-        let snapshot = parsed.toUsageSnapshot()
+        let snapshot = try await LiteLLMPluginTestSupport.fetch(json, engine: engine)
         #expect(snapshot.identity?.providerID == .litellm)
         #expect(snapshot.identity?.accountEmail == "litellm-user@example.com")
         let primary = try #require(snapshot.primary)
@@ -92,8 +72,8 @@ struct LiteLLMUsageFetcherTests {
         #expect(snapshot.providerCost?.period == "Personal budget")
     }
 
-    @Test
-    func `preserves personal spend when no budget is configured`() throws {
+    @Test(arguments: BundledPluginTestSupport.engines)
+    func `preserves personal spend when no budget is configured`(engine: ProviderPluginEngineKind) async throws {
         let json = """
         {
           "user_id": "user-123",
@@ -105,25 +85,15 @@ struct LiteLLMUsageFetcherTests {
         }
         """
 
-        let parsed = try LiteLLMUsageFetcher._parseUserInfoForTesting(
-            Data(json.utf8),
-            keyInfo: LiteLLMKeyInfoSnapshot(
-                userID: "user-123",
-                teamID: nil,
-                keyName: "personal-key",
-                spendUSD: 12.5,
-                expiresAt: nil),
-            updatedAt: Date(timeIntervalSince1970: 1))
-
-        let snapshot = parsed.toUsageSnapshot()
+        let snapshot = try await LiteLLMPluginTestSupport.fetch(json, engine: engine)
         #expect(snapshot.primary == nil)
         #expect(snapshot.providerCost?.used == 12.5)
         #expect(snapshot.providerCost?.limit == 0)
         #expect(snapshot.providerCost?.period == "Personal spend")
     }
 
-    @Test
-    func `parses key info identity for user lookup`() throws {
+    @Test(arguments: BundledPluginTestSupport.engines)
+    func `parses key info identity for user lookup`(engine: ProviderPluginEngineKind) async throws {
         let json = """
         {
           "key": "sk-redacted",
@@ -138,16 +108,14 @@ struct LiteLLMUsageFetcherTests {
         }
         """
 
-        let parsed = try LiteLLMUsageFetcher._parseKeyInfoForTesting(Data(json.utf8))
-
-        #expect(parsed.userID == "user-123")
-        #expect(parsed.teamID == "team-456")
-        #expect(parsed.keyName == "sk-...IAAw")
-        #expect(parsed.spendUSD == 212.3537162499998)
+        let snapshot = try await LiteLLMPluginTestSupport.fetch(
+            #"{"user_info":{}}"#, key: json, engine: engine)
+        #expect(snapshot.subscriptionExpiresAt == ISO8601DateParser.parse("2026-09-11T00:12:55.950000+00:00"))
+        #expect(snapshot.identity?.loginMethod == "api")
     }
 
-    @Test
-    func `parses team-only key info without user identity`() throws {
+    @Test(arguments: BundledPluginTestSupport.engines)
+    func `parses team-only key info without user identity`(engine: ProviderPluginEngineKind) async throws {
         let json = """
         {
           "info": {
@@ -158,35 +126,35 @@ struct LiteLLMUsageFetcherTests {
         }
         """
 
-        let parsed = try LiteLLMUsageFetcher._parseKeyInfoForTesting(Data(json.utf8))
-
-        #expect(parsed.userID == nil)
-        #expect(parsed.teamID == "team-456")
-        #expect(parsed.keyName == "team-service-key")
+        let snapshot = try await LiteLLMPluginTestSupport.fetch(
+            #"{"team_info":{"team_id":"team-456","spend":25}}"#, key: json, engine: engine)
+        #expect(snapshot.primary == nil)
+        #expect(snapshot.providerCost?.period == "Team spend")
+        #expect(snapshot.providerCost?.used == 25)
     }
 
-    @Test
-    func `management urls accept root or v1 base urls`() throws {
-        let root = try #require(URL(string: "https://litellm.example.com"))
-        let versioned = try #require(URL(string: "https://litellm.example.com/v1"))
-        let nestedVersioned = try #require(URL(string: "https://gateway.example.com/litellm/v1/"))
-
-        #expect(
-            LiteLLMUsageFetcher
-                ._keyInfoURLForTesting(baseURL: root)
-                .absoluteString == "https://litellm.example.com/key/info")
-        #expect(
-            LiteLLMUsageFetcher
-                ._keyInfoURLForTesting(baseURL: versioned)
-                .absoluteString == "https://litellm.example.com/key/info")
-        #expect(
-            LiteLLMUsageFetcher
-                ._userInfoURLForTesting(baseURL: nestedVersioned, userID: "user-123")
-                .absoluteString == "https://gateway.example.com/litellm/user/info?user_id=user-123")
-        #expect(
-            LiteLLMUsageFetcher
-                ._teamInfoURLForTesting(baseURL: nestedVersioned, teamID: "team-456")
-                .absoluteString == "https://gateway.example.com/litellm/team/info?team_id=team-456")
+    @Test(arguments: BundledPluginTestSupport.engines)
+    func `management urls accept root or v1 base urls`(engine: ProviderPluginEngineKind) async throws {
+        for base in [
+            "https://proxy.example.com",
+            "https://proxy.example.com/v1",
+            "https://proxy.example.com/litellm/v1/",
+            "http://proxy.local/v1",
+            "http://192.168.1.2:4000/v1",
+            "http://[fd00::1]:4000/v1",
+        ] {
+            let transport = ProviderHTTPTransportHandler { request in
+                let prefix = base.contains("/litellm/") ? "/litellm" : ""
+                let isKey = request.url?.path == "\(prefix)/key/info"
+                #expect(request.url?.path == "\(prefix)/\(isKey ? "key" : "user")/info")
+                #expect(request.url?.query == (isKey ? nil : "user_id=user-123"))
+                let body = isKey ? #"{"info":{"user_id":"user-123"}}"# : #"{"user_info":{}}"#
+                return (Data(body.utf8), HTTPURLResponse(
+                    url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!)
+            }
+            _ = try await BundledPluginTestSupport.runtime("litellm", engine: engine, transport: transport)
+                .fetchUsage(settings: ["LITELLM_BASE_URL": base], secrets: ["LITELLM_API_KEY": "fixture-key"])
+        }
     }
 
     @Test
@@ -201,8 +169,8 @@ struct LiteLLMUsageFetcherTests {
             .absoluteString == "https://litellm.example.com/v1")
     }
 
-    @Test
-    func `fetch trims api key before sending management requests`() async throws {
+    @Test(arguments: BundledPluginTestSupport.engines)
+    func `fetch trims api key before sending management requests`(engine: ProviderPluginEngineKind) async throws {
         let baseURL = try #require(URL(string: "https://litellm.example.com/v1"))
         let transport = ProviderHTTPTransportStub { request in
             #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer sk-test")
@@ -248,18 +216,18 @@ struct LiteLLMUsageFetcherTests {
             return (Data(body.utf8), response)
         }
 
-        let snapshot = try await LiteLLMUsageFetcher.fetchUsage(
-            apiKey: " sk-test\n",
-            baseURL: baseURL,
-            transport: transport)
+        let snapshot = try await BundledPluginTestSupport.runtime("litellm", engine: engine, transport: transport)
+            .fetchUsage(
+                settings: ["LITELLM_BASE_URL": baseURL.absoluteString],
+                secrets: ["LITELLM_API_KEY": " sk-test\n"])
 
-        #expect(snapshot.userID == "user-123")
+        #expect(snapshot.primary?.usedPercent == 10)
         let requests = await transport.requests()
         #expect(requests.count == 2)
     }
 
-    @Test
-    func `fetches team usage for team-only virtual keys`() async throws {
+    @Test(arguments: BundledPluginTestSupport.engines)
+    func `fetches team usage for team-only virtual keys`(engine: ProviderPluginEngineKind) async throws {
         let baseURL = try #require(URL(string: "https://litellm.example.com/v1"))
         let transport = ProviderHTTPTransportStub { request in
             #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer sk-team")
@@ -308,19 +276,14 @@ struct LiteLLMUsageFetcherTests {
             return (Data(body.utf8), response)
         }
 
-        let snapshot = try await LiteLLMUsageFetcher.fetchUsage(
-            apiKey: "sk-team",
-            baseURL: baseURL,
-            transport: transport,
-            updatedAt: Date(timeIntervalSince1970: 1))
+        let snapshot = try await BundledPluginTestSupport.runtime("litellm", engine: engine, transport: transport)
+            .fetchUsage(
+                settings: ["LITELLM_BASE_URL": baseURL.absoluteString],
+                secrets: ["LITELLM_API_KEY": "sk-team"],
+                now: Date(timeIntervalSince1970: 1))
 
-        #expect(snapshot.userID == nil)
-        #expect(snapshot.teamUsage?.id == "team-456")
-        #expect(snapshot.teamUsage?.alias == "platform")
-        #expect(snapshot.teamUsage?.spendUSD == 25)
-        #expect(snapshot.teamUsage?.budgetUSD == 100)
-
-        let usage = snapshot.toUsageSnapshot()
+        #expect(snapshot.identity?.accountOrganization == "platform")
+        let usage = snapshot
         #expect(usage.primary == nil)
         #expect(usage.secondary?.usedPercent == 25)
         #expect(usage.providerCost?.used == 25)
@@ -331,8 +294,42 @@ struct LiteLLMUsageFetcherTests {
         #expect(requests.count == 2)
     }
 
-    @Test
-    func `fetch surfaces rejected virtual key`() async throws {
+    @Test(arguments: BundledPluginTestSupport.engines)
+    func `rejects mismatched identities and malformed budget payloads`(engine: ProviderPluginEngineKind) async throws {
+        for (key, body) in [
+            (#"{"info":{}}"#, #"{"user_info":{}}"#),
+            (#"{"info":{"user_id":"expected"}}"#, #"{"user_info":{"user_id":"other"}}"#),
+            (#"{"info":{"team_id":"expected"}}"#, #"{"team_info":{"team_id":"other"}}"#),
+            (#"{"info":{"user_id":"expected"}}"#, #"{"user_info":{"spend":"4"}}"#),
+            (#"{"info":{"user_id":"expected"}}"#, #"{"user_info":{},"teams":[{}]}"#),
+            (#"{"info":{"user_id":"expected"}}"#, #"{"user_info":{},"teams":{}}"#),
+        ] {
+            do {
+                _ = try await LiteLLMPluginTestSupport.fetch(body, key: key, engine: engine)
+                Issue.record("Expected parse failure")
+            } catch let error as ProviderFetchClassifiedError {
+                #expect(error.kind == .parseFailure)
+            }
+        }
+    }
+
+    @Test(arguments: BundledPluginTestSupport.engines)
+    func `zero spend keeps API identity and never selects another team`(engine: ProviderPluginEngineKind) async throws {
+        let usage = try await LiteLLMPluginTestSupport.fetch(#"""
+        {"user_info":{"user_alias":"   ","metadata":{"preferred_username":" synthetic-user "}},
+         "teams":[{"team_id":"unrelated","team_alias":"Other","spend":5,"max_budget":10}]}
+        """#, engine: engine)
+        #expect(usage.primary == nil && usage.secondary == nil && usage.providerCost == nil)
+        #expect(usage.identity?.accountOrganization == nil)
+        #expect(usage.identity?.accountEmail == "synthetic-user")
+        #expect(usage.identity?.loginMethod == "api")
+        let malformedMetadata = try await LiteLLMPluginTestSupport.fetch(
+            #"{"user_info":{"metadata":{"preferred_username":false}}}"#, engine: engine)
+        #expect(malformedMetadata.identity?.accountEmail == nil)
+    }
+
+    @Test(arguments: BundledPluginTestSupport.engines)
+    func `fetch surfaces rejected virtual key`(engine: ProviderPluginEngineKind) async throws {
         let baseURL = try #require(URL(string: "https://litellm.example.com"))
         let transport = ProviderHTTPTransportStub { request in
             #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer sk-target")
@@ -346,16 +343,18 @@ struct LiteLLMUsageFetcherTests {
         }
 
         do {
-            _ = try await LiteLLMUsageFetcher.fetchUsage(
-                apiKey: "sk-target",
-                baseURL: baseURL,
-                transport: transport)
-            Issue.record("expected LiteLLMUsageError.apiError")
-        } catch let LiteLLMUsageError.apiError(message) {
+            _ = try await BundledPluginTestSupport.runtime("litellm", engine: engine, transport: transport)
+                .fetchUsage(
+                    settings: ["LITELLM_BASE_URL": baseURL.absoluteString],
+                    secrets: ["LITELLM_API_KEY": "sk-target"])
+            Issue.record("expected authentication failure")
+        } catch let error as ProviderFetchClassifiedError {
+            #expect(error.kind == .authenticationExpired)
+            let message = error.message
             #expect(message.contains("HTTP 401"))
             #expect(message.contains("Unauthorized"))
         } catch {
-            Issue.record("expected LiteLLMUsageError.apiError, got \(error)")
+            Issue.record("expected authentication failure, got \(error)")
         }
 
         let requests = await transport.requests()

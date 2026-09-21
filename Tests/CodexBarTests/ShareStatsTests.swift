@@ -364,7 +364,8 @@ struct ShareStatsTests {
             totalCost: nil,
             coveredDayCount: 7,
             chartDomain: Self.date...Self.date,
-            modelHistoryCompleteness: .incomplete)
+            modelHistoryCompleteness: .incomplete,
+            incompleteModelProviders: [.codex])
         let payload = try #require(ShareStatsBuilder.make(
             model: SpendDashboardModel(requestedDays: 7, groups: [group])))
 

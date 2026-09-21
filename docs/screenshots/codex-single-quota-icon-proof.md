@@ -1,3 +1,9 @@
+---
+summary: "Synthetic before/after proof for the Codex single-quota menu-bar icon."
+read_when:
+  - Reviewing single-quota icon rendering evidence
+---
+
 # Codex single-quota icon proof
 
 These screenshots use a fixed synthetic input: `46% remaining`, with no secondary quota and no credits.

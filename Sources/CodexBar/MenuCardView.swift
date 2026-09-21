@@ -1392,12 +1392,6 @@ extension UsageMenuCardView.Model {
         {
             weeklyDetailText = detail
         }
-        if input.provider == .crof,
-           let detail = weekly.resetDescription?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !detail.isEmpty
-        {
-            weeklyResetText = detail
-        }
         if [.copilot, .zenmux].contains(input.provider),
            let detail = weekly.resetDescription?.trimmingCharacters(in: .whitespacesAndNewlines),
            !detail.isEmpty

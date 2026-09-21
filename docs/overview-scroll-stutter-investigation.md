@@ -1,3 +1,9 @@
+---
+summary: "June 2026 Overview scroll-stutter investigation, candidate designs, and measured evidence."
+read_when:
+  - Investigating Overview selection or scrolling performance
+---
+
 # Overview Scroll Stutter Investigation
 
 Status: draft context for external review  

@@ -86,6 +86,12 @@
   );
 
   ctx.browser = Object.freeze({
+    availability(domain) {
+      return host.cookieAvailability(String(domain));
+    },
+    rejectCookie(domain) {
+      host.rejectCookie(String(domain));
+    },
     cookieHeader(domain) {
       return new Promise((resolve, reject) => host.cookieHeader(String(domain), resolve, reject));
     },

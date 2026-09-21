@@ -1011,7 +1011,6 @@
 "Open Augment (Log Out & Back In)" = "Abrir Augment (pechar sesión e volver entrar)";
 "Open Codebuff Dashboard" = "Abrir o panel de Codebuff";
 "Open Command Code Settings" = "Abrir os axustes de Command Code";
-"Open Crof dashboard" = "Abrir o panel de Crof";
 "Open Manus" = "Abrir Manus";
 "Open MiMo Balance" = "Abrir o saldo de MiMo";
 "Open Moonshot Console" = "Abrir a consola de Moonshot";
@@ -1079,7 +1078,6 @@
 "Stored in ~/.codexbar/config.json. Requires an Anthropic Admin API key." = "Gardado en ~/.codexbar/config.json. Require unha chave da API de administración de Anthropic.";
 "Stored in ~/.codexbar/config.json. Used for /v1/quota-stats." = "Gardado en ~/.codexbar/config.json. Úsase para /v1/quota-stats.";
 "Stored in ~/.codexbar/config.json. You can also provide CODEBUFF_API_KEY or let CodexBar read ~/.config/manicode/credentials.json (created by `codebuff login`)." = "Gardado en ~/.codexbar/config.json. Tamén podes fornecer CODEBUFF_API_KEY ou deixar que CodexBar lea ~/.config/manicode/credentials.json (creado por `codebuff login`).";
-"Stored in ~/.codexbar/config.json. You can also provide CROF_API_KEY." = "Gardado en ~/.codexbar/config.json. Tamén podes fornecer CROF_API_KEY.";
 "Stored in ~/.codexbar/config.json. You can also provide KILO_API_KEY or ~/.local/share/kilo/auth.json (kilo.access)." = "Gardado en ~/.codexbar/config.json. Tamén podes fornecer KILO_API_KEY ou ~/.local/share/kilo/auth.json (kilo.access).";
 "T3 Chat cookie" = "Cookie de T3 Chat";
 "Team mode" = "Modo de equipo";
@@ -1616,3 +1614,8 @@
 "section_widgets" = "Widgets";
 "account_widgets_title" = "Manter as contas actualizadas para os widgets";
 "account_widgets_description" = "Escolle unha conta en cada widget Account Usage. Actualiza ata seis contas por provedor.";
+
+/* Antigravity local cost estimates */
+"antigravity_cost_estimate_hint" = "Uso local × prezos públicos da API · non son cargos nin créditos de Antigravity";
+"antigravity_quota_window_note" = "O custo da xanela inclúe todos os modelos · a xanela amosada é a familia máis limitada";
+"antigravity_no_priced_token_history" = "Non hai historial de tokens de Antigravity con prezo dispoñible.";

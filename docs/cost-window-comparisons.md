@@ -1,3 +1,9 @@
+---
+summary: "Product proposal for shorter local cost comparison periods."
+read_when:
+  - Reviewing the cost comparison proposal for issues 1500 and 1708
+---
+
 # Cost window comparison decision
 
 Issues: [#1500](https://github.com/steipete/CodexBar/issues/1500), [#1708](https://github.com/steipete/CodexBar/issues/1708)

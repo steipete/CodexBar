@@ -152,8 +152,7 @@ extension AntigravityLocalReader {
                 }
                 guard !url.lastPathComponent.hasPrefix("."), url.pathExtension.lowercased() == suffix else { continue }
                 guard result.paths.count < budget.limits.databases else {
-                    result.isComplete = false
-                    return result
+                    throw ScanFailure.exhausted
                 }
                 do {
                     let values = try url.resolvingSymlinksInPath().resourceValues(forKeys: [.isRegularFileKey])

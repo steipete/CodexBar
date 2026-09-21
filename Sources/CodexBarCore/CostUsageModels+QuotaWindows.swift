@@ -88,9 +88,9 @@ extension CostUsageTokenSnapshot {
                 totalTokens: projection.totalTokens,
                 totalCostUSD: projection.totalCostUSD,
                 entryCount: projection.entryCount,
-                tokensAreComplete: projection.tokensAreComplete && self.historyCoverageIsEstablished
+                tokensAreComplete: projection.tokensAreComplete && self.historyIsFullyScanned
                     && start >= historyStart,
-                costIsComplete: projection.costIsComplete && self.historyCoverageIsEstablished
+                costIsComplete: projection.costIsComplete && self.historyIsFullyScanned
                     && start >= historyStart,
                 boundariesAreEstimated: !evidence.confirms(start)
                     || (offset > 0 && !evidence.confirms(end)) || resetAt <= now))

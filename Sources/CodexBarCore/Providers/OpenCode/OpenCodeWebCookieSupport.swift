@@ -1,7 +1,12 @@
 import Foundation
 
 enum OpenCodeWebCookieSupport {
-    private static let requestCookieNames: Set<String> = ["auth", "__Host-auth"]
+    /// `auth` serves the legacy pages and server functions. The console signs requests with its own
+    /// session cookie, so both are forwarded while workspaces migrate.
+    static let sessionCookieNames: Set<String> = ["auth", "__Host-auth"]
+    static let consoleSessionCookieNames: Set<String> = ["__Host-console_session"]
+    private static let requestCookieNames: Set<String> =
+        OpenCodeWebCookieSupport.sessionCookieNames.union(OpenCodeWebCookieSupport.consoleSessionCookieNames)
 
     struct Context {
         let settings: ProviderSettingsSnapshot.OpenCodeProviderSettings?

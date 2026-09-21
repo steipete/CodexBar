@@ -49,8 +49,10 @@ function rows(text, showIdentity) {
                     extra.window.windowMinutes === window.windowMinutes && extra.window.resetsAt === window.resetsAt;
             }) : null;
             if (copy) represented.push(copy);
+            var suppliedLabel = entry.rateWindowLabels && entry.rateWindowLabels[key];
+            var safeLabel = typeof suppliedLabel === "string" ? displayText(suppliedLabel, false).trim() : "";
             var label = (copy && displayText(copy.title, false).trim()) ||
-                cadenceLabel(window.windowMinutes) || ["Session", "Weekly", "Additional"][index];
+                cadenceLabel(window.windowMinutes) || safeLabel || ["Session", "Weekly", "Additional"][index];
             var pace = entry.pace && entry.pace[key] ? entry.pace[key] : null;
             windows.push({key: copy ? "extra:" + copy.id : key, label: label, minutes: number(window.windowMinutes),
                 remaining: left, resetsAt: window.resetsAt || "", pace: pace ? String(pace.summary || "") : "",

@@ -1,3 +1,9 @@
+---
+summary: "Historical maintainer verification of PR 1848's background Claude credential guard."
+read_when:
+  - Reviewing the July 2026 verification of PR 1848
+---
+
 ## Maintainer verification (2026-07-03)
 
 Local current-main port of https://github.com/steipete/CodexBar/pull/1848. This fixes the background browser-launch regression in https://github.com/steipete/CodexBar/issues/1844; primary OAuth storage discovery remains tracked by https://github.com/steipete/CodexBar/issues/1823.

@@ -117,8 +117,16 @@ The grok.com billing gRPC-web endpoint remains a best-effort fallback.
      that omit `subscription_tier_display` all drop the plan overlay and fall
      back to the OIDC SuperGrok label. There is no process-lifetime tier cache.
 4) **grok.com billing gRPC-web fallback** (best-effort)
-   - POSTs an empty gRPC-web protobuf request to
+   - POSTs `GetGrokCreditsConfigRequest { exclude_legacy_monthly_usage: false }`
+     (gRPC-web binary frame `00 00 00 00 02 08 00`) to
      `https://grok.com/grok_api_v2.GrokBuildBilling/GetGrokCreditsConfig`.
+     Explicit false preserves the default billing semantics while supplying a
+     nonempty message for servers that reject an empty frame with gRPC status 13
+     (`Missing request message.`). Field 1 is a boolean, not a period selector;
+     `08 02` would enable exclusion of legacy monthly usage. The public
+     [billing descriptor](https://cdn.grok.com/_next/static/chunks/32g78bk5hhe1q.js)
+     was checked on September 21, 2026. No response-percentage inference changes
+     are required by this encoding; affected-account recovery remains unverified.
    - This endpoint now requires the browser-held Web Key Exchange (WKE) keypair.
      Cookie-only authentication can fail with gRPC status 16 and
      `no-credentials`; signing in through Chrome alone cannot provide that proof
@@ -266,6 +274,13 @@ credits remain a quota window on the usage bar; they are never converted into
 dollars. Local session scans run on the dedicated background usage-scan queue;
 menu cards and spend views reuse the already-published snapshot instead of
 walking the session directory whenever they render.
+
+`costUsage` is live-only data and is intentionally omitted from `codexbar usage`
+JSON and persisted usage snapshots. Its absence in JSON does not establish that
+Usage & Spend lost the in-memory local token history. In Auto mode, an RPC
+`-32601` failure advances to the proxy/web strategy, which scans local sessions
+and attaches the token history to its successful quota snapshot. Local signals
+remain token-only; they do not establish completed-turn counts or dollar spend.
 
 ## Menu bar appearance
 

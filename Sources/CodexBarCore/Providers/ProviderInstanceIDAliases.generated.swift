@@ -48,7 +48,6 @@ extension ProviderInstanceID {
     public static let deepseek = UsageProvider.deepseek.instanceID
     public static let deepinfra = UsageProvider.deepinfra.instanceID
     public static let codebuff = UsageProvider.codebuff.instanceID
-    public static let crof = UsageProvider.crof.instanceID
     public static let venice = UsageProvider.venice.instanceID
     public static let commandcode = UsageProvider.commandcode.instanceID
     public static let qoder = UsageProvider.qoder.instanceID
@@ -62,6 +61,7 @@ extension ProviderInstanceID {
     public static let poe = UsageProvider.poe.instanceID
     public static let chutes = UsageProvider.chutes.instanceID
     public static let neuralwatt = UsageProvider.neuralwatt.instanceID
+    public static let helmcode = UsageProvider.helmcode.instanceID
     public static let clawrouter = UsageProvider.clawrouter.instanceID
     public static let longcat = UsageProvider.longcat.instanceID
     public static let sub2api = UsageProvider.sub2api.instanceID
@@ -78,6 +78,8 @@ extension ProviderInstanceID {
     public static let replicate = UsageProvider.replicate.instanceID
     public static let huggingface = UsageProvider.huggingface.instanceID
     public static let pi = UsageProvider.pi.instanceID
+    public static let v0 = UsageProvider.v0.instanceID
+    public static let typesafe = UsageProvider.typesafe.instanceID
 }
 
 // swiftformat:enable sortDeclarations

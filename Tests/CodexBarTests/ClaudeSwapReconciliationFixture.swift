@@ -16,6 +16,7 @@ final class ClaudeSwapReconciliationFixture {
     private var adapterTasks: [Task<Void, Never>] = []
     private(set) var switchCompleted = false
     private(set) var phases: [ClaudeSwapSwitchPhase?] = []
+    var expectedAmbientCalls = 1
 
     var settings: SettingsStore {
         self.navigation.settings
@@ -80,6 +81,7 @@ final class ClaudeSwapReconciliationFixture {
     }
 
     func startSwitch() throws -> Task<Void, Never> {
+        self.switchCompleted = false
         self.store.switchClaudeSwapAccount(self.targetID, progressDidChange: { [weak self] in
             guard let self else { return }
             self.phases.append(self.store.claudeSwapTransientState.switchPhase)
@@ -159,7 +161,7 @@ final class ClaudeSwapReconciliationFixture {
         await self.store.claudeSwapRefreshTask?.value
         await self.store.widgetSnapshotPersistTask?.value
         #expect(!self.ambientGate.requestedUnexpectedProvider)
-        #expect(self.ambientGate.callCount == 1)
+        #expect(self.ambientGate.callCount == self.expectedAmbientCalls)
         for executable in self.executables {
             #expect(!FileManager.default.fileExists(atPath: executable.path + ".unexpected"))
         }

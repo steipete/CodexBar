@@ -50,7 +50,6 @@ public enum ProviderManifest {
         DeepSeekProviderDescriptor.descriptor,
         DeepInfraProviderDescriptor.descriptor,
         CodebuffProviderDescriptor.descriptor,
-        CrofProviderDescriptor.descriptor,
         VeniceProviderDescriptor.descriptor,
         CommandCodeProviderDescriptor.descriptor,
         QoderProviderDescriptor.descriptor,
@@ -64,6 +63,7 @@ public enum ProviderManifest {
         PoeProviderDescriptor.descriptor,
         ChutesProviderDescriptor.descriptor,
         NeuralWattProviderDescriptor.descriptor,
+        HelmcodeProviderDescriptor.descriptor,
         ClawRouterProviderDescriptor.descriptor,
         LongCatProviderDescriptor.descriptor,
         Sub2APIProviderDescriptor.descriptor,
@@ -80,5 +80,7 @@ public enum ProviderManifest {
         ReplicateProviderDescriptor.descriptor,
         HuggingFaceProviderDescriptor.descriptor,
         PiProviderDescriptor.descriptor,
+        V0ProviderDescriptor.descriptor,
+        TypeSafeProviderDescriptor.descriptor,
     ]
 }

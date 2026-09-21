@@ -317,33 +317,6 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     var screenChangeVisibilityTask: Task<Void, Never>?
     let loginLogger = CodexBarLog.logger(LogCategories.login)
     let menuLogger = CodexBarLog.logger(LogCategories.app)
-    static func makeStatusItem(
-        statusBar: NSStatusBar,
-        identity: StatusItemIdentity,
-        defaults: UserDefaults,
-        legacyDefaultItemIndex: Int?,
-        onCreated: ((NSStatusItem) -> Void)? = nil)
-        -> NSStatusItem
-    {
-        MenuBarStatusItemPlacementPreflight.prepare(
-            defaults: defaults,
-            autosaveName: identity.autosaveName,
-            legacyDefaultItemIndex: legacyDefaultItemIndex)
-        let item = statusBar.statusItem(withLength: NSStatusItem.variableLength)
-        // Registration must see the stable identity before its callback can re-enter setup.
-        item.autosaveName = identity.autosaveName
-        onCreated?(item)
-        if let button = item.button {
-            let title = self.statusItemAccessibilityTitle(
-                isDebugApp: self.isDebugApp(bundleIdentifier: Bundle.main.bundleIdentifier))
-            // Ensure the icon is rendered at 1:1 without resampling (crisper edges for template images).
-            button.imageScaling = .scaleNone
-            button.setAccessibilityIdentifier(identity.accessibilityIdentifier)
-            button.setAccessibilityTitle(title)
-        }
-        return item
-    }
-
     struct BlinkState {
         var nextBlink: Date
         var blinkStart: Date?
@@ -434,7 +407,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
             .repairHiddenVisibilityDefaultsIfNeeded(defaults: settings.userDefaults)
         self.statusBar = statusBar
         self.statusItem = Self.makeStatusItem(
-            statusBar: statusBar,
+            create: statusBar.statusItem(withLength:),
             identity: .merged,
             defaults: settings.userDefaults,
             legacyDefaultItemIndex: Self.mergedLegacyDefaultItemIndex)
@@ -766,7 +739,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         self.statusItem.menu = nil
         self.removeStatusItemPreservingPlacement(self.statusItem)
         self.statusItem = Self.makeStatusItem(
-            statusBar: self.statusBar,
+            create: self.statusBar.statusItem(withLength:),
             identity: .merged,
             defaults: self.settings.userDefaults,
             legacyDefaultItemIndex: Self.mergedLegacyDefaultItemIndex)

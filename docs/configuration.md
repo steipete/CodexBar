@@ -126,15 +126,15 @@ All provider fields are optional unless noted.
 - `enabled`: enable/disable provider (defaults to provider default).
 - `source`: preferred source mode.
   - `auto|web|cli|oauth|api`
-  - `auto` uses provider-specific fallback order (see `docs/providers.md`).
+  - `auto` uses [provider-specific fallback order](providers.md#fetch-strategies-current).
   - `api` uses the provider's API-backed mode; only some providers consume the `apiKey` field.
 - `apiKey`: raw API token for providers that support config-backed direct API usage.
 - `enterpriseHost`: provider-specific API host/base URL override. Used by Azure OpenAI, Copilot, LLM Proxy, LiteLLM,
-  ClawRouter, and Wayfinder.
+  ClawRouter, sub2api, and Wayfinder.
 - `cookieSource`: cookie selection policy.
   - `auto` (browser import), `manual` (use `cookieHeader`), `off` (disable cookies)
 - `cookieHeader`: raw cookie header value (e.g. `key=value; other=...`).
-- `region`: provider-specific region (e.g. `zai`, `minimax`).
+- `region`: provider-specific region (e.g. `zai`, `minimax`). Kimi accepts `china` (default, `kimi.com`) or `international` (`kimi.ai`); see [Kimi setup](kimi.md). This selects API, web, cookie discovery, and dashboard hosts. Automatic CLI credential reuse is limited to China because the credential file has no issuing-host metadata.
 - `workspaceID`: provider-specific workspace/deployment/project ID (e.g. Azure OpenAI deployment, OpenAI API project,
   `opencode`, Notion space).
 - `tokenAccounts`: multi-account tokens for providers in `TokenAccountSupportCatalog`.
@@ -163,10 +163,10 @@ Example placeholder config:
   "version": 1,
   "providers": [
     {
-      "id": "example-provider",
+      "id": "claude",
       "enabled": true,
       "cookieSource": "manual",
-      "cookieHeader": "session=<REDACTED>; other=<REDACTED>"
+      "cookieHeader": "sessionKey=<REDACTED>"
     }
   ]
 }
@@ -176,8 +176,10 @@ Validate after editing:
 
 ```bash
 codexbar config validate
-codexbar usage --provider example-provider --verbose
 ```
+
+Replace the placeholder with your own cookie before fetching usage with `codexbar usage --provider claude`.
+For another provider, use its registered [ID](provider-ids.md) and the cookie format in its [setup guide](providers.md).
 
 CLI shortcuts:
 
@@ -302,5 +304,6 @@ subsequent in-place edits continue to be detected. App-originated writes retain 
 ## Notes
 - Fields not relevant to a provider are ignored.
 - Omitted providers are appended with defaults during normalization.
+- Unknown or retired provider entries (including Crof after its shutdown) are ignored with an `Ignoring unknown provider in config` warning (visible in the CLI with `--log-level warning`). Reading does not rewrite the file; the next settings save removes those entries and keeps supported provider settings.
 - Keep the file private; it contains secrets.
 - Validate the file with `codexbar config validate` (JSON output available with `--format json`).

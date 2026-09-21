@@ -224,8 +224,7 @@ public enum AccountMenuLayoutPlanner {
     {
         let policy = ProviderDescriptorRegistry.descriptor(for: account.provider).presentation.menuCard
         if policy.clearsPrimaryReset ||
-            ((policy.hidesPrimaryResetWithoutDate || policy.usesAbacusPace) && window.resetsAt == nil) ||
-            (policy.hidesPrimaryResetWithoutSecondary && account.snapshot?.secondary == nil)
+            ((policy.hidesPrimaryResetWithoutDate || policy.usesAbacusPace) && window.resetsAt == nil)
         {
             return .hidden
         }

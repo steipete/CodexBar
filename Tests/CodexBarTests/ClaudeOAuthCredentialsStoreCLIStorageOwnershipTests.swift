@@ -677,10 +677,13 @@ struct ClaudeOAuthCredentialsStoreCLIStorageOwnershipTests {
                                         owner: .claudeCLI))
 
                                 do {
-                                    _ = try await ClaudeOAuthCredentialsStore.loadWithAutoRefresh(
-                                        environment: [:],
-                                        allowKeychainPrompt: false,
-                                        respectKeychainPromptCooldown: true)
+                                    _ = try await ClaudeOAuthKeychainPromptPreference
+                                        .withTaskOverrideForTesting(.always) {
+                                            try await ClaudeOAuthCredentialsStore.loadWithAutoRefresh(
+                                                environment: [:],
+                                                allowKeychainPrompt: false,
+                                                respectKeychainPromptCooldown: true)
+                                        }
                                     Issue.record("Expected mcpOAuth-only keychain error")
                                 } catch let error as ClaudeOAuthCredentialsError {
                                     guard case .mcpOAuthOnlyKeychain = error else {

@@ -18,6 +18,17 @@ struct MusePluginTests {
     }
     """#
 
+    static let activeWithoutWindows = #"""
+    {"is_subs_active":true,"user_email":"ada@example.com","subs_tier_name":"Muse Code Power Usage"}
+    """#
+
+    static let activeWithNullWindows = #"""
+    {
+      "is_subs_active":true, "user_email":"ada@example.com",
+      "subs_tier_name":"Muse Code Power Usage", "subs_usage":null
+    }
+    """#
+
     @Test(arguments: BundledPluginTestSupport.engines)
     func `reported subscription windows retain their identity and resets`(
         engine: ProviderPluginEngineKind) async throws
@@ -87,6 +98,31 @@ struct MusePluginTests {
         engine: ProviderPluginEngineKind) async
     {
         await Self.expectFailure(.permissionDenied) { try await Self.fetch(body, engine: engine) }
+    }
+
+    @Test(arguments: [Self.activeWithoutWindows, Self.activeWithNullWindows], BundledPluginTestSupport.engines)
+    func `active login without quota windows keeps plan identity`(
+        body: String,
+        engine: ProviderPluginEngineKind) async throws
+    {
+        let snapshot = try await Self.fetch(body, engine: engine)
+        #expect(snapshot.primary == nil)
+        #expect(snapshot.secondary == nil)
+        #expect(snapshot.dataConfidence == .unknown)
+        #expect(snapshot.identity?.accountEmail == "ada@example.com")
+        #expect(snapshot.identity?.loginMethod == "Muse Code Power Usage")
+        let rows = snapshot.details.flatMap(\.rows)
+        #expect(rows.contains { $0.label == "Plan" && $0.value == "Muse Code Power Usage" })
+        #expect(rows.contains { $0.label == "Quota" && $0.value.contains("login response") })
+        #expect(!rows.contains { $0.label == "5 hours" || $0.label == "Weekly" })
+    }
+
+    @Test(arguments: [#"{"is_subs_active":true,"subs_usage":"window"}"#], BundledPluginTestSupport.engines)
+    func `non-object quota payload remains a parse failure`(
+        body: String,
+        engine: ProviderPluginEngineKind) async
+    {
+        await Self.expectFailure(.parseFailure) { try await Self.fetch(body, engine: engine) }
     }
 
     @Test(arguments: ["1e30", "0", "-1", "true", "\"300\""], BundledPluginTestSupport.engines)

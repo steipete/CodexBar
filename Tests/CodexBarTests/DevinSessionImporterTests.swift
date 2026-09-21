@@ -6,6 +6,85 @@ import Testing
 
 struct DevinSessionImporterTests {
     @Test(arguments: [false, true])
+    func `an unreadable profile only fails import when no other session is available`(_ hasSession: Bool) throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("devin-storage-\(UUID())")
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try Self.writeLog(hasSession ? [
+            StorageEntry(key: "auth1_session", value: #"{"token":"auth1_synthetic-session-fixture"}"#),
+        ] : [], to: directory)
+        let candidates = [
+            ChromiumLocalStorageDiscovery.Candidate(
+                label: "Missing profile",
+                url: directory.appendingPathComponent("gone")),
+            ChromiumLocalStorageDiscovery.Candidate(label: "Readable profile", url: directory),
+        ]
+
+        do {
+            let sessions = try DevinSessionImporter.importSessions(
+                browserDetection: BrowserDetection(homeDirectory: directory.path, cacheTTL: 0),
+                candidates: candidates)
+            #expect(hasSession)
+            #expect(sessions.map(\.sourceLabel) == ["Readable profile"])
+        } catch DevinUsageError.browserStorageUnreadable {
+            #expect(!hasSession)
+        }
+    }
+
+    @Test
+    func `no discovered profiles is not a storage read failure`() throws {
+        let sessions = try DevinSessionImporter.importSessions(
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            candidates: [])
+
+        #expect(sessions.isEmpty)
+    }
+
+    @Test(arguments: [false, true], [false, true])
+    func `token extraction preserves auth1 then auth0 then fallback priority`(_ auth1: Bool, _ auth0: Bool) {
+        let storage = [
+            "auth1_session": auth1 ? #"{"token":"auth1_synthetic-session-fixture"}"# : "{}",
+            "@@auth0spajs@@::client": auth0 ? #"{"access_token":"eyJsynthetic.auth0-token.signature"}"# : "{}",
+            "fallback": #"{"accessToken":"eyJsynthetic.fallback-token.signature"}"#,
+        ]
+        let expected = auth1 ? "auth1_synthetic-session-fixture" :
+            (auth0 ? "eyJsynthetic.auth0-token.signature" : "eyJsynthetic.fallback-token.signature")
+
+        #expect(DevinSessionImporter.accessToken(from: storage) == expected)
+    }
+
+    @Test(arguments: [false, true])
+    func `readable empty storage is an empty session`(_ hasHiddenFile: Bool) throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("devin-storage-\(UUID())")
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try Self.writeLog([], to: directory)
+        if hasHiddenFile {
+            let hidden = directory.appendingPathComponent(".ignored.log")
+            try Data().write(to: hidden)
+            try FileManager.default.setAttributes([.posixPermissions: 0], ofItemAtPath: hidden.path)
+        }
+
+        #expect(try DevinSessionImporter.readLocalStorage(from: directory).isEmpty)
+    }
+
+    @Test(arguments: [false, true])
+    func `unreadable storage is not reported as an empty session`(_ unreadableFile: Bool) throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("devin-storage-\(UUID())")
+        try Self.writeLog([
+            StorageEntry(key: "auth1_session", value: #"{"token":"auth1_synthetic-session-fixture"}"#),
+        ], to: directory)
+        let blocked = unreadableFile ? directory.appendingPathComponent("000003.log") : directory
+        defer {
+            try? FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: blocked.path)
+            try? FileManager.default.removeItem(at: directory)
+        }
+        try FileManager.default.setAttributes([.posixPermissions: 0], ofItemAtPath: blocked.path)
+
+        #expect(throws: (any Error).self) {
+            _ = try DevinSessionImporter.readLocalStorage(from: directory)
+        }
+    }
+
+    @Test(arguments: [false, true])
     func `browser import ignores authentication from other origins`(_ hasDevinSession: Bool) throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent("devin-storage-\(UUID())")
         defer { try? FileManager.default.removeItem(at: directory) }
@@ -30,7 +109,7 @@ struct DevinSessionImporterTests {
         }
         try Self.writeLog(entries, to: directory)
 
-        let session = DevinSessionImporter.session(
+        let session = try DevinSessionImporter.session(
             from: DevinSessionImporter.readLocalStorage(from: directory),
             sourceLabel: "Synthetic Chrome")
 
@@ -103,7 +182,7 @@ struct DevinSessionImporterTests {
             StorageEntry(key: "last-internal-org-for-external-org-v1-example", value: #""org_example12345""#),
         ], to: directory)
 
-        let session = DevinSessionImporter.session(
+        let session = try DevinSessionImporter.session(
             from: DevinSessionImporter.readLocalStorage(from: directory),
             sourceLabel: "Synthetic Chrome")
 

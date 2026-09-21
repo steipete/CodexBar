@@ -50,12 +50,15 @@ tar -xzf CodexBarCLI-v0.17.0-macos-x86_64.tar.gz
 CodexBar reads the resolved config file for provider settings, secrets, and ordering. New installs use
 `~/.config/codexbar/config.json`; absolute `XDG_CONFIG_HOME` paths and `CODEXBAR_CONFIG` are supported, and existing
 `~/.codexbar/config.json` installs keep using the legacy file when no XDG config exists.
-See `docs/configuration.md` for the schema.
+See [Configuration](configuration.md) for the schema and [Providers](providers.md) for every registered provider's
+sources and setup guide. The [provider ID list](provider-ids.md) is generated from the registry;
+`codexbar config providers` lists providers and their configured enablement without fetching usage.
 
 ## Command
 - `codexbar` defaults to the `usage` command.
   - `--format text|json|toon` (default: text).
   - Text output and full terminal cards include history already supplied by the selected provider, such as OpenRouter Activity spend or Grok local token totals. They preserve the source period, currency, known zero values, and reported/estimated cost labels. This live history remains separate from the ordinary usage JSON schema and the `cost` command.
+  - Usage JSON includes optional `rateWindowLabels` for present windows from built-in providers. Consumers can use these display labels when a window omits its cadence; missing windows and unknown provider IDs do not gain invented labels.
   - JSON uses the generic `usage.details` array for provider-specific information. Each section contains an optional
     `title`, `rows` (`label`, `value`, and optional `secondaryValue`), and an optional `bars` or `line` chart. The same
     shape is returned by `GET /usage` from `codexbar serve`.
@@ -73,8 +76,8 @@ See `docs/configuration.md` for the schema.
   - Claude and Codex are scanned from local session logs without web/CLI access.
   - [Pi](pi.md) reads supported Pi/OMP local assistant history. Selecting Pi alongside Claude/Codex keeps those providers native-only so combined totals count each source once.
   - Muse Code reads bounded local session logs and reports recorded token history without credentials, provider requests, or invented dollar costs. Partial and unavailable history remain distinct from measured zero (see [Muse Code](muse.md)).
-  - Antigravity reads supported local token history without web, provider CLI, or credential access. It does not estimate dollar costs; unsupported timestamps and incomplete histories remain unavailable (see `docs/antigravity.md`). The same provider selection applies to `serve /cost` and dashboard cost collection.
-    Text output labels this as token history and distinguishes unavailable or incomplete history from a complete period with no recorded usage.
+  - Antigravity reads supported local token history without provider CLI or credential access. Known models receive API-price estimates from the pricing catalog, which may be refreshed from public models.dev data over the network; unknown models remain unpriced. These estimates are not Antigravity charges or credit deductions. Unsupported timestamps leave history unavailable. An incomplete scan still reports the rows it decoded, with every total marked a lower bound (see `docs/antigravity.md`). The same provider selection applies to `serve /cost` and dashboard cost collection.
+    Text output labels priced results as local estimates and token-only results as token history, and distinguishes unavailable or lower-bound history from a complete period with no recorded usage.
   - Cursor is fetched from the cookie-authenticated cursor.com dashboard API (macOS only; see `docs/cursor.md`) and honors the configured cookie source: a non-empty Manual header is required and forwarded, while Off fails explicitly instead of silently omitting Cursor.
   - `--format text|json` (default: text). `--json` includes the same cost concepts as Settings → Usage & Spend (token mix, `provenance`, coverage), but it is not the dashboard Export JSON schema. CLI places mix fields under each provider's `totals` and emits `provenance`/`coverage` on that provider object; Export JSON nests `tokenMix`, `provenance`, and `coverage` under `groups[]`.
   - OpenCodex appears as a separate `opencodex` payload only when **Include OpenCodex usage logs** is on in Settings. That payload does not invent `projects` (OpenCodex logs have no workspace path).
@@ -84,6 +87,7 @@ See `docs/configuration.md` for the schema.
   - `--breakdown` adds Claude-only daily and top-model details to text output. Both sections use the same last seven calendar days (or the shorter requested interval); when that interval has no rows, both explicitly label the latest recorded days. Incomplete attribution is marked partial. Ordinary text, other providers, and JSON output are unchanged.
   - `--provider-native-only` is experimental and excludes pi and OMP session mirrors from Claude and Codex history.
   - `--provider codex --remote <ssh-host>` produces one manual report with separate local and remote summaries. Histories are never added together, since sessions can overlap across machines. SSH uses the host's existing trusted configuration and noninteractive authentication, without agent or port forwarding. It requires an already trusted host key and a remote CLI supporting `--summary-only`.
+    Each successful text report shows `Snapshot updated:` using that source summary's `updatedAt` as an absolute ISO 8601 timestamp in UTC (`Z`). This is the source snapshot time, not the last usage event, command execution time, or SSH receipt time. Day boundaries retain each host's own timezone.
   - `--provider codex --format json --summary-only` emits a one-element, versioned summary array with no account identity, project paths, model rows, or session content. Schema version 1 retains `updatedAt`, `bucketTimeZone`, `historyDays`, `currencyCode`, `historyCoverageIsEstablished`, and separate `today`/`history` totals with optional `totalTokens`/`costUSD`, incomplete-request counts, coverage categories, and provenance. Missing totals remain unavailable.
   - Host reports always scan native Codex history only. `--days` and `--refresh` apply on both hosts; each host retains its own calendar and pricing. Both modes reject `--group-by` and `--breakdown`; `--remote` and `--summary-only` cannot be combined. Ordinary `cost` output remains compatible.
   - Remote capture is bounded to 16 KiB per stream during execution, with a 60-second client process timeout. Unsupported versions, invalid totals, overflow, and unexpected output fail closed. Remote failure retains a successful local row and exits nonzero; JSON remains one document. Ctrl-C and termination signals cancel collection and await local SSH subprocess cleanup. The remote scanner follows its SSH server's disconnect behavior and may finish after the client exits.
@@ -154,7 +158,7 @@ See `docs/configuration.md` for the schema.
   - Stable guard exit codes: `0` means safe, `1` means below threshold, `64` (`EX_USAGE`) means invalid arguments, and `69` (`EX_UNAVAILABLE`) means the quota could not be checked or the selected window is unavailable. `--fail-open` changes only unavailable results from `69` to `0`; JSON still reports `decision: "unknown"` and the reason.
   - Guard fetches are read-only and use background interaction policy, matching `codexbar usage`; they never request interactive Keychain access.
 - `--provider <id|both|all>` (default: enabled providers in config; falls back to defaults when missing).
-  - Provider IDs live in the config file (see `docs/configuration.md`).
+  - Use a registered [provider ID](provider-ids.md) or CLI alias. Enabled providers and ordering live in the config file.
   - With three or more providers enabled, the default stays scoped to enabled providers; use `--provider all` to query
     every registered provider.
   - `--account <label>` / `--account-index <n>` / `--all-accounts` (token accounts from config, or all visible Codex accounts for Codex; requires a single provider).
@@ -167,7 +171,7 @@ See `docs/configuration.md` for the schema.
     - `web`: web-only where that provider exposes an explicit web source; no CLI/API fallback. Browser import is macOS-only, while supported providers can use configured manual cookies on Linux.
     - `cli`: CLI/local-helper source where the provider exposes one (for example Codex RPC/PTy, Claude PTY, Kilo CLI fallback, Kiro CLI, local probes).
     - `oauth`: OAuth-backed source where supported (Codex, Claude, Vertex AI).
-    - `api`: API-key/token flow when the provider supports it (OpenAI, Claude Admin API, z.ai, Gemini, Alibaba, Copilot, OpenCode Go, Kilo, Kimi, MiniMax, Ollama, Warp, OpenRouter, ElevenLabs, Deepgram, Synthetic, DeepSeek, DeepInfra, Moonshot, Doubao, Codebuff, Crof, Venice, AWS Bedrock).
+    - `api`: API-backed flow where supported; credentials may be API keys or existing tokens. See the complete [provider source table](providers.md#fetch-strategies-current) and each provider's guide for supported modes.
     - Output `source` reflects the strategy actually used (`openai-web`, `web`, `oauth`, `api`, `local`, `cli`, or provider CLI label).
     - Codex web: OpenAI web dashboard (usage limits, credits remaining, code review remaining, usage breakdown).
         - `--web-timeout <seconds>` (default: 60)
@@ -188,7 +192,7 @@ See `docs/configuration.md` for the schema.
 - `codexbar config validate` checks the resolved config file for invalid fields.
   - `--format text|json`, `--pretty`, and `--json-only` are supported.
   - Warnings keep exit code 0; errors exit non-zero.
-- `codexbar config dump` prints the normalized config JSON.
+- `codexbar config dump` prints normalized config JSON with secrets redacted by default. `--show-secrets` explicitly includes raw credentials; `--pretty` formats the output.
 - `codexbar hooks list` shows the local hook configuration; `--format json` and `--pretty` are supported.
 - `codexbar hooks enable|disable` changes the explicit top-level opt-in switch in the local config file.
 - `codexbar hooks test <event> --provider <id>` invokes matching enabled rules with a representative event. Hook
@@ -386,4 +390,3 @@ non-zero only when it cannot produce a valid snapshot document.
 - OpenAI web requires a signed-in `chatgpt.com` session in a supported browser or a manual cookie header. No passwords are stored; CodexBar reuses cookies.
 - Safari cookie import may require granting CodexBar Full Disk Access (System Settings → Privacy & Security → Full Disk Access).
 - The `openaiDashboard` JSON field is normally sourced from the app’s cached dashboard snapshot; `--source auto|web` refreshes it live via WebKit using a per-account cookie store.
-- Future: optional `--from-cache` flag to read the menubar app’s persisted snapshot (if/when that file lands).
