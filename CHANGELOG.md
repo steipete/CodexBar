@@ -4,6 +4,7 @@
 
 ### Added
 
+- Bifrost: add a self-hosted AI gateway provider that reads a virtual key's own governance budgets and rate limits.
 - Cursor: pin Grok Bot usage with the “Grok Bot %” menu-bar layout token, hiding it when the allowance is unavailable and preserving reset selections when downgrading (#3712, fixes #3309). Thanks @yicone!
 
 ### Fixed
@@ -194,10 +195,6 @@
 - **More reliable cost history:** publish validated Codex reporting windows sooner, preserve prior data during incomplete scans, and correct Claude cost estimates.
 - **Clearer usage meters:** recover Cursor Enterprise member budgets, Kimi Code API quotas, Copilot seat-credit bars, and OpenCode Go Monthly selection.
 - **Smoother everyday use:** improve update access, privacy, shared-card dates, and recovery from temporary provider failures.
-
-### Added
-
-- Bifrost: add a self-hosted AI gateway provider that reads a virtual key's own governance budgets and rate limits.
 
 ### Fixed
 
