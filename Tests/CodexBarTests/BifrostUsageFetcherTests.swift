@@ -244,7 +244,7 @@ struct BifrostUsageFetcherTests {
     }
 
     @Test
-    func `truncates per-model detail rows at the section limit`() throws {
+    func `caps per-model detail rows and appends a more-models row`() throws {
         let entries = (0..<30).map {
             #"{ "model": "model-\#($0)", "provider": "acme", "total_cost": \#(30 - $0) }"#
         }.joined(separator: ",")
@@ -261,9 +261,173 @@ struct BifrostUsageFetcherTests {
         let snapshot = parsed.toUsageSnapshot()
         let section = try #require(snapshot.details.first { $0.title == "Models" })
 
-        #expect(section.rows.count == 24)
+        // 5 model rows (cost 30...26) plus one "More models" row for the remaining 25.
+        #expect(section.rows.count == 6)
         // All rows share provider "acme": the provider prefix is redundant and omitted.
         #expect(section.rows.first?.label == "model-0")
+        #expect(section.rows.last?.label == "More models")
+        #expect(section.rows.last?.value == "25")
+    }
+
+    @Test
+    func `drops per-model rows that are zero on both cost and tokens`() throws {
+        let json = """
+        {
+          "budgets": [
+            { "id": "b1", "max_limit": 1000, "current_usage": 10,
+              "per_model_usage": [
+                { "model": "gpt-4o", "provider": "openai", "total_cost": 5, "total_tokens": 100 },
+                { "model": "gpt-5", "provider": "openai", "total_requests": 3, "total_cost": 0, "total_tokens": 0 }
+              ]
+            }
+          ]
+        }
+        """
+
+        let parsed = try BifrostUsageFetcher._parseQuotaForTesting(Data(json.utf8), updatedAt: Date())
+        let snapshot = parsed.toUsageSnapshot()
+        let section = try #require(snapshot.details.first { $0.title == "Models" })
+
+        #expect(section.rows.count == 1)
+        #expect(section.rows.first?.label == "gpt-4o")
+    }
+
+    @Test
+    func `keeps a per-model row with zero cost but non-zero tokens`() throws {
+        let json = """
+        {
+          "budgets": [
+            { "id": "b1", "max_limit": 1000, "current_usage": 10,
+              "per_model_usage": [
+                { "model": "gpt-4o", "provider": "openai", "total_cost": 0, "total_tokens": 500 }
+              ]
+            }
+          ]
+        }
+        """
+
+        let parsed = try BifrostUsageFetcher._parseQuotaForTesting(Data(json.utf8), updatedAt: Date())
+        let snapshot = parsed.toUsageSnapshot()
+        let section = try #require(snapshot.details.first { $0.title == "Models" })
+
+        #expect(section.rows.count == 1)
+        #expect(section.rows.first?.value == "$0.00")
+        #expect(section.rows.first?.secondaryValue == "500 tokens")
+    }
+
+    @Test
+    func `keeps a per-model row with non-zero cost but zero tokens`() throws {
+        let json = """
+        {
+          "budgets": [
+            { "id": "b1", "max_limit": 1000, "current_usage": 10,
+              "per_model_usage": [
+                { "model": "gpt-4o", "provider": "openai", "total_cost": 0.5, "total_tokens": 0 }
+              ]
+            }
+          ]
+        }
+        """
+
+        let parsed = try BifrostUsageFetcher._parseQuotaForTesting(Data(json.utf8), updatedAt: Date())
+        let snapshot = parsed.toUsageSnapshot()
+        let section = try #require(snapshot.details.first { $0.title == "Models" })
+
+        #expect(section.rows.count == 1)
+        #expect(section.rows.first?.value == "$0.50")
+        #expect(section.rows.first?.secondaryValue == "0 tokens")
+    }
+
+    @Test
+    func `omits the Models section when every model is zero on both axes`() throws {
+        let json = """
+        {
+          "budgets": [
+            { "id": "b1", "max_limit": 1000, "current_usage": 10,
+              "per_model_usage": [
+                { "model": "gpt-4o", "provider": "openai", "total_requests": 2, "total_cost": 0, "total_tokens": 0 },
+                { "model": "gpt-5", "provider": "openai", "total_requests": 1, "total_cost": 0, "total_tokens": 0 }
+              ]
+            }
+          ]
+        }
+        """
+
+        let parsed = try BifrostUsageFetcher._parseQuotaForTesting(Data(json.utf8), updatedAt: Date())
+        let snapshot = parsed.toUsageSnapshot()
+
+        #expect(!snapshot.details.contains { $0.title == "Models" })
+    }
+
+    @Test
+    func `emits no more-models row when the model count is exactly the cap`() throws {
+        let entries = (0..<5).map {
+            #"{ "model": "model-\#($0)", "provider": "acme", "total_cost": \#(5 - $0) }"#
+        }.joined(separator: ",")
+        let json = """
+        {
+          "budgets": [
+            { "id": "b1", "max_limit": 1000, "current_usage": 10,
+              "per_model_usage": [\(entries)] }
+          ]
+        }
+        """
+
+        let parsed = try BifrostUsageFetcher._parseQuotaForTesting(Data(json.utf8), updatedAt: Date())
+        let snapshot = parsed.toUsageSnapshot()
+        let section = try #require(snapshot.details.first { $0.title == "Models" })
+
+        #expect(section.rows.count == 5)
+        #expect(!section.rows.contains { $0.label == "More models" })
+    }
+
+    @Test
+    func `orders equal-cost models by tokens then name`() throws {
+        let json = """
+        {
+          "budgets": [
+            { "id": "b1", "max_limit": 1000, "current_usage": 10,
+              "per_model_usage": [
+                { "model": "model-b", "provider": "acme", "total_cost": 5, "total_tokens": 100 },
+                { "model": "model-a", "provider": "acme", "total_cost": 5, "total_tokens": 200 }
+              ]
+            }
+          ]
+        }
+        """
+
+        let parsed = try BifrostUsageFetcher._parseQuotaForTesting(Data(json.utf8), updatedAt: Date())
+        let snapshot = parsed.toUsageSnapshot()
+        let section = try #require(snapshot.details.first { $0.title == "Models" })
+
+        // Same cost: higher tokens wins the tiebreak, regardless of name.
+        #expect(section.rows.map(\.label) == ["model-a", "model-b"])
+    }
+
+    @Test
+    func `does not add a provider prefix when the hidden overflow is on a second provider`() throws {
+        let visible = (0..<5).map {
+            #"{ "model": "model-\#($0)", "provider": "acme", "total_cost": \#(10 - $0) }"#
+        }.joined(separator: ",")
+        let json = """
+        {
+          "budgets": [
+            { "id": "b1", "max_limit": 1000, "current_usage": 10,
+              "per_model_usage": [\(visible), { "model": "gpt-4o", "provider": "openai", "total_cost": 0.01 }] }
+          ]
+        }
+        """
+
+        let parsed = try BifrostUsageFetcher._parseQuotaForTesting(Data(json.utf8), updatedAt: Date())
+        let snapshot = parsed.toUsageSnapshot()
+        let section = try #require(snapshot.details.first { $0.title == "Models" })
+
+        // The visible 5 are all "acme"; the lone "openai" model is hidden in the overflow count,
+        // so no visible row should carry a "provider · " prefix.
+        #expect(section.rows.first?.label == "model-0")
+        #expect(!section.rows.contains { $0.label.hasPrefix("acme ·") })
+        #expect(section.rows.last?.label == "More models")
+        #expect(section.rows.last?.value == "1")
     }
 
     @Test
