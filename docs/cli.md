@@ -238,12 +238,12 @@ payloads include the visible account label in `account`.
 `codexbar cost --format json` emits an array of payloads (one per provider).
 - `provider`, `source` (`local` for Claude/Codex log scans, `web` for Cursor dashboard data), `updatedAt`
 - `sessionTokens`, `sessionCostUSD`
-- `last30DaysTokens`, `last30DaysCostUSD`
+- `last30DaysTokens`, `last30DaysCostUSD`: for histories longer than 30 days, totals for the latest 30 local calendar dates ending at `updatedAt` (today and the preceding 29 days). Histories of 30 days or fewer retain their available/requested-history totals. Missing amounts remain unavailable.
 - `historyCoverageIsEstablished`: `true` when the displayed Codex history covers the requested window, including an established same-scope snapshot retained while a newer bounded scan catches up; `false` when only incomplete history is available.
 - Cursor only: `meteredCostUSD` — what Cursor's plan actually deducts over the window, alongside the API-rate estimate in `last30DaysCostUSD`.
 - `daily[]`: `date`, `inputTokens`, `outputTokens`, `cacheReadTokens`, `cacheCreationTokens`, `totalTokens`, `totalCost`, `modelsUsed`, `modelBreakdowns[]` (`modelName`, `cost`)
 - Codex only: `projects[]`: `name`, `path`, `totalTokens`, `totalCost`, `daily[]`, `modelBreakdowns[]`, `sources[]`
-- `totals`: `inputTokens`, `outputTokens`, `cacheReadTokens`, `cacheCreationTokens`, `totalTokens`, `totalCost`
+- `totals`: `inputTokens`, `outputTokens`, `cacheReadTokens`, `cacheCreationTokens`, `totalTokens`, `totalCost`. These totals, `daily[]`, and `projects[]` retain the full requested window described by `historyDays`.
 - Claude/Vertex preliminary proxy records without final usage are excluded from totals. A positive optional `incompleteRequestCount` appears on the provider, `totals`, affected `daily[]`, and affected `modelBreakdowns[]`; complete-only payloads keep their previous shape. Known amounts remain partial subtotals, while incomplete-only amounts stay unavailable. Text output and the web dashboard mark these subtotals **Incomplete**. Usage & Spend exports include the same optional count on affected currency groups, providers, and model rows.
 - `error`: structured provider error when a fetch fails (for example Cursor requested while its cookie source is Off).
 

@@ -665,6 +665,7 @@ extension CodexBarCLI {
     {
         let daily = snapshot?.daily.map(Self.costDailyPayload(from:)) ?? []
         let summary = snapshot.map { $0.summary(forLastDays: $0.historyDays, calendar: calendar) }
+        let last30Days = snapshot.map { Self.last30DaysTotals(from: $0, calendar: calendar) }
         let projects = provider == .codex
             ? snapshot?.projects.map { project in
                 CostProjectPayload(
@@ -696,8 +697,8 @@ extension CodexBarCLI {
             sessionCostUSD: snapshot?.sessionCostUSD,
             historyDays: snapshot?.historyDays,
             historyCoverageIsEstablished: snapshot?.historyCoverageIsEstablished,
-            last30DaysTokens: snapshot?.last30DaysTokens,
-            last30DaysCostUSD: snapshot?.last30DaysCostUSD,
+            last30DaysTokens: last30Days?.tokens,
+            last30DaysCostUSD: last30Days?.costUSD,
             meteredCostUSD: snapshot?.meteredCostUSD,
             daily: daily,
             projects: projects,
@@ -714,6 +715,7 @@ extension CodexBarCLI {
         calendar: Calendar = .current) -> CostPayload
     {
         let summary = snapshot.summary(forLastDays: snapshot.historyDays, calendar: calendar)
+        let last30Days = self.last30DaysTotals(from: snapshot, calendar: calendar)
         return CostPayload(
             provider: OpenCodexUsageLog.sourceID,
             source: "opencodex",
@@ -723,8 +725,8 @@ extension CodexBarCLI {
             sessionCostUSD: snapshot.sessionCostUSD,
             historyDays: snapshot.historyDays,
             historyCoverageIsEstablished: snapshot.historyCoverageIsEstablished,
-            last30DaysTokens: snapshot.last30DaysTokens,
-            last30DaysCostUSD: snapshot.last30DaysCostUSD,
+            last30DaysTokens: last30Days.tokens,
+            last30DaysCostUSD: last30Days.costUSD,
             meteredCostUSD: nil,
             daily: snapshot.daily.map(self.costDailyPayload(from:)),
             projects: [],
@@ -732,6 +734,22 @@ extension CodexBarCLI {
             provenance: CostProvenance.listPriceEstimate.rawValue,
             coverage: summary.coverage,
             error: nil)
+    }
+
+    private static func last30DaysTotals(
+        from snapshot: CostUsageTokenSnapshot,
+        calendar: Calendar) -> (tokens: Int?, costUSD: Double?)
+    {
+        // Snapshot aggregates describe the selected history. Keep the legacy short-history contract.
+        guard snapshot.historyDays > 30 else {
+            return (snapshot.last30DaysTokens, snapshot.last30DaysCostUSD)
+        }
+        let summary = snapshot.summary(forLastDays: 30, calendar: calendar)
+        if summary.entryCount == 0, snapshot.historyIsFullyScanned {
+            // Only known full-history amounts establish zero for an empty, fully scanned window.
+            return (snapshot.last30DaysTokens == nil ? nil : 0, snapshot.last30DaysCostUSD == nil ? nil : 0)
+        }
+        return (summary.totalTokens, summary.totalCostUSD)
     }
 
     private static func loadOpenCodexCostPayload(
