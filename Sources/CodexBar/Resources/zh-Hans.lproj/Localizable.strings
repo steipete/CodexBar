@@ -866,6 +866,7 @@
 "Week" = "本周";
 "Month" = "本月";
 "Models" = "模型";
+"More models" = "更多模型";
 "24h tokens" = "24 小时 token 用量";
 "Latest hour" = "最近 1 小时";
 "Peak hour" = "峰值小时";

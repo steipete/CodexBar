@@ -873,6 +873,7 @@
 "Week" = "주";
 "Month" = "월";
 "Models" = "모델";
+"More models" = "추가 모델";
 "24h tokens" = "24시간 토큰";
 "Latest hour" = "최근 1시간";
 "Peak hour" = "최대 사용 시간";
