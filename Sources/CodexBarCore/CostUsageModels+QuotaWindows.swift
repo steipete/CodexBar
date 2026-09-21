@@ -48,11 +48,7 @@ extension CostUsageTokenSnapshot {
             byAdding: .day,
             value: -(max(1, self.historyDays) - 1),
             to: calendar.startOfDay(for: self.updatedAt)) ?? self.updatedAt
-        let projectionDays = Self.quotaProjectionDays(
-            daily: self.daily,
-            quotaSlices: self.quotaSlices,
-            hourly: self.hourly,
-            calendar: calendar)
+        let projectionDays = self.memoizedQuotaProjectionDays(calendar: calendar)
 
         let count = max(1, min(weekCount, 8))
         let boundaries = Self.quotaWeekBoundaries(
@@ -97,6 +93,23 @@ extension CostUsageTokenSnapshot {
             offset += 1
         }
         return weeks
+    }
+
+    /// Builds the per-day projection off the caller's critical path. The projection walks every
+    /// exact slice, so callers that publish a snapshot to UI should warm it from a background task;
+    /// `quotaWeekSummaries` then reuses it instead of rebuilding it on each menu card build.
+    public func warmQuotaProjection(calendar: Calendar = .current) {
+        _ = self.memoizedQuotaProjectionDays(calendar: CostUsageLocalDay.gregorianCalendar(matching: calendar))
+    }
+
+    private func memoizedQuotaProjectionDays(calendar: Calendar) -> [QuotaProjectionDay] {
+        self.quotaProjectionMemo.days(timeZone: calendar.timeZone) {
+            Self.quotaProjectionDays(
+                daily: self.daily,
+                quotaSlices: self.quotaSlices,
+                hourly: self.hourly,
+                calendar: calendar)
+        }
     }
 
     public static let quotaWeekBoundaryTolerance: TimeInterval = 2 * 60
@@ -274,7 +287,7 @@ extension CostUsageTokenSnapshot {
         return calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: now)) ?? now
     }
 
-    private struct QuotaProjectionSlice {
+    fileprivate struct QuotaProjectionSlice {
         let start: Date
         /// Nil denotes an exact event. Non-nil denotes a coarse `[start, end)` interval.
         let end: Date?
@@ -298,7 +311,7 @@ extension CostUsageTokenSnapshot {
         }
     }
 
-    private struct QuotaProjectionDay {
+    fileprivate struct QuotaProjectionDay {
         let start: Date
         let end: Date
         let daily: CostUsageDailyReport.Entry?
@@ -348,9 +361,10 @@ extension CostUsageTokenSnapshot {
         calendar: Calendar) -> [QuotaProjectionDay]
     {
         var slicesByDay: [String: [QuotaProjectionSlice]] = [:]
+        var dayMemo = CostUsageLocalDayKeyMemo()
         if !quotaSlices.isEmpty {
             for entry in quotaSlices {
-                let dayKey = CostUsageLocalDay.key(from: entry.timestamp, calendar: calendar)
+                let dayKey = dayMemo.key(for: entry.timestamp, calendar: calendar)
                 slicesByDay[dayKey, default: []].append(QuotaProjectionSlice(
                     start: entry.timestamp,
                     end: nil,
@@ -364,12 +378,12 @@ extension CostUsageTokenSnapshot {
                 hourly: hourly,
                 calendar: calendar)
             {
-                let dayKey = CostUsageLocalDay.key(from: slice.start, calendar: calendar)
+                let dayKey = dayMemo.key(for: slice.start, calendar: calendar)
                 slicesByDay[dayKey, default: []].append(slice)
             }
         } else {
             for entry in hourly {
-                let dayKey = CostUsageLocalDay.key(from: entry.hour, calendar: calendar)
+                let dayKey = dayMemo.key(for: entry.hour, calendar: calendar)
                 let hourEnd = calendar.date(byAdding: .hour, value: 1, to: entry.hour)
                     ?? entry.hour.addingTimeInterval(60 * 60)
                 slicesByDay[dayKey, default: []].append(QuotaProjectionSlice(
@@ -425,9 +439,9 @@ extension CostUsageTokenSnapshot {
         calendar: Calendar) -> [QuotaProjectionSlice]
     {
         var exactByHour: [Date: CostUsageTemporalTotals] = [:]
+        var hourMemo = CostUsageHourStartMemo()
         for entry in exact {
-            let hourStart = calendar.dateInterval(of: .hour, for: entry.timestamp)?.start
-                ?? entry.timestamp
+            let hourStart = hourMemo.start(for: entry.timestamp, calendar: calendar)
             var accumulator = exactByHour[hourStart] ?? CostUsageTemporalTotals()
             accumulator.add(
                 totalTokens: entry.totalTokens,
@@ -752,5 +766,29 @@ extension CostUsageTokenSnapshot {
             sawValue = true
         }
         return QuotaCostContribution(isValid: true, sawValue: sawValue, value: total, usedDaily: false)
+    }
+}
+
+/// Per-snapshot cache of the quota projection. The projection is a pure function of the snapshot's
+/// immutable entries and the bucket time zone, so copies of a snapshot share one memo and it never
+/// participates in equality.
+final class CostUsageQuotaProjectionMemo: @unchecked Sendable, Equatable {
+    private let lock = NSLock()
+    private var daysByTimeZone: [TimeZone: [CostUsageTokenSnapshot.QuotaProjectionDay]] = [:]
+
+    static func == (_: CostUsageQuotaProjectionMemo, _: CostUsageQuotaProjectionMemo) -> Bool {
+        true
+    }
+
+    fileprivate func days(
+        timeZone: TimeZone,
+        build: () -> [CostUsageTokenSnapshot.QuotaProjectionDay]) -> [CostUsageTokenSnapshot.QuotaProjectionDay]
+    {
+        self.lock.lock()
+        defer { self.lock.unlock() }
+        if let days = self.daysByTimeZone[timeZone] { return days }
+        let days = build()
+        self.daysByTimeZone[timeZone] = days
+        return days
     }
 }

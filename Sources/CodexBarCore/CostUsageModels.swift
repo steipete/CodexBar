@@ -237,6 +237,7 @@ public struct CostUsageTokenSnapshot: Sendable, Equatable {
     /// Exact event-time slices for quota-window projection. Empty for legacy/coarse providers.
     public let quotaSlices: [CostUsageTimedEntry]
     public let updatedAt: Date
+    let quotaProjectionMemo = CostUsageQuotaProjectionMemo()
 
     public init(
         sessionTokens: Int?,
@@ -1580,5 +1581,51 @@ enum CostUsageLocalDay {
             year: year,
             month: month,
             day: day))
+    }
+}
+
+/// Reuses the calendar's `[start, next)` day interval while timestamps stay inside it.
+/// Day keys still come from `CostUsageLocalDay` so DST and non-Gregorian calendars stay aligned: the key derives
+/// y-m-d from the same Gregorian-in-timezone calendar whose `.day` interval is cached here, so the memo can never
+/// disagree with computing the key per entry (DST days are simply 23 h / 25 h intervals).
+struct CostUsageLocalDayKeyMemo {
+    var start = Date.distantPast
+    var end = Date.distantPast
+    var key = ""
+
+    mutating func key(for timestamp: Date, calendar: Calendar) -> String {
+        if timestamp >= self.start, timestamp < self.end {
+            return self.key
+        }
+        let dayCalendar = CostUsageLocalDay.gregorianCalendar(matching: calendar)
+        guard let interval = dayCalendar.dateInterval(of: .day, for: timestamp) else {
+            self.start = Date.distantPast
+            self.end = Date.distantPast
+            return CostUsageLocalDay.key(from: timestamp, calendar: calendar)
+        }
+        self.start = interval.start
+        self.end = interval.end
+        self.key = CostUsageLocalDay.key(from: timestamp, calendar: calendar)
+        return self.key
+    }
+}
+
+/// Reuses the calendar's hour interval while timestamps stay inside `[start, end)`.
+struct CostUsageHourStartMemo {
+    var start = Date.distantPast
+    var end = Date.distantPast
+
+    mutating func start(for timestamp: Date, calendar: Calendar) -> Date {
+        if timestamp >= self.start, timestamp < self.end {
+            return self.start
+        }
+        guard let interval = calendar.dateInterval(of: .hour, for: timestamp) else {
+            self.start = Date.distantPast
+            self.end = Date.distantPast
+            return timestamp
+        }
+        self.start = interval.start
+        self.end = interval.end
+        return self.start
     }
 }
