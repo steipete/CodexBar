@@ -272,7 +272,6 @@ Model-scoped weekly-window proof (synthetic data, no real accounts or credential
     it (a captured Fable row read `51%usd`, and word gaps collapsed into `ResetsSep23at3pm`). Replaying the cursor
     motions restores the literal on-screen text. An unexpected capture shape falls back to the plain ANSI strip.
   - Extracts percent left/used and reset text near those headers.
-  - Extracts percent left/used and reset text near those headers.
   - When a reset date cannot be parsed, the menu preserves its description and normalizes leading `Reset` or `Resets` labels once, including scoped weekly limits.
   - Parses `Account:` and `Org:` lines when present.
   - A successful CLI quota read keeps the menu's Switch Account action even when optional identity fields are absent. Restored history and failed refreshes do not count as a successful sign-in.

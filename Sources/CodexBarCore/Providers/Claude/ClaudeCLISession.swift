@@ -423,12 +423,12 @@ actor ClaudeCLISession {
         self.startedAt = Date()
     }
 
-    /// Opt usage probes out of Remote Control without changing saved settings or managed policy.
     /// Geometry requested for the probe PTY. `ClaudeStatusProbe` replays captures onto a screen of exactly
     /// this size, so `claude`'s absolute column addressing and our autowrap agree; keep these the only source.
     static let ptyRows = 50
     static let ptyColumns = 160
 
+    /// Opt usage probes out of Remote Control without changing saved settings or managed policy.
     static let probeSettingsArguments = ["--settings", #"{"remoteControlAtStartup":false}"#]
 
     static func launchArguments(sessionID: UUID) -> [String] {

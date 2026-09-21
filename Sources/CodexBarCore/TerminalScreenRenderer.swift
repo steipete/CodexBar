@@ -11,6 +11,10 @@ import Foundation
 ///
 /// Only the subset of VT100/xterm needed for CLI panels is implemented; unknown sequences are skipped
 /// rather than rendered.
+///
+/// Cells are counted the way Ink's `string-width` counts them, because that is what decides where the
+/// emitter's `ESC[<col>G` jumps land: East Asian Wide/Fullwidth characters and presentation emoji take two
+/// cells, combining marks take none, and East Asian Ambiguous characters such as `█` take one.
 public enum TerminalScreenRenderer {
     /// - Parameters:
     ///   - columns: the width the emitter believed it had. This must be the geometry the PTY was opened
@@ -27,6 +31,10 @@ public enum TerminalScreenRenderer {
     // MARK: - Screen
 
     private struct Screen {
+        /// Marks the second cell of a two-cell character. NUL never reaches the grid from `feed`, so it
+        /// cannot collide with real content.
+        static let continuation: Character = "\u{00}"
+
         private let columns: Int
         private let rows: Int
         private var grid: [[Character]]
@@ -52,7 +60,9 @@ public enum TerminalScreenRenderer {
                 let character = characters[index]
                 switch character {
                 case "\u{1B}":
-                    index = self.consumeEscape(characters, from: index + 1)
+                    let next = self.consumeEscape(characters, from: index + 1)
+                    self.reattachMarks(splitFrom: characters[next - 1])
+                    index = next
                 case "\r\n":
                     self.carriageReturn()
                     self.lineFeed()
@@ -74,7 +84,8 @@ public enum TerminalScreenRenderer {
                     self.pendingWrap = false
                     self.column = min(self.columns - 1, (self.column / 8 + 1) * 8)
                     index += 1
-                case "\u{07}", "\u{00}":
+                case _ where Self.isControl(character):
+                    // Remaining C0 controls and DEL have no glyph; a real terminal ignores them too.
                     index += 1
                 default:
                     self.put(character)
@@ -86,7 +97,7 @@ public enum TerminalScreenRenderer {
         /// Visible text: scrolled-off lines first, then the live screen, trailing blanks removed.
         func text() -> String {
             var lines = (self.scrollback + self.grid).map { row -> String in
-                var characters = row
+                var characters = row.filter { $0 != Self.continuation }
                 while let last = characters.last, last == " " {
                     characters.removeLast()
                 }
@@ -101,17 +112,71 @@ public enum TerminalScreenRenderer {
         // MARK: Cursor + text
 
         private mutating func put(_ character: Character) {
-            if self.pendingWrap {
+            let width = TerminalScreenRenderer.cellWidth(character)
+            guard width > 0 else {
+                self.attachZeroWidth(character)
+                return
+            }
+            // A two-cell character that does not fit at the end of the row wraps whole, like in xterm.
+            if self.pendingWrap || (width == 2 && self.column == self.columns - 1) {
                 self.carriageReturn()
                 self.lineFeed()
-                self.pendingWrap = false
             }
             guard self.row >= 0, self.row < self.rows, self.column >= 0, self.column < self.columns else { return }
+            let last = min(self.columns - 1, self.column + width - 1)
+            self.blankWideRemnants(row: self.row, columns: self.column...last)
             self.grid[self.row][self.column] = character
-            if self.column == self.columns - 1 {
+            if width == 2, last > self.column {
+                self.grid[self.row][last] = Self.continuation
+            }
+            if last == self.columns - 1 {
+                self.column = last
                 self.pendingWrap = true
             } else {
-                self.column += 1
+                self.column = last + 1
+            }
+        }
+
+        /// Swift clusters a combining mark onto whatever precedes it, including the final byte of an escape
+        /// sequence (`ESC[0m` + U+0301 becomes one `Character`). Peel the mark back off so it can join the
+        /// glyph before the cursor.
+        private mutating func reattachMarks(splitFrom terminator: Character) {
+            let scalars = terminator.unicodeScalars
+            guard scalars.count > 1, let first = scalars.first, first.isASCII else { return }
+            let rest = String(String.UnicodeScalarView(scalars.dropFirst()))
+            guard rest.count == 1, let mark = rest.first else { return }
+            self.put(mark)
+        }
+
+        /// A combining mark arriving as its own `Character` (for example straight after an SGR sequence)
+        /// belongs to the glyph before the cursor; drop it if it cannot join one.
+        private mutating func attachZeroWidth(_ character: Character) {
+            guard self.row >= 0, self.row < self.rows, self.column > 0 else { return }
+            var target = min(self.column, self.columns) - 1
+            if self.grid[self.row][target] == Self.continuation, target > 0 {
+                target -= 1
+            }
+            let merged = String(self.grid[self.row][target]) + String(character)
+            guard merged.count == 1, let joined = merged.first else { return }
+            self.grid[self.row][target] = joined
+        }
+
+        /// Writing over either half of a two-cell character erases the other half, as xterm does.
+        private mutating func blankWideRemnants(row: Int, columns range: ClosedRange<Int>) {
+            if self.grid[row][range.lowerBound] == Self.continuation, range.lowerBound > 0 {
+                self.grid[row][range.lowerBound - 1] = " "
+            }
+            let after = range.upperBound + 1
+            if after < self.columns, self.grid[row][after] == Self.continuation {
+                self.grid[row][after] = " "
+            }
+        }
+
+        private mutating func blank(row: Int, columns range: Range<Int>) {
+            guard !range.isEmpty else { return }
+            self.blankWideRemnants(row: row, columns: range.lowerBound...(range.upperBound - 1))
+            for column in range {
+                self.grid[row][column] = " "
             }
         }
 
@@ -168,7 +233,7 @@ public enum TerminalScreenRenderer {
         /// Returns the index just past the consumed sequence.
         private mutating func consumeEscape(_ characters: [Character], from start: Int) -> Int {
             guard start < characters.count else { return start }
-            switch characters[start] {
+            switch Self.leadByte(characters[start]) {
             case "[":
                 return self.consumeCSI(characters, from: start + 1)
             case "]", "P", "X", "^", "_":
@@ -206,7 +271,9 @@ public enum TerminalScreenRenderer {
             while index < characters.count {
                 if characters[index] == "\u{07}" { return index + 1 }
                 if characters[index] == "\u{1B}" {
-                    return index + 1 < characters.count && characters[index + 1] == "\\" ? index + 2 : index + 1
+                    return index + 1 < characters.count && Self.leadByte(characters[index + 1]) == "\\"
+                        ? index + 2
+                        : index + 1
                 }
                 index += 1
             }
@@ -224,7 +291,7 @@ public enum TerminalScreenRenderer {
                 index += 1
             }
             guard index < characters.count else { return index }
-            let final = characters[index]
+            let final = Self.leadByte(characters[index])
             index += 1
 
             let numbers = parameters
@@ -241,6 +308,13 @@ public enum TerminalScreenRenderer {
                 self.applyEditingCSI(final, numbers)
             }
             return index
+        }
+
+        /// The first scalar of `character`, so a combining mark clustered onto a sequence's final byte does
+        /// not hide the byte itself.
+        private static func leadByte(_ character: Character) -> Character {
+            guard let first = character.unicodeScalars.first else { return character }
+            return Character(first)
         }
 
         private static func isByte(_ character: Character, in range: ClosedRange<UInt32>) -> Bool {
@@ -330,12 +404,8 @@ public enum TerminalScreenRenderer {
         private mutating func eraseInLine(_ mode: Int) {
             guard self.row >= 0, self.row < self.rows else { return }
             switch mode {
-            case 0: for column in self.column..<self.columns {
-                    self.grid[self.row][column] = " "
-                }
-            case 1: for column in 0...min(self.column, self.columns - 1) {
-                    self.grid[self.row][column] = " "
-                }
+            case 0: self.blank(row: self.row, columns: min(self.column, self.columns)..<self.columns)
+            case 1: self.blank(row: self.row, columns: 0..<min(self.column + 1, self.columns))
             default: self.grid[self.row] = Array(repeating: " ", count: self.columns)
             }
         }
@@ -379,9 +449,65 @@ public enum TerminalScreenRenderer {
             guard self.row >= 0, self.row < self.rows else { return }
             let end = min(self.columns, self.column + max(1, count))
             guard self.column < end else { return }
-            for column in self.column..<end {
-                self.grid[self.row][column] = " "
-            }
+            self.blank(row: self.row, columns: self.column..<end)
         }
+
+        private static func isControl(_ character: Character) -> Bool {
+            guard character.unicodeScalars.count == 1, let scalar = character.unicodeScalars.first else {
+                return false
+            }
+            return scalar.value < 0x20 || scalar.value == 0x7F
+        }
+    }
+
+    // MARK: - Cell width
+
+    /// Number of terminal cells `character` occupies, following the rules of Ink's `string-width`, which
+    /// is what positions the emitter's cursor jumps: wide/fullwidth East Asian text and presentation emoji
+    /// are two cells, combining marks and format characters are zero, everything else (including East
+    /// Asian Ambiguous characters such as `█` and `▌`) is one.
+    static func cellWidth(_ character: Character) -> Int {
+        let scalars = character.unicodeScalars
+        if scalars.contains(where: \.properties.isEmojiPresentation) { return 2 }
+        // Text-default emoji promoted to emoji presentation by VS16, e.g. "⚠️" or the keycap "1️⃣".
+        if let first = scalars.first, first.properties.isEmoji, scalars.contains(where: { $0.value == 0xFE0F }) {
+            return 2
+        }
+        guard let base = scalars.first(where: { !Self.isZeroWidth($0) }) else { return 0 }
+        return Self.isEastAsianWide(base) ? 2 : 1
+    }
+
+    private static func isZeroWidth(_ scalar: Unicode.Scalar) -> Bool {
+        switch scalar.properties.generalCategory {
+        case .nonspacingMark, .enclosingMark, .format: true
+        default: (0x200B...0x200F).contains(scalar.value) || (0x2060...0x2064).contains(scalar.value)
+        }
+    }
+
+    /// East Asian Width `W` and `F` blocks (UAX #11); ambiguous characters are deliberately not listed.
+    private static let eastAsianWideRanges: [ClosedRange<UInt32>] = [
+        0x1100...0x115F, // Hangul Jamo
+        0x2E80...0x303E, // CJK Radicals … CJK Symbols and Punctuation
+        0x3041...0x33FF, // Hiragana, Katakana, Bopomofo, Hangul Compatibility Jamo, Enclosed CJK
+        0x3400...0x4DBF, // CJK Unified Ideographs Extension A
+        0x4E00...0x9FFF, // CJK Unified Ideographs
+        0xA000...0xA4CF, // Yi
+        0xA960...0xA97F, // Hangul Jamo Extended-A
+        0xAC00...0xD7A3, // Hangul Syllables
+        0xF900...0xFAFF, // CJK Compatibility Ideographs
+        0xFE10...0xFE19, // Vertical Forms
+        0xFE30...0xFE6F, // CJK Compatibility Forms, Small Form Variants
+        0xFF00...0xFF60, // Fullwidth Forms
+        0xFFE0...0xFFE6, // Fullwidth Signs
+        0x16FE0...0x16FE4, // Ideographic Symbols and Punctuation
+        0x17000...0x18AFF, // Tangut
+        0x1B000...0x1B2FF, // Kana Supplement / Extended, Small Kana Extension
+        0x1F200...0x1F251, // Enclosed Ideographic Supplement
+        0x20000...0x2FFFD, // CJK Unified Ideographs Extension B–F
+        0x30000...0x3FFFD, // CJK Unified Ideographs Extension G+
+    ]
+
+    private static func isEastAsianWide(_ scalar: Unicode.Scalar) -> Bool {
+        self.eastAsianWideRanges.contains { $0.contains(scalar.value) }
     }
 }

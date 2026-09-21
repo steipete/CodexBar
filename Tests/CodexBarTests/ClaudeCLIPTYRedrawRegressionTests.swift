@@ -44,4 +44,12 @@ struct ClaudeCLIPTYRedrawRegressionTests {
             columns: ClaudeCLISession.ptyColumns,
             rows: ClaudeCLISession.ptyRows).contains("51% used"))
     }
+
+    /// A capture whose replay loses the percentages (here: the screen is wiped after the panel) degrades
+    /// to the legacy strip instead of returning nothing. Captures without percentages keep the replay.
+    @Test
+    func `capture with an unexpected shape falls back to the plain strip`() {
+        #expect(ClaudeStatusProbe.cleanCapture("3% used\u{1B}[2J") == "3% used")
+        #expect(ClaudeStatusProbe.cleanCapture("Account: a@b.c\u{1B}[2J").isEmpty)
+    }
 }
