@@ -66,6 +66,12 @@ revision suffix (`-v1:0`), are stripped, since `per_model_usage[].model` reports
 section shows the bare model name, matching every other provider's model rows. A normalization collision (two rows
 resolving to the same label) falls back to the raw model ID for the affected rows instead of merging them.
 
+A model entry that is zero on both cost and tokens — for example, a request that failed entirely inside Bifrost
+before it could be billed or counted — is dropped rather than shown as an empty `$0.00` / `0 tokens` row; a request
+that failed but still incurred cost or token usage still appears. If every model entry is empty this way, the
+Models section is omitted entirely. The remaining rows are ranked by cost, then tokens, then model name, and only
+the top 5 are shown; any further models are folded into a single "More models" row reporting the remainder.
+
 ## Security
 
 Treat Bifrost virtual keys as secrets. CodexBar stores configured keys only in provider config or token-account
