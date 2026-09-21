@@ -1,3 +1,9 @@
+---
+summary: "August 2026 Qwen Cloud browser-cookie import proof and redaction notes."
+read_when:
+  - Reviewing historical Qwen Cloud cookie-import verification
+---
+
 # Qwen Cloud browser-cookie import — real behavior proof
 
 Captured 2026-08-22 against the live Qwen Cloud API via the modified CodexBar

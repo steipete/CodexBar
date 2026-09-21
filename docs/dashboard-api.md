@@ -276,7 +276,11 @@ The web dashboard retains local spend totals and the daily chart once per provid
   menu, which hides an untouched Antigravity model family. Only the producer can set this: a zero `usedPercent` also
   stands for a lane whose usage the provider never reported, and the payload does not carry that distinction.
 - `providers[].credits`: Remaining credits or balance when available.
-- `providers[].cost`: Local cost data when available.
+- `providers[].cost`: Local cost data when available, otherwise a provider's reported 30-day USD history.
+  Reported history preserves its aggregate, including a known zero, and leaves `todayUSD` null because its day
+  boundaries may differ from the host's local calendar. OpenRouter Activity covers completed UTC days; it must
+  not become local "Today" merely because a daily date string matches. Unsupported currencies or history-window
+  lengths remain unavailable in these USD/30-day fields. Existing local cost rows retain precedence.
 - `providers[].display`: UI hints for ordering and coloring.
 - `providers[].error`: Provider error payload when the latest fetch failed.
 - `providers[].updatedAt`: Best-known update timestamp for the provider row.

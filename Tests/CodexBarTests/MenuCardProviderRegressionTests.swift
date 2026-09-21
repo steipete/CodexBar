@@ -54,7 +54,6 @@ struct MenuCardProviderRegressionTests {
             keyUsage: 0.5,
             keyUsageDaily: 0.12,
             keyUsageWeekly: 0.74,
-            rateLimit: nil,
             updatedAt: now).toUsageSnapshot()
 
         let model = UsageMenuCardView.Model.make(.init(

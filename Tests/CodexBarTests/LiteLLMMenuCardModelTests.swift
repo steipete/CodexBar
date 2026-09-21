@@ -5,7 +5,7 @@ import Testing
 
 struct LiteLLMMenuCardModelTests {
     @Test
-    func `litellm budget rows show spend detail with reset time`() throws {
+    func `litellm budget rows show spend detail with reset time`() async throws {
         let now = Date(timeIntervalSince1970: 0)
         let metadata = try #require(ProviderDefaults.metadata[.litellm])
         let json = """
@@ -29,16 +29,8 @@ struct LiteLLMMenuCardModelTests {
           ]
         }
         """
-        let snapshot = try LiteLLMUsageFetcher._parseUserInfoForTesting(
-            Data(json.utf8),
-            keyInfo: LiteLLMKeyInfoSnapshot(
-                userID: "user-123",
-                teamID: "team-123",
-                keyName: nil,
-                spendUSD: 403.99,
-                expiresAt: nil),
-            updatedAt: now)
-            .toUsageSnapshot()
+        let snapshot = try await LiteLLMPluginTestSupport.fetch(
+            json, key: #"{"info":{"user_id":"user-123","team_id":"team-123"}}"#, now: now)
 
         let model = UsageMenuCardView.Model.make(.init(
             provider: .litellm,
@@ -75,9 +67,9 @@ struct LiteLLMMenuCardModelTests {
     }
 
     @Test
-    func `litellm budget row details redact team aliases when hiding personal info`() throws {
+    func `litellm budget row details redact team aliases when hiding personal info`() async throws {
         let teamAlias = "Private Workspace"
-        let model = try self.redactedTeamAliasModel(teamAlias)
+        let model = try await self.redactedTeamAliasModel(teamAlias)
 
         let team = try #require(model.metrics.first { $0.id == "secondary" })
         #expect(team.detailText == "Team: $70.00 / $1,000.00")
@@ -85,9 +77,9 @@ struct LiteLLMMenuCardModelTests {
     }
 
     @Test
-    func `litellm budget row details redact email team aliases when hiding personal info`() throws {
+    func `litellm budget row details redact email team aliases when hiding personal info`() async throws {
         let teamAlias = "workspace@example.com"
-        let model = try self.redactedTeamAliasModel(teamAlias)
+        let model = try await self.redactedTeamAliasModel(teamAlias)
 
         let team = try #require(model.metrics.first { $0.id == "secondary" })
         #expect(team.detailText == "Team: $70.00 / $1,000.00")
@@ -178,7 +170,7 @@ struct LiteLLMMenuCardModelTests {
         #expect(model.providerCost?.percentUsed == nil)
     }
 
-    private func redactedTeamAliasModel(_ teamAlias: String) throws -> UsageMenuCardView.Model {
+    private func redactedTeamAliasModel(_ teamAlias: String) async throws -> UsageMenuCardView.Model {
         let now = Date(timeIntervalSince1970: 0)
         let metadata = try #require(ProviderDefaults.metadata[.litellm])
         let json = """
@@ -199,16 +191,8 @@ struct LiteLLMMenuCardModelTests {
           ]
         }
         """
-        let snapshot = try LiteLLMUsageFetcher._parseUserInfoForTesting(
-            Data(json.utf8),
-            keyInfo: LiteLLMKeyInfoSnapshot(
-                userID: "user-123",
-                teamID: "team-123",
-                keyName: nil,
-                spendUSD: 403.99,
-                expiresAt: nil),
-            updatedAt: now)
-            .toUsageSnapshot()
+        let snapshot = try await LiteLLMPluginTestSupport.fetch(
+            json, key: #"{"info":{"user_id":"user-123","team_id":"team-123"}}"#, now: now)
 
         return UsageMenuCardView.Model.make(.init(
             provider: .litellm,

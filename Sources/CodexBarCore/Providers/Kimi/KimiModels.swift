@@ -173,11 +173,8 @@ public struct KimiUsageDetail: Codable, Sendable {
             return String(value)
         }
         if let value = try? container.decode(Double.self, forKey: key) {
-            if value.rounded(.towardZero) == value,
-               value >= Double(Int64.min),
-               value <= Double(Int64.max)
-            {
-                return String(Int64(value))
+            if let integer = Int64(exactly: value) {
+                return String(integer)
             }
             return String(value)
         }

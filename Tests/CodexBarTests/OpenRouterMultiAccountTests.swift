@@ -52,7 +52,6 @@ private struct OpenRouterAccountFetchStrategy: ProviderFetchStrategy {
             keyDataFetched: true,
             keyLimit: 100,
             keyUsage: totalUsage,
-            rateLimit: nil,
             updatedAt: Date(timeIntervalSince1970: totalUsage))
             .toUsageSnapshot()
         return self.makeResult(usage: usage, sourceLabel: self.id)

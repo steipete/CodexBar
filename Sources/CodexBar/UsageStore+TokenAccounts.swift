@@ -8,13 +8,15 @@ struct TokenAccountUsageSnapshot: Identifiable {
     let error: String?
     let sourceLabel: String?
     let cacheKey: String
+    let fetchError: (any Error)?
 
     init(
         account: ProviderTokenAccount,
         snapshot: UsageSnapshot?,
         error: String?,
         sourceLabel: String?,
-        cacheKey: String)
+        cacheKey: String,
+        fetchError: (any Error)? = nil)
     {
         self.id = account.id
         self.account = account
@@ -22,12 +24,14 @@ struct TokenAccountUsageSnapshot: Identifiable {
         self.error = error
         self.sourceLabel = sourceLabel
         self.cacheKey = cacheKey
+        self.fetchError = fetchError
     }
 }
 
 extension UsageStore {
     func activateCachedTokenAccountSnapshot(provider: UsageProvider, accountID: UUID) {
         guard self.settings.effectiveSelectedTokenAccount(for: provider)?.id == accountID else { return }
+        self.invalidateGenericWidgetUsage(for: provider)
         self.tokenAccountLiveStateProviders.insert(provider.instanceID)
         guard let account = self.uniqueTokenAccount(provider: provider, accountID: accountID),
               let cached = self.accountSnapshots[provider.instanceID]?.first(where: {
@@ -121,6 +125,7 @@ extension UsageStore {
     }
 
     private func clearTokenAccountLiveSnapshot(provider: UsageProvider) {
+        self.invalidateGenericWidgetUsage(for: provider)
         self.snapshots.removeValue(forKey: provider.instanceID)
         self.resetProviderDerivedTokenSnapshot(for: provider)
         self.errors.removeValue(forKey: provider.instanceID)
@@ -147,43 +152,7 @@ extension UsageStore {
     }
 }
 
-private struct TokenAccountFetchResult {
-    let index: Int
-    let account: ProviderTokenAccount
-    let outcome: ProviderFetchOutcome
-}
-
-private struct CodexManagedVisibleAccountRuntimeState {
-    let authFingerprint: String?
-    let workspaceAccountID: String?
-}
-
 extension UsageStore {
-    static let tokenAccountMenuSnapshotLimit = 6
-
-    func freshCodexVisibleAccountsForSnapshotHydration() -> [CodexVisibleAccount] {
-        self.freshCodexVisibleAccountProjectionForAccountRefresh().visibleAccounts
-    }
-
-    func tokenAccounts(for provider: UsageProvider) -> [ProviderTokenAccount] {
-        guard TokenAccountSupportCatalog.support(for: provider) != nil else { return [] }
-        return self.settings.tokenAccounts(for: provider)
-    }
-
-    func shouldFetchAllTokenAccounts(provider: UsageProvider, accounts: [ProviderTokenAccount]) -> Bool {
-        guard TokenAccountSupportCatalog.support(for: provider) != nil else { return false }
-        guard self.settings.effectiveSelectedTokenAccount(for: provider) != nil else { return false }
-        return self.settings.multiAccountMenuLayout == .stacked && accounts.count > 1
-    }
-
-    func shouldFetchAllCodexVisibleAccounts() -> Bool {
-        // PAT is not a per-visible-account credential. Fan-out would fetch the same token for
-        // every row and then reject its whoami identity against other accounts.
-        guard !self.shouldUseAmbientCodexPATForUsage() else { return false }
-        let projection = self.freshCodexVisibleAccountProjectionForAccountRefresh()
-        return self.settings.multiAccountMenuLayout == .stacked && projection.visibleAccounts.count > 1
-    }
-
     func shouldUseAmbientCodexPATForUsage() -> Bool {
         switch self.settings.codexUsageDataSource {
         case .pat:
@@ -386,7 +355,7 @@ extension UsageStore {
             originalAccount, account: currentActiveAccount)
     }
 
-    private func freshCodexVisibleAccountProjectionForAccountRefresh(
+    func freshCodexVisibleAccountProjectionForAccountRefresh(
         requireLiveManagedAuthFor accountIDs: Set<UUID> = []) -> CodexVisibleAccountProjection
     {
         // Auth files can change while account fetches are in flight, so account refreshes bypass the
@@ -630,6 +599,12 @@ extension UsageStore {
         if !shouldPreservePriorState {
             self.accountSnapshots[provider.instanceID] = snapshots
         }
+
+        self.scheduleSupplementalUsageUpdates(
+            provider: provider,
+            results: results,
+            selectedAccountID: effectiveSelected.id,
+            generation: generation)
 
         if let selectedOutcome, let resolvedSelectedAccount {
             await self.applySelectedOutcome(
@@ -945,6 +920,7 @@ extension UsageStore {
                 provider: provider,
                 settings: self.settings,
                 override: override),
+            includeAccountIdentity: self.settings.accountWidgetsEnabled && account != nil,
             webTimeout: 60,
             webDebugDumpHTML: false,
             verbose: self.settings.isVerboseLoggingEnabled,
@@ -1277,7 +1253,8 @@ extension UsageStore {
                 snapshot: retained?.snapshot,
                 error: oauthLimited ? nil : self.tokenAccountSnapshotErrorMessage(error),
                 sourceLabel: retained?.sourceLabel,
-                cacheKey: self.tokenAccountSnapshotCacheKey(provider: provider, account: account))
+                cacheKey: self.tokenAccountSnapshotCacheKey(provider: provider, account: account),
+                fetchError: error)
             return ResolvedAccountOutcome(snapshot: snapshot, usage: retained?.snapshot, freshUsage: nil)
         }
     }
@@ -1324,6 +1301,7 @@ extension UsageStore {
             .shouldSurfaceError(onFailureWithPriorData: hadPriorData) ?? true
         self.errors[provider.instanceID] = shouldSurface ? message : nil
         if shouldSurface, snapshot == nil {
+            self.invalidateGenericWidgetUsage(for: provider)
             self.snapshots.removeValue(forKey: provider.instanceID)
             self.clearProviderDerivedTokenSnapshot(for: provider)
         }
@@ -1467,6 +1445,10 @@ extension UsageStore {
                 snapshot: snapshot,
                 codexLimitResetOwnerKey: limitResetOwnerKey)
             guard self.isCurrentProviderRefreshGeneration(.codex, generation: generation) else { return }
+            self.emitUsageUpdatedHook(
+                provider: .codex,
+                snapshot: snapshot,
+                rateKey: codexOwnerKey?.rawValue)
             self.recordCodexHistoricalSampleIfNeeded(snapshot: snapshot)
         case let .failure(error):
             guard self.tokenAccountErrorMessage(error) != nil else {
@@ -1539,10 +1521,20 @@ extension UsageStore {
             self.errors[provider.instanceID] = nil
             self.knownLimitsAvailabilityByProvider.removeValue(forKey: provider.instanceID)
             self.failureGates[provider.instanceID]?.recordSuccess()
+            self.scheduleSupplementalUsageUpdate(
+                provider: provider,
+                result: result,
+                generation: generation,
+                accountID: account?.id)
             await self.recordPlanUtilizationHistorySample(
                 provider: provider,
                 snapshot: backfilled,
                 account: account)
+            guard self.isCurrentProviderRefreshGeneration(provider, generation: generation) else { return }
+            self.emitUsageUpdatedHook(
+                provider: provider,
+                snapshot: backfilled,
+                rateKey: warningAccountDiscriminator)
         case let .failure(error):
             let prior = account.flatMap {
                 self.matchingTokenAccountSnapshot(fallbackAccountSnapshot, provider: provider, account: $0)

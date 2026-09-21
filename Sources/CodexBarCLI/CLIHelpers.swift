@@ -147,6 +147,40 @@ extension CodexBarCLI {
         return "Kilo auto fallback attempts: " + parts.joined(separator: " -> ")
     }
 
+    /// Provider-specific by design: Antigravity's auto chain probes several
+    /// distinct local servers, so failures are attributed per source strategy
+    /// (app > cli > ide > oauth > offline) rather than by transport kind alone.
+    static func antigravityAutoFallbackSummary(
+        provider: UsageProvider,
+        sourceMode: ProviderSourceMode,
+        attempts: [ProviderFetchAttempt]) -> String?
+    {
+        guard provider == .antigravity, sourceMode == .auto, !attempts.isEmpty else { return nil }
+        let parts = attempts.map { attempt in
+            let source = Self.antigravitySourceShortLabel(attempt.strategyID)
+            switch attempt.outcome {
+            case .failed:
+                let message = attempt.errorDescription?
+                    .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                return "\(source): \(message.isEmpty ? "failed" : message)"
+            case .skipped:
+                return "\(source): skipped (unavailable)"
+            case .succeeded:
+                return "\(source): success"
+            }
+        }
+        return "Antigravity auto source outcomes: " + parts.joined(separator: " -> ")
+    }
+
+    /// Provider-specific by design: shortens Antigravity strategy IDs to their
+    /// source names (app/cli/ide/oauth/offline).
+    private static func antigravitySourceShortLabel(_ strategyID: String) -> String {
+        guard strategyID.hasPrefix("antigravity.") else { return strategyID }
+        let short = String(strategyID.dropFirst("antigravity.".count))
+        return short.replacingOccurrences(of: "-local", with: "")
+            .replacingOccurrences(of: "-https", with: "")
+    }
+
     static func fetchStatus(
         for provider: UsageProvider,
         transport: any ProviderHTTPTransport = ProviderHTTPClient(session: .shared)) async -> ProviderStatusPayload?

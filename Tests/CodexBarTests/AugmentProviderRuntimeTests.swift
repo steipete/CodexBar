@@ -7,6 +7,24 @@ import Testing
 @Suite(.serialized)
 struct AugmentProviderRuntimeTests {
     @Test
+    func `disabled forced refresh leaves cookie cache untouched`() async {
+        let settings = testSettingsStore(suiteName: "Augment-disabled-force", userDefaults: InMemoryUserDefaults())
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            startupBehavior: .testing,
+            environmentBase: [:])
+        var clearCount = 0
+        let runtime = AugmentProviderRuntime()
+        runtime._test_clearCookieCache = { clearCount += 1 }
+        let context = ProviderRuntimeContext(provider: .augment, settings: settings, store: store)
+        await runtime.perform(action: .forceSessionRefresh, context: context)
+        #expect(clearCount == 0)
+        #expect(!runtime._test_isKeepaliveRunning)
+    }
+
+    @Test
     func `repeated stop only reports a running keepalive once`() throws {
         let suite = "AugmentProviderRuntimeTests-\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suite))

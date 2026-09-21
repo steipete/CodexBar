@@ -12,6 +12,7 @@ extension UsageSnapshot {
             accountEmail: resolvedEmail,
             accountOrganization: existing?.accountOrganization,
             loginMethod: existing?.loginMethod,
-            accountID: existing?.accountID))
+            accountID: existing?.accountID,
+            widgetAccountOwnerID: existing?.widgetAccountOwnerID))
     }
 }

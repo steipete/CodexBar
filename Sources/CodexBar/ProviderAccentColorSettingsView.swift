@@ -9,8 +9,6 @@ import SwiftUI
 /// shipped color as a compile-time constant, so a reset restores it and can never lose it.
 @MainActor
 struct ProviderAccentColorSettingsView: View {
-    private static let swatchSize: CGFloat = 18
-    private static let swatchCornerRadius: CGFloat = 4
     private static let hexFieldWidth: CGFloat = 92
 
     let provider: UsageProvider
@@ -29,8 +27,6 @@ struct ProviderAccentColorSettingsView: View {
     var body: some View {
         Section {
             HStack(spacing: 10) {
-                self.swatch
-
                 TextField(L("provider_accent_color_title"), text: self.$hexText)
                     .labelsHidden()
                     .textFieldStyle(.roundedBorder)
@@ -72,16 +68,6 @@ struct ProviderAccentColorSettingsView: View {
             guard !self.isHexFieldFocused else { return }
             self.syncHexText()
         }
-    }
-
-    private var swatch: some View {
-        RoundedRectangle(cornerRadius: Self.swatchCornerRadius, style: .continuous)
-            .fill(Self.swiftUIColor(self.resolvedColor))
-            .frame(width: Self.swatchSize, height: Self.swatchSize)
-            .overlay(
-                RoundedRectangle(cornerRadius: Self.swatchCornerRadius, style: .continuous)
-                    .strokeBorder(Color.primary.opacity(0.15)))
-            .accessibilityHidden(true)
     }
 
     private var hasOverride: Bool {

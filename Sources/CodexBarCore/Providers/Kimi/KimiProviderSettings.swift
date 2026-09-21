@@ -1,10 +1,12 @@
 import Foundation
 
-public struct KimiProviderSettings: ProviderCookieSettings {
+public struct KimiProviderSettings: Sendable {
+    public let region: KimiRegion
     public let cookieSource: ProviderCookieSource
     public let manualCookieHeader: String?
 
-    public init(cookieSource: ProviderCookieSource, manualCookieHeader: String?) {
+    public init(cookieSource: ProviderCookieSource, manualCookieHeader: String?, region: KimiRegion = .china) {
+        self.region = region
         self.cookieSource = cookieSource
         self.manualCookieHeader = manualCookieHeader
     }

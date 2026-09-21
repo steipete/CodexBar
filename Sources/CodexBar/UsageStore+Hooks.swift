@@ -13,25 +13,36 @@ extension UsageStore {
         provider: UsageProvider,
         window: String? = nil,
         usagePercent: Double? = nil,
+        windowMinutes: Int? = nil,
         resetAt: Date? = nil,
+        secondaryUsagePercent: Double? = nil,
+        secondaryWindowMinutes: Int? = nil,
+        secondaryResetAt: Date? = nil,
         status: String? = nil,
+        accountDiscriminator: String? = nil,
         accountDisplayName: String? = nil)
     {
-        guard let hooks = self.settings.config.hooks,
-              hooks.enabled,
-              hooks.events.count <= HooksConfig.maximumRuleCount
-        else { return }
-
         let event = HookEvent(
             event: type,
             provider: provider.rawValue,
             account: self.settings.hidePersonalInfo ? nil : accountDisplayName,
             window: window,
             usagePercent: usagePercent,
+            windowMinutes: windowMinutes,
             resetAt: resetAt,
+            secondaryUsagePercent: secondaryUsagePercent,
+            secondaryWindowMinutes: secondaryWindowMinutes,
+            secondaryResetAt: secondaryResetAt,
             status: status,
             timestamp: Date())
+        self.dispatchHookEvent(event, accountDiscriminator: accountDiscriminator)
+    }
 
+    private func dispatchHookEvent(_ event: HookEvent, accountDiscriminator: String?) {
+        guard let hooks = self.settings.config.hooks,
+              hooks.enabled,
+              hooks.events.count <= HooksConfig.maximumRuleCount
+        else { return }
         let limiter = self.hookRateLimiter
         let environment = self.environmentBase
         Task.detached(priority: .utility) {
@@ -39,8 +50,29 @@ extension UsageStore {
                 event: event,
                 config: hooks,
                 rateLimiter: limiter,
+                rateLimitAccountDiscriminator: accountDiscriminator,
                 baseEnvironment: environment)
         }
+    }
+
+    /// Offers the quota snapshot after every successful provider refresh; hook
+    /// repeated attempts are dropped by the rate limiter. The primary and secondary
+    /// windows stay in one event so consumers can evaluate both without another fetch.
+    func emitUsageUpdatedHook(
+        provider: UsageProvider,
+        snapshot: UsageSnapshot,
+        rateKey: String? = nil)
+    {
+        guard self.hasQuotaHookRule(event: .usageUpdated, provider: provider) else { return }
+        let event = HookEvent.usageUpdated(
+            provider: provider.rawValue,
+            snapshot: snapshot,
+            account: self.settings.hidePersonalInfo ? nil
+                : self.hookAccountDisplayName(provider: provider, snapshot: snapshot))
+        self.dispatchHookEvent(
+            event,
+            accountDiscriminator: rateKey
+                ?? Self.hookAccountDiscriminator(provider: provider, snapshot: snapshot))
     }
 
     func emitQuotaReachedHook(
@@ -257,5 +289,25 @@ extension UsageStore {
             .trimmingCharacters(in: .whitespacesAndNewlines)
         guard let account, !account.isEmpty else { return nil }
         return account
+    }
+
+    /// Private identity used only to keep rate-limit buckets account scoped. This
+    /// value is never added to the hook payload or environment.
+    nonisolated static func hookAccountDiscriminator(
+        provider: UsageProvider,
+        snapshot: UsageSnapshot) -> String?
+    {
+        let identity = snapshot.identity(for: provider.instanceID)
+        if let accountID = identity?.accountID?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !accountID.isEmpty
+        {
+            return "provider-account:\(accountID)"
+        }
+        guard let email = identity?.accountEmail?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased(),
+            !email.isEmpty
+        else { return nil }
+        return "email:\(email)"
     }
 }

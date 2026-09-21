@@ -297,6 +297,52 @@ struct MiniMaxCookieHeaderTests {
     }
 }
 
+struct MiniMaxNumericParsingTests {
+    @Test(arguments: ["9223372036854775808", "-1e20", "1e308"])
+    func `ignores unrepresentable integer fields without losing valid percentages`(_ number: String) throws {
+        let data = Data("""
+        {"current_interval_total_count":\(number),"current_interval_remaining_percent":75}
+        """.utf8)
+
+        let remains = try JSONDecoder().decode(MiniMaxModelRemains.self, from: data)
+
+        #expect(remains.currentIntervalTotalCount == nil)
+        #expect(remains.currentIntervalRemainingPercent == 75)
+    }
+
+    @Test(arguments: [
+        ("9223372036854775807", Int.max),
+        ("-9223372036854775808", Int.min),
+        ("12.75", 12),
+        ("-12.75", -12),
+        (#"" 12 ""#, 12),
+    ])
+    func `preserves integer boundaries and fractional truncation`(number: String, expected: Int) throws {
+        let data = Data("""
+        {"current_interval_total_count":\(number)}
+        """.utf8)
+
+        let remains = try JSONDecoder().decode(MiniMaxModelRemains.self, from: data)
+
+        #expect(remains.currentIntervalTotalCount == expected)
+    }
+
+    @Test(arguments: ["minutes", "hours", "days"])
+    func `ignores unrepresentable HTML durations while retaining usage`(_ unit: String) throws {
+        let html = """
+        <div>Coding Plan Pro</div>
+        <div>Available usage: 1,500 prompts / 100000000000000000000 \(unit)</div>
+        <div>Used 75%</div>
+        """
+
+        let snapshot = try MiniMaxUsageParser.parse(html: html, now: Date(timeIntervalSince1970: 123))
+
+        #expect(snapshot.planName == "Pro")
+        #expect(snapshot.usedPercent == 75)
+        #expect(snapshot.windowMinutes == nil)
+    }
+}
+
 struct MiniMaxUsageParserTests {
     @Test
     func `signed out check ignores login copy inside scripts`() {

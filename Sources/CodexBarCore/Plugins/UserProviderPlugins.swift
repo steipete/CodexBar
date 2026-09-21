@@ -155,6 +155,8 @@ public struct UserProviderPlugin: @unchecked Sendable {
         environment: [String: String] = ProcessInfo.processInfo.environment,
         approvalStore: ProviderPluginApprovalStore,
         now: Date = Date(),
+        sourceMode: ProviderSourceMode = .auto,
+        cookieSource: ProviderCookieSource = .auto,
         cookieResolver: ProviderPluginRuntime.CookieResolver? = nil,
         instanceCookieResolver: ProviderPluginRuntime.InstanceCookieResolver? = nil) async throws -> UsageSnapshot
     {
@@ -171,6 +173,8 @@ public struct UserProviderPlugin: @unchecked Sendable {
                 settings: settings,
                 secrets: resolvedSecrets,
                 now: now,
+                sourceMode: sourceMode,
+                cookieSource: cookieSource,
                 cookieResolver: cookieResolver,
                 instanceCookieResolver: instanceCookieResolver)
         }

@@ -95,7 +95,7 @@ extension AmpUsageSnapshot {
                 let used = max(0, freeUsed)
                 let percent = quota > 0 ? min(100, (used / quota) * 100) : 0
                 let windowMinutes: Int? = if let hours = self.windowHours, hours > 0 {
-                    Int((hours * 60).rounded())
+                    Int(exactly: (hours * 60).rounded())
                 } else {
                     nil
                 }
@@ -104,7 +104,9 @@ extension AmpUsageSnapshot {
                         return Self.nextFreeTierReset(after: now)
                     }
                     guard quota > 0, let hourlyReplenishment, hourlyReplenishment > 0 else { return nil }
-                    return now.addingTimeInterval(max(0, used / hourlyReplenishment * 3600))
+                    let seconds = max(0, used / hourlyReplenishment * 3600)
+                    guard Int(exactly: seconds.rounded(.towardZero)) != nil else { return nil }
+                    return now.addingTimeInterval(seconds)
                 }()
                 return RateWindow(
                     usedPercent: percent,
@@ -118,7 +120,7 @@ extension AmpUsageSnapshot {
 
         let subscriptionWindowMinutes = self.subscription.flatMap { usage -> Int? in
             if let start = usage.periodStart {
-                return Int(usage.resetsAt.timeIntervalSince(start) / 60)
+                return Int(exactly: (usage.resetsAt.timeIntervalSince(start) / 60).rounded(.towardZero))
             }
             // Preserve legacy calendar-month pacing, but do not invent a Tier period when dates are missing.
             guard usage.agentRemaining == nil else { return nil }

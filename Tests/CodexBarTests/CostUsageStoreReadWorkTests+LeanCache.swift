@@ -36,6 +36,23 @@ extension CostUsageStoreReadWorkTests {
         #expect(work.cacheConversions == 1)
     }
 
+    @Test(arguments: [false, true])
+    func `lean cache preserves malformed row handling and aggregate fallback`(allRowsMalformed: Bool) throws {
+        let fixture = try ReadWorkFixture(fileCount: 2, rowsPerFile: 4)
+        defer { fixture.remove() }
+        let writer = try BaselineSQLiteConnection(url: fixture.store.databaseURL)
+        let filter = allRowsMalformed ? "" : " WHERE row_index = 1"
+        try writer.execute("UPDATE usage_rows SET payload = X'7B7D'\(filter)")
+
+        let full = fixture.store.syncLoadCodexCache(calendar: fixture.calendar)
+        let lean = fixture.store.syncLoadCodexCache(calendar: fixture.calendar, loadTokenSnapshots: false)
+
+        #expect(lean == Self.cacheWithoutTokenHistories(full))
+        #expect(lean.files.count == fixture.fileCount)
+        #expect(lean.files.values.allSatisfy { $0.codexRows?.count == (allRowsMalformed ? 1 : 3) })
+        #expect(lean.days == fixture.canonical.days)
+    }
+
     @Test
     func `lean cache rejects a different timezone`() throws {
         let fixture = try ReadWorkFixture(fileCount: 2, rowsPerFile: 4)

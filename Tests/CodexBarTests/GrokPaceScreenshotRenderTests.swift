@@ -9,6 +9,34 @@ import XCTest
 /// No app launch, account configuration, provider request, or credential access is involved.
 @MainActor
 final class GrokPaceScreenshotRenderTests: XCTestCase {
+    func test_renderResetCoupons() throws {
+        guard let path = ProcessInfo.processInfo.environment["CODEXBAR_GROK_COUPON_PROOF_DIR"] else {
+            throw XCTSkip("Set CODEXBAR_GROK_COUPON_PROOF_DIR for synthetic coupon proof")
+        }
+        let directory = URL(fileURLWithPath: path, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let now = try XCTUnwrap(ISO8601DateParser.parse("2026-08-12T06:00:00Z"))
+        let before = try Self.snapshot(now: now)
+        let after = before.withGrokResetCredits(GrokRateLimitResetCreditsSnapshot(
+            expirations: [now.addingTimeInterval(172_800), now.addingTimeInterval(432_000)],
+            updatedAt: now))
+        for (stage, snapshot) in [("before", before), ("after", after)] {
+            let model = try Self.model(snapshot: snapshot, now: now)
+            XCTAssertEqual(model.limitResetCredits?.text, stage == "after" ? "2 available" : nil)
+            for dark in [false, true] {
+                let view = AnyView(UsageMenuCardView(model: model, width: 360)
+                    .environment(\.locale, Locale(identifier: "en_US_POSIX"))
+                    .environment(\.colorScheme, dark ? .dark : .light)
+                    .environment(\.displayScale, 2)
+                    .background(Color(nsColor: .windowBackgroundColor)))
+                let hosting = NSHostingView(rootView: view)
+                hosting.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
+                try XCTUnwrap(MenuLayoutScreenshotRenderTests.pngDataWithWindow(hosting: hosting))
+                    .write(to: directory.appendingPathComponent("\(stage)-\(dark ? "dark" : "light").png"))
+            }
+        }
+    }
+
     func test_renderMeasuredProxyPace() throws {
         guard let path = ProcessInfo.processInfo.environment["CODEXBAR_GROK_PACE_PROOF_DIR"] else {
             throw XCTSkip("Set CODEXBAR_GROK_PACE_PROOF_DIR to render synthetic Grok pacing proof.")

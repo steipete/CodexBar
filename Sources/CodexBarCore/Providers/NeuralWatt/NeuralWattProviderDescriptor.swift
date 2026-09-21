@@ -2,6 +2,8 @@ import Foundation
 
 public enum NeuralWattProviderDescriptor {
     public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
+    private static let missingCredentialMessage =
+        "Missing Neuralwatt API key. Set apiKey in the CodexBar config file or NEURALWATT_API_KEY."
     private static let credentials = ProviderCredentialAdapter.apiKey(
         environmentKey: NeuralWattSettingsReader.apiKeyEnvironmentKey,
         resolve: NeuralWattSettingsReader.apiKey,
@@ -12,7 +14,8 @@ public enum NeuralWattProviderDescriptor {
             injection: .environment(key: NeuralWattSettingsReader.apiKeyEnvironmentKey),
             requiresManualCookieSource: false,
             cookieName: nil,
-            minimumDelayBetweenAccountRefreshes: .seconds(1)))
+            minimumDelayBetweenAccountRefreshes: .seconds(1)),
+        missingCredentialMessage: { _ in NeuralWattProviderDescriptor.missingCredentialMessage })
 
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
@@ -59,18 +62,40 @@ public enum NeuralWattProviderDescriptor {
                     showsPrimaryBalanceDescription: true,
                     hidesPrimaryResetWithoutDate: true),
                 menu: ProviderMenuDescriptorPresentation(primaryDescriptionIsDetail: { _ in true })),
-            fetchPlan: .apiToken(
-                strategyID: "neuralwatt.api",
-                resolveToken: { ProviderTokenResolver.token(for: .neuralwatt, environment: $0) },
-                missingCredentialsError: { NeuralWattUsageError.missingCredentials },
-                loadUsage: { apiKey, context in
-                    try await NeuralWattUsageFetcher.fetchUsage(
-                        apiKey: apiKey,
-                        environment: context.env).toUsageSnapshot()
-                }),
+            fetchPlan: self.fetchPlan(),
             cli: ProviderCLIConfig(
                 name: "neuralwatt",
                 aliases: ["nw", "neural"],
                 versionDetector: nil))
+    }
+
+    private static func fetchPlan() -> ProviderFetchPlan {
+        ProviderFetchPlan(
+            sourceModes: [.auto, .api],
+            pipeline: ProviderFetchPipeline(resolveStrategies: { _ in
+                [ScriptFetchStrategy(
+                    id: "neuralwatt.js",
+                    provider: .neuralwatt,
+                    bundledPlugin: "neuralwatt",
+                    secretKey: NeuralWattSettingsReader.apiKeyEnvironmentKey,
+                    sourceLabel: "api",
+                    timeout: 45,
+                    validateContext: { context in
+                        guard self.credentials.resolveToken(environment: context.env) != nil else {
+                            throw ProviderFetchClassifiedError(
+                                kind: .missingCredential, message: self.missingCredentialMessage)
+                        }
+                        try NeuralWattSettingsReader.validateEndpointOverrides(environment: context.env)
+                    },
+                    resolveValues: { context in
+                        guard let token = self.credentials.resolveToken(environment: context.env)?.token
+                        else { return nil }
+                        return .init(
+                            settings: ["BASE_URL": NeuralWattSettingsReader.apiURL(environment: context.env)
+                                .absoluteString],
+                            secrets: [NeuralWattSettingsReader.apiKeyEnvironmentKey: token])
+                    },
+                    isEnabled: { _ in true })]
+            }))
     }
 }

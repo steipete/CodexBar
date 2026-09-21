@@ -26,7 +26,7 @@ def main():
     args.output.mkdir(parents=True, exist_ok=True)
     destination = args.output / f'{name}.tar.gz'
     files = {
-        'bin/codexbar-linux': args.binary,
+        'bin/codexbar-linux': args.binary.resolve(),
         'README.md': REPO / 'Integrations/Linux/README.md',
         'LICENSE': REPO / 'LICENSE',
     }

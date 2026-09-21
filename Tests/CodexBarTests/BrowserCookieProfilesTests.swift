@@ -45,6 +45,22 @@ struct BrowserCookieProfilesTests {
         #expect(BrowserCookieProfiles.merge([]).isEmpty)
     }
 
+    @Test
+    func `session cookie ties retain network value and empty profiles remain ordered`() throws {
+        let profiles = BrowserCookieProfiles.merge([
+            Self.source("empty", label: "Alpha", kind: .primary, records: []),
+            Self.source("signed-in", label: "Beta", kind: .primary, records: [
+                Self.cookie("session", value: "primary", expires: nil),
+            ]),
+            Self.source("signed-in", label: "Beta (Network)", kind: .network, records: [
+                Self.cookie("session", value: "network", expires: nil),
+            ]),
+        ])
+        #expect(profiles.map(\.label) == ["Alpha", "Beta"])
+        #expect(profiles[0].records.isEmpty)
+        #expect(try #require(profiles[1].records.first).value == "network")
+    }
+
     private static func source(
         _ profile: String,
         label: String,

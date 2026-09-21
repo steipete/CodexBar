@@ -8,7 +8,9 @@ read_when:
 
 # ElevenLabs Provider
 
-The ElevenLabs provider reads subscription usage from the ElevenLabs API using an API key.
+The ElevenLabs provider reads subscription usage from the ElevenLabs API using an API key. Its bundled
+`elevenlabs.ts` plugin runs on QuickJS on macOS and Linux, with JavaScriptCore available as the macOS rollback engine.
+Native descriptor/settings glue retains credential selection and endpoint validation; there is no Swift fetch/parser twin.
 
 ## Features
 

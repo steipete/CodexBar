@@ -142,7 +142,9 @@ enum DashboardSnapshotBuilder {
             identity: self.makeIdentity(provider: provider, usage: payload.usage, mode: identityMode),
             windows: self.makeWindows(provider: provider, metadata: metadata, usage: payload.usage),
             credits: self.makeCredits(payload.credits),
-            cost: self.makeCost(cost, referenceDate: generatedAt),
+            cost: cost != nil
+                ? self.makeCost(cost, referenceDate: generatedAt)
+                : self.makeReportedCost(payload.usage?.costUsage),
             display: presentation.display,
             error: error,
             updatedAt: self.updatedAt(
@@ -483,6 +485,18 @@ enum DashboardSnapshotBuilder {
     private static func makeCredits(_ credits: CreditsSnapshot?) -> DashboardCreditsPayload? {
         guard let credits, credits.balanceReadSucceeded else { return nil }
         return DashboardCreditsPayload(remaining: credits.remaining, unit: "credits")
+    }
+
+    private static func makeReportedCost(_ snapshot: CostUsageTokenSnapshot?) -> DashboardCostPayload? {
+        guard let snapshot, snapshot.currencyCode == "USD", snapshot.historyDays == 30 else { return nil }
+        let incompleteCount = CostUsageIncompleteRequests.sum(snapshot.daily.map(\.incompleteRequestCount))
+        guard snapshot.last30DaysCostUSD != nil || incompleteCount > 0 else { return nil }
+        // Provider history can use completed UTC days; a matching date key does not establish local Today.
+        return DashboardCostPayload(
+            todayUSD: nil,
+            last30DaysUSD: snapshot.last30DaysCostUSD,
+            todayIncompleteRequestCount: nil,
+            last30DaysIncompleteRequestCount: incompleteCount > 0 ? incompleteCount : nil)
     }
 
     private static func makeCost(_ cost: CostPayload?, referenceDate: Date) -> DashboardCostPayload? {

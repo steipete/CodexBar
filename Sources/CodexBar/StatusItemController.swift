@@ -169,6 +169,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     var closedMenuRebuildTasks: [ObjectIdentifier: Task<Void, Never>] = [:]
     var closedMenuRebuildRequests = MenuRebuildRequestRegistry<ObjectIdentifier>()
     var openMenuRebuildTasks: [ObjectIdentifier: Task<Void, Never>] = [:]
+    var overviewSharePresentation = OverviewSharePresentation()
     var openMenuRebuildRequests = MenuRebuildRequestRegistry<ObjectIdentifier>()
     var menuIdentitySignatures: [ObjectIdentifier: String] = [:]
     var codexAccountMenuProjectionRevalidationTask: Task<Void, Never>?
@@ -316,32 +317,6 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     var screenChangeVisibilityTask: Task<Void, Never>?
     let loginLogger = CodexBarLog.logger(LogCategories.login)
     let menuLogger = CodexBarLog.logger(LogCategories.app)
-    static func makeStatusItem(
-        statusBar: NSStatusBar,
-        identity: StatusItemIdentity,
-        defaults: UserDefaults,
-        legacyDefaultItemIndex: Int?,
-        onCreated: ((NSStatusItem) -> Void)? = nil)
-        -> NSStatusItem
-    {
-        MenuBarStatusItemPlacementPreflight.prepare(
-            defaults: defaults,
-            autosaveName: identity.autosaveName,
-            legacyDefaultItemIndex: legacyDefaultItemIndex)
-        let item = statusBar.statusItem(withLength: NSStatusItem.variableLength)
-        onCreated?(item)
-        item.autosaveName = identity.autosaveName
-        if let button = item.button {
-            let title = self.statusItemAccessibilityTitle(
-                isDebugApp: self.isDebugApp(bundleIdentifier: Bundle.main.bundleIdentifier))
-            // Ensure the icon is rendered at 1:1 without resampling (crisper edges for template images).
-            button.imageScaling = .scaleNone
-            button.setAccessibilityIdentifier(identity.accessibilityIdentifier)
-            button.setAccessibilityTitle(title)
-        }
-        return item
-    }
-
     struct BlinkState {
         var nextBlink: Date
         var blinkStart: Date?
@@ -432,7 +407,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
             .repairHiddenVisibilityDefaultsIfNeeded(defaults: settings.userDefaults)
         self.statusBar = statusBar
         self.statusItem = Self.makeStatusItem(
-            statusBar: statusBar,
+            create: statusBar.statusItem(withLength:),
             identity: .merged,
             defaults: settings.userDefaults,
             legacyDefaultItemIndex: Self.mergedLegacyDefaultItemIndex)
@@ -762,9 +737,9 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         guard !self.isReleasedForTesting else { return }
         #endif
         self.statusItem.menu = nil
-        self.statusBar.removeStatusItem(self.statusItem)
+        self.removeStatusItemPreservingPlacement(self.statusItem)
         self.statusItem = Self.makeStatusItem(
-            statusBar: self.statusBar,
+            create: self.statusBar.statusItem(withLength:),
             identity: .merged,
             defaults: self.settings.userDefaults,
             legacyDefaultItemIndex: Self.mergedLegacyDefaultItemIndex)
@@ -787,7 +762,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         var expectedVisibleAutosaveNames: Set<String> = []
         if mergeIcons {
             let shouldBeVisible = anyEnabled || force
-            self.statusItem.isVisible = shouldBeVisible
+            self.setStatusItemVisiblePreservingPlacement(self.statusItem, shouldBeVisible)
             if shouldBeVisible {
                 expectedVisibleAutosaveNames.insert(self.statusItem.autosaveName)
             }
@@ -796,7 +771,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
             }
             self.attachMenus()
         } else {
-            self.statusItem.isVisible = false
+            self.setStatusItemVisiblePreservingPlacement(self.statusItem, false)
             let fallback = self.fallbackProvider
             for provider in self.settings.orderedFirstPartyProviders() {
                 let isEnabled = self.isEnabled(provider)
@@ -908,7 +883,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         guard let item = self.statusItems.removeValue(forKey: instanceID) else { return }
         item.menu = nil
         self.lastAppliedProviderIconRenderSignatures.removeValue(forKey: instanceID)
-        self.statusBar.removeStatusItem(item)
+        self.removeStatusItemPreservingPlacement(item)
     }
 
     func isVisible(_ provider: UsageProvider) -> Bool {
@@ -937,6 +912,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         self.blinkTask?.cancel()
         self.menuBarCountdownRefreshTask?.cancel()
         self.loginTask?.cancel()
+        self.overviewSharePresentation.task?.cancel()
         self.screenChangeVisibilityTask?.cancel()
         self.pendingScreenChangePreviousCount = nil
         NotificationCenter.default.removeObserver(self)
@@ -1022,10 +998,10 @@ extension StatusItemController {
         #endif
         let visibleItems = ([self.statusItem] + Array(self.statusItems.values)).filter(\.isVisible)
         for item in visibleItems {
-            item.isVisible = false
+            self.setStatusItemVisiblePreservingPlacement(item, false)
         }
         for item in visibleItems {
-            item.isVisible = true
+            self.setStatusItemVisiblePreservingPlacement(item, true)
         }
         self.updateVisibility()
         self.updateIcons()

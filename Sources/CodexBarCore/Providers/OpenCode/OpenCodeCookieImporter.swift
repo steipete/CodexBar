@@ -44,8 +44,10 @@ public enum OpenCodeCookieImporter {
                 for source in sources where !source.records.isEmpty {
                     let httpCookies = BrowserCookieClient.makeHTTPCookies(source.records, origin: query.origin)
                     if !httpCookies.isEmpty {
+                        // A migrated workspace may carry only the console session cookie.
                         let hasAuthCookie = httpCookies.contains { cookie in
-                            cookie.name == "auth" || cookie.name == "__Host-auth"
+                            OpenCodeWebCookieSupport.sessionCookieNames.contains(cookie.name) ||
+                                OpenCodeWebCookieSupport.consoleSessionCookieNames.contains(cookie.name)
                         }
                         if !hasAuthCookie {
                             log("Skipping \(source.label) cookies: missing auth cookie")

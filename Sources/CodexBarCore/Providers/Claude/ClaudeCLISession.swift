@@ -419,12 +419,13 @@ actor ClaudeCLISession {
         self.startedAt = Date()
     }
 
+    /// Opt usage probes out of Remote Control without changing saved settings or managed policy.
+    static let probeSettingsArguments = ["--settings", #"{"remoteControlAtStartup":false}"#]
+
     static func launchArguments(sessionID: UUID) -> [String] {
         // Reuse a probe-owned ID: interactive `/usage` cannot use print-only no-persistence.
-        // Ignore ambient MCP servers and opt this short-lived process out of Remote Control registration.
-        [
-            "--allowed-tools", "", "--strict-mcp-config",
-            "--settings", #"{"remoteControlAtStartup":false}"#,
+        // Ignore ambient MCP servers.
+        ["--allowed-tools", "", "--strict-mcp-config"] + self.probeSettingsArguments + [
             "--session-id", sessionID.uuidString.lowercased(),
         ]
     }

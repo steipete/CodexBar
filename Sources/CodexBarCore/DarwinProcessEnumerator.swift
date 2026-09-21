@@ -22,12 +22,40 @@ enum DarwinProcessEnumerator {
     /// Parses the `KERN_PROCARGS2` payload without consuming the environment
     /// strings that follow argv.
     static func parseProcArgs2(_ data: Data) -> String? {
+        self.parseProcArgs2Arguments(data)?.joined(separator: " ")
+    }
+
+    /// Returns the original argv from a `KERN_PROCARGS2` payload. Keeping the
+    /// boundaries matters for flags whose values contain whitespace.
+    static func parseProcArgs2Arguments(_ data: Data) -> [String]? {
+        self.parseProcArgs2Layout(data)?.arguments
+    }
+
+    static func parseProcArgs2PiSelectorEnvironment(_ data: Data) -> [String: String]? {
+        guard let layout = self.parseProcArgs2Layout(data) else { return nil }
+        let suffix = Data(data[layout.environmentOffset...])
+        // Darwin can omit environment records from a successful procargs response.
+        // An argv-only response or padding is not evidence of an empty environment.
+        guard let start = suffix.firstIndex(where: { $0 != 0 }) else { return nil }
+        var offset = start
+        while offset < suffix.endIndex {
+            guard let terminator = suffix[offset...].firstIndex(of: 0) else { return nil }
+            if terminator == offset {
+                // The empty environment terminator may be followed by unrelated Apple vectors.
+                return PiProcessEnvironment.parseNULSeparated(Data(suffix[start..<offset]))
+            }
+            offset = terminator + 1
+        }
+        return PiProcessEnvironment.parseNULSeparated(Data(suffix[start...]))
+    }
+
+    private static func parseProcArgs2Layout(_ data: Data) -> (arguments: [String], environmentOffset: Int)? {
         let argumentCountSize = MemoryLayout<Int32>.size
         guard data.count >= argumentCountSize else { return nil }
         let argumentCount = data.withUnsafeBytes { rawBuffer in
             Int(Int32(littleEndian: rawBuffer.loadUnaligned(as: Int32.self)))
         }
-        guard argumentCount >= 0 else { return nil }
+        guard argumentCount >= 0, argumentCount <= data.count else { return nil }
 
         let bytes = [UInt8](data)
         var offset = argumentCountSize
@@ -47,7 +75,7 @@ enum DarwinProcessEnumerator {
             arguments.append(argument)
             offset = terminator + 1
         }
-        return arguments.joined(separator: " ")
+        return (arguments, offset)
     }
 }
 
@@ -95,11 +123,34 @@ extension DarwinProcessEnumerator {
         return (Int32(bitPattern: info.pbi_ppid), Date(timeIntervalSince1970: startInterval))
     }
 
-    static func commandLine(pid: Int32) -> String? {
+    static func arguments(pid: Int32) -> [String]? {
+        self.procArgs2Data(pid: pid).flatMap(self.parseProcArgs2Arguments)
+    }
+
+    static func argumentsWithPiSelectorEnvironment(pid: Int32) -> (
+        arguments: [String], piSelectorEnvironment: [String: String]?)?
+    {
+        guard let data = self.procArgs2Data(pid: pid),
+              let layout = self.parseProcArgs2Layout(data)
+        else { return nil }
+        let process = AgentProcessRecord(
+            pid: pid,
+            ppid: 0,
+            startedAt: nil,
+            command: layout.arguments.joined(separator: " "),
+            arguments: layout.arguments)
+        let environment = AgentPSOutputParser.piDialect(for: process) == nil
+            ? nil
+            : self.parseProcArgs2PiSelectorEnvironment(data)
+        return (layout.arguments, environment)
+    }
+
+    private static func procArgs2Data(pid: Int32) -> Data? {
         var mib = [CTL_KERN, KERN_PROCARGS2, pid]
         var byteCount = 0
         guard sysctl(&mib, u_int(mib.count), nil, &byteCount, nil, 0) == 0,
-              byteCount >= MemoryLayout<Int32>.size
+              byteCount >= MemoryLayout<Int32>.size,
+              byteCount <= PiProcessEnvironment.maxEnvironmentBytes
         else { return nil }
 
         var data = Data(count: byteCount)
@@ -110,7 +161,11 @@ extension DarwinProcessEnumerator {
         if byteCount < data.count {
             data.removeSubrange(byteCount..<data.count)
         }
-        return self.parseProcArgs2(data)
+        return data
+    }
+
+    static func commandLine(pid: Int32) -> String? {
+        self.arguments(pid: pid)?.joined(separator: " ")
     }
 
     static func currentWorkingDirectory(pid: Int32) -> String? {

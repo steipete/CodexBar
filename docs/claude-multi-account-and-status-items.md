@@ -105,9 +105,13 @@ last refresh, adapter errors, and a link to the upstream project; CodexBar shoul
 
 ## Phase 2 explicit activation contract
 
-- Only an explicit click on an actionable account card can start a switch. Normal activation targets inactive slots.
+- Only an explicit click on an actionable account card or actionable inactive account chip can start a switch.
+  Normal activation targets inactive slots.
   An active slot reporting `foreign_credential` offers **Re-authenticate**, using the same slot command so claude-swap
   can reconcile its proven credential mismatch. No force flag is used; selecting the active segment remains inspection-only.
+- The Segmented layout labels its chips **Switch Claude Code account**. An inactive actionable chip switches Claude
+  Code's credentials; active and unavailable chips only inspect that slot. Chips retain their short account identities,
+  with action-specific tooltips and accessibility labels that respect Hide Personal Info.
 - Derive the numeric slot from the already validated account snapshot and execute exactly
   `cswap --switch-to <slot> --json`; never accept free-form arguments or invoke a shell.
 - Serialize switches, validate `schemaVersion == 1` and the returned target slot, and bound captured output.
@@ -117,6 +121,13 @@ last refresh, adapter errors, and a link to the upstream project; CodexBar shoul
 - Refresh ambient Claude usage and the adapter account list after completion. Publish known switch errors before
   waiting for that refresh, independently from list-refresh errors, and preserve the last successful usage snapshots.
   Keep the transaction guard until reconciliation finishes; discard the error if its configuration changes.
+- Show **Switching account…** while the external command is running, then **Refreshing account status…** while
+  ambient usage and the independently scheduled adapter account list are reconciled. Wait for a replacement list read
+  while its configuration is still current. Update the open menu through its tracking-safe rebuild scheduler; keep the
+  requested slot and disabled controls through both phases. The adapter's refreshed account list alone determines active styling,
+  and a known switch error remains visible beside progress. This feedback does not diagnose or shorten a slow refresh.
+- Configuration invalidation clears visible progress without cancelling the transaction. Returning to the same
+  executable path cannot revive the old phase or error, and another activation waits for the original task to drain.
 - Keep expired, missing, unknown, and Keychain-inaccessible credential slots non-actionable. Never auto-switch, launch
   sessions, add/import/export/purge accounts, or mutate credentials directly.
 

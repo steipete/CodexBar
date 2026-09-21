@@ -83,19 +83,27 @@ Events:
   rules without a threshold use the provider's configured warning thresholds.
 - `quota_reached`: the primary session quota crosses into depletion.
 - `quota_reset`: a confirmed session or weekly reset occurs.
+- `usage_updated`: the macOS app published a successful, current provider refresh, or `hooks watch` completed a
+  successful poll. It can fire when values are unchanged. `usagePercent`, `windowMinutes`, and `resetAt`
+  describe the positional primary window; `secondaryUsagePercent`, `secondaryWindowMinutes`, and
+  `secondaryResetAt` describe the positional secondary window. Synthetic placeholder windows are omitted.
 - `provider_unavailable`: a provider status changes to a minor, major, or critical outage.
 - `provider_recovered`: that tracked outage returns to normal.
 - `refresh_failed`: a provider refresh fails; `CODEXBAR_STATUS` is a coarse category such as `timeout`, `offline`,
   `network_error`, `auth_required`, `cancelled`, or `error`.
 
-`provider_unavailable` and `refresh_failed` are coalesced per provider/account/window for ten minutes so background
-refresh failures cannot create command storms. Quota and recovery events use their transition detectors instead. Hook
-failures are contained and never block provider refresh.
+`usage_updated`, `provider_unavailable`, and `refresh_failed` allow the first matching attempt immediately,
+then drop further attempts for the same provider/account/window for 600 seconds. Failed command attempts consume
+that interval; unmatched rules do not. There is no queued latest value or trailing delivery. Restarting resets
+the in-memory limiter. Quota and recovery events use their transition detectors instead. Hook failures are
+contained and never block app provider refresh. `hooks watch` reports only events whose command execution was
+attempted, including failed commands, rather than suppressed candidates.
 
 Payload environment variables are `CODEXBAR_EVENT`, `CODEXBAR_PROVIDER`, `CODEXBAR_TIMESTAMP`, and, when available,
 `CODEXBAR_ACCOUNT`, `CODEXBAR_WINDOW`, `CODEXBAR_USAGE_PERCENT`, `CODEXBAR_USED`, `CODEXBAR_LIMIT`,
-`CODEXBAR_RESET_AT`, and `CODEXBAR_STATUS`. Enabling Hide personal info omits `CODEXBAR_ACCOUNT` and the matching JSON
-field.
+`CODEXBAR_WINDOW_MINUTES`, `CODEXBAR_RESET_AT`, `CODEXBAR_SECONDARY_USAGE_PERCENT`,
+`CODEXBAR_SECONDARY_WINDOW_MINUTES`, `CODEXBAR_SECONDARY_RESET_AT`, and `CODEXBAR_STATUS`. Enabling Hide personal info
+omits `CODEXBAR_ACCOUNT` and the matching JSON field.
 
 The stdin JSON uses the same camel-case field names without the `CODEXBAR_` prefix. Dates are UTC ISO 8601 strings,
 usage percentages are `0...1` fractions, unavailable optional fields are omitted rather than encoded as `null`, and
@@ -118,15 +126,15 @@ All provider fields are optional unless noted.
 - `enabled`: enable/disable provider (defaults to provider default).
 - `source`: preferred source mode.
   - `auto|web|cli|oauth|api`
-  - `auto` uses provider-specific fallback order (see `docs/providers.md`).
+  - `auto` uses [provider-specific fallback order](providers.md#fetch-strategies-current).
   - `api` uses the provider's API-backed mode; only some providers consume the `apiKey` field.
 - `apiKey`: raw API token for providers that support config-backed direct API usage.
 - `enterpriseHost`: provider-specific API host/base URL override. Used by Azure OpenAI, Copilot, LLM Proxy, LiteLLM,
-  ClawRouter, and Wayfinder.
+  ClawRouter, sub2api, and Wayfinder.
 - `cookieSource`: cookie selection policy.
   - `auto` (browser import), `manual` (use `cookieHeader`), `off` (disable cookies)
 - `cookieHeader`: raw cookie header value (e.g. `key=value; other=...`).
-- `region`: provider-specific region (e.g. `zai`, `minimax`).
+- `region`: provider-specific region (e.g. `zai`, `minimax`). Kimi accepts `china` (default, `kimi.com`) or `international` (`kimi.ai`); see [Kimi setup](kimi.md). This selects API, web, cookie discovery, and dashboard hosts. Automatic CLI credential reuse is limited to China because the credential file has no issuing-host metadata.
 - `workspaceID`: provider-specific workspace/deployment/project ID (e.g. Azure OpenAI deployment, OpenAI API project,
   `opencode`, Notion space).
 - `tokenAccounts`: multi-account tokens for providers in `TokenAccountSupportCatalog`.
@@ -155,10 +163,10 @@ Example placeholder config:
   "version": 1,
   "providers": [
     {
-      "id": "example-provider",
+      "id": "claude",
       "enabled": true,
       "cookieSource": "manual",
-      "cookieHeader": "session=<REDACTED>; other=<REDACTED>"
+      "cookieHeader": "sessionKey=<REDACTED>"
     }
   ]
 }
@@ -168,8 +176,10 @@ Validate after editing:
 
 ```bash
 codexbar config validate
-codexbar usage --provider example-provider --verbose
 ```
+
+Replace the placeholder with your own cookie before fetching usage with `codexbar usage --provider claude`.
+For another provider, use its registered [ID](provider-ids.md) and the cookie format in its [setup guide](providers.md).
 
 CLI shortcuts:
 
@@ -288,8 +298,12 @@ Opt-in (Settings → iCloud Sync, off by default; requires a signed release buil
 
 Never synced, by design: `hooks` (sync payloads structurally cannot create or modify hook rules — they execute local binaries), machine-local paths (`claudeSwapExecutablePath`, `codexProfileHomePaths`, `awsProfile`/`awsAuthMode`, `source`, `codexActiveSource`, `cookieSource`), menu-bar layout/geometry, debug settings, usage history, and cost ledgers. A provider is never auto-enabled on a Mac where its required local CLI is missing. Records carry a schema version; older app versions pause sync instead of rewriting newer payloads. The CLI does not talk to CloudKit — the running app watches `config.json`, applies CLI or hand edits locally, and syncs changed provider payloads to the fleet when iCloud sync is enabled. Remote changes written to the file are recognized as app writes and are not echoed back. The app tracks per-provider dirty state and never re-uploads unchanged state at launch.
 
+Atomic replacements by CLI tools or editors remain observable during watcher startup and change callbacks, and
+subsequent in-place edits continue to be detected. App-originated writes retain their self-write suppression.
+
 ## Notes
 - Fields not relevant to a provider are ignored.
 - Omitted providers are appended with defaults during normalization.
+- Unknown or retired provider entries (including Crof after its shutdown) are ignored with an `Ignoring unknown provider in config` warning (visible in the CLI with `--log-level warning`). Reading does not rewrite the file; the next settings save removes those entries and keeps supported provider settings.
 - Keep the file private; it contains secrets.
 - Validate the file with `codexbar config validate` (JSON output available with `--format json`).

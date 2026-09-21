@@ -181,7 +181,7 @@ struct OpenRouterPluginGoldenTests {
         #expect(usage.detailRow(label: "Today")?.value == "$0.12")
         #expect(usage.detailRow(label: "This week")?.value == "$0.74")
         #expect(usage.detailRow(label: "This month")?.value == "$4.56")
-        #expect(usage.detailRow(label: "Rate limit")?.value == "120 requests / 10s")
+        #expect(usage.detailRow(label: "Rate limit") == nil)
     }
 
     @Test
@@ -832,6 +832,47 @@ struct OpenRouterPluginGoldenTests {
             httpVersion: "HTTP/1.1",
             headerFields: ["Content-Type": "application/json"]))
         return (Data(body.utf8), response)
+    }
+}
+
+extension OpenRouterPluginGoldenTests {
+    @Test(arguments: BundledPluginTestSupport.engines, [
+        "null", "42", "true", #""deprecated""#, "[]", "{}",
+        #"{"requests":-1,"interval":"10s","note":"This field is deprecated and safe to ignore."}"#,
+        #"{"requests":"removed","interval":false}"#,
+    ])
+    func `deprecated key rate limit is ignored without degrading the section`(
+        engine: ProviderPluginEngineKind,
+        rateLimit: String) async throws
+    {
+        let transport = Self.transport(creditsStatus: 403, keyBody: #"""
+        {"data":{
+          "limit":50,
+          "limit_remaining":38,
+          "usage":12,
+          "usage_daily":1.25,
+          "usage_weekly":7.5,
+          "usage_monthly":12,
+          "limit_reset":"monthly",
+          "rate_limit":\#(rateLimit)
+        }}
+        """#)
+        let runtime = try BundledPluginTestSupport.runtime("openrouter", engine: engine, transport: transport)
+
+        let usage = try await runtime.fetchUsage(
+            settings: [OpenRouterSettingsReader.apiURLEnvironmentKey: "https://openrouter.test/api/v1"],
+            secrets: [OpenRouterSettingsReader.envKey: "sk-or-v1-test"])
+
+        #expect(usage.detailRow(label: "Rate limit") == nil)
+        #expect(usage.primary?.usedPercent == 24)
+        #expect(usage.detailRow(label: "API key limit")?.value == "$50.00")
+        #expect(usage.detailRow(label: "API key remaining")?.value == "$38.00")
+        #expect(usage.detailRow(label: "API key used")?.value == "$12.00")
+        #expect(usage.detailRow(label: "Reset window")?.value == "monthly")
+        #expect(usage.detailRow(label: "Today")?.value == "$1.25")
+        #expect(usage.detailRow(label: "This week")?.value == "$7.50")
+        #expect(usage.detailRow(label: "This month")?.value == "$12.00")
+        #expect(usage.detailRow(label: "Balance")?.secondaryValue == "Request returned HTTP 403")
     }
 }
 

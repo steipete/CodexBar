@@ -884,7 +884,6 @@ extension CodexBackgroundRefreshCoalescingTests {
         #expect(await dashboardLoader.callCount() == 2)
         #expect(store.openAIDashboardRequiresLogin)
         #expect(providerInteractions == [.background, .userInitiated])
-        #expect(creditsInteractions == [.background, .userInitiated])
 
         await tokenGate.resumeNext()
         await store.awaitForcedRefreshEnrichment()
@@ -892,7 +891,7 @@ extension CodexBackgroundRefreshCoalescingTests {
         #expect(await dashboardLoader.callCount() == 3)
         #expect(!store.openAIDashboardRequiresLogin)
         #expect(providerInteractions.count == 2)
-        #expect(creditsInteractions.count == 2)
+        #expect(creditsInteractions == [.background, .userInitiated])
         #expect(!store.hasForcedRefreshEnrichmentInFlight)
     }
 
@@ -1194,7 +1193,7 @@ extension CodexBackgroundRefreshCoalescingTests {
         }
     }
 
-    private func cancelCreditsWork(
+    func cancelCreditsWork(
         store: UsageStore,
         blocker: BlockingCreditsLoader,
         tasks: [Task<Void, Never>]) async
@@ -1230,7 +1229,7 @@ extension CodexBackgroundRefreshCoalescingTests {
     }
 
     func makeSettingsStore(suite: String) throws -> SettingsStore {
-        let settings = testSettingsStore(suiteName: suite)
+        let settings = testSettingsStore(suiteName: suite, userDefaults: InMemoryUserDefaults())
         let codexMetadata = try #require(ProviderDescriptorRegistry.metadata[.codex])
         settings.setProviderEnabled(provider: .codex, metadata: codexMetadata, enabled: true)
         settings.providerDetectionCompleted = true

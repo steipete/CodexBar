@@ -83,6 +83,9 @@ enum CLIRenderer {
             snapshot: snapshot,
             useColor: context.useColor,
             lines: &lines)
+        if let history = self.liveHistoryLine(snapshot: snapshot, useColor: context.useColor) {
+            lines.append(history)
+        }
         self.appendLimitsUnavailableLine(
             provider: provider,
             snapshot: snapshot,
@@ -583,6 +586,34 @@ enum CLIRenderer {
             let value = UsageFormatter.currencyString(balance.amount, currencyCode: balance.currencyCode)
             lines.append(self.labelValueLine(balance.label, value: value, useColor: useColor))
         }
+    }
+
+    static func liveHistoryLine(snapshot: UsageSnapshot, useColor: Bool) -> String? {
+        guard let history = snapshot.costUsage else { return nil }
+        var values: [String] = []
+        if let amount = history.last30DaysCostUSD {
+            let value = UsageFormatter.currencyString(amount, currencyCode: history.currencyCode)
+            let provenance: String? = switch history.costProvenance {
+            case .vendorMetered: "reported"
+            case .listPriceEstimate: "estimated"
+            case .mixed: "includes estimates"
+            case .unknown: nil
+            }
+            values.append(provenance.map { "\(value) (\($0))" } ?? value)
+        }
+        if let tokens = history.last30DaysTokens {
+            let unit = tokens == 1 ? "token" : "tokens"
+            values.append("\(UsageFormatter.tokenCountString(tokens)) \(unit)")
+        }
+        guard !values.isEmpty else { return nil }
+        let label: String = if let custom = history.historyLabel,
+                               !custom.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        {
+            custom
+        } else {
+            history.historyDays == 1 ? "Last 1 day" : "Last \(history.historyDays) days"
+        }
+        return self.labelValueLine(label, value: values.joined(separator: " · "), useColor: useColor)
     }
 
     // swiftlint:disable:next function_parameter_count

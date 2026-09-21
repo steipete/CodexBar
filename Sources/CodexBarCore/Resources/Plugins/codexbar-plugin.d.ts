@@ -44,6 +44,7 @@ interface CodexBarCostUsageEntry {
   date: string;
   inputTokens: number;
   outputTokens: number;
+  /** Independent reported count; may exceed outputTokens and is not added to input + output totals. */
   reasoningTokens?: number | null;
   requests: number;
   cost: number;
@@ -88,7 +89,9 @@ interface CodexBarDetailSection {
 }
 
 interface CodexBarUsageSnapshot {
-  /** At least one rate window, cost, non-empty detail section, or non-empty identity field is required. */
+  /** Explicitly declares a successful response with no displayable usage or identity. Other fields are still validated. */
+  empty?: boolean;
+  /** Without empty: true, at least one window, cost, non-empty detail section, or identity field is required. */
   primary?: CodexBarRateWindow | null;
   secondary?: CodexBarRateWindow | null;
   tertiary?: CodexBarRateWindow | null;
@@ -106,6 +109,17 @@ interface CodexBarUsageSnapshot {
 interface CodexBarHTTPRequestOptions {
   headers?: Readonly<Record<string, string>>;
   timeoutSeconds?: number;
+  /** One native delayed retry for transient GET failures; POST is never retried. */
+  retryPolicy?: "transientIdempotent";
+}
+
+interface CodexBarHTTPError extends Error {
+  transportClass?: "timeout" | "dns" | "offline" | "cancelled" | "tls" | "connection" | "other" | "http";
+  /** Foundation URLError code, preserved across both engines. */
+  transportCode?: number;
+  status?: number;
+  /** Error-code eligibility for an idempotent retry, not a remaining retry budget. */
+  retryable?: boolean;
 }
 
 interface CodexBarHTTPResponse {
@@ -142,6 +156,11 @@ interface CodexBarPluginContext {
   readonly http: {
     getJSON<T = unknown>(url: string, options?: CodexBarHTTPRequestOptions): Promise<CodexBarHTTPJSONResponse<T>>;
     get(url: string, options?: CodexBarHTTPRequestOptions): Promise<CodexBarHTTPTextResponse>;
+    /** POST a JSON body and retain the response text, including non-JSON error responses. */
+    post(
+      url: string,
+      options: CodexBarHTTPRequestOptions & { body: CodexBarJSONValue },
+    ): Promise<CodexBarHTTPTextResponse>;
     postJSON<T = unknown>(
       url: string,
       options: CodexBarHTTPRequestOptions & { body: CodexBarJSONValue },
@@ -152,6 +171,8 @@ interface CodexBarPluginContext {
     getSecret(key: string): string | null;
   };
   readonly browser: {
+    availability(domain: string): "available" | "off" | "manual";
+    rejectCookie(domain: string): void;
     cookieHeader(domain: string): Promise<string>;
   };
   readonly html: {
@@ -166,6 +187,8 @@ interface CodexBarPluginContext {
     nextDailyReset(timeZone: string, hour: number): Date;
   };
   readonly format: {
+    /** Native en_US currency formatting, including decimal half-even rounding and signed zero. */
+    currency(value: number, currencyCode: string): string;
     number(value: number, options?: { minimumFractionDigits?: number; maximumFractionDigits?: number }): string;
     usd(value: number): string;
     monthDay(value: Date | number | string): string;

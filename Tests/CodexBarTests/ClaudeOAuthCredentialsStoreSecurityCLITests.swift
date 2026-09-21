@@ -75,7 +75,7 @@ struct ClaudeOAuthCredentialsStoreSecurityCLITests {
     }
 
     @Test
-    func `experimental reader non interactive background load still executes security CLI read`() throws {
+    func `experimental reader background load executes security CLI when prompts are always allowed`() throws {
         let service = "com.steipete.codexbar.cache.tests.\(UUID().uuidString)"
         try KeychainCacheStore.withServiceOverrideForTesting(service) {
             try KeychainAccessGate.withTaskOverrideForTesting(false) {
@@ -108,7 +108,7 @@ struct ClaudeOAuthCredentialsStoreSecurityCLITests {
                         .securityCLIExperimental,
                         operation: {
                             try ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(
-                                .onlyOnUserAction,
+                                .always,
                                 operation: {
                                     try ProviderInteractionContext.$current.withValue(.background) {
                                         try ClaudeOAuthCredentialsStore.withSecurityCLIReadOverrideForTesting(

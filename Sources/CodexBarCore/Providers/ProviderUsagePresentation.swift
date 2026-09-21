@@ -85,15 +85,19 @@ public struct ProviderCostPresentation: Sendable, Equatable {
     public let showsGenericFallback: Bool
     public let balances: [Balance]
     public let menuCardStyle: ProviderCostMenuCardStyle
+    /// Detail rows replaced by the visible cost summary, keyed by section title.
+    public let replacedDetailRows: [String: Set<String>]
 
     public init(
         showsGenericFallback: Bool = true,
         balances: [Balance] = [],
-        menuCardStyle: ProviderCostMenuCardStyle = .generic)
+        menuCardStyle: ProviderCostMenuCardStyle = .generic,
+        replacedDetailRows: [String: Set<String>] = [:])
     {
         self.showsGenericFallback = showsGenericFallback
         self.balances = balances
         self.menuCardStyle = menuCardStyle
+        self.replacedDetailRows = replacedDetailRows
     }
 }
 
@@ -258,7 +262,6 @@ public enum ProviderPrimaryDescriptionPlacement: Sendable {
     case reset
     case detail
     case detailLeft
-    case detailBySecondaryPresence
 }
 
 public enum ProviderPrimaryDetailKind: Sendable {
@@ -272,6 +275,7 @@ public struct ProviderMenuCardPresentation: Sendable {
     public typealias UsageNotesResolver = @Sendable (ProviderUsageNotesContext) -> ProviderUsageNotesResolution
     public typealias CostVisibilityResolver = @Sendable (ProviderCostVisibilityContext) -> Bool
     public typealias SnapshotPredicate = @Sendable (_ snapshot: UsageSnapshot?) -> Bool
+    public typealias ExtraRateWindowPredicate = @Sendable (_ namedWindow: NamedRateWindow) -> Bool
     public typealias PrimaryCostHistoryResolver = @Sendable (
         _ snapshot: UsageSnapshot?,
         _ tokenSnapshot: CostUsageTokenSnapshot?) -> CostUsageTokenSnapshot?
@@ -279,17 +283,28 @@ public struct ProviderMenuCardPresentation: Sendable {
     private let usageNotesResolver: UsageNotesResolver
     private let costVisibilityResolver: CostVisibilityResolver
     private let movePrimaryDetailToStatus: SnapshotPredicate
+    private let extraRateWindowUsesResetDescriptionAsDetail: ExtraRateWindowPredicate
     private let primaryCostHistoryResolver: PrimaryCostHistoryResolver
     public let creditsVisibility: ProviderCreditsVisibility
     public let showsCreditsSection: Bool
     public let providerCostIsRequiredUsage: Bool
     public let usesProviderCostHistoryAsPrimaryDashboard: Bool
     public let supportsInlineTokenCostDashboard: Bool
+    /// Codex and Claude local cost dashboards split spend by live Weekly quota windows.
+    public let showsQuotaWeekCost: Bool
+    /// Appended under the quota-window rows when the window shown does not span the same scope as
+    /// the spend bucketed into it — e.g. a per-model-family quota beside all-model spend.
+    public let quotaWindowNote: String?
+    /// Derives past quota-window boundaries from the live reset alone, ignoring previously observed
+    /// resets. Antigravity reports a weekly bucket per model family and surfaces whichever family is
+    /// most constrained, so stored observations name *different* quotas. Feeding them to the boundary
+    /// builder manufactures windows minutes apart that no daily spend can be attributed to. Nominal
+    /// 7-day strides from the live reset stay correct and are still used.
+    public let ignoresObservedQuotaResetBoundaries: Bool
     public let primaryDescriptionPlacement: ProviderPrimaryDescriptionPlacement
     public let showsPrimaryBalanceDescription: Bool
     public let showsSecondaryBalanceDescription: Bool
     public let hidesPrimaryResetWithoutDate: Bool
-    public let hidesPrimaryResetWithoutSecondary: Bool
     public let clearsPrimaryReset: Bool
     public let primaryDetailKind: ProviderPrimaryDetailKind
     public let usesAbacusPace: Bool
@@ -306,13 +321,16 @@ public struct ProviderMenuCardPresentation: Sendable {
         usesProviderCostHistoryAsPrimaryDashboard: Bool = false,
         primaryCostHistoryResolver: @escaping PrimaryCostHistoryResolver = { _, tokenSnapshot in tokenSnapshot },
         supportsInlineTokenCostDashboard: Bool = false,
+        showsQuotaWeekCost: Bool = false,
+        quotaWindowNote: String? = nil,
+        ignoresObservedQuotaResetBoundaries: Bool = false,
         primaryDescriptionPlacement: ProviderPrimaryDescriptionPlacement = .standard,
         showsPrimaryBalanceDescription: Bool = false,
         showsSecondaryBalanceDescription: Bool = false,
         hidesPrimaryResetWithoutDate: Bool = false,
-        hidesPrimaryResetWithoutSecondary: Bool = false,
         clearsPrimaryReset: Bool = false,
         movePrimaryDetailToStatus: @escaping SnapshotPredicate = { _ in false },
+        extraRateWindowUsesResetDescriptionAsDetail: @escaping ExtraRateWindowPredicate = { _ in false },
         primaryDetailKind: ProviderPrimaryDetailKind = .none,
         usesAbacusPace: Bool = false,
         usesSyntheticRollingRegen: Bool = false,
@@ -327,13 +345,16 @@ public struct ProviderMenuCardPresentation: Sendable {
         self.usesProviderCostHistoryAsPrimaryDashboard = usesProviderCostHistoryAsPrimaryDashboard
         self.primaryCostHistoryResolver = primaryCostHistoryResolver
         self.supportsInlineTokenCostDashboard = supportsInlineTokenCostDashboard
+        self.showsQuotaWeekCost = showsQuotaWeekCost
+        self.quotaWindowNote = quotaWindowNote
+        self.ignoresObservedQuotaResetBoundaries = ignoresObservedQuotaResetBoundaries
         self.primaryDescriptionPlacement = primaryDescriptionPlacement
         self.showsPrimaryBalanceDescription = showsPrimaryBalanceDescription
         self.showsSecondaryBalanceDescription = showsSecondaryBalanceDescription
         self.hidesPrimaryResetWithoutDate = hidesPrimaryResetWithoutDate
-        self.hidesPrimaryResetWithoutSecondary = hidesPrimaryResetWithoutSecondary
         self.clearsPrimaryReset = clearsPrimaryReset
         self.movePrimaryDetailToStatus = movePrimaryDetailToStatus
+        self.extraRateWindowUsesResetDescriptionAsDetail = extraRateWindowUsesResetDescriptionAsDetail
         self.primaryDetailKind = primaryDetailKind
         self.usesAbacusPace = usesAbacusPace
         self.usesSyntheticRollingRegen = usesSyntheticRollingRegen
@@ -351,6 +372,11 @@ public struct ProviderMenuCardPresentation: Sendable {
 
     public func movesPrimaryDetailToStatus(snapshot: UsageSnapshot?) -> Bool {
         self.movePrimaryDetailToStatus(snapshot)
+    }
+
+    /// Whether an extra rate window renders its `resetDescription` as the menu-card detail line.
+    public func extraRateWindowShowsResetDescriptionAsDetail(_ namedWindow: NamedRateWindow) -> Bool {
+        self.extraRateWindowUsesResetDescriptionAsDetail(namedWindow)
     }
 
     public func primaryCostHistory(
@@ -371,20 +397,17 @@ public struct ProviderMenuDescriptorPresentation: Sendable {
     public typealias SnapshotPredicate = @Sendable (_ snapshot: UsageSnapshot) -> Bool
 
     private let primaryDescriptionIsDetail: SnapshotPredicate
-    public let duplicatesPrimaryDetailWhenResetDatePresent: Bool
     public let showsPrimaryWeeklyPace: Bool
     public let secondaryDescriptionMode: ProviderSecondaryDescriptionMode
     public let tertiaryDescriptionOverridesReset: Bool
 
     public init(
         primaryDescriptionIsDetail: @escaping SnapshotPredicate = { _ in false },
-        duplicatesPrimaryDetailWhenResetDatePresent: Bool = false,
         showsPrimaryWeeklyPace: Bool = false,
         secondaryDescriptionMode: ProviderSecondaryDescriptionMode = .standard,
         tertiaryDescriptionOverridesReset: Bool = false)
     {
         self.primaryDescriptionIsDetail = primaryDescriptionIsDetail
-        self.duplicatesPrimaryDetailWhenResetDatePresent = duplicatesPrimaryDetailWhenResetDatePresent
         self.showsPrimaryWeeklyPace = showsPrimaryWeeklyPace
         self.secondaryDescriptionMode = secondaryDescriptionMode
         self.tertiaryDescriptionOverridesReset = tertiaryDescriptionOverridesReset

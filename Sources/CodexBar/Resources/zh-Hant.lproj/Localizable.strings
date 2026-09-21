@@ -153,6 +153,10 @@
 "Cookie: …" = "Cookie：…";
 "CopilotDeviceFlow" = "Copilot 裝置流程";
 "Cost" = "費用";
+"Token history" = "Token 歷史";
+"Local token history · dollar costs unavailable" = "本機 Token 歷史 · 無美元費用資料";
+"Partial local history · recorded token subtotal" = "部分本機歷史 · 已記錄 Token 小計";
+"Local token history is unavailable or incomplete." = "本機 Token 歷史無法使用或不完整。";
 "Could not add Codex account" = "無法新增 Codex 帳號";
 "Could not open Terminal for Gemini" = "無法為 Gemini 開啟終端";
 "Could not start claude /login" = "無法啟動 claude /login";
@@ -611,6 +615,12 @@
 "cost_summary_off" = "關閉";
 "merge_icons_title" = "合併圖示";
 "merge_icons_subtitle" = "使用單一選單列圖示，並提供提供者切換器。";
+"merged_icon_style_title" = "合併圖示樣式";
+"merged_icon_style_subtitle" = "「切換」會依序輪流顯示各提供者；「堆疊」會同時顯示兩個提供者,各佔一行。";
+"merged_icon_style_switcher" = "切換";
+"merged_icon_style_stacked" = "堆疊";
+"merge_icon_stacked_top_provider_title" = "上排";
+"merge_icon_stacked_bottom_provider_title" = "下排";
 "show_most_used_provider_title" = "顯示使用量最高的提供者";
 "show_most_used_provider_subtitle" = "選單列會自動顯示最接近用量上限的提供者。";
 "display_mode_title" = "顯示模式";
@@ -814,6 +824,8 @@
 "Overage" = "超額";
 "Activity" = "活動";
 "Copied" = "已複製";
+"Managed by Homebrew" = "由 Homebrew 管理";
+"Copy update command" = "複製更新指令";
 "Copy error" = "複製錯誤";
 "Copy path" = "複製路徑";
 "Extra usage spent" = "額外使用量支出";
@@ -898,6 +910,12 @@
 "Latest billing day" = "最新帳單日";
 "Latest billing day (%@)" = "最新帳單日（%@）";
 "This week" = "本週";
+"Current window" = "目前視窗";
+"Last week" = "上週";
+"%d weeks ago" = "%d 週前";
+"Previous window" = "上一視窗";
+"%d windows ago" = "%d 個視窗前";
+"Recent windows" = "最近視窗";
 "Week" = "週";
 "Month" = "月";
 "Models" = "模型";
@@ -1016,7 +1034,6 @@
 "Open Augment (Log Out & Back In)" = "開啟 Augment（登出後重新登入）";
 "Open Codebuff Dashboard" = "開啟 Codebuff 儀表板";
 "Open Command Code Settings" = "開啟 Command Code 設定";
-"Open Crof dashboard" = "開啟 Crof 儀表板";
 "Open Manus" = "開啟 Manus";
 "Open MiMo Balance" = "開啟 MiMo 餘額";
 "Open Moonshot Console" = "開啟 Moonshot 主控台";
@@ -1084,7 +1101,6 @@
 "Stored in ~/.codexbar/config.json. Requires an Anthropic Admin API key." = "儲存在 ~/.codexbar/config.json 中。需要 Anthropic Admin API 金鑰。";
 "Stored in ~/.codexbar/config.json. Used for /v1/quota-stats." = "儲存在 ~/.codexbar/config.json 中。用於 /v1/quota-stats。";
 "Stored in ~/.codexbar/config.json. You can also provide CODEBUFF_API_KEY or let CodexBar read ~/.config/manicode/credentials.json (created by `codebuff login`)." = "儲存在 ~/.codexbar/config.json 中。你也可以提供 CODEBUFF_API_KEY，或讓 CodexBar 讀取 `codebuff login` 建立的 ~/.config/manicode/credentials.json。";
-"Stored in ~/.codexbar/config.json. You can also provide CROF_API_KEY." = "儲存在 ~/.codexbar/config.json 中。你也可以提供 CROF_API_KEY。";
 "Stored in ~/.codexbar/config.json. You can also provide KILO_API_KEY or ~/.local/share/kilo/auth.json (kilo.access)." = "儲存在 ~/.codexbar/config.json 中。你也可以提供 KILO_API_KEY 或 ~/.local/share/kilo/auth.json（kilo.access）。";
 "T3 Chat cookie" = "T3 Chat Cookie";
 "Team mode" = "團隊模式";
@@ -1367,6 +1383,8 @@
 "Tracked tokens" = "已追蹤 token";
 "Subscriptions" = "訂閱";
 "By subscription" = "依訂閱";
+"By source" = "By source";
+"%d of %d sources have spend" = "%d of %d sources have spend";
 "No model-level history" = "尚無模型層級歷史";
 "Daily estimated spend" = "每日預估支出";
 "Hourly estimated spend" = "每小時預估支出";
@@ -1612,6 +1630,24 @@
 "agent_sessions_hide_unreachable_title" = "隱藏無法連線的主機";
 "agent_sessions_hide_unreachable_subtitle" = "擷取工作階段失敗時隱藏該主機。";
 
+/* Overview share flow */
+"Share Usage Snapshot…" = "分享用量總覽…";
+"Usage snapshot unavailable" = "用量總覽無法使用";
+"CodexBar couldn't prepare a shareable usage snapshot. Refresh Usage & Spend and try again." = "CodexBar 無法準備可分享的用量總覽。請重新整理「使用量與支出」後再試一次。";
 "Incomplete" = "不完整";
 "Est. subtotal (%@): %@" = "估算小計（%@）：%@";
 "Excluded requests with missing final usage: %d" = "因缺少最終用量而排除的請求：%d";
+
+"overview_layout_title" = "概覽版面";
+"overview_layout_subtitle" = "選擇「概覽」顯示的資訊量。";
+"overview_layout_detailed" = "詳細";
+"overview_layout_compact" = "精簡";
+
+"section_widgets" = "小工具";
+"account_widgets_title" = "為小工具保持帳戶更新";
+"account_widgets_description" = "在每個 Account Usage 小工具中選擇一個帳戶。每個供應商最多重新整理六個帳戶。";
+
+/* Antigravity local cost estimates */
+"antigravity_cost_estimate_hint" = "本機用量 × 公開 API 價格 · 並非 Antigravity 帳單或額度";
+"antigravity_quota_window_note" = "視窗費用涵蓋所有模型 · 所示視窗為最受限的模型系列";
+"antigravity_no_priced_token_history" = "沒有可計價的 Antigravity 權杖歷史記錄。";

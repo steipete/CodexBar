@@ -195,10 +195,13 @@ final class InMemoryTokenAccountStore: ProviderTokenAccountStoring, @unchecked S
     }
 }
 
+private let testConfigStoreProcessRoot = FileManager.default.temporaryDirectory
+    .appendingPathComponent("codexbar-tests", isDirectory: true)
+    .appendingPathComponent(UUID().uuidString, isDirectory: true)
+
 func testConfigStore(suiteName: String, reset: Bool = true) -> CodexBarConfigStore {
     let sanitized = suiteName.replacingOccurrences(of: "/", with: "-")
-    let base = FileManager.default.temporaryDirectory
-        .appendingPathComponent("codexbar-tests", isDirectory: true)
+    let base = testConfigStoreProcessRoot
         .appendingPathComponent(sanitized, isDirectory: true)
     let url = base.appendingPathComponent("config.json")
     if reset {

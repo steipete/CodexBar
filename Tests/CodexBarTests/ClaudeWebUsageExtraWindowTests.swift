@@ -176,6 +176,71 @@ struct ClaudeWebUsageExtraWindowTests {
                 organizationUuid: "org-other")))
     }
 
+    @Test(arguments: [false, true], [false, true])
+    func `CLI web extras require matching emails even when organization names match`(
+        primaryHasEmail: Bool,
+        webHasEmail: Bool)
+    {
+        let snapshot = Self.identitySnapshot(email: primaryHasEmail ? " USER@example.com " : nil)
+        let webData = Self.identityWebData(email: webHasEmail ? "user@example.com" : nil)
+
+        #expect(ClaudeUsageFetcher.webExtrasAccountMatches(
+            snapshot: snapshot,
+            webData: webData,
+            oauthProfile: nil) == (primaryHasEmail && webHasEmail))
+    }
+
+    @Test
+    func `CLI matching emails still reject known organization mismatch`() {
+        #expect(!ClaudeUsageFetcher.webExtrasAccountMatches(
+            snapshot: Self.identitySnapshot(email: "user@example.com"),
+            webData: Self.identityWebData(email: "user@example.com", organization: "Other Team"),
+            oauthProfile: nil))
+    }
+
+    @Test
+    func `OAuth organization UUID retains identity when account email is unavailable`() {
+        #expect(ClaudeUsageFetcher.webExtrasAccountMatches(
+            snapshot: Self.identitySnapshot(email: nil),
+            webData: Self.identityWebData(email: nil),
+            oauthProfile: OAuthProfileResponse(emailAddress: nil, organizationUuid: "org-123")))
+        #expect(!ClaudeUsageFetcher.webExtrasAccountMatches(
+            snapshot: Self.identitySnapshot(email: nil),
+            webData: Self.identityWebData(email: nil),
+            oauthProfile: OAuthProfileResponse(emailAddress: nil, organizationUuid: nil)))
+    }
+
+    private static func identitySnapshot(email: String?) -> ClaudeUsageSnapshot {
+        ClaudeUsageSnapshot(
+            primary: RateWindow(usedPercent: 7, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            secondary: nil,
+            opus: nil,
+            providerCost: nil,
+            updatedAt: Date(timeIntervalSince1970: 1_800_000_000),
+            accountEmail: email,
+            accountOrganization: "Shared Team",
+            loginMethod: "Pro",
+            rawText: nil)
+    }
+
+    private static func identityWebData(
+        email: String?,
+        organization: String = "Shared Team") -> ClaudeWebAPIFetcher.WebUsageData
+    {
+        ClaudeWebAPIFetcher.WebUsageData(
+            sessionPercentUsed: 7,
+            sessionResetsAt: nil,
+            weeklyPercentUsed: nil,
+            weeklyResetsAt: nil,
+            opusPercentUsed: nil,
+            extraRateWindows: [],
+            extraUsageCost: nil,
+            accountOrganization: organization,
+            accountOrganizationID: "org-123",
+            accountEmail: email,
+            loginMethod: "Pro")
+    }
+
     @Test
     func `ignores merged claude web API omelette usage window`() throws {
         let json = """

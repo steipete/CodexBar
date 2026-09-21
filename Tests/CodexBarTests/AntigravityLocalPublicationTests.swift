@@ -16,7 +16,7 @@ struct AntigravityLocalPublicationTests {
     {
         let hasHistory = initialState == "history"
         let initial = try Fixture()
-        try initial.database(blobs: hasHistory ? [Fixture.blob()] : [])
+        try initial.database(blobs: hasHistory ? [Fixture.blob(), Fixture.blob(seconds: 1_787_832_001)] : [])
         let next = try Fixture()
         switch source {
         case "corrupt":
@@ -42,7 +42,7 @@ struct AntigravityLocalPublicationTests {
             await store.refreshTokenUsageNow(for: .antigravity, force: true)
             await store.refreshSpendDashboardTokenUsageNow(for: .antigravity, force: true)
             #expect(store.spendDashboardTokenSnapshotPublicationForCurrentConfig(for: .antigravity)?
-                .snapshot?.last30DaysTokens == (hasHistory ? 198 : nil))
+                .snapshot?.last30DaysTokens == (hasHistory ? 396 : nil))
             // A new regular publication must not be acknowledged by a failing independent refresh.
             await store.refreshTokenUsageNow(for: .antigravity, force: true)
         }
@@ -55,7 +55,27 @@ struct AntigravityLocalPublicationTests {
         await store.refreshSpendDashboardTokenUsageNow(for: .antigravity, force: true)
         let publication = store.spendDashboardTokenSnapshotPublicationForCurrentConfig(for: .antigravity)
         let regular = store.tokenSnapshotPublicationForCurrentProviderConfig(for: .antigravity)
-        if source == "empty" || source == "out-of-window" {
+        if source == "partial", hasHistory {
+            #expect(publication?.snapshot?.last30DaysTokens == 396)
+            #expect(publication?.snapshot?.historyCoverageIsEstablished == true)
+            #expect(publication?.publicationRevision == revision)
+            #expect(regular?.snapshot?.last30DaysTokens == 396)
+            #expect(regular?.publicationRevision == regularRevision)
+            #expect(store.spendDashboardTokenIncorporatedTriggers[.antigravity] == acknowledged)
+            #expect(store.spendDashboardTokenFailedTriggers[.antigravity] != nil)
+        } else if source == "partial" {
+            // A truncated scan still read trustworthy rows, so it publishes them as an explicitly
+            // partial history instead of failing. Coverage stays unclaimed, which is what keeps the
+            // totals marked as a lower bound everywhere they are rendered.
+            let snapshot = try #require(publication?.snapshot)
+            #expect(snapshot.last30DaysTokens == 198)
+            #expect(snapshot.historyCoverageIsEstablished == false)
+            #expect(snapshot.historyScanIsPartial)
+            #expect(store.spendDashboardTokenFailedTriggers[.antigravity] == nil)
+            #expect(regular?.snapshot?.last30DaysTokens == 198)
+            #expect(store.tokenFailureGates[.antigravity]?.streak == 0)
+            #expect(store.tokenError(for: .antigravity) == nil)
+        } else if source == "empty" || source == "out-of-window" {
             #expect(publication != nil)
             #expect(publication?.snapshot == nil)
             #expect(publication?.publicationRevision == revision + 1)
@@ -72,7 +92,7 @@ struct AntigravityLocalPublicationTests {
             #expect(store.spendDashboardTokenFailedTriggers[.antigravity] != nil)
             #expect(store.spendDashboardTokenIncorporatedTriggers[.antigravity] == acknowledged)
             #expect(store.tokenSnapshotPublicationRevision(for: .antigravity) == regularRevision)
-            #expect(regular?.snapshot?.last30DaysTokens == (hasHistory ? 198 : nil))
+            #expect(regular?.snapshot?.last30DaysTokens == (hasHistory ? 396 : nil))
             #expect((regular != nil) == hasHistory)
             #expect(store.tokenFailureGates[.antigravity]?.streak == 1)
             #expect((store.tokenError(for: .antigravity) != nil) == !hasHistory)

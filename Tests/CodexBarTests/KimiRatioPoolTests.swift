@@ -127,7 +127,125 @@ struct KimiRatioPoolTests {
         }
     }
 
+    @Test(arguments: ["2026-09-19T16:45:58Z", "2026-09-19T16:45:59Z"])
+    func `zero ratio placeholder does not hide matching nonzero counts`(_ reset: String) throws {
+        let usage = try Self.parse("""
+        {"usage":{"limit":"100","used":"19","remaining":"81",
+                  "resetTime":"2026-09-19T16:45:59.449979Z"},
+         "usages":{"limit_7d":{"used_ratio":0,"reset_time":"\(reset)"}}}
+        """)
+        #expect(usage.primary?.usedPercent == 19)
+    }
+
+    @Test
+    func `zero ratio after a different reset stays authoritative`() throws {
+        let usage = try Self.parse("""
+        {"usage":{"limit":"100","used":"19","remaining":"81",
+                  "resetTime":"2026-09-19T16:45:59Z"},
+         "usages":{"limit_7d":{"used_ratio":0,"reset_time":"2026-09-26T16:45:59Z"}}}
+        """)
+        #expect(usage.primary?.usedPercent == 0)
+    }
+
+    @Test
+    func `mixed international response retains the used weekly and session quotas`() throws {
+        let usage = try Self.parse(Self.mixedInternationalResponse)
+        #expect(usage.primary?.usedPercent == 19)
+        #expect(usage.secondary?.usedPercent == 1)
+        #expect(usage.primary?.windowMinutes == 10080)
+        #expect(usage.secondary?.windowMinutes == 300)
+        #expect(usage.primary?.resetsAt == ISO8601DateParser.parse("2026-09-19T16:45:59.449979Z"))
+        #expect(usage.secondary?.resetsAt == ISO8601DateParser.parse("2026-09-19T14:45:59.449979Z"))
+        #expect(usage.extraRateWindows == nil)
+    }
+
+    @Test(arguments: ["0.1869", "0.5"])
+    func `nonzero ratios remain authoritative over legacy counts`(_ ratio: String) throws {
+        let usage = try Self.parse("""
+        {"usage":{"limit":"100","used":"19","resetTime":"2026-09-19T16:45:59Z"},
+         "usages":{"limit_7d":{"used_ratio":\(ratio),"reset_time":"2026-09-19T16:45:59Z"}}}
+        """)
+        let expected = try #require(Double(ratio)) * 100
+        let actual = try #require(usage.primary?.usedPercent)
+        #expect(abs(actual - expected) < 0.00001)
+    }
+
+    @Test
+    func `monthly ratio accounts retain zero ratios even with matching legacy counts`() throws {
+        let usage = try Self.parse("""
+        {"usage":{"limit":"100","used":"19","resetTime":"2026-09-19T16:45:59Z"},
+         "usages":{"limit_7d":{"used_ratio":0,"reset_time":"2026-09-19T16:45:59Z"},
+                   "limit_month_total":{"used_ratio":0.0313}}}
+        """)
+        #expect(usage.primary?.usedPercent == 0)
+        #expect(try abs(#require(usage.extraRateWindows?.first?.window.usedPercent) - 3.13) < 0.00001)
+    }
+
+    @Test(arguments: ["null", "\"invalid\"", "\"2026-09-19T16:46:02Z\""])
+    func `unmatched count resets cannot override a zero ratio`(_ reset: String) throws {
+        let usage = try Self.parse("""
+        {"usage":{"limit":"100","used":"19","resetTime":\(reset)},
+         "usages":{"limit_7d":{"used_ratio":0,"reset_time":"2026-09-19T16:45:59Z"}}}
+        """)
+        #expect(usage.primary?.usedPercent == 0)
+    }
+
+    @Test(arguments: ["0", "-1", "invalid"])
+    func `invalid or empty counts cannot override a zero ratio`(_ used: String) throws {
+        let usage = try Self.parse("""
+        {"usage":{"limit":"100","used":"\(used)","resetTime":"2026-09-19T16:45:59Z"},
+         "usages":{"limit_7d":{"used_ratio":0,"reset_time":"2026-09-19T16:45:59Z"}}}
+        """)
+        #expect(usage.primary?.usedPercent == 0)
+    }
+
+    @Test
+    func `different count window duration cannot override the session ratio`() throws {
+        let json = Self.mixedInternationalResponse.replacingOccurrences(
+            of: "\"duration\": 300",
+            with: "\"duration\": 120")
+        let usage = try Self.parse(json)
+        #expect(usage.primary?.usedPercent == 19)
+        #expect(usage.secondary?.usedPercent == 0)
+        #expect(usage.secondary?.windowMinutes == 300)
+    }
+
+    private static let mixedInternationalResponse = """
+    {
+      "usage": {
+        "limit": "100",
+        "used": "19",
+        "remaining": "81",
+        "resetTime": "2026-09-19T16:45:59.449979Z"
+      },
+      "limits": [
+        {
+          "window": {
+            "duration": 300,
+            "timeUnit": "TIME_UNIT_MINUTE"
+          },
+          "detail": {
+            "limit": "100",
+            "used": "1",
+            "remaining": "99",
+            "resetTime": "2026-09-19T14:45:59.449979Z"
+          }
+        }
+      ],
+      "usages": {
+        "limit_5h": {
+          "used_ratio": 0,
+          "reset_time": "2026-09-19T14:45:58Z"
+        },
+        "limit_7d": {
+          "used_ratio": 0,
+          "reset_time": "2026-09-19T16:45:58Z"
+        }
+      }
+    }
+    """
+
     private static func parse(_ json: String) throws -> UsageSnapshot {
-        try KimiUsageFetcher._parseCodeAPIUsageForTesting(Data(json.utf8)).toUsageSnapshot()
+        try KimiUsageFetcher.parseCodeAPIUsage(from: Data(json.utf8)).toUsageSnapshot()
     }
 }

@@ -36,28 +36,11 @@ enum DevinSessionImporter {
         let sourceLabel: String
     }
 
-    static func importSession(
-        browserDetection: BrowserDetection,
-        organizationOverride: String? = nil,
-        logger: ((String) -> Void)? = nil) -> SessionInfo?
-    {
-        #if DEBUG
-        if let override = self.taskImportSessionOverrideStore?.importSession {
-            return override(browserDetection, organizationOverride, logger)
-        }
-        #endif
-
-        let sessions = self.importSessions(
-            browserDetection: browserDetection,
-            organizationOverride: organizationOverride,
-            logger: logger)
-        return sessions.first
-    }
-
     static func importSessions(
         browserDetection: BrowserDetection,
+        candidates: [ChromiumLocalStorageDiscovery.Candidate]? = nil,
         organizationOverride: String? = nil,
-        logger: ((String) -> Void)? = nil) -> [SessionInfo]
+        logger: ((String) -> Void)? = nil) throws -> [SessionInfo]
     {
         #if DEBUG
         if let override = self.taskImportSessionOverrideStore?.importSession {
@@ -66,15 +49,23 @@ enum DevinSessionImporter {
         #endif
 
         let log: (String) -> Void = { msg in logger?("[devin-storage] \(msg)") }
-        let candidates = ChromiumLocalStorageDiscovery
+        let candidates = candidates ?? ChromiumLocalStorageDiscovery
             .candidates(browsers: self.localStorageBrowsers(browserDetection: browserDetection))
         if !candidates.isEmpty {
             log("Chrome local storage candidates: \(candidates.count)")
         }
 
         var sessions: [SessionInfo] = []
+        var unreadableStorage = false
         for candidate in candidates {
-            let storage = self.readLocalStorage(from: candidate.url, logger: log)
+            let storage: [String: String]
+            do {
+                storage = try self.readLocalStorage(from: candidate.url, logger: log)
+            } catch {
+                unreadableStorage = true
+                log("Could not read Chrome local storage in \(candidate.label)")
+                continue
+            }
             guard let session = self.session(
                 from: storage,
                 organizationOverride: organizationOverride,
@@ -91,6 +82,7 @@ enum DevinSessionImporter {
         sessions = self.rankSessions(self.deduplicateSessions(sessions))
 
         if sessions.isEmpty {
+            if unreadableStorage { throw DevinUsageError.browserStorageUnreadable }
             log("No Devin session found in browser local storage")
         }
         return sessions
@@ -113,34 +105,17 @@ enum DevinSessionImporter {
     }
 
     static func accessToken(from storage: [String: String]) -> String? {
-        for (key, value) in storage where self.isAuth1StorageKey(key) {
-            guard let json = self.jsonObject(from: value),
-                  let token = self.findAuth1Token(in: json)
-            else {
-                continue
+        func firstToken(matching matches: (String) -> Bool, parse: (Any) -> String?) -> String? {
+            for (key, value) in storage where matches(key) {
+                if let json = self.jsonObject(from: value), let token = parse(json) {
+                    return token
+                }
             }
-            return token
+            return nil
         }
-
-        for (key, value) in storage where self.isAuth0StorageKey(key) {
-            guard let json = self.jsonObject(from: value),
-                  let token = self.findAccessToken(in: json)
-            else {
-                continue
-            }
-            return token
-        }
-
-        for value in storage.values {
-            guard let json = self.jsonObject(from: value),
-                  let token = self.findAccessToken(in: json)
-            else {
-                continue
-            }
-            return token
-        }
-
-        return nil
+        return firstToken(matching: self.isAuth1StorageKey, parse: self.findAuth1Token)
+            ?? firstToken(matching: self.isAuth0StorageKey, parse: self.findAccessToken)
+            ?? firstToken(matching: { _ in true }, parse: self.findAccessToken)
     }
 
     static func deduplicateSessions(_ sessions: [SessionInfo]) -> [SessionInfo] {
@@ -178,6 +153,9 @@ enum DevinSessionImporter {
         organizationOverride: String?) -> (organization: String?, internalOrganizationID: String?)
     {
         let override = DevinUsageFetcher.normalizedOrganization(organizationOverride)
+        if let override, let internalOrgID = self.orgID(fromNormalizedOrganization: override) {
+            return (override, internalOrgID)
+        }
         let overrideSlug = override.flatMap(self.slug(fromNormalizedOrganization:))
         var firstInternalOrgID: String?
 
@@ -200,7 +178,7 @@ enum DevinSessionImporter {
         }
 
         if let override {
-            return (override, firstInternalOrgID ?? self.orgID(fromNormalizedOrganization: override))
+            return (override, nil)
         }
 
         return (firstInternalOrgID.map { "organizations/\($0)" }, firstInternalOrgID)
@@ -223,26 +201,55 @@ enum DevinSessionImporter {
         return order.browsersWithProfileData(using: browserDetection)
     }
 
-    private static func readLocalStorage(from levelDBURL: URL, logger: ((String) -> Void)?) -> [String: String] {
-        var storage: [String: String] = [:]
+    static func readLocalStorage(from levelDBURL: URL, logger: ((String) -> Void)? = nil) throws -> [String: String] {
         let entries = SweetCookieKit.ChromiumLocalStorageReader.readEntries(
             for: self.storageOrigin,
             in: levelDBURL,
             logger: logger)
-        for entry in entries {
-            storage[entry.key] = self.decodedStorageValue(entry.value)
-        }
-
         let textEntries = SweetCookieKit.ChromiumLocalStorageReader.readTextEntries(
             in: levelDBURL,
             logger: logger)
-        for entry in textEntries where storage[entry.key] == nil {
-            if self.isUsefulStorageKey(entry.key) {
-                storage[entry.key] = self.decodedStorageValue(entry.value)
+        let storage = self.localStorageValues(from: entries, textEntries: textEntries)
+        if self.accessToken(from: storage) == nil {
+            // The best-effort reader swallows I/O errors; distinguish an inaccessible store from a sign-out.
+            let files = try FileManager.default.contentsOfDirectory(
+                at: levelDBURL,
+                includingPropertiesForKeys: nil,
+                options: [.skipsHiddenFiles])
+            for file in files where ["ldb", "log"].contains(file.pathExtension.lowercased()) {
+                let handle = try FileHandle(forReadingFrom: file)
+                try handle.close()
             }
+        }
+        return storage
+    }
+
+    static func localStorageValues(
+        from entries: [SweetCookieKit.ChromiumLocalStorageEntry],
+        textEntries: [SweetCookieKit.ChromiumLevelDBTextEntry]) -> [String: String]
+    {
+        var storage: [String: String] = [:]
+        for entry in entries {
+            storage[entry.key] = self.decodedStorageValue(entry.value)
+        }
+        for entry in textEntries {
+            guard let key = self.localStorageKey(fromRawKey: entry.key),
+                  self.isUsefulStorageKey(key), storage[key] == nil
+            else { continue }
+            storage[key] = self.decodedStorageValue(entry.value)
         }
 
         return storage
+    }
+
+    private static func localStorageKey(fromRawKey raw: String) -> String? {
+        guard let separator = raw.firstIndex(of: "\u{0000}") else { return nil }
+        var origin = String(raw[..<separator])
+        if origin.hasPrefix("_") { origin.removeFirst() }
+        origin = String(origin.split(separator: "^", maxSplits: 1).first ?? "")
+            .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        guard origin == self.storageOrigin || origin == "app.devin.ai" else { return nil }
+        return String(raw[raw.index(after: separator)...]).trimmingCharacters(in: .controlCharacters)
     }
 
     private static func jsonObject(from raw: String) -> Any? {
@@ -319,44 +326,30 @@ enum DevinSessionImporter {
         override: String?) -> (organization: String?, internalOrganizationID: String?)?
     {
         let overrideSlug = override.flatMap(self.slug(fromNormalizedOrganization:))
-        let overrideOrgID = override.flatMap(self.orgID(fromNormalizedOrganization:))
-        var fallbackSlug: String?
-        var fallbackInternalOrgID: String?
-
-        for (key, value) in storage {
-            let object = self.jsonObject(from: value)
-            let internalOrgID = self.cleanedOrgID(self.firstString(
-                in: object,
-                matching: ["internalOrgId", "internal_org_id", "org_id", "orgId"]))
-                ?? self.internalOrgIDFromStorageKey(key)
-            let slug = self.cleanedSlug(
-                self.slugFromPostAuthKey(key) ??
-                    self.firstString(in: object, matching: ["orgName", "org_name", "externalOrgId", "external_org_id"]))
-
-            if let overrideOrgID, internalOrgID == overrideOrgID {
-                return (override, internalOrgID)
-            }
-            if let overrideSlug, slug == overrideSlug {
-                return (override, internalOrgID)
-            }
-
-            if fallbackSlug == nil, let slug {
-                fallbackSlug = slug
-            }
-            if fallbackInternalOrgID == nil, let internalOrgID {
-                fallbackInternalOrgID = internalOrgID
-            }
+        let candidates = storage.keys.sorted().flatMap { key in
+            self.organizationCandidates(
+                in: storage[key].flatMap(self.jsonObject(from:)),
+                keyContext: OrganizationCandidate(
+                    slug: self.cleanedSlug(self.slugFromPostAuthKey(key)),
+                    internalOrganizationID: self.internalOrgIDFromStorageKey(key)))
         }
 
-        if let override, fallbackInternalOrgID != nil {
-            return (override, fallbackInternalOrgID)
+        if let overrideSlug {
+            let matching = candidates.filter { $0.slug == overrideSlug }
+            if let candidate = matching.first(where: { $0.internalOrganizationID != nil }) ?? matching.first {
+                return (override, candidate.internalOrganizationID)
+            }
         }
+        guard override == nil else { return nil }
 
-        if let fallbackSlug {
-            return ("org/\(fallbackSlug)", fallbackInternalOrgID)
+        let candidate = candidates.first { $0.slug != nil && $0.internalOrganizationID != nil }
+            ?? candidates.first { $0.slug != nil }
+            ?? candidates.first
+        if let slug = candidate?.slug {
+            return ("org/\(slug)", candidate?.internalOrganizationID)
         }
-        if let fallbackInternalOrgID {
-            return ("organizations/\(fallbackInternalOrgID)", fallbackInternalOrgID)
+        if let internalOrgID = candidate?.internalOrganizationID {
+            return ("organizations/\(internalOrgID)", internalOrgID)
         }
 
         return nil
@@ -367,15 +360,11 @@ enum DevinSessionImporter {
         return String(key[range.upperBound...])
     }
 
-    private static func cleanedOrgID(_ raw: String) -> String? {
+    private static func cleanedOrgID(_ raw: String?) -> String? {
+        guard let raw else { return nil }
         let value = self.decodedStorageValue(raw)
         guard DevinUsageFetcher.isInternalOrganizationID(value) else { return nil }
         return value
-    }
-
-    private static func cleanedOrgID(_ raw: String?) -> String? {
-        guard let raw else { return nil }
-        return self.cleanedOrgID(raw)
     }
 
     private static func cleanedSlug(_ raw: String?) -> String? {
@@ -404,27 +393,42 @@ enum DevinSessionImporter {
         return self.cleanedOrgID(String(key[range]))
     }
 
-    private static func firstString(in object: Any?, matching keys: Set<String>) -> String? {
-        if let dictionary = object as? [String: Any] {
-            for (key, value) in dictionary {
-                if keys.contains(key), let string = value as? String, !string.isEmpty {
-                    return string
-                }
-                if let found = self.firstString(in: value, matching: keys) {
-                    return found
-                }
-            }
+    private struct OrganizationCandidate {
+        let slug: String?
+        let internalOrganizationID: String?
+
+        var isEmpty: Bool {
+            self.slug == nil && self.internalOrganizationID == nil
+        }
+    }
+
+    private static func organizationCandidates(
+        in object: Any?,
+        keyContext: OrganizationCandidate? = nil) -> [OrganizationCandidate]
+    {
+        let dictionary = object as? [String: Any] ?? [:]
+        let slug = ["orgName", "org_name", "externalOrgId", "external_org_id"]
+            .compactMap { self.cleanedSlug(dictionary[$0] as? String) }.first
+        let internalOrgID = ["internalOrgId", "internal_org_id", "org_id", "orgId"]
+            .compactMap { self.cleanedOrgID(dictionary[$0] as? String) }.first
+        let conflictsWithKey =
+            (slug != nil && keyContext?.slug != nil && slug != keyContext?.slug) ||
+            (internalOrgID != nil && keyContext?.internalOrganizationID != nil &&
+                internalOrgID != keyContext?.internalOrganizationID)
+        let direct = OrganizationCandidate(
+            slug: slug ?? (conflictsWithKey ? nil : keyContext?.slug),
+            internalOrganizationID: internalOrgID ?? (conflictsWithKey ? nil : keyContext?.internalOrganizationID))
+        var candidates = direct.isEmpty ? [] : [direct]
+        if conflictsWithKey, let keyContext, !keyContext.isEmpty {
+            candidates.append(keyContext)
         }
 
-        if let array = object as? [Any] {
-            for value in array {
-                if let found = self.firstString(in: value, matching: keys) {
-                    return found
-                }
-            }
+        // Child objects have their own organization identity; never complete a pair across records.
+        let children = object as? [Any] ?? dictionary.keys.sorted().compactMap { dictionary[$0] }
+        for child in children {
+            candidates.append(contentsOf: self.organizationCandidates(in: child))
         }
-
-        return nil
+        return candidates
     }
 
     private static func slug(fromNormalizedOrganization organization: String) -> String? {

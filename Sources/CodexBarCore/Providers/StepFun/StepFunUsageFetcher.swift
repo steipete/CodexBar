@@ -259,15 +259,14 @@ public struct StepFunUsageSnapshot: Sendable {
         // Credit plans have no rolling windows, even before a credit balance is available.
         if self.isCreditPlan {
             let creditWindow = self.creditLeftRate.map { creditRate in
-                let resetDate = self.creditResetTime ?? Date.distantFuture
                 // Only a real monthly reset can feed plan-utilization history and pace.
-                return RateWindow(
+                RateWindow(
                     usedPercent: max(0, min(100, (1.0 - creditRate) * 100)),
                     windowMinutes: self.creditResetTime.map { _ in
                         ProviderPaceCapability.monthlyWindowSentinelMinutes
                     },
-                    resetsAt: resetDate,
-                    resetDescription: UsageFormatter.resetDescription(from: resetDate))
+                    resetsAt: self.creditResetTime,
+                    resetDescription: self.creditResetTime.map { UsageFormatter.resetDescription(from: $0) })
             }
 
             return UsageSnapshot(

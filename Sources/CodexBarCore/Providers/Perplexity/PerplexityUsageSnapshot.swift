@@ -81,7 +81,8 @@ extension PerplexityUsageSnapshot {
                     usedPercent: primaryPercent,
                     windowMinutes: nil,
                     resetsAt: self.renewalDate,
-                    resetDescription: "\(Int(self.recurringUsed.rounded()))/\(Int(self.recurringTotal)) credits")
+                    resetDescription: Self.creditDescription(
+                        used: self.recurringUsed, total: self.recurringTotal, unit: "credits"))
             }
             if hasFallbackCredits {
                 // When recurring is absent but bonus/purchased credits remain, omit the fake 0/0 primary lane
@@ -100,9 +101,9 @@ extension PerplexityUsageSnapshot {
         let promoPercent = self.promoTotal > 0
             ? min(100, max(0, self.promoUsed / self.promoTotal * 100))
             : 100.0
-        var promoDesc = "\(Int(promoUsed.rounded()))/\(Int(self.promoTotal)) bonus"
-        if let expiry = promoExpiration {
-            promoDesc += " \u{00b7} exp. \(Self.promoExpiryFormatter.string(from: expiry))"
+        var promoDesc = Self.creditDescription(used: self.promoUsed, total: self.promoTotal, unit: "bonus")
+        if let expiry = promoExpiration, let description = promoDesc {
+            promoDesc = "\(description) \u{00b7} exp. \(Self.promoExpiryFormatter.string(from: expiry))"
         }
         let secondary = RateWindow(
             usedPercent: promoPercent,
@@ -119,7 +120,8 @@ extension PerplexityUsageSnapshot {
             usedPercent: purchasedPercent,
             windowMinutes: nil,
             resetsAt: nil,
-            resetDescription: "\(Int(purchasedUsed.rounded()))/\(Int(self.purchasedTotal)) credits")
+            resetDescription: Self.creditDescription(
+                used: self.purchasedUsed, total: self.purchasedTotal, unit: "credits"))
 
         let identity = ProviderIdentitySnapshot(
             providerID: .perplexity,
@@ -134,5 +136,19 @@ extension PerplexityUsageSnapshot {
             providerCost: nil,
             updatedAt: self.updatedAt,
             identity: identity)
+    }
+
+    private static func creditDescription(used: Double, total: Double, unit: String) -> String? {
+        guard used.isFinite, total.isFinite else { return nil }
+        let roundedUsed = used.rounded()
+        let truncatedTotal = total.rounded(.towardZero)
+        let normalizedUsed: Double = roundedUsed == 0 ? 0 : roundedUsed
+        let normalizedTotal: Double = truncatedTotal == 0 ? 0 : truncatedTotal
+        let counts = String(
+            format: "%.0f/%.0f",
+            locale: Locale(identifier: "en_US_POSIX"),
+            normalizedUsed,
+            normalizedTotal)
+        return "\(counts) \(unit)"
     }
 }

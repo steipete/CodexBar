@@ -35,6 +35,15 @@ extension CodexBarCLI {
         let includePiSessions = Self.decodeCostIncludePiSessions(from: values)
         let useColor = Self.shouldUseColor(noColor: values.flags.contains("noColor"), format: format)
         let historyDays = Self.decodeCostHistoryDays(from: values)
+        if values.options["remote"] != nil || values.flags.contains("summaryOnly") {
+            await Self.runCodexHostCosts(
+                values,
+                providers: providers,
+                unsupported: unsupported,
+                historyDays: historyDays,
+                output: output)
+            return
+        }
         // Cursor cost reuses the same cookie-source policy as usage fetches: reject the fetch when the
         // user set Cursor cookies to Off, and forward the Manual header so the dashboard request uses
         // the configured session instead of auto-resolving a different one.
@@ -64,12 +73,16 @@ extension CodexBarCLI {
         let bucketCalendar = CostUsageBucketTimeZone.calendar(
             identifier: Self.stringFromAppDefaults("tokenCostUsageBucketTimeZone"))
         let fetcher = CostUsageFetcher(calendar: bucketCalendar)
+        let outputProviders = Self.costProviders(providers, groupBy: groupBy, format: format)
+        let piSessionProcessContexts = await Self.piSessionProcessContextsForCost(
+            providers: outputProviders,
+            includePiSessions: includePiSessions)
         var sections: [String] = []
         var payload: [CostPayload] = []
         var exitCode: ExitCode = .success
 
         // Provider-specific by design: project/session grouping is available only for Codex local session data.
-        for provider in Self.costProviders(providers, groupBy: groupBy, format: format) {
+        for provider in outputProviders {
             if let error = Self.cursorCostAvailabilityError(
                 provider,
                 settings: cursorCookieSettings,
@@ -94,9 +107,11 @@ extension CodexBarCLI {
                     refreshPricingInBackground: false,
                     includePiSessions: Self.costIncludePiSessions(
                         provider: provider,
+                        selectedProviders: outputProviders,
                         groupBy: groupBy,
                         format: format,
-                        includePiSessions: includePiSessions))
+                        includePiSessions: includePiSessions),
+                    piSessionProcessContexts: piSessionProcessContexts)
                 switch format {
                 case .text:
                     sections.append(Self.renderCostText(
@@ -167,9 +182,14 @@ extension CodexBarCLI {
         calendar: Calendar = .current,
         includeBreakdown: Bool = false) -> String
     {
-        let name = ProviderDescriptorRegistry.descriptor(for: provider).metadata.displayName
-        // Provider-specific by design: Antigravity exposes token history, not priced estimates.
-        if provider == .antigravity {
+        let descriptor = ProviderDescriptorRegistry.descriptor(for: provider)
+        let name = descriptor.metadata.displayName
+        // Provider-specific by design: Antigravity is the one cost provider whose local models can
+        // all be absent from the pricing catalog, so it falls back to the token-only rendering.
+        // Other providers keep the cost shape and render their unknown values as dashes.
+        let costIsEntirelyUnknown = provider == .antigravity
+            && (snapshot.last30DaysCostUSD == nil || (snapshot.daily.isEmpty && snapshot.last30DaysCostUSD == 0))
+        if descriptor.tokenCost.presentation == .tokensOnly || costIsEntirelyUnknown {
             return Self.renderLocalTokenHistoryText(name: name, snapshot: snapshot, useColor: useColor)
         }
         // Provider-specific by design: Codex cost is explicitly an API-equivalent local-session estimate.
@@ -186,6 +206,7 @@ extension CodexBarCLI {
 
         let todayIncomplete = snapshot.summary(forLastDays: 1, calendar: calendar).incompleteRequestCount
         let incomplete = CostUsageIncompleteRequests.sum(snapshot.daily.map(\.incompleteRequestCount))
+        let unpriced = snapshot.daily.reduce(0) { $0 + max(0, $1.unpricedRequestCount ?? 0) }
         let todayCost = snapshot.sessionCostUSD
             .map { UsageFormatter.currencyString($0, currencyCode: snapshot.currencyCode) } ?? "—"
         let todayTokens = snapshot.sessionTokens.map { UsageFormatter.tokenCountString($0) }
@@ -217,6 +238,12 @@ extension CodexBarCLI {
         if incomplete > 0 {
             lines
                 .append("Incomplete: \(incomplete) requests lacked final usage and were excluded from tokens and cost.")
+        }
+        if unpriced > 0 {
+            lines.append("Partial estimate: \(unpriced) recorded request\(unpriced == 1 ? "" : "s") had no price.")
+        }
+        if !snapshot.historyIsFullyScanned {
+            lines.append("Partial local history · recorded token subtotal")
         }
         // Provider-specific by design: only Claude local history currently guarantees model attribution.
         if includeBreakdown, provider == .claude, !snapshot.daily.isEmpty {
@@ -379,7 +406,7 @@ extension CodexBarCLI {
             }
         }
         guard !modelAgg.isEmpty else { return [] }
-        let isPartial = !snapshot.historyCoverageIsEstablished || hasUnattributedDay
+        let isPartial = !snapshot.historyIsFullyScanned || hasUnattributedDay
             || modelAgg.values.contains { !$0.hasUsage || $0.cost == nil || $0.tokens == nil }
         let sorted = modelAgg.sorted { lhs, rhs in
             let lCost = lhs.value.hasUsage ? lhs.value.cost ?? -1 : -1
@@ -421,7 +448,7 @@ extension CodexBarCLI {
     {
         let header = Self.costHeaderLine("\(name) Token History", useColor: useColor)
         let hint = "Local token history · dollar costs unavailable"
-        guard snapshot.historyCoverageIsEstablished else {
+        guard snapshot.historyCoverageIsEstablished || snapshot.last30DaysTokens != nil else {
             return [header, "Local token history is unavailable or incomplete.", hint].joined(separator: "\n")
         }
         let today = snapshot.sessionTokens.map { "\(UsageFormatter.tokenCountString($0)) tokens" } ?? "—"
@@ -432,7 +459,9 @@ extension CodexBarCLI {
             header,
             "Today: \(today)",
             snapshot.historyDays == 1 ? nil : "\(historyLabel): \(total)",
-            snapshot.daily.isEmpty ? "No token usage found in the selected period." : nil,
+            snapshot.daily.isEmpty && snapshot.historyCoverageIsEstablished
+                ? "No token usage found in the selected period." : nil,
+            snapshot.historyIsFullyScanned ? nil : "Partial local history · recorded token subtotal",
             hint,
         ]
         return lines.compactMap(\.self).joined(separator: "\n")
@@ -547,6 +576,18 @@ extension CodexBarCLI {
         selection.asList.filter { Self.costSupportedProviders.contains($0) }
     }
 
+    /// Provider-specific by design: historical Pi/OMP cost roots must include the working directories and
+    /// selectors of live Pi-family processes, even when the CLI itself runs from another directory.
+    static func piSessionProcessContextsForCost(
+        providers: [UsageProvider],
+        includePiSessions: Bool) async -> [PiSessionProcessContext]
+    {
+        let hasPiConsumer = providers.contains(.pi) ||
+            (includePiSessions && providers.contains { $0 == .claude || $0 == .codex })
+        guard hasPiConsumer else { return [] }
+        return await LocalAgentSessionScanner().piSessionProcessContexts()
+    }
+
     /// Providers participating in a cost run: text-mode project/session grouping is Codex-only,
     /// while JSON output always keeps every requested provider.
     static func costProviders(
@@ -561,10 +602,16 @@ extension CodexBarCLI {
     /// Session text reports need native Codex rows, so keep Pi/OMP aggregate merging out of that path.
     static func costIncludePiSessions(
         provider: UsageProvider,
+        selectedProviders: [UsageProvider] = [],
         groupBy: CostGroupBy,
         format: OutputFormat,
         includePiSessions: Bool) -> Bool
     {
+        // Provider-specific by design: Pi owns its rows when it is selected alongside native
+        // local providers, so the two provider snapshots cannot publish the same usage twice.
+        if provider == .claude || provider == .codex, selectedProviders.contains(.pi) {
+            return false
+        }
         // Provider-specific by design: only Codex local session text bypasses Pi/OMP merging.
         guard provider == .codex, groupBy == .session, format == .text else { return includePiSessions }
         return false
@@ -949,6 +996,12 @@ struct CostOptions: CommanderParsable {
 
     @Option(name: .long("group-by"), help: "Group text output by: project | session")
     var groupBy: String?
+
+    @Option(name: .long("remote"), help: "Also report native Codex costs from one SSH host as a separate report")
+    var remote: String?
+
+    @Flag(name: .long("summary-only"), help: "Versioned native Codex JSON totals without account or session details")
+    var summaryOnly: Bool = false
 }
 
 struct CostPayload: Encodable, Sendable {

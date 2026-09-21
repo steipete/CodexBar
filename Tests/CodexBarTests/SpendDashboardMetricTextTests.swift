@@ -17,4 +17,51 @@ struct SpendDashboardMetricTextTests {
         #expect(spendDashboardMetricText(cost: nil, tokens: 1200, currencyCode: "USD").contains("1"))
         #expect(spendDashboardMetricText(cost: nil, tokens: nil, currencyCode: "USD") == "—")
     }
+
+    @Test
+    func `detail sections expose only breakdowns backed by data`() {
+        #expect(spendDashboardAvailableDetailSections(hasProjects: false, hasSessions: false) == [
+            .providers,
+        ])
+        #expect(spendDashboardAvailableDetailSections(hasProjects: true, hasSessions: true) == [
+            .providers,
+            .projects,
+            .sessions,
+        ])
+    }
+
+    @Test
+    func `hourly trend appears only when hourly data exists`() {
+        #expect(spendDashboardAvailableTrendSections(hasHourlyData: false) == [.daily])
+        #expect(spendDashboardAvailableTrendSections(hasHourlyData: true) == [.daily, .hourly])
+    }
+
+    @Test
+    func `provider metric marks partial aggregates without hiding known values`() {
+        let text = spendDashboardBreakdownMetricText(
+            cost: 2.5,
+            tokens: 1200,
+            currencyCode: "USD",
+            hasPartialCost: true,
+            hasPartialTokens: true)
+        #expect(text.contains("~$"))
+        #expect(text.contains("~1"))
+    }
+
+    @Test
+    func `provider metrics preserve incomplete warnings even when no amount is known`() {
+        let missing = spendDashboardBreakdownMetricText(
+            cost: nil, tokens: nil, currencyCode: "USD", incompleteRequestCount: 2)
+        #expect(missing == "—" + UsageFormatter.incompleteUsageSuffix(2))
+        let subtotal = spendDashboardBreakdownMetricText(
+            cost: 4,
+            tokens: 40,
+            currencyCode: "USD",
+            hasPartialCost: true,
+            hasPartialTokens: true,
+            incompleteRequestCount: 2)
+        #expect(subtotal.contains("~$4.00"))
+        #expect(subtotal.contains("~40"))
+        #expect(subtotal.hasSuffix(UsageFormatter.incompleteUsageSuffix(2)))
+    }
 }

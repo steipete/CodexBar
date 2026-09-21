@@ -10,6 +10,24 @@ import CSQLite3
 struct AntigravityLocalIntegrityTests {
     private typealias Fixture = AntigravityLocalFixture
 
+    @Test(arguments: [false, true])
+    func `copied rows with missing metadata leave valid evidence explicitly partial in either order`(
+        malformedFirst: Bool) async throws
+    {
+        let fixture = try Fixture()
+        let valid = Fixture.blob(response: "copied-response")
+        let malformed = Fixture.blob(response: "copied-response", seconds: nil)
+        try fixture.database(rootIndex: 0, blobs: [malformedFirst ? malformed : valid])
+        try fixture.database(rootIndex: 1, blobs: [malformedFirst ? valid : malformed])
+        let report = try fixture.report()
+        #expect(report.coverage == .partial)
+        #expect(!report.evidenceIsContradicted)
+        let snapshot = try await fixture.snapshot()
+        #expect(snapshot.last30DaysTokens == 198)
+        #expect(snapshot.historyScanIsPartial)
+        #expect(!snapshot.historyCoverageIsEstablished)
+    }
+
     @Test(arguments: [false, true], [false, true])
     func `duplicate responses retain contradictory copied row evidence in either source order`(
         reversed: Bool, contradictory: Bool) async throws

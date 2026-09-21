@@ -35,10 +35,12 @@ enum ShareStatsRenderer {
 
 @MainActor
 enum ShareStatsExporter {
-    static func copyImage(_ payload: ShareStatsPayload) -> Bool {
+    static func copyImage(
+        _ payload: ShareStatsPayload,
+        pasteboard: NSPasteboard = .general) -> Bool
+    {
         guard let data = ShareStatsRenderer.pngData(for: payload),
               let image = NSImage(data: data) else { return false }
-        let pasteboard = NSPasteboard.general
         let item = NSPasteboardItem()
         item.setData(data, forType: .png)
         if let tiff = image.tiffRepresentation {

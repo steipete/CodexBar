@@ -78,7 +78,10 @@ DeepSeek Platform in Chrome. Authentication failures returned as top-level or ne
   e.g. `$50.00 (Paid: $40.00 / Granted: $10.00)`.
 - The API separates granted balance from topped-up balance; CodexBar labels these as granted vs. paid credit.
 - With optional extra usage enabled, the menu shows today's and last-30-days cost and tokens,
-  request counts, API-key count, the top model, a daily token chart, and a daily spend chart.
+  request counts, API-key count, the top model, per-model spend, a daily token chart, and a daily spend chart.
+- Per-model spend uses the same reporting period and currency as detailed usage: **Last 30 days** for the preferred
+  endpoints, or **This month** for monthly fallback. These are Platform-account totals across API keys. Missing or
+  invalid model costs are omitted; a reported zero is retained.
 - The amount and cost requests run concurrently. After balance arrives, CodexBar waits up to five seconds for
   automatic Chrome resolution and detailed usage. The deadline remains bounded even if a local Chrome read does not
   respond to cancellation. If the optional work fails or times out, the balance and previously validated profile list

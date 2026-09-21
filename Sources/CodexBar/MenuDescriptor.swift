@@ -38,6 +38,7 @@ struct MenuDescriptor {
 
     enum MenuActionSystemImage: String {
         case installUpdate = "arrow.down.circle"
+        case checkForUpdates = "arrow.triangle.2.circlepath.circle"
         case refresh = "arrow.clockwise"
         case dashboard = "chart.xyaxis.line"
         case statusPage = "waveform.path.ecg"
@@ -62,6 +63,7 @@ struct MenuDescriptor {
 
     enum MenuAction: Equatable {
         case installUpdate
+        case checkForUpdates
         case refresh
         case refreshAugmentSession
         case dashboard
@@ -92,6 +94,8 @@ struct MenuDescriptor {
         managedCodexAccountCoordinator: ManagedCodexAccountCoordinator? = nil,
         codexAccountPromotionCoordinator: CodexAccountPromotionCoordinator? = nil,
         updateReady: Bool,
+        canCheckForUpdates: Bool = false,
+        versionText: String = AppVersion.shortVersion,
         includeContextualActions: Bool = true,
         codexWorkspacesMenuEnabled: Bool = false,
         agentSessionsEnabled: Bool = false,
@@ -159,7 +163,10 @@ struct MenuDescriptor {
                 hideUnreachableHosts: agentSessionsHideUnreachableHosts,
                 now: now))
         }
-        sections.append(Self.metaSection(updateReady: updateReady))
+        sections.append(Self.metaSection(
+            updateReady: updateReady,
+            canCheckForUpdates: canCheckForUpdates,
+            versionText: versionText))
 
         return MenuDescriptor(sections: sections)
     }
@@ -237,13 +244,9 @@ struct MenuDescriptor {
     {
         let meta = store.metadata(for: provider)
         var entries: [Entry] = []
-        let headlineText: String = {
-            if let ver = Self.versionNumber(for: provider, store: store) {
-                return "\(meta.displayName) \(ver)"
-            }
-            return meta.displayName
-        }()
-        entries.append(.text(headlineText, .headline))
+        let versionSuffix = store.version(for: provider)?.firstMatch(of: /[0-9]+(?:\.[0-9]+)*/)
+            .map { " \($0.output)" } ?? ""
+        entries.append(.text("\(meta.displayName)\(versionSuffix)", .headline))
 
         if let snap = store.snapshot(for: provider.instanceID) {
             let resetStyle = settings.resetTimeDisplayStyle
@@ -272,13 +275,6 @@ struct MenuDescriptor {
                     resetStyle: resetStyle,
                     showUsed: settings.usageBarsShowUsed)
                 if primaryDescriptionIsDetail,
-                   let primaryDetail,
-                   !primaryDetail.isEmpty
-                {
-                    entries.append(.text(primaryDetail, .secondary))
-                }
-                if presentation.menu.duplicatesPrimaryDetailWhenResetDatePresent,
-                   primary.resetsAt != nil,
                    let primaryDetail,
                    !primaryDetail.isEmpty
                 {
@@ -628,15 +624,22 @@ struct MenuDescriptor {
         return Section(entries: entries)
     }
 
-    private static func metaSection(updateReady: Bool) -> Section {
+    private static func metaSection(
+        updateReady: Bool,
+        canCheckForUpdates: Bool = false,
+        versionText: String = AppVersion.shortVersion) -> Section
+    {
         var entries: [Entry] = []
         if updateReady {
             entries.append(.action(L("Update ready, restart now?"), .installUpdate))
+        } else if canCheckForUpdates {
+            entries.append(.action(L("Check for Updates…"), .checkForUpdates))
         }
+        let aboutLabel = L("About CodexBar") + (versionText.isEmpty ? "" : " (v\(versionText))")
         entries.append(contentsOf: [
             .action(L("Refresh"), .refresh),
             .action(L("Settings..."), .settings),
-            .action(L("About CodexBar"), .about),
+            .action(aboutLabel, .about),
             .action(L("Quit"), .quit),
         ])
         return Section(entries: entries)
@@ -708,6 +711,7 @@ struct MenuDescriptor {
         metadata: ProviderMetadata,
         snapshot: UsageSnapshot) -> (primary: String, secondary: String, tertiary: String, showsTertiary: Bool)
     {
+        let presentation = ProviderDescriptorRegistry.descriptor(for: provider).presentation
         if provider == .factory, snapshot.tertiary != nil {
             return (L("5-hour"), L("Weekly"), L("Monthly"), true)
         }
@@ -719,8 +723,6 @@ struct MenuDescriptor {
                 weeklyLabel: metadata.weeklyLabel)
         } else if provider == .grok {
             GrokProviderDescriptor.displayLabel(window: snapshot.primary) ?? metadata.sessionLabel
-        } else if provider == .crof {
-            CrofProviderDescriptor.primaryLabel(snapshot: snapshot)
         } else if provider == .doubao {
             DoubaoProviderDescriptor.primaryLabel(window: snapshot.primary) ?? metadata.sessionLabel
         } else if provider == .sub2api {
@@ -730,7 +732,7 @@ struct MenuDescriptor {
         } else if provider == .alibabatokenplan {
             AlibabaTokenPlanProviderDescriptor.primaryLabel(window: snapshot.primary) ?? metadata.sessionLabel
         } else {
-            metadata.sessionLabel
+            presentation.rateWindowLabels(metadata: metadata, snapshot: snapshot).primary
         }
         let secondaryLabel = if provider == .codex {
             CodexConsumerProjection.rateTitle(
@@ -769,16 +771,6 @@ struct MenuDescriptor {
             entries.append(.text(reset, .secondary))
         }
     }
-
-    private static func versionNumber(for provider: UsageProvider, store: UsageStore) -> String? {
-        guard let raw = store.version(for: provider) else { return nil }
-        let pattern = #"[0-9]+(?:\.[0-9]+)*"#
-        guard let regex = try? NSRegularExpression(pattern: pattern) else { return nil }
-        let range = NSRange(raw.startIndex..<raw.endIndex, in: raw)
-        guard let match = regex.firstMatch(in: raw, options: [], range: range),
-              let r = Range(match.range, in: raw) else { return nil }
-        return String(raw[r])
-    }
 }
 
 private enum AccountFormatter {
@@ -790,21 +782,17 @@ private enum AccountFormatter {
         }
         return cleaned.isEmpty ? text : cleaned
     }
-
-    static func email(_ text: String) -> String {
-        text
-    }
 }
 
 extension MenuDescriptor.MenuAction {
     var systemImageName: String? {
         switch self {
         case .installUpdate: MenuDescriptor.MenuActionSystemImage.installUpdate.rawValue
+        case .checkForUpdates: MenuDescriptor.MenuActionSystemImage.checkForUpdates.rawValue
         case .settings, .providerSettings: MenuDescriptor.MenuActionSystemImage.settings.rawValue
         case .about: MenuDescriptor.MenuActionSystemImage.about.rawValue
         case .quit: MenuDescriptor.MenuActionSystemImage.quit.rawValue
-        case .refresh: MenuDescriptor.MenuActionSystemImage.refresh.rawValue
-        case .refreshAugmentSession: MenuDescriptor.MenuActionSystemImage.refresh.rawValue
+        case .refresh, .refreshAugmentSession: MenuDescriptor.MenuActionSystemImage.refresh.rawValue
         case .dashboard: MenuDescriptor.MenuActionSystemImage.dashboard.rawValue
         case .statusPage: MenuDescriptor.MenuActionSystemImage.statusPage.rawValue
         case .changelog: MenuDescriptor.MenuActionSystemImage.changelog.rawValue

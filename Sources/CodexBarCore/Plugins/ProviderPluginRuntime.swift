@@ -7,6 +7,7 @@ import FoundationNetworking
 #endif
 
 public final class ProviderPluginRuntime: @unchecked Sendable {
+    public typealias CookieInvalidator = @Sendable (String) -> Void
     public typealias CookieResolver = @Sendable (UsageProvider, String) async throws -> String
     public typealias InstanceCookieResolver = @Sendable (ProviderInstanceID, String) async throws -> String
 
@@ -155,6 +156,9 @@ public final class ProviderPluginRuntime: @unchecked Sendable {
         secrets: [String: String] = [:],
         now: Date = Date(),
         timeZone: TimeZone = .current,
+        sourceMode: ProviderSourceMode = .auto,
+        cookieSource: ProviderCookieSource = .auto,
+        cookieInvalidator: CookieInvalidator? = nil,
         cookieResolver: CookieResolver? = nil,
         instanceCookieResolver: InstanceCookieResolver? = nil) async throws -> UsageSnapshot
     {
@@ -170,29 +174,41 @@ public final class ProviderPluginRuntime: @unchecked Sendable {
             throw ProviderPluginError.secretAccess("required secret '\(auth.secret)' is unavailable")
         }
 
+        var contextOptions = self.contextOptions
+        contextOptions.cookieSource = sourceMode.usesWeb ? cookieSource : .off
+        contextOptions.cookieInvalidator = cookieInvalidator
         let worker = try self.currentWorker()
         let gate = ProviderPluginCompletionGate<UsageSnapshot>()
-        return try await withCheckedThrowingContinuation { continuation in
-            gate.install(continuation)
-            worker.fetch(
-                settings: sanitizedSettings,
-                secrets: sanitizedSecrets,
-                now: now,
-                timeZone: timeZone,
-                contextOptions: self.contextOptions,
-                cookieResolver: cookieResolver,
-                instanceCookieResolver: instanceCookieResolver)
-            { result in
-                gate.finish(result.mapError { self.redactedError($0, secrets: sanitizedSecrets.values) })
-            }
-            Task.detached { [weak self, weak worker] in
-                guard let self, let worker else { return }
-                let nanoseconds = UInt64(self.timeout * 1_000_000_000)
-                try? await Task.sleep(nanoseconds: nanoseconds)
-                if gate.finish(.failure(ProviderPluginError.timedOut)) {
-                    worker.requestInterrupt()
-                    self.discard(worker)
+        return try await withTaskCancellationHandler {
+            try Task.checkCancellation()
+            return try await withCheckedThrowingContinuation { continuation in
+                gate.install(continuation)
+                guard !Task.isCancelled else { return }
+                worker.fetch(
+                    settings: sanitizedSettings,
+                    secrets: sanitizedSecrets,
+                    now: now,
+                    timeZone: timeZone,
+                    contextOptions: contextOptions,
+                    cookieResolver: cookieResolver,
+                    instanceCookieResolver: instanceCookieResolver)
+                { result in
+                    gate.finish(result.mapError { self.redactedError($0, secrets: sanitizedSecrets.values) })
                 }
+                Task.detached { [weak self, weak worker] in
+                    guard let self, let worker else { return }
+                    let nanoseconds = UInt64(self.timeout * 1_000_000_000)
+                    try? await Task.sleep(nanoseconds: nanoseconds)
+                    if gate.finish(.failure(ProviderPluginError.timedOut)) {
+                        worker.requestInterrupt()
+                        self.discard(worker)
+                    }
+                }
+            }
+        } onCancel: {
+            if gate.finish(.failure(CancellationError())) {
+                worker.requestInterrupt()
+                self.discard(worker)
             }
         }
     }
@@ -258,6 +274,8 @@ public final class ProviderPluginRuntime: @unchecked Sendable {
     }
 
     private func redactedError(_ error: Error, secrets: Dictionary<String, String>.Values) -> Error {
+        if error is CancellationError { return CancellationError() }
+        if let error = error as? URLError { return URLError(error.code) }
         var message = error.localizedDescription
         for secret in secrets where !secret.isEmpty {
             message = message.replacingOccurrences(of: secret, with: "<redacted>")
@@ -353,6 +371,7 @@ private struct ProviderPluginHTTPRequestCallbacks: @unchecked Sendable {
 }
 
 private final class ProviderPluginRedactionValues: @unchecked Sendable {
+    let transportErrors = ProviderPluginHTTPResponse.TransportErrors()
     private let lock = NSLock()
     private var values: Set<String>
 
@@ -389,6 +408,9 @@ final class JavaScriptCoreProviderPluginEngine: ProviderPluginEngine, @unchecked
     private let enforcesUserResponsePolicy: Bool
     private var cache: [String: (value: JSValue, expiresAt: Date)] = [:]
     private var retainedCallbacks: [UUID: [Any]] = [:]
+    private let requestLock = NSLock()
+    private var requests: [UUID: Task<Void, Never>] = [:]
+    private var interrupted = false
 
     /// Opt-in relaxes only the status gate, never the representation gate.
     private var rejectsNonSuccessResponses: Bool {
@@ -626,6 +648,10 @@ final class JavaScriptCoreProviderPluginEngine: ProviderPluginEngine, @unchecked
             (try? ProviderDetailSection.Row(label: label, value: "—")) != nil
         }
         host.setObject(isDetailLabel, forKeyedSubscript: "isDetailLabel" as NSString)
+        let currency: @convention(block) (Double, String) -> String = { amount, code in
+            UsageFormatter.currencyString(amount, currencyCode: code)
+        }
+        host.setObject(currency, forKeyedSubscript: "formatCurrency" as NSString)
 
         let nextDailyReset: @convention(block) (String, Double) -> Double = { [weak self] identifier, rawHour in
             guard rawHour.isFinite,
@@ -650,10 +676,40 @@ final class JavaScriptCoreProviderPluginEngine: ProviderPluginEngine, @unchecked
         }
         host.setObject(nextDailyReset, forKeyedSubscript: "nextDailyReset" as NSString)
 
-        let http = self.makeHTTPBlock(settings: settings, secrets: secrets, redactionValues: redactionValues)
+        let http = self.makeHTTPBlock(
+            settings: settings,
+            secrets: secrets,
+            redactionValues: redactionValues,
+            beforeAttempt: contextOptions.beforeHTTPAttempt)
         host.setObject(http, forKeyedSubscript: "http" as NSString)
 
+        let cookieAvailability: @convention(block) (String) -> String = { [weak self] rawDomain in
+            guard let self else { return "off" }
+            do {
+                _ = try self.manifest.cookieDomain(rawDomain)
+                return contextOptions.cookieSource.pluginAvailability(
+                    hasResolver: (self.manifest.id.firstPartyProvider != nil && cookieResolver != nil)
+                        || instanceCookieResolver != nil)
+            } catch {
+                self.context.exception = JSValue(newErrorFromMessage: error.localizedDescription, in: self.context)
+                return "off"
+            }
+        }
+        host.setObject(cookieAvailability, forKeyedSubscript: "cookieAvailability" as NSString)
+
+        let rejectCookie: @convention(block) (String) -> Void = { [weak self] rawDomain in
+            guard let self else { return }
+            do {
+                let domain = try self.manifest.cookieDomain(rawDomain)
+                contextOptions.cookieInvalidator?(domain)
+            } catch {
+                self.context.exception = JSValue(newErrorFromMessage: error.localizedDescription, in: self.context)
+            }
+        }
+        host.setObject(rejectCookie, forKeyedSubscript: "rejectCookie" as NSString)
+
         let cookieHeader = self.makeCookieBlock(
+            source: contextOptions.cookieSource,
             resolver: cookieResolver,
             instanceResolver: instanceCookieResolver,
             redactionValues: redactionValues)
@@ -684,7 +740,15 @@ final class JavaScriptCoreProviderPluginEngine: ProviderPluginEngine, @unchecked
         return ctx
     }
 
-    func requestInterrupt() {}
+    func requestInterrupt() {
+        let tasks = self.requestLock.withLock {
+            self.interrupted = true
+            return Array(self.requests.values)
+        }
+        for task in tasks {
+            task.cancel()
+        }
+    }
 
     private static func normalizedTimeZoneIdentifier(_ timeZone: TimeZone) -> String {
         if timeZone.secondsFromGMT() == 0,
@@ -698,7 +762,8 @@ final class JavaScriptCoreProviderPluginEngine: ProviderPluginEngine, @unchecked
     private func makeHTTPBlock(
         settings: [String: String],
         secrets: [String: String],
-        redactionValues: ProviderPluginRedactionValues) -> HTTPBlock
+        redactionValues: ProviderPluginRedactionValues,
+        beforeAttempt: (@Sendable () async throws -> Void)?) -> HTTPBlock
     {
         { [weak self] rawURL, options, method, wantsJSON, resolve, reject in
             self?.startHTTPRequest(
@@ -708,6 +773,7 @@ final class JavaScriptCoreProviderPluginEngine: ProviderPluginEngine, @unchecked
                 settings: settings,
                 secrets: secrets,
                 redactionValues: redactionValues,
+                beforeAttempt: beforeAttempt,
                 callbacks: ProviderPluginHTTPRequestCallbacks(
                     wantsJSON: wantsJSON,
                     resolve: ProviderPluginJSValueBox(resolve),
@@ -724,45 +790,52 @@ final class JavaScriptCoreProviderPluginEngine: ProviderPluginEngine, @unchecked
         settings: [String: String],
         secrets: [String: String],
         redactionValues: ProviderPluginRedactionValues,
+        beforeAttempt: (@Sendable () async throws -> Void)?,
         callbacks: ProviderPluginHTTPRequestCallbacks)
     {
         let request: URLRequest
+        let retryPolicy: ProviderHTTPRetryPolicy
         do {
-            request = try self.makeRequest(
+            retryPolicy = try ProviderPluginHTTPResponse.retryPolicy(
+                options.forProperty("retryPolicy").map(JavaScriptCorePluginValue.init))
+            guard let dictionary = options.toDictionary() as? [String: Any] else {
+                throw ProviderPluginError.http("request options must be an object")
+            }
+            request = try ProviderPluginHTTPResponse.request(
                 rawURL: rawURL,
-                options: options,
+                options: dictionary,
                 method: method,
                 settings: settings,
-                secrets: secrets)
+                secrets: secrets,
+                manifest: self.manifest,
+                enforcesUserResponsePolicy: self.enforcesUserResponsePolicy)
         } catch {
-            self.reject(callbacks.reject, error: error)
+            self.reject(callbacks.reject, error: error, transportErrors: redactionValues.transportErrors)
             return
         }
 
         let worker = self
         let transport = self.transport
         let responseSizeLimit = self.responseSizeLimit
-        Task.detached {
+        let requestID = UUID()
+        self.requestLock.lock()
+        guard !self.interrupted else {
+            self.requestLock.unlock()
+            self.reject(callbacks.reject, error: CancellationError(), transportErrors: redactionValues.transportErrors)
+            return
+        }
+        defer { self.requestLock.unlock() }
+        self.requests[requestID] = Task.detached {
+            defer { _ = worker.requestLock.withLock { worker.requests.removeValue(forKey: requestID) } }
             do {
-                let responseTask = Task { try await transport.response(for: request) }
-                let response: ProviderHTTPResponse = switch await BoundedTaskJoin(sourceTask: responseTask)
-                    .value(joinGrace: .seconds(request.timeoutInterval))
-                {
-                case let .value(response): response
-                case let .failure(error): throw error
-                case .timedOut: throw URLError(.timedOut)
-                }
+                let response = try await ProviderPluginHTTPResponse.response(
+                    for: request, transport: transport, retryPolicy: retryPolicy, beforeAttempt: beforeAttempt)
                 guard response.data.count <= responseSizeLimit else {
                     throw ProviderPluginError.http("response exceeded the \(responseSizeLimit)-byte limit")
                 }
                 if worker.rejectsNonSuccessResponses, !(200..<300).contains(response.statusCode) {
-                    if let failure = ProviderPluginTransientHTTPFailure(
-                        statusCode: response.statusCode,
-                        retryAfterHeader: response.response.value(forHTTPHeaderField: "Retry-After"))
-                    {
-                        throw failure
-                    }
-                    throw ProviderPluginError.http("request returned HTTP \(response.statusCode)")
+                    throw ProviderPluginHTTPResponse.StatusFailure(
+                        response: response.response, allowsRetry: retryPolicy.maxRetries == 0)
                 }
                 if worker.enforcesUserResponsePolicy,
                    let encoding = response.response.value(forHTTPHeaderField: "Content-Encoding"),
@@ -779,34 +852,37 @@ final class JavaScriptCoreProviderPluginEngine: ProviderPluginEngine, @unchecked
                     _ = callbacks.resolve.value.call(withArguments: [value as Any])
                 }
             } catch {
-                if let failure = error as? ProviderPluginTransientHTTPFailure {
-                    worker.queue.async {
-                        worker.reject(callbacks.reject, error: failure)
-                    }
-                    return
-                }
-                let failure = ProviderPluginError.http(redactionValues.redact(error.localizedDescription))
+                let message = redactionValues.redact(error.localizedDescription)
                 worker.queue.async {
-                    worker.reject(callbacks.reject, error: failure)
+                    worker.reject(
+                        callbacks.reject,
+                        error: error,
+                        message: message,
+                        transportErrors: redactionValues.transportErrors)
                 }
             }
         }
     }
 
     private func makeCookieBlock(
+        source: ProviderCookieSource,
         resolver: ProviderPluginRuntime.CookieResolver?,
         instanceResolver: ProviderPluginRuntime.InstanceCookieResolver?,
         redactionValues: ProviderPluginRedactionValues) -> CookieBlock
     {
         { [weak self] rawDomain, resolve, reject in
             guard let self else { return }
-            let domain = rawDomain.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-            guard self.manifest.capabilities.contains(.browserCookies),
-                  self.manifest.cookieDomains.contains(domain)
+            guard let domain = try? self.manifest.cookieDomain(rawDomain)
             else {
                 self.reject(
                     ProviderPluginJSValueBox(reject),
                     error: ProviderPluginError.secretAccess("cookie domain is not declared"))
+                return
+            }
+            guard source != .off else {
+                self.reject(
+                    ProviderPluginJSValueBox(reject),
+                    error: ProviderPluginError.secretAccess("browser cookies are disabled for this provider"))
                 return
             }
             let resolveCookie: @Sendable () async throws -> String
@@ -843,110 +919,20 @@ final class JavaScriptCoreProviderPluginEngine: ProviderPluginEngine, @unchecked
         }
     }
 
-    private func makeRequest(
-        rawURL: String,
-        options: JSValue,
-        method: String,
-        settings: [String: String],
-        secrets: [String: String]) throws -> URLRequest
+    private func reject(
+        _ reject: ProviderPluginJSValueBox,
+        error: Error,
+        message: String? = nil,
+        transportErrors: ProviderPluginHTTPResponse.TransportErrors? = nil)
     {
-        guard let url = URL(string: rawURL) else {
-            throw ProviderPluginError.networkPolicy("request URL is invalid")
+        let payload = ProviderPluginHTTPResponse.failure(
+            error,
+            message: message ?? error.localizedDescription,
+            transportErrors: transportErrors)
+        let value = JSValue(newErrorFromMessage: payload["message"] as? String, in: self.context)
+        for (key, field) in payload {
+            value?.setObject(field, forKeyedSubscript: key as NSString)
         }
-        guard try self.manifest.allowedOrigin(for: url, settings: settings) else {
-            let rejectedOrigin = (try? ProviderPluginOrigin.normalizedOrigin(
-                of: url,
-                policy: url.scheme?.lowercased() == "http" ? .httpsOrLoopbackHTTP : .https)) ?? "invalid"
-            throw ProviderPluginError.networkPolicy("origin '\(rejectedOrigin)' is not declared")
-        }
-
-        var request = URLRequest(url: url)
-        guard method == "GET" || method == "POST" else {
-            throw ProviderPluginError.networkPolicy("HTTP method is not allowed")
-        }
-        request.httpMethod = method
-        request.timeoutInterval = try Self.timeoutSeconds(options)
-        if method == "POST" {
-            guard let bodyJSON = options.forProperty("bodyJSON"), bodyJSON.isString else {
-                throw ProviderPluginError.http("POST JSON body is missing")
-            }
-            request.httpBody = Data(bodyJSON.toString().utf8)
-        }
-        if options.isObject,
-           let headers = options.forProperty("headers"),
-           headers.isObject,
-           let dictionary = headers.toDictionary() as? [String: Any]
-        {
-            for (name, rawValue) in dictionary {
-                guard let value = rawValue as? String else {
-                    throw ProviderPluginError.http("request header '\(name)' must be a string")
-                }
-                if let auth = self.manifest.auth,
-                   name.caseInsensitiveCompare(auth.header) == .orderedSame
-                {
-                    throw ProviderPluginError.networkPolicy("plugins may not override the auth header")
-                }
-                request.setValue(value, forHTTPHeaderField: name)
-            }
-        }
-
-        // The broker owns representation headers so plugins cannot relax the user-plugin response boundary.
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        if self.enforcesUserResponsePolicy {
-            request.setValue("identity", forHTTPHeaderField: "Accept-Encoding")
-        }
-        if method == "POST" {
-            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        }
-
-        if let auth = self.manifest.auth {
-            var secretName = auth.secret
-            // Provider-specific by design: first-party OpenRouter Activity uses a separately scoped management key,
-            // and the broker pins that exceptional credential to the official read-only endpoint.
-            if let managementAuth = options.forProperty("openRouterManagementAuth"),
-               !managementAuth.isUndefined,
-               !managementAuth.isNull
-            {
-                guard managementAuth.isBoolean, managementAuth.toBool() else {
-                    throw ProviderPluginError.secretAccess(
-                        "OpenRouter management auth is unavailable for this plugin")
-                }
-                secretName = try self.manifest.openRouterManagementAuthSecret(method: method, url: url)
-            }
-            guard let secret = secrets[secretName], !secret.isEmpty else {
-                throw ProviderPluginError.secretAccess("required auth secret is unavailable")
-            }
-            let authValue = switch auth.type {
-            case .bearer:
-                "Bearer \(secret)"
-            case .authorizationScheme:
-                "\(auth.scheme!) \(secret)"
-            case .xAPIKey, .header:
-                secret
-            }
-            request.setValue(authValue, forHTTPHeaderField: auth.header)
-        }
-        return request
-    }
-
-    private static func timeoutSeconds(_ options: JSValue) throws -> TimeInterval {
-        guard options.isObject,
-              let value = options.forProperty("timeoutSeconds"),
-              !value.isUndefined,
-              !value.isNull
-        else { return 15 }
-        guard value.isNumber else {
-            throw ProviderPluginError.http("timeoutSeconds must be a number from 1 through 30")
-        }
-        let seconds = value.toDouble()
-        guard seconds.isFinite, (1...30).contains(seconds) else {
-            throw ProviderPluginError.http("timeoutSeconds must be a number from 1 through 30")
-        }
-        return seconds
-    }
-
-    private func reject(_ reject: ProviderPluginJSValueBox, error: Error) {
-        let value = JSValue(newErrorFromMessage: error.localizedDescription, in: self.context)
         _ = reject.value.call(withArguments: [value as Any])
     }
 
@@ -964,6 +950,7 @@ final class JavaScriptCoreProviderPluginEngine: ProviderPluginEngine, @unchecked
         from value: JSValue,
         redactionValues: ProviderPluginRedactionValues) -> Error
     {
+        if let error = redactionValues.transportErrors.error(for: JavaScriptCorePluginValue(value)) { return error }
         let message = redactionValues.redact(self.message(from: value))
         if let classified = ProviderPluginClassifiedFailureParser.error(from: message) {
             return classified

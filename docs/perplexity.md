@@ -56,6 +56,8 @@ The menu-bar percent picker can explicitly show **Credits** or **Bonus credits**
 
 Purchased and bonus credits do not reset, so their balances remain details in menus and CLI output. Layout reset-time tokens require an actual reset date for credit-detail windows; amounts never stand in for a reset clock.
 
+Large finite credit counts retain their whole-number descriptions; nonfinite aggregate counts omit the description.
+
 ## CLI Usage
 
 ```bash

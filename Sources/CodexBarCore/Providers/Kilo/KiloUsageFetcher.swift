@@ -50,7 +50,7 @@ public struct KiloUsageSnapshot: Sendable {
         let used = self.resolvedUsed
 
         let primary: RateWindow?
-        if let total {
+        if let total, total.isFinite, used.isFinite {
             let usedPercent: Double = if total > 0 {
                 min(100, max(0, (used / total) * 100))
             } else {
@@ -154,7 +154,7 @@ public struct KiloUsageSnapshot: Sendable {
 
     private static func compactNumber(_ value: Double) -> String {
         if value.rounded(.towardZero) == value {
-            return String(Int(value))
+            return String(format: "%.0f", value)
         }
         return String(format: "%.2f", value)
     }

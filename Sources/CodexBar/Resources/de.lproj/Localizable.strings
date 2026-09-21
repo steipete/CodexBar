@@ -150,6 +150,10 @@
 "Cookie: …" = "Cookie: …";
 "CopilotDeviceFlow" = "CopilotDeviceFlow";
 "Cost" = "Kosten";
+"Token history" = "Token-Verlauf";
+"Local token history · dollar costs unavailable" = "Lokaler Token-Verlauf · Dollar-Kosten nicht verfügbar";
+"Partial local history · recorded token subtotal" = "Unvollständiger lokaler Verlauf · erfasste Token-Zwischensumme";
+"Local token history is unavailable or incomplete." = "Der lokale Token-Verlauf ist nicht verfügbar oder unvollständig.";
 "Could not add Codex account" = "Codex-Konto konnte nicht hinzugefügt werden";
 "Could not open Terminal for Gemini" = "Terminal für Gemini konnte nicht geöffnet werden";
 "Could not start claude /login" = "Claude /login konnte nicht gestartet werden";
@@ -610,6 +614,12 @@
 "cost_summary_off" = "Aus";
 "merge_icons_title" = "Symbole zusammenführen";
 "merge_icons_subtitle" = "Verwenden Sie ein einzelnes Menüleistensymbol mit einem Anbieter-Umschalter.";
+"merged_icon_style_title" = "Kombinierter Symbolstil";
+"merged_icon_style_subtitle" = "Der Umschalter wechselt nacheinander zwischen den Anbietern; Gestapelt zeigt zwei Anbieter gleichzeitig, jeweils in einer eigenen Zeile.";
+"merged_icon_style_switcher" = "Umschalter";
+"merged_icon_style_stacked" = "Gestapelt";
+"merge_icon_stacked_top_provider_title" = "Obere Zeile";
+"merge_icon_stacked_bottom_provider_title" = "Untere Zeile";
 "show_most_used_provider_title" = "Meistgenutzten Anbieter anzeigen";
 "show_most_used_provider_subtitle" = "In der Menüleiste wird automatisch der Anbieter angezeigt, der seinem Tariflimit am nächsten kommt.";
 "display_mode_title" = "Anzeigemodus";
@@ -880,6 +890,12 @@
 "usage_percent_suffix_used" = "verbraucht";
 "Store multiple DeepSeek API keys." = "Speichern Sie mehrere DeepSeek-API-Schlüssel.";
 "This week" = "Diese Woche";
+"Current window" = "Aktuelles Zeitfenster";
+"Last week" = "Letzte Woche";
+"%d weeks ago" = "vor %d Wochen";
+"Previous window" = "Vorheriges Zeitfenster";
+"%d windows ago" = "vor %d Zeitfenstern";
+"Recent windows" = "Letzte Zeitfenster";
 "Week" = "Woche";
 "Month" = "Monat";
 "Models" = "Modelle";
@@ -939,6 +955,8 @@
 "Overage" = "Überschreitung";
 "Activity" = "Aktivität";
 "Copied" = "Kopiert";
+"Managed by Homebrew" = "Von Homebrew verwaltet";
+"Copy update command" = "Aktualisierungsbefehl kopieren";
 "Copy error" = "Kopierfehler";
 "Copy path" = "Pfad kopieren";
 "Extra usage spent" = "Zusätzliche Nutzung aufgewendet";
@@ -1148,7 +1166,6 @@
 "Open Augment (Log Out & Back In)" = "Augment öffnen (abmelden und wieder anmelden)";
 "Open Codebuff Dashboard" = "Öffnen Sie das Codebuff-Dashboard";
 "Open Command Code Settings" = "Öffnen Sie die Befehlscode-Einstellungen";
-"Open Crof dashboard" = "Öffnen Sie das Crof-Dashboard";
 "Open Manus" = "Öffne Manus";
 "Open MiMo Balance" = "Öffnen Sie MiMo Balance";
 "Open Moonshot Console" = "Öffnen Sie die Moonshot-Konsole";
@@ -1216,7 +1233,6 @@
 "Stored in ~/.codexbar/config.json. Requires an Anthropic Admin API key." = "Gespeichert in ~/.codexbar/config.json. Erfordert einen Anthropic Admin API-Schlüssel.";
 "Stored in ~/.codexbar/config.json. Used for /v1/quota-stats." = "Gespeichert in ~/.codexbar/config.json. Wird für /v1/quota-stats verwendet.";
 "Stored in ~/.codexbar/config.json. You can also provide CODEBUFF_API_KEY or let CodexBar read ~/.config/manicode/credentials.json (created by `codebuff login`)." = "Gespeichert in ~/.codexbar/config.json. Sie können auch CODEBUFF_API_KEY bereitstellen oder CodexBar ~/.config/manicode/credentials.json lesen lassen (erstellt durch \"codebuff login\").";
-"Stored in ~/.codexbar/config.json. You can also provide CROF_API_KEY." = "Gespeichert in ~/.codexbar/config.json. Sie können auch CROF_API_KEY angeben.";
 "Stored in ~/.codexbar/config.json. You can also provide KILO_API_KEY or ~/.local/share/kilo/auth.json (kilo.access)." = "Gespeichert in ~/.codexbar/config.json. Sie können auch KILO_API_KEY oder ~/.local/share/kilo/auth.json (kilo.access) angeben.";
 "T3 Chat cookie" = "T3-Chat-Cookie";
 "Team mode" = "Teammodus";
@@ -1337,6 +1353,8 @@
 "Tracked tokens" = "Erfasste Token";
 "Subscriptions" = "Abonnements";
 "By subscription" = "Nach Abonnement";
+"By source" = "By source";
+"%d of %d sources have spend" = "%d of %d sources have spend";
 "No model-level history" = "Kein Verlauf auf Modellebene";
 "Daily estimated spend" = "Geschätzte tägliche Ausgaben";
 "Hourly estimated spend" = "Geschätzte stündliche Ausgaben";
@@ -1581,6 +1599,24 @@
 "agent_sessions_hide_unreachable_title" = "Nicht erreichbare Hosts ausblenden";
 "agent_sessions_hide_unreachable_subtitle" = "Hosts ausblenden, wenn ihre Sitzungen nicht abgerufen werden können.";
 
+/* Overview share flow */
+"Share Usage Snapshot…" = "Nutzungsübersicht teilen…";
+"Usage snapshot unavailable" = "Nutzungsübersicht nicht verfügbar";
+"CodexBar couldn't prepare a shareable usage snapshot. Refresh Usage & Spend and try again." = "CodexBar konnte keine teilbare Nutzungsübersicht erstellen. Aktualisieren Sie „Nutzung & Ausgaben“ und versuchen Sie es erneut.";
 "Incomplete" = "Unvollständig";
 "Est. subtotal (%@): %@" = "Geschätzte Zwischensumme (%@): %@";
 "Excluded requests with missing final usage: %d" = "Ausgeschlossene Anfragen ohne abschließende Nutzungsdaten: %d";
+
+"overview_layout_title" = "Übersichtslayout";
+"overview_layout_subtitle" = "Wählen Sie aus, wie viele Informationen die Übersicht anzeigt.";
+"overview_layout_detailed" = "Detailliert";
+"overview_layout_compact" = "Kompakt";
+
+"section_widgets" = "Widgets";
+"account_widgets_title" = "Konten für Widgets aktuell halten";
+"account_widgets_description" = "Wähle in jedem Account Usage-Widget ein Konto aus. Aktualisiert bis zu sechs Konten pro Anbieter.";
+
+/* Antigravity local cost estimates */
+"antigravity_cost_estimate_hint" = "Lokale Nutzung × öffentliche API-Preise · keine Antigravity-Abrechnung oder Credits";
+"antigravity_quota_window_note" = "Fensterkosten umfassen alle Modelle · gezeigtes Fenster ist die am stärksten begrenzte Familie";
+"antigravity_no_priced_token_history" = "Keine bepreiste Antigravity-Token-Historie verfügbar.";

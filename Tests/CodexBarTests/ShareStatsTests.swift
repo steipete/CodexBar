@@ -150,6 +150,73 @@ struct ShareStatsTests {
     }
 
     @Test
+    @MainActor
+    func `account scoped history never borrows the ambient account plan`() throws {
+        let settings = testSettingsStore(
+            suiteName: "ShareStatsTests-scoped-plan",
+            userDefaults: InMemoryUserDefaults())
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            startupBehavior: .testing,
+            environmentBase: [:])
+        defer { store.stopSharedSpendDashboardPublication() }
+        store._setSnapshotForTesting(Self.snapshot(provider: .codex, rawName: "pro"), provider: .codex)
+
+        let payload = try #require(ShareStatsPayloadFactory.make(model: Self.dashboard, store: store))
+
+        let scoped = try #require(payload.providers.first { $0.providerName == "Codex · #1" })
+        #expect(scoped.subscriptionName == nil)
+    }
+
+    @Test(arguments: [
+        ("openai/gpt-4o", "GPT"),
+        ("  OPENAI/GPT-4o  ", "GPT"),
+        ("anthropic/claude-sonnet-4", "Claude"),
+        ("x-ai/grok-4-fast", "Grok"),
+        ("google/gemini-2.5-pro", "Gemini"),
+        ("deepseek/deepseek-fixture-1", "DeepSeek"),
+        ("qwen/qwen-fixture-1", "Qwen"),
+        ("openai/o1", "o1"),
+        ("openai/o3", "o3"),
+        ("openai/o4-mini", "o4"),
+        ("acme/gpt-private-fixture", "GPT"),
+        ("openai/gpt-fixture:free", "GPT"),
+        ("bedrock/us.anthropic.claude-fixture-v1:0", "Claude"),
+        ("gateway/global.amazon.nova-fixture-v1:0", "Amazon Nova"),
+    ])
+    func `gateway namespaced model identifiers map to public families`(testCase: (String, String)) {
+        #expect(ShareStatsSanitizer.modelName(testCase.0) == testCase.1)
+    }
+
+    @Test(arguments: [
+        "openai/models/gpt-fixture",
+        "/gpt-fixture",
+        "openai/",
+        "Users/alice/gpt-fixture",
+        "Users/gpt-fixture",
+        "home/gpt-fixture",
+        "private/gpt-fixture",
+        "acme/unknown-model-1",
+        "openai//gpt-fixture",
+        "https://host/gpt-fixture",
+        "file://gpt-fixture",
+        "C:\\models\\gpt-fixture",
+        "person@example.test/gpt-fixture",
+        "acme\nteam/gpt-fixture",
+        "acme\u{1F}/gpt-fixture",
+        "550e8400-e29b-41d4-a716-446655440000/gpt-fixture",
+        "abcdefabcdefabcdefabcdef/gpt-fixture",
+        "acme%2Fteam/gpt-fixture",
+        "example/reasoning-model",
+        String(repeating: "x", count: 65) + "/gpt-fixture",
+    ])
+    func `gateway model identifiers retain whole input privacy and shape checks`(raw: String) {
+        #expect(ShareStatsSanitizer.modelName(raw) == nil)
+    }
+
+    @Test
     func `bedrock regional model identifiers map to public families`() {
         #expect(ShareStatsSanitizer.modelName("us.amazon.nova-2-lite-v1:0") == "Amazon Nova")
         #expect(ShareStatsSanitizer.modelName("global.anthropic.claude-sonnet-4-v1:0") == "Claude")
@@ -297,7 +364,8 @@ struct ShareStatsTests {
             totalCost: nil,
             coveredDayCount: 7,
             chartDomain: Self.date...Self.date,
-            modelHistoryCompleteness: .incomplete)
+            modelHistoryCompleteness: .incomplete,
+            incompleteModelProviders: [.codex])
         let payload = try #require(ShareStatsBuilder.make(
             model: SpendDashboardModel(requestedDays: 7, groups: [group])))
 
@@ -332,6 +400,43 @@ struct ShareStatsTests {
             }
         }
         #expect(sampledRGB.count > 1)
+    }
+
+    @Test @MainActor
+    func `image exporter writes PNG and TIFF to an isolated pasteboard`() throws {
+        let payload = try #require(ShareStatsBuilder.make(model: Self.dashboard))
+        let pasteboard = NSPasteboard(name: .init("com.steipete.codexbar.tests.share-stats.\(UUID().uuidString)"))
+        defer { pasteboard.clearContents() }
+
+        #expect(ShareStatsExporter.copyImage(payload, pasteboard: pasteboard))
+        let png = try #require(pasteboard.data(forType: .png))
+        let tiff = try #require(pasteboard.data(forType: .tiff))
+        let bitmap = try #require(NSBitmapImageRep(data: png))
+
+        #expect(png.starts(with: [0x89, 0x50, 0x4E, 0x47]))
+        #expect(!tiff.isEmpty)
+        #expect(bitmap.pixelsWide == 1200)
+        #expect(bitmap.pixelsHigh == 630)
+        let sampledColors = Set(stride(from: 0, to: bitmap.pixelsWide, by: 31).compactMap { x in
+            bitmap.colorAt(x: x, y: bitmap.pixelsHigh / 2)?.usingColorSpace(.deviceRGB)?.description
+        })
+        #expect(sampledColors.count > 1)
+
+        if let outputPath = ProcessInfo.processInfo.environment["CODEXBAR_SHARE_STATS_SCREENSHOT_DIR"] {
+            let outputDirectory = URL(fileURLWithPath: outputPath, isDirectory: true)
+            try FileManager.default.createDirectory(at: outputDirectory, withIntermediateDirectories: true)
+            try png.write(to: outputDirectory.appendingPathComponent("share-stats.png"), options: .atomic)
+        }
+    }
+
+    @Test
+    func `image copy feedback reports semantic success and failure`() {
+        #expect(ShareStatsImageCopyFeedback.idle.title == "Copy Image")
+        #expect(ShareStatsImageCopyFeedback.idle.systemImage == "photo.on.rectangle")
+        #expect(ShareStatsImageCopyFeedback.copied.title == "Image copied")
+        #expect(ShareStatsImageCopyFeedback.copied.systemImage == "checkmark")
+        #expect(ShareStatsImageCopyFeedback.failed.title == "Could not copy image")
+        #expect(ShareStatsImageCopyFeedback.failed.systemImage == "photo.on.rectangle")
     }
 
     @Test @MainActor

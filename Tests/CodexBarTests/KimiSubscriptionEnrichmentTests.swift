@@ -10,7 +10,7 @@ struct KimiSubscriptionEnrichmentTests {
         let started = ContinuousClock.now
         let snapshot: KimiUsageSnapshot
         do {
-            snapshot = try await KimiUsageFetcher._fetchUsageForTesting(
+            snapshot = try await KimiUsageFetcher.fetchUsage(
                 authToken: "fixture-web-token",
                 transport: transport,
                 subscriptionGrace: .milliseconds(100))
@@ -59,7 +59,7 @@ struct KimiSubscriptionEnrichmentTests {
     @Test
     func `plan can complete independently of stalled statistics`() async throws {
         let stats = KimiEnrichmentLatch()
-        let snapshot = try await KimiUsageFetcher._fetchUsageForTesting(
+        let snapshot = try await KimiUsageFetcher.fetchUsage(
             authToken: "fixture-web-token",
             transport: Self.transport(plan: stats, stalledPath: "/GetSubscriptionStats"),
             subscriptionGrace: .milliseconds(100))
@@ -73,7 +73,7 @@ struct KimiSubscriptionEnrichmentTests {
     func `cancelled enrichment returns before a cancellation ignoring plan request`() async throws {
         let plan = KimiEnrichmentLatch()
         let task = Task {
-            try await KimiUsageFetcher._fetchUsageForTesting(
+            try await KimiUsageFetcher.fetchUsage(
                 authToken: "fixture-web-token",
                 transport: Self.transport(plan: plan),
                 subscriptionGrace: .seconds(30))

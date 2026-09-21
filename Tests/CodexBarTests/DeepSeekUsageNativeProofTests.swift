@@ -52,28 +52,31 @@ final class DeepSeekUsageNativeProofTests: XCTestCase {
             })
         XCTAssertEqual(summary.period, .last30Days)
         XCTAssertEqual(summary.todayTokens, 1250)
-        var models: [UsageMenuCardView.Model] = []
-        for usage in [summary, nil] {
-            let snapshot = DeepSeekUsageSnapshot(
-                isAvailable: true,
-                currency: "USD",
-                totalBalance: 9.32,
-                grantedBalance: 1,
-                toppedUpBalance: 8.32,
-                usageSummary: usage,
-                updatedAt: now).toUsageSnapshot()
-            try models.append(UsageMenuCardView.Model.make(.init(
+        XCTAssertEqual(summary.modelCosts, [DeepSeekModelCost(model: "example-model", cost: 0.12)])
+        let snapshot = DeepSeekUsageSnapshot(
+            isAvailable: true,
+            currency: "USD",
+            totalBalance: 9.32,
+            grantedBalance: 1,
+            toppedUpBalance: 8.32,
+            usageSummary: summary,
+            updatedAt: now).toUsageSnapshot()
+        let before = snapshot.with(details: snapshot.details.map { section in
+            section.title == "Spend"
+                ? .makeSection(title: section.title, rows: [], chart: section.chart)
+                : section
+        })
+        for (stage, usage) in [("before", before), ("after", snapshot)] {
+            let model = try UsageMenuCardView.Model.make(.init(
                 provider: .deepseek,
                 metadata: XCTUnwrap(ProviderDefaults.metadata[.deepseek]),
-                snapshot: snapshot,
+                snapshot: usage,
                 credits: nil,
                 creditsError: nil,
                 dashboardError: nil,
                 tokenSnapshot: nil,
                 tokenError: nil,
-                account: AccountInfo(
-                    email: nil,
-                    plan: nil),
+                account: AccountInfo(email: nil, plan: nil),
                 isRefreshing: false,
                 lastError: nil,
                 usageBarsShowUsed: false,
@@ -81,60 +84,18 @@ final class DeepSeekUsageNativeProofTests: XCTestCase {
                 tokenCostUsageEnabled: true,
                 showOptionalCreditsAndExtraUsage: true,
                 hidePersonalInfo: true,
-                now: now)))
-        }
-        let app = NSApplication.shared
-        guard app.delegate == nil else { return XCTFail("Use a standalone test host") }
-        let oldPolicy = app.activationPolicy()
-        let previous = NSWorkspace.shared.frontmostApplication
-        let window = NSWindow(
-            contentRect: NSRect(
-                x: 0,
-                y: 0,
-                width: 800,
-                height: 760),
-            styleMask: [.titled, .closable],
-            backing: .buffered,
-            defer: false)
-        window.title = "CodexBar — Synthetic DeepSeek Usage"
-        window.isReleasedWhenClosed = false
-        window.contentView = NSHostingView(rootView: HStack(
-            alignment: .top,
-            spacing: 24)
-        {
-            ForEach(
-                models.indices,
-                id: \.self)
-            { index in
-                VStack(alignment: .leading) {
-                    Text(index == 0 ? "Daily endpoint fixture" : "API-key balance only").font(.headline)
-                    UsageMenuCardView(
-                        model: models[index],
-                        width: 350)
-                }
+                now: now))
+            for dark in [false, true] {
+                let view = AnyView(UsageMenuCardView(model: model, width: 360)
+                    .environment(\.locale, Locale(identifier: "en_US_POSIX"))
+                    .environment(\.colorScheme, dark ? .dark : .light)
+                    .environment(\.displayScale, 2)
+                    .background(Color(nsColor: .windowBackgroundColor)))
+                let hosting = NSHostingView(rootView: view)
+                hosting.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
+                try XCTUnwrap(MenuLayoutScreenshotRenderTests.pngDataWithWindow(hosting: hosting))
+                    .write(to: output.appendingPathComponent("\(stage)-\(dark ? "dark" : "light").png"))
             }
-        }.padding(24))
-        defer { window.close(); _ = app.setActivationPolicy(oldPolicy); previous?.activate() }
-        _ = app.setActivationPolicy(.regular)
-        app.finishLaunching()
-        window.center()
-        window.makeKeyAndOrderFront(nil)
-        app.activate(ignoringOtherApps: true)
-        try JSONSerialization.data(withJSONObject: [
-            "pid": ProcessInfo.processInfo.processIdentifier, "window": window.windowNumber,
-            "todayTokens": summary.todayTokens, "todayCost": XCTUnwrap(summary.todayCost),
-        ]).write(to: output.appendingPathComponent("state.json"))
-        let deadline = Date().addingTimeInterval(600)
-        while !FileManager.default.fileExists(atPath: output.appendingPathComponent("done").path), Date() < deadline {
-            if let event = app.nextEvent(
-                matching: .any,
-                until: Date().addingTimeInterval(0.02),
-                inMode: .default,
-                dequeue: true)
-            {
-                app.sendEvent(event)
-            }
-            try await Task.sleep(for: .milliseconds(20))
         }
     }
 }

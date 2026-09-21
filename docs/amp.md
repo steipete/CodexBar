@@ -54,6 +54,8 @@ Create an access token in Amp settings, then paste it into **Amp → Access toke
   fields use UTC day boundaries, so renewal timing and pacing are approximate within a day. Legacy Subscription
   output retains its calendar-month estimate. Daily free usage resets at 8:00 PM New York time.
 - Computes time-to-full from the hourly replenishment rate for legacy dollar-based Amp Free output
+- Omits unrepresentable replenishment durations while retaining valid free usage. Invalid subscription renewal
+  arithmetic does not hide independent credit balances.
 
 ### “Amp access token is invalid or expired”
 

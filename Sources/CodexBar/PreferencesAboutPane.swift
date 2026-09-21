@@ -10,12 +10,6 @@ struct AboutPane: View {
     private var updateChannelRaw: String = UpdateChannel.defaultChannel.rawValue
     @State private var didLoadUpdaterState = false
 
-    private var versionString: String {
-        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "–"
-        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String
-        return build.map { "\(version) (\($0))" } ?? version
-    }
-
     private var buildTimestamp: String? {
         guard let raw = Bundle.main.object(forInfoDictionaryKey: "CodexBuildTimestamp") as? String else { return nil }
         let parser = ISO8601DateFormatter()
@@ -37,8 +31,8 @@ struct AboutPane: View {
                     .listRowBackground(Color.clear)
             }
 
-            if self.updater.isAvailable {
-                Section {
+            Section {
+                if self.updater.isAvailable {
                     Toggle(L("check_updates_auto"), isOn: self.$autoUpdateEnabled)
 
                     Picker(selection: self.updateChannelBinding) {
@@ -48,19 +42,20 @@ struct AboutPane: View {
                     } label: {
                         SettingsRowLabel(L("update_channel"), subtitle: self.updateChannel.description)
                     }
+                }
 
-                    LabeledContent(String(format: L("version_format"), self.versionString)) {
+                LabeledContent(String(format: L("version_format"), AppVersion.displayString)) {
+                    if self.updater.isAvailable {
                         Button(L("check_for_updates")) { self.updater.checkForUpdates(nil) }
                     }
-                } header: {
-                    Text(L("section_updates"))
                 }
-            } else {
-                Section {
+                if !self.updater.isAvailable {
                     AboutUpdatesUnavailableView(
                         reason: self.updater.unavailableReason ?? L("updates_unavailable"),
                         command: self.updater.manualUpdateCommand)
                 }
+            } header: {
+                Text(L("section_updates"))
             }
 
             Section {
@@ -118,7 +113,7 @@ struct AboutPane: View {
             VStack(spacing: 2) {
                 Text("CodexBar")
                     .font(.title3).bold()
-                Text(String(format: L("version_format"), self.versionString))
+                Text(String(format: L("version_format"), AppVersion.displayString))
                     .foregroundStyle(.secondary)
                 if let buildTimestamp {
                     Text(String(format: L("built_format"), buildTimestamp))
@@ -154,14 +149,17 @@ struct AboutPane: View {
 
 @MainActor
 struct AboutUpdatesUnavailableView: View {
+    typealias CopyAction = @MainActor @Sendable (String, @escaping @MainActor @Sendable (Bool) -> Void) -> Void
+
     let reason: String
     let command: ManualUpdateCommand?
-    let copyAction: (String) -> Void
+    let copyAction: CopyAction
+    @State private var didCopy = false
 
     init(
         reason: String,
         command: ManualUpdateCommand? = nil,
-        copyAction: @escaping (String) -> Void = { MenuPasteboardCopy.perform($0) })
+        copyAction: @escaping CopyAction = Self.copyCommand)
     {
         self.reason = reason
         self.command = command
@@ -169,20 +167,55 @@ struct AboutUpdatesUnavailableView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 10) {
             Text(self.reason)
                 .foregroundStyle(.secondary)
                 .textSelection(.enabled)
             if let command {
-                Button {
-                    self.copyAction(command.command)
-                } label: {
-                    Label(L("copy"), systemImage: "doc.on.doc")
+                HStack(spacing: 12) {
+                    Text(command.command)
+                        .font(.system(.callout, design: .monospaced))
+                        .foregroundStyle(.primary)
+                        .textSelection(.enabled)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Button {
+                        self.copyAction(command.command) { self.didCopy = $0 }
+                    } label: {
+                        Label(
+                            self.didCopy ? L("Copied") : L("Copy update command"),
+                            systemImage: self.didCopy ? "checkmark" : "doc.on.doc")
+                            .labelStyle(.iconOnly)
+                    }
+                    .controlSize(.small)
+                    .frame(width: 28)
+                    .help(self.didCopy ? L("Copied") : L("Copy update command"))
+                    .accessibilityIdentifier("about-copy-update-command")
                 }
-                .controlSize(.small)
-                .accessibilityIdentifier("about-copy-update-command")
+                .environment(\.layoutDirection, .leftToRight)
+                .padding(10)
+                .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 6))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 6)
+                        .strokeBorder(.primary.opacity(0.08))
+                }
             }
         }
+        .task(id: self.didCopy) {
+            guard self.didCopy else { return }
+            do {
+                try await Task.sleep(for: .seconds(2))
+                self.didCopy = false
+            } catch {}
+        }
+    }
+
+    private static func copyCommand(_ text: String, completion: @escaping @MainActor @Sendable (Bool) -> Void) {
+        MenuPasteboardCopy.perform(text, writer: { text in
+            let pasteboard = NSPasteboard.general
+            pasteboard.clearContents()
+            completion(pasteboard.setString(text, forType: .string))
+        })
     }
 }
 

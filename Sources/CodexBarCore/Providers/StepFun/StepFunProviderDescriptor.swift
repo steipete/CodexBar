@@ -34,6 +34,19 @@ public enum StepFunProviderDescriptor {
         try store.save(config)
     }
 
+    /// Credit plans populate only the primary lane, including balances without a reset timestamp.
+    public static func rateWindowLabels(
+        metadata: ProviderMetadata,
+        snapshot: UsageSnapshot) -> ProviderRateWindowLabels
+    {
+        let isCreditPlan = snapshot.primary != nil && snapshot.secondary == nil
+        return ProviderRateWindowLabels(
+            primary: isCreditPlan ? "Credit" : metadata.sessionLabel,
+            secondary: metadata.weeklyLabel,
+            tertiary: metadata.opusLabel ?? "Sonnet",
+            showsTertiary: metadata.supportsOpus)
+    }
+
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
             id: .stepfun,
@@ -89,6 +102,9 @@ public enum StepFunProviderDescriptor {
                 noDataMessage: { "StepFun per-day cost history is not available via API." }),
             pace: .calendarMonthResetWindow,
             presentation: ProviderUsagePresentation(
+                rateWindowLabeler: { metadata, snapshot, _ in
+                    Self.rateWindowLabels(metadata: metadata, snapshot: snapshot)
+                },
                 primaryBindingQuotaLanes: [.secondary]),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .web],

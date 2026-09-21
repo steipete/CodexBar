@@ -1,13 +1,20 @@
 import CodexBarCore
 import Foundation
 
+enum ClaudeSwapSwitchPhase: Equatable, Sendable {
+    case activating
+    case reconciling
+}
+
 /// External credential transactions must run to completion; configuration changes hide their state but do not
 /// cancel the subprocess halfway through a claude-swap transaction.
 struct ClaudeSwapTransientState {
     var lastError: String?
     var lastErrorAccountID: ProviderAccountIdentity?
     var switchingAccountID: ProviderAccountIdentity?
+    var switchPhase: ClaudeSwapSwitchPhase?
     var task: Task<Void, Never>?
+    var configurationGeneration: UInt64 = 0
     var versionProbedPath: String?
     var versionProbeGeneration: UInt64 = 0
 }
@@ -50,6 +57,7 @@ extension UsageStore {
             self.claudeSwapTransientState.lastError != nil ||
             self.claudeSwapTransientState.lastErrorAccountID != nil ||
             self.claudeSwapTransientState.switchingAccountID != nil ||
+            self.claudeSwapTransientState.switchPhase != nil ||
             self.claudeSwapTransientState.versionProbedPath != nil ||
             self.claudeSwapDetectedVersion != nil
         self.claudeSwapRefreshTask?.cancel()
@@ -59,10 +67,14 @@ extension UsageStore {
         self.claudeSwapLastError = nil
         self.claudeSwapTransientState = ClaudeSwapTransientState(
             task: self.claudeSwapTransientState.task,
+            configurationGeneration: self.claudeSwapTransientState.configurationGeneration &+ 1,
             versionProbeGeneration: self.claudeSwapTransientState.versionProbeGeneration &+ 1)
         self.claudeSwapDetectedVersion = nil
         if hadState {
             self.claudeSwapRevision &+= 1
+            if self.settings.accountWidgetsEnabled {
+                self.persistWidgetSnapshot(reason: "claude-swap-accounts")
+            }
         }
     }
 
@@ -98,6 +110,9 @@ extension UsageStore {
             self.claudeSwapLastRefreshAt = Date()
             self.claudeSwapLastError = nil
             self.claudeSwapRevision &+= 1
+            if self.settings.accountWidgetsEnabled {
+                self.persistWidgetSnapshot(reason: "claude-swap-accounts")
+            }
         } catch is CancellationError {
             return
         } catch {
@@ -118,7 +133,10 @@ extension UsageStore {
     /// Activates one account through the configured claude-swap executable.
     /// The numeric slot comes from the already validated list payload; requests
     /// are serialized so two credential transactions can never overlap.
-    func switchClaudeSwapAccount(_ accountID: ProviderAccountIdentity) {
+    func switchClaudeSwapAccount(
+        _ accountID: ProviderAccountIdentity,
+        progressDidChange: (@MainActor () -> Void)? = nil)
+    {
         guard self.claudeSwapTransientState.task == nil,
               self.shouldFetchClaudeSwapAccounts(),
               accountID.source == ClaudeSwapAccountProjection.sourceName,
@@ -131,7 +149,9 @@ extension UsageStore {
         }
 
         let executablePath = self.settings.claudeSwapExecutablePath
+        let configurationGeneration = self.claudeSwapTransientState.configurationGeneration
         self.claudeSwapTransientState.switchingAccountID = accountID
+        self.claudeSwapTransientState.switchPhase = .activating
         self.claudeSwapTransientState.lastError = nil
         self.claudeSwapTransientState.lastErrorAccountID = nil
         self.claudeSwapRevision &+= 1
@@ -148,21 +168,53 @@ extension UsageStore {
             }
 
             guard let self else { return }
-            if self.isCurrentClaudeSwapConfiguration(executablePath: executablePath) {
+            if self.isCurrentClaudeSwapConfiguration(
+                executablePath: executablePath,
+                configurationGeneration: configurationGeneration)
+            {
                 self.claudeSwapTransientState.lastError = switchError
                 self.claudeSwapTransientState.lastErrorAccountID = switchError == nil ? nil : accountID
+                self.claudeSwapTransientState.switchPhase = .reconciling
                 self.claudeSwapRevision &+= 1
+                progressDidChange?()
                 // Claude Code owns the ambient credential, so reconcile both
                 // the provider snapshot and the adapter's active-row marker.
-                await self.refreshProvider(.claude)
+                let previousAdapterTask = self.claudeSwapRefreshTask
+                let ambient = Task { await self.refreshProvider(.claude) }
+                // Cancel only the waiter: cancelling refreshProvider would cancel its provider request too.
+                let waiter = Task<Void, Error> { await ambient.value }
+                if case .timedOut = await BoundedTaskJoin(sourceTask: waiter).value(joinGrace: .seconds(5)),
+                   self.isCurrentClaudeSwapConfiguration(
+                       executablePath: executablePath,
+                       configurationGeneration: configurationGeneration),
+                   self.claudeSwapRefreshTask == previousAdapterTask
+                {
+                    // A stalled predecessor can prevent the ambient refresh from scheduling its adapter read.
+                    self.scheduleClaudeSwapAccountRefresh()
+                }
+                // The ambient refresh schedules this independent read; a replacement read still owns reconciliation.
+                while self.isCurrentClaudeSwapConfiguration(
+                    executablePath: executablePath,
+                    configurationGeneration: configurationGeneration),
+                    let adapterTask = self.claudeSwapRefreshTask
+                {
+                    await adapterTask.value
+                    if self.claudeSwapRefreshTask == adapterTask { break }
+                }
             }
-            let currentError = self.isCurrentClaudeSwapConfiguration(executablePath: executablePath) ? switchError : nil
+            let isCurrent = self.isCurrentClaudeSwapConfiguration(
+                executablePath: executablePath,
+                configurationGeneration: configurationGeneration)
+            let currentError = isCurrent ? switchError : nil
             self.claudeSwapTransientState.task = nil
             self.claudeSwapTransientState.switchingAccountID = nil
+            self.claudeSwapTransientState.switchPhase = nil
             self.claudeSwapTransientState.lastError = currentError
             self.claudeSwapTransientState.lastErrorAccountID = currentError == nil ? nil : accountID
             self.claudeSwapRevision &+= 1
+            if isCurrent { progressDidChange?() }
         }
+        progressDidChange?()
     }
 
     private func probeClaudeSwapVersionIfNeeded(executablePath: String) async {
@@ -183,8 +235,13 @@ extension UsageStore {
             self.isCurrentClaudeSwapConfiguration(executablePath: executablePath)
     }
 
-    private func isCurrentClaudeSwapConfiguration(executablePath: String) -> Bool {
+    func isCurrentClaudeSwapConfiguration(
+        executablePath: String,
+        configurationGeneration: UInt64? = nil) -> Bool
+    {
         self.isEnabled(.claude) && self.settings.claudeSwapEnabled &&
-            self.settings.claudeSwapExecutablePath == executablePath
+            self.settings.claudeSwapExecutablePath == executablePath &&
+            (configurationGeneration == nil ||
+                self.claudeSwapTransientState.configurationGeneration == configurationGeneration)
     }
 }

@@ -87,15 +87,18 @@ extension CodexBarCLI {
 
                 let dispatches = detector.evaluate(observation: observation, config: hooks)
                 for dispatch in dispatches {
-                    Self.reportHookEvent(dispatch.event, output: output)
                     // `rules` narrows dispatch to the specific rule(s) whose edge this
                     // poll observed (currently only set for quota_low); nil means every
                     // enabled rule for the event, matched the normal way.
                     let dispatchConfig = dispatch.rules.map { HooksConfig(enabled: true, events: $0) } ?? hooks
-                    await HookRunner.dispatch(
+                    let outcome = await HookRunner.dispatch(
                         event: dispatch.event,
                         config: dispatchConfig,
-                        rateLimiter: rateLimiter)
+                        rateLimiter: rateLimiter,
+                        rateLimitAccountDiscriminator: dispatch.accountDiscriminator)
+                    if outcome == .attempted {
+                        Self.reportHookEvent(dispatch.event, output: output)
+                    }
                 }
             }
 
@@ -180,11 +183,20 @@ extension CodexBarCLI {
         switch outcome.result {
         case let .success(result):
             let usage = result.usage.scoped(to: provider)
+            let hidesPersonalInfo = Self.hidePersonalInfoFromDefaults()
+            let accountDiscriminator = account?.id.uuidString ?? usage.accountEmail(for: provider)
             return HookProviderObservation(
                 provider: provider.rawValue,
-                lanes: Self.hooksWatchLanes(provider: provider, usage: usage, config: config),
+                lanes: Self.hooksWatchLanes(
+                    provider: provider,
+                    usage: usage,
+                    config: config,
+                    accountDiscriminator: accountDiscriminator,
+                    hidesPersonalInfo: hidesPersonalInfo),
                 status: status,
-                accountDisplayName: usage.accountEmail(for: provider))
+                accountDisplayName: hidesPersonalInfo ? nil : usage.accountEmail(for: provider),
+                successfulUsage: usage,
+                accountDiscriminator: accountDiscriminator)
         case let .failure(error):
             return HookProviderObservation(
                 provider: provider.rawValue,
@@ -196,7 +208,9 @@ extension CodexBarCLI {
     static func hooksWatchLanes(
         provider: UsageProvider,
         usage: UsageSnapshot,
-        config: CodexBarConfig) -> [HookQuotaLaneObservation]
+        config: CodexBarConfig,
+        accountDiscriminator: String? = nil,
+        hidesPersonalInfo: Bool = false) -> [HookQuotaLaneObservation]
     {
         let account = usage.accountEmail(for: provider)
         let warnings = config.providerConfig(for: provider.instanceID)?.quotaWarnings
@@ -206,7 +220,7 @@ extension CodexBarCLI {
         ]
 
         return lanes.compactMap { window, rateWindow in
-            guard let rateWindow else { return nil }
+            guard let rateWindow, !rateWindow.isSyntheticPlaceholder else { return nil }
             let thresholds = warnings?
                 .thresholds(for: window, global: QuotaWarningThresholds.defaults)
                 ?? QuotaWarningThresholds.defaults
@@ -214,13 +228,13 @@ extension CodexBarCLI {
                 key: HookQuotaLaneKey(
                     provider: provider.rawValue,
                     window: window,
-                    accountDiscriminator: account),
+                    accountDiscriminator: accountDiscriminator ?? account),
                 label: window.displayName,
                 rateWindow: rateWindow,
                 // Stored thresholds are *remaining* percentages; the crossing math
                 // works on used fractions, matching the app's conversion.
                 fallbackThresholds: thresholds.map { (100.0 - Double($0)) / 100.0 },
-                accountDisplayName: account)
+                accountDisplayName: hidesPersonalInfo ? nil : account)
         }
     }
 

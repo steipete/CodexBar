@@ -698,6 +698,11 @@ struct CostHistoryChartMenuView: View {
         provider: UsageProvider,
         metric: ChartMetric) -> (value: Double, date: Date)?
     {
+        if metric == .cost,
+           ProviderDescriptorRegistry.descriptor(for: provider).tokenCost.presentation == .tokensOnly
+        {
+            return nil
+        }
         let value: Double? = switch metric {
         case .tokens:
             entry.totalTokens.flatMap { $0 >= 0 ? Double($0) : nil }
@@ -745,6 +750,9 @@ struct CostHistoryChartMenuView: View {
     }
 
     private static func defaultMetric(provider: UsageProvider, daily: [DailyEntry]) -> ChartMetric {
+        if ProviderDescriptorRegistry.descriptor(for: provider).tokenCost.presentation == .tokensOnly {
+            return .tokens
+        }
         let available = self.availableMetrics(provider: provider, daily: daily)
         // Provider-specific by design: Codex exposes exact local token totals, so its chart defaults to tokens.
         if provider == .codex, available.contains(.tokens) {

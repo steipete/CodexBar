@@ -53,6 +53,10 @@ check_package_info_plist() {
   "${ROOT_DIR}/Scripts/test_package_info_plist.sh"
 }
 
+check_packaged_app_launch() {
+  python3 "${ROOT_DIR}/Scripts/test_packaged_app_launch.py"
+}
+
 check_cli_installer() {
   /bin/bash "${ROOT_DIR}/Scripts/test_install_codexbar_cli.sh"
 }
@@ -131,6 +135,7 @@ run_portable_checks() {
   check_package_strip
   check_package_signing
   check_package_info_plist
+  check_packaged_app_launch
   check_release_dsym_paths
   check_release_checksum
   check_sparkle_signing_paths

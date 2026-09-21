@@ -140,7 +140,7 @@ struct ShareStatsCardView: View {
 
             VStack(alignment: .leading, spacing: 0) {
                 VStack(alignment: .leading, spacing: 6) {
-                    self.sectionHeader("TOP MODELS", detail: "BY USAGE")
+                    self.sectionHeader("TOP MODELS", detail: self.payload.modelRankingDetail)
                     if self.payload.topModels.isEmpty {
                         Text("No model-level history in this local snapshot")
                             .font(.system(size: 18, weight: .medium, design: .rounded))
@@ -152,7 +152,7 @@ struct ShareStatsCardView: View {
                             id: \.offset)
                         { index, model in
                             ShareStatsModelRow(
-                                rank: index + 1,
+                                rank: self.payload.hasPartialModels ? nil : index + 1,
                                 model: model,
                                 color: self.color(for: model))
                         }
@@ -232,7 +232,7 @@ struct ShareStatsCardView: View {
 }
 
 private struct ShareStatsModelRow: View {
-    let rank: Int
+    let rank: Int?
     let model: ShareStatsModelPayload
     let color: Color
 
@@ -241,7 +241,7 @@ private struct ShareStatsModelRow: View {
             Capsule()
                 .fill(self.color)
                 .frame(width: 5, height: 34)
-            Text(String(format: "%02d", self.rank))
+            Text(self.rank.map { String(format: "%02d", $0) } ?? "·")
                 .font(.system(size: 17, weight: .bold, design: .rounded))
                 .monospacedDigit()
                 .foregroundStyle(Color(red: 0.70, green: 0.66, blue: 0.62))

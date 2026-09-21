@@ -245,11 +245,12 @@ extension AntigravityCLIHTTPSFetchStrategyTests {
     @Test(arguments: [true, false])
     func `print timeout terminates its process`(versionKnown: Bool) async throws {
         let fixture = try Self.printExecutable(
-            "echo $$ > \"$HOME/pid\"; exec /bin/sleep 10", version: versionKnown ? "1.2.2" : nil)
+            "echo $$ > \"$HOME/pid.tmp\"; /bin/mv \"$HOME/pid.tmp\" \"$HOME/pid\"; exec /bin/sleep 10",
+            version: versionKnown ? "1.2.2" : nil)
         defer { try? FileManager.default.removeItem(at: fixture.directory) }
         await #expect(throws: AntigravityStatusProbeError.timedOut) {
             try await AntigravityCLIHTTPSFetchStrategy().fetchPrintUsage(
-                binary: fixture.binary.path, environment: fixture.environment, timeout: 1)
+                binary: fixture.binary.path, environment: fixture.environment, timeout: 3)
         }
         try Self.expectPrintProcessExited(in: fixture.directory)
     }
@@ -257,7 +258,8 @@ extension AntigravityCLIHTTPSFetchStrategyTests {
     @Test(arguments: [true, false])
     func `print cancellation terminates its process`(versionKnown: Bool) async throws {
         let fixture = try Self.printExecutable(
-            "echo $$ > \"$HOME/pid\"; exec /bin/sleep 10", version: versionKnown ? "1.2.2" : nil)
+            "echo $$ > \"$HOME/pid.tmp\"; /bin/mv \"$HOME/pid.tmp\" \"$HOME/pid\"; exec /bin/sleep 10",
+            version: versionKnown ? "1.2.2" : nil)
         defer { try? FileManager.default.removeItem(at: fixture.directory) }
         let task = Task {
             try await AntigravityCLIHTTPSFetchStrategy().fetchPrintUsage(
@@ -265,14 +267,22 @@ extension AntigravityCLIHTTPSFetchStrategyTests {
         }
         defer { task.cancel() }
         let deadline = Date().addingTimeInterval(3)
-        while !FileManager.default.fileExists(atPath: fixture.directory.appendingPathComponent("pid").path),
-              Date() < deadline
-        {
+        var observedPID: Int32?
+        while Date() < deadline {
+            if let text = try? String(contentsOf: fixture.directory.appendingPathComponent("pid"), encoding: .utf8),
+               let pid = Int32(text.trimmingCharacters(in: .whitespacesAndNewlines)),
+               pid > 0, kill(pid, 0) == 0
+            {
+                observedPID = pid
+                break
+            }
             try await Task.sleep(for: .milliseconds(20))
         }
+        // File creation precedes its contents; cancellation must wait for a published, running process.
         task.cancel()
         await #expect(throws: CancellationError.self) { try await task.value }
-        try Self.expectPrintProcessExited(in: fixture.directory)
+        let pid = try #require(observedPID)
+        #expect(kill(pid, 0) == -1)
     }
 
     @Test(arguments: [

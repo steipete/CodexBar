@@ -77,6 +77,14 @@ public struct ProviderPluginManifest: Sendable {
     public let capabilities: Set<ProviderPluginCapability>
     public let cookieDomains: Set<String>
 
+    func cookieDomain(_ rawDomain: String) throws -> String {
+        let domain = rawDomain.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard self.capabilities.contains(.browserCookies), self.cookieDomains.contains(domain) else {
+            throw ProviderPluginError.secretAccess("cookie domain is not declared")
+        }
+        return domain
+    }
+
     func openRouterManagementAuthSecret(method: String, url: URL) throws -> String {
         let secret = "OPENROUTER_MANAGEMENT_API_KEY"
         // Provider-specific by design: only OpenRouter Activity may use its separate management credential.
@@ -499,18 +507,8 @@ enum ProviderPluginClassifiedFailureParser {
     }
 }
 
-struct ProviderPluginTransientHTTPFailure: LocalizedError, Sendable {
+enum ProviderPluginTransientHTTPFailure {
     private static let retryPolicy = ProviderHTTPRetryPolicy.transientIdempotent
-
-    let errorDescription: String?
-
-    init?(statusCode: Int, retryAfterHeader: String?) {
-        guard let markerMessage = Self.markerMessage(
-            statusCode: statusCode,
-            retryAfterHeader: retryAfterHeader)
-        else { return nil }
-        self.errorDescription = markerMessage
-    }
 
     static func markerMessage(statusCode: Int, retryAfterHeader: String?) -> String? {
         guard self.retryPolicy.retryableStatusCodes.contains(statusCode) else { return nil }

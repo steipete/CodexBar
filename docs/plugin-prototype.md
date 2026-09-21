@@ -13,7 +13,7 @@ This document describes the bundled first-party conversion prototype. User-insta
 
 This prototype proves that an existing first-party `UsageProvider` can define its manifest, HTTP requests, response
 parsing, and generic `UsageSnapshot` projection in one bundled JavaScript file. It is deliberately not a user-plugin
-system: IDs remain compile-time `UsageProvider` cases and scripts ship inside CodexBar. Crof, Venice, OpenRouter,
+system: IDs remain compile-time `UsageProvider` cases and scripts ship inside CodexBar. Venice, OpenRouter,
 ClawRouter, Deepgram, sub2api, Synthetic, Poe, xAI, and z.ai use the same bundled script on Apple platforms and Linux;
 their native fetch twins have been removed.
 
@@ -33,7 +33,6 @@ creating its runtime, and reading its manifest; values are the median of five sa
 | Bundled plugin | JavaScriptCore | QuickJS |
 | --- | ---: | ---: |
 | clawrouter | 2.167 | 3.563 |
-| crof | 1.606 | 1.736 |
 | deepgram | 2.074 | 3.127 |
 | manus | 0.907 | 4.241 |
 | openai | 2.859 | 4.279 |
@@ -49,15 +48,16 @@ creating its runtime, and reading its manifest; values are the median of five sa
 | zai | 2.862 | 8.986 |
 
 Fetch timings reuse one context for 50 iterations with fixture transport. Poe exercises all five history pages with
-100 entries per page, OpenRouter performs its credits and key requests, and Crof performs its single usage request.
-Memory is a rough macOS task physical-footprint delta while retaining all 15 contexts, divided by context count.
+100 entries per page and OpenRouter performs its credits and key requests.
+Memory is the original rough macOS task physical-footprint delta across 15 contexts, including the since-retired
+provider; it has not been remeasured for the current registry.
 
-| Engine | Poe (50) | OpenRouter (50) | Crof (50) | Rough peak delta/context |
-| --- | ---: | ---: | ---: | ---: |
-| JavaScriptCore | 321.237 ms | 36.424 ms | 23.917 ms | 806.4 KiB |
-| QuickJS | 1000.066 ms | 90.610 ms | 38.119 ms | 117.3 KiB |
+| Engine | Poe (50) | OpenRouter (50) | Rough peak delta/context |
+| --- | ---: | ---: | ---: |
+| JavaScriptCore | 321.237 ms | 36.424 ms | 806.4 KiB |
+| QuickJS | 1000.066 ms | 90.610 ms | 117.3 KiB |
 
-At this representative workload QuickJS trades roughly 1.6–3.1× fetch time for a much smaller measured context
+At this representative workload QuickJS trades roughly 2.5–3.1× fetch time for a much smaller measured context
 footprint. All operations stay well below the 20-second watchdog; these figures are instrumentation for future engine
 work, not a performance contract.
 
@@ -73,7 +73,7 @@ Perplexity, T3 Chat, and Qoder then prepend a script strategy to their existing 
 A missing required secret or disabled cookie source leaves the script
 strategy unavailable and permits the Swift strategy to run; a loaded script that fails does not fall back, so parity
 defects stay visible. Without the variable, the resolver returns the original Swift strategy only and does not load
-an engine or plugin resource for those providers. Crof, Venice, OpenRouter, ClawRouter, Deepgram, sub2api, Synthetic,
+an engine or plugin resource for those providers. Venice, OpenRouter, ClawRouter, Deepgram, sub2api, Synthetic,
 Poe, xAI, and z.ai always resolve only their script strategy on every platform; `CODEXBAR_JS_PROVIDERS` does not affect
 them.
 
@@ -140,6 +140,8 @@ supply standard ECMAScript built-ins, but no browser or Node host environment. T
 - `await ctx.http.get(url, opts?)` performs a GET and returns `{status, headers, bodyText}`.
 - `await ctx.http.postJSON(url, {body, headers?})` performs a POST and returns `{status, headers, json}`. `body` must be
   JSON-serializable. The serialized body is passed directly to the broker and is never logged.
+- `await ctx.http.post(url, {body, headers?})` sends the same JSON POST and returns `{status, headers, bodyText}`.
+  Use it to classify HTTP failures before parsing a response that may contain a non-JSON error page.
 - `opts.headers` may contain string header values. `opts.timeoutSeconds` sets a hard deadline from 1 through 30 seconds
   (default 15), responses are capped at 5 MiB, and transport uses `ProviderHTTPClient`, including its same-origin HTTPS
   redirect policy.
@@ -163,7 +165,7 @@ supply standard ECMAScript built-ins, but no browser or Node host environment. T
 - `ctx.date.nowMillis()` returns that same refresh clock as Unix epoch milliseconds for deterministic date arithmetic
   (used by the z.ai quota-rate row).
 - `ctx.date.nextDailyReset(timeZoneIdentifier, hour)` returns the next wall-clock hour in an IANA time zone, including
-  DST transitions. Crof uses `America/Chicago` at hour `0`.
+  DST transitions. Bundled plugins may use this for IANA daily resets.
 - `ctx.jwt.decode(token)` decodes the JSON payload segment without verifying a signature.
 - `ctx.pct(used, limit)` returns a finite percentage clamped to 0–100; a non-positive limit maps to 100.
 

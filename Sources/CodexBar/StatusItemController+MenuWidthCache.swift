@@ -51,6 +51,7 @@ extension StatusItemController {
             managedCodexAccountCoordinator: self.managedCodexAccountCoordinator,
             codexAccountPromotionCoordinator: self.codexAccountPromotionCoordinator,
             updateReady: self.updater.updateStatus.isUpdateReady,
+            canCheckForUpdates: self.updater.isAvailable,
             includeContextualActions: includeContextualActions,
             codexWorkspacesMenuEnabled: codexWorkspacesMenuEnabled,
             agentSessionsEnabled: self.settings.agentSessionsEnabled,
@@ -133,6 +134,8 @@ extension StatusItemController {
         switch action {
         case .installUpdate:
             "installUpdate"
+        case .checkForUpdates:
+            "checkForUpdates"
         case .refresh:
             "refresh"
         case .refreshAugmentSession:

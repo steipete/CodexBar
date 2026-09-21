@@ -153,6 +153,10 @@
 "Cookie: …" = "Cookie：…";
 "CopilotDeviceFlow" = "Copilot 设备流程";
 "Cost" = "费用";
+"Token history" = "Token 历史";
+"Local token history · dollar costs unavailable" = "本地 Token 历史 · 暂无美元费用";
+"Partial local history · recorded token subtotal" = "部分本地历史 · 已记录 Token 小计";
+"Local token history is unavailable or incomplete." = "本地 Token 历史不可用或不完整。";
 "Could not add Codex account" = "无法添加 Codex 账户";
 "Could not open Terminal for Gemini" = "无法为 Gemini 打开终端";
 "Could not start claude /login" = "无法启动 claude /login";
@@ -594,6 +598,12 @@
 "cost_summary_off" = "关闭";
 "merge_icons_title" = "合并图标";
 "merge_icons_subtitle" = "使用单个菜单栏图标并带提供商切换器。";
+"merged_icon_style_title" = "合并图标样式";
+"merged_icon_style_subtitle" = "“切换”逐个轮流显示各提供方；“堆叠”同时显示两个提供方,各占一行。";
+"merged_icon_style_switcher" = "切换";
+"merged_icon_style_stacked" = "堆叠";
+"merge_icon_stacked_top_provider_title" = "上排";
+"merge_icon_stacked_bottom_provider_title" = "下排";
 "show_most_used_provider_title" = "显示用量最高的提供商";
 "show_most_used_provider_subtitle" = "菜单栏会自动显示最接近速率限制的提供商。";
 "display_mode_title" = "显示模式";
@@ -847,6 +857,12 @@
 "usage_percent_suffix_used" = "已使用";
 "Store multiple DeepSeek API keys." = "存储多个 DeepSeek API 密钥。";
 "This week" = "本周";
+"Current window" = "当前窗口";
+"Last week" = "上周";
+"%d weeks ago" = "%d 周前";
+"Previous window" = "上一窗口";
+"%d windows ago" = "%d 个窗口前";
+"Recent windows" = "最近窗口";
 "Week" = "本周";
 "Month" = "本月";
 "Models" = "模型";
@@ -910,6 +926,8 @@
 "Overage" = "超额";
 "Activity" = "活动";
 "Copied" = "已复制";
+"Managed by Homebrew" = "由 Homebrew 管理";
+"Copy update command" = "复制更新命令";
 "Copy error" = "复制错误";
 "Copy path" = "复制路径";
 "Extra usage spent" = "额外用量支出";
@@ -1128,7 +1146,6 @@
 "Open Augment (Log Out & Back In)" = "打开 Augment（退出后重新登录）";
 "Open Codebuff Dashboard" = "打开 Codebuff 仪表盘";
 "Open Command Code Settings" = "打开 Command Code 设置";
-"Open Crof dashboard" = "打开 Crof 仪表盘";
 "Open Manus" = "打开 Manus";
 "Open MiMo Balance" = "打开 MiMo 余额";
 "Open Moonshot Console" = "打开 Moonshot 控制台";
@@ -1196,7 +1213,6 @@
 "Stored in ~/.codexbar/config.json. Requires an Anthropic Admin API key." = "存储在 ~/.codexbar/config.json 中。需要 Anthropic Admin API 密钥。";
 "Stored in ~/.codexbar/config.json. Used for /v1/quota-stats." = "存储在 ~/.codexbar/config.json 中。用于 /v1/quota-stats。";
 "Stored in ~/.codexbar/config.json. You can also provide CODEBUFF_API_KEY or let CodexBar read ~/.config/manicode/credentials.json (created by `codebuff login`)." = "存储在 ~/.codexbar/config.json 中。你也可以提供 CODEBUFF_API_KEY，或让 CodexBar 读取由 `codebuff login` 创建的 ~/.config/manicode/credentials.json。";
-"Stored in ~/.codexbar/config.json. You can also provide CROF_API_KEY." = "存储在 ~/.codexbar/config.json 中。你也可以提供 CROF_API_KEY。";
 "Stored in ~/.codexbar/config.json. You can also provide KILO_API_KEY or ~/.local/share/kilo/auth.json (kilo.access)." = "存储在 ~/.codexbar/config.json 中。你也可以提供 KILO_API_KEY 或 ~/.local/share/kilo/auth.json（kilo.access）。";
 "T3 Chat cookie" = "T3 Chat Cookie";
 "Team mode" = "团队模式";
@@ -1319,6 +1335,8 @@
 "Tracked tokens" = "已跟踪 token";
 "Subscriptions" = "订阅";
 "By subscription" = "按订阅";
+"By source" = "By source";
+"%d of %d sources have spend" = "%d of %d sources have spend";
 "No model-level history" = "暂无模型级历史";
 "Daily estimated spend" = "每日估算支出";
 "Hourly estimated spend" = "每小时估算支出";
@@ -1596,6 +1614,24 @@
 "agent_sessions_hide_unreachable_title" = "隐藏无法连接的主机";
 "agent_sessions_hide_unreachable_subtitle" = "获取会话失败时隐藏该主机。";
 
+/* Overview share flow */
+"Share Usage Snapshot…" = "分享用量概览…";
+"Usage snapshot unavailable" = "用量概览不可用";
+"CodexBar couldn't prepare a shareable usage snapshot. Refresh Usage & Spend and try again." = "CodexBar 无法准备可分享的用量概览。请刷新“用量和支出”后重试。";
 "Incomplete" = "不完整";
 "Est. subtotal (%@): %@" = "估算小计（%@）：%@";
 "Excluded requests with missing final usage: %d" = "因缺少最终用量而排除的请求：%d";
+
+"overview_layout_title" = "概览布局";
+"overview_layout_subtitle" = "选择“概览”显示的信息量。";
+"overview_layout_detailed" = "详细";
+"overview_layout_compact" = "紧凑";
+
+"section_widgets" = "小组件";
+"account_widgets_title" = "为小组件保持账户更新";
+"account_widgets_description" = "在每个 Account Usage 小组件中选择一个账户。每个服务商最多刷新六个账户。";
+
+/* Antigravity local cost estimates */
+"antigravity_cost_estimate_hint" = "本地用量 × 公开 API 价格 · 并非 Antigravity 账单或额度";
+"antigravity_quota_window_note" = "窗口费用涵盖所有模型 · 所示窗口为最受限的模型系列";
+"antigravity_no_priced_token_history" = "没有可计价的 Antigravity 令牌历史记录。";

@@ -100,6 +100,48 @@ struct ProviderFetchErrorTests {
         #expect(outcome.attempts.map(\.strategyID) == ["first", "cancel"])
     }
 
+    @Test(arguments: [false, true])
+    func `terminal and exhausted failures emit one safe diagnostic`(allowsFallback: Bool) async throws {
+        let logs = LockIsolated<[[String: String]]>([])
+        let logger = CodexBarLogger(minimumLevel: .debug) { level, message, metadata in
+            #expect(level == .debug)
+            #expect(message == "Provider fetch failed")
+            logs.setValue(logs.value + [metadata ?? [:]])
+        }
+        let pipeline = ProviderFetchPipeline(
+            resolveStrategies: { _ in
+                [TerminalFixtureStrategy(id: "fixture.api", error: .terminal, allowsFallback: allowsFallback)]
+            },
+            logger: logger)
+        let outcome = await pipeline.fetch(context: Self.context(), provider: .neuralwatt)
+        #expect(outcome.attempts.count == 1)
+        let record = try #require(logs.value.first)
+        #expect(logs.value.count == 1)
+        #expect(record["provider"] == "neuralwatt")
+        #expect(record["errorCategory"] == "api")
+        #expect(record["sources"] == "fixture.api (api): failed: api")
+        #expect(!record.values.joined().contains("sensitive-payload"))
+    }
+
+    @Test(arguments: [false, true])
+    func `success and cancellation do not emit failure diagnostics`(cancel: Bool) async throws {
+        let logs = LockIsolated(0)
+        let pipeline = ProviderFetchPipeline(
+            resolveStrategies: { _ in
+                [TerminalFixtureStrategy(id: "fixture.api", error: nil, throwCancellation: cancel)]
+            },
+            logger: CodexBarLogger(minimumLevel: .debug) { _, _, _ in
+                logs.setValue(logs.value + 1)
+            })
+        let outcome = await pipeline.fetch(context: Self.context(), provider: .neuralwatt)
+        if cancel {
+            #expect(throws: CancellationError.self) { try outcome.result.get() }
+        } else {
+            _ = try outcome.result.get()
+        }
+        #expect(logs.value == 0)
+    }
+
     private static func context() -> ProviderFetchContext {
         let browserDetection = BrowserDetection(cacheTTL: 0)
         return ProviderFetchContext(
@@ -117,8 +159,12 @@ struct ProviderFetchErrorTests {
     }
 }
 
-private enum TerminalFixtureFailure: Error {
+private enum TerminalFixtureFailure: LocalizedError {
     case first, terminal, resolved
+
+    var errorDescription: String? {
+        "HTTP \(self) failure: sensitive-payload"
+    }
 }
 
 private struct TerminalFixtureStrategy: ProviderFetchStrategy {

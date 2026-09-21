@@ -186,36 +186,40 @@ struct ClaudeOAuthDirectKeychainReadConsentTests {
             syntheticTokenStore: NoopSyntheticTokenStore())
 
         let memory = ClaudeOAuthCredentialsStore.MemoryCacheStore()
-        ClaudeOAuthCredentialsStore.$taskMemoryCacheStoreOverride.withValue(memory) {
-            // Consent on: a credential read from Claude Code's Keychain lands in CodexBar's caches.
-            settings.claudeOAuthDirectKeychainReadAllowed = true
-            memory.record = ClaudeOAuthCredentialRecord(
-                credentials: ClaudeOAuthCredentials(
-                    accessToken: "cached-from-claude-keychain",
-                    refreshToken: nil,
-                    expiresAt: Date(timeIntervalSinceNow: 3600),
-                    scopes: ["user:profile"],
-                    rateLimitTier: nil),
-                owner: .claudeCLI,
-                source: .claudeKeychain)
-            memory.timestamp = Date()
-            memory.profileIdentifier = ClaudeOAuthCredentialsStore.credentialsProfileIdentifier(
-                environment: [:])
-            #expect(memory.record != nil)
+        let revocationStore = ClaudeOAuthCredentialsStore.DirectKeychainReadConsentRevocationMarkerStore()
+        ClaudeOAuthCredentialsStore.withDirectKeychainReadConsentRevocationMarkerStoreForTesting(revocationStore) {
+            ClaudeOAuthCredentialsStore.$taskMemoryCacheStoreOverride.withValue(memory) {
+                // Consent on: a credential read from Claude Code's Keychain lands in CodexBar's caches.
+                settings.claudeOAuthDirectKeychainReadAllowed = true
+                memory.record = ClaudeOAuthCredentialRecord(
+                    credentials: ClaudeOAuthCredentials(
+                        accessToken: "cached-from-claude-keychain",
+                        refreshToken: nil,
+                        expiresAt: Date(timeIntervalSinceNow: 3600),
+                        scopes: ["user:profile"],
+                        rateLimitTier: nil),
+                    owner: .claudeCLI,
+                    source: .claudeKeychain)
+                memory.timestamp = Date()
+                memory.profileIdentifier = ClaudeOAuthCredentialsStore.credentialsProfileIdentifier(
+                    environment: [:])
+                #expect(memory.record != nil)
 
-            // Consent off: the cached copy must not outlive the permission that obtained it.
-            settings.claudeOAuthDirectKeychainReadAllowed = false
-            #expect(memory.record == nil)
-            #expect(settings.claudeOAuthDirectKeychainReadAllowed == false)
+                // Consent off: the cached copy must not outlive the permission that obtained it.
+                settings.claudeOAuthDirectKeychainReadAllowed = false
+                #expect(revocationStore.marker != nil)
+                #expect(memory.record == nil)
+                #expect(settings.claudeOAuthDirectKeychainReadAllowed == false)
 
-            // The direct-read gate is closed again, and with no readable credential the explicit
-            // OAuth route hands off to the owner CLI usage fallback instead of reusing stale caches.
-            ClaudeOAuthDirectKeychainReadConsent.withTaskOverrideForTesting(false) {
-                #expect(ClaudeOAuthCredentialsStore.keychainAccessAllowed == false)
+                // The direct-read gate is closed again, and with no readable credential the explicit
+                // OAuth route hands off to the owner CLI usage fallback instead of reusing stale caches.
+                ClaudeOAuthDirectKeychainReadConsent.withTaskOverrideForTesting(false) {
+                    #expect(ClaudeOAuthCredentialsStore.keychainAccessAllowed == false)
+                }
+                #expect(ClaudeOAuthFetchStrategy().shouldFallback(
+                    on: ClaudeOAuthCredentialsError.notFound,
+                    context: self.makeContext(runtime: .app, sourceMode: .oauth)))
             }
-            #expect(ClaudeOAuthFetchStrategy().shouldFallback(
-                on: ClaudeOAuthCredentialsError.notFound,
-                context: self.makeContext(runtime: .app, sourceMode: .oauth)))
         }
     }
 

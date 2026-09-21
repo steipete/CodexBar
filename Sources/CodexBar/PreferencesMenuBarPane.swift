@@ -73,6 +73,36 @@ struct MenuBarPane: View {
                 }
 
                 SettingsMenuPicker(
+                    selection: Binding(
+                        get: { self.mergedIconPresentation.effectiveStyle },
+                        set: { self.settings.mergedIconDisplayStyle = $0 }),
+                    options: MenuBarSettingsMenuOptions.mergedIconStyles,
+                    label: {
+                        SettingsRowLabel(L("merged_icon_style_title"), subtitle: L("merged_icon_style_subtitle"))
+                    },
+                    optionLabel: { style in
+                        Text(style.label)
+                    })
+                    .disabled(!self.mergedIconPresentation.canStack)
+
+                if let pair = self.mergedIconPresentation.stackedProviders {
+                    self.stackedRowProviderPicker(
+                        title: L("merge_icon_stacked_top_provider_title"),
+                        selection: Binding(
+                            get: { self.mergedIconPresentation.topSelection },
+                            set: { self.settings.mergeIconStackedTopProvider = $0 }),
+                        excluding: self.mergedIconPresentation.bottomSelection,
+                        automaticProvider: pair.top)
+                    self.stackedRowProviderPicker(
+                        title: L("merge_icon_stacked_bottom_provider_title"),
+                        selection: Binding(
+                            get: { self.mergedIconPresentation.bottomSelection },
+                            set: { self.settings.mergeIconStackedBottomProvider = $0 }),
+                        excluding: self.mergedIconPresentation.topSelection,
+                        automaticProvider: pair.bottom)
+                }
+
+                SettingsMenuPicker(
                     selection: self.$settings.switcherRowsOption,
                     options: MenuBarSettingsMenuOptions.switcherRows,
                     label: { Text(L("switcher_rows_title")) },
@@ -86,7 +116,7 @@ struct MenuBarPane: View {
                         L("show_most_used_provider_title"),
                         subtitle: L("show_most_used_provider_subtitle"))
                 }
-                .disabled(!self.settings.mergeIcons)
+                .disabled(!self.settings.mergeIcons || self.isStackedStyleActive)
 
                 self.overviewProviderRow
                     .disabled(!self.settings.mergeIcons)
@@ -98,6 +128,7 @@ struct MenuBarPane: View {
                 Toggle(isOn: self.$settings.randomBlinkEnabled) {
                     SettingsRowLabel(L("surprise_me_title"), subtitle: L("surprise_me_subtitle"))
                 }
+                .disabled(self.isStackedStyleActive)
             } header: {
                 Text(L("section_animation"))
             }
@@ -183,6 +214,30 @@ struct MenuBarPane: View {
 
     private var activeProvidersInOrder: [UsageProvider] {
         self.store.enabledFirstPartyProviders()
+    }
+
+    private var mergedIconPresentation: MergedIconPresentation {
+        self.settings.mergedIconPresentation(activeProviders: self.store.enabledFirstPartyProvidersForDisplay())
+    }
+
+    private var isStackedStyleActive: Bool {
+        self.mergedIconPresentation.stackedProviders != nil
+    }
+
+    private func stackedRowProviderPicker(
+        title: String,
+        selection: Binding<UsageProvider?>,
+        excluding: UsageProvider?,
+        automaticProvider: UsageProvider) -> some View
+    {
+        SettingsMenuPicker(
+            selection: selection,
+            options: [nil] + self.mergedIconPresentation.eligibleProviders.filter { $0 != excluding },
+            label: { Text(title) },
+            optionLabel: { provider in
+                Text(provider.map(self.providerDisplayName)
+                    ?? "\(L("Automatic")) (\(self.providerDisplayName(automaticProvider)))")
+            })
     }
 
     private var overviewSelectedProviders: [UsageProvider] {

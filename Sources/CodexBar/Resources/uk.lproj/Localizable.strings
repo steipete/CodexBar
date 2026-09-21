@@ -150,6 +150,10 @@
 "Cookie: …" = "Печиво: …";
 "CopilotDeviceFlow" = "CopilotDeviceFlow";
 "Cost" = "Вартість";
+"Token history" = "Історія токенів";
+"Local token history · dollar costs unavailable" = "Локальна історія токенів · вартість у доларах недоступна";
+"Partial local history · recorded token subtotal" = "Неповна локальна історія · проміжна сума записаних токенів";
+"Local token history is unavailable or incomplete." = "Локальна історія токенів недоступна або неповна.";
 "Could not add Codex account" = "Не вдалося додати обліковий запис Codex";
 "Could not open Terminal for Gemini" = "Не вдалося відкрити термінал для Gemini";
 "Could not start claude /login" = "Не вдалося запустити claude /login";
@@ -612,6 +616,12 @@
 "cost_summary_off" = "Вимкнено";
 "merge_icons_title" = "Злиття значків";
 "merge_icons_subtitle" = "Використовуйте одну піктограму панелі меню з перемикачем провайдерів.";
+"merged_icon_style_title" = "Стиль об'єднаного значка";
+"merged_icon_style_subtitle" = "Перемикач по черзі показує провайдерів; Стос показує двох провайдерів одночасно, кожного у своєму рядку.";
+"merged_icon_style_switcher" = "Перемикач";
+"merged_icon_style_stacked" = "Стос";
+"merge_icon_stacked_top_provider_title" = "Верхній рядок";
+"merge_icon_stacked_bottom_provider_title" = "Нижній рядок";
 "show_most_used_provider_title" = "Показати постачальника, який найчастіше використовується";
 "show_most_used_provider_subtitle" = "Рядок меню автоматично показує постачальника, який найближче до ліміту.";
 "display_mode_title" = "Режим відображення";
@@ -882,6 +892,12 @@
 "usage_percent_suffix_used" = "використовується";
 "Store multiple DeepSeek API keys." = "Зберігайте кілька ключів DeepSeek API.";
 "This week" = "Цього тижня";
+"Current window" = "Поточне вікно";
+"Last week" = "Минулого тижня";
+"%d weeks ago" = "%d тиж. тому";
+"Previous window" = "Попереднє вікно";
+"%d windows ago" = "%d вікн. тому";
+"Recent windows" = "Недавні вікна";
 "Week" = "тиждень";
 "Month" = "місяць";
 "Models" = "Моделі";
@@ -941,6 +957,8 @@
 "Overage" = "Надлишок";
 "Activity" = "діяльність";
 "Copied" = "Скопійовано";
+"Managed by Homebrew" = "Керується через Homebrew";
+"Copy update command" = "Скопіювати команду оновлення";
 "Copy error" = "Помилка копіювання";
 "Copy path" = "Копіювати шлях";
 "Extra usage spent" = "Витрачено додаткове використання";
@@ -1150,7 +1168,6 @@
 "Open Augment (Log Out & Back In)" = "Відкрити доповнення (вийти та повернутися)";
 "Open Codebuff Dashboard" = "Відкрийте інформаційну панель Codebuff";
 "Open Command Code Settings" = "Відкрийте налаштування коду команди";
-"Open Crof dashboard" = "Відкрийте інформаційну панель Crof";
 "Open Manus" = "Відкрийте Manus";
 "Open MiMo Balance" = "Відкрийте MiMo Balance";
 "Open Moonshot Console" = "Відкрийте консоль Moonshot";
@@ -1218,7 +1235,6 @@
 "Stored in ~/.codexbar/config.json. Requires an Anthropic Admin API key." = "Зберігається в ~/.codexbar/config.json. Потрібен ключ API адміністратора Anthropic.";
 "Stored in ~/.codexbar/config.json. Used for /v1/quota-stats." = "Зберігається в ~/.codexbar/config.json. Використовується для /v1/quota-stats.";
 "Stored in ~/.codexbar/config.json. You can also provide CODEBUFF_API_KEY or let CodexBar read ~/.config/manicode/credentials.json (created by `codebuff login`)." = "Зберігається в ~/.codexbar/config.json. Ви також можете надати CODEBUFF_API_KEY або дозволити CodexBar читати ~/.config/manicode/credentials.json (створений `codebuff login`).";
-"Stored in ~/.codexbar/config.json. You can also provide CROF_API_KEY." = "Зберігається в ~/.codexbar/config.json. Ви також можете надати CROF_API_KEY.";
 "Stored in ~/.codexbar/config.json. You can also provide KILO_API_KEY or ~/.local/share/kilo/auth.json (kilo.access)." = "Зберігається в ~/.codexbar/config.json. Ви також можете надати KILO_API_KEY або ~/.local/share/kilo/auth.json (kilo.access).";
 "T3 Chat cookie" = "T3 Чат cookie";
 "Team mode" = "Командний режим";
@@ -1336,6 +1352,8 @@
 "Tracked tokens" = "Відстежувані токени";
 "Subscriptions" = "Підписки";
 "By subscription" = "За підписками";
+"By source" = "By source";
+"%d of %d sources have spend" = "%d of %d sources have spend";
 "No model-level history" = "Немає історії за моделями";
 "Daily estimated spend" = "Орієнтовні щоденні витрати";
 "Hourly estimated spend" = "Орієнтовні погодинні витрати";
@@ -1581,6 +1599,24 @@
 "agent_sessions_hide_unreachable_title" = "Приховувати недоступні вузли";
 "agent_sessions_hide_unreachable_subtitle" = "Приховувати вузли, якщо не вдалося отримати їхні сеанси.";
 
+/* Overview share flow */
+"Share Usage Snapshot…" = "Поділитися оглядом використання…";
+"Usage snapshot unavailable" = "Огляд використання недоступний";
+"CodexBar couldn't prepare a shareable usage snapshot. Refresh Usage & Spend and try again." = "CodexBar не вдалося підготувати огляд використання для поширення. Оновіть розділ «Використання й витрати» та повторіть спробу.";
 "Incomplete" = "Неповні дані";
 "Est. subtotal (%@): %@" = "Орієнтовний підсумок (%@): %@";
 "Excluded requests with missing final usage: %d" = "Виключені запити без остаточних даних про використання: %d";
+
+"overview_layout_title" = "Компонування огляду";
+"overview_layout_subtitle" = "Виберіть, скільки інформації показувати в огляді.";
+"overview_layout_detailed" = "Докладно";
+"overview_layout_compact" = "Компактний";
+
+"section_widgets" = "Віджети";
+"account_widgets_title" = "Оновлювати дані облікових записів для віджетів";
+"account_widgets_description" = "Виберіть обліковий запис у кожному віджеті Account Usage. Оновлює до шести облікових записів для кожного постачальника.";
+
+/* Antigravity local cost estimates */
+"antigravity_cost_estimate_hint" = "Локальне використання × публічні ціни API · це не рахунки та не кредити Antigravity";
+"antigravity_quota_window_note" = "Вартість вікна охоплює всі моделі · показано вікно найбільш обмеженої родини";
+"antigravity_no_priced_token_history" = "Немає оціненої історії токенів Antigravity.";

@@ -9,12 +9,15 @@ struct ProviderPluginParityTests {
     @Test
     func `cut-over providers use only JS without the prototype flag`() async {
         for (provider, key) in [
-            (UsageProvider.crof, "CROF_API_KEY"),
-            (.venice, "VENICE_API_KEY"),
+            (UsageProvider.venice, "VENICE_API_KEY"),
             (.openrouter, "OPENROUTER_API_KEY"),
             (.clawrouter, "CLAWROUTER_API_KEY"),
             (.deepgram, "DEEPGRAM_API_KEY"),
+            (.elevenlabs, "ELEVENLABS_API_KEY"),
             (.poe, "POE_API_KEY"),
+            (.llmproxy, "LLM_PROXY_API_KEY"),
+            (.litellm, "LITELLM_API_KEY"),
+            (.neuralwatt, "NEURALWATT_API_KEY"),
             (.sub2api, "SUB2API_API_KEY"),
             (.synthetic, "SYNTHETIC_API_KEY"),
             (.xai, "XAI_MANAGEMENT_API_KEY"),
@@ -24,6 +27,12 @@ struct ProviderPluginParityTests {
             var environment = [key: "fixture-key"]
             if provider == .sub2api {
                 environment[Sub2APISettingsReader.baseURLEnvironmentKey] = "https://api.example.com"
+            }
+            if provider == .llmproxy {
+                environment[LLMProxySettingsReader.baseURLEnvironmentKey] = "https://proxy.example.com"
+            }
+            if provider == .litellm {
+                environment[LiteLLMSettingsReader.baseURLEnvironmentKey] = "https://proxy.example.com"
             }
             if provider == .xai {
                 environment[XAISettingsReader.teamIDEnvironmentKey] = "team-1234"
@@ -39,7 +48,29 @@ struct ProviderPluginParityTests {
         }
     }
 
-    @Test(arguments: [UsageProvider.openrouter, .clawrouter, .deepgram])
+    @Test(arguments: [UsageProvider.llmproxy, .litellm])
+    func `configured proxy origins reject invalid overrides before fetching`(provider: UsageProvider) async throws {
+        let key = provider == .llmproxy ? "LLM_PROXY_API_KEY" : "LITELLM_API_KEY"
+        let base = provider == .llmproxy ? "LLM_PROXY_BASE_URL" : "LITELLM_BASE_URL"
+        for origin in ["http://public.example.com", "https://user:password@example.com", "file:///tmp/proxy"] {
+            let context = Self.context(environment: [key: "fixture-key", base: origin])
+            let strategy = try #require(await ProviderDescriptorRegistry.descriptor(for: provider)
+                .fetchPlan.pipeline.resolveStrategies(context).first)
+            #expect(await strategy.isAvailable(context))
+            do {
+                _ = try await strategy.fetch(context)
+                Issue.record("Expected invalid override")
+            } catch let error as LLMProxyUsageError {
+                #expect(provider == .llmproxy)
+                #expect(error.localizedDescription.contains(base))
+            } catch let error as LiteLLMUsageError {
+                #expect(provider == .litellm)
+                #expect(error.localizedDescription.contains(base))
+            }
+        }
+    }
+
+    @Test(arguments: [UsageProvider.openrouter, .clawrouter, .deepgram, .neuralwatt])
     func `override preflight preserves provider validation errors`(provider: UsageProvider) async throws {
         let environment: [String: String] = switch provider {
         case .openrouter:
@@ -60,6 +91,11 @@ struct ProviderPluginParityTests {
                 DeepgramSettingsReader.apiURLEnvironmentKey: "http://router.example.test",
                 ProviderPluginPrototype.environmentKey: "1",
             ]
+        case .neuralwatt:
+            [
+                NeuralWattSettingsReader.apiKeyEnvironmentKey: "fixture-key",
+                NeuralWattSettingsReader.apiURLEnvironmentKey: "http://quota.example.test",
+            ]
         default: [:]
         }
         let context = Self.context(environment: environment)
@@ -75,6 +111,9 @@ struct ProviderPluginParityTests {
         } catch let error as ClawRouterSettingsError {
             #expect(provider == .clawrouter)
             #expect(error == .invalidEndpointOverride(ClawRouterSettingsReader.baseURLEnvironmentKey))
+        } catch let error as NeuralWattSettingsError {
+            #expect(provider == .neuralwatt)
+            #expect(error == .invalidEndpointOverride(NeuralWattSettingsReader.apiURLEnvironmentKey))
         } catch let error as DeepgramSettingsError {
             #expect(provider == .deepgram)
             guard case let .invalidEndpointOverride(key) = error else {
@@ -178,38 +217,6 @@ struct ProviderPluginParityTests {
         #expect(script.identity?.accountEmail == nil)
         #expect(script.identity?.accountOrganization == nil)
         #expect(script.identity?.loginMethod == nil)
-    }
-
-    @Test
-    func `Crof fixture matches the cut-over golden`() async throws {
-        let body = #"{"credits":9.9999,"requests_plan":1000,"usable_requests":998}"#
-        let transport = Self.transport(body: body)
-        let now = Date(timeIntervalSince1970: 1_800_000_000)
-        let fetchStartedAt = Date()
-
-        let runtime = try ProviderPluginRuntime(bundledPlugin: "crof", transport: transport)
-        let script = try await runtime.fetchUsage(secrets: ["CROF_API_KEY": "fixture-key"], now: now)
-
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = try #require(TimeZone(identifier: "America/Chicago"))
-        let reset = try #require(calendar.date(
-            byAdding: .day,
-            value: 1,
-            to: calendar.startOfDay(for: fetchStartedAt)))
-        #expect(script.primary == RateWindow(
-            usedPercent: 1,
-            windowMinutes: 1440,
-            resetsAt: reset,
-            resetDescription: "998 requests left"))
-        #expect(script.secondary == RateWindow(
-            usedPercent: 0,
-            windowMinutes: nil,
-            resetsAt: nil,
-            resetDescription: "$9.99"))
-        #expect(script.tertiary == nil)
-        #expect(script.providerCost == nil)
-        #expect(script.identity?.providerID == .crof)
-        #expect(script.identity?.loginMethod == "API key")
     }
 
     @Test

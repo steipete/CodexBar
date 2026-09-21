@@ -37,6 +37,8 @@ read_when:
 
 Vertex AI Claude usage is logged to the same local files as direct Anthropic API usage (`~/.claude/projects/`). CodexBar identifies Vertex AI entries using two methods:
 
+Regular cost refreshes retain `vertexai-v6.json`; the app's independent Usage & Spend refresh uses `vertexai-history-v6.json` and a separate report memo. App memos track that rows were selected for their current window; older unverified caches rebuild once, and changing the app window preserves cold-scan duplicate selection. Provider filtering, pricing, and other providers' shared cache locations remain unchanged.
+
 ### Detection Methods
 
 1. **Model name format** (primary): Vertex AI uses `@` as version separator

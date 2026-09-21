@@ -150,6 +150,18 @@ If Auto fetches usage with a cookie that the app still cannot confirm for the cu
 - Provider cost: Extra usage USD. A capped individual budget wins; team accounts without a user cap use the shared team on-demand budget.
 - Reset: billing cycle end date for monthly bars; paid Grok Bot uses `nextResetTimestampUtc`, even if a trial-expiry field is also present. Trial-only allowances have no recurring reset or duration because trial expiration does not replenish quota.
 
+## Menu-bar layout
+
+In the menu-bar layout editor, select the Cursor override and drag **Grok Bot %** from the usage palette
+onto a line, for example beside the icon. It follows the used/remaining preference and reads the same
+allowance as the card. The palette token and its rendered percentage disappear when the snapshot has no
+active Grok Bot allowance, including a zero included limit without an active trial. The saved placement
+remains and reappears when the allowance returns; Auto % continues to use Cursor's standard windows.
+
+Named-extra selections are stored in V4 layout keys. A V3 projection omits them while preserving explicit
+reset-window selections for 0.60.x; V2/V1 projections remain available for older releases. An unchanged
+downgrade preserves the full layout on return, while edits made in an older release take precedence.
+
 ## Key files
 - `Sources/CodexBarCore/Providers/Cursor/CursorAppAuth.swift`
 - `Sources/CodexBarCore/Providers/Cursor/CursorStatusProbe.swift`

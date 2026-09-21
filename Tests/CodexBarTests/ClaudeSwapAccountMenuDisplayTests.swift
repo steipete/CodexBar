@@ -5,7 +5,7 @@ import Testing
 
 @MainActor
 struct ClaudeSwapAccountMenuDisplayTests {
-    private func account(_ slot: String, active: Bool = false, canActivate: Bool = true)
+    private func account(_ slot: String, active: Bool = false, canActivate: Bool? = nil)
         -> ProviderAccountUsageSnapshot
     {
         ProviderAccountUsageSnapshot(
@@ -13,7 +13,7 @@ struct ClaudeSwapAccountMenuDisplayTests {
             provider: .claude,
             displayLabel: "person\(slot)@example.com",
             isActive: active,
-            canActivate: canActivate && !active,
+            canActivate: canActivate ?? !active,
             snapshot: nil,
             error: nil,
             sourceLabel: "claude-swap")
@@ -66,8 +66,42 @@ struct ClaudeSwapAccountMenuDisplayTests {
     }
 
     @Test
-    func `switcher permits inspection and serializes repeated activation selection`() {
+    func `chip help names activation only for inactive actionable accounts and respects privacy`() {
+        let target = self.account("7")
         let active = self.account("2", active: true)
+        let activeNeedingRepair = self.account("3", active: true, canActivate: true)
+        let unavailable = self.account("9", canActivate: false)
+        #expect(ClaudeSwapAccountMenuDisplay.chipHelp(for: target, hidePersonalInfo: true) ==
+            L("Switch Claude Code to %@", "Account 7"))
+        #expect(ClaudeSwapAccountMenuDisplay.chipHelp(for: target, hidePersonalInfo: false) ==
+            L("Switch Claude Code to %@", target.displayLabel))
+        for account in [active, activeNeedingRepair, unavailable] {
+            #expect(!ClaudeSwapAccountMenuDisplay.activatesAccount(account))
+            #expect(ClaudeSwapAccountMenuDisplay.chipHelp(for: account, hidePersonalInfo: true) ==
+                L("Details for %@", "Account \(account.id.opaqueID)"))
+        }
+    }
+
+    @Test(arguments: [ClaudeSwapSwitchPhase.activating, .reconciling])
+    func `target progress survives an early adapter active marker`(phase: ClaudeSwapSwitchPhase) {
+        let label = phase == .activating ? L("Switching account…") : L("Refreshing account status…")
+        for target in [self.account("7"), self.account("7", active: true)] {
+            #expect(ClaudeSwapAccountMenuDisplay.actionLabel(
+                for: target,
+                switchingAccountID: target.id,
+                switchInFlight: true,
+                switchPhase: phase) == label)
+        }
+        #expect(ClaudeSwapAccountMenuDisplay.actionLabel(
+            for: self.account("9"),
+            switchingAccountID: self.account("7").id,
+            switchInFlight: true,
+            switchPhase: phase) == nil)
+    }
+
+    @Test
+    func `switcher permits inspection and serializes repeated activation selection`() {
+        let active = self.account("2", active: true, canActivate: true)
         let unavailable = self.account("3", canActivate: false)
         let target = self.account("7")
         var selected: [ProviderAccountIdentity] = []
@@ -89,5 +123,29 @@ struct ClaudeSwapAccountMenuDisplayTests {
             width: 320,
             onSelect: { _ in })
         #expect(wrapped.fittingSize.height == 56)
+    }
+
+    @Test
+    func `three narrow chips retain their identity titles and expose privacy safe action labels`() throws {
+        let accounts = [self.account("1", active: true), self.account("2"), self.account("3", canActivate: false)]
+        let view = ClaudeSwapAccountSwitcherView(
+            display: self.display(accounts),
+            hidePersonalInfo: true,
+            width: 280,
+            onSelect: { _ in })
+        let stack = try #require(view.subviews.first as? NSStackView)
+        let row = try #require(stack.arrangedSubviews.first as? NSStackView)
+        let buttons = row.arrangedSubviews.compactMap { $0 as? NSButton }
+        #expect(buttons.map(\.title) == ["Account 1", "Account 2", "Account 3"])
+        let help = [
+            L("Details for %@", "Account 1"),
+            L("Switch Claude Code to %@", "Account 2"),
+            L("Details for %@", "Account 3"),
+        ]
+        #expect(buttons.map(\.toolTip) == help.map(Optional.some))
+        #expect(buttons.map { $0.accessibilityLabel() } == help.map(Optional.some))
+        #expect(buttons.map(\.state) == [.on, .off, .off])
+        view._test_select(accounts[1].id)
+        #expect(buttons.allSatisfy { !$0.isEnabled })
     }
 }

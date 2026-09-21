@@ -50,7 +50,6 @@ struct ProviderCredentialCharacterizationTests {
             .init(provider: .copilot, environmentKey: "COPILOT_API_TOKEN"),
             .init(provider: .warp, environmentKey: "WARP_API_KEY"),
             .init(provider: .codebuff, environmentKey: "CODEBUFF_API_KEY"),
-            .init(provider: .crof, environmentKey: "CROF_API_KEY"),
             .init(provider: .doubao, environmentKey: "ARK_API_KEY"),
         ]
 
@@ -64,14 +63,14 @@ struct ProviderCredentialCharacterizationTests {
             #expect(ProviderConfigEnvironment.supportsAPIKeyOverride(for: fixture.provider))
         }
 
-        for fixture in fixtures where fixture.provider != .codebuff && fixture.provider != .crof {
+        for fixture in fixtures where fixture.provider != .codebuff {
             let environment = ProviderConfigEnvironment.applyAPIKeyOverride(
                 base: [fixture.environmentKey: "environment-token"],
                 provider: fixture.provider,
                 config: ProviderConfig(id: fixture.provider.instanceID, apiKey: "config-token"))
             #expect(environment[fixture.environmentKey] == "config-token", Comment(rawValue: fixture.provider.rawValue))
         }
-        for fixture in fixtures where fixture.provider == .codebuff || fixture.provider == .crof {
+        for fixture in fixtures where fixture.provider == .codebuff {
             let environment = ProviderConfigEnvironment.applyAPIKeyOverride(
                 base: [fixture.environmentKey: "environment-token"],
                 provider: fixture.provider,
@@ -213,10 +212,11 @@ struct ProviderCredentialCharacterizationTests {
             (.sub2api, "SUB2API_API_KEY"),
             (.ibmbob, "BOBSHELL_API_KEY"),
             (.grok, "GROK_OAUTH_TOKEN"),
+            (.huggingface, "CODEXBAR_HUGGINGFACE_API_KEY"),
         ]
         let cookieProviders: [UsageProvider] = [
             .claude, .cursor, .opencode, .opencodego, .factory, .minimax, .manus,
-            .augment, .ollama, .abacus, .mistral, .qoder, .stepfun,
+            .augment, .ollama, .abacus, .mistral, .qoder, .stepfun, .replicate, .typesafe,
         ]
 
         for (provider, key) in environmentProviders {
@@ -253,6 +253,8 @@ struct ProviderCredentialCharacterizationTests {
             .mistral: "account-token",
             .qoder: "account-token",
             .stepfun: "account-token",
+            .replicate: "account-token",
+            .typesafe: "account-token",
         ]
         for provider in cookieProviders {
             #expect(TokenAccountSupportCatalog.normalizedCookieHeader(
@@ -285,6 +287,7 @@ struct ProviderCredentialCharacterizationTests {
             (.llmproxy, "LLM_PROXY_API_KEY"), (.litellm, "LITELLM_API_KEY"),
             (.sub2api, "SUB2API_API_KEY"), (.antigravity, "ANTIGRAVITY_OAUTH_CREDENTIALS_JSON"),
             (.ibmbob, "BOBSHELL_API_KEY"),
+            (.huggingface, "CODEXBAR_HUGGINGFACE_API_KEY"),
         ]
         let account = ProviderTokenAccount(
             id: UUID(), label: "fixture", token: "account-token", addedAt: 0, lastUsed: nil)
@@ -351,7 +354,6 @@ struct ProviderCredentialCharacterizationTests {
             .init(provider: .chutes, environment: ["CHUTES_API_KEY": "token"], mode: "api"),
             .init(provider: .zenmux, environment: ["ZENMUX_MANAGEMENT_API_KEY": "token"], mode: "api"),
             .init(provider: .aiand, environment: ["AIAND_API_KEY": "token"], mode: "api"),
-            .init(provider: .crof, environment: ["CROF_API_KEY": "token"], mode: "api"),
             .init(provider: .deepgram, environment: ["DEEPGRAM_API_KEY": "token"], mode: "api"),
             .init(provider: .deepseek, environment: ["DEEPSEEK_API_KEY": "token"], mode: "api"),
             .init(provider: .deepinfra, environment: ["DEEPINFRA_API_KEY": "token"], mode: "api"),

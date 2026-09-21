@@ -314,6 +314,7 @@ struct UsageStoreDisabledProviderCleanupTests {
         }
 
         store.scheduleTokenRefreshForTesting()
+        let originalSequence = try #require(store.tokenRefreshSequenceTask)
         await codexGate.waitUntilStarted()
         try Self.setProvider(.codex, enabled: false, settings: settings)
         store.clearDisabledProviderState(enabledProviders: [.claude])
@@ -323,16 +324,13 @@ struct UsageStoreDisabledProviderCleanupTests {
         try Self.setProvider(.codex, enabled: true, settings: settings)
         store.scheduleTokenRefreshForTesting()
         await claudeGate.resume()
-
-        for _ in 0..<200
-            where store.tokenSnapshot(for: .codex)?.sessionTokens != 190 || claudeLoads != 2
-        {
-            try await Task.sleep(for: .milliseconds(10))
-        }
+        await originalSequence.value
+        await store.tokenRefreshSequenceTask?.value
 
         #expect(store.tokenSnapshot(for: .codex)?.sessionTokens == 190)
         #expect(codexLoads == 2)
         #expect(claudeLoads == 1)
+        #expect(store.tokenRefreshSequenceTask == nil)
     }
 
     @Test

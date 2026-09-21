@@ -2,6 +2,11 @@ import CodexBarCore
 import Foundation
 
 extension SettingsStore {
+    var kimiRegion: KimiRegion {
+        get { self.providerConfig(for: .kimi)?.sanitizedRegion.flatMap(KimiRegion.init(rawValue:)) ?? .china }
+        set { self.updateProviderConfig(provider: .kimi) { $0.region = newValue.rawValue } }
+    }
+
     var kimiUsageDataSource: ProviderSourceMode {
         get { self.configSnapshot.providerConfig(for: .kimi)?.source ?? .auto }
         set {

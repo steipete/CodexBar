@@ -7,7 +7,11 @@ import Testing
 struct CLIOutputTests {
     @Test(arguments: BundledPluginTestSupport.engines)
     func `OpenRouter text and JSON retain independent cap and balance`(engine: ProviderPluginEngineKind) async throws {
-        let snapshot = try await OpenRouterLimitTestSupport.snapshot(engine: engine)
+        let snapshot = try await OpenRouterLimitTestSupport.snapshot(engine: engine, keyBody: #"""
+        {"data":{"limit":30,"limit_remaining":30,"usage":0,"rate_limit":{
+          "requests":-1,"interval":"10s","note":"This field is deprecated and safe to ignore."
+        }}}
+        """#)
         let text = CLIRenderer.renderText(
             provider: .openrouter,
             snapshot: snapshot,
@@ -19,6 +23,7 @@ struct CLIOutputTests {
         #expect(text.contains("Balance: $1.90"))
         #expect(text.contains("100% left"))
         #expect(!text.contains("API key budget"))
+        #expect(!text.contains("Rate limit"))
 
         let data = try JSONEncoder().encode(snapshot)
         let json = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
@@ -28,6 +33,7 @@ struct CLIOutputTests {
             "label": "API key limit", "value": "$30.00", "secondaryValue": "Spending cap, not balance",
         ])
         #expect(rows[1] == ["label": "API key remaining", "value": "$30.00"])
+        #expect(!rows.contains { $0["label"] == "Rate limit" })
         #expect((json["primary"] as? [String: Double]) == ["usedPercent": 0])
         #expect(Set(json.keys) == [
             "primary", "secondary", "tertiary", "details", "updatedAt", "identity", "loginMethod",

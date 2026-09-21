@@ -133,6 +133,10 @@
 "Cookie: …" = "كوكي: ...";
 "CopilotDeviceFlow" = "CopilotDeviceFlow";
 "Cost" = "التكلفة";
+"Token history" = "سجل الرموز";
+"Local token history · dollar costs unavailable" = "سجل الرموز المحلي · التكاليف بالدولار غير متاحة";
+"Partial local history · recorded token subtotal" = "سجل محلي جزئي · المجموع الفرعي للرموز المسجّلة";
+"Local token history is unavailable or incomplete." = "سجل الرموز المحلي غير متاح أو غير مكتمل.";
 "Could not add Codex account" = "لم أتمكن من إضافة Codex الحساب";
 "Could not open Terminal for Gemini" = "لم أتمكن من فتح الطرفية من Gemini";
 "Could not start claude /login" = "لم تستطع بدء كلود /login";
@@ -618,6 +622,12 @@
 "cost_summary_off" = "إيقاف";
 "merge_icons_title" = "أيقونات الدمج";
 "merge_icons_subtitle" = "استخدم أيقونة شريط قائمة واحدة مع محول المزود.";
+"merged_icon_style_title" = "نمط الأيقونة المدمجة";
+"merged_icon_style_subtitle" = "يتنقل المبدّل بين المزوّدين واحدًا تلو الآخر؛ يعرض المكدّس مزوّدين في آن واحد، كل منهما في صف.";
+"merged_icon_style_switcher" = "المبدّل";
+"merged_icon_style_stacked" = "مكدّس";
+"merge_icon_stacked_top_provider_title" = "الصف العلوي";
+"merge_icon_stacked_bottom_provider_title" = "الصف السفلي";
 "show_most_used_provider_title" = "عرض المزود الأكثر استخداما";
 "show_most_used_provider_subtitle" = "شريط القوائم يعرض تلقائيا مزود الخدمة الأقرب إلى حد السعر.";
 "display_mode_title" = "وضع العرض";
@@ -888,6 +898,12 @@
 "usage_percent_suffix_used" = "مستخدم";
 "Store multiple DeepSeek API keys." = "خزن عدة مفاتيح DeepSeek API.";
 "This week" = "هذا الأسبوع";
+"Current window" = "النافذة الحالية";
+"Last week" = "الأسبوع الماضي";
+"%d weeks ago" = "قبل %d أسابيع";
+"Previous window" = "النافذة السابقة";
+"%d windows ago" = "قبل %d نوافذ";
+"Recent windows" = "النوافذ الأخيرة";
 "Week" = "الأسبوع";
 "Month" = "الشهر";
 "Models" = "النماذج";
@@ -948,6 +964,8 @@
 "Overage" = "التجاوز";
 "Activity" = "النشاط";
 "Copied" = "تم النسخ";
+"Managed by Homebrew" = "تتم إدارته بواسطة Homebrew";
+"Copy update command" = "نسخ أمر التحديث";
 "Copy error" = "خطأ في النسخ.";
 "Copy path" = "مسار النسخ";
 "Extra usage spent" = "الاستخدام الإضافي المخصص";
@@ -1167,7 +1185,6 @@
 "Open Augment (Log Out & Back In)" = "فتح Augment (تسجيل الخروج والعودة للدخول)";
 "Open Codebuff Dashboard" = "لوحة تحكم مفتوحة Codebuff";
 "Open Command Code Settings" = "افتح إعدادات Command Code";
-"Open Crof dashboard" = "لوحة تحكم Open Crof";
 "Open Manus" = "فتح Manus";
 "Open MiMo Balance" = "توازن MiMo مفتوح";
 "Open Moonshot Console" = "وحدة التحكم المفتوحة Moonshot";
@@ -1235,7 +1252,6 @@
 "Stored in ~/.codexbar/config.json. Requires an Anthropic Admin API key." = "التخزين في ~/.codexbar/config.json. يتطلب مفتاح API إداري بشري.";
 "Stored in ~/.codexbar/config.json. Used for /v1/quota-stats." = "مخزنة في ~/.codexbar/config.json. تستخدم /v1/quota-stats.";
 "Stored in ~/.codexbar/config.json. You can also provide CODEBUFF_API_KEY or let CodexBar read ~/.config/manicode/credentials.json (created by `codebuff login`)." = "مخزن في ~/.codexbar/config.json. يمكنك أيضا توفير CODEBUFF_API_KEY أو السماح CodexBar بقراءة ~/.config/manicode/credentials.json (تم إنشاؤه بواسطة `codebuff login`).";
-"Stored in ~/.codexbar/config.json. You can also provide CROF_API_KEY." = "مخزن في ~/.codexbar/config.json. يمكنك أيضا توفير CROF_API_KEY.";
 "Stored in ~/.codexbar/config.json. You can also provide KILO_API_KEY or ~/.local/share/kilo/auth.json (kilo.access)." = "مخزنة في ~/.codexbar/config.json. يمكنك أيضا توفير KILO_API_KEY أو ~/.local/share/kilo/auth.json (كيلو.أكس).";
 "T3 Chat cookie" = "T3 Chat كوكي";
 "Team mode" = "وضع الفريق";
@@ -1340,6 +1356,8 @@
 "Tracked tokens" = "الرموز المتتبعة";
 "Subscriptions" = "الاشتراكات";
 "By subscription" = "حسب الاشتراك";
+"By source" = "By source";
+"%d of %d sources have spend" = "%d of %d sources have spend";
 "No model-level history" = "لا يوجد سجل على مستوى النموذج";
 "Daily estimated spend" = "الإنفاق اليومي التقديري";
 "Hourly estimated spend" = "الإنفاق الساعي التقديري";
@@ -1585,6 +1603,24 @@
 "agent_sessions_hide_unreachable_title" = "إخفاء المضيفين غير المتاحين";
 "agent_sessions_hide_unreachable_subtitle" = "إخفاء المضيفين عند تعذّر جلب جلساتهم.";
 
+/* Overview share flow */
+"Share Usage Snapshot…" = "مشاركة ملخص الاستخدام…";
+"Usage snapshot unavailable" = "ملخص الاستخدام غير متاح";
+"CodexBar couldn't prepare a shareable usage snapshot. Refresh Usage & Spend and try again." = "تعذر على CodexBar إعداد ملخص استخدام قابل للمشاركة. حدّث الاستخدام والإنفاق ثم حاول مرة أخرى.";
 "Incomplete" = "غير مكتمل";
 "Est. subtotal (%@): %@" = "الإجمالي الفرعي التقديري (%@): %@";
 "Excluded requests with missing final usage: %d" = "الطلبات المستبعدة لعدم توفر بيانات الاستخدام النهائية: %d";
+
+"overview_layout_title" = "تخطيط النظرة العامة";
+"overview_layout_subtitle" = "اختر مقدار المعلومات التي تعرضها النظرة العامة.";
+"overview_layout_detailed" = "مفصل";
+"overview_layout_compact" = "مضغوط";
+
+"section_widgets" = "الأدوات";
+"account_widgets_title" = "تحديث الحسابات للأدوات";
+"account_widgets_description" = "اختر حسابًا في كل أداة Account Usage. يتم تحديث ما يصل إلى ستة حسابات لكل مزوّد.";
+
+/* Antigravity local cost estimates */
+"antigravity_cost_estimate_hint" = "الاستخدام المحلي × أسعار واجهة البرمجة العامة · ليست رسوم أو أرصدة Antigravity";
+"antigravity_quota_window_note" = "تكلفة النافذة تشمل كل النماذج · النافذة المعروضة هي الفئة الأكثر تقييدًا";
+"antigravity_no_priced_token_history" = "لا يتوفر سجل رموز Antigravity مُسعّر.";

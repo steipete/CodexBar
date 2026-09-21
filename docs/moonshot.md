@@ -11,8 +11,9 @@ read_when:
 Moonshot / Kimi Open Platform is API-only. Balance is reported by `GET /v1/users/me/balance`,
 so CodexBar only needs a valid API key to show the current account balance.
 
-The native fetcher remains authoritative because this balance-only result is intentionally represented in snapshot
-identity without a rate window, cost, or detail, while the plugin contract rejects identity-only snapshots.
+The native fetcher remains authoritative. The plugin contract now supports identity-only snapshots and
+`ctx.format.currency`, which uses the same native USD/CNY formatter, including decimal half-even rounding and negative
+zero. A bundled-plugin conversion can preserve the balance and deficit text; the provider cutover is still pending.
 
 ## Rationale
 

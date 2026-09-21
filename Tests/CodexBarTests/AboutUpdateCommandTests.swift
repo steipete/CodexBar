@@ -15,11 +15,12 @@ final class AboutUpdateCommandTests: XCTestCase {
         let row = try AboutUpdatesUnavailableView(
             reason: XCTUnwrap(updater.unavailableReason),
             command: updater.manualUpdateCommand,
-            copyAction: { text in
+            copyAction: { text, completion in
                 MenuPasteboardCopy.perform(
                     text,
                     scheduler: { probe.pendingWrite = $0 },
-                    writer: { probe.writes.append($0) })
+                    writer: { probe.writes.append($0) },
+                    completion: { completion(true) })
             })
             .buttonStyle(AboutCopyTriggerStyle(probe: probe))
         try self.withHostedRow(row) {
@@ -41,7 +42,10 @@ final class AboutUpdateCommandTests: XCTestCase {
         let row = try AboutUpdatesUnavailableView(
             reason: XCTUnwrap(updater.unavailableReason),
             command: updater.manualUpdateCommand,
-            copyAction: { probe.writes.append($0) })
+            copyAction: { text, completion in
+                probe.writes.append(text)
+                completion(true)
+            })
             .buttonStyle(AboutCopyTriggerStyle(probe: probe))
         self.withHostedRow(row) {
             XCTAssertNil(probe.press)

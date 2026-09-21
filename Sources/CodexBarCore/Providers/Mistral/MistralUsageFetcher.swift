@@ -96,6 +96,43 @@ public enum MistralUsageFetcher {
         return try Self.parseVibeUsage(data: data)
     }
 
+    static func fetchSubscriptionBudgets(
+        cookieHeader: String,
+        timeout: TimeInterval = 4,
+        transport: ProviderHTTPTransport = ProviderHTTPClient.shared) async throws -> MistralSubscriptionBudgets
+    {
+        let url = self.baseURL.appendingPathComponent("subscription")
+        var request = URLRequest(url: url, timeoutInterval: timeout)
+        request.httpShouldHandleCookies = false
+        request.setValue("text/html", forHTTPHeaderField: "Accept")
+        request.setValue("en-US,en;q=0.9", forHTTPHeaderField: "Accept-Language")
+        request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
+        request.setValue(url.absoluteString, forHTTPHeaderField: "Referer")
+
+        let response = try await transport.response(for: request)
+        switch response.statusCode {
+        case 200:
+            break
+        case 401, 403:
+            throw MistralUsageError.invalidCredentials
+        default:
+            let body = String(data: response.data.prefix(200), encoding: .utf8) ?? ""
+            throw MistralUsageError.apiError("HTTP \(response.statusCode): \(body)")
+        }
+        guard response.response.url?.scheme?.lowercased() == "https",
+              response.response.url?.host?.lowercased() == self.baseURL.host,
+              let html = String(data: response.data, encoding: .utf8),
+              !html.isEmpty
+        else {
+            throw MistralUsageError.parseFailed("Invalid subscription page response")
+        }
+        do {
+            return try MistralSubscriptionBudgetParser.parse(html: html)
+        } catch {
+            throw MistralUsageError.parseFailed(error.localizedDescription)
+        }
+    }
+
     public static func fetchCredits(
         cookieHeader: String,
         csrfToken: String?,

@@ -105,7 +105,8 @@ extension UsageStore {
     func handlePredictivePaceWarningTransitions(
         provider: UsageProvider,
         snapshot: UsageSnapshot,
-        accountDiscriminatorOverride: String? = nil)
+        accountDiscriminatorOverride: String? = nil,
+        requiresKnownAccount: Bool = false)
     {
         guard self.settings.predictivePaceWarningNotificationsEnabled else {
             self.predictivePaceWarningNotifiedKeys = Set(
@@ -113,6 +114,7 @@ extension UsageStore {
             return
         }
         guard provider == .codex || provider == .claude else { return }
+        guard !requiresKnownAccount || accountDiscriminatorOverride != nil else { return }
         guard let accountDiscriminator = self.predictivePaceWarningAccountDiscriminator(
             provider: provider,
             snapshot: snapshot,
@@ -121,14 +123,15 @@ extension UsageStore {
 
         let candidates = self.predictivePaceWarningCandidates(provider: provider, snapshot: snapshot)
         for candidate in candidates {
-            guard let resetWindow = Self.predictivePaceWarningResetWindow(for: candidate.rateWindow) else {
+            guard let resetsAt = candidate.rateWindow.resetsAt else {
                 continue
             }
             let key = PredictivePaceWarningStateKey(
                 provider: provider,
                 accountDiscriminator: accountDiscriminator,
                 window: candidate.window,
-                resetWindow: resetWindow)
+                resetWindow: PredictivePaceWarningResetWindow(
+                    windowMinutes: candidate.rateWindow.windowMinutes, resetsAt: resetsAt))
             PredictivePaceWarningNotificationLogic.reconcileSiblingWindowKeys(
                 activeKey: key,
                 notifiedKeys: &self.predictivePaceWarningNotifiedKeys)
@@ -143,7 +146,7 @@ extension UsageStore {
                 PredictivePaceWarningEvent(
                     window: candidate.window,
                     etaSeconds: candidate.pace.etaSeconds ?? 0,
-                    accountDisplayName: self.predictivePaceWarningAccountDisplayName(
+                    accountDisplayName: self.warningAccountDisplayName(
                         provider: provider,
                         snapshot: snapshot)),
                 provider: provider,
@@ -155,49 +158,35 @@ extension UsageStore {
         provider: UsageProvider,
         snapshot: UsageSnapshot) -> [(window: QuotaWarningWindow, rateWindow: RateWindow, pace: UsagePace)]
     {
-        var candidates: [(window: QuotaWarningWindow, rateWindow: RateWindow, pace: UsagePace)] = []
-        let now = snapshot.updatedAt
-
-        if let sessionWindow = self.predictivePaceWarningSessionWindow(provider: provider, snapshot: snapshot),
-           !sessionWindow.isSyntheticPlaceholder,
-           let sessionPace = UsagePaceText.sessionPace(provider: provider, window: sessionWindow, now: now)
-        {
-            candidates.append((window: .session, rateWindow: sessionWindow, pace: sessionPace))
-        }
-
-        if let weeklyWindow = self.predictivePaceWarningWeeklyWindow(provider: provider, snapshot: snapshot),
-           let weeklyPace = self.weeklyPace(
-               provider: provider,
-               window: weeklyWindow,
-               dataConfidence: snapshot.dataConfidence,
-               now: now)
-        {
-            candidates.append((window: .weekly, rateWindow: weeklyWindow, pace: weeklyPace))
-        }
-
-        return candidates
-    }
-
-    private func predictivePaceWarningSessionWindow(provider: UsageProvider, snapshot: UsageSnapshot) -> RateWindow? {
+        let windows: [(QuotaWarningWindow, RateWindow?)]
         if provider == .codex {
-            return self.codexConsumerProjection(
-                surface: .liveCard,
-                snapshotOverride: snapshot,
-                now: snapshot.updatedAt)
-                .sourceRateWindow(for: .session)
+            let projection = self.codexConsumerProjection(
+                surface: .liveCard, snapshotOverride: snapshot, now: snapshot.updatedAt)
+            windows = [
+                (.session, projection.sourceRateWindow(for: .session)),
+                (.weekly, projection.sourceRateWindow(for: .weekly)),
+            ]
+        } else {
+            windows = [
+                (.session, self.sessionQuotaWindow(provider: provider, snapshot: snapshot)?.window),
+                (.weekly, snapshot.secondary),
+            ]
         }
-        return self.sessionQuotaWindow(provider: provider, snapshot: snapshot)?.window
-    }
-
-    private func predictivePaceWarningWeeklyWindow(provider: UsageProvider, snapshot: UsageSnapshot) -> RateWindow? {
-        if provider == .codex {
-            return self.codexConsumerProjection(
-                surface: .liveCard,
-                snapshotOverride: snapshot,
-                now: snapshot.updatedAt)
-                .sourceRateWindow(for: .weekly)
+        return windows.compactMap { window, rateWindow in
+            guard let rateWindow else { return nil }
+            let pace: UsagePace? = switch window {
+            case .session:
+                rateWindow.isSyntheticPlaceholder ? nil : UsagePaceText.sessionPace(
+                    provider: provider, window: rateWindow, now: snapshot.updatedAt)
+            case .weekly:
+                self.weeklyPace(
+                    provider: provider,
+                    window: rateWindow,
+                    dataConfidence: snapshot.dataConfidence,
+                    now: snapshot.updatedAt)
+            }
+            return pace.map { (window, rateWindow, $0) }
         }
-        return snapshot.secondary
     }
 
     private func predictivePaceWarningAccountDiscriminator(
@@ -227,62 +216,53 @@ extension UsageStore {
         return "email:\(account)"
     }
 
-    static func warningClaudeAccountDiscriminator(
+    func warningClaudeAccountDiscriminators(
         strategyKind: ProviderFetchKind,
         observation: ClaudeOAuthActiveAccountObservation,
-        oauthHistoryOwnerIdentifier: String? = nil) -> String?
+        oauthHistoryOwnerIdentifier: String? = nil) -> (quota: String?, source: String?)
     {
-        switch strategyKind {
-        case .cli:
-            return self.warningClaudeActiveAccountDiscriminator(observation: observation)
-        case .oauth:
-            if let activeAccount = self.warningClaudeActiveAccountDiscriminator(
-                observation: observation)
-            {
-                return activeAccount
-            }
-            guard let owner = oauthHistoryOwnerIdentifier?
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-                .lowercased(),
-                !owner.isEmpty
-            else { return nil }
-            // OAuth usage has no email. Keep a credential-scoped fallback so warning episodes remain
-            // account-scoped when Claude's active-account metadata is unavailable.
-            return "claude-oauth-owner:\(owner)"
-        case .apiToken, .localProbe, .web, .webDashboard:
-            return nil
+        guard strategyKind == .oauth || strategyKind == .cli else { return (nil, nil) }
+        let identity: String? = if case let .stable(identity) = observation {
+            identity?.trimmingCharacters(in: .whitespacesAndNewlines)
+        } else {
+            nil
         }
+        let unknownAccount = "claude-account:unknown"
+        var account = identity.flatMap { $0.isEmpty ? nil : "claude-account:\($0)" }
+        var source = account ?? unknownAccount
+        if strategyKind == .oauth,
+           let owner = oauthHistoryOwnerIdentifier?
+               .trimmingCharacters(in: .whitespacesAndNewlines).lowercased(), !owner.isEmpty
+        {
+            let ownerKey = "claude-oauth-owner:\(owner)"
+            source = account ?? ownerKey
+            if let boundIdentity = Self.loadClaudeOAuthAccountUuidMap(from: self.settings.userDefaults)[owner] {
+                let boundAccount = "claude-account:\(boundIdentity)"
+                // A stable metadata observation alone cannot bind credentials to a different verified owner.
+                guard account == nil || account == boundAccount else { return (nil, nil) }
+                self.reconcileClaudeQuotaWarningOwner(ownerKey, account: boundAccount)
+                account = boundAccount
+            }
+        }
+        if let account, account != unknownAccount {
+            self.reconcileClaudeQuotaWarningOwner(unknownAccount, account: account)
+        }
+        return (account ?? source, source)
     }
 
-    private static func warningClaudeActiveAccountDiscriminator(
-        observation: ClaudeOAuthActiveAccountObservation) -> String?
-    {
-        guard case let .stable(identity) = observation,
-              let identity = identity?.trimmingCharacters(in: .whitespacesAndNewlines),
-              !identity.isEmpty
-        else { return nil }
-        return "claude-account:\(identity)"
+    private func reconcileClaudeQuotaWarningOwner(_ owner: String, account: String) {
+        for (key, prior) in self.quotaWarningState where key.provider == .claude && key.accountDiscriminator == owner {
+            let accountKey = QuotaWarningStateKey(
+                provider: key.provider, window: key.window, accountDiscriminator: account, windowID: key.windowID)
+            if prior.observedAt >= (self.quotaWarningState[accountKey]?.observedAt ?? .distantPast) {
+                self.quotaWarningState[accountKey] = prior
+            }
+            self.quotaWarningState.removeValue(forKey: key)
+        }
     }
 
     static func warningTokenAccountDiscriminator(_ account: ProviderTokenAccount?) -> String? {
         guard let account else { return nil }
         return "token-account:\(account.id.uuidString.lowercased())"
-    }
-
-    private func predictivePaceWarningAccountDisplayName(provider: UsageProvider, snapshot: UsageSnapshot) -> String? {
-        guard !self.settings.hidePersonalInfo else { return nil }
-        let account = snapshot.accountEmail(for: provider)?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let account, !account.isEmpty else { return nil }
-        return account
-    }
-
-    private static func predictivePaceWarningResetWindow(for window: RateWindow)
-        -> PredictivePaceWarningResetWindow?
-    {
-        guard let resetsAt = window.resetsAt else { return nil }
-        return PredictivePaceWarningResetWindow(
-            windowMinutes: window.windowMinutes,
-            resetsAt: resetsAt)
     }
 }

@@ -187,9 +187,11 @@ struct PiSessionCostCompatibilityTests {
                     "usage": ["input": 100, "output": 10, "totalTokens": 110],
                 ],
             ]]))
+        let emptyOMPRoot = env.root.appendingPathComponent("empty-omp", isDirectory: true)
+        try FileManager.default.createDirectory(at: emptyOMPRoot, withIntermediateDirectories: true)
         let options = PiSessionCostScanner.Options(
             piSessionsRoot: env.piSessionsRoot,
-            ompSessionsRoot: env.root.appendingPathComponent("empty-omp"),
+            ompSessionsRoot: emptyOMPRoot,
             cacheRoot: env.cacheRoot,
             refreshMinIntervalSeconds: 3600)
         #expect(try ModelsDevCache.save(

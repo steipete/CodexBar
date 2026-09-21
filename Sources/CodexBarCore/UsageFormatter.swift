@@ -107,10 +107,10 @@ public enum UsageFormatter {
     }
 
     public static func resetCountdownDescription(from date: Date, now: Date = .init()) -> String {
-        let seconds = max(0, date.timeIntervalSince(now))
-        if seconds < 1 { return "now" }
-
-        let totalMinutes = max(1, Int(ceil(seconds / 60.0)))
+        guard let totalMinutes = self.resetCountdownMinutes(from: date, now: now) else {
+            return self.localized("Unknown")
+        }
+        if totalMinutes == 0 { return "now" }
         let days = totalMinutes / (24 * 60)
         let hours = (totalMinutes / 60) % 24
         let minutes = totalMinutes % 60
@@ -125,6 +125,12 @@ public enum UsageFormatter {
             return "in \(hours)h"
         }
         return "in \(totalMinutes)m"
+    }
+
+    private static func resetCountdownMinutes(from date: Date, now: Date) -> Int? {
+        let seconds = date.timeIntervalSince(now)
+        guard let minutes = Int(exactly: ceil(seconds / 60)) else { return nil }
+        return seconds < 1 ? 0 : max(1, minutes)
     }
 
     public static func resetDescription(from date: Date, now: Date = .init()) -> String {
@@ -147,7 +153,7 @@ public enum UsageFormatter {
         style: ResetTimeDisplayStyle,
         now: Date = .init()) -> String?
     {
-        if let date = window.resetsAt {
+        if let date = window.resetsAt, self.resetCountdownMinutes(from: date, now: now) != nil {
             if style == .countdown {
                 let countdown = self.resetCountdownDescription(from: date, now: now)
                 if countdown == "now" {
@@ -179,7 +185,10 @@ public enum UsageFormatter {
 
     public static func updatedString(from date: Date, now: Date = .init()) -> String {
         let delta = now.timeIntervalSince(date)
-        if abs(delta) < 60 {
+        guard let elapsedSeconds = Int(exactly: delta.rounded(.towardZero)) else {
+            return self.localized("Updated absolute %@", self.localized("Unknown"))
+        }
+        if elapsedSeconds > -60, elapsedSeconds < 60 {
             return self.localized("Updated just now")
         }
         if let hours = Calendar.current.dateComponents([.hour], from: date, to: now).hour, hours < 24 {
@@ -189,7 +198,7 @@ public enum UsageFormatter {
             rel.unitsStyle = .abbreviated
             return self.localized("Updated relative %@", rel.localizedString(for: date, relativeTo: now))
             #else
-            let seconds = max(0, Int(now.timeIntervalSince(date)))
+            let seconds = max(0, elapsedSeconds)
             if seconds < 3600 {
                 let minutes = max(1, seconds / 60)
                 return self.localized("Updated %@m ago", String(minutes))
@@ -205,7 +214,11 @@ public enum UsageFormatter {
     }
 
     public static func creditsString(from value: Double) -> String {
-        self.localized("%@ left", self.creditsNumberString(from: value))
+        self.remainingString(from: self.creditsNumberString(from: value))
+    }
+
+    public static func remainingString(from formattedValue: String) -> String {
+        self.localized("%@ left", formattedValue)
     }
 
     public static func creditsNumberString(from value: Double) -> String {

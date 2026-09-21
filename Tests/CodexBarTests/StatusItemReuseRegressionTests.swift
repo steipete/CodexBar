@@ -9,8 +9,9 @@ import Testing
 struct StatusItemReuseRegressionTests {
     @Test
     func `usage update during vending reuses the provider status item`() throws {
-        let suite = "StatusItemReuseRegressionTests-\(UUID().uuidString)"
-        let settings = testSettingsStore(suiteName: suite)
+        let settings = testSettingsStore(
+            suiteName: "StatusItemReuseRegressionTests",
+            userDefaults: InMemoryUserDefaults())
         settings.statusChecksEnabled = false
         settings.refreshFrequency = .manual
         settings.mergeIcons = true
@@ -35,10 +36,12 @@ struct StatusItemReuseRegressionTests {
         let controller = StatusItemController(
             store: store,
             settings: settings,
-            account: fetcher.loadAccountInfo(),
+            account: AccountInfo(email: nil, plan: nil),
             updater: DisabledUpdaterController(),
             preferencesSelection: PreferencesSelection(),
-            statusBar: testStatusBar())
+            statusBar: testStatusBar(),
+            menuCardRenderingEnabled: false,
+            menuRefreshEnabled: false)
         defer { controller.releaseStatusItemsForTesting() }
 
         let initialItem = try #require(controller.statusItems[.codex])
@@ -46,7 +49,9 @@ struct StatusItemReuseRegressionTests {
         controller.statusBar.removeStatusItem(initialItem)
 
         var itemSeenByUpdate: NSStatusItem?
-        let vendedItem = controller._test_vendStatusItem(for: .codex) { _ in
+        let vendedItem = controller._test_vendStatusItem(for: .codex) { created in
+            #expect(created.autosaveName == "codexbar-codex")
+            #expect(controller.statusItems[.codex] === created)
             store._setSnapshotForTesting(
                 UsageSnapshot(
                     primary: RateWindow(

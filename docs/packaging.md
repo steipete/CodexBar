@@ -14,6 +14,7 @@ read_when:
 - `Scripts/sign-and-notarize.sh`: explicitly selects Developer ID signing, notarizes, staples, and zips (accepts `ARCHES` for universal).
 - `Scripts/make_appcast.sh`: wrapper around the shared `mac-release make-appcast` helper; app metadata comes from `.mac-release.env`.
 - `Scripts/changelog-to-html.sh`: converts the per-version changelog section to HTML for Sparkle.
+- `Scripts/verify_packaged_app_launch.sh`: checks resource loading and AppKit liveness with a temporary home, disabled synthetic provider config, no inherited credentials, test-safe background work, and a sandbox guard against writes to the real home directory.
 
 ## Bundle contents
 - `CodexBarWidget.appex` is built by `WidgetExtension/CodexBarWidgetExtension.xcodeproj` as a real macOS app extension, then bundled with app-group entitlements.

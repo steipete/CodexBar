@@ -256,11 +256,13 @@ public struct DeepSeekUsageSnapshot: Sendable {
             guard let value = day.cost, value > 0 else { return (day.date, 0) }
             return (day.date, value)
         }
-        if costPoints.contains(where: { $0.value > 0 }) {
+        let modelRows = usage.modelCosts.map { ProviderDetailSection.makeRow(label: $0.model, value: cost($0.cost)) }
+        let hasCostChart = costPoints.contains { $0.value > 0 }
+        if hasCostChart || !modelRows.isEmpty {
             sections.append(.makeSection(
                 title: "Spend",
-                rows: [],
-                chart: .makeChart(title: "Daily cost", unit: usage.currency, points: costPoints)))
+                rows: modelRows,
+                chart: hasCostChart ? .makeChart(title: "Daily cost", unit: usage.currency, points: costPoints) : nil))
         }
         return sections
     }

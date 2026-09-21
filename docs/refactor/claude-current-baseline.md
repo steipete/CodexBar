@@ -125,6 +125,8 @@ Claude Web enrichment is usage-extra-only when the primary source is OAuth or CL
 - A matching prepaid balance may enrich an existing `providerCost` without replacing its spend/limit values.
 - OAuth enrichment calls `GET /api/oauth/profile`; Web data is merged only when the email or organization UUID
   matches the primary Claude account.
+- CLI enrichment requires matching account emails. Organization display names can reject a known mismatch but
+  cannot establish account identity when an email is missing.
 - Web extras must not replace `accountEmail`, `accountOrganization`, or `loginMethod` from the primary source.
 - Snapshot identity remains provider-scoped to Claude.
 

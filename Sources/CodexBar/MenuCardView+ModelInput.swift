@@ -50,6 +50,7 @@ extension UsageMenuCardView.Model {
         let preferredCurrencyCode: String
         let costUsageBucketCalendar: Calendar
         let now: Date
+        let observedWeeklyResets: [CostUsageQuotaResetObservation]
 
         init(
             provider: UsageProvider,
@@ -96,7 +97,8 @@ extension UsageMenuCardView.Model {
             usesLiveSubtitle: Bool = false,
             preferredCurrencyCode: String = "auto",
             costUsageBucketCalendar: Calendar = .current,
-            now: Date)
+            now: Date,
+            observedWeeklyResets: [CostUsageQuotaResetObservation] = [])
         {
             self.provider = provider
             self.metadata = metadata
@@ -143,6 +145,7 @@ extension UsageMenuCardView.Model {
             self.preferredCurrencyCode = preferredCurrencyCode
             self.costUsageBucketCalendar = costUsageBucketCalendar
             self.now = now
+            self.observedWeeklyResets = observedWeeklyResets
         }
     }
 }

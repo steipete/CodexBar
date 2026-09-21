@@ -22,6 +22,17 @@ struct ProviderRefreshPublicationContext {
     let allowDisabled: Bool
 }
 
+struct TokenAccountFetchResult {
+    let index: Int
+    let account: ProviderTokenAccount
+    let outcome: ProviderFetchOutcome
+}
+
+struct CodexManagedVisibleAccountRuntimeState {
+    let authFingerprint: String?
+    let workspaceAccountID: String?
+}
+
 extension ProviderStatusComponent {
     var statusLabel: String {
         Self.label(forStatuspageStatus: self.status)

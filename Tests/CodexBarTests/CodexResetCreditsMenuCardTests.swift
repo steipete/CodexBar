@@ -21,7 +21,7 @@ struct CodexResetCreditsMenuCardTests {
             availableCount: 99)
 
         let model = try Self.model(snapshot: snapshot, now: now)
-        let presentation = try #require(model.codexResetCredits)
+        let presentation = try #require(model.limitResetCredits)
 
         #expect(presentation.text == "3 available")
         #expect(presentation.items.map(\.expiryText) == ["Expires in 1d", "Expires in 2d", "No expiry"])
@@ -38,7 +38,7 @@ struct CodexResetCreditsMenuCardTests {
                 now: now,
                 credits: [Self.credit(id: "no-expiry", status: .available, now: now, expiresIn: nil)]),
             now: now)
-        let presentation = try #require(model.codexResetCredits)
+        let presentation = try #require(model.limitResetCredits)
 
         #expect(presentation.text == "1 available")
         #expect(presentation.items.map(\.expiryText) == ["No expiry"])
@@ -56,7 +56,7 @@ struct CodexResetCreditsMenuCardTests {
                 credits: [Self.credit(id: "finite", status: .available, now: now, expiresIn: 86400)]),
             resetStyle: .absolute,
             now: now)
-        let presentation = try #require(model.codexResetCredits)
+        let presentation = try #require(model.limitResetCredits)
         let formatted = UsageFormatter.resetDescription(from: expiresAt, now: now)
 
         #expect(presentation.items.map(\.expiryText) == ["Expires \(formatted)"])
@@ -73,8 +73,8 @@ struct CodexResetCreditsMenuCardTests {
             showOptionalUsage: false,
             now: now)
 
-        #expect(model.codexResetCredits?.text == "1 available")
-        #expect(model.codexResetCredits?.expirySummaryText == "1d")
+        #expect(model.limitResetCredits?.text == "1 available")
+        #expect(model.limitResetCredits?.expirySummaryText == "1d")
     }
 
     @Test
@@ -85,7 +85,7 @@ struct CodexResetCreditsMenuCardTests {
         }
         let model = try Self.model(snapshot: Self.snapshot(now: now, credits: credits), now: now)
 
-        let presentation = try #require(model.codexResetCredits)
+        let presentation = try #require(model.limitResetCredits)
         #expect(presentation.expirySummaryText == "1d · 2d · 3d · 4d · +2")
         #expect(presentation.helpText.split(separator: "\n").count == 6)
     }
@@ -94,9 +94,9 @@ struct CodexResetCreditsMenuCardTests {
     func `changing reset credit countdown keeps hosted layout compatible`() throws {
         let (current, candidate) = try Self.weeklyResetTransitionModels()
 
-        #expect(current.codexResetCredits?.expirySummaryText == "1d 6h")
-        #expect(candidate.codexResetCredits?.expirySummaryText == "18h")
-        #expect(current.codexResetCredits != candidate.codexResetCredits)
+        #expect(current.limitResetCredits?.expirySummaryText == "1d 6h")
+        #expect(candidate.limitResetCredits?.expirySummaryText == "18h")
+        #expect(current.limitResetCredits != candidate.limitResetCredits)
         #expect(current.hasCompatibleTrackedLayout(with: candidate))
     }
 
@@ -181,7 +181,7 @@ struct CodexResetCreditsMenuCardTests {
         let visible = monitor.model(for: .codex, fallback: frozen)
         #expect(visible.metrics.map(\.percent) == resolved.metrics.map(\.percent))
         #expect(visible.metrics.map(\.percent) != frozen.metrics.map(\.percent))
-        #expect(visible.codexResetCredits == resolved.codexResetCredits)
+        #expect(visible.limitResetCredits == resolved.limitResetCredits)
 
         let width: CGFloat = 320
         let constraint = CGSize(width: width, height: .greatestFiniteMagnitude)
@@ -210,7 +210,7 @@ struct CodexResetCreditsMenuCardTests {
                 availableCount: 1),
             now: now)
 
-        #expect(model.codexResetCredits == nil)
+        #expect(model.limitResetCredits == nil)
         #expect(model.hasCompatibleTrackedLayout(with: model))
     }
 

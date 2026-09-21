@@ -33,6 +33,11 @@ explicitly confirms access. Interaction-required, missing, or failed preflights 
 actual read remains non-interactive. This recovery does not clear the user-initiated denial cooldown or override
 disabled Keychain access.
 
+An inconclusive no-UI preflight gets at most three attempts, with a 30 ms pause before each retry. Stable authorization
+decisions are never retried. Each distinct preflight can add two 30 ms waits plus the Security calls;
+repeated checks within one operation reuse the final result. This applies to generic-password preflights for
+browser storage, credential repair, and CodexBar caches, without changing their permission requirements.
+
 Provider-owned child processes are a separate boundary. CodexBar may intentionally launch a provider CLI such as
 Claude for usage. That executable owns its credential behavior, which CodexBar cannot constrain or fully inspect.
 
@@ -47,10 +52,14 @@ when CodexBar itself has not changed.
 The item's accessibility class controls when its data is available, such as after the first unlock. It does not grant
 a changed executable access and does not repair a code-signature ACL mismatch.
 
-If a CodexBar-owned cache item's legacy ACL rejects the installed app, cache reads, writes, and clears share a
-five-minute cooldown. This limits repeated Security.framework validation and associated memory growth. After repairing
-or removing the stale cache item in Keychain Access, the next access after that cooldown rechecks it without requiring
-an app restart. A temporarily locked Keychain or an incomplete ACL validation remains retryable sooner.
+If a CodexBar-owned cache item's legacy ACL rejects the installed app, reads share a five-minute preflight cooldown.
+When fresh cache data becomes available, CodexBar can delete and recreate its own item using no-UI queries. A failed
+replacement is attempted at most once per cooldown; a failed retry starts another cooldown even if the old item is
+already gone. Successful replacement clears the rejection immediately, including when another first-party process wins
+the add race. Cache clearing honors an existing repair cooldown and uses no-UI deletion without requiring decrypt access.
+Foreign items are never recreated this way. A direct delete that is only temporarily unavailable stays retryable; it does
+not establish a stale ACL. A temporarily locked Keychain or an incomplete ACL preflight also remains retryable sooner and
+is not replaced.
 
 ## Allow Once and Always Allow
 

@@ -150,6 +150,10 @@
 "Cookie: …" = "Cookie: …";
 "CopilotDeviceFlow" = "CopilotDeviceFlow";
 "Cost" = "Kosten";
+"Token history" = "Tokengeschiedenis";
+"Local token history · dollar costs unavailable" = "Lokale tokengeschiedenis · kosten in dollars niet beschikbaar";
+"Partial local history · recorded token subtotal" = "Gedeeltelijke lokale geschiedenis · subtotaal van vastgelegde tokens";
+"Local token history is unavailable or incomplete." = "De lokale tokengeschiedenis is niet beschikbaar of onvolledig.";
 "Could not add Codex account" = "Kan Codex-account niet toevoegen";
 "Could not open Terminal for Gemini" = "Kan Terminal voor Gemini niet openen";
 "Could not start claude /login" = "Kan claude /login niet starten";
@@ -612,6 +616,12 @@
 "cost_summary_off" = "Uit";
 "merge_icons_title" = "Pictogrammen samenvoegen";
 "merge_icons_subtitle" = "Gebruik één menubalkpictogram met een providerwisselaar.";
+"merged_icon_style_title" = "Gecombineerde pictogramstijl";
+"merged_icon_style_subtitle" = "Wisselaar doorloopt providers één voor één; Gestapeld toont twee providers tegelijk, elk op een eigen regel.";
+"merged_icon_style_switcher" = "Wisselaar";
+"merged_icon_style_stacked" = "Gestapeld";
+"merge_icon_stacked_top_provider_title" = "Bovenste rij";
+"merge_icon_stacked_bottom_provider_title" = "Onderste rij";
 "show_most_used_provider_title" = "Toon meest gebruikte provider";
 "show_most_used_provider_subtitle" = "De menubalk toont automatisch de aanbieder die het dichtst bij de tarieflimiet zit.";
 "display_mode_title" = "Weergavemodus";
@@ -882,6 +892,12 @@
 "usage_percent_suffix_used" = "gebruikt";
 "Store multiple DeepSeek API keys." = "Bewaar meerdere DeepSeek API-sleutels.";
 "This week" = "Deze week";
+"Current window" = "Huidig venster";
+"Last week" = "Vorige week";
+"%d weeks ago" = "%d weken geleden";
+"Previous window" = "Vorig venster";
+"%d windows ago" = "%d vensters geleden";
+"Recent windows" = "Recente vensters";
 "Week" = "Week";
 "Month" = "Maand";
 "Models" = "Modellen";
@@ -941,6 +957,8 @@
 "Overage" = "Overschot";
 "Activity" = "Activiteit";
 "Copied" = "Gekopieerd";
+"Managed by Homebrew" = "Beheerd door Homebrew";
+"Copy update command" = "Updatecommando kopiëren";
 "Copy error" = "Kopieerfout";
 "Copy path" = "Kopieer pad";
 "Extra usage spent" = "Extra gebruik besteed";
@@ -1150,7 +1168,6 @@
 "Open Augment (Log Out & Back In)" = "Augment openen (uitloggen en weer inloggen)";
 "Open Codebuff Dashboard" = "Open het Codebuff-dashboard";
 "Open Command Code Settings" = "Open de opdrachtcode-instellingen";
-"Open Crof dashboard" = "Open het Crof-dashboard";
 "Open Manus" = "Manus openen";
 "Open MiMo Balance" = "Open MiMo-saldo";
 "Open Moonshot Console" = "Open de Moonshot-console";
@@ -1218,7 +1235,6 @@
 "Stored in ~/.codexbar/config.json. Requires an Anthropic Admin API key." = "Opgeslagen in ~/.codexbar/config.json. Vereist een Anthropic Admin API-sleutel.";
 "Stored in ~/.codexbar/config.json. Used for /v1/quota-stats." = "Opgeslagen in ~/.codexbar/config.json. Gebruikt voor /v1/quota-stats.";
 "Stored in ~/.codexbar/config.json. You can also provide CODEBUFF_API_KEY or let CodexBar read ~/.config/manicode/credentials.json (created by `codebuff login`)." = "Opgeslagen in ~/.codexbar/config.json. Je kunt ook CODEBUFF_API_KEY opgeven of CodexBar ~/.config/manicode/credentials.json laten lezen (gemaakt door `codebuff login`).";
-"Stored in ~/.codexbar/config.json. You can also provide CROF_API_KEY." = "Opgeslagen in ~/.codexbar/config.json. U kunt ook CROF_API_KEY opgeven.";
 "Stored in ~/.codexbar/config.json. You can also provide KILO_API_KEY or ~/.local/share/kilo/auth.json (kilo.access)." = "Opgeslagen in ~/.codexbar/config.json. U kunt ook KILO_API_KEY of ~/.local/share/kilo/auth.json (kilo.access) opgeven.";
 "T3 Chat cookie" = "T3 Chat-cookie";
 "Team mode" = "Teammodus";
@@ -1336,6 +1352,8 @@
 "Tracked tokens" = "Bijgehouden tokens";
 "Subscriptions" = "Abonnementen";
 "By subscription" = "Per abonnement";
+"By source" = "By source";
+"%d of %d sources have spend" = "%d of %d sources have spend";
 "No model-level history" = "Geen geschiedenis op modelniveau";
 "Daily estimated spend" = "Geschatte dagelijkse uitgaven";
 "Hourly estimated spend" = "Geschatte uitgaven per uur";
@@ -1580,6 +1598,24 @@
 "agent_sessions_hide_unreachable_title" = "Onbereikbare hosts verbergen";
 "agent_sessions_hide_unreachable_subtitle" = "Verberg hosts wanneer het ophalen van hun sessies mislukt.";
 
+/* Overview share flow */
+"Share Usage Snapshot…" = "Gebruiksoverzicht delen…";
+"Usage snapshot unavailable" = "Gebruiksoverzicht niet beschikbaar";
+"CodexBar couldn't prepare a shareable usage snapshot. Refresh Usage & Spend and try again." = "CodexBar kon geen deelbaar gebruiksoverzicht maken. Vernieuw Gebruik en uitgaven en probeer het opnieuw.";
 "Incomplete" = "Onvolledig";
 "Est. subtotal (%@): %@" = "Geschat subtotaal (%@): %@";
 "Excluded requests with missing final usage: %d" = "Uitgesloten verzoeken zonder definitieve gebruiksgegevens: %d";
+
+"overview_layout_title" = "Overzichtsindeling";
+"overview_layout_subtitle" = "Kies hoeveel informatie het overzicht toont.";
+"overview_layout_detailed" = "Gedetailleerd";
+"overview_layout_compact" = "Compact";
+
+"section_widgets" = "Widgets";
+"account_widgets_title" = "Accounts voor widgets actueel houden";
+"account_widgets_description" = "Kies een account in elke Account Usage-widget. Werkt maximaal zes accounts per aanbieder bij.";
+
+/* Antigravity local cost estimates */
+"antigravity_cost_estimate_hint" = "Lokaal gebruik × publieke API-prijzen · geen Antigravity-kosten of -tegoeden";
+"antigravity_quota_window_note" = "Vensterkosten omvatten alle modellen · getoond venster is de meest beperkte familie";
+"antigravity_no_priced_token_history" = "Geen geprijsde Antigravity-tokengeschiedenis beschikbaar.";

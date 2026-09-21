@@ -150,6 +150,10 @@
 "Cookie: …" = "Cookie: …";
 "CopilotDeviceFlow" = "CopilotDeviceFlow";
 "Cost" = "Kostnad";
+"Token history" = "Tokenhistorik";
+"Local token history · dollar costs unavailable" = "Lokal tokenhistorik · kostnader i dollar saknas";
+"Partial local history · recorded token subtotal" = "Delvis lokal historik · delsumma för registrerade token";
+"Local token history is unavailable or incomplete." = "Lokal tokenhistorik saknas eller är ofullständig.";
 "Could not add Codex account" = "Kunde inte lägga till Codex-konto";
 "Could not open Terminal for Gemini" = "Kunde inte öppna Terminal för Gemini";
 "Could not start claude /login" = "Kunde inte starta claude /login";
@@ -611,6 +615,12 @@
 "cost_summary_off" = "Av";
 "merge_icons_title" = "Slå ihop ikoner";
 "merge_icons_subtitle" = "Använd en enda menyradsikon med leverantörsväxlare.";
+"merged_icon_style_title" = "Kombinerad ikonstil";
+"merged_icon_style_subtitle" = "Växlaren växlar mellan leverantörer en i taget; Staplad visar två leverantörer samtidigt, en rad var.";
+"merged_icon_style_switcher" = "Växlare";
+"merged_icon_style_stacked" = "Staplad";
+"merge_icon_stacked_top_provider_title" = "Övre raden";
+"merge_icon_stacked_bottom_provider_title" = "Nedre raden";
 "show_most_used_provider_title" = "Visa mest använda leverantör";
 "show_most_used_provider_subtitle" = "Menyraden visar automatiskt leverantören som ligger närmast sin gräns.";
 "display_mode_title" = "Visningsläge";
@@ -881,6 +891,12 @@
 "usage_percent_suffix_used" = "förbrukat";
 "Store multiple DeepSeek API keys." = "Spara flera DeepSeek-API-nycklar.";
 "This week" = "Den här veckan";
+"Current window" = "Aktuellt fönster";
+"Last week" = "Förra veckan";
+"%d weeks ago" = "för %d veckor sedan";
+"Previous window" = "Föregående fönster";
+"%d windows ago" = "för %d fönster sedan";
+"Recent windows" = "Senaste fönster";
 "Week" = "Vecka";
 "Month" = "Månad";
 "Models" = "Modeller";
@@ -1001,7 +1017,6 @@
 "Stored in ~/.codexbar/config.json. Used for /v1/quota-stats." = "Sparas i ~/.codexbar/config.json. Används för /v1/quota-stats.";
 "CodexBar could not safely preserve the current system account before switching." = "CodexBar kunde inte spara det aktuella systemkontot säkert före bytet.";
 "Oasis-Token" = "Oasis-Token";
-"Open Crof dashboard" = "Öppna Crof-översikt";
 "Sonnet" = "Sonnet";
 "No credits history data available." = "Ingen kredithistorik finns tillgänglig.";
 "4 days" = "4 dagar";
@@ -1105,6 +1120,8 @@
 "Usage history (%d days)" = "Användningshistorik (%d dagar)";
 "Cache read" = "Cacheläsning";
 "Copied" = "Kopierat";
+"Managed by Homebrew" = "Hanteras av Homebrew";
+"Copy update command" = "Kopiera uppdateringskommando";
 "Disable %@ dashboard cookie usage." = "Inaktivera cookie-användning för %@-översikten.";
 "30d requests" = "30 d förfrågningar";
 "Adding Account…" = "Lägger till konto…";
@@ -1236,7 +1253,6 @@
 "Service" = "Tjänst";
 "Azure OpenAI key" = "Azure OpenAI-nyckel";
 "%@ cookies are disabled." = "%@-cookies är inaktiverade.";
-"Stored in ~/.codexbar/config.json. You can also provide CROF_API_KEY." = "Sparas i ~/.codexbar/config.json. Du kan också ange CROF_API_KEY.";
 "CodexBar will ask macOS Keychain for your Synthetic API key so it can fetch usage. Click OK to continue." = "CodexBar kommer att be macOS Nyckelring om din Synthetic-API-nyckel så att användning kan hämtas. Klicka på OK för att fortsätta.";
 "CodexBar could not update managed account storage." = "CodexBar kunde inte uppdatera hanterad kontolagring.";
 "CodexBar will ask macOS Keychain for your Augment cookie header so it can fetch usage. Click OK to continue." = "CodexBar kommer att be macOS Nyckelring om din Augment-cookie-header så att användning kan hämtas. Klicka på OK för att fortsätta.";
@@ -1335,6 +1351,8 @@
 "Tracked tokens" = "Spårade token";
 "Subscriptions" = "Abonnemang";
 "By subscription" = "Per abonnemang";
+"By source" = "By source";
+"%d of %d sources have spend" = "%d of %d sources have spend";
 "No model-level history" = "Ingen historik på modellnivå";
 "Daily estimated spend" = "Uppskattade dagliga utgifter";
 "Hourly estimated spend" = "Uppskattade utgifter per timme";
@@ -1580,6 +1598,24 @@
 "agent_sessions_hide_unreachable_title" = "Dölj värdar som inte kan nås";
 "agent_sessions_hide_unreachable_subtitle" = "Dölj värdar när deras sessioner inte kan hämtas.";
 
+/* Overview share flow */
+"Share Usage Snapshot…" = "Dela användningsöversikt…";
+"Usage snapshot unavailable" = "Användningsöversikt är inte tillgänglig";
+"CodexBar couldn't prepare a shareable usage snapshot. Refresh Usage & Spend and try again." = "CodexBar kunde inte förbereda en delbar användningsöversikt. Uppdatera Användning och utgifter och försök igen.";
 "Incomplete" = "Ofullständigt";
 "Est. subtotal (%@): %@" = "Uppskattad delsumma (%@): %@";
 "Excluded requests with missing final usage: %d" = "Uteslutna förfrågningar utan slutliga användningsdata: %d";
+
+"overview_layout_title" = "Översiktslayout";
+"overview_layout_subtitle" = "Välj hur mycket information som visas i översikten.";
+"overview_layout_detailed" = "Detaljerad";
+"overview_layout_compact" = "Kompakt";
+
+"section_widgets" = "Widgetar";
+"account_widgets_title" = "Håll konton uppdaterade för widgetar";
+"account_widgets_description" = "Välj ett konto i varje Account Usage-widget. Uppdaterar upp till sex konton per leverantör.";
+
+/* Antigravity local cost estimates */
+"antigravity_cost_estimate_hint" = "Lokal användning × publika API-priser · inte Antigravity-avgifter eller krediter";
+"antigravity_quota_window_note" = "Fönsterkostnaden omfattar alla modeller · fönstret som visas är den mest begränsade familjen";
+"antigravity_no_priced_token_history" = "Ingen prissatt Antigravity-tokenhistorik tillgänglig.";

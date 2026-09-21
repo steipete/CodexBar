@@ -52,12 +52,13 @@ authenticated via an Oasis-Token obtained through a username + password login fl
   - **Secondary window** (bottom bar): weekly rate limit (10 080 minutes).
   - `usedPercent` is computed as `(1.0 - left_rate) × 100`.
 - **Credit-based plans** (`plan_family: 2`, e.g. Mini, Pro):
-  - **Primary window** (top bar): combined credit balance, weighted from `credit_buckets`
+  - **Primary window** (top bar): labeled **Credit**, showing the combined credit balance weighted from `credit_buckets`
     residual/total values when available.
   - Without bucket sizes, uses `subscription_credit_left_rate` (or `topup_credit_left_rate` when
     no subscription rate exists); the independent percentages cannot be safely added.
   - No secondary window — credit plans don't have 5h/weekly rate-limit windows.
   - Credit plans with no balance data yet display no quota windows until a credit balance is available.
+  - Missing or zero reset timestamps remain unknown: no reset line or monthly pace is invented for those balances.
   - `usedPercent = (1.0 - credit_left_rate) × 100`.
 - Plan name is shown as the `loginMethod` label in the menu card (e.g. "Plus").
 - When auth source is set to **Off**, no background refreshes occur.

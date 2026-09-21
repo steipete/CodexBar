@@ -474,6 +474,7 @@ jobs:
           for attempt in {1..6}; do
             if gh workflow run update-formula.yml \
               --repo steipete/homebrew-tap \
+              --ref main \
               -f formula=codexbar \
               -f tag="$RELEASE_TAG" \
               -f repository=steipete/CodexBar \

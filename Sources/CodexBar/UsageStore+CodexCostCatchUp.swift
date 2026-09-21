@@ -8,6 +8,9 @@ private struct CodexCostCatchUpContext {
     let scopeSignature: String
     let providerConfigRevision: UInt64
     let costUsageSettingsRevision: UInt64
+    let includePiSessions: Bool
+    let environment: [String: String]
+    let piHistoryScopeGeneration: UInt64
 }
 
 private enum CodexCostCatchUpPublicationError: LocalizedError {
@@ -53,7 +56,10 @@ extension UsageStore {
             historyDays: self.settings.costUsageHistoryDays,
             scopeSignature: scopeSignature,
             providerConfigRevision: self.settings.providerConfigRevision(for: .codex),
-            costUsageSettingsRevision: self.settings.costUsageSettingsRevision)
+            costUsageSettingsRevision: self.settings.costUsageSettingsRevision,
+            includePiSessions: self.shouldIncludePiSessionsInTokenSnapshot(for: .codex),
+            environment: self.environmentBase,
+            piHistoryScopeGeneration: self.piHistoryScopeGeneration)
         self.codexCostCatchUpToken = token
         self.codexCostCatchUpScopeSignature = scopeSignature
         self.codexCostCatchUpMode = mode
@@ -262,14 +268,19 @@ extension UsageStore {
             now: now,
             context: context)
         try Task.checkCancellation()
+        guard await self.refreshPiHistoryScope(for: .codex) else { throw CancellationError() }
         guard self.codexCostCatchUpContextIsCurrent(context),
               self.tokenSnapshotPublicationRevision(for: .codex) == publicationRevision
         else {
+            if context.includePiSessions, self.piHistoryScopeGeneration != context.piHistoryScopeGeneration {
+                self.requestTokenRefreshAfterStaleCompletion(for: .codex)
+            }
             throw CancellationError()
         }
         guard let result,
               result.snapshot.historyCoverageIsEstablished,
-              result.staleSnapshotUpdatedAt == nil
+              result.staleSnapshotUpdatedAt == nil,
+              self.tokenAccountingScopeIsCurrent(result.accounting, for: .codex)
         else { return nil }
         let snapshot = result.snapshot
 
@@ -278,10 +289,10 @@ extension UsageStore {
             self.lastTokenFetchScope[.codex] = context.scopeSignature
         }
         if snapshot.daily.isEmpty, snapshot.meteredCostUSD == nil {
-            self.publishConfirmedEmptyTokenSnapshot(for: .codex)
+            self.publishConfirmedEmptyTokenSnapshot(for: .codex, accounting: result.accounting)
             self.tokenErrors[.codex] = Self.tokenCostNoDataMessage(for: .codex)
         } else {
-            self.publishTokenSnapshot(snapshot, for: .codex)
+            self.publishTokenSnapshot(snapshot, for: .codex, accounting: result.accounting)
             self.tokenErrors[.codex] = nil
         }
         self.tokenFailureGates[.codex]?.recordSuccess()
@@ -300,17 +311,21 @@ extension UsageStore {
         context: CodexCostCatchUpContext) async -> (
         snapshot: CostUsageTokenSnapshot,
         lastRefreshAt: Date?,
-        staleSnapshotUpdatedAt: Date?)?
+        staleSnapshotUpdatedAt: Date?,
+        accounting: PiSnapshotAccounting?)?
     {
         if let override = self._test_cachedCodexTokenSnapshotLoaderOverride {
             return await override(now, context.codexHomePath, context.historyDays)
+                .map { ($0.snapshot, $0.lastRefreshAt, $0.staleSnapshotUpdatedAt, nil) }
         }
         return await self.costUsageFetcher.loadCompletedCodexTokenSnapshotResult(
             now: now,
             codexHomePath: context.codexHomePath,
             historyDays: context.historyDays,
-            calendar: self.settings.costUsageBucketCalendar)
-            .map { ($0.snapshot, $0.lastRefreshAt, $0.staleSnapshotUpdatedAt) }
+            includePiSessions: context.includePiSessions,
+            calendar: self.settings.costUsageBucketCalendar,
+            environment: context.environment)
+            .map { ($0.snapshot, $0.lastRefreshAt, $0.staleSnapshotUpdatedAt, $0.accounting) }
     }
 
     private func codexCostCatchUpContextIsCurrent(_ context: CodexCostCatchUpContext) -> Bool {

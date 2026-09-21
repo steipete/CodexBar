@@ -62,6 +62,7 @@ struct MenuBarLayoutRenderData: Hashable {
     let primary: MenuBarLayoutRenderWindow?
     let secondary: MenuBarLayoutRenderWindow?
     let tertiary: MenuBarLayoutRenderWindow?
+    var extraRateWindows: [MenuBarLayoutRenderExtra] = []
     let session: MenuBarLayoutRenderWindow?
     let weekly: MenuBarLayoutRenderWindow?
     let scopedWeekly: MenuBarLayoutRenderWindow?
@@ -86,6 +87,35 @@ struct MenuBarLayoutRenderData: Hashable {
     let cost30d: String?
     /// Numeric twins of the display strings above, for conditional predicates.
     let metrics: MenuBarLayoutRenderMetrics
+
+    func extraWindow(_ id: String) -> MenuBarLayoutRenderExtra? {
+        guard ProviderDescriptorRegistry.descriptor(for: self.provider).menuBarMetrics.namedExtras[id] != nil else {
+            return nil
+        }
+        return self.extraRateWindows.first { $0.id == id && $0.window != nil }
+    }
+}
+
+struct MenuBarLayoutRenderExtra: Hashable {
+    let id: String
+    let title: String
+    let window: MenuBarLayoutRenderWindow?
+
+    init(_ namedWindow: NamedRateWindow) {
+        self.id = namedWindow.id
+        self.title = namedWindow.title
+        self.window = namedWindow.usageKnown ? MenuBarLayoutRenderWindow(namedWindow.window) : nil
+    }
+
+    static func signature(tokens: [MenuBarLayoutToken], provider: UsageProvider, snapshot: UsageSnapshot?) -> Int? {
+        let ids = Set(tokens.compactMap { token -> String? in
+            if case let .extraPercent(id) = token { return id }
+            return nil
+        })
+        guard !ids.isEmpty else { return nil }
+        return MenuBarLayoutNamedExtra.windows(provider: provider, snapshot: snapshot)
+            .filter { ids.contains($0.id) }.map(Self.init).hashValue
+    }
 }
 
 struct MenuBarLayoutRenderOptions: Hashable {
@@ -105,6 +135,10 @@ struct MenuBarLayoutRenderOptions: Hashable {
     /// User-tunable vertical nudge for the whole title, applied on top of the optical baseline
     /// offset. Positive moves content up, negative moves it down.
     let verticalAdjustment: Int
+    /// Forces stacked typography (tight line height, inline icon) even when this render call only
+    /// produces a single line. Used to render one row of a multi-provider stacked status item, where
+    /// each provider is rendered independently and the results are joined afterward.
+    let forceStackedStyle: Bool
 
     init(
         size: MenuBarLayoutSize,
@@ -116,7 +150,8 @@ struct MenuBarLayoutRenderOptions: Hashable {
         isStale: Bool = false,
         now: Date,
         verticalAdjustment: Int = 0,
-        colorPace: Bool = false)
+        colorPace: Bool = false,
+        forceStackedStyle: Bool = false)
     {
         self.size = size
         self.colorPace = colorPace
@@ -128,6 +163,7 @@ struct MenuBarLayoutRenderOptions: Hashable {
         self.isStale = isStale
         self.now = now
         self.verticalAdjustment = verticalAdjustment
+        self.forceStackedStyle = forceStackedStyle
     }
 }
 
@@ -143,6 +179,7 @@ struct MenuBarLayoutRenderKey: Hashable {
     let isDebugApp: Bool
     let isStale: Bool
     let verticalAdjustment: Int
+    let forceStackedStyle: Bool
     let resetText: [MenuBarLayoutResetText]
     /// Truth value per conditional id. Predicates can read the clock (time to reset), so two renders
     /// with identical data and reset text can still need different branches; keying on the outcomes
@@ -277,6 +314,7 @@ final class MenuBarLayoutRenderer {
             isDebugApp: options.isDebugApp,
             isStale: options.isStale,
             verticalAdjustment: options.verticalAdjustment,
+            forceStackedStyle: options.forceStackedStyle,
             resetText: resetText,
             conditionalOutcomes: outcomes)
         return self.cache.value(for: key) {
@@ -291,6 +329,55 @@ final class MenuBarLayoutRenderer {
 
     func removeAll() {
         self.cache.removeAll()
+    }
+
+    /// Joins two rows independently rendered for different providers (each with
+    /// `forceStackedStyle: true`) into a single stacked status item title. Used by the "Stacked"
+    /// combined-icon style, which shows exactly two providers' own single-line content on top of
+    /// each other instead of switching between them.
+    static func composeStackedProviderRows(
+        top: MenuBarLayoutRenderedTitle,
+        bottom: MenuBarLayoutRenderedTitle,
+        topProviderName: String,
+        bottomProviderName: String)
+        -> MenuBarLayoutRenderedTitle
+    {
+        // A row's own accessibility label only names its provider when the row's configured tokens
+        // happen to include the icon or provider-name token; a preset like Compact Stacked can omit
+        // both, leaving VoiceOver unable to tell which value belongs to which provider. Naming the
+        // provider here, independent of the visible tokens, keeps that identification correct for
+        // every layout, not just the ones that happen to render it.
+        if top.attributedTitle.length == 0 {
+            return self.namingProvider(bottomProviderName, in: bottom)
+        }
+        if bottom.attributedTitle.length == 0 {
+            return self.namingProvider(topProviderName, in: top)
+        }
+
+        let result = NSMutableAttributedString(attributedString: top.attributedTitle)
+        let breakAttributes = top.attributedTitle.attributes(at: top.attributedTitle.length - 1, effectiveRange: nil)
+        result.append(NSAttributedString(string: "\n", attributes: breakAttributes))
+        result.append(bottom.attributedTitle)
+        let secondLineLabel = L("menu_bar_layout_line", 2)
+        let accessibilityLabel = "\(topProviderName), \(top.accessibilityLabel), " +
+            "\(secondLineLabel), \(bottomProviderName), \(bottom.accessibilityLabel)"
+        return MenuBarLayoutRenderedTitle(
+            attributedTitle: result,
+            accessibilityLabel: accessibilityLabel,
+            leadingIcon: nil,
+            statusImage: nil)
+    }
+
+    private static func namingProvider(
+        _ providerName: String,
+        in row: MenuBarLayoutRenderedTitle)
+        -> MenuBarLayoutRenderedTitle
+    {
+        MenuBarLayoutRenderedTitle(
+            attributedTitle: row.attributedTitle,
+            accessibilityLabel: "\(providerName), \(row.accessibilityLabel)",
+            leadingIcon: row.leadingIcon,
+            statusImage: row.statusImage)
     }
 
     private static func renderUncached(
@@ -323,7 +410,7 @@ final class MenuBarLayoutRenderer {
 
         Self.removeDuplicateBalanceResets(from: &renderedLines, data: data)
 
-        let isStacked = renderedLines.count == 2
+        let isStacked = options.forceStackedStyle || renderedLines.count == 2
         let font = NSFont.systemFont(ofSize: Self.fontSize(size: options.size, isStacked: isStacked))
         let foregroundColor = if options.highContrast {
             NSColor.labelColor
@@ -511,6 +598,7 @@ final class MenuBarLayoutRenderer {
     {
         switch token {
         case .hidden: return nil
+        case let .extraPercent(id): return data.extraWindow(id) == nil ? nil : token
         case let .conditional(id):
             guard depth < MenuBarLayoutToken.maxConditionalDepth,
                   let conditional = conditionals[id],
@@ -646,7 +734,7 @@ final class MenuBarLayoutRenderer {
                 self.missingValue,
                 accessibilityText: L("menu_bar_layout_conditional_unavailable"),
                 attributes: style.attributes)
-        case .providerName, .accountLabel, .lanePercent:
+        case .providerName, .accountLabel, .lanePercent, .extraPercent:
             preconditionFailure("Provider text tokens should render before the main switch")
         }
     }
@@ -722,6 +810,8 @@ final class MenuBarLayoutRenderer {
                 data: data,
                 showUsed: showUsed,
                 attributes: attributes)
+        case let .extraPercent(id):
+            self.extraPercentToken(id, data: data, showUsed: showUsed, attributes: attributes)
         default:
             nil
         }
@@ -744,6 +834,27 @@ final class MenuBarLayoutRenderer {
         let accessibility = resolvedValue.isAvailable
             ? L("%@ %@", label, resolvedValue.text)
             : L("%@ unavailable", label)
+        return self.textToken(resolvedValue.text, accessibilityText: accessibility, attributes: attributes)
+    }
+
+    private static func extraPercentToken(
+        _ id: String,
+        data: MenuBarLayoutRenderData,
+        showUsed: Bool,
+        attributes: [NSAttributedString.Key: Any])
+        -> (value: NSAttributedString, accessibilityText: String?)
+    {
+        let namedWindow = data.extraWindow(id)
+        let title = namedWindow?.title ?? L("Usage")
+        let window = namedWindow?.window
+        let resolvedValue = self.percentValue(
+            window: .automatic,
+            rateWindow: window,
+            automaticText: nil,
+            showUsed: showUsed)
+        let accessibility = resolvedValue.isAvailable
+            ? L("%@ %@", title, resolvedValue.text)
+            : L("%@ unavailable", title)
         return self.textToken(resolvedValue.text, accessibilityText: accessibility, attributes: attributes)
     }
 

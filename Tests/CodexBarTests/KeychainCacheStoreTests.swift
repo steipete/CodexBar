@@ -295,7 +295,8 @@ struct KeychainCacheStoreTests {
             }
         }
 
-        #expect(preflightCount.value == 2)
+        // Each load receives its own three-attempt preflight budget.
+        #expect(preflightCount.value == 6)
         for result in results {
             switch result {
             case .temporarilyUnavailable:
@@ -327,7 +328,7 @@ struct KeychainCacheStoreTests {
     }
 
     @Test
-    func `cache store and clear stop when decrypt ACL requires interaction`() {
+    func `cache replacement and explicit clear fail when no UI deletion is unavailable`() {
         let key = KeychainCacheStore.Key(category: "test", identifier: UUID().uuidString)
         let entry = TestEntry(value: "blocked", storedAt: Date(timeIntervalSince1970: 0))
         let recorder = KeychainCacheStore.OperationRecorder()

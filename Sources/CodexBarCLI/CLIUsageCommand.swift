@@ -289,7 +289,9 @@ extension CodexBarCLI {
 
         let accounts: [ProviderTokenAccount]
         do {
-            accounts = try tokenContext.resolvedAccounts(for: provider)
+            accounts = try tokenContext.resolvedAccounts(
+                for: provider,
+                sourceMode: command.sourceModeOverride ?? tokenContext.preferredSourceMode(for: provider))
         } catch {
             return Self.usageOutputForAccountResolutionError(
                 provider: provider,
@@ -593,11 +595,15 @@ extension CodexBarCLI {
                 } else {
                     Self.writeStderr("Error: \(error.localizedDescription)\n")
                 }
-                if let summary = Self.kiloAutoFallbackSummary(
+                let autoFallbackSummary = Self.kiloAutoFallbackSummary(
                     provider: provider,
                     sourceMode: effectiveSourceMode,
                     attempts: outcome.attempts)
-                {
+                    ?? Self.antigravityAutoFallbackSummary(
+                        provider: provider,
+                        sourceMode: effectiveSourceMode,
+                        attempts: outcome.attempts)
+                if let summary = autoFallbackSummary {
                     Self.writeStderr("\(summary)\n")
                 }
             }

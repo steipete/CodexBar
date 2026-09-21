@@ -1,3 +1,9 @@
+---
+summary: "July 2026 corpus findings and provisional fork-accounting constraints for issue 2037."
+read_when:
+  - Reviewing issue 2037 corpus evidence and its limitations
+---
+
 # P0 local corpus findings for #2037 (rev 2)
 
 - **Source:** local Codex JSONL under `~/.codex/sessions` + `~/.codex/archived_sessions` (this machine)

@@ -1,3 +1,9 @@
+---
+summary: "Issue 2037 proposal for scan-wide fork-family event provenance and accounting."
+read_when:
+  - Reviewing fork-family accounting design and fixture requirements
+---
+
 # Spec: Scan-wide fork-family event provenance for Ultra overcounting (issue #2037)
 
 - **Issue:** [steipete/CodexBar#2037](https://github.com/steipete/CodexBar/issues/2037) — Ultra / forked-session token overcounting

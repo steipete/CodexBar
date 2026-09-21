@@ -73,43 +73,33 @@ public enum LiteLLMProviderDescriptor {
                     secondaryDescriptionMode: .detailWhenResetDatePresent)),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .api],
-                pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [LiteLLMAPIFetchStrategy()] })),
+                pipeline: ProviderFetchPipeline(resolveStrategies: { _ in
+                    [ScriptFetchStrategy(
+                        id: "litellm.js",
+                        provider: .litellm,
+                        bundledPlugin: "litellm",
+                        secretKey: LiteLLMSettingsReader.apiKeyEnvironmentKey,
+                        sourceLabel: "api",
+                        validateContext: { context in
+                            guard LiteLLMSettingsReader.baseURL(environment: context.env) != nil else {
+                                throw LiteLLMUsageError.invalidEndpointOverride(
+                                    LiteLLMSettingsReader.baseURLEnvironmentKey)
+                            }
+                        },
+                        resolveValues: { context in
+                            guard let key = self.credentials.resolveToken(environment: context.env)?.token,
+                                  LiteLLMSettingsReader.hasBaseURLOverride(environment: context.env)
+                            else { return nil }
+                            return ScriptFetchStrategy.Values(
+                                settings: [LiteLLMSettingsReader.baseURLEnvironmentKey:
+                                    LiteLLMSettingsReader.baseURL(environment: context.env)?.absoluteString ?? ""],
+                                secrets: [LiteLLMSettingsReader.apiKeyEnvironmentKey: key])
+                        },
+                        isEnabled: { _ in true })]
+                })),
             cli: ProviderCLIConfig(
                 name: "litellm",
                 aliases: ["litellm-proxy"],
                 versionDetector: nil))
-    }
-}
-
-struct LiteLLMAPIFetchStrategy: ProviderFetchStrategy {
-    let id: String = "litellm.api"
-    let kind: ProviderFetchKind = .apiToken
-
-    func isAvailable(_ context: ProviderFetchContext) async -> Bool {
-        ProviderTokenResolver.token(for: .litellm, environment: context.env) != nil &&
-            LiteLLMSettingsReader.hasBaseURLOverride(environment: context.env)
-    }
-
-    func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
-        guard let apiKey = ProviderTokenResolver.token(for: .litellm, environment: context.env) else {
-            throw LiteLLMUsageError.missingCredentials
-        }
-        guard let baseURL = LiteLLMSettingsReader.baseURL(environment: context.env) else {
-            // Distinguish "never configured" from "configured but rejected" so the user sees
-            // which one applies instead of the provider silently going unavailable.
-            throw LiteLLMSettingsReader.hasBaseURLOverride(environment: context.env)
-                ? LiteLLMUsageError.invalidEndpointOverride(LiteLLMSettingsReader.baseURLEnvironmentKey)
-                : LiteLLMUsageError.missingBaseURL
-        }
-        let usage = try await LiteLLMUsageFetcher.fetchUsage(
-            apiKey: apiKey,
-            baseURL: baseURL)
-        return self.makeResult(
-            usage: usage.toUsageSnapshot(),
-            sourceLabel: "api")
-    }
-
-    func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {
-        false
     }
 }

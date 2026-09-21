@@ -56,7 +56,7 @@ Gotchas fixed:
 - Manual sanity check before uploading: `find CodexBar.app -name '._*'` should return nothing; then `spctl --assess --type execute --verbose CodexBar.app` and `codesign --verify --deep --strict --verbose CodexBar.app` should both pass on the packaged bundle.
 
 ## iCloud sync (CloudKit)
-Release builds embed `Scripts/profiles/CodexBar-DeveloperID.provisionprofile` at `Contents/embedded.provisionprofile` and claim the iCloud entitlements (`Scripts/package_app.sh` does both automatically; it fails hard if the profile file is missing). The profile expires 2044-07-29; Gatekeeper re-validates it at every launch.
+Upstream-team identity-signed release builds embed `Scripts/profiles/CodexBar-DeveloperID.provisionprofile` at `Contents/embedded.provisionprofile` and claim the iCloud entitlements (`Scripts/package_app.sh` does both automatically; it fails hard if the profile file is missing). Packaging derives the team from the selected `APP_IDENTITY`; other teams omit upstream CloudKit resources. `sign-and-notarize.sh` honors that same identity, with required timestamping and hardened runtime. The profile expires 2044-07-29; Gatekeeper re-validates it at every launch.
 
 Schema changes: any new record type or field in `Sources/CodexBar*/Sync/` must be reflected in `Scripts/cloudkit/schema.ckdb` and deployed **before** shipping the build:
 ```
@@ -140,6 +140,7 @@ Each Homebrew handoff uses the release tag, workflow run ID, and run attempt as 
 
 ## Troubleshooting
 - **White plate icon**: regenerate icns via `build_icon.sh` (ictool) to ensure transparent padding.
+- **Notarization upload timeout**: if `notarytool submit` fails during S3 upload with `HTTPClientError.deadlineExceeded` or `abortedUpload`, retry with `CODEXBAR_NOTARY_S3_ACCELERATION=0 ./Scripts/release.sh`. This passes `--no-s3-acceleration` to use the standard S3 upload endpoint. Unset the variable or use `1` for the default accelerated upload; other values fail before packaging. This changes only the upload transport, not signing or notarization validation.
 - **Notarization invalid**: verify deep+timestamp signing, especially Sparkle’s Autoupdate/Updater and XPCs; rerun package + sign-and-notarize.
 - **App won’t launch**: ensure Sparkle.framework is embedded under `Contents/Frameworks` and rpath added; codesign deep.
 - **App “damaged” dialog after unzip**: re-extract with `ditto -x -k`, removing any `._*` files, then re-verify with `spctl`.

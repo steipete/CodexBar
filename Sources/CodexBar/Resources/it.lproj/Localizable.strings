@@ -133,6 +133,10 @@
 "Cookie: …" = "Cookie: …";
 "CopilotDeviceFlow" = "Copilot Device Flow";
 "Cost" = "Costo";
+"Token history" = "Cronologia dei token";
+"Local token history · dollar costs unavailable" = "Cronologia locale dei token · costi in dollari non disponibili";
+"Partial local history · recorded token subtotal" = "Cronologia locale parziale · subtotale dei token registrati";
+"Local token history is unavailable or incomplete." = "La cronologia locale dei token non è disponibile o è incompleta.";
 "Could not add Codex account" = "Impossibile aggiungere l'account Codex";
 "Could not open Terminal for Gemini" = "Impossibile aprire Terminale per Gemini";
 "Could not start claude /login" = "Impossibile avviare claude /login";
@@ -620,6 +624,12 @@
 "cost_summary_off" = "Disattivato";
 "merge_icons_title" = "Unisci icone";
 "merge_icons_subtitle" = "Usa un'unica icona nella barra menu con selettore provider.";
+"merged_icon_style_title" = "Stile icona combinata";
+"merged_icon_style_subtitle" = "Il selettore passa da un provider all'altro uno alla volta; Impilato mostra due provider contemporaneamente, uno per riga.";
+"merged_icon_style_switcher" = "Selettore";
+"merged_icon_style_stacked" = "Impilato";
+"merge_icon_stacked_top_provider_title" = "Riga superiore";
+"merge_icon_stacked_bottom_provider_title" = "Riga inferiore";
 "show_most_used_provider_title" = "Mostra provider più usato";
 "show_most_used_provider_subtitle" = "La barra menu mostra automaticamente il provider più vicino al limite.";
 "display_mode_title" = "Modalità visualizzazione";
@@ -890,6 +900,12 @@
 "usage_percent_suffix_used" = "usato";
 "Store multiple DeepSeek API keys." = "Memorizza più chiavi API DeepSeek.";
 "This week" = "Questa settimana";
+"Current window" = "Finestra attuale";
+"Last week" = "La settimana scorsa";
+"%d weeks ago" = "%d settimane fa";
+"Previous window" = "Finestra precedente";
+"%d windows ago" = "%d finestre fa";
+"Recent windows" = "Finestre recenti";
 "Week" = "Settimana";
 "Month" = "Mese";
 "Models" = "Modelli";
@@ -950,6 +966,8 @@
 "Overage" = "Eccedenza";
 "Activity" = "Attività";
 "Copied" = "Copiato";
+"Managed by Homebrew" = "Gestito da Homebrew";
+"Copy update command" = "Copia comando di aggiornamento";
 "Copy error" = "Errore di copia";
 "Copy path" = "Copia percorso";
 "Extra usage spent" = "Uso extra speso";
@@ -1169,7 +1187,6 @@
 "Open Augment (Log Out & Back In)" = "Apri Augment (Esci e rientra)";
 "Open Codebuff Dashboard" = "Apri dashboard Codebuff";
 "Open Command Code Settings" = "Apri impostazioni Command Code";
-"Open Crof dashboard" = "Apri dashboard Crof";
 "Open Manus" = "Apri Manus";
 "Open MiMo Balance" = "Apri saldo MiMo";
 "Open Moonshot Console" = "Apri console Moonshot";
@@ -1237,7 +1254,6 @@
 "Stored in ~/.codexbar/config.json. Requires an Anthropic Admin API key." = "Memorizzato in ~/.codexbar/config.json. Richiede una chiave Anthropic Admin API.";
 "Stored in ~/.codexbar/config.json. Used for /v1/quota-stats." = "Memorizzato in ~/.codexbar/config.json. Usato per /v1/quota-stats.";
 "Stored in ~/.codexbar/config.json. You can also provide CODEBUFF_API_KEY or let CodexBar read ~/.config/manicode/credentials.json (created by `codebuff login`)." = "Memorizzato in ~/.codexbar/config.json. Puoi anche fornire CODEBUFF_API_KEY o lasciare che CodexBar legga ~/.config/manicode/credentials.json (creato da `codebuff login`).";
-"Stored in ~/.codexbar/config.json. You can also provide CROF_API_KEY." = "Memorizzato in ~/.codexbar/config.json. Puoi anche fornire CROF_API_KEY.";
 "Stored in ~/.codexbar/config.json. You can also provide KILO_API_KEY or ~/.local/share/kilo/auth.json (kilo.access)." = "Memorizzato in ~/.codexbar/config.json. Puoi anche fornire KILO_API_KEY o ~/.local/share/kilo/auth.json (kilo.access).";
 "T3 Chat cookie" = "Cookie T3 Chat";
 "Team mode" = "Modalità team";
@@ -1340,6 +1356,8 @@
 "Tracked tokens" = "Token tracciati";
 "Subscriptions" = "Abbonamenti";
 "By subscription" = "Per abbonamento";
+"By source" = "Per fonte";
+"%d of %d sources have spend" = "%d di %d fonti hanno dati di spesa";
 "No model-level history" = "Nessuna cronologia a livello di modello";
 "Daily estimated spend" = "Spesa giornaliera stimata";
 "Hourly estimated spend" = "Spesa oraria stimata";
@@ -1584,6 +1602,24 @@
 "agent_sessions_hide_unreachable_title" = "Nascondi gli host irraggiungibili";
 "agent_sessions_hide_unreachable_subtitle" = "Nascondi gli host quando il recupero delle loro sessioni non riesce.";
 
+/* Overview share flow */
+"Share Usage Snapshot…" = "Condividi riepilogo utilizzo…";
+"Usage snapshot unavailable" = "Riepilogo utilizzo non disponibile";
+"CodexBar couldn't prepare a shareable usage snapshot. Refresh Usage & Spend and try again." = "CodexBar non ha potuto preparare un riepilogo dell’utilizzo da condividere. Aggiorna Utilizzo e spesa e riprova.";
 "Incomplete" = "Incompleto";
 "Est. subtotal (%@): %@" = "Subtotale stimato (%@): %@";
 "Excluded requests with missing final usage: %d" = "Richieste escluse senza dati di utilizzo finali: %d";
+
+"overview_layout_title" = "Layout Panoramica";
+"overview_layout_subtitle" = "Scegli quante informazioni mostrare in Panoramica.";
+"overview_layout_detailed" = "Dettagliato";
+"overview_layout_compact" = "Compatto";
+
+"section_widgets" = "Widget";
+"account_widgets_title" = "Mantieni aggiornati gli account per i widget";
+"account_widgets_description" = "Scegli un account in ogni widget Account Usage. Aggiorna fino a sei account per fornitore.";
+
+/* Antigravity local cost estimates */
+"antigravity_cost_estimate_hint" = "Uso locale × prezzi API pubblici · non sono addebiti o crediti Antigravity";
+"antigravity_quota_window_note" = "Il costo della finestra copre tutti i modelli · la finestra mostrata è la famiglia più vincolata";
+"antigravity_no_priced_token_history" = "Nessuna cronologia di token Antigravity con prezzo disponibile.";

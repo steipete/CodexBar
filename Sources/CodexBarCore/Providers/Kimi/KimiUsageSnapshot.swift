@@ -67,6 +67,31 @@ public struct KimiUsageSnapshot: Sendable {
         return (0, limit, false)
     }
 
+    private func resolvedRatioWindow(
+        _ pool: KimiRatioPool?,
+        detail: KimiUsageDetail?,
+        minutes: Int,
+        countWindowMinutes: Int?) -> RateWindow?
+    {
+        guard let window = pool?.window(minutes: minutes) else { return nil }
+        // Mixed legacy responses can carry zero ratio placeholders alongside populated counters.
+        // Preserve monthly ratio-pool accounts; only fall back for the same duration and reset.
+        // The observed legacy and ratio reset clocks differ by about 1.45 seconds.
+        if window.usedPercent == 0,
+           self.codeUsagePools?.monthly == nil,
+           self.weekly.flatMap(Self.usageCounts)?.isReliable == true,
+           countWindowMinutes == minutes,
+           let detail,
+           let counts = Self.usageCounts(detail), counts.isReliable, counts.used > 0,
+           let countReset = ISO8601DateParser.parse(detail.resetTime),
+           let ratioReset = window.resetsAt,
+           abs(countReset.timeIntervalSince(ratioReset)) <= 2
+        {
+            return nil
+        }
+        return window
+    }
+
     private static func rateLimitDescription(used: Int, limit: Int, windowMinutes: Int?) -> String {
         guard let windowMinutes else { return "Rate: \(used)/\(limit)" }
         if windowMinutes.isMultiple(of: 60) {
@@ -79,8 +104,12 @@ public struct KimiUsageSnapshot: Sendable {
 
 extension KimiUsageSnapshot {
     public func toUsageSnapshot() -> UsageSnapshot {
-        // Ratio pools are authoritative when present; missing weekly quotas stay absent.
-        let weeklyWindow = self.codeUsagePools?.weekly?.window(minutes: KimiProviderDescriptor.weeklyWindowMinutes)
+        // Prefer ratio pools unless matching counters identify a zero placeholder.
+        let weeklyWindow = self.resolvedRatioWindow(
+            self.codeUsagePools?.weekly,
+            detail: self.weekly,
+            minutes: KimiProviderDescriptor.weeklyWindowMinutes,
+            countWindowMinutes: KimiProviderDescriptor.weeklyWindowMinutes)
             ?? self.weekly.flatMap { weekly -> RateWindow? in
                 guard let counts = Self.usageCounts(weekly) else { return nil }
                 return RateWindow(
@@ -91,7 +120,12 @@ extension KimiUsageSnapshot {
             }
 
         // Parse rate limit if available
-        let rateLimitWindow = self.codeUsagePools?.session?.window(minutes: KimiProviderDescriptor.sessionWindowMinutes)
+        let rateLimitWindow = self.resolvedRatioWindow(
+            self.codeUsagePools?.session,
+            detail: self.rateLimit,
+            minutes: KimiProviderDescriptor.sessionWindowMinutes,
+            countWindowMinutes: self.rateLimitWindow.map(\.durationMinutes)
+                ?? KimiProviderDescriptor.sessionWindowMinutes)
             ?? self.rateLimit.flatMap { rateLimit -> RateWindow? in
                 guard let counts = Self.usageCounts(rateLimit) else { return nil }
                 let apiWindowMinutes: Int? = if let apiWindow = self.rateLimitWindow {

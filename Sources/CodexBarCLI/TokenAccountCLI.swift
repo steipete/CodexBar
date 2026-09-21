@@ -79,8 +79,15 @@ struct TokenAccountCLIContext {
         }
     }
 
-    func resolvedAccounts(for provider: UsageProvider) throws -> [ProviderTokenAccount] {
-        guard TokenAccountSupportCatalog.support(for: provider) != nil else { return [] }
+    func resolvedAccounts(
+        for provider: UsageProvider, sourceMode: ProviderSourceMode? = nil) throws -> [ProviderTokenAccount]
+    {
+        guard let support = TokenAccountSupportCatalog.support(for: provider) else { return [] }
+        if !self.selection.usesOverride,
+           support.passiveSourceModes.contains(sourceMode ?? self.preferredSourceMode(for: provider))
+        {
+            return []
+        }
         guard let data = self.accountsByProvider[provider], !data.accounts.isEmpty else {
             if self.selection.usesOverride {
                 throw TokenAccountCLIError.noAccounts(provider)

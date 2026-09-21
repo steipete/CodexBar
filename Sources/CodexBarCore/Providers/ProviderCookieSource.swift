@@ -24,3 +24,14 @@ public enum ProviderCookieSource: String, CaseIterable, Identifiable, Sendable, 
         }
     }
 }
+
+extension ProviderCookieSource {
+    func pluginAvailability(hasResolver: Bool) -> String {
+        guard hasResolver else { return "off" }
+        switch self {
+        case .auto: return "available"
+        case .manual: return "manual"
+        case .off: return "off"
+        }
+    }
+}

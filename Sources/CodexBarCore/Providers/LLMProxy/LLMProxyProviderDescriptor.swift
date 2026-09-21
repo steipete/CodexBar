@@ -52,41 +52,33 @@ public enum LLMProxyProviderDescriptor {
                 noDataMessage: { "LLM Proxy cost history is reported in the quota-stats summary." }),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .api],
-                pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [LLMProxyAPIFetchStrategy()] })),
+                pipeline: ProviderFetchPipeline(resolveStrategies: { _ in
+                    [ScriptFetchStrategy(
+                        id: "llmproxy.js",
+                        provider: .llmproxy,
+                        bundledPlugin: "llmproxy",
+                        secretKey: LLMProxySettingsReader.apiKeyEnvironmentKey,
+                        sourceLabel: "api",
+                        validateContext: { context in
+                            guard LLMProxySettingsReader.baseURL(environment: context.env) != nil else {
+                                throw LLMProxyUsageError.invalidEndpointOverride(
+                                    LLMProxySettingsReader.baseURLEnvironmentKey)
+                            }
+                        },
+                        resolveValues: { context in
+                            guard let key = self.credentials.resolveToken(environment: context.env)?.token,
+                                  LLMProxySettingsReader.hasBaseURLOverride(environment: context.env)
+                            else { return nil }
+                            return ScriptFetchStrategy.Values(
+                                settings: [LLMProxySettingsReader.baseURLEnvironmentKey:
+                                    LLMProxySettingsReader.baseURL(environment: context.env)?.absoluteString ?? ""],
+                                secrets: [LLMProxySettingsReader.apiKeyEnvironmentKey: key])
+                        },
+                        isEnabled: { _ in true })]
+                })),
             cli: ProviderCLIConfig(
                 name: "llmproxy",
                 aliases: ["llm-api-key-proxy", "llm-proxy"],
                 versionDetector: nil))
-    }
-}
-
-struct LLMProxyAPIFetchStrategy: ProviderFetchStrategy {
-    let id: String = "llmproxy.api"
-    let kind: ProviderFetchKind = .apiToken
-
-    func isAvailable(_ context: ProviderFetchContext) async -> Bool {
-        ProviderTokenResolver.token(for: .llmproxy, environment: context.env) != nil &&
-            LLMProxySettingsReader.hasBaseURLOverride(environment: context.env)
-    }
-
-    func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
-        guard let apiKey = ProviderTokenResolver.token(for: .llmproxy, environment: context.env) else {
-            throw LLMProxyUsageError.missingCredentials
-        }
-        guard let baseURL = LLMProxySettingsReader.baseURL(environment: context.env) else {
-            // Distinguish "never configured" from "configured but rejected" so the user sees
-            // which one applies instead of the provider silently going unavailable.
-            throw LLMProxySettingsReader.hasBaseURLOverride(environment: context.env)
-                ? LLMProxyUsageError.invalidEndpointOverride(LLMProxySettingsReader.baseURLEnvironmentKey)
-                : LLMProxyUsageError.missingBaseURL
-        }
-        let usage = try await LLMProxyUsageFetcher.fetchUsage(apiKey: apiKey, baseURL: baseURL)
-        return self.makeResult(
-            usage: usage.toUsageSnapshot(),
-            sourceLabel: "api")
-    }
-
-    func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {
-        false
     }
 }

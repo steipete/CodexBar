@@ -9,7 +9,7 @@ enum MiniMaxDecoding {
             return Int(value)
         }
         if let value = try? container.decodeIfPresent(Double.self, forKey: key) {
-            return Int(value)
+            return Int(exactly: value.rounded(.towardZero))
         }
         if let value = try? container.decodeIfPresent(String.self, forKey: key) {
             let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)

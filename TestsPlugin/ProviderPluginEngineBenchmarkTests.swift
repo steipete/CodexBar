@@ -6,7 +6,7 @@ import Testing
 
 struct ProviderPluginEngineBenchmarkTests {
     private static let bundledPlugins = [
-        "clawrouter", "crof", "deepgram", "manus", "openai", "openrouter", "perplexity", "poe", "qoder",
+        "clawrouter", "deepgram", "manus", "openai", "openrouter", "perplexity", "poe", "qoder",
         "sub2api", "synthetic", "t3chat", "venice", "xai", "zai",
     ]
     private static let creationSamples = 5
@@ -50,7 +50,7 @@ struct ProviderPluginEngineBenchmarkTests {
         withExtendedLifetime(retainedContexts) {}
 
         var fetchMilliseconds: [String: Double] = [:]
-        for plugin in ["poe", "openrouter", "crof"] {
+        for plugin in ["poe", "openrouter"] {
             let runtime = try Self.runtime(plugin: plugin, engine: engine, transport: Self.fixtureTransport())
             _ = try await Self.fetch(plugin: plugin, runtime: runtime)
             let started = ContinuousClock.now
@@ -83,7 +83,6 @@ struct ProviderPluginEngineBenchmarkTests {
         let secretKey = switch plugin {
         case "poe": "POE_API_KEY"
         case "openrouter": "OPENROUTER_API_KEY"
-        case "crof": "CROF_API_KEY"
         default: preconditionFailure("missing benchmark secret for \(plugin)")
         }
         return try await runtime.fetchUsage(secrets: [secretKey: "fixture-key"], now: Self.now)
@@ -101,8 +100,6 @@ struct ProviderPluginEngineBenchmarkTests {
                 body = #"{"data":{"total_credits":100,"total_usage":40}}"#
             case "/api/v1/key":
                 body = #"{"data":{"limit":20,"limit_remaining":15,"limit_reset":"monthly","usage":5,"usage_daily":1,"usage_weekly":2,"usage_monthly":4,"rate_limit":{"requests":120,"interval":"10s"}}}"#
-            case "/usage_api", "/usage_api/":
-                body = #"{"credits":9.9999,"requests_plan":1000,"usable_requests":998}"#
             default:
                 throw BenchmarkError.unexpectedURL(request.url)
             }
@@ -158,15 +155,14 @@ struct ProviderPluginEngineBenchmarkTests {
 
     private static func printFetchTable(_ results: [EngineResult]) {
         print("\nProvider plugin fetch benchmark (\(self.fetchIterations) iterations, milliseconds)")
-        print("| Engine | Poe | OpenRouter | Crof | Rough peak memory delta/context |")
-        print("| --- | ---: | ---: | ---: | ---: |")
+        print("| Engine | Poe | OpenRouter | Rough peak memory delta/context |")
+        print("| --- | ---: | ---: | ---: |")
         for result in results {
             print(String(
-                format: "| %@ | %.3f | %.3f | %.3f | %.1f KiB |",
+                format: "| %@ | %.3f | %.3f | %.1f KiB |",
                 result.label,
                 result.fetchMilliseconds["poe", default: 0],
                 result.fetchMilliseconds["openrouter", default: 0],
-                result.fetchMilliseconds["crof", default: 0],
                 result.memoryDeltaPerContextBytes / 1024))
         }
     }

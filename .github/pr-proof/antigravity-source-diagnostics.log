@@ -1,0 +1,52 @@
+Synthetic production CLI proof for PR #3683
+Input: isolated HOME/config, antigravity source=oauth, explicit empty OAuth credential JSON {}.
+The explicit credential envelope is selected before file loading and rejected for missing accessToken before HTTP.
+No provider process discovery, live account, browser-cookie import, or Keychain read is needed.
+
+$ codexbar usage --provider antigravity --verbose
+exit=1
+stdout:
+
+stderr:
+2026-09-18T19:20:34+0800 debug com.steipete.codexbar.antigravity: errorCategory=auth provider=antigravity sources=antigravity.oauth (oauth): failed: auth [CodexBarCore] Provider fetch failed
+[antigravity] fetch strategies:
+  - antigravity.oauth (oauth) available error=Antigravity Google auth not found. Use Antigravity login to authenticate.
+Error: Antigravity Google auth not found. Use Antigravity login to authenticate.
+
+$ codexbar diagnose --provider antigravity --format json --pretty
+exit=0
+stdout:
+{
+  "auth" : {
+    "configured" : false,
+    "modes" : [
+
+    ]
+  },
+  "displayName" : "Antigravity",
+  "error" : {
+    "category" : "auth",
+    "safeDescription" : "Authentication or setup issue - check provider credentials"
+  },
+  "fetchAttempts" : [
+    {
+      "errorCategory" : "auth",
+      "kind" : "oauth",
+      "outcome" : "failed",
+      "strategyID" : "antigravity.oauth",
+      "wasAvailable" : true
+    }
+  ],
+  "platform" : "macOS",
+  "provider" : "antigravity",
+  "schemaVersion" : "1.0",
+  "settings" : {
+    "sourceMode" : "oauth"
+  },
+  "source" : "failed",
+  "sourceMode" : "oauth",
+  "timestamp" : "2026-09-18T11:20:34Z"
+}
+stderr:
+
+

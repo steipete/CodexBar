@@ -432,7 +432,7 @@ struct ProviderMetricsInlineView: View {
             self.hasProviderCost = model.providerCost?.showsInProviderDetails == true
             self.hasInfoRows = !infoRows.isEmpty
             self.hasTokenUsage = model.tokenUsage != nil
-            self.hasResetCredits = model.codexResetCredits != nil
+            self.hasResetCredits = model.limitResetCredits != nil
             self.hasProviderDetails = !model.providerDetails.isEmpty
         }
 
@@ -493,8 +493,8 @@ struct ProviderMetricsInlineView: View {
                 ProviderDetailInfoRow(label: row.label, value: row.value)
             }
 
-            if let resetCredits = self.model.codexResetCredits {
-                ProviderCodexResetCreditsInlineRow(presentation: resetCredits)
+            if let resetCredits = self.model.limitResetCredits {
+                ProviderLimitResetCreditsInlineRow(presentation: resetCredits)
             }
 
             if let providerCost = self.model.providerCost, providerCost.showsInProviderDetails {
@@ -505,7 +505,7 @@ struct ProviderMetricsInlineView: View {
 
             if let tokenUsage = self.model.tokenUsage {
                 ProviderMetricInlineTextRow(
-                    title: L("Cost"),
+                    title: UsageMenuCardView.Model.tokenUsageHeader(provider: self.model.provider),
                     value: tokenUsage.sessionLine)
                 ProviderMetricInlineTextRow(title: "", value: tokenUsage.monthLine)
                 if ProviderDescriptorRegistry.descriptor(for: self.model.provider).tokenCost.showsHintInProviderDetails,
@@ -610,8 +610,8 @@ private struct ProviderMetricInlineRow: View {
     }
 }
 
-private struct ProviderCodexResetCreditsInlineRow: View {
-    let presentation: CodexResetCreditsPresentation
+private struct ProviderLimitResetCreditsInlineRow: View {
+    let presentation: LimitResetCreditsPresentation
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {

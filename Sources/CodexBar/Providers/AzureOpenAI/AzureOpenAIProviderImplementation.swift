@@ -14,6 +14,7 @@ struct AzureOpenAIProviderImplementation: ProviderImplementation {
         _ = settings.azureOpenAIAPIKey
         _ = settings.azureOpenAIEndpoint
         _ = settings.azureOpenAIDeploymentName
+        _ = settings.azureOpenAIAPIVersion
     }
 
     @MainActor
@@ -27,6 +28,28 @@ struct AzureOpenAIProviderImplementation: ProviderImplementation {
         return !context.settings.azureOpenAIAPIKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
             !context.settings.azureOpenAIEndpoint.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
             !context.settings.azureOpenAIDeploymentName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    @MainActor
+    func settingsPickers(context: ProviderSettingsContext) -> [ProviderSettingsPickerDescriptor] {
+        var options = [
+            ProviderSettingsPickerOption(id: "", title: "Default"),
+            ProviderSettingsPickerOption(id: "v1", title: "OpenAI-compatible v1"),
+        ]
+        let configuredVersion = context.settings.azureOpenAIAPIVersion
+        if !options.contains(where: { $0.id == configuredVersion }) {
+            options.append(ProviderSettingsPickerOption(id: configuredVersion, title: configuredVersion))
+        }
+        return [
+            ProviderSettingsPickerDescriptor(
+                id: "azure-openai-api-version",
+                title: "API version",
+                subtitle: "Default uses AZURE_OPENAI_API_VERSION when set.",
+                binding: context.binding(\.azureOpenAIAPIVersion),
+                options: options,
+                isVisible: nil,
+                onChange: nil),
+        ]
     }
 
     @MainActor

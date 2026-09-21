@@ -191,6 +191,7 @@ extension UsageMenuCardView.Model {
         }
         guard enabled else { return nil }
         guard let snapshot else { return nil }
+        let tokensOnly = ProviderDescriptorRegistry.descriptor(for: provider).tokenCost.presentation == .tokensOnly
 
         let sessionCost = snapshot.sessionCostUSD.map {
             UsageFormatter.convertedCostString(
@@ -205,6 +206,7 @@ extension UsageMenuCardView.Model {
             L("Today")
         }
         let sessionLine: String = {
+            if tokensOnly { return Self.tokenWindowLine(label: sessionLabel, tokens: snapshot.sessionTokens) }
             if let sessionTokens {
                 return String(format: L("%@: %@ · %@ tokens"), sessionLabel, sessionCost, sessionTokens)
             }
@@ -239,6 +241,7 @@ extension UsageMenuCardView.Model {
             Self.costHistoryWindowLabel(days: snapshot.historyDays)
         }
         let monthLine: String = {
+            if tokensOnly { return Self.tokenWindowLine(label: windowLabel, tokens: monthTokensValue) }
             if let monthTokens {
                 return String(format: L("%@: %@ · %@ tokens"), windowLabel, monthCost, monthTokens)
             }
@@ -246,7 +249,7 @@ extension UsageMenuCardView.Model {
         }()
         // Plan-metered spend over the same window (what the provider actually deducts);
         // only providers that report it (currently Cursor) populate `meteredCostUSD`.
-        let meteredLine: String? = snapshot.meteredCostUSD.map {
+        let meteredLine: String? = (tokensOnly ? nil : snapshot.meteredCostUSD).map {
             let amount = UsageFormatter.convertedCostString(
                 $0,
                 preferredCurrency: preferredCurrencyCode,
@@ -256,7 +259,11 @@ extension UsageMenuCardView.Model {
         let incompleteCount = CostUsageIncompleteRequests.sum(snapshot.daily.map(\.incompleteRequestCount))
         let todayIncompleteCount = snapshot.summary(forLastDays: 1, calendar: calendar).incompleteRequestCount
         let err = (error?.isEmpty ?? true) ? nil : error
-        let hints = [Self.tokenUsageHint(provider: provider), UsageFormatter.incompleteUsageNote(incompleteCount)]
+        let hints = [
+            Self.tokenUsageHint(provider: provider),
+            UsageFormatter.incompleteUsageNote(incompleteCount),
+            tokensOnly ? Self.tokenHistoryCoverageHint(snapshot) : nil,
+        ]
             .compactMap(\.self)
         return TokenUsageSection(
             isRefreshing: isRefreshing,
@@ -265,12 +272,14 @@ extension UsageMenuCardView.Model {
             meteredLine: meteredLine,
             comparisonLines: comparisonPeriodsEnabled
                 ? snapshot.comparisonSummaries(calendar: calendar).map {
-                    Self.costWindowLine(
-                        summary: $0,
-                        currencyCode: UsageFormatter.effectiveCurrencyCode(
-                            preferred: preferredCurrencyCode,
-                            providerCurrency: snapshot.currencyCode),
-                        sourceCurrencyCode: snapshot.currencyCode)
+                    tokensOnly ? Self.tokenWindowLine(
+                        label: Self.costHistoryWindowLabel(days: $0.days), tokens: $0.totalTokens) : Self
+                        .costWindowLine(
+                            summary: $0,
+                            currencyCode: UsageFormatter.effectiveCurrencyCode(
+                                preferred: preferredCurrencyCode,
+                                providerCurrency: snapshot.currencyCode),
+                            sourceCurrencyCode: snapshot.currencyCode)
                 }
                 : [],
             hintLine: hints.isEmpty ? nil : hints.joined(separator: "\n"),
@@ -304,8 +313,21 @@ extension UsageMenuCardView.Model {
         return lines.isEmpty ? nil : lines.joined(separator: "\n")
     }
 
-    static func tokenUsageHeader(provider _: UsageProvider) -> String {
-        L("Cost")
+    static func tokenUsageHeader(provider: UsageProvider) -> String {
+        ProviderDescriptorRegistry.descriptor(for: provider).tokenCost.presentation == .tokensOnly
+            ? L("Token history") : L("Cost")
+    }
+
+    static func tokenWindowLine(label: String, tokens: Int?) -> String {
+        let value = tokens.map { L("%@ tokens", UsageFormatter.tokenCountString($0)) } ?? "—"
+        return L("%@: %@", label, value)
+    }
+
+    static func tokenHistoryCoverageHint(_ snapshot: CostUsageTokenSnapshot) -> String? {
+        guard !snapshot.historyIsFullyScanned else { return nil }
+        return snapshot.last30DaysTokens != nil || snapshot.sessionTokens != nil
+            ? L("Partial local history · recorded token subtotal")
+            : L("Local token history is unavailable or incomplete.")
     }
 
     static func tokenUsageHintLines(provider: UsageProvider) -> [String] {

@@ -72,6 +72,9 @@ extension UsageStore {
 
         self.persistWidgetSnapshot(reason: "codex-account-refresh")
         phaseDidChange?(.completed)
+        #if DEBUG
+        self._test_codexAccountScopedRefreshDidComplete?()
+        #endif
     }
 
     @discardableResult
@@ -129,6 +132,7 @@ extension UsageStore {
     }
 
     func clearCodexPublishedUsageState(preserveSessionQuotaTransitionState: Bool = false) {
+        self.invalidateGenericWidgetUsage(for: .codex)
         self.snapshots.removeValue(forKey: .codex)
         self.errors[.codex] = nil
         self.lastSourceLabels.removeValue(forKey: .codex)

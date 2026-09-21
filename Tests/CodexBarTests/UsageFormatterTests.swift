@@ -167,6 +167,16 @@ struct UsageFormatterTests {
     }
 
     @Test
+    func `formatted remaining value uses localized left template`() {
+        UsageFormatter.setLocalizationProvider { key in
+            key == "%@ left" ? "%@ übrig" : key
+        }
+        defer { UsageFormatter.clearLocalizationProvider() }
+
+        #expect(UsageFormatter.remainingString(from: "€24.99") == "€24.99 übrig")
+    }
+
+    @Test
     func `tomorrow reset description uses localized format`() throws {
         UsageFormatter.setLocalizationProvider { key in
             key == "reset_tomorrow_format" ? "明日 %@" : key
@@ -620,6 +630,15 @@ struct UsageFormatterTests {
         #expect(explicitAED.hasPrefix("AED"))
         #expect(explicitAED.range(of: #"\.\d{2}$"#, options: .regularExpression) != nil)
 
+        let tryRate = try #require(exchange.rate(for: "TRY"))
+        #expect(abs((exchange.convert(usdAmount: 10.0, to: "TRY") ?? 0) - 10.0 * tryRate) < epsilon)
+        #expect(abs((exchange.convert(amount: 10.0, from: "TRY", to: "USD") ?? 0) - 10.0 / tryRate) < epsilon)
+        #expect(abs((exchange.convert(amount: 10.0, from: "GBP", to: "TRY") ?? 0) - 10.0 / gbpRate * tryRate) < epsilon)
+        let explicitTRY = UsageFormatter.convertedCostString(10.0, preferredCurrency: "TRY", providerCurrency: "USD")
+        #expect(explicitTRY == UsageFormatter.currencyString(10.0 * tryRate, currencyCode: "TRY"))
+        #expect(explicitTRY.hasPrefix("TRY"))
+        #expect(explicitTRY.range(of: #"\.\d{2}$"#, options: .regularExpression) != nil)
+
         // CHF is supported: conversion through the USD pivot works both ways.
         let chfRate = exchange.rate(for: "CHF") ?? 0.80
         #expect(abs((exchange.convert(usdAmount: 10.0, to: "CHF") ?? 0) - 10.0 * chfRate) < epsilon)
@@ -649,6 +668,30 @@ struct UsageFormatterTests {
         #expect(CurrencyExchange.requiresLiveRates(preferredCurrencyCode: "CZK"))
         #expect(CurrencyExchange.requiresLiveRates(preferredCurrencyCode: "AED"))
         #expect(CurrencyExchange.requiresLiveRates(preferredCurrencyCode: " aed "))
+        #expect(CurrencyExchange.requiresLiveRates(preferredCurrencyCode: "TRY"))
+        #expect(CurrencyExchange.requiresLiveRates(preferredCurrencyCode: " try "))
+    }
+
+    @Test
+    func `offline currency conversion preserves fallbacks and normalized identity`() {
+        let exchange = CurrencyExchange(defaults: InMemoryUserDefaults())
+        #expect(exchange.rate(for: "TRY") == 48.5)
+        #expect(exchange.convert(usdAmount: 10, to: " try ") == 485)
+        #expect(exchange.convert(usdAmount: 10, to: " usd ") == 10)
+        #expect(exchange.convert(usdAmount: 10, to: "  ") == 10)
+        #expect(exchange.convert(usdAmount: 10, to: "XYZ") == nil)
+    }
+
+    @Test
+    func `cached currency rates override only supplied fallbacks and keep the USD pivot`() {
+        let defaults = InMemoryUserDefaults()
+        defaults.set(["TRY": 60.0, "USD": 42.0], forKey: "CodexBar.CurrencyExchangeRates")
+        let exchange = CurrencyExchange(defaults: defaults)
+        #expect(exchange.rate(for: " try ") == 60)
+        #expect(exchange.rate(for: "EUR") == 0.92)
+        #expect(exchange.convert(usdAmount: 10, to: "TRY") == 600)
+        #expect(exchange.convert(amount: 600, from: "TRY", to: "USD") == 10)
+        #expect(exchange.convert(usdAmount: 10, to: "USD") == 10)
     }
 
     @Test

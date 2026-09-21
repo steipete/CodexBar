@@ -273,6 +273,9 @@ struct StepFunUsageFetcherParsingTests {
 
         #expect(snapshot.creditResetTime == nil)
         #expect(usage.primary?.windowMinutes == nil)
+        #expect(usage.primary?.resetsAt == nil)
+        #expect(usage.primary?.resetDescription == nil)
+        #expect(Self.primaryLabel(for: usage) == "Credit")
     }
 
     @Test
@@ -377,6 +380,7 @@ struct StepFunUsageFetcherParsingTests {
         #expect(usage.secondary == nil)
         #expect(usage.identity?.providerID == .stepfun)
         #expect(usage.updatedAt == creditSnapshot.updatedAt)
+        #expect(Self.primaryLabel(for: usage) == "5h Window")
         #expect(try StepFunUsageFetcher._parseSnapshotForTesting(Data(windowFamily.utf8)).isCreditPlan == false)
     }
 
@@ -402,6 +406,7 @@ struct StepFunUsageFetcherParsingTests {
         let usage = snapshot.toUsageSnapshot()
         #expect(usage.primary?.usedPercent == 100)
         #expect(usage.secondary == nil)
+        #expect(Self.primaryLabel(for: usage) == "Credit")
     }
 
     @Test
@@ -425,6 +430,10 @@ struct StepFunUsageFetcherParsingTests {
         let usage = snapshot.toUsageSnapshot()
         #expect(usage.primary?.usedPercent == 100)
         #expect(usage.secondary == nil)
+        #expect(usage.primary?.windowMinutes == nil)
+        #expect(usage.primary?.resetsAt == nil)
+        #expect(usage.primary?.resetDescription == nil)
+        #expect(Self.primaryLabel(for: usage) == "Credit")
     }
 
     @Test
@@ -449,6 +458,8 @@ struct StepFunUsageFetcherParsingTests {
         // (80 + 150) / (100 + 300) = 0.575 remaining, or 42.5% used.
         #expect(snapshot.creditLeftRate == 0.575)
         #expect(abs((snapshot.toUsageSnapshot().primary?.usedPercent ?? 0) - 42.5) < 0.0001)
+        #expect(snapshot.toUsageSnapshot().primary?.windowMinutes == nil)
+        #expect(Self.primaryLabel(for: snapshot.toUsageSnapshot()) == "Credit")
     }
 
     @Test
@@ -492,6 +503,127 @@ struct StepFunUsageFetcherParsingTests {
         let usage = snapshot.toUsageSnapshot()
         #expect(usage.primary?.usedPercent == 50.0)
         #expect(usage.secondary == nil)
+    }
+
+    @Test
+    func `credit plan labels the primary lane as Credit`() throws {
+        // Matches a live Token Plan (Plus) account: rate windows are zeroed with
+        // "0" reset times, the real quota is the monthly credit pool.
+        let json = """
+        {
+            "status": 1,
+            "desc": "",
+            "five_hour_usage_left_rate": 0,
+            "five_hour_usage_reset_time": "0",
+            "weekly_usage_left_rate": 0,
+            "weekly_usage_reset_time": "0",
+            "plan_family": 2,
+            "plan_credit_rate_limit": {
+                "subscription_credit_left_rate": 0.9954225,
+                "subscription_credit_reset_time": "1792472633",
+                "topup_credit_left_rate": 0,
+                "credit_buckets": [
+                    {
+                        "type": 1,
+                        "credit_total": "1600000000",
+                        "credit_residual": "1592675954"
+                    }
+                ]
+            }
+        }
+        """
+        let data = Data(json.utf8)
+        let snapshot = try StepFunUsageFetcher._parseSnapshotForTesting(data)
+        #expect(snapshot.isCreditPlan == true)
+
+        let usage = snapshot.toUsageSnapshot()
+        #expect(Self.primaryLabel(for: usage) == "Credit")
+    }
+
+    @Test
+    func `coding plan keeps the 5h Window label`() throws {
+        // Grandfathered Coding Plan: live rolling 5h/weekly windows, no credit pool.
+        let json = """
+        {
+            "status": 1,
+            "desc": "",
+            "five_hour_usage_left_rate": 1,
+            "five_hour_usage_reset_time": "1777528800",
+            "weekly_usage_left_rate": 0.99781543,
+            "weekly_usage_reset_time": "1777899600"
+        }
+        """
+        let data = Data(json.utf8)
+        let snapshot = try StepFunUsageFetcher._parseSnapshotForTesting(data)
+        #expect(snapshot.isCreditPlan == false)
+
+        let usage = snapshot.toUsageSnapshot()
+        #expect(Self.primaryLabel(for: usage) == "5h Window")
+    }
+
+    @Test
+    func `labels top-up-only credit lane as Credit without a reset timestamp`() throws {
+        // Top-up-only balance: no subscription rate and no reset timestamp. The credit
+        // lane therefore has no monthly pace sentinel on windowMinutes, but must still
+        // not be labeled as the Coding Plan's 5h window.
+        let json = """
+        {
+            "status": 1,
+            "desc": "",
+            "five_hour_usage_left_rate": 0,
+            "five_hour_usage_reset_time": "0",
+            "weekly_usage_left_rate": 0,
+            "weekly_usage_reset_time": "0",
+            "plan_family": 2,
+            "plan_credit_rate_limit": {
+                "topup_credit_left_rate": 0.4
+            }
+        }
+        """
+        let data = Data(json.utf8)
+        let snapshot = try StepFunUsageFetcher._parseSnapshotForTesting(data)
+        #expect(snapshot.isCreditPlan == true)
+
+        let usage = snapshot.toUsageSnapshot()
+        #expect(usage.primary != nil)
+        #expect(usage.secondary == nil)
+        #expect(usage.primary?.windowMinutes == nil)
+        #expect(usage.primary?.resetsAt == nil)
+        #expect(Self.primaryLabel(for: usage) == "Credit")
+    }
+
+    @Test
+    func `labels credit lane as Credit when reset timestamp is zero`() throws {
+        // A zero reset timestamp means "no reset configured", not epoch 0: the credit
+        // lane still shows as Credit and must not acquire a monthly pace.
+        let json = """
+        {
+            "status": 1,
+            "desc": "",
+            "five_hour_usage_left_rate": 0,
+            "five_hour_usage_reset_time": "0",
+            "weekly_usage_left_rate": 0,
+            "weekly_usage_reset_time": "0",
+            "plan_family": 2,
+            "plan_credit_rate_limit": {
+                "subscription_credit_left_rate": 0.2,
+                "subscription_credit_reset_time": "0"
+            }
+        }
+        """
+        let data = Data(json.utf8)
+        let snapshot = try StepFunUsageFetcher._parseSnapshotForTesting(data)
+        #expect(snapshot.isCreditPlan == true)
+
+        let usage = snapshot.toUsageSnapshot()
+        #expect(usage.primary?.windowMinutes == nil)
+        #expect(usage.primary?.resetsAt == nil)
+        #expect(Self.primaryLabel(for: usage) == "Credit")
+    }
+
+    private static func primaryLabel(for snapshot: UsageSnapshot) -> String {
+        let descriptor = ProviderDescriptorRegistry.descriptor(for: .stepfun)
+        return descriptor.presentation.rateWindowLabels(metadata: descriptor.metadata, snapshot: snapshot).primary
     }
 }
 

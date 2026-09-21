@@ -25,7 +25,8 @@ extension CostUsageStore {
 
         init(
             snapshot: CostUsageStoreSnapshot,
-            snapshotCounts: [String: Int]? = nil)
+            snapshotCounts: [String: Int]? = nil,
+            rowCounts: [String: Int]? = nil)
         {
             self.metadata = snapshot.metadata
             self.files = snapshot.files.map { file in
@@ -38,7 +39,7 @@ extension CostUsageStore {
             }
             self.snapshotCounts = snapshotCounts
                 ?? snapshot.tokenSnapshots.reduce(into: [:]) { $0[$1.path, default: 0] += 1 }
-            self.rowCounts = snapshot.usageRows.reduce(into: [:]) { $0[$1.path, default: 0] += 1 }
+            self.rowCounts = rowCounts ?? snapshot.usageRows.reduce(into: [:]) { $0[$1.path, default: 0] += 1 }
         }
     }
 

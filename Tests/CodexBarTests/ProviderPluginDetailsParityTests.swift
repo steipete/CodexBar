@@ -137,7 +137,6 @@ struct ProviderPluginDetailsParityTests {
                     Self.row("Today", "$1.00"),
                     Self.row("This week", "$2.00"),
                     Self.row("This month", "$4.00"),
-                    Self.row("Rate limit", "120 requests / 10s"),
                 ],
                 chart: Self.chart("Key spend", unit: "USD", points: [
                     ("Today", 1), ("This week", 2), ("This month", 4),
@@ -151,8 +150,10 @@ struct ProviderPluginDetailsParityTests {
         ])
     }
 
-    @Test
-    func `OpenRouter optional key timeout is an observable degradation`() async throws {
+    @Test(arguments: Self.parityEngines, [false, true])
+    func `OpenRouter optional key timeout is an observable degradation`(
+        engine: ProviderPluginEngineKind, delaysTaskStart: Bool) async throws
+    {
         let transport = ProviderHTTPTransportHandler { request in
             let isKeyRequest = request.url?.path == "/api/v1/key"
             if isKeyRequest {
@@ -167,10 +168,19 @@ struct ProviderPluginDetailsParityTests {
             return (Data(body.utf8), response)
         }
 
+        let sourceURL = try #require(CodexBarCoreResources.bundle?.url(forResource: "openrouter", withExtension: "js"))
+        let source = try String(contentsOf: sourceURL, encoding: .utf8)
         let script = try await ProviderPluginRuntime(
-            bundledPlugin: "openrouter",
+            source: source,
+            resourceBundle: CodexBarCoreResources.bundle,
             transport: transport,
-            contextOptions: ProviderPluginContextOptions(optionalRequestTimeoutSeconds: 1))
+            contextOptions: ProviderPluginContextOptions(
+                optionalRequestTimeoutSeconds: 1,
+                beforeHTTPAttempt: {
+                    // Model a task queued longer than the attempt budget before the transport begins.
+                    if delaysTaskStart { try await Task.sleep(for: .milliseconds(1500)) }
+                }),
+            engine: engine)
             .fetchUsage(secrets: ["OPENROUTER_API_KEY": "fixture-key"])
 
         #expect(script.primary == nil)

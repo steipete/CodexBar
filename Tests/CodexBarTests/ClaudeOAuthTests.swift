@@ -142,6 +142,7 @@ struct ClaudeOAuthTests {
             transport: transport)
 
         #expect(profile.emailAddress == "user@example.com")
+        #expect(profile.accountUuid == "account-123")
         #expect(profile.organizationUuid == "org-123")
         let request = try #require(await transport.requests().first)
         #expect(request.url?.absoluteString == "https://api.anthropic.com/api/oauth/profile")

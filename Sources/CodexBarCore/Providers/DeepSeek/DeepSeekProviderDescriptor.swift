@@ -83,7 +83,7 @@ public enum DeepSeekProviderDescriptor {
                 toggleTitle: "Show DeepSeek usage",
                 cliName: "deepseek",
                 defaultEnabled: false,
-                widgetSelectable: false,
+                widgetSelectable: true,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
                 balanceOnly: true,
@@ -139,6 +139,7 @@ public enum DeepSeekProviderDescriptor {
                     movePrimaryDetailToStatus: { _ in true }),
                 menu: ProviderMenuDescriptorPresentation(primaryDescriptionIsDetail: { _ in true }),
                 optionalDetails: ProviderOptionalDetailsPresentation(
+                    hidesAllWithoutOptionalUsage: true,
                     costSummaryTitles: ["Usage", "Spend"])),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .api, .web],

@@ -202,6 +202,7 @@ enum ClaudeOAuthUsageFetcher {
 }
 
 struct OAuthProfileResponse: Decodable, Sendable {
+    let accountUuid: String?
     let emailAddress: String?
     let organizationUuid: String?
 
@@ -209,6 +210,8 @@ struct OAuthProfileResponse: Decodable, Sendable {
         let container = try decoder.container(keyedBy: DynamicCodingKey.self)
         let account = try Self.decodeNestedContainer(in: container, key: "account")
         let organization = try Self.decodeNestedContainer(in: container, key: "organization")
+        self.accountUuid = account.flatMap { Self.decodeString(in: $0, keys: ["uuid"]) }
+            ?? Self.decodeString(in: container, keys: ["accountUuid", "account_uuid"])
         self.emailAddress =
             account.flatMap { Self.decodeString(in: $0, keys: ["emailAddress", "email_address", "email"]) }
                 ?? Self.decodeString(in: container, keys: ["emailAddress", "email_address", "email"])
@@ -217,7 +220,8 @@ struct OAuthProfileResponse: Decodable, Sendable {
                 ?? Self.decodeString(in: container, keys: ["organizationUuid", "organization_uuid"])
     }
 
-    init(emailAddress: String?, organizationUuid: String?) {
+    init(emailAddress: String?, organizationUuid: String?, accountUuid: String? = nil) {
+        self.accountUuid = accountUuid
         self.emailAddress = emailAddress
         self.organizationUuid = organizationUuid
     }

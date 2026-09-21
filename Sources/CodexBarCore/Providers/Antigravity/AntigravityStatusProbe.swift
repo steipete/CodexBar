@@ -796,10 +796,10 @@ public enum AntigravityStatusProbeError: LocalizedError, Sendable, Equatable {
         let selected = expected ?? "the selected account"
         if let found {
             return "Antigravity local session is signed in as \(found), not \(selected); "
-                + "using the selected account's OAuth data instead."
+                + "local usage cannot be used for the selected account."
         }
         return "Antigravity local session did not report an account matching \(selected); "
-            + "using the selected account's OAuth data instead."
+            + "local usage cannot be used for the selected account."
     }
 
     private static func portDetectionDescription(_ message: String) -> String {

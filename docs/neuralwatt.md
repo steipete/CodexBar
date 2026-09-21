@@ -22,7 +22,7 @@ endpoint exposes both surfaces plus current-month spend and optional per-key spe
   zero while subscription kWh remains available.
 - Per-key spending allowance (`spent_usd` / `limit_usd`) as an extra rate window when configured.
 - Subscription plan shown as the provider identity label, falling back to accounting method (`Token` vs `Energy`).
-- Current calendar-month spend is parsed for future/reporting use, but is not shown as a resettable quota window.
+- Current calendar-month spend is validated but is not shown as a resettable quota window.
 
 CLI text and cards keep subscription kWh totals visible alongside the actual period-end reset. If no period end
 is reported, the kWh counts remain details without a reset clock.
@@ -71,8 +71,11 @@ For tests or self-hosted/proxy setups, override the API base URL with `NEURALWAT
 - `subscription` may be `null`; prepaid balance remains visible without a subscription window.
 - Transient quota failures are retried once, including `Retry-After` handling for rate limits.
 
-The native fetcher remains authoritative because that delayed retry behavior is not expressible through the current
-plugin HTTP API, which has no retry-policy or sleep capability.
+The bundled [`neuralwatt.js`](../Sources/CodexBarCore/Resources/Plugins/neuralwatt.js) is authoritative on QuickJS and
+JavaScriptCore. Swift supplies credential resolution, validated endpoint settings, and provider registration; the native
+fetch/parser twin is removed. The host retries eligible HTTP statuses and transient URL errors once, with a one-second
+default delay and `Retry-After` capped at ten seconds. Each attempt retains its fifteen-second request deadline. Offline,
+TLS, authentication, and cancellation failures do not retry, and cancellation remains distinct from provider errors.
 
 ## Troubleshooting
 

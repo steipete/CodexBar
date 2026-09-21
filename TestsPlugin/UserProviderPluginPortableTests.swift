@@ -4,10 +4,45 @@ import Testing
 
 struct UserProviderPluginPortableTests {
     @Test
+    func `loader built API only cookie plugin never touches the broker`() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let url = root.appendingPathComponent("cookie-policy.js")
+        try Data("""
+        defineProvider({
+          id: "cookie-policy", name: "Cookie Policy", settings: [],
+          endpoints: ["https://example.test"],
+          capabilities: ["browser-cookies"], cookieDomains: ["example.test"],
+          async fetchUsage(ctx) {
+            const policy = ctx.browser.availability("example.test");
+            if (policy !== "off") await ctx.browser.cookieHeader("example.test");
+            return { identity: { loginMethod: policy } };
+          },
+        });
+        """.utf8).write(to: url)
+        let plugin = try UserProviderPluginLoader(
+            providersDirectory: root, cacheDirectory: root.appendingPathComponent("cache")).load(fileURL: url)
+        let approvals = ProviderPluginApprovalStore(fileURL: root.appendingPathComponent("approvals.json"))
+        try approvals.record(plugin.approvalBinding(settings: [:]))
+        let snapshot = try await plugin.fetchUsage(
+            settings: [:],
+            secrets: [:],
+            environment: [:],
+            approvalStore: approvals,
+            sourceMode: .api,
+            instanceCookieResolver: { _, _ in
+                Issue.record("API-only user plugin touched the cookie broker")
+                return "session=fixture"
+            })
+        #expect(snapshot.identity?.loginMethod == "off")
+    }
+
+    @Test
     func `bundled plugins are free of raw Intl references`() throws {
         let bundle = try #require(CodexBarCoreResources.bundle)
         for name in [
-            "crof", "venice", "openrouter", "clawrouter", "deepgram", "sub2api", "synthetic", "openai", "zai",
+            "venice", "openrouter", "clawrouter", "deepgram", "sub2api", "synthetic", "openai", "zai",
             "poe", "xai", "manus", "perplexity", "t3chat", "qoder",
         ] {
             let url = try #require(bundle.url(forResource: name, withExtension: "js"))

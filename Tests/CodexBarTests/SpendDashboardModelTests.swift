@@ -81,8 +81,8 @@ struct SpendDashboardModelTests {
             .opencodego,
             .openrouter,
             .xai,
-            // Antigravity joined via the tokscale-compatible local usage readers.
-            .antigravity,
+            // Antigravity and Muse provide local token history without monetary values.
+            .antigravity, .muse, .pi,
         ])
     }
 

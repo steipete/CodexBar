@@ -53,6 +53,12 @@ final class OpenRouterCreditsFallbackNativeProofTests: XCTestCase {
         XCTAssertEqual(todaySpend, "$1.25")
         XCTAssertEqual(weekSpend, "$7.50")
         XCTAssertEqual(monthSpend, "$18.75")
+        if environment["CODEXBAR_OPENROUTER_RATE_LIMIT_PROOF"] == "1" {
+            XCTAssertEqual(snapshot.primary?.usedPercent, 37.5)
+            XCTAssertEqual(try self.row("API key limit", in: model).value, "$50.00")
+            XCTAssertEqual(try self.row("API key remaining", in: model).value, "$31.25")
+            XCTAssertEqual(try self.row("Reset window", in: model).value, "monthly")
+        }
 
         let app = NSApplication.shared
         guard app.delegate == nil else { return XCTFail("Use a standalone test host") }
@@ -117,6 +123,9 @@ final class OpenRouterCreditsFallbackNativeProofTests: XCTestCase {
                 provider: .openrouter,
                 planText: model.planText)?.value ?? "",
             "shownRows": model.providerDetails.flatMap(\.rows).map(\.label),
+            "details": model.providerDetails.flatMap(\.rows).map {
+                ["label": $0.label, "value": $0.value, "secondaryValue": $0.secondaryValue ?? ""]
+            },
             "todaySpend": todaySpend,
             "weekSpend": weekSpend,
             "monthSpend": monthSpend,

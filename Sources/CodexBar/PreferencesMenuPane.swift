@@ -66,6 +66,15 @@ struct MenuPane: View {
             Section {
                 Toggle(L("show_provider_changelog_links_title"), isOn: self.$settings.providerChangelogLinksEnabled)
 
+                SettingsMenuPicker(
+                    selection: self.$settings.mergedOverviewLayout,
+                    options: MenuSettingsMenuOptions.mergedOverviewLayouts,
+                    label: {
+                        SettingsRowLabel(L("overview_layout_title"), subtitle: L("overview_layout_subtitle"))
+                    },
+                    optionLabel: { Text($0.label) })
+                    .disabled(!self.settings.mergeIcons)
+
                 Toggle(isOn: self.$settings.showOptionalCreditsAndExtraUsage) {
                     SettingsRowLabel(
                         L("show_credits_extra_usage_title"),
@@ -83,6 +92,20 @@ struct MenuPane: View {
                     })
             } header: {
                 Text(L("section_content"))
+            }
+
+            Section(L("section_widgets")) {
+                Toggle(isOn: self.$settings.accountWidgetsEnabled) {
+                    SettingsRowLabel(
+                        L("account_widgets_title"),
+                        subtitle: L("account_widgets_description"))
+                }
+                .onChange(of: self.settings.accountWidgetsEnabled) { _, enabled in
+                    self.store.persistWidgetSnapshot(reason: "account-widgets-setting")
+                    if enabled {
+                        Task { await self.store.refresh() }
+                    }
+                }
             }
 
             CostSummarySettingsSection(settings: self.settings, store: self.store)

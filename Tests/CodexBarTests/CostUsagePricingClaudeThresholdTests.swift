@@ -3,6 +3,22 @@ import Testing
 @testable import CodexBarCore
 
 struct CostUsagePricingClaudeThresholdTests {
+    @Test(arguments: [0, 1])
+    func `overflowing prompt totals select long context rates`(cacheWrite: Int) throws {
+        let input = Int.max - cacheWrite
+        let catalog = try Self.catalog(provider: "anthropic", model: "threshold-fixture")
+        let cost = try #require(CostUsagePricing.claudeCostUSD(
+            model: "anthropic/threshold-fixture",
+            inputTokens: input,
+            cacheReadInputTokens: 1,
+            cacheCreationInputTokens: cacheWrite,
+            outputTokens: 13,
+            modelsDevCatalog: catalog))
+        let expected = Double(input) * 7e-6 + 0.5e-6 + Double(cacheWrite) * 9e-6 + 13 * 11e-6
+        #expect(cost.isFinite)
+        #expect(abs(cost - expected) <= expected * 1e-12)
+    }
+
     @Test(arguments: [200_001, 271_999, 272_000, 272_001], [0, 100_000])
     func `Claude uses the OpenAI prompt boundary while retaining catalog rates`(
         totalInput: Int,

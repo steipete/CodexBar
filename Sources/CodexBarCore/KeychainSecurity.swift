@@ -93,6 +93,14 @@ enum KeychainLegacyInteraction {
 /// Test processes fail closed before touching the user's Keychain, even when a test enables
 /// higher-level Keychain logic with `KeychainAccessGate.withTaskOverrideForTesting(false)`.
 public enum KeychainSecurity {
+    #if DEBUG
+    enum Mutation: Equatable, Sendable {
+        case add, delete, update
+    }
+
+    @TaskLocal static var mutationOverrideForTesting: (@Sendable (Mutation, [String: Any]) -> OSStatus)?
+    #endif
+
     enum ItemOperationBlockReason: Equatable {
         case keychainAccessDisabled
         case testSafetySuppressed
@@ -124,6 +132,9 @@ public enum KeychainSecurity {
     }
 
     public static func update(_ query: CFDictionary, _ attributesToUpdate: CFDictionary) -> OSStatus {
+        #if DEBUG
+        if let override = self.mutationOverrideForTesting { return override(.update, query as? [String: Any] ?? [:]) }
+        #endif
         guard self.currentItemOperationBlockReason() == nil else {
             return errSecInteractionNotAllowed
         }
@@ -134,6 +145,9 @@ public enum KeychainSecurity {
         _ attributes: CFDictionary,
         _ result: UnsafeMutablePointer<CFTypeRef?>?) -> OSStatus
     {
+        #if DEBUG
+        if let override = self.mutationOverrideForTesting { return override(.add, attributes as? [String: Any] ?? [:]) }
+        #endif
         guard self.currentItemOperationBlockReason() == nil else {
             return errSecInteractionNotAllowed
         }
@@ -141,6 +155,9 @@ public enum KeychainSecurity {
     }
 
     public static func delete(_ query: CFDictionary) -> OSStatus {
+        #if DEBUG
+        if let override = self.mutationOverrideForTesting { return override(.delete, query as? [String: Any] ?? [:]) }
+        #endif
         guard self.currentItemOperationBlockReason() == nil else {
             return errSecInteractionNotAllowed
         }

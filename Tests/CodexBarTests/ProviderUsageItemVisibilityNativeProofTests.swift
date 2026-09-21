@@ -23,6 +23,9 @@ final class ProviderUsageItemVisibilityNativeProofTests: XCTestCase {
         let root = URL(fileURLWithPath: path, isDirectory: true)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         let state = try UsageVisibilityNativeState(root: root)
+        if state.provider == .zai {
+            XCTAssertTrue(state.model(for: .zai).providerDetailRawTitles.contains("Quota details"))
+        }
         defer { state.store.stopSharedSpendDashboardPublication() }
         let app = NSApplication.shared
         guard app.delegate == nil else { return XCTFail("Use a standalone native test host") }
@@ -69,12 +72,21 @@ final class ProviderUsageItemVisibilityNativeProofTests: XCTestCase {
         }
         XCTAssertTrue(FileManager.default.fileExists(atPath: done), "Native proof timed out")
         XCTAssertGreaterThan(state.reloads, 0, "Exercise a persisted reload")
-        XCTAssertTrue(state.settings.hiddenUsageItemIDs(for: .codex).contains(.metric("primary")))
-        XCTAssertFalse(state.model(for: .codex).metrics.contains { $0.id == "primary" })
+        let hiddenItem: ProviderUsageItemID = state
+            .provider == .zai ? .detailSection("Quota details") : .metric("primary")
+        XCTAssertTrue(state.settings.hiddenUsageItemIDs(for: state.provider).contains(hiddenItem))
+        if state.provider == .zai {
+            XCTAssertFalse(state.model(for: .zai).providerDetailRawTitles.contains("Quota details"))
+            XCTAssertTrue(state.model(for: .zai).providerDetails.contains { $0.title == nil })
+            XCTAssertTrue(state.model(for: .zai).metrics.contains { $0.id == "primary" })
+        } else {
+            XCTAssertFalse(state.model(for: .codex).metrics.contains { $0.id == "primary" })
+        }
         XCTAssertTrue(state.model(for: .claude).metrics.contains { $0.id == "primary" })
-        XCTAssertEqual(state.settings.providerConfigRevision(for: .codex), state.fetchRevision)
+        XCTAssertEqual(state.settings.providerConfigRevision(for: state.provider), state.fetchRevision)
         let disk = try XCTUnwrap(state.configStore.load())
-        XCTAssertTrue(disk.providers.first { $0.id == .codex }?.hiddenUsageItemIDs?.contains("metric:primary") == true)
+        XCTAssertTrue(disk.providers.first { $0.id == state.provider.instanceID }?
+            .hiddenUsageItemIDs?.contains(hiddenItem.rawValue) == true)
     }
 }
 
@@ -82,6 +94,7 @@ final class ProviderUsageItemVisibilityNativeProofTests: XCTestCase {
 @Observable
 private final class UsageVisibilityNativeState {
     let root: URL
+    let provider: UsageProvider
     let configStore: CodexBarConfigStore
     var settings: SettingsStore
     var store: UsageStore
@@ -90,23 +103,24 @@ private final class UsageVisibilityNativeState {
 
     init(root: URL) throws {
         self.root = root
+        self.provider = ProcessInfo.processInfo.environment["CODEXBAR_USAGE_VISIBILITY_NATIVE_PROOF_PROVIDER"] == "zai"
+            ? .zai : .codex
         self.configStore = CodexBarConfigStore(fileURL: root.appendingPathComponent("config.json"))
         if try self.configStore.load() == nil {
             try self.configStore.save(CodexBarConfig(providers: UsageProvider.allCases.map {
-                ProviderConfig(id: $0.instanceID, enabled: [.codex, .claude].contains($0))
+                ProviderConfig(id: $0.instanceID, enabled: [.codex, .claude, .zai].contains($0))
             }))
         }
         let settings = Self.makeSettings(root: root, configStore: self.configStore)
         self.settings = settings
         self.store = Self.makeStore(root: root, settings: settings)
-        self.fetchRevision = settings.providerConfigRevision(for: .codex)
+        self.fetchRevision = settings.providerConfigRevision(for: self.provider)
     }
 
     func reload() {
         self.store.stopSharedSpendDashboardPublication()
         self.settings = Self.makeSettings(root: self.root, configStore: self.configStore)
         self.store = Self.makeStore(root: self.root, settings: self.settings)
-        self.fetchRevision = self.settings.providerConfigRevision(for: .codex)
         self.reloads += 1
     }
 
@@ -119,10 +133,13 @@ private final class UsageVisibilityNativeState {
             "pid": ProcessInfo.processInfo.processIdentifier,
             "window": window.windowNumber,
             "reloads": self.reloads,
-            "hidden": self.settings.hiddenUsageItemIDs(for: .codex).map(\.rawValue).sorted(),
+            "provider": self.provider.rawValue,
+            "hidden": self.settings.hiddenUsageItemIDs(for: self.provider).map(\.rawValue).sorted(),
+            "detailSections": self.model(for: self.provider).providerDetails.map { $0.title ?? "(untitled)" },
+            "detailRawTitles": self.model(for: self.provider).providerDetailRawTitles.map { $0 ?? "(untitled)" },
             "codexMetrics": self.model(for: .codex).metrics.map(\.id),
             "claudeMetrics": self.model(for: .claude).metrics.map(\.id),
-            "fetchRevisionUnchanged": self.settings.providerConfigRevision(for: .codex) == self.fetchRevision,
+            "fetchRevisionUnchanged": self.settings.providerConfigRevision(for: self.provider) == self.fetchRevision,
         ]
     }
 
@@ -161,7 +178,13 @@ private final class UsageVisibilityNativeState {
             environmentBase: environment)
         store._test_providerRefreshOverride = { _ in XCTFail("Unexpected provider transport") }
         store._test_widgetSnapshotSaveOverride = { _ in }
-        for provider in [UsageProvider.codex, .claude] {
+        for provider in [UsageProvider.codex, .claude, .zai] {
+            let details = provider == .zai ? [
+                try? ProviderDetailSection(
+                    title: "Quota details",
+                    rows: [.init(label: "Token quota", value: "25% used")]),
+                try? ProviderDetailSection(rows: [.init(label: "Pool", value: "Synthetic untitled detail")]),
+            ].compactMap(\.self) : []
             store._setSnapshotForTesting(UsageSnapshot(
                 primary: RateWindow(
                     usedPercent: 25,
@@ -173,6 +196,7 @@ private final class UsageVisibilityNativeState {
                     windowMinutes: 10080,
                     resetsAt: Date().addingTimeInterval(172_800),
                     resetDescription: nil),
+                details: details,
                 updatedAt: Date()), provider: provider)
         }
         return store
@@ -192,7 +216,7 @@ private struct UsageVisibilityNativeView: View {
                     .accessibilityIdentifier("proof-reload-settings")
             }
             .padding(12)
-            ProvidersPane(provider: .codex, settings: self.state.settings, store: self.state.store)
+            ProvidersPane(provider: self.state.provider, settings: self.state.settings, store: self.state.store)
                 .id(self.state.reloads)
         }
     }

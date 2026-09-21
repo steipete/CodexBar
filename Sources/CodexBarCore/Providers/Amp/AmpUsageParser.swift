@@ -88,11 +88,15 @@ enum AmpUsageParser {
             // Agent dollars are authoritative; the displayed percentage is rounded. Orb text is independent.
             if let tier = self.captures(in: text, pattern: tierPattern),
                let remaining = self.number(from: tier[1]),
-               let limit = self.number(from: tier[2]), limit > 0,
-               let renewalValue = Int(tier[4].replacingOccurrences(of: ",", with: "")),
-               let resetsAt = self.subscriptionResetDate(value: renewalValue, unit: tier[5], now: now)
+               let limit = self.number(from: tier[2]), limit > 0
             {
                 let period = self.tierPeriod(in: tier[3])
+                let renewalText = tier[4].replacingOccurrences(of: ",", with: "")
+                let renewalValue = Int(renewalText)
+                guard let resetsAt = period?.end
+                    ?? renewalValue.flatMap({ self.subscriptionResetDate(value: $0, unit: tier[5], now: now) })
+                else { return nil }
+                let displayedRenewal = renewalValue.map(String.init) ?? renewalText
                 let orbPattern = #"(?i)\borb\s+usage\s+"# +
                     amountPattern + #"h\s+of\s+"# + amountPattern + #"h\s+a1\.small\s+orb\s+hours\s+remaining\b"#
                 let orb = self.captures(in: tier[3], pattern: orbPattern)
@@ -107,8 +111,8 @@ enum AmpUsageParser {
                     plan: tier[0],
                     otherUsedPercent: min(100, max(0, (limit - remaining) / limit * 100)),
                     orbUsedPercent: orbUsedPercent,
-                    resetsAt: period?.end ?? resetsAt,
-                    resetDescription: "renews in \(renewalValue) \(tier[5].lowercased())",
+                    resetsAt: resetsAt,
+                    resetDescription: "renews in \(displayedRenewal) \(tier[5].lowercased())",
                     agentRemaining: remaining,
                     agentLimit: limit,
                     periodStart: period?.start,
@@ -176,7 +180,10 @@ enum AmpUsageParser {
     }
 
     private static func subscriptionResetDate(value: Int, unit: String, now: Date) -> Date? {
-        if unit.lowercased().hasPrefix("month") {
+        let isMonth = unit.lowercased().hasPrefix("month")
+        let secondsPerUnit = (isMonth ? 31 : 1) * 24 * 60 * 60
+        guard value <= Int.max / secondsPerUnit else { return nil }
+        if isMonth {
             return Calendar(identifier: .gregorian).date(byAdding: .month, value: value, to: now)
         }
         return now.addingTimeInterval(TimeInterval(value) * 24 * 60 * 60)

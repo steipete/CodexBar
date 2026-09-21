@@ -37,3 +37,7 @@ and the console's legacy date-and-time format.
 
 Token counts are displayed as quota details, not reset clocks. Fuel-pack counts remain visible alongside their expiry
 when one is reported.
+
+Large finite token counts remain displayable without integer overflow. Nonfinite quota or fuel-pack totals are omitted
+independently, and malformed or unrepresentable response codes fail parsing instead of terminating the app.
+Unrepresentable expiry dates retain quota details without displaying a reset countdown.

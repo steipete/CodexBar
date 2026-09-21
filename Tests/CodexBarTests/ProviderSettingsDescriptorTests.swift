@@ -578,6 +578,23 @@ struct ProviderSettingsDescriptorTests {
     }
 
     @Test
+    func `venice exposes usage source picker routing to web`() throws {
+        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-venice")
+        let context = fixture.settingsContext(provider: .venice)
+
+        let implementation = VeniceProviderImplementation()
+        let pickers = implementation.settingsPickers(context: context)
+        #expect(pickers.contains(where: { $0.id == "venice-usage-source" }))
+
+        let modeContext = ProviderSourceModeContext(provider: .venice, settings: fixture.settings)
+        #expect(implementation.sourceMode(context: modeContext) == .auto)
+        fixture.settings.veniceUsageDataSource = .web
+        #expect(implementation.sourceMode(context: modeContext) == .web)
+        fixture.settings.veniceUsageDataSource = .api
+        #expect(implementation.sourceMode(context: modeContext) == .api)
+    }
+
+    @Test
     func `copilot budget secondary picker appears before cookie picker`() throws {
         let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-copilot-budget-pickers")
         fixture.settings.copilotBudgetExtrasEnabled = true
@@ -662,8 +679,9 @@ struct ProviderSettingsDescriptorTests {
         let usagePicker = try #require(pickers.first(where: { $0.id == "kimi-usage-source" }))
         #expect(usagePicker.options.map(\.id) == ["auto", "api", "web"])
         #expect(usagePicker.subtitle ==
-            "Kimi Code subscription usage from api.kimi.com. Auto tries your configured API key, then a signed-in " +
-            "Kimi Code CLI credential, then web cookies. China Open Platform balance is a separate provider.")
+            "Kimi Code subscription usage for the selected region. Auto tries your configured API key, " +
+            "then a signed-in Kimi Code CLI credential, then web cookies. " +
+            "China Open Platform balance is a separate provider.")
         #expect(usagePicker.placement == .connection)
         #expect(usagePicker.trailingText?() == nil)
         fixture.store.lastSourceLabels[.kimi] = "Kimi Code CLI"
@@ -1299,7 +1317,6 @@ extension ProviderSettingsDescriptorTests {
             keyUsageDaily: 1.25,
             keyUsageWeekly: 7.5,
             keyUsageMonthly: 18.75,
-            rateLimit: nil,
             updatedAt: OpenRouterLimitTestSupport.now)
         let model = try OpenRouterLimitTestSupport.model(usage.toUsageSnapshot())
         let content = ProviderMetricsInlineView.ContentState(model: model, infoRows: [])
@@ -1316,7 +1333,6 @@ extension ProviderSettingsDescriptorTests {
             keyDataFetched: true,
             keyLimit: 25,
             keyUsage: 10,
-            rateLimit: nil,
             updatedAt: OpenRouterLimitTestSupport.now).toUsageSnapshot())
         #expect(!meteredModel.metrics.isEmpty)
         #expect(!ProviderMetricsInlineView.ContentState(model: meteredModel, infoRows: []).showsPlaceholder)
