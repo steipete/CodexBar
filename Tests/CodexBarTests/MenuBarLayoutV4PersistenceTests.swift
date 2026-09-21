@@ -108,6 +108,36 @@ struct MenuBarLayoutV4PersistenceTests {
             released: [],
             legacy: []) == [])
     }
+
+    @Test
+    func `V4 round trip remains readable through V3 V2 and legacy projections`() throws {
+        let v4 = MenuBarLayout(lines: [[
+            .icon,
+            .windowResetCountdown(window: .weekly),
+            .extraPercent(id: "cursor-grok-bot"),
+        ]])
+        let blobs = try MenuBarLayoutPersistence.encoded(v4)
+        let decoder = JSONDecoder()
+
+        #expect(try decoder.decode(MenuBarLayout.self, from: blobs.current) == v4)
+        #expect(try decoder.decode(PreV3MenuBarLayout.self, from: blobs.v3)
+            == PreV3MenuBarLayout(lines: [[.icon, .windowResetCountdown(window: .weekly)]]))
+        #expect(try decoder.decode(PreV2MenuBarLayout.self, from: blobs.released)
+            == PreV2MenuBarLayout(lines: [[.icon]]))
+        #expect(try decoder.decode(PreLegacyMenuBarLayout.self, from: blobs.legacy)
+            == PreLegacyMenuBarLayout(lines: [[.icon]]))
+
+        let v3Edit = MenuBarLayout(lines: [[
+            .icon,
+            .windowResetAbsolute(window: .session),
+        ]])
+        let upgraded = MenuBarLayoutPersistence.preferredLayout(
+            current: v4,
+            v3: v3Edit,
+            released: v4.releasedCompatible(),
+            legacy: v4.legacyCompatible())
+        #expect(upgraded == v3Edit)
+    }
 }
 
 private enum PreV3MenuBarLayoutToken: Codable, Equatable {
@@ -118,4 +148,20 @@ private enum PreV3MenuBarLayoutToken: Codable, Equatable {
 
 private struct PreV3MenuBarLayout: Codable, Equatable {
     let lines: [[PreV3MenuBarLayoutToken]]
+}
+
+private enum PreV2MenuBarLayoutToken: Codable, Equatable {
+    case icon
+}
+
+private struct PreV2MenuBarLayout: Codable, Equatable {
+    let lines: [[PreV2MenuBarLayoutToken]]
+}
+
+private enum PreLegacyMenuBarLayoutToken: Codable, Equatable {
+    case icon
+}
+
+private struct PreLegacyMenuBarLayout: Codable, Equatable {
+    let lines: [[PreLegacyMenuBarLayoutToken]]
 }
