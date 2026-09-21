@@ -708,6 +708,7 @@ struct MenuDescriptor {
         metadata: ProviderMetadata,
         snapshot: UsageSnapshot) -> (primary: String, secondary: String, tertiary: String, showsTertiary: Bool)
     {
+        let presentation = ProviderDescriptorRegistry.descriptor(for: provider).presentation
         if provider == .factory, snapshot.tertiary != nil {
             return (L("5-hour"), L("Weekly"), L("Monthly"), true)
         }
@@ -730,7 +731,7 @@ struct MenuDescriptor {
         } else if provider == .alibabatokenplan {
             AlibabaTokenPlanProviderDescriptor.primaryLabel(window: snapshot.primary) ?? metadata.sessionLabel
         } else {
-            metadata.sessionLabel
+            presentation.rateWindowLabels(metadata: metadata, snapshot: snapshot).primary
         }
         let secondaryLabel = if provider == .codex {
             CodexConsumerProjection.rateTitle(

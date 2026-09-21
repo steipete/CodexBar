@@ -16,6 +16,10 @@ Plugins are local files only. CodexBar has no plugin catalog, does not download 
 resolve imports. A plugin cannot use Node, browser globals, subprocesses, local files, databases, OAuth, WebViews, or
 arbitrary native APIs. The maximum source size is 1 MiB.
 
+App refreshes are scoped to the installed plugin runtime and its fetch settings. Disabling, removing, reloading, or
+reconfiguring a plugin prevents an older refresh from publishing usage or errors. A replacement refresh waits for retired
+work to finish and reads the current configuration when its fetch starts. Display-only preferences do not invalidate usage.
+
 ## Minimal plugin
 
 ```js
@@ -96,6 +100,8 @@ so portable third-party plugins must use the host helpers below instead of ECMA-
 - `await ctx.http.getJSON(url, opts?)` performs GET and returns `{status, headers, json}`.
 - `await ctx.http.get(url, opts?)` performs GET and returns `{status, headers, bodyText}`.
 - `await ctx.http.postJSON(url, {body, headers?})` performs JSON POST. `body` must be JSON-serializable.
+- `await ctx.http.post(url, {body, headers?})` sends the same JSON POST and returns `{status, headers, bodyText}` so a
+  plugin can classify non-JSON error pages before parsing a successful response.
 - `opts.headers` accepts string values. Plugins cannot replace their declared auth header. `opts.timeoutSeconds` sets a
   hard request deadline from 1 through 30 seconds; the default is 15 seconds.
 - `ctx.settings.get(key)` reads a declared `plain` setting.

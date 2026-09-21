@@ -132,9 +132,16 @@ Status-item creation checks the item's saved preferred position and its matching
 autosave name. Malformed, non-finite, non-positive, and out-of-bounds positions are removed; unrelated items are
 untouched. The bound is at least the widest connected display's width in points and retains any larger legacy global
 coordinate bound, plus the existing safety padding. This avoids newly deleting menu-manager parking positions while
-covering wide displays left of the primary screen. When no display bound is available, finite positive positions are preserved. Isolated placement tests
+covering wide displays left of the primary screen. When no display bound is available, finite positive positions are preserved.
+The stable autosave name is assigned immediately after `statusItem(withLength:)` and before any `onCreated` setup, so
+provider-item registration never observes the transient `Item-N` identity during callback work. Isolated placement tests
 cover this cleanup without creating status items or changing the user's saved preferences. Passing these tests does
 not establish the cause of a position that changes again after launch; that requires runtime placement evidence.
+
+Runtime removal and visibility changes preserve the current saved position if AppKit clears it. This also covers
+status-menu Quit, which removes items before AppKit termination begins. The deterministic tests use in-memory
+defaults; native proof must use a signed, isolated app with a visibly hosted item and exercise removal/recreation,
+hide/show, and removal before termination. This does not diagnose older out-of-range placement reports.
 
 ### Run Tests Only
 
@@ -479,7 +486,16 @@ verifier argument. `CodexBarLinuxTests` includes the portable `AntigravityLocalh
 both macOS and Linux. It checks session reuse and concurrent synthetic loopback failures without credentials;
 this coverage does not establish or fix the cause of Linux dispatch crashes.
 
+### Static Linux SDK
+
+CI and release builds install the static Linux SDK through `Scripts/install_swift_static_sdk.sh`. It downloads with
+`curl`, verifies the pinned SHA-256, and passes a local archive to `swift sdk install`, avoiding SwiftPM's Linux
+FoundationNetworking/TLS teardown crash. Portable lint checks cover checksum rejection, download failures, and installer
+failure propagation without downloading an SDK.
+Changes to the installer require a musl CI build.
+
 ### Format Code
+
 ```bash
 swiftformat Sources Tests
 swiftlint --strict

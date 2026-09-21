@@ -36,8 +36,9 @@ if args[0]=='cost':
  print(json.dumps([{'provider':'codex','historyCoverageIsEstablished':True,'last30DaysCostUSD':12,
  'daily':[{'date':datetime.date.today().isoformat(),'totalCost':3}], 'totals':{'inputTokens':100}}]))
 else:
- print(json.dumps([{'provider':provider,'usage':{'identity':{'accountEmail':'private@example.com'},
- 'primary':{'usedPercent':40,'windowMinutes':300,'resetsAt':'2030-01-01T00:00:00Z'}}}]))
+ usage=state.get('usage',{'identity':{'accountEmail':'private@example.com'},
+ 'primary':{'usedPercent':40,'windowMinutes':300,'resetsAt':'2030-01-01T00:00:00Z'}})
+ print(json.dumps([{'provider':provider,'usage':usage}]))
 ''')
         self.fake.chmod(0o755)
         self.log = (self.root / 'desktop.log').open('w+')
@@ -99,6 +100,37 @@ else:
         settings = self.root / 'config/codexbar/linux.json'
         self.assertEqual(json.loads(settings.read_text())['refreshSeconds'], 900)
         self.assertEqual(settings.stat().st_mode & 0o077, 0)
+
+    def test_scoped_windows_reach_private_snapshots_without_exporting_identifiers(self):
+        usage = {
+            'identity': {'accountEmail': 'private@example.invalid'},
+            'primary': {'usedPercent': 0, 'windowMinutes': 300, 'isSyntheticPlaceholder': True},
+            'secondary': {'usedPercent': 39, 'windowMinutes': 10080},
+            'extraRateWindows': [
+                {'id': 'private@example.invalid', 'title': 'Model cap (private@example.invalid)',
+                 'window': {'usedPercent': 93, 'windowMinutes': 10080}},
+                {'id': 'unknown', 'title': 'Unmeasured billing', 'usageKnown': False,
+                 'window': {'usedPercent': 100}},
+                {'id': 'placeholder', 'title': 'Synthetic extra',
+                 'window': {'usedPercent': 0, 'isSyntheticPlaceholder': True}}
+            ]
+        }
+        (self.root / 'state.json').write_text(json.dumps({'usage': usage}))
+        self.client('--configure', '{"provider":"claude","showIdentity":true}')
+        value = self.wait_for(lambda value: value.get('entries') and value['entries'][0]['provider'] == 'claude'
+                              and not value['busy'])
+        self.assertNotIn('private@example.invalid', json.dumps(value))
+        windows = value['entries'][0]['windows']
+        self.assertEqual(len(windows), 2)
+        self.assertEqual(windows[0]['key'], 'secondary')
+        self.assertRegex(windows[1]['key'], r'^extra:[a-f0-9]{64}$')
+        self.assertEqual(windows[1]['label'], 'Model cap [hidden email]')
+        self.assertEqual(windows[1]['remaining'], 7)
+        self.assertEqual(value['summary'], 'CL 61%')
+        self.client('--usage')
+        self.client('--refresh')
+        refreshed = self.wait_for(lambda value: not value['busy'])
+        self.assertEqual(refreshed['entries'][0]['windows'][1]['key'], windows[1]['key'])
 
     def test_invalid_config_is_not_overwritten(self):
         self.client('--quit')

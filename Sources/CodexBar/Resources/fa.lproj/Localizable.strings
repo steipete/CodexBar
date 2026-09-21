@@ -133,6 +133,10 @@
 "Cookie: …" = "کوکی: ...";
 "CopilotDeviceFlow" = "CopilotDeviceFlow";
 "Cost" = "هزینه";
+"Token history" = "تاریخچهٔ توکن‌ها";
+"Local token history · dollar costs unavailable" = "تاریخچهٔ محلی توکن‌ها · هزینه‌های دلاری در دسترس نیست";
+"Partial local history · recorded token subtotal" = "تاریخچهٔ محلی ناقص · جمع جزئی توکن‌های ثبت‌شده";
+"Local token history is unavailable or incomplete." = "تاریخچهٔ محلی توکن‌ها در دسترس نیست یا ناقص است.";
 "Could not add Codex account" = "نتوانستم حساب Codex اضافه کنم";
 "Could not open Terminal for Gemini" = "نتوانستم ترمینال را برای Gemini باز کنم";
 "Could not start claude /login" = "نتوانستم کلود را شروع /login";
@@ -618,6 +622,12 @@
 "cost_summary_off" = "خاموش";
 "merge_icons_title" = "آیکون های ادغام";
 "merge_icons_subtitle" = "از یک آیکون نوار منو با یک تغییر دهنده ارائه دهنده استفاده کنید.";
+"merged_icon_style_title" = "سبک نماد ترکیبی";
+"merged_icon_style_subtitle" = "تعویض‌گر بین ارائه‌دهنده‌ها یکی‌یکی می‌چرخد؛ پشته‌ای دو ارائه‌دهنده را همزمان، هرکدام در یک ردیف، نمایش می‌دهد.";
+"merged_icon_style_switcher" = "تعویض‌گر";
+"merged_icon_style_stacked" = "پشته‌ای";
+"merge_icon_stacked_top_provider_title" = "ردیف بالا";
+"merge_icon_stacked_bottom_provider_title" = "ردیف پایین";
 "show_most_used_provider_title" = "نمایش ارائه دهنده پرکاربرد";
 "show_most_used_provider_subtitle" = "نوار منو به طور خودکار ارائه دهنده ای را نشان می دهد که به محدودیت نرخ خود نزدیک تر است.";
 "display_mode_title" = "حالت نمایش";
@@ -888,6 +898,12 @@
 "usage_percent_suffix_used" = "استفاده شده";
 "Store multiple DeepSeek API keys." = "چند کلید DeepSeek API را ذخیره کنید.";
 "This week" = "این هفته";
+"Current window" = "پنجره فعلی";
+"Last week" = "هفته گذشته";
+"%d weeks ago" = "%d هفته پیش";
+"Previous window" = "پنجره قبلی";
+"%d windows ago" = "%d پنجره پیش";
+"Recent windows" = "پنجره‌های اخیر";
 "Week" = "هفته";
 "Month" = "ماه";
 "Models" = "مدل ها";
@@ -948,6 +964,8 @@
 "Overage" = "اضافه هزینه";
 "Activity" = "فعالیت ها";
 "Copied" = "کپی شده";
+"Managed by Homebrew" = "مدیریت‌شده توسط Homebrew";
+"Copy update command" = "کپی فرمان به‌روزرسانی";
 "Copy error" = "خطای کپی";
 "Copy path" = "مسیر کپی";
 "Extra usage spent" = "استفاده اضافی صرف شده";
@@ -1340,6 +1358,8 @@
 "Tracked tokens" = "توکن‌های پیگیری‌شده";
 "Subscriptions" = "اشتراک‌ها";
 "By subscription" = "بر اساس اشتراک";
+"By source" = "By source";
+"%d of %d sources have spend" = "%d of %d sources have spend";
 "No model-level history" = "تاریخچه‌ای در سطح مدل وجود ندارد";
 "Daily estimated spend" = "برآورد هزینه روزانه";
 "Hourly estimated spend" = "برآورد هزینه ساعتی";
@@ -1584,3 +1604,25 @@
 
 "agent_sessions_hide_unreachable_title" = "پنهان کردن میزبان‌های در دسترس نبودنی";
 "agent_sessions_hide_unreachable_subtitle" = "میزبان‌ها را در صورت ناموفق بودن دریافت نشست‌هایشان پنهان کنید.";
+
+/* Overview share flow */
+"Share Usage Snapshot…" = "اشتراک‌گذاری نمای کلی استفاده…";
+"Usage snapshot unavailable" = "نمای کلی استفاده در دسترس نیست";
+"CodexBar couldn't prepare a shareable usage snapshot. Refresh Usage & Spend and try again." = "CodexBar نتوانست نمای کلی استفاده قابل اشتراک‌گذاری را آماده کند. استفاده و هزینه را تازه‌سازی کنید و دوباره امتحان کنید.";
+"Incomplete" = "ناقص";
+"Est. subtotal (%@): %@" = "جمع جزئی تخمینی (%@): %@";
+"Excluded requests with missing final usage: %d" = "درخواست‌های حذف‌شده به دلیل نبود داده‌های مصرف نهایی: %d";
+
+"overview_layout_title" = "چیدمان نمای کلی";
+"overview_layout_subtitle" = "میزان اطلاعات نمایش‌داده‌شده در نمای کلی را انتخاب کنید.";
+"overview_layout_detailed" = "با جزئیات";
+"overview_layout_compact" = "فشرده";
+
+"section_widgets" = "ویجت‌ها";
+"account_widgets_title" = "حساب‌ها را برای ویجت‌ها به‌روز نگه دارید";
+"account_widgets_description" = "در هر ویجت Account Usage یک حساب انتخاب کنید. حداکثر شش حساب برای هر ارائه‌دهنده به‌روز می‌شود.";
+
+/* Antigravity local cost estimates */
+"antigravity_cost_estimate_hint" = "مصرف محلی × قیمت‌های عمومی API · هزینه یا اعتبار Antigravity نیست";
+"antigravity_quota_window_note" = "هزینهٔ بازه همهٔ مدل‌ها را دربر می‌گیرد · بازهٔ نمایش‌داده‌شده محدودترین خانواده است";
+"antigravity_no_priced_token_history" = "تاریخچهٔ قیمت‌گذاری‌شدهٔ توکن Antigravity موجود نیست.";

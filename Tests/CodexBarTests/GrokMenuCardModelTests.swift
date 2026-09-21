@@ -1,10 +1,79 @@
-import CodexBarCore
 import Foundation
 import Testing
 @testable import CodexBar
+@testable import CodexBarCore
 
 @MainActor
 struct GrokMenuCardModelTests {
+    @Test(arguments: [30.0, 6.0])
+    func `proxy weekly bounds preserve late cycle projection`(hoursUntilReset: Double) throws {
+        let reset = try #require(ISO8601DateParser.parse("2026-08-13T12:00:00.123456+00:00"))
+        let now = reset.addingTimeInterval(-hoursUntilReset * 3600)
+        let proxy = try GrokCreditsProxyFetcher.parseSnapshot(Data("""
+        {
+          "config": {
+            "creditUsagePercent": 90,
+            "currentPeriod": {
+              "type": "USAGE_PERIOD_TYPE_WEEKLY",
+              "start": "2026-08-06T12:00:00.123456+00:00",
+              "end": "2026-08-13T12:00:00.123456+00:00"
+            }
+          }
+        }
+        """.utf8), now: now)
+        let snapshot = GrokUsageSnapshot(
+            billing: nil,
+            webBilling: proxy,
+            credentials: nil,
+            localSummary: nil,
+            cliVersion: nil,
+            updatedAt: now).toUsageSnapshot()
+        let window = try #require(snapshot.primary)
+        let model = try Self.model(now: now, window: window)
+        let metric = try #require(model.metrics.first { $0.id == "primary" })
+
+        #expect(window.windowMinutes == 10080)
+        #expect(metric.title == "Weekly")
+        #expect(metric.detailLeftText != nil)
+        #expect(metric.detailRightText != nil)
+        #expect(metric.pacePercent != nil)
+    }
+
+    @Test
+    func `proxy monthly bounds remain monthly with six days until reset`() throws {
+        let reset = try #require(ISO8601DateParser.parse("2026-08-13T12:00:00.123456+00:00"))
+        let now = reset.addingTimeInterval(-6 * 24 * 3600)
+        let proxy = try GrokCreditsProxyFetcher.parseSnapshot(Data("""
+        {
+          "config": {
+            "creditUsagePercent": 90,
+            "currentPeriod": {
+              "start": "2026-07-13T12:00:00.123456+00:00",
+              "end": "2026-08-13T12:00:00.123456+00:00"
+            }
+          }
+        }
+        """.utf8), now: now)
+        let snapshot = GrokUsageSnapshot(
+            billing: nil,
+            webBilling: proxy,
+            credentials: nil,
+            localSummary: nil,
+            cliVersion: nil,
+            updatedAt: now).toUsageSnapshot()
+        let window = try #require(snapshot.primary)
+        let model = try Self.model(now: now, window: window)
+        let metric = try #require(model.metrics.first { $0.id == "primary" })
+
+        #expect(window.windowMinutes == 31 * 24 * 60)
+        #expect(window.resetsAt == reset)
+        #expect(metric.title == "Monthly")
+        #expect(metric.detailLeftText == nil)
+        #expect(metric.detailRightText == nil)
+        #expect(metric.pacePercent == nil)
+        #expect(!GrokProviderDescriptor.descriptor.pace.supportsResetWindowPace(window: window, now: now))
+    }
+
     @Test
     func `weekly CLI quota shows projection and pace marker`() throws {
         let now = Date(timeIntervalSince1970: 0)
@@ -98,6 +167,132 @@ struct GrokMenuCardModelTests {
     }
 
     @Test
+    func `usage-limit reset coupon uses the shared reset credits block`() throws {
+        let now = Date(timeIntervalSince1970: 1_787_647_576)
+        let expiresAt = now.addingTimeInterval(2 * 24 * 3600)
+        let details = try [
+            ProviderDetailSection(
+                rows: [
+                    ProviderDetailSection.Row(
+                        label: "Limit Reset Credits",
+                        value: "1 available",
+                        secondaryValue: "Expires Sep 12"),
+                ]),
+        ]
+        let model = try Self.model(
+            now: now,
+            window: RateWindow(
+                usedPercent: 29,
+                windowMinutes: nil,
+                resetsAt: now.addingTimeInterval(5 * 24 * 3600),
+                resetDescription: nil),
+            details: details,
+            resetCredits: GrokRateLimitResetCreditsSnapshot(
+                expirations: [expiresAt],
+                updatedAt: now))
+
+        #expect(model.metrics.contains(where: { $0.id == "primary" }))
+        #expect(model.limitResetCredits?.text == "1 available")
+        #expect(model.limitResetCredits?.expirySummaryText == "2d")
+        #expect(model.providerDetails.isEmpty)
+    }
+
+    @Test
+    func `untyped coupon details cannot invent current reset credits`() throws {
+        let now = Date(timeIntervalSince1970: 1_787_647_576)
+        let details = try [
+            ProviderDetailSection(
+                rows: [
+                    ProviderDetailSection.Row(
+                        label: "Limit Reset Credits",
+                        value: "1 available",
+                        secondaryValue: "Expires Sep 12"),
+                ]),
+        ]
+        let model = try Self.model(
+            now: now,
+            window: RateWindow(
+                usedPercent: 29,
+                windowMinutes: nil,
+                resetsAt: now.addingTimeInterval(5 * 24 * 3600),
+                resetDescription: nil),
+            details: details)
+
+        #expect(model.limitResetCredits == nil)
+        #expect(model.providerDetails.isEmpty)
+    }
+
+    @Test
+    func `removing coupon sections preserves later visibility identities`() throws {
+        let model = try Self.model(
+            now: Date(),
+            window: RateWindow(usedPercent: 25, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
+            details: [
+                ProviderDetailSection(title: "Coupons", rows: [.init(label: "Limit Reset Credits", value: "1")]),
+                ProviderDetailSection(title: "Plan details", rows: [.init(label: "Tier", value: "Example")]),
+            ])
+
+        #expect(model.providerDetailRawTitles == ["Plan details"])
+        #expect(model.usageItemDescriptors.last?.id == .detailSection("Plan details"))
+        #expect(model.applyingUsageItemVisibility(hiddenItemIDs: [.detailSection("Plan details")])
+            .providerDetails.isEmpty)
+    }
+
+    @Test
+    func `expired live coupons do not fall back to cached coupon details`() throws {
+        let now = Date(timeIntervalSince1970: 1_787_647_576)
+        let details = try [
+            ProviderDetailSection(
+                rows: [
+                    ProviderDetailSection.Row(
+                        label: "Limit Reset Credits",
+                        value: "1 available",
+                        secondaryValue: "Expires Sep 12"),
+                ]),
+        ]
+        let model = try Self.model(
+            now: now,
+            window: RateWindow(
+                usedPercent: 29,
+                windowMinutes: nil,
+                resetsAt: now.addingTimeInterval(5 * 24 * 3600),
+                resetDescription: nil),
+            details: details,
+            resetCredits: GrokRateLimitResetCreditsSnapshot(
+                expirations: [now.addingTimeInterval(-1)],
+                updatedAt: now.addingTimeInterval(-3600)))
+
+        #expect(model.limitResetCredits == nil)
+        #expect(model.providerDetails.isEmpty)
+    }
+
+    @Test
+    func `optional usage disabled hides cached coupon details`() throws {
+        let now = Date(timeIntervalSince1970: 1_787_647_576)
+        let details = try [
+            ProviderDetailSection(
+                rows: [
+                    ProviderDetailSection.Row(
+                        label: "Limit Reset Credits",
+                        value: "1 available",
+                        secondaryValue: "Expires Sep 12"),
+                ]),
+        ]
+        let model = try Self.model(
+            now: now,
+            window: RateWindow(
+                usedPercent: 29,
+                windowMinutes: nil,
+                resetsAt: now.addingTimeInterval(5 * 24 * 3600),
+                resetDescription: nil),
+            details: details,
+            showOptionalUsage: false)
+
+        #expect(model.limitResetCredits == nil)
+        #expect(model.providerDetails.isEmpty)
+    }
+
+    @Test
     func `weekly web quota near reset keeps its label in the detail menu`() throws {
         let suite = "GrokMenuCardModelTests-detail-menu"
         let defaults = try #require(UserDefaults(suiteName: suite))
@@ -145,12 +340,20 @@ struct GrokMenuCardModelTests {
         #expect(!lines.contains(where: { $0.hasPrefix("Credits:") }))
     }
 
-    private static func model(now: Date, window: RateWindow) throws -> UsageMenuCardView.Model {
+    private static func model(
+        now: Date,
+        window: RateWindow,
+        details: [ProviderDetailSection] = [],
+        resetCredits: GrokRateLimitResetCreditsSnapshot? = nil,
+        showOptionalUsage: Bool = true) throws -> UsageMenuCardView.Model
+    {
         let metadata = try #require(ProviderDefaults.metadata[.grok])
         let snapshot = UsageSnapshot(
             primary: window,
             secondary: nil,
             tertiary: nil,
+            details: details,
+            grokResetCredits: resetCredits,
             updatedAt: now,
             identity: nil)
         return UsageMenuCardView.Model.make(.init(
@@ -168,7 +371,7 @@ struct GrokMenuCardModelTests {
             usageBarsShowUsed: false,
             resetTimeDisplayStyle: .countdown,
             tokenCostUsageEnabled: false,
-            showOptionalCreditsAndExtraUsage: true,
+            showOptionalCreditsAndExtraUsage: showOptionalUsage,
             hidePersonalInfo: false,
             now: now))
     }

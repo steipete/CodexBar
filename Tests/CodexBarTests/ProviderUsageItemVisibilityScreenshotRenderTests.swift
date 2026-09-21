@@ -97,7 +97,7 @@ final class ProviderUsageItemVisibilityScreenshotRenderTests: XCTestCase {
             creditsScaleText: "$25",
             creditsHintText: nil,
             creditsHintCopyText: nil,
-            codexResetCredits: CodexResetCreditsPresentation(
+            limitResetCredits: LimitResetCreditsPresentation(
                 text: "1 available",
                 items: [.init(expiryText: "Expires Sep 20", compactExpiryText: "Sep 20")]),
             providerCost: nil,

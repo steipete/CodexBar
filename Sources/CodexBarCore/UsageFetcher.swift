@@ -151,9 +151,13 @@ public struct UsageSnapshot: Codable, Sendable {
     public let details: [ProviderDetailSection]
     public let deepseekDetailedUsageState: DeepSeekDetailedUsageState
     public let deepseekPlatformProfiles: [DeepSeekPlatformProfile]
+    /// Live-only ownership proof; decoded usage cannot authorize browser balance retention.
+    public let deepseekPlatformBalanceOwner: DeepSeekPlatformBalanceOwner?
     public let opencodegoUsage: OpenCodeGoUsageSnapshot?
     public let openAIAPIUsage: OpenAIAPIUsageSnapshot?
     public let codexResetCredits: CodexRateLimitResetCreditsSnapshot?
+    /// Live-only display inventory. Grok redemption token identifiers are intentionally excluded.
+    public let grokResetCredits: GrokRateLimitResetCreditsSnapshot?
     public let mistralUsage: MistralUsageSnapshot?
     /// Retains an observed zero when a metered Copilot seat has no visible credit row.
     public let copilotMeteredZeroCredits: Bool
@@ -200,9 +204,11 @@ public struct UsageSnapshot: Codable, Sendable {
         details: [ProviderDetailSection] = [],
         deepseekDetailedUsageState: DeepSeekDetailedUsageState = .notRequested,
         deepseekPlatformProfiles: [DeepSeekPlatformProfile] = [],
+        deepseekPlatformBalanceOwner: DeepSeekPlatformBalanceOwner? = nil,
         opencodegoUsage: OpenCodeGoUsageSnapshot? = nil,
         openAIAPIUsage: OpenAIAPIUsageSnapshot? = nil,
         codexResetCredits: CodexRateLimitResetCreditsSnapshot? = nil,
+        grokResetCredits: GrokRateLimitResetCreditsSnapshot? = nil,
         mistralUsage: MistralUsageSnapshot? = nil,
         copilotMeteredZeroCredits: Bool = false,
         commandCodeSubscriptionEnrichmentUnavailable: Bool = false,
@@ -226,9 +232,11 @@ public struct UsageSnapshot: Codable, Sendable {
         self.details = details
         self.deepseekDetailedUsageState = deepseekDetailedUsageState
         self.deepseekPlatformProfiles = deepseekPlatformProfiles
+        self.deepseekPlatformBalanceOwner = deepseekPlatformBalanceOwner
         self.opencodegoUsage = opencodegoUsage
         self.openAIAPIUsage = openAIAPIUsage
         self.codexResetCredits = codexResetCredits
+        self.grokResetCredits = grokResetCredits
         self.mistralUsage = mistralUsage
         self.copilotMeteredZeroCredits = copilotMeteredZeroCredits
         self.commandCodeSubscriptionEnrichmentUnavailable = commandCodeSubscriptionEnrichmentUnavailable
@@ -253,6 +261,22 @@ public struct UsageSnapshot: Codable, Sendable {
         self.replacing(codexResetCredits: .value(resetCredits))
     }
 
+    public func withGrokResetCredits(_ resetCredits: GrokRateLimitResetCreditsSnapshot?) -> UsageSnapshot {
+        self.replacing(
+            details: .value(Self.removingGrokResetCreditDetails(from: self.details)),
+            grokResetCredits: .value(resetCredits))
+    }
+
+    private static func removingGrokResetCreditDetails(
+        from details: [ProviderDetailSection]) -> [ProviderDetailSection]
+    {
+        details.compactMap { section -> ProviderDetailSection? in
+            let rows = section.rows.filter { $0.label != GrokRateLimitResetCreditsSnapshot.detailLabel }
+            guard !rows.isEmpty || section.chart != nil else { return nil }
+            return .makeSection(title: section.title, rows: rows, chart: section.chart)
+        }
+    }
+
     public func withSubscriptionMetadata(expiresAt: Date?, renewsAt: Date?) -> UsageSnapshot {
         self.replacing(
             subscriptionExpiresAt: .value(expiresAt),
@@ -275,21 +299,44 @@ public struct UsageSnapshot: Codable, Sendable {
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        let decodedIdentity: ProviderIdentitySnapshot?
+        if let identity = try container.decodeIfPresent(ProviderIdentitySnapshot.self, forKey: .identity) {
+            decodedIdentity = identity
+        } else {
+            let email = try container.decodeIfPresent(String.self, forKey: .accountEmail)
+            let organization = try container.decodeIfPresent(String.self, forKey: .accountOrganization)
+            let loginMethod = try container.decodeIfPresent(String.self, forKey: .loginMethod)
+            if email != nil || organization != nil || loginMethod != nil {
+                decodedIdentity = ProviderIdentitySnapshot(
+                    providerID: nil,
+                    accountEmail: email,
+                    accountOrganization: organization,
+                    loginMethod: loginMethod)
+            } else {
+                decodedIdentity = nil
+            }
+        }
         self.primary = try container.decodeIfPresent(RateWindow.self, forKey: .primary)
         self.secondary = try container.decodeIfPresent(RateWindow.self, forKey: .secondary)
         self.tertiary = try container.decodeIfPresent(RateWindow.self, forKey: .tertiary)
         self.extraRateWindows = try container.decodeIfPresent([NamedRateWindow].self, forKey: .extraRateWindows)
         self.providerCost = try container.decodeIfPresent(ProviderCostSnapshot.self, forKey: .providerCost)
         self.costUsage = nil // Live-only provider history; refresh from the authoritative source.
-        self.details = try container.decodeIfPresent([ProviderDetailSection].self, forKey: .details) ?? []
-        try ProviderDetailSection.validateSections(self.details)
+        let details = try container.decodeIfPresent([ProviderDetailSection].self, forKey: .details) ?? []
+        try ProviderDetailSection.validateSections(details)
+        // Provider-specific by design: only native Grok snapshots used this legacy reset-credit detail row.
+        self.details = decodedIdentity?.providerID == .grok
+            ? Self.removingGrokResetCreditDetails(from: details)
+            : details
         self.deepseekDetailedUsageState = .notRequested // Live-only fetch state
         self.deepseekPlatformProfiles = [] // Live-only browser profile catalog
+        self.deepseekPlatformBalanceOwner = nil // Live-only balance ownership
         self.opencodegoUsage = nil // Not persisted, fetched fresh each time
         self.openAIAPIUsage = try container.decodeIfPresent(OpenAIAPIUsageSnapshot.self, forKey: .openAIAPIUsage)
         self.codexResetCredits = try container.decodeIfPresent(
             CodexRateLimitResetCreditsSnapshot.self,
             forKey: .codexResetCredits)
+        self.grokResetCredits = nil // Live-only inventory; refresh without persisting redemption state.
         self.mistralUsage = try container.decodeIfPresent(MistralUsageSnapshot.self, forKey: .mistralUsage)
         self.copilotMeteredZeroCredits = try container
             .decodeIfPresent(Bool.self, forKey: .copilotMeteredZeroCredits) ?? false
@@ -304,22 +351,7 @@ public struct UsageSnapshot: Codable, Sendable {
         } else {
             self.dataConfidence = .unknown
         }
-        if let identity = try container.decodeIfPresent(ProviderIdentitySnapshot.self, forKey: .identity) {
-            self.identity = identity
-        } else {
-            let email = try container.decodeIfPresent(String.self, forKey: .accountEmail)
-            let organization = try container.decodeIfPresent(String.self, forKey: .accountOrganization)
-            let loginMethod = try container.decodeIfPresent(String.self, forKey: .loginMethod)
-            if email != nil || organization != nil || loginMethod != nil {
-                self.identity = ProviderIdentitySnapshot(
-                    providerID: nil,
-                    accountEmail: email,
-                    accountOrganization: organization,
-                    loginMethod: loginMethod)
-            } else {
-                self.identity = nil
-            }
-        }
+        self.identity = decodedIdentity
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -357,14 +389,7 @@ public struct UsageSnapshot: Codable, Sendable {
     }
 
     public func automaticPerplexityWindow() -> RateWindow? {
-        let fallbackWindows = self.orderedPerplexityFallbackWindows()
-        guard let primary = self.primary else {
-            return fallbackWindows.first
-        }
-        if primary.remainingPercent > 0 || fallbackWindows.isEmpty {
-            return primary
-        }
-        return fallbackWindows.first
+        self.orderedPerplexityDisplayWindows().first
     }
 
     public func orderedPerplexityDisplayWindows() -> [RateWindow] {
@@ -512,6 +537,7 @@ public struct UsageSnapshot: Codable, Sendable {
         deepseekDetailedUsageState: Replacement<DeepSeekDetailedUsageState> = .unchanged,
         deepseekPlatformProfiles: Replacement<[DeepSeekPlatformProfile]> = .unchanged,
         codexResetCredits: Replacement<CodexRateLimitResetCreditsSnapshot?> = .unchanged,
+        grokResetCredits: Replacement<GrokRateLimitResetCreditsSnapshot?> = .unchanged,
         subscriptionExpiresAt: Replacement<Date?> = .unchanged,
         subscriptionRenewsAt: Replacement<Date?> = .unchanged,
         identity: Replacement<ProviderIdentitySnapshot?> = .unchanged,
@@ -527,9 +553,11 @@ public struct UsageSnapshot: Codable, Sendable {
             details: details.resolving(self.details),
             deepseekDetailedUsageState: deepseekDetailedUsageState.resolving(self.deepseekDetailedUsageState),
             deepseekPlatformProfiles: deepseekPlatformProfiles.resolving(self.deepseekPlatformProfiles),
+            deepseekPlatformBalanceOwner: self.deepseekPlatformBalanceOwner,
             opencodegoUsage: self.opencodegoUsage,
             openAIAPIUsage: self.openAIAPIUsage,
             codexResetCredits: codexResetCredits.resolving(self.codexResetCredits),
+            grokResetCredits: grokResetCredits.resolving(self.grokResetCredits),
             mistralUsage: self.mistralUsage,
             copilotMeteredZeroCredits: self.copilotMeteredZeroCredits,
             commandCodeSubscriptionEnrichmentUnavailable: self.commandCodeSubscriptionEnrichmentUnavailable,

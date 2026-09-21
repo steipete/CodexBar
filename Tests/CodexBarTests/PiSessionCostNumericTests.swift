@@ -4,8 +4,8 @@ import Testing
 
 struct PiSessionCostNumericTests {
     @Test(arguments: [false, true])
-    func `numeric and string usage counts reject overflow while retaining rounding`(asString: Bool) throws {
-        for (input, expected) in [(Double(Int.max), 0), (Double.greatestFiniteMagnitude, 0), (12.6, 13)] {
+    func `invalid numeric fields keep history incomplete while valid fractions retain rounding`(asString: Bool) throws {
+        for (input, expected) in [(Double(Int.max), nil), (Double.greatestFiniteMagnitude, nil), (12.6, Optional(13))] {
             let env = try CostUsageTestEnvironment()
             defer { env.cleanup() }
             let day = try env.makeLocalNoon(year: 2026, month: 4, day: 2)
@@ -21,7 +21,7 @@ struct PiSessionCostNumericTests {
                 ],
             ]
             _ = try env.writePiSessionFile(relativePath: "bounds.jsonl", contents: env.jsonl([entry]))
-            let report = PiSessionCostScanner.loadDailyReport(
+            let result = try PiSessionCostScanner.loadDailyReportResultCancellable(
                 provider: .codex,
                 since: day,
                 until: day,
@@ -29,10 +29,18 @@ struct PiSessionCostNumericTests {
                 options: .init(
                     piSessionsRoot: env.piSessionsRoot,
                     cacheRoot: env.cacheRoot,
-                    refreshMinIntervalSeconds: 0))
-            #expect(report.data.first?.inputTokens == (expected == 0 ? nil : expected))
-            #expect(report.data.first?.outputTokens == 2)
-            #expect(report.summary?.totalTokens == expected + 2)
+                    refreshMinIntervalSeconds: 0),
+                checkCancellation: nil)
+            if let expected {
+                #expect(result.isComplete)
+                #expect(result.report.data.first?.inputTokens == expected)
+                #expect(result.report.data.first?.outputTokens == 2)
+                #expect(result.report.summary?.totalTokens == expected + 2)
+            } else {
+                #expect(!result.isComplete)
+                #expect(result.report.data.isEmpty)
+                #expect(result.lastScanAt == nil)
+            }
         }
     }
 }

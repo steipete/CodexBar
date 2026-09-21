@@ -11,6 +11,68 @@ struct PerplexityUsageFetcherTests {
 
     // MARK: - JSON Parsing
 
+    @Test(arguments: ["recurring", "promotional", "purchased"])
+    func `large credit pools retain their percentage and whole count description`(_ type: String) throws {
+        let json = """
+        {
+          "balance_cents": 1e20,
+          "renewal_date_ts": \(Self.renewalTs),
+          "current_period_purchased_cents": 0,
+          "credit_grants": [{"type":"\(type)","amount_cents":2e20}],
+          "total_usage_cents": 1e20
+        }
+        """
+        let usage = try PerplexityUsageFetcher._parseResponseForTesting(Data(json.utf8), now: Self.now)
+            .toUsageSnapshot()
+        let window = switch type {
+        case "recurring": usage.primary
+        case "promotional": usage.secondary
+        default: usage.tertiary
+        }
+        let unit = type == "promotional" ? "bonus" : "credits"
+
+        #expect(window?.usedPercent == 50)
+        #expect(window?.resetDescription == "100000000000000000000/200000000000000000000 \(unit)")
+    }
+
+    @Test(arguments: [(1.6, "2/10 credits"), (-0.25, "0/10 credits")])
+    func `credit descriptions preserve rounding and unsigned zero`(used: Double, expected: String) throws {
+        let json = """
+        {
+          "balance_cents": 0,
+          "renewal_date_ts": \(Self.renewalTs),
+          "current_period_purchased_cents": 0,
+          "credit_grants": [{"type":"recurring","amount_cents":10.9}],
+          "total_usage_cents": \(used)
+        }
+        """
+        let usage = try PerplexityUsageFetcher._parseResponseForTesting(Data(json.utf8), now: Self.now)
+            .toUsageSnapshot()
+
+        #expect(usage.primary?.resetDescription == expected)
+    }
+
+    @Test
+    func `overflowing credit sums omit nonfinite count descriptions`() throws {
+        let json = """
+        {
+          "balance_cents": 0,
+          "renewal_date_ts": \(Self.renewalTs),
+          "current_period_purchased_cents": 0,
+          "credit_grants": [
+            {"type":"recurring","amount_cents":1e308},
+            {"type":"recurring","amount_cents":1e308}
+          ],
+          "total_usage_cents": 1
+        }
+        """
+        let usage = try PerplexityUsageFetcher._parseResponseForTesting(Data(json.utf8), now: Self.now)
+            .toUsageSnapshot()
+
+        #expect(usage.primary != nil)
+        #expect(usage.primary?.resetDescription == nil)
+    }
+
     @Test
     func `parses full response with recurring and promotional credits`() throws {
         let json = """

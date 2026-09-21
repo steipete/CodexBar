@@ -7,6 +7,8 @@ import FoundationNetworking
 public struct GrokWebBillingSnapshot: Sendable, Equatable {
     public let usedPercent: Double?
     public let resetsAt: Date?
+    /// Full duration measured from provider period bounds, never from time remaining until reset.
+    public let windowMinutes: Int?
     public let subscriptionTier: String?
     /// False when `usedPercent` was inferred rather than read off the wire. The credits frame can
     /// describe a billing period while carrying no percentage field at all, and that shape is
@@ -19,12 +21,14 @@ public struct GrokWebBillingSnapshot: Sendable, Equatable {
     public init(
         usedPercent: Double?,
         resetsAt: Date?,
+        windowMinutes: Int? = nil,
         subscriptionTier: String? = nil,
         usedPercentIsWirePublished: Bool = true,
         usedPercentIsImplicitZero: Bool = false)
     {
         self.usedPercent = usedPercent
         self.resetsAt = resetsAt
+        self.windowMinutes = windowMinutes
         self.subscriptionTier = subscriptionTier
         self.usedPercentIsWirePublished = usedPercentIsWirePublished
         self.usedPercentIsImplicitZero = usedPercentIsImplicitZero
@@ -35,6 +39,7 @@ public struct GrokWebBillingSnapshot: Sendable, Equatable {
         GrokWebBillingSnapshot(
             usedPercent: self.usedPercent,
             resetsAt: self.resetsAt,
+            windowMinutes: self.windowMinutes,
             subscriptionTier: GrokPlan.displayName(from: raw) ?? self.subscriptionTier,
             usedPercentIsWirePublished: self.usedPercentIsWirePublished,
             usedPercentIsImplicitZero: self.usedPercentIsImplicitZero)
@@ -47,6 +52,7 @@ public struct GrokWebBillingSnapshot: Sendable, Equatable {
         GrokWebBillingSnapshot(
             usedPercent: self.usedPercent,
             resetsAt: other.resetsAt ?? self.resetsAt,
+            windowMinutes: other.resetsAt == nil ? self.windowMinutes : other.windowMinutes,
             subscriptionTier: self.subscriptionTier ?? other.subscriptionTier,
             usedPercentIsWirePublished: self.usedPercentIsWirePublished,
             usedPercentIsImplicitZero: self.usedPercentIsImplicitZero)

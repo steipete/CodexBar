@@ -72,6 +72,9 @@ extension UsageStore {
 
         self.persistWidgetSnapshot(reason: "codex-account-refresh")
         phaseDidChange?(.completed)
+        #if DEBUG
+        self._test_codexAccountScopedRefreshDidComplete?()
+        #endif
     }
 
     @discardableResult

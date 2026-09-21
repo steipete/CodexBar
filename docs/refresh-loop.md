@@ -22,6 +22,16 @@ read_when:
 - Optional provider-storage scans run only when “Show provider storage usage” is enabled. They are scheduled in the
   background, coalesced/throttled during automatic refreshes, and forced by manual refresh without blocking the usage
   refresh path.
+- Transient Codex OAuth transport failures preserve prior usage and widget entries for the same account, including
+  their original update time. Classification uses the underlying transport code, so localized error messages behave
+  consistently. Startup connectivity retries and refresh-failure hook statuses use the same transport identity;
+  cancellation does not schedule a retry. Authentication failures and account changes still invalidate prior usage.
+- Explicit Claude OAuth, Cursor app/stored sessions, Vertex AI, and Ollama API requests also retain transport identity
+  through provider-specific diagnostics. Recognized temporary network failures keep the last successful snapshot and
+  its original measurement time, and use the existing startup-retry and refresh-hook categories even with localized
+  messages. Vertex AI and Ollama API snapshots contain identity rather than quota windows. Authentication, source
+  selection, and stale-refresh invalidation retain their existing rules. Wrapped Codex and Vertex AI cancellations
+  are suppressed before the consecutive-failure gate, including localized transport errors.
 
 ## Adaptive mode
 - `AdaptiveRefreshPolicy` (`Sources/CodexBar/AdaptiveRefreshPolicy.swift`) is a pure function of an `Input`

@@ -150,6 +150,10 @@
 "Cookie: …" = "Cookie: …";
 "CopilotDeviceFlow" = "CopilotDeviceFlow";
 "Cost" = "Chi phí";
+"Token history" = "Lịch sử token";
+"Local token history · dollar costs unavailable" = "Lịch sử token cục bộ · chưa có chi phí bằng đô la";
+"Partial local history · recorded token subtotal" = "Lịch sử cục bộ một phần · tổng phụ token đã ghi nhận";
+"Local token history is unavailable or incomplete." = "Lịch sử token cục bộ không có hoặc chưa đầy đủ.";
 "Could not add Codex account" = "Không thể thêm tài khoản Codex";
 "Could not open Terminal for Gemini" = "Không thể mở Terminal cho Gemini";
 "Could not start claude /login" = "Không thể bắt đầu claude /đăng nhập";
@@ -608,6 +612,12 @@
 "cost_summary_off" = "Tắt";
 "merge_icons_title" = "Hợp nhất các biểu tượng";
 "merge_icons_subtitle" = "Sử dụng một biểu tượng thanh menu duy nhất với trình chuyển đổi Nhà cung cấp.";
+"merged_icon_style_title" = "Kiểu biểu tượng kết hợp";
+"merged_icon_style_subtitle" = "Bộ chuyển đổi lần lượt hiển thị từng nhà cung cấp; Xếp chồng hiển thị hai nhà cung cấp cùng lúc, mỗi nhà cung cấp một dòng.";
+"merged_icon_style_switcher" = "Bộ chuyển đổi";
+"merged_icon_style_stacked" = "Xếp chồng";
+"merge_icon_stacked_top_provider_title" = "Dòng trên";
+"merge_icon_stacked_bottom_provider_title" = "Dòng dưới";
 "show_most_used_provider_title" = "Hiển thị Nhà cung cấp";
 "show_most_used_provider_subtitle" = "thanh menu được sử dụng nhiều nhất tự động hiển thị Nhà cung cấp gần nhất với giới hạn tốc độ của nó.";
 "display_mode_title" = "Chế độ hiển thị";
@@ -878,6 +888,12 @@
 "usage_percent_suffix_used" = "đã sử dụng";
 "Store multiple DeepSeek API keys." = "Lưu trữ nhiều khóa DeepSeek API.";
 "This week" = "Tuần này";
+"Current window" = "Cửa sổ hiện tại";
+"Last week" = "Tuần trước";
+"%d weeks ago" = "%d tuần trước";
+"Previous window" = "Cửa sổ trước";
+"%d windows ago" = "%d cửa sổ trước";
+"Recent windows" = "Cửa sổ gần đây";
 "Week" = "Tuần";
 "Month" = "Tháng";
 "Models" = "Mô hình";
@@ -937,6 +953,8 @@
 "Overage" = "Vượt mức";
 "Activity" = "Hoạt động";
 "Copied" = "Đã sao chép";
+"Managed by Homebrew" = "Được quản lý bằng Homebrew";
+"Copy update command" = "Sao chép lệnh cập nhật";
 "Copy error" = "Lỗi sao chép";
 "Copy path" = "Sao chép đường dẫn";
 "Extra usage spent" = "Thêm Mức sử dụng đã chi tiêu";
@@ -1337,6 +1355,8 @@
 "Tracked tokens" = "Token được theo dõi";
 "Subscriptions" = "Gói đăng ký";
 "By subscription" = "Theo gói đăng ký";
+"By source" = "By source";
+"%d of %d sources have spend" = "%d of %d sources have spend";
 "No model-level history" = "Không có lịch sử theo mô hình";
 "Daily estimated spend" = "Chi tiêu ước tính hằng ngày";
 "Hourly estimated spend" = "Chi tiêu ước tính theo giờ";
@@ -1581,3 +1601,25 @@
 
 "agent_sessions_hide_unreachable_title" = "Ẩn máy chủ không thể truy cập";
 "agent_sessions_hide_unreachable_subtitle" = "Ẩn máy chủ khi không lấy được các phiên của máy chủ đó.";
+
+/* Overview share flow */
+"Share Usage Snapshot…" = "Chia sẻ tổng quan mức sử dụng…";
+"Usage snapshot unavailable" = "Không có tổng quan mức sử dụng";
+"CodexBar couldn't prepare a shareable usage snapshot. Refresh Usage & Spend and try again." = "CodexBar không thể chuẩn bị tổng quan mức sử dụng để chia sẻ. Hãy làm mới Mức sử dụng và chi phí rồi thử lại.";
+"Incomplete" = "Chưa đầy đủ";
+"Est. subtotal (%@): %@" = "Tổng phụ ước tính (%@): %@";
+"Excluded requests with missing final usage: %d" = "Yêu cầu bị loại trừ do thiếu dữ liệu sử dụng cuối cùng: %d";
+
+"overview_layout_title" = "Bố cục Tổng quan";
+"overview_layout_subtitle" = "Chọn lượng thông tin hiển thị trong Tổng quan.";
+"overview_layout_detailed" = "Chi tiết";
+"overview_layout_compact" = "Gọn";
+
+"section_widgets" = "Tiện ích";
+"account_widgets_title" = "Cập nhật tài khoản cho tiện ích";
+"account_widgets_description" = "Chọn một tài khoản trong mỗi tiện ích Account Usage. Làm mới tối đa sáu tài khoản cho mỗi nhà cung cấp.";
+
+/* Antigravity local cost estimates */
+"antigravity_cost_estimate_hint" = "Mức dùng cục bộ × giá API công khai · không phải phí hay tín dụng Antigravity";
+"antigravity_quota_window_note" = "Chi phí cửa sổ bao gồm mọi mô hình · cửa sổ hiển thị là nhóm bị giới hạn nhất";
+"antigravity_no_priced_token_history" = "Không có lịch sử token Antigravity được định giá.";

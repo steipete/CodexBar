@@ -64,7 +64,7 @@ struct CostUsageStoreReadWorkTests {
         #expect(snapshot.updatedAt == fixture.now.addingTimeInterval(retainedReport ? -60 : 0))
         #expect(work.scannerSnapshotReads == 1)
         #expect(work.tokenSnapshotRows == 0)
-        #expect(work.integrityChecks == 3)
+        #expect(work.integrityChecks == 2)
         #expect(work.usageRowDecodeAttempts == fixture.rowCount * (retainedReport ? 1 : 2))
         print("[pending-report-read-proof] state=\(state) rows=\(fixture.rowCount) " +
             "cached_decoded=\(cachedWork.usageRowDecodeAttempts) cached_checks=\(cachedWork.integrityChecks) " +
@@ -835,8 +835,8 @@ struct CostUsageStoreReadWorkTests {
         #expect(work.usageRowDecodeAttempts == fixture.rowCount)
         #expect(work.usagePayloadBytes > 0)
         // One metadata precheck and one exact report read share the same validated connection.
-        #expect(work.retryPresenceRows == (incomplete ? 2 : 0))
-        #expect(work.readViewConversions == 2)
+        #expect(work.retryPresenceRows == (incomplete ? 3 : 0))
+        #expect(work.readViewConversions == (incomplete ? 3 : 2))
         #expect(work.integrityChecks == 1)
         #expect(work.readViewConversionsInTransaction == 0)
     }

@@ -1574,7 +1574,6 @@ extension MiMoProviderTests {
                 keyDataFetched: false,
                 keyLimit: nil,
                 keyUsage: nil,
-                rateLimit: nil,
                 updatedAt: updatedAt).toUsageSnapshot()
         case .mimo:
             return MiMoUsageSnapshot(

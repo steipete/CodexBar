@@ -24,10 +24,29 @@ struct AntigravityLocalScanTests {
         limits.duration = 60
         let report = try fixture.report(limits: limits)
         #expect(report.coverage == (count <= 500 ? .complete : .partial))
-        #expect(report.statistics.files == min(count, 500))
+        #expect(report.statistics.files == (count <= 500 ? count : 0))
         #expect(report.statistics.rows == 0)
-        #expect(report.statistics.sqliteHandlesOpened == min(count, 500))
+        #expect(report.statistics.sqliteHandlesOpened == report.statistics.files)
         #expect(report.statistics.sqliteHandlesClosed == report.statistics.sqliteHandlesOpened)
+    }
+
+    @Test
+    func `exceeding the database cap with valid history withholds the truncated report`() throws {
+        let fixture = try Fixture()
+        try fixture.database("first", blobs: [Fixture.blob()])
+        var limits = AntigravityLocalReader.Limits()
+        limits.databases = 1
+        let exact = try fixture.report(limits: limits)
+        #expect(exact.coverage == .complete)
+        #expect(exact.report.summary?.totalTokens == 198)
+
+        try fixture.database("second", blobs: [Fixture.blob()])
+        let exceeded = try fixture.report(limits: limits)
+        #expect(exceeded.coverage == .partial)
+        #expect(exceeded.report.data.isEmpty)
+        #expect(exceeded.report.summary == nil)
+        #expect(exceeded.statistics.files == 0)
+        #expect(exceeded.statistics.sqliteHandlesOpened == 0)
     }
 
     @Test
@@ -212,6 +231,25 @@ struct AntigravityLocalScanTests {
         #expect(report.coverage == .partial)
         #expect(report.statistics.rows == 3)
         #expect(report.statistics.attemptedBytes == genBlob.count + matchingStep.count + trailingStep.count)
+    }
+
+    @Test
+    func `secondary byte exhaustion cannot publish primary rows as partial history`() throws {
+        let fixture = try Fixture()
+        let stepUUID = "bounded-secondary-history"
+        let primary = Fixture.blob()
+        let pending = Fixture.blobWithRootEnvelope(stepUUID: stepUUID, seconds: nil)
+        let step = Fixture.stepMetadataBlob(stepUUID: stepUUID, seconds: 1_787_832_000)
+        try fixture.database(blobs: [primary, pending], stepBlobs: [step])
+        #expect(try fixture.report().coverage == .complete)
+
+        var limits = AntigravityLocalReader.Limits()
+        limits.databaseBytes = primary.count + pending.count
+        let report = try fixture.report(limits: limits)
+        #expect(report.coverage == .partial)
+        #expect(report.report.data.isEmpty)
+        #expect(report.report.summary == nil)
+        #expect(report.statistics.sqliteHandlesOpened == report.statistics.sqliteHandlesClosed)
     }
 
     @Test

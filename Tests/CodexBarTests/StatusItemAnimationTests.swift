@@ -318,7 +318,6 @@ struct StatusItemAnimationTests {
             keyDataFetched: true,
             keyLimit: nil,
             keyUsage: nil,
-            rateLimit: nil,
             updatedAt: Date()).toUsageSnapshot()
 
         store._setSnapshotForTesting(snapshot, provider: .openrouter)
@@ -385,7 +384,6 @@ struct StatusItemAnimationTests {
             keyDataFetched: false,
             keyLimit: nil,
             keyUsage: nil,
-            rateLimit: nil,
             updatedAt: Date()).toUsageSnapshot()
 
         store._setSnapshotForTesting(snapshot, provider: .openrouter)

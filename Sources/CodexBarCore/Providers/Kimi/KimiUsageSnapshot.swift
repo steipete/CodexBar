@@ -1,15 +1,16 @@
 import Foundation
 
 public struct KimiUsageSnapshot: Sendable {
-    public let weekly: KimiUsageDetail
+    public let weekly: KimiUsageDetail?
     public let rateLimit: KimiUsageDetail?
     public let updatedAt: Date
     public let planName: String?
     let rateLimitWindow: KimiWindow?
     let subscriptionBalance: KimiSubscriptionBalance?
     let subscriptionCodeWeeklyLimit: KimiSubscriptionRateLimit?
+    let codeUsagePools: KimiCodeUsagePools?
 
-    public init(weekly: KimiUsageDetail, rateLimit: KimiUsageDetail?, updatedAt: Date) {
+    public init(weekly: KimiUsageDetail?, rateLimit: KimiUsageDetail?, updatedAt: Date) {
         self.weekly = weekly
         self.rateLimit = rateLimit
         self.updatedAt = updatedAt
@@ -17,14 +18,16 @@ public struct KimiUsageSnapshot: Sendable {
         self.subscriptionBalance = nil
         self.subscriptionCodeWeeklyLimit = nil
         self.planName = nil
+        self.codeUsagePools = nil
     }
 
     init(
-        weekly: KimiUsageDetail,
+        weekly: KimiUsageDetail?,
         rateLimit: KimiUsageDetail?,
         rateLimitWindow: KimiWindow? = nil,
         subscriptionBalance: KimiSubscriptionBalance?,
         subscriptionCodeWeeklyLimit: KimiSubscriptionRateLimit? = nil,
+        codeUsagePools: KimiCodeUsagePools? = nil,
         planName: String? = nil,
         updatedAt: Date)
     {
@@ -34,6 +37,7 @@ public struct KimiUsageSnapshot: Sendable {
         self.subscriptionBalance = subscriptionBalance
         self.subscriptionCodeWeeklyLimit = subscriptionCodeWeeklyLimit
         self.planName = planName
+        self.codeUsagePools = codeUsagePools
         self.updatedAt = updatedAt
     }
 
@@ -63,6 +67,31 @@ public struct KimiUsageSnapshot: Sendable {
         return (0, limit, false)
     }
 
+    private func resolvedRatioWindow(
+        _ pool: KimiRatioPool?,
+        detail: KimiUsageDetail?,
+        minutes: Int,
+        countWindowMinutes: Int?) -> RateWindow?
+    {
+        guard let window = pool?.window(minutes: minutes) else { return nil }
+        // Mixed legacy responses can carry zero ratio placeholders alongside populated counters.
+        // Preserve monthly ratio-pool accounts; only fall back for the same duration and reset.
+        // The observed legacy and ratio reset clocks differ by about 1.45 seconds.
+        if window.usedPercent == 0,
+           self.codeUsagePools?.monthly == nil,
+           self.weekly.flatMap(Self.usageCounts)?.isReliable == true,
+           countWindowMinutes == minutes,
+           let detail,
+           let counts = Self.usageCounts(detail), counts.isReliable, counts.used > 0,
+           let countReset = ISO8601DateParser.parse(detail.resetTime),
+           let ratioReset = window.resetsAt,
+           abs(countReset.timeIntervalSince(ratioReset)) <= 2
+        {
+            return nil
+        }
+        return window
+    }
+
     private static func rateLimitDescription(used: Int, limit: Int, windowMinutes: Int?) -> String {
         guard let windowMinutes else { return "Rate: \(used)/\(limit)" }
         if windowMinutes.isMultiple(of: 60) {
@@ -75,49 +104,63 @@ public struct KimiUsageSnapshot: Sendable {
 
 extension KimiUsageSnapshot {
     public func toUsageSnapshot() -> UsageSnapshot {
-        // Parse weekly quota
-        // Both Kimi usage endpoints expose FEATURE_CODING usage.detail as the weekly quota.
-        let weeklyWindow = Self.usageCounts(self.weekly).map { counts in
-            RateWindow(
-                usedPercent: Self.clampedPercent(Double(counts.used) / Double(counts.limit) * 100),
-                windowMinutes: counts.isReliable ? KimiProviderDescriptor.weeklyWindowMinutes : nil,
-                resetsAt: ISO8601DateParser.parse(self.weekly.resetTime),
-                resetDescription: "\(counts.used)/\(counts.limit) requests")
-        }
+        // Prefer ratio pools unless matching counters identify a zero placeholder.
+        let weeklyWindow = self.resolvedRatioWindow(
+            self.codeUsagePools?.weekly,
+            detail: self.weekly,
+            minutes: KimiProviderDescriptor.weeklyWindowMinutes,
+            countWindowMinutes: KimiProviderDescriptor.weeklyWindowMinutes)
+            ?? self.weekly.flatMap { weekly -> RateWindow? in
+                guard let counts = Self.usageCounts(weekly) else { return nil }
+                return RateWindow(
+                    usedPercent: Self.clampedPercent(Double(counts.used) / Double(counts.limit) * 100),
+                    windowMinutes: counts.isReliable ? KimiProviderDescriptor.weeklyWindowMinutes : nil,
+                    resetsAt: ISO8601DateParser.parse(weekly.resetTime),
+                    resetDescription: "\(counts.used)/\(counts.limit) requests")
+            }
 
         // Parse rate limit if available
-        let rateLimitWindow = self.rateLimit.flatMap { rateLimit -> RateWindow? in
-            guard let counts = Self.usageCounts(rateLimit) else { return nil }
-            let apiWindowMinutes: Int? = if let apiWindow = self.rateLimitWindow {
-                apiWindow.durationMinutes
-            } else {
-                KimiProviderDescriptor.sessionWindowMinutes
+        let rateLimitWindow = self.resolvedRatioWindow(
+            self.codeUsagePools?.session,
+            detail: self.rateLimit,
+            minutes: KimiProviderDescriptor.sessionWindowMinutes,
+            countWindowMinutes: self.rateLimitWindow.map(\.durationMinutes)
+                ?? KimiProviderDescriptor.sessionWindowMinutes)
+            ?? self.rateLimit.flatMap { rateLimit -> RateWindow? in
+                guard let counts = Self.usageCounts(rateLimit) else { return nil }
+                let apiWindowMinutes: Int? = if let apiWindow = self.rateLimitWindow {
+                    apiWindow.durationMinutes
+                } else {
+                    KimiProviderDescriptor.sessionWindowMinutes
+                }
+                let windowMinutes = counts.isReliable ? apiWindowMinutes : nil
+                return RateWindow(
+                    usedPercent: Self.clampedPercent(Double(counts.used) / Double(counts.limit) * 100),
+                    windowMinutes: windowMinutes,
+                    resetsAt: ISO8601DateParser.parse(rateLimit.resetTime),
+                    resetDescription: Self.rateLimitDescription(
+                        used: counts.used,
+                        limit: counts.limit,
+                        windowMinutes: windowMinutes))
             }
-            let windowMinutes = counts.isReliable ? apiWindowMinutes : nil
-            return RateWindow(
-                usedPercent: Self.clampedPercent(Double(counts.used) / Double(counts.limit) * 100),
-                windowMinutes: windowMinutes,
-                resetsAt: ISO8601DateParser.parse(rateLimit.resetTime),
-                resetDescription: Self.rateLimitDescription(
-                    used: counts.used,
-                    limit: counts.limit,
-                    windowMinutes: windowMinutes))
-        }
 
-        let monthlyWindow = self.subscriptionBalance.flatMap { balance -> NamedRateWindow? in
-            // Total usage = shared subscription pool (`amountUsedRatio`), not the Code-only
-            // `kimiCodeUsedRatio`: the pool is shared across features, so amountUsedRatio is the
-            // real "subscription remaining". Matches the official "Total usage" lane.
-            guard balance.feature == nil || balance.feature == "FEATURE_OMNI" else { return nil }
-            guard balance.type == nil || balance.type == "SUBSCRIPTION" else { return nil }
-            guard let ratio = balance.amountUsedRatio, ratio.isFinite else { return nil }
-            let window = RateWindow(
-                usedPercent: Self.clampedPercent(ratio * 100),
-                windowMinutes: ProviderPaceCapability.monthlyWindowSentinelMinutes,
-                resetsAt: ISO8601DateParser.parse(balance.expireTime),
-                resetDescription: nil)
-            return NamedRateWindow(id: "kimi-monthly", title: "Total usage", window: window)
-        }
+        let monthlyWindow = self.codeUsagePools?.monthly?
+            .window(minutes: ProviderPaceCapability.monthlyWindowSentinelMinutes)
+            .map { NamedRateWindow(id: "kimi-monthly", title: "Total usage", window: $0) }
+            ?? self.subscriptionBalance.flatMap { balance -> NamedRateWindow? in
+                // Total usage = shared subscription pool (`amountUsedRatio`), not the Code-only
+                // `kimiCodeUsedRatio`: the pool is shared across features, so amountUsedRatio is the
+                // real "subscription remaining". Matches the official "Total usage" lane.
+                guard balance.feature == nil || balance.feature == "FEATURE_OMNI" else { return nil }
+                guard balance.type == nil || balance.type == "SUBSCRIPTION" else { return nil }
+                guard let ratio = balance.amountUsedRatio, ratio.isFinite else { return nil }
+                let window = RateWindow(
+                    usedPercent: Self.clampedPercent(ratio * 100),
+                    windowMinutes: ProviderPaceCapability.monthlyWindowSentinelMinutes,
+                    resetsAt: ISO8601DateParser.parse(balance.expireTime),
+                    resetDescription: nil)
+                return NamedRateWindow(id: "kimi-monthly", title: "Total usage", window: window)
+            }
 
         let subscriptionCodeWeeklyWindow = self.subscriptionCodeWeeklyLimit.flatMap { limit -> NamedRateWindow? in
             guard limit.enabled != false else { return nil }

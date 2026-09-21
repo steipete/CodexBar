@@ -57,8 +57,11 @@ struct AboutPane: View {
                 }
             } else {
                 Section {
-                    Text(self.updater.unavailableReason ?? L("updates_unavailable"))
-                        .foregroundStyle(.secondary)
+                    AboutUpdatesUnavailableView(
+                        reason: self.updater.unavailableReason ?? L("updates_unavailable"),
+                        command: self.updater.manualUpdateCommand)
+                } header: {
+                    Text(L("section_updates"))
                 }
             }
 
@@ -148,6 +151,78 @@ struct AboutPane: View {
     private func openProjectHome() {
         guard let url = URL(string: "https://github.com/steipete/CodexBar") else { return }
         NSWorkspace.shared.open(url)
+    }
+}
+
+@MainActor
+struct AboutUpdatesUnavailableView: View {
+    typealias CopyAction = @MainActor @Sendable (String, @escaping @MainActor @Sendable (Bool) -> Void) -> Void
+
+    let reason: String
+    let command: ManualUpdateCommand?
+    let copyAction: CopyAction
+    @State private var didCopy = false
+
+    init(
+        reason: String,
+        command: ManualUpdateCommand? = nil,
+        copyAction: @escaping CopyAction = Self.copyCommand)
+    {
+        self.reason = reason
+        self.command = command
+        self.copyAction = copyAction
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(self.reason)
+                .foregroundStyle(.secondary)
+                .textSelection(.enabled)
+            if let command {
+                HStack(spacing: 12) {
+                    Text(command.command)
+                        .font(.system(.callout, design: .monospaced))
+                        .foregroundStyle(.primary)
+                        .textSelection(.enabled)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Button {
+                        self.copyAction(command.command) { self.didCopy = $0 }
+                    } label: {
+                        Label(
+                            self.didCopy ? L("Copied") : L("Copy update command"),
+                            systemImage: self.didCopy ? "checkmark" : "doc.on.doc")
+                            .labelStyle(.iconOnly)
+                    }
+                    .controlSize(.small)
+                    .frame(width: 28)
+                    .help(self.didCopy ? L("Copied") : L("Copy update command"))
+                    .accessibilityIdentifier("about-copy-update-command")
+                }
+                .environment(\.layoutDirection, .leftToRight)
+                .padding(10)
+                .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 6))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 6)
+                        .strokeBorder(.primary.opacity(0.08))
+                }
+            }
+        }
+        .task(id: self.didCopy) {
+            guard self.didCopy else { return }
+            do {
+                try await Task.sleep(for: .seconds(2))
+                self.didCopy = false
+            } catch {}
+        }
+    }
+
+    private static func copyCommand(_ text: String, completion: @escaping @MainActor @Sendable (Bool) -> Void) {
+        MenuPasteboardCopy.perform(text, writer: { text in
+            let pasteboard = NSPasteboard.general
+            pasteboard.clearContents()
+            completion(pasteboard.setString(text, forType: .string))
+        })
     }
 }
 

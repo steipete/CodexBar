@@ -64,13 +64,16 @@ extension UsageStore {
         }
 
         self.creditsRefreshTask?.cancel()
+        let token = UUID()
         self.creditsRefreshTaskKey = refreshKey
+        self.creditsRefreshTaskToken = token
         self.creditsRefreshTask = Task(priority: .utility) { @MainActor [weak self] in
             guard let self else { return }
             defer {
-                if self.creditsRefreshTaskKey == refreshKey {
+                if self.creditsRefreshTaskToken == token {
                     self.creditsRefreshTask = nil
                     self.creditsRefreshTaskKey = nil
+                    self.creditsRefreshTaskToken = nil
                 }
             }
             await self.refreshCreditsIfNeeded(minimumSnapshotUpdatedAt: minimumSnapshotUpdatedAt)
@@ -83,6 +86,7 @@ extension UsageStore {
         self.creditsRefreshTask?.cancel()
         self.creditsRefreshTask = nil
         self.creditsRefreshTaskKey = nil
+        self.creditsRefreshTaskToken = nil
     }
 
     func refreshCreditsNow(minimumSnapshotUpdatedAt: Date? = nil) async {
@@ -309,22 +313,34 @@ extension UsageStore {
         minimumSnapshotUpdatedAt: Date)
     {
         self.cancelCodexPlanHistoryBackfill()
+        let token = UUID()
+        self.codexPlanHistoryBackfillTaskToken = token
         self.codexPlanHistoryBackfillTask = Task { @MainActor [weak self] in
             guard let self else { return }
+            defer {
+                if self.codexPlanHistoryBackfillTaskToken == token {
+                    self.codexPlanHistoryBackfillTask = nil
+                    self.codexPlanHistoryBackfillTaskToken = nil
+                }
+            }
             guard let snapshot = await self.waitForCodexSnapshot(minimumUpdatedAt: minimumSnapshotUpdatedAt) else {
                 return
             }
+            guard !Task.isCancelled else { return }
+            #if DEBUG
+            self._test_codexPlanHistoryBackfillWillRecord?()
+            #endif
             await self.recordPlanUtilizationHistorySample(
                 provider: .codex,
                 snapshot: snapshot,
                 now: snapshot.updatedAt)
-            self.codexPlanHistoryBackfillTask = nil
         }
     }
 
     func cancelCodexPlanHistoryBackfill() {
         self.codexPlanHistoryBackfillTask?.cancel()
         self.codexPlanHistoryBackfillTask = nil
+        self.codexPlanHistoryBackfillTaskToken = nil
     }
 
     func publishHydratedCodexCreditsIfNeeded(

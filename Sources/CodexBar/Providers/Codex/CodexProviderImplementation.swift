@@ -263,11 +263,24 @@ struct CodexProviderImplementation: ProviderImplementation {
             entries.append(.action(L("Workspaces"), .openCodexWorkspaces))
         }
 
-        let projection = context.settings.codexVisibleAccountProjection
-        guard !projection.visibleAccounts.isEmpty else { return }
+        let submenuItems = Self.systemAccountMenuItems(
+            projection: context.settings.codexVisibleAccountProjection,
+            hidePersonalInfo: context.settings.hidePersonalInfo,
+            isInteractionBlocked: context.codexAccountPromotionCoordinator?.isInteractionBlocked() ?? false)
+        guard !submenuItems.isEmpty else { return }
+        entries.append(.submenu(
+            "System Account",
+            MenuDescriptor.MenuActionSystemImage.systemAccount.rawValue,
+            submenuItems))
+    }
 
-        let isInteractionBlocked = context.codexAccountPromotionCoordinator?.isInteractionBlocked() ?? false
-
+    @MainActor
+    static func systemAccountMenuItems(
+        projection: CodexVisibleAccountProjection,
+        hidePersonalInfo: Bool,
+        isInteractionBlocked: Bool) -> [MenuDescriptor.SubmenuItem]
+    {
+        let ordinals = CodexAccountSwitcherLabeling.ordinals(for: projection.visibleAccounts)
         let submenuItems = projection.visibleAccounts.map { account in
             let isChecked = account.id == projection.liveVisibleAccountID
             let isEnabled = !isInteractionBlocked &&
@@ -275,19 +288,16 @@ struct CodexProviderImplementation: ProviderImplementation {
                 account.storedAccountID != nil
             let action = account.storedAccountID.map(MenuDescriptor.MenuAction.requestCodexSystemPromotion)
             return MenuDescriptor.SubmenuItem(
-                title: account.displayName,
+                title: hidePersonalInfo ? CodexAccountSwitcherLabeling.label(
+                    for: account, ordinal: ordinals[account.id], hidePersonalInfo: true) : account.displayName,
                 action: action,
                 isEnabled: isEnabled,
                 isChecked: isChecked)
         }
         guard submenuItems.count > 1 || submenuItems.contains(where: { $0.isEnabled && $0.action != nil }) else {
-            return
+            return []
         }
-
-        entries.append(.submenu(
-            "System Account",
-            MenuDescriptor.MenuActionSystemImage.systemAccount.rawValue,
-            submenuItems))
+        return submenuItems
     }
 
     @MainActor

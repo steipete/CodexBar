@@ -295,7 +295,8 @@ struct KeychainCacheStoreTests {
             }
         }
 
-        #expect(preflightCount.value == 2)
+        // Each load receives its own three-attempt preflight budget.
+        #expect(preflightCount.value == 6)
         for result in results {
             switch result {
             case .temporarilyUnavailable:
@@ -585,7 +586,6 @@ struct KeychainCacheStoreTests {
         ])
 
         let paths = KeychainCacheStore.trustedApplicationPathsForCacheAccess(
-            bundleURL: root,
             executableURL: executable,
             fileExists: { existing.contains($0) })
 
@@ -614,11 +614,9 @@ struct KeychainCacheStoreTests {
     func `cache ACL refuses bare dev binaries without an app bundle`() {
         // Trusting an ephemeral `swift build` binary would freeze a broken ACL
         // onto the shared item; the packaged app would then prompt on every read.
-        let bundleURL = URL(fileURLWithPath: "/Users/dev/project/.build/debug")
         let executable = URL(fileURLWithPath: "/Users/dev/project/.build/debug/CodexBarCLI")
 
         let paths = KeychainCacheStore.trustedApplicationPathsForCacheAccess(
-            bundleURL: bundleURL,
             executableURL: executable,
             fileExists: { _ in true })
 

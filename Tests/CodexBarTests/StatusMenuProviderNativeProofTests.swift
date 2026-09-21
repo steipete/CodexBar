@@ -29,6 +29,10 @@ final class StatusMenuProviderNativeProofTests: XCTestCase {
         let overview = environment["CODEXBAR_STATUS_PROVIDER_PROOF_OVERVIEW"] == "1"
         let compact = environment["CODEXBAR_STATUS_PROVIDER_PROOF_COMPACT"] == "1"
         Self.seedProviderMenu(in: fixture, overview: overview, compact: compact)
+        if overview {
+            fixture.settings.mergedOverviewLayout = MergedOverviewLayout(
+                rawValue: environment["CODEXBAR_STATUS_PROVIDER_PROOF_OVERVIEW_LAYOUT"] ?? "detailed") ?? .detailed
+        }
 
         let oldRendering = StatusItemController.menuCardRenderingEnabled
         let oldRefresh = StatusItemController.menuRefreshEnabled
@@ -163,7 +167,8 @@ final class StatusMenuProviderNativeProofTests: XCTestCase {
         overview: Bool,
         compact: Bool)
     {
-        let providers: [UsageProvider] = compact ? [.claude] : [.claude, .codex, .grok]
+        let providers: [UsageProvider] = compact ? [.claude]
+            : overview ? [.claude, .codex, .grok, .kimi, .zai, .huggingface] : [.claude, .codex, .grok]
         for provider in providers {
             fixture.settings.setProviderEnabled(
                 provider: provider,
@@ -179,14 +184,22 @@ final class StatusMenuProviderNativeProofTests: XCTestCase {
         fixture.settings.mergedMenuLastSelectedWasOverview = overview
         fixture.settings.statusChecksEnabled = true
         for provider in providers {
+            let detailOnly = overview && provider == .huggingface
+            let details = detailOnly ? [try? ProviderDetailSection(
+                title: "Inference charges", rows: [.init(label: "This month", value: "$4.20")])].compactMap(\.self) : []
             fixture.store._setSnapshotForTesting(
                 UsageSnapshot(
-                    primary: RateWindow(
+                    primary: detailOnly ? nil : RateWindow(
                         usedPercent: 25,
                         windowMinutes: 300,
                         resetsAt: Date().addingTimeInterval(3600),
                         resetDescription: nil),
-                    secondary: nil,
+                    secondary: overview && !detailOnly ? RateWindow(
+                        usedPercent: 60,
+                        windowMinutes: 10080,
+                        resetsAt: Date().addingTimeInterval(172_800),
+                        resetDescription: nil) : nil,
+                    details: details,
                     updatedAt: Date()),
                 provider: provider)
         }
@@ -227,6 +240,8 @@ final class StatusMenuProviderNativeProofTests: XCTestCase {
             "swiftUIHighlighted": String(overviewRow?.highlightState.isHighlighted ?? false),
             "pid": String(ProcessInfo.processInfo.processIdentifier),
             "window": String(host.windowNumber),
+            "menuWindow": String(menu.items.compactMap { $0.view?.window?.windowNumber }.first ?? 0),
+            "overviewLayout": fixture.settings.mergedOverviewLayout.rawValue,
             "selected": fixture.settings.selectedMenuProvider?.rawValue ?? "none",
             "overview": String(fixture.settings.mergedMenuLastSelectedWasOverview),
             "highlighted": menu.highlightedItem?.representedObject as? String ?? "none",

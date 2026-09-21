@@ -47,6 +47,7 @@ struct MenuCardClaudeSwapAccountTests {
             tokenError: nil,
             account: AccountInfo(email: account.displayLabel, plan: nil),
             accountIsAuthoritative: true,
+            accountPrivacyOrdinal: ClaudeSwapAccountMenuDisplay.privacyOrdinal(for: account),
             planOverride: planOverride,
             isRefreshing: false,
             lastError: account.error,
@@ -115,8 +116,7 @@ struct MenuCardClaudeSwapAccountTests {
     func `claude swap account card respects hide personal info`() throws {
         let model = try self.makeModel(hidePersonalInfo: true)
 
-        #expect(!model.email.contains("personal@example.com"))
-        #expect(!model.email.contains("example.com"))
+        #expect(model.email == "Account 2")
     }
 
     @Test

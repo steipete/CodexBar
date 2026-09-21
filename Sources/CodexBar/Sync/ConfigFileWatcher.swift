@@ -7,14 +7,20 @@ final class ConfigFileWatcher: @unchecked Sendable {
     private let fileURL: URL
     private let queue = DispatchQueue(label: "com.steipete.codexbar.config-file-watcher", qos: .utility)
     private let changeHandler: ChangeHandler
+    private let beforeRegistrationForTesting: ChangeHandler?
     private let lock = NSLock()
     private var source: DispatchSourceFileSystemObject?
     private var observedHash: String?
     private var stopped = false
 
-    init(fileURL: URL, changeHandler: @escaping ChangeHandler) {
+    init(
+        fileURL: URL,
+        beforeRegistrationForTesting: ChangeHandler? = nil,
+        changeHandler: @escaping ChangeHandler)
+    {
         self.fileURL = fileURL
         self.changeHandler = changeHandler
+        self.beforeRegistrationForTesting = beforeRegistrationForTesting
         self.observedHash = (try? Data(contentsOf: fileURL)).map { CanonicalSyncJSON.hash(data: $0) }
     }
 
@@ -56,15 +62,27 @@ final class ConfigFileWatcher: @unchecked Sendable {
             return
         }
 
+        self.beforeRegistrationForTesting?()
+
         let source = DispatchSource.makeFileSystemObjectSource(
             fileDescriptor: descriptor,
             eventMask: [.write, .extend, .attrib, .rename, .delete],
             queue: self.queue)
         source.setEventHandler { [weak self, weak source] in
-            guard let self else { return }
-            let flags = source?.data ?? []
+            guard let self, let source, self.source === source else { return }
+            let flags = source.data
             self.processChange()
-            if flags.contains(.rename) || flags.contains(.delete) || watchedURL != self.fileURL {
+            if flags.contains(.rename) || flags.contains(.delete)
+                || self.needsRearm(descriptor: descriptor, watchedURL: watchedURL)
+            {
+                self.arm()
+            }
+        }
+        source.setRegistrationHandler { [weak self, weak source] in
+            guard let self, let source, self.source === source else { return }
+            // Reconcile only after registration, then check for replacements made by the callback.
+            self.processChange()
+            if self.needsRearm(descriptor: descriptor, watchedURL: watchedURL) {
                 self.arm()
             }
         }
@@ -73,8 +91,17 @@ final class ConfigFileWatcher: @unchecked Sendable {
         }
         self.source = source
         source.resume()
-        // Reconcile changes made before the new descriptor began observing.
-        self.processChange()
+    }
+
+    private func needsRearm(descriptor: Int32, watchedURL: URL) -> Bool {
+        let currentURL = FileManager.default.fileExists(atPath: self.fileURL.path)
+            ? self.fileURL
+            : self.fileURL.deletingLastPathComponent()
+        guard currentURL == watchedURL else { return true }
+        var opened = stat()
+        var current = stat()
+        guard fstat(descriptor, &opened) == 0, stat(currentURL.path, &current) == 0 else { return true }
+        return opened.st_dev != current.st_dev || opened.st_ino != current.st_ino
     }
 
     private func processChange() {

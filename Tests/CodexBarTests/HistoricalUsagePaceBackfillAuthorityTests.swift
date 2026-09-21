@@ -634,7 +634,7 @@ extension HistoricalUsagePaceTests {
 
         let pace = try #require(
             store.weeklyPace(
-                provider: .amp,
+                provider: .notion,
                 window: window,
                 dataConfidence: .unknown,
                 now: now,

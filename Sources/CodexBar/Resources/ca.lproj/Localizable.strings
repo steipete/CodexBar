@@ -132,6 +132,10 @@
 "Cookie: …" = "Cookie: …";
 "CopilotDeviceFlow" = "CopilotDeviceFlow";
 "Cost" = "Cost";
+"Token history" = "Historial de tokens";
+"Local token history · dollar costs unavailable" = "Historial local de tokens · costos en dòlars no disponibles";
+"Partial local history · recorded token subtotal" = "Historial local parcial · subtotal de tokens registrats";
+"Local token history is unavailable or incomplete." = "L’historial local de tokens no està disponible o és incomplet.";
 "Could not add Codex account" = "No s'ha pogut afegir el compte de Codex";
 "Could not open Terminal for Gemini" = "No s'ha pogut obrir el Terminal per a Gemini";
 "Could not start claude /login" = "No s'ha pogut iniciar claude /login";
@@ -596,6 +600,12 @@
 "cost_summary_off" = "Desactivat";
 "merge_icons_title" = "Combina les icones";
 "merge_icons_subtitle" = "Feu servir una sola icona a la barra de menús amb un selector de proveïdor.";
+"merged_icon_style_title" = "Estil d'icona combinada";
+"merged_icon_style_subtitle" = "El commutador recorre els proveïdors d'un en un; Apilat mostra dos proveïdors alhora, una fila cadascun.";
+"merged_icon_style_switcher" = "Commutador";
+"merged_icon_style_stacked" = "Apilat";
+"merge_icon_stacked_top_provider_title" = "Fila superior";
+"merge_icon_stacked_bottom_provider_title" = "Fila inferior";
 "show_most_used_provider_title" = "Mostreu el proveïdor més utilitzat";
 "show_most_used_provider_subtitle" = "La barra de menús mostra automàticament el proveïdor més a prop del seu límit.";
 "display_mode_title" = "Mode de visualització";
@@ -811,6 +821,8 @@
 "Overage" = "Excedent";
 "Activity" = "Activitat";
 "Copied" = "Copiat";
+"Managed by Homebrew" = "Gestionat per Homebrew";
+"Copy update command" = "Copia l’ordre d’actualització";
 "Copy error" = "Error en copiar";
 "Copy path" = "Copia el camí";
 "Extra usage spent" = "Despesa d'ús addicional";
@@ -895,6 +907,12 @@
 "Latest billing day" = "Últim dia de facturació";
 "Latest billing day (%@)" = "Últim dia de facturació (%@)";
 "This week" = "Aquesta setmana";
+"Current window" = "Finestra actual";
+"Last week" = "La setmana passada";
+"%d weeks ago" = "fa %d setmanes";
+"Previous window" = "Finestra anterior";
+"%d windows ago" = "fa %d finestres";
+"Recent windows" = "Finestres recents";
 "This month" = "Aquest mes";
 "Week" = "Setmana";
 "Month" = "Mes";
@@ -1339,6 +1357,8 @@
 "Tracked tokens" = "Tokens registrats";
 "Subscriptions" = "Subscripcions";
 "By subscription" = "Per subscripció";
+"By source" = "By source";
+"%d of %d sources have spend" = "%d of %d sources have spend";
 "No model-level history" = "Sense historial per model";
 "Daily estimated spend" = "Despesa diària estimada";
 "Hourly estimated spend" = "Despesa horària estimada";
@@ -1582,3 +1602,25 @@
 
 "agent_sessions_hide_unreachable_title" = "Amaga els amfitrions inaccessibles";
 "agent_sessions_hide_unreachable_subtitle" = "Amaga els amfitrions quan falla la consulta de les seves sessions.";
+
+/* Overview share flow */
+"Share Usage Snapshot…" = "Comparteix la instantània d'ús…";
+"Usage snapshot unavailable" = "Instantània d'ús no disponible";
+"CodexBar couldn't prepare a shareable usage snapshot. Refresh Usage & Spend and try again." = "CodexBar no ha pogut preparar una instantània d'ús per compartir. Actualitza Ús i despesa i torna-ho a provar.";
+"Incomplete" = "Incomplet";
+"Est. subtotal (%@): %@" = "Subtotal estimat (%@): %@";
+"Excluded requests with missing final usage: %d" = "Sol·licituds excloses sense dades d’ús finals: %d";
+
+"overview_layout_title" = "Disseny del Resum";
+"overview_layout_subtitle" = "Trieu quanta informació mostra el Resum.";
+"overview_layout_detailed" = "Detallat";
+"overview_layout_compact" = "Compacte";
+
+"section_widgets" = "Ginys";
+"account_widgets_title" = "Mantén els comptes actualitzats per als ginys";
+"account_widgets_description" = "Tria un compte a cada giny Account Usage. Actualitza fins a sis comptes per proveïdor.";
+
+/* Antigravity local cost estimates */
+"antigravity_cost_estimate_hint" = "Ús local × preus públics de l'API · no són càrrecs ni crèdits d'Antigravity";
+"antigravity_quota_window_note" = "El cost de la finestra inclou tots els models · la finestra mostrada és la família més limitada";
+"antigravity_no_priced_token_history" = "No hi ha historial de tokens d'Antigravity amb preu disponible.";

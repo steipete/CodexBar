@@ -777,7 +777,8 @@ struct UsageStoreSessionQuotaTransitionTests {
         let key = UsageStore.QuotaWarningStateKey(
             provider: .antigravity,
             window: .session,
-            accountDiscriminator: nil)
+            accountDiscriminator: nil,
+            windowID: nil)
         #expect(store.quotaWarningState[key]?.lastRemaining == 20)
         #expect(store.quotaWarningState[key]?.source == .antigravityLegacy)
     }
@@ -821,7 +822,11 @@ struct UsageStoreSessionQuotaTransitionTests {
 
         #expect(notifier.quotaWarningPosts.count == 1)
         #expect(store.quotaWarningState[
-            UsageStore.QuotaWarningStateKey(provider: .codex, window: .session, accountDiscriminator: nil),
+            UsageStore.QuotaWarningStateKey(
+                provider: .codex,
+                window: .session,
+                accountDiscriminator: nil,
+                windowID: nil),
         ] == nil)
     }
 

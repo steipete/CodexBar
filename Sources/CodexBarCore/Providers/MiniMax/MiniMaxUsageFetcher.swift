@@ -1213,9 +1213,9 @@ enum MiniMaxUsageParser {
         let prompts = Int(promptsRaw.replacingOccurrences(of: ",", with: "")) ?? 0
         guard prompts > 0 else { return nil }
 
-        guard let duration = Double(durationRaw) else { return nil }
-        let windowMinutes = self.minutes(from: duration, unit: unitRaw)
-        guard windowMinutes > 0 else { return nil }
+        guard let duration = Double(durationRaw),
+              let windowMinutes = self.minutes(from: duration, unit: unitRaw),
+              windowMinutes > 0 else { return nil }
         return (prompts, windowMinutes)
     }
 
@@ -1288,13 +1288,13 @@ enum MiniMaxUsageParser {
         return candidate
     }
 
-    private static func minutes(from value: Double, unit: String) -> Int {
+    private static func minutes(from value: Double, unit: String) -> Int? {
         let lower = unit.lowercased()
-        if lower.hasPrefix("d") { return Int((value * 24 * 60).rounded()) }
-        if lower.hasPrefix("h") { return Int((value * 60).rounded()) }
-        if lower.hasPrefix("m") { return Int(value.rounded()) }
-        if lower.hasPrefix("s") { return max(1, Int((value / 60).rounded())) }
-        return 0
+        if lower.hasPrefix("d") { return Int(exactly: (value * 24 * 60).rounded()) }
+        if lower.hasPrefix("h") { return Int(exactly: (value * 60).rounded()) }
+        if lower.hasPrefix("m") { return Int(exactly: value.rounded()) }
+        if lower.hasPrefix("s"), let minutes = Int(exactly: (value / 60).rounded()) { return max(1, minutes) }
+        return nil
     }
 
     private static func timeZone(from hint: String) -> TimeZone? {

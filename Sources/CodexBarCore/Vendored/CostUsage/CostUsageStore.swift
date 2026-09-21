@@ -80,6 +80,13 @@ actor CostUsageStore {
         parserHash: CodexParserHash.value)
     static let cacheGeneration = "sqlite:\(CostUsageStore.schemaVersion)"
     static let compatiblePredecessorParserHashes: Set<String> = [
+        "50813ce2a3edfdc7", // 0.63.0 native history is unchanged by Claude-only numeric guards.
+        "865a444e01b818f1", // 0.62.0 history survives bounded parser-revision migration.
+        "6a4df886696f4ab5", // Temporal reports preserve native rows and scan checkpoints.
+        "6d48baf0ed980828", // Source-backed row recovery preserves native history and scan checkpoints.
+        "c2ac37e84074d2b2", // Native rows are unchanged by Claude completion metadata.
+        "710f475c3d1cfb61", // 0.60.4 native rows and checkpoints are unchanged by Claude pricing corrections.
+        "aa57b010b3c0bee4", // Provider-aware pricing preserves native rows and scan checkpoints.
         "aef0df6c73f8052c", // 0.60.1 rows and checkpoints survive routine rescan repairs.
         "4969a789db679c93", // 0.58.0 native rows, checkpoints, and reports survive queue reordering.
         "c4fa7db2cf54bc41", // Parser revisions reparse older native files while preserving stored rows and checkpoints.
@@ -213,9 +220,12 @@ extension CostUsageStore {
         self.syncWithStoreIsolation { $0.releaseCodexBaseline(receipt) }
     }
 
-    nonisolated func syncLoadCodexCache(calendar: Calendar) -> CostUsageCache {
+    nonisolated func syncLoadCodexCache(
+        calendar: Calendar,
+        loadTokenSnapshots: Bool = true) -> CostUsageCache
+    {
         self.syncWithStoreIsolation { store in
-            store.loadCodexCache(calendar: calendar)
+            store.loadCodexCache(calendar: calendar, loadTokenSnapshots: loadTokenSnapshots)
         }
     }
 

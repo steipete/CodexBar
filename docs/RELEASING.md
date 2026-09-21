@@ -140,6 +140,7 @@ Each Homebrew handoff uses the release tag, workflow run ID, and run attempt as 
 
 ## Troubleshooting
 - **White plate icon**: regenerate icns via `build_icon.sh` (ictool) to ensure transparent padding.
+- **Notarization upload timeout**: if `notarytool submit` fails during S3 upload with `HTTPClientError.deadlineExceeded` or `abortedUpload`, retry with `CODEXBAR_NOTARY_S3_ACCELERATION=0 ./Scripts/release.sh`. This passes `--no-s3-acceleration` to use the standard S3 upload endpoint. Unset the variable or use `1` for the default accelerated upload; other values fail before packaging. This changes only the upload transport, not signing or notarization validation.
 - **Notarization invalid**: verify deep+timestamp signing, especially Sparkle’s Autoupdate/Updater and XPCs; rerun package + sign-and-notarize.
 - **App won’t launch**: ensure Sparkle.framework is embedded under `Contents/Frameworks` and rpath added; codesign deep.
 - **App “damaged” dialog after unzip**: re-extract with `ditto -x -k`, removing any `._*` files, then re-verify with `spctl`.

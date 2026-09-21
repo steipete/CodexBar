@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import SwiftUI
 import Testing
@@ -328,7 +329,48 @@ struct ProviderSettingsDescriptorTests {
 
         #expect(usagePicker.options.map(\.title) == ["Auto", "Google OAuth", "Local API / agy CLI"])
         #expect(usagePicker.subtitle ==
-            "Auto tries Antigravity app, agy CLI, then IDE; OAuth follows for selected or signed-in accounts.")
+            "Auto skips agy reports without account identity for selected or injected Google accounts. " +
+            "Try Local API / agy CLI to use the local app or agy's signed-in account, which may differ.")
+        if let directory = ProcessInfo.processInfo.environment["CODEXBAR_ANTIGRAVITY_GUIDANCE_PROOF_DIR"] {
+            let previous = ProviderSettingsPickerDescriptor(
+                id: usagePicker.id,
+                title: usagePicker.title,
+                subtitle: "Auto tries Antigravity app, agy CLI, then IDE; " +
+                    "OAuth follows for selected or signed-in accounts.",
+                binding: usagePicker.binding,
+                options: usagePicker.options,
+                isVisible: nil,
+                onChange: nil)
+            try self.captureAntigravitySourcePicker(previous, directory: directory + "/before")
+            try self.captureAntigravitySourcePicker(usagePicker, directory: directory + "/after")
+        }
+    }
+
+    private func captureAntigravitySourcePicker(
+        _ picker: ProviderSettingsPickerDescriptor,
+        directory: String) throws
+    {
+        let environment = ProcessInfo.processInfo.environment
+        precondition(environment["CODEXBAR_SUPPRESS_TEST_KEYCHAIN_ACCESS"] == "1")
+        precondition(environment[CodexCredentialFileAccess.isolationEnvironmentKey] == "1")
+        precondition(environment["CODEXBAR_TEST_SESSION_FILE_ISOLATION"] == "1")
+        precondition(environment["CODEXBAR_ALLOW_TEST_KEYCHAIN_ACCESS"] != "1")
+        let output = URL(fileURLWithPath: directory, isDirectory: true)
+        try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
+        let view = NSHostingView(rootView:
+            Form {
+                Section("Antigravity · synthetic settings") {
+                    ProviderSettingsPickerRowView(picker: picker)
+                }
+            }.formStyle(.grouped).frame(width: 740, height: 210))
+        view.frame = NSRect(x: 0, y: 0, width: 740, height: 210)
+        view.layoutSubtreeIfNeeded()
+        let bitmap = try #require(view.bitmapImageRepForCachingDisplay(in: view.bounds))
+        view.cacheDisplay(in: view.bounds, to: bitmap)
+        try #require(bitmap.representation(using: .png, properties: [:]))
+            .write(to: output.appendingPathComponent("source-picker.png"))
+        try picker.subtitle.write(
+            to: output.appendingPathComponent("source-picker.txt"), atomically: true, encoding: .utf8)
     }
 
     @Test
@@ -533,6 +575,23 @@ struct ProviderSettingsDescriptorTests {
         #expect(toggles.isEmpty)
         #expect(pickers.contains(where: { $0.id == "kilo-usage-source" }))
         #expect(fields.contains(where: { $0.id == "kilo-api-key" }))
+    }
+
+    @Test
+    func `venice exposes usage source picker routing to web`() throws {
+        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-venice")
+        let context = fixture.settingsContext(provider: .venice)
+
+        let implementation = VeniceProviderImplementation()
+        let pickers = implementation.settingsPickers(context: context)
+        #expect(pickers.contains(where: { $0.id == "venice-usage-source" }))
+
+        let modeContext = ProviderSourceModeContext(provider: .venice, settings: fixture.settings)
+        #expect(implementation.sourceMode(context: modeContext) == .auto)
+        fixture.settings.veniceUsageDataSource = .web
+        #expect(implementation.sourceMode(context: modeContext) == .web)
+        fixture.settings.veniceUsageDataSource = .api
+        #expect(implementation.sourceMode(context: modeContext) == .api)
     }
 
     @Test
@@ -1243,6 +1302,45 @@ extension ProviderSettingsDescriptorTests {
             isEnabled: true,
             isRefreshing: false,
             modelPlaceholder: nil) == "No usage yet")
+    }
+
+    @Test
+    func `provider settings shows unlimited OpenRouter spend details instead of placeholder`() throws {
+        let usage = OpenRouterUsageSnapshot(
+            totalCredits: 50,
+            totalUsage: 20,
+            balance: 30,
+            usedPercent: 40,
+            keyDataFetched: true,
+            keyLimit: nil,
+            keyUsageDaily: 1.25,
+            keyUsageWeekly: 7.5,
+            keyUsageMonthly: 18.75,
+            updatedAt: OpenRouterLimitTestSupport.now)
+        let model = try OpenRouterLimitTestSupport.model(usage.toUsageSnapshot())
+        let content = ProviderMetricsInlineView.ContentState(model: model, infoRows: [])
+
+        #expect(model.metrics.isEmpty)
+        #expect(model.providerDetails.flatMap(\.rows).contains { $0.label == "This month" })
+        #expect(!content.showsPlaceholder)
+
+        let meteredModel = try OpenRouterLimitTestSupport.model(OpenRouterUsageSnapshot(
+            totalCredits: 50,
+            totalUsage: 20,
+            balance: 30,
+            usedPercent: 40,
+            keyDataFetched: true,
+            keyLimit: 25,
+            keyUsage: 10,
+            updatedAt: OpenRouterLimitTestSupport.now).toUsageSnapshot())
+        #expect(!meteredModel.metrics.isEmpty)
+        #expect(!ProviderMetricsInlineView.ContentState(model: meteredModel, infoRows: []).showsPlaceholder)
+
+        let emptyModel = try OpenRouterLimitTestSupport.model(UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            updatedAt: OpenRouterLimitTestSupport.now))
+        #expect(ProviderMetricsInlineView.ContentState(model: emptyModel, infoRows: []).showsPlaceholder)
     }
 
     @Test

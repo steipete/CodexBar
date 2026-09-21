@@ -84,7 +84,7 @@ public enum KeychainPromptHandler {
 }
 
 public enum KeychainAccessPreflight {
-    public enum Outcome: Sendable {
+    public enum Outcome: Sendable, Equatable {
         case allowed
         /// The item is readable, but its decrypt ACL does not trust the current executable.
         case interactionRequired
@@ -134,9 +134,11 @@ public enum KeychainAccessPreflight {
     #if DEBUG
     final class CheckGenericPasswordOverrideStore: @unchecked Sendable {
         let check: (String, String?) -> Outcome
+        let retryDelay: () -> Void
 
-        init(check: @escaping (String, String?) -> Outcome) {
+        init(check: @escaping (String, String?) -> Outcome, retryDelay: @escaping () -> Void) {
             self.check = check
+            self.retryDelay = retryDelay
         }
     }
 
@@ -148,10 +150,11 @@ public enum KeychainAccessPreflight {
 
     static func withCheckGenericPasswordOverrideForTesting<T>(
         _ override: ((String, String?) -> Outcome)?,
+        retryDelay: @escaping () -> Void = {},
         operation: () throws -> T) rethrows -> T
     {
         try self.$taskCheckGenericPasswordOverrideStore.withValue(
-            override.map(CheckGenericPasswordOverrideStore.init(check:)))
+            override.map { CheckGenericPasswordOverrideStore(check: $0, retryDelay: retryDelay) })
         {
             try operation()
         }
@@ -159,11 +162,12 @@ public enum KeychainAccessPreflight {
 
     static func withCheckGenericPasswordOverrideForTesting<T>(
         _ override: ((String, String?) -> Outcome)?,
+        retryDelay: @escaping () -> Void = {},
         isolation _: isolated (any Actor)? = #isolation,
         operation: () async throws -> T) async rethrows -> T
     {
         try await self.$taskCheckGenericPasswordOverrideStore.withValue(
-            override.map(CheckGenericPasswordOverrideStore.init(check:)))
+            override.map { CheckGenericPasswordOverrideStore(check: $0, retryDelay: retryDelay) })
         {
             try await operation()
         }
@@ -190,8 +194,37 @@ public enum KeychainAccessPreflight {
         return self.checkGenericPasswordUncached(service: service, account: account)
     }
 
+    /// Retry only inconclusive no-UI checks; the operation memo above stores their final outcome.
+    private static let temporarilyUnavailableRetryCount = 3
+    private static let temporarilyUnavailableRetryDelayMicroseconds: UInt32 = 30000
+
     private static func checkGenericPasswordUncached(service: String, account: String?) -> Outcome {
         #if os(macOS)
+        var outcome = self.performGenericPasswordPreflightAttempt(service: service, account: account)
+        var attempt = 1
+        while case .temporarilyUnavailable = outcome, attempt < self.temporarilyUnavailableRetryCount {
+            self.waitBeforePreflightRetry()
+            outcome = self.performGenericPasswordPreflightAttempt(service: service, account: account)
+            attempt += 1
+        }
+        return outcome
+        #else
+        return .notFound
+        #endif
+    }
+
+    #if os(macOS)
+    private static func waitBeforePreflightRetry() {
+        #if DEBUG
+        if let override = self.taskCheckGenericPasswordOverrideStore {
+            override.retryDelay()
+            return
+        }
+        #endif
+        usleep(self.temporarilyUnavailableRetryDelayMicroseconds)
+    }
+
+    private static func performGenericPasswordPreflightAttempt(service: String, account: String?) -> Outcome {
         #if DEBUG
         if let override = self.taskCheckGenericPasswordOverrideStore {
             return override.check(service, account)
@@ -241,10 +274,8 @@ public enum KeychainAccessPreflight {
                 metadata: ["service": service, "status": "\(status)"])
             return .failure(Int(status))
         }
-        #else
-        return .notFound
-        #endif
     }
+    #endif
 
     #if os(macOS)
     static func makeGenericPasswordPreflightQuery(service: String, account: String?) -> [String: Any] {

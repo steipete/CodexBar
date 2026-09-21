@@ -12,6 +12,7 @@ struct DarwinProcessEnumeratorTests {
         let data = Self.procArgsData(arguments: ["/usr/bin/tool", "--flag", "value"])
 
         #expect(DarwinProcessEnumerator.parseProcArgs2(data) == "/usr/bin/tool --flag value")
+        #expect(DarwinProcessEnumerator.parseProcArgs2Arguments(data) == ["/usr/bin/tool", "--flag", "value"])
     }
 
     @Test
@@ -36,6 +37,47 @@ struct DarwinProcessEnumeratorTests {
         #expect(command == "/usr/bin/tool --flag")
         #expect(command?.contains("SECRET") == false)
         #expect(command?.contains("HOME") == false)
+    }
+
+    @Test
+    func `proc args selector environment accepts normal terminators and padding`() {
+        var data = Self.procArgsData(
+            arguments: ["/usr/local/bin/omp", "", "--profile", "work"],
+            environment: ["HOME=/synthetic/home", "OMP_PROFILE=work", "UNRELATED=value"])
+        data.append(contentsOf: [0, 0, 0])
+
+        #expect(DarwinProcessEnumerator.parseProcArgs2Arguments(data) == [
+            "/usr/local/bin/omp", "", "--profile", "work",
+        ])
+        #expect(DarwinProcessEnumerator.parseProcArgs2PiSelectorEnvironment(data) == [
+            "HOME": "/synthetic/home", "OMP_PROFILE": "work",
+        ])
+        #expect(DarwinProcessEnumerator.parseProcArgs2(data)?.contains("HOME=") == false)
+    }
+
+    @Test
+    func `proc args selector environment distinguishes omitted empty and truncated evidence`() {
+        let empty = Self.procArgsData(arguments: ["pi"])
+        #expect(DarwinProcessEnumerator.parseProcArgs2PiSelectorEnvironment(empty) == nil)
+        var paddedEmpty = empty
+        paddedEmpty.append(contentsOf: [0, 0])
+        #expect(DarwinProcessEnumerator.parseProcArgs2PiSelectorEnvironment(paddedEmpty) == nil)
+        let knownEmpty = Self.procArgsData(arguments: ["pi"], environment: ["UNRELATED=value"])
+        #expect(DarwinProcessEnumerator.parseProcArgs2PiSelectorEnvironment(knownEmpty) == [:])
+        var truncated = Self.procArgsData(arguments: ["pi"], environment: ["HOME=/synthetic/home"])
+        truncated.removeLast()
+        #expect(DarwinProcessEnumerator.parseProcArgs2Arguments(truncated) == ["pi"])
+        #expect(DarwinProcessEnumerator.parseProcArgs2PiSelectorEnvironment(truncated) == nil)
+    }
+
+    @Test
+    func `proc args selector environment stops before Apple vectors`() {
+        var data = Self.procArgsData(arguments: ["pi"], environment: ["HOME=/synthetic/process"])
+        data.append(0)
+        data.append(contentsOf: "HOME=/synthetic/apple-vector\0ptr_munge=ignored\0".utf8)
+        #expect(DarwinProcessEnumerator.parseProcArgs2PiSelectorEnvironment(data) == [
+            "HOME": "/synthetic/process",
+        ])
     }
 
     @Test

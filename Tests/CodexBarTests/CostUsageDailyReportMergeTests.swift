@@ -120,6 +120,26 @@ struct CostUsageDailyReportMergeTests {
         }
     }
 
+    @Test
+    func `daily component overflow remains unknown in the summary after a later day`() {
+        let reports = [Int.max, 1, 5].enumerated().map { index, value in
+            CostUsageDailyReport(data: [.init(
+                date: index < 2 ? "2026-08-10" : "2026-08-11",
+                inputTokens: value,
+                outputTokens: 0,
+                reasoningTokens: value,
+                totalTokens: 0,
+                costUSD: 0,
+                modelsUsed: nil,
+                modelBreakdowns: nil)], summary: nil)
+        }
+        let merged = CostUsageDailyReport.merged(reports)
+        #expect(merged.data.first?.inputTokens == nil)
+        #expect(merged.summary?.totalInputTokens == nil)
+        #expect(merged.summary?.reasoningTokens == nil)
+        #expect(merged.summary?.totalTokens == 0)
+    }
+
     private static func tokenDetailReport(mix: CostUsageTokenMix, totalTokens: Int) -> CostUsageDailyReport {
         CostUsageDailyReport(
             data: [.init(
@@ -214,6 +234,34 @@ struct CostUsageDailyReportMergeTests {
         let merged = CostUsageDailyReport.merged(reports)
         #expect(merged.data.first?.requestCount == nil)
         #expect(merged.data.first?.modelBreakdowns?.first?.requestCount == nil)
+    }
+
+    @Test
+    func `unknown day preserves known summary subtotals from another day`() {
+        let merged = CostUsageDailyReport.merged([
+            .init(data: [
+                .init(
+                    date: "2026-07-16",
+                    inputTokens: 100,
+                    outputTokens: 0,
+                    totalTokens: 100,
+                    costUSD: 4,
+                    modelsUsed: nil,
+                    modelBreakdowns: nil),
+                .init(
+                    date: "2026-07-17",
+                    inputTokens: nil,
+                    outputTokens: nil,
+                    totalTokens: nil,
+                    costUSD: nil,
+                    modelsUsed: nil,
+                    modelBreakdowns: nil),
+            ], summary: nil),
+        ])
+        #expect(merged.summary?.totalTokens == 100)
+        #expect(merged.summary?.totalCostUSD == 4)
+        #expect(merged.data.last?.totalTokens == nil)
+        #expect(merged.data.last?.costUSD == nil)
     }
 
     private static func coverageEntry(
@@ -362,6 +410,129 @@ struct CostUsageDailyReportMergeTests {
         ])
         #expect(merged.summary?.totalTokens == 197)
         #expect(abs((merged.summary?.totalCostUSD ?? 0) - 2.0) < 0.000001)
+    }
+
+    @Test
+    func `merged model breakdowns retain known cost with unpriced coverage`() {
+        let priced = CostUsageDailyReport(
+            data: [
+                CostUsageDailyReport.Entry(
+                    date: "2026-04-04",
+                    inputTokens: nil,
+                    outputTokens: nil,
+                    totalTokens: 130,
+                    costUSD: 1.25,
+                    modelsUsed: ["gpt-5.4"],
+                    modelBreakdowns: [
+                        CostUsageDailyReport.ModelBreakdown(
+                            modelName: "gpt-5.4",
+                            costUSD: 1.25,
+                            totalTokens: 130),
+                    ]),
+            ],
+            summary: nil)
+        let unpriced = CostUsageDailyReport(
+            data: [
+                CostUsageDailyReport.Entry(
+                    date: "2026-04-04",
+                    inputTokens: nil,
+                    outputTokens: nil,
+                    totalTokens: 50,
+                    requestCount: 1,
+                    costUSD: nil,
+                    modelsUsed: ["gpt-5.4"],
+                    modelBreakdowns: [
+                        CostUsageDailyReport.ModelBreakdown(
+                            modelName: "gpt-5.4",
+                            costUSD: nil,
+                            totalTokens: 50,
+                            requestCount: 1),
+                    ]),
+            ],
+            summary: nil)
+
+        let merged = priced.merged(with: unpriced)
+        #expect(merged.data.first?.costUSD == 1.25)
+        #expect(merged.data.first?.modelBreakdowns?.first?.costUSD == 1.25)
+        #expect(merged.data.first?.unpricedRequestCount == 1)
+        #expect(merged.data.first?.modelBreakdowns?.first?.totalTokens == 180)
+    }
+
+    @Test
+    func `merged report keeps priced model subtotal beside unpriced models`() throws {
+        let native = CostUsageDailyReport(
+            data: [
+                CostUsageDailyReport.Entry(
+                    date: "2026-08-31",
+                    inputTokens: nil,
+                    outputTokens: nil,
+                    totalTokens: 600,
+                    costUSD: 4.5,
+                    modelsUsed: ["codex-auto-review", "gpt-5.6-sol"],
+                    modelBreakdowns: [
+                        CostUsageDailyReport.ModelBreakdown(
+                            modelName: "gpt-5.6-sol",
+                            costUSD: 4.5,
+                            totalTokens: 400),
+                        CostUsageDailyReport.ModelBreakdown(
+                            modelName: "codex-auto-review",
+                            costUSD: nil,
+                            totalTokens: 200),
+                    ]),
+            ],
+            summary: nil)
+        let emptyPi = CostUsageDailyReport(data: [], summary: nil)
+        let merged = CostUsageDailyReport.merged([native, emptyPi])
+        let entry = try #require(merged.data.first)
+        #expect(abs((entry.costUSD ?? 0) - 4.5) < 0.000001)
+        #expect(entry.totalTokens == 600)
+        #expect(entry.modelBreakdowns?.first { $0.modelName == "gpt-5.6-sol" }?.costUSD == 4.5)
+        #expect(entry.modelBreakdowns?.first { $0.modelName == "codex-auto-review" }?.costUSD == nil)
+        #expect(merged.summary?.totalCostUSD == 4.5)
+    }
+
+    @Test
+    func `merged report keeps native priced subtotal when another model is unpriced`() throws {
+        let native = CostUsageDailyReport(
+            data: [
+                CostUsageDailyReport.Entry(
+                    date: "2026-08-31",
+                    inputTokens: nil,
+                    outputTokens: nil,
+                    totalTokens: 400,
+                    costUSD: 4.5,
+                    modelsUsed: ["gpt-5.6-sol"],
+                    modelBreakdowns: [
+                        CostUsageDailyReport.ModelBreakdown(
+                            modelName: "gpt-5.6-sol",
+                            costUSD: 4.5,
+                            totalTokens: 400),
+                    ]),
+            ],
+            summary: nil)
+        let pi = CostUsageDailyReport(
+            data: [
+                CostUsageDailyReport.Entry(
+                    date: "2026-08-31",
+                    inputTokens: nil,
+                    outputTokens: nil,
+                    totalTokens: 80,
+                    costUSD: nil,
+                    modelsUsed: ["pi-unpriced"],
+                    modelBreakdowns: [
+                        CostUsageDailyReport.ModelBreakdown(
+                            modelName: "pi-unpriced",
+                            costUSD: nil,
+                            totalTokens: 80),
+                    ]),
+            ],
+            summary: nil)
+        let merged = native.merged(with: pi)
+        let entry = try #require(merged.data.first)
+        #expect(abs((entry.costUSD ?? 0) - 4.5) < 0.000001)
+        #expect(entry.totalTokens == 480)
+        #expect(entry.modelBreakdowns?.first { $0.modelName == "gpt-5.6-sol" }?.costUSD == 4.5)
+        #expect(entry.modelBreakdowns?.first { $0.modelName == "pi-unpriced" }?.costUSD == nil)
     }
 
     @Test

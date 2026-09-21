@@ -77,6 +77,41 @@ struct UsageStoreCoverageTests {
     }
 
     @Test
+    func `claude and codex token ownership follows visible pi cost source`() throws {
+        let settings = Self.makeSettingsStore(suite: "UsageStoreCoverageTests-claude-pi-ownership")
+        settings.costUsageEnabled = true
+        let store = Self.makeUsageStore(settings: settings)
+        let metadata = ProviderRegistry.shared.metadata
+        try settings.setProviderEnabled(
+            provider: .claude,
+            metadata: #require(metadata[.claude]),
+            enabled: true)
+        try settings.setProviderEnabled(
+            provider: .pi,
+            metadata: #require(metadata[.pi]),
+            enabled: false)
+
+        let fallbackSignature = store.tokenSnapshotScopeSignature(for: .claude)
+        #expect(store.shouldIncludePiSessionsInTokenSnapshot(for: .claude))
+        #expect(store.shouldIncludePiSessionsInTokenSnapshot(for: .codex))
+        #expect(fallbackSignature.contains("|piRows=fallback"))
+        let codexFallbackSignature = store.tokenSnapshotScopeSignature(for: .codex)
+        #expect(codexFallbackSignature.contains("|piRows=fallback"))
+
+        try settings.setProviderEnabled(
+            provider: .pi,
+            metadata: #require(metadata[.pi]),
+            enabled: true)
+
+        #expect(!store.shouldIncludePiSessionsInTokenSnapshot(for: .claude))
+        #expect(fallbackSignature != store.tokenSnapshotScopeSignature(for: .claude))
+        #expect(!store.shouldIncludePiSessionsInTokenSnapshot(for: .codex))
+        #expect(codexFallbackSignature != store.tokenSnapshotScopeSignature(for: .codex))
+        #expect(store.tokenSnapshotScopeSignature(for: .codex).contains("|piRows=owned"))
+        #expect(store.shouldIncludePiSessionsInTokenSnapshot(for: .pi))
+    }
+
+    @Test
     func `cursor manual cost refresh rejects an empty cookie without falling back`() async throws {
         let settings = Self.makeSettingsStore(suite: "UsageStoreCoverageTests-cursor-manual-cost")
         settings.costUsageEnabled = true
@@ -143,37 +178,21 @@ struct UsageStoreCoverageTests {
         let store = Self.makeUsageStore(settings: settings)
         let cookie = "fixture=resolved"
         let fingerprint = CookieHeaderCache.credentialFingerprint(cookie)
-        let generation = CookieHeaderCache.beginDisplayReadGenerationForTesting(provider: .cursor)
-        let previousEntry = CookieHeaderCache.currentDisplayEntryForTesting(provider: .cursor)
-        _ = CookieHeaderCache.commitDisplaySnapshotIfCurrentForTesting(
-            provider: .cursor,
-            entry: CookieHeaderCache.Entry(
-                cookieHeader: cookie,
-                storedAt: Date(),
-                sourceLabel: "test"),
-            generation: generation)
-        defer {
-            _ = CookieHeaderCache.commitDisplaySnapshotIfCurrentForTesting(
-                provider: .cursor,
-                entry: previousEntry,
-                generation: generation)
-        }
+        store._test_cursorCostCredentialFingerprintOverride = { fingerprint }
+        defer { store._test_cursorCostCredentialFingerprintOverride = nil }
 
         let initialSignature = store.cursorCostScopeSignature(
             historyDays: 30,
             source: .auto,
             credentialFingerprint: "unresolved")
-        let revision = store.providerPublicationRevision(for: .cursor)
-        let providerConfigRevision = settings.providerConfigRevision(for: .cursor)
+        let publicationScope = store.tokenRefreshPublicationScope(
+            for: .cursor, historyDays: 30, costScopeSignature: initialSignature)
         settings.costUsageHistoryDays = 7
 
-        #expect(!store.tokenRefreshPublicationIsCurrent(
+        #expect(store.tokenRefreshPublicationDisposition(
             provider: .cursor,
-            publicationRevision: revision,
-            providerConfigRevision: providerConfigRevision,
-            historyDays: 30,
-            costScopeSignature: initialSignature,
-            fetchedCredentialScopeFingerprint: fingerprint))
+            scope: publicationScope,
+            fetchedCredentialScopeFingerprint: fingerprint) == .scopeChanged)
     }
 
     @Test
@@ -219,7 +238,7 @@ struct UsageStoreCoverageTests {
         #expect(model.metrics.allSatisfy { $0.pacePercent == nil })
         #expect(model.creditsText == nil)
         #expect(model.providerDetails.first?.rows.map(\.label) == [
-            "Individual credits", "Workspace billing@example.test",
+            "Individual", "Workspace billing@example.test",
         ])
         #expect(model.creditsRemaining == nil)
 

@@ -23,7 +23,7 @@ extension UsageMenuCardView.Model {
             "creditsShowProgress=\(self.creditsShowProgress)",
             MenuCardHeightFingerprint.field("creditsHint", self.creditsHintText),
             MenuCardHeightFingerprint.field("creditsCopy", self.creditsHintCopyText),
-            "codexResetCredits=\(self.codexResetCredits?.heightFingerprint ?? "")",
+            "limitResetCredits=\(self.limitResetCredits?.heightFingerprint ?? "")",
             "metrics=\(MenuCardHeightFingerprint.join(self.metrics.map(\.heightFingerprint)))",
             "notes=\(notesFingerprint)",
             "providerDetails=\(self.providerDetails.heightFingerprint)",
@@ -157,7 +157,7 @@ extension UsageMenuCardView.Model.TokenUsageSection {
     }
 }
 
-extension CodexResetCreditsPresentation {
+extension LimitResetCreditsPresentation {
     fileprivate var heightFingerprint: String {
         MenuCardHeightFingerprint.join([
             MenuCardHeightFingerprint.field("text", self.text),
@@ -173,7 +173,19 @@ extension InlineUsageDashboardModel {
             self.valueStyle.heightFingerprint,
             MenuCardHeightFingerprint.join(self.kpis.map(\.heightFingerprint)),
             MenuCardHeightFingerprint.join(self.points.map(\.heightFingerprint)),
+            MenuCardHeightFingerprint.join(self.quotaWindows.map(\.heightFingerprint)),
             MenuCardHeightFingerprint.join(self.detailLines.map { MenuCardHeightFingerprint.field("detail", $0) }),
+        ])
+    }
+}
+
+extension InlineUsageDashboardModel.QuotaWindow {
+    fileprivate var heightFingerprint: String {
+        MenuCardHeightFingerprint.join([
+            MenuCardHeightFingerprint.field("qwTitle", self.title),
+            MenuCardHeightFingerprint.field("qwRange", self.range),
+            MenuCardHeightFingerprint.field("qwValue", self.value),
+            MenuCardHeightFingerprint.field("qwNote", self.note),
         ])
     }
 }

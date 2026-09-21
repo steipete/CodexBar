@@ -8,11 +8,17 @@ read_when:
 # UI & icon
 
 ## Settings
+- General → Preferred Currency supports Turkish lira (`TRY`, `₺`) alongside the existing currencies, using the shared daily exchange rates and offline fallback for cost estimates.
+- General → Default terminal supports installed Terminal, iTerm, Ghostty, and stable Warp. Terminal is the default and fallback. Warp launches target its app directly and use owner-only temporary tab configs, removed after one minute; interrupted-launch leftovers are cleaned on the next app start.
+- Provider → Visible usage items includes titled provider detail sections. Choices persist across language changes and apply to provider cards and Overview. Untitled details remain visible; cost-summary sections stay controlled by their existing display setting.
+- The empty SwiftUI Settings placeholder is dismissed once per presentation. Retained hidden windows are left alone; the real Settings window remains reusable.
 - Usage & Spend heatmap tooltips prefer the space above the hovered cell and stay within the grid, falling below when needed. On narrow grids they compact vertically and may overlap cells; keyboard selection remains available in the daily grid.
 - Both the application menu and status menu open About in the Settings window. An existing Settings window is reused
   and switches to the About pane.
+- Homebrew-managed installs show a compact Updates section in About, with a selectable monospaced upgrade command and a trailing copy control. The control confirms successful copies briefly; copying does not run an update.
 
 ## Menu bar
+- Overview offers Share Usage Snapshot when its Usage & Spend summary has shareable data. The local preview uses the same spend sources, hidden-source choices, calendar, and currency as that summary; Copy Image exports PNG and TIFF without uploading anything.
 - LSUIElement app: no Dock icon; status item uses custom NSImage.
 - Cached status menus and previously opened submenus follow macOS appearance changes before reopening, preserving the effective Light/Dark and accessibility appearance.
 - Merge Icons toggle combines providers into one status item with a switcher.
@@ -23,6 +29,7 @@ read_when:
   positions.
 - When Overview has selected providers, the switcher includes an Overview tab that renders up to 6 provider rows.
 - Overview row order follows provider order; selecting a row jumps to that provider detail card.
+- Menu → Overview layout offers Detailed (default) and Compact. Compact keeps provider/account headers and labeled quota bars, omits their reset/detail lines and supplemental sections, and retains detail-only providers. Select a provider for its full card. Visibility choices and the shared Usage & Spend summary continue to apply.
 - Menu-card wrappers use standard non-vibrant view behavior so white GPU-tinted Overview content remains visible on macOS 15. Overview selection stays outside the SwiftUI graph, with native submenu click and drag tracking retained.
 - The global open-menu keyboard shortcut toggles the currently tracked menu closed before opening a new one.
 - Display → Menu Bar → Layout provides presets plus a token editor. Tokens can be clicked to append, dragged from the
@@ -74,6 +81,11 @@ does not provide a token's data, that token renders an en dash while its sibling
 derive their first layout from the prior style, display mode, metric, and reset settings; those legacy keys remain
 untouched for downgrade safety, while a saved token layout takes precedence.
 
+For Abacus, explicitly selecting Credits keeps the monthly allowance visible. With 250 of 1,000 credits used, it
+shows `C 75%` remaining (or `C 25%` with Show usage as used). Its billing window and reset date still drive pacing;
+Automatic keeps its existing percentage. Credits labels also apply to editor tokens, conditional metrics and pace
+accessibility.
+
 Scoped weekly % selects the most constrained active model-specific weekly carve-out. The editor keeps a stable,
 model-generic token label while the rendered menu-bar prefix and accessibility label follow the active model title.
 
@@ -100,6 +112,10 @@ model-generic token label while the rendered menu-bar prefix and accessibility l
 - Codex credits can add a separate “Buy Credits…” menu action.
 - Claude capped Extra Usage follows the used/remaining fill preference; spending amounts and “% used” copy stay unchanged.
 - Codex OpenAI web extras: code review remaining and usage breakdown render when dashboard data is attached.
+- Codex and Claude cost cards: a Recent windows list under the daily bars shows each quota window's
+  range, cost, and tokens (Current window, Previous window, N windows ago), split at official and banked resets.
+  Inferred boundaries are labeled estimated; incomplete local subtotals show ≥ and a partial-estimate note.
+  Without weekly reset metadata, the existing calendar cost history remains visible.
 - Token accounts: optional account switcher bar or stacked account cards (up to 6) when multiple manual tokens exist.
 - At four or more accounts, compact stacked rows show each constrained quota (up to two) with its own reset time.
   Healthy rows show the quota with the least remaining capacity. Percentages and resets stay scoped to the same
@@ -160,7 +176,7 @@ Hover over a daily bar in a provider menu’s cost chart to inspect its date, co
 
 ### Daily spend ledger
 
-Usage & Spend includes a daily ledger for each currency group. Rows use the selected bucket time zone and app language, retain priced days when another day is unpriced, and mark unavailable amounts with a dash. Zero-usage rows require established common coverage; unknown activity is not described as idle. Narrow settings windows allow horizontal ledger scrolling. Source filtering and dashboard accounting remain authoritative.
+Usage & Spend includes a daily ledger for each currency group. Rows use the selected bucket time zone and app language, retain priced days when another day is unpriced, and mark unavailable amounts with a dash. When one source on a day has no price, the row shows the known spend of the other sources with a tilde, the same partial marker as the group total. A day with no known spend keeps the dash. Zero-usage rows require established common coverage; unknown activity is not described as idle. Narrow settings windows allow horizontal ledger scrolling. Source filtering and dashboard accounting remain authoritative.
 
 OpenCodex cost and request aggregates cover the selected history window, including All; older activity remains included alongside its token counts.
 

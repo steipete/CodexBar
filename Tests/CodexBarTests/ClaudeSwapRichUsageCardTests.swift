@@ -53,7 +53,7 @@ struct ClaudeSwapRichUsageCardTests {
     func `switch and adapter diagnostics retain last known age and account privacy`() async throws {
         try await ClaudeSwapRichUsageFixture.withFixture { fixture in
             let failedSwitch = try fixture.model(for: "2", hidePersonalInfo: true, switchError: "Fixture switch failed")
-            #expect(failedSwitch.email.isEmpty)
+            #expect(failedSwitch.email == "Account 2")
             #expect(failedSwitch.subtitleText.contains("Account switch failed: Fixture switch failed"))
             #expect(failedSwitch.lastKnownUsageText?.contains("last-known usage") == true)
             #expect(!failedSwitch.subtitleText.contains("example.invalid"))
@@ -65,6 +65,22 @@ struct ClaudeSwapRichUsageCardTests {
     }
 
     @Test
+    func `an enabled privacy preference retains slot labels when toggled on the same store`() async throws {
+        try await ClaudeSwapRichUsageFixture.withFixture { fixture in
+            let initiallyHidden = try fixture.model(for: "2", hidePersonalInfo: true)
+            let revealed = try fixture.model(for: "2", hidePersonalInfo: false)
+            let hiddenAgain = try fixture.model(for: "2", hidePersonalInfo: true)
+            #expect(initiallyHidden.email == "Account 2")
+            #expect(revealed.email == "Research")
+            #expect(hiddenAgain.email == initiallyHidden.email)
+            #expect(initiallyHidden.heightFingerprint(section: "card") != revealed.heightFingerprint(section: "card"))
+            #expect(initiallyHidden.heightFingerprint(section: "card") == hiddenAgain
+                .heightFingerprint(section: "card"))
+            #expect(initiallyHidden.metrics.map(\.percent) == revealed.metrics.map(\.percent))
+        }
+    }
+
+    @Test
     func `active foreign credentials expose explicit repair and its busy state`() async throws {
         try await ClaudeSwapRichUsageFixture.withFixture(activeNeedsRepair: true) { fixture in
             let account = try #require(fixture.accounts.first { $0.id.opaqueID == "1" })
@@ -72,9 +88,27 @@ struct ClaudeSwapRichUsageCardTests {
             #expect(account.canActivate)
             #expect(try fixture.model(for: "1").planText == L("Re-authenticate"))
             #expect(ClaudeSwapAccountMenuDisplay.actionLabel(
-                for: account, switchingAccountID: account.id, switchInFlight: true) == L("Loading…"))
+                for: account,
+                switchingAccountID: account.id,
+                switchInFlight: true,
+                switchPhase: .activating) == L("Switching account…"))
             #expect(ClaudeSwapAccountMenuDisplay.actionLabel(
-                for: account, switchingAccountID: nil, switchInFlight: true) == nil)
+                for: account, switchingAccountID: nil, switchInFlight: true, switchPhase: .activating) == nil)
+        }
+    }
+
+    @Test
+    func `known switch errors remain visible while account status refresh is pending`() async throws {
+        try await ClaudeSwapRichUsageFixture.withFixture { fixture in
+            let account = try #require(fixture.accounts.first { $0.id.opaqueID == "2" })
+            fixture.store.claudeSwapTransientState.switchingAccountID = account.id
+            fixture.store.claudeSwapTransientState.switchPhase = .reconciling
+            let model = try fixture.model(for: "2", switchError: "Fixture switch failed")
+            #expect(model.planText == L("Refreshing account status…"))
+            #expect(model.subtitleStyle == .error)
+            #expect(model.subtitleText.contains("Account switch failed: Fixture switch failed"))
+            #expect(model.metrics.map(\.percent) == [62, 41])
+            #expect(model.planEmphasis == .none)
         }
     }
 }

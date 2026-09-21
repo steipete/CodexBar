@@ -3,6 +3,18 @@ import Foundation
 
 struct KiloProviderImplementation: ProviderImplementation {
     let id: UsageProvider = .kilo
+    private let environment: [String: String]?
+    private let fetchOrganizations: @Sendable (String) async throws -> [KiloOrganization]
+
+    init(
+        environment: [String: String]? = nil,
+        fetchOrganizations: @escaping @Sendable (String) async throws -> [KiloOrganization] = {
+            try await KiloUsageFetcher.fetchOrganizations(apiKey: $0)
+        })
+    {
+        self.environment = environment
+        self.fetchOrganizations = fetchOrganizations
+    }
 
     @MainActor
     func observeSettings(_ settings: SettingsStore) {
@@ -121,11 +133,18 @@ struct KiloProviderImplementation: ProviderImplementation {
                 guard let settings else {
                     return .init(success: false, errorMessage: L("Settings unavailable."))
                 }
+                let revision = settings.providerConfigRevision(for: .kilo)
+                @MainActor
+                func settingsAreCurrent() -> Bool {
+                    !Task.isCancelled && settings.providerConfigRevision(for: .kilo) == revision
+                }
+                guard settingsAreCurrent() else { return .init(success: false, errorMessage: nil) }
                 let resolved: KiloResolvedBearerToken
                 do {
                     resolved = try KiloBearerTokenResolver.resolve(
                         source: settings.kiloUsageDataSource,
-                        apiKey: settings.configSnapshot.providerConfig(for: .kilo)?.sanitizedAPIKey)
+                        apiKey: settings.configSnapshot.providerConfig(for: .kilo)?.sanitizedAPIKey,
+                        environment: self.environment ?? ProcessInfo.processInfo.environment)
                 } catch let error as LocalizedError {
                     return .init(
                         success: false,
@@ -133,17 +152,28 @@ struct KiloProviderImplementation: ProviderImplementation {
                 } catch {
                     return .init(success: false, errorMessage: error.localizedDescription)
                 }
+                @MainActor
+                func canPublish() -> Bool {
+                    guard settingsAreCurrent(),
+                          let current = try? KiloBearerTokenResolver.resolve(
+                              source: settings.kiloUsageDataSource,
+                              apiKey: settings.configSnapshot.providerConfig(for: .kilo)?.sanitizedAPIKey,
+                              environment: self.environment ?? ProcessInfo.processInfo.environment)
+                    else { return false }
+                    return settingsAreCurrent() && current == resolved
+                }
                 do {
-                    let orgs = try await KiloUsageFetcher.fetchOrganizations(apiKey: resolved.token)
-                    await MainActor.run {
-                        settings.setKiloKnownOrganizationsPruningEnabled(orgs)
-                    }
+                    let orgs = try await self.fetchOrganizations(resolved.token)
+                    guard canPublish() else { return .init(success: false, errorMessage: nil) }
+                    settings.setKiloKnownOrganizationsPruningEnabled(orgs)
                     return .init(success: true, errorMessage: nil)
                 } catch let error as LocalizedError {
+                    guard canPublish() else { return .init(success: false, errorMessage: nil) }
                     return .init(
                         success: false,
                         errorMessage: error.errorDescription ?? L("Failed to load organizations."))
                 } catch {
+                    guard canPublish() else { return .init(success: false, errorMessage: nil) }
                     return .init(success: false, errorMessage: error.localizedDescription)
                 }
             },

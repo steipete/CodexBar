@@ -8,6 +8,9 @@ private struct CodexCostCatchUpContext {
     let scopeSignature: String
     let providerConfigRevision: UInt64
     let costUsageSettingsRevision: UInt64
+    let includePiSessions: Bool
+    let environment: [String: String]
+    let piHistoryScopeGeneration: UInt64
 }
 
 private enum CodexCostCatchUpPublicationError: LocalizedError {
@@ -53,7 +56,10 @@ extension UsageStore {
             historyDays: self.settings.costUsageHistoryDays,
             scopeSignature: scopeSignature,
             providerConfigRevision: self.settings.providerConfigRevision(for: .codex),
-            costUsageSettingsRevision: self.settings.costUsageSettingsRevision)
+            costUsageSettingsRevision: self.settings.costUsageSettingsRevision,
+            includePiSessions: self.shouldIncludePiSessionsInTokenSnapshot(for: .codex),
+            environment: self.environmentBase,
+            piHistoryScopeGeneration: self.piHistoryScopeGeneration)
         self.codexCostCatchUpToken = token
         self.codexCostCatchUpScopeSignature = scopeSignature
         self.codexCostCatchUpMode = mode
@@ -118,20 +124,21 @@ extension UsageStore {
                 context: context,
                 phase: status.pending ? .indexing : .complete)
             var didAdvance = false
+            var publishedCurrentWindow = false
             var (previousActiveDuration, seenProgressKeys): (TimeInterval?, Set<String>) =
                 (nil, [status.progressKey])
             while status.pending {
                 do {
-                    guard self.codexCostCatchUpContextIsCurrent(context) else { return }
-                    if self.codexCostCatchUpStopRequested {
-                        self.publishCodexCostCatchUpActivity(
-                            status: status,
-                            context: context,
-                            phase: .paused,
-                            pauseReason: .user)
-                        return
-                    }
+                    try self.checkCodexCostCatchUpContinuation(status: status, context: context)
 
+                    if !publishedCurrentWindow,
+                       let publishedStatus = try await self.publishAvailableCodexCostCatchUpSnapshot(context: context)
+                    {
+                        publishedCurrentWindow = true
+                        status = publishedStatus
+                        guard status.pending else { return }
+                    }
+                    try self.checkCodexCostCatchUpContinuation(status: status, context: context)
                     let decision = self.codexCostCatchUpDecision(
                         mode: self.codexCostCatchUpMode,
                         previousActiveDuration: previousActiveDuration,
@@ -146,23 +153,12 @@ extension UsageStore {
                         try await self.sleepBetweenCodexCostCatchUpPasses(seconds: delay)
                         continue
                     case let .runAfter(delay):
-                        self.publishCodexCostCatchUpActivity(
-                            status: status,
-                            context: context,
-                            phase: .indexing)
+                        self.publishCodexCostCatchUpActivity(status: status, context: context, phase: .indexing)
                         try await self.sleepBetweenCodexCostCatchUpPasses(seconds: delay)
                     }
 
                     try Task.checkCancellation()
-                    guard self.codexCostCatchUpContextIsCurrent(context) else { return }
-                    if self.codexCostCatchUpStopRequested {
-                        self.publishCodexCostCatchUpActivity(
-                            status: status,
-                            context: context,
-                            phase: .paused,
-                            pauseReason: .user)
-                        return
-                    }
+                    try self.checkCodexCostCatchUpContinuation(status: status, context: context)
 
                     self.codexCostCatchUpPassIsRunning = true
                     let result: CostUsageScanExecutor.TimedResult<CostUsageFetcher.CodexScanCatchUpStatus>
@@ -179,18 +175,18 @@ extension UsageStore {
                     let nextStatus = result.value
                     previousActiveDuration = result.activeDuration
                     didAdvance = true
-                    guard self.codexCostCatchUpContextIsCurrent(context) else { return }
+                    try self.checkCodexCostCatchUpContinuation(status: nextStatus, context: context)
                     self.publishCodexCostCatchUpActivity(
                         status: nextStatus,
                         context: context,
                         phase: nextStatus.pending ? .indexing : .complete)
-                    if self.codexCostCatchUpStopRequested {
-                        self.publishCodexCostCatchUpActivity(
-                            status: nextStatus,
-                            context: context,
-                            phase: .paused,
-                            pauseReason: .user)
-                        return
+                    status = nextStatus
+                    if status.pending, !publishedCurrentWindow,
+                       let publishedStatus = try await self.publishAvailableCodexCostCatchUpSnapshot(context: context)
+                    {
+                        publishedCurrentWindow = true
+                        status = publishedStatus
+                        guard status.pending else { return }
                     }
                     if nextStatus.pending, !seenProgressKeys.insert(nextStatus.progressKey).inserted {
                         self.publishCodexCostCatchUpActivity(
@@ -202,7 +198,6 @@ extension UsageStore {
                             "Codex cost catch-up stopped because a bounded pass made no progress")
                         return
                     }
-                    status = nextStatus
                 } catch is CancellationError {
                     return
                 } catch {
@@ -243,8 +238,28 @@ extension UsageStore {
         }
     }
 
+    private func checkCodexCostCatchUpContinuation(
+        status: CostUsageFetcher.CodexScanCatchUpStatus,
+        context: CodexCostCatchUpContext) throws
+    {
+        guard self.codexCostCatchUpContextIsCurrent(context) else { throw CancellationError() }
+        if self.codexCostCatchUpStopRequested {
+            self.publishCodexCostCatchUpActivity(status: status, context: context, phase: .paused, pauseReason: .user)
+            throw CancellationError()
+        }
+    }
+
     private func publishStableCodexCostCatchUpSnapshot(
         context: CodexCostCatchUpContext) async throws -> CostUsageFetcher.CodexScanCatchUpStatus
+    {
+        guard let status = try await self.publishAvailableCodexCostCatchUpSnapshot(context: context) else {
+            throw CodexCostCatchUpPublicationError.completedHistoryUnavailable
+        }
+        return status
+    }
+
+    private func publishAvailableCodexCostCatchUpSnapshot(
+        context: CodexCostCatchUpContext) async throws -> CostUsageFetcher.CodexScanCatchUpStatus?
     {
         let now = Date()
         // Provider-specific by design: Codex owns resumable cost catch-up and this guarded completed-cache publication.
@@ -253,15 +268,20 @@ extension UsageStore {
             now: now,
             context: context)
         try Task.checkCancellation()
+        guard await self.refreshPiHistoryScope(for: .codex) else { throw CancellationError() }
         guard self.codexCostCatchUpContextIsCurrent(context),
               self.tokenSnapshotPublicationRevision(for: .codex) == publicationRevision
         else {
+            if context.includePiSessions, self.piHistoryScopeGeneration != context.piHistoryScopeGeneration {
+                self.requestTokenRefreshAfterStaleCompletion(for: .codex)
+            }
             throw CancellationError()
         }
         guard let result,
               result.snapshot.historyCoverageIsEstablished,
-              result.staleSnapshotUpdatedAt == nil
-        else { throw CodexCostCatchUpPublicationError.completedHistoryUnavailable }
+              result.staleSnapshotUpdatedAt == nil,
+              self.tokenAccountingScopeIsCurrent(result.accounting, for: .codex)
+        else { return nil }
         let snapshot = result.snapshot
 
         if let lastRefreshAt = result.lastRefreshAt {
@@ -269,10 +289,10 @@ extension UsageStore {
             self.lastTokenFetchScope[.codex] = context.scopeSignature
         }
         if snapshot.daily.isEmpty, snapshot.meteredCostUSD == nil {
-            self.publishConfirmedEmptyTokenSnapshot(for: .codex)
+            self.publishConfirmedEmptyTokenSnapshot(for: .codex, accounting: result.accounting)
             self.tokenErrors[.codex] = Self.tokenCostNoDataMessage(for: .codex)
         } else {
-            self.publishTokenSnapshot(snapshot, for: .codex)
+            self.publishTokenSnapshot(snapshot, for: .codex, accounting: result.accounting)
             self.tokenErrors[.codex] = nil
         }
         self.tokenFailureGates[.codex]?.recordSuccess()
@@ -291,17 +311,21 @@ extension UsageStore {
         context: CodexCostCatchUpContext) async -> (
         snapshot: CostUsageTokenSnapshot,
         lastRefreshAt: Date?,
-        staleSnapshotUpdatedAt: Date?)?
+        staleSnapshotUpdatedAt: Date?,
+        accounting: PiSnapshotAccounting?)?
     {
         if let override = self._test_cachedCodexTokenSnapshotLoaderOverride {
             return await override(now, context.codexHomePath, context.historyDays)
+                .map { ($0.snapshot, $0.lastRefreshAt, $0.staleSnapshotUpdatedAt, nil) }
         }
         return await self.costUsageFetcher.loadCompletedCodexTokenSnapshotResult(
             now: now,
             codexHomePath: context.codexHomePath,
             historyDays: context.historyDays,
-            calendar: self.settings.costUsageBucketCalendar)
-            .map { ($0.snapshot, $0.lastRefreshAt, $0.staleSnapshotUpdatedAt) }
+            includePiSessions: context.includePiSessions,
+            calendar: self.settings.costUsageBucketCalendar,
+            environment: context.environment)
+            .map { ($0.snapshot, $0.lastRefreshAt, $0.staleSnapshotUpdatedAt, $0.accounting) }
     }
 
     private func codexCostCatchUpContextIsCurrent(_ context: CodexCostCatchUpContext) -> Bool {

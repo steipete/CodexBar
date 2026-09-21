@@ -14,6 +14,7 @@ extension UsageMenuCardView.Model {
         let tokenError: String?
         let account: AccountInfo
         let accountIsAuthoritative: Bool
+        let accountPrivacyOrdinal: PersonalInfoRedactor.AccountOrdinal?
         let planOverride: PlanOverride
         let planEmphasis: PlanEmphasis
         let lastKnownUsageCapturedAt: Date?
@@ -49,6 +50,7 @@ extension UsageMenuCardView.Model {
         let preferredCurrencyCode: String
         let costUsageBucketCalendar: Calendar
         let now: Date
+        let observedWeeklyResets: [CostUsageQuotaResetObservation]
 
         init(
             provider: UsageProvider,
@@ -62,6 +64,7 @@ extension UsageMenuCardView.Model {
             tokenError: String?,
             account: AccountInfo,
             accountIsAuthoritative: Bool = false,
+            accountPrivacyOrdinal: PersonalInfoRedactor.AccountOrdinal? = nil,
             planOverride: PlanOverride = .automatic,
             planEmphasis: PlanEmphasis = .none,
             lastKnownUsageCapturedAt: Date? = nil,
@@ -94,7 +97,8 @@ extension UsageMenuCardView.Model {
             usesLiveSubtitle: Bool = false,
             preferredCurrencyCode: String = "auto",
             costUsageBucketCalendar: Calendar = .current,
-            now: Date)
+            now: Date,
+            observedWeeklyResets: [CostUsageQuotaResetObservation] = [])
         {
             self.provider = provider
             self.metadata = metadata
@@ -107,6 +111,7 @@ extension UsageMenuCardView.Model {
             self.tokenError = tokenError
             self.account = account
             self.accountIsAuthoritative = accountIsAuthoritative
+            self.accountPrivacyOrdinal = accountPrivacyOrdinal
             self.planOverride = planOverride
             self.planEmphasis = planEmphasis
             self.lastKnownUsageCapturedAt = lastKnownUsageCapturedAt
@@ -140,6 +145,7 @@ extension UsageMenuCardView.Model {
             self.preferredCurrencyCode = preferredCurrencyCode
             self.costUsageBucketCalendar = costUsageBucketCalendar
             self.now = now
+            self.observedWeeklyResets = observedWeeklyResets
         }
     }
 }

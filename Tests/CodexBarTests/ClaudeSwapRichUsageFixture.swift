@@ -43,7 +43,8 @@ struct ClaudeSwapRichUsageFixture {
             planLabel: ClaudeSwapAccountMenuDisplay.actionLabel(
                 for: account,
                 switchingAccountID: self.store.claudeSwapTransientState.switchingAccountID,
-                switchInFlight: self.store.claudeSwapTransientState.task != nil),
+                switchInFlight: self.store.claudeSwapTransientState.task != nil,
+                switchPhase: self.store.claudeSwapTransientState.switchPhase),
             adapterError: adapterError,
             switchError: switchError)
         return self.store.menuCardModel(for: .claude, context: context, now: now)

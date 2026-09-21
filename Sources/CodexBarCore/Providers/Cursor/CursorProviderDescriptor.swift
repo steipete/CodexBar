@@ -79,6 +79,7 @@ public enum CursorProviderDescriptor {
                 extraRateWindowSelector: { snapshot in
                     (snapshot.extraRateWindows ?? []).filter { $0.id == CursorSandUsageStatus.extraWindowID }
                 },
+                semanticWindowResolver: self.semanticWindows,
                 requestedMenuBarLaneOrders: [
                     .tertiary: [.tertiary, .secondary, .primary],
                 ],
@@ -115,6 +116,17 @@ public enum CursorProviderDescriptor {
         #else
         false
         #endif
+    }
+
+    /// Grok Bot is a named extra 7-day allowance. Cursor's monthly Auto bar is the secondary lane
+    /// (`weeklyLabel` "Cursor"), so it is the semantic weekly window. The default duration matcher
+    /// would pick Grok Bot instead and paint that weekly pace onto Cursor Auto after a billing reset.
+    private static func semanticWindows(snapshot: UsageSnapshot) -> ProviderSemanticWindows {
+        let weekly = snapshot.secondary.flatMap { window -> RateWindow? in
+            guard !window.isSyntheticPlaceholder else { return nil }
+            return window
+        }
+        return ProviderSemanticWindows(session: nil, weekly: weekly)
     }
 
     private static func menuBarWindow(

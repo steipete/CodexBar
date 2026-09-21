@@ -1,14 +1,14 @@
 import CodexBarCore
 import SwiftUI
 
-struct CodexResetCreditPresentationItem: Equatable {
+struct LimitResetCreditPresentationItem: Equatable {
     let expiryText: String
     let compactExpiryText: String
 }
 
-struct CodexResetCreditsPresentation: Equatable {
+struct LimitResetCreditsPresentation: Equatable {
     let text: String
-    let items: [CodexResetCreditPresentationItem]
+    let items: [LimitResetCreditPresentationItem]
 
     var expirySummaryText: String {
         let visibleItems = self.items.prefix(4).map(\.compactExpiryText)
@@ -32,35 +32,57 @@ struct CodexResetCreditsPresentation: Equatable {
     static func make(
         snapshot: CodexRateLimitResetCreditsSnapshot,
         resetStyle: ResetTimeDisplayStyle,
-        now: Date) -> CodexResetCreditsPresentation?
+        now: Date) -> LimitResetCreditsPresentation?
     {
         let inventory = snapshot.availableInventory(at: now)
         guard !inventory.credits.isEmpty else { return nil }
-        let items = inventory.credits.map { credit in
-            Self.presentationItem(for: credit, resetStyle: resetStyle, now: now)
-        }
-        return CodexResetCreditsPresentation(
-            text: Self.availableText(count: inventory.count),
-            items: items)
+        return Self.make(
+            expirations: inventory.credits.map(\.expiresAt),
+            resetStyle: resetStyle,
+            now: now)
+    }
+
+    static func make(
+        snapshot: GrokRateLimitResetCreditsSnapshot,
+        resetStyle: ResetTimeDisplayStyle,
+        now: Date) -> LimitResetCreditsPresentation?
+    {
+        self.make(
+            expirations: snapshot.availableExpirations(at: now).map(Optional.some),
+            resetStyle: resetStyle,
+            now: now)
     }
 
     private static func availableText(count: Int) -> String {
         count == 1 ? L("1 available") : String(format: L("%d available"), count)
     }
 
-    private static func presentationItem(
-        for credit: CodexRateLimitResetCredit,
+    private static func make(
+        expirations: [Date?],
         resetStyle: ResetTimeDisplayStyle,
-        now: Date) -> CodexResetCreditPresentationItem
+        now: Date) -> LimitResetCreditsPresentation?
     {
-        guard let expiresAt = credit.expiresAt else {
-            return CodexResetCreditPresentationItem(expiryText: L("No expiry"), compactExpiryText: L("No expiry"))
+        guard !expirations.isEmpty else { return nil }
+        return LimitResetCreditsPresentation(
+            text: self.availableText(count: expirations.count),
+            items: expirations.map { expiration in
+                Self.presentationItem(expiresAt: expiration, resetStyle: resetStyle, now: now)
+            })
+    }
+
+    private static func presentationItem(
+        expiresAt: Date?,
+        resetStyle: ResetTimeDisplayStyle,
+        now: Date) -> LimitResetCreditPresentationItem
+    {
+        guard let expiresAt else {
+            return LimitResetCreditPresentationItem(expiryText: L("No expiry"), compactExpiryText: L("No expiry"))
         }
         let formattedTime = Self.formattedTime(expiresAt, resetStyle: resetStyle, now: now)
         let compactExpiryText = resetStyle == .countdown && formattedTime.hasPrefix("in ")
             ? String(formattedTime.dropFirst(3))
             : formattedTime
-        return CodexResetCreditPresentationItem(
+        return LimitResetCreditPresentationItem(
             expiryText: String(format: L("Expires %@"), formattedTime),
             compactExpiryText: compactExpiryText)
     }
@@ -80,8 +102,8 @@ struct CodexResetCreditsPresentation: Equatable {
     }
 }
 
-struct CodexResetCreditsContent: View {
-    let presentation: CodexResetCreditsPresentation
+struct LimitResetCreditsContent: View {
+    let presentation: LimitResetCreditsPresentation
     @Environment(\.menuItemHighlighted) private var isHighlighted
 
     var body: some View {
@@ -118,15 +140,23 @@ struct CodexResetCreditsContent: View {
 }
 
 extension UsageMenuCardView.Model {
-    static func codexResetCredits(input: Input) -> CodexResetCreditsPresentation? {
-        guard input.provider == .codex,
-              let resetCredits = input.snapshot?.codexResetCredits
-        else {
+    static func limitResetCredits(input: Input) -> LimitResetCreditsPresentation? {
+        switch input.provider {
+        case .codex:
+            guard let resetCredits = input.snapshot?.codexResetCredits else { return nil }
+            return LimitResetCreditsPresentation.make(
+                snapshot: resetCredits,
+                resetStyle: input.resetTimeDisplayStyle,
+                now: input.now)
+        case .grok:
+            guard input.showOptionalCreditsAndExtraUsage else { return nil }
+            guard let resetCredits = input.snapshot?.grokResetCredits else { return nil }
+            return LimitResetCreditsPresentation.make(
+                snapshot: resetCredits,
+                resetStyle: input.resetTimeDisplayStyle,
+                now: input.now)
+        default:
             return nil
         }
-        return CodexResetCreditsPresentation.make(
-            snapshot: resetCredits,
-            resetStyle: input.resetTimeDisplayStyle,
-            now: input.now)
     }
 }

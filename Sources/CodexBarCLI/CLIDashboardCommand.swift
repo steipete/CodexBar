@@ -59,6 +59,7 @@ struct DashboardSnapshotProducer: Sendable {
     let now: @Sendable () -> Date
     var collectClaudeSwapAccounts: @Sendable (CodexBarConfig) async -> DashboardClaudeSwapCollection? = { _ in nil }
     var weeklyWorkDays: @Sendable () -> Int? = { nil }
+    var usageBarsShowUsed: @Sendable () -> Bool = { false }
 
     func collect(
         config: CodexBarConfig,
@@ -95,7 +96,8 @@ struct DashboardSnapshotProducer: Sendable {
                     accounts: $0.accounts,
                     adapterError: $0.adapterError,
                     weeklyWorkDays: self.weeklyWorkDays())
-            })
+            },
+            usageBarsShowUsed: self.usageBarsShowUsed())
         return DashboardSnapshotResult(
             payload: payload,
             usageCacheKeys: usageOutput.payload.map(\.cacheAccountKey))
@@ -110,6 +112,9 @@ struct DashboardSnapshotProducer: Sendable {
             },
             collectCost: { providers, config in
                 let costFetcher = CostUsageFetcher()
+                let piSessionProcessContexts = await CodexBarCLI.piSessionProcessContextsForCost(
+                    providers: providers,
+                    includePiSessions: true)
                 return await CodexBarCLI.collectConfiguredCostPayloads(
                     providers: providers,
                     config: config,
@@ -120,7 +125,14 @@ struct DashboardSnapshotProducer: Sendable {
                             provider: provider,
                             forceRefresh: false,
                             cursorCookieHeaderOverride: cursorCookieHeaderOverride,
-                            refreshPricingInBackground: context.costRefreshesPricingInBackground)
+                            refreshPricingInBackground: context.costRefreshesPricingInBackground,
+                            includePiSessions: CodexBarCLI.costIncludePiSessions(
+                                provider: provider,
+                                selectedProviders: providers,
+                                groupBy: .none,
+                                format: .json,
+                                includePiSessions: true),
+                            piSessionProcessContexts: piSessionProcessContexts)
                         return CodexBarCLI.makeCostPayload(provider: provider, snapshot: snapshot, error: nil)
                     } catch {
                         return CodexBarCLI.makeCostPayload(provider: provider, snapshot: nil, error: error)
@@ -153,7 +165,8 @@ struct DashboardSnapshotProducer: Sendable {
                         adapterError: diagnostic.isEmpty ? "claude-swap list failed." : diagnostic)
                 }
             },
-            weeklyWorkDays: { CodexBarCLI.weeklyProgressWorkDaysFromDefaults() })
+            weeklyWorkDays: { CodexBarCLI.weeklyProgressWorkDaysFromDefaults() },
+            usageBarsShowUsed: { CodexBarCLI.usageBarsShowUsedFromDefaults() })
     }
 }
 

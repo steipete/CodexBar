@@ -456,6 +456,120 @@ struct MenuBarLayoutRendererTests {
     }
 
     @Test
+    func `forceStackedStyle applies stacked typography to a single line render`() {
+        let renderer = MenuBarLayoutRenderer()
+        let icon = NSImage(size: NSSize(width: 16, height: 16))
+        icon.isTemplate = true
+        let stacked = renderer.render(
+            layout: MenuBarLayout(lines: [[.icon, .percent(window: .automatic)]]),
+            data: self.data(),
+            icon: icon,
+            options: self.options(forceStackedStyle: true))
+        let unstacked = renderer.render(
+            layout: MenuBarLayout(lines: [[.icon, .percent(window: .automatic)]]),
+            data: self.data(),
+            icon: icon,
+            options: self.options())
+
+        // Stacked rows render the icon inline in the title (so two rows can carry two different
+        // provider icons); the ordinary single-line path surfaces it as the separate leading icon.
+        #expect(stacked.leadingIcon == nil)
+        #expect(unstacked.leadingIcon != nil)
+        #expect(stacked.attributedTitle.string.hasSuffix("50%"))
+        #expect(stacked.attributedTitle.string != unstacked.attributedTitle.string)
+        #expect(stacked.statusImage == nil)
+    }
+
+    @Test
+    func `composeStackedProviderRows joins two independently rendered providers into one title`() {
+        let renderer = MenuBarLayoutRenderer()
+        let topOptions = self.options(forceStackedStyle: true)
+        let top = renderer.render(
+            layout: MenuBarLayout(lines: [[.percent(window: .automatic)]]),
+            data: self.data(automaticUsedPercent: 69, provider: .codex),
+            icon: nil,
+            options: topOptions)
+        let bottom = renderer.render(
+            layout: MenuBarLayout(lines: [[.percent(window: .automatic)]]),
+            data: self.data(automaticUsedPercent: 45, provider: .claude),
+            icon: nil,
+            options: topOptions)
+
+        let composed = MenuBarLayoutRenderer.composeStackedProviderRows(
+            top: top,
+            bottom: bottom,
+            topProviderName: "Codex",
+            bottomProviderName: "Claude")
+        let bounds = composed.attributedTitle.boundingRect(
+            with: NSSize(width: 200, height: CGFloat.greatestFiniteMagnitude),
+            options: [.usesLineFragmentOrigin, .usesFontLeading])
+
+        #expect(composed.attributedTitle.string == "69%\n45%")
+        #expect(composed.accessibilityLabel.contains(L("menu_bar_layout_line", 2)))
+        // Neither row's layout includes the icon or provider-name token, so the composed label is the
+        // only place a provider is ever named — VoiceOver would otherwise hear two anonymous percentages.
+        #expect(composed.accessibilityLabel.contains("Codex"))
+        #expect(composed.accessibilityLabel.contains("Claude"))
+        #expect(composed.leadingIcon == nil)
+        #expect(composed.statusImage == nil)
+        #expect(bounds.height <= 22)
+    }
+
+    @Test(arguments: ["aqua", "darkAqua"])
+    func `stacked bottom updates do not reuse the previous provider rendering`(appearance: String) {
+        let renderer = MenuBarLayoutRenderer()
+        let layout = MenuBarLayout(lines: [[.percent(window: .automatic)]])
+        let options = self.options(appearanceName: appearance, forceStackedStyle: true)
+        let top = renderer.render(layout: layout, data: self.data(provider: .codex), icon: nil, options: options)
+        let before = renderer.render(
+            layout: layout, data: self.data(automaticUsedPercent: 10, provider: .claude), icon: nil, options: options)
+        let after = renderer.render(
+            layout: layout, data: self.data(automaticUsedPercent: 90, provider: .claude), icon: nil, options: options)
+        let beforeTitle = MenuBarLayoutRenderer.composeStackedProviderRows(
+            top: top, bottom: before, topProviderName: "Codex", bottomProviderName: "Claude")
+        let afterTitle = MenuBarLayoutRenderer.composeStackedProviderRows(
+            top: top, bottom: after, topProviderName: "Codex", bottomProviderName: "Claude")
+        #expect(beforeTitle.attributedTitle.string == "50%\n10%")
+        #expect(afterTitle.attributedTitle.string == "50%\n90%")
+        #expect(beforeTitle.accessibilityLabel != afterTitle.accessibilityLabel)
+    }
+
+    @Test
+    func `composeStackedProviderRows drops the separator when one row is emptied by a hidden conditional`() {
+        let renderer = MenuBarLayoutRenderer()
+        // Session is 25%, so > 50 fails and the else branch (.hidden) wins, emptying the bottom row.
+        let conditional = MenuBarLayoutConditional(
+            clauses: [self.clause(metric: .session, comparison: .greaterThan, threshold: 50)],
+            thenToken: .percent(window: .session),
+            elseToken: .hidden)
+        let options = self.options(conditionals: [conditional], forceStackedStyle: true)
+
+        let top = renderer.render(
+            layout: MenuBarLayout(lines: [[.percent(window: .automatic)]]),
+            data: self.data(automaticUsedPercent: 69, provider: .codex),
+            icon: nil,
+            options: options)
+        let bottom = renderer.render(
+            layout: MenuBarLayout(lines: [[.conditional(id: conditional.id)]]),
+            data: self.data(provider: .claude),
+            icon: nil,
+            options: options)
+        #expect(bottom.attributedTitle.string.isEmpty)
+
+        let composed = MenuBarLayoutRenderer.composeStackedProviderRows(
+            top: top,
+            bottom: bottom,
+            topProviderName: "Codex",
+            bottomProviderName: "Claude")
+
+        // No stray blank row or vertical offset — the emptied row is dropped, not stacked as a blank line.
+        #expect(composed.attributedTitle.string == "69%")
+        #expect(!composed.attributedTitle.string.contains("\n"))
+        // The surviving row still gets its provider named, even though only one row made it through.
+        #expect(composed.accessibilityLabel == "Codex, \(top.accessibilityLabel)")
+    }
+
+    @Test
     func `icon above automatic percentages stays in the attributed two line layout`() {
         let renderer = MenuBarLayoutRenderer()
         let icon = NSImage(size: NSSize(width: 16, height: 16))
@@ -1698,7 +1812,8 @@ struct MenuBarLayoutRendererTests {
         isDebugApp: Bool = false,
         colorPace: Bool = false,
         highContrast: Bool = false,
-        appearanceName: String = "aqua") -> MenuBarLayoutRenderOptions
+        appearanceName: String = "aqua",
+        forceStackedStyle: Bool = false) -> MenuBarLayoutRenderOptions
     {
         MenuBarLayoutRenderOptions(
             size: .regular,
@@ -1710,7 +1825,8 @@ struct MenuBarLayoutRendererTests {
             isStale: isStale,
             now: now ?? self.now,
             verticalAdjustment: verticalAdjustment,
-            colorPace: colorPace)
+            colorPace: colorPace,
+            forceStackedStyle: forceStackedStyle)
     }
 
     private func averageBrightness(

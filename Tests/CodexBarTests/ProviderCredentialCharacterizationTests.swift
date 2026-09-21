@@ -212,10 +212,11 @@ struct ProviderCredentialCharacterizationTests {
             (.sub2api, "SUB2API_API_KEY"),
             (.ibmbob, "BOBSHELL_API_KEY"),
             (.grok, "GROK_OAUTH_TOKEN"),
+            (.huggingface, "CODEXBAR_HUGGINGFACE_API_KEY"),
         ]
         let cookieProviders: [UsageProvider] = [
             .claude, .cursor, .opencode, .opencodego, .factory, .minimax, .manus,
-            .augment, .ollama, .abacus, .mistral, .qoder, .stepfun,
+            .augment, .ollama, .abacus, .mistral, .qoder, .stepfun, .replicate,
         ]
 
         for (provider, key) in environmentProviders {
@@ -252,6 +253,7 @@ struct ProviderCredentialCharacterizationTests {
             .mistral: "account-token",
             .qoder: "account-token",
             .stepfun: "account-token",
+            .replicate: "account-token",
         ]
         for provider in cookieProviders {
             #expect(TokenAccountSupportCatalog.normalizedCookieHeader(
@@ -284,6 +286,7 @@ struct ProviderCredentialCharacterizationTests {
             (.llmproxy, "LLM_PROXY_API_KEY"), (.litellm, "LITELLM_API_KEY"),
             (.sub2api, "SUB2API_API_KEY"), (.antigravity, "ANTIGRAVITY_OAUTH_CREDENTIALS_JSON"),
             (.ibmbob, "BOBSHELL_API_KEY"),
+            (.huggingface, "CODEXBAR_HUGGINGFACE_API_KEY"),
         ]
         let account = ProviderTokenAccount(
             id: UUID(), label: "fixture", token: "account-token", addedAt: 0, lastUsed: nil)

@@ -10,7 +10,6 @@ import Foundation
 actor ClaudeCLISession {
     static let shared = ClaudeCLISession()
     private static let log = CodexBarLog.logger(LogCategories.provider(.claude, scope: "cli"))
-    private static let probeSessionIDFilename = ".codexbar-session-id"
     private static let fallbackProbeSessionID = UUID()
     #if DEBUG
     @TaskLocal private static var sessionOverrideForTesting: ClaudeCLISession?
@@ -420,19 +419,25 @@ actor ClaudeCLISession {
         self.startedAt = Date()
     }
 
+    /// Opt usage probes out of Remote Control without changing saved settings or managed policy.
+    static let probeSettingsArguments = ["--settings", #"{"remoteControlAtStartup":false}"#]
+
     static func launchArguments(sessionID: UUID) -> [String] {
-        // `/usage` is interactive, while Claude's no-persistence option is print-only. Reusing one explicit ID keeps
-        // repeated probe launches from registering a fresh empty account session every time. The probe never uses MCP
-        // tools, so ignore ambient MCP configuration rather than waiting for unrelated user servers to initialize.
-        ["--allowed-tools", "", "--strict-mcp-config", "--session-id", sessionID.uuidString.lowercased()]
+        // Reuse a probe-owned ID: interactive `/usage` cannot use print-only no-persistence.
+        // Ignore ambient MCP servers.
+        ["--allowed-tools", "", "--strict-mcp-config"] + self.probeSettingsArguments + [
+            "--session-id", sessionID.uuidString.lowercased(),
+        ]
     }
 
     static func loadOrCreateProbeSessionID(
         in directory: URL,
         fileManager fm: FileManager = .default) -> UUID
     {
-        let url = directory.appendingPathComponent(self.probeSessionIDFilename, isDirectory: false)
-        if let existing = self.readProbeSessionID(from: url) {
+        let url = directory.appendingPathComponent(".codexbar-session-id", isDirectory: false)
+        if let raw = try? String(contentsOf: url, encoding: .utf8),
+           let existing = UUID(uuidString: raw.trimmingCharacters(in: .whitespacesAndNewlines))
+        {
             return existing
         }
 
@@ -462,11 +467,6 @@ actor ClaudeCLISession {
         }
         #endif
         return sessionID
-    }
-
-    private static func readProbeSessionID(from url: URL) -> UUID? {
-        guard let raw = try? String(contentsOf: url, encoding: .utf8) else { return nil }
-        return UUID(uuidString: raw.trimmingCharacters(in: .whitespacesAndNewlines))
     }
 
     static func launchEnvironment(baseEnv: [String: String] = ProcessInfo.processInfo.environment) -> [String: String] {

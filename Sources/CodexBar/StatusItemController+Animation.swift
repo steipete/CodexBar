@@ -11,6 +11,12 @@ extension StatusItemController {
         2.7 / StatusItemController.loadingAnimationFPS
     private nonisolated static let loadingAnimationMaxContinuousDuration: TimeInterval = 30.0
     func needsMenuBarIconAnimation() -> Bool {
+        // Stacked rows always render through the layout-token path (`applyStoredStackedMenuBarLayoutIfNeeded`
+        // requires `menuBarShowsBrandIconWithPercent`), which has no phase-driven blink/wiggle/tilt/morph
+        // rendering — scheduling the 30 FPS driver here would only burn CPU for frames that never change.
+        if self.stackedMergeIconProvidersIfActive() != nil {
+            return false
+        }
         if self.shouldMergeIcons {
             let primaryProvider = self.primaryProviderForUnifiedIcon()
             return self.shouldAnimate(provider: primaryProvider)
@@ -33,6 +39,14 @@ extension StatusItemController {
         #if DEBUG
         guard !self.isReleasedForTesting else { return }
         #endif
+        // Stacked rows render exclusively through the layout-token path, which — like the loading
+        // animation `needsMenuBarIconAnimation()` already excludes stacked mode from — never consumes
+        // blinkAmounts/wiggleAmounts/tiltAmounts. Starting the blink task here would just wake and redraw
+        // on a timer for a frame that can never show it.
+        if self.stackedMergeIconProvidersIfActive() != nil {
+            self.stopBlinking()
+            return
+        }
         // During the loading animation, blink ticks can overwrite the animated menu bar icon and cause flicker.
         if self.needsMenuBarIconAnimation() {
             self.stopBlinking()
@@ -269,6 +283,12 @@ extension StatusItemController {
         let resolverStyle = self.store.style(for: primaryProvider)
         let snapshot = self.store.menuBarSnapshot(for: primaryProvider.instanceID)
         let warningFlash = self.quotaWarningFlashActive(provider: primaryProvider)
+
+        if let rows = self.stackedMergeIconProvidersIfActive(),
+           let stackedResult = self.applyStoredStackedMenuBarLayoutIfNeeded(top: rows.top, bottom: rows.bottom)
+        {
+            return stackedResult
+        }
 
         if let layoutResult = self.applyStoredUnifiedMenuBarLayoutIfNeeded(
             provider: primaryProvider,
@@ -878,9 +898,7 @@ extension StatusItemController {
         // Provider-specific by design: legacy preferences select balance text before quota and display modes.
         let usesBalance = switch provider {
         case .openrouter: preference == .automatic
-        case .mistral:
-            preference != .monthlyPlan
-                || snapshot?.extraRateWindows?.contains { $0.id == "mistral-monthly-plan" } != true
+        case .mistral: self.menuBarMetricWindow(for: provider, snapshot: snapshot, now: now) == nil
         default: true
         }
         if usesBalance, let balance = Self.menuBarBalanceDisplayText(provider: provider, snapshot: snapshot) {
@@ -1208,7 +1226,7 @@ extension StatusItemController {
     /// here rather than scheduling whichever lane happened to drive the icon.
     func menuBarDisplayedResetDates(for provider: UsageProvider, now: Date) -> [Date] {
         let snapshot = self.store.menuBarSnapshot(for: provider.instanceID)
-        let layoutResolution = self.settings.menuBarLayoutResolution(for: provider)
+        let layoutResolution = self.renderedMenuBarLayoutResolution(for: provider)
         if !layoutResolution.usesLegacyRendering,
            self.settings.menuBarIconStyle == .iconAndPercent
         {

@@ -3,6 +3,7 @@ import Foundation
 
 struct ProviderUsageItemID: Hashable, Sendable {
     private static let metricPrefix = "metric:"
+    private static let detailSectionPrefix = "detailSection:"
 
     let rawValue: String
 
@@ -10,11 +11,20 @@ struct ProviderUsageItemID: Hashable, Sendable {
         self.rawValue.hasPrefix(Self.metricPrefix) ? String(self.rawValue.dropFirst(Self.metricPrefix.count)) : nil
     }
 
+    var detailSectionTitle: String? {
+        self.rawValue.hasPrefix(Self.detailSectionPrefix)
+            ? String(self.rawValue.dropFirst(Self.detailSectionPrefix.count)) : nil
+    }
+
     static let credits = Self(rawValue: "section:credits")
     static let codexResetCredits = Self(rawValue: "section:codex-reset-credits")
 
     static func metric(_ metricID: String) -> Self {
         Self(rawValue: "\(self.metricPrefix)\(metricID)")
+    }
+
+    static func detailSection(_ rawTitle: String) -> Self {
+        Self(rawValue: "\(self.detailSectionPrefix)\(rawTitle)")
     }
 }
 
@@ -31,6 +41,9 @@ extension ProviderUsageItemID {
         case .credits: return L("Credits")
         case .codexResetCredits: return L("Limit Reset Credits")
         default:
+            if let detailSectionTitle {
+                return L(detailSectionTitle)
+            }
             guard let metricID = self.metricID else { return self.rawValue }
             if metricID == "claude-routines" {
                 return L("Daily Routines")
@@ -59,7 +72,7 @@ extension UsageMenuCardView.Model {
                 title: UsageMenuCardView.popupMetricTitle(provider: self.provider, metric: metric))
         }
         // Provider-specific by design: Codex reset credits are a non-metric section with their own visibility choice.
-        if self.provider == .codex, self.codexResetCredits != nil {
+        if self.provider == .codex, self.limitResetCredits != nil {
             descriptors.append(ProviderUsageItemDescriptor(
                 id: .codexResetCredits,
                 title: L("Limit Reset Credits")))
@@ -67,6 +80,13 @@ extension UsageMenuCardView.Model {
         if self.creditsText != nil {
             descriptors.append(ProviderUsageItemDescriptor(id: .credits, title: L("Credits")))
         }
+        let costSummaryTitles = ProviderDescriptorRegistry
+            .descriptor(for: self.provider).presentation.optionalDetails.costSummaryTitles
+        descriptors.append(contentsOf: zip(self.providerDetails, self.providerDetailRawTitles)
+            .compactMap { section, rawTitle in
+                guard let rawTitle, let title = section.title, !costSummaryTitles.contains(rawTitle) else { return nil }
+                return ProviderUsageItemDescriptor(id: .detailSection(rawTitle), title: title)
+            })
 
         var seen = Set<ProviderUsageItemID>()
         return descriptors.filter { seen.insert($0.id).inserted }
@@ -78,7 +98,7 @@ extension UsageMenuCardView.Model {
     /// these placeholders its checkbox disappears while the selection stays stored, so the only way
     /// back is Restore Defaults, which also discards every other choice.
     @MainActor
-    func usageItemDescriptors(includingHidden hiddenItemIDs: Set<ProviderUsageItemID>)
+    func usageItemDescriptors(includingHidden hiddenItemIDs: Set<ProviderUsageItemID>, hidePersonalInfo: Bool = false)
         -> [ProviderUsageItemDescriptor]
     {
         var descriptors = self.usageItemDescriptors
@@ -86,9 +106,11 @@ extension UsageMenuCardView.Model {
 
         let reported = Set(descriptors.map(\.id))
         for itemID in hiddenItemIDs.subtracting(reported).sorted(by: { $0.rawValue < $1.rawValue }) {
+            let rawTitle = itemID.unreportedTitle(for: self.provider)
+            let title = PersonalInfoRedactor.redactEmails(in: rawTitle, isEnabled: hidePersonalInfo) ?? rawTitle
             descriptors.append(ProviderUsageItemDescriptor(
                 id: itemID,
-                title: L("%@ (unavailable)", itemID.unreportedTitle(for: self.provider))))
+                title: L("%@ (unavailable)", title)))
         }
         return descriptors
     }
@@ -106,7 +128,19 @@ extension UsageMenuCardView.Model {
             projected.creditsHintCopyText = nil
         }
         if hiddenItemIDs.contains(.codexResetCredits) {
-            projected.codexResetCredits = nil
+            projected.limitResetCredits = nil
+        }
+        let hiddenTitles = Set(hiddenItemIDs.compactMap(\.detailSectionTitle))
+        if !hiddenTitles.isEmpty {
+            let kept = self.providerDetails.enumerated().compactMap { index, section
+                -> (section: ProviderDetailSection, rawTitle: String?)? in
+                let rawTitle = self.providerDetailRawTitles.indices.contains(index)
+                    ? self.providerDetailRawTitles[index] : nil
+                guard rawTitle.map({ !hiddenTitles.contains($0) }) ?? true else { return nil }
+                return (section, rawTitle)
+            }
+            projected.providerDetails = kept.map(\.section)
+            projected.providerDetailRawTitles = kept.map(\.rawTitle)
         }
         return projected
     }

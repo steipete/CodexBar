@@ -280,6 +280,7 @@ public actor AugmentSessionStore {
     }
 
     public func setCookies(_ cookies: [HTTPCookie]) {
+        guard !Task.isCancelled else { return }
         self.hasLoadedFromDisk = true
         self.sessionCookies = cookies
         self.saveToDisk()

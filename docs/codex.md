@@ -77,6 +77,9 @@ Usage source picker:
   refresh is running discards the old workspace's result.
 - System Account promotion fails closed when a managed selection differs from the auth file's default workspace.
   CodexBar keeps that selection managed rather than silently promoting the default or rewriting Codex-owned auth.
+- In the segmented layout, selecting an account refreshes its card while the menu stays open. Delayed results stay
+  scoped to that selection. An open chart submenu or highlighted menu command can defer the update until the submenu
+  closes or the highlight clears.
 - Reusing OpenCode OAuth enables remote account quota, not OpenCode session token/cost ingestion. See
   [OpenCode with Codex or OpenAI](opencode.md#using-opencode-with-codex-or-openai) for the current history boundary.
 
@@ -110,6 +113,8 @@ that workspace and never exposes the full provider identifier. This is display-o
 credential selection are unchanged. Separate profile homes for the same workspace also include a hashed source identity,
 so their labels stay distinct without exposing paths. Compact switcher buttons keep the discriminator visible when space
 is limited, using additional rows when needed.
+Hide Personal Info applies to the System Account submenu as well as the switcher: email addresses are removed,
+and stable account numbers distinguish rows while usable workspace labels remain visible.
 
 ### OpenAI web dashboard (optional, off by default)
 - Subscription renewal or expiration dates load after the app publishes dashboard usage. CodexBar first tries the subscription API, then captures only the date and renewal flag from ChatGPT's own billing request in the same account-scoped web session, within an eight-second budget.
@@ -192,6 +197,7 @@ is limited, using additional rows when needed.
 4) Last imported browser cookie email (cached).
 
 ## Credits
+- Background credits refreshes coalesce for the same account. Cancelling and replacing a refresh keeps the replacement tracked until it finishes; retired credits and history-backfill tasks cannot clear newer work.
 - Web dashboard fills credits only when OAuth/CLI do not provide them. Account-matched extra usage reconciles monthly caps and purchased balances separately; the optional credits setting controls visibility.
 - When usage reports limited workspace credits without an amount, an optional read of the account's `remaining_balance` endpoint uses the same OAuth or browser session. Access depends on workspace permissions. Failure preserves ordinary usage and monthly-limit data.
 - Workspace balances attach and persist only when the dashboard response account ID matches the selected account. Same-email workspace mismatches and old workspace caches without an account ID are rejected by both the app and CLI.
@@ -201,6 +207,11 @@ is limited, using additional rows when needed.
 - CLI PTY diagnostics can still parse `Credits:` from saved/manual `/status` output.
 
 ## Cost usage (local log scan)
+
+For a manual comparison with another development machine, run `codexbar cost --provider codex --remote <ssh-host>`.
+Both hosts scan their own native Codex logs once and return separate summaries, retaining their own day boundaries,
+pricing provenance, missing values, and incomplete-request counts. Only bounded totals cross SSH. A remote error keeps
+the local result and returns a nonzero exit code. See [CLI host reporting](cli.md) for the versioned summary contract.
 - Menu source selection:
   - By default, a selected managed account keeps its own `CODEX_HOME` session history.
   - **Local session cost estimates** is a Codex-only opt-in that instead scans this Mac's ambient `$CODEX_HOME`
@@ -236,6 +247,10 @@ is limited, using additional rows when needed.
     they contain delivery markers or the file ends before child-owned history arrives. Later appends count only
     the child's own deltas. Older per-file parser revisions refresh through the normal scan budget while stored
     history and checkpoints remain available.
+  - Paginated continuation files count only their own suffix when `history_base.thread_id` identifies a previous
+    page rather than the original fork ancestor. Bounded scans retain the resolved fork baseline across restarts
+    and revalidate its parent before resuming. Cross-file request identity includes the timestamp so restarted
+    page-local event indices do not erase distinct requests; exact active/archive copies still deduplicate.
   - pi and OMP sessions count assistant-message usage rows and attribute `openai-codex` assistant usage to Codex.
   - pi-compatible assistant usage is bucketed by assistant-turn timestamp, so mixed-model sessions can contribute to
     multiple days/models correctly.
@@ -244,8 +259,10 @@ is limited, using additional rows when needed.
     when pi-compatible usage joins the aggregate because the native-only rows would not reconcile with the merged total.
 - Cache:
   - Native session store: `~/Library/Caches/CodexBar/cost-usage/cost-usage.sqlite`
-  - pi-compatible session cache: `~/Library/Caches/CodexBar/cost-usage/pi-sessions-v8.json`
+  - pi-compatible session cache: `~/Library/Caches/CodexBar/cost-usage/pi-sessions-v9.json`
     is replaced atomically on macOS and Linux, retaining complete cached scan state across refreshes.
+    Version 8 rebuilds once from transcripts to establish source scope and completeness. Enabling the standalone
+    [Pi provider](pi.md) keeps Codex history native-only in combined views and completed catch-up publication.
   - Catch-up status reads progress metadata without loading historical usage JSON or replay bodies. Cached token
     activity reads scoped daily aggregates without decoding individual usage events, retaining account, time zone,
     coverage, and incomplete-scan checks. Cached reports
@@ -253,6 +270,10 @@ is limited, using additional rows when needed.
     and replay bodies. File cursor metadata, including JSONL resume state, remains available for progress tracking.
     Fresh and cached fetches use progress metadata to recognize retained reports during catch-up, skipping
     detail-row decoding that would be discarded. Reports without a matching retained result still load exact details.
+    During historical catch-up, a validated reporting window can publish once its discovery, parser, materialization,
+    and fork-ownership checks are complete. Metadata-only reads do not establish day coverage; unresolved or unparsed
+    work retains the previous report. Cached publication is attempted before duty-cycle and resource-pause sleeps and
+    after bounded passes, preserving power limits and actual cache timestamps rather than stamping publication as a new scan.
     A native scan loads exact usage rows once, deferring raw token history and checkpoints until a file changes
     or a fork needs its ancestors. A single-use receipt binds those deferred reads and saves to the original
     connection, database identity and SQLite change observations,
@@ -262,8 +283,22 @@ is limited, using additional rows when needed.
     External writes invalidate cached data; database replacement or incompatible metadata reopens the reader through
     existing validation on its next access. Every read still reconciles file identities, and detailed report history
     remains transient. Scanner and writer connections keep separate ownership.
+  - Workspaces cache reads decode stored usage rows as SQLite yields them, avoiding a second retained copy of the
+    history as encoded payloads. Metadata and rows share one read transaction; filesystem reconciliation runs after
+    it closes. Row order, pricing, malformed-row fallback, and incomplete coverage keep their existing behavior.
   - Saved day/model aggregates group each file's usage rows in one pass per aggregate build. Packed token totals,
     authoritative costs (including zero), and standard/priority estimation buckets retain their existing meanings.
+  - Excess cached request rows trigger bounded revalidation of readable, unchanged session files. Ordered source
+    replay determines the request sequence; matching token totals alone cannot establish a request partition.
+    Unanimous saved pricing survives partial scans and restarts. Files with authoritative monetary amounts, existing
+    unpriced markers, or conflicting saved pricing retain their rows without automatic rewriting. Recovered requests
+    without matching historical pricing remain unpriced. The repair retains the existing database and scan checkpoints.
+    Resumes retain the original target anchor alongside the parsed-prefix anchor and follow the scanner's existing
+    append-only log contract; identity changes, anchor mismatches, and unexplained same-size large-file edits invalidate pricing.
+    Parser-revision upgrades use the same source validation to preserve matching historical prices when a file
+    grows or a recovery scan is interrupted. Appended requests cannot borrow prices from the historical prefix,
+    and an invalidated pricing map remains invalid through subsequent upgrades. Native stores from 0.62.0's
+    `865a444e01b818f1` fingerprint retain their history while individual files are reparsed with corrected accounting.
   - Fully read empty session fragments retain completion records even when another file contributes the same session.
     They contribute no usage and reparse from the start if they grow. Usage-bearing duplicates and incomplete fragments
     keep their existing accounting and retry rules. Existing 0.56.4 cost caches are adopted without rebuilding

@@ -14,12 +14,16 @@ struct ClaudeSwapRichUsagePresentationTests {
                 guard case let .compact(row) = item, row.accountID.opaqueID == "2" else { return nil }
                 return row
             }.first)
+            let account = try #require(fixture.accounts.first { $0.id == row.accountID })
             let model = MenuCardCompactAccountRowView.Model(
                 row: row,
                 resetTimeDisplayStyle: .countdown,
                 hidePersonalInfo: true,
+                privacyOrdinal: ClaudeSwapAccountMenuDisplay.privacyOrdinal(for: account),
                 now: ClaudeSwapRichUsageFixture.now)
-            #expect(model.label.isEmpty)
+            #expect(model.label == "Account 2")
+            #expect(model.accessibilityText.contains("Account 2"))
+            #expect(!model.accessibilityText.contains("Research"))
             #expect(model.headroomPercent == 38)
             #expect(model.hasError)
             #expect(model.detailLines.contains { $0.contains("last-known usage") })

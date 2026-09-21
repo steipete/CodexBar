@@ -133,6 +133,10 @@
 "Cookie: …" = "Cookie: …";
 "CopilotDeviceFlow" = "CopilotDeviceFlow";
 "Cost" = "Biaya";
+"Token history" = "Riwayat token";
+"Local token history · dollar costs unavailable" = "Riwayat token lokal · biaya dolar tidak tersedia";
+"Partial local history · recorded token subtotal" = "Riwayat lokal sebagian · subtotal token tercatat";
+"Local token history is unavailable or incomplete." = "Riwayat token lokal tidak tersedia atau tidak lengkap.";
 "Could not add Codex account" = "Tidak dapat menambahkan akun Codex";
 "Could not open Terminal for Gemini" = "Tidak dapat membuka Terminal untuk Gemini";
 "Could not start claude /login" = "Tidak dapat memulai claude /login";
@@ -620,6 +624,12 @@
 "cost_summary_off" = "Mati";
 "merge_icons_title" = "Gabung Ikon";
 "merge_icons_subtitle" = "Gunakan satu ikon menu bar dengan pengalih penyedia.";
+"merged_icon_style_title" = "Gaya ikon gabungan";
+"merged_icon_style_subtitle" = "Switcher berpindah antar penyedia satu per satu; Bertumpuk menampilkan dua penyedia sekaligus, masing-masing satu baris.";
+"merged_icon_style_switcher" = "Switcher";
+"merged_icon_style_stacked" = "Bertumpuk";
+"merge_icon_stacked_top_provider_title" = "Baris atas";
+"merge_icon_stacked_bottom_provider_title" = "Baris bawah";
 "show_most_used_provider_title" = "Tampilkan penyedia paling sering digunakan";
 "show_most_used_provider_subtitle" = "Menu bar otomatis menampilkan penyedia yang paling dekat batas penggunaannya.";
 "display_mode_title" = "Mode tampilan";
@@ -890,6 +900,12 @@
 "usage_percent_suffix_used" = "terpakai";
 "Store multiple DeepSeek API keys." = "Simpan beberapa kunci API DeepSeek.";
 "This week" = "Minggu ini";
+"Current window" = "Jendela saat ini";
+"Last week" = "Minggu lalu";
+"%d weeks ago" = "%d minggu lalu";
+"Previous window" = "Jendela sebelumnya";
+"%d windows ago" = "%d jendela lalu";
+"Recent windows" = "Jendela terbaru";
 "Week" = "Minggu";
 "Month" = "Bulan";
 "Models" = "Model";
@@ -950,6 +966,8 @@
 "Overage" = "Kelebihan";
 "Activity" = "Aktivitas";
 "Copied" = "Disalin";
+"Managed by Homebrew" = "Dikelola oleh Homebrew";
+"Copy update command" = "Salin perintah pembaruan";
 "Copy error" = "Salin error";
 "Copy path" = "Salin path";
 "Extra usage spent" = "Penggunaan ekstra dibelanjakan";
@@ -1340,6 +1358,8 @@
 "Tracked tokens" = "Token yang dilacak";
 "Subscriptions" = "Langganan";
 "By subscription" = "Berdasarkan langganan";
+"By source" = "By source";
+"%d of %d sources have spend" = "%d of %d sources have spend";
 "No model-level history" = "Tidak ada riwayat tingkat model";
 "Daily estimated spend" = "Perkiraan pengeluaran harian";
 "Hourly estimated spend" = "Perkiraan pengeluaran per jam";
@@ -1583,3 +1603,25 @@
 
 "agent_sessions_hide_unreachable_title" = "Sembunyikan host yang tidak terjangkau";
 "agent_sessions_hide_unreachable_subtitle" = "Sembunyikan host saat pengambilan sesinya gagal.";
+
+/* Overview share flow */
+"Share Usage Snapshot…" = "Bagikan ringkasan penggunaan…";
+"Usage snapshot unavailable" = "Ringkasan penggunaan tidak tersedia";
+"CodexBar couldn't prepare a shareable usage snapshot. Refresh Usage & Spend and try again." = "CodexBar tidak dapat menyiapkan ringkasan penggunaan untuk dibagikan. Segarkan Penggunaan & pengeluaran, lalu coba lagi.";
+"Incomplete" = "Tidak lengkap";
+"Est. subtotal (%@): %@" = "Subtotal perkiraan (%@): %@";
+"Excluded requests with missing final usage: %d" = "Permintaan yang dikecualikan karena data penggunaan akhir tidak tersedia: %d";
+
+"overview_layout_title" = "Tata letak Ikhtisar";
+"overview_layout_subtitle" = "Pilih seberapa banyak informasi yang ditampilkan Ikhtisar.";
+"overview_layout_detailed" = "Terperinci";
+"overview_layout_compact" = "Ringkas";
+
+"section_widgets" = "Widget";
+"account_widgets_title" = "Perbarui akun untuk widget";
+"account_widgets_description" = "Pilih akun di setiap widget Account Usage. Memperbarui hingga enam akun per penyedia.";
+
+/* Antigravity local cost estimates */
+"antigravity_cost_estimate_hint" = "Penggunaan lokal × harga API publik · bukan tagihan atau kredit Antigravity";
+"antigravity_quota_window_note" = "Biaya jendela mencakup semua model · jendela yang ditampilkan adalah keluarga paling terbatas";
+"antigravity_no_priced_token_history" = "Tidak ada riwayat token Antigravity berharga yang tersedia.";

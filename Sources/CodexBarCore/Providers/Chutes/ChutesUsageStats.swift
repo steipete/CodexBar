@@ -115,8 +115,8 @@ public struct ChutesQuotaWindow: Sendable, Equatable {
 
     private static func formatAmount(_ value: Double) -> String {
         let rounded = value.rounded()
-        if abs(value - rounded) < 0.0001 {
-            return String(Int(rounded))
+        if abs(value - rounded) < 0.0001, let integer = Int(exactly: rounded) {
+            return String(integer)
         }
 
         var text = String(format: "%.2f", value)
@@ -709,16 +709,16 @@ enum ChutesUsageParser {
 
     private static func windowMinutes(from payload: [String: Any]) -> Int? {
         if let minutes = self.firstDouble(in: payload, keys: windowMinuteKeys) {
-            return Int(minutes.rounded())
+            return Int(exactly: minutes.rounded())
         }
         if let hours = self.firstDouble(in: payload, keys: windowHourKeys) {
-            return Int((hours * 60).rounded())
+            return Int(exactly: (hours * 60).rounded())
         }
         if let days = self.firstDouble(in: payload, keys: windowDayKeys) {
-            return Int((days * 24 * 60).rounded())
+            return Int(exactly: (days * 24 * 60).rounded())
         }
         if let seconds = self.firstDouble(in: payload, keys: windowSecondKeys) {
-            return Int((seconds / 60).rounded())
+            return Int(exactly: (seconds / 60).rounded())
         }
         if let text = self.firstString(in: payload, keys: windowStringKeys) {
             return self.windowMinutes(fromText: text)
@@ -734,16 +734,16 @@ enum ChutesUsageParser {
         guard let value = scanner.scanDouble(), value > 0 else { return nil }
         let suffix = String(compact[scanner.currentIndex...])
         if suffix.hasPrefix("min") || suffix == "m" {
-            return Int(value.rounded())
+            return Int(exactly: value.rounded())
         }
         if suffix.hasPrefix("hour") || suffix.hasPrefix("hr") || suffix == "h" {
-            return Int((value * 60).rounded())
+            return Int(exactly: (value * 60).rounded())
         }
         if suffix.hasPrefix("day") || suffix == "d" {
-            return Int((value * 24 * 60).rounded())
+            return Int(exactly: (value * 24 * 60).rounded())
         }
         if suffix.hasPrefix("month") || suffix == "mo" {
-            return Int((value * 30 * 24 * 60).rounded())
+            return Int(exactly: (value * 30 * 24 * 60).rounded())
         }
         return nil
     }

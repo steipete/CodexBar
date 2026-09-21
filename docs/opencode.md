@@ -8,17 +8,30 @@ read_when:
 # OpenCode provider
 
 ## Data sources
-- Browser cookies from `opencode.ai`.
+- Browser cookies from `opencode.ai`. Two session cookies matter: `auth` (legacy pages and server
+  functions) and `__Host-console_session` (the console). Both are forwarded, and either one alone is
+  enough for an import to succeed, because a migrated workspace may carry only the console cookie.
 - OpenCode Go usage API at `GET https://opencode.ai/zen/go/v1/usage`, authenticated by `OPENCODE_API_KEY` or
   `providers[].apiKey`.
 - OpenCode Go local history from `~/.local/share/opencode/opencode.db` on macOS and Linux.
-- `POST https://opencode.ai/_server` with server function IDs:
+- OpenCode Console JSON, used first for OpenCode Go web reads:
+  - `GET https://opencode.ai/console/api/orgs` lists workspaces (cookie auth only).
+  - `GET https://opencode.ai/console/api/go/status` returns subscription meters and requires the workspace in the
+    `x-org-id` header; the console answers HTTP 400 without it.
+  - `GET https://opencode.ai/console/api/billing/status` reads the selected workspace's prepaid PAYG Zen balance
+    with the same `x-org-id` header. Convert its signed `balanceMicroCents` string to USD by dividing by 100,000,000;
+    `availableMicroCents` is a separate credit value and is not substituted for the balance.
+- `POST https://opencode.ai/_server` with server function IDs, used for workspaces that have not migrated to the
+  console and for the Zen balance:
   - `workspaces` (`def39973159c7f0483d8793a822b8dbb10d067e12c65455fcb4608459ba0234f`)
   - `subscription.get` (`7abeebee372f304e050aaaf92be863f4a86490e382f8c79db68fd94040d691b4`)
 
 ## Usage mapping
 - The Go usage API reports `usage.rolling/weekly/monthly.percent` in percentage units (0...100): `1` means 1%, and
   `0.5` means 0.5%. Generic dashboard JSON still accepts fractional usage values (0...1).
+- Console meters report micro-cents, not percentages: each of `access.meters.fiveHour/week/month` carries
+  `usedMicroCents` and `limitMicroCents`, and the percentage is `100 * used / limit`. A missing or null month reset
+  uses the billing period end (`access.endsAt`). Other missing reset timestamps stay unknown, without a countdown.
 - Primary window: rolling 5-hour usage (`rollingUsage.usagePercent`, `rollingUsage.resetInSec`).
 - Secondary window: optional weekly usage (`weeklyUsage.usagePercent`, `weeklyUsage.resetInSec`).
 - Resets computed as `now + resetInSec`.
@@ -40,13 +53,23 @@ Ordinary OpenCode sessions using OpenAI/Codex are not currently included in loca
 usage is a separate [OpenAI provider](openai.md), not Codex subscription quota.
 
 ## Notes
-- Responses are `text/javascript` with serialized objects; parse via regex.
+- Legacy responses are `text/javascript` with serialized objects; Console responses are JSON.
 - Missing workspace ID or rolling usage fields should raise parse errors; omitted weekly usage stays absent.
 - OpenCode web Auto imports Chrome first, then Dia when their cookie stores exist; Keychain preflight stays scoped
   to each candidate browser. Other browsers stay on Manual Cookie import until CodexBar has an explicit browser
   selector.
 - Set `CODEXBAR_OPENCODE_WORKSPACE_ID` to skip workspace lookup and force a specific workspace.
-- Workspace override accepts a raw `wrk_…` ID or a full `https://opencode.ai/workspace/...` URL.
+- Workspace override accepts a raw `wrk_…` ID or a full `https://opencode.ai/workspace/...` URL. OpenCode Go also
+  accepts Console `org_…` IDs and `https://opencode.ai/console/...` URLs.
+- Console migration: OpenCode redirects migrated workspaces from `opencode.ai/workspace/<id>` to the console,
+  which serves an empty client-rendered shell, so the legacy scraped payload is absent. Web reads try the
+  console API first and fall back to the legacy page when a legacy session cookie is present. The two sessions
+  expire independently; a Console rejection or recoverable transport failure does not discard usable legacy
+  authentication. Cancellation and certificate failures do not trigger fallback. Console HTTP 401 means signed out;
+  scope and permission failures such as HTTP 403 remain API failures and are never inferred from page text.
+- A successful Console Go response of `null` or `access: null` has no subscription windows. Prepaid PAYG accounts
+  still report their Zen balance, including zero or negative balances. Other billing modes remain unsupported by
+  this Console balance mapping. A failed optional balance read does not discard valid Go usage.
 - Cached cookies: Keychain cache `com.steipete.codexbar.cache` (account `cookie.opencode`, source + timestamp). Browser
   import only runs when the cached cookie fails.
 - OpenCode Go unscoped Auto mode tries daily cost history derived from local `opencode-go` assistant costs first,
@@ -60,6 +83,10 @@ usage is a separate [OpenAI provider](openai.md), not Codex subscription quota.
   available, the menu and text CLI label the quota as estimated, and JSON includes `dataConfidence: "estimated"`.
   Estimated quota keeps its percentages and reset dates but does not show pace, reserve, or run-out advice in the
   menu, menu-bar layouts, or CLI; device-local costs cannot establish account-wide consumption or the billing cycle.
+- OpenCode Go Monthly usage can be selected in the menu-bar percentage picker and layout palette before the first
+  snapshot arrives. Missing data renders a dash. Percentage selection leaves pace, resets, and custom tokens independent;
+  custom layouts with both ordinary percentages and an independently placed Monthly percentage use the layout editor
+  for that mixed selection.
 - OpenCode Go cost history chart: `opencode.ai` has no daily-granularity endpoint, so per-day cost/request buckets
   come from local `opencode-go` assistant costs in `opencode.db`, keyed by device-local calendar day. Successful web
   usage remains workspace-scoped and is never blended with device-wide local costs, so it does not show cost history.

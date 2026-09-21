@@ -44,6 +44,7 @@ interface CodexBarCostUsageEntry {
   date: string;
   inputTokens: number;
   outputTokens: number;
+  /** Independent reported count; may exceed outputTokens and is not added to input + output totals. */
   reasoningTokens?: number | null;
   requests: number;
   cost: number;
@@ -142,6 +143,11 @@ interface CodexBarPluginContext {
   readonly http: {
     getJSON<T = unknown>(url: string, options?: CodexBarHTTPRequestOptions): Promise<CodexBarHTTPJSONResponse<T>>;
     get(url: string, options?: CodexBarHTTPRequestOptions): Promise<CodexBarHTTPTextResponse>;
+    /** POST a JSON body and retain the response text, including non-JSON error responses. */
+    post(
+      url: string,
+      options: CodexBarHTTPRequestOptions & { body: CodexBarJSONValue },
+    ): Promise<CodexBarHTTPTextResponse>;
     postJSON<T = unknown>(
       url: string,
       options: CodexBarHTTPRequestOptions & { body: CodexBarJSONValue },

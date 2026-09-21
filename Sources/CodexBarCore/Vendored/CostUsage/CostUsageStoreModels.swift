@@ -114,6 +114,8 @@ struct CostUsageStoreForkLineage: Codable, Equatable, Sendable {
 
 enum CostUsageStoreBufferedLineKind: String, Codable, CaseIterable, Sendable {
     case pricingEvidence
+    case sourcePricingEvidence
+    case sourcePricingAnchor
     case subagent
     case unresolvedFork
     case deferredReplay

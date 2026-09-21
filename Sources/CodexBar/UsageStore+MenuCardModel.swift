@@ -10,6 +10,7 @@ enum UsageMenuCardContext {
         var snapshot: UsageSnapshot?
         var error: String?
         var info: AccountInfo?
+        var privacyOrdinal: PersonalInfoRedactor.AccountOrdinal?
         var historySelection: PlanUtilizationHistorySelection?
         var plan: UsageMenuCardView.Model.PlanOverride = .automatic
         var planEmphasis: UsageMenuCardView.Model.PlanEmphasis = .none
@@ -101,6 +102,7 @@ extension UsageStore {
                 ? self.accountInfo(for: provider)
                 : AccountInfo(email: nil, plan: nil)),
             accountIsAuthoritative: account?.info != nil,
+            accountPrivacyOrdinal: account?.privacyOrdinal,
             planOverride: account?.plan ?? .automatic,
             planEmphasis: account?.planEmphasis ?? .none,
             lastKnownUsageCapturedAt: account?.lastKnownUsageCapturedAt,
@@ -140,7 +142,14 @@ extension UsageStore {
             usesLiveSubtitle: !isSettings && isLive,
             preferredCurrencyCode: isSettings ? "auto" : self.settings.preferredCurrencyCode,
             costUsageBucketCalendar: self.settings.costUsageBucketCalendar,
-            now: now)
+            now: now,
+            observedWeeklyResets: descriptor.presentation.menuCard.showsQuotaWeekCost
+                ? self.weeklyQuotaWindowResetObservations(
+                    for: provider,
+                    snapshot: snapshot,
+                    historySelection: account?.historySelection,
+                    usesLiveAccount: isLive)
+                : [])
     }
 
     private func menuCardSessionEquivalentForecast(

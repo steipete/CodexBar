@@ -891,7 +891,9 @@ final class JavaScriptCoreProviderPluginEngine: ProviderPluginEngine, @unchecked
         }
 
         // The broker owns representation headers so plugins cannot relax the user-plugin response boundary.
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        if self.enforcesUserResponsePolicy || request.value(forHTTPHeaderField: "Accept") == nil {
+            request.setValue("application/json", forHTTPHeaderField: "Accept")
+        }
         if self.enforcesUserResponsePolicy {
             request.setValue("identity", forHTTPHeaderField: "Accept-Encoding")
         }

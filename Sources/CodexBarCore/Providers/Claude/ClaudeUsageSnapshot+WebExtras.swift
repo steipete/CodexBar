@@ -20,6 +20,7 @@ extension ClaudeUsageSnapshot {
             oauthCredentialOwner: self.oauthCredentialOwner,
             oauthKeychainCredentialMismatch: self.oauthKeychainCredentialMismatch,
             oauthKeychainCredentialAbsent: self.oauthKeychainCredentialAbsent,
-            oauthKeychainCredentialUnavailable: self.oauthKeychainCredentialUnavailable)
+            oauthKeychainCredentialUnavailable: self.oauthKeychainCredentialUnavailable,
+            accountID: self.accountID)
     }
 }

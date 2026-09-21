@@ -22,6 +22,11 @@ public enum ProviderTokenCostHintPlacement: Sendable, Equatable {
     case hidden
 }
 
+public enum ProviderTokenHistoryPresentation: Sendable, Equatable {
+    case costAndTokens
+    case tokensOnly
+}
+
 public struct ProviderTokenCostConfig: Sendable {
     public let supportsTokenCost: Bool
     public let noDataMessage: @Sendable () -> String
@@ -38,6 +43,7 @@ public struct ProviderTokenCostConfig: Sendable {
     public let chartEstimateDisclaimer: ProviderTokenCostHint?
     /// Keep calendar slots for missing dates; coverage determines whether their costs are known.
     public let preservesCalendarDaysInCharts: Bool
+    public let presentation: ProviderTokenHistoryPresentation
 
     public init(
         supportsTokenCost: Bool,
@@ -53,7 +59,8 @@ public struct ProviderTokenCostConfig: Sendable {
         showsRequestHistory: Bool = true,
         hintPlacement: ProviderTokenCostHintPlacement = .afterRequestHistory,
         chartEstimateDisclaimer: ProviderTokenCostHint? = nil,
-        preservesCalendarDaysInCharts: Bool = false)
+        preservesCalendarDaysInCharts: Bool = false,
+        presentation: ProviderTokenHistoryPresentation = .costAndTokens)
     {
         self.supportsTokenCost = supportsTokenCost
         self.noDataMessage = noDataMessage
@@ -69,6 +76,7 @@ public struct ProviderTokenCostConfig: Sendable {
         self.hintPlacement = hintPlacement
         self.chartEstimateDisclaimer = chartEstimateDisclaimer
         self.preservesCalendarDaysInCharts = preservesCalendarDaysInCharts
+        self.presentation = presentation
     }
 }
 
@@ -302,7 +310,7 @@ public struct ProviderPaceCapability: Sendable {
         guard let startsAt = calendar.date(byAdding: .month, value: -1, to: resetsAt) else { return nil }
         let minutes = resetsAt.timeIntervalSince(startsAt) / 60
         guard minutes.isFinite, minutes > 0 else { return nil }
-        return Int(minutes.rounded())
+        return Int(exactly: minutes.rounded())
     }
 }
 

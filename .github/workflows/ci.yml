@@ -338,7 +338,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          swift sdk install "$SWIFT_STATIC_LINUX_SDK_URL" --checksum "$SWIFT_STATIC_LINUX_SDK_CHECKSUM"
+          ./Scripts/install_swift_static_sdk.sh
           swift sdk list | grep -Fx "$SWIFT_STATIC_LINUX_SDK"
 
           sdk_root="$(

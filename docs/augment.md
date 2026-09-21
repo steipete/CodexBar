@@ -86,6 +86,10 @@ The provider includes an automatic session keepalive system:
 
 This ensures your session stays active without manual intervention.
 
+Disabling Augment stops its timer and cancels in-flight automatic and forced refreshes. Retired work cannot start
+follow-up cookie imports, cache writes, recovery actions, or notifications after it resumes. Re-enabling starts a new
+keepalive lifecycle, and cancelling one manual refresh does not cancel another active refresh.
+
 ### API Endpoints
 
 The provider fetches data from:
@@ -154,6 +158,7 @@ This displays:
 - Cookies are filtered by domain before sending to API endpoints
 - No cookies are sent to third-party services
 - Session keepalive only runs when Augment is enabled
+- Keepalive diagnostics omit outgoing cookies, Set-Cookie values, and raw response bodies.
 
 ## Technical Details
 

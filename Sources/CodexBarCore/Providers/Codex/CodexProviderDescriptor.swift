@@ -135,7 +135,8 @@ public enum CodexProviderDescriptor {
                 menuCard: ProviderMenuCardPresentation(
                     creditsVisibility: .requiresValueOrError,
                     costVisibilityResolver: { $0.showOptionalUsage },
-                    supportsInlineTokenCostDashboard: true)),
+                    supportsInlineTokenCostDashboard: true,
+                    showsQuotaWeekCost: true)),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .web, .cli, .oauth, .api],
                 pipeline: ProviderFetchPipeline(resolveStrategies: self.resolveStrategies)),

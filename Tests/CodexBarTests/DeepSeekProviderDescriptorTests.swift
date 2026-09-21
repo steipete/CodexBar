@@ -417,8 +417,9 @@ struct DeepSeekProviderDescriptorTests {
                 resolutionJoinGrace: .milliseconds(20),
                 operations: operations)
         } throws: { error in
-            guard case let DeepSeekUsageError.networkError(message) = error else { return false }
-            return message.contains("timed out")
+            guard let transport = error as? DeepSeekPlatformTransportError else { return false }
+            return transport.owner == nil && (transport.underlyingError as NSError).code == NSURLErrorTimedOut &&
+                error.localizedDescription.contains("timed out")
         }
         #expect(startedAt.duration(to: .now) < .milliseconds(200))
     }

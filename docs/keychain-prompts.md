@@ -33,6 +33,11 @@ explicitly confirms access. Interaction-required, missing, or failed preflights 
 actual read remains non-interactive. This recovery does not clear the user-initiated denial cooldown or override
 disabled Keychain access.
 
+An inconclusive no-UI preflight gets at most three attempts, with a 30 ms pause before each retry. Stable authorization
+decisions are never retried. Each distinct preflight can add two 30 ms waits plus the Security calls;
+repeated checks within one operation reuse the final result. This applies to generic-password preflights for
+browser storage, credential repair, and CodexBar caches, without changing their permission requirements.
+
 Provider-owned child processes are a separate boundary. CodexBar may intentionally launch a provider CLI such as
 Claude for usage. That executable owns its credential behavior, which CodexBar cannot constrain or fully inspect.
 

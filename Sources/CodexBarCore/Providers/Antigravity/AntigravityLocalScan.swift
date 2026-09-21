@@ -55,6 +55,8 @@ extension AntigravityLocalReader {
         var sqliteHandlesClosed = 0
         /// Sidecar-less WAL databases that the ordinary read-only open declined and an immutable open read.
         var immutableFallbacks = 0
+        /// Databases in a declared root whose schema has no gen_metadata table; skipped without affecting coverage.
+        var foreignDatabases = 0
     }
 
     enum ScanFailure: Error {
@@ -150,8 +152,7 @@ extension AntigravityLocalReader {
                 }
                 guard !url.lastPathComponent.hasPrefix("."), url.pathExtension.lowercased() == suffix else { continue }
                 guard result.paths.count < budget.limits.databases else {
-                    result.isComplete = false
-                    return result
+                    throw ScanFailure.exhausted
                 }
                 do {
                     let values = try url.resolvingSymlinksInPath().resourceValues(forKeys: [.isRegularFileKey])

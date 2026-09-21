@@ -150,6 +150,10 @@
 "Cookie: …" = "Cookie : …";
 "CopilotDeviceFlow" = "CopilotDeviceFlow";
 "Cost" = "Coût";
+"Token history" = "Historique des tokens";
+"Local token history · dollar costs unavailable" = "Historique local des tokens · coûts en dollars indisponibles";
+"Partial local history · recorded token subtotal" = "Historique local partiel · sous-total des tokens enregistrés";
+"Local token history is unavailable or incomplete." = "L’historique local des tokens est indisponible ou incomplet.";
 "Could not add Codex account" = "Impossible d'ajouter un compte Codex";
 "Could not open Terminal for Gemini" = "Impossible d'ouvrir le terminal pour Gemini";
 "Could not start claude /login" = "Impossible de démarrer Claude /connexion";
@@ -612,6 +616,12 @@
 "cost_summary_off" = "Désactivé";
 "merge_icons_title" = "Fusionner les icônes";
 "merge_icons_subtitle" = "Utilisez une seule icône de barre de menu avec un sélecteur de fournisseur.";
+"merged_icon_style_title" = "Style d'icône combinée";
+"merged_icon_style_subtitle" = "Le sélecteur bascule entre les fournisseurs un par un ; Empilé affiche deux fournisseurs à la fois, chacun sur sa ligne.";
+"merged_icon_style_switcher" = "Sélecteur";
+"merged_icon_style_stacked" = "Empilé";
+"merge_icon_stacked_top_provider_title" = "Ligne du haut";
+"merge_icon_stacked_bottom_provider_title" = "Ligne du bas";
 "show_most_used_provider_title" = "Afficher le fournisseur le plus utilisé";
 "show_most_used_provider_subtitle" = "La barre de menu affiche automatiquement le fournisseur le plus proche de sa limite de débit.";
 "display_mode_title" = "Mode d'affichage";
@@ -882,6 +892,12 @@
 "usage_percent_suffix_used" = "utilisé";
 "Store multiple DeepSeek API keys." = "Stockez plusieurs clés API DeepSeek.";
 "This week" = "Cette semaine";
+"Current window" = "Fenêtre actuelle";
+"Last week" = "La semaine dernière";
+"%d weeks ago" = "il y a %d semaines";
+"Previous window" = "Fenêtre précédente";
+"%d windows ago" = "il y a %d fenêtres";
+"Recent windows" = "Fenêtres récentes";
 "Week" = "Semaine";
 "Month" = "Mois";
 "Models" = "Modèles";
@@ -941,6 +957,8 @@
 "Overage" = "Dépassement";
 "Activity" = "Activité";
 "Copied" = "Copié";
+"Managed by Homebrew" = "Géré par Homebrew";
+"Copy update command" = "Copier la commande de mise à jour";
 "Copy error" = "Erreur de copie";
 "Copy path" = "Copier le chemin";
 "Extra usage spent" = "Utilisation supplémentaire dépensée";
@@ -1336,6 +1354,8 @@
 "Tracked tokens" = "Jetons suivis";
 "Subscriptions" = "Abonnements";
 "By subscription" = "Par abonnement";
+"By source" = "By source";
+"%d of %d sources have spend" = "%d of %d sources have spend";
 "No model-level history" = "Aucun historique au niveau des modèles";
 "Daily estimated spend" = "Dépenses quotidiennes estimées";
 "Hourly estimated spend" = "Dépenses horaires estimées";
@@ -1579,3 +1599,25 @@
 
 "agent_sessions_hide_unreachable_title" = "Masquer les hôtes inaccessibles";
 "agent_sessions_hide_unreachable_subtitle" = "Masquer les hôtes lorsque la récupération de leurs sessions échoue.";
+
+/* Overview share flow */
+"Share Usage Snapshot…" = "Partager l’aperçu de l’utilisation…";
+"Usage snapshot unavailable" = "Aperçu de l’utilisation indisponible";
+"CodexBar couldn't prepare a shareable usage snapshot. Refresh Usage & Spend and try again." = "CodexBar n’a pas pu préparer un aperçu de l’utilisation à partager. Actualisez Utilisation et dépenses, puis réessayez.";
+"Incomplete" = "Incomplet";
+"Est. subtotal (%@): %@" = "Sous-total estimé (%@) : %@";
+"Excluded requests with missing final usage: %d" = "Requêtes exclues sans données d’utilisation finales : %d";
+
+"overview_layout_title" = "Disposition de la vue d’ensemble";
+"overview_layout_subtitle" = "Choisissez la quantité d’informations affichée dans la vue d’ensemble.";
+"overview_layout_detailed" = "Détaillée";
+"overview_layout_compact" = "Compact";
+
+"section_widgets" = "Widgets";
+"account_widgets_title" = "Actualiser les comptes pour les widgets";
+"account_widgets_description" = "Choisissez un compte dans chaque widget Account Usage. Actualise jusqu’à six comptes par fournisseur.";
+
+/* Antigravity local cost estimates */
+"antigravity_cost_estimate_hint" = "Usage local × tarifs API publics · ni frais ni crédits Antigravity";
+"antigravity_quota_window_note" = "Le coût de la fenêtre couvre tous les modèles · la fenêtre affichée est la famille la plus contrainte";
+"antigravity_no_priced_token_history" = "Aucun historique de tokens Antigravity tarifé n'est disponible.";

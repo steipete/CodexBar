@@ -120,14 +120,18 @@ extension CodexBarCLI {
                        [--provider \(ProviderHelp.list)]
                        [--no-color] [--pretty] [--refresh] [--breakdown] [--provider-native-only]
                        [--days <days>] [--group-by project|session]
+                       [--remote <ssh-host> | --summary-only]
 
         Description:
           Print local token cost usage from Claude/Codex native logs plus supported pi and OMP sessions.
-          Antigravity token history is also read locally, with dollar costs left unknown.
+          Antigravity token history is read locally, with API-price estimates for known models; Muse Code remains
+          token-only.
           Local readers need no web or provider CLI access; Cursor uses its authenticated dashboard API.
           Use --refresh to bypass cached scan results.
           Use --breakdown with Claude text output to show daily and model details.
           Experimental: use --provider-native-only to exclude pi and OMP session mirrors.
+          Use --provider codex --remote <host> for separate local and SSH-host summaries.
+          --summary-only emits versioned Codex JSON totals without account or session details.
 
         Examples:
           codexbar cost
@@ -135,6 +139,8 @@ extension CodexBarCLI {
           codexbar cost --provider codex --group-by session
           codexbar cost --provider claude --format json --pretty
           codexbar cost --provider antigravity --format json
+          codexbar cost --provider muse --format json
+          codexbar cost --provider codex --remote build-host --format json
         """
     }
 
@@ -337,16 +343,16 @@ extension CodexBarCLI {
         Description:
           Run external commands when quota/provider events occur. Rules are stored in the
           shared config file and are disabled by default. Events:
-          quota_low, quota_reached, quota_reset, provider_unavailable, provider_recovered,
-          refresh_failed.
+          quota_low, quota_reached, quota_reset, usage_updated, provider_unavailable,
+          provider_recovered, refresh_failed.
 
           Commands run directly (no shell), receive event metadata via CODEXBAR_* environment
           variables and a JSON payload on stdin, and are timed out. Only configure commands you trust.
 
           `watch` polls the selected providers and fires rules on real transitions, so hooks
           work without the macOS app. Events are edge-triggered against the previous poll, so a
-          persisting condition does not re-fire. Baselines are in-memory: the first poll of a
-          lane establishes state without firing. Keep one continuous process running so transition
+          persisting condition does not re-fire. The first successful poll can emit usage_updated;
+          quota-transition baselines are established without firing. Keep one continuous process so transition
           baselines and event rate limits survive between polls. Default interval 300s, minimum 60s.
 
         Examples:

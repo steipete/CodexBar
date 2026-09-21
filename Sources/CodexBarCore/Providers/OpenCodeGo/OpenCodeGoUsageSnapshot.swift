@@ -7,9 +7,9 @@ public struct OpenCodeGoUsageSnapshot: Sendable {
     public let rollingUsagePercent: Double
     public let weeklyUsagePercent: Double
     public let monthlyUsagePercent: Double
-    public let rollingResetInSec: Int
-    public let weeklyResetInSec: Int
-    public let monthlyResetInSec: Int
+    public let rollingResetInSec: Int?
+    public let weeklyResetInSec: Int?
+    public let monthlyResetInSec: Int?
     public private(set) var zenBalanceUSD: Double?
     public let renewsAt: Date?
     public private(set) var daily: [CostUsageDailyReport.Entry]
@@ -22,9 +22,9 @@ public struct OpenCodeGoUsageSnapshot: Sendable {
         rollingUsagePercent: Double,
         weeklyUsagePercent: Double,
         monthlyUsagePercent: Double,
-        rollingResetInSec: Int,
-        weeklyResetInSec: Int,
-        monthlyResetInSec: Int,
+        rollingResetInSec: Int?,
+        weeklyResetInSec: Int?,
+        monthlyResetInSec: Int?,
         zenBalanceUSD: Double? = nil,
         renewsAt: Date? = nil,
         daily: [CostUsageDailyReport.Entry] = [],
@@ -71,7 +71,7 @@ public struct OpenCodeGoUsageSnapshot: Sendable {
                 identity: nil)
         }
 
-        let rollingReset = self.updatedAt.addingTimeInterval(TimeInterval(self.rollingResetInSec))
+        let rollingReset = self.rollingResetInSec.map { self.updatedAt.addingTimeInterval(TimeInterval($0)) }
         let primary = RateWindow(
             usedPercent: self.rollingUsagePercent,
             windowMinutes: 5 * 60,
@@ -79,7 +79,7 @@ public struct OpenCodeGoUsageSnapshot: Sendable {
             resetDescription: nil)
         let secondary: RateWindow?
         if self.hasWeeklyUsage {
-            let weeklyReset = self.updatedAt.addingTimeInterval(TimeInterval(self.weeklyResetInSec))
+            let weeklyReset = self.weeklyResetInSec.map { self.updatedAt.addingTimeInterval(TimeInterval($0)) }
             secondary = RateWindow(
                 usedPercent: self.weeklyUsagePercent,
                 windowMinutes: 7 * 24 * 60,
@@ -90,7 +90,7 @@ public struct OpenCodeGoUsageSnapshot: Sendable {
         }
         let tertiary: RateWindow?
         if self.hasMonthlyUsage {
-            let monthlyReset = self.updatedAt.addingTimeInterval(TimeInterval(self.monthlyResetInSec))
+            let monthlyReset = self.monthlyResetInSec.map { self.updatedAt.addingTimeInterval(TimeInterval($0)) }
             tertiary = RateWindow(
                 usedPercent: self.monthlyUsagePercent,
                 windowMinutes: 30 * 24 * 60,

@@ -98,6 +98,7 @@ struct CloudSyncSettingsTests {
         try original.write(to: url, options: .atomic)
         let changes = LockedCounter()
         let watcher = ConfigFileWatcher(fileURL: url) { changes.increment() }
+        defer { watcher.stop() }
         watcher.start()
         try await Task.sleep(for: .milliseconds(150))
 
@@ -109,8 +110,10 @@ struct CloudSyncSettingsTests {
         #expect(changes.value == 0)
 
         try Data("{\"value\":3}".utf8).write(to: url, options: .atomic)
-        try await Task.sleep(for: .milliseconds(500))
-        watcher.stop()
+        let deadline = ContinuousClock.now.advanced(by: .seconds(10))
+        while changes.value == 0, ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(20))
+        }
         #expect(changes.value >= 1)
     }
 
@@ -220,6 +223,60 @@ struct CloudSyncSettingsTests {
         }
         #expect(values.snapshot.contains(second))
         #expect(try Data(contentsOf: url) == second)
+    }
+
+    @Test
+    func `replacement before watcher registration keeps subsequent in place edits observable`() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appendingPathComponent("config.json")
+        try Data("initial".utf8).write(to: url, options: .atomic)
+        let first = Data("first".utf8)
+        let second = Data("second".utf8)
+        let third = Data("third!".utf8)
+        let values = WatchedConfigValues()
+        let registrations = WatchedConfigValues()
+        let errors = WatchedConfigValues()
+        let watcher = ConfigFileWatcher(
+            fileURL: url,
+            beforeRegistrationForTesting: {
+                guard registrations.snapshot.isEmpty else { return }
+                registrations.append(first)
+                do {
+                    try first.write(to: url, options: .atomic)
+                } catch {
+                    errors.append(Data(error.localizedDescription.utf8))
+                }
+            },
+            changeHandler: {
+                guard let data = try? Data(contentsOf: url) else { return }
+                values.append(data)
+                if data == first {
+                    do {
+                        try second.write(to: url, options: .atomic)
+                    } catch {
+                        errors.append(Data(error.localizedDescription.utf8))
+                    }
+                }
+            })
+        defer { watcher.stop() }
+        watcher.start()
+        for _ in 0..<100 where !values.snapshot.contains(second) {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        #expect(errors.snapshot.isEmpty)
+        #expect(values.snapshot.contains(first))
+        try #require(values.snapshot.contains(second))
+
+        let handle = try FileHandle(forWritingTo: url)
+        try handle.write(contentsOf: third)
+        try handle.close()
+        for _ in 0..<100 where !values.snapshot.contains(third) {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        #expect(values.snapshot.contains(third))
+        #expect(try Data(contentsOf: url) == third)
     }
 
     @Test

@@ -991,19 +991,21 @@ extension CodexBarCLI {
             return Self.serveUnauthorizedResponse()
         }
         // Resolved per request, not at startup: the app's "Hide personal information"
-        // toggle can flip while serve runs. The resolved mode joins the operation key so
-        // a body cached before the flip can never be replayed after it.
+        // and "Usage bars fill" toggles can flip while serve runs. The resolved values join
+        // the operation key so a body cached before a toggle cannot be replayed after it.
         let identityMode = Self.resolveDashboardIdentityMode(
             configured: runtime.dashboardIdentityMode,
             hidesPersonalInfo: Self.hidePersonalInfoFromDefaults())
+        let usageBarsShowUsed = Self.usageBarsShowUsedFromDefaults()
         let snapshot: CLIServeConfigSnapshot
         let operationKey: String
         let detail: DashboardSnapshotDetail
         let providers: [UsageProvider]?
         do {
             snapshot = try Self.loadServeConfigSnapshot(configStore: runtime.configStore)
-            operationKey = try Self.serveOperationKey(
-                kind: "dashboard-\(identityMode.rawValue)",
+            operationKey = try Self.serveDashboardOperationKey(
+                identityMode: identityMode,
+                usageBarsShowUsed: usageBarsShowUsed,
                 provider: provider)
             detail = try Self.dashboardSnapshotDetail(rawDetail)
             providers = try Self.dashboardSnapshotProviders(provider)
@@ -1015,7 +1017,8 @@ extension CodexBarCLI {
             return Self.addingNoStore(Self.serveDashboardShell(
                 config: snapshot.config,
                 providers: providers,
-                runtime: runtime))
+                runtime: runtime,
+                usageBarsShowUsed: usageBarsShowUsed))
         }
         return await Self.addingNoStore(Self.cachedServeResponse(
             request: ServeResponseRequest(
@@ -1046,7 +1049,8 @@ extension CodexBarCLI {
                         costRefreshesPricingInBackground: Self.serveCostRefreshesPricingInBackground,
                         codexBarVersion: runtime.healthVersion),
                     identityMode: identityMode,
-                    providers: providers)
+                    providers: providers,
+                    usageBarsShowUsed: usageBarsShowUsed)
             }))
     }
 
@@ -1070,14 +1074,16 @@ extension CodexBarCLI {
     private static func serveDashboardShell(
         config: CodexBarConfig,
         providers: [UsageProvider]?,
-        runtime: ServeRuntime) -> CLILocalHTTPResponse
+        runtime: ServeRuntime,
+        usageBarsShowUsed: Bool) -> CLILocalHTTPResponse
     {
         self.serveJSON(DashboardSnapshotBuilder.makeShellSnapshot(
             config: config,
             providers: providers,
             generatedAt: Date(),
             refreshInterval: runtime.refreshInterval,
-            codexBarVersion: runtime.healthVersion))
+            codexBarVersion: runtime.healthVersion,
+            usageBarsShowUsed: usageBarsShowUsed))
     }
 
     static func loadServeConfigSnapshot(
@@ -1087,6 +1093,16 @@ extension CodexBarCLI {
         return try CLIServeConfigSnapshot(
             config: config,
             cacheToken: Self.serveConfigCacheToken(for: config))
+    }
+
+    static func serveDashboardOperationKey(
+        identityMode: DashboardIdentityMode,
+        usageBarsShowUsed: Bool,
+        provider: String?) throws -> String
+    {
+        try self.serveOperationKey(
+            kind: "dashboard-\(identityMode.rawValue)-\(usageBarsShowUsed ? "used" : "remaining")",
+            provider: provider)
     }
 
     static func serveOperationKey(kind: String, provider: String?) throws -> String {
@@ -1344,11 +1360,14 @@ extension CodexBarCLI {
     private static func serveDashboardSnapshot(
         context: DashboardSnapshotContext,
         identityMode: DashboardIdentityMode,
-        providers: [UsageProvider]? = nil) async -> CLILocalHTTPResponse
+        providers: [UsageProvider]? = nil,
+        usageBarsShowUsed: Bool = false) async -> CLILocalHTTPResponse
     {
+        var producer = DashboardSnapshotProducer.live(context: context)
+        producer.usageBarsShowUsed = { usageBarsShowUsed }
         let result: DashboardSnapshotResult
         do {
-            result = try await DashboardSnapshotProducer.live(context: context).collect(
+            result = try await producer.collect(
                 config: context.config,
                 refreshInterval: context.usage.refreshInterval,
                 codexBarVersion: context.codexBarVersion,
@@ -1471,6 +1490,9 @@ extension CodexBarCLI {
         }
 
         let fetcher = CostUsageFetcher()
+        let piSessionProcessContexts = await Self.piSessionProcessContextsForCost(
+            providers: providers,
+            includePiSessions: true)
         let payload = await Self.collectConfiguredCostPayloads(
             providers: providers,
             config: context.config,
@@ -1481,7 +1503,14 @@ extension CodexBarCLI {
                     provider: provider,
                     forceRefresh: false,
                     cursorCookieHeaderOverride: cursorCookieHeaderOverride,
-                    refreshPricingInBackground: Self.serveCostRefreshesPricingInBackground)
+                    refreshPricingInBackground: Self.serveCostRefreshesPricingInBackground,
+                    includePiSessions: Self.costIncludePiSessions(
+                        provider: provider,
+                        selectedProviders: providers,
+                        groupBy: .none,
+                        format: .json,
+                        includePiSessions: true),
+                    piSessionProcessContexts: piSessionProcessContexts)
                 return Self.makeCostPayload(provider: provider, snapshot: snapshot, error: nil)
             } catch {
                 return Self.makeCostPayload(provider: provider, snapshot: nil, error: error)
@@ -1533,6 +1562,9 @@ extension CodexBarCLI {
     {
         // Preserve the established scan order. The injected fetch decides whether
         // pricing refresh is awaited; provider deadlines still bound each row.
+        // Provider-specific by design: the same provider may be requested once as
+        // an inclusive Claude/Codex row and once as native-only when Pi is emitted
+        // separately. Keep those operations from coalescing under one config key.
         var payload: [CostPayload] = []
         for provider in providers {
             let deadline = Self.serveCostProviderDeadline(
@@ -1543,9 +1575,17 @@ extension CodexBarCLI {
                 provider: provider,
                 snapshot: nil,
                 error: CLIServeCostTimeoutError(provider: provider))
+            let includesPi = Self.costIncludePiSessions(
+                provider: provider,
+                selectedProviders: providers,
+                groupBy: .none,
+                format: .json,
+                includePiSessions: true)
+            let mode = includesPi ? "inclusive" : "native"
+            let operationFingerprint = "\(context.configFingerprint)|piAccounting=\(provider.rawValue):\(mode)"
             let item = await context.providerOperations.value(
                 for: provider.rawValue,
-                fingerprint: context.configFingerprint,
+                fingerprint: operationFingerprint,
                 deadline: deadline,
                 timeoutValue: timeout)
             {

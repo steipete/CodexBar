@@ -262,24 +262,64 @@ public struct ProviderDiagnosticRateWindow: Codable, Sendable {
 }
 
 public struct ProviderDiagnosticFetchAttempt: Codable, Sendable {
+    /// Identifies the exact strategy that ran, distinguishing sources that share
+    /// a transport kind (e.g. Antigravity's app-local vs ide-local probes).
+    public let strategyID: String?
     public let kind: String
+    /// One of "succeeded", "skipped", or "failed" (``ProviderFetchAttempt/Outcome``).
+    public let outcome: String
     public let wasAvailable: Bool
     public let errorCategory: String?
 
     public init(
+        strategyID: String? = nil,
         kind: String,
+        outcome: String? = nil,
         wasAvailable: Bool,
         errorCategory: String?)
     {
+        self.strategyID = strategyID
         self.kind = kind
+        self.outcome = outcome
+            ?? Self.derivedOutcome(wasAvailable: wasAvailable, errorCategory: errorCategory)
         self.wasAvailable = wasAvailable
         self.errorCategory = errorCategory
     }
 
     public init(from attempt: ProviderFetchAttempt) {
-        self.kind = Self.kindLabel(attempt.kind)
-        self.wasAvailable = attempt.wasAvailable
-        self.errorCategory = attempt.errorDescription.map(Self.errorCategoryLabel)
+        self.init(
+            strategyID: attempt.strategyID,
+            kind: Self.kindLabel(attempt.kind),
+            outcome: attempt.outcome.rawValue,
+            wasAvailable: attempt.wasAvailable,
+            errorCategory: attempt.errorDescription.map(Self.errorCategoryLabel))
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        try self.init(
+            strategyID: container.decodeIfPresent(String.self, forKey: .strategyID),
+            kind: container.decode(String.self, forKey: .kind),
+            outcome: container.decodeIfPresent(String.self, forKey: .outcome),
+            wasAvailable: container.decode(Bool.self, forKey: .wasAvailable),
+            errorCategory: container.decodeIfPresent(String.self, forKey: .errorCategory))
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case strategyID
+        case kind
+        case outcome
+        case wasAvailable
+        case errorCategory
+    }
+
+    private static func derivedOutcome(wasAvailable: Bool, errorCategory: String?) -> String {
+        if !wasAvailable {
+            return ProviderFetchAttempt.Outcome.skipped.rawValue
+        }
+        return errorCategory == nil
+            ? ProviderFetchAttempt.Outcome.succeeded.rawValue
+            : ProviderFetchAttempt.Outcome.failed.rawValue
     }
 
     public static func kindLabel(_ kind: ProviderFetchKind) -> String {

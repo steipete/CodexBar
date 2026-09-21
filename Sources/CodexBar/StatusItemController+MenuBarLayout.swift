@@ -41,7 +41,7 @@ extension StatusItemController {
         now: Date = .init())
         -> Bool?
     {
-        let resolution = self.settings.menuBarLayoutResolution(for: provider)
+        let resolution = self.renderedMenuBarLayoutResolution(for: provider)
         guard !resolution.usesLegacyRendering,
               self.settings.menuBarIconStyle == .iconAndPercent,
               let button = statusItem.button
@@ -56,18 +56,7 @@ extension StatusItemController {
             snapshot: snapshot,
             warningFlash: warningFlash,
             now: now)
-        let appearanceName = button.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua])?.rawValue ?? "default"
-        let options = MenuBarLayoutRenderOptions(
-            size: self.settings.menuBarLayoutSize,
-            highContrast: self.shouldUseHighContrastStatusItemContent,
-            showUsed: self.settings.usageBarsShowUsed,
-            conditionals: self.settings.menuBarLayoutConditionals,
-            appearanceName: appearanceName,
-            isDebugApp: Self.isDebugApp(bundleIdentifier: Bundle.main.bundleIdentifier),
-            isStale: self.store.isStale(provider: provider),
-            now: now,
-            verticalAdjustment: self.settings.menuBarLayoutVerticalAdjustment,
-            colorPace: self.settings.menuBarColorPace)
+        let options = self.menuBarLayoutRenderOptions(for: provider, button: button, now: now)
         let rendered = self.menuBarLayoutRenderer.render(
             layout: resolution.layout,
             data: data,
@@ -86,6 +75,99 @@ extension StatusItemController {
             && button.attributedTitle.isEqual(to: expectedTitle)
         self.setButtonLayoutContent(rendered, for: button, statusItem: statusItem)
         return wasCached
+    }
+
+    private var mergedIconPresentation: MergedIconPresentation {
+        self.settings.mergedIconPresentation(
+            activeProviders: self.store.enabledFirstPartyProvidersForDisplay(),
+            mergeIcons: self.shouldMergeIcons)
+    }
+
+    func stackedMergeIconProvidersIfActive() -> MergedIconPresentation.Pair? {
+        self.mergedIconPresentation.stackedProviders
+    }
+
+    func renderedMenuBarLayoutResolution(for provider: UsageProvider) -> MenuBarLayoutResolution {
+        self.mergedIconPresentation.renderedResolution(
+            self.settings.menuBarLayoutResolution(for: provider), for: provider)
+    }
+
+    /// Uses the existing merged status item so its identity, menu, and placement stay stable.
+    func applyStoredStackedMenuBarLayoutIfNeeded(
+        top: UsageProvider,
+        bottom: UsageProvider,
+        now: Date = .init())
+        -> Bool?
+    {
+        guard self.settings.menuBarShowsBrandIconWithPercent,
+              self.settings.menuBarIconStyle == .iconAndPercent,
+              let button = self.statusItem.button
+        else {
+            self.statusItem.length = NSStatusItem.variableLength
+            return nil
+        }
+        guard let topRow = self.renderStackedProviderRow(provider: top, now: now),
+              let bottomRow = self.renderStackedProviderRow(provider: bottom, now: now)
+        else {
+            self.statusItem.length = NSStatusItem.variableLength
+            return nil
+        }
+        let rendered = MenuBarLayoutRenderer.composeStackedProviderRows(
+            top: topRow,
+            bottom: bottomRow,
+            topProviderName: L(self.store.metadata(for: top).displayName),
+            bottomProviderName: L(self.store.metadata(for: bottom).displayName))
+        let wasCached = button.image == nil && button.attributedTitle.isEqual(to: rendered.attributedTitle)
+        self.statusItem.length = Self.applyMenuBarLayoutContent(
+            rendered,
+            for: button,
+            gap: self.settings.menuBarLayoutGap)
+        return wasCached
+    }
+
+    private func renderStackedProviderRow(provider: UsageProvider, now: Date) -> MenuBarLayoutRenderedTitle? {
+        let resolution = self.renderedMenuBarLayoutResolution(for: provider)
+        let warningFlash = self.quotaWarningFlashActive(provider: provider)
+        let snapshot = self.store.menuBarSnapshot(for: provider.instanceID)
+        let icon = ProviderBrandIcon.image(for: provider)
+            .map { warningFlash ? Self.quotaWarningFlashImage(base: $0) : $0 }
+        let data = self.menuBarLayoutRenderData(
+            provider: provider,
+            snapshot: snapshot,
+            warningFlash: warningFlash,
+            now: now)
+        let options = self.menuBarLayoutRenderOptions(
+            for: provider,
+            button: self.statusItem.button,
+            now: now,
+            forceStackedStyle: true)
+        return self.menuBarLayoutRenderer.render(
+            layout: resolution.layout,
+            data: data,
+            icon: icon,
+            options: options)
+    }
+
+    private func menuBarLayoutRenderOptions(
+        for provider: UsageProvider,
+        button: NSButton?,
+        now: Date,
+        forceStackedStyle: Bool = false)
+        -> MenuBarLayoutRenderOptions
+    {
+        let appearanceName = button?.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua])?.rawValue ?? "default"
+        return MenuBarLayoutRenderOptions(
+            size: self.settings.menuBarLayoutSize,
+            highContrast: self.shouldUseHighContrastStatusItemContent,
+            showUsed: self.settings.usageBarsShowUsed,
+            conditionals: self.settings.menuBarLayoutConditionals,
+            appearanceName: appearanceName,
+            isDebugApp: Self.isDebugApp(bundleIdentifier: Bundle.main.bundleIdentifier),
+            isStale: self.store.isStale(provider: provider),
+            now: now,
+            verticalAdjustment: self.settings.menuBarLayoutVerticalAdjustment,
+            colorPace: self.settings.menuBarColorPace,
+            forceStackedStyle: forceStackedStyle)
     }
 
     func menuBarLayoutRenderData(
@@ -300,7 +382,7 @@ extension StatusItemController {
     {
         let snapshot = self.store.menuBarSnapshot(for: provider.instanceID)
         let windows = self.menuBarLayoutWindows(provider: provider, snapshot: snapshot, now: now)
-        let tokens = self.settings.menuBarLayoutResolution(for: provider).layout
+        let tokens = self.renderedMenuBarLayoutResolution(for: provider).layout
             .flattenedTokens(conditionals: self.settings.menuBarLayoutConditionals)
         let selections = Set(tokens.filter { absolute == nil || $0.resetIsAbsolute == absolute }
             .compactMap(\.resetWindow))

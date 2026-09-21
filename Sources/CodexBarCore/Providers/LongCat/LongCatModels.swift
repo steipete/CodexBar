@@ -13,7 +13,11 @@ enum LongCatEnvelope {
             throw LongCatAPIError.parseFailed("response was not a JSON object")
         }
         // Meituan envelopes use code == 0 for success; some surfaces use 200.
-        if let code = LongCatJSON.int(dict["code"]), code != 0, code != 200 {
+        if let rawCode = dict["code"] {
+            guard let code = LongCatJSON.int(rawCode) else {
+                throw LongCatAPIError.parseFailed("response code was not a valid integer")
+            }
+            guard code != 0, code != 200 else { return dict["data"] ?? dict }
             let message = LongCatJSON.string(dict["message"]) ?? LongCatJSON.string(dict["msg"]) ?? "code \(code)"
             if code == 401 || code == 403 { throw LongCatAPIError.invalidSession }
             throw LongCatAPIError.apiError(message)
@@ -27,9 +31,9 @@ enum LongCatJSON {
     static func int(_ value: Any?) -> Int? {
         switch value {
         case let v as Int: v
-        case let v as Double: Int(v)
-        case let v as String: Int(v) ?? Double(v).map(Int.init)
-        case let v as NSNumber: v.intValue
+        case let v as Double: Int(exactly: v.rounded(.towardZero))
+        case let v as String: Int(v) ?? Double(v).flatMap { Int(exactly: $0.rounded(.towardZero)) }
+        case let v as NSNumber: Int(exactly: v.doubleValue.rounded(.towardZero))
         default: nil
         }
     }
@@ -59,22 +63,6 @@ enum LongCatJSON {
     static func array(_ value: Any?) -> [[String: Any]]? {
         if let arr = value as? [[String: Any]] { return arr }
         if let arr = value as? [Any] { return arr.compactMap { $0 as? [String: Any] } }
-        return nil
-    }
-
-    /// First numeric value found under any of `keys`, searched at the top level
-    /// and one level deep (LongCat nests some figures under `quota`/`detail`).
-    static func firstNumber(in object: [String: Any], keys: [String]) -> Double? {
-        for key in keys {
-            if let value = double(object[key]) { return value }
-        }
-        for value in object.values {
-            if let nested = value as? [String: Any] {
-                for key in keys {
-                    if let found = double(nested[key]) { return found }
-                }
-            }
-        }
         return nil
     }
 }

@@ -94,6 +94,48 @@ struct UsageStoreMenuCardModelTests {
         #expect(editor.metrics.contains { $0.id == "primary" })
     }
 
+    @Test
+    func `shared card inputs preserve scoped weekly observations without changing history`() throws {
+        let store = self.makeStore()
+        let snapshot = self.snapshot()
+        store.snapshots[.claude] = snapshot
+        let accountKey = try #require(UsageStore.planUtilizationIdentityAccountKey(
+            provider: .claude, snapshot: snapshot))
+        let reset = try #require(snapshot.secondary?.resetsAt)
+        let history = PlanUtilizationSeriesHistory(name: .weekly, windowMinutes: 10080, entries: [
+            .init(capturedAt: snapshot.updatedAt, usedPercent: 50, resetsAt: reset),
+        ])
+        store.planUtilizationHistory[.claude] = PlanUtilizationHistoryBuckets(
+            preferredAccountKey: accountKey,
+            accounts: [accountKey: [history]])
+        let original = store.planUtilizationHistory
+        let revision = store.planUtilizationHistoryRevision
+        let expected = [CostUsageQuotaResetObservation(capturedAt: snapshot.updatedAt, resetsAt: reset)]
+
+        let menu = store.menuCardInput(for: .claude, context: .menu, now: snapshot.updatedAt)
+        let settings = store.menuCardInput(for: .claude, context: .settings, now: snapshot.updatedAt)
+        let empty = store.menuCardInput(for: .claude, context: .account(.init()), now: snapshot.updatedAt)
+        let identityless = store.menuCardInput(
+            for: .claude,
+            context: .account(.init(snapshot: UsageSnapshot(
+                primary: snapshot.primary,
+                secondary: snapshot.secondary,
+                updatedAt: snapshot.updatedAt))),
+            now: snapshot.updatedAt)
+        let selected = store.menuCardInput(
+            for: .claude,
+            context: .account(.init(historySelection: .init(accountKey: accountKey, histories: [history]))),
+            now: snapshot.updatedAt)
+
+        #expect(menu.observedWeeklyResets == expected)
+        #expect(settings.observedWeeklyResets == expected)
+        #expect(empty.observedWeeklyResets.isEmpty)
+        #expect(identityless.observedWeeklyResets.isEmpty)
+        #expect(selected.observedWeeklyResets == expected)
+        #expect(store.planUtilizationHistory == original)
+        #expect(store.planUtilizationHistoryRevision == revision)
+    }
+
     private func makeStore() -> UsageStore {
         let settings = testSettingsStore(
             suiteName: "UsageStoreMenuCardModelTests",

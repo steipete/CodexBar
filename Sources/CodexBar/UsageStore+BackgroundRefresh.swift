@@ -42,6 +42,9 @@ extension UsageStore {
         self.lastSourceLabels.removeValue(forKey: provider.instanceID)
         self.lastFetchAttempts.removeValue(forKey: provider.instanceID)
         self.accountSnapshots.removeValue(forKey: provider.instanceID)
+        if self.widgetVerifiedTokenSnapshots.removeValue(forKey: provider) != nil {
+            self.widgetAccountSnapshotStore?.save(self.widgetVerifiedTokenSnapshots)
+        }
         self.tokenAccountLiveStateProviders.remove(provider.instanceID)
         if provider == .codex {
             self.codexAccountSnapshots = []
@@ -100,11 +103,13 @@ extension UsageStore {
                 self.clearProviderState(provider)
             }
         }
-        let dynamicIDs = Set(self.snapshots.keys).union(self.errors.keys).filter { $0.firstPartyProvider == nil }
+        let dynamicIDs = Set(self.snapshots.keys)
+            .union(self.errors.keys)
+            .union(self.lastSourceLabels.keys)
+            .union(self.refreshingProviders)
+            .filter { $0.firstPartyProvider == nil }
         for instanceID in dynamicIDs where !enabledProviders.contains(instanceID) {
-            self.snapshots.removeValue(forKey: instanceID)
-            self.errors.removeValue(forKey: instanceID)
-            self.lastSourceLabels.removeValue(forKey: instanceID)
+            self.clearUserPluginState(instanceID)
         }
     }
 

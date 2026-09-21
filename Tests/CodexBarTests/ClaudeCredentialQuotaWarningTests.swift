@@ -7,6 +7,7 @@ import Testing
 struct ClaudeCredentialQuotaWarningTests {
     private final class NotifierSpy: SessionQuotaNotifying {
         var thresholds: [Int] = []
+        var windows: [QuotaWarningWindow] = []
 
         func post(transition _: SessionQuotaTransition, provider _: UsageProvider, badge _: NSNumber?) {}
 
@@ -17,7 +18,40 @@ struct ClaudeCredentialQuotaWarningTests {
             onScreenAlertEnabled _: Bool)
         {
             self.thresholds.append(event.threshold)
+            self.windows.append(event.window)
         }
+    }
+
+    @Test(arguments: [true, false])
+    func `weekly OAuth fallback does not notify or rearm the session lane`(weeklyOnly: Bool) throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ClaudeWeeklyQuotaWarningTests-\(UUID())", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let environment = ["HOME": root.path, "CLAUDE_CONFIG_DIR": root.path]
+        let settings = try self.makeSettings(root: root)
+        defer { settings.configFileWatcher?.stop() }
+        settings.setQuotaWarningWindowEnabled(.weekly, enabled: true)
+        let notifier = NotifierSpy()
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: environment),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            sessionQuotaNotifier: notifier,
+            startupBehavior: .testing,
+            environmentBase: environment)
+        let sessionUsage: [Double?] = weeklyOnly ? [nil] : [51, nil, 52, 81]
+        for used in sessionUsage {
+            var payload: [String: Any] = ["seven_day": ["utilization": weeklyOnly ? 95 : 20]]
+            payload["five_hour"] = used.map { ["utilization": $0] }
+            let usage = try ClaudeUsageFetcher._mapOAuthUsageForTesting(JSONSerialization.data(withJSONObject: payload))
+            let snapshot = ClaudeOAuthFetchStrategy._snapshotForTesting(from: usage)
+            #expect(snapshot.primary?.windowMinutes == (used == nil ? 10080 : 300))
+            store.handleQuotaWarningTransitions(
+                provider: .claude, snapshot: snapshot, accountDiscriminator: "fixture-account-a")
+        }
+        #expect(notifier.thresholds == (weeklyOnly ? [20] : [50, 20]))
+        #expect(notifier.windows == (weeklyOnly ? [.weekly] : [.session, .session]))
     }
 
     @Test(arguments: [true, false])
@@ -57,9 +91,9 @@ struct ClaudeCredentialQuotaWarningTests {
             startupBehavior: .testing,
             environmentBase: environment)
         let otherAccount = UsageStore.QuotaWarningStateKey(
-            provider: .claude, window: .session, accountDiscriminator: "other-account")
+            provider: .claude, window: .session, accountDiscriminator: "other-account", windowID: nil)
         let otherProvider = UsageStore.QuotaWarningStateKey(
-            provider: .deepseek, window: .session, accountDiscriminator: nil)
+            provider: .deepseek, window: .session, accountDiscriminator: nil, windowID: nil)
         for key in [otherAccount, otherProvider] {
             store.quotaWarningState[key] = UsageStore.QuotaWarningState(lastRemaining: 40, firedThresholds: [50])
         }

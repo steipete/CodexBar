@@ -10,6 +10,19 @@ REPO = Path(__file__).resolve().parents[3]
 
 
 class PackageTests(unittest.TestCase):
+    def test_symlinked_binary_is_packaged_as_a_regular_file(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            binary = root / 'binary-link'
+            binary.symlink_to('/usr/bin/true')
+            subprocess.run(['python3', str(REPO / 'Integrations/Linux/package.py'), '--binary', str(binary),
+                            '--version', '0.0.0-test', '--output', str(root)], check=True, capture_output=True)
+            with tarfile.open(next(root.glob('*.tar.gz'))) as archive:
+                member = next(item for item in archive.getmembers() if item.name.endswith('/bin/codexbar-linux'))
+                self.assertTrue(member.isfile(), 'The packaged executable must not depend on a host symlink')
+                self.assertEqual(member.mode, 0o755)
+                self.assertEqual(archive.extractfile(member).read(), Path('/usr/bin/true').read_bytes())
+
     def test_archive_installs_without_a_checkout(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

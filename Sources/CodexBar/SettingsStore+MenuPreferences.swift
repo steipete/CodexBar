@@ -27,6 +27,18 @@ enum SwitcherRowsOption: String, CaseIterable {
     }
 }
 
+enum MergedIconDisplayStyle: String, CaseIterable {
+    case switcher
+    case stacked
+
+    var label: String {
+        switch self {
+        case .switcher: L("merged_icon_style_switcher")
+        case .stacked: L("merged_icon_style_stacked")
+        }
+    }
+}
+
 enum UsageBarsFillOption: String, CaseIterable {
     case remaining
     case used
@@ -35,6 +47,18 @@ enum UsageBarsFillOption: String, CaseIterable {
         switch self {
         case .remaining: L("usage_bars_fill_remaining")
         case .used: L("usage_bars_fill_used")
+        }
+    }
+}
+
+enum MergedOverviewLayout: String, CaseIterable {
+    case detailed
+    case compact
+
+    var label: String {
+        switch self {
+        case .detailed: L("overview_layout_detailed")
+        case .compact: L("overview_layout_compact")
         }
     }
 }
@@ -147,6 +171,34 @@ extension SettingsStore {
     var switcherRowsOption: SwitcherRowsOption {
         get { self.switcherShowsIcons ? .icons : .progress }
         set { self.switcherShowsIcons = newValue == .icons }
+    }
+
+    var mergedIconDisplayStyle: MergedIconDisplayStyle {
+        get { self.mergeIconsStacked ? .stacked : .switcher }
+        set { self.mergeIconsStacked = newValue == .stacked }
+    }
+
+    var mergeIconStackedTopProvider: UsageProvider? {
+        get { self.mergeIconStackedTopProviderRaw.flatMap(UsageProvider.init(rawValue:)) }
+        set { self.mergeIconStackedTopProviderRaw = newValue?.rawValue }
+    }
+
+    var mergeIconStackedBottomProvider: UsageProvider? {
+        get { self.mergeIconStackedBottomProviderRaw.flatMap(UsageProvider.init(rawValue:)) }
+        set { self.mergeIconStackedBottomProviderRaw = newValue?.rawValue }
+    }
+
+    func mergedIconPresentation(
+        activeProviders: [UsageProvider],
+        mergeIcons: Bool? = nil) -> MergedIconPresentation
+    {
+        MergedIconPresentation(
+            mergeIcons: mergeIcons ?? self.mergeIcons,
+            iconStyle: self.menuBarIconStyle,
+            requestedStyle: self.mergedIconDisplayStyle,
+            eligibleProviders: activeProviders,
+            preferredTop: self.mergeIconStackedTopProvider,
+            preferredBottom: self.mergeIconStackedBottomProvider)
     }
 
     var usageBarsFillOption: UsageBarsFillOption {

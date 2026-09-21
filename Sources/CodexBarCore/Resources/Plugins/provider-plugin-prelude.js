@@ -9,28 +9,35 @@
     get(url, opts) {
       return new Promise((resolve, reject) => host.http(String(url), opts || {}, "GET", false, resolve, reject));
     },
+    post(url, opts) {
+      return jsonPost(url, opts, false);
+    },
     postJSON(url, opts) {
-      if (!opts || typeof opts !== "object" || !("body" in opts)) {
-        return Promise.reject(new TypeError("postJSON requires a body"));
-      }
-      let bodyJSON;
-      try {
-        bodyJSON = JSON.stringify(opts.body);
-      } catch (error) {
-        return Promise.reject(new TypeError(`postJSON body is not JSON-serializable: ${error.message}`));
-      }
-      if (bodyJSON === undefined) {
-        return Promise.reject(new TypeError("postJSON body is not JSON-serializable"));
-      }
-      const hostOptions = { bodyJSON };
-      if (opts.headers !== undefined) hostOptions.headers = opts.headers;
-      if (opts.timeoutSeconds !== undefined) hostOptions.timeoutSeconds = opts.timeoutSeconds;
-      if (opts.openRouterManagementAuth !== undefined) {
-        hostOptions.openRouterManagementAuth = opts.openRouterManagementAuth;
-      }
-      return new Promise((resolve, reject) => host.http(String(url), hostOptions, "POST", true, resolve, reject));
+      return jsonPost(url, opts, true);
     },
   });
+
+  function jsonPost(url, opts, wantsJSON) {
+    if (!opts || typeof opts !== "object" || !("body" in opts)) {
+      return Promise.reject(new TypeError("postJSON requires a body"));
+    }
+    let bodyJSON;
+    try {
+      bodyJSON = JSON.stringify(opts.body);
+    } catch (error) {
+      return Promise.reject(new TypeError(`postJSON body is not JSON-serializable: ${error.message}`));
+    }
+    if (bodyJSON === undefined) {
+      return Promise.reject(new TypeError("postJSON body is not JSON-serializable"));
+    }
+    const hostOptions = { bodyJSON };
+    if (opts.headers !== undefined) hostOptions.headers = opts.headers;
+    if (opts.timeoutSeconds !== undefined) hostOptions.timeoutSeconds = opts.timeoutSeconds;
+    if (opts.openRouterManagementAuth !== undefined) {
+      hostOptions.openRouterManagementAuth = opts.openRouterManagementAuth;
+    }
+    return new Promise((resolve, reject) => host.http(String(url), hostOptions, "POST", wantsJSON, resolve, reject));
+  }
 
   ctx.settings = Object.freeze({
     get(key) {

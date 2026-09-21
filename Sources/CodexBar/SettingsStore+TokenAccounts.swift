@@ -23,6 +23,9 @@ extension SettingsStore {
     /// stay passive until the user explicitly selects one again.
     func effectiveSelectedTokenAccount(for provider: UsageProvider) -> ProviderTokenAccount? {
         let support = TokenAccountSupportCatalog.support(for: provider)
+        if support?.passiveSourceModes.contains(self.providerConfig(for: provider)?.source ?? .auto) == true {
+            return nil
+        }
         if support?.selectedAccountRequiresManualCookieSource == true,
            (self.providerConfig(for: provider)?.cookieSource ?? .auto) == .auto
         {

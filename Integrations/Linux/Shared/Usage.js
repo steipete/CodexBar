@@ -1,7 +1,23 @@
 // Pure model shared by the QML frontend and offline Node tests.
 function remaining(window) {
     if (!window || typeof window.usedPercent !== "number" || !isFinite(window.usedPercent)) return null;
+    // A provider can describe a window it cannot measure: Claude emits a synthetic placeholder
+    // when its web API reports no session. Core drops those rather than reading them as quota.
+    if (window.isSyntheticPlaceholder === true) return null;
     return Math.round(Math.max(0, Math.min(100, 100 - window.usedPercent)));
+}
+
+// Zed reports an overdue invoice and Antigravity a reset-only pool, both carrying a full
+// usedPercent with usageKnown false. They are context, not quota.
+function measured(entry) {
+    return !!entry && typeof entry.id === "string" && entry.id.trim() !== "" &&
+        entry.usageKnown !== false && remaining(entry.window) !== null;
+}
+
+// Duration name for a reported cadence; empty when the provider omits window metadata.
+function cadenceLabel(minutes) {
+    if (minutes >= 1440) return (minutes / 1440) + " day";
+    return minutes > 0 ? (minutes / 60) + " hour" : "";
 }
 
 function rows(text, showIdentity) {
@@ -17,11 +33,21 @@ function rows(text, showIdentity) {
             var window = usage[key];
             var left = remaining(window);
             if (left === null) return;
-            var minutes = window.windowMinutes;
-            var label = minutes >= 1440 ? (minutes / 1440) + " day" :
-                minutes > 0 ? (minutes / 60) + " hour" : ["Session", "Weekly", "Additional"][index];
+            var label = cadenceLabel(window.windowMinutes) || ["Session", "Weekly", "Additional"][index];
             windows.push({key: key, label: label, remaining: left, resetsAt: window.resetsAt || "",
                 pace: entry.pace && entry.pace[key] ? String(entry.pace[key].summary || "") : ""});
+        });
+        // Extras come last: a consumer resolving a cadence by first match must still find the
+        // provider's general window rather than a lane scoped to one model.
+        (Array.isArray(usage.extraRateWindows) ? usage.extraRateWindows : [])
+            .filter(measured).slice(0, 8).forEach(function(extra) {
+            var scopedWindow = extra.window;
+            // These labels are exported over IPC, whose contract excludes account identity,
+            // so a provider-supplied title is redacted whatever the display preference says.
+            var label = displayText(extra.title, false).trim() ||
+                cadenceLabel(scopedWindow.windowMinutes) || "Additional";
+            windows.push({key: "extra:" + extra.id, label: label,
+                remaining: remaining(scopedWindow), resetsAt: scopedWindow.resetsAt || "", pace: ""});
         });
         return {
             provider: entry.provider,

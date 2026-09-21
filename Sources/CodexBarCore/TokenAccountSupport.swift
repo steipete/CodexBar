@@ -15,6 +15,7 @@ public struct TokenAccountSupport: Sendable {
     public let environmentKeysToScrub: [String]
     public let minimumDelayBetweenAccountRefreshes: Duration?
     public let selectedAccountRequiresManualCookieSource: Bool
+    public let passiveSourceModes: [ProviderSourceMode]
     public let clearsAPIKeyOnMutation: Bool
     public let showsOrganizationField: Bool
     public let showsTeamModeControls: Bool
@@ -33,6 +34,7 @@ public struct TokenAccountSupport: Sendable {
         environmentKeysToScrub: [String] = [],
         minimumDelayBetweenAccountRefreshes: Duration? = nil,
         selectedAccountRequiresManualCookieSource: Bool = false,
+        passiveSourceModes: [ProviderSourceMode] = [],
         clearsAPIKeyOnMutation: Bool = false,
         showsOrganizationField: Bool = false,
         showsTeamModeControls: Bool = false,
@@ -50,6 +52,7 @@ public struct TokenAccountSupport: Sendable {
         self.environmentKeysToScrub = environmentKeysToScrub
         self.minimumDelayBetweenAccountRefreshes = minimumDelayBetweenAccountRefreshes
         self.selectedAccountRequiresManualCookieSource = selectedAccountRequiresManualCookieSource
+        self.passiveSourceModes = passiveSourceModes
         self.clearsAPIKeyOnMutation = clearsAPIKeyOnMutation
         self.showsOrganizationField = showsOrganizationField
         self.showsTeamModeControls = showsTeamModeControls

@@ -1,21 +1,244 @@
 # Changelog
 
-## 0.60.2 — Unreleased
-
-### Changes
-- Dependencies: update KeyboardShortcuts to 3.1.0 while preserving localized recorder prompts, the Linux release/static SDK toolchain to Swift 6.3.3, and Linux desktop CI to Node.js 26.
+## 0.63.1 — Unreleased
 
 ### Added
-- Codex: add the debug-only Workspaces project/session inspector with source, history and privacy updates, plus cancellation when its window closes (#3291). Thanks @AmrMohamad!
+
+- Currency: add Turkish lira (TRY) to the preferred-currency picker and cost conversions, with live exchange rates and an offline fallback (#3624). Thanks @aguvener!
+- Menu bar: show two providers in a stacked merged icon, using each provider's first layout line, with automatic or explicit row choices and consistent refreshes when either provider changes (#3628, #3596). Thanks @ysyyork!
+- Antigravity: estimate local history costs at public API prices, retain unknown and partial usage honestly, preserve complete history across partial refreshes, and keep routine local reads independent of pricing downloads (#3757). Thanks @Niclassslua!
+
+### Fixed
+
+- CLI: show each host's source snapshot timestamp in SSH cost text reports, making stale remote totals visible without changing JSON output (#3765). Thanks @A-l-an!
+- Claude/Vertex costs: prevent crashes from oversized local history values, preserving valid token components and finite spend when an aggregate exceeds the cache's numeric range; preserve retained Codex history during the upgrade.
+- Linux quotas: show measured provider-specific windows, omit synthetic or unmeasured quota, and keep scoped identities private in IPC without colliding with notification state (#3785). Thanks @jsonMartin!
+- Claude/Vertex costs: isolate menu and Usage & Spend scan caches, avoiding repeated full rescans and preserving window-specific duplicate totals after upgrades (#3769). Thanks @postoso!
+- Linux installation: preserve managed configuration symlinks and UTF-8 glyphs across reinstalls, and recover dangling Omarchy adapter links (#3784). Thanks @jsonMartin!
+- Linux packaging: include executable contents when the selected binary is a symlink, keeping archives self-contained (#3784).
+- OpenCode Go: restore migrated Console quota windows and prepaid Zen balances, preserve independent legacy sessions, and keep missing reset times unknown instead of reporting expired credentials or immediate resets (#3796, fixes #3783). Thanks @kays0x and @NOIPJohnny!
+
+### Improved
+
+- Usage & Spend: group sources and models by provider, consolidate detail and daily/hourly chart selectors, and add a clear selected-day control while preserving incomplete-history warnings, local-history labels, calendar boundaries, privacy, and exports (#3353). Thanks @Yuxin-Qiao!
+
+## 0.63.0 — 2026-09-20
+
+### Highlights
+
+- **Pi and OMP history:** track local tokens and estimated costs across the app, CLI, and widgets without double-counting Claude or Codex usage.
+- **More complete spending displays:** add DeepSeek and OpenRouter widget balances and provider-reported spending in the web dashboard.
+- **More reliable refreshes:** correct paginated Codex costs, recover transient credential-access failures, and prevent crashes from oversized provider values.
+
+### Added
+
+- Pi: track local Pi/OMP tokens and estimated costs in the app, CLI, Overview, Usage & Spend, and widgets, preserving incomplete history and preventing duplicate Claude/Codex totals (#3246). Thanks @Yuxin-Qiao!
+- Dashboard: include provider-reported 30-day USD spend when no local cost row exists, preserving OpenRouter's completed UTC history without inventing a local Today total (#3748). Thanks @Chipagosfinest!
+- Widgets: select DeepSeek and OpenRouter, see their balances, and keep live update ages visible in small widgets (#3743). Thanks @brzvsk!
+
+### Improved
+
+- Settings: simplify Homebrew update instructions in About with a selectable command row, an integrated copy control, and brief copy confirmation (#3759).
+
+### Fixed
+
+- Plugins: reject obsolete refresh results after configuration, enablement, or runtime changes, and keep activity indicators correct across replacement refreshes (#3773).
+- Providers: prevent crashes from oversized LongCat, Kilo, Kimi, Chutes, MiniMax, and Perplexity usage values or durations, retain usable Amp quota data, and safely handle unrepresentable timestamps (#3758, #3764).
+- Kilo: discard obsolete organization refreshes after credentials or selections change, including external CLI sign-ins, preventing old results from replacing the catalog or pruning current selections (#3778).
+- Menu bar: assign each status item's stable identity before provider registration, preserving item reuse during reentrant updates (#3665). Thanks @Borisserz!
+- Keychain: retry transient no-UI preflight failures within a bounded budget, recovering already-authorized reads without relaxing prompt or denial policies (#3630). Thanks @ysyyork!
+- Codex costs: count only a paginated session's new usage, repairing inflated cached totals while preserving validated historical pricing across appends and interrupted scans (#3753). Thanks @anon5376!
+- Codex: keep credits and history refreshes reliable when a cancelled request finishes after its replacement (#3775).
+- Kimi: retain nonzero weekly and five-hour counts when a mixed legacy response includes conflicting zero ratios for the same quota windows (#3755, fixes #3754). Thanks @mudrii!
+- StepFun: label credit balances as Credit even without a reset timestamp, omit invented reset dates, and preserve Coding Plan window labels (#3771, fixes #3768). Thanks @BUKOWSKIREAL!
+- Devin: keep organization names and internal IDs paired during browser import, avoiding requests for unrelated cached organizations (#3760).
+- Claude: require matching account emails for CLI Web enrichment instead of trusting organization display names alone (#3760).
+- Configuration: continue detecting config-file changes after editors or sync tools replace the file (#3763).
+- Augment: cancel all keepalive work when disabled, reject retired recovery and notification work after restart, and omit cookie values from keepalive diagnostics (#3779).
+- Claude: prevent credential diagnostics from crashing on oversized expiry timestamps while preserving authentication and refresh behavior (#3767).
+
+### Development
+
+- Debug Workspaces: reduce peak memory when reading large Codex histories without changing totals or pricing (#3761).
+
+## 0.62.0 — 2026-09-19
+
+### Highlights
+
+- **History that follows your quotas:** compare Codex and Claude costs and tokens across current and recent weekly quota windows, with history preserved across restarts.
+- **An Overview that fits your menu:** choose a compact layout, hide individual provider details, and share the Usage & Spend summary you see.
+- **Clearer widgets for multiple accounts:** pin saved accounts, see the quota closest to its limit, and retain full provider names and secondary allowances.
+- **More ways to follow your work:** track Muse Code session tokens, compare Codex costs with an SSH host, and launch terminal actions in Warp.
+- **Automate successful refreshes:** run opt-in commands when the app or CLI watcher receives fresh usage.
+
+### Added
+
+- Codex and Claude: align local cost and token history with current and recent weekly quota windows, preserving partial subtotals, exact reset boundaries, and history across restarts (#3358). Thanks @stabey and @ramapitecusment!
+- Overview: choose Detailed or Compact in Menu settings, with labeled usage bars, provider navigation, and useful details for providers without quota bars (#2616). Thanks @Zihao-Qi!
+- Overview: share the displayed Usage & Spend summary through a local snapshot preview, excluding hidden sources and reporting clipboard failures accurately (#3677). Thanks @Chipagosfinest!
+- Provider cards: hide individual detail sections from Visible usage items, preserving choices across language changes and restarts (#3638). Thanks @elijah7x!
+- Widgets: pin saved accounts in a dedicated Account Usage widget, with opt-in refresh for up to six accounts per provider, privacy-aware labels, and account verification that survives credential rotation (#3585). Thanks @rokas-tarasevicius!
+- Muse Code: show local session token history and comparisons in the menu and CLI without inventing dollar costs, while retaining the bundled JavaScript subscription provider (#3340, #3587). Thanks @sanjay3290 and @Srimi1!
+- CLI: compare local Codex costs with one SSH host, keeping each host's totals, coverage, and day boundaries separate (#3538). Thanks @ECuteri!
+- Hooks: run opt-in `usage_updated` commands after successful current app refreshes and CLI watcher polls, with quota metadata and per-account throttling (#3512). Thanks @guillem-gelabert!
+- Terminal actions: select stable Warp as the default terminal, with private temporary launch configs, cleanup across restarts, and Terminal fallback (#3664, #3283). Thanks @salmonumbrella and @liorp!
+
+### Improved
+
+- Widgets: make the quota closest to its limit easier to read, retain full provider names and secondary allowances, and adapt Usage and Switcher tiles to the available space (#3137). Thanks @iamenahs!
+
+### Fixed
+
+- Codex costs: recover excess cached request rows from their original session files, retain pricing through interrupted scans, and avoid guessing request boundaries or conflicting prices (#3741, related to #3618). Thanks @BUKOWSKIREAL!
+
+## 0.61.0 — 2026-09-18
+
+### Highlights
+
+- **Five new providers:** track Nous Portal and Muse Code subscriptions, CodeRabbit reviews, Replicate spend, and Hugging Face Inference Providers charges and ZeroGPU quota.
+- **More complete allowances:** see Mistral API and Vibe Code allowances, Venice subscription credits, and Grok usage-limit reset coupons.
+- **Richer spending details:** view DeepSeek spend per model, OpenRouter pay-as-you-go spending and account Activity, and provider history in CLI output.
+- **Clearer account switching:** Codex cards update while menus stay open, and Claude shows separate switching and refresh stages.
+- **Steadier menu-bar layout:** preserve icon positions and align provider names in crowded switchers.
+
+### Added
+
+- Azure OpenAI: choose OpenAI-compatible v1 from Settings for both the app and CLI, preserving the existing environment default (#3705). Thanks @UndreamerC!
+- CodeRabbit: show review counts and billing state from one bounded CLI report, without invented quotas or mixing account data from a second command (#3383). Thanks @MonkeyMed!
+- DeepSeek: show reported spend per model in its original billing currency and period, respecting optional-usage visibility (#2938). Thanks @jky1314!
+- Grok: show available usage-limit reset coupons and expiry dates for the account supplying billing, independently of weekly usage (#3188). Thanks @Leshabeats!
+- Hugging Face: show reported Inference Providers charges and optional ZeroGPU quota without mistaking report cutoffs or deductions for credit allowances through a bundled provider plugin, with isolated token-account identity caching (#3322). Thanks @giovanninibarbosa and @sambokai!
+- Mistral: show included API and Vibe Code allowances alongside spend and credits, with independent fallback when optional data is unavailable (#3710). Thanks @JoPaMu!
+- Muse Code: show reported five-hour and weekly subscription quotas through a bundled provider plugin using the existing CLI login without interactive authentication (#3435). Thanks @audreyt!
+- Nous Portal: show monthly subscription credits and purchased balances through a bundled provider plugin, reusing the Hermes login without refreshing its credentials (#3376). Thanks @asispan!
+- OpenRouter: add uncapped pay-as-you-go spending summaries with accurate periods and optional prepaid balance, preserving capped-key quotas (#3696). Thanks @Chipagosfinest!
+- OpenRouter: recognize management keys in the primary API-key field on the official API and show account Activity totals for the last 30 completed UTC days. A separate Management API key takes precedence (#3272). Thanks @akshayprabhu200!
+- Replicate: show monthly inference spend and optional prepaid credits through a bundled billing plugin, with native Chrome session recovery and manual-cookie support (#2869). Thanks @Egnus!
+- Venice: add an explicit Web source for subscription credits, monthly spending, bank cap, and refill dates, with account isolation and cookie controls (#3474). Thanks @audreyt!
+
+### Fixed
+
+- Codex: refresh the selected account card while its menu stays open, preserving submenus and account ownership when delayed usage arrives (#3715, fixes #3709). Thanks @sandeep780049!
+- Claude: clarify claude-swap account activation, show switching and refresh phases until reconciliation finishes, and retain active-account inspection when credentials need repair (#3740, related to #3736).
+- Claude: apply the Remote Control startup override to direct CLI usage fallbacks too, preserving saved settings and managed-policy precedence (#3739, related to #2251). Thanks @rossshannon!
+- Menu bar: preserve saved icon positions when hiding or removing status items, quitting from the menu, and recovering from display changes (#3723, related to #3355). Thanks @kratocz!
+- Switcher: keep multiword provider names aligned with icons and labels in crowded grids, preserving their full accessibility labels (#3738). Thanks @jeffloo886!
+- OpenRouter: retain spend history when reasoning tokens exceed completion tokens, keeping the counters separate and input-plus-output totals, quota, and balance intact (#3717). Thanks @Chipagosfinest!
+- OpenRouter: ignore deprecated key rate-limit metadata so it cannot hide valid quota and spend details or produce a negative request limit (#3720). Thanks @Chipagosfinest!
+- OpenRouter: distinguish invalid responses from network failures in credits, key-quota, and Activity diagnostics, retaining usable data from the other sources (#3733, fixes #3718). Thanks @Chipagosfinest!
+- Antigravity: correct misleading OAuth-fallback wording and report per-source outcomes in CLI output, debug logs, and diagnose exports (#3683, part of #3673, related to #3146 and #3662). Thanks @hhh2210!
+- Devin: honor the selected organization and import only Devin browser sessions, preferring current decoded credentials over raw-storage fallbacks (#3735).
+- Sharing: retain recognized gateway model families in shared cards and copied statistics, preserving provider attribution and excluding raw namespaces and private model names (#3713). Thanks @Chipagosfinest!
+- CLI: show provider-supplied history and totals in usage text and full terminal cards, including OpenRouter spend and Grok tokens, with correct periods, currencies, and zero values (#3737, related to #3717). Thanks @jhairabet-udr!
+
+### Development
+
+- Plugins: add `ctx.http.post` for JSON requests with text responses so providers can classify non-JSON error pages (#3435).
+
+## 0.60.5 — 2026-09-17
+
+### Highlights
+- **More reliable cost history:** publish validated Codex reporting windows sooner, preserve prior data during incomplete scans, and correct Claude cost estimates.
+- **Clearer usage meters:** recover Cursor Enterprise member budgets, Kimi Code API quotas, Copilot seat-credit bars, and OpenCode Go Monthly selection.
+- **Smoother everyday use:** improve update access, privacy, shared-card dates, and recovery from temporary provider failures.
+
+### Fixed
+
+- Codex costs: publish validated reporting windows during historical catch-up while retaining prior data for incomplete sources and preserving automatic power limits (#3669, related to #3508). Thanks @kernnel!
+- Codex: honor Hide Personal Info in the System Account submenu, keeping stable account labels and unchanged promotion actions (#3702, related to #3550). Thanks @zenibako!
+- Claude costs: apply the correct GPT long-context boundary, recalculate saved estimates, and preserve retained Codex history during the upgrade (#3684). Thanks @MoridinBG!
+- Claude costs: exclude preliminary proxy estimates without final usage, retain known subtotals with incomplete markers across menus, charts, CLI, and exports, and rebuild older cached estimates (#3688). Thanks @MoridinBG!
+- Claude: report the recovered web session's actual connection, server, or Cloudflare error after a cached cookie expires, and preserve cancellation (#3698, related to #3630). Thanks @ysyyork!
+- Cursor: show Enterprise and Business member usage from the selected team's verified budget, preserving summary fallback for unavailable or ambiguous team data (#3646). Thanks @ibalampanis!
+- Cursor costs: stop immediate retry loops when fetched credentials remain unconfirmed, retain account ownership checks, and retry real account or cost-settings changes (#3703, related to #3249).
+- Antigravity history: skip unrelated SQLite databases without withholding valid usage, while keeping foreign-only roots unavailable and unsupported schemas incomplete (#3699). Thanks @urda!
+- Antigravity: skip the futile managed-server readiness wait on CSRF-gated `agy` versions and reach supported usage reports sooner, preserving account selection and warm-session ownership (#3685, related to #3586). Thanks @Niclassslua!
+- Antigravity: preserve useful earlier source errors when an unavailable final source stops fallback, while keeping cancellation and later substantive errors authoritative (#3701, related to #3683). Thanks @hhh2210!
+- Kimi: accept ratio-pool Code API responses, preserve absent weekly quotas, and show the reported monthly Total usage without browser authentication (#3697, fixes #3694). Thanks @eliasburlison!
+- Copilot: show configured seat-credit progress in Automatic provider tabs when no metered quota window is available, preserving explicit metric choices (#3681). Thanks @KSEGIT!
+- OpenCode Go: make Monthly usage selectable in the menu-bar percentage picker and layout palette before the first snapshot, preserving custom layout tokens (#3645, fixes #3644). Thanks @egigoka!
+- Sharing: use the last included reporting day and dashboard timezone in images and copied text (#3692). Thanks @Chipagosfinest!
+- Sharing: label a single included subscription correctly on shared usage cards (#3706, related to #3704). Thanks @Chipagosfinest!
+- Settings: add a Copy button for the Homebrew update command in About and allow selecting the update instructions (#3686, fixes #3682). Thanks @harjothkhara!
+- Updates: show Sparkle's update UI from Settings after an update downloads in the background, and keep staged updates reachable after dismissing the install dialog (#3693).
+- CLI: recognize the containing app when checking credential-cache access through installed CLI symlinks (#3690). Thanks @sreejithraman!
+- Agent sessions: preserve case-sensitive SSH usernames when deduplicating remote hosts (#3700, related to #3538 and #3545). Thanks @ECuteri!
+
+## 0.60.4 — 2026-09-16
+
+### Highlights
+- **More reliable usage displays:** keep prior measurements visible through temporary connection failures for Codex, Claude OAuth, Cursor, and DeepSeek.
+- **More accurate cost estimates:** avoid duplicate Claude proxy usage and price OpenCodex records using their recorded provider, keeping unknown costs distinct from zero.
+- **Clearer allowance bars:** restore Amp Agent and Orb usage and keep Grok weekly pacing visible near reset.
+- **Consistent web dashboard bars:** follow the app's used/remaining preference and default to remaining quota when no preference is saved.
+
+### Fixed
+- Amp: restore Agent and Orb usage for the current Tier format, keep monthly allowances separate from credits, and use reported billing dates for pacing (#3668). Thanks @jdblackstar!
+- Codex and Claude OAuth: retain last-known usage and original measurement times through temporary network failures, including localized errors, and correctly retry startup connection failures (#3667, #3672).
+- Cursor: retain app-session and stored-session usage and widget samples through repeated temporary network failures, keeping their original measurement time (#3672).
+- DeepSeek: keep Chrome balances visible through temporary connection failures for the same browser session, preserving the original measurement time (#3680, related to #3500). Thanks @jaxleezhang!
+- OpenCodex costs: use the recorded provider's prices and attribution, refresh cached rates, honor custom-price overrides, and leave missing token counts or required prices unpriced instead of displaying zero (#3676). Thanks @Chipagosfinest!
+- Claude costs: prevent repeated proxy responses from inflating token and cost estimates, and recalculate older Claude/Vertex estimates (#3659). Thanks @MoridinBG!
+- OpenRouter: keep usable key usage and Activity spend visible when credit-balance requests fail, while leaving unavailable balances unknown (#3675). Thanks @Chipagosfinest!
+- Settings: show existing provider detail rows, including OpenRouter spend for keys without a quota limit, instead of an incorrect “No usage yet” placeholder (#3675). Thanks @Chipagosfinest!
+- Grok: keep weekly pacing visible near reset when billing dates are available, and keep measured monthly periods labeled Monthly (#3679). Thanks @sudoHG!
+- Claude: show stable Account N labels for claude-swap cards and compact rows when Hide Personal Info is enabled, including unavailable accounts (#3495). Thanks @eggyrooch-blip and sunke!
+- Settings: stop repeatedly closing hidden placeholder windows, while still dismissing them if macOS presents them again (#3674, related to #3671). Thanks @harjothkhara!
+- Claude: replace unusable `setup-token` recovery advice with sign-in guidance and explain how to remove an OAuth override before switching usage sources (#3672, related to #3390). Thanks @sittinonsukhaya!
+- Vertex AI and Ollama API: keep the last successful account information through temporary network failures and correctly classify connection errors (#3672).
+- Codex and Vertex AI: stop cancelled requests from counting as failed refreshes or showing an outage (#3672).
+
+### Changed
+- Web dashboard (`codexbar serve`): follow **Usage bars fill** for labels, bar widths, and accessibility values. With no saved preference, bars now show remaining quota rather than used quota, including on Linux and in older cached snapshots (#3670). Thanks @sreejithraman!
+
+### Development
+- Debug builds: reduce memory when loading Workspaces reports, preserve saved history after cache-read failures, and keep reports tied to the selected Codex home (#3661, #3666). Thanks @apple-ouyang!
+
+## 0.60.3 — 2026-09-15
+
+### Highlights
+- **Correct Cursor pace:** keep monthly allowances and Grok Bot’s weekly reserve tied to their own reset windows, with restored paid and trial usage.
+- **More complete spending totals:** retain known spend beside unpriced sources and restore shared costs and charts beside web dashboard account groups.
+- **Quieter Claude checks:** avoid duplicate session warnings and prevent background usage probes from creating Remote Control sessions.
+
+### Fixed
+- Web dashboard: retain shared local spend, daily charts, and provider diagnostics when claude-swap account groups are visible, while keeping account credits and errors scoped correctly (#3655, related to #3552). Thanks @xxchan!
+- Claude: avoid duplicate or mislabeled session warnings when a missing five-hour quota temporarily promotes weekly usage into the primary field (related to #3450).
+- Cursor: keep monthly Cursor Auto pace tied to its billing cycle and show Grok Bot’s weekly pace on its own allowance, preserving unpaced trials (#3656). Thanks @freerobby!
+- Cursor: restore Grok Bot usage for the current allowance and trial response fields, retain exhausted active trials, and avoid treating trial expiration as a recurring reset. Thanks @JackHo12! (#3629)
+- Usage & Spend: retain known daily spend beside unpriced providers with a partial-estimate marker, and count token-only requests as unpriced coverage (#3652). Thanks @urda!
+- Claude: opt short-lived CLI usage probes out of Remote Control so background refreshes do not create empty cloud/mobile sessions when Remote Control is enabled by default (#3651, related to #1301). Thanks @KazuyukiNishida!
+- Updates: recognize Homebrew-managed apps in `/Applications` and show the existing Homebrew update instruction, while preserving Sparkle updates for separate app copies (#3647). Thanks @fanwenlin!
+- Antigravity: explain why Auto skips agy reports without account identity for selected Google accounts and identify the local source alternative without changing account isolation (#3650, fixes #3649). Thanks @Borisserz!
+
+## 0.60.2 — 2026-09-14
+
+### Highlights
+- **Reliable Codex costs:** restore estimates after session rescans, preserve pricing across interrupted scans, and retain saved history during upgrades.
+- **Antigravity CLI recovery:** restore quota reporting with current agy releases while preserving selected-account boundaries.
+- **Clearer provider credits:** keep balances beside reset dates, restore explicit credit-pool percentages, and show available Warp add-on credits after monthly credits run out.
+- **Better account menus:** eliminate clipped cards and empty space after tab switches, and clearly date Claude’s last-known account usage.
 
 ### Fixed
 - Codex: restore missing cost estimates after changed-session rescans, preserve pricing across partial scans and restarts, and retain saved history when upgrading from 0.60.1 (#3620, related to #3617).
+- Antigravity: recover CLI quotas through the supported structured usage report when legacy HTTPS fetching fails, preserving successful HTTPS identity and excluding identity-free reports for selected or injected Auto accounts (#3607, fixes #3586). Thanks @sobczi!
+- Claude: show dated last-known claude-swap usage beside diagnostics, reported spend, disabled slots, and the active account; keep historical quotas out of the menu icon and ready-account suggestions. Explicit re-authentication can repair an active slot’s foreign credential through its existing source-owned switch command (#3452). Thanks @QuantIntellect!
 - Menu: remove empty space and clipped cards after switching merged-menu tabs with different card heights (#3616, fixes #3549). Thanks @zenibako!
-- Mistral: handle signed billing adjustments without intermediate overflow, reject unrepresentable counts without crashing, and retain valid costs when token totals or model rankings are unavailable.
-- Claude: show dated last-known claude-swap usage beside diagnostics, reported spend, disabled slots, and the active account; keep historical quotas out of the menu icon and ready-account suggestions (#3452). Thanks @QuantIntellect!
-- Claude: let an explicitly requested claude-swap re-authentication repair an active slot's foreign credential through the existing source-owned switch command (#3452). Thanks @QuantIntellect!
-- Alibaba and Qwen Cloud: preserve reserved characters in console security tokens and gateway request parameters.
+- Warp: show available add-on credits in Automatic and the provider switcher after monthly credits run out, restore explicit pool percentages, and name quota pools in the percent picker (#3634, fixes #3632).
+- Perplexity: restore explicit credit-pool percentages, retain CLI credit amounts, and keep credit descriptions out of layout reset-time tokens while preserving Automatic pool selection (#3636).
+- Abacus AI: restore explicitly selected monthly-credit percentages and consistent editor, conditional and accessibility labels; retain used/total credits beside billing resets without treating undated amounts as reset clocks (#3637, #3640).
+- Manus, MiMo, and Neuralwatt: retain quota counts in CLI text/cards, keep amounts separate from actual reset dates, and preserve Manus monthly/daily details in native menus (#3633).
+- LiteLLM: preserve personal and team budget amounts in CLI text/cards and native menus, keeping amounts separate from actual reset dates (#3631).
+- LongCat: show token balances as details, keep fuel-pack balances beside their expiry, and parse expiry timestamps with fractional seconds (#3625).
+- Devin: distinguish missing Auth1 organization context from expired tokens and explain the existing internal organization ID setting (#3641, fixes #3639). Thanks @codertesla!
+- Mistral: handle signed billing adjustments without intermediate overflow, reject unrepresentable counts without crashing, and retain valid costs when token totals or model rankings are unavailable (#3612).
+- Alibaba and Qwen Cloud: preserve reserved characters in console security tokens and gateway request parameters (#3611).
+- Usage & Spend: align the Token/Cost picker with the chart and detail text at different menu widths (#3626). Thanks @elijahfriedman!
 - Overview: remove the blue tint from the Usage & Spend summary so it matches the surrounding menu (#3442). Thanks @elijahfriedman!
+- Linux: document complete distro runtime dependencies and one verified CLI/desktop installation flow that stops before extraction on download or checksum failure (#3615, fixes #3614). Thanks @darkrei08!
+
+### Development
+- Debug builds: add the Workspaces project/session inspector with source, history and privacy updates, plus cancellation when its window closes; this inspector is not available in release builds (#3291). Thanks @AmrMohamad!
 
 ## 0.60.1 — 2026-09-12
 

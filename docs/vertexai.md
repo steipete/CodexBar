@@ -28,11 +28,16 @@ read_when:
 ## Mapping
 - Matches usage + limit series by quota metric + limit name + location.
 - Reports the highest usage percent across matched series.
-- Displayed as "Quota usage" with period "Current quota".
+- The current provider snapshot publishes gcloud identity without quota windows; local token costs are fetched
+  separately. Recognized temporary network failures during token refresh or monitoring requests retain the last
+  successful identity snapshot and timestamp, including localized errors. Authentication and IAM failures keep their
+  existing behavior.
 
 ## Token Cost Tracking
 
 Vertex AI Claude usage is logged to the same local files as direct Anthropic API usage (`~/.claude/projects/`). CodexBar identifies Vertex AI entries using two methods:
+
+Regular cost refreshes retain `vertexai-v6.json`; the app's independent Usage & Spend refresh uses `vertexai-history-v6.json` and a separate report memo. App memos track that rows were selected for their current window; older unverified caches rebuild once, and changing the app window preserves cold-scan duplicate selection. Provider filtering, pricing, and other providers' shared cache locations remain unchanged.
 
 ### Detection Methods
 

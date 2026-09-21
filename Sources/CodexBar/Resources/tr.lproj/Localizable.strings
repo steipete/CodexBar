@@ -133,6 +133,10 @@
 "Cookie: …" = "Çerez: …";
 "CopilotDeviceFlow" = "CopilotDeviceFlow";
 "Cost" = "Maliyet";
+"Token history" = "Token geçmişi";
+"Local token history · dollar costs unavailable" = "Yerel token geçmişi · dolar maliyetleri mevcut değil";
+"Partial local history · recorded token subtotal" = "Kısmi yerel geçmiş · kaydedilen token ara toplamı";
+"Local token history is unavailable or incomplete." = "Yerel token geçmişi mevcut değil veya eksik.";
 "Could not add Codex account" = "Codex hesabı eklenemedi";
 "Could not open Terminal for Gemini" = "Gemini için Terminal açılamadı";
 "Could not start claude /login" = "claude /login başlatılamadı";
@@ -618,6 +622,12 @@
 "cost_summary_off" = "Kapalı";
 "merge_icons_title" = "Simgeleri birleştir";
 "merge_icons_subtitle" = "Sağlayıcı seçicili tek bir menü çubuğu simgesi kullan.";
+"merged_icon_style_title" = "Birleşik simge stili";
+"merged_icon_style_subtitle" = "Değiştirici sağlayıcılar arasında tek tek geçiş yapar; Yığılmış ise iki sağlayıcıyı aynı anda, her biri kendi satırında gösterir.";
+"merged_icon_style_switcher" = "Değiştirici";
+"merged_icon_style_stacked" = "Yığılmış";
+"merge_icon_stacked_top_provider_title" = "Üst satır";
+"merge_icon_stacked_bottom_provider_title" = "Alt satır";
 "show_most_used_provider_title" = "En çok kullanılan sağlayıcıyı göster";
 "show_most_used_provider_subtitle" = "Menü çubuğu, kota sınırına en yakın sağlayıcıyı otomatik olarak gösterir.";
 "display_mode_title" = "Görünüm modu";
@@ -884,6 +894,12 @@
 "usage_percent_suffix_used" = "kullanıldı";
 "Store multiple DeepSeek API keys." = "Birden fazla DeepSeek API anahtarı depolayın.";
 "This week" = "Bu hafta";
+"Current window" = "Geçerli pencere";
+"Last week" = "Geçen hafta";
+"%d weeks ago" = "%d hafta önce";
+"Previous window" = "Önceki pencere";
+"%d windows ago" = "%d pencere önce";
+"Recent windows" = "Son pencereler";
 "Week" = "Hafta";
 "Month" = "Ay";
 "Models" = "Modeller";
@@ -944,6 +960,8 @@
 "Overage" = "Aşım";
 "Activity" = "Etkinlik";
 "Copied" = "Kopyalandı";
+"Managed by Homebrew" = "Homebrew tarafından yönetiliyor";
+"Copy update command" = "Güncelleme komutunu kopyala";
 "Copy error" = "Kopyalama hatası";
 "Copy path" = "Yolu kopyala";
 "Extra usage spent" = "Harcanan ek kullanım";
@@ -1338,6 +1356,8 @@
 "Tracked tokens" = "İzlenen tokenlar";
 "Subscriptions" = "Abonelikler";
 "By subscription" = "Aboneliğe göre";
+"By source" = "By source";
+"%d of %d sources have spend" = "%d of %d sources have spend";
 "No model-level history" = "Model düzeyinde geçmiş yok";
 "Daily estimated spend" = "Günlük tahmini harcama";
 "Hourly estimated spend" = "Saatlik tahmini harcama";
@@ -1582,3 +1602,25 @@
 
 "agent_sessions_hide_unreachable_title" = "Erişilemeyen ana bilgisayarları gizle";
 "agent_sessions_hide_unreachable_subtitle" = "Oturumları alınamadığında ana bilgisayarları gizle.";
+
+/* Overview share flow */
+"Share Usage Snapshot…" = "Kullanım özetini paylaş…";
+"Usage snapshot unavailable" = "Kullanım özeti kullanılamıyor";
+"CodexBar couldn't prepare a shareable usage snapshot. Refresh Usage & Spend and try again." = "CodexBar paylaşılabilir bir kullanım özeti hazırlayamadı. Kullanım ve harcamayı yenileyip tekrar deneyin.";
+"Incomplete" = "Eksik";
+"Est. subtotal (%@): %@" = "Tahmini ara toplam (%@): %@";
+"Excluded requests with missing final usage: %d" = "Nihai kullanım verileri eksik olduğu için hariç tutulan istekler: %d";
+
+"overview_layout_title" = "Genel Bakış düzeni";
+"overview_layout_subtitle" = "Genel Bakış’ın ne kadar bilgi göstereceğini seçin.";
+"overview_layout_detailed" = "Ayrıntılı";
+"overview_layout_compact" = "Kompakt";
+
+"section_widgets" = "Araç takımları";
+"account_widgets_title" = "Araç takımları için hesapları güncel tut";
+"account_widgets_description" = "Her Account Usage araç takımında bir hesap seçin. Sağlayıcı başına en fazla altı hesabı yeniler.";
+
+/* Antigravity local cost estimates */
+"antigravity_cost_estimate_hint" = "Yerel kullanım × herkese açık API fiyatları · Antigravity ücretleri veya kredileri değildir";
+"antigravity_quota_window_note" = "Pencere maliyeti tüm modelleri kapsar · gösterilen pencere en kısıtlı ailedir";
+"antigravity_no_priced_token_history" = "Fiyatlandırılmış Antigravity token geçmişi yok.";

@@ -38,7 +38,9 @@ final class ClaudeSwapAccountSwitcherView: NSView {
                 let label = ClaudeSwapAccountMenuDisplay.label(for: account, hidePersonalInfo: hidePersonalInfo)
                 let button = PaddedToggleButton(title: label, target: self, action: #selector(self.handleSelect))
                 button.tag = index
-                button.toolTip = label
+                let help = ClaudeSwapAccountMenuDisplay.chipHelp(for: account, hidePersonalInfo: hidePersonalInfo)
+                button.toolTip = help
+                button.setAccessibilityLabel(help)
                 button.isBordered = false
                 button.setButtonType(.toggle)
                 button.controlSize = .small
@@ -119,7 +121,7 @@ final class ClaudeSwapAccountSwitcherView: NSView {
 
     private func select(_ id: ProviderAccountIdentity) {
         guard !self.selectionPending, let account = self.accounts.first(where: { $0.id == id }) else { return }
-        if account.canActivate {
+        if ClaudeSwapAccountMenuDisplay.activatesAccount(account) {
             self.selectionPending = true
             for button in self.buttons {
                 button.isEnabled = false

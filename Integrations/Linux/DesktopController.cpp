@@ -2,6 +2,7 @@
 
 #include <QClipboard>
 #include <QCoreApplication>
+#include <QCryptographicHash>
 #include <QDateTime>
 #include <QDBusConnection>
 #include <QDBusMessage>
@@ -15,6 +16,7 @@
 #include <QRegularExpression>
 #include <QSaveFile>
 #include <QStandardPaths>
+#include <QUuid>
 #include <algorithm>
 #include <csignal>
 #include <memory>
@@ -292,12 +294,20 @@ void DesktopController::showWindow(const QString &page) {
 }
 
 QJsonObject DesktopController::snapshot() const {
+    static const auto extraKeySalt = QUuid::createUuid().toRfc4122();
     QJsonArray compact;
     for (const auto &entry : m_entries) {
         auto row = entry.toMap();
         QJsonArray windows;
         for (const auto &item : row.value("windows").toList()) {
             auto window = item.toMap();
+            const auto key = window.value("key").toString();
+            if (key.startsWith("extra:")) {
+                // Keep provider-controlled IDs opaque over IPC and stable within this backend process.
+                const auto identity = row.value("provider").toString() + "/" + key;
+                window["key"] = "extra:" + QString::fromLatin1(
+                    QCryptographicHash::hash(extraKeySalt + identity.toUtf8(), QCryptographicHash::Sha256).toHex());
+            }
             const auto remaining = window.value("remaining").toDouble();
             window["displayValue"] = m_settings.value("quotaDisplay") == "used" ? 100 - remaining : remaining;
             window["displaySuffix"] = m_settings.value("quotaDisplay") == "used" ? "used" : "left";

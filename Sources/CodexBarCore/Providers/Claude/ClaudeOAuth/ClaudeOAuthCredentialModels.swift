@@ -157,10 +157,10 @@ extension ClaudeOAuthCredentials {
         ]
 
         if let expiresAt = self.expiresAt {
-            let expiresAtMs = Int(expiresAt.timeIntervalSince1970 * 1000.0)
-            let expiresInSec = Int(expiresAt.timeIntervalSince(now).rounded())
-            metadata["expiresAtMs"] = "\(expiresAtMs)"
-            metadata["expiresInSec"] = "\(expiresInSec)"
+            let expiresAtMs = Int(exactly: (expiresAt.timeIntervalSince1970 * 1000.0).rounded(.towardZero))
+            let expiresInSec = Int(exactly: expiresAt.timeIntervalSince(now).rounded())
+            metadata["expiresAtMs"] = expiresAtMs.map(String.init) ?? "out_of_range"
+            metadata["expiresInSec"] = expiresInSec.map(String.init) ?? "out_of_range"
             metadata["isExpired"] = "\(now >= expiresAt)"
         } else {
             metadata["expiresAtMs"] = "nil"

@@ -150,6 +150,10 @@
 "Cookie: …" = "Cookie: …";
 "CopilotDeviceFlow" = "CopilotDeviceFlow";
 "Cost" = "コスト";
+"Token history" = "トークン履歴";
+"Local token history · dollar costs unavailable" = "ローカルトークン履歴 · ドル建てコストは不明";
+"Partial local history · recorded token subtotal" = "一部のローカル履歴 · 記録されたトークンの小計";
+"Local token history is unavailable or incomplete." = "ローカルトークン履歴を取得できないか、履歴が不完全です。";
 "Could not add Codex account" = "Codex アカウントを追加できませんでした";
 "Could not open Terminal for Gemini" = "Gemini 用のターミナルを開けませんでした";
 "Could not start claude /login" = "claude /login を開始できませんでした";
@@ -609,6 +613,12 @@
 "cost_summary_off" = "オフ";
 "merge_icons_title" = "アイコンを統合";
 "merge_icons_subtitle" = "プロバイダ切替付きの単一のメニューバーアイコンを使用します。";
+"merged_icon_style_title" = "結合アイコンのスタイル";
+"merged_icon_style_subtitle" = "「切り替え」はプロバイダを1つずつ順番に表示し、「積み重ね」は2つのプロバイダを同時に1行ずつ表示します。";
+"merged_icon_style_switcher" = "切り替え";
+"merged_icon_style_stacked" = "積み重ね";
+"merge_icon_stacked_top_provider_title" = "上段";
+"merge_icon_stacked_bottom_provider_title" = "下段";
 "show_most_used_provider_title" = "最も使用中のプロバイダを表示";
 "show_most_used_provider_subtitle" = "レート制限に最も近いプロバイダをメニューバーに自動表示します。";
 "display_mode_title" = "表示モード";
@@ -879,6 +889,12 @@
 "usage_percent_suffix_used" = "使用済み";
 "Store multiple DeepSeek API keys." = "複数の DeepSeek API キーを保存します。";
 "This week" = "今週";
+"Current window" = "現在のウィンドウ";
+"Last week" = "先週";
+"%d weeks ago" = "%d週間前";
+"Previous window" = "前のウィンドウ";
+"%d windows ago" = "%dウィンドウ前";
+"Recent windows" = "最近のウィンドウ";
 "Week" = "週";
 "Month" = "月";
 "Models" = "モデル";
@@ -938,6 +954,8 @@
 "Overage" = "超過分";
 "Activity" = "アクティビティ";
 "Copied" = "コピーしました";
+"Managed by Homebrew" = "Homebrew で管理されています";
+"Copy update command" = "更新コマンドをコピー";
 "Copy error" = "エラーをコピー";
 "Copy path" = "パスをコピー";
 "Extra usage spent" = "追加使用分の支出";
@@ -1337,6 +1355,8 @@
 "Tracked tokens" = "追跡対象トークン";
 "Subscriptions" = "サブスクリプション";
 "By subscription" = "サブスクリプション別";
+"By source" = "By source";
+"%d of %d sources have spend" = "%d of %d sources have spend";
 "No model-level history" = "モデル別の履歴はありません";
 "Daily estimated spend" = "日別推定支出";
 "Hourly estimated spend" = "時間別推定支出";
@@ -1580,3 +1600,25 @@
 
 "agent_sessions_hide_unreachable_title" = "接続できないホストを非表示";
 "agent_sessions_hide_unreachable_subtitle" = "セッションの取得に失敗したホストを非表示にします。";
+
+/* Overview share flow */
+"Share Usage Snapshot…" = "使用状況の概要を共有…";
+"Usage snapshot unavailable" = "使用状況の概要を利用できません";
+"CodexBar couldn't prepare a shareable usage snapshot. Refresh Usage & Spend and try again." = "CodexBar で共有用の使用状況の概要を準備できませんでした。「使用状況と支出」を更新して、もう一度お試しください。";
+"Incomplete" = "不完全";
+"Est. subtotal (%@): %@" = "推定小計 (%@): %@";
+"Excluded requests with missing final usage: %d" = "最終的な使用量が未記録のため除外されたリクエスト: %d";
+
+"overview_layout_title" = "概要のレイアウト";
+"overview_layout_subtitle" = "概要に表示する情報量を選択します。";
+"overview_layout_detailed" = "詳細";
+"overview_layout_compact" = "コンパクト";
+
+"section_widgets" = "ウィジェット";
+"account_widgets_title" = "ウィジェット用にアカウントを更新する";
+"account_widgets_description" = "各 Account Usage ウィジェットでアカウントを選択します。プロバイダーごとに最大6つのアカウントを更新します。";
+
+/* Antigravity local cost estimates */
+"antigravity_cost_estimate_hint" = "ローカル使用量 × 公開API価格 · Antigravity の請求やクレジットではありません";
+"antigravity_quota_window_note" = "ウィンドウの費用は全モデルを含みます · 表示中のウィンドウは最も制限の厳しいファミリーです";
+"antigravity_no_priced_token_history" = "価格付きの Antigravity トークン履歴がありません。";

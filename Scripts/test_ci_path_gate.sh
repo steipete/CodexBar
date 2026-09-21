@@ -101,6 +101,8 @@ assert_linux_musl_gate true swift-source $'M\tSources/CodexBarCore/Process.swift
 assert_linux_musl_gate true nested-swift-source $'M\tSources/CodexBarCore/Host/Process/Process.swift'
 assert_linux_musl_gate true rename-from-swift $'R100\tSources/CodexBarCore/Old.swift\tdocs/Old.md'
 assert_linux_musl_gate true rename-to-swift $'R100\tdocs/New.md\tSources/CodexBarCore/New.swift'
+assert_linux_musl_gate true sdk-installer $'M\tScripts/install_swift_static_sdk.sh'
+assert_linux_musl_gate true removed-sdk-installer $'D\tScripts/install_swift_static_sdk.sh'
 assert_linux_musl_gate false tests-only $'M\tTests/CodexBarTests/ProcessTests.swift'
 assert_linux_musl_gate false workflow-only $'M\t.github/workflows/ci.yml'
 assert_linux_musl_gate false script-only $'M\tScripts/ci_verify_test_jobs.sh'

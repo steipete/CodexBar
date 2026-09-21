@@ -79,19 +79,27 @@ public struct HookProviderObservation: Sendable {
     /// string: provider errors can embed response-body previews.
     public let refreshFailureStatus: String?
     public let accountDisplayName: String?
+    /// Present only after a successful fetch; failure/status-only observations cannot emit an update.
+    public let successfulUsage: UsageSnapshot?
+    /// Private routing state, never part of the event's encoded payload or environment.
+    public let accountDiscriminator: String?
 
     public init(
         provider: String,
         lanes: [HookQuotaLaneObservation] = [],
         status: HookProviderStatus = .unknown,
         refreshFailureStatus: String? = nil,
-        accountDisplayName: String? = nil)
+        accountDisplayName: String? = nil,
+        successfulUsage: UsageSnapshot? = nil,
+        accountDiscriminator: String? = nil)
     {
         self.provider = provider
         self.lanes = lanes
         self.status = status
         self.refreshFailureStatus = refreshFailureStatus
         self.accountDisplayName = accountDisplayName
+        self.successfulUsage = successfulUsage
+        self.accountDiscriminator = accountDiscriminator
     }
 }
 
@@ -106,10 +114,12 @@ public struct HookProviderObservation: Sendable {
 public struct HookDispatch: Sendable {
     public let event: HookEvent
     public let rules: [HookRule]?
+    public let accountDiscriminator: String?
 
-    init(event: HookEvent, rules: [HookRule]? = nil) {
+    init(event: HookEvent, rules: [HookRule]? = nil, accountDiscriminator: String? = nil) {
         self.event = event
         self.rules = rules
+        self.accountDiscriminator = accountDiscriminator
     }
 }
 
@@ -121,7 +131,8 @@ public struct HookDispatch: Sendable {
 /// headlessly, where `HookRunner` otherwise never runs at all.
 ///
 /// State is in-memory only, matching the app: a restart starts fresh and the
-/// first sample of any lane establishes a baseline without firing.
+/// first sample of a lane establishes its transition baseline. Successful usage
+/// publications are independent of those edges and can emit immediately.
 public final class HookTransitionDetector {
     /// Previous usage fraction (0...1) and reset boundary per lane. Drives all
     /// three quota edges: `quota_low` crossing, `quota_reached`, and `quota_reset`.
@@ -181,10 +192,19 @@ public final class HookTransitionDetector {
             // A failed refresh carries no usable quota or status reading, so it must
             // not disturb baselines: the next successful poll compares against the
             // last real sample rather than firing a phantom transition.
-            return [HookDispatch(event: event)]
+            return [HookDispatch(event: event, accountDiscriminator: observation.accountDiscriminator)]
         }
 
         var dispatches: [HookDispatch] = self.statusEvents(observation: observation, now: now)
+        if let usage = observation.successfulUsage {
+            dispatches.append(HookDispatch(
+                event: .usageUpdated(
+                    provider: observation.provider,
+                    snapshot: usage,
+                    account: observation.accountDisplayName,
+                    timestamp: now),
+                accountDiscriminator: observation.accountDiscriminator))
+        }
 
         let observedKeys = Set(observation.lanes.map(\.key))
         for lane in observation.lanes {

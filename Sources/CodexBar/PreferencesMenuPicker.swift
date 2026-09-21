@@ -68,9 +68,11 @@ enum MenuBarSettingsMenuOptions {
     static let displayModes = MenuBarDisplayMode.allCases
     static let iconStyles = MenuBarIconStyle.allCases
     static let switcherRows = SwitcherRowsOption.allCases
+    static let mergedIconStyles = MergedIconDisplayStyle.allCases
 }
 
 enum MenuSettingsMenuOptions {
+    static let mergedOverviewLayouts = MergedOverviewLayout.allCases
     static let weeklyProgressWorkDays: [Int?] = [nil, 4, 5, 7]
     static let workdayTickAppearances = WorkdayTickAppearance.allCases
     static let multiAccountLayouts = MultiAccountMenuLayout.allCases

@@ -735,7 +735,9 @@ final class QuickJSProviderPluginEngine: ProviderPluginEngine, @unchecked Sendab
                 request.setValue(value, forHTTPHeaderField: name)
             }
         }
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        if self.enforcesUserResponsePolicy || request.value(forHTTPHeaderField: "Accept") == nil {
+            request.setValue("application/json", forHTTPHeaderField: "Accept")
+        }
         if self.enforcesUserResponsePolicy {
             request.setValue("identity", forHTTPHeaderField: "Accept-Encoding")
         }

@@ -149,6 +149,10 @@
 "Cookie: …" = "Cookie: …";
 "CopilotDeviceFlow" = "CopilotDeviceFlow";
 "Cost" = "Coste";
+"Token history" = "Historial de tokens";
+"Local token history · dollar costs unavailable" = "Historial local de tokens · costes en dólares no disponibles";
+"Partial local history · recorded token subtotal" = "Historial local parcial · subtotal de tokens registrados";
+"Local token history is unavailable or incomplete." = "El historial local de tokens no está disponible o está incompleto.";
 "Could not add Codex account" = "No se pudo añadir la cuenta de Codex";
 "Could not open Terminal for Gemini" = "No se pudo abrir la Terminal para Gemini";
 "Could not start claude /login" = "No se pudo iniciar claude /login";
@@ -604,6 +608,12 @@
 "cost_summary_off" = "Desactivado";
 "merge_icons_title" = "Combinar iconos";
 "merge_icons_subtitle" = "Usar un único icono en la barra de menús con un selector de proveedor.";
+"merged_icon_style_title" = "Estilo de icono combinado";
+"merged_icon_style_subtitle" = "El selector recorre los proveedores uno a uno; Apilado muestra dos proveedores a la vez, uno por fila.";
+"merged_icon_style_switcher" = "Selector";
+"merged_icon_style_stacked" = "Apilado";
+"merge_icon_stacked_top_provider_title" = "Fila superior";
+"merge_icon_stacked_bottom_provider_title" = "Fila inferior";
 "show_most_used_provider_title" = "Mostrar el proveedor más usado";
 "show_most_used_provider_subtitle" = "La barra de menús muestra automáticamente el proveedor más cercano a su límite.";
 "display_mode_title" = "Modo de visualización";
@@ -820,6 +830,8 @@
 "Overage" = "Exceso";
 "Activity" = "Actividad";
 "Copied" = "Copiado";
+"Managed by Homebrew" = "Gestionado por Homebrew";
+"Copy update command" = "Copiar comando de actualización";
 "Copy error" = "Error al copiar";
 "Copy path" = "Copiar ruta";
 "Extra usage spent" = "Gasto de uso adicional";
@@ -897,6 +909,12 @@
 "Latest billing day" = "Último día de facturación";
 "Latest billing day (%@)" = "Último día de facturación (%@)";
 "This week" = "Esta semana";
+"Current window" = "Ventana actual";
+"Last week" = "La semana pasada";
+"%d weeks ago" = "hace %d semanas";
+"Previous window" = "Ventana anterior";
+"%d windows ago" = "hace %d ventanas";
+"Recent windows" = "Ventanas recientes";
 "This month" = "Este mes";
 "Week" = "Semana";
 "Month" = "Mes";
@@ -1335,6 +1353,8 @@
 "Tracked tokens" = "Tokens registrados";
 "Subscriptions" = "Suscripciones";
 "By subscription" = "Por suscripción";
+"By source" = "By source";
+"%d of %d sources have spend" = "%d of %d sources have spend";
 "No model-level history" = "No hay historial por modelo";
 "Daily estimated spend" = "Gasto diario estimado";
 "Hourly estimated spend" = "Gasto horario estimado";
@@ -1578,3 +1598,25 @@
 
 "agent_sessions_hide_unreachable_title" = "Ocultar hosts inaccesibles";
 "agent_sessions_hide_unreachable_subtitle" = "Oculta los hosts cuando falla la consulta de sus sesiones.";
+
+/* Overview share flow */
+"Share Usage Snapshot…" = "Compartir instantánea de uso…";
+"Usage snapshot unavailable" = "Instantánea de uso no disponible";
+"CodexBar couldn't prepare a shareable usage snapshot. Refresh Usage & Spend and try again." = "CodexBar no pudo preparar una instantánea de uso para compartir. Actualiza Uso y gasto y vuelve a intentarlo.";
+"Incomplete" = "Incompleto";
+"Est. subtotal (%@): %@" = "Subtotal estimado (%@): %@";
+"Excluded requests with missing final usage: %d" = "Solicitudes excluidas sin datos de uso finales: %d";
+
+"overview_layout_title" = "Diseño de Resumen";
+"overview_layout_subtitle" = "Elige cuánta información muestra Resumen.";
+"overview_layout_detailed" = "Detallado";
+"overview_layout_compact" = "Compacto";
+
+"section_widgets" = "Widgets";
+"account_widgets_title" = "Mantener las cuentas actualizadas para los widgets";
+"account_widgets_description" = "Elige una cuenta en cada widget Account Usage. Actualiza hasta seis cuentas por proveedor.";
+
+/* Antigravity local cost estimates */
+"antigravity_cost_estimate_hint" = "Uso local × precios públicos de API · no son cargos ni créditos de Antigravity";
+"antigravity_quota_window_note" = "El coste de la ventana incluye todos los modelos · la ventana mostrada es la familia más limitada";
+"antigravity_no_priced_token_history" = "No hay historial de tokens de Antigravity con precio disponible.";

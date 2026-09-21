@@ -136,6 +136,7 @@ extension ProviderFetchOutcome {
                 sourceLabel: result.sourceLabel,
                 strategyID: result.strategyID,
                 strategyKind: result.strategyKind,
+                supplementalUsageTask: result.supplementalUsageTask,
                 codexResetCreditsAttempted: result.codexResetCreditsAttempted,
                 codexMonthlyLimitEnrichmentFailed: result.codexMonthlyLimitEnrichmentFailed,
                 diagnostic: result.diagnostic,

@@ -279,6 +279,55 @@ struct ChutesProviderTests {
     }
 
     @Test
+    func `large quota amounts retain their percentage and description`() throws {
+        let data = Data(#"""
+        {"rolling_window":{"used":1e20,"limit":2e20,"unit":"credits"}}
+        """#.utf8)
+
+        let snapshot = try ChutesUsageParser.parse(data: data, now: Date(timeIntervalSince1970: 123))
+        let usage = snapshot.toUsageSnapshot()
+
+        #expect(usage.primary?.usedPercent == 50)
+        #expect(usage.primary?.resetDescription == "100000000000000000000/200000000000000000000 credits")
+    }
+
+    @Test(arguments: [
+        ("window_minutes", "9223372036854775808"),
+        ("window_hours", "1e308"),
+        ("window_days", "1e308"),
+        ("window_seconds", "1e308"),
+        ("window", #""1e308 minutes""#),
+        ("window", #""1e308 hours""#),
+        ("window", #""1e308 days""#),
+        ("window", #""1e308 months""#),
+    ])
+    func `unrepresentable durations preserve usage with the known window default`(key: String, value: String) throws {
+        let data = Data("""
+        {"rolling_window":{"used":25,"limit":100,"\(key)":\(value)}}
+        """.utf8)
+
+        let snapshot = try ChutesUsageParser.parse(data: data, now: Date(timeIntervalSince1970: 123))
+        let usage = snapshot.toUsageSnapshot()
+
+        #expect(usage.primary?.usedPercent == 25)
+        #expect(usage.primary?.windowMinutes == 240)
+        #expect(usage.primary?.resetDescription == "25/100 credits")
+    }
+
+    @Test
+    func `unrepresentable generic quota duration remains unknown`() throws {
+        let data = Data(#"""
+        {"quotas":[{"used":25,"limit":100,"window_minutes":9223372036854775808}]}
+        """#.utf8)
+
+        let snapshot = try ChutesUsageParser.parse(data: data, now: Date(timeIntervalSince1970: 123))
+        let usage = snapshot.toUsageSnapshot()
+
+        #expect(usage.primary?.usedPercent == 25)
+        #expect(usage.primary?.windowMinutes == nil)
+    }
+
+    @Test
     func `exact percent value of one stays one percent`() throws {
         let usedData = Data(#"""
         {

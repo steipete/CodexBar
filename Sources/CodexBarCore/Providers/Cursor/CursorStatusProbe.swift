@@ -440,7 +440,7 @@ public struct CursorStatusSnapshot: Sendable {
     }
 
     /// Convert to UsageSnapshot for the common provider interface
-    public func toUsageSnapshot() -> UsageSnapshot {
+    public func toUsageSnapshot(now: Date = Date()) -> UsageSnapshot {
         let cursorRequests: CursorRequestUsage? = if let used = self.requestsUsed,
                                                      let limit = self.requestsLimit,
                                                      limit > 0
@@ -453,7 +453,7 @@ public struct CursorStatusSnapshot: Sendable {
         // Primary: For usable legacy request quotas, use request usage; otherwise preserve plan percentage.
         let primaryUsedPercent = cursorRequests?.usedPercent ?? self.planPercentUsed
 
-        let billingCycleWindowMinutes = Self.billingCycleWindowMinutes(
+        let billingCycleWindowMinutes = CursorSandUsageStatus.windowMinutes(
             start: self.billingCycleStart,
             end: self.billingCycleEnd)
 
@@ -490,9 +490,7 @@ public struct CursorStatusSnapshot: Sendable {
         let extraRateWindows: [NamedRateWindow]? = if cursorRequests != nil {
             nil
         } else {
-            self.sandUsage.flatMap { status in
-                status.extraRateWindow(resetDescription: Self.formatResetDate)
-            }.map { [$0] }
+            self.sandUsage?.extraRateWindow(now: now, resetDescription: Self.formatResetDate).map { [$0] }
         }
 
         // Prefer a personal cap. Team accounts with no user cap expose only the shared on-demand budget.
@@ -529,7 +527,7 @@ public struct CursorStatusSnapshot: Sendable {
                 period: "Monthly",
                 resetsAt: self.billingCycleEnd,
                 personalUsed: personalOnDemandUsed,
-                updatedAt: Date())
+                updatedAt: now)
         } else {
             nil
         }
@@ -551,7 +549,7 @@ public struct CursorStatusSnapshot: Sendable {
                     .makeRow(label: "Request quota", value: "\(requests.used) / \(requests.limit)"),
                 ])]
             } ?? [],
-            updatedAt: Date(),
+            updatedAt: now,
             identity: identity)
     }
 
@@ -560,14 +558,6 @@ public struct CursorStatusSnapshot: Sendable {
         formatter.dateFormat = "MMM d 'at' h:mma"
         formatter.locale = Locale(identifier: "en_US_POSIX")
         return "Resets " + formatter.string(from: date)
-    }
-
-    private static func billingCycleWindowMinutes(start: Date?, end: Date?) -> Int? {
-        guard let start,
-              let end
-        else { return nil }
-        let minutes = Int((end.timeIntervalSince(start) / 60).rounded())
-        return minutes > 0 ? minutes : nil
     }
 
     private static func formatMembershipType(_ type: String) -> String {
@@ -759,6 +749,7 @@ public struct CursorStatusProbe: Sendable {
     let browserDetection: BrowserDetection
     let browserCookieImportOrder: BrowserCookieImportOrder
     let urlSession: any ProviderHTTPTransport
+    let sessionStore: CursorSessionStore
     #if os(macOS) || os(Linux)
     let appAuthStore: any CursorAppAuthSessionProviding
     #endif
@@ -771,7 +762,8 @@ public struct CursorStatusProbe: Sendable {
         baseURL: URL = URL(string: "https://cursor.com")!,
         timeout: TimeInterval = 15.0,
         browserDetection: BrowserDetection,
-        urlSession: any ProviderHTTPTransport = ProviderHTTPClient.shared)
+        urlSession: any ProviderHTTPTransport = ProviderHTTPClient.shared,
+        sessionStore: CursorSessionStore = .shared)
     {
         #if os(macOS)
         self.init(
@@ -781,8 +773,9 @@ public struct CursorStatusProbe: Sendable {
             browserCookieImportOrder: Self.defaultBrowserCookieImportOrder,
             urlSession: urlSession,
             appAuthStore: CursorAppAuthStore(),
+            sessionStore: sessionStore,
             persistAppAuthSession: { session in
-                await CursorSessionStore.shared.persistAppSession(session)
+                await sessionStore.persistAppSession(session)
             },
             conditionalMutationCoordinator: .shared)
         #elseif os(Linux)
@@ -793,6 +786,7 @@ public struct CursorStatusProbe: Sendable {
             browserCookieImportOrder: Self.defaultBrowserCookieImportOrder,
             urlSession: urlSession,
             appAuthStore: CursorAppAuthStore(),
+            sessionStore: sessionStore,
             conditionalMutationCoordinator: .shared)
         #else
         self.init(
@@ -801,6 +795,7 @@ public struct CursorStatusProbe: Sendable {
             browserDetection: browserDetection,
             browserCookieImportOrder: Self.defaultBrowserCookieImportOrder,
             urlSession: urlSession,
+            sessionStore: sessionStore,
             conditionalMutationCoordinator: .shared)
         #endif
     }
@@ -810,6 +805,7 @@ public struct CursorStatusProbe: Sendable {
         timeout: TimeInterval = 15.0,
         browserDetection: BrowserDetection,
         urlSession: any ProviderHTTPTransport = ProviderHTTPClient.shared,
+        sessionStore: CursorSessionStore = .shared,
         conditionalMutationCoordinator: CookieHeaderCache.ConditionalMutationCoordinator)
     {
         #if os(macOS)
@@ -820,8 +816,9 @@ public struct CursorStatusProbe: Sendable {
             browserCookieImportOrder: Self.defaultBrowserCookieImportOrder,
             urlSession: urlSession,
             appAuthStore: CursorAppAuthStore(),
+            sessionStore: sessionStore,
             persistAppAuthSession: { session in
-                await CursorSessionStore.shared.persistAppSession(session)
+                await sessionStore.persistAppSession(session)
             },
             conditionalMutationCoordinator: conditionalMutationCoordinator)
         #elseif os(Linux)
@@ -832,6 +829,7 @@ public struct CursorStatusProbe: Sendable {
             browserCookieImportOrder: Self.defaultBrowserCookieImportOrder,
             urlSession: urlSession,
             appAuthStore: CursorAppAuthStore(),
+            sessionStore: sessionStore,
             conditionalMutationCoordinator: conditionalMutationCoordinator)
         #else
         self.init(
@@ -840,6 +838,7 @@ public struct CursorStatusProbe: Sendable {
             browserDetection: browserDetection,
             browserCookieImportOrder: Self.defaultBrowserCookieImportOrder,
             urlSession: urlSession,
+            sessionStore: sessionStore,
             conditionalMutationCoordinator: conditionalMutationCoordinator)
         #endif
     }
@@ -852,6 +851,7 @@ public struct CursorStatusProbe: Sendable {
         browserCookieImportOrder: BrowserCookieImportOrder = Self.defaultBrowserCookieImportOrder,
         urlSession: any ProviderHTTPTransport = ProviderHTTPClient.shared,
         appAuthStore: any CursorAppAuthSessionProviding,
+        sessionStore: CursorSessionStore = .shared,
         persistAppAuthSession: @escaping @Sendable (CursorAppAuthSession) async -> Void = { _ in },
         conditionalMutationCoordinator: CookieHeaderCache.ConditionalMutationCoordinator = .shared)
     {
@@ -860,6 +860,7 @@ public struct CursorStatusProbe: Sendable {
         self.browserDetection = browserDetection
         self.browserCookieImportOrder = browserCookieImportOrder
         self.urlSession = urlSession
+        self.sessionStore = sessionStore
         self.appAuthStore = appAuthStore
         self.persistAppAuthSession = persistAppAuthSession
         self.conditionalMutationCoordinator = conditionalMutationCoordinator
@@ -872,6 +873,7 @@ public struct CursorStatusProbe: Sendable {
         browserDetection: BrowserDetection,
         browserCookieImportOrder: BrowserCookieImportOrder = Self.defaultBrowserCookieImportOrder,
         urlSession: any ProviderHTTPTransport = ProviderHTTPClient.shared,
+        sessionStore: CursorSessionStore = .shared,
         conditionalMutationCoordinator: CookieHeaderCache.ConditionalMutationCoordinator = .shared)
     {
         self.baseURL = baseURL
@@ -879,6 +881,7 @@ public struct CursorStatusProbe: Sendable {
         self.browserDetection = browserDetection
         self.browserCookieImportOrder = browserCookieImportOrder
         self.urlSession = urlSession
+        self.sessionStore = sessionStore
         self.conditionalMutationCoordinator = conditionalMutationCoordinator
     }
     #endif
@@ -1349,11 +1352,19 @@ public struct CursorStatusProbe: Sendable {
 
         let (usageSummary, rawJSON) = usageSummaryResult
 
+        var teamBudget: CursorTeamSpend.Budget?
+        if usageSummary.isTeamPlan,
+           let email = userInfo?.email?.trimmingCharacters(in: .whitespacesAndNewlines), !email.isEmpty
+        {
+            teamBudget = try? await self.fetchTeamSpend(cookieHeader: cookieHeader, email: email, deadline: deadline)
+        }
+        try Task.checkCancellation()
+
         // Fetch legacy request usage only if user has a sub ID.
         // Uses try? to avoid breaking the flow for users where this endpoint fails or returns unexpected data.
         var requestUsage: CursorUsageResponse?
         var requestUsageRawJSON: String?
-        if let userId = userInfo?.sub ?? identityFallback?.requestUsageUserID {
+        if teamBudget == nil, let userId = userInfo?.sub ?? identityFallback?.requestUsageUserID {
             do {
                 let (usage, usageRawJSON) = try await self.fetchRequestUsage(
                     userId: userId,
@@ -1376,13 +1387,15 @@ public struct CursorStatusProbe: Sendable {
                 + sandJSON
         }
 
+        try Task.checkCancellation()
         return self.parseUsageSummary(
             usageSummary,
             userInfo: userInfo,
             rawJSON: combinedRawJSON,
             requestUsage: requestUsage,
             sandUsage: sandUsage,
-            identityFallback: identityFallback)
+            identityFallback: identityFallback,
+            teamBudget: teamBudget)
     }
 
     private func fetchUsageSummary(
@@ -1538,117 +1551,6 @@ public struct CursorStatusProbe: Sendable {
 
     private static func browserLoginTimeoutError() -> CursorStatusProbeError {
         .networkError("Timed out while validating Cursor browser sessions")
-    }
-
-    func parseUsageSummary(
-        _ summary: CursorUsageSummary,
-        userInfo: CursorUserInfo?,
-        rawJSON: String?,
-        requestUsage: CursorUsageResponse? = nil,
-        sandUsage: CursorSandUsageStatus? = nil,
-        identityFallback: CursorSessionIdentity? = nil) -> CursorStatusSnapshot
-    {
-        let billingCycleStart = ISO8601DateParser.parse(summary.billingCycleStart)
-        let billingCycleEnd = ISO8601DateParser.parse(summary.billingCycleEnd)
-
-        // Convert cents to USD (plan percent derives from raw values to avoid percent unit mismatches).
-        // Use plan.limit directly - breakdown.total represents total *used* credits, not the limit.
-        let planUsedRaw = Double(summary.individualUsage?.plan?.used ?? 0)
-        let planLimitRaw = Double(summary.individualUsage?.plan?.limit ?? 0)
-        func normPct(_ value: Double?) -> Double? {
-            guard let v = value else { return nil }
-            return UsagePercent(raw: v).displayClamped
-        }
-
-        // Cursor's usage-summary percent fields are already in percentage units, even when they are fractional
-        // values below 1.0 (for example 0.36 means 0.36%, which the dashboard rounds to 0%).
-        let autoPercent = normPct(summary.individualUsage?.plan?.autoPercentUsed)
-        let apiPercent = normPct(summary.individualUsage?.plan?.apiPercentUsed)
-
-        // Enterprise / team-member personal cap (cents). Reported under `individualUsage.overall` for accounts
-        // that don't get a `plan` block. Falls through to existing logic when absent so non-enterprise paths
-        // are untouched.
-        let overallUsedRaw = (summary.individualUsage?.overall?.used).map(Double.init)
-        let overallLimitRaw = (summary.individualUsage?.overall?.limit).map(Double.init)
-
-        // Shared team/enterprise pool (cents). Last-resort fallback when no individual data is available.
-        let pooledUsedRaw = (summary.teamUsage?.pooled?.used).map(Double.init)
-        let pooledLimitRaw = (summary.teamUsage?.pooled?.limit).map(Double.init)
-
-        // Headline "Total" precedence:
-        //   1. `individualUsage.plan.totalPercentUsed` (existing behavior for Pro/Hobby/etc.)
-        //   2. averaged `auto` + `api` lane percents (existing behavior)
-        //   3. either lane alone (existing behavior)
-        //   4. `individualUsage.plan` ratio (existing behavior)
-        //   5. NEW: `individualUsage.overall` ratio (Enterprise/Team personal cap)
-        //   6. NEW: `teamUsage.pooled` ratio (last resort when no individual data is reported)
-        let planPercentUsed: Double = if let totalPercentUsed = summary.individualUsage?.plan?.totalPercentUsed {
-            UsagePercent(raw: totalPercentUsed).displayClamped
-        } else if let autoUsed = autoPercent, let apiUsed = apiPercent {
-            UsagePercent(raw: (autoUsed + apiUsed) / 2).displayClamped
-        } else if let apiUsed = apiPercent {
-            UsagePercent(raw: apiUsed).displayClamped
-        } else if let autoUsed = autoPercent {
-            UsagePercent(raw: autoUsed).displayClamped
-        } else if planLimitRaw > 0 {
-            UsagePercent(used: planUsedRaw, limit: planLimitRaw).displayClamped
-        } else if let used = overallUsedRaw, let limit = overallLimitRaw, limit > 0 {
-            UsagePercent(used: used, limit: limit).displayClamped
-        } else if let used = pooledUsedRaw, let limit = pooledLimitRaw, limit > 0 {
-            UsagePercent(used: used, limit: limit).displayClamped
-        } else {
-            0
-        }
-
-        // USD figures: prefer the source the headline ultimately came from. When `plan` is missing but
-        // `overall` or `pooled` carry the cents, surface those so the on-demand display and downstream
-        // consumers see real dollar amounts instead of zeros.
-        let planUsed: Double
-        let planLimit: Double
-        if planLimitRaw > 0 || planUsedRaw > 0 {
-            planUsed = planUsedRaw / 100.0
-            planLimit = planLimitRaw / 100.0
-        } else if let usedCents = overallUsedRaw, let limitCents = overallLimitRaw {
-            planUsed = usedCents / 100.0
-            planLimit = limitCents / 100.0
-        } else if let usedCents = pooledUsedRaw, let limitCents = pooledLimitRaw {
-            planUsed = usedCents / 100.0
-            planLimit = limitCents / 100.0
-        } else {
-            planUsed = 0
-            planLimit = 0
-        }
-
-        let onDemandUsed = Double(summary.individualUsage?.onDemand?.used ?? 0) / 100.0
-        let onDemandLimit: Double? = summary.individualUsage?.onDemand?.limit.map { Double($0) / 100.0 }
-
-        let teamOnDemandUsed: Double? = summary.teamUsage?.onDemand?.used.map { Double($0) / 100.0 }
-        let teamOnDemandLimit: Double? = summary.teamUsage?.onDemand?.limit.map { Double($0) / 100.0 }
-
-        // Legacy request-based plan: maxRequestUsage being non-nil indicates a request-based plan
-        let requestsUsed: Int? = requestUsage?.gpt4?.numRequestsTotal ?? requestUsage?.gpt4?.numRequests
-        let requestsLimit: Int? = requestUsage?.gpt4?.maxRequestUsage
-
-        return CursorStatusSnapshot(
-            planPercentUsed: planPercentUsed,
-            autoPercentUsed: autoPercent,
-            apiPercentUsed: apiPercent,
-            planUsedUSD: planUsed,
-            planLimitUSD: planLimit,
-            onDemandUsedUSD: onDemandUsed,
-            onDemandLimitUSD: onDemandLimit,
-            teamOnDemandUsedUSD: teamOnDemandUsed,
-            teamOnDemandLimitUSD: teamOnDemandLimit,
-            billingCycleStart: billingCycleStart,
-            billingCycleEnd: billingCycleEnd,
-            membershipType: summary.membershipType,
-            accountEmail: userInfo?.email ?? identityFallback?.email,
-            accountID: userInfo?.sub ?? identityFallback?.subject,
-            accountName: userInfo?.name,
-            rawJSON: rawJSON,
-            sandUsage: sandUsage,
-            requestsUsed: requestsUsed,
-            requestsLimit: requestsLimit)
     }
 
     #if os(macOS)

@@ -88,9 +88,27 @@ CLI_PROBE_LOG="$SMOKE_DIR/cli-probe.log"
 CLI_SYMLINK_PROBE_LOG="$SMOKE_DIR/cli-symlink-probe.log"
 mkdir -p "$CLI_SYMLINK_DIR"
 ln -s "$CLI_BIN" "$CLI_SYMLINK"
+SMOKE_HOME="$SMOKE_DIR/home"
+mkdir -p "$SMOKE_HOME/.config" "$SMOKE_DIR/tmp"
+cat > "$SMOKE_HOME/config.json" <<'JSON'
+{"providers":[{"id":"codex","enabled":false},{"id":"claude","enabled":false}]}
+JSON
+SMOKE_ENV=(/usr/bin/env -i
+  "PATH=/usr/bin:/bin:/usr/sbin:/sbin"
+  "HOME=$SMOKE_HOME"
+  "CFFIXED_USER_HOME=$SMOKE_HOME"
+  "XDG_CONFIG_HOME=$SMOKE_HOME/.config"
+  "TMPDIR=$SMOKE_DIR/tmp/"
+  "CODEXBAR_CONFIG=$SMOKE_HOME/config.json"
+  "SWIFT_TESTING=1"
+  "CODEXBAR_SUPPRESS_TEST_KEYCHAIN_ACCESS=1"
+  "CODEXBAR_TEST_CODEX_FILE_ISOLATION=1"
+  "CODEXBAR_TEST_SESSION_FILE_ISOLATION=1")
 SANDBOX_PROFILE="(version 1)
 (allow default)
-(deny file-read* (subpath \"${ROOT}\"))"
+(deny network*)
+(deny file-read* (subpath \"${ROOT}\"))
+(deny file-write* (require-all (subpath \"${HOME}\") (require-not (subpath \"${SMOKE_DIR}\"))))"
 
 fail_with_probe_log() {
   echo "ERROR: $1" >&2
@@ -122,7 +140,7 @@ fail_with_cli_symlink_probe_log() {
 log "Launch smoke check: probing packaged Helpers CLI resource loads with ${ROOT} unreadable."
 (
   cd "$SMOKE_DIR"
-  exec env CODEXBAR_RESOURCE_SMOKE=1 sandbox-exec -p "$SANDBOX_PROFILE" "$CLI_BIN"
+  exec sandbox-exec -p "$SANDBOX_PROFILE" "${SMOKE_ENV[@]}" CODEXBAR_RESOURCE_SMOKE=1 "$CLI_BIN"
 ) >"$CLI_PROBE_LOG" 2>&1 &
 SMOKE_PID=$!
 CLI_PROBE_OK=0
@@ -147,7 +165,7 @@ log "Launch smoke check: Helpers CLI resource probe OK."
 log "Launch smoke check: probing symlinked Helpers CLI resource loads with ${ROOT} unreadable."
 (
   cd "$SMOKE_DIR"
-  exec env CODEXBAR_RESOURCE_SMOKE=1 sandbox-exec -p "$SANDBOX_PROFILE" "$CLI_SYMLINK"
+  exec sandbox-exec -p "$SANDBOX_PROFILE" "${SMOKE_ENV[@]}" CODEXBAR_RESOURCE_SMOKE=1 "$CLI_SYMLINK"
 ) >"$CLI_SYMLINK_PROBE_LOG" 2>&1 &
 SMOKE_PID=$!
 CLI_SYMLINK_PROBE_OK=0
@@ -176,7 +194,7 @@ log "Launch smoke check: symlinked Helpers CLI resource probe OK."
 log "Launch smoke check: probing packaged resource loads with ${ROOT} unreadable."
 (
   cd "$SMOKE_DIR"
-  exec env CODEXBAR_RESOURCE_SMOKE=1 sandbox-exec -p "$SANDBOX_PROFILE" "$SMOKE_BIN"
+  exec sandbox-exec -p "$SANDBOX_PROFILE" "${SMOKE_ENV[@]}" CODEXBAR_RESOURCE_SMOKE=1 "$SMOKE_BIN"
 ) >"$PROBE_LOG" 2>&1 &
 SMOKE_PID=$!
 PROBE_OK=0
@@ -198,11 +216,12 @@ if [[ "$PROBE_STATUS" -ne 0 ]] || ! grep -q "CODEXBAR_RESOURCE_SMOKE_OK" "$PROBE
 fi
 log "Launch smoke check: resource probe OK."
 
-# Phase 2: launch the app for real and require it to stay alive.
+# Phase 2 exercises AppKit startup with background work and user state isolated.
 log "Launch smoke check: running packaged binary with ${ROOT} unreadable for ${SMOKE_SECONDS}s."
 (
   cd "$SMOKE_DIR"
-  exec sandbox-exec -p "$SANDBOX_PROFILE" "$SMOKE_BIN"
+  exec sandbox-exec -p "$SANDBOX_PROFILE" "${SMOKE_ENV[@]}" "$SMOKE_BIN" \
+    -iCloudSyncEnabled NO -debugDisableKeychainAccess YES -SUEnableAutomaticChecks NO -SUAutomaticallyUpdate NO
 ) >"$SMOKE_LOG" 2>&1 &
 SMOKE_PID=$!
 

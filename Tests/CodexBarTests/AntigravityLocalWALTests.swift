@@ -246,6 +246,50 @@ struct AntigravityLocalWALTests {
     }
 
     @Test
+    func `a sidecar-less WAL foreign database is skipped after the immutable fallback reads its schema`() throws {
+        let fixture = try Fixture()
+        defer { withExtendedLifetime(fixture) {} }
+        try fixture.database(blobs: [Fixture.blob()])
+        let summaries = try Self.foreignWALDatabase(fixture, named: "conversation_summaries")
+        #expect(!FileManager.default.fileExists(atPath: summaries.path + "-wal"))
+        #expect(!FileManager.default.fileExists(atPath: summaries.path + "-shm"))
+        // The raw SQLite control never opens the production target or prepares its sidecars. A build that
+        // reads a sidecar-less WAL database reports a missing table here; a build that declines reports
+        // SQLITE_CANTOPEN, because the decline happens while the schema is read.
+        let controlFixture = try Fixture()
+        defer { withExtendedLifetime(controlFixture) {} }
+        let controlURL = try Self.foreignWALDatabase(controlFixture, named: "conversation_summaries")
+        let control = Self.readOnlyQueryStatus(controlURL)
+
+        let report = try fixture.report()
+
+        #expect(report.coverage == .complete)
+        #expect(report.report.summary?.totalTokens == 198)
+        #expect(report.statistics.foreignDatabases == 1)
+        #expect(report.statistics.immutableFallbacks == (control == SQLITE_CANTOPEN ? 1 : 0))
+        #expect(report.statistics.sqliteHandlesOpened == report.statistics.sqliteHandlesClosed)
+        if control == SQLITE_CANTOPEN {
+            #expect(!FileManager.default.fileExists(atPath: summaries.path + "-wal"))
+            #expect(!FileManager.default.fileExists(atPath: summaries.path + "-shm"))
+        }
+        print("Synthetic foreign WAL without sidecars: control \(control)")
+    }
+
+    /// A cleanly closed WAL database with its own schema and no `gen_metadata` table, and no sidecars left behind.
+    private static func foreignWALDatabase(_ fixture: Fixture, named name: String) throws -> URL {
+        let root = fixture.context.databaseRoots[0]
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let url = root.appendingPathComponent("\(name).db")
+        let writer = try Fixture.open(url)
+        try Fixture.execute(
+            writer,
+            "CREATE TABLE `conversation_summaries` (`conversation_id` text PRIMARY KEY, `raw_summary` blob)")
+        guard sqlite3_close(writer) == SQLITE_OK else { throw AntigravityLocalReader.ScanFailure.invalid }
+        try Self.prepareWAL(url)
+        return url
+    }
+
+    @Test
     func `a present WAL sidecar keeps a declined read-only open unavailable`() throws {
         let fixture = try Fixture()
         defer { withExtendedLifetime(fixture) {} }
@@ -304,6 +348,7 @@ struct AntigravityLocalWALTests {
             // The immutable read cannot prove one snapshot once the file changed underneath it.
             #expect(statistics.immutableFallbacks == 1)
             #expect(!source.isComplete)
+            #expect(source.evidenceIsUnstable)
             // The writer has closed, so the next scan sees one stable file with both rows.
             let next = try fixture.report()
             #expect(next.coverage == .complete)
@@ -312,6 +357,7 @@ struct AntigravityLocalWALTests {
             // The ordinary read-only snapshot excludes the coordinated later write, as on any WAL database.
             #expect(statistics.immutableFallbacks == 0)
             #expect(source.isComplete)
+            #expect(!source.evidenceIsUnstable)
             #expect(source.events.count == 1)
         }
     }

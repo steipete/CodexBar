@@ -74,5 +74,11 @@ public enum ProviderManifest {
         XAIProviderDescriptor.descriptor,
         NotionProviderDescriptor.descriptor,
         IBMBobProviderDescriptor.descriptor,
+        NousProviderDescriptor.descriptor,
+        MuseProviderDescriptor.descriptor,
+        CodeRabbitProviderDescriptor.descriptor,
+        ReplicateProviderDescriptor.descriptor,
+        HuggingFaceProviderDescriptor.descriptor,
+        PiProviderDescriptor.descriptor,
     ]
 }

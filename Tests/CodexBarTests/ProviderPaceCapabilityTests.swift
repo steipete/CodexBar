@@ -62,12 +62,13 @@ struct ProviderPaceCapabilityTests {
             resetsAt: now.addingTimeInterval(12 * 60 * 60))
         let subscription = Self.window(
             minutes: Self.monthlyWindowSentinelMinutes,
-            resetsAt: now.addingTimeInterval(20 * 24 * 60 * 60))
+            resetsAt: now.addingTimeInterval(20 * 24 * 60 * 60),
+            resetDescription: "renews in 20 days")
 
         #expect(!capability.supportsResetWindowPace(window: freeTier, now: now))
         #expect(!capability.usesInferredMonthlyDuration(window: freeTier))
         #expect(capability.supportsResetWindowPace(window: subscription, now: now))
-        #expect(capability.usesInferredMonthlyDuration(window: subscription))
+        #expect(!capability.usesInferredMonthlyDuration(window: subscription))
     }
 
     @Test
@@ -160,7 +161,9 @@ struct ProviderPaceCapabilityTests {
         case .zai:
             return window.windowMinutes == self.monthlyWindowSentinelMinutes
                 && window.resetDescription == "MCP"
-        case .alibaba, .alibabatokenplan, .amp, .commandcode, .doubao, .mimo, .notion, .ollama, .opencodego, .stepfun:
+        case .amp:
+            return window.windowMinutes != nil && window.resetDescription?.hasPrefix("renews in ") == true
+        case .alibaba, .alibabatokenplan, .commandcode, .doubao, .mimo, .notion, .ollama, .opencodego, .stepfun:
             return window.windowMinutes == self.monthlyWindowSentinelMinutes
         default:
             return false
@@ -177,7 +180,7 @@ struct ProviderPaceCapabilityTests {
         case .zai:
             window.windowMinutes == self.monthlyWindowSentinelMinutes
                 && window.resetDescription == "MCP"
-        case .alibaba, .alibabatokenplan, .amp, .commandcode, .doubao, .mimo, .notion, .ollama, .opencodego, .stepfun:
+        case .alibaba, .alibabatokenplan, .commandcode, .doubao, .mimo, .notion, .ollama, .opencodego, .stepfun:
             window.windowMinutes == self.monthlyWindowSentinelMinutes
         default:
             false

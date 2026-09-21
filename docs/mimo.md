@@ -17,6 +17,9 @@ The Xiaomi MiMo provider tracks your current balance from the Xiaomi MiMo consol
 - **Cookie-based auth**: Uses browser cookies or a pasted `Cookie:` header.
 - **Near-real-time updates**: Balance usually reflects within a few minutes.
 
+CLI text and cards retain token-plan credit counts beside the real period-end reset. Without a reported date,
+counts remain details rather than appearing as a reset clock. This does not change plan pacing or local fallback.
+
 ## Setup
 
 1. Open **Settings → Providers**

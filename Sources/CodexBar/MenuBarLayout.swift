@@ -6,6 +6,16 @@ enum PercentWindow: String, CaseIterable, Codable, Hashable, Sendable {
     case weekly
     case scopedWeekly
     case automatic
+
+    func providerLabel(provider: UsageProvider?) -> String? {
+        guard let provider else { return nil }
+        let presentation = ProviderDescriptorRegistry.descriptor(for: provider).presentation
+        return switch self {
+        case .session: presentation.menuBarLayoutPrimaryLabel.map(L)
+        case .weekly: presentation.menuBarLayoutSecondaryLabel.map(L)
+        case .scopedWeekly, .automatic: nil
+        }
+    }
 }
 
 /// Comparison unit of a conditional metric: drives the threshold range, the stepper increment, and the
@@ -531,12 +541,11 @@ enum MenuBarLayoutSemanticWindowResolver {
     static func windows(
         provider: UsageProvider,
         snapshot: UsageSnapshot?)
-        -> (session: RateWindow?, weekly: RateWindow?)
+        -> ProviderSemanticWindows
     {
-        guard let snapshot else { return (nil, nil) }
-        let windows = ProviderDescriptorRegistry.descriptor(for: provider).presentation
+        guard let snapshot else { return ProviderSemanticWindows(session: nil, weekly: nil) }
+        return ProviderDescriptorRegistry.descriptor(for: provider).presentation
             .semanticWindows(snapshot: snapshot)
-        return (windows.session, windows.weekly)
     }
 
     /// The active model-scoped weekly carve-out (e.g. Claude's `claude-weekly-scoped-fable`

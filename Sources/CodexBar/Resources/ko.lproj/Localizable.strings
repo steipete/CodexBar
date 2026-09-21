@@ -150,6 +150,10 @@
 "Cookie: …" = "쿠키: …";
 "CopilotDeviceFlow" = "CopilotDeviceFlow";
 "Cost" = "비용";
+"Token history" = "토큰 기록";
+"Local token history · dollar costs unavailable" = "로컬 토큰 기록 · 달러 비용 정보 없음";
+"Partial local history · recorded token subtotal" = "불완전한 로컬 기록 · 기록된 토큰 소계";
+"Local token history is unavailable or incomplete." = "로컬 토큰 기록을 사용할 수 없거나 기록이 불완전합니다.";
 "Could not add Codex account" = "Codex 계정을 추가할 수 없음";
 "Could not open Terminal for Gemini" = "Gemini용 터미널을 열 수 없음";
 "Could not start claude /login" = "claude /login을 시작할 수 없음";
@@ -602,6 +606,12 @@
 "cost_summary_off" = "끔";
 "merge_icons_title" = "아이콘 병합";
 "merge_icons_subtitle" = "공급자 전환기가 있는 단일 메뉴 막대 아이콘을 사용합니다.";
+"merged_icon_style_title" = "통합 아이콘 스타일";
+"merged_icon_style_subtitle" = "전환은 공급자를 한 번에 하나씩 순환하고, 쌓기는 두 공급자를 동시에 각각 한 줄로 표시합니다.";
+"merged_icon_style_switcher" = "전환";
+"merged_icon_style_stacked" = "쌓기";
+"merge_icon_stacked_top_provider_title" = "위쪽 행";
+"merge_icon_stacked_bottom_provider_title" = "아래쪽 행";
 "show_most_used_provider_title" = "가장 많이 사용한 공급자 표시";
 "show_most_used_provider_subtitle" = "메뉴 막대에 사용 한도에 가장 가까운 공급자를 자동으로 표시합니다.";
 "display_mode_title" = "표시 모드";
@@ -854,6 +864,12 @@
 "usage_percent_suffix_used" = "사용";
 "Store multiple DeepSeek API keys." = "여러 DeepSeek API 키를 저장합니다.";
 "This week" = "이번 주";
+"Current window" = "현재 구간";
+"Last week" = "지난주";
+"%d weeks ago" = "%d주 전";
+"Previous window" = "이전 구간";
+"%d windows ago" = "%d개 구간 전";
+"Recent windows" = "최근 구간";
 "Week" = "주";
 "Month" = "월";
 "Models" = "모델";
@@ -910,6 +926,8 @@
 "Overage" = "초과분";
 "Activity" = "활동";
 "Copied" = "복사됨";
+"Managed by Homebrew" = "Homebrew로 관리됨";
+"Copy update command" = "업데이트 명령 복사";
 "Copy error" = "오류 복사";
 "Copy path" = "경로 복사";
 "Extra usage spent" = "추가 사용 지출액";
@@ -1306,6 +1324,8 @@
 "Tracked tokens" = "추적된 토큰";
 "Subscriptions" = "구독";
 "By subscription" = "구독별";
+"By source" = "By source";
+"%d of %d sources have spend" = "%d of %d sources have spend";
 "No model-level history" = "모델별 내역이 없습니다";
 "Daily estimated spend" = "일별 예상 지출";
 "Hourly estimated spend" = "시간별 예상 지출";
@@ -1549,3 +1569,25 @@
 
 "agent_sessions_hide_unreachable_title" = "연결할 수 없는 호스트 숨기기";
 "agent_sessions_hide_unreachable_subtitle" = "세션을 가져오지 못한 호스트를 숨깁니다.";
+
+/* Overview share flow */
+"Share Usage Snapshot…" = "사용량 개요 공유…";
+"Usage snapshot unavailable" = "사용량 개요를 사용할 수 없음";
+"CodexBar couldn't prepare a shareable usage snapshot. Refresh Usage & Spend and try again." = "CodexBar에서 공유할 사용량 개요를 준비하지 못했습니다. 사용량 및 지출을 새로 고친 후 다시 시도하세요.";
+"Incomplete" = "불완전";
+"Est. subtotal (%@): %@" = "예상 소계 (%@): %@";
+"Excluded requests with missing final usage: %d" = "최종 사용량이 없어 제외된 요청: %d";
+
+"overview_layout_title" = "개요 레이아웃";
+"overview_layout_subtitle" = "개요에 표시할 정보의 양을 선택합니다.";
+"overview_layout_detailed" = "자세히";
+"overview_layout_compact" = "간결";
+
+"section_widgets" = "위젯";
+"account_widgets_title" = "위젯의 계정을 최신 상태로 유지";
+"account_widgets_description" = "각 Account Usage 위젯에서 계정을 선택하세요. 제공업체당 최대 6개 계정을 새로 고칩니다.";
+
+/* Antigravity local cost estimates */
+"antigravity_cost_estimate_hint" = "로컬 사용량 × 공개 API 가격 · Antigravity 청구나 크레딧이 아닙니다";
+"antigravity_quota_window_note" = "창 비용은 모든 모델을 포함합니다 · 표시된 창은 가장 제한적인 제품군입니다";
+"antigravity_no_priced_token_history" = "가격이 매겨진 Antigravity 토큰 기록이 없습니다.";

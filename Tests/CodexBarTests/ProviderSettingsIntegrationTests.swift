@@ -53,7 +53,7 @@ struct ProviderSettingsIntegrationTests {
             .abacus, .alibaba, .alibabatokenplan, .amp, .augment, .claude, .codex, .commandcode,
             .copilot, .cursor, .devin, .factory, .grok, .kimi, .longcat, .manus, .mimo, .minimax,
             .mistral, .notion, .ollama, .opencode, .opencodego, .perplexity, .qoder, .qwencloud,
-            .stepfun, .t3chat, .windsurf, .zoommate,
+            .stepfun, .t3chat, .venice, .windsurf, .zoommate,
         ]
         for provider in providers {
             let context = ProviderSettingsContext(
@@ -91,7 +91,7 @@ struct ProviderSettingsIntegrationTests {
         defer { settings.debugDisableKeychainAccess = false }
         let providers: [UsageProvider] = [
             .abacus, .amp, .augment, .commandcode, .cursor, .factory, .kimi, .longcat,
-            .manus, .mimo, .mistral, .ollama, .perplexity, .qoder, .qwencloud, .t3chat, .zoommate,
+            .manus, .mimo, .mistral, .ollama, .perplexity, .qoder, .qwencloud, .t3chat, .venice, .zoommate,
         ]
         for provider in providers {
             let implementation = try #require(ProviderCatalog.implementation(for: provider))

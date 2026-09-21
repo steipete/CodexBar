@@ -2,7 +2,9 @@ import Foundation
 
 enum PiSessionCostCacheIO {
     /// Artifact schema version. Pricing changes are tracked separately by `pricingKey`.
-    private static let artifactVersion = 8
+    /// v9 invalidates artifacts produced before stricter root and parser
+    /// provenance checks were introduced.
+    private static let artifactVersion = 9
 
     private static func defaultCacheRoot() -> URL {
         let root = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
@@ -39,6 +41,7 @@ enum PiSessionCostCacheIO {
         var cache = cache
         cache.timeZoneIdentifier = calendar.timeZone.identifier
         guard let data = try? JSONEncoder().encode(cache) else { return }
+        // Write at the final path: FileManager replacement can lose the destination on Linux.
         try? data.write(to: url, options: [.atomic])
     }
 }
@@ -50,10 +53,11 @@ struct PiSessionCostCache: Codable {
     var scanUntilKey: String?
     var timeZoneIdentifier: String?
     var pricingKey: String?
+    var sessionRootsFingerprint: String?
     var daysByProvider: [String: [String: [String: PiPackedUsage]]] = [:]
     var files: [String: PiSessionFileUsage] = [:]
 
-    init(version: Int = 8) {
+    init(version: Int = 9) {
         self.version = version
     }
 }
@@ -62,30 +66,48 @@ struct PiSessionFileUsage: Codable {
     var mtimeUnixMs: Int64
     var size: Int64
     var parsedBytes: Int64
+    var fileIdentity: String?
     var sessionID: String?
     var lastModelContext: PiModelContext?
     var contributions: [String: [String: [String: PiPackedUsage]]]
     var unkeyedContributions: [String: [String: [String: PiPackedUsage]]]
     var entryUsages: [String: PiSessionEntryUsage]
+    var unsupportedAssistantDayKeys: Set<String>
+    var hasUndatedUnsupportedAssistant: Bool
 
     init(
         mtimeUnixMs: Int64,
         size: Int64,
         parsedBytes: Int64,
+        fileIdentity: String? = nil,
         sessionID: String? = nil,
         lastModelContext: PiModelContext?,
         contributions: [String: [String: [String: PiPackedUsage]]],
         unkeyedContributions: [String: [String: [String: PiPackedUsage]]] = [:],
-        entryUsages: [String: PiSessionEntryUsage] = [:])
+        entryUsages: [String: PiSessionEntryUsage] = [:],
+        unsupportedAssistantDayKeys: Set<String> = [],
+        hasUndatedUnsupportedAssistant: Bool = false)
     {
         self.mtimeUnixMs = mtimeUnixMs
         self.size = size
         self.parsedBytes = parsedBytes
+        self.fileIdentity = fileIdentity
         self.sessionID = sessionID
         self.lastModelContext = lastModelContext
         self.contributions = contributions
         self.unkeyedContributions = unkeyedContributions
         self.entryUsages = entryUsages
+        self.unsupportedAssistantDayKeys = unsupportedAssistantDayKeys
+        self.hasUndatedUnsupportedAssistant = hasUndatedUnsupportedAssistant
+    }
+
+    var requiresFullReparseOnChange: Bool {
+        self.hasUndatedUnsupportedAssistant || !self.unsupportedAssistantDayKeys.isEmpty ||
+            self.contributions.values.contains { days in
+                days.values.contains { models in
+                    models.values.contains { ($0.usageSampleCount ?? 0) > $0.costSampleCount }
+                }
+            }
     }
 }
 
@@ -99,6 +121,7 @@ struct PiSessionEntryUsage: Codable, Equatable {
 struct PiModelContext: Codable, Equatable {
     var providerRawValue: String
     var modelName: String
+    var isUnsupportedBackend: Bool = false
 }
 
 struct PiPackedUsage: Codable, Equatable {

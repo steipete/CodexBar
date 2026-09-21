@@ -63,6 +63,7 @@ struct ProviderRegistry {
                             provider: provider,
                             settings: settings,
                             override: nil),
+                        includeAccountIdentity: settings.accountWidgetsEnabled && account != nil,
                         webTimeout: 60,
                         webDebugDumpHTML: false,
                         verbose: verbose,

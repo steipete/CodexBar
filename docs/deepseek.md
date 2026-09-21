@@ -59,6 +59,15 @@ browser session. Validation results are cached briefly so normal
 refreshes do not probe every profile, and a temporary network failure does not erase a previously validated profile.
 If the selected session expires, CodexBar asks before switching to another valid profile.
 
+Chrome-only balance refreshes also keep the last live balance and its original timestamp through temporary transport
+failures when the failed request belongs to the same browser profile and token. This ownership proof stays in memory;
+decoded snapshots, changed profiles or tokens, and API-key balances with optional browser enrichment cannot supply it.
+Once DeepSeek rejects a session, a later network failure cannot preserve its old balance; successful validation must
+restore that session first. A saved profile with unknown validity still supplies transport diagnostics when other profiles
+succeed; a known-rejected selection keeps the profile picker and its valid alternatives.
+Recognized transport failures still participate in startup retries when no matching balance can be retained. A Chrome-resolution
+deadline without an observed session fails closed; cancelled or superseded refresh tasks keep their existing behavior.
+
 If no session is valid, the menu keeps the API-key balance when one exists; otherwise it asks the user to sign in to
 DeepSeek Platform in Chrome. Authentication failures returned as top-level or nested DeepSeek codes `40002` and
 `40003` are treated as expired sessions.
@@ -69,7 +78,10 @@ DeepSeek Platform in Chrome. Authentication failures returned as top-level or ne
   e.g. `$50.00 (Paid: $40.00 / Granted: $10.00)`.
 - The API separates granted balance from topped-up balance; CodexBar labels these as granted vs. paid credit.
 - With optional extra usage enabled, the menu shows today's and last-30-days cost and tokens,
-  request counts, API-key count, the top model, a daily token chart, and a daily spend chart.
+  request counts, API-key count, the top model, per-model spend, a daily token chart, and a daily spend chart.
+- Per-model spend uses the same reporting period and currency as detailed usage: **Last 30 days** for the preferred
+  endpoints, or **This month** for monthly fallback. These are Platform-account totals across API keys. Missing or
+  invalid model costs are omitted; a reported zero is retained.
 - The amount and cost requests run concurrently. After balance arrives, CodexBar waits up to five seconds for
   automatic Chrome resolution and detailed usage. The deadline remains bounded even if a local Chrome read does not
   respond to cancellation. If the optional work fails or times out, the balance and previously validated profile list

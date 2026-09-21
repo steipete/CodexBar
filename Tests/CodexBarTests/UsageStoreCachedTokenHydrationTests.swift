@@ -47,6 +47,72 @@ struct UsageStoreCachedTokenHydrationTests {
     }
 
     @Test
+    func `cached codex hydration does not duplicate pi rows when pi owns cost`() async throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 4, day: 8)
+        try Self.writeCodexSessionFile(
+            homeRoot: env.codexHomeRoot,
+            env: env,
+            day: day,
+            filename: "cached.jsonl",
+            tokens: 42)
+        let piEntry: [String: Any] = [
+            "type": "message",
+            "timestamp": env.isoString(for: day),
+            "message": [
+                "role": "assistant",
+                "provider": "openai-codex",
+                "model": "gpt-5.4",
+                "timestamp": Int(day.timeIntervalSince1970 * 1000),
+                "usage": ["input": 7, "output": 0, "totalTokens": 7],
+            ],
+        ]
+        _ = try env.writePiSessionFile(
+            relativePath: "2026-04-08T10-00-00-000Z_pi.jsonl",
+            contents: env.jsonl([piEntry]))
+
+        let options = CostUsageScanner.Options(
+            codexSessionsRoot: env.codexSessionsRoot,
+            cacheRoot: env.cacheRoot)
+        _ = try await CostUsageFetcher.loadTokenSnapshot(
+            provider: .codex,
+            now: day,
+            historyDays: 1,
+            includePiSessions: false,
+            scannerOptions: options)
+        let piResult = try PiSessionCostScanner.loadDailyReportResultCancellable(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day,
+            options: PiSessionCostScanner.Options(
+                piSessionsRoot: env.piSessionsRoot,
+                cacheRoot: env.cacheRoot,
+                refreshMinIntervalSeconds: 0),
+            checkCancellation: nil)
+        #expect(piResult.report.data.first?.totalTokens == 7)
+
+        let settings = Self.makeCodexOnlySettings(historyDays: 1)
+        let piMetadata = try #require(ProviderRegistry.shared.metadata[.pi])
+        settings.setProviderEnabled(provider: .pi, metadata: piMetadata, enabled: true)
+        let store = UsageStore(
+            fetcher: UsageFetcher(),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            costUsageFetcher: CostUsageFetcher(scannerOptions: options),
+            settings: settings,
+            startupBehavior: .testing,
+            environmentBase: [:])
+
+        #expect(!store.shouldIncludePiSessionsInTokenSnapshot(for: .codex))
+        store.hydrateCachedTokenSnapshots(now: day)
+        try await Self.waitForCodexTokenSnapshot(in: store)
+
+        #expect(store.tokenSnapshot(for: .codex)?.sessionTokens == 42)
+    }
+
+    @Test
     func `cached codex token hydration skips managed codex homes`() async throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }
@@ -116,9 +182,12 @@ struct UsageStoreCachedTokenHydrationTests {
             provider: .codex,
             now: now,
             historyDays: 1,
+            includePiSessions: false,
             scannerOptions: options)
 
         let settings = Self.makeCodexOnlySettings(historyDays: 1)
+        let piMetadata = try #require(ProviderRegistry.shared.metadata[.pi])
+        settings.setProviderEnabled(provider: .pi, metadata: piMetadata, enabled: true)
         let store = UsageStore(
             fetcher: UsageFetcher(),
             browserDetection: BrowserDetection(cacheTTL: 0),
@@ -196,43 +265,33 @@ struct UsageStoreCachedTokenHydrationTests {
             startupBehavior: .testing,
             environmentBase: [:])
         var observedStalePresentation = false
-        var statusLoadCount = 0
-        var cachedLoadCount = 0
+        var advanceCount = 0
         store._test_cachedCodexTokenSnapshotLoaderOverride = { now, _, _ in
-            cachedLoadCount += 1
-            if cachedLoadCount == 1 {
-                return (Self.cachedTokenSnapshot(), nil, staleAt)
+            if advanceCount == 0 {
+                return (Self.cachedTokenSnapshot(now: staleAt), nil, staleAt)
             }
-            return (CostUsageTokenSnapshot(
-                sessionTokens: 84,
-                sessionCostUSD: 2,
-                last30DaysTokens: 84,
-                last30DaysCostUSD: 2,
-                daily: [],
-                updatedAt: now), now, nil)
+            return (Self.cachedTokenSnapshot(tokens: 84, cost: 2, now: now), now, nil)
         }
         store._test_tokenUsageSnapshotLoaderOverride = { _, _, now, _, _ in
-            CostUsageTokenSnapshot(
-                sessionTokens: 84,
-                sessionCostUSD: 2,
-                last30DaysTokens: 84,
-                last30DaysCostUSD: 2,
-                daily: [],
-                updatedAt: now)
+            Issue.record("Final publication should use completed cached data")
+            return Self.cachedTokenSnapshot(tokens: 84, cost: 2, now: now)
         }
         store._test_codexCostCatchUpStatusOverride = { _ in
-            statusLoadCount += 1
-            return CostUsageFetcher.CodexScanCatchUpStatus(
-                pending: statusLoadCount == 1,
-                progressKey: "status-\(statusLoadCount)",
-                staleSnapshotUpdatedAt: statusLoadCount == 1 ? staleAt : nil)
+            CostUsageFetcher.CodexScanCatchUpStatus(
+                pending: advanceCount == 0,
+                progressKey: advanceCount == 0 ? "pending" : "complete",
+                staleSnapshotUpdatedAt: advanceCount == 0 ? staleAt : nil)
         }
         store._test_codexCostCatchUpAdvanceOverride = { _, _, _ in
-            CostUsageFetcher.CodexScanCatchUpStatus(
+            advanceCount += 1
+            return CostUsageFetcher.CodexScanCatchUpStatus(
                 pending: false,
                 progressKey: "complete")
         }
         store._test_codexCostCatchUpSleepOverride = { _ in
+            #expect(advanceCount == 0)
+            #expect(store.tokenSnapshot(for: .codex)?.sessionTokens == 42)
+            #expect(store.tokenSnapshot(for: .codex)?.updatedAt == staleAt)
             observedStalePresentation =
                 store.codexCostCatchUpActivity?.staleSnapshotUpdatedAt == staleAt
             await Task.yield()
@@ -248,9 +307,12 @@ struct UsageStoreCachedTokenHydrationTests {
         }
 
         #expect(observedStalePresentation)
+        #expect(advanceCount == 1)
         #expect(store.codexCostCatchUpTask == nil)
         #expect(store.codexCostCatchUpActivity?.phase == .complete)
         #expect(store.codexCostCatchUpActivity?.staleSnapshotUpdatedAt == nil)
+        #expect(store.tokenSnapshot(for: .codex)?.sessionTokens == 84)
+        #expect(store.tokenSnapshot(for: .codex)?.daily.first?.totalTokens == 84)
     }
 
     @Test
@@ -285,13 +347,10 @@ struct UsageStoreCachedTokenHydrationTests {
 
     private static func makeCodexOnlySettings(historyDays: Int) -> SettingsStore {
         let suite = "UsageStoreCachedTokenHydrationTests-\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suite)!
-        defaults.removePersistentDomain(forName: suite)
-        let settings = SettingsStore(
-            userDefaults: defaults,
-            configStore: testConfigStore(suiteName: suite),
-            zaiTokenStore: NoopZaiTokenStore(),
-            syntheticTokenStore: NoopSyntheticTokenStore())
+        let settings = testSettingsStore(
+            suiteName: suite,
+            userDefaults: InMemoryUserDefaults(),
+            keychainAccessPolicy: .init(setDisabled: { _ in }, isExplicitlyDisabled: { false }))
         settings.refreshFrequency = .fiveMinutes
         settings.statusChecksEnabled = false
         settings.costUsageEnabled = true
@@ -308,14 +367,25 @@ struct UsageStoreCachedTokenHydrationTests {
         return settings
     }
 
-    private static func cachedTokenSnapshot() -> CostUsageTokenSnapshot {
+    private static func cachedTokenSnapshot(
+        tokens: Int = 42,
+        cost: Double = 1,
+        now: Date = Date()) -> CostUsageTokenSnapshot
+    {
         CostUsageTokenSnapshot(
-            sessionTokens: 42,
-            sessionCostUSD: 1,
-            last30DaysTokens: 42,
-            last30DaysCostUSD: 1,
-            daily: [],
-            updatedAt: Date())
+            sessionTokens: tokens,
+            sessionCostUSD: cost,
+            last30DaysTokens: tokens,
+            last30DaysCostUSD: cost,
+            daily: [.init(
+                date: CostUsageLocalDay.key(from: now),
+                inputTokens: tokens,
+                outputTokens: 0,
+                totalTokens: tokens,
+                costUSD: cost,
+                modelsUsed: nil,
+                modelBreakdowns: nil)],
+            updatedAt: now)
     }
 
     private static func waitForCodexTokenSnapshot(in store: UsageStore) async throws {

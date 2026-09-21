@@ -24,6 +24,9 @@ endpoint exposes both surfaces plus current-month spend and optional per-key spe
 - Subscription plan shown as the provider identity label, falling back to accounting method (`Token` vs `Energy`).
 - Current calendar-month spend is parsed for future/reporting use, but is not shown as a resettable quota window.
 
+CLI text and cards keep subscription kWh totals visible alongside the actual period-end reset. If no period end
+is reported, the kWh counts remain details without a reset clock.
+
 ## Setup
 
 ### CLI

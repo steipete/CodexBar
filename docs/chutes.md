@@ -46,6 +46,9 @@ All requests use `Authorization: Bearer cpk_...`. Subscription usage is required
 
 The provider prefers the rolling four-hour window as the primary meter and monthly subscription usage as the secondary meter. Accounts without a subscription can still show available pay-as-you-go quota data.
 
+Large quota amounts retain their percentage and description. Durations that cannot fit in whole minutes are omitted;
+recognized rolling and monthly windows keep their normal default duration.
+
 The native fetcher remains authoritative because Chutes explicitly accepts successful subscription payloads with no
 recognized usage fields as a no-data snapshot, a shape the current plugin snapshot contract rejects.
 

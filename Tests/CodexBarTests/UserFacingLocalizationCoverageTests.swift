@@ -63,9 +63,12 @@ struct UserFacingLocalizationCoverageTests {
                 ".help(\"Copy error\")",
             ],
             "Sources/CodexBar/PreferencesSpendDashboardPane.swift": [
+                "Text(\"Partial estimate\")",
+            ],
+            "Sources/CodexBar/SpendDashboardProviderBreakdown.swift": [
                 "Text(\"Model breakdown unavailable\")",
                 "Text(\"Partial model breakdown\")",
-                "Text(\"Partial estimate\")",
+                "Text(\"No model-level history\")",
             ],
             "Sources/CodexBar/PreferencesProviderSettingsRows.swift": [
                 "Text(self.title)",
@@ -169,18 +172,34 @@ struct UserFacingLocalizationCoverageTests {
     }
 
     @Test
+    func `grok reset coupon count and expiry localize at presentation`() throws {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let snapshot = GrokRateLimitResetCreditsSnapshot(
+            expirations: [now.addingTimeInterval(172_800), now.addingTimeInterval(432_000)],
+            updatedAt: now)
+        try CodexBarLocalizationOverride.$appLanguage.withValue("ru") {
+            let presentation = try #require(LimitResetCreditsPresentation.make(
+                snapshot: snapshot, resetStyle: .countdown, now: now))
+            #expect(presentation.accessibilityLabel.contains("Кредиты сброса лимита"))
+            #expect(presentation.text == "2 доступен")
+            #expect(presentation.items.count == 2)
+            #expect(presentation.helpText.contains("Истекает"))
+        }
+    }
+
+    @Test
     func `spend dashboard model breakdown state stays precise and localized`() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .deletingLastPathComponent()
         let source = try String(
-            contentsOf: root.appendingPathComponent("Sources/CodexBar/PreferencesSpendDashboardPane.swift"),
+            contentsOf: root.appendingPathComponent("Sources/CodexBar/SpendDashboardProviderBreakdown.swift"),
             encoding: .utf8)
 
-        #expect(source.contains(#"Text(L("Model breakdown unavailable"))"#))
+        #expect(source.contains(#"L("Model breakdown unavailable")"#))
         #expect(source.contains(#"L("Partial model breakdown")"#))
-        #expect(source.contains(#"Text(L("No model-level history"))"#))
+        #expect(source.contains(#"L("No model-level history")"#))
     }
 
     @Test

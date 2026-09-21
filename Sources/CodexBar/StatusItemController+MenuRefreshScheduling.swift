@@ -233,16 +233,11 @@ extension StatusItemController {
         #else
         let debounceNanoseconds = Self.providerSwitcherMenuRebuildDebounceNanoseconds
         #endif
-        #if DEBUG
-        let usesTaskSchedulerForTesting = self._test_openMenuRefreshYieldOverride != nil
-            || self._test_openMenuRebuildObserver != nil
-        #else
-        let usesTaskSchedulerForTesting = false
-        #endif
-        if debounceNanoseconds == 0, !usesTaskSchedulerForTesting {
-            self.scheduleProviderSwitcherTrackingMenuRebuildIfStillVisible(
+        if debounceNanoseconds == 0, !self.usesTaskSchedulerForTesting {
+            self.scheduleTrackingMenuRebuildIfStillVisible(
                 menu,
-                provider: provider)
+                provider: provider,
+                closeHostedSubviewMenusBeforeRebuild: true)
             { [weak self] in
                 guard let self else { return false }
                 return self.providerSwitcherUpdateToken == updateToken
@@ -260,13 +255,17 @@ extension StatusItemController {
         }
     }
 
-    private func scheduleProviderSwitcherTrackingMenuRebuildIfStillVisible(
+    func scheduleTrackingMenuRebuildIfStillVisible(
         _ menu: NSMenu,
         provider: UsageProvider?,
-        beforeRebuild: @escaping @MainActor () -> Bool)
+        closeHostedSubviewMenusBeforeRebuild: Bool = false,
+        beforeRebuild: (@MainActor () -> Bool)? = nil)
     {
         let key = ObjectIdentifier(menu)
-        self.openMenuRebuildsClosingHostedSubviewMenus.insert(key)
+        if closeHostedSubviewMenusBeforeRebuild {
+            self.openMenuRebuildsClosingHostedSubviewMenus.insert(key)
+        }
+        let shouldCloseHostedSubviewMenus = self.openMenuRebuildsClosingHostedSubviewMenus.contains(key)
         let rebuildToken = self.openMenuRebuildRequests.replaceRequest(for: key)
         self.openMenuRebuildTasks.removeValue(forKey: key)?.cancel()
 
@@ -278,7 +277,7 @@ extension StatusItemController {
                 rebuildToken: rebuildToken,
                 request: ScheduledOpenMenuRebuild(
                     provider: provider,
-                    shouldCloseHostedSubviewMenus: true,
+                    shouldCloseHostedSubviewMenus: shouldCloseHostedSubviewMenus,
                     beforeRebuild: beforeRebuild))
         }
     }
@@ -288,9 +287,22 @@ extension StatusItemController {
         provider: UsageProvider?,
         closeHostedSubviewMenusBeforeRebuild: Bool = false,
         resyncReadinessBaselineAfterRebuild: Bool = false,
+        duringTracking: Bool = false,
         debounceNanoseconds: UInt64 = 0,
         beforeRebuild: (@MainActor () -> Bool)? = nil)
     {
+        if duringTracking, debounceNanoseconds == 0, !self.usesTaskSchedulerForTesting {
+            if resyncReadinessBaselineAfterRebuild {
+                self.pendingMenuBaselineResyncs.insert(ObjectIdentifier(menu))
+            }
+            // Explicit interaction resumptions must also run while the parent tracks.
+            self.scheduleTrackingMenuRebuildIfStillVisible(
+                menu,
+                provider: provider,
+                closeHostedSubviewMenusBeforeRebuild: closeHostedSubviewMenusBeforeRebuild,
+                beforeRebuild: beforeRebuild)
+            return
+        }
         let key = ObjectIdentifier(menu)
         if resyncReadinessBaselineAfterRebuild {
             self.pendingMenuBaselineResyncs.insert(key)
@@ -325,6 +337,14 @@ extension StatusItemController {
                     shouldCloseHostedSubviewMenus: shouldCloseHostedSubviewMenus,
                     beforeRebuild: beforeRebuild))
         }
+    }
+
+    private var usesTaskSchedulerForTesting: Bool {
+        #if DEBUG
+        self._test_openMenuRefreshYieldOverride != nil || self._test_openMenuRebuildObserver != nil
+        #else
+        false
+        #endif
     }
 
     private func performScheduledOpenMenuRebuild(

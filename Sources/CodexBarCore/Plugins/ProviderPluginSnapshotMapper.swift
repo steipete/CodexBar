@@ -370,9 +370,6 @@ enum ProviderPluginSnapshotMapper {
                 entry,
                 property: "reasoningTokens",
                 path: path)
-            if let reasoningTokens, reasoningTokens > outputTokens {
-                throw ProviderPluginError.invalidSnapshot("\(path).reasoningTokens must not exceed outputTokens")
-            }
             let requests = try self.requiredNonnegativeInteger(entry, property: "requests", path: path)
             let cost = try self.requiredFiniteNumber(entry, property: "cost", path: path)
             guard cost >= 0 else {

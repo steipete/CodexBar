@@ -39,22 +39,28 @@ struct OverviewMenuCardRowView: View {
     let model: UsageMenuCardView.Model
     let storageText: String?
     let width: CGFloat
+    var layout: MergedOverviewLayout = .detailed
     @Environment(\.menuItemHighlighted) private var isHighlighted
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            UsageMenuCardHeaderSectionView(
-                model: self.model,
-                showDivider: Self.showsSectionDividers && self.hasUsageBlock,
-                width: self.width)
-            if self.hasUsageBlock {
-                UsageMenuCardUsageSectionView(
+            if self.layout == .compact, !self.hasUsageBlock {
+                UsageMenuCardView(model: self.model, width: self.width)
+            } else {
+                UsageMenuCardHeaderSectionView(
                     model: self.model,
-                    layoutModel: self.model,
-                    showBottomDivider: false,
-                    bottomPadding: 6,
-                    width: self.width,
-                    showsSectionDividers: Self.showsSectionDividers)
+                    showDivider: Self.showsSectionDividers && self.hasUsageBlock,
+                    width: self.width)
+                if self.hasUsageBlock {
+                    UsageMenuCardUsageSectionView(
+                        model: self.model,
+                        layoutModel: self.model,
+                        showBottomDivider: false,
+                        bottomPadding: 6,
+                        width: self.width,
+                        showsSectionDividers: Self.showsSectionDividers,
+                        compactMetrics: self.layout == .compact)
+                }
             }
             if let storageText {
                 HStack(alignment: .firstTextBaseline, spacing: 4) {

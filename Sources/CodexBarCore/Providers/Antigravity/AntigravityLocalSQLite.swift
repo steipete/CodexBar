@@ -15,6 +15,8 @@ extension AntigravityLocalReader {
             let source = try self.readDatabase(url, budget: budget)
             result.events.append(contentsOf: source.events)
             result.isComplete = result.isComplete && source.isComplete
+            result.containsHistorySource = result.containsHistorySource || source.containsHistorySource
+            result.evidenceIsUnstable = result.evidenceIsUnstable || source.evidenceIsUnstable
         }
         return result
     }
@@ -83,6 +85,7 @@ extension AntigravityLocalReader {
         // its sidecar state are unchanged afterwards. Anything else stays incomplete, as before.
         guard self.idleDatabaseState(url) == before else {
             source.isComplete = false
+            source.evidenceIsUnstable = true
             return source
         }
         return source
@@ -203,13 +206,22 @@ extension AntigravityLocalReader {
             }
             return DatabaseAttempt(SourceResult(isComplete: false), cannotOpen: began == SQLITE_CANTOPEN)
         }
-        let supported = try self.hasSupportedSQLiteTable(database, budget: budget)
+        let support = try self.inspectSQLiteTableSupport(database, budget: budget)
         if let failure = progress.failure {
             throw failure
         }
-        // The deferred transaction first touches the file at the schema read, so a declined WAL open
-        // surfaces here as a failed prepare and leaves SQLITE_CANTOPEN as the connection's last error.
-        guard supported else {
+        switch support {
+        case .supported:
+            break
+        case .foreign:
+            // A database in a declared root that describes its own tables and no gen_metadata table is not
+            // Antigravity history. Skipping it costs no coverage. A gen_metadata table with unknown columns
+            // is schema drift, not a foreign file, and stays incomplete on purpose.
+            budget.statistics.foreignDatabases += 1
+            return DatabaseAttempt(SourceResult())
+        case .unsupported:
+            // The deferred transaction first touches the file at the schema read, so a declined WAL open
+            // surfaces here as a failed prepare and leaves SQLITE_CANTOPEN as the connection's last error.
             return DatabaseAttempt(
                 SourceResult(isComplete: false),
                 cannotOpen: sqlite3_errcode(database) == SQLITE_CANTOPEN)
@@ -411,7 +423,7 @@ extension AntigravityLocalReader {
             let attemptedBytes = max(count, payload.byteCount)
             try progress.budget.chargeBytes(attemptedBytes)
             guard attemptedBytes <= progress.budget.limits.databaseBytes - progress.databaseBytes
-            else { break }
+            else { throw ScanFailure.exhausted }
             progress.databaseBytes += attemptedBytes
             guard count > 0, count <= progress.budget.limits.blobBytes,
                   sqlite3_column_type(statement, 0) == SQLITE_INTEGER,
@@ -549,7 +561,7 @@ extension AntigravityLocalReader {
         progress: SQLProgress) throws -> ParsedRows
     {
         let budget = progress.budget
-        var result = SourceResult()
+        var result = SourceResult(containsHistorySource: true)
         var pendingTimestampRows: [PendingTimestampRow] = []
         var stepOccurrences: [String: [StepOccurrence]] = [:]
         var botIDUses: [String: Int] = [:]

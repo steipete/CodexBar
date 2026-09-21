@@ -36,6 +36,9 @@ classify_path() {
     Sources/*.swift)
       require_linux_musl_build "$path" "changes Swift source code"
       ;;
+    Scripts/install_swift_static_sdk.sh)
+      require_linux_musl_build "$path" "changes the Swift static SDK installer"
+      ;;
   esac
 }
 
@@ -83,7 +86,7 @@ fi
 if [[ "$linux_musl_build" == true ]]; then
   summary_reason="$linux_musl_build_reason"
 else
-  summary_reason="no Swift source or Package.swift changes"
+  summary_reason="no Swift source, Package.swift, or static SDK installer changes"
 fi
 
 if [[ -n "${GITHUB_OUTPUT:-}" ]]; then

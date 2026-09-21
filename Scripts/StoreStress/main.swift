@@ -10,6 +10,8 @@
 //   rebuild <cacheRoot> [passes] [root]   full cold rebuild from a real sessions corpus
 //   incremental <cacheRoot> [root]        one incremental pass over unchanged corpus
 //   fdcycles <cacheRoot> [cycles]         repeatedly open/close the store and report descriptor counts
+//   memory <cacheRoot> [none|full|lean]    footprint of a codex cache read (see loadCodexCache)
+//   fixture <newRoot> [files] [rows]     isolated typed corpus for cache-read measurements
 
 import Foundation
 
@@ -429,11 +431,186 @@ func runHolder(dbPath: String, seconds: Double) {
     print("HOLDER released")
 }
 
+// MARK: - Synthetic memory fixture
+
+func runFixture(root: URL, fileCount: Int, rowsPerFile: Int) throws {
+    guard fileCount > 0, rowsPerFile > 0,
+          fileCount <= 1000, rowsPerFile <= 1000,
+          !FileManager.default.fileExists(atPath: root.path)
+    else { fail("fixture requires a new directory and file/row counts between 1 and 1000") }
+    let sessions = root.appendingPathComponent("sessions", isDirectory: true)
+    let cacheRoot = root.appendingPathComponent("cache", isDirectory: true)
+    try FileManager.default.createDirectory(at: sessions, withIntermediateDirectories: true)
+    let calendar = Calendar.current
+    let day = "2026-08-01"
+    let model = "gpt-5.4"
+    let timestamp = "2026-08-01T12:00:00Z"
+    let trace = root.appendingPathComponent("missing-trace.sqlite")
+    let options = CostUsageScanner.Options(
+        codexSessionsRoot: sessions,
+        claudeProjectsRoots: [root.appendingPathComponent("unused-claude")],
+        cacheRoot: cacheRoot,
+        codexTraceDatabaseURL: trace,
+        calendar: calendar)
+    var cache = CostUsageCache()
+    cache.scanSinceKey = day
+    cache.scanUntilKey = day
+    cache.timeZoneIdentifier = calendar.timeZone.identifier
+    cache.lastScanUnixMs = 1_785_585_600_000
+    cache.roots = CostUsageScanner.codexRootsFingerprint(options: options)
+    cache.codexPricingKey = CostUsageScanner.codexPricingKey(modelsDevArtifact: nil)
+    cache.codexPriorityMetadataKey = "missing:\(trace.path)"
+    cache.codexProjectMetadataVersion = CostUsageScanner.codexProjectMetadataVersion
+    let tokenLine = """
+    {"type":"event_msg","timestamp":"\(timestamp)","payload":{"type":"token_count",\
+    "info":{"last_token_usage":{"input_tokens":10,"cached_input_tokens":2,"output_tokens":3}}}}
+    """
+    let contents = Data((Array(repeating: tokenLine, count: rowsPerFile).joined(separator: "\n") + "\n").utf8)
+    for index in 0..<fileCount {
+        let url = sessions.appendingPathComponent("fixture-\(index).jsonl")
+        try contents.write(to: url)
+        let metadata = CostUsageScanner.codexFileMetadata(fileURL: url)
+        var usage = CostUsageFileUsage(
+            mtimeUnixMs: metadata.mtimeUnixMs,
+            size: metadata.size,
+            days: [day: [model: [rowsPerFile * 10, rowsPerFile * 2, rowsPerFile * 3]]])
+        usage.parsedBytes = metadata.size
+        usage.codexScanFileId = metadata.fileId
+        usage.codexScanTargetSize = metadata.size
+        usage.codexScanComplete = true
+        usage.sessionId = "fixture-session-\(index)"
+        usage.projectPath = root.appendingPathComponent("synthetic-project").path
+        usage.canonicalProjectPath = usage.projectPath
+        usage.codexSession = .init(sessionId: usage.sessionId, cwd: usage.projectPath, title: "Fixture \(index)")
+        usage.lastCountedTotals = .init(input: rowsPerFile * 10, cached: rowsPerFile * 2, output: rowsPerFile * 3)
+        usage.codexCostCacheComplete = true
+        usage.codexStandardTokens = [day: [model: rowsPerFile * 13]]
+        usage.codexTokenTimestampsMonotonic = true
+        usage.codexRows = (0..<rowsPerFile).map { event in
+            CostUsageScanner.CodexUsageRow(
+                day: day, model: model, turnID: "fixture-\(index)-\(event)", eventIndex: event,
+                input: 10, cached: 2, output: 3, knownCostNanos: 1_000_000,
+                pricingModel: model, pricingMode: "standard")
+        }
+        usage.codexTurnIDs = CostUsageScanner.codexTurnIDs(rows: usage.codexRows ?? [])
+        usage.codexTokenSnapshots = (0..<rowsPerFile).map { event in
+            CostUsageCodexTokenSnapshot(
+                timestamp: timestamp,
+                last: CostUsageCodexTotals(input: 10, cached: 2, output: 3), total: nil,
+                endOffset: Int64((event + 1) * (tokenLine.utf8.count + 1)))
+        }
+        cache.files[url.path] = usage
+    }
+    let rowCount = fileCount * rowsPerFile
+    cache.days = [day: [model: [rowCount * 10, rowCount * 2, rowCount * 3]]]
+    cache.codexScanCompletedFiles = fileCount
+    cache.codexScanTotalFiles = fileCount
+    cache.codexScanProcessedBytes = cache.files.values.reduce(0) { $0 + ($1.parsedBytes ?? 0) }
+    cache.codexScanTotalBytes = cache.files.values.reduce(0) { $0 + $1.size }
+    cache.codexScanInventoryPaths = cache.files.keys.sorted()
+    let saved = CostUsageStore(cacheRoot: cacheRoot).syncSaveCodexCache(
+        cache, calendar: calendar, requestedScanWindow: (sinceKey: day, untilKey: day),
+        rowBudget: 10_000_000, fileBudgetBytes: 4 * 1024 * 1024 * 1024)
+    guard !saved.catchUpRequired else { fail("fixture save requires catch-up") }
+    print(
+        "FIXTURE files=\(fileCount) rows=\(rowCount) timezone=\(calendar.timeZone.identifier) cache=\(cacheRoot.path)")
+}
+
+// MARK: - memory probe (local verification only)
+
+#if canImport(Darwin)
+func physFootprint() -> UInt64 {
+    var info = task_vm_info_data_t()
+    var count = mach_msg_type_number_t(MemoryLayout<task_vm_info_data_t>.size / MemoryLayout<natural_t>.size)
+    let result = withUnsafeMutablePointer(to: &info) { pointer -> kern_return_t in
+        pointer.withMemoryRebound(to: integer_t.self, capacity: Int(count)) { rebound in
+            task_info(mach_task_self_, task_flavor_t(TASK_VM_INFO), rebound, &count)
+        }
+    }
+    guard result == KERN_SUCCESS else { return 0 }
+    return info.phys_footprint
+}
+
+func megabytes(_ bytes: UInt64) -> String {
+    String(format: "%.1f", Double(bytes) / 1_048_576)
+}
+
+final class FootprintSampler: @unchecked Sendable {
+    private let lock = NSLock()
+    private var peak: UInt64 = 0
+    private var running = true
+    private var thread: Thread?
+
+    init() {
+        self.thread = nil
+        let thread = Thread { [weak self] in
+            while let self, self.isRunning() {
+                let value = physFootprint()
+                self.record(value)
+                Thread.sleep(forTimeInterval: 0.005)
+            }
+        }
+        self.thread = thread
+        thread.start()
+    }
+
+    private func isRunning() -> Bool {
+        self.lock.lock()
+        defer { self.lock.unlock() }
+        return self.running
+    }
+
+    private func record(_ value: UInt64) {
+        self.lock.lock()
+        self.peak = max(self.peak, value)
+        self.lock.unlock()
+    }
+
+    func stop() -> UInt64 {
+        self.lock.lock()
+        self.running = false
+        let value = self.peak
+        self.lock.unlock()
+        return value
+    }
+}
+
+func runMemory(cacheRoot: URL, mode: String) {
+    let calendar = Calendar.current
+    let before = physFootprint()
+    let sampler = FootprintSampler()
+    var cache = CostUsageCache()
+    switch mode {
+    case "none":
+        break
+    case "full":
+        cache = CostUsageStoreAccess.read(cacheRoot: cacheRoot, calendar: calendar)
+    case "lean":
+        cache = CostUsageStoreAccess.readWithoutTokenSnapshots(cacheRoot: cacheRoot, calendar: calendar)
+    default:
+        fail("memory mode must be none|full|lean")
+    }
+    let after = physFootprint()
+    let sampledPeak = sampler.stop()
+    let files = cache.files.count
+    let rows = cache.files.values.reduce(0) { $0 + ($1.codexRows?.count ?? 0) }
+    let snapshots = cache.files.values.reduce(0) { $0 + ($1.codexTokenSnapshots?.count ?? 0) }
+    let peak = megabytes(max(sampledPeak, after))
+    print("MEM mode=\(mode) before=\(megabytes(before)) after=\(megabytes(after)) peak=\(peak) "
+        + "files=\(files) rows=\(rows) snapshots=\(snapshots)")
+    withExtendedLifetime(cache) {}
+}
+#else
+func runMemory(cacheRoot: URL, mode: String) {
+    fail("memory footprint sampling requires macOS")
+}
+#endif
+
 // MARK: - main
 
 let arguments = CommandLine.arguments
 guard arguments.count >= 3 else {
-    fail("usage: storestress <writer|read|crashwriter|vacuumcrasher|verify|rebuild|incremental> <path> [args]")
+    fail("usage: storestress <writer|read|crashwriter|vacuumcrasher|verify|rebuild|incremental|memory|fixture> <path> [args]")
 }
 
 let command = arguments[1]
@@ -463,6 +640,17 @@ case "incremental":
     runIncremental(
         cacheRoot: URL(fileURLWithPath: target),
         sessionsRoot: arguments.count > 3 ? URL(fileURLWithPath: arguments[3]) : nil)
+case "memory":
+    runMemory(cacheRoot: URL(fileURLWithPath: target), mode: arguments.count > 3 ? arguments[3] : "full")
+case "fixture":
+    do {
+        try runFixture(
+            root: URL(fileURLWithPath: target),
+            fileCount: Int(arguments.count > 3 ? arguments[3] : "256") ?? 0,
+            rowsPerFile: Int(arguments.count > 4 ? arguments[4] : "1000") ?? 0)
+    } catch {
+        fail("fixture generation failed: \(error)")
+    }
 case "fdcycles":
     await runFDCycles(
         cacheRoot: URL(fileURLWithPath: target),

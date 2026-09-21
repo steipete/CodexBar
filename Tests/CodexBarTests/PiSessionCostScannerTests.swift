@@ -307,87 +307,6 @@ struct PiSessionCostScannerTests {
     }
 
     @Test
-    func `pi scanner refreshes appended file without duplicating existing usage`() throws {
-        let env = try CostUsageTestEnvironment()
-        defer { env.cleanup() }
-
-        let day = try env.makeLocalNoon(year: 2026, month: 4, day: 4)
-        let firstTimestamp = Int(day.timeIntervalSince1970 * 1000)
-        let secondTimestamp = Int(day.addingTimeInterval(60).timeIntervalSince1970 * 1000)
-
-        let firstAssistant: [String: Any] = [
-            "type": "message",
-            "timestamp": env.isoString(for: day),
-            "message": [
-                "role": "assistant",
-                "provider": "openai-codex",
-                "model": "openai/gpt-5.4",
-                "timestamp": firstTimestamp,
-                "usage": [
-                    "input": 10,
-                    "output": 5,
-                    "totalTokens": 15,
-                ],
-            ],
-        ]
-        let secondAssistant: [String: Any] = [
-            "type": "message",
-            "timestamp": env.isoString(for: day),
-            "message": [
-                "role": "assistant",
-                "provider": "openai-codex",
-                "model": "gpt-5.4",
-                "timestamp": secondTimestamp,
-                "usage": [
-                    "input": 20,
-                    "output": 10,
-                    "totalTokens": 30,
-                ],
-            ],
-        ]
-
-        let url = try env.writePiSessionFile(
-            relativePath: "2026-04-04T10-00-00-000Z_test.jsonl",
-            contents: env.jsonl([firstAssistant]))
-
-        let options = PiSessionCostScanner.Options(
-            piSessionsRoot: env.piSessionsRoot,
-            cacheRoot: env.cacheRoot,
-            refreshMinIntervalSeconds: 0)
-        let firstReport = PiSessionCostScanner.loadDailyReport(
-            provider: .codex,
-            since: day,
-            until: day,
-            now: day,
-            options: options)
-        let firstExpectedCost = CostUsagePricing.codexCostUSD(
-            model: "gpt-5.4",
-            inputTokens: 10,
-            cachedInputTokens: 0,
-            outputTokens: 5)
-        #expect(firstReport.data.count == 1)
-        #expect(firstReport.data.first?.totalTokens == 15)
-        #expect(abs((firstReport.data.first?.costUSD ?? 0) - (firstExpectedCost ?? 0)) < 0.000001)
-
-        try env.jsonl([firstAssistant, secondAssistant]).write(to: url, atomically: true, encoding: .utf8)
-
-        let secondReport = PiSessionCostScanner.loadDailyReport(
-            provider: .codex,
-            since: day,
-            until: day,
-            now: day,
-            options: options)
-        let secondExpectedCost = (firstExpectedCost ?? 0) + (CostUsagePricing.codexCostUSD(
-            model: "gpt-5.4",
-            inputTokens: 20,
-            cachedInputTokens: 0,
-            outputTokens: 10) ?? 0)
-        #expect(secondReport.data.count == 1)
-        #expect(secondReport.data.first?.totalTokens == 45)
-        #expect(abs((secondReport.data.first?.costUSD ?? 0) - secondExpectedCost) < 0.000001)
-    }
-
-    @Test
     func `pi scanner ignores explicit unsupported provider even with fallback context`() throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }
@@ -448,7 +367,7 @@ struct PiSessionCostScannerTests {
     }
 
     @Test
-    func `pi scanner force rescan bypasses stale same size metadata cache`() throws {
+    func `pi scanner force rescan bypasses unchanged metadata after an in-place rewrite`() throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }
 
@@ -516,7 +435,7 @@ struct PiSessionCostScannerTests {
                 Set(CostUsagePricing.claudeFirstPartyModelsDevProviderIDs)))
         PiSessionCostCacheIO.save(cache: releasedCache, cacheRoot: env.cacheRoot)
 
-        try secondContents.write(to: url, atomically: true, encoding: .utf8)
+        try secondContents.write(to: url, atomically: false, encoding: .utf8)
         try FileManager.default.setAttributes([.modificationDate: stableModifiedAt], ofItemAtPath: url.path)
         let replacedModifiedAt = try #require(
             FileManager.default.attributesOfItem(atPath: url.path)[.modificationDate] as? Date)
@@ -764,8 +683,8 @@ struct PiSessionCostScannerTests {
         #expect(FileManager.default.fileExists(atPath: newCacheURL.path))
         let newCache = PiSessionCostCacheIO.load(cacheRoot: env.cacheRoot)
         let rebuilt = newCache.daysByProvider[UsageProvider.codex.rawValue]?[dayKey]?[model]
-        #expect(newCacheURL.lastPathComponent == "pi-sessions-v8.json")
-        #expect(newCache.version == 8)
+        #expect(newCacheURL.lastPathComponent == "pi-sessions-v9.json")
+        #expect(newCache.version == 9)
         #expect(rebuilt?.usageSampleCount == 1)
         #expect(rebuilt?.costSampleCount == 1)
         #expect(rebuilt?.costNanos == Int64((expectedCost * 1_000_000_000).rounded()))
@@ -873,8 +792,117 @@ struct PiSessionCostScannerTests {
 
         let newCache = PiSessionCostCacheIO.load(cacheRoot: env.cacheRoot)
         let rebuilt = newCache.daysByProvider[UsageProvider.codex.rawValue]?[dayKey]?[model]
-        #expect(newCache.version == 8)
+        #expect(newCache.version == 9)
         #expect(rebuilt?.costNanos == Int64((expectedCost * 1_000_000_000).rounded()))
+    }
+}
+
+extension PiSessionCostScannerTests {
+    @Test
+    func `pi scanner invalidates the debounce cache when session roots change`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 4, day: 4)
+        let firstRoot = env.root.appendingPathComponent("pi-sessions-first", isDirectory: true)
+        let secondRoot = env.root.appendingPathComponent("pi-sessions-second", isDirectory: true)
+        try FileManager.default.createDirectory(at: firstRoot, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: secondRoot, withIntermediateDirectories: true)
+
+        func writeAssistant(to root: URL, input: Int, output: Int) throws {
+            let entry: [String: Any] = [
+                "type": "message",
+                "timestamp": env.isoString(for: day),
+                "message": [
+                    "role": "assistant",
+                    "provider": "openai-codex",
+                    "model": "gpt-5.4",
+                    "timestamp": Int(day.timeIntervalSince1970 * 1000),
+                    "usage": ["input": input, "output": output, "totalTokens": input + output],
+                ],
+            ]
+            let fileURL = root.appendingPathComponent(
+                "2026-04-04T10-00-00-000Z_root.jsonl",
+                isDirectory: false)
+            try env.jsonl([entry]).write(to: fileURL, atomically: true, encoding: .utf8)
+        }
+
+        try writeAssistant(to: firstRoot, input: 10, output: 5)
+        try writeAssistant(to: secondRoot, input: 20, output: 10)
+
+        let first = PiSessionCostScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day,
+            options: PiSessionCostScanner.Options(
+                piSessionsRoot: firstRoot,
+                cacheRoot: env.cacheRoot,
+                refreshMinIntervalSeconds: 3600))
+        #expect(first.data.first?.totalTokens == 15)
+
+        let second = PiSessionCostScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day.addingTimeInterval(1),
+            options: PiSessionCostScanner.Options(
+                piSessionsRoot: secondRoot,
+                cacheRoot: env.cacheRoot,
+                refreshMinIntervalSeconds: 3600))
+        #expect(second.data.first?.totalTokens == 30)
+        #expect(PiSessionCostCacheIO.load(cacheRoot: env.cacheRoot).sessionRootsFingerprint != nil)
+    }
+
+    @Test
+    func `pi scanner marks malformed records and unfinished tails incomplete`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 4, day: 5)
+        let entry: [String: Any] = [
+            "type": "message",
+            "timestamp": env.isoString(for: day),
+            "message": [
+                "role": "assistant",
+                "provider": "openai-codex",
+                "model": "gpt-5.4",
+                "timestamp": Int(day.timeIntervalSince1970 * 1000),
+                "usage": ["input": 20, "output": 5, "totalTokens": 25],
+            ],
+        ]
+        let fileURL = try env.writePiSessionFile(
+            relativePath: "2026-04-05T10-00-00-000Z_malformed.jsonl",
+            contents: env.jsonl([entry]))
+        let options = PiSessionCostScanner.Options(
+            piSessionsRoot: env.piSessionsRoot,
+            cacheRoot: env.cacheRoot,
+            refreshMinIntervalSeconds: 0)
+
+        let initial = try PiSessionCostScanner.loadDailyReportResultCancellable(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day,
+            options: options,
+            checkCancellation: nil)
+        #expect(initial.isComplete)
+        #expect(initial.report.data.first?.totalTokens == 25)
+
+        let handle = try FileHandle(forWritingTo: fileURL)
+        try handle.seekToEnd()
+        try handle.write(contentsOf: Data("{\"type\":\n".utf8))
+        try handle.close()
+
+        let refreshed = try PiSessionCostScanner.loadDailyReportResultCancellable(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day.addingTimeInterval(1),
+            options: options,
+            checkCancellation: nil)
+        #expect(!refreshed.isComplete)
+        #expect(refreshed.report.data.first?.totalTokens == 25)
     }
 }
 

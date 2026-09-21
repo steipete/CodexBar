@@ -8,6 +8,7 @@ public enum OpenCodeGoUsageError: LocalizedError {
     case networkError(String)
     case apiError(String)
     case parseFailed(String)
+    case noSubscription
 
     public var errorDescription: String? {
         switch self {
@@ -19,6 +20,8 @@ public enum OpenCodeGoUsageError: LocalizedError {
             "OpenCode Go API error: \(message)"
         case let .parseFailed(message):
             "OpenCode Go parse error: \(message)"
+        case .noSubscription:
+            "No OpenCode Go subscription or supported prepaid balance is available."
         }
     }
 }
@@ -31,6 +34,14 @@ public struct OpenCodeGoUsageFetcher: Sendable {
     private static let usageAPIURL = URL(string: "https://opencode.ai/zen/go/v1/usage")!
     private static let workspacesServerID = "def39973159c7f0483d8793a822b8dbb10d067e12c65455fcb4608459ba0234f"
     private static let billingServerID = "c83b78a614689c38ebee981f9b39a8b377716db85c1fd7dbab604adc02d3313d"
+    /// Cookie-authenticated Console workspace list, fetched without a workspace header.
+    static let consoleWorkspacesURL = URL(string: "https://opencode.ai/console/api/orgs")!
+    /// Go subscription meters for the workspace named by `consoleWorkspaceHeaderField`.
+    static let consoleGoStatusURL = URL(string: "https://opencode.ai/console/api/go/status")!
+    /// Prepaid balance for the selected Console workspace.
+    static let consoleBillingStatusURL = URL(string: "https://opencode.ai/console/api/billing/status")!
+    /// The console answers HTTP 400 when this header is missing.
+    static let consoleWorkspaceHeaderField = "x-org-id"
 
     private static let userAgent =
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) " +
@@ -130,7 +141,7 @@ public struct OpenCodeGoUsageFetcher: Sendable {
         guard let requestCookieHeader = OpenCodeWebCookieSupport.requestCookieHeader(from: cookieHeader) else {
             throw OpenCodeGoUsageError.invalidCredentials
         }
-        let workspaceID: String = if let override = OpenCodeWebParsing.normalizeWorkspaceID(workspaceIDOverride) {
+        let workspaceID: String = if let override = self.normalizeWorkspaceID(workspaceIDOverride) {
             override
         } else {
             try await self.fetchWorkspaceID(
@@ -144,7 +155,7 @@ public struct OpenCodeGoUsageFetcher: Sendable {
             timeout: timeout,
             session: session)
         let subscriptionTask = Task {
-            try await self.fetchUsagePage(
+            try await self.fetchSubscriptionPayload(
                 workspaceID: workspaceID,
                 cookieHeader: requestCookieHeader,
                 timeout: timeout,
@@ -246,9 +257,12 @@ public struct OpenCodeGoUsageFetcher: Sendable {
         request: ZenBalanceRequest,
         now: Date) async throws -> OpenCodeGoUsageSnapshot
     {
-        guard case let .parseFailed(message) = error,
-              message.contains("Missing usage fields")
-        else {
+        switch error {
+        case .noSubscription:
+            break
+        case let .parseFailed(message) where message.contains("Missing usage fields"):
+            break
+        default:
             throw error
         }
         let task = task ?? Task {
@@ -279,7 +293,7 @@ public struct OpenCodeGoUsageFetcher: Sendable {
             throw OpenCodeGoUsageError.invalidCredentials
         }
         let requestTimeout = min(timeout, self.optionalZenBalanceTimeout)
-        let workspaceID: String = if let override = OpenCodeWebParsing.normalizeWorkspaceID(workspaceIDOverride) {
+        let workspaceID: String = if let override = self.normalizeWorkspaceID(workspaceIDOverride) {
             override
         } else {
             try await self.fetchWorkspaceID(
@@ -303,9 +317,11 @@ public struct OpenCodeGoUsageFetcher: Sendable {
         return true
     }
 
+    /// Opens the console route. The legacy `/workspace/<id>/go` page redirects migrated workspaces
+    /// to the console login screen, so it is no longer a usable destination.
     public static func dashboardURL(workspaceID raw: String?) -> URL {
-        guard let workspaceID = OpenCodeWebParsing.normalizeWorkspaceID(raw),
-              let url = URL(string: "\(self.baseURL.absoluteString)/workspace/\(workspaceID)/go")
+        guard let workspaceID = self.normalizeWorkspaceID(raw),
+              let url = URL(string: "\(self.baseURL.absoluteString)/console/\(workspaceID)/go")
         else {
             return self.authURL
         }
@@ -336,6 +352,18 @@ extension OpenCodeGoUsageFetcher {
     }
 
     private static func fetchWorkspaceID(
+        cookieHeader: String,
+        timeout: TimeInterval,
+        session: URLSession) async throws -> String
+    {
+        try await OpenCodeGoLegacyFallback.fetch(cookieHeader: cookieHeader) {
+            try await self.fetchConsoleWorkspaceID(cookieHeader: cookieHeader, timeout: timeout, session: session)
+        } legacy: {
+            try await self.fetchLegacyWorkspaceID(cookieHeader: cookieHeader, timeout: timeout, session: session)
+        }
+    }
+
+    private static func fetchLegacyWorkspaceID(
         cookieHeader: String,
         timeout: TimeInterval,
         session: URLSession) async throws -> String
@@ -382,6 +410,32 @@ extension OpenCodeGoUsageFetcher {
         return ids[0]
     }
 
+    /// Reads the Go subscription payload, preferring the console API.
+    ///
+    /// Migrated workspaces redirect `opencode.ai/workspace/<id>/go` to the console login route and
+    /// answer with an empty SPA shell, so the scraped payload no longer exists. Workspaces that have
+    /// not migrated yet still serve the legacy page, which stays as the fallback.
+    private static func fetchSubscriptionPayload(
+        workspaceID: String,
+        cookieHeader: String,
+        timeout: TimeInterval,
+        session: URLSession) async throws -> String
+    {
+        try await OpenCodeGoLegacyFallback.fetch(cookieHeader: cookieHeader) {
+            try await self.fetchConsoleGoStatus(
+                workspaceID: workspaceID,
+                cookieHeader: cookieHeader,
+                timeout: timeout,
+                session: session)
+        } legacy: {
+            try await self.fetchUsagePage(
+                workspaceID: workspaceID,
+                cookieHeader: cookieHeader,
+                timeout: timeout,
+                session: session)
+        }
+    }
+
     private static func fetchUsagePage(
         workspaceID: String,
         cookieHeader: String,
@@ -406,6 +460,153 @@ extension OpenCodeGoUsageFetcher {
             throw OpenCodeGoUsageError.parseFailed("Missing usage fields.")
         }
         return text
+    }
+
+    // MARK: - Console API
+
+    private static func fetchConsoleWorkspaceID(
+        cookieHeader: String,
+        timeout: TimeInterval,
+        session: URLSession) async throws -> String
+    {
+        let text = try await self.fetchConsoleText(
+            url: self.consoleWorkspacesURL,
+            workspaceID: nil,
+            cookieHeader: cookieHeader,
+            timeout: timeout,
+            session: session)
+        guard let workspaceID = self.parseConsoleWorkspaceIDs(text: text).first else {
+            throw OpenCodeGoUsageError.parseFailed("Missing workspace id.")
+        }
+        return workspaceID
+    }
+
+    private static func fetchConsoleGoStatus(
+        workspaceID: String,
+        cookieHeader: String,
+        timeout: TimeInterval,
+        session: URLSession) async throws -> String
+    {
+        let text = try await self.fetchConsoleText(
+            url: self.consoleGoStatusURL,
+            workspaceID: workspaceID,
+            cookieHeader: cookieHeader,
+            timeout: timeout,
+            session: session)
+        if let data = text.data(using: .utf8),
+           let object = try? JSONSerialization.jsonObject(with: data, options: [.fragmentsAllowed]),
+           object is NSNull || (object as? [String: Any])?["access"] is NSNull
+        {
+            throw OpenCodeGoUsageError.noSubscription
+        }
+        guard self.parseConsoleGoStatus(text: text, now: Date()) != nil else {
+            Self.log.error("OpenCode Go console status payload missing usage fields.")
+            throw OpenCodeGoUsageError.parseFailed("Invalid Console usage payload.")
+        }
+        return text
+    }
+
+    /// Console responses are JSON and report a signed-out session as HTTP 401, so unlike the legacy
+    /// pages they must not be classified by body text.
+    static func fetchConsoleText(
+        url: URL,
+        workspaceID: String?,
+        cookieHeader: String,
+        timeout: TimeInterval,
+        session: URLSession) async throws -> String
+    {
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.timeoutInterval = timeout
+        request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
+        request.setValue(self.userAgent, forHTTPHeaderField: "User-Agent")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        if let workspaceID {
+            request.setValue(workspaceID, forHTTPHeaderField: self.consoleWorkspaceHeaderField)
+        }
+
+        let httpResponse = try await session.response(for: request)
+        guard httpResponse.statusCode == 200 else {
+            let bodyText = String(data: httpResponse.data, encoding: .utf8) ?? ""
+            if httpResponse.statusCode == 401 {
+                throw OpenCodeGoUsageError.invalidCredentials
+            }
+            if let message = self.extractServerErrorMessage(from: bodyText) {
+                throw OpenCodeGoUsageError.apiError("HTTP \(httpResponse.statusCode): \(message)")
+            }
+            throw OpenCodeGoUsageError.apiError("HTTP \(httpResponse.statusCode)")
+        }
+        guard let text = String(data: httpResponse.data, encoding: .utf8) else {
+            throw OpenCodeGoUsageError.parseFailed("Response was not UTF-8.")
+        }
+        return text
+    }
+
+    static func parseConsoleWorkspaceIDs(text: String) -> [String] {
+        guard let data = text.data(using: .utf8),
+              let rows = (try? JSONSerialization.jsonObject(with: data)) as? [[String: Any]]
+        else {
+            return []
+        }
+        return rows.compactMap { $0["id"] as? String }.filter { self.isConsoleWorkspaceID($0) }
+    }
+
+    private static func isConsoleWorkspaceID(_ value: String) -> Bool {
+        value.range(of: #"^(?:wrk_|org_)[A-Za-z0-9_-]+$"#, options: .regularExpression) != nil
+    }
+
+    static func normalizeWorkspaceID(_ raw: String?) -> String? {
+        if let legacy = OpenCodeWebParsing.normalizeWorkspaceID(raw) { return legacy }
+        guard let raw = raw?.trimmingCharacters(in: .whitespacesAndNewlines) else { return nil }
+        if self.isConsoleWorkspaceID(raw) { return raw }
+        guard let url = URL(string: raw), url.scheme == "https", url.host == "opencode.ai",
+              let index = url.pathComponents.firstIndex(of: "console"),
+              url.pathComponents.count > index + 1
+        else { return nil }
+        let candidate = url.pathComponents[index + 1]
+        return self.isConsoleWorkspaceID(candidate) ? candidate : nil
+    }
+
+    /// Converts the console's micro-cent meters into the percentage windows the snapshot models.
+    /// The month meter carries no reset timestamp, so the billing period end stands in for it.
+    static func parseConsoleGoStatus(text: String, now: Date) -> OpenCodeGoUsageSnapshot? {
+        guard let data = text.data(using: .utf8),
+              let root = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+              let access = root["access"] as? [String: Any],
+              let meters = access["meters"] as? [String: Any],
+              let rolling = meters["fiveHour"] as? [String: Any]
+        else {
+            return nil
+        }
+
+        let renewsAt = self.dateValue(from: access["endsAt"])
+        var monthly = meters["month"] as? [String: Any]
+        if monthly?["resetsAt"] == nil || monthly?["resetsAt"] is NSNull, let endsAt = access["endsAt"] {
+            monthly?["resetsAt"] = endsAt
+        }
+
+        guard let snapshot = self.buildSnapshot(
+            rolling: rolling,
+            weekly: meters["week"] as? [String: Any],
+            monthly: monthly,
+            now: now,
+            renewsAt: renewsAt)
+        else { return nil }
+
+        func resetInterval(_ meter: [String: Any]?) -> Int? {
+            self.dateValue(from: meter?["resetsAt"]).flatMap { OpenCodeWebParsing.resetInterval(from: $0, now: now) }
+        }
+        return OpenCodeGoUsageSnapshot(
+            hasWeeklyUsage: snapshot.hasWeeklyUsage,
+            hasMonthlyUsage: snapshot.hasMonthlyUsage,
+            rollingUsagePercent: snapshot.rollingUsagePercent,
+            weeklyUsagePercent: snapshot.weeklyUsagePercent,
+            monthlyUsagePercent: snapshot.monthlyUsagePercent,
+            rollingResetInSec: resetInterval(rolling),
+            weeklyResetInSec: resetInterval(meters["week"] as? [String: Any]),
+            monthlyResetInSec: resetInterval(monthly),
+            renewsAt: renewsAt,
+            updatedAt: now)
     }
 
     static func parseAPIUsage(text: String, now: Date) throws -> OpenCodeGoUsageSnapshot {
@@ -479,6 +680,11 @@ extension OpenCodeGoUsageFetcher {
               let dict = object as? [String: Any]
         else {
             return nil
+        }
+
+        // The console reports micro-cent meters, which the generic window parser cannot key on.
+        if let snapshot = self.parseConsoleGoStatus(text: text, now: now) {
+            return snapshot
         }
 
         let renewsAt = self.dateValue(from: OpenCodeWebParsing.value(from: dict, keys: self.renewAtKeys))
@@ -701,8 +907,8 @@ extension OpenCodeGoUsageFetcher {
         let percentIsDirect = percent != nil
 
         if percent == nil {
-            let usedKeys = ["used", "usage", "consumed", "count", "usedTokens"]
-            let limitKeys = ["limit", "total", "quota", "max", "cap", "tokenLimit"]
+            let usedKeys = ["used", "usage", "consumed", "count", "usedTokens", "usedMicroCents"]
+            let limitKeys = ["limit", "total", "quota", "max", "cap", "tokenLimit", "limitMicroCents"]
             var used: Double?
             for key in usedKeys {
                 if let value = self.doubleValue(from: dict[key]) {

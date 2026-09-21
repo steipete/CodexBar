@@ -196,6 +196,7 @@ extension UsageStore {
         }
         return WidgetSnapshot(
             entries: entries,
+            accounts: self.makeWidgetAccountEntries(now: now),
             enabledProviders: enabledProviders,
             usageBarsShowUsed: self.settings.usageBarsShowUsed,
             generatedAt: now)
@@ -274,10 +275,20 @@ extension UsageStore {
         } else {
             nil
         }
+        // Provider-specific by design: DeepSeek and OpenRouter expose their widget value as balance text.
+        let balanceText: String? = switch provider {
+        case .deepseek, .openrouter:
+            StatusItemController.menuBarBalanceDisplayText(provider: provider, snapshot: snapshot)
+        default:
+            nil
+        }
 
+        // Provider-specific by design: Pi's local strategy has no quota measurement; age belongs to its history.
+        let historyUpdatedAt = provider == .pi ? tokenSnapshot?.updatedAt : nil
         return WidgetSnapshot.ProviderEntry(
             provider: provider,
-            updatedAt: snapshot?.updatedAt ?? preservedClaudeUsage?.updatedAt ?? tokenSnapshot?.updatedAt ?? now,
+            updatedAt: historyUpdatedAt ?? snapshot?.updatedAt ?? preservedClaudeUsage?.updatedAt
+                ?? tokenSnapshot?.updatedAt ?? now,
             primary: snapshot?.primary ?? preservedClaudeUsage?.primary,
             secondary: snapshot?.secondary ?? preservedClaudeUsage?.secondary,
             tertiary: snapshot?.tertiary ?? preservedClaudeUsage?.tertiary,
@@ -287,7 +298,8 @@ extension UsageStore {
             tokenUsage: tokenUsage,
             dailyUsage: dailyUsage,
             providerCost: providerCost,
-            quotaOwnerKey: quotaOwnerKey)
+            quotaOwnerKey: quotaOwnerKey,
+            balanceText: balanceText)
     }
 
     private struct PreservedClaudeWidgetUsage {
@@ -431,10 +443,12 @@ extension UsageStore {
         {
             return dyn
         }
-        return metadata?.sessionLabel ?? "Session"
+        guard let metadata else { return "Session" }
+        return ProviderDescriptorRegistry.descriptor(for: provider).presentation
+            .rateWindowLabels(metadata: metadata, snapshot: snapshot).primary
     }
 
-    private func widgetUsageRows(
+    func widgetUsageRows(
         provider: UsageProvider,
         snapshot: UsageSnapshot,
         now: Date) -> [WidgetSnapshot.WidgetUsageRowSnapshot]

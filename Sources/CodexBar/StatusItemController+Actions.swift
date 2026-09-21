@@ -666,46 +666,20 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
 
     func openTerminal(command: String) {
         let terminal = self.settings.terminalApp
-
-        if terminal != .terminal, !terminal.isInstalled {
-            CodexBarLog.logger(LogCategories.terminal).warning(
-                "\(terminal.label) is not installed, falling back to Terminal.app",
-                metadata: ["terminal": terminal.rawValue])
-            Self.openTerminalInDefaultTerminal(command: command)
-            return
-        }
-
-        if Self.executeAppleScript(terminal.appleScript(command: command)) {
-            return
-        }
-        guard terminal != .terminal else { return }
-
-        CodexBarLog.logger(LogCategories.terminal).warning(
-            "\(terminal.label) AppleScript failed, falling back to Terminal.app",
-            metadata: ["terminal": terminal.rawValue])
-        Self.openTerminalInDefaultTerminal(command: command)
-    }
-
-    private static func openTerminalInDefaultTerminal(command: String) {
-        self.executeAppleScript(TerminalApp.terminal.appleScript(command: command))
-    }
-
-    /// Executes an AppleScript and returns `true` on success, `false` on failure.
-    @discardableResult
-    private static func executeAppleScript(_ source: String) -> Bool {
-        if let appleScript = NSAppleScript(source: source) {
-            var error: NSDictionary?
-            appleScript.executeAndReturnError(&error)
-            if let error {
+        Task { @MainActor in
+            switch await TerminalLauncher().launch(terminal, command: command) {
+            case .selected:
+                break
+            case .fallback:
+                CodexBarLog.logger(LogCategories.terminal).warning(
+                    "\(terminal.label) launch failed, fell back to Terminal.app",
+                    metadata: ["terminal": terminal.rawValue])
+            case .failed:
                 CodexBarLog.logger(LogCategories.terminal).error(
-                    "Failed to execute AppleScript",
-                    metadata: ["error": String(describing: error)])
-                return false
+                    "Failed to open terminal",
+                    metadata: ["terminal": terminal.rawValue])
             }
-            return true
         }
-        CodexBarLog.logger(LogCategories.terminal).error("Failed to compile AppleScript")
-        return false
     }
 
     private func resolvedShortcutProvider() -> UsageProvider {

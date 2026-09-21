@@ -16,6 +16,11 @@ Use it when you need usage numbers in scripts, CI, or dashboards without UI.
 - From the repo, after installing `CodexBar.app` in `/Applications`: `./bin/install-codexbar-cli.sh` (same symlink targets; requires macOS administrator approval).
 - Manual: `ln -sf "/Applications/CodexBar.app/Contents/Helpers/CodexBarCLI" /usr/local/bin/codexbar`.
 
+The bundled macOS CLI identifies its running executable and containing app through the operating system, even
+when launched through these symlinks. Mutable external aliases are not added to new credential-cache trust lists.
+Existing signature validation, disabled-access settings, and no-prompt rules still apply; standalone development
+binaries do not gain access to the app's persistent cache.
+
 The repo installer requires an executable `/Applications/CodexBar.app/Contents/Helpers/CodexBarCLI`; a missing
 helper is an error. It starts the system POSIX shell with `-p` to ignore inherited functions and startup hooks
 before helper validation or failure handling. This shell mode does not elevate privileges; macOS administrator
@@ -50,6 +55,7 @@ See `docs/configuration.md` for the schema.
 ## Command
 - `codexbar` defaults to the `usage` command.
   - `--format text|json|toon` (default: text).
+  - Text output and full terminal cards include history already supplied by the selected provider, such as OpenRouter Activity spend or Grok local token totals. They preserve the source period, currency, known zero values, and reported/estimated cost labels. This live history remains separate from the ordinary usage JSON schema and the `cost` command.
   - JSON uses the generic `usage.details` array for provider-specific information. Each section contains an optional
     `title`, `rows` (`label`, `value`, and optional `secondaryValue`), and an optional `bars` or `line` chart. The same
     shape is returned by `GET /usage` from `codexbar serve`.
@@ -63,16 +69,25 @@ See `docs/configuration.md` for the schema.
     no denormalization — intended for agents that want a token-cheaper alternative to parsing JSON. `usage --format
     toon` is the only command that supports it; every other command still advertises and accepts only
     `--format text|json`, and treats `toon` like any other unrecognized value.
-- `codexbar cost` prints token cost usage for Claude, Codex, Cursor, and Antigravity.
+- `codexbar cost` prints token cost usage for Claude, Codex, Cursor, Antigravity, Muse Code, and Pi.
   - Claude and Codex are scanned from local session logs without web/CLI access.
-  - Antigravity reads supported local token history without web, provider CLI, or credential access. It does not estimate dollar costs; unsupported timestamps and incomplete histories remain unavailable (see `docs/antigravity.md`). The same provider selection applies to `serve /cost` and dashboard cost collection.
-    Text output labels this as token history and distinguishes unavailable or incomplete history from a complete period with no recorded usage.
+  - [Pi](pi.md) reads supported Pi/OMP local assistant history. Selecting Pi alongside Claude/Codex keeps those providers native-only so combined totals count each source once.
+  - Muse Code reads bounded local session logs and reports recorded token history without credentials, provider requests, or invented dollar costs. Partial and unavailable history remain distinct from measured zero (see [Muse Code](muse.md)).
+  - Antigravity reads supported local token history without provider CLI or credential access. Known models receive API-price estimates from the pricing catalog, which may be refreshed from public models.dev data over the network; unknown models remain unpriced. These estimates are not Antigravity charges or credit deductions. Unsupported timestamps leave history unavailable. An incomplete scan still reports the rows it decoded, with every total marked a lower bound (see `docs/antigravity.md`). The same provider selection applies to `serve /cost` and dashboard cost collection.
+    Text output labels priced results as local estimates and token-only results as token history, and distinguishes unavailable or lower-bound history from a complete period with no recorded usage.
   - Cursor is fetched from the cookie-authenticated cursor.com dashboard API (macOS only; see `docs/cursor.md`) and honors the configured cookie source: a non-empty Manual header is required and forwarded, while Off fails explicitly instead of silently omitting Cursor.
   - `--format text|json` (default: text). `--json` includes the same cost concepts as Settings → Usage & Spend (token mix, `provenance`, coverage), but it is not the dashboard Export JSON schema. CLI places mix fields under each provider's `totals` and emits `provenance`/`coverage` on that provider object; Export JSON nests `tokenMix`, `provenance`, and `coverage` under `groups[]`.
   - OpenCodex appears as a separate `opencodex` payload only when **Include OpenCodex usage logs** is on in Settings. That payload does not invent `projects` (OpenCodex logs have no workspace path).
+    It refreshes cached models.dev prices before estimating recorded provider/model usage. OpenRouter model namespaces
+    remain scoped to OpenRouter, and missing usage or price fields remain unknown rather than zero. See [model pricing](model-pricing.md).
   - `--refresh` ignores cached scans.
   - `--breakdown` adds Claude-only daily and top-model details to text output. Both sections use the same last seven calendar days (or the shorter requested interval); when that interval has no rows, both explicitly label the latest recorded days. Incomplete attribution is marked partial. Ordinary text, other providers, and JSON output are unchanged.
   - `--provider-native-only` is experimental and excludes pi and OMP session mirrors from Claude and Codex history.
+  - `--provider codex --remote <ssh-host>` produces one manual report with separate local and remote summaries. Histories are never added together, since sessions can overlap across machines. SSH uses the host's existing trusted configuration and noninteractive authentication, without agent or port forwarding. It requires an already trusted host key and a remote CLI supporting `--summary-only`.
+    Each successful text report shows `Snapshot updated:` using that source summary's `updatedAt` as an absolute ISO 8601 timestamp in UTC (`Z`). This is the source snapshot time, not the last usage event, command execution time, or SSH receipt time. Day boundaries retain each host's own timezone.
+  - `--provider codex --format json --summary-only` emits a one-element, versioned summary array with no account identity, project paths, model rows, or session content. Schema version 1 retains `updatedAt`, `bucketTimeZone`, `historyDays`, `currencyCode`, `historyCoverageIsEstablished`, and separate `today`/`history` totals with optional `totalTokens`/`costUSD`, incomplete-request counts, coverage categories, and provenance. Missing totals remain unavailable.
+  - Host reports always scan native Codex history only. `--days` and `--refresh` apply on both hosts; each host retains its own calendar and pricing. Both modes reject `--group-by` and `--breakdown`; `--remote` and `--summary-only` cannot be combined. Ordinary `cost` output remains compatible.
+  - Remote capture is bounded to 16 KiB per stream during execution, with a 60-second client process timeout. Unsupported versions, invalid totals, overflow, and unexpected output fail closed. Remote failure retains a successful local row and exits nonzero; JSON remains one document. Ctrl-C and termination signals cancel collection and await local SSH subprocess cleanup. The remote scanner follows its SSH server's disconnect behavior and may finish after the client exits.
 - `codexbar cards` prints a one-shot usage snapshot as a responsive terminal card grid.
   - Reuses the same provider, source, account, credits, and status flags as `codexbar usage`.
   - Account lines and plan badges are included in the card grid by default.
@@ -103,6 +118,9 @@ See `docs/configuration.md` for the schema.
   - `--output <path>` atomically writes the snapshot to a file (`0644`) instead of stdout — staged in the destination directory, fsync'd, then renamed over the target so readers never observe a partial document. The parent directory must already exist (it is not created), and stdout stays silent on success.
   - Starts no HTTP server and requires no dashboard bearer token. See `docs/dashboard-api.md` for the shared payload contract.
 - `codexbar serve` starts a foreground HTTP server for usage and cost JSON, a token-gated dashboard snapshot, and a built-in web UI at `/`.
+  - Web usage bars follow the app's **Usage bars fill** setting, read per request on macOS. Dashboard snapshots from
+    both `serve` and `codexbar dashboard` expose it as `host.usageBarsShowUsed`. An absent setting defaults to remaining
+    percentages, including on Linux; earlier web dashboards always showed used percentages. Quota values are unchanged.
   - Dashboard snapshot identity follows the app's "Hide personal information" setting when `--identity` is absent: the toggle on redacts email local parts, off keeps full emails. The setting is read per request, so a change applies without a serve restart. Pass `--identity redacted` or `--identity full` to pin the mode and ignore the app setting, especially when responses cross a network.
   - `--host <host>` accepts `localhost` or an IPv4 address and defaults to `127.0.0.1`; `localhost` is normalized to `127.0.0.1`. Binding a non-loopback host requires a dashboard token **and** `--allow-plain-http` (see `docs/dashboard-api.md` for the threat model).
   - `--port <port>` defaults to `8080`.
@@ -178,15 +196,20 @@ See `docs/configuration.md` for the schema.
   commands run directly without a shell and receive `CODEXBAR_*` variables plus JSON on stdin. `--format json` and
   `--json-only` return structured per-rule results. See
   `docs/configuration.md#external-event-hooks` for the event, payload, timeout, and security contract.
+- The macOS app and `hooks watch` emit `usage_updated` after a successful current refresh, throttled to at most
+  one attempt per 600 seconds for each provider/account. Its primary and secondary positional quota windows include their cadence in
+  minutes. Synthetic placeholder windows are omitted.
 - `codexbar hooks watch` polls enabled providers and fires matching hooks on real quota and status transitions.
   Without it, hook rules only ever fire from the macOS app, so a headless install can configure hooks that never run.
   - `--interval <seconds>`: poll period. Default `300`, minimum `60`; a smaller value is rejected rather than
     clamped, because each tick fetches every selected provider.
   - `--provider <id>`: restrict to one provider; repeatable. Defaults to every enabled provider.
-  - `--format json`/`--json`/`--pretty`: emit each fired event as JSON.
+  - `--format json`/`--json`/`--pretty`: emit each attempted event as JSON, excluding throttled candidates.
   - Events are edge-triggered against the previous poll, so a condition that merely persists (a saturated window,
     an ongoing outage) does not re-fire every tick. State is in-memory only: a restart re-establishes baselines and
-    the first poll of any lane fires nothing.
+    the first poll establishes each lane's transition baseline. A successful first poll can immediately attempt
+    `usage_updated`. Repeated attempts within 600 seconds are dropped, including after command failure; no latest-value
+    queue or trailing delivery is scheduled. Private account throttle keys are never included in event payloads.
   - Run `watch` as one continuous process. Repeated one-shot invocations cannot preserve transition baselines or event
     rate limits between polls.
   - Runs read-only, like `codexbar guard`: it never prompts for credentials. A failed refresh reports
@@ -219,6 +242,7 @@ payloads include the visible account label in `account`.
 - `daily[]`: `date`, `inputTokens`, `outputTokens`, `cacheReadTokens`, `cacheCreationTokens`, `totalTokens`, `totalCost`, `modelsUsed`, `modelBreakdowns[]` (`modelName`, `cost`)
 - Codex only: `projects[]`: `name`, `path`, `totalTokens`, `totalCost`, `daily[]`, `modelBreakdowns[]`, `sources[]`
 - `totals`: `inputTokens`, `outputTokens`, `cacheReadTokens`, `cacheCreationTokens`, `totalTokens`, `totalCost`
+- Claude/Vertex preliminary proxy records without final usage are excluded from totals. A positive optional `incompleteRequestCount` appears on the provider, `totals`, affected `daily[]`, and affected `modelBreakdowns[]`; complete-only payloads keep their previous shape. Known amounts remain partial subtotals, while incomplete-only amounts stay unavailable. Text output and the web dashboard mark these subtotals **Incomplete**. Usage & Spend exports include the same optional count on affected currency groups, providers, and model rows.
 - `error`: structured provider error when a fetch fails (for example Cursor requested while its cookie source is Off).
 
 ## Example usage

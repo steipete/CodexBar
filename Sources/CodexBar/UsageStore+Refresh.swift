@@ -341,7 +341,7 @@ extension UsageStore {
             await self.refreshCodexVisibleAccountsForMenu(generation: generation)
             return nil
         } else if provider == .codex {
-            self.codexAccountSnapshots = []
+            self.reconcileCodexWidgetAccountSnapshots()
         }
 
         if provider == .kilo, self.shouldFanOutKiloScopes() {
@@ -506,10 +506,12 @@ extension UsageStore {
             break
         }
         guard self.isCurrentProviderRefreshGeneration(provider, generation: context.generation) else { return nil }
-        await self.applyProviderRefreshOutcome(
+        await self.applyProviderRefreshOutcome(provider: provider, outcome: outcome, context: context)
+        self.scheduleSupplementalUsageUpdate(
             provider: provider,
             outcome: outcome,
-            context: context)
+            generation: context.generation,
+            accountID: context.tokenAccount?.id)
         return nil
     }
 
@@ -765,6 +767,7 @@ extension UsageStore {
                 backfilled: backfilled,
                 result: result,
                 context: context)
+            self.emitUsageUpdatedHook(provider: provider, snapshot: backfilled, rateKey: warningAccountDiscriminator)
             return backfilled
         }
         guard let backfilled else { return }
@@ -823,7 +826,7 @@ extension UsageStore {
             return
         }
         // Credential-change cleanup already ran above; cancellation is now safe to suppress.
-        if Self.errorIsCancellation(error) {
+        if Self.shouldSuppressProviderCancellation(error, priorSnapshot: self.snapshots[provider.instanceID]) {
             if provider == .deepseek,
                self.isCurrentProviderRefreshGeneration(provider, generation: context.generation)
             {
@@ -838,6 +841,9 @@ extension UsageStore {
         self.bindCodexFailurePublicationOwner(
             provider: provider,
             expectedGuard: context.codexExpectedGuard)
+        if provider == .codex {
+            self.reconcileCodexWidgetAccountSnapshots(after: error)
+        }
         self.lastFetchAttempts[provider.instanceID] = attempts
         self.recordStartupConnectivityRetryableFailure(error)
         await self.handleProviderFetchFailure(
@@ -1428,7 +1434,8 @@ extension UsageStore {
                 Self.isClaudeCLIUsageParseFailure(error)
             let preservesPriorData = Self.shouldPreservePriorSnapshot(
                 after: error,
-                hadPriorData: hadPriorData) ||
+                hadPriorData: hadPriorData,
+                priorSnapshot: self.snapshots[provider.instanceID]) ||
                 (provider == .claude &&
                     hadPriorData &&
                     (context.claudeUsesConsumerAutoPipeline ||
@@ -1521,7 +1528,7 @@ extension UsageStore {
     }
 
     nonisolated static func isPreservableNetworkTransportError(_ error: Error) -> Bool {
-        let nsError = error as NSError
+        let nsError = self.underlyingProviderTransportError(error) as NSError
         guard nsError.domain == NSURLErrorDomain else { return false }
         switch nsError.code {
         case NSURLErrorTimedOut,
@@ -1544,11 +1551,12 @@ extension UsageStore {
     }
 
     static func isStartupConnectivityRetryableError(_ error: Error) -> Bool {
-        if error is CancellationError {
+        let transportError = self.underlyingProviderTransportError(error)
+        if transportError is CancellationError {
             return false
         }
 
-        let nsError = error as NSError
+        let nsError = transportError as NSError
         if nsError.domain == NSURLErrorDomain {
             switch nsError.code {
             case NSURLErrorTimedOut,
@@ -1591,28 +1599,5 @@ extension UsageStore {
             ClaudeWebAPIFetcher.FetchError.unauthorized.localizedDescription,
             ClaudeWebAPIFetcher.FetchError.cloudflareChallenge.localizedDescription,
         ].contains(error.localizedDescription)
-    }
-
-    nonisolated static func isPermissionPromptWaiting(_ error: Error) -> Bool {
-        let message = error.localizedDescription.lowercased()
-        return (message.contains("prompt") && message.contains("waiting")) ||
-            message.contains("permission prompt") ||
-            message.contains("folder trust prompt")
-    }
-
-    private func postPermissionPromptNotificationIfNeeded(provider: UsageProvider, error: Error) {
-        let now = Date()
-        if let last = self.lastPermissionPromptNotificationAt[provider.instanceID],
-           now.timeIntervalSince(last) < 10 * 60
-        {
-            return
-        }
-        self.lastPermissionPromptNotificationAt[provider.instanceID] = now
-        let providerName = ProviderDescriptorRegistry.descriptor(for: provider).metadata.displayName
-        AppNotifications.shared.post(
-            idPrefix: "permission-prompt-\(provider.rawValue)",
-            title: L("%@ is waiting for permission", providerName),
-            body: error.localizedDescription,
-            soundEnabled: false)
     }
 }

@@ -151,6 +151,10 @@
 "Cookie: …" = "Cookie: …";
 "CopilotDeviceFlow" = "CopilotDeviceFlow";
 "Cost" = "Стоимость";
+"Token history" = "История токенов";
+"Local token history · dollar costs unavailable" = "Локальная история токенов · стоимость в долларах недоступна";
+"Partial local history · recorded token subtotal" = "Неполная локальная история · подытог записанных токенов";
+"Local token history is unavailable or incomplete." = "Локальная история токенов недоступна или неполна.";
 "Could not add Codex account" = "Не удалось добавить аккаунт Codex";
 "Could not open Terminal for Gemini" = "Не удалось открыть Terminal для Gemini.";
 "Could not start claude /login" = "Не удалось запустить claude /login";
@@ -613,6 +617,12 @@
 "cost_summary_off" = "Выкл.";
 "merge_icons_title" = "Объединять значки";
 "merge_icons_subtitle" = "Использовать один значок в строке меню с переключателем провайдеров.";
+"merged_icon_style_title" = "Стиль объединённого значка";
+"merged_icon_style_subtitle" = "Переключатель показывает провайдеров по очереди; Стопка показывает двух провайдеров одновременно, каждый в своей строке.";
+"merged_icon_style_switcher" = "Переключатель";
+"merged_icon_style_stacked" = "Стопка";
+"merge_icon_stacked_top_provider_title" = "Верхняя строка";
+"merge_icon_stacked_bottom_provider_title" = "Нижняя строка";
 "show_most_used_provider_title" = "Показывать провайдера с наибольшим использованием";
 "show_most_used_provider_subtitle" = "В строке меню автоматически отображается провайдер, ближайший к лимиту.";
 "display_mode_title" = "Режим отображения";
@@ -883,6 +893,12 @@
 "usage_percent_suffix_used" = "использовано";
 "Store multiple DeepSeek API keys." = "Хранить несколько API-ключей DeepSeek.";
 "This week" = "На этой неделе";
+"Current window" = "Текущее окно";
+"Last week" = "Прошлая неделя";
+"%d weeks ago" = "%d нед. назад";
+"Previous window" = "Предыдущее окно";
+"%d windows ago" = "%d окн. назад";
+"Recent windows" = "Недавние окна";
 "Week" = "неделя";
 "Month" = "Месяц";
 "Models" = "Модели";
@@ -943,6 +959,8 @@
 "Overage" = "Перерасход";
 "Activity" = "Активность";
 "Copied" = "Скопировано";
+"Managed by Homebrew" = "Управляется через Homebrew";
+"Copy update command" = "Скопировать команду обновления";
 "Copy error" = "Ошибка копирования";
 "Copy path" = "Копировать путь";
 "Extra usage spent" = "Потрачено доп. использования";
@@ -1338,6 +1356,8 @@
 "Tracked tokens" = "Отслеживаемые токены";
 "Subscriptions" = "Подписки";
 "By subscription" = "По подпискам";
+"By source" = "By source";
+"%d of %d sources have spend" = "%d of %d sources have spend";
 "No model-level history" = "Нет истории по моделям";
 "Daily estimated spend" = "Предполагаемые ежедневные расходы";
 "Hourly estimated spend" = "Предполагаемые почасовые расходы";
@@ -1581,3 +1601,25 @@
 
 "agent_sessions_hide_unreachable_title" = "Скрывать недоступные узлы";
 "agent_sessions_hide_unreachable_subtitle" = "Скрывать узлы, если не удалось получить их сеансы.";
+
+/* Overview share flow */
+"Share Usage Snapshot…" = "Поделиться сводкой использования…";
+"Usage snapshot unavailable" = "Сводка использования недоступна";
+"CodexBar couldn't prepare a shareable usage snapshot. Refresh Usage & Spend and try again." = "CodexBar не удалось подготовить сводку использования для отправки. Обновите раздел «Использование и расходы» и повторите попытку.";
+"Incomplete" = "Неполные данные";
+"Est. subtotal (%@): %@" = "Оценка подытога (%@): %@";
+"Excluded requests with missing final usage: %d" = "Исключённые запросы без итоговых данных об использовании: %d";
+
+"overview_layout_title" = "Макет обзора";
+"overview_layout_subtitle" = "Выберите, сколько информации показывать в обзоре.";
+"overview_layout_detailed" = "Подробный";
+"overview_layout_compact" = "Компактный";
+
+"section_widgets" = "Виджеты";
+"account_widgets_title" = "Обновлять данные аккаунтов для виджетов";
+"account_widgets_description" = "Выберите аккаунт в каждом виджете Account Usage. Обновляет до шести аккаунтов для каждого провайдера.";
+
+/* Antigravity local cost estimates */
+"antigravity_cost_estimate_hint" = "Локальное использование × публичные цены API · это не счета и не кредиты Antigravity";
+"antigravity_quota_window_note" = "Стоимость окна включает все модели · показано окно самого ограниченного семейства";
+"antigravity_no_priced_token_history" = "Нет оценённой истории токенов Antigravity.";

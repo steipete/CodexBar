@@ -20,6 +20,13 @@ directory. Existing desktop preferences take precedence over old widget settings
 It also adds a launcher and login autostart entry. Provider authentication remains
 with the installed Linux CLI. The CLI resource bundle must stay beside its binary.
 
+Providers that report a cap scoped to one model alongside their general quota,
+such as Claude's per-model weekly window, contribute a lane named by the
+provider's own title. Those lanes follow the standard session, weekly and
+additional windows, so a consumer resolving a cadence by first match still finds
+the general quota. A window the provider cannot measure, such as Zed's overdue
+invoice or a reset-only pool, is omitted rather than shown as exhausted.
+
 The widget reads the desktop's private IPC snapshot every five seconds; it never
 runs provider queries itself. If the backend is absent, opening Usage & Spend or
 Settings starts it. Refresh requests one shared backend refresh. Unknown quota

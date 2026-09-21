@@ -13,8 +13,9 @@ public enum DevinUsageError: LocalizedError, Sendable {
         case .noSession:
             "No Devin browser session found. Please log in to app.devin.ai or paste a Bearer token."
         case .missingOrganization:
-            "No Devin organization was found. Open an app.devin.ai/org/... page " +
-                "or set the organization in Devin settings."
+            "No Devin organization was found. For automatic auth, open the organization's Usage page in Chrome. " +
+                "For manual auth, set Organization to the internal org-... or org_... ID from a successful quota " +
+                "request's x-cog-org-id header."
         case .invalidCredentials:
             "Devin session token is invalid or expired."
         case let .apiError(message):

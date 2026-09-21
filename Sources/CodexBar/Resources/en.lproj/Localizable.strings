@@ -109,6 +109,10 @@
 "Cookie: …" = "Cookie: …";
 "CopilotDeviceFlow" = "CopilotDeviceFlow";
 "Cost" = "Cost";
+"Token history" = "Token history";
+"Local token history · dollar costs unavailable" = "Local token history · dollar costs unavailable";
+"Partial local history · recorded token subtotal" = "Partial local history · recorded token subtotal";
+"Local token history is unavailable or incomplete." = "Local token history is unavailable or incomplete.";
 "Could not add Codex account" = "Could not add Codex account";
 "Could not open Terminal for Gemini" = "Could not open Terminal for Gemini";
 "Could not start claude /login" = "Could not start claude /login";
@@ -599,6 +603,12 @@
 "cost_summary_off" = "Off";
 "merge_icons_title" = "Merge icons";
 "merge_icons_subtitle" = "Use a single menu bar icon with a provider switcher.";
+"merged_icon_style_title" = "Combined icon style";
+"merged_icon_style_subtitle" = "Switcher cycles through providers one at a time; Stacked shows two providers at once, one row each.";
+"merged_icon_style_switcher" = "Switcher";
+"merged_icon_style_stacked" = "Stacked";
+"merge_icon_stacked_top_provider_title" = "Top row";
+"merge_icon_stacked_bottom_provider_title" = "Bottom row";
 "show_most_used_provider_title" = "Show most-used provider";
 "show_most_used_provider_subtitle" = "Menu bar auto-shows the provider closest to its rate limit.";
 "display_mode_title" = "Display mode";
@@ -871,6 +881,12 @@
 "usage_percent_suffix_used" = "used";
 "Store multiple DeepSeek API keys." = "Store multiple DeepSeek API keys.";
 "This week" = "This week";
+"Current window" = "Current window";
+"Last week" = "Last week";
+"%d weeks ago" = "%d weeks ago";
+"Previous window" = "Previous window";
+"%d windows ago" = "%d windows ago";
+"Recent windows" = "Recent windows";
 "Week" = "Week";
 "Month" = "Month";
 "Models" = "Models";
@@ -931,6 +947,8 @@
 "Overage" = "Overage";
 "Activity" = "Activity";
 "Copied" = "Copied";
+"Managed by Homebrew" = "Managed by Homebrew";
+"Copy update command" = "Copy update command";
 "Copy error" = "Copy error";
 "Copy path" = "Copy path";
 "Extra usage spent" = "Extra usage spent";
@@ -1324,6 +1342,8 @@
 "Tracked tokens" = "Tracked tokens";
 "Subscriptions" = "Subscriptions";
 "By subscription" = "By subscription";
+"By source" = "By source";
+"%d of %d sources have spend" = "%d of %d sources have spend";
 "No model-level history" = "No model-level history";
 "Daily estimated spend" = "Daily estimated spend";
 "Hourly estimated spend" = "Hourly estimated spend";
@@ -1582,3 +1602,27 @@
 "Color Pace Indicator" = "Color Pace Indicator";
 "Green pace indicator when behind pace, red when ahead of pace (risk of running out early)" = "Green pace indicator when behind pace, red when ahead of pace (risk of running out early)";
 "%@ weekly" = "%@ weekly";
+
+/* Overview share flow */
+"Share Usage Snapshot…" = "Share Usage Snapshot…";
+"Usage snapshot unavailable" = "Usage snapshot unavailable";
+"CodexBar couldn't prepare a shareable usage snapshot. Refresh Usage & Spend and try again." = "CodexBar couldn't prepare a shareable usage snapshot. Refresh Usage & Spend and try again.";
+"Incomplete" = "Incomplete";
+
+"Est. subtotal (%@): %@" = "Est. subtotal (%@): %@";
+
+"Excluded requests with missing final usage: %d" = "Excluded requests with missing final usage: %d";
+
+"overview_layout_title" = "Overview layout";
+"overview_layout_subtitle" = "Choose how much information Overview shows.";
+"overview_layout_detailed" = "Detailed";
+"overview_layout_compact" = "Compact";
+
+"section_widgets" = "Widgets";
+"account_widgets_title" = "Keep accounts updated for widgets";
+"account_widgets_description" = "Choose an account in each Account Usage widget. Refreshes up to six accounts per provider.";
+
+/* Antigravity local cost estimates */
+"antigravity_cost_estimate_hint" = "Local usage × public API prices · not Antigravity charges or credits";
+"antigravity_quota_window_note" = "Window cost covers all models · window shown is the most constrained family";
+"antigravity_no_priced_token_history" = "No priced Antigravity token history is available.";

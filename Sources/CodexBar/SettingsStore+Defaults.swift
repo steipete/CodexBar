@@ -383,6 +383,14 @@ extension SettingsStore {
         set { self.kiroMenuBarDisplayModeRaw = newValue.rawValue }
     }
 
+    var accountWidgetsEnabled: Bool {
+        get { self.defaultsState.accountWidgetsEnabled }
+        set {
+            self.defaultsState.accountWidgetsEnabled = newValue
+            self.userDefaults.set(newValue, forKey: "accountWidgetsEnabled")
+        }
+    }
+
     var multiAccountMenuLayout: MultiAccountMenuLayout {
         get { MultiAccountMenuLayout(rawValue: self.defaultsState.multiAccountMenuLayoutRaw) ?? .segmented }
         set {
@@ -940,11 +948,43 @@ extension SettingsStore {
         }
     }
 
+    var mergedOverviewLayout: MergedOverviewLayout {
+        get { MergedOverviewLayout(rawValue: self.defaultsState.mergedOverviewLayoutRaw) ?? .detailed }
+        set {
+            self.defaultsState.mergedOverviewLayoutRaw = newValue.rawValue
+            self.userDefaults.set(newValue.rawValue, forKey: "mergedOverviewLayout")
+        }
+    }
+
     var switcherShowsIcons: Bool {
         get { self.defaultsState.switcherShowsIcons }
         set {
             self.defaultsState.switcherShowsIcons = newValue
             self.userDefaults.set(newValue, forKey: "switcherShowsIcons")
+        }
+    }
+
+    var mergeIconsStacked: Bool {
+        get { self.defaultsState.mergeIconsStacked }
+        set {
+            self.defaultsState.mergeIconsStacked = newValue
+            self.userDefaults.set(newValue, forKey: "mergeIconsStacked")
+        }
+    }
+
+    var mergeIconStackedTopProviderRaw: String? {
+        get { self.defaultsState.mergeIconStackedTopProviderRaw }
+        set {
+            self.defaultsState.mergeIconStackedTopProviderRaw = newValue
+            self.userDefaults.set(newValue, forKey: "mergeIconStackedTopProvider")
+        }
+    }
+
+    var mergeIconStackedBottomProviderRaw: String? {
+        get { self.defaultsState.mergeIconStackedBottomProviderRaw }
+        set {
+            self.defaultsState.mergeIconStackedBottomProviderRaw = newValue
+            self.userDefaults.set(newValue, forKey: "mergeIconStackedBottomProvider")
         }
     }
 

@@ -186,7 +186,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          swift sdk install "$SWIFT_STATIC_LINUX_SDK_URL" --checksum "$SWIFT_STATIC_LINUX_SDK_CHECKSUM"
+          ./Scripts/install_swift_static_sdk.sh
           swift sdk list | grep -Fx "${{ matrix.swift-sdk }}"
 
           sdk_root="$(
@@ -474,6 +474,7 @@ jobs:
           for attempt in {1..6}; do
             if gh workflow run update-formula.yml \
               --repo steipete/homebrew-tap \
+              --ref main \
               -f formula=codexbar \
               -f tag="$RELEASE_TAG" \
               -f repository=steipete/CodexBar \

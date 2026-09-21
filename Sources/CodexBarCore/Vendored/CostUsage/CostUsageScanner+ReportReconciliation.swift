@@ -16,6 +16,21 @@ extension CostUsageScanner {
         let priorityGroups: Set<CodexDayModelKey>
     }
 
+    static func codexExcessPricingRowGroups(_ usage: CostUsageFileUsage) -> Set<CodexDayModelKey> {
+        let grouped = Dictionary(grouping: usage.codexRows ?? []) {
+            CodexDayModelKey(day: $0.day, model: $0.model)
+        }
+        return Set(grouped.compactMap { key, rows in
+            let packed = usage.days[key.day]?[key.model] ?? []
+            let target = CodexRowTokenTotals(
+                input: max(0, packed[safe: 0] ?? 0),
+                cached: max(0, packed[safe: 1] ?? 0),
+                output: max(0, packed[safe: 2] ?? 0))
+            var total = CodexRowTokenTotals()
+            return !rows.allSatisfy { total.add($0) } || total.exceeds(target) ? key : nil
+        })
+    }
+
     static func codexCanonicalPricingRows(_ usage: CostUsageFileUsage) -> CodexCanonicalPricingRows {
         let persistedRows = usage.codexRows ?? []
         let rowsByGroup = Dictionary(grouping: persistedRows) {
@@ -183,18 +198,7 @@ extension CostUsageScanner {
             }
             return rows
         }
-        guard allRowsTotal.exceeds(target) else { return nil }
-
-        var suffixTotal = CodexRowTokenTotals()
-        for index in rows.indices.reversed() {
-            guard suffixTotal.add(rows[index]) else { return nil }
-            if suffixTotal == target {
-                return Array(rows[index...])
-            }
-            if suffixTotal.exceeds(target) {
-                return nil
-            }
-        }
+        // Matching a suffix to aggregate tokens cannot establish the original request boundaries.
         return nil
     }
 }

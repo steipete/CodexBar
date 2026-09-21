@@ -69,15 +69,20 @@ enum CodexLocalProjectUsageIndexer {
             checkCancellation: checkCancellation)
         try checkCancellation?()
 
-        var cache = CostUsageStoreAccess.read(
+        var cache = CostUsageStoreAccess.readWithoutTokenSnapshots(
             cacheRoot: scannerOptions.cacheRoot,
             calendar: scannerOptions.calendar)
+        let expectedRoots = CostUsageScanner.codexRootsFingerprint(options: scannerOptions)
+        // Sidecar rehydration stamps the requested roots, so validate the scanner cache before importing it.
+        guard cache.roots == expectedRoots else {
+            throw IndexError.cacheScopeMismatch
+        }
         let modelsDevLoad = ModelsDevCache.load(now: now, cacheRoot: scannerOptions.cacheRoot)
         cache.codexPricingKey = CostUsageScanner.codexPricingKey(modelsDevArtifact: modelsDevLoad.artifact)
         let catalogResult = CodexThreadCatalogReader.loadResult(options: scannerOptions)
         let catalog = catalogResult.catalog
         let sourceStatus = CodexLocalProjectUsageSourceStatus(catalog: catalogResult.completeness)
-        let rootsFingerprint = self.rootsFingerprint(CostUsageScanner.codexRootsFingerprint(options: scannerOptions))
+        let rootsFingerprint = self.rootsFingerprint(expectedRoots)
         let sidecar = CodexWorkspaceUsageSidecar(cacheRoot: scannerOptions.cacheRoot)
         if !forceRefresh {
             if let snapshot = sidecar.loadLatestSnapshot(
@@ -162,7 +167,7 @@ enum CodexLocalProjectUsageIndexer {
             since: since,
             until: until,
             calendar: options.calendar)
-        let cache = cacheOverride ?? CostUsageStoreAccess.read(
+        let cache = cacheOverride ?? CostUsageStoreAccess.readWithoutTokenSnapshots(
             cacheRoot: options.cacheRoot,
             calendar: options.calendar)
         let catalog = catalogOverride ?? CodexThreadCatalogReader.load(options: options)

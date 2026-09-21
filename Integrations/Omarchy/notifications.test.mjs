@@ -5,6 +5,8 @@ import test from 'node:test';
 
 const model = vm.createContext({});
 vm.runInContext(fs.readFileSync(new URL('../Linux/Shared/Notifications.js', import.meta.url), 'utf8'), model);
+const usage = vm.createContext({});
+vm.runInContext(fs.readFileSync(new URL('../Linux/Shared/Usage.js', import.meta.url), 'utf8'), usage);
 const row = (remaining, reset = '2026-01-01', statusLevel = 'none') => ({
     provider: 'codex', windows: [{key: 'primary', label: 'Session', remaining, resetsAt: reset}], statusLevel
 });
@@ -37,4 +39,33 @@ test('provider ordering does not affect quota transitions', () => {
 test('copied summaries omit account identity and credentials', () => {
     const summary = model.summary([{...row(50), accountLabel: 'private@example.com', token: 'secret'}]);
     assert.equal(summary, 'CODEX\nSession: 50% remaining');
+});
+
+test('scoped IDs cannot alias standard quota or status notification state', () => {
+    const entries = (low = false, reversed = false) => {
+        const extras = ['primary', 'status'].map(id => ({id, title: 'Scoped ' + id,
+            window: {usedPercent: low ? 95 : 50, windowMinutes: 10080}}));
+        if (reversed) extras.reverse();
+        return usage.rows(JSON.stringify([{provider: 'claude', status: {indicator: 'none'}, usage: {
+            primary: {usedPercent: 95, windowMinutes: 300}, extraRateWindows: extras}}]));
+    };
+    const baseline = model.transition({}, entries(), 10);
+    assert.equal(baseline.events.length, 0);
+    const repeated = model.transition(baseline.state, entries(false, true), 10);
+    assert.equal(repeated.events.length, 0);
+    const low = model.transition(repeated.state, entries(true), 10);
+    assert.deepEqual(Array.from(low.events, event => event.message), [
+        'Scoped primary: 5% quota remaining.', 'Scoped status: 5% quota remaining.'
+    ]);
+});
+
+test('scoped clipboard summaries omit unmeasured windows and private titles', () => {
+    const entries = usage.rows(JSON.stringify([{provider: 'claude', usage: {
+        primary: {usedPercent: 0, isSyntheticPlaceholder: true},
+        extraRateWindows: [
+            {id: 'private@example.invalid', title: 'Scoped (private@example.invalid)',
+                window: {usedPercent: 93, windowMinutes: 10080}},
+            {id: 'billing', title: 'Billing', usageKnown: false, window: {usedPercent: 100}}
+        ]}}]), true);
+    assert.equal(model.summary(entries), 'CLAUDE\nScoped [hidden email]: 7% remaining');
 });

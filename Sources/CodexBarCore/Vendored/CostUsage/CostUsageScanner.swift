@@ -330,6 +330,14 @@ enum CostUsageScanner {
         let jsonlResumeState: CostUsageJsonl.ResumeState?
         let bufferedSubagentLines: [CodexBufferedFastLine]?
         let bufferedUnresolvedForkLines: [CodexBufferedFastLine]?
+        var rowSourceEndOffsets: [Int: Int64] = [:]
+        var forkAccountingState: CodexForkAccountingState?
+    }
+
+    struct CodexForkAccountingState: Codable, Equatable {
+        let metadata: CodexSessionMetadata
+        let inheritedTotals: CostUsageCodexTotals?
+        let remainingInheritedTotals: CostUsageCodexTotals?
     }
 
     struct CodexPricingEvidence: Codable, Equatable {
@@ -941,6 +949,7 @@ enum CostUsageScanner {
     struct CodexFileScanContext {
         let range: CostUsageDayRange
         let forceFullScan: Bool
+        let sourceRowRecoveryPathKeys: Set<String>
         let dropDeferredCodexRows: Bool
         let requiresTurnIDCache: Bool
         let changedPriorityTurnIDs: Set<String>
@@ -1063,6 +1072,8 @@ enum CostUsageScanner {
         let changedPriorityTurnIDs: Set<String>
         let requiresAllFilesForCacheWideMigration: Bool
         let cacheWideMigrationPendingPathKeys: Set<String>
+        let sourceRowRecoveryPathKeys: Set<String>
+        let preserveUnavailableHistoryDuringRecovery: Bool
         let requiresCacheWideFileReprocessing: Bool
         let shouldRefresh: Bool
     }
@@ -1961,6 +1972,7 @@ enum CostUsageScanner {
         let output: Int
         let costNanos: Int
         let costPriced: Bool?
+        var isIncomplete: Bool?
     }
 
     static func loadDailyReport(
@@ -2521,7 +2533,7 @@ enum CostUsageScanner {
         return path
     }
 
-    private static func codexPathKey(_ url: URL) -> String {
+    static func codexPathKey(_ url: URL) -> String {
         let path = url.standardizedFileURL.path
         if path.hasPrefix("/private/var/") {
             return String(path.dropFirst("/private".count))
@@ -3312,6 +3324,25 @@ enum CostUsageScanner {
         let projectPath: String?
         let isSubagentThread: Bool
         let subagentHistoryStartOrdinal: Int?
+        let historyBaseThreadId: String?
+
+        init(
+            sessionId: String?,
+            forkedFromId: String?,
+            forkTimestamp: String?,
+            projectPath: String?,
+            isSubagentThread: Bool,
+            subagentHistoryStartOrdinal: Int?,
+            historyBaseThreadId: String? = nil)
+        {
+            self.sessionId = sessionId
+            self.forkedFromId = forkedFromId
+            self.forkTimestamp = forkTimestamp
+            self.projectPath = projectPath
+            self.isSubagentThread = isSubagentThread
+            self.subagentHistoryStartOrdinal = subagentHistoryStartOrdinal
+            self.historyBaseThreadId = historyBaseThreadId
+        }
     }
 
     struct CodexTurnContextMetadata: Codable, Equatable {
@@ -3393,6 +3424,10 @@ enum CostUsageScanner {
     private static let codexJSONFieldCwd = Array("cwd".utf8)
     private static let codexJSONFieldCurrentWorkingDirectory = Array("current_working_directory".utf8)
     private static let codexJSONFieldCurrentWorkingDirectoryCamel = Array("currentWorkingDirectory".utf8)
+    private static let codexJSONFieldHistoryBase = Array("history_base".utf8)
+    private static let codexJSONFieldHistoryBaseCamel = Array("historyBase".utf8)
+    private static let codexJSONFieldThreadId = Array("thread_id".utf8)
+    private static let codexJSONFieldThreadIdCamel = Array("threadId".utf8)
 
     static func codexModelEvidence(_ raw: String?) -> String? {
         guard let trimmed = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else { return nil }
@@ -3425,6 +3460,46 @@ enum CostUsageScanner {
             if !trimmed.isEmpty {
                 return trimmed
             }
+        }
+        return nil
+    }
+
+    private static func codexHistoryBaseThreadId(from payload: [String: Any]?) -> String? {
+        guard let payload else { return nil }
+        let historyBase = payload["history_base"] as? [String: Any]
+            ?? payload["historyBase"] as? [String: Any]
+        guard let historyBase else { return nil }
+        for key in ["thread_id", "threadId"] {
+            guard let value = historyBase[key] as? String else { continue }
+            let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty {
+                return trimmed
+            }
+        }
+        return nil
+    }
+
+    private static func codexHistoryBaseThreadId(
+        from bytes: UnsafeBufferPointer<UInt8>,
+        in payloadRange: Range<Int>) -> String?
+    {
+        let historyBase = extractJSONByteObjectField(
+            self.codexJSONFieldHistoryBase,
+            from: bytes,
+            in: payloadRange,
+            atDepth: 1)
+            ?? extractJSONByteObjectField(
+                self.codexJSONFieldHistoryBaseCamel,
+                from: bytes,
+                in: payloadRange,
+                atDepth: 1)
+        guard let historyBase else { return nil }
+        for key in [self.codexJSONFieldThreadId, self.codexJSONFieldThreadIdCamel] {
+            guard let value = extractJSONByteStringField(key, from: bytes, in: historyBase, atDepth: 1)?
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+                !value.isEmpty
+            else { continue }
+            return value
         }
         return nil
     }
@@ -3620,20 +3695,21 @@ enum CostUsageScanner {
                     from: rawBuffer,
                     in: objectRange,
                     atDepth: 1)
-                return .sessionMeta(CodexSessionMetadata(
-                    sessionId: Self.codexSessionId(from: rawBuffer, in: objectRange, payloadRange: payloadRange),
-                    forkedFromId: payloadRange.flatMap { Self.codexForkParentId(from: rawBuffer, in: $0) },
-                    forkTimestamp: payloadRange.flatMap {
-                        Self.extractJSONByteStringField(
-                            Self.codexJSONFieldTimestamp,
-                            from: rawBuffer,
-                            in: $0,
-                            atDepth: 1)
-                    } ?? Self.extractJSONByteStringField(
+                let forkTimestamp = payloadRange.flatMap {
+                    Self.extractJSONByteStringField(
                         Self.codexJSONFieldTimestamp,
                         from: rawBuffer,
-                        in: objectRange,
-                        atDepth: 1),
+                        in: $0,
+                        atDepth: 1)
+                } ?? Self.extractJSONByteStringField(
+                    Self.codexJSONFieldTimestamp,
+                    from: rawBuffer,
+                    in: objectRange,
+                    atDepth: 1)
+                let metadata = CodexSessionMetadata(
+                    sessionId: Self.codexSessionId(from: rawBuffer, in: objectRange, payloadRange: payloadRange),
+                    forkedFromId: payloadRange.flatMap { Self.codexForkParentId(from: rawBuffer, in: $0) },
+                    forkTimestamp: forkTimestamp,
                     projectPath: Self.codexProjectPath(from: rawBuffer, payloadRange: payloadRange),
                     isSubagentThread: payloadRange.map {
                         Self.codexIsSubagentThread(from: rawBuffer, in: $0)
@@ -3644,7 +3720,11 @@ enum CostUsageScanner {
                             from: rawBuffer,
                             in: $0,
                             atDepth: 1)
-                    }))
+                    },
+                    historyBaseThreadId: payloadRange.flatMap {
+                        Self.codexHistoryBaseThreadId(from: rawBuffer, in: $0)
+                    })
+                return .sessionMeta(metadata)
 
             case "turn_context":
                 let timestamp = Self.extractJSONByteStringField(
@@ -3893,19 +3973,20 @@ enum CostUsageScanner {
     private static func codexSessionMetadata(from obj: [String: Any]) -> CodexSessionMetadata? {
         guard obj["type"] as? String == "session_meta" else { return nil }
         let payload = obj["payload"] as? [String: Any]
+        let sessionId = payload?["id"] as? String
+            ?? obj["id"] as? String
+            ?? payload?["session_id"] as? String
+            ?? payload?["sessionId"] as? String
+            ?? obj["session_id"] as? String
+            ?? obj["sessionId"] as? String
         return CodexSessionMetadata(
-            sessionId: payload?["id"] as? String
-                ?? obj["id"] as? String
-                ?? payload?["session_id"] as? String
-                ?? payload?["sessionId"] as? String
-                ?? obj["session_id"] as? String
-                ?? obj["sessionId"] as? String,
+            sessionId: sessionId,
             forkedFromId: Self.codexForkParentId(from: payload),
-            forkTimestamp: payload?["timestamp"] as? String
-                ?? obj["timestamp"] as? String,
+            forkTimestamp: payload?["timestamp"] as? String ?? obj["timestamp"] as? String,
             projectPath: Self.normalizedCodexProjectPath(payload?["cwd"] as? String),
             isSubagentThread: Self.codexIsSubagentThread(from: payload),
-            subagentHistoryStartOrdinal: (payload?["subagent_history_start_ordinal"] as? NSNumber)?.intValue)
+            subagentHistoryStartOrdinal: (payload?["subagent_history_start_ordinal"] as? NSNumber)?.intValue,
+            historyBaseThreadId: Self.codexHistoryBaseThreadId(from: payload))
     }
 
     private static func parseCodexSessionMetadata(
@@ -4210,6 +4291,7 @@ enum CostUsageScanner {
         initialBufferedSubagentLines: [CodexBufferedFastLine]? = nil,
         initialBufferedUnresolvedForkLines: [CodexBufferedFastLine]? = nil,
         initialJSONLResumeState: CostUsageJsonl.ResumeState? = nil,
+        initialForkAccountingState: CodexForkAccountingState? = nil,
         scanTargetSize: Int64? = nil,
         maxBytesToRead: Int64? = nil,
         shouldStopReading: ((Int64) -> Bool)? = nil,
@@ -4218,12 +4300,13 @@ enum CostUsageScanner {
     {
         var currentModel = initialModel
         var previousTotals = initialTotals
-        var sessionId: String?
-        var forkedFromId: String?
-        var projectPath: String?
+        var sessionId = initialForkAccountingState?.metadata.sessionId
+        var forkedFromId = initialForkAccountingState?.metadata.forkedFromId
+        var historyBaseThreadId = initialForkAccountingState?.metadata.historyBaseThreadId
+        var projectPath = initialForkAccountingState?.metadata.projectPath
         var isSubagentThread = false
-        var didCaptureLeafMetadata = false
-        var forkTimestamp: String?
+        var didCaptureLeafMetadata = initialForkAccountingState != nil
+        var forkTimestamp = initialForkAccountingState?.metadata.forkTimestamp
         var subagentHistoryStartOrdinal: Int?
         var subagentCounterSemantics: CodexSubagentCounterSemantics?
         var usesLocalSubagentBoundary = false
@@ -4231,15 +4314,15 @@ enum CostUsageScanner {
         var parentConfirmedLocalBoundary = false
         var suppressUnownedCopiedPrefix = false
         var codexSession = CostUsageCodexSessionMetadata(
-            sessionId: nil,
-            forkedFromId: nil,
-            cwd: nil,
+            sessionId: sessionId,
+            forkedFromId: forkedFromId,
+            cwd: projectPath,
             title: nil,
             startedAtUnixMs: nil,
             latestActivityUnixMs: nil)
-        var inheritedTotals: CostUsageCodexTotals?
-        var remainingInheritedTotals: CostUsageCodexTotals?
-        var forkBaselineResolved = false
+        var inheritedTotals = initialForkAccountingState?.inheritedTotals
+        var remainingInheritedTotals = initialForkAccountingState?.remainingInheritedTotals
+        var forkBaselineResolved = initialForkAccountingState != nil
         var hasUnresolvedForkBaseline = false
         var currentTurnID = initialCodexTurnID
         var codexUsageRowIndex = initialCodexUsageRowIndex
@@ -4253,6 +4336,7 @@ enum CostUsageScanner {
 
         var days: [String: [String: [Int]]] = [:]
         var rows: [CodexUsageRow] = []
+        var rowSourceEndOffsets: [Int: Int64] = [:]
         var tokenSnapshots: [CostUsageCodexTokenSnapshot] = []
         var lastAcceptedTokenTimestamp: String?
 
@@ -4287,7 +4371,12 @@ enum CostUsageScanner {
         /// interactive event_msg/token_count envelope. Tokscale parity: accept OpenAI and completion-style
         /// aliases, subtract cached input from billed input, and fall back to the last accepted timestamp
         /// so timestamp-less responses remain attributable to the active day.
-        func handleBareUsage(totals: CostUsageCodexTotals, modelEvidence: String?, timestamp: String?) {
+        func handleBareUsage(
+            totals: CostUsageCodexTotals,
+            modelEvidence: String?,
+            timestamp: String?,
+            sourceEndOffset: Int64)
+        {
             let resolvedTimestamp = timestamp ?? lastAcceptedTokenTimestamp
             guard let dayKey = resolvedTimestamp.flatMap({
                 Self.dayKeyFromTimestamp($0) ?? Self.dayKeyFromParsedISO($0)
@@ -4314,6 +4403,7 @@ enum CostUsageScanner {
                     cached: totals.cached,
                     output: totals.output,
                     reasoning: totals.reasoning))
+                rowSourceEndOffsets[eventIndex] = sourceEndOffset
             }
             if let resolvedTimestamp {
                 lastAcceptedTokenTimestamp = resolvedTimestamp
@@ -4373,6 +4463,40 @@ enum CostUsageScanner {
                 forkedAt: forkTimestamp ?? "")
         }
 
+        /// Codex Desktop paginated rollouts keep the original `forked_from_id` while continuing the
+        /// same cumulative counter in a new file. The ancestor snapshot is then far below the first
+        /// `total - last` gap (the previous page's last total), and totals-only fork accounting bills
+        /// the whole thread to the new page. Raise the inherited baseline to that local proof only
+        /// when `history_base.thread_id` is not the fork parent already subtracted by #1164.
+        func raiseInheritedBaselineIfContinuedCounter(
+            total: CostUsageCodexTotals,
+            last: CostUsageCodexTotals)
+        {
+            guard previousTotals == nil, let currentInherited = inheritedTotals else { return }
+            guard let historyBaseThreadId,
+                  !CodexSubagentRolloutShape.sameConcreteSessionID(historyBaseThreadId, forkedFromId)
+            else { return }
+            guard Self.codexTotalsAtLeast(total, last) else { return }
+            let localInherited = Self.codexTotalDelta(from: last, to: total)
+            guard localInherited.input > 0 || localInherited.cached > 0 || localInherited.output > 0 else {
+                return
+            }
+            guard Self.codexTotalsAtLeast(localInherited, currentInherited),
+                  !Self.codexTotalsEqual(localInherited, currentInherited)
+            else { return }
+            self.log.debug(
+                "Codex cost usage raised inherited fork baseline from first total-last",
+                metadata: [
+                    "sessionId": sessionId ?? "unknown",
+                    "forkedFromId": forkedFromId ?? "unknown",
+                    "historyBaseThreadId": historyBaseThreadId,
+                    "ancestorInput": String(currentInherited.input),
+                    "localInput": String(localInherited.input),
+                ])
+            inheritedTotals = localInherited
+            remainingInheritedTotals = localInherited
+        }
+
         func handleSessionMetadata(_ metadata: CodexSessionMetadata) throws {
             // The first parsed session_meta is the authoritative leaf. Copied prefixes can
             // contain many embedded ancestor metas; they are shape evidence, never new identity.
@@ -4392,6 +4516,9 @@ enum CostUsageScanner {
                 if subagentHistoryStartOrdinal == nil {
                     subagentHistoryStartOrdinal = metadata.subagentHistoryStartOrdinal
                 }
+                if historyBaseThreadId == nil {
+                    historyBaseThreadId = metadata.historyBaseThreadId
+                }
                 observeTimestamp(metadata.forkTimestamp)
                 if codexSession.cwd == nil {
                     observeCwd(metadata.projectPath)
@@ -4401,6 +4528,7 @@ enum CostUsageScanner {
             didCaptureLeafMetadata = true
             sessionId = metadata.sessionId
             forkedFromId = metadata.forkedFromId
+            historyBaseThreadId = metadata.historyBaseThreadId
             forkTimestamp = metadata.forkTimestamp
             projectPath = metadata.projectPath
             subagentHistoryStartOrdinal = metadata.subagentHistoryStartOrdinal
@@ -4413,7 +4541,7 @@ enum CostUsageScanner {
         }
 
         // swiftlint:disable:next function_body_length
-        func handleTokenCount(_ record: CodexTokenCountRecord) throws {
+        func handleTokenCount(_ record: CodexTokenCountRecord, sourceEndOffset: Int64?) throws {
             observeTimestamp(record.timestamp)
             guard let dayKey = Self.dayKeyFromTimestamp(record.timestamp, calendar: range.calendar)
                 ?? Self.dayKeyFromParsedISO(record.timestamp, calendar: range.calendar)
@@ -4429,6 +4557,9 @@ enum CostUsageScanner {
             // a trustworthy child-owned suffix establishes the inherited baseline. Publishing
             // best-effort `last` rows here can replay billions of copied-prefix tokens.
             guard !hasUnresolvedForkBaseline else { return }
+            if let total, let last {
+                raiseInheritedBaselineIfContinuedCounter(total: total, last: last)
+            }
 
             var deltaInput = 0
             var deltaCached = 0
@@ -4627,10 +4758,13 @@ enum CostUsageScanner {
                     cached: deltaCached,
                     output: deltaOutput,
                     reasoning: deltaReasoning))
+                if let sourceEndOffset {
+                    rowSourceEndOffsets[eventIndex] = sourceEndOffset
+                }
             }
         }
 
-        func processFastLine(_ fastLine: CodexFastLine) throws {
+        func processFastLine(_ fastLine: CodexFastLine, sourceEndOffset: Int64?) throws {
             switch fastLine {
             case let .sessionMeta(metadata):
                 try handleSessionMetadata(metadata)
@@ -4647,7 +4781,7 @@ enum CostUsageScanner {
             case let .taskStarted(turnID):
                 currentTurnID = turnID
             case let .tokenCount(record):
-                try handleTokenCount(record)
+                try handleTokenCount(record, sourceEndOffset: sourceEndOffset)
             }
         }
 
@@ -4681,7 +4815,7 @@ enum CostUsageScanner {
             }
             if !hasUnresolvedForkBaseline {
                 for buffered in initialBufferedUnresolvedForkLines {
-                    try processFastLine(buffered.line)
+                    try processFastLine(buffered.line, sourceEndOffset: buffered.endOffset)
                 }
                 bufferedUnresolvedForkLines = nil
             }
@@ -4708,7 +4842,7 @@ enum CostUsageScanner {
             if pendingSubagentLines != nil {
                 pendingSubagentLines?.append(bufferedLine)
             } else {
-                try processFastLine(fastLine)
+                try processFastLine(fastLine, sourceEndOffset: endOffset)
                 if hasUnresolvedForkBaseline {
                     if bufferedUnresolvedForkLines == nil {
                         bufferedUnresolvedForkLines = []
@@ -4795,7 +4929,8 @@ enum CostUsageScanner {
                             handleBareUsage(
                                 totals: bare.totals,
                                 modelEvidence: bare.model,
-                                timestamp: obj["timestamp"] as? String)
+                                timestamp: obj["timestamp"] as? String,
+                                sourceEndOffset: line.endOffset)
                         }
                         return
                     }
@@ -5148,7 +5283,7 @@ enum CostUsageScanner {
                 for buffered in pendingSubagentLines
                     where ownedSuffix.map({ buffered.lineIndex >= $0.startLineIndex }) ?? true
                 {
-                    try processFastLine(buffered.line)
+                    try processFastLine(buffered.line, sourceEndOffset: buffered.endOffset)
                 }
             }
         } catch is CancellationError {
@@ -5161,6 +5296,24 @@ enum CostUsageScanner {
             jsonlResumeState = initialJSONLResumeState
         }
 
+        let forkAccountingState: CodexForkAccountingState? = if let sessionId, let forkedFromId,
+                                                                !isSubagentThread, forkBaselineResolved,
+                                                                !hasUnresolvedForkBaseline
+        {
+            CodexForkAccountingState(
+                metadata: CodexSessionMetadata(
+                    sessionId: sessionId,
+                    forkedFromId: forkedFromId,
+                    forkTimestamp: forkTimestamp,
+                    projectPath: projectPath,
+                    isSubagentThread: false,
+                    subagentHistoryStartOrdinal: nil,
+                    historyBaseThreadId: historyBaseThreadId),
+                inheritedTotals: inheritedTotals,
+                remainingInheritedTotals: remainingInheritedTotals)
+        } else {
+            nil
+        }
         return CodexParseResult(
             days: days,
             parsedBytes: parsedBytes,
@@ -5195,7 +5348,9 @@ enum CostUsageScanner {
                 : nil,
             bufferedUnresolvedForkLines: hasUnresolvedForkBaseline
                 ? bufferedUnresolvedForkLines
-                : nil)
+                : nil,
+            rowSourceEndOffsets: rowSourceEndOffsets,
+            forkAccountingState: forkAccountingState)
     }
 
     private static func codexTurnID(from payload: [String: Any]) -> String? {
@@ -5238,6 +5393,14 @@ enum CostUsageScanner {
     {
         try context.checkCancellation?()
         let metadata = Self.codexFileMetadata(fileURL: fileURL)
+        if context.sourceRowRecoveryPathKeys.contains(Self.codexPathKey(fileURL))
+            || cache.files[metadata.path]?.codexPendingSourcePricing != nil
+        {
+            guard metadata.fileId != nil, FileManager.default.isReadableFile(atPath: metadata.path) else {
+                state.deferredCachePaths.insert(metadata.path)
+                return .deferred
+            }
+        }
         defer {
             context.resources.cachePathAliasIndex.update(
                 path: metadata.path,
@@ -5401,6 +5564,15 @@ enum CostUsageScanner {
         let rootsFingerprint = Self.codexRootsFingerprint(roots)
         let rootsChanged = cache.roots != rootsFingerprint
         let windowExpanded = Self.requestedWindowExpandsCache(range: range, cache: cache)
+        let sourceRowRecoveryPathKeys: Set<String> = if !options.forceRescan, !rootsChanged {
+            Self.codexSourceRowRecoveryPathKeys(cache: cache, range: range, roots: roots)
+        } else {
+            []
+        }
+        let preserveUnavailableHistoryDuringRecovery = !options.forceRescan && !rootsChanged
+            && (!sourceRowRecoveryPathKeys.isEmpty || cache.files.values.contains {
+                $0.codexPendingSourcePricing != nil
+            })
         let pricingMetadataMigrationPathKeys = Set(cache.files.compactMap { path, usage in
             Self.needsCodexPricingMetadata(usage, range: range)
                 ? Self.codexPathKey(URL(fileURLWithPath: path))
@@ -5488,10 +5660,12 @@ enum CostUsageScanner {
         let cacheWideMigrationPendingPathKeys = pricingMetadataMigrationPathKeys
             .union(turnIDCacheMigrationPathKeys)
             .union(eventWhitespaceMigrationPathKeys)
+            .union(sourceRowRecoveryPathKeys)
         let requiresCacheWideFileReprocessing = requiresAllFilesForCacheWideMigration
             || !cacheWideMigrationPendingPathKeys.isEmpty
         let shouldRefresh = options.forceRescan
             || !eventWhitespaceMigrationPathKeys.isEmpty
+            || !sourceRowRecoveryPathKeys.isEmpty
             || windowExpanded
             || rootsChanged
             || needsPricingMetadataMigration
@@ -5529,6 +5703,8 @@ enum CostUsageScanner {
             changedPriorityTurnIDs: changedPriorityTurnIDs,
             requiresAllFilesForCacheWideMigration: requiresAllFilesForCacheWideMigration,
             cacheWideMigrationPendingPathKeys: cacheWideMigrationPendingPathKeys,
+            sourceRowRecoveryPathKeys: sourceRowRecoveryPathKeys,
+            preserveUnavailableHistoryDuringRecovery: preserveUnavailableHistoryDuringRecovery,
             requiresCacheWideFileReprocessing: requiresCacheWideFileReprocessing,
             shouldRefresh: shouldRefresh)
     }
@@ -6147,6 +6323,8 @@ enum CostUsageScanner {
                     where !filePathsInScan.contains(Self.codexPathKey(URL(fileURLWithPath: key)))
                 {
                     guard let old = cache.files[key] else { continue }
+                    if plan.preserveUnavailableHistoryDuringRecovery,
+                       !FileManager.default.fileExists(atPath: key) { continue }
                     let shouldDrop = shouldDropAllUnscannedFiles ||
                         old.touchesCodexScanWindow(
                             sinceKey: range.scanSinceKey,
@@ -6167,6 +6345,7 @@ enum CostUsageScanner {
                         calendar: range.calendar)
                     else { continue }
                     guard FileManager.default.fileExists(atPath: key) else {
+                        if plan.preserveUnavailableHistoryDuringRecovery { continue }
                         Self.applyFileDays(cache: &cache, fileDays: old.days, sign: -1)
                         cache.files.removeValue(forKey: key)
                         continue
@@ -6625,6 +6804,7 @@ enum CostUsageScanner {
             range: range,
             forceFullScan: options.forceRescan || plan.windowExpanded
                 || plan.priorityMetadataChanged || plan.needsProjectMetadataMigration,
+            sourceRowRecoveryPathKeys: plan.sourceRowRecoveryPathKeys,
             dropDeferredCodexRows: options.forceRescan || plan.needsTurnIDCacheMigration,
             requiresTurnIDCache: plan.needsTurnIDCacheMigration,
             changedPriorityTurnIDs: plan.changedPriorityTurnIDs,
