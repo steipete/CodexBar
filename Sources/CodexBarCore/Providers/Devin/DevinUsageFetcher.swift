@@ -35,29 +35,46 @@ public struct DevinUsageFetcher: Sendable {
         self.browserDetection = browserDetection
     }
 
-    /// Normalizes a configured enterprise host into an absolute `https://host` URL.
-    /// Accepts bare hosts (`your-team.devinenterprise.com`), full URLs, and values with paths
-    /// (only the scheme+host are kept). Returns nil when the value is empty or invalid.
+    /// Normalizes a configured Devin Enterprise host to its canonical HTTPS origin.
+    /// Accepts a bare DNS host, an HTTPS origin, and one trailing slash. Empty or unsafe values
+    /// return nil; fetch paths separately reject nonempty invalid configuration.
     public static func customHost(_ raw: String?) -> URL? {
         guard let value = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else {
             return nil
         }
-        var host = value
-        if let range = host.range(of: "://") {
-            host = String(host[range.upperBound...])
+        guard value.rangeOfCharacter(from: .whitespacesAndNewlines) == nil,
+              !value.contains("%")
+        else {
+            return nil
         }
-        // Keep only the authority component; drop any path/query.
-        if let slash = host.firstIndex(of: "/") {
-            host = String(host[..<slash])
-        }
-        host = host.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-        guard !host.isEmpty, host.contains(".") else { return nil }
-        return URL(string: "https://\(host)")
-    }
 
-    /// The base URL to hit: the custom enterprise host when set, otherwise app.devin.ai.
-    public static func resolveHost(_ raw: String?) -> URL {
-        self.customHost(raw) ?? self.baseURL
+        let urlString: String
+        if value.lowercased().hasPrefix("https://") {
+            urlString = value
+        } else if value.contains("://") {
+            return nil
+        } else {
+            urlString = "https://\(value)"
+        }
+
+        guard let components = URLComponents(string: urlString),
+              components.scheme?.lowercased() == "https",
+              components.user == nil,
+              components.password == nil,
+              components.port == nil,
+              components.query == nil,
+              components.fragment == nil,
+              components.path.isEmpty || components.path == "/",
+              let rawHost = components.host,
+              self.isValidEnterpriseDNSHost(rawHost)
+        else {
+            return nil
+        }
+
+        var canonical = URLComponents()
+        canonical.scheme = "https"
+        canonical.host = rawHost.lowercased()
+        return canonical.url
     }
 
     /// The usage page to open for the signed-in user: the My analytics page on the enterprise
@@ -78,6 +95,54 @@ public struct DevinUsageFetcher: Sendable {
         return URL(string: urlString) ?? URL(string: "https://app.devin.ai")!
     }
 
+    private static func configuredEnterpriseHost(_ raw: String?) throws -> URL? {
+        guard let value = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else {
+            return nil
+        }
+        guard let host = self.customHost(value) else {
+            throw DevinUsageError.invalidEnterpriseHost
+        }
+        return host
+    }
+
+    private static func isValidEnterpriseDNSHost(_ raw: String) -> Bool {
+        let host = raw.lowercased()
+        guard host.utf8.count <= 253, !host.hasSuffix("."),
+              host.unicodeScalars.allSatisfy({ scalar in
+                  self.isASCIIAlphaNumeric(scalar.value) || scalar.value == 45 || scalar.value == 46
+              })
+        else {
+            return false
+        }
+
+        let labels = host.split(separator: ".", omittingEmptySubsequences: false)
+        guard labels.count >= 2,
+              labels.allSatisfy({ label in
+                  let scalars = Array(label.unicodeScalars)
+                  return !scalars.isEmpty && scalars.count <= 63 &&
+                      self.isASCIIAlphaNumeric(scalars[0].value) &&
+                      self.isASCIIAlphaNumeric(scalars[scalars.count - 1].value) &&
+                      scalars.allSatisfy { self.isASCIIAlphaNumeric($0.value) || $0.value == 45 }
+              }),
+              let topLevelLabel = labels.last,
+              topLevelLabel.unicodeScalars.contains(where: { self.isASCIIAlphaNumeric($0.value) &&
+                      !($0.value >= 48 && $0.value <= 57)
+              }),
+              !labels.allSatisfy({ label in
+                  label.unicodeScalars.allSatisfy { $0.value >= 48 && $0.value <= 57 }
+              })
+        else {
+            return false
+        }
+        return true
+    }
+
+    private static func isASCIIAlphaNumeric(_ value: UInt32) -> Bool {
+        (value >= 48 && value <= 57) ||
+            (value >= 65 && value <= 90) ||
+            (value >= 97 && value <= 122)
+    }
+
     public func fetch(
         bearerTokenOverride: String? = nil,
         organizationOverride: String? = nil,
@@ -87,18 +152,21 @@ public struct DevinUsageFetcher: Sendable {
         now: Date = Date(),
         transport: any ProviderHTTPTransport = ProviderHTTPClient.shared) async throws -> DevinUsageSnapshot
     {
+        let enterpriseHost = try Self.configuredEnterpriseHost(apiHost)
+        let normalizedAPIHost = enterpriseHost?.absoluteString
+        let resolvedOrganizationOverride = enterpriseHost == nil ? organizationOverride : nil
         let auths = try self.resolveAuths(
             bearerTokenOverride: bearerTokenOverride,
-            organizationOverride: organizationOverride,
-            apiHost: apiHost,
+            organizationOverride: resolvedOrganizationOverride,
+            apiHost: normalizedAPIHost,
             logger: logger)
         var lastError: Error?
         for auth in auths {
             do {
                 return try await Self.fetchQuotaUsage(
                     auth: auth,
-                    organizationOverride: organizationOverride,
-                    apiHost: apiHost,
+                    organizationOverride: resolvedOrganizationOverride,
+                    apiHost: normalizedAPIHost,
                     timeout: timeout,
                     logger: logger,
                     now: now,
@@ -123,24 +191,26 @@ public struct DevinUsageFetcher: Sendable {
         now: Date = Date(),
         transport: any ProviderHTTPTransport = ProviderHTTPClient.shared) async throws -> DevinUsageSnapshot
     {
-        let organization = self.normalizedOrganization(organizationOverride) ??
-            self.normalizedOrganization(auth.organization)
-        guard let organization else {
-            throw DevinUsageError.missingOrganization
-        }
-
-        let host = self.resolveHost(apiHost)
+        let enterpriseHost = try self.configuredEnterpriseHost(apiHost)
+        let organization = enterpriseHost == nil
+            ? self.normalizedOrganization(organizationOverride) ?? self.normalizedOrganization(auth.organization)
+            : self.normalizedOrganization(auth.organization)
 
         // Enterprise deployment host: use the personal-analytics ACU cycle endpoint.
-        if let customHost = self.customHost(apiHost) {
+        if let enterpriseHost {
             let data = try await self.fetch(
                 path: "personal-analytics/usage-limit",
-                host: customHost,
+                host: enterpriseHost,
                 auth: auth,
                 timeout: timeout,
-                transport: transport)
-            logger?("[devin] Fetched personal-analytics usage-limit from \(customHost.host ?? "")")
+                transport: transport,
+                isPersonalAnalytics: true)
+            logger?("[devin] Fetched personal-analytics usage-limit")
             return try DevinUsageParser.parsePersonalAnalytics(data, organization: organization, now: now)
+        }
+
+        guard let organization else {
+            throw DevinUsageError.missingOrganization
         }
 
         var lastError: Error?
@@ -152,7 +222,7 @@ public struct DevinUsageFetcher: Sendable {
             do {
                 data = try await self.fetch(
                     path: path,
-                    host: host,
+                    host: self.baseURL,
                     auth: auth,
                     timeout: timeout,
                     transport: transport)
@@ -195,7 +265,11 @@ public struct DevinUsageFetcher: Sendable {
         apiHost: String? = nil,
         logger: ((String) -> Void)?) throws -> [RequestAuth]
     {
-        if let manual = Self.manualAuth(from: bearerTokenOverride, organization: organizationOverride) {
+        // The shared manual token field is documented for app.devin.ai. Never send that token
+        // to an Enterprise origin; Enterprise sessions are discovered from their own origin.
+        if apiHost == nil,
+           let manual = Self.manualAuth(from: bearerTokenOverride, organization: organizationOverride)
+        {
             logger?("[devin] Using manual Bearer token")
             return [manual]
         }
@@ -209,7 +283,7 @@ public struct DevinUsageFetcher: Sendable {
             storageOrigin: storageOrigin,
             logger: logger)
         guard !sessions.isEmpty else {
-            throw DevinUsageError.noSession
+            throw apiHost == nil ? DevinUsageError.noSession : DevinUsageError.noEnterpriseSession
         }
         logger?("[devin] Found \(sessions.count) browser session(s)")
         return sessions.map { session in
@@ -226,7 +300,8 @@ public struct DevinUsageFetcher: Sendable {
 
     static func shouldTryNextSession(after error: Error) -> Bool {
         switch error {
-        case DevinUsageError.invalidCredentials, DevinUsageError.apiError, DevinUsageError.missingOrganization:
+        case DevinUsageError.invalidCredentials, DevinUsageError.apiError, DevinUsageError.missingOrganization,
+             DevinUsageError.missingPersonalAnalyticsPermission:
             true
         default:
             false
@@ -238,7 +313,8 @@ public struct DevinUsageFetcher: Sendable {
         host: URL,
         auth: RequestAuth,
         timeout: TimeInterval,
-        transport: any ProviderHTTPTransport) async throws -> Data
+        transport: any ProviderHTTPTransport,
+        isPersonalAnalytics: Bool = false) async throws -> Data
     {
         let url = host.appending(path: "api/\(path)")
         var request = URLRequest(url: url)
@@ -253,13 +329,24 @@ public struct DevinUsageFetcher: Sendable {
         }
         let response = try await transport.response(for: request)
         guard response.statusCode == 200 else {
-            let body = String(data: response.data.prefix(200), encoding: .utf8) ?? "<binary>"
             if response.statusCode == 401 || response.statusCode == 403 {
+                if isPersonalAnalytics, response.statusCode == 403 {
+                    throw DevinUsageError.missingPersonalAnalyticsPermission
+                }
                 let payload = try? JSONSerialization.jsonObject(with: response.data) as? [String: Any]
-                throw payload?["detail"] as? String == "No organizations found for auth1 user"
-                    ? DevinUsageError.missingOrganization : DevinUsageError.invalidCredentials
+                if !isPersonalAnalytics,
+                   payload?["detail"] as? String == "No organizations found for auth1 user"
+                {
+                    throw DevinUsageError.missingOrganization
+                }
+                throw DevinUsageError.invalidCredentials
             }
-            Self.log.error("Devin API returned \(response.statusCode): \(body)")
+            if isPersonalAnalytics {
+                Self.log.error("Devin Enterprise personal analytics returned HTTP \(response.statusCode)")
+            } else {
+                let body = String(data: response.data.prefix(200), encoding: .utf8) ?? "<binary>"
+                Self.log.error("Devin API returned \(response.statusCode): \(body)")
+            }
             throw DevinUsageError.apiError("HTTP \(response.statusCode)")
         }
         return response.data

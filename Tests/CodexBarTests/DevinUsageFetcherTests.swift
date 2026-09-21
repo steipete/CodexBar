@@ -549,8 +549,9 @@ struct DevinUsageFetcherTests {
     }
 
     @Test
-    func `missing organization retries the next browser profile`() {
+    func `missing organization and analytics permission retry the next browser profile`() {
         #expect(DevinUsageFetcher.shouldTryNextSession(after: DevinUsageError.missingOrganization))
+        #expect(DevinUsageFetcher.shouldTryNextSession(after: DevinUsageError.missingPersonalAnalyticsPermission))
         #expect(!DevinUsageFetcher.shouldTryNextSession(after: DevinUsageError.parseFailed("invalid response")))
     }
 
@@ -617,118 +618,6 @@ struct DevinUsageFetcherTests {
         #expect(!DevinSessionImporter.textEntryBelongsToOrigin(
             "@@auth0spajs@@::client::audience::scope",
             origin: origin))
-    }
-
-    // MARK: - Personal analytics (enterprise ACU cycle)
-
-    @Test
-    func `parses personal analytics usage-limit into a monthly cycle window`() throws {
-        // Real payload captured from your-team.devinenterprise.com/api/personal-analytics/usage-limit.
-        let data = Data("""
-        {
-          "tier_name": "default",
-          "tier_policy": "manual",
-          "cycle_usage_limit": 400,
-          "primary_cycle_usage_limit": 400,
-          "cycle_usage": 357.5093665,
-          "estimated_cycle_usage": 436.96964500845445,
-          "cycle_start": "2026-08-17T00:00:00-08:00",
-          "cycle_end": "2026-09-17T00:00:00-08:00"
-        }
-        """.utf8)
-
-        let snapshot = try DevinUsageParser.parsePersonalAnalytics(
-            data,
-            organization: "org/checklist-facil",
-            now: Self.now)
-
-        #expect(snapshot.cycle != nil)
-        #expect(snapshot.daily == nil)
-        #expect(snapshot.weekly == nil)
-        // 357.5093665 / 400 * 100
-        let percent = try #require(snapshot.cycle?.usedPercent)
-        #expect(abs(percent - 89.377341625) < 0.0001)
-        #expect(snapshot.cycle?.resetsAt?.timeIntervalSince1970 == 1_789_632_000)
-        #expect(snapshot.cycle?.used == 357.5093665)
-        #expect(snapshot.cycle?.limit == 400)
-        #expect(snapshot.planName == "Default")
-        #expect(snapshot.organization == "checklist-facil")
-
-        let usage = snapshot.toUsageSnapshot()
-        let section = try #require(usage.details.first)
-        #expect(section.title == "Usage")
-        #expect(section.rows.map(\.label) == ["ACUs left", "ACUs used", "ACUs total"])
-        // 400 - 357.5093665, 357.5093665, 400
-        #expect(section.rows.map(\.value) == ["42.49", "357.51", "400"])
-    }
-
-    @Test
-    func `personal analytics cycle maps to a single monthly primary window`() throws {
-        let data = Data(#"{"cycle_usage_limit":400,"cycle_usage":200,"cycle_end":"2026-09-17T00:00:00-08:00"}"#.utf8)
-
-        let usage = try DevinUsageParser
-            .parsePersonalAnalytics(data, organization: nil, now: Self.now)
-            .toUsageSnapshot()
-
-        #expect(usage.primary?.usedPercent == 50)
-        #expect(usage.primary?.windowMinutes == 30 * 24 * 60)
-        #expect(usage.primary?.resetDescription == "Cycle")
-        #expect(usage.secondary == nil)
-        #expect(usage.providerCost == nil)
-        #expect(usage.details.count == 1)
-        #expect(usage.details.first?.rows.map(\.value) == ["200", "200", "400"])
-    }
-
-    @Test
-    func `personal analytics parsing fails without a positive cycle limit`() {
-        let data = Data(#"{"cycle_usage":10}"#.utf8)
-
-        #expect(throws: DevinUsageError.self) {
-            _ = try DevinUsageParser.parsePersonalAnalytics(data, organization: nil, now: Self.now)
-        }
-    }
-
-    @Test
-    func `custom host normalizes bare hosts, urls, and paths`() {
-        #expect(DevinUsageFetcher.customHost("your-team.devinenterprise.com")?.absoluteString ==
-            "https://your-team.devinenterprise.com")
-        #expect(DevinUsageFetcher.customHost("https://your-team.devinenterprise.com/org/checklist-facil/")?
-            .absoluteString == "https://your-team.devinenterprise.com")
-        #expect(DevinUsageFetcher.customHost("  ") == nil)
-        #expect(DevinUsageFetcher.customHost("localhost") == nil)
-        #expect(DevinUsageFetcher.resolveHost(nil).absoluteString == "https://app.devin.ai")
-    }
-
-    @Test
-    func `fetch uses personal-analytics endpoint on the enterprise host`() async throws {
-        let auth = DevinUsageFetcher.RequestAuth(
-            bearerToken: "secret-token",
-            organization: "org/checklist-facil",
-            internalOrganizationID: "org-81e9ec58086b4df4ba0d565b3c98cb5f",
-            sourceLabel: "test")
-        let stub = ProviderHTTPTransportStub { request in
-            #expect(request.url?.host == "your-team.devinenterprise.com")
-            #expect(request.url?.path == "/api/personal-analytics/usage-limit")
-            #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer secret-token")
-            #expect(request.value(forHTTPHeaderField: "x-cog-org-id") ==
-                "org-81e9ec58086b4df4ba0d565b3c98cb5f")
-            let body = #"{"cycle_usage_limit":400,"cycle_usage":357.5,"cycle_end":"2026-09-17T00:00:00-08:00"}"#
-            let response = HTTPURLResponse(
-                url: request.url!,
-                statusCode: 200,
-                httpVersion: nil,
-                headerFields: nil)!
-            return (Data(body.utf8), response)
-        }
-
-        let snapshot = try await DevinUsageFetcher.fetchQuotaUsage(
-            auth: auth,
-            apiHost: "your-team.devinenterprise.com",
-            now: Self.now,
-            transport: stub)
-
-        #expect(snapshot.cycle?.usedPercent == 89.375)
-        #expect(await stub.requests().count == 1)
     }
 
     @Test

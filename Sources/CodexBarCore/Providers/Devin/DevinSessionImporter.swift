@@ -290,7 +290,10 @@ enum DevinSessionImporter {
         origin: String = Self.storageOrigin) -> [String: String]
     {
         var storage: [String: String] = [:]
-        for entry in entries {
+        let expectedOrigin = self.normalizedStorageOrigin(origin)
+        for entry in entries where expectedOrigin != nil &&
+            self.normalizedStorageOrigin(entry.origin) == expectedOrigin
+        {
             storage[entry.key] = self.decodedStorageValue(entry.value)
         }
         for entry in textEntries {
@@ -309,11 +312,13 @@ enum DevinSessionImporter {
         if rawOrigin.hasPrefix("_") { rawOrigin.removeFirst() }
         rawOrigin = String(rawOrigin.split(separator: "^", maxSplits: 1).first ?? "")
             .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-        guard self.normalizedStorageOrigin(rawOrigin) == self.normalizedStorageOrigin(expectedOrigin) else {
+        guard let normalizedRawOrigin = self.normalizedStorageOrigin(rawOrigin),
+              let normalizedExpectedOrigin = self.normalizedStorageOrigin(expectedOrigin),
+              normalizedRawOrigin == normalizedExpectedOrigin
+        else {
             return nil
         }
         return String(raw[raw.index(after: separator)...]).trimmingCharacters(in: .controlCharacters)
-
     }
 
     static func textEntryBelongsToOrigin(_ key: String, origin: String) -> Bool {

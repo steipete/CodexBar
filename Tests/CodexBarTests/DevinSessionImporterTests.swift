@@ -171,6 +171,146 @@ struct DevinSessionImporterTests {
     }
 
     @Test
+    func `raw browser records are isolated to standard and configured enterprise origins`() throws {
+        let standardToken = "auth1_standard-synthetic-session"
+        let enterpriseToken = "eyJenterprise.synthetic-session.signature"
+        let otherEnterpriseToken = "eyJother-enterprise.synthetic-session.signature"
+        let entries = [
+            ChromiumLevelDBTextEntry(
+                key: "_https://app.devin.ai\u{0000}\u{0001}auth1_session",
+                value: #"{"token":"\#(standardToken)"}"#),
+            ChromiumLevelDBTextEntry(
+                key: "_https://your-team.devinenterprise.com\u{0000}\u{0001}@@auth0spajs@@::client::audience::scope",
+                value: #"{"body":{"access_token":"\#(enterpriseToken)"}}"#),
+            ChromiumLevelDBTextEntry(
+                key: "_https://other-team.devinenterprise.com\u{0000}\u{0001}@@auth0spajs@@::client::audience::scope",
+                value: #"{"body":{"access_token":"\#(otherEnterpriseToken)"}}"#),
+        ]
+
+        let standardStorage = DevinSessionImporter.localStorageValues(from: [], textEntries: entries)
+        let enterpriseStorage = DevinSessionImporter.localStorageValues(
+            from: [],
+            textEntries: entries,
+            origin: "https://your-team.devinenterprise.com")
+        let otherEnterpriseStorage = DevinSessionImporter.localStorageValues(
+            from: [],
+            textEntries: entries,
+            origin: "https://other-team.devinenterprise.com")
+
+        #expect(try #require(DevinSessionImporter.session(
+            from: standardStorage,
+            sourceLabel: "Synthetic Standard")).accessToken == standardToken)
+        #expect(try #require(DevinSessionImporter.session(
+            from: enterpriseStorage,
+            preferAuth0: true,
+            sourceLabel: "Synthetic Enterprise")).accessToken == enterpriseToken)
+        #expect(try #require(DevinSessionImporter.session(
+            from: otherEnterpriseStorage,
+            preferAuth0: true,
+            sourceLabel: "Synthetic Other Enterprise")).accessToken == otherEnterpriseToken)
+
+        #expect(standardStorage["@@auth0spajs@@::client::audience::scope"] == nil)
+        #expect(enterpriseStorage["auth1_session"] == nil)
+        #expect(enterpriseStorage.values.contains { $0.contains(otherEnterpriseToken) } == false)
+        #expect(otherEnterpriseStorage.values.contains { $0.contains(enterpriseToken) } == false)
+
+        let standardOnly = DevinSessionImporter.localStorageValues(
+            from: [],
+            textEntries: [entries[0]],
+            origin: "https://your-team.devinenterprise.com")
+        let enterpriseOnly = DevinSessionImporter.localStorageValues(
+            from: [],
+            textEntries: [entries[1]],
+            origin: "https://app.devin.ai")
+        #expect(DevinSessionImporter.session(
+            from: standardOnly,
+            preferAuth0: true,
+            sourceLabel: "Synthetic Enterprise") == nil)
+        #expect(DevinSessionImporter.session(
+            from: enterpriseOnly,
+            sourceLabel: "Synthetic Standard") == nil)
+    }
+
+    @Test
+    func `decoded local storage entries keep only the configured origin`() {
+        let entries = [
+            ChromiumLocalStorageEntry(
+                origin: "https://app.devin.ai",
+                key: "auth1_session",
+                value: #"{"token":"auth1_standard-synthetic-session"}"#,
+                rawValueLength: 48),
+            ChromiumLocalStorageEntry(
+                origin: "https://your-team.devinenterprise.com",
+                key: "@@auth0spajs@@::client::scope",
+                value: #"{"body":{"access_token":"eyJenterprise.synthetic-session.signature"}}"#,
+                rawValueLength: 73),
+        ]
+
+        let standard = DevinSessionImporter.localStorageValues(from: entries, textEntries: [])
+        let enterprise = DevinSessionImporter.localStorageValues(
+            from: entries,
+            textEntries: [],
+            origin: "https://your-team.devinenterprise.com")
+
+        #expect(standard.keys.elementsEqual(["auth1_session"]))
+        #expect(enterprise.keys.elementsEqual(["@@auth0spajs@@::client::scope"]))
+    }
+
+    @Test
+    func `LevelDB import discovers only the configured Devin origin`() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("devin-origin-\(UUID())")
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let standardToken = "auth1_standard-synthetic-session"
+        let enterpriseToken = "eyJenterprise.synthetic-session.signature"
+        let otherEnterpriseToken = "eyJother-enterprise.synthetic-session.signature"
+        try Self.writeLog([
+            StorageEntry(
+                key: "auth1_session",
+                value: #"{"token":"\#(standardToken)"}"#),
+            StorageEntry(
+                origin: "https://your-team.devinenterprise.com",
+                key: "@@auth0spajs@@::client::audience::scope",
+                value: #"{"body":{"access_token":"\#(enterpriseToken)"}}"#),
+            StorageEntry(
+                origin: "https://other-team.devinenterprise.com",
+                key: "@@auth0spajs@@::client::audience::scope",
+                value: #"{"body":{"access_token":"\#(otherEnterpriseToken)"}}"#),
+        ], to: directory)
+
+        let standardStorage = DevinSessionImporter.readLocalStorage(from: directory)
+        let enterpriseStorage = DevinSessionImporter.readLocalStorage(
+            from: directory,
+            origin: "https://your-team.devinenterprise.com")
+        let standard = try #require(DevinSessionImporter.session(
+            from: standardStorage,
+            sourceLabel: "Synthetic Standard"))
+        let enterprise = try #require(DevinSessionImporter.session(
+            from: enterpriseStorage,
+            preferAuth0: true,
+            sourceLabel: "Synthetic Enterprise"))
+
+        #expect(standard.accessToken == standardToken)
+        #expect(enterprise.accessToken == enterpriseToken)
+        #expect(enterpriseStorage["auth1_session"] == nil)
+        #expect(enterpriseStorage.values.contains { $0.contains(otherEnterpriseToken) } == false)
+    }
+
+    @Test
+    func `enterprise prefers Auth0 while standard keeps Auth1 priority`() {
+        let auth1Token = "auth1_standard-synthetic-session"
+        let auth0Token = "eyJenterprise.synthetic-session.signature"
+        let storage = [
+            "auth1_session": #"{"token":"\#(auth1Token)"}"#,
+            "@@auth0spajs@@::client::audience::scope":
+                #"{"body":{"access_token":"\#(auth0Token)"}}"#,
+        ]
+
+        #expect(DevinSessionImporter.accessToken(from: storage) == auth1Token)
+        #expect(DevinSessionImporter.accessToken(from: storage, preferAuth0: true) == auth0Token)
+    }
+
+    @Test
     func `browser import keeps a new session after signing in again`() throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent("devin-storage-\(UUID())")
         defer { try? FileManager.default.removeItem(at: directory) }

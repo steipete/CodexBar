@@ -67,6 +67,14 @@ public enum DevinProviderDescriptor {
                 supportsTokenCost: false,
                 noDataMessage: { "Devin cost summary is not supported." }),
             presentation: ProviderUsagePresentation(
+                rateWindowLabeler: { metadata, snapshot, _ in
+                    let isPersonalACUCycle = snapshot.details.contains { $0.title == "Personal ACU cycle" }
+                    return ProviderRateWindowLabels(
+                        primary: isPersonalACUCycle ? "Credits" : metadata.sessionLabel,
+                        secondary: metadata.weeklyLabel,
+                        tertiary: metadata.opusLabel ?? "Sonnet",
+                        showsTertiary: metadata.supportsOpus)
+                },
                 costPresenter: { snapshot in
                     guard let cost = snapshot.providerCost, cost.period == "Extra usage balance" else {
                         return ProviderCostPresentation()
@@ -107,6 +115,16 @@ struct DevinWebFetchStrategy: ProviderFetchStrategy {
         let source = settings?.cookieSource ?? .auto
         guard source != .off else { return false }
         if source == .manual {
+            if let apiHost = settings?.apiHost,
+               !apiHost.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            {
+                #if os(macOS)
+                // Devin Enterprise credentials are always imported from that host's browser origin.
+                return true
+                #else
+                return false
+                #endif
+            }
             return DevinUsageFetcher.manualAuth(from: settings?.bearerToken(environment: context.env)) != nil
         }
         #if os(macOS)

@@ -4,8 +4,11 @@ import Foundation
 public enum DevinUsageError: LocalizedError, Sendable {
     case noSession
     case browserStorageUnreadable
+    case noEnterpriseSession
     case missingOrganization
     case invalidCredentials
+    case invalidEnterpriseHost
+    case missingPersonalAnalyticsPermission
     case apiError(String)
     case parseFailed(String)
 
@@ -21,6 +24,8 @@ public enum DevinUsageError: LocalizedError, Sendable {
                 Self.manualAuthHelp
         case .browserStorageUnreadable:
             "Could not read Chrome local storage for Devin. Reopen Chrome and try again. " + Self.manualAuthHelp
+        case .noEnterpriseSession:
+            "No Devin Enterprise browser session found. Sign in to the configured Enterprise host in Chrome."
         case .missingOrganization:
             "No Devin organization was found. For automatic auth, open the organization's Usage page in Chrome. " +
                 "For manual auth, set Organization to the internal org-... or org_... ID from a successful quota " +
@@ -28,6 +33,11 @@ public enum DevinUsageError: LocalizedError, Sendable {
         case .invalidCredentials:
             "Devin rejected the session token (invalid or expired). Sign in again or replace the token. " +
                 Self.manualAuthHelp
+        case .invalidEnterpriseHost:
+            "Invalid Devin Enterprise host. Enter a bare host or HTTPS origin without credentials, path, query, " +
+                "or fragment."
+        case .missingPersonalAnalyticsPermission:
+            "Devin Enterprise requires the View Personal Analytics permission to read personal ACU usage."
         case let .apiError(message):
             "Devin API error: \(message)"
         case let .parseFailed(message):
@@ -39,13 +49,22 @@ public enum DevinUsageError: LocalizedError, Sendable {
 public struct DevinQuotaWindow: Sendable, Equatable {
     public let usedPercent: Double
     public let resetsAt: Date?
+    /// Cycle start when Devin provides one; standard Daily and Weekly windows leave this nil.
+    public let startsAt: Date?
     /// Raw ACU values for enterprise personal-analytics cycles; nil for percent-only windows.
     public let used: Double?
     public let limit: Double?
 
-    public init(usedPercent: Double, resetsAt: Date? = nil, used: Double? = nil, limit: Double? = nil) {
+    public init(
+        usedPercent: Double,
+        resetsAt: Date? = nil,
+        startsAt: Date? = nil,
+        used: Double? = nil,
+        limit: Double? = nil)
+    {
         self.usedPercent = min(100, max(0, usedPercent))
         self.resetsAt = resetsAt
+        self.startsAt = startsAt
         self.used = used
         self.limit = limit
     }
@@ -119,14 +138,14 @@ public struct DevinUsageSnapshot: Sendable, Equatable {
             identity: identity)
     }
 
-    /// Monthly ACU cycle rendered as a single primary window with a ~30-day span, plus
-    /// Kiro-style ACU credit rows (left/used/total) when the raw cycle values are known.
+    /// Monthly ACU cycle rendered as the primary window. Use Devin's cycle dates when both are
+    /// available; keep duration unknown instead of assuming 30 days when the start is missing.
     private func cycleUsageSnapshot(_ cycle: DevinQuotaWindow) -> UsageSnapshot {
         let primary = RateWindow(
             usedPercent: cycle.usedPercent,
-            windowMinutes: 30 * 24 * 60,
+            windowMinutes: Self.cycleWindowMinutes(from: cycle.startsAt, to: cycle.resetsAt),
             resetsAt: cycle.resetsAt,
-            resetDescription: "Cycle")
+            resetDescription: "Monthly")
         let identity = ProviderIdentitySnapshot(
             providerID: .devin,
             accountEmail: nil,
@@ -134,7 +153,7 @@ public struct DevinUsageSnapshot: Sendable, Equatable {
             loginMethod: self.planName)
         var details: [ProviderDetailSection] = []
         if let used = cycle.used, let limit = cycle.limit {
-            details.append(.makeSection(title: "Usage", rows: [
+            details.append(.makeSection(title: "Personal ACU cycle", rows: [
                 .makeRow(label: "ACUs left", value: UsageFormatter.creditsNumberString(from: max(0, limit - used))),
                 .makeRow(label: "ACUs used", value: UsageFormatter.creditsNumberString(from: used)),
                 .makeRow(label: "ACUs total", value: UsageFormatter.creditsNumberString(from: limit)),
@@ -147,6 +166,15 @@ public struct DevinUsageSnapshot: Sendable, Equatable {
             details: details,
             updatedAt: self.updatedAt,
             identity: identity)
+    }
+
+    private static func cycleWindowMinutes(from start: Date?, to end: Date?) -> Int? {
+        guard let start, let end else { return nil }
+        let duration = end.timeIntervalSince(start)
+        guard duration.isFinite, duration > 0 else { return nil }
+        let minutes = (duration / 60).rounded()
+        guard minutes >= 1 else { return nil }
+        return Int(exactly: minutes)
     }
 }
 
@@ -164,7 +192,12 @@ public enum DevinUsageParser {
         organization: String?,
         now: Date = Date()) throws -> DevinUsageSnapshot
     {
-        let object = try JSONSerialization.jsonObject(with: data)
+        let object: Any
+        do {
+            object = try JSONSerialization.jsonObject(with: data)
+        } catch {
+            throw DevinUsageError.parseFailed("Devin personal analytics payload was not valid JSON.")
+        }
         return try self.parsePersonalAnalytics(object, organization: organization, now: now)
     }
 
@@ -176,13 +209,18 @@ public enum DevinUsageParser {
         guard let dictionary = object as? [String: Any] else {
             throw DevinUsageError.parseFailed("Devin personal analytics payload was not an object.")
         }
-        guard let limit = self.double(dictionary["cycle_usage_limit"]), limit > 0 else {
+        guard let limit = self.double(dictionary["cycle_usage_limit"]), limit.isFinite, limit > 0 else {
             throw DevinUsageError.parseFailed("Missing Devin cycle_usage_limit.")
         }
-        let used = self.double(dictionary["cycle_usage"]) ?? 0
+        guard let used = self.double(dictionary["cycle_usage"]), used.isFinite, used >= 0 else {
+            throw DevinUsageError.parseFailed("Missing or invalid Devin cycle_usage.")
+        }
+        let cycleStart = self.date(from: dictionary["cycle_start"])
+        let cycleEnd = self.date(from: dictionary["cycle_end"])
         let window = DevinQuotaWindow(
             usedPercent: used / limit * 100,
-            resetsAt: self.date(from: dictionary["cycle_end"]),
+            resetsAt: cycleEnd,
+            startsAt: cycleStart,
             used: used,
             limit: limit)
 
@@ -377,9 +415,11 @@ public enum DevinUsageParser {
     }
 
     private static func date(from number: Double) -> Date? {
-        guard number > 0 else { return nil }
+        guard number.isFinite, number > 0 else { return nil }
         let seconds = number > 10_000_000_000 ? number / 1000 : number
-        return Date(timeIntervalSince1970: seconds)
+        guard seconds.isFinite else { return nil }
+        let date = Date(timeIntervalSince1970: seconds)
+        return date.timeIntervalSince1970.isFinite ? date : nil
     }
 
     private static func firstDouble(in dictionary: [String: Any], keys: [String]) -> Double? {

@@ -8,10 +8,14 @@ read_when:
 
 # Devin Provider
 
-The Devin provider tracks included daily and weekly usage quotas from
-[app.devin.ai](https://app.devin.ai).
+The Devin provider supports Standard Devin and optional Devin Enterprise usage. Leave **Enterprise host** empty to keep
+the existing Standard Devin behavior.
 
-## Setup
+## Standard Devin
+
+Standard Devin tracks included daily and weekly usage quotas from [app.devin.ai](https://app.devin.ai).
+
+### Setup
 
 1. Sign in to Devin in Google Chrome.
 2. Open the organization Usage & Limits page once.
@@ -27,7 +31,7 @@ open that organization's Usage & Limits page in Chrome if the metadata is missin
 Inferred names and internal IDs must belong to the same storage record or JSON object. Incomplete metadata never
 borrows an ID from another organization, and an explicit selection prefers its complete matching record.
 
-## Manual Auth
+### Manual Auth
 
 In the CodexBar menu bar app:
 
@@ -63,7 +67,7 @@ Environment overrides:
 - `DEVIN_BEARER_TOKEN` or `DEVIN_AUTHORIZATION`
 - `DEVIN_ORGANIZATION` or `DEVIN_ORG`
 
-## CLI (macOS and Linux)
+### CLI (macOS and Linux)
 
 Automatic Chrome session import is macOS-only. For manual auth on either platform, configure
 `~/.config/codexbar/config.json` (or your existing legacy config):
@@ -85,7 +89,7 @@ Run `codexbar usage --provider devin`. You can omit `cookieHeader` when supplyin
 The organization environment overrides also apply. Environment tokens take precedence
 without enabling automatic auth; an empty override does not fall back to the configured token.
 
-## Automatic auth troubleshooting
+### Automatic auth troubleshooting
 
 - Automatic import supports Google Chrome profiles only. Being signed in to Safari, Firefox, Arc, or another browser
   does not provide a Devin session to CodexBar. Open `app.devin.ai` and the organization's Usage & Limits page in Chrome.
@@ -101,7 +105,7 @@ without enabling automatic auth; an empty override does not fall back to the con
 When reporting a failure, include the CodexBar, macOS, and Chrome versions, your selected Auth source, the browser used
 for Devin, and the exact error text. Do not share session values.
 
-## Data Source
+### Data Source
 
 CodexBar requests:
 
@@ -113,7 +117,7 @@ The response supplies daily and weekly usage percentages plus reset timestamps. 
 If Devin changes or expires the browser
 session, sign in again and refresh CodexBar.
 
-### Browser token lifetime
+#### Browser token lifetime
 
 Devin's web session uses Auth0 access tokens that live about 30 minutes. The webapp refreshes them silently while a tab
 is open, and Chrome writes the refreshed token to its local storage on disk. CodexBar imports the freshest token it can
@@ -121,26 +125,26 @@ find (by JWT expiration), so usage tracking works while the webapp has been acti
 activity is older than the token lifetime, the on-disk token is expired and CodexBar reports invalid credentials until
 you open the webapp again. Manual auth avoids that dependency when a long-lived token is available.
 
-## Devin Enterprise (personal ACU cycle)
+## Devin Enterprise
 
-Devin Enterprise deployments run on a dedicated host (for example `your-team.devinenterprise.com`) and track usage as a
-monthly **ACU cycle** instead of daily/weekly quota percentages. To follow your own cycle usage against its limit, set
-**Enterprise host** in **Settings → Providers → Devin** to your deployment host (bare host, e.g.
-`your-team.devinenterprise.com`).
+Devin Enterprise deployments use a dedicated host, for example `your-team.devinenterprise.com`, and expose personal
+monthly **ACU cycle** usage instead of Standard Devin's Daily/Weekly quotas. To enable this mode, set **Enterprise host**
+in **Settings → Providers → Devin** to the deployment host. Enter a bare host such as
+`your-team.devinenterprise.com`, or its HTTPS origin. Do not include a path, query, or fragment.
 
-When an Enterprise host is set, CodexBar reuses the same browser session (imported from that host) and requests the
-signed-in user's personal analytics instead of the default quota endpoint:
+Sign in to that Enterprise deployment in Chrome and make sure your account has **View Personal Analytics** permission.
+CodexBar uses the existing Devin browser-session discovery for the configured origin and its Auth0 session. It reads only
+the signed-in user's personal analytics from that origin. This browser session is required even if **Auth source** is set
+to **Manual**; the manual Bearer token field is for Standard Devin's `app.devin.ai` origin.
 
 ```text
 GET https://<enterprise-host>/api/personal-analytics/usage-limit
 ```
 
-The response supplies the current cycle usage and limit, which CodexBar renders as a single monthly window
-(`cycle_usage / cycle_usage_limit`) with a countdown to `cycle_end`:
+CodexBar displays the monthly cycle as the primary usage window, with **ACUs used**, **ACUs total**, and **ACUs left** in
+the shared provider details. The `cycle_end` value is shown as the reset date. When Devin supplies both `cycle_start` and
+`cycle_end`, CodexBar uses their actual interval for the window duration. If `cycle_start` is absent or invalid, the
+duration stays unknown instead of assuming a 30-day cycle.
 
-```json
-{ "cycle_usage_limit": 400, "cycle_usage": 357.5, "cycle_end": "2026-09-17T00:00:00-08:00" }
-```
-
-This uses your personal session and the account's **View Personal Analytics** permission; it reports only your own
-consumption. Leaving Enterprise host empty keeps the default app.devin.ai daily/weekly behavior.
+With **Enterprise host** empty, CodexBar uses the existing Standard Devin session and quota endpoints on
+`app.devin.ai`; it does not contact an Enterprise host.
