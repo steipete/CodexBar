@@ -218,9 +218,29 @@ extension ClaudeStatusProbe {
         }
     }
 
+    /// Turns a raw `claude` PTY capture into the text a user would actually see on screen.
+    ///
+    /// Claude renders `/usage` and `/status` as redrawing TUIs. Ink diffs each frame against the previous
+    /// one and jumps over unchanged cells with `ESC[<col>G`, so those characters are never transmitted:
+    /// deleting the escape sequences and concatenating the rest yields text with holes in it (a real
+    /// capture produced `51%usd`, dropping the `e` that the prior frame had already painted in that
+    /// column, which made `percentFromLine` unable to tell "used" from "left" and silently discarded the
+    /// whole Fable panel). Replaying the cursor motions onto a screen buffer restores the literal text.
+    static func cleanCapture(_ text: String) -> String {
+        let rendered = TerminalScreenRenderer.render(
+            text,
+            columns: ClaudeCLISession.ptyColumns,
+            rows: ClaudeCLISession.ptyRows)
+        // Defensive: an unexpected capture shape should degrade to the legacy strip, never to no data.
+        guard rendered.contains("%") || !text.contains("%") else {
+            return TextParsing.stripANSICodes(text)
+        }
+        return rendered
+    }
+
     public static func parse(text: String, statusText: String? = nil) throws -> ClaudeStatusSnapshot {
-        let clean = TextParsing.stripANSICodes(text)
-        let statusClean = statusText.map(TextParsing.stripANSICodes)
+        let clean = Self.cleanCapture(text)
+        let statusClean = statusText.map(Self.cleanCapture)
         guard !clean.isEmpty else { throw ClaudeStatusProbeError.timedOut }
 
         let shouldDump = ProcessInfo.processInfo.environment["DEBUG_CLAUDE_DUMP"] == "1"
@@ -319,8 +339,8 @@ extension ClaudeStatusProbe {
     }
 
     public static func parseIdentity(usageText: String?, statusText: String?) -> ClaudeAccountIdentity {
-        let usageClean = usageText.map(TextParsing.stripANSICodes) ?? ""
-        let statusClean = statusText.map(TextParsing.stripANSICodes)
+        let usageClean = usageText.map(Self.cleanCapture) ?? ""
+        let statusClean = statusText.map(Self.cleanCapture)
         return self.extractIdentity(usageText: usageClean, statusText: statusClean)
     }
 
@@ -422,7 +442,7 @@ extension ClaudeStatusProbe {
     }
 
     private static func usageOutputLooksRelevant(_ text: String) -> Bool {
-        let normalized = TextParsing.stripANSICodes(text).lowercased().filter { !$0.isWhitespace }
+        let normalized = Self.cleanCapture(text).lowercased().filter { !$0.isWhitespace }
         return normalized.contains("currentsession")
             || normalized.contains("currentweek")
             || normalized.contains("loadingusage")
@@ -431,7 +451,7 @@ extension ClaudeStatusProbe {
     }
 
     private static func validateUsageBeforeStatusProbe(_ text: String) throws {
-        let clean = TextParsing.stripANSICodes(text)
+        let clean = Self.cleanCapture(text)
         if let usageError = self.extractUsageError(text: clean) {
             throw self.usageProbeError(message: usageError)
         }
@@ -730,7 +750,7 @@ extension ClaudeStatusProbe {
     }
 
     private static func isUsageStillLoading(text: String) -> Bool {
-        let normalized = TextParsing.stripANSICodes(text).lowercased().filter { !$0.isWhitespace }
+        let normalized = Self.cleanCapture(text).lowercased().filter { !$0.isWhitespace }
         guard normalized.contains("loadingusage") else { return false }
         return !self.usageCaptureHasSessionValue(normalized) && self.allPercents(text).isEmpty
     }

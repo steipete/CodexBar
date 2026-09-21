@@ -265,7 +265,13 @@ Model-scoped weekly-window proof (synthetic data, no real accounts or credential
   3) Send `/usage`, wait for rendered panel; send Enter retries if needed.
   4) Optionally send `/status` to extract identity fields.
 - Parsing (`ClaudeStatusProbe`):
-  - Strips ANSI, locates "Current session" + "Current week" headers.
+  - Replays the PTY capture onto an in-memory screen (`TerminalScreenRenderer`) before parsing, then locates
+    "Current session" + "Current week" headers. Claude renders `/usage` as a redrawing TUI whose renderer diffs
+    each frame against the previous one and jumps over unchanged cells with `ESC[<col>G`; those characters are
+    never retransmitted, so deleting the escape sequences and concatenating the rest produces text with holes in
+    it (a captured Fable row read `51%usd`, and word gaps collapsed into `ResetsSep23at3pm`). Replaying the cursor
+    motions restores the literal on-screen text. An unexpected capture shape falls back to the plain ANSI strip.
+  - Extracts percent left/used and reset text near those headers.
   - Extracts percent left/used and reset text near those headers.
   - When a reset date cannot be parsed, the menu preserves its description and normalizes leading `Reset` or `Resets` labels once, including scoped weekly limits.
   - Parses `Account:` and `Org:` lines when present.

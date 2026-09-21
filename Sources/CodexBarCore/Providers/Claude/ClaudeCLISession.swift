@@ -333,7 +333,11 @@ actor ClaudeCLISession {
 
         var primaryFD: Int32 = -1
         var secondaryFD: Int32 = -1
-        var win = winsize(ws_row: 50, ws_col: 160, ws_xpixel: 0, ws_ypixel: 0)
+        var win = winsize(
+            ws_row: UInt16(Self.ptyRows),
+            ws_col: UInt16(Self.ptyColumns),
+            ws_xpixel: 0,
+            ws_ypixel: 0)
         guard openpty(&primaryFD, &secondaryFD, nil, nil, &win) == 0 else {
             Self.log.warning("Claude CLI PTY openpty failed")
             throw SessionError.launchFailed("openpty failed")
@@ -420,6 +424,11 @@ actor ClaudeCLISession {
     }
 
     /// Opt usage probes out of Remote Control without changing saved settings or managed policy.
+    /// Geometry requested for the probe PTY. `ClaudeStatusProbe` replays captures onto a screen of exactly
+    /// this size, so `claude`'s absolute column addressing and our autowrap agree; keep these the only source.
+    static let ptyRows = 50
+    static let ptyColumns = 160
+
     static let probeSettingsArguments = ["--settings", #"{"remoteControlAtStartup":false}"#]
 
     static func launchArguments(sessionID: UUID) -> [String] {
