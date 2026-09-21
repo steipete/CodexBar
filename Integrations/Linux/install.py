@@ -130,6 +130,12 @@ Hidden={'true' if startup_disabled else 'false'}
         plugin.mkdir(parents=True)
         for name in ['manifest.json', 'Panel.qml']:
             shutil.copy2(REPO / 'Integrations/Omarchy' / name, plugin / name)
+        icons = plugin / 'icons'
+        icons.mkdir()
+        # A checkout keeps the marks in Sources; a release archive carries them beside the panel.
+        for folder in [REPO / 'Sources/CodexBar/Resources', REPO / 'Integrations/Omarchy/icons']:
+            for source in sorted(folder.glob('ProviderIcon-*.svg')):
+                shutil.copy2(source, icons / source.name)
         shutil.copy2(shell_path, shell_path.with_name(f'shell.json.codexbar-backup-{stamp}'))
         if existing is None:
             existing = {'id': PLUGIN_ID}

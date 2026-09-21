@@ -361,15 +361,24 @@ function laneSegments(entry, mode, options) {
     return segments;
 }
 
-// Persistent bar label. Absent lanes contribute no text and no separator. The bar shows at most
-// `maxProviders` providers (0 shows all) and counts the rest, so an upgrade cannot widen an
-// existing multi-provider bar; the limit is display only and never stops a provider being polled.
-function barLabel(entries, mode, options) {
+// One entry per shown provider: an adapter drawing its own marker uses `tag`, or a logo, before
+// `text`, which is the lane string without the text prefix. Absent lanes contribute no separator,
+// and a provider with nothing to show keeps the em dash. The bar shows at most `maxProviders`
+// providers (0 shows all), so an upgrade cannot widen an existing multi-provider bar; the limit is
+// display only and never stops a provider being polled. It lives here rather than in barLabel,
+// so the label and these entries cannot disagree about which providers are shown.
+function barSegments(entries, mode, options) {
     var limit = number((options || {}).maxProviders);
-    var shown = (limit > 0 ? entries.slice(0, limit) : entries).map(function(entry) {
+    return (limit > 0 ? entries.slice(0, limit) : entries).map(function(entry) {
         var segments = laneSegments(entry, mode, options);
-        return {tag: providerTag(entry.provider), text: segments.length ? segments.join(" · ") : "—"};
+        return {provider: entry.provider, tag: providerTag(entry.provider),
+            text: segments.length ? segments.join(" · ") : "—"};
     });
+}
+
+// Persistent bar label, built from barSegments, counting the providers the limit hides.
+function barLabel(entries, mode, options) {
+    var shown = barSegments(entries, mode, options);
     var label = shown.map(function(entry) {
         return (entries.length > 1 ? entry.tag + " " : "") + entry.text;
     }).join("  ·  ");

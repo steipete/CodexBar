@@ -43,6 +43,13 @@ only: every configured provider is still polled and listed in the popup. Four
 providers each showing a session lane, a weekly lane and a pace take about 1500
 logical pixels, so raise it, or set it to **All**, where the display has room.
 
+Each provider is marked by its own logo, tinted to the bar's foreground so
+themes still apply. A provider whose logo is not installed keeps a short text tag
+rather than a gap, and a count follows the marks when the display limit hides
+providers. The installer and the release archive carry the marks beside the
+adapter, and `barEntries` supplies one tag-and-text pair per displayed provider;
+an older backend publishes none and gets the joined label instead.
+
 The widget reads the desktop's private IPC snapshot every five seconds; it never
 runs provider queries itself. If the backend is absent, opening Usage & Spend or
 Settings starts it. Refresh requests one shared backend refresh. Unknown quota

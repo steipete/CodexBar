@@ -40,7 +40,17 @@ class PackageTests(unittest.TestCase):
             self.assertTrue(any(re.fullmatch(pattern, archive_path.name) for pattern in patterns))
             self.assertTrue(any(re.fullmatch(pattern, checksum.name) for pattern in patterns))
             with tarfile.open(archive_path) as archive:
-                self.assertEqual(len(archive.getmembers()), 7)
+                names = [name.split('/', 1)[1] for name in archive.getnames()]
+                # The allowlist is what keeps the checkout out of the archive: the fixed
+                # files, plus provider logos the adapter reads, and nothing else.
+                fixed = {'bin/codexbar-linux', 'README.md', 'LICENSE', 'Integrations/Linux/install.py',
+                         'Integrations/Linux/icon.svg', 'Integrations/Omarchy/Panel.qml',
+                         'Integrations/Omarchy/manifest.json'}
+                self.assertEqual(fixed, {name for name in names if '/icons/' not in name})
+                icons = [name for name in names if '/icons/' not in name or
+                         re.fullmatch(r'Integrations/Omarchy/icons/ProviderIcon-[\w.-]+\.svg', name)]
+                self.assertEqual(len(icons), len(names))
+                self.assertTrue(any('/icons/ProviderIcon-' in name for name in names))
                 self.assertFalse(any('linux.json' in name for name in archive.getnames()))
                 archive.extractall(root / 'unpacked', filter='data')
             package = next((root / 'unpacked').iterdir())

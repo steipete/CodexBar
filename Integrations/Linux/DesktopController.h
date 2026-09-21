@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QJSEngine>
+#include <QJsonArray>
 #include <QJsonObject>
 #include <QLocalServer>
 #include <QObject>
@@ -71,6 +72,7 @@ private:
     QVariantMap m_settings;
     QVariantList m_entries, m_spending;
     QString m_configPath, m_error, m_costError, m_configError, m_summary, m_barLabel;
+    QJsonArray m_barEntries;
     qint64 m_updated = 0, m_costUpdated = 0;
     int m_generation = 0;
     bool m_configBlocked = false;

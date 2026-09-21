@@ -239,7 +239,9 @@ terminated JSON. Snapshot schema version 1 includes compact provider windows,
 summary, bar label, update time, busy/stale/error state, and spending availability.
 Each window carries its cadence in minutes, a `scoped` flag when the provider
 reported it beside a general quota rather than as one, and the signed pace delta
-where the provider reports one. Window labels are redacted for identity
+where the provider reports one. `barEntries` gives the bar label split per
+displayed provider, as `{provider, tag, text}`, for adapters that draw their own
+provider marker. Window labels are redacted for identity
 regardless of display preferences. It excludes account identity, CLI paths, and credential configuration.
 It includes display values and reset text for adapters. Adapters should check `schemaVersion`, tolerate
 unknown fields, and treat a missing backend as unavailable.

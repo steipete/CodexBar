@@ -627,3 +627,28 @@ test('a per-model cap never becomes the tray headline while the provider reports
         extraRateWindows: [{id: 'cursor-grok-bot', title: 'Grok Bot', window: {usedPercent: 100, windowMinutes: 10080}}]}}]));
     assert.equal(model.summary(rows, 'remaining'), 'cursor 75%');
 });
+
+test('bar segments give one tag-and-text pair per provider and never embed the tag in the text', () => {
+    const rows = model.rows(JSON.stringify([
+        {provider: 'codex', usage: {primary: session, secondary: weekly}, pace: {secondary: {deltaPercent: 14}}},
+        {provider: 'claude', error: {message: 'secret upstream response'}}]));
+    assert.deepEqual([...model.barSegments(rows, 'remaining').map(segment => ({...segment}))], [
+        {provider: 'codex', tag: 'CX', text: '5H 37% · 7D 61% · +14%'},
+        {provider: 'claude', tag: 'CL', text: '—'}]);
+});
+
+test('the label and the per-provider entries show the same providers, in the same order', () => {
+    // Distinct quotas, so a wrong provider or a wrong order cannot pass by coincidence.
+    const rows = model.rows(JSON.stringify([
+        {provider: 'codex', usage: {primary: {usedPercent: 10, windowMinutes: 300}}},
+        {provider: 'claude', usage: {primary: {usedPercent: 20, windowMinutes: 300}}},
+        {provider: 'gemini', usage: {primary: {usedPercent: 30, windowMinutes: 300}}}]));
+    const segments = model.barSegments(rows, 'remaining');
+    assert.deepEqual([...segments.map(segment => segment.provider)], ['codex', 'claude', 'gemini']);
+    assert.deepEqual([...segments.map(segment => segment.text)], ['5H 90%', '5H 80%', '5H 70%']);
+    assert.equal(model.barLabel(rows, 'remaining'), 'CX 5H 90%  ·  CL 5H 80%  ·  gemini 5H 70%');
+    // The display limit trims both views alike, and the label counts what it hides.
+    const limited = model.barSegments(rows, 'remaining', {maxProviders: 2});
+    assert.deepEqual([...limited.map(segment => segment.provider)], ['codex', 'claude']);
+    assert.equal(model.barLabel(rows, 'remaining', {maxProviders: 2}), 'CX 5H 90%  ·  CL 5H 80%  +1');
+});
