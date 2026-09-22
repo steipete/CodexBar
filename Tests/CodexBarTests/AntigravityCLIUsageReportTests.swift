@@ -226,10 +226,69 @@ extension AntigravityCLIHTTPSFetchStrategyTests {
     func `print failure does not expose stderr`() async throws {
         let fixture = try Self.printExecutable("printf 'synthetic-private-diagnostic' >&2; exit 7")
         defer { try? FileManager.default.removeItem(at: fixture.directory) }
-        await #expect(throws: AntigravityStatusProbeError.parseFailed("CLI usage report failed")) {
-            try await AntigravityCLIHTTPSFetchStrategy().fetchPrintUsage(
+        do {
+            _ = try await AntigravityCLIHTTPSFetchStrategy().fetchPrintUsage(
                 binary: fixture.binary.path, environment: fixture.environment)
+            Issue.record("Expected a classified print failure")
+        } catch let error as AntigravityStatusProbeError {
+            #expect(error == .cliReportFailed("agy exited 7"))
+            #expect(error.localizedDescription.contains("synthetic-private-diagnostic") == false)
+        } catch {
+            Issue.record("Expected a classified probe error, got \(error)")
         }
+    }
+
+    @Test(arguments: [
+        (
+            #"Eligibility check failed: failed to get profile picture: Get "https://lh3.googleusercontent.com/a/private": EOF"#,
+            AntigravityStatusProbeError.cliReportFailed(
+                "agy exited 1; the eligibility check failed on a network request (check network or proxy settings)")),
+        (
+            "Eligibility check failed: account does not support Google ToS",
+            AntigravityStatusProbeError.cliReportFailed("agy exited 1; the account is not eligible for Antigravity")),
+        (
+            "You are not logged into Antigravity",
+            AntigravityStatusProbeError.authenticationRequired),
+        (
+            "Post \"https://usage.invalid/v1\": dial tcp: no such host",
+            AntigravityStatusProbeError.cliReportFailed(
+                "agy exited 1; a network request failed (check network or proxy settings)")),
+    ])
+    func `print failure maps agy stderr to a safe diagnostic`(
+        stderr: String,
+        expected: AntigravityStatusProbeError) async throws
+    {
+        let fixture = try Self.printExecutable("""
+        /bin/cat >&2 <<'STDERR'
+        \(stderr)
+        STDERR
+        exit 1
+        """)
+        defer { try? FileManager.default.removeItem(at: fixture.directory) }
+        do {
+            _ = try await AntigravityCLIHTTPSFetchStrategy().fetchPrintUsage(
+                binary: fixture.binary.path, environment: fixture.environment)
+            Issue.record("Expected a classified print failure")
+        } catch let error as AntigravityStatusProbeError {
+            #expect(error == expected)
+            #expect(error.localizedDescription.contains("googleusercontent") == false)
+            #expect(error.localizedDescription.contains("usage.invalid") == false)
+        } catch {
+            Issue.record("Expected a classified probe error, got \(error)")
+        }
+    }
+
+    @Test
+    func `print failure classifier keeps timeouts and blank exits safe`() {
+        #expect(AntigravityCLIPrintFailure.error(for: .timedOut("antigravity-cli-usage")) == .timedOut)
+        #expect(AntigravityCLIPrintFailure.error(for: .nonZeroExit(code: 2, stderr: "  ")) ==
+            .cliReportFailed("agy exited 2"))
+        #expect(AntigravityCLIPrintFailure.error(for: .binaryNotFound("agy")) ==
+            .cliReportFailed("agy executable not found"))
+        #expect(AntigravityCLIPrintFailure.error(for: .launchFailed("posix_spawn failed")) ==
+            .cliReportFailed("agy failed to launch"))
+        #expect(AntigravityCLIPrintFailure.error(for: .outputTooLarge("antigravity-cli-usage")) ==
+            .parseFailed("CLI usage report failed"))
     }
 
     @Test

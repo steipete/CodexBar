@@ -767,6 +767,9 @@ public enum AntigravityStatusProbeError: LocalizedError, Sendable, Equatable {
     case portDetectionFailed(String)
     case apiError(String)
     case parseFailed(String)
+    /// A failed `agy` print-usage invocation. The message is always a fixed,
+    /// classified summary — raw stderr never reaches the user.
+    case cliReportFailed(String)
     case timedOut
     case authenticationRequired
     case accountMismatch(expected: String?, found: String?)
@@ -783,6 +786,8 @@ public enum AntigravityStatusProbeError: LocalizedError, Sendable, Equatable {
             Self.apiErrorDescription(message)
         case let .parseFailed(message):
             "Could not parse Antigravity quota: \(message)"
+        case let .cliReportFailed(message):
+            "Antigravity CLI usage report failed: \(message)"
         case .timedOut:
             "Antigravity quota request timed out."
         case .authenticationRequired:

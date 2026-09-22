@@ -205,6 +205,27 @@ public struct ProviderFetchResult: Sendable {
             claudeOAuthKeychainCredentialAbsent: self.claudeOAuthKeychainCredentialAbsent,
             claudeOAuthKeychainCredentialUnavailable: self.claudeOAuthKeychainCredentialUnavailable)
     }
+
+    /// Returns a copy carrying `diagnostic`, preserving every other field.
+    public func withDiagnostic(_ diagnostic: String) -> ProviderFetchResult {
+        ProviderFetchResult(
+            usage: self.usage,
+            credits: self.credits,
+            dashboard: self.dashboard,
+            sourceLabel: self.sourceLabel,
+            strategyID: self.strategyID,
+            strategyKind: self.strategyKind,
+            supplementalUsageTask: self.supplementalUsageTask,
+            codexResetCreditsAttempted: self.codexResetCreditsAttempted,
+            codexMonthlyLimitEnrichmentFailed: self.codexMonthlyLimitEnrichmentFailed,
+            diagnostic: diagnostic,
+            claudeOAuthKeychainPersistentRefHash: self.claudeOAuthKeychainPersistentRefHash,
+            claudeOAuthHistoryOwnerIdentifier: self.claudeOAuthHistoryOwnerIdentifier,
+            claudeOAuthCredentialOwner: self.claudeOAuthCredentialOwner,
+            claudeOAuthKeychainCredentialMismatch: self.claudeOAuthKeychainCredentialMismatch,
+            claudeOAuthKeychainCredentialAbsent: self.claudeOAuthKeychainCredentialAbsent,
+            claudeOAuthKeychainCredentialUnavailable: self.claudeOAuthKeychainCredentialUnavailable)
+    }
 }
 
 public enum ProviderSupplementalUsageUpdate: Sendable {
@@ -313,9 +334,17 @@ public protocol ProviderFetchStrategy: Sendable {
     func isAvailable(_ context: ProviderFetchContext) async -> Bool
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult
     func shouldFallback(on error: Error, context: ProviderFetchContext) -> Bool
+    /// Lets a winning degraded strategy explain why stronger earlier sources
+    /// failed, e.g. an offline fallback that still produced a usable snapshot.
+    /// `nil` (the default) leaves the successful result untouched.
+    func diagnostic(forPriorFailure error: Error) -> String?
 }
 
 extension ProviderFetchStrategy {
+    public func diagnostic(forPriorFailure _: Error) -> String? {
+        nil
+    }
+
     public func makeResult(
         usage: UsageSnapshot,
         credits: CreditsSnapshot? = nil,
@@ -389,10 +418,16 @@ public struct ProviderFetchPipeline: Sendable {
             }
 
             do {
-                let result = try await ProviderFetchDelayedRetry.run(sleeper: self.retrySleeper) {
+                var result = try await ProviderFetchDelayedRetry.run(sleeper: self.retrySleeper) {
                     try await strategy.fetch(context)
                 }
                 try Task.checkCancellation()
+                if result.diagnostic == nil,
+                   let lastAvailableError,
+                   let diagnostic = strategy.diagnostic(forPriorFailure: lastAvailableError)
+                {
+                    result = result.withDiagnostic(diagnostic)
+                }
                 attempts.append(ProviderFetchAttempt(
                     strategyID: strategy.id,
                     kind: strategy.kind,

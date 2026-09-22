@@ -596,9 +596,9 @@ struct AntigravityCLIHTTPSFetchStrategy: ProviderFetchStrategy {
                 ["-p", "/usage", "--output-format", "json", "--print-timeout", "90s"], timeout: timeout)
         } catch let error as SubprocessRunnerError {
             try Task.checkCancellation()
-            if case .timedOut = error { throw AntigravityStatusProbeError.timedOut }
-            // Subprocess errors may contain raw stderr; never surface it as a provider diagnostic.
-            throw AntigravityStatusProbeError.parseFailed("CLI usage report failed")
+            // Subprocess errors may contain raw stderr; classify them into safe,
+            // fixed diagnostics instead of surfacing the process output.
+            throw AntigravityCLIPrintFailure.error(for: error)
         }
         let snapshot = try AntigravityStatusProbe.parseCLIUsageReport(Data(result.stdout.utf8))
         return try self.makeResult(usage: snapshot.toUsageSnapshot(), sourceLabel: Self.sourceLabel)
@@ -966,6 +966,51 @@ struct AntigravityOfflineFetchStrategy: ProviderFetchStrategy {
                 accountOrganization: nil,
                 loginMethod: "offline"))
         return self.makeResult(usage: snapshot, sourceLabel: "offline")
+    }
+
+    func diagnostic(forPriorFailure error: Error) -> String? {
+        "Live Antigravity usage is unavailable; showing offline data. \(Self.reason(for: error))"
+    }
+
+    /// Only our own classified descriptions are safe to surface here:
+    /// `apiError` messages can embed a raw response body, and foreign error
+    /// types (e.g. an unmapped `SubprocessRunnerError`) may carry stderr, so
+    /// anything unrecognized reduces to a fixed hint.
+    private static func reason(for error: Error) -> String {
+        switch error {
+        case let probeError as AntigravityStatusProbeError:
+            switch probeError {
+            case let .apiError(message):
+                if message.contains("HTTP 401") || message.contains("HTTP 403") {
+                    // Already the fixed "session expired" text.
+                    return probeError.localizedDescription
+                }
+                if let status = message.range(of: #"HTTP \d{3}"#, options: .regularExpression) {
+                    return "the usage request failed (\(message[status]))"
+                }
+                return "the usage request failed"
+            // These cases are safe to surface: either fixed text, `cliReportFailed`
+            // strings classified by `AntigravityCLIPrintFailure`, or the user's own
+            // account emails already shown in the identity row.
+            case .notRunning, .missingCSRFToken, .timedOut, .authenticationRequired,
+                 .cliReportFailed, .accountMismatch:
+                return probeError.localizedDescription
+            // `parseFailed`/`portDetectionFailed` carry a free-form message; today
+            // every throw site uses a fixed literal, but reduce them anyway so a
+            // future dynamic message cannot reach the card.
+            case .parseFailed, .portDetectionFailed:
+                return "check Diagnostics for per-source details"
+            }
+        case let remoteError as AntigravityRemoteFetchError:
+            if case .notLoggedIn = remoteError {
+                return remoteError.localizedDescription
+            }
+            return "the Antigravity API request failed"
+        case let urlError as URLError:
+            return urlError.localizedDescription
+        default:
+            return "check Diagnostics for per-source details"
+        }
     }
 
     func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {
