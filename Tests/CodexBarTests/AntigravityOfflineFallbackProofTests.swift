@@ -75,7 +75,7 @@ struct AntigravityOfflineFallbackProofTests {
         #expect(expired?.contains("session expired") == true)
 
         let classified = strategy.diagnostic(forPriorFailure:
-            AntigravityStatusProbeError.cliReportFailed("agy exited 1"))
+            AntigravityStatusProbeError.cliReportFailed(.exited(code: 1, reason: .unspecified)))
         #expect(classified?.contains("agy exited 1") == true)
 
         let remote = strategy.diagnostic(forPriorFailure:
@@ -90,11 +90,11 @@ struct AntigravityOfflineFallbackProofTests {
         #expect(bareAPI?.hasSuffix("the usage request failed") == true)
         #expect(bareAPI?.contains("warming") == false)
 
-        // `accountMismatch` only repeats the user's own account emails already
-        // shown in the identity row, so it passes through intentionally.
         let mismatch = strategy.diagnostic(forPriorFailure:
             AntigravityStatusProbeError.accountMismatch(expected: "me@example.com", found: "other@example.com"))
-        #expect(mismatch?.contains("me@example.com") == true)
+        #expect(mismatch?.contains("me@example.com") == false)
+        #expect(mismatch?.contains("other@example.com") == false)
+        #expect(mismatch?.contains("does not match the selected account") == true)
 
         // Free-form messages are reduced to a fixed hint even though today's
         // throw sites only pass fixed literals.
@@ -107,6 +107,24 @@ struct AntigravityOfflineFallbackProofTests {
         let offline = strategy.diagnostic(forPriorFailure: urlError)
         #expect(offline == "Live Antigravity usage is unavailable; showing offline data. "
             + urlError.localizedDescription)
+    }
+
+    @Test(arguments: [URLError.notConnectedToInternet, .timedOut, .serverCertificateUntrusted])
+    func `offline transport diagnostics discard caller supplied details`(code: URLError.Code) throws {
+        let privateURL = "https://synthetic-private.invalid/account@example.com"
+        let error = try URLError(code, userInfo: [
+            NSLocalizedDescriptionKey: "synthetic-private-diagnostic \(privateURL)",
+            NSURLErrorFailingURLErrorKey: #require(URL(string: privateURL)),
+            NSUnderlyingErrorKey: NSError(
+                domain: "synthetic-private-domain",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "synthetic-private-underlying"]),
+        ])
+        let diagnostic = AntigravityOfflineFetchStrategy().diagnostic(forPriorFailure: error)
+        #expect(diagnostic == "Live Antigravity usage is unavailable; showing offline data. "
+            + URLError(code).localizedDescription)
+        #expect(diagnostic?.contains("synthetic-private") == false)
+        #expect(diagnostic?.contains("account@example.com") == false)
     }
 
     @Test

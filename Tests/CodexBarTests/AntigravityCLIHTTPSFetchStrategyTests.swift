@@ -990,7 +990,7 @@ extension AntigravityCLIHTTPSFetchStrategyTests {
         .apiError("quota request rejected"),
         .timedOut,
         .parseFailed("missing quota fields"),
-        .cliReportFailed("agy exited 1"),
+        .cliReportFailed(.exited(code: 1, reason: .unspecified)),
         .portDetectionFailed("no listening ports found"),
         .accountMismatch(expected: "selected@example.com", found: "other@example.com"),
     ])
@@ -1177,7 +1177,7 @@ extension AntigravityCLIHTTPSFetchStrategyTests {
         // Mirror the production chain: earlier probes fail as `.notRunning`,
         // so the diagnostic must survive `resolveFallbackError` precedence.
         let cliError = AntigravityStatusProbeError.cliReportFailed(
-            "agy exited 1; the eligibility check failed on a network request (check network or proxy settings)")
+            .exited(code: 1, reason: .eligibilityNetwork))
         let pipeline = ProviderFetchPipeline(
             resolveStrategies: { _ in
                 [
@@ -1242,7 +1242,8 @@ extension AntigravityCLIHTTPSFetchStrategyTests {
                     AntigravityFallbackFixtureStrategy(
                         id: "antigravity.ide-local",
                         error: nil,
-                        diagnostic: "winner-note"),
+                        diagnostic: "winner-note",
+                        priorFailureDiagnostic: "competing-fallback-note"),
                 ]
             },
             resolveFallbackError: AntigravityProviderDescriptor.resolveFallbackError)
@@ -1350,6 +1351,7 @@ private struct AntigravityFallbackFixtureStrategy: ProviderFetchStrategy {
     let available: Bool
     var allowsFallback = true
     let diagnostic: String?
+    let priorFailureDiagnostic: String?
     let kind: ProviderFetchKind = .localProbe
 
     init(
@@ -1357,13 +1359,15 @@ private struct AntigravityFallbackFixtureStrategy: ProviderFetchStrategy {
         error: AntigravityStatusProbeError?,
         available: Bool = true,
         allowsFallback: Bool = true,
-        diagnostic: String? = nil)
+        diagnostic: String? = nil,
+        priorFailureDiagnostic: String? = nil)
     {
         self.id = id
         self.error = error
         self.available = available
         self.allowsFallback = allowsFallback
         self.diagnostic = diagnostic
+        self.priorFailureDiagnostic = priorFailureDiagnostic
     }
 
     func isAvailable(_: ProviderFetchContext) async -> Bool {
@@ -1382,5 +1386,9 @@ private struct AntigravityFallbackFixtureStrategy: ProviderFetchStrategy {
 
     func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {
         self.allowsFallback
+    }
+
+    func diagnostic(forPriorFailure _: Error) -> String? {
+        self.priorFailureDiagnostic
     }
 }

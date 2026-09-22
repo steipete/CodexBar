@@ -989,12 +989,12 @@ struct AntigravityOfflineFetchStrategy: ProviderFetchStrategy {
                     return "the usage request failed (\(message[status]))"
                 }
                 return "the usage request failed"
-            // These cases are safe to surface: either fixed text, `cliReportFailed`
-            // strings classified by `AntigravityCLIPrintFailure`, or the user's own
-            // account emails already shown in the identity row.
+            // These cases contain only fixed text and typed CLI failure categories.
             case .notRunning, .missingCSRFToken, .timedOut, .authenticationRequired,
-                 .cliReportFailed, .accountMismatch:
+                 .cliReportFailed:
                 return probeError.localizedDescription
+            case .accountMismatch:
+                return "the local Antigravity session does not match the selected account"
             // `parseFailed`/`portDetectionFailed` carry a free-form message; today
             // every throw site uses a fixed literal, but reduce them anyway so a
             // future dynamic message cannot reach the card.
@@ -1007,7 +1007,8 @@ struct AntigravityOfflineFetchStrategy: ProviderFetchStrategy {
             }
             return "the Antigravity API request failed"
         case let urlError as URLError:
-            return urlError.localizedDescription
+            // Discard caller-supplied userInfo, which can contain URLs or account details.
+            return URLError(urlError.code).localizedDescription
         default:
             return "check Diagnostics for per-source details"
         }

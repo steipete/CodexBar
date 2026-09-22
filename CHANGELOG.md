@@ -2,6 +2,10 @@
 
 ## 0.64.2 — Unreleased
 
+### Fixed
+
+- Antigravity: explain failed live fetches when falling back to offline history, keep diagnostics free of raw process and account details, and show the active source in settings instead of misleading detection warnings (#3865, fixes #3861). Thanks @vincent-peng!
+
 ## 0.64.1 — 2026-09-22
 
 ### Highlights

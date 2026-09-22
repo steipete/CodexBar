@@ -74,6 +74,18 @@ struct ProviderDetailView<SupplementaryContent: View>: View {
         L(UsageMenuCardView.popupMetricTitle(provider: provider, metric: metric))
     }
 
+    static func versionText(provider: UsageProvider, store: UsageStore) -> String? {
+        let context = ProviderPresentationContext(
+            provider: provider,
+            settings: store.settings,
+            store: store,
+            metadata: store.metadata(for: provider))
+        let presentation = ProviderCatalog.implementation(for: provider)?.presentation(context: context)
+            ?? ProviderPresentation(detailLine: ProviderPresentation.standardDetailLine)
+        guard presentation.showsVersionInSettings else { return nil }
+        return store.version(for: provider) ?? L("not detected")
+    }
+
     static func metricInlinePresentation(
         _ metric: UsageMenuCardView.Model.Metric) -> ProviderMetricInlinePresentation
     {
@@ -127,6 +139,7 @@ struct ProviderDetailView<SupplementaryContent: View>: View {
                     provider: self.provider,
                     store: self.store,
                     isEnabled: self.isEnabled,
+                    versionText: Self.versionText(provider: self.provider, store: self.store),
                     model: self.model)
             }
 
@@ -261,7 +274,7 @@ struct ProviderUsageItemVisibilitySettingsView: View {
 }
 
 @MainActor
-private struct ProviderDetailHeaderRow: View {
+struct ProviderDetailHeaderRow: View {
     let provider: UsageProvider
     @Bindable var store: UsageStore
     @Binding var isEnabled: Bool
@@ -334,15 +347,18 @@ private struct ProviderDetailBrandIcon: View {
 }
 
 @MainActor
-private struct ProviderDetailInfoRows: View {
+struct ProviderDetailInfoRows: View {
     let provider: UsageProvider
     @Bindable var store: UsageStore
     let isEnabled: Bool
+    let versionText: String?
     let model: UsageMenuCardView.Model
 
     var body: some View {
         ProviderDetailInfoRow(label: L("Source"), value: self.store.sourceLabel(for: self.provider))
-        ProviderDetailInfoRow(label: L("Version"), value: self.store.version(for: self.provider) ?? L("not detected"))
+        if let versionText {
+            ProviderDetailInfoRow(label: L("Version"), value: versionText)
+        }
         ProviderDetailInfoRow(label: L("Updated"), value: self.updatedText)
 
         if let status = self.store.status(for: self.provider) {

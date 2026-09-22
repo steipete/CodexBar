@@ -6,6 +6,14 @@ struct AntigravityProviderImplementation: ProviderImplementation {
     let supportsLoginFlow: Bool = true
 
     @MainActor
+    func presentation(context _: ProviderPresentationContext) -> ProviderPresentation {
+        // Process detection is useful to diagnostics, but is not an installed version or a usage-source check.
+        ProviderPresentation(showsVersionInSettings: false) { context in
+            context.store.sourceLabel(for: context.provider)
+        }
+    }
+
+    @MainActor
     func observeSettings(_ settings: SettingsStore) {
         _ = settings.antigravityUsageDataSource
         _ = settings.antigravityPrioritizeExhaustedQuotas

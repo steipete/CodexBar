@@ -36,6 +36,15 @@ The report contains no account or plan identity: explicit CLI mode remains autho
 this fallback only without a selected token account or explicitly injected OAuth credentials. Successful
 HTTPS results retain their verified identity. Failed command diagnostics do not include raw stderr.
 
+If live sources fail and local conversation history is available, CodexBar labels the result as offline and
+shows a safe explanation of the live failure in settings and CLI usage output. CLI failures distinguish sign-in,
+eligibility, and network problems without exposing stderr, URLs, or account emails. Offline conversation counts
+are history, not measured quota. A successful live fallback keeps its own diagnostic instead.
+
+Provider settings show the last usage source (including CLI, OAuth, and offline) rather than reporting the entire
+provider as undetected when no local language-server process is running. Antigravity does not display a Version
+row because its local detector reports process presence, not a software version.
+
 Antigravity supports four usage data sources:
 
 1. The Antigravity 2.0 app's local `language_server` (preferred when the app is open).

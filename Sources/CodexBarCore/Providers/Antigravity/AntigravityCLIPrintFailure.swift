@@ -5,7 +5,39 @@ import Foundation
 /// Raw stderr must never reach the user: it can embed account-identifying URLs
 /// (Google profile pictures), proxy details, or local paths. Every branch below
 /// produces a fixed message so the classification stays reviewable.
-enum AntigravityCLIPrintFailure {
+public enum AntigravityCLIPrintFailure: Sendable, Equatable {
+    case executableNotFound
+    case launchFailed
+    case exited(code: Int32, reason: ExitReason)
+
+    public enum ExitReason: Sendable, Equatable {
+        case unspecified
+        case network
+        case eligibilityNetwork
+        case ineligible
+    }
+
+    var message: String {
+        switch self {
+        case .executableNotFound:
+            return "agy executable not found"
+        case .launchFailed:
+            return "agy failed to launch"
+        case let .exited(code, reason):
+            let prefix = "agy exited \(code)"
+            switch reason {
+            case .unspecified:
+                return prefix
+            case .network:
+                return prefix + "; a network request failed (check network or proxy settings)"
+            case .eligibilityNetwork:
+                return prefix + "; the eligibility check failed on a network request (check network or proxy settings)"
+            case .ineligible:
+                return prefix + "; the account is not eligible for Antigravity"
+            }
+        }
+    }
+
     static func error(for failure: SubprocessRunnerError) -> AntigravityStatusProbeError {
         switch failure {
         case .timedOut:
@@ -13,9 +45,9 @@ enum AntigravityCLIPrintFailure {
         case let .nonZeroExit(code, stderr):
             Self.nonZeroExitError(code: code, stderr: stderr)
         case .binaryNotFound:
-            .cliReportFailed("agy executable not found")
+            .cliReportFailed(.executableNotFound)
         case .launchFailed:
-            .cliReportFailed("agy failed to launch")
+            .cliReportFailed(.launchFailed)
         case .outputTooLarge:
             .parseFailed("CLI usage report failed")
         }
@@ -33,15 +65,12 @@ enum AntigravityCLIPrintFailure {
             text.range(of: $0, options: .regularExpression) != nil
         }
         if eligibilityFailed {
-            let reason = networkFailed
-                ? "the eligibility check failed on a network request (check network or proxy settings)"
-                : "the account is not eligible for Antigravity"
-            return .cliReportFailed("agy exited \(code); \(reason)")
+            return .cliReportFailed(.exited(code: code, reason: networkFailed ? .eligibilityNetwork : .ineligible))
         }
         if networkFailed {
-            return .cliReportFailed("agy exited \(code); a network request failed (check network or proxy settings)")
+            return .cliReportFailed(.exited(code: code, reason: .network))
         }
-        return .cliReportFailed("agy exited \(code)")
+        return .cliReportFailed(.exited(code: code, reason: .unspecified))
     }
 
     private static let signInMarkers = [

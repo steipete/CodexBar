@@ -231,7 +231,7 @@ extension AntigravityCLIHTTPSFetchStrategyTests {
                 binary: fixture.binary.path, environment: fixture.environment)
             Issue.record("Expected a classified print failure")
         } catch let error as AntigravityStatusProbeError {
-            #expect(error == .cliReportFailed("agy exited 7"))
+            #expect(error == .cliReportFailed(.exited(code: 7, reason: .unspecified)))
             #expect(error.localizedDescription.contains("synthetic-private-diagnostic") == false)
         } catch {
             Issue.record("Expected a classified probe error, got \(error)")
@@ -242,17 +242,17 @@ extension AntigravityCLIHTTPSFetchStrategyTests {
         (
             #"Eligibility check failed: failed to get profile picture: Get "https://lh3.googleusercontent.com/a/private": EOF"#,
             AntigravityStatusProbeError.cliReportFailed(
-                "agy exited 1; the eligibility check failed on a network request (check network or proxy settings)")),
+                .exited(code: 1, reason: .eligibilityNetwork))),
         (
             "Eligibility check failed: account does not support Google ToS",
-            AntigravityStatusProbeError.cliReportFailed("agy exited 1; the account is not eligible for Antigravity")),
+            AntigravityStatusProbeError.cliReportFailed(.exited(code: 1, reason: .ineligible))),
         (
             "You are not logged into Antigravity",
             AntigravityStatusProbeError.authenticationRequired),
         (
             "Post \"https://usage.invalid/v1\": dial tcp: no such host",
             AntigravityStatusProbeError.cliReportFailed(
-                "agy exited 1; a network request failed (check network or proxy settings)")),
+                .exited(code: 1, reason: .network))),
     ])
     func `print failure maps agy stderr to a safe diagnostic`(
         stderr: String,
@@ -282,11 +282,11 @@ extension AntigravityCLIHTTPSFetchStrategyTests {
     func `print failure classifier keeps timeouts and blank exits safe`() {
         #expect(AntigravityCLIPrintFailure.error(for: .timedOut("antigravity-cli-usage")) == .timedOut)
         #expect(AntigravityCLIPrintFailure.error(for: .nonZeroExit(code: 2, stderr: "  ")) ==
-            .cliReportFailed("agy exited 2"))
+            .cliReportFailed(.exited(code: 2, reason: .unspecified)))
         #expect(AntigravityCLIPrintFailure.error(for: .binaryNotFound("agy")) ==
-            .cliReportFailed("agy executable not found"))
+            .cliReportFailed(.executableNotFound))
         #expect(AntigravityCLIPrintFailure.error(for: .launchFailed("posix_spawn failed")) ==
-            .cliReportFailed("agy failed to launch"))
+            .cliReportFailed(.launchFailed))
         #expect(AntigravityCLIPrintFailure.error(for: .outputTooLarge("antigravity-cli-usage")) ==
             .parseFailed("CLI usage report failed"))
     }
