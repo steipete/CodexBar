@@ -135,7 +135,7 @@ struct CodexBarApp: App {
     }
 
     private static func openHelp() {
-        guard let url = URL(string: "https://github.com/steipete/CodexBar/tree/main/docs") else { return }
+        guard let url = URL(string: "https://github.com/steipete/CodexBar/blob/main/README.md") else { return }
         NSWorkspace.shared.open(url)
     }
 
