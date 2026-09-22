@@ -126,7 +126,17 @@ struct CodexBarApp: App {
                 }
                 .keyboardShortcut(",", modifiers: .command)
             }
+            CommandGroup(replacing: .help) {
+                Button(L("CodexBar Help")) {
+                    Self.openHelp()
+                }
+            }
         }
+    }
+
+    private static func openHelp() {
+        guard let url = URL(string: "https://github.com/steipete/CodexBar/tree/main/docs") else { return }
+        NSWorkspace.shared.open(url)
     }
 
     private var settingsMenuTitle: String {
