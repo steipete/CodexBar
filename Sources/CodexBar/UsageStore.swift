@@ -448,6 +448,7 @@ final class UsageStore {
     @ObservationIgnored var lastPermissionPromptNotificationAt: [ProviderInstanceID: Date] = [:]
     @ObservationIgnored var lastTokenFetchAt: [ProviderInstanceID: Date] = [:]
     @ObservationIgnored var lastTokenFetchScope: [ProviderInstanceID: String] = [:]
+    @ObservationIgnored var cursorCostFetchDeniedAt: [ProviderInstanceID: Date] = [:]
     @ObservationIgnored var piHistoryScopeFingerprint: String?
     @ObservationIgnored var piHistoryScopeGeneration: UInt64 = 0
     @ObservationIgnored var piHistoryScopeRefreshTask: Task<Bool, Never>?
@@ -1586,6 +1587,8 @@ extension UsageStore {
                     provider: provider,
                     attemptedAt: now,
                     costScopeSignature: costScopeSignature)
+            } else if error is CursorStatusProbeError {
+                self.cursorCostFetchDeniedAt[provider.instanceID] = now
             }
             let hadPriorData = self.tokenSnapshotPublications[provider.instanceID]?.snapshot != nil
             let shouldSurface = self.tokenFailureGates[provider.instanceID]?

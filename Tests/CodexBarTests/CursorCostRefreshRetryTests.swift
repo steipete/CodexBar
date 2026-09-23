@@ -5,6 +5,88 @@ import Testing
 
 @MainActor
 struct CursorCostRefreshRetryTests {
+    @Test(arguments: [false, true])
+    func `Cursor forbidden cost fetch respects the cadence without a snapshot`(hadPriorData: Bool) async throws {
+        try await Self.withFixture(fingerprint: "cookie-a") { fixture in
+            let store = fixture.store
+            store.settings.refreshFrequency = .fiveMinutes
+            if hadPriorData { store.installCachedTokenSnapshot(Self.snapshot("cookie-a"), for: .cursor) }
+            fixture.results = Array(repeating: .failure(CursorStatusProbeError.networkError("HTTP 403")), count: 4)
+
+            await store.refreshTokenUsageNow(for: .cursor, force: false)
+            await fixture.settle()
+            let attemptedAt = try #require(store.lastTokenFetchAt[.cursor])
+            let signature = try #require(store.lastTokenFetchScope[.cursor])
+            #expect(store.tokenRefreshCanReuseCurrentSnapshot(
+                provider: .cursor, now: attemptedAt.addingTimeInterval(300), costScopeSignature: signature))
+            #expect(!store.tokenRefreshCanReuseCurrentSnapshot(
+                provider: .cursor, now: attemptedAt.addingTimeInterval(900), costScopeSignature: signature))
+
+            for _ in 0..<3 {
+                await store.refreshTokenUsageNow(for: .cursor, force: false)
+                await fixture.settle()
+            }
+            fixture.expectIdle(loadCount: 1)
+
+            await store.refreshTokenUsageNow(for: .cursor, force: true)
+            await fixture.settle()
+            await store.refreshTokenUsageNow(for: .cursor, force: true)
+            await fixture.settle()
+            #expect(store.tokenSnapshot(for: .cursor) == nil)
+            await store.refreshTokenUsageNow(for: .cursor, force: false)
+            await fixture.settle()
+            fixture.expectIdle(loadCount: 3)
+            #expect(fixture.forced == [false, true, true])
+        }
+    }
+
+    @Test(arguments: ["expiry", "cookie", "settings"])
+    func `Cursor denied cost fetch retries after cooldown or scope change`(_ recovery: String) async throws {
+        try await Self.withFixture(fingerprint: "cookie-a") { fixture in
+            let store = fixture.store
+            store.settings.refreshFrequency = .fiveMinutes
+            fixture.results = [
+                .failure(CursorStatusProbeError.networkError("HTTP 403")),
+                .success(Self.snapshot(recovery == "cookie" ? "cookie-b" : "cookie-a")),
+            ]
+            await store.refreshTokenUsageNow(for: .cursor, force: false)
+            await fixture.settle()
+
+            switch recovery {
+            case "expiry": store.lastTokenFetchAt[.cursor] = Date().addingTimeInterval(-901)
+            case "cookie": fixture.fingerprint = "cookie-b"
+            default: store.settings.costUsageHistoryDays = 7
+            }
+            await store.refreshTokenUsageNow(for: .cursor, force: false)
+            await fixture.settle()
+            fixture.expectIdle(loadCount: 2)
+            #expect(store.tokenSnapshot(for: .cursor) != nil)
+        }
+    }
+
+    @Test
+    func `transient Cursor failure after a forced retry clears the denied cooldown`() async throws {
+        try await Self.withFixture(fingerprint: "cookie-a") { fixture in
+            let store = fixture.store
+            store.settings.refreshFrequency = .fiveMinutes
+            fixture.results = [
+                .failure(CursorStatusProbeError.networkError("HTTP 403")),
+                .failure(CursorStatusProbeError.networkError("HTTP 503")),
+                .success(Self.snapshot("cookie-a")),
+            ]
+            await store.refreshTokenUsageNow(for: .cursor, force: false)
+            await fixture.settle()
+            await store.refreshTokenUsageNow(for: .cursor, force: true)
+            await fixture.settle()
+            #expect(store.lastTokenFetchAt[.cursor] == nil)
+            await store.refreshTokenUsageNow(for: .cursor, force: false)
+            await fixture.settle()
+            fixture.expectIdle(loadCount: 3)
+            #expect(fixture.forced == [false, true, false])
+            #expect(store.tokenSnapshot(for: .cursor) != nil)
+        }
+    }
+
     @Test(arguments: [nil, "cookie-a"] as [String?])
     func `unchanged unconfirmed credentials reject once and allow the next ordinary refresh`(
         initialFingerprint: String?) async throws

@@ -582,12 +582,13 @@ extension UsageStore {
         now: Date,
         costScopeSignature: String) -> Bool
     {
-        guard self.tokenSnapshotPublicationForCurrentProviderConfig(for: provider) != nil,
-              let last = self.lastTokenFetchAt[provider.instanceID],
+        guard let last = self.lastTokenFetchAt[provider.instanceID],
               self.lastTokenFetchScope[provider.instanceID] == costScopeSignature
         else {
             return false
         }
+        guard self.tokenSnapshotPublicationForCurrentProviderConfig(for: provider) != nil ||
+            self.cursorCostFetchDeniedAt[provider.instanceID] == last else { return false }
         guard let tokenFetchTTL = self.tokenFetchTTL else { return false }
         return now.timeIntervalSince(last) < tokenFetchTTL
     }
@@ -863,6 +864,14 @@ extension UsageStore {
     /// TTL; timed-out scans keep the TTL so a slow corpus cannot thrash back-to-back rescans.
     nonisolated static func tokenFetchFailureAllowsEarlyRetry(_ error: Error) -> Bool {
         if case CostUsageError.timedOut = error {
+            return false
+        }
+        if case CursorStatusProbeError.notLoggedIn = error {
+            return false
+        }
+        if case let CursorStatusProbeError.networkError(message) = error,
+           message == "HTTP 401" || message == "HTTP 403"
+        {
             return false
         }
         return true
