@@ -400,7 +400,9 @@ public struct ProviderPluginManifest: Sendable {
     }
 
     /// Provider-specific by design: these configured gateways explicitly support private-network HTTP.
-    private static let bundledPrivateNetworkHTTPProviders: Set<UsageProvider> = [.llmproxy, .litellm, .bifrost]
+    private static let bundledPrivateNetworkHTTPProviders: Set<UsageProvider> = [
+        .llmproxy, .litellm, .bifrost, .llmman,
+    ]
 }
 
 enum ProviderPluginOrigin {

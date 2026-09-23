@@ -118,3 +118,4 @@ weakening the plugin network policy.
 | gitkraken | `cut-over` | QuickJS + JavaScriptCore | First-party bearer GET, optional organization header, weekly personal/shared credits; API-only, no subprocess fallback. |
 | hyper | `cut-over` | QuickJS + JavaScriptCore | Fixed-origin credits GET with Chrome/manual session preference and API-key fallback; native HC balance, no invented quotas or resets. |
 | devpass | `cut-over` | QuickJS + JavaScriptCore | Documented bearer GET for billing-cycle and premium weekly credits plus separate all-time key spend; API-only. |
+| llmman | `cut-over` | QuickJS + JavaScriptCore | Configured loopback/private-network daemon origin with an optional bearer key; `/llmman/node` memory and model summaries, best-effort version. |

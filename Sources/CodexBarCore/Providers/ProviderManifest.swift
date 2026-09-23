@@ -86,5 +86,6 @@ public enum ProviderManifest {
         HyperProviderDescriptor.descriptor,
         GitKrakenProviderDescriptor.descriptor,
         DevPassProviderDescriptor.descriptor,
+        LLMManProviderDescriptor.descriptor,
     ]
 }

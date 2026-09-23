@@ -1039,6 +1039,9 @@
 "Open Manus" = "Öppna Manus";
 "Unknown" = "Okänt";
 "Open Ollama API Keys" = "Öppna Ollama-API-nycklar";
+"Open llmman" = "Öppna llmman";
+"Stored in ~/.codexbar/config.json. Only needed when llmman serve requires API keys." = "Lagras i ~/.codexbar/config.json. Behövs bara när llmman serve kräver API-nycklar.";
+"Address of llmman serve. Defaults to http://127.0.0.1:17434." = "Adress till llmman serve. Standard är http://127.0.0.1:17434.";
 "Hourly Usage" = "Användning per timme";
 "Requests" = "Förfrågningar";
 "Antigravity login timed out" = "Antigravity-inloggning tog för lång tid";

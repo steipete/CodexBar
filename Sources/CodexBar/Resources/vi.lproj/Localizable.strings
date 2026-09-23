@@ -1168,6 +1168,9 @@
 "Open MiMo Balance" = "Mở MiMo Balance";
 "Open Moonshot Console" = "Mở Bảng điều khiển Moonshot";
 "Open Ollama API Keys" = "Mở Ollama API Phím";
+"Open llmman" = "Mở llmman";
+"Stored in ~/.codexbar/config.json. Only needed when llmman serve requires API keys." = "Được lưu trong ~/.codexbar/config.json. Chỉ cần khi llmman serve yêu cầu khóa API.";
+"Address of llmman serve. Defaults to http://127.0.0.1:17434." = "Địa chỉ của llmman serve. Mặc định là http://127.0.0.1:17434.";
 "Open StepFun Platform" = "Mở Nền tảng StepFun";
 "Open T3 Chat Settings" = "Mở Trò chuyện T3 Cài đặt";
 "Open Volcengine Ark Console" = "Mở Bảng điều khiển Volcengine Ark";

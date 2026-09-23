@@ -1170,6 +1170,9 @@
 "Open MiMo Balance" = "Öffnen Sie MiMo Balance";
 "Open Moonshot Console" = "Öffnen Sie die Moonshot-Konsole";
 "Open Ollama API Keys" = "Öffnen Sie die Ollama-API-Schlüssel";
+"Open llmman" = "llmman öffnen";
+"Stored in ~/.codexbar/config.json. Only needed when llmman serve requires API keys." = "Gespeichert in ~/.codexbar/config.json. Nur nötig, wenn llmman serve API-Schlüssel verlangt.";
+"Address of llmman serve. Defaults to http://127.0.0.1:17434." = "Adresse von llmman serve. Standard: http://127.0.0.1:17434.";
 "Open StepFun Platform" = "Öffnen Sie die StepFun-Plattform";
 "Open T3 Chat Settings" = "Öffnen Sie die T3-Chat-Einstellungen";
 "Open Volcengine Ark Console" = "Öffnen Sie die Volcengine Ark-Konsole";

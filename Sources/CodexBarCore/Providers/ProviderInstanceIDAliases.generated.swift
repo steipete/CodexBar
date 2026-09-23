@@ -84,6 +84,7 @@ extension ProviderInstanceID {
     public static let hyper = UsageProvider.hyper.instanceID
     public static let gitkraken = UsageProvider.gitkraken.instanceID
     public static let devpass = UsageProvider.devpass.instanceID
+    public static let llmman = UsageProvider.llmman.instanceID
 }
 
 // swiftformat:enable sortDeclarations

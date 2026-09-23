@@ -1189,6 +1189,9 @@
 "Open MiMo Balance" = "เปิดยอดคงเหลือ MiMo";
 "Open Moonshot Console" = "เปิดคอนโซล Moonshot";
 "Open Ollama API Keys" = "เปิดปุ่ม Ollama API";
+"Open llmman" = "เปิด llmman";
+"Stored in ~/.codexbar/config.json. Only needed when llmman serve requires API keys." = "จัดเก็บใน ~/.codexbar/config.json จำเป็นเฉพาะเมื่อ llmman serve ต้องใช้คีย์ API";
+"Address of llmman serve. Defaults to http://127.0.0.1:17434." = "ที่อยู่ของ llmman serve ค่าเริ่มต้นคือ http://127.0.0.1:17434";
 "Open StepFun Platform" = "เปิดแพลตฟอร์ม StepFun";
 "Open T3 Chat Settings" = "เปิดการตั้งค่า T3 Chat";
 "Open Volcengine Ark Console" = "เปิดคอนโซล Volcengine Ark";

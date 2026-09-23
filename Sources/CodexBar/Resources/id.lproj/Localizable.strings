@@ -1191,6 +1191,9 @@
 "Open MiMo Balance" = "Buka Saldo MiMo";
 "Open Moonshot Console" = "Buka Konsol Moonshot";
 "Open Ollama API Keys" = "Buka Kunci API Ollama";
+"Open llmman" = "Buka llmman";
+"Stored in ~/.codexbar/config.json. Only needed when llmman serve requires API keys." = "Disimpan di ~/.codexbar/config.json. Hanya diperlukan jika llmman serve mewajibkan kunci API.";
+"Address of llmman serve. Defaults to http://127.0.0.1:17434." = "Alamat llmman serve. Default: http://127.0.0.1:17434.";
 "Open StepFun Platform" = "Buka Platform StepFun";
 "Open T3 Chat Settings" = "Buka Pengaturan T3 Chat";
 "Open Volcengine Ark Console" = "Buka Konsol Volcengine Ark";

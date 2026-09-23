@@ -1038,6 +1038,9 @@
 "Open MiMo Balance" = "開啟 MiMo 餘額";
 "Open Moonshot Console" = "開啟 Moonshot 主控台";
 "Open Ollama API Keys" = "開啟 Ollama API 金鑰";
+"Open llmman" = "開啟 llmman";
+"Stored in ~/.codexbar/config.json. Only needed when llmman serve requires API keys." = "儲存在 ~/.codexbar/config.json 中。僅在 llmman serve 要求 API 金鑰時才需要。";
+"Address of llmman serve. Defaults to http://127.0.0.1:17434." = "llmman serve 的位址。預設為 http://127.0.0.1:17434。";
 "Open StepFun Platform" = "開啟 StepFun 平台";
 "Open T3 Chat Settings" = "開啟 T3 Chat 設定";
 "Open Volcengine Ark Console" = "開啟 Volcengine Ark 主控台";

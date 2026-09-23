@@ -1138,6 +1138,9 @@
 "Open MiMo Balance" = "MiMo 잔액 열기";
 "Open Moonshot Console" = "Moonshot 콘솔 열기";
 "Open Ollama API Keys" = "Ollama API 키 열기";
+"Open llmman" = "llmman 열기";
+"Stored in ~/.codexbar/config.json. Only needed when llmman serve requires API keys." = "~/.codexbar/config.json에 저장됩니다. llmman serve에 API 키가 필요한 경우에만 필요합니다.";
+"Address of llmman serve. Defaults to http://127.0.0.1:17434." = "llmman serve 주소입니다. 기본값은 http://127.0.0.1:17434입니다.";
 "Open StepFun Platform" = "StepFun 플랫폼 열기";
 "Open T3 Chat Settings" = "T3 Chat 설정 열기";
 "Open Volcengine Ark Console" = "Volcengine Ark 콘솔 열기";

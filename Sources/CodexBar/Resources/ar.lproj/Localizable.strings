@@ -1189,6 +1189,9 @@
 "Open MiMo Balance" = "توازن MiMo مفتوح";
 "Open Moonshot Console" = "وحدة التحكم المفتوحة Moonshot";
 "Open Ollama API Keys" = "مفاتيح Ollama API المفتوحة";
+"Open llmman" = "فتح llmman";
+"Stored in ~/.codexbar/config.json. Only needed when llmman serve requires API keys." = "مخزّن في ~/.codexbar/config.json. مطلوب فقط عندما يتطلب llmman serve مفاتيح API.";
+"Address of llmman serve. Defaults to http://127.0.0.1:17434." = "عنوان llmman serve. القيمة الافتراضية http://127.0.0.1:17434.";
 "Open StepFun Platform" = "منصة StepFun المفتوحة";
 "Open T3 Chat Settings" = "افتح إعدادات T3 Chat";
 "Open Volcengine Ark Console" = "وحدة تحكم فولكموتور المفتوحة";

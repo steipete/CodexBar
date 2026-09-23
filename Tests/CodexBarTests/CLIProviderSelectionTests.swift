@@ -22,6 +22,7 @@ struct CLIProviderSelectionTests {
             "|warp|",
             "|ollama|",
             "|devpass|",
+            "|llmman|",
             "|both|",
             "|all]",
         ]

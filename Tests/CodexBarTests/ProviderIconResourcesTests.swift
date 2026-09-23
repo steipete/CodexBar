@@ -39,12 +39,12 @@ struct ProviderIconResourcesTests {
         #expect(first.isTemplate)
     }
 
-    @Test
-    func `ollama provider icon uses template rendering`() throws {
+    @Test(arguments: [UsageProvider.ollama, .llmman])
+    func `provider icons use template rendering`(provider: UsageProvider) throws {
         ProviderBrandIcon.resetCacheForTesting()
         defer { ProviderBrandIcon.resetCacheForTesting() }
 
-        let image = try #require(ProviderBrandIcon.image(for: .ollama))
+        let image = try #require(ProviderBrandIcon.image(for: provider))
 
         #expect(image.size == NSSize(width: 18, height: 18))
         #expect(image.isTemplate)

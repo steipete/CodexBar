@@ -8,7 +8,7 @@ read_when:
 
 # Providers
 
-CodexBar currently registers 81 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
+CodexBar currently registers 82 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
 OpenCode vs OpenCode Go, because the auth source and quota shape differ.
 
 ## Fetch strategies (current)
@@ -103,6 +103,7 @@ complete when the available scan window covers fewer days.
 | [DevPass](devpass.md) | Regular LLM Gateway API key → bundled plugin for plan credits, premium weekly usage, and all-time key spend (`api`). |
 | Windsurf | Web session bundle from browser localStorage (`web`) → local SQLite cache (`local`). |
 | Ollama | API key verifies Cloud API access (`api`); browser cookies expose Cloud quota windows (`web`). |
+| [llmman](llmman.md) | Local `llmman serve` node report, optional API key → bundled plugin for loaded-model memory and store summary (`api`). |
 | Synthetic | API key from config/env → quota API (`api`). |
 | OpenRouter | API token (config, overrides env) → key quota and credits APIs; a management key enables account Activity on the official API (`api`). |
 | Perplexity | Browser cookies/manual cookie/env session token → credits API (`web`). |
@@ -422,6 +423,13 @@ provider-specific cookie validation, endpoints, login detection, and error trans
 - Parses Cloud Usage plan badge, session/weekly usage, and reset timestamps.
 - Status: none yet.
 - Details: `docs/ollama.md`.
+
+## llmman
+- Local `llmman serve` daemon (default `http://127.0.0.1:17434`; Base URL or `LLMMAN_HOST` overrides it).
+- Optional API key from `~/.codexbar/config.json` (`providers[].apiKey`) or `LLMMAN_API_KEY`, for daemons that require keys.
+- `/llmman/node`: loaded weights as a share of model memory, plus loaded/stored model summaries; `/api/version` best effort.
+- Status: none (local daemon).
+- Details: `docs/llmman.md`.
 
 ## Synthetic
 - API key from `~/.codexbar/config.json` (`providers[].apiKey`) or `SYNTHETIC_API_KEY`.

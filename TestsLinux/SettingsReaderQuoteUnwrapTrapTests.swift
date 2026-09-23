@@ -49,4 +49,13 @@ struct SettingsReaderQuoteUnwrapTrapTests {
         let env = [OllamaAPISettingsReader.apiKeyEnvironmentKeys[0]: "\"sk-token\""]
         #expect(OllamaAPISettingsReader.apiKey(environment: env) == "sk-token")
     }
+
+    @Test
+    func `llmman API key rejects lone quotes and unwraps quotes`() {
+        for value in ["\"", "'"] {
+            #expect(LLMManSettingsReader.apiKey(environment: [LLMManSettingsReader.apiKeyEnvironmentKey: value]) == nil)
+        }
+        let env = [LLMManSettingsReader.apiKeyEnvironmentKey: "\"sk-token\""]
+        #expect(LLMManSettingsReader.apiKey(environment: env) == "sk-token")
+    }
 }

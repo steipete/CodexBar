@@ -296,6 +296,20 @@ struct ProviderSettingsDescriptorTests {
     }
 
     @Test
+    func `llmman exposes an optional key and a base URL stored in provider config`() throws {
+        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-llmman")
+        let fields = LLMManProviderImplementation()
+            .settingsFields(context: fixture.settingsContext(provider: .llmman))
+        #expect(fields.map(\.id) == ["llmman-api-key", "llmman-base-url"])
+        #expect(fields.map(\.kind) == [.secure, .plain])
+        #expect(fields[1].actions.map(\.id) == ["llmman-open-web-ui"])
+        fields[0].binding.wrappedValue = "fixture-key"
+        fields[1].binding.wrappedValue = "192.168.1.10:17434"
+        #expect(fixture.settings.providerConfig(for: .llmman)?.apiKey == "fixture-key")
+        #expect(fixture.settings.providerConfig(for: .llmman)?.enterpriseHost == "192.168.1.10:17434")
+    }
+
+    @Test
     func `open code go cookie refresh rejects local fallback cookie`() async throws {
         let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-opencodego-validation")
         let context = fixture.settingsContext(provider: .opencodego)

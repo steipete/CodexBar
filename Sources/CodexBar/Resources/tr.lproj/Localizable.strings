@@ -1184,6 +1184,9 @@
 "Open MiMo Balance" = "MiMo bakiyesini aç";
 "Open Moonshot Console" = "Moonshot konsolunu aç";
 "Open Ollama API Keys" = "Ollama API anahtarlarını aç";
+"Open llmman" = "llmman'ı aç";
+"Stored in ~/.codexbar/config.json. Only needed when llmman serve requires API keys." = "~/.codexbar/config.json dosyasında saklanır. Yalnızca llmman serve API anahtarı gerektirdiğinde gereklidir.";
+"Address of llmman serve. Defaults to http://127.0.0.1:17434." = "llmman serve adresi. Varsayılan: http://127.0.0.1:17434.";
 "Open StepFun Platform" = "StepFun platformunu aç";
 "Open T3 Chat Settings" = "T3 Chat ayarlarını aç";
 "Open Volcengine Ark Console" = "Volcengine Ark konsolunu aç";
