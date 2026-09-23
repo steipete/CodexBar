@@ -1017,6 +1017,9 @@ extension StatusItemController {
                       let value = balanceDetail.split(separator: " ", maxSplits: 1).first
             else { return nil }
             return (balanceDetail.contains(" owed") ? "-" : "") + String(value)
+        case .hyper:
+            // Provider-specific by design: Hyper reports its Hypercredits balance only as a detail row.
+            return snapshot?.detailRow(label: "Balance")?.value
         case .moonshot, .poe:
             let value = self.displayValue(
                 from: snapshot?.loginMethod(for: provider), prefix: "Balance:", removingSuffix: "")

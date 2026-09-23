@@ -382,6 +382,94 @@ struct MenuBarLayoutEditorTests {
     }
 
     @Test
+    func `balance token resolves providers the shared extractor supports`() throws {
+        // MiMo intentionally resolves through its own path (token-plan guard + "(Paid:" trim),
+        // handled separately; it is not part of the shared extractor's coverage.
+        // DeepSeek stores its balance in the billing window's resetDescription.
+        let deepseek = DeepSeekUsageSnapshot(
+            isAvailable: true,
+            currency: "CNY",
+            totalBalance: 100,
+            grantedBalance: 0,
+            toppedUpBalance: 100,
+            updatedAt: Date()).toUsageSnapshot()
+        #expect(MenuBarLayoutBalanceResolver.balance(provider: .deepseek, snapshot: deepseek) == "¥100.00")
+
+        // DeepInfra splits "$X available · $Y spent this month" from the billing window description.
+        let deepinfra = DeepInfraUsageSnapshot(
+            availableBalanceUSD: 42,
+            amountOwedUSD: 0,
+            currentMonthCostUSD: 3,
+            recentCostUSD: 3,
+            spendingLimitUSD: nil,
+            suspended: false,
+            suspendReason: nil,
+            updatedAt: Date()).toUsageSnapshot()
+        #expect(MenuBarLayoutBalanceResolver.balance(provider: .deepinfra, snapshot: deepinfra) == "$42.00")
+
+        // Moonshot and Poe carry the balance inside the login method label.
+        for (provider, loginMethod, expected) in [
+            (UsageProvider.moonshot, "Balance: $49.58 · $0.42 in deficit", "$49.58"),
+            (UsageProvider.poe, "Balance: 512 points", "512 points"),
+        ] {
+            let snapshot = UsageSnapshot(
+                primary: nil,
+                secondary: nil,
+                updatedAt: Date(),
+                identity: ProviderIdentitySnapshot(
+                    providerID: provider.instanceID,
+                    accountEmail: nil,
+                    accountOrganization: nil,
+                    loginMethod: loginMethod))
+            #expect(MenuBarLayoutBalanceResolver.balance(provider: provider, snapshot: snapshot) == expected)
+        }
+
+        // Mistral's menu-bar money value is its monthly API spend.
+        let mistral = MistralUsageSnapshot(
+            totalCost: 1.2345,
+            currency: "EUR",
+            currencySymbol: "€",
+            totalInputTokens: 10000,
+            totalOutputTokens: 5000,
+            totalCachedTokens: 0,
+            modelCount: 2,
+            startDate: nil,
+            endDate: nil,
+            updatedAt: Date()).toUsageSnapshot()
+        #expect(MenuBarLayoutBalanceResolver.balance(provider: .mistral, snapshot: mistral) == "€1.2345")
+
+        // Hyper reports its credit balance only as a detail row.
+        let hyper = try UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            details: [ProviderDetailSection(title: "Hypercredits", rows: [
+                ProviderDetailSection.Row(label: "Balance", value: "42.5 HC"),
+            ])],
+            updatedAt: Date())
+        #expect(MenuBarLayoutBalanceResolver.balance(provider: .hyper, snapshot: hyper) == "42.5 HC")
+
+        // Providers with no money value keep the missing-value placeholder.
+        #expect(MenuBarLayoutBalanceResolver.balance(provider: .cursor, snapshot: nil) == nil)
+    }
+
+    @Test
+    func `opencode go balance token resolves zen balance beside subscription quota`() {
+        let snapshot = OpenCodeGoUsageSnapshot(
+            hasMonthlyUsage: true,
+            rollingUsagePercent: 12,
+            weeklyUsagePercent: 34,
+            monthlyUsagePercent: 56,
+            rollingResetInSec: nil,
+            weeklyResetInSec: nil,
+            monthlyResetInSec: nil,
+            zenBalanceUSD: 25,
+            updatedAt: Date()).toUsageSnapshot()
+        // Quota windows exist, so the shared extractor's fallback guard must not hide an explicit token.
+        #expect(snapshot.primary != nil)
+        #expect(MenuBarLayoutBalanceResolver.balance(provider: .opencodego, snapshot: snapshot) == "$25.00")
+    }
+
+    @Test
     func `conditional palette chips wrap instead of overflowing the pane`() {
         let spacing: CGFloat = 6
 

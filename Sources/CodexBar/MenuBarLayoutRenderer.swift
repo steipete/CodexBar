@@ -72,8 +72,8 @@ struct MenuBarLayoutRenderData: Hashable {
     let automatic: MenuBarLayoutRenderWindow?
     /// Provider-specific text that replaces the automatic percent token: Mistral spend when its
     /// automatic lane has no percentage window, balance-only providers (DeepSeek, DeepInfra) whose
-    /// window percent is meaningless, or no-window providers (Moonshot, Poe, OpenCode Go,
-    /// OpenRouter) surfacing their balance instead of a missing-value placeholder.
+    /// window percent is meaningless, or no-window providers (Moonshot, Poe, OpenCode Go, OpenRouter,
+    /// Hyper) surfacing their balance instead of a missing-value placeholder.
     let automaticText: String?
     /// Signed pace deltas per window, already formatted (`+11%`, `-8%`, `0%`). Pace needs the store's
     /// historical dataset and work-day setting, so it is resolved upstream like `runsOut` rather than

@@ -1143,8 +1143,9 @@ struct MenuBarLayoutPreview: View {
             weeklyPace: samplePace(weekly),
             automaticPace: samplePace(session),
             runsOut: L("Runs out in %@", "1d 16h"),
-            // Provider-specific by design: only OpenRouter previews the Balance palette token.
-            balance: provider == .openrouter ? "$12.34" : nil,
+            // Provider-specific by design: balance-capable providers preview the Balance palette
+            // token with a sample value matching their real display format.
+            balance: Self.sampleBalanceText(provider: provider),
             costToday: "$1.25",
             cost30d: "$20.00",
             metrics: MenuBarLayoutRenderMetrics(
@@ -1157,6 +1158,21 @@ struct MenuBarLayoutPreview: View {
                 balanceUsedUSD: provider == .openrouter ? 7.66 : nil,
                 costTodayUSD: 1.25,
                 cost30dUSD: 20))
+    }
+
+    private static func sampleBalanceText(provider: UsageProvider) -> String? {
+        // Provider-specific by design: sample values mirror each provider's real display format.
+        switch provider {
+        case .openrouter: "$12.34"
+        case .deepseek: "¥100.00"
+        case .deepinfra: "$42.00"
+        case .moonshot: "$49.58"
+        case .poe: "512 points"
+        case .mistral: "€1.2345"
+        case .opencodego: "$25.00"
+        case .hyper: "42.5 HC"
+        default: nil
+        }
     }
 }
 

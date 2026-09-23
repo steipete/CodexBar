@@ -603,7 +603,8 @@ enum MenuBarLayoutBalanceResolver {
         -> String?
     {
         // Provider-specific by design: Codex credits live outside UsageSnapshot, while OpenRouter exposes
-        // its credit balance as the "Remaining" detail row.
+        // its credit balance as the "Remaining" detail row. All other providers share the automatic-path
+        // extractor so a stored Balance token resolves the same money value the menu bar already shows.
         switch provider {
         case .codex:
             guard let codexCredits, codexCredits.balanceReadSucceeded else { return nil }
@@ -611,8 +612,14 @@ enum MenuBarLayoutBalanceResolver {
                 .number.precision(.fractionLength(0)).locale(Locale(identifier: "en_US")))
         case .openrouter:
             return snapshot?.detailRow(label: "Remaining")?.value
+        case .opencodego:
+            // Provider-specific by design: the Zen balance coexists with subscription quota windows, so
+            // an explicitly placed Balance token resolves it even when quota windows exist. The shared
+            // extractor's no-quota guard only applies to automatic/fallback display.
+            guard let cost = snapshot?.providerCost, cost.period == "Zen balance" else { return nil }
+            return UsageFormatter.currencyString(cost.used, currencyCode: cost.currencyCode)
         default:
-            return nil
+            return StatusItemController.menuBarBalanceDisplayText(provider: provider, snapshot: snapshot)
         }
     }
 

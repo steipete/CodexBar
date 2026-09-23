@@ -29,7 +29,8 @@ Automatic browser import is macOS-only. On Linux, Auto can fall back to the API 
 
 The card and CLI show a **Hypercredits → Balance** detail row. The JSON detail row preserves the numeric
 balance in `usageValue` alongside the HC display string. No usage percentage, plan, spend history, limit, or reset countdown is inferred
-from this balance-only response. Widgets and a dedicated numeric menu-bar balance are not supported.
+from this balance-only response. The menu bar can show the balance through the Balance layout token, the Auto % metric,
+or the legacy text metric; widgets do not support it.
 Missing credentials produce setup guidance instead of a fabricated zero balance.
 
 The request and parsing contracts are covered by synthetic fixtures derived from #2502 on both plugin
