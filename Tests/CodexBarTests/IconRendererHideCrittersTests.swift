@@ -179,8 +179,43 @@ struct IconRendererHideCrittersTests {
                 hideCritters: true)
         }
 
-        #expect(try self.pixels(image(credits: 500)) != self.pixels(image(credits: 1000)))
-        #expect(try self.pixels(image(credits: 2263)) != self.pixels(image(credits: 1000)))
-        #expect(try self.pixels(image(credits: 2263)) != self.pixels(image(credits: 1500)))
+        try CreditsBarScale.$highWater.withValue(CreditsBarScale.HighWater()) {
+            // Independent snapshots: 50% of 1000 vs 100% of 1000 → 15px vs 30px in a 30px bar.
+            #expect(try self.pixels(image(credits: 500)) != self.pixels(image(credits: 1000)))
+        }
+        try CreditsBarScale.$highWater.withValue(CreditsBarScale.HighWater()) {
+            // 2263/3000 ≈ 75.4% → 23px; 1000/1000 = 100% → 30px.
+            #expect(try self.pixels(image(credits: 2263)) != self.pixels(image(credits: 1000)))
+        }
+        try CreditsBarScale.$highWater.withValue(CreditsBarScale.HighWater()) {
+            // Same 2000 auto bucket, clearly different pixel widths: 1200 → 60% → 18px; 1800 → 90% → 27px.
+            // 2263 vs 1500 both occupy ~23px (75.4% of 3000 vs 75% of 2000) and must not be used here.
+            #expect(try self.pixels(image(credits: 1200)) != self.pixels(image(credits: 1800)))
+        }
+    }
+
+    @Test
+    func `credits fill does not refill across a thousand-credit bucket boundary`() throws {
+        func image(credits: Double) -> NSImage {
+            IconRenderer.makeIcon(
+                primaryRemaining: nil,
+                weeklyRemaining: nil,
+                creditsRemaining: credits,
+                stale: false,
+                style: .combined,
+                hideCritters: true)
+        }
+
+        try CreditsBarScale.$highWater.withValue(CreditsBarScale.HighWater()) {
+            // 2500/3000 ≈ 83.3% → 25px, then 2000/3000 ≈ 66.7% → 20px. Stateless auto would refill 2000 to 30px.
+            let afterHigh = image(credits: 2500)
+            let afterSpend = image(credits: 2000)
+            #expect(try self.pixels(afterHigh) != self.pixels(afterSpend))
+
+            try CreditsBarScale.$highWater.withValue(CreditsBarScale.HighWater()) {
+                let independentBoundary = image(credits: 2000)
+                #expect(try self.pixels(afterSpend) != self.pixels(independentBoundary))
+            }
+        }
     }
 }

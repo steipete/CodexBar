@@ -37,8 +37,10 @@ extension UsageStore {
         context: UsageMenuCardContext = .menu,
         now: Date = Date()) -> UsageMenuCardView.Model
     {
-        UsageMenuCardView.Model.make(self.menuCardInput(for: provider, context: context, now: now))
-            .applyingUsageItemVisibility(hiddenItemIDs: self.settings.hiddenUsageItemIDs(for: provider))
+        CreditsBarScale.$highWater.withValue(.session) {
+            UsageMenuCardView.Model.make(self.menuCardInput(for: provider, context: context, now: now))
+                .applyingUsageItemVisibility(hiddenItemIDs: self.settings.hiddenUsageItemIDs(for: provider))
+        }
     }
 
     func menuCardInput(

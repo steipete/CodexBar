@@ -761,7 +761,9 @@ private struct CreditsBarContent: View {
             return min(100, max(0, progressPercent))
         }
         guard let creditsRemaining else { return nil }
-        return CreditsBarScale.remainingPercent(remaining: creditsRemaining)
+        return CreditsBarScale.remainingPercent(
+            remaining: creditsRemaining,
+            scale: CreditsBarScale.sessionScale(for: creditsRemaining))
     }
 
     private var effectiveScaleText: String {
@@ -769,7 +771,7 @@ private struct CreditsBarContent: View {
             return scaleText
         }
         let remaining = self.creditsRemaining ?? 0
-        return L("of %@", UsageFormatter.creditsNumberString(from: CreditsBarScale.autoScale(for: remaining)))
+        return L("of %@", UsageFormatter.creditsNumberString(from: CreditsBarScale.sessionScale(for: remaining)))
     }
 
     var body: some View {

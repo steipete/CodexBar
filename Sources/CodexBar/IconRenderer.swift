@@ -710,7 +710,7 @@ enum IconRenderer {
                 }()
                 let topValue = primaryRemaining
                 let bottomValue = effectiveWeeklyRemaining
-                let creditsRatio = creditsRemaining.map { CreditsBarScale.remainingPercent(remaining: $0) }
+                let creditsRatio = creditsRemaining.map { Self.creditsFillPercent($0) }
 
                 let hasWeekly = (bottomValue != nil)
                 let weeklyAvailable = hasWeekly && (bottomValue ?? 0) > 0
@@ -902,9 +902,15 @@ enum IconRenderer {
         return Int((value * 10).rounded())
     }
 
+    private static func creditsFillPercent(_ remaining: Double) -> Double {
+        CreditsBarScale.remainingPercent(
+            remaining: remaining,
+            scale: CreditsBarScale.sessionScale(for: remaining))
+    }
+
     private static func quantizedCredits(_ value: Double?) -> Int {
         guard let value else { return -1 }
-        return Int((CreditsBarScale.remainingPercent(remaining: value) * 10).rounded())
+        return Int((Self.creditsFillPercent(value) * 10).rounded())
     }
 
     private static let styleKeyLookup: [IconStyle: Int] = {

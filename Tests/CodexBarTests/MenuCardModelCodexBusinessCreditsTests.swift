@@ -405,4 +405,47 @@ struct MenuCardModelCodexBusinessCreditsTests {
             credits: credits,
             error: nil) == "2263.27 left")
     }
+
+    @Test
+    func `menu credits bar does not refill across a thousand-credit boundary`() throws {
+        let metadata = try #require(ProviderDefaults.metadata[.codex])
+        let store = CreditsBarScale.HighWater()
+
+        func model(remaining: Double) -> UsageMenuCardView.Model {
+            UsageMenuCardView.Model.make(.init(
+                provider: .codex,
+                metadata: metadata,
+                snapshot: nil,
+                credits: CreditsSnapshot(remaining: remaining, events: [], updatedAt: Date()),
+                creditsError: nil,
+                dashboardError: nil,
+                tokenSnapshot: nil,
+                tokenError: nil,
+                account: AccountInfo(email: nil, plan: nil),
+                isRefreshing: false,
+                lastError: nil,
+                usageBarsShowUsed: true,
+                resetTimeDisplayStyle: .countdown,
+                tokenCostUsageEnabled: false,
+                showOptionalCreditsAndExtraUsage: true,
+                hidePersonalInfo: false,
+                now: Date()))
+        }
+
+        CreditsBarScale.$highWater.withValue(store) {
+            let aboveBucket = model(remaining: 2001)
+            let atBucket = model(remaining: 2000)
+            #expect(aboveBucket.creditsScaleText == "of 3000")
+            #expect(atBucket.creditsScaleText == "of 3000")
+            #expect(aboveBucket.creditsProgressPercent == 2001 / 3000.0 * 100)
+            #expect(atBucket.creditsProgressPercent == 2000 / 3000.0 * 100)
+            #expect((atBucket.creditsProgressPercent ?? 100) < (aboveBucket.creditsProgressPercent ?? 0))
+
+            let aboveFloor = model(remaining: 1001)
+            let atFloor = model(remaining: 1000)
+            #expect(aboveFloor.creditsScaleText == "of 3000")
+            #expect(atFloor.creditsScaleText == "of 3000")
+            #expect((atFloor.creditsProgressPercent ?? 100) < (aboveFloor.creditsProgressPercent ?? 0))
+        }
+    }
 }

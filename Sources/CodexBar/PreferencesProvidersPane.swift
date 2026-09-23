@@ -522,7 +522,9 @@ struct ProvidersPane: View {
     }
 
     private func unfilteredMenuCardModel(for provider: UsageProvider) -> UsageMenuCardView.Model {
-        UsageMenuCardView.Model.make(self.store.menuCardInput(for: provider, context: .settings))
+        CreditsBarScale.$highWater.withValue(.session) {
+            UsageMenuCardView.Model.make(self.store.menuCardInput(for: provider, context: .settings))
+        }
     }
 
     func openAIWebDiagnostic(for provider: UsageProvider) -> String? {
