@@ -2,6 +2,10 @@
 
 ## 0.64.2 — Unreleased
 
+### Improved
+
+- Grok: count completed session turns for local token totals instead of context-size signals, with calendar-day report windows. Subscription credits stay a quota.
+
 ### Added
 
 - Doubao: save labeled Ark API-key accounts in the shared account editor and select them in the app or CLI without inheriting another account's credentials (#3192).

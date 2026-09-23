@@ -589,6 +589,23 @@ public struct CostUsageFetcher: Sendable {
                 historyDays: clampedHistoryDays,
                 calendar: fallbackCalendar))
         }
+        // Provider-specific by design: Grok counts completed local turns instead of context size.
+        if provider == .grok {
+            let summary = try await GrokLocalSessionScanner.summarizeOffMainThread(
+                env: environment,
+                lookbackDays: clampedHistoryDays,
+                now: now)
+            if let snapshot = summary.toCostUsageTokenSnapshot(historyDays: clampedHistoryDays) {
+                return CostUsageTokenResult(snapshot: snapshot)
+            }
+            if let remoteError {
+                throw remoteError
+            }
+            return CostUsageTokenResult(snapshot: Self.unavailableLocalSnapshot(
+                now: now,
+                historyDays: clampedHistoryDays,
+                calendar: fallbackCalendar))
+        }
         // Provider-specific by design: Muse local history has token evidence but no established dollar rates.
         if provider == .muse {
             return try await CostUsageTokenResult(snapshot: Self.loadMuseLocalSnapshot(

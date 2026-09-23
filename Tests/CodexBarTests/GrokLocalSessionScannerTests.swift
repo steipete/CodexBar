@@ -109,6 +109,129 @@ struct GrokLocalSessionScannerTests {
         #expect(snapshot.updatedAt == localScanTime)
     }
 
+    @Test
+    func `turn usage replaces signal context and prices the public model`() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("grok-turn-price-\(UUID().uuidString)", isDirectory: true)
+        let session = root.appendingPathComponent("sessions/%2Ftmp%2Fdemo/session-a", isDirectory: true)
+        try FileManager.default.createDirectory(at: session, withIntermediateDirectories: true)
+        let when = Date(timeIntervalSince1970: 1_787_079_600)
+        try self.writeSignals(
+            at: session.appendingPathComponent("signals.json"),
+            tokens: 10,
+            model: "grok-4.6",
+            date: when)
+        let usage = """
+        {"timestamp":1787079600,"method":"_x.ai/session/update",\
+        "params":{"update":{"sessionUpdate":"turn_completed","prompt_id":"p1","usage":{"inputTokens":1000,\
+        "outputTokens":50,"totalTokens":1050,"cachedReadTokens":200,"cacheCreationTokens":0,\
+        "reasoningTokens":10,"modelUsage":{"grok-4.6-build":{"inputTokens":1000,"outputTokens":50,\
+        "totalTokens":1050,"cachedReadTokens":200,"cacheCreationTokens":0,"reasoningTokens":10}}}}}}
+        """
+        try usage.write(to: session.appendingPathComponent("updates.jsonl"), atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes(
+            [.modificationDate: when],
+            ofItemAtPath: session.appendingPathComponent("updates.jsonl").path)
+
+        let summary = try GrokLocalSessionScanner.summarize(
+            env: ["GROK_HOME": root.path],
+            fileManager: .default,
+            lookbackDays: 7,
+            now: when)
+        #expect(summary.totalTokens == 1050)
+        let snapshot = try #require(summary.toCostUsageTokenSnapshot(historyDays: 7))
+        #expect(snapshot.last30DaysTokens == 1050)
+        #expect(snapshot.last30DaysCostUSD == nil)
+        #expect(snapshot.costProvenance == .unknown)
+    }
+
+    @Test
+    func `turns outside the requested window are excluded`() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("grok-turn-window-\(UUID().uuidString)", isDirectory: true)
+        let session = root.appendingPathComponent("sessions/%2Ftmp%2Fdemo/session-a", isDirectory: true)
+        try FileManager.default.createDirectory(at: session, withIntermediateDirectories: true)
+        let when = Date(timeIntervalSince1970: 1_787_079_600)
+        let old = 1_787_079_600 - (40 * 24 * 60 * 60)
+        let usage = """
+        {"timestamp":\(old),"method":"_x.ai/session/update",\
+        "params":{"update":{"sessionUpdate":"turn_completed","prompt_id":"old","usage":{"inputTokens":400,\
+        "outputTokens":100,"totalTokens":500,"cachedReadTokens":0,"cacheCreationTokens":0,\
+        "modelUsage":{"grok-4.6":{"inputTokens":400,"outputTokens":100,"totalTokens":500,\
+        "cachedReadTokens":0,"cacheCreationTokens":0}}}}}}
+        {"timestamp":1787079600,"method":"_x.ai/session/update",\
+        "params":{"update":{"sessionUpdate":"turn_completed","prompt_id":"new","usage":{"inputTokens":1000,\
+        "outputTokens":50,"totalTokens":1050,"cachedReadTokens":200,"cacheCreationTokens":0,\
+        "modelUsage":{"grok-4.6-build":{"inputTokens":1000,"outputTokens":50,"totalTokens":1050,\
+        "cachedReadTokens":200,"cacheCreationTokens":0}}}}}}
+        """
+        let updates = session.appendingPathComponent("updates.jsonl")
+        try usage.write(to: updates, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.modificationDate: when], ofItemAtPath: updates.path)
+        let summary = try GrokLocalSessionScanner.summarize(
+            env: ["GROK_HOME": root.path],
+            fileManager: .default,
+            lookbackDays: 7,
+            now: when)
+        #expect(summary.totalTokens == 1050)
+    }
+
+    @Test
+    func `one day reports count today only`() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("grok-turn-calendar-\(UUID().uuidString)", isDirectory: true)
+        let session = root.appendingPathComponent("sessions/%2Ftmp%2Fdemo/session-a", isDirectory: true)
+        try FileManager.default.createDirectory(at: session, withIntermediateDirectories: true)
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date(timeIntervalSince1970: 1_787_079_600))
+        let yesterday = try #require(calendar.date(byAdding: .day, value: -1, to: today))
+        let tomorrow = try #require(calendar.date(byAdding: .day, value: 1, to: today))
+        let now = try #require(calendar.date(bySettingHour: 12, minute: 0, second: 0, of: today))
+        let yesterdayEvening = try #require(calendar.date(bySettingHour: 15, minute: 0, second: 0, of: yesterday))
+        let thisMorning = try #require(calendar.date(bySettingHour: 9, minute: 0, second: 0, of: today))
+        let tomorrowMorning = try #require(calendar.date(bySettingHour: 1, minute: 0, second: 0, of: tomorrow))
+        let usage = [
+            self.turnLine(prompt: "yesterday", model: "grok-4.6", at: yesterdayEvening, input: 400, output: 100),
+            self.turnLine(prompt: "today", model: "grok-4.6-build", at: thisMorning, input: 1000, output: 50),
+            self.turnLine(prompt: "tomorrow", model: "grok-4.6", at: tomorrowMorning, input: 2000, output: 100),
+        ].joined(separator: "\n")
+        let updates = session.appendingPathComponent("updates.jsonl")
+        try usage.write(to: updates, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.modificationDate: now], ofItemAtPath: updates.path)
+
+        let todayOnly = try GrokLocalSessionScanner.summarize(
+            env: ["GROK_HOME": root.path],
+            fileManager: .default,
+            lookbackDays: 1,
+            now: now)
+        let todayKey = try #require(GrokLocalSessionScanner.dayKey(for: now, calendar: calendar))
+        #expect(todayOnly.totalTokens == 1050)
+        #expect(todayOnly.daily.map(\.date) == [todayKey])
+        let todaySnapshot = try #require(todayOnly.toCostUsageTokenSnapshot(historyDays: 1))
+        #expect(todaySnapshot.sessionTokens == 1050)
+        #expect(todaySnapshot.last30DaysTokens == 1050)
+        #expect(todaySnapshot.last30DaysCostUSD == nil)
+
+        let twoDays = try GrokLocalSessionScanner.summarize(
+            env: ["GROK_HOME": root.path],
+            fileManager: .default,
+            lookbackDays: 2,
+            now: now)
+        #expect(twoDays.totalTokens == 1550)
+        #expect(twoDays.daily.count == 2)
+    }
+
+    private func turnLine(prompt: String, model: String, at: Date, input: Int, output: Int) -> String {
+        let timestamp = Int(at.timeIntervalSince1970)
+        return """
+        {"timestamp":\(timestamp),"method":"_x.ai/session/update",\
+        "params":{"update":{"sessionUpdate":"turn_completed","prompt_id":"\(prompt)","usage":{"inputTokens":\(input),\
+        "outputTokens":\(output),"totalTokens":\(input + output),"cachedReadTokens":0,"cacheCreationTokens":0,\
+        "modelUsage":{"\(model)":{"inputTokens":\(input),"outputTokens":\(output),\
+        "totalTokens":\(input + output),"cachedReadTokens":0,"cacheCreationTokens":0}}}}}}
+        """
+    }
+
     private func writeSignals(at url: URL, tokens: Int, model: String, date: Date) throws {
         let payload: [String: Any] = [
             "contextTokensUsed": tokens,

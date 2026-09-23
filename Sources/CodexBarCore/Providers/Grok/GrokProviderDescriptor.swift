@@ -87,9 +87,14 @@ public enum GrokProviderDescriptor {
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: true,
                 noDataMessage: {
-                    "Grok token totals come from local ~/.grok/sessions logs. "
-                        + "Subscription credits are not converted to dollars."
-                }),
+                    "Grok token totals come from local session turns when they record usage, "
+                        + "otherwise from session signals. Subscription credits are not converted to dollars."
+                },
+                menuHintLines: [.literal("Local token history · dollar costs unavailable")],
+                supportsTokenSnapshot: true,
+                showsHintInProviderDetails: true,
+                estimateDisclaimer: "Local token history · dollar costs unavailable",
+                presentation: .tokensOnly),
             pace: ProviderPaceCapability(
                 resetWindowPace: .custom { window, now in
                     guard Self.primaryLabel(window: window, now: now) == "Weekly",
@@ -116,6 +121,7 @@ public enum GrokProviderDescriptor {
             cli: ProviderCLIConfig(
                 name: "grok",
                 versionDetector: { _ in GrokStatusProbe.detectVersion() },
+                supportsCostCommand: true,
                 browserSupportExemption: { _, _, _ in true }))
     }
 
