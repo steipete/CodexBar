@@ -757,13 +757,15 @@ public struct CursorStatusProbe: Sendable {
     let persistAppAuthSession: @Sendable (CursorAppAuthSession) async -> Void
     #endif
     let conditionalMutationCoordinator: CookieHeaderCache.ConditionalMutationCoordinator
+    public let sessionCacheProvider: UsageProvider
 
     public init(
         baseURL: URL = URL(string: "https://cursor.com")!,
         timeout: TimeInterval = 15.0,
         browserDetection: BrowserDetection,
         urlSession: any ProviderHTTPTransport = ProviderHTTPClient.shared,
-        sessionStore: CursorSessionStore = .shared)
+        sessionStore: CursorSessionStore = .shared,
+        sessionCacheProvider: UsageProvider = .cursor)
     {
         #if os(macOS)
         self.init(
@@ -777,7 +779,8 @@ public struct CursorStatusProbe: Sendable {
             persistAppAuthSession: { session in
                 await sessionStore.persistAppSession(session)
             },
-            conditionalMutationCoordinator: .shared)
+            conditionalMutationCoordinator: .shared,
+            sessionCacheProvider: sessionCacheProvider)
         #elseif os(Linux)
         self.init(
             baseURL: baseURL,
@@ -787,7 +790,8 @@ public struct CursorStatusProbe: Sendable {
             urlSession: urlSession,
             appAuthStore: CursorAppAuthStore(),
             sessionStore: sessionStore,
-            conditionalMutationCoordinator: .shared)
+            conditionalMutationCoordinator: .shared,
+            sessionCacheProvider: sessionCacheProvider)
         #else
         self.init(
             baseURL: baseURL,
@@ -806,7 +810,8 @@ public struct CursorStatusProbe: Sendable {
         browserDetection: BrowserDetection,
         urlSession: any ProviderHTTPTransport = ProviderHTTPClient.shared,
         sessionStore: CursorSessionStore = .shared,
-        conditionalMutationCoordinator: CookieHeaderCache.ConditionalMutationCoordinator)
+        conditionalMutationCoordinator: CookieHeaderCache.ConditionalMutationCoordinator,
+        sessionCacheProvider: UsageProvider = .cursor)
     {
         #if os(macOS)
         self.init(
@@ -820,7 +825,8 @@ public struct CursorStatusProbe: Sendable {
             persistAppAuthSession: { session in
                 await sessionStore.persistAppSession(session)
             },
-            conditionalMutationCoordinator: conditionalMutationCoordinator)
+            conditionalMutationCoordinator: conditionalMutationCoordinator,
+            sessionCacheProvider: sessionCacheProvider)
         #elseif os(Linux)
         self.init(
             baseURL: baseURL,
@@ -830,7 +836,8 @@ public struct CursorStatusProbe: Sendable {
             urlSession: urlSession,
             appAuthStore: CursorAppAuthStore(),
             sessionStore: sessionStore,
-            conditionalMutationCoordinator: conditionalMutationCoordinator)
+            conditionalMutationCoordinator: conditionalMutationCoordinator,
+            sessionCacheProvider: sessionCacheProvider)
         #else
         self.init(
             baseURL: baseURL,
@@ -839,7 +846,8 @@ public struct CursorStatusProbe: Sendable {
             browserCookieImportOrder: Self.defaultBrowserCookieImportOrder,
             urlSession: urlSession,
             sessionStore: sessionStore,
-            conditionalMutationCoordinator: conditionalMutationCoordinator)
+            conditionalMutationCoordinator: conditionalMutationCoordinator,
+            sessionCacheProvider: sessionCacheProvider)
         #endif
     }
 
@@ -853,7 +861,8 @@ public struct CursorStatusProbe: Sendable {
         appAuthStore: any CursorAppAuthSessionProviding,
         sessionStore: CursorSessionStore = .shared,
         persistAppAuthSession: @escaping @Sendable (CursorAppAuthSession) async -> Void = { _ in },
-        conditionalMutationCoordinator: CookieHeaderCache.ConditionalMutationCoordinator = .shared)
+        conditionalMutationCoordinator: CookieHeaderCache.ConditionalMutationCoordinator = .shared,
+        sessionCacheProvider: UsageProvider = .cursor)
     {
         self.baseURL = baseURL
         self.timeout = timeout
@@ -864,6 +873,30 @@ public struct CursorStatusProbe: Sendable {
         self.appAuthStore = appAuthStore
         self.persistAppAuthSession = persistAppAuthSession
         self.conditionalMutationCoordinator = conditionalMutationCoordinator
+        self.sessionCacheProvider = sessionCacheProvider
+    }
+
+    #elseif os(Linux)
+    init(
+        baseURL: URL = URL(string: "https://cursor.com")!,
+        timeout: TimeInterval = 15.0,
+        browserDetection: BrowserDetection,
+        browserCookieImportOrder: BrowserCookieImportOrder = Self.defaultBrowserCookieImportOrder,
+        urlSession: any ProviderHTTPTransport = ProviderHTTPClient.shared,
+        appAuthStore: any CursorAppAuthSessionProviding,
+        sessionStore: CursorSessionStore = .shared,
+        conditionalMutationCoordinator: CookieHeaderCache.ConditionalMutationCoordinator = .shared,
+        sessionCacheProvider: UsageProvider = .cursor)
+    {
+        self.baseURL = baseURL
+        self.timeout = timeout
+        self.browserDetection = browserDetection
+        self.browserCookieImportOrder = browserCookieImportOrder
+        self.urlSession = urlSession
+        self.sessionStore = sessionStore
+        self.appAuthStore = appAuthStore
+        self.conditionalMutationCoordinator = conditionalMutationCoordinator
+        self.sessionCacheProvider = sessionCacheProvider
     }
 
     #elseif !os(Linux)
@@ -874,7 +907,8 @@ public struct CursorStatusProbe: Sendable {
         browserCookieImportOrder: BrowserCookieImportOrder = Self.defaultBrowserCookieImportOrder,
         urlSession: any ProviderHTTPTransport = ProviderHTTPClient.shared,
         sessionStore: CursorSessionStore = .shared,
-        conditionalMutationCoordinator: CookieHeaderCache.ConditionalMutationCoordinator = .shared)
+        conditionalMutationCoordinator: CookieHeaderCache.ConditionalMutationCoordinator = .shared,
+        sessionCacheProvider: UsageProvider = .cursor)
     {
         self.baseURL = baseURL
         self.timeout = timeout
@@ -883,6 +917,7 @@ public struct CursorStatusProbe: Sendable {
         self.urlSession = urlSession
         self.sessionStore = sessionStore
         self.conditionalMutationCoordinator = conditionalMutationCoordinator
+        self.sessionCacheProvider = sessionCacheProvider
     }
     #endif
 
@@ -1202,7 +1237,7 @@ public struct CursorStatusProbe: Sendable {
         context: ResolvedSessionReconciliationContext<Value>) async throws -> Value
     {
         let mutation = CookieHeaderCache.storeIfObservationCurrentResult(
-            provider: .cursor,
+            provider: self.sessionCacheProvider,
             expected: context.cacheObservation,
             cookieHeader: context.cookieHeader,
             sourceLabel: context.sourceLabel)
@@ -1217,7 +1252,7 @@ public struct CursorStatusProbe: Sendable {
         case .rejected:
             break
         }
-        guard let replacement = CookieHeaderCache.load(provider: .cursor) else {
+        guard let replacement = CookieHeaderCache.load(provider: self.sessionCacheProvider) else {
             context.log("Cursor session from \(context.sourceLabel) lost cache ownership without a replacement")
             throw CursorStatusProbeError.networkError("Cursor session changed during refresh")
         }
@@ -1255,7 +1290,7 @@ public struct CursorStatusProbe: Sendable {
                 cacheAcceptedSession(session)
             } else if let cacheObservation {
                 let stored = CookieHeaderCache.storeIfObservationCurrent(
-                    provider: .cursor,
+                    provider: self.sessionCacheProvider,
                     expected: cacheObservation,
                     cookieHeader: session.cookieHeader,
                     sourceLabel: session.sourceLabel)
@@ -1265,7 +1300,7 @@ public struct CursorStatusProbe: Sendable {
                 }
             } else {
                 CookieHeaderCache.store(
-                    provider: .cursor,
+                    provider: self.sessionCacheProvider,
                     cookieHeader: session.cookieHeader,
                     sourceLabel: session.sourceLabel)
             }
@@ -1434,7 +1469,7 @@ public struct CursorStatusProbe: Sendable {
         }
     }
 
-    private func fetchSandUsage(
+    package func fetchSandUsage(
         cookieHeader: String,
         deadline: Date?) async throws -> (CursorSandUsageStatus, String)
     {

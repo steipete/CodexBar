@@ -25,6 +25,7 @@ public enum UsageProvider: String, CaseIterable, Sendable, Codable {
     case claude
     case clinepass
     case cursor
+    case grokbot
     case opencode
     case opencodego
     case alibaba
@@ -128,6 +129,7 @@ public struct IconStyle: RawRepresentable, Hashable, Sendable, CaseIterable, Cus
     public static let gemini = Self(provider: .gemini)
     public static let antigravity = Self(provider: .antigravity)
     public static let cursor = Self(provider: .cursor)
+    public static let grokbot = Self(provider: .grokbot)
     public static let factory = Self(provider: .factory)
     public static let grok = Self(provider: .grok)
     public static let copilot = Self(provider: .copilot)

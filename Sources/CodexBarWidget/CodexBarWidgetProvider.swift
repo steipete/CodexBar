@@ -12,6 +12,7 @@ enum ProviderChoice: String, AppEnum {
     case qwencloud
     case antigravity
     case cursor
+    case grokbot
     case zai
     case copilot
     case devin
@@ -39,6 +40,7 @@ enum ProviderChoice: String, AppEnum {
         .qwencloud: DisplayRepresentation(title: "Qwen Cloud"),
         .antigravity: DisplayRepresentation(title: "Antigravity"),
         .cursor: DisplayRepresentation(title: "Cursor"),
+        .grokbot: DisplayRepresentation(title: "Grok Bot"),
         .zai: DisplayRepresentation(title: "z.ai / GLM"),
         .copilot: DisplayRepresentation(title: "Copilot"),
         .devin: DisplayRepresentation(title: "Devin"),

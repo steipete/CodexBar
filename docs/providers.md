@@ -8,7 +8,7 @@ read_when:
 
 # Providers
 
-CodexBar currently registers 80 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
+CodexBar currently registers 81 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
 OpenCode vs OpenCode Go, because the auth source and quota shape differ.
 
 ## Fetch strategies (current)
@@ -71,6 +71,7 @@ complete when the available scan window covers fewer days.
 | Gemini | OAuth-backed API via Gemini CLI credentials (`api`). |
 | Antigravity | Local LSP/HTTP probe (`local`). |
 | Cursor | Web API via cookies → legacy stored session → Cursor.app local auth (`web`). |
+| Grok Bot | Cursor dashboard sand-usage API via the same cursor.com session (`web`). |
 | OpenCode | Web dashboard via cookies (`web`). |
 | OpenCode Go | Unscoped Auto: local SQLite cost history with API overlay (`local+api`) → usage API (`api`) → web dashboard (`web`). Scoped Auto (selected account/manual cookie/workspace): web → local → API. Explicit API/Web: selected source only. |
 | Alibaba Coding Plan | Console RPC via web cookies (auto/manual) with API key fallback (`web`, `api`). |
@@ -244,6 +245,14 @@ complete when the available scan window covers fewer days.
 - Grok Bot weekly included usage is a fourth Cursor card bar from `POST /api/dashboard/get-sand-usage-status` (same session). Paid 7-day Bot allowances show weekly pace on that extra bar. Accounts without a Bot allowance omit the bar.
 - Status: Statuspage.io (Cursor).
 - Details: `docs/cursor.md`.
+
+## Grok Bot
+- First-party provider for Cursor's Grok Bot weekly included allowance (internally "Sand"), separate from the xAI [Grok](grok.md) consumer subscription provider.
+- Auth: the same `cursor.com` session as [Cursor](#cursor)—browser cookies (Automatic or Manual), Cursor.app local auth on macOS/Linux, or stored session tokens. Cookies are opt-in via Settings → Providers; CodexBar does not persist browser cookies beyond its WebKit import flow and Keychain session cache.
+- Data: `POST https://cursor.com/api/dashboard/get-sand-usage-status` with the authenticated session. Paid 7-day allowances expose `usagePercent` and `nextResetTimestampUtc`; active trials may omit a recurring reset. Accounts without a Bot allowance or trial return a clear error instead of fabricated quota.
+- Enabling Grok Bot does not enable Cursor usage; each provider maintains its own session cache and identity fields.
+- Status: Statuspage.io (Cursor).
+- Details: `docs/cursor.md` (Grok Bot endpoint and trial semantics).
 
 ## OpenCode
 - Web dashboard via browser cookies (`opencode.ai`).

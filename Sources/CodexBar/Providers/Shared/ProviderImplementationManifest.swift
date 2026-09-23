@@ -11,6 +11,7 @@ enum ProviderImplementationManifest {
         ClaudeProviderImplementation(),
         ClinePassProviderImplementation(),
         CursorProviderImplementation(),
+        GrokBotProviderImplementation(),
         OpenCodeProviderImplementation(),
         OpenCodeGoProviderImplementation(),
         AlibabaCodingPlanProviderImplementation(),

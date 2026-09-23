@@ -11,6 +11,7 @@ public enum ProviderManifest {
         ClaudeProviderDescriptor.descriptor,
         ClinePassProviderDescriptor.descriptor,
         CursorProviderDescriptor.descriptor,
+        GrokBotProviderDescriptor.descriptor,
         OpenCodeProviderDescriptor.descriptor,
         OpenCodeGoProviderDescriptor.descriptor,
         AlibabaCodingPlanProviderDescriptor.descriptor,

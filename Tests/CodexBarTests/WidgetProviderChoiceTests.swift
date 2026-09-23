@@ -14,6 +14,7 @@ struct WidgetProviderChoiceTests {
         "qwencloud": "Qwen Cloud",
         "antigravity": "Antigravity",
         "cursor": "Cursor",
+        "grokbot": "Grok Bot",
         "zai": "z.ai / GLM",
         "copilot": "Copilot",
         "devin": "Devin",

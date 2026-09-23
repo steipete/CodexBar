@@ -52,9 +52,9 @@ extension CursorStatusProbe {
 
         // A browser fallback started by this refresh must not overwrite a concurrently committed login.
         var cacheObservation = CookieHeaderCache.observeForConditionalMutation(
-            provider: .cursor,
+            provider: self.sessionCacheProvider,
             coordinator: self.conditionalMutationCoordinator)
-        let cachedEntry = allowCachedSessions ? CookieHeaderCache.load(provider: .cursor) : nil
+        let cachedEntry = allowCachedSessions ? CookieHeaderCache.load(provider: self.sessionCacheProvider) : nil
         var storedCookies = allowCachedSessions ? await self.sessionStore.getCookies() : []
         #if os(macOS) || os(Linux)
         if !allowAppAuthFallback {
@@ -87,7 +87,7 @@ extension CursorStatusProbe {
         {
             #if os(macOS)
             if cached.sourceLabel == Self.appAuthSourceLabel {
-                if CookieHeaderCache.clearIfCurrent(provider: .cursor, expected: cached) {
+                if CookieHeaderCache.clearIfCurrent(provider: self.sessionCacheProvider, expected: cached) {
                     cacheObservation = cacheObservation.afterOwnedClear()
                 }
             } else {
@@ -348,7 +348,7 @@ extension CursorStatusProbe {
             return try await .succeeded(context.perform(cached.cookieHeader, nil))
         } catch let error as CursorStatusProbeError {
             guard case .notLoggedIn = error else { throw error }
-            if let replacement = CookieHeaderCache.load(provider: .cursor), replacement != cached {
+            if let replacement = CookieHeaderCache.load(provider: self.sessionCacheProvider), replacement != cached {
                 if cached.authenticationFailurePolicy == .stopFallback,
                    replacement.authenticationFailurePolicy != .stopFallback
                 {
@@ -367,8 +367,8 @@ extension CursorStatusProbe {
                 context.log("Selected cached session was rejected; refusing automatic account fallback")
                 throw error
             }
-            guard CookieHeaderCache.clearIfCurrent(provider: .cursor, expected: cached) else {
-                if let replacement = CookieHeaderCache.load(provider: .cursor), replacement != cached {
+            guard CookieHeaderCache.clearIfCurrent(provider: self.sessionCacheProvider, expected: cached) else {
+                if let replacement = CookieHeaderCache.load(provider: self.sessionCacheProvider), replacement != cached {
                     context.log("Cached session changed before stale-session cleanup; retrying replacement")
                     return try await .succeeded(self.resolveSession(
                         cookieHeaderOverride: context.cookieHeaderOverride,
