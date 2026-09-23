@@ -166,7 +166,9 @@ public enum GrokLocalSessionScanner {
             for piece in contribution.pieces {
                 guard let added = self.checkedAdd(totalTokens, piece.totalTokens) else { continue }
                 totalTokens = added
-                modelCounts[piece.model, default: 0] += 1
+                for model in piece.models {
+                    modelCounts[model, default: 0] += 1
+                }
                 var day = days[piece.day] ?? DayAccum()
                 if countedDays.insert(piece.day).inserted {
                     day.sessions += 1
@@ -218,7 +220,7 @@ public enum GrokLocalSessionScanner {
         var signalTokens: Int?
         var signalDay: String?
         var signalAt: Date?
-        var signalModel = "unknown"
+        var signalModels: [String] = []
         var turns: [Turn] = []
         var turnParseFailed = false
         var turnLogOversized = false
@@ -236,7 +238,7 @@ public enum GrokLocalSessionScanner {
 
     private struct Piece {
         let day: String
-        let model: String
+        let models: [String]
         let input: Int?
         let output: Int?
         let cacheRead: Int?
@@ -269,7 +271,9 @@ public enum GrokLocalSessionScanner {
                 self.cacheRead = (self.cacheRead ?? 0) + (piece.cacheRead ?? 0)
                 self.cacheWrite = (self.cacheWrite ?? 0) + (piece.cacheWrite ?? 0)
             }
-            self.models.insert(piece.model)
+            for model in piece.models {
+                self.models.insert(model)
+            }
         }
 
         func bucket(date: String) -> GrokLocalDailyBucket {
@@ -311,11 +315,21 @@ public enum GrokLocalSessionScanner {
         session.signalTokens = tokens
         session.signalDay = self.dayKey(for: mtime, calendar: calendar)
         session.signalAt = mtime
+        var models: [String] = []
         if let primary = (json["primaryModelId"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines),
            !primary.isEmpty
         {
-            session.signalModel = primary
+            models.append(primary)
         }
+        if let used = json["modelsUsed"] as? [String] {
+            for model in used {
+                let trimmed = model.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmed.isEmpty, !models.contains(trimmed) {
+                    models.append(trimmed)
+                }
+            }
+        }
+        session.signalModels = models
     }
 
     private static func readTurns(url: URL, mtime: Date, into session: inout SessionScan) {
@@ -412,7 +426,7 @@ public enum GrokLocalSessionScanner {
                 guard let day = self.dayKey(for: turn.at, calendar: calendar) else { continue }
                 pieces.append(Piece(
                     day: day,
-                    model: turn.model,
+                    models: [turn.model],
                     input: turn.input,
                     output: turn.output,
                     cacheRead: turn.cacheRead,
@@ -432,7 +446,7 @@ public enum GrokLocalSessionScanner {
         return Contribution(
             pieces: [Piece(
                 day: day,
-                model: session.signalModel,
+                models: session.signalModels.isEmpty ? ["unknown"] : session.signalModels,
                 input: nil,
                 output: nil,
                 cacheRead: nil,

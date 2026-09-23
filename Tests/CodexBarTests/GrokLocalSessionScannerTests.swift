@@ -387,6 +387,56 @@ struct GrokLocalSessionScannerTests {
         #expect(summary.daily.first?.models == ["grok-4.6"])
     }
 
+    @Test
+    func `signal fallback keeps every signal model without duplicating tokens`() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("grok-signal-models-\(UUID().uuidString)", isDirectory: true)
+        let session = root.appendingPathComponent("sessions/%2Ftmp%2Fdemo/session-a", isDirectory: true)
+        try FileManager.default.createDirectory(at: session, withIntermediateDirectories: true)
+        let when = Date(timeIntervalSince1970: 1_787_079_600)
+        let payload: [String: Any] = [
+            "contextTokensUsed": 500,
+            "totalTokensBeforeCompaction": 0,
+            "primaryModelId": "grok-4.6",
+            "modelsUsed": ["grok-4.6", "grok-4.6-build", ""],
+        ]
+        let signals = session.appendingPathComponent("signals.json")
+        try JSONSerialization.data(withJSONObject: payload).write(to: signals)
+        try FileManager.default.setAttributes([.modificationDate: when], ofItemAtPath: signals.path)
+        let summary = GrokLocalSessionScanner.summarize(
+            env: ["GROK_HOME": root.path],
+            fileManager: .default,
+            lookbackDays: 7,
+            now: when)
+        #expect(summary.totalTokens == 500)
+        #expect(summary.daily.map(\.requestCount) == [1])
+        #expect(summary.daily.first?.models == ["grok-4.6", "grok-4.6-build"])
+    }
+
+    @Test
+    func `signal fallback uses modelsUsed without a primary model`() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("grok-signal-noused-\(UUID().uuidString)", isDirectory: true)
+        let session = root.appendingPathComponent("sessions/%2Ftmp%2Fdemo/session-a", isDirectory: true)
+        try FileManager.default.createDirectory(at: session, withIntermediateDirectories: true)
+        let when = Date(timeIntervalSince1970: 1_787_079_600)
+        let payload: [String: Any] = [
+            "contextTokensUsed": 300,
+            "totalTokensBeforeCompaction": 0,
+            "modelsUsed": ["grok-4.6-build"],
+        ]
+        let signals = session.appendingPathComponent("signals.json")
+        try JSONSerialization.data(withJSONObject: payload).write(to: signals)
+        try FileManager.default.setAttributes([.modificationDate: when], ofItemAtPath: signals.path)
+        let summary = GrokLocalSessionScanner.summarize(
+            env: ["GROK_HOME": root.path],
+            fileManager: .default,
+            lookbackDays: 7,
+            now: when)
+        #expect(summary.totalTokens == 300)
+        #expect(summary.daily.first?.models == ["grok-4.6-build"])
+    }
+
     private func turnLine(prompt: String, model: String, at: Date, input: Int, output: Int) -> String {
         let timestamp = Int(at.timeIntervalSince1970)
         return """
