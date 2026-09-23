@@ -2,6 +2,7 @@ import CoreFoundation
 import Foundation
 
 /// One local-calendar day of Grok session-token activity.
+/// `requestCount` counts completed turns; a signal-only day counts one per session.
 public struct GrokLocalDailyBucket: Sendable, Equatable {
     public let date: String
     public let totalTokens: Int
@@ -11,6 +12,7 @@ public struct GrokLocalDailyBucket: Sendable, Equatable {
     public let outputTokens: Int?
     public let cacheReadTokens: Int?
     public let cacheCreationTokens: Int?
+    public let requestCount: Int
 
     public init(
         date: String,
@@ -20,7 +22,8 @@ public struct GrokLocalDailyBucket: Sendable, Equatable {
         inputTokens: Int? = nil,
         outputTokens: Int? = nil,
         cacheReadTokens: Int? = nil,
-        cacheCreationTokens: Int? = nil)
+        cacheCreationTokens: Int? = nil,
+        requestCount: Int = 0)
     {
         self.date = date
         self.totalTokens = totalTokens
@@ -30,6 +33,7 @@ public struct GrokLocalDailyBucket: Sendable, Equatable {
         self.outputTokens = outputTokens
         self.cacheReadTokens = cacheReadTokens
         self.cacheCreationTokens = cacheCreationTokens
+        self.requestCount = requestCount
     }
 }
 
@@ -43,6 +47,7 @@ public struct GrokLocalSessionSummary: Sendable {
     public let models: [String]
     public let daily: [GrokLocalDailyBucket]
     public let scannedAt: Date
+    public let historyCoverageIsEstablished: Bool
 
     public init(
         sessionCount: Int,
@@ -51,7 +56,8 @@ public struct GrokLocalSessionSummary: Sendable {
         primaryModel: String?,
         models: [String],
         daily: [GrokLocalDailyBucket] = [],
-        scannedAt: Date = .init())
+        scannedAt: Date = .init(),
+        historyCoverageIsEstablished: Bool = true)
     {
         self.sessionCount = sessionCount
         self.totalTokens = totalTokens
@@ -60,6 +66,7 @@ public struct GrokLocalSessionSummary: Sendable {
         self.models = models
         self.daily = daily
         self.scannedAt = scannedAt
+        self.historyCoverageIsEstablished = historyCoverageIsEstablished
     }
 
     /// Token counts come from completed turns, falling back to signal-only context
@@ -73,7 +80,7 @@ public struct GrokLocalSessionSummary: Sendable {
                 cacheReadTokens: bucket.cacheReadTokens,
                 cacheCreationTokens: bucket.cacheCreationTokens,
                 totalTokens: bucket.totalTokens,
-                requestCount: bucket.sessionCount,
+                requestCount: bucket.requestCount,
                 costUSD: nil,
                 modelsUsed: bucket.models.isEmpty ? nil : bucket.models,
                 modelBreakdowns: nil)
@@ -87,7 +94,7 @@ public struct GrokLocalSessionSummary: Sendable {
             last30DaysTokens: self.totalTokens,
             last30DaysCostUSD: nil,
             historyDays: historyDays,
-            historyCoverageIsEstablished: true,
+            historyCoverageIsEstablished: self.historyCoverageIsEstablished,
             daily: entries,
             updatedAt: self.scannedAt)
     }
@@ -129,13 +136,15 @@ public enum GrokLocalSessionScanner {
             guard name == "signals.json" || name == "updates.jsonl" else { continue }
             let attrs = try? url.resourceValues(forKeys: [.contentModificationDateKey, .fileSizeKey])
             let mtime = attrs?.contentModificationDate ?? Date.distantPast
-            guard mtime >= windowStart else { continue }
+            guard window.contains(mtime) else { continue }
             let key = url.deletingLastPathComponent().path
             var session = sessions[key] ?? SessionScan()
             if name == "signals.json" {
                 self.readSignals(url: url, mtime: mtime, calendar: calendar, into: &session)
             } else if (attrs?.fileSize ?? 0) <= self.maxTurnLogBytes {
                 self.readTurns(url: url, mtime: mtime, into: &session)
+            } else {
+                session.turnLogOversized = true
             }
             sessions[key] = session
         }
@@ -172,6 +181,9 @@ public enum GrokLocalSessionScanner {
             let day = days[key] ?? DayAccum()
             return day.bucket(date: key)
         }
+        // An in-window turn log skipped for size leaves turn data out of the scan,
+        // even when the signal still covers the session totals.
+        let complete = !sessions.values.contains { $0.turnLogOversized }
         return GrokLocalSessionSummary(
             sessionCount: sessionCount,
             totalTokens: totalTokens,
@@ -179,7 +191,8 @@ public enum GrokLocalSessionScanner {
             primaryModel: sortedModels.first,
             models: sortedModels,
             daily: daily,
-            scannedAt: now)
+            scannedAt: now,
+            historyCoverageIsEstablished: complete)
     }
 
     public static func summarizeOffMainThread(
@@ -208,9 +221,10 @@ public enum GrokLocalSessionScanner {
         var signalModel = "unknown"
         var turns: [Turn] = []
         var turnParseFailed = false
+        var turnLogOversized = false
     }
 
-    private struct Turn: Equatable {
+    private struct Turn {
         let at: Date
         let model: String
         let input: Int
@@ -222,7 +236,6 @@ public enum GrokLocalSessionScanner {
 
     private struct Piece {
         let day: String
-        let at: Date
         let model: String
         let input: Int?
         let output: Int?
@@ -240,21 +253,23 @@ public enum GrokLocalSessionScanner {
     private struct DayAccum {
         var tokens = 0
         var sessions = 0
+        var requests = 0
         var input: Int?
         var output: Int?
         var cacheRead: Int?
         var cacheWrite: Int?
-        var models: [String: Int] = [:]
+        var models = Set<String>()
 
         mutating func add(_ piece: Piece) {
             self.tokens += piece.totalTokens
+            self.requests += piece.requests
             if let input = piece.input, let output = piece.output {
                 self.input = (self.input ?? 0) + input
                 self.output = (self.output ?? 0) + output
                 self.cacheRead = (self.cacheRead ?? 0) + (piece.cacheRead ?? 0)
                 self.cacheWrite = (self.cacheWrite ?? 0) + (piece.cacheWrite ?? 0)
             }
-            self.models[piece.model, default: 0] += piece.totalTokens
+            self.models.insert(piece.model)
         }
 
         func bucket(date: String) -> GrokLocalDailyBucket {
@@ -262,11 +277,12 @@ public enum GrokLocalSessionScanner {
                 date: date,
                 totalTokens: self.tokens,
                 sessionCount: self.sessions,
-                models: self.models.keys.sorted(),
+                models: self.models.sorted(),
                 inputTokens: self.input,
                 outputTokens: self.output,
                 cacheReadTokens: self.cacheRead,
-                cacheCreationTokens: self.cacheWrite)
+                cacheCreationTokens: self.cacheWrite,
+                requestCount: self.requests)
         }
     }
 
@@ -315,18 +331,19 @@ public enum GrokLocalSessionScanner {
             guard raw.contains("\"sessionUpdate\":\"turn_completed\"")
                 || raw.contains("\"sessionUpdate\": \"turn_completed\"")
             else { continue }
-            guard let identified = self.turn(from: raw, fallbackDate: mtime) else {
+            let identified = self.turns(from: raw, fallbackDate: mtime)
+            guard !identified.isEmpty else {
                 session.turnParseFailed = true
                 continue
             }
-            if let prompt = identified.promptID {
-                if let previous = seen[prompt], previous != identified.turn {
-                    session.turnParseFailed = true
+            for item in identified {
+                guard let prompt = item.promptID else {
+                    session.turns.append(item.turn)
+                    continue
                 }
-                seen[prompt] = identified.turn
-                continue
+                // A replayed prompt keeps the latest usage instead of discarding the file.
+                seen[prompt] = item.turn
             }
-            session.turns.append(identified.turn)
         }
         if session.turnParseFailed {
             session.turns = []
@@ -340,25 +357,30 @@ public enum GrokLocalSessionScanner {
         let turn: Turn
     }
 
-    private static func turn(from line: String, fallbackDate: Date) -> IdentifiedTurn? {
+    private static func turns(from line: String, fallbackDate: Date) -> [IdentifiedTurn] {
         guard let data = line.data(using: .utf8),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let params = json["params"] as? [String: Any],
               let update = params["update"] as? [String: Any],
               update["sessionUpdate"] as? String == "turn_completed",
               let usage = update["usage"] as? [String: Any]
-        else { return nil }
+        else { return [] }
         let at = self.intValue(json["timestamp"]).map { Date(timeIntervalSince1970: TimeInterval($0)) } ?? fallbackDate
         let prompt = update["prompt_id"] as? String
         if let models = usage["modelUsage"] as? [String: Any], !models.isEmpty {
-            guard models.count == 1, let (name, raw) = models.first,
-                  let body = raw as? [String: Any],
-                  let turn = self.turn(model: name, usage: body, at: at)
-            else { return nil }
-            return IdentifiedTurn(promptID: prompt, turn: turn)
+            // A turn that fanned out to several models counts each model's usage.
+            // One malformed entry fails the line; replays dedup per prompt and model.
+            var identified: [IdentifiedTurn] = []
+            for name in models.keys.sorted() {
+                guard let body = models[name] as? [String: Any],
+                      let turn = self.turn(model: name, usage: body, at: at)
+                else { return [] }
+                identified.append(IdentifiedTurn(promptID: prompt.map { "\($0)\n\(name)" }, turn: turn))
+            }
+            return identified
         }
-        guard let turn = self.turn(model: "unknown", usage: usage, at: at) else { return nil }
-        return IdentifiedTurn(promptID: prompt, turn: turn)
+        guard let turn = self.turn(model: "unknown", usage: usage, at: at) else { return [] }
+        return [IdentifiedTurn(promptID: prompt, turn: turn)]
     }
 
     private static func turn(model: String, usage: [String: Any], at: Date) -> Turn? {
@@ -391,7 +413,6 @@ public enum GrokLocalSessionScanner {
                 guard let day = self.dayKey(for: turn.at, calendar: calendar) else { continue }
                 pieces.append(Piece(
                     day: day,
-                    at: turn.at,
                     model: turn.model,
                     input: turn.input,
                     output: turn.output,
@@ -412,7 +433,6 @@ public enum GrokLocalSessionScanner {
         return Contribution(
             pieces: [Piece(
                 day: day,
-                at: session.signalAt ?? .distantPast,
                 model: session.signalModel,
                 input: nil,
                 output: nil,
