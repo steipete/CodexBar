@@ -3,6 +3,7 @@ import Foundation
 public enum GrokBotProbeError: Error, LocalizedError, Sendable {
     case noAllowance
     case notSupported
+    case missingManualCredential
 
     public var errorDescription: String? {
         switch self {
@@ -10,7 +11,21 @@ public enum GrokBotProbeError: Error, LocalizedError, Sendable {
             "This Cursor account does not have an active Grok Bot allowance or trial."
         case .notSupported:
             "Grok Bot usage is only available on macOS and Linux."
+        case .missingManualCredential:
+            "Grok Bot manual cookie header is empty or invalid."
         }
+    }
+}
+
+public enum GrokBotManualCredential {
+    /// Returns a normalized manual cookie header, or `nil` when Manual mode is not selected.
+    /// Throws when Manual is selected but the configured header is missing or empty.
+    public static func resolvedHeader(from settings: GrokBotProviderSettings?) throws -> String? {
+        guard settings?.cookieSource == .manual else { return nil }
+        guard let header = CookieHeaderNormalizer.normalize(settings?.manualCookieHeader) else {
+            throw GrokBotProbeError.missingManualCredential
+        }
+        return header
     }
 }
 

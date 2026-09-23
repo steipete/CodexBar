@@ -21,9 +21,12 @@ extension CursorStatusProbe {
 extension CursorStatusProbe {
     /// Stores the browser session selected by the user after candidate discovery completes.
     @discardableResult
-    public static func commitBrowserLoginSession(_ session: BrowserLoginSession) -> Bool {
+    public static func commitBrowserLoginSession(
+        _ session: BrowserLoginSession,
+        provider: UsageProvider = .cursor) -> Bool
+    {
         CookieHeaderCache.storeResult(
-            provider: .cursor,
+            provider: provider,
             cookieHeader: session.cookieHeader,
             sourceLabel: session.sourceLabel,
             authenticationFailurePolicy: .stopFallback)

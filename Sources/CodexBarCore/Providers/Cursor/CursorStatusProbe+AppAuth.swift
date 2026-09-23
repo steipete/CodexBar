@@ -24,7 +24,8 @@ extension CursorStatusProbe {
         urlSession: any ProviderHTTPTransport = ProviderHTTPClient.shared,
         appAuthStore: any CursorAppAuthSessionProviding,
         sessionStore: CursorSessionStore = .shared,
-        conditionalMutationCoordinator: CookieHeaderCache.ConditionalMutationCoordinator = .shared)
+        conditionalMutationCoordinator: CookieHeaderCache.ConditionalMutationCoordinator = .shared,
+        sessionCacheProvider: UsageProvider = .cursor)
     {
         self.baseURL = baseURL
         self.timeout = timeout
@@ -34,6 +35,7 @@ extension CursorStatusProbe {
         self.sessionStore = sessionStore
         self.appAuthStore = appAuthStore
         self.conditionalMutationCoordinator = conditionalMutationCoordinator
+        self.sessionCacheProvider = sessionCacheProvider
     }
 
     /// Called only after manual, cached, and stored sessions have been exhausted.

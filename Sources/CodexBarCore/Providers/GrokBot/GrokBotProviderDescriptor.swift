@@ -102,13 +102,13 @@ struct GrokBotWebFetchStrategy: ProviderFetchStrategy {
         let probe = CursorStatusProbe(
             browserDetection: context.browserDetection,
             sessionCacheProvider: .grokbot)
-        let manual = Self.manualCookieHeader(from: context)
+        let manualHeader = try GrokBotManualCredential.resolvedHeader(from: context.settings?.grokbot)
         let logger: ((String) -> Void)? = context.verbose
             ? { message in CodexBarLog.logger(LogCategories.provider(.grokbot)).verbose(message) }
             : nil
         let usage = try await probe.fetchGrokBotUsage(
-            cookieHeaderOverride: manual,
-            allowAppAuthFallback: context.sourceMode != .web,
+            cookieHeaderOverride: manualHeader,
+            allowAppAuthFallback: manualHeader == nil && context.sourceMode != .web,
             logger: logger)
         return self.makeResult(usage: usage, sourceLabel: "web")
         #else
@@ -120,8 +120,4 @@ struct GrokBotWebFetchStrategy: ProviderFetchStrategy {
         false
     }
 
-    private static func manualCookieHeader(from context: ProviderFetchContext) -> String? {
-        guard context.settings?.grokbot?.cookieSource == .manual else { return nil }
-        return CookieHeaderNormalizer.normalize(context.settings?.grokbot?.manualCookieHeader)
-    }
 }

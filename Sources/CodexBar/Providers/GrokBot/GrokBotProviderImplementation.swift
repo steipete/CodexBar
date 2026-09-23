@@ -46,6 +46,6 @@ struct GrokBotProviderImplementation: ProviderImplementation {
 
     @MainActor
     func runLoginFlow(context: ProviderLoginContext) async -> Bool {
-        await context.controller.runCursorLoginFlow()
+        await context.controller.runGrokBotLoginFlow()
     }
 }

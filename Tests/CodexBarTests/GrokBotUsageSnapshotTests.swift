@@ -34,6 +34,38 @@ struct GrokBotUsageSnapshotTests {
     }
 
     @Test
+    func `manual mode rejects empty header before discovery`() {
+        let settings = GrokBotProviderSettings(cookieSource: .manual, manualCookieHeader: "   ")
+        #expect(throws: GrokBotProbeError.missingManualCredential) {
+            try GrokBotManualCredential.resolvedHeader(from: settings)
+        }
+    }
+
+    @Test
+    func `manual mode accepts normalized header`() throws {
+        let settings = GrokBotProviderSettings(cookieSource: .manual, manualCookieHeader: "session=abc")
+        let header = try GrokBotManualCredential.resolvedHeader(from: settings)
+        #expect(header == "session=abc")
+    }
+
+    @Test
+    func `browser login commits to grokbot cache without touching cursor cache`() {
+        let session = CursorStatusProbe.BrowserLoginSession(
+            cookieHeader: "grokbot-session=1",
+            sourceLabel: "Test browser")
+        CookieHeaderCache.clear(provider: .cursor)
+        CookieHeaderCache.clear(provider: .grokbot)
+        defer {
+            CookieHeaderCache.clear(provider: .cursor)
+            CookieHeaderCache.clear(provider: .grokbot)
+        }
+
+        #expect(CursorStatusProbe.commitBrowserLoginSession(session, provider: .grokbot))
+        #expect(CookieHeaderCache.load(provider: .grokbot)?.cookieHeader == "grokbot-session=1")
+        #expect(CookieHeaderCache.load(provider: .cursor) == nil)
+    }
+
+    @Test
     func `missing allowance throws`() throws {
         let sand = CursorSandUsageStatus(
             currentPeriodStart: nil,

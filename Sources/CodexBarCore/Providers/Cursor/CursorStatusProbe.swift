@@ -876,29 +876,6 @@ public struct CursorStatusProbe: Sendable {
         self.sessionCacheProvider = sessionCacheProvider
     }
 
-    #elseif os(Linux)
-    init(
-        baseURL: URL = URL(string: "https://cursor.com")!,
-        timeout: TimeInterval = 15.0,
-        browserDetection: BrowserDetection,
-        browserCookieImportOrder: BrowserCookieImportOrder = Self.defaultBrowserCookieImportOrder,
-        urlSession: any ProviderHTTPTransport = ProviderHTTPClient.shared,
-        appAuthStore: any CursorAppAuthSessionProviding,
-        sessionStore: CursorSessionStore = .shared,
-        conditionalMutationCoordinator: CookieHeaderCache.ConditionalMutationCoordinator = .shared,
-        sessionCacheProvider: UsageProvider = .cursor)
-    {
-        self.baseURL = baseURL
-        self.timeout = timeout
-        self.browserDetection = browserDetection
-        self.browserCookieImportOrder = browserCookieImportOrder
-        self.urlSession = urlSession
-        self.sessionStore = sessionStore
-        self.appAuthStore = appAuthStore
-        self.conditionalMutationCoordinator = conditionalMutationCoordinator
-        self.sessionCacheProvider = sessionCacheProvider
-    }
-
     #elseif !os(Linux)
     init(
         baseURL: URL = URL(string: "https://cursor.com")!,

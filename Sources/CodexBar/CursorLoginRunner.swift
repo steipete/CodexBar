@@ -432,12 +432,16 @@ final class CursorLoginRunner {
     @MainActor
     static func replaceCachedSession(
         _ session: CursorStatusProbe.BrowserLoginSession,
+        provider: UsageProvider = .cursor,
+        clearSharedSessionStore: Bool = true,
         afterCommit: @MainActor () -> Void = {}) async -> Bool
     {
         // Candidate discovery is cache-independent. Keep both active stores intact until the replacement is durable.
-        guard CursorStatusProbe.commitBrowserLoginSession(session) else { return false }
+        guard CursorStatusProbe.commitBrowserLoginSession(session, provider: provider) else { return false }
         afterCommit()
-        await CursorSessionStore.shared.clearCookies()
+        if clearSharedSessionStore {
+            await CursorSessionStore.shared.clearCookies()
+        }
         return true
     }
 
