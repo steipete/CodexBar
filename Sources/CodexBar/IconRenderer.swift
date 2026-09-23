@@ -20,7 +20,6 @@ enum IconRenderer {
         }
     }
 
-    private static let creditsCap: Double = 1000
     private static let baseSize = NSSize(width: 18, height: 18)
     // Render to an 18×18 pt template (36×36 px at 2×) to match the system menu bar size.
     private static let outputSize = NSSize(width: 18, height: 18)
@@ -711,7 +710,7 @@ enum IconRenderer {
                 }()
                 let topValue = primaryRemaining
                 let bottomValue = effectiveWeeklyRemaining
-                let creditsRatio = creditsRemaining.map { min($0 / Self.creditsCap * 100, 100) }
+                let creditsRatio = creditsRemaining.map { CreditsBarScale.remainingPercent(remaining: $0) }
 
                 let hasWeekly = (bottomValue != nil)
                 let weeklyAvailable = hasWeekly && (bottomValue ?? 0) > 0
@@ -905,8 +904,7 @@ enum IconRenderer {
 
     private static func quantizedCredits(_ value: Double?) -> Int {
         guard let value else { return -1 }
-        let clamped = max(0, min(value, self.creditsCap))
-        return Int((clamped * 10).rounded())
+        return Int((CreditsBarScale.remainingPercent(remaining: value) * 10).rounded())
     }
 
     private static let styleKeyLookup: [IconStyle: Int] = {

@@ -154,14 +154,12 @@ extension UsageMenuCardView.Model {
     }
 
     static func creditsProgressPercent(credits: CreditsSnapshot?) -> Double? {
-        guard credits?.hasWorkspaceBalance != true else { return nil }
-        return credits?.codexCreditLimit?.remainingPercent
+        CreditsBarScale.display(from: credits)?.remainingPercent
     }
 
     static func creditsScaleText(credits: CreditsSnapshot?) -> String? {
-        guard credits?.hasWorkspaceBalance != true else { return nil }
-        guard let limit = credits?.codexCreditLimit else { return nil }
-        return L("of %@", UsageFormatter.creditsNumberString(from: limit.limit))
+        guard let scale = CreditsBarScale.display(from: credits)?.scale else { return nil }
+        return L("of %@", UsageFormatter.creditsNumberString(from: scale))
     }
 
     static func codexCreditLimitDetail(credits: CreditsSnapshot?, now: Date) -> String? {

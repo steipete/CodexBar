@@ -35,6 +35,13 @@ struct MenuCardModelCodexBusinessCreditsTests {
 
         #expect(model.creditsRemaining == 1234)
         #expect(model.creditsShowProgress == !balanceIsWorkspace)
+        if balanceIsWorkspace {
+            #expect(model.creditsProgressPercent == nil)
+            #expect(model.creditsScaleText == nil)
+        } else {
+            #expect(model.creditsProgressPercent == 1234 / 2000.0 * 100)
+            #expect(model.creditsScaleText == "of 2000")
+        }
         var changedProgress = model
         changedProgress.creditsShowProgress.toggle()
         #expect(!model.hasCompatibleTrackedLayout(with: changedProgress))
@@ -362,5 +369,40 @@ struct MenuCardModelCodexBusinessCreditsTests {
         #expect(extraUsage.spendLine == "Balance: 14.5")
         #expect(extraUsage.percentUsed == nil)
         #expect(extraUsage.balanceLine == nil)
+    }
+
+    @Test
+    func `purchased extra credits above 1000 use a dynamic bar scale`() throws {
+        let now = Date()
+        let metadata = try #require(ProviderDefaults.metadata[.codex])
+        let credits = CreditsSnapshot(remaining: 2263.27, events: [], updatedAt: now)
+        let model = UsageMenuCardView.Model.make(.init(
+            provider: .codex,
+            metadata: metadata,
+            snapshot: nil,
+            credits: credits,
+            creditsError: nil,
+            dashboardError: nil,
+            tokenSnapshot: nil,
+            tokenError: nil,
+            account: AccountInfo(email: nil, plan: nil),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: true,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: false,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
+            now: now))
+
+        #expect(model.creditsRemaining == 2263.27)
+        #expect(model.creditsShowProgress == true)
+        #expect(model.creditsProgressPercent == 2263.27 / 3000 * 100)
+        #expect(model.creditsScaleText == "of 3000")
+        #expect(UsageMenuCardView.Model.creditsLine(
+            metadata: metadata,
+            snapshot: nil,
+            credits: credits,
+            error: nil) == "2263.27 left")
     }
 }

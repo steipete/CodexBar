@@ -746,8 +746,6 @@ struct UsageMenuCardCreditsSectionView: View {
 }
 
 private struct CreditsBarContent: View {
-    private static let fullScaleTokens: Double = 1000
-
     let creditsText: String
     let creditsRemaining: Double?
     let showsProgress: Bool
@@ -763,16 +761,15 @@ private struct CreditsBarContent: View {
             return min(100, max(0, progressPercent))
         }
         guard let creditsRemaining else { return nil }
-        let percent = (creditsRemaining / Self.fullScaleTokens) * 100
-        return min(100, max(0, percent))
+        return CreditsBarScale.remainingPercent(remaining: creditsRemaining)
     }
 
     private var effectiveScaleText: String {
         if let scaleText {
             return scaleText
         }
-        let scale = UsageFormatter.tokenCountString(Int(Self.fullScaleTokens))
-        return "\(scale) \(L("tokens"))"
+        let remaining = self.creditsRemaining ?? 0
+        return L("of %@", UsageFormatter.creditsNumberString(from: CreditsBarScale.autoScale(for: remaining)))
     }
 
     var body: some View {

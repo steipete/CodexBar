@@ -166,4 +166,21 @@ struct IconRendererHideCrittersTests {
 
         #expect(try self.pixels(decorated) != self.pixels(plain))
     }
+
+    @Test
+    func `credits fill distinguishes balances above the historical 1k cap`() throws {
+        func image(credits: Double) -> NSImage {
+            IconRenderer.makeIcon(
+                primaryRemaining: nil,
+                weeklyRemaining: nil,
+                creditsRemaining: credits,
+                stale: false,
+                style: .combined,
+                hideCritters: true)
+        }
+
+        #expect(try self.pixels(image(credits: 500)) != self.pixels(image(credits: 1000)))
+        #expect(try self.pixels(image(credits: 2263)) != self.pixels(image(credits: 1000)))
+        #expect(try self.pixels(image(credits: 2263)) != self.pixels(image(credits: 1500)))
+    }
 }
