@@ -181,9 +181,9 @@ public enum GrokLocalSessionScanner {
             let day = days[key] ?? DayAccum()
             return day.bucket(date: key)
         }
-        // An in-window turn log skipped for size leaves turn data out of the scan,
-        // even when the signal still covers the session totals.
-        let complete = !sessions.values.contains { $0.turnLogOversized }
+        // A skipped oversized log or a discarded malformed turn set leaves turn
+        // data out of the scan, even when the signal still covers the session totals.
+        let complete = !sessions.values.contains { $0.turnLogOversized || $0.turnParseFailed }
         return GrokLocalSessionSummary(
             sessionCount: sessionCount,
             totalTokens: totalTokens,
@@ -325,62 +325,61 @@ public enum GrokLocalSessionScanner {
             session.turnParseFailed = true
             return
         }
-        var seen: [String: Turn] = [:]
+        var seen: [String: [String: Turn]] = [:]
         for line in text.split(whereSeparator: \.isNewline) {
             let raw = String(line)
             guard raw.contains("\"sessionUpdate\":\"turn_completed\"")
                 || raw.contains("\"sessionUpdate\": \"turn_completed\"")
             else { continue }
-            let identified = self.turns(from: raw, fallbackDate: mtime)
-            guard !identified.isEmpty else {
+            guard let identified = self.turns(from: raw, fallbackDate: mtime) else {
                 session.turnParseFailed = true
                 continue
             }
-            for item in identified {
-                guard let prompt = item.promptID else {
-                    session.turns.append(item.turn)
-                    continue
-                }
-                // A replayed prompt keeps the latest usage instead of discarding the file.
-                seen[prompt] = item.turn
+            guard let prompt = identified.promptID else {
+                session.turns.append(contentsOf: identified.turns)
+                continue
             }
+            // A replayed prompt replaces every model recorded by its earlier line.
+            seen[prompt] = Dictionary(
+                identified.turns.map { ($0.model, $0) },
+                uniquingKeysWith: { _, latest in latest })
         }
         if session.turnParseFailed {
             session.turns = []
             return
         }
-        session.turns.append(contentsOf: seen.values)
+        session.turns.append(contentsOf: seen.values.flatMap(\.values))
     }
 
-    private struct IdentifiedTurn {
+    private struct IdentifiedTurns {
         let promptID: String?
-        let turn: Turn
+        let turns: [Turn]
     }
 
-    private static func turns(from line: String, fallbackDate: Date) -> [IdentifiedTurn] {
+    private static func turns(from line: String, fallbackDate: Date) -> IdentifiedTurns? {
         guard let data = line.data(using: .utf8),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let params = json["params"] as? [String: Any],
               let update = params["update"] as? [String: Any],
               update["sessionUpdate"] as? String == "turn_completed",
               let usage = update["usage"] as? [String: Any]
-        else { return [] }
+        else { return nil }
         let at = self.intValue(json["timestamp"]).map { Date(timeIntervalSince1970: TimeInterval($0)) } ?? fallbackDate
         let prompt = update["prompt_id"] as? String
         if let models = usage["modelUsage"] as? [String: Any], !models.isEmpty {
             // A turn that fanned out to several models counts each model's usage.
-            // One malformed entry fails the line; replays dedup per prompt and model.
-            var identified: [IdentifiedTurn] = []
+            // One malformed entry fails the line.
+            var turns: [Turn] = []
             for name in models.keys.sorted() {
                 guard let body = models[name] as? [String: Any],
                       let turn = self.turn(model: name, usage: body, at: at)
-                else { return [] }
-                identified.append(IdentifiedTurn(promptID: prompt.map { "\($0)\n\(name)" }, turn: turn))
+                else { return nil }
+                turns.append(turn)
             }
-            return identified
+            return IdentifiedTurns(promptID: prompt, turns: turns)
         }
-        guard let turn = self.turn(model: "unknown", usage: usage, at: at) else { return [] }
-        return [IdentifiedTurn(promptID: prompt, turn: turn)]
+        guard let turn = self.turn(model: "unknown", usage: usage, at: at) else { return nil }
+        return IdentifiedTurns(promptID: prompt, turns: [turn])
     }
 
     private static func turn(model: String, usage: [String: Any], at: Date) -> Turn? {

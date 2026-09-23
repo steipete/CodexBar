@@ -35,6 +35,7 @@ struct GrokLocalSessionScannerTests {
         #expect(summary.totalTokens == 350)
         #expect(summary.daily.map(\.totalTokens) == [100, 250])
         #expect(summary.daily.map(\.sessionCount) == [1, 1])
+        #expect(summary.daily.map(\.requestCount) == [1, 1])
         #expect(Set(summary.daily.map(\.date)).count == 2)
 
         let snapshot = try #require(summary.toCostUsageTokenSnapshot(historyDays: 7))
@@ -324,6 +325,66 @@ struct GrokLocalSessionScannerTests {
         #expect(summary.historyCoverageIsEstablished == false)
         let snapshot = try #require(summary.toCostUsageTokenSnapshot(historyDays: 7))
         #expect(snapshot.historyCoverageIsEstablished == false)
+    }
+
+    @Test
+    func `malformed turn falls back to signal and marks coverage partial`() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("grok-turn-malformed-\(UUID().uuidString)", isDirectory: true)
+        let session = root.appendingPathComponent("sessions/%2Ftmp%2Fdemo/session-a", isDirectory: true)
+        try FileManager.default.createDirectory(at: session, withIntermediateDirectories: true)
+        let when = Date(timeIntervalSince1970: 1_787_079_600)
+        try self.writeSignals(
+            at: session.appendingPathComponent("signals.json"),
+            tokens: 500,
+            model: "grok-4.6",
+            date: when)
+        let usage = """
+        {"timestamp":1787079600,"method":"_x.ai/session/update",\
+        "params":{"update":{"sessionUpdate":"turn_completed","prompt_id":"p1","usage":{"inputTokens":100,\
+        "outputTokens":50,"totalTokens":999,"modelUsage":{"grok-4.6":{"inputTokens":100,"outputTokens":50,\
+        "totalTokens":999}}}}}}
+        """
+        let updates = session.appendingPathComponent("updates.jsonl")
+        try usage.write(to: updates, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.modificationDate: when], ofItemAtPath: updates.path)
+        let summary = GrokLocalSessionScanner.summarize(
+            env: ["GROK_HOME": root.path],
+            fileManager: .default,
+            lookbackDays: 7,
+            now: when)
+        #expect(summary.totalTokens == 500)
+        #expect(summary.historyCoverageIsEstablished == false)
+        let snapshot = try #require(summary.toCostUsageTokenSnapshot(historyDays: 7))
+        #expect(snapshot.historyCoverageIsEstablished == false)
+    }
+
+    @Test
+    func `repeated prompt replaces fanned out models`() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("grok-turn-replace-\(UUID().uuidString)", isDirectory: true)
+        let session = root.appendingPathComponent("sessions/%2Ftmp%2Fdemo/session-a", isDirectory: true)
+        try FileManager.default.createDirectory(at: session, withIntermediateDirectories: true)
+        let when = Date(timeIntervalSince1970: 1_787_079_600)
+        let first = """
+        {"timestamp":1787079600,"method":"_x.ai/session/update",\
+        "params":{"update":{"sessionUpdate":"turn_completed","prompt_id":"p1","usage":{\
+        "modelUsage":{"grok-4.6":{"inputTokens":400,"outputTokens":100,"totalTokens":500},\
+        "grok-4.6-build":{"inputTokens":1000,"outputTokens":50,"totalTokens":1050}}}}}}
+        """
+        let usage = [first, self.turnLine(prompt: "p1", model: "grok-4.6", at: when, input: 2000, output: 100)]
+            .joined(separator: "\n")
+        let updates = session.appendingPathComponent("updates.jsonl")
+        try usage.write(to: updates, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.modificationDate: when], ofItemAtPath: updates.path)
+        let summary = GrokLocalSessionScanner.summarize(
+            env: ["GROK_HOME": root.path],
+            fileManager: .default,
+            lookbackDays: 7,
+            now: when)
+        #expect(summary.totalTokens == 2100)
+        #expect(summary.daily.map(\.requestCount) == [1])
+        #expect(summary.daily.first?.models == ["grok-4.6"])
     }
 
     private func turnLine(prompt: String, model: String, at: Date, input: Int, output: Int) -> String {
