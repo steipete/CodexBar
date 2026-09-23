@@ -91,7 +91,8 @@ struct KimiTokenAccountTests {
                     updatedAt: Date(timeIntervalSince1970: 100))
             },
             desktopToken: { _ in Issue.record("Unexpected desktop import"); return nil },
-            browserTokens: { _ in Issue.record("Unexpected browser import"); return [] })
+            browserTokens: { _ in Issue.record("Unexpected browser import"); return [] },
+            expiredBrowserSession: { _ in Issue.record("Unexpected browser import"); return false })
         for (index, account) in accounts.enumerated() {
             let snapshot = try #require(cli.settingsSnapshot(for: .kimi, account: account))
             let environment = cli.environment(base: self.ambient, provider: .kimi, account: account)
@@ -155,7 +156,8 @@ struct KimiTokenAccountTests {
                 throw KimiAPIError.invalidToken
             },
             desktopToken: { _ in Issue.record("Unexpected desktop import"); return nil },
-            browserTokens: { _ in Issue.record("Unexpected browser import"); return [] })
+            browserTokens: { _ in Issue.record("Unexpected browser import"); return [] },
+            expiredBrowserSession: { _ in Issue.record("Unexpected browser import"); return false })
         do {
             _ = try await strategy.fetch(self.context(environment: environment, settings: settings))
             Issue.record("Expected saved credential failure")

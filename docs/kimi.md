@@ -114,6 +114,13 @@ Cookies database is opened read-only: active WAL databases use SQLite's normal W
 WAL-mode databases with no sidecars use an immutable read-only fallback. CodexBar never creates or modifies
 Kimi Desktop database files.
 
+kimi.ai keeps its web session in local storage (`access_token`) rather than a `kimi-auth` cookie, so
+automatic mode also reads that key from Chromium, Firefox/Zen, and Safari profiles after the cookie sources.
+Gecko and Safari databases are read from a private snapshot copy. These access tokens last about 15 minutes
+and the page renews them only while Kimi is open; CodexBar never uses the browser's refresh token, because
+rotating it would sign the browser out. When only an expired token is found, the error asks you to reopen Kimi
+in the browser; for unattended use, prefer a Kimi Code API key.
+
 ### Method 4: Manual Token Entry
 
 For advanced users or when automatic import fails:
@@ -123,7 +130,8 @@ For advanced users or when automatic import fails:
 3. Visit `https://www.kimi.com/code/console` in your browser
 4. Open Developer Tools (F12 or Cmd+Option+I)
 5. Go to **Application** → **Cookies**
-6. Copy the `kimi-auth` cookie value (JWT token)
+6. Copy the `kimi-auth` cookie value (JWT token). On kimi.ai, copy `access_token` from **Local Storage**
+   instead; it expires after about 15 minutes.
 7. Paste it into the "Auth Token" field in CodexBar
 
 Manual mode never imports Desktop or browser credentials, including when the token field is empty or invalid.
@@ -165,6 +173,7 @@ When multiple sources are available, CodexBar uses this order:
 4. Cookie environment variable (`KIMI_AUTH_TOKEN`)
 5. Kimi Desktop `kimi-auth` cookie
 6. Browser cookies (Arc → Chrome → Safari → Edge → Brave → Chromium)
+7. Browser local storage `access_token` (Chromium, Firefox/Zen, Safari)
 
 For Code API and CLI results, sources 3–6 are best-effort enrichment only: the required Code usage remains
 available if the membership request fails. Setting **Cookie source** to **Off** disables this enrichment and

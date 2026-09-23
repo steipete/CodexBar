@@ -19,7 +19,8 @@ struct KimiWebFallbackTests {
             browserTokens: { selected in
                 #expect(selected == region)
                 return ["regional-browser-token"]
-            })
+            },
+            expiredBrowserSession: { _ in false })
         #expect(await strategy.isAvailable(Self.context(region: region)))
         _ = try await strategy.fetch(Self.context(region: region))
         #expect(calls.snapshot == ["regional-browser-token"])
@@ -115,6 +116,27 @@ struct KimiWebFallbackTests {
         #expect(calls.snapshot == expected)
     }
 
+    @Test
+    func `expired browser session reports renewal instead of a missing strategy`() async {
+        let strategy = KimiWebFetchStrategy(
+            fetchUsage: { _, _ in
+                Issue.record("Expired sessions must not be sent")
+                return Self.usage()
+            },
+            desktopToken: { _ in nil },
+            browserTokens: { _ in [] },
+            expiredBrowserSession: { _ in true })
+        let context = Self.context(region: .international)
+        #expect(await strategy.isAvailable(context))
+        do {
+            _ = try await strategy.fetch(context)
+            Issue.record("Expected expired browser session")
+        } catch KimiAPIError.expiredBrowserSession {} catch {
+            Issue.record("Unexpected error: \(error)")
+        }
+        #expect(!strategy.shouldFallback(on: KimiAPIError.expiredBrowserSession, context: context))
+    }
+
     private static func strategy(
         calls: KimiFallbackCalls,
         fetch: @escaping @Sendable (String) async throws -> KimiUsageSnapshot) -> KimiWebFetchStrategy
@@ -122,7 +144,8 @@ struct KimiWebFallbackTests {
         KimiWebFetchStrategy(
             fetchUsage: { token, _ in calls.add("fetch:\(token)"); return try await fetch(token) },
             desktopToken: { _ in calls.add("desktop"); return "desktop" },
-            browserTokens: { _ in calls.add("browser"); return ["desktop", "browser-old", "browser-current"] })
+            browserTokens: { _ in calls.add("browser"); return ["desktop", "browser-old", "browser-current"] },
+            expiredBrowserSession: { _ in calls.add("expired"); return false })
     }
 
     private static func usage() -> KimiUsageSnapshot {

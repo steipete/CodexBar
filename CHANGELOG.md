@@ -11,6 +11,7 @@
 - Claude costs: skip identical cache and report-memo writes after rescans, reducing local history disk writes (#3882).
 - Codex costs: avoid rewriting unchanged retained file state when another session or scan metadata changes, reducing local history disk writes (#3882).
 - Website: refresh the social preview image for all 80 providers, include the newest integrations, and invalidate cached previews when the card changes.
+- Kimi: import the kimi.ai web session from browser local storage (Chromium, Firefox/Zen, Safari), which uses `access_token` instead of a `kimi-auth` cookie, and report an expired browser session instead of "No available fetch strategy".
 - Muse Code: check the CLI-owned Keychain item's access list before requesting its token, so refreshes fail promptly when access would require a prompt, and discover logins without reading secrets (#3916). Thanks @audreyt!
 
 ## 0.65.0 — 2026-09-22

@@ -11,6 +11,7 @@ public enum KimiAPIError: LocalizedError, Sendable, Equatable {
     case parseFailed(String)
     case expiredCodeCredential
     case invalidCodeCredential
+    case expiredBrowserSession
 
     public var errorDescription: String? {
         switch self {
@@ -36,6 +37,9 @@ public enum KimiAPIError: LocalizedError, Sendable, Equatable {
         case .invalidCodeCredential:
             "Kimi Code CLI credential is invalid or expired. Sign in again with Kimi Code CLI or set " +
                 "KIMI_CODE_API_KEY; CodexBar does not refresh CLI-owned credentials."
+        case .expiredBrowserSession:
+            "Kimi browser session token expired. Open Kimi in your browser to renew it, or add a Kimi Code API " +
+                "key; CodexBar does not refresh browser-owned sessions."
         }
     }
 }

@@ -213,6 +213,7 @@ complete when the available scan window covers fewer days.
 ## Kimi
 - Kimi Code API key via `~/.codexbar/config.json` or `KIMI_CODE_API_KEY`.
 - Web fallback uses the JWT from `kimi-auth` cookie via manual entry or `KIMI_AUTH_TOKEN` env var.
+- Automatic web import also reads the short-lived kimi.ai `access_token` from browser local storage.
 - Shows weekly quota and 5-hour rate limit (300 minutes).
 - Status: none yet.
 - Details: `docs/kimi.md`.

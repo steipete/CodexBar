@@ -292,6 +292,9 @@ enum KimiWebEnrichmentTokenResolver {
         if let token = try? KimiCookieImporter.importSession(region: settings.region).authToken {
             return token
         }
+        if let token = KimiLocalStorageTokenImporter.importTokens(region: settings.region).first {
+            return token
+        }
         #endif
         return nil
     }
@@ -321,6 +324,7 @@ struct KimiWebFetchStrategy: ProviderFetchStrategy {
     private let fetchUsage: @Sendable (String, KimiRegion) async throws -> KimiUsageSnapshot
     private let desktopToken: @Sendable (KimiRegion) -> String?
     private let browserTokens: @Sendable (KimiRegion) -> [String]
+    private let expiredBrowserSession: @Sendable (KimiRegion) -> Bool
 
     init(
         fetchUsage: @escaping @Sendable (String, KimiRegion) async throws -> KimiUsageSnapshot = {
@@ -335,15 +339,24 @@ struct KimiWebFetchStrategy: ProviderFetchStrategy {
         },
         browserTokens: @escaping @Sendable (KimiRegion) -> [String] = { region in
             #if os(macOS)
-            (try? KimiCookieImporter.importSessions(region: region).compactMap(\.authToken)) ?? []
+            ((try? KimiCookieImporter.importSessions(region: region).compactMap(\.authToken)) ?? []) +
+                KimiLocalStorageTokenImporter.importTokens(region: region)
             #else
             []
+            #endif
+        },
+        expiredBrowserSession: @escaping @Sendable (KimiRegion) -> Bool = { region in
+            #if os(macOS)
+            KimiLocalStorageTokenImporter.hasExpiredToken(region: region)
+            #else
+            false
             #endif
         })
     {
         self.fetchUsage = fetchUsage
         self.desktopToken = desktopToken
         self.browserTokens = browserTokens
+        self.expiredBrowserSession = expiredBrowserSession
     }
 
     func isAvailable(_ context: ProviderFetchContext) async -> Bool {
@@ -357,7 +370,9 @@ struct KimiWebFetchStrategy: ProviderFetchStrategy {
 
         if KimiBrowserImportPolicy.allowsImport(context) {
             let region = context.settings?.kimi?.region ?? .china
-            return self.desktopToken(region) != nil || !self.browserTokens(region).isEmpty
+            // An expired browser session still makes this strategy the one that owns the error message.
+            return self.desktopToken(region) != nil || !self.browserTokens(region).isEmpty ||
+                self.expiredBrowserSession(region)
         }
 
         return false
@@ -374,7 +389,21 @@ struct KimiWebFetchStrategy: ProviderFetchStrategy {
         if KimiBrowserImportPolicy.allowsImport(context) {
             desktopToken = self.desktopToken(context.settings?.kimi?.region ?? .china)
         }
-        let snapshot = try await Self.fetchWithFallback(
+        let snapshot: KimiUsageSnapshot
+        do {
+            snapshot = try await self.fetchAutomatic(context: context, desktopToken: desktopToken)
+        } catch KimiAPIError.missingToken where KimiBrowserImportPolicy.allowsImport(context) &&
+            self.expiredBrowserSession(context.settings?.kimi?.region ?? .china)
+        {
+            throw KimiAPIError.expiredBrowserSession
+        }
+        return self.makeResult(usage: snapshot.toUsageSnapshot(), sourceLabel: "Kimi web cookie")
+    }
+
+    private func fetchAutomatic(context: ProviderFetchContext, desktopToken: String?) async throws
+        -> KimiUsageSnapshot
+    {
+        try await Self.fetchWithFallback(
             desktopToken: desktopToken,
             browserTokens: {
                 if KimiBrowserImportPolicy.allowsImport(context) {
@@ -384,7 +413,6 @@ struct KimiWebFetchStrategy: ProviderFetchStrategy {
             },
             environmentToken: Self.resolveToken(environment: context.env),
             fetchUsage: { try await self.fetchUsage($0, context.settings?.kimi?.region ?? .china) })
-        return self.makeResult(usage: snapshot.toUsageSnapshot(), sourceLabel: "Kimi web cookie")
     }
 
     static func fetchWithFallback(
@@ -422,6 +450,9 @@ struct KimiWebFetchStrategy: ProviderFetchStrategy {
             return false
         }
         if case KimiAPIError.invalidToken = error {
+            return false
+        }
+        if case KimiAPIError.expiredBrowserSession = error {
             return false
         }
         return true
