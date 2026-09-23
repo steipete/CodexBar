@@ -22,6 +22,55 @@ private struct DoubaoProviderTestClaudeFetcher: ClaudeUsageFetching {
 }
 
 struct DoubaoProviderTests {
+    @Test(arguments: [false, true], [false, true])
+    func `icon windows fall back to agent plan without changing snapshot identity`(
+        hasCodingSession: Bool,
+        hasCodingWeekly: Bool)
+    {
+        let now = Date(timeIntervalSince1970: 42)
+        var quotas: [DoubaoCodingPlanUsage.Quota] = [
+            .init(level: "agent_5h", percent: 0, resetTime: now),
+            .init(level: "agent_weekly", percent: 31, resetTime: now),
+            .init(level: "agent_monthly", percent: 72, resetTime: now),
+        ]
+        if hasCodingSession {
+            quotas.append(.init(level: "session", percent: 10, resetTime: nil))
+        }
+        if hasCodingWeekly {
+            quotas.append(.init(level: "weekly", percent: 20, resetTime: nil))
+        }
+        let snapshot = DoubaoCodingPlanUsage(status: nil, updateTime: nil, quotas: quotas)
+            .toUsageSnapshot(updatedAt: now)
+        let windows = DoubaoProviderDescriptor.descriptor.presentation.iconWindows(context: .init(
+            snapshot: snapshot, secondaryOverrideWindowID: nil, now: now))
+
+        #expect(windows.primary?.usedPercent == (hasCodingSession ? 10 : 0))
+        #expect(windows.secondary?.usedPercent == (hasCodingWeekly ? 20 : 31))
+        #expect(windows.primary?.windowMinutes == 300)
+        #expect(windows.secondary?.windowMinutes == 10080)
+        #expect(windows.primary?.resetsAt == (hasCodingSession ? nil : now))
+        #expect(windows.secondary?.resetsAt == (hasCodingWeekly ? nil : now))
+        #expect(snapshot.primary?.usedPercent == (hasCodingSession ? 10 : nil))
+        #expect(snapshot.secondary?.usedPercent == (hasCodingWeekly ? 20 : nil))
+        #expect(snapshot.tertiary == nil)
+        #expect(snapshot.extraRateWindows?.map(\.id) == [
+            "doubao-agent-session", "doubao-agent-weekly", "doubao-agent-monthly",
+        ])
+    }
+
+    @Test(arguments: ["session", "agent_5h", "agent_weekly", "agent_monthly", "agent_team_5h"])
+    func `icon windows preserve missing lanes`(level: String) {
+        let now = Date(timeIntervalSince1970: 42)
+        let snapshot = DoubaoCodingPlanUsage(status: nil, updateTime: nil, quotas: [
+            .init(level: level, percent: 25, resetTime: nil),
+        ]).toUsageSnapshot(updatedAt: now)
+        let windows = DoubaoProviderDescriptor.descriptor.presentation.iconWindows(context: .init(
+            snapshot: snapshot, secondaryOverrideWindowID: nil, now: now))
+
+        #expect(windows.primary?.usedPercent == (["session", "agent_5h"].contains(level) ? 25 : nil))
+        #expect(windows.secondary?.usedPercent == (level == "agent_weekly" ? 25 : nil))
+    }
+
     @Test
     func `usage snapshot exposes request usage window`() {
         let resetDate = Date(timeIntervalSince1970: 1_742_771_200)

@@ -75,6 +75,13 @@ public enum DoubaoProviderDescriptor {
                 noDataMessage: { "Doubao cost summary is not available." }),
             pace: .calendarMonthResetWindow,
             presentation: ProviderUsagePresentation(
+                iconWindowResolver: { context in
+                    ProviderUsageWindowPair(
+                        primary: context.snapshot.primary ?? context.snapshot.extraRateWindows?
+                            .first(where: { $0.id == "doubao-agent-session" })?.window,
+                        secondary: context.snapshot.secondary ?? context.snapshot.extraRateWindows?
+                            .first(where: { $0.id == "doubao-agent-weekly" })?.window)
+                },
                 primaryBindingQuotaLanes: [.secondary, .tertiary]),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .cli, .api],
