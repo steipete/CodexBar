@@ -51,7 +51,39 @@ Admin API key setup:
   - Inline 30-day dashboard chart when daily buckets are present.
   - Identity login method: `Admin API`.
 
+## Recover usage when Claude is already signed in
+
+A working Claude Code login or Claude browser tab does not by itself confirm that CodexBar can read that
+session. For example, OAuth can report missing credentials, the CLI probe can time out, and Web can report
+`No Claude session key found in browser cookies.` on the same machine. Diagnose the selected source before
+signing out or replacing credentials.
+
+If Claude works in Chrome but CodexBar cannot import its browser session:
+
+1. Open `https://claude.ai` in Chrome and confirm the intended account is signed in.
+2. In Settings → Providers → Claude, select **Web API (cookies)** and leave the cookie source on **Auto**.
+   This uses the browser session for session, weekly, and available model-specific quotas.
+3. In Settings → Advanced, confirm **Disable Keychain access** is off. Chromium cookie decryption needs
+   the browser's Safe Storage Keychain item; Claude's OAuth prompt policy controls a different credential.
+4. Explicitly retry the import from Terminal:
+
+   ```bash
+   codexbar cookie refresh --provider claude --allow-keychain-prompt
+   ```
+
+   Approve the expected macOS Keychain prompt for the installed CodexBarCLI and the browser's Safe Storage
+   item. The command never prints cookie values. A prior denial can suppress imports for six hours;
+   this explicit retry can bypass that cooldown, while ordinary refresh attempts may remain suppressed.
+   See [Keychain prompts](keychain-prompts.md) for permission details.
+5. Click **Refresh** in Claude's settings and confirm that **Updated just now** appears with current quota
+   bars and no fetch error. Local cost totals or last-known quota bars alone do not prove a successful refresh.
+
+This recovers browser-session access; it does not repair missing OAuth credentials. If the refreshed session
+instead reports a Cloudflare challenge, follow the network guidance under Web API below rather than repeating
+the cookie import.
+
 ## Keychain prompt policy (Claude OAuth)
+
 - Preferences → Providers → Claude → Keychain prompt policy.
 - Options:
   - `Never prompt`: never attempts interactive Claude OAuth Keychain prompts.
