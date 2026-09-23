@@ -153,13 +153,30 @@ extension UsageMenuCardView.Model {
         return L(metadata.creditsHint)
     }
 
-    static func creditsProgressPercent(credits: CreditsSnapshot?) -> Double? {
-        CreditsBarScale.display(from: credits)?.remainingPercent
+    static func creditsProgressPercent(
+        credits: CreditsSnapshot?,
+        account: CreditsBarScale.Account? = nil) -> Double?
+    {
+        CreditsBarScale.display(from: credits, account: account)?.remainingPercent
     }
 
-    static func creditsScaleText(credits: CreditsSnapshot?) -> String? {
-        guard let scale = CreditsBarScale.display(from: credits)?.scale else { return nil }
+    static func creditsScaleText(
+        credits: CreditsSnapshot?,
+        account: CreditsBarScale.Account? = nil) -> String?
+    {
+        guard let scale = CreditsBarScale.display(from: credits, account: account)?.scale else { return nil }
         return L("of %@", UsageFormatter.creditsNumberString(from: scale))
+    }
+
+    static func creditsBarScaleAccount(from input: Input) -> CreditsBarScale.Account {
+        if let bound = CreditsBarScale.account {
+            return bound
+        }
+        guard input.provider == .codex else { return .unresolved }
+        let identity = input.snapshot?.identity(for: input.provider.instanceID)
+        return CreditsBarScale.Account(
+            accountID: identity?.accountID,
+            email: identity?.accountEmail ?? input.account.email)
     }
 
     static func codexCreditLimitDetail(credits: CreditsSnapshot?, now: Date) -> String? {

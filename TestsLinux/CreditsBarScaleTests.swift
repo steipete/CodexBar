@@ -67,13 +67,76 @@ struct CreditsBarScaleTests {
     }
 
     @Test
-    func `account keys isolate session high water`() {
+    func `selected account identity isolates session high water when switching accounts`() {
         let store = CreditsBarScale.HighWater()
-        #expect(store.observe(remaining: 2500, accountKey: "pro") == 3000)
-        #expect(store.observe(remaining: 500, accountKey: "plus") == 1000)
-        #expect(store.observe(remaining: 500, accountKey: "pro") == 3000)
-        store.reset()
-        #expect(store.observe(remaining: 500, accountKey: "pro") == 1000)
+        let accountA = Self.account("acct-a", email: "a@example.com")
+        let accountB = Self.account("acct-b", email: "b@example.com")
+
+        CreditsBarScale.$highWater.withValue(store) {
+            CreditsBarScale.$account.withValue(accountA) {
+                #expect(CreditsBarScale.sessionScale(for: 2500) == 3000)
+                #expect(CreditsBarScale.display(from: Self.credits(2500))?.scale == 3000)
+                #expect(CreditsBarScale.display(from: Self.credits(2500))?.remainingPercent == 2500 / 3000.0 * 100)
+            }
+
+            store.invalidateSelection(from: accountA, to: accountB)
+
+            CreditsBarScale.$account.withValue(accountB) {
+                let display = CreditsBarScale.display(from: Self.credits(500))
+                #expect(CreditsBarScale.sessionScale(for: 500) == 1000)
+                #expect(display?.scale == 1000)
+                #expect(display?.remainingPercent == 50)
+            }
+
+            CreditsBarScale.$account.withValue(accountA) {
+                #expect(CreditsBarScale.sessionScale(for: 2000) == 3000)
+                #expect(CreditsBarScale.display(from: Self.credits(2000))?.remainingPercent == 2000 / 3000.0 * 100)
+            }
+        }
+    }
+
+    @Test
+    func `descending boundaries stay stable per selected account after a switch`() {
+        let store = CreditsBarScale.HighWater()
+        let accountA = Self.account("acct-a", email: "a@example.com")
+        let accountB = Self.account("acct-b", email: "b@example.com")
+
+        let aHigh = CreditsBarScale.display(from: Self.credits(2001), highWater: store, account: accountA)
+        let aLow = CreditsBarScale.display(from: Self.credits(2000), highWater: store, account: accountA)
+        store.invalidateSelection(from: accountA, to: accountB)
+        let bHigh = CreditsBarScale.display(from: Self.credits(1001), highWater: store, account: accountB)
+        let bLow = CreditsBarScale.display(from: Self.credits(1000), highWater: store, account: accountB)
+        let aAfterSwitch = CreditsBarScale.display(from: Self.credits(1000), highWater: store, account: accountA)
+
+        #expect(aHigh?.scale == 3000)
+        #expect(aLow?.scale == 3000)
+        #expect((aLow?.remainingPercent ?? 100) < (aHigh?.remainingPercent ?? 0))
+        #expect(bHigh?.scale == 2000)
+        #expect(bLow?.scale == 2000)
+        #expect(bLow?.remainingPercent == 50)
+        #expect((bLow?.remainingPercent ?? 100) < (bHigh?.remainingPercent ?? 0))
+        #expect(aAfterSwitch?.scale == 3000)
+        #expect(aAfterSwitch?.remainingPercent == 1000 / 3000.0 * 100)
+    }
+
+    @Test
+    func `indistinguishable account switches drop the shared high water`() {
+        let store = CreditsBarScale.HighWater()
+        #expect(store.observe(remaining: 2500, account: .unresolved) == 3000)
+        store.invalidateSelection(from: .unresolved, to: .unresolved)
+        #expect(store.observe(remaining: 500, account: .unresolved) == 1000)
+    }
+
+    @Test
+    func `provider account identity is preferred over email for the scale key`() {
+        let first = CreditsBarScale.Account(accountID: "acct-a", email: "shared@example.com")
+        let second = CreditsBarScale.Account(accountID: "acct-b", email: "shared@example.com")
+        let emailOnly = CreditsBarScale.Account(accountID: nil, email: "shared@example.com")
+
+        #expect(first.key != second.key)
+        #expect(first.key.hasPrefix("codex.account."))
+        #expect(emailOnly.key.hasPrefix("codex.email."))
+        #expect(CreditsBarScale.Account().key == CreditsBarScale.HighWater.defaultAccountKey)
     }
 
     @Test
@@ -151,5 +214,9 @@ struct CreditsBarScaleTests {
 
     private static func credits(_ remaining: Double) -> CreditsSnapshot {
         CreditsSnapshot(remaining: remaining, events: [], updatedAt: Date())
+    }
+
+    private static func account(_ accountID: String, email: String) -> CreditsBarScale.Account {
+        CreditsBarScale.Account(accountID: accountID, email: email)
     }
 }

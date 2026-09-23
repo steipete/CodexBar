@@ -185,6 +185,7 @@ struct UsageMenuCardView: View {
         var creditsRemaining: Double?
         var creditsShowProgress = true
         var creditsProgressPercent: Double?, creditsScaleText: String?
+        var creditsScaleAccount = CreditsBarScale.Account()
         var creditsHintText: String?
         var creditsHintCopyText: String?
         var limitResetCredits: LimitResetCreditsPresentation?
@@ -260,6 +261,7 @@ struct UsageMenuCardView: View {
                             showsProgress: liveModel.creditsShowProgress,
                             progressPercent: liveModel.creditsProgressPercent,
                             scaleText: liveModel.creditsScaleText,
+                            account: liveModel.creditsScaleAccount,
                             hintText: liveModel.creditsHintText,
                             hintCopyText: liveModel.creditsHintCopyText,
                             progressColor: liveModel.progressColor)
@@ -725,6 +727,7 @@ struct UsageMenuCardCreditsSectionView: View {
                     showsProgress: liveModel.creditsShowProgress,
                     progressPercent: liveModel.creditsProgressPercent,
                     scaleText: liveModel.creditsScaleText,
+                    account: liveModel.creditsScaleAccount,
                     hintText: liveModel.creditsHintText,
                     hintCopyText: liveModel.creditsHintCopyText,
                     progressColor: liveModel.progressColor)
@@ -750,6 +753,7 @@ private struct CreditsBarContent: View {
     let creditsRemaining: Double?
     let showsProgress: Bool
     var progressPercent: Double?, scaleText: String?
+    var account: CreditsBarScale.Account = .unresolved
     let hintText: String?
     let hintCopyText: String?
     let progressColor: Color
@@ -763,7 +767,7 @@ private struct CreditsBarContent: View {
         guard let creditsRemaining else { return nil }
         return CreditsBarScale.remainingPercent(
             remaining: creditsRemaining,
-            scale: CreditsBarScale.sessionScale(for: creditsRemaining))
+            scale: CreditsBarScale.sessionScale(for: creditsRemaining, account: self.account))
     }
 
     private var effectiveScaleText: String {
@@ -771,7 +775,11 @@ private struct CreditsBarContent: View {
             return scaleText
         }
         let remaining = self.creditsRemaining ?? 0
-        return L("of %@", UsageFormatter.creditsNumberString(from: CreditsBarScale.sessionScale(for: remaining)))
+        return L(
+            "of %@",
+            UsageFormatter.creditsNumberString(from: CreditsBarScale.sessionScale(
+                for: remaining,
+                account: self.account)))
     }
 
     var body: some View {
@@ -873,8 +881,11 @@ extension UsageMenuCardView.Model {
                 preferredCurrencyCode: input.preferredCurrencyCode)
         }
         let creditsText = PersonalInfoRedactor.redactEmails(in: rawCreditsText, isEnabled: input.hidePersonalInfo)
-        let creditsProgressPercent = Self.creditsProgressPercent(credits: input.credits)
-        let creditsScaleText = Self.creditsScaleText(credits: input.credits)
+        let creditsScaleAccount = Self.creditsBarScaleAccount(from: input)
+        let creditsProgressPercent = Self.creditsProgressPercent(
+            credits: input.credits,
+            account: creditsScaleAccount)
+        let creditsScaleText = Self.creditsScaleText(credits: input.credits, account: creditsScaleAccount)
         let codexCreditLimitDetail = Self.codexCreditLimitDetail(credits: input.credits, now: input.now)
         let isClaudeAdminAPI = input.snapshot?.loginMethod(for: input.provider) == "Admin API"
         let extraUsageCost = Self.resolvedProviderCost(input: input)
@@ -953,6 +964,7 @@ extension UsageMenuCardView.Model {
             creditsShowProgress: input.credits?.hasWorkspaceBalance != true,
             creditsProgressPercent: creditsProgressPercent,
             creditsScaleText: creditsScaleText,
+            creditsScaleAccount: creditsScaleAccount,
             creditsHintText: codexCreditLimitDetail ?? redacted.creditsHintText,
             creditsHintCopyText: codexCreditLimitDetail ?? redacted.creditsHintCopyText,
             limitResetCredits: Self.limitResetCredits(input: input),

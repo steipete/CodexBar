@@ -26,6 +26,10 @@ struct CodexAccountScopedRefreshGuard: Equatable {
         self.accountKey = CodexIdentityResolver.normalizeEmail(accountKey)
         self.authFingerprint = CodexAuthFingerprint.normalize(authFingerprint)
     }
+
+    var creditsBarScaleAccount: CreditsBarScale.Account {
+        CreditsBarScale.Account(identity: self.identity, email: self.accountKey)
+    }
 }
 
 @MainActor
@@ -106,6 +110,9 @@ extension UsageStore {
         self.lastCreditsSnapshotOwnerGuard = nil
         self.lastCreditsSource = .none
         self.creditsFailureStreak = 0
+        CreditsBarScale.HighWater.session.invalidateSelection(
+            from: previousGuard.map(\.creditsBarScaleAccount),
+            to: currentGuard.creditsBarScaleAccount)
 
         self.clearCodexOpenAIWebStateForAccountTransition(targetEmail: self.codexAccountEmailForOpenAIDashboard())
 
@@ -224,6 +231,10 @@ extension UsageStore {
                 preferCurrentSnapshot: preferCurrentSnapshot,
                 allowLastKnownLiveFallback: allowLastKnownLiveFallback),
             authFingerprint: self.currentCodexAuthFingerprint(source: self.settings.codexResolvedActiveSource))
+    }
+
+    func creditsBarScaleAccount() -> CreditsBarScale.Account {
+        self.currentCodexAccountScopedRefreshGuard().creditsBarScaleAccount
     }
 
     func currentCodexOpenAIWebRefreshGuard() -> CodexAccountScopedRefreshGuard {

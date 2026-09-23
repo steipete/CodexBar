@@ -143,7 +143,8 @@ enum IconRenderer {
         tilt: CGFloat = 0,
         statusIndicator: ProviderStatusIndicator = .none,
         hideCritters: Bool = false,
-        quotaLayoutPolicy: QuotaLayoutPolicy? = nil) -> NSImage
+        quotaLayoutPolicy: QuotaLayoutPolicy? = nil,
+        creditsAccount: CreditsBarScale.Account = .unresolved) -> NSImage
     {
         let quotaLayoutPolicy = quotaLayoutPolicy ?? .style(style)
         let shouldCache = blink <= 0.0001 && wiggle <= 0.0001 && tilt <= 0.0001
@@ -710,7 +711,9 @@ enum IconRenderer {
                 }()
                 let topValue = primaryRemaining
                 let bottomValue = effectiveWeeklyRemaining
-                let creditsRatio = creditsRemaining.map { Self.creditsFillPercent($0) }
+                let creditsRatio = creditsRemaining.map {
+                    Self.creditsFillPercent($0, account: creditsAccount)
+                }
 
                 let hasWeekly = (bottomValue != nil)
                 let weeklyAvailable = hasWeekly && (bottomValue ?? 0) > 0
@@ -864,7 +867,7 @@ enum IconRenderer {
             let key = IconCacheKey(
                 primary: self.quantizedPercent(primaryRemaining),
                 weekly: self.quantizedPercent(weeklyRemaining),
-                credits: self.quantizedCredits(creditsRemaining),
+                credits: self.quantizedCredits(creditsRemaining, account: creditsAccount),
                 stale: stale,
                 style: self.styleKey(style),
                 indicator: self.indicatorKey(statusIndicator),
@@ -902,15 +905,21 @@ enum IconRenderer {
         return Int((value * 10).rounded())
     }
 
-    private static func creditsFillPercent(_ remaining: Double) -> Double {
+    private static func creditsFillPercent(
+        _ remaining: Double,
+        account: CreditsBarScale.Account = .unresolved) -> Double
+    {
         CreditsBarScale.remainingPercent(
             remaining: remaining,
-            scale: CreditsBarScale.sessionScale(for: remaining))
+            scale: CreditsBarScale.sessionScale(for: remaining, account: account))
     }
 
-    private static func quantizedCredits(_ value: Double?) -> Int {
+    private static func quantizedCredits(
+        _ value: Double?,
+        account: CreditsBarScale.Account = .unresolved) -> Int
+    {
         guard let value else { return -1 }
-        return Int((Self.creditsFillPercent(value) * 10).rounded())
+        return Int((Self.creditsFillPercent(value, account: account) * 10).rounded())
     }
 
     private static let styleKeyLookup: [IconStyle: Int] = {

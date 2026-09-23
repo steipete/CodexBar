@@ -38,9 +38,25 @@ extension UsageStore {
         now: Date = Date()) -> UsageMenuCardView.Model
     {
         CreditsBarScale.$highWater.withValue(.session) {
-            UsageMenuCardView.Model.make(self.menuCardInput(for: provider, context: context, now: now))
-                .applyingUsageItemVisibility(hiddenItemIDs: self.settings.hiddenUsageItemIDs(for: provider))
+            CreditsBarScale.$account.withValue(self.creditsBarScaleAccount(for: provider, context: context)) {
+                UsageMenuCardView.Model.make(self.menuCardInput(for: provider, context: context, now: now))
+                    .applyingUsageItemVisibility(hiddenItemIDs: self.settings.hiddenUsageItemIDs(for: provider))
+            }
         }
+    }
+
+    func creditsBarScaleAccount(
+        for provider: UsageProvider,
+        context: UsageMenuCardContext) -> CreditsBarScale.Account
+    {
+        guard provider == .codex else { return .unresolved }
+        if let account = context.account {
+            let identity = account.snapshot?.identity(for: .codex)
+            return CreditsBarScale.Account(
+                accountID: identity?.accountID,
+                email: identity?.accountEmail ?? account.info?.email)
+        }
+        return self.creditsBarScaleAccount()
     }
 
     func menuCardInput(

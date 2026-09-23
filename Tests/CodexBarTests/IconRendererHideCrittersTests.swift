@@ -218,4 +218,36 @@ struct IconRendererHideCrittersTests {
             }
         }
     }
+
+    @Test
+    func `credits fill isolates auto scale when switching Codex accounts`() throws {
+        let store = CreditsBarScale.HighWater()
+        let accountA = CreditsBarScale.Account(accountID: "acct-a", email: "a@example.com")
+        let accountB = CreditsBarScale.Account(accountID: "acct-b", email: "b@example.com")
+
+        func image(credits: Double, account: CreditsBarScale.Account) -> NSImage {
+            IconRenderer.makeIcon(
+                primaryRemaining: nil,
+                weeklyRemaining: nil,
+                creditsRemaining: credits,
+                stale: false,
+                style: .combined,
+                hideCritters: true,
+                creditsAccount: account)
+        }
+
+        try CreditsBarScale.$highWater.withValue(store) {
+            _ = image(credits: 2500, account: accountA)
+            store.invalidateSelection(from: accountA, to: accountB)
+            let switched = image(credits: 500, account: accountB)
+            try CreditsBarScale.$highWater.withValue(CreditsBarScale.HighWater()) {
+                let independent = image(credits: 500, account: accountB)
+                #expect(try self.pixels(switched) == self.pixels(independent))
+            }
+            try CreditsBarScale.$highWater.withValue(CreditsBarScale.HighWater()) {
+                let contaminated = image(credits: 500, account: accountA)
+                #expect(try self.pixels(switched) != self.pixels(contaminated))
+            }
+        }
+    }
 }

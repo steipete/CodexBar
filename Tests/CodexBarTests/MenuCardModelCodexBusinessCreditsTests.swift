@@ -448,4 +448,63 @@ struct MenuCardModelCodexBusinessCreditsTests {
             #expect((atFloor.creditsProgressPercent ?? 100) < (aboveFloor.creditsProgressPercent ?? 0))
         }
     }
+
+    @Test
+    func `menu credits bar isolates auto scale when switching Codex accounts`() throws {
+        let metadata = try #require(ProviderDefaults.metadata[.codex])
+        let store = CreditsBarScale.HighWater()
+
+        func model(remaining: Double, accountID: String, email: String) -> UsageMenuCardView.Model {
+            let identity = ProviderIdentitySnapshot(
+                providerID: .codex,
+                accountEmail: email,
+                accountOrganization: nil,
+                loginMethod: nil,
+                accountID: accountID)
+            return UsageMenuCardView.Model.make(.init(
+                provider: .codex,
+                metadata: metadata,
+                snapshot: UsageSnapshot(
+                    primary: nil,
+                    secondary: nil,
+                    updatedAt: Date(),
+                    identity: identity),
+                credits: CreditsSnapshot(remaining: remaining, events: [], updatedAt: Date()),
+                creditsError: nil,
+                dashboardError: nil,
+                tokenSnapshot: nil,
+                tokenError: nil,
+                account: AccountInfo(email: email, plan: nil),
+                isRefreshing: false,
+                lastError: nil,
+                usageBarsShowUsed: true,
+                resetTimeDisplayStyle: .countdown,
+                tokenCostUsageEnabled: false,
+                showOptionalCreditsAndExtraUsage: true,
+                hidePersonalInfo: false,
+                now: Date()))
+        }
+
+        CreditsBarScale.$highWater.withValue(store) {
+            let accountA = model(remaining: 2500, accountID: "acct-a", email: "a@example.com")
+            #expect(accountA.creditsScaleText == "of 3000")
+            #expect(accountA.creditsProgressPercent == 2500 / 3000.0 * 100)
+            #expect(accountA.creditsScaleAccount.key == CreditsBarScale.Account(
+                accountID: "acct-a",
+                email: "a@example.com").key)
+
+            store.invalidateSelection(
+                from: CreditsBarScale.Account(accountID: "acct-a", email: "a@example.com"),
+                to: CreditsBarScale.Account(accountID: "acct-b", email: "b@example.com"))
+
+            let accountB = model(remaining: 500, accountID: "acct-b", email: "b@example.com")
+            #expect(accountB.creditsScaleText == "of 1000")
+            #expect(accountB.creditsProgressPercent == 50)
+            #expect(accountB.creditsScaleAccount.key != accountA.creditsScaleAccount.key)
+
+            let stillA = model(remaining: 2000, accountID: "acct-a", email: "a@example.com")
+            #expect(stillA.creditsScaleText == "of 3000")
+            #expect(stillA.creditsProgressPercent == 2000 / 3000.0 * 100)
+        }
+    }
 }

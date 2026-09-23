@@ -10,11 +10,11 @@ import Foundation
 /// Re-bucketing from the current remaining on every refresh refills the bar at thousand-credit
 /// boundaries (2001 → 66.7% of 3000, then 2000 → 100% of 2000). `HighWater` keeps the automatic
 /// reference stable while credits are consumed, and raises it when remaining implies a larger
-/// bucket (purchase or first observation).
+/// bucket (purchase or first observation). The reference is keyed by the selected Codex account
+/// so one account's high-water cannot set another account's fill.
 ///
-/// First iteration is process-session only: not persisted across launches, and production uses
-/// one default account key so the menu and icon share a reference. A restart re-buckets from
-/// the current remaining. Workspace balances stay numeric-only; a reported `codexCreditLimit`
+/// First iteration is process-session only: not persisted across launches. A restart re-buckets
+/// from the current remaining. Workspace balances stay numeric-only; a reported `codexCreditLimit`
 /// still wins over Auto.
 public struct CreditsBarScale: Equatable, Sendable {
     public static let minimum: Double = 1000
@@ -22,6 +22,10 @@ public struct CreditsBarScale: Equatable, Sendable {
     /// Injected automatic reference for the current menu/icon render.
     /// Tests pass a fresh `HighWater`; production binds `HighWater.session`.
     @TaskLocal public static var highWater: HighWater?
+
+    /// Selected Codex account for the current menu/icon render.
+    /// Production binds the live or card-scoped identity; tests can inject a fixture account.
+    @TaskLocal public static var account: Account?
 
     public let scale: Double
     public let remainingPercent: Double
@@ -34,7 +38,7 @@ public struct CreditsBarScale: Equatable, Sendable {
     public static func display(
         from credits: CreditsSnapshot?,
         highWater: HighWater? = nil,
-        accountKey: String = HighWater.defaultAccountKey) -> Self?
+        account: Account? = nil) -> Self?
     {
         guard let credits, credits.hasWorkspaceBalance != true else { return nil }
         if let limit = credits.codexCreditLimit, limit.limit > 0 {
@@ -44,7 +48,7 @@ public struct CreditsBarScale: Equatable, Sendable {
         guard let store = highWater ?? Self.highWater else {
             return Self.auto(remaining: remaining)
         }
-        let scale = store.observe(remaining: remaining, accountKey: accountKey)
+        let scale = store.observe(remaining: remaining, account: Self.resolvedAccount(account))
         return Self(scale: scale, remainingPercent: self.remainingPercent(remaining: remaining, scale: scale))
     }
 
@@ -62,11 +66,8 @@ public struct CreditsBarScale: Equatable, Sendable {
 
     /// Process-session Auto scale used by the menu-bar icon and view fallbacks.
     /// Prefers the task-local store so tests stay isolated from `HighWater.session`.
-    public static func sessionScale(
-        for remaining: Double,
-        accountKey: String = HighWater.defaultAccountKey) -> Double
-    {
-        (self.highWater ?? HighWater.session).observe(remaining: remaining, accountKey: accountKey)
+    public static func sessionScale(for remaining: Double, account: Account? = nil) -> Double {
+        (self.highWater ?? HighWater.session).observe(remaining: remaining, account: self.resolvedAccount(account))
     }
 
     public static func remainingPercent(remaining: Double, scale: Double? = nil, limit: Double? = nil) -> Double {
@@ -77,6 +78,21 @@ public struct CreditsBarScale: Equatable, Sendable {
         return Self.clampedRatio(remaining: remaining, scale: resolvedScale)
     }
 
+    public static func resolvedAccount(_ account: Account? = nil) -> Account {
+        account ?? self.account ?? .unresolved
+    }
+
+    public static func accountKey(for account: Account) -> String {
+        switch account.identity {
+        case let .providerAccount(id):
+            "codex.account.\(id)"
+        case let .emailOnly(normalizedEmail):
+            "codex.email.\(normalizedEmail)"
+        case .unresolved:
+            HighWater.defaultAccountKey
+        }
+    }
+
     private static func clampedRatio(remaining: Double, scale: Double) -> Double {
         guard remaining.isFinite, scale.isFinite, scale > 0 else { return 0 }
         return min(100, max(0, remaining / scale * 100))
@@ -84,6 +100,37 @@ public struct CreditsBarScale: Equatable, Sendable {
 }
 
 extension CreditsBarScale {
+    /// Selected Codex account used to isolate automatic extra-credits scale.
+    public struct Account: Equatable, Sendable {
+        public let identity: CodexIdentity
+        public let email: String?
+
+        public static let unresolved = Account()
+
+        public init(identity: CodexIdentity = .unresolved, email: String? = nil) {
+            let normalizedEmail = CodexIdentityResolver.normalizeEmail(email)
+            switch identity {
+            case let .providerAccount(id):
+                self.identity = CodexIdentityResolver.resolve(accountId: id, email: nil)
+                self.email = normalizedEmail
+            case let .emailOnly(normalized):
+                self.identity = CodexIdentityResolver.resolve(accountId: nil, email: normalized)
+                self.email = CodexIdentityResolver.normalizeEmail(normalized) ?? normalizedEmail
+            case .unresolved:
+                self.identity = CodexIdentityResolver.resolve(accountId: nil, email: normalizedEmail)
+                self.email = normalizedEmail
+            }
+        }
+
+        public init(accountID: String?, email: String?) {
+            self.init(identity: CodexIdentityResolver.resolve(accountId: accountID, email: email), email: email)
+        }
+
+        public var key: String {
+            CreditsBarScale.accountKey(for: self)
+        }
+    }
+
     /// Account-keyed high-water for the automatic extra-credits scale.
     ///
     /// Observe raises the stored bucket; depletion never lowers it. Purchases and resets that
@@ -98,6 +145,10 @@ extension CreditsBarScale {
 
         public init() {}
 
+        public func observe(remaining: Double, account: CreditsBarScale.Account) -> Double {
+            self.observe(remaining: remaining, accountKey: account.key)
+        }
+
         public func observe(
             remaining: Double,
             accountKey: String = HighWater.defaultAccountKey) -> Double
@@ -108,6 +159,22 @@ extension CreditsBarScale {
             let scale = max(self.scaleByAccount[accountKey] ?? CreditsBarScale.minimum, bucket)
             self.scaleByAccount[accountKey] = scale
             return scale
+        }
+
+        public func remove(_ accountKey: String) {
+            self.lock.lock()
+            self.scaleByAccount.removeValue(forKey: accountKey)
+            self.lock.unlock()
+        }
+
+        /// Drop a shared reference when the selected account changes but identity is indistinguishable.
+        /// Distinct account keys keep their own session high-water; the previous key is simply unused.
+        public func invalidateSelection(from previous: CreditsBarScale.Account?, to current: CreditsBarScale.Account) {
+            let previousKey = previous?.key ?? Self.defaultAccountKey
+            let currentKey = current.key
+            if previousKey == currentKey {
+                self.remove(previousKey)
+            }
         }
 
         public func reset() {

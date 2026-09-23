@@ -400,6 +400,7 @@ extension StatusItemController {
                 title: nil,
                 for: button)
         } else {
+            let creditsAccount = self.creditsBarScaleAccount(for: primaryProvider)
             let signature = [
                 "mode=icon",
                 "provider=\(primaryProvider.rawValue)",
@@ -407,6 +408,7 @@ extension StatusItemController {
                 "primary=\(Self.iconSignatureValue(primary))",
                 "weekly=\(Self.iconSignatureValue(weekly))",
                 "credits=\(Self.iconSignatureValue(credits))",
+                "creditsAccount=\(credits == nil ? "nil" : creditsAccount.key)",
                 "stale=\(stale ? "1" : "0")",
                 "status=\(statusIndicator.rawValue)",
                 "blink=\(Self.iconSignatureValue(Double(blink)))",
@@ -432,7 +434,8 @@ extension StatusItemController {
                 tilt: tilt,
                 statusIndicator: statusIndicator,
                 hideCritters: self.settings.menuBarHidesCritters,
-                quotaLayoutPolicy: .provider(primaryProvider))
+                quotaLayoutPolicy: .provider(primaryProvider),
+                creditsAccount: creditsAccount)
             self.setButtonContent(
                 image: warningFlash ? Self.quotaWarningFlashImage(base: image) : image,
                 title: nil,
@@ -503,6 +506,7 @@ extension StatusItemController {
     }
 
     @discardableResult
+    // swiftlint:disable:next function_body_length
     func applyIcon(for provider: UsageProvider, phase: Double?) -> Bool {
         guard let button = self.statusItems[provider.instanceID]?.button else { return false }
         let snapshot = self.store.menuBarSnapshot(for: provider.instanceID)
@@ -625,6 +629,7 @@ extension StatusItemController {
                 title: nil,
                 for: button)
         } else {
+            let creditsAccount = self.creditsBarScaleAccount(for: provider)
             let signature = [
                 "mode=icon",
                 "provider=\(provider.rawValue)",
@@ -632,6 +637,7 @@ extension StatusItemController {
                 "primary=\(Self.iconSignatureValue(primary))",
                 "weekly=\(Self.iconSignatureValue(weekly))",
                 "credits=\(Self.iconSignatureValue(credits))",
+                "creditsAccount=\(credits == nil ? "nil" : creditsAccount.key)",
                 "stale=\(stale ? "1" : "0")",
                 "status=\(statusIndicator.rawValue)",
                 "blink=\(Self.iconSignatureValue(Double(blink)))",
@@ -657,7 +663,8 @@ extension StatusItemController {
                 tilt: tilt,
                 statusIndicator: statusIndicator,
                 hideCritters: self.settings.menuBarHidesCritters,
-                quotaLayoutPolicy: .provider(provider))
+                quotaLayoutPolicy: .provider(provider),
+                creditsAccount: creditsAccount)
             self.setButtonContent(
                 image: warningFlash ? Self.quotaWarningFlashImage(base: image) : image,
                 title: nil,
@@ -734,6 +741,11 @@ extension StatusItemController {
         return self.store.codexMenuBarCreditsRemaining(
             snapshotOverride: snapshot,
             now: now)
+    }
+
+    func creditsBarScaleAccount(for provider: UsageProvider) -> CreditsBarScale.Account {
+        guard provider == .codex else { return .unresolved }
+        return self.store.creditsBarScaleAccount()
     }
 
     func quotaWarningFlashActive(provider: UsageProvider, now: Date = Date()) -> Bool {
