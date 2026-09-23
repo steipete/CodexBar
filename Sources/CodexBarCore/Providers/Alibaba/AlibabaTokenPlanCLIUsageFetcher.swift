@@ -24,14 +24,20 @@ enum AlibabaTokenPlanCLIUsageError: LocalizedError, Sendable, Equatable {
 enum AlibabaTokenPlanCLIUsageParser {
     static func parse(_ data: Data, now: Date = Date()) throws -> AlibabaTokenPlanUsageSnapshot {
         guard let object = try? JSONSerialization.jsonObject(with: data),
-              let payload = object as? [String: Any]
+              object is [String: Any]
         else {
             throw AlibabaTokenPlanCLIUsageError.invalidOutput
         }
+        // `bl console call` wraps the usage fields in the gateway's DataV2 envelope; a flat
+        // payload (the `bl usage token-plan` shape) is found at the root.
+        let payload = OneConsoleJSON.findObject(
+            containingAnyOf: ["per5HourPercentage", "per1WeekPercentage", "per1MonthPercentage"],
+            in: OneConsoleJSON.expandEmbeddedJSON(object)) ?? [:]
 
         let fiveHourRatio = self.ratio(payload["per5HourPercentage"])
         let weeklyRatio = self.ratio(payload["per1WeekPercentage"])
-        guard fiveHourRatio != nil || weeklyRatio != nil else {
+        let monthlyRatio = self.ratio(payload["per1MonthPercentage"])
+        guard fiveHourRatio != nil || weeklyRatio != nil || monthlyRatio != nil else {
             throw AlibabaTokenPlanCLIUsageError.invalidOutput
         }
 
@@ -45,6 +51,8 @@ enum AlibabaTokenPlanCLIUsageParser {
             fiveHourResetsAt: fiveHourRatio == nil ? nil : self.resetDate(payload["per5HourResetTime"]),
             weeklyUsedPercent: weeklyRatio.map { $0 * 100 },
             weeklyResetsAt: weeklyRatio == nil ? nil : self.resetDate(payload["per1WeekResetTime"]),
+            monthlyUsedPercent: monthlyRatio.map { $0 * 100 },
+            monthlyResetsAt: monthlyRatio == nil ? nil : self.resetDate(payload["per1MonthResetTime"]),
             updatedAt: now)
     }
 
@@ -89,9 +97,13 @@ enum AlibabaTokenPlanCLIUsageFetcher {
         environment.filter { self.childEnvironmentAllowlist.contains($0.key) }
     }
 
+    /// Reads the raw personal usage API: `bl usage token-plan` only understands the 5-hour and
+    /// weekly windows and prints `{}` for plans that now report a monthly window instead.
     static func arguments(region: AlibabaTokenPlanAPIRegion) -> [String] {
         [
-            "usage", "token-plan",
+            "console", "call",
+            "--api", "zeldaHttp.apikeyMgr./tokenplan/personal/api/v2/usage",
+            "--data", "{}",
             "--console-region", region.currentRegionID,
             "--console-site", region.cliConsoleSite,
             "--output", "json",

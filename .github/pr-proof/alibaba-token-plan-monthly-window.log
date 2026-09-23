@@ -1,0 +1,79 @@
+# Alibaba Token Plan (International Personal/Solo, Singapore ap-southeast-1, Standard) on Linux
+# bl 1.28.0, console session via 'bl auth login --console'
+
+## Before: unpatched CodexBar 0.64.2 (main @ b18087427)
+$ bl usage token-plan --output json
+{}
+$ codexbar usage --provider alibaba-token-plan --json
+[{"provider":"alibabatokenplan","source":"auto","error":{"message":"Bailian CLI returned an unsupported Token Plan usage response.","code":1,"kind":"provider"}}]
+
+## Raw personal usage API (what the patched CLI route now reads)
+$ bl console call --api 'zeldaHttp.apikeyMgr./tokenplan/personal/api/v2/usage' --data '{}' --output json
+{
+  "code": "200",
+  "data": {
+    "DataV2": {
+      "ret": [
+        "SUCCESS::接口调用成功"
+      ],
+      "data": {
+        "msg": "Success.",
+        "code": "SUCCESS",
+        "data": {
+          "per1MonthPercentage": 0.01747343981406667,
+          "per1MonthResetTime": 1791043200000
+        },
+        "requestId": "<redacted>",
+        "success": true
+      }
+    },
+    "success": true,
+    "httpStatus": 200,
+    "errorCode": "",
+    "api": "zeldaHttp.apikeyMgr./tokenplan/personal/api/v2/usage",
+    "errorMsg": ""
+  },
+  "httpStatusCode": "200",
+  "requestId": "<redacted>",
+  "successResponse": true
+}
+
+## After: patched CodexBar 0.64.2
+$ codexbar usage --provider alibaba-token-plan --json
+[
+    {
+        "pace": {
+            "primary": {
+                "summary": "64% in reserve | Expected 66% used | Lasts until reset",
+                "deltaPercent": -64,
+                "stage": "farBehind",
+                "willLastToReset": true,
+                "expectedUsedPercent": 66
+            }
+        },
+        "provider": "alibabatokenplan",
+        "rateWindowLabels": {
+            "primary": "Credits"
+        },
+        "usage": {
+            "loginMethod": "Token Plan",
+            "primary": {
+                "resetsAt": "2026-10-03T16:00:00Z",
+                "usedPercent": 1.7473439814066676,
+                "windowMinutes": 43200
+            },
+            "secondary": null,
+            "updatedAt": "2026-09-23T10:03:05Z",
+            "identity": {
+                "loginMethod": "Token Plan",
+                "providerID": "alibabatokenplan"
+            },
+            "tertiary": null
+        },
+        "source": "cli"
+    }
+]
+
+## Tests (Linux, swift test --build-system native)
+AlibabaTokenPlanMonthlyWindowLinuxTests: 7/7 passed
+Full Linux suite: 733 tests in 95 suites passed

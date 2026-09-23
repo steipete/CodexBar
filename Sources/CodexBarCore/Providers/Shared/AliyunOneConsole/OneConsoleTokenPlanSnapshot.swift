@@ -12,6 +12,9 @@ protocol OneConsoleTokenPlanSnapshot {
     var weeklyUsedPercent: Double? { get }
     var weeklyTotalQuota: Double? { get }
     var weeklyResetsAt: Date? { get }
+    var monthlyUsedPercent: Double? { get }
+    var monthlyTotalQuota: Double? { get }
+    var monthlyResetsAt: Date? { get }
     var updatedAt: Date { get }
 
     init(
@@ -26,6 +29,9 @@ protocol OneConsoleTokenPlanSnapshot {
         weeklyUsedPercent: Double?,
         weeklyTotalQuota: Double?,
         weeklyResetsAt: Date?,
+        monthlyUsedPercent: Double?,
+        monthlyTotalQuota: Double?,
+        monthlyResetsAt: Date?,
         updatedAt: Date)
 }
 
@@ -51,7 +57,6 @@ extension OneConsoleTokenPlanSnapshot {
                     total: self.totalQuota,
                     remaining: self.remainingQuota))
         }
-        let primary = personalPrimary ?? teamPrimary
         let secondary = self.weeklyUsedPercent.map {
             RateWindow(
                 usedPercent: $0,
@@ -59,6 +64,19 @@ extension OneConsoleTokenPlanSnapshot {
                 resetsAt: self.weeklyResetsAt,
                 resetDescription: Self.quotaDetail(usedPercent: $0, total: self.weeklyTotalQuota))
         }
+        let personalMonthly = self.monthlyUsedPercent.map {
+            RateWindow(
+                usedPercent: $0,
+                windowMinutes: 30 * 24 * 60,
+                resetsAt: self.monthlyResetsAt,
+                resetDescription: Self.quotaDetail(usedPercent: $0, total: self.monthlyTotalQuota))
+        }
+        // Personal plans that only report a monthly window use it as the primary lane, matching
+        // the Team plan's 30-day primary; alongside rolling windows it moves to the tertiary lane.
+        let rollingPrimary = personalPrimary ?? teamPrimary
+        let monthlyIsPrimary = rollingPrimary == nil && secondary == nil
+        let primary = rollingPrimary ?? (monthlyIsPrimary ? personalMonthly : nil)
+        let tertiary = monthlyIsPrimary ? nil : personalMonthly
 
         let planName = self.planName?.trimmingCharacters(in: .whitespacesAndNewlines)
         let loginMethod = (planName?.isEmpty ?? true) ? nil : planName
@@ -71,7 +89,7 @@ extension OneConsoleTokenPlanSnapshot {
         return UsageSnapshot(
             primary: primary,
             secondary: secondary,
-            tertiary: nil,
+            tertiary: tertiary,
             providerCost: nil,
             updatedAt: self.updatedAt,
             identity: identity)
@@ -129,7 +147,7 @@ extension OneConsoleTokenPlanSnapshot {
         now: Date) -> Self?
     {
         guard let usage = OneConsoleJSON.findObject(
-            containingAnyOf: ["per5HourPercentage", "per1WeekPercentage"],
+            containingAnyOf: ["per5HourPercentage", "per1WeekPercentage", "per1MonthPercentage"],
             in: expanded)
         else {
             return nil
@@ -139,7 +157,9 @@ extension OneConsoleTokenPlanSnapshot {
             fromRatio: OneConsoleJSON.number(usage["per5HourPercentage"]))
         let weeklyPercent = OneConsoleJSON.percentagePoints(
             fromRatio: OneConsoleJSON.number(usage["per1WeekPercentage"]))
-        guard fiveHourPercent != nil || weeklyPercent != nil else {
+        let monthlyPercent = OneConsoleJSON.percentagePoints(
+            fromRatio: OneConsoleJSON.number(usage["per1MonthPercentage"]))
+        guard fiveHourPercent != nil || weeklyPercent != nil || monthlyPercent != nil else {
             return nil
         }
 
@@ -159,6 +179,9 @@ extension OneConsoleTokenPlanSnapshot {
             weeklyUsedPercent: weeklyPercent,
             weeklyTotalQuota: quota?.weekly,
             weeklyResetsAt: OneConsoleJSON.date(usage["per1WeekResetTime"]),
+            monthlyUsedPercent: monthlyPercent,
+            monthlyTotalQuota: quota?.monthly,
+            monthlyResetsAt: OneConsoleJSON.date(usage["per1MonthResetTime"]),
             updatedAt: now)
     }
 
@@ -191,7 +214,7 @@ extension OneConsoleTokenPlanSnapshot {
 
     private static func quotaTotals(
         from data: Data,
-        planCode: String?) -> (fiveHour: Double?, weekly: Double?)?
+        planCode: String?) -> (fiveHour: Double?, weekly: Double?, monthly: Double?)?
     {
         guard let planCode,
               let raw = try? JSONSerialization.jsonObject(with: data)
@@ -206,7 +229,8 @@ extension OneConsoleTokenPlanSnapshot {
         }
         let fiveHour = OneConsoleJSON.number(quota["five_hour"] ?? quota["fiveHour"])
         let weekly = OneConsoleJSON.number(quota["weekly"])
-        guard fiveHour != nil || weekly != nil else { return nil }
-        return (fiveHour, weekly)
+        let monthly = OneConsoleJSON.number(quota["monthly"])
+        guard fiveHour != nil || weekly != nil || monthly != nil else { return nil }
+        return (fiveHour, weekly, monthly)
     }
 }
