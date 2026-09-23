@@ -145,29 +145,40 @@ final class MenuBarBalanceNativeProofTests: XCTestCase {
             }
             try JSONSerialization.data(withJSONObject: receipt, options: [.prettyPrinted, .sortedKeys])
                 .write(to: directory.appendingPathComponent("state.json"), options: .atomic)
-            for provider in providers {
-                guard let button = controller.lazyStatusItem(for: provider).button,
-                      let rep = button.bitmapImageRepForCachingDisplay(in: button.bounds)
-                else { continue }
-                button.cacheDisplay(in: button.bounds, to: rep)
-                try? rep.representation(using: .png, properties: [:])?
-                    .write(
-                        to: directory.appendingPathComponent("\(provider.rawValue)-statusitem.png"),
-                        options: .atomic)
-            }
-            if let hosting = window.contentView,
-               let rep = hosting.bitmapImageRepForCachingDisplay(in: hosting.bounds)
-            {
-                hosting.cacheDisplay(in: hosting.bounds, to: rep)
-                try? rep.representation(using: .png, properties: [:])?
-                    .write(to: directory.appendingPathComponent("preview-window.png"), options: .atomic)
-            }
+            Self.writePNGArtifacts(
+                providers: providers,
+                controller: controller,
+                hosting: window.contentView,
+                directory: directory)
             if let event = app.nextEvent(
                 matching: .any, until: Date().addingTimeInterval(0.05), inMode: .default, dequeue: true)
             { app.sendEvent(event) }
             _ = RunLoop.main.run(mode: .default, before: Date().addingTimeInterval(0.05))
         }
         XCTAssertTrue(FileManager.default.fileExists(atPath: done.path), "Native proof timed out")
+    }
+
+    private static func writePNGArtifacts(
+        providers: [UsageProvider],
+        controller: StatusItemController,
+        hosting: NSView?,
+        directory: URL)
+    {
+        for provider in providers {
+            guard let button = controller.lazyStatusItem(for: provider).button,
+                  let rep = button.bitmapImageRepForCachingDisplay(in: button.bounds)
+            else { continue }
+            button.cacheDisplay(in: button.bounds, to: rep)
+            try? rep.representation(using: .png, properties: [:])?
+                .write(
+                    to: directory.appendingPathComponent("\(provider.rawValue)-statusitem.png"),
+                    options: .atomic)
+        }
+        if let hosting, let rep = hosting.bitmapImageRepForCachingDisplay(in: hosting.bounds) {
+            hosting.cacheDisplay(in: hosting.bounds, to: rep)
+            try? rep.representation(using: .png, properties: [:])?
+                .write(to: directory.appendingPathComponent("preview-window.png"), options: .atomic)
+        }
     }
 
     private static func snapshots(zero: Bool) throws -> [UsageProvider: UsageSnapshot] {
