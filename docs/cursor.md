@@ -138,7 +138,9 @@ Two totals are reported from the same events:
 
 API-list-price estimates are not estimates of actual Cursor charges: they do not apply plan-specific Cursor Token Rates, regional adjustments, or legacy billing rules. `chargedCents` and Cursor-metered totals remain separate and unchanged. In Overview, history coverage describes the included sources' established history; a selected subscription without spend still makes amounts partial and remains disclosed in the subscription count, without erasing another source's known history days.
 
-Caching: the app holds the snapshot for an in-memory hourly TTL, keyed by the history window plus the cookie source and resolved account (manual-cookie hash or auto-mode account fingerprint), so switching accounts or pasting a new cookie invalidates it immediately.
+Caching: automatic cost refreshes follow the app's token-cost cadence, with a minimum interval of 15 minutes (30 minutes in Low Power Mode). Snapshots are scoped to the history window, cookie source, and resolved account (manual-cookie hash or auto-mode account fingerprint), so switching accounts or pasting a new cookie invalidates them immediately.
+
+An HTTP 403 from the cost endpoint respects the app's normal cost-refresh cooldown even when no cost snapshot is available. It does not invalidate the working quota session or change local CSV fallback. Manual refresh bypasses the cooldown, and a changed account, credential source, history window, timezone, or provider configuration permits a new attempt. Timed-out cost scans also keep their cooldown without a snapshot; transient failures retain their normal retry behavior.
 
 If Auto fetches usage with a cookie that the app still cannot confirm for the current account, the result stays unpublished. An unchanged account scope waits for the next normal or manual refresh instead of repeatedly forcing another request. Real account, history-window, provider, or cost-timezone changes still request a replacement; a successful fetch that confirms its own cookie can publish immediately.
 

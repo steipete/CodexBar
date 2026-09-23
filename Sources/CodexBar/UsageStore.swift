@@ -448,6 +448,7 @@ final class UsageStore {
     @ObservationIgnored var lastPermissionPromptNotificationAt: [ProviderInstanceID: Date] = [:]
     @ObservationIgnored var lastTokenFetchAt: [ProviderInstanceID: Date] = [:]
     @ObservationIgnored var lastTokenFetchScope: [ProviderInstanceID: String] = [:]
+    @ObservationIgnored var tokenFetchFailureCooldowns: [ProviderInstanceID: TokenFetchFailureCooldown] = [:]
     @ObservationIgnored var piHistoryScopeFingerprint: String?
     @ObservationIgnored var piHistoryScopeGeneration: UInt64 = 0
     @ObservationIgnored var piHistoryScopeRefreshTask: Task<Bool, Never>?
@@ -1513,6 +1514,9 @@ extension UsageStore {
         let costScopeSignature = self.tokenSnapshotScopeSignature(for: provider)
         let publicationScope = self.tokenRefreshPublicationScope(
             for: provider, historyDays: historyDays, costScopeSignature: costScopeSignature)
+        if !force, self.tokenRefreshFailureIsCoolingDown(provider: provider, now: now) {
+            return
+        }
         if !force, self.tokenRefreshCanReuseCurrentSnapshot(
             provider: provider,
             now: now,
@@ -1520,6 +1524,7 @@ extension UsageStore {
         {
             return
         }
+        self.tokenFetchFailureCooldowns.removeValue(forKey: provider.instanceID)
         self.lastTokenFetchAt[provider.instanceID] = now
         self.lastTokenFetchScope[provider.instanceID] = costScopeSignature
         self.tokenRefreshInFlight.insert(provider.instanceID)
@@ -1569,7 +1574,7 @@ extension UsageStore {
                 self.requestTokenRefreshAfterStaleCompletion(for: provider)
                 return
             }
-            if error is CancellationError {
+            if Task.isCancelled || error is CancellationError {
                 self.clearTokenFetchMetadataIfMatching(
                     provider: provider,
                     attemptedAt: now,
@@ -1586,6 +1591,9 @@ extension UsageStore {
                     provider: provider,
                     attemptedAt: now,
                     costScopeSignature: costScopeSignature)
+            } else {
+                self.tokenFetchFailureCooldowns[provider.instanceID] = TokenFetchFailureCooldown(
+                    attemptedAt: now, scope: publicationScope)
             }
             let hadPriorData = self.tokenSnapshotPublications[provider.instanceID]?.snapshot != nil
             let shouldSurface = self.tokenFailureGates[provider.instanceID]?

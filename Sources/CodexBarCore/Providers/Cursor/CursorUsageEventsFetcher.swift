@@ -518,6 +518,9 @@ struct CursorUsageEventsFetcher: Sendable {
         if http.statusCode == 401 {
             throw CursorStatusProbeError.notLoggedIn
         }
+        if http.statusCode == 403 {
+            throw CursorStatusProbeError.costRequestForbidden
+        }
         guard http.statusCode == 200 else {
             throw CursorStatusProbeError.networkError("HTTP \(http.statusCode)")
         }

@@ -54,6 +54,7 @@ extension UsageStore {
         guard let header = CookieHeaderNormalizer.normalize(self.settings.cursorCookieHeader) else {
             self.lastTokenFetchAt.removeValue(forKey: provider.instanceID)
             self.lastTokenFetchScope.removeValue(forKey: provider.instanceID)
+            self.tokenFetchFailureCooldowns.removeValue(forKey: provider.instanceID)
             self.clearTokenSnapshot(for: provider)
             self.tokenErrors[provider.instanceID] = "Cursor cost requires a non-empty Manual cookie header."
             self.tokenFailureGates[provider.instanceID]?.reset()
@@ -600,6 +601,21 @@ extension UsageStore {
         let signature: String
     }
 
+    struct TokenFetchFailureCooldown {
+        let attemptedAt: Date
+        let scope: TokenRefreshPublicationScope
+    }
+
+    func tokenRefreshFailureIsCoolingDown(provider: UsageProvider, now: Date) -> Bool {
+        guard let failure = self.tokenFetchFailureCooldowns[provider.instanceID],
+              let ttl = self.tokenFetchTTL,
+              now >= failure.attemptedAt,
+              now.timeIntervalSince(failure.attemptedAt) < ttl
+        else { return false }
+        // A failed query may have no snapshot, but still owns its account, settings, and provider lifecycle scope.
+        return self.tokenRefreshPublicationDisposition(provider: provider, scope: failure.scope) == .current
+    }
+
     func tokenRefreshPublicationScope(
         for provider: UsageProvider,
         historyDays: Int,
@@ -722,16 +738,18 @@ extension UsageStore {
             .appendingPathComponent("cost-usage", isDirectory: true)
     }
 
-    func clearCostUsageCache() async -> String? {
+    func clearCostUsageCache(
+        fileManagerFactory: @escaping @Sendable () -> FileManager = { .default }) async -> String?
+    {
         let errorMessage: String? = await Task.detached(priority: .utility) {
-            let fm = FileManager.default
+            let fileManager = fileManagerFactory()
             let cacheDirs = [
-                Self.costUsageCacheDirectory(fileManager: fm),
+                Self.costUsageCacheDirectory(fileManager: fileManager),
             ]
 
             for cacheDir in cacheDirs {
                 do {
-                    try fm.removeItem(at: cacheDir)
+                    try fileManager.removeItem(at: cacheDir)
                 } catch let error as NSError {
                     if error.domain == NSCocoaErrorDomain, error.code == NSFileNoSuchFileError {
                         continue
@@ -748,6 +766,7 @@ extension UsageStore {
         self.tokenErrors.removeAll()
         self.lastTokenFetchAt.removeAll()
         self.lastTokenFetchScope.removeAll()
+        self.tokenFetchFailureCooldowns.removeAll()
         self.tokenFailureGates[.codex]?.reset()
         self.tokenFailureGates[.claude]?.reset()
         return nil
@@ -841,6 +860,7 @@ extension UsageStore {
         self.tokenFailureGates[provider.instanceID]?.reset()
         self.lastTokenFetchAt.removeValue(forKey: provider.instanceID)
         self.lastTokenFetchScope.removeValue(forKey: provider.instanceID)
+        self.tokenFetchFailureCooldowns.removeValue(forKey: provider.instanceID)
         self.lastSpendDashboardTokenFetchAt.removeValue(forKey: provider.instanceID)
         self.lastSpendDashboardTokenFetchScope.removeValue(forKey: provider.instanceID)
     }
@@ -857,12 +877,15 @@ extension UsageStore {
         }
         self.lastTokenFetchAt.removeValue(forKey: provider.instanceID)
         self.lastTokenFetchScope.removeValue(forKey: provider.instanceID)
+        self.tokenFetchFailureCooldowns.removeValue(forKey: provider.instanceID)
     }
 
-    /// Fast failures may retry on the next scheduled pass instead of waiting out the fetch
-    /// TTL; timed-out scans keep the TTL so a slow corpus cannot thrash back-to-back rescans.
+    /// Transient failures can retry on the next pass; timeouts and forbidden cost requests respect the fetch TTL.
     nonisolated static func tokenFetchFailureAllowsEarlyRetry(_ error: Error) -> Bool {
         if case CostUsageError.timedOut = error {
+            return false
+        }
+        if case CursorStatusProbeError.costRequestForbidden = error {
             return false
         }
         return true

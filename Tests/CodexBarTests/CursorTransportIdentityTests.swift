@@ -11,6 +11,21 @@ struct CursorTransportIdentityTests {
         case stored
     }
 
+    @Test(arguments: Route.allCases)
+    func `cost permission rejection survives session resolution without invalidating credentials`(
+        route: Route) async throws
+    {
+        let (error, transport) = try await Self.failure(route: route, statusCode: 403, costRequest: true)
+        guard case CursorStatusProbeError.costRequestForbidden = error else {
+            Issue.record("Expected the typed cost-only permission rejection")
+            return
+        }
+        #expect(error.localizedDescription == "Cursor API error: HTTP 403")
+        let requests = await transport.requests()
+        #expect(requests.count == 1)
+        #expect(requests.first?.url?.path == "/api/dashboard/get-filtered-usage-events")
+    }
+
     @Test(arguments: Route.allCases, ProviderTransportRegressionSupport.codes)
     func `resolved Cursor sessions retain required summary transport errors`(
         route: Route,
@@ -123,7 +138,8 @@ struct CursorTransportIdentityTests {
     private static func failure(
         route: Route,
         underlying: Error? = nil,
-        statusCode: Int = 500) async throws -> (Error, ProviderHTTPTransportStub)
+        statusCode: Int = 500,
+        costRequest: Bool = false) async throws -> (Error, ProviderHTTPTransportStub)
     {
         let root = ProviderTransportRegressionFixtures.root
         let sessionStore = CursorSessionStore(fileURL: root.appendingPathComponent("cursor-session.json"))
@@ -143,12 +159,14 @@ struct CursorTransportIdentityTests {
             ]))
             await sessionStore.setCookies([cookie])
         }
+        let originalCookies = await sessionStore.getCookies()
+        let endpoint = costRequest ? "/api/dashboard/get-filtered-usage-events" : "/api/usage-summary"
         let transport = ProviderHTTPTransportStub { request in
             let url = try #require(request.url)
-            if url.path == "/api/usage-summary", let underlying { throw underlying }
+            if url.path == endpoint, let underlying { throw underlying }
             let response = try #require(HTTPURLResponse(
                 url: url,
-                statusCode: url.path == "/api/usage-summary" ? statusCode : 404,
+                statusCode: url.path == endpoint ? statusCode : 404,
                 httpVersion: nil,
                 headerFields: nil))
             return (Data("{}".utf8), response)
@@ -163,7 +181,15 @@ struct CursorTransportIdentityTests {
             persistAppAuthSession: { _ in },
             conditionalMutationCoordinator: CookieHeaderCache.ConditionalMutationCoordinator())
         let error = await ProviderTransportRegressionSupport.captureFailure {
-            _ = try await probe.fetch(allowCachedSessions: route == .stored, allowAppAuthFallback: route == .app)
+            if costRequest {
+                _ = try await probe.fetchCostReport(
+                    since: nil, until: nil, allowCachedSessions: route == .stored, allowAppAuthFallback: route == .app)
+            } else {
+                _ = try await probe.fetch(allowCachedSessions: route == .stored, allowAppAuthFallback: route == .app)
+            }
+        }
+        if costRequest {
+            #expect(await sessionStore.getCookies().map(\.value) == originalCookies.map(\.value))
         }
         await sessionStore.clearCookies()
         CookieHeaderCache.clear(provider: .cursor)

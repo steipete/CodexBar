@@ -396,11 +396,11 @@ struct CursorUsageEventsPaginationTests {
         let error = await #expect(throws: CursorStatusProbeError.self) {
             _ = try await fetcher.fetchUsage(cookieHeader: "x=y", since: nil, until: nil)
         }
-        guard case let .networkError(message) = error else {
-            Issue.record("Expected networkError")
+        guard case .costRequestForbidden = error else {
+            Issue.record("Expected a cost-only permission rejection")
             return
         }
-        #expect(message == "HTTP 403")
+        #expect(error?.localizedDescription == "Cursor API error: HTTP 403")
     }
 
     @Test

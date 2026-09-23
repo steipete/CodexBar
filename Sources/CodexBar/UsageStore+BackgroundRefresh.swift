@@ -72,6 +72,7 @@ extension UsageStore {
         self.quotaWarningState = self.quotaWarningState.filter { $0.key.provider != provider }
         self.lastTokenFetchAt.removeValue(forKey: provider.instanceID)
         self.lastTokenFetchScope.removeValue(forKey: provider.instanceID)
+        self.tokenFetchFailureCooldowns.removeValue(forKey: provider.instanceID)
     }
 
     func providerCleanupRevision(for provider: UsageProvider) -> UInt64 {

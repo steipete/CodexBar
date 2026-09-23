@@ -594,6 +594,7 @@ public enum CursorStatusProbeError: LocalizedError, Sendable {
     case networkError(String)
     case parseFailed(String)
     case noSessionCookie
+    case costRequestForbidden
 
     static let safariFullDiskAccessHint =
         "If you use Safari, grant CodexBar Full Disk Access in System Settings ▸ Privacy & Security."
@@ -609,6 +610,8 @@ public enum CursorStatusProbeError: LocalizedError, Sendable {
             #endif
         case let .networkError(msg):
             "Cursor API error: \(msg)"
+        case .costRequestForbidden:
+            "Cursor API error: HTTP 403"
         case let .parseFailed(msg):
             "Could not parse Cursor usage: \(msg)"
         case .noSessionCookie:

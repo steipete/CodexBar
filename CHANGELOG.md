@@ -8,6 +8,7 @@
 
 ### Fixed
 
+- Cost history: honor timeout cooldowns without a cached snapshot and back off repeated Cursor HTTP 403 cost failures while preserving quota refreshes and manual recovery (#3910). Thanks @Sogl!
 - Claude costs: skip identical cache and report-memo writes after rescans, reducing local history disk writes (#3882).
 - Codex costs: avoid rewriting unchanged retained file state when another session or scan metadata changes, reducing local history disk writes (#3882).
 - Website: refresh the social preview image for all 80 providers, include the newest integrations, and invalidate cached previews when the card changes.
