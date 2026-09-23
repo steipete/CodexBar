@@ -1,0 +1,56 @@
+{
+  "deepseek" : {
+    "accessibility" : "DeepSeek icon, Usage ¥100.00, Balance unavailable",
+    "automaticText" : "¥100.00",
+    "balance" : "nil",
+    "frame" : "{{917, 1084}, {110, 33}}",
+    "previewAutomaticText" : "¥100.00",
+    "previewBalance" : "nil",
+    "visible" : true,
+    "width" : 94
+  },
+  "hyper" : {
+    "accessibility" : "Charm Hyper icon, Usage unavailable, Balance unavailable",
+    "automaticText" : "nil",
+    "balance" : "nil",
+    "frame" : "{{958, 1084}, {69, 33}}",
+    "previewAutomaticText" : "nil",
+    "previewBalance" : "nil",
+    "visible" : true,
+    "width" : 53
+  },
+  "opencodego" : {
+    "accessibility" : "OpenCode Go icon, Usage 88%, Balance unavailable",
+    "automaticText" : "nil",
+    "balance" : "nil",
+    "frame" : "{{938, 1084}, {89, 33}}",
+    "previewAutomaticText" : "nil",
+    "previewBalance" : "nil",
+    "visible" : true,
+    "width" : 73
+  },
+  "openrouter" : {
+    "accessibility" : "OpenRouter icon, Usage 75%, $12.34",
+    "automaticText" : "nil",
+    "balance" : "$12.34",
+    "frame" : "{{0, 0}, {122, 0}}",
+    "previewAutomaticText" : "nil",
+    "previewBalance" : "$12.34",
+    "visible" : true,
+    "width" : 106
+  },
+  "pid" : 91062,
+  "poe" : {
+    "accessibility" : "Poe icon, Usage 512 points, Balance unavailable",
+    "automaticText" : "512 points",
+    "balance" : "nil",
+    "frame" : "{{0, 0}, {124, 0}}",
+    "previewAutomaticText" : "512 points",
+    "previewBalance" : "nil",
+    "visible" : true,
+    "width" : 108
+  },
+  "showUsed" : false,
+  "window" : 4010,
+  "zero" : false
+}

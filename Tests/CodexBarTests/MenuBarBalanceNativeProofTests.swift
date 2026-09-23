@@ -24,12 +24,12 @@ final class MenuBarBalanceNativeProofTests: XCTestCase {
         let root = directory.appendingPathComponent("fixture-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
-        let providers: [UsageProvider] = [.deepseek, .poe, .openrouter]
+        let providers: [UsageProvider] = [.deepseek, .poe, .openrouter, .opencodego, .hyper]
         let settings = try Self.settings(root: root, providers: providers)
         defer { settings.configFileWatcher?.stop() }
         let tokens: [MenuBarLayoutToken] = environment["CODEXBAR_BALANCE_PROOF_WITH_RESET"] == "1"
             ? [.icon, .percent(window: .automatic), .separatorDot, .resetCountdown]
-            : [.icon, .percent(window: .automatic)]
+            : [.icon, .percent(window: .automatic), .separatorDot, .balance]
         let layout = MenuBarLayout(lines: [tokens])
         settings.setMenuBarLayout(layout, for: nil)
         let isolated = ["HOME": root.path, "CODEX_HOME": root.appendingPathComponent("codex").path]
@@ -48,7 +48,7 @@ final class MenuBarBalanceNativeProofTests: XCTestCase {
         store._test_providerRefreshOverride = { _ in XCTFail("Unexpected provider transport") }
         store._test_widgetSnapshotSaveOverride = { _ in }
         defer { store.stopSharedSpendDashboardPublication() }
-        var snapshots = Self.snapshots(zero: false)
+        var snapshots = try Self.snapshots(zero: false)
         for (provider, snapshot) in snapshots {
             store._setSnapshotForTesting(snapshot, provider: provider)
             store._setErrorForTesting(nil, provider: provider)
@@ -70,7 +70,7 @@ final class MenuBarBalanceNativeProofTests: XCTestCase {
         let oldPolicy = app.activationPolicy()
         let previousApp = NSWorkspace.shared.frontmostApplication
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 620, height: 280),
+            contentRect: NSRect(x: 0, y: 0, width: 640, height: 400),
             styleMask: [.titled, .closable],
             backing: .buffered,
             defer: false)
@@ -105,7 +105,7 @@ final class MenuBarBalanceNativeProofTests: XCTestCase {
             let requestedZero = FileManager.default.fileExists(atPath: directory.appendingPathComponent("zero").path)
             if requestedZero != zero {
                 zero = requestedZero
-                snapshots = Self.snapshots(zero: zero)
+                snapshots = try Self.snapshots(zero: zero)
                 for (provider, snapshot) in snapshots {
                     store._setSnapshotForTesting(snapshot, provider: provider)
                 }
@@ -136,6 +136,8 @@ final class MenuBarBalanceNativeProofTests: XCTestCase {
                 receipt[provider.rawValue] = [
                     "automaticText": data.automaticText ?? "nil",
                     "previewAutomaticText": preview.automaticText ?? "nil",
+                    "balance": data.balance ?? "nil",
+                    "previewBalance": preview.balance ?? "nil",
                     "accessibility": button.accessibilityTitle() ?? "nil",
                     "width": item.length, "visible": item.isVisible,
                     "frame": NSStringFromRect(button.window?.frame ?? .zero),
@@ -143,6 +145,23 @@ final class MenuBarBalanceNativeProofTests: XCTestCase {
             }
             try JSONSerialization.data(withJSONObject: receipt, options: [.prettyPrinted, .sortedKeys])
                 .write(to: directory.appendingPathComponent("state.json"), options: .atomic)
+            for provider in providers {
+                guard let button = controller.lazyStatusItem(for: provider).button,
+                      let rep = button.bitmapImageRepForCachingDisplay(in: button.bounds)
+                else { continue }
+                button.cacheDisplay(in: button.bounds, to: rep)
+                try? rep.representation(using: .png, properties: [:])?
+                    .write(
+                        to: directory.appendingPathComponent("\(provider.rawValue)-statusitem.png"),
+                        options: .atomic)
+            }
+            if let hosting = window.contentView,
+               let rep = hosting.bitmapImageRepForCachingDisplay(in: hosting.bounds)
+            {
+                hosting.cacheDisplay(in: hosting.bounds, to: rep)
+                try? rep.representation(using: .png, properties: [:])?
+                    .write(to: directory.appendingPathComponent("preview-window.png"), options: .atomic)
+            }
             if let event = app.nextEvent(
                 matching: .any, until: Date().addingTimeInterval(0.05), inMode: .default, dequeue: true)
             { app.sendEvent(event) }
@@ -151,9 +170,9 @@ final class MenuBarBalanceNativeProofTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: done.path), "Native proof timed out")
     }
 
-    private static func snapshots(zero: Bool) -> [UsageProvider: UsageSnapshot] {
+    private static func snapshots(zero: Bool) throws -> [UsageProvider: UsageSnapshot] {
         let now = Date()
-        return [
+        return try [
             .deepseek: DeepSeekUsageSnapshot(
                 isAvailable: !zero,
                 currency: "CNY",
@@ -178,6 +197,23 @@ final class MenuBarBalanceNativeProofTests: XCTestCase {
                 keyLimit: 20,
                 keyUsage: 5,
                 updatedAt: now).toUsageSnapshot(),
+            .opencodego: OpenCodeGoUsageSnapshot(
+                hasMonthlyUsage: true,
+                rollingUsagePercent: zero ? 0 : 12,
+                weeklyUsagePercent: zero ? 0 : 34,
+                monthlyUsagePercent: zero ? 0 : 56,
+                rollingResetInSec: nil,
+                weeklyResetInSec: nil,
+                monthlyResetInSec: nil,
+                zenBalanceUSD: zero ? 0 : 25,
+                updatedAt: now).toUsageSnapshot(),
+            .hyper: UsageSnapshot(
+                primary: nil,
+                secondary: nil,
+                details: [ProviderDetailSection(title: "Hypercredits", rows: [
+                    ProviderDetailSection.Row(label: "Balance", value: zero ? "0 HC" : "42.5 HC"),
+                ])],
+                updatedAt: now),
         ]
     }
 
