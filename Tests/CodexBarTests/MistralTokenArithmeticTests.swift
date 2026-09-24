@@ -151,13 +151,61 @@ struct MistralTokenArithmeticTests {
     }
 
     @Test
-    func `paid zero retains precedence over a large raw value`() throws {
+    func `paid zero does not hide an unrepresentable consumed value`() throws {
         var entry = Self.entry(Int.max)
         entry["value_paid"] = 0
-        let snapshot = try Self.parse(["completion": ["models": ["fixture": ["input": [entry, entry]]]]])
-        #expect(snapshot.totalInputTokens == 0)
-        #expect(snapshot.totalCost == 0)
-        #expect(snapshot.daily.first?.totalTokens == 0)
+        try Self.expectOverflow(["completion": ["models": ["fixture": ["input": [entry, entry]]]]])
+    }
+
+    @Test(arguments: ["completion", "chat", "vibe_code"])
+    func `plan covered consumption counts tokens separately from billed spend`(category: String) throws {
+        var input = Self.entry(1000)
+        input["value_paid"] = 0
+        var output = Self.entry(500)
+        output["value_paid"] = 200
+        var cached = Self.entry(300)
+        cached["value_paid"] = 0
+        let model = ["models": ["fixture": ["input": [input], "output": [output], "cached": [cached]]]]
+        let payload: [String: Any] = category == "vibe_code"
+            ? [category: ["completion": model]] : [category: model]
+        let snapshot = try Self.parse(payload)
+
+        #expect(snapshot.totalInputTokens == 1000)
+        #expect(snapshot.totalOutputTokens == 500)
+        #expect(snapshot.totalCachedTokens == 300)
+        #expect(snapshot.modelCount == 1)
+        #expect(snapshot.totalCost == 50)
+        let day = try #require(snapshot.daily.first)
+        #expect(day.totalTokens == 1800)
+        #expect(day.cost == 50)
+        #expect(day.models.first?.totalTokens == 1800)
+        #expect(snapshot.toCostUsageTokenSnapshot().last30DaysTokens == 1800)
+    }
+
+    @Test(arguments: [false, true])
+    func `missing consumed or billed units use the available count`(paidOnly: Bool) throws {
+        var entry = Self.entry(20)
+        if paidOnly {
+            entry.removeValue(forKey: "value")
+            entry["value_paid"] = 20
+        }
+        let snapshot = try Self.parse(["completion": ["models": ["fixture": ["input": [entry]]]]])
+        #expect(snapshot.totalInputTokens == 20)
+        #expect(snapshot.totalCost == 5)
+        #expect(snapshot.daily.first?.totalTokens == 20)
+        #expect(snapshot.daily.first?.cost == 5)
+    }
+
+    @Test
+    func `consumed totals stay checked across API chat and Vibe categories`() throws {
+        try Self.expectOverflow([
+            "completion": ["models": ["fixture": ["input": [Self.entry(Int.max)]]]],
+            "chat": ["models": ["fixture": ["input": [Self.entry(1)]]]],
+        ])
+        try Self.expectOverflow([
+            "completion": ["models": ["fixture": ["input": [Self.entry(Int.max)]]]],
+            "vibe_code": ["completion": ["models": ["fixture": ["input": [Self.entry(1)]]]]],
+        ])
     }
 
     private static func entry(

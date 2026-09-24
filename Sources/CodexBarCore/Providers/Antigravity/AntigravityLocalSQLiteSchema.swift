@@ -38,7 +38,7 @@ extension AntigravityLocalReader {
             guard step == SQLITE_ROW else { return .unsupported }
             entries += 1
             budget.statistics.schemaEntries += 1
-            guard entries <= budget.limits.schemaEntries else { throw ScanFailure.exhausted }
+            guard entries <= budget.limits.schemaEntries else { throw ScanFailure.schemaExhausted }
             guard let name = try self.schemaText(statement, column: 0, budget: budget),
                   let type = try self.schemaText(statement, column: 1, budget: budget)
             else { return .unsupported }
@@ -63,56 +63,37 @@ extension AntigravityLocalReader {
             guard step == SQLITE_ROW else { return false }
             entries += 1
             budget.statistics.schemaEntries += 1
-            guard entries <= budget.limits.schemaEntries else { throw ScanFailure.exhausted }
+            guard entries <= budget.limits.schemaEntries else { throw ScanFailure.schemaExhausted }
             let name = try self.schemaText(statement, column: 0, budget: budget)
             let type = try self.schemaText(statement, column: 1, budget: budget)
             guard name?.lowercased() == "steps" else { continue }
             guard type == "table", sqlite3_column_type(statement, 2) == SQLITE_INTEGER,
                   sqlite3_column_int64(statement, 2) > 0 else { return false }
-            return try self.hasStoredStepsColumns(database, budget: budget)
+            return try self.hasStoredSQLiteColumns(database, table: "steps", payloadColumn: "metadata", budget: budget)
         }
     }
 
-    private static func hasStoredStepsColumns(_ database: OpaquePointer, budget: Budget) throws -> Bool {
-        var statement: OpaquePointer?
-        defer { sqlite3_finalize(statement) }
-        guard sqlite3_prepare_v2(database, "PRAGMA main.table_xinfo('steps')", -1, &statement, nil) == SQLITE_OK,
-              let statement, sqlite3_column_count(statement) >= 7 else { return false }
-        var columns = Set<String>()
-        var count = 0
-        while true {
-            try budget.check()
-            let step = sqlite3_step(statement)
-            if step == SQLITE_DONE { return columns.isSuperset(of: ["idx", "metadata"]) }
-            guard step == SQLITE_ROW else { return false }
-            count += 1
-            budget.statistics.schemaColumns += 1
-            guard count <= min(budget.limits.schemaColumns, 64) else { throw ScanFailure.exhausted }
-            guard sqlite3_column_type(statement, 6) == SQLITE_INTEGER,
-                  sqlite3_column_int(statement, 6) == 0 else { return false }
-            guard let name = try self.schemaText(statement, column: 1, budget: budget) else { return false }
-            _ = try self.schemaText(statement, column: 2, budget: budget)
-            _ = try self.schemaText(statement, column: 4, budget: budget)
-            columns.insert(name.lowercased())
-        }
-    }
-
-    private static func hasStoredSQLiteColumns(_ database: OpaquePointer, budget: Budget) throws -> Bool {
+    private static func hasStoredSQLiteColumns(
+        _ database: OpaquePointer,
+        table: String = "gen_metadata",
+        payloadColumn: String = "data",
+        budget: Budget) throws -> Bool
+    {
         var statement: OpaquePointer?
         defer { sqlite3_finalize(statement) }
         // table_info omits generated columns. An unknown table_xinfo pragma returns no columns: fail closed.
-        guard sqlite3_prepare_v2(database, "PRAGMA main.table_xinfo('gen_metadata')", -1, &statement, nil) == SQLITE_OK,
+        guard sqlite3_prepare_v2(database, "PRAGMA main.table_xinfo('\(table)')", -1, &statement, nil) == SQLITE_OK,
               let statement, sqlite3_column_count(statement) >= 7 else { return false }
         var columns = Set<String>()
         var count = 0
         while true {
             try budget.check()
             let step = sqlite3_step(statement)
-            if step == SQLITE_DONE { return columns.isSuperset(of: ["idx", "data"]) }
+            if step == SQLITE_DONE { return columns.isSuperset(of: ["idx", payloadColumn]) }
             guard step == SQLITE_ROW else { return false }
             count += 1
             budget.statistics.schemaColumns += 1
-            guard count <= min(budget.limits.schemaColumns, 64) else { throw ScanFailure.exhausted }
+            guard count <= min(budget.limits.schemaColumns, 64) else { throw ScanFailure.schemaExhausted }
             guard sqlite3_column_type(statement, 6) == SQLITE_INTEGER,
                   sqlite3_column_int(statement, 6) == 0 else { return false }
             guard let name = try self.schemaText(statement, column: 1, budget: budget) else { return false }

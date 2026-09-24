@@ -2,6 +2,11 @@
 
 ## 0.66.1 — Unreleased
 
+### Fixed
+
+- Antigravity: preserve decoded local history as a marked lower bound when later databases exhaust the schema budget, while retaining hard scan limits (#3957). Thanks @Niclassslua!
+- Mistral: count plan-covered API, Le Chat, and Vibe Code tokens in usage history while keeping spend based on billed units (#3953). Thanks @welcoMattic!
+
 ## 0.66.0 — 2026-09-24
 
 ### Highlights

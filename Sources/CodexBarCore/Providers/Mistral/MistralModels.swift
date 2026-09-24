@@ -5,6 +5,8 @@ import Foundation
 /// Top-level response from `GET https://admin.mistral.ai/api/billing/v2/usage`.
 struct MistralBillingResponse: Codable {
     let completion: MistralModelUsageCategory?
+    let chat: MistralModelUsageCategory?
+    let vibeCode: MistralVibeCodeUsageCategory?
     let ocr: MistralModelUsageCategory?
     let connectors: MistralModelUsageCategory?
     let librariesApi: MistralLibrariesUsageCategory?
@@ -21,7 +23,8 @@ struct MistralBillingResponse: Codable {
     let prices: [MistralPrice]?
 
     enum CodingKeys: String, CodingKey {
-        case completion, ocr, connectors, audio, date, currency, prices
+        case completion, chat, ocr, connectors, audio, date, currency, prices
+        case vibeCode = "vibe_code"
         case librariesApi = "libraries_api"
         case fineTuning = "fine_tuning"
         case vibeUsage = "vibe_usage"
@@ -35,6 +38,10 @@ struct MistralBillingResponse: Codable {
 
 struct MistralModelUsageCategory: Codable {
     let models: [String: MistralModelUsageData]?
+}
+
+struct MistralVibeCodeUsageCategory: Codable {
+    let completion: MistralModelUsageCategory?
 }
 
 struct MistralLibrariesUsageCategory: Codable {
