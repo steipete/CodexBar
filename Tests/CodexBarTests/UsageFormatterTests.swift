@@ -644,6 +644,34 @@ struct UsageFormatterTests {
         #expect(explicitTRY.hasPrefix("TRY"))
         #expect(explicitTRY.range(of: #"\.\d{2}$"#, options: .regularExpression) != nil)
 
+        // Each added currency converts both ways through the USD pivot and renders
+        // in its own code with the ISO fraction digits (IDR and VND have none).
+        let addedCurrencies: [(code: String, prefix: String, fractionDigits: Int)] = [
+            ("NZD", "NZ$", 2), ("SEK", "SEK", 2), ("NOK", "NOK", 2), ("DKK", "DKK", 2),
+            ("PLN", "PLN", 2), ("BRL", "R$", 2), ("MXN", "MX$", 2), ("ZAR", "ZAR", 2),
+            ("THB", "THB", 2), ("IDR", "IDR", 0), ("VND", "₫", 0), ("UAH", "UAH", 2),
+        ]
+        for currency in addedCurrencies {
+            let rate = try #require(exchange.rate(for: currency.code))
+            #expect(rate > 0)
+            #expect(abs((exchange.convert(usdAmount: 10.0, to: currency.code) ?? 0) - 10.0 * rate) < epsilon)
+            #expect(abs((exchange.convert(amount: 10.0, from: currency.code, to: "USD") ?? 0) - 10.0 / rate)
+                < epsilon)
+            #expect(abs((exchange.convert(amount: 10.0, from: "GBP", to: currency.code) ?? 0)
+                    - 10.0 / gbpRate * rate) < epsilon)
+            let explicit = UsageFormatter.convertedCostString(
+                10.0,
+                preferredCurrency: currency.code,
+                providerCurrency: "USD")
+            #expect(explicit == UsageFormatter.currencyString(10.0 * rate, currencyCode: currency.code))
+            #expect(explicit.hasPrefix(currency.prefix))
+            let fractionPattern = currency.fractionDigits == 0 ? #"\d$"# : #"\.\d{2}$"#
+            #expect(explicit.range(of: fractionPattern, options: .regularExpression) != nil)
+            if currency.fractionDigits == 0 {
+                #expect(!explicit.contains("."))
+            }
+        }
+
         // CHF is supported: conversion through the USD pivot works both ways.
         let chfRate = exchange.rate(for: "CHF") ?? 0.80
         #expect(abs((exchange.convert(usdAmount: 10.0, to: "CHF") ?? 0) - 10.0 * chfRate) < epsilon)
@@ -677,6 +705,10 @@ struct UsageFormatterTests {
         #expect(CurrencyExchange.requiresLiveRates(preferredCurrencyCode: " try "))
         #expect(CurrencyExchange.requiresLiveRates(preferredCurrencyCode: "NZD"))
         #expect(CurrencyExchange.requiresLiveRates(preferredCurrencyCode: " nzd "))
+        for code in ["SEK", "NOK", "DKK", "PLN", "BRL", "MXN", "ZAR", "THB", "IDR", "VND", "UAH"] {
+            #expect(CurrencyExchange.requiresLiveRates(preferredCurrencyCode: code))
+            #expect(CurrencyExchange.requiresLiveRates(preferredCurrencyCode: " \(code.lowercased()) "))
+        }
     }
 
     @Test

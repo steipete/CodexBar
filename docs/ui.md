@@ -8,7 +8,7 @@ read_when:
 # UI & icon
 
 ## Settings
-- General → Preferred Currency supports Turkish lira (`TRY`, `₺`) alongside the existing currencies, using the shared daily exchange rates and offline fallback for cost estimates.
+- General → Preferred Currency supports Turkish lira (`TRY`, `₺`), New Zealand dollar (`NZD`), `SEK`, `NOK`, `DKK`, `PLN`, `BRL`, `MXN`, `ZAR`, `THB`, `IDR`, `VND`, and `UAH` alongside the existing currencies, using the shared daily exchange rates and offline fallback for cost estimates.
 - General shows the app version and build beside Quit; About keeps its Version row even for Homebrew or unsigned builds.
 - Provider accent colors use a hex field and a color picker that also previews the selected color; Reset restores the provider default.
 - General → Default terminal supports installed Terminal, iTerm, Ghostty, and stable Warp. Terminal is the default and fallback. Warp launches target its app directly and use owner-only temporary tab configs, removed after one minute; interrupted-launch leftovers are cleaned on the next app start.

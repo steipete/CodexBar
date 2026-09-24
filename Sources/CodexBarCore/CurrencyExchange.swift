@@ -4,7 +4,7 @@ import FoundationNetworking
 #endif
 
 /// Manages currency exchange rates for converting USD-denominated AI model token estimates
-/// into user-preferred currencies (GBP, EUR, CNY, JPY, CAD, AUD, etc.).
+/// into user-preferred currencies (GBP, EUR, CNY, JPY, CAD, AUD, NZD, etc.).
 ///
 /// Rates are sourced from the ExchangeRate-API (open.er-api.com), a free service
 /// aggregating data from central banks and market sources. Rates are updated daily
@@ -40,18 +40,19 @@ public final class CurrencyExchange: @unchecked Sendable {
         "CHF": 0.80,
         "AED": 3.6725,
         "TRY": 48.5, // Due to high inflation, rate from 2026-09-13.
-        "NZD": 1.70,
-        "SEK": 10.5,
-        "NOK": 10.8,
-        "DKK": 6.85,
-        "PLN": 3.90,
-        "BRL": 5.60,
-        "MXN": 19.0,
-        "ZAR": 18.0,
-        "THB": 34.0,
-        "IDR": 16300.0,
-        "VND": 25500.0,
-        "UAH": 41.5,
+        // Rates below from open.er-api.com on 2026-09-24.
+        "NZD": 1.761,
+        "SEK": 9.908,
+        "NOK": 9.480,
+        "DKK": 6.554,
+        "PLN": 3.838,
+        "BRL": 5.117,
+        "MXN": 17.47,
+        "ZAR": 16.36,
+        "THB": 33.37,
+        "IDR": 17836.0,
+        "VND": 25962.0,
+        "UAH": 44.86,
     ]
     private var lastFetchTime: Date?
 

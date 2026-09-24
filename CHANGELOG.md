@@ -2,6 +2,10 @@
 
 ## 0.66.1 — Unreleased
 
+### Added
+
+- General → Preferred Currency: add New Zealand dollar (`NZD`), Swedish, Norwegian, and Danish krone/krona (`SEK`, `NOK`, `DKK`), Polish złoty (`PLN`), Brazilian real (`BRL`), Mexican peso (`MXN`), South African rand (`ZAR`), Thai baht (`THB`), Indonesian rupiah (`IDR`), Vietnamese đồng (`VND`), and Ukrainian hryvnia (`UAH`) for usage and spend estimates, using the shared daily exchange rates and offline fallback.
+
 ## 0.66.0 — 2026-09-24
 
 ### Highlights
