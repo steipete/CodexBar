@@ -175,6 +175,8 @@ and stable account numbers distinguish rows while usable workspace labels remain
   - Usage windows (primary + secondary) with reset timestamps.
   - Credits snapshot (balance, hasCredits, unlimited).
   - Account identity (email + plan type) when available.
+- The plan from the fresh rate-limit response takes precedence over the account's cached plan after a subscription
+  change. A missing or blank rate-limit plan falls back to the account response; email still comes from that account.
 - App-server errors are terminal for the CLI strategy, except when Codex includes a recoverable `wham/usage` JSON body in the error text.
 - If macOS blocks or quarantines the `codex` executable, CodexBar records the launch failure and skips background CLI
   launches for 30 minutes. Use a manual refresh after reinstalling or unblocking `codex` to retry immediately.
