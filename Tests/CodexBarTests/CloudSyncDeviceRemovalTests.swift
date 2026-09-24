@@ -179,10 +179,7 @@ struct CloudSyncDeviceRemovalTests {
     private static func makeSettings(directory: URL) -> SettingsStore {
         let defaults = InMemoryUserDefaults()
         defaults.set("current", forKey: "iCloudSyncDeviceID")
-        return SettingsStore(
-            userDefaults: defaults,
-            configStore: CodexBarConfigStore(fileURL: directory.appendingPathComponent("config.json")),
-            performInitialProviderDetection: false)
+        return testSettingsStore(suiteName: directory.lastPathComponent, userDefaults: defaults)
     }
 
     private static func makeState() -> CloudSyncState {

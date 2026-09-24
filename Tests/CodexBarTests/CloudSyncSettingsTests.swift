@@ -578,16 +578,8 @@ struct CloudSyncSettingsTests {
 
     private func makeFixture(_ name: String) throws -> (store: SettingsStore, defaults: UserDefaults) {
         let suite = "CloudSyncSettingsTests-\(name)"
-        let defaults = try #require(UserDefaults(suiteName: suite))
-        defaults.removePersistentDomain(forName: suite)
-        let directory = FileManager.default.temporaryDirectory
-            .appendingPathComponent(suite, isDirectory: true)
-        try? FileManager.default.removeItem(at: directory)
-        let configStore = CodexBarConfigStore(fileURL: directory.appendingPathComponent("config.json"))
-        let store = SettingsStore(
-            userDefaults: defaults,
-            configStore: configStore,
-            performInitialProviderDetection: false)
+        let defaults = InMemoryUserDefaults()
+        let store = testSettingsStore(suiteName: suite, userDefaults: defaults)
         return (store, defaults)
     }
 
