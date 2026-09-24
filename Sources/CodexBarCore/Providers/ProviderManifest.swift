@@ -60,6 +60,7 @@ public enum ProviderManifest {
         LLMProxyProviderDescriptor.descriptor,
         LiteLLMProviderDescriptor.descriptor,
         BifrostProviderDescriptor.descriptor,
+        AixyProviderDescriptor.descriptor,
         DeepgramProviderDescriptor.descriptor,
         PoeProviderDescriptor.descriptor,
         ChutesProviderDescriptor.descriptor,

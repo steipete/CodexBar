@@ -60,6 +60,7 @@ enum ProviderImplementationManifest {
         LLMProxyProviderImplementation(),
         LiteLLMProviderImplementation(),
         BifrostProviderImplementation(),
+        AixyProviderImplementation(),
         DeepgramProviderImplementation(),
         PoeProviderImplementation(),
         ChutesProviderImplementation(),

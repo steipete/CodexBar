@@ -74,6 +74,7 @@ public enum UsageProvider: String, CaseIterable, Sendable, Codable {
     case llmproxy
     case litellm
     case bifrost
+    case aixy
     case deepgram
     case poe
     case chutes

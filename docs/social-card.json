@@ -8,11 +8,11 @@
     "docs/logos/typesafe.svg": "b9106d3ab93bf4a81be2f9a395211bd4578a6b83c06fde2c7a8226fc3e1416c5",
     "docs/logos/v0.svg": "88555a2f0ea4f137efeccecf61233241a0ab42c1b05f4f37c8780bbe53c84631",
     "docs/logos/vercel.svg": "8055b9c3701a1b634558a0fc7ac13e265cb37b7b0d2471204e5a7324f8f8d82b",
-    "docs/social.html": "786c2a31e7d84e58ac2dc5ed707b63c7f26bfe42f5f9e7d251eb7d3981ed6836"
+    "docs/social.html": "fc40f8c422306c1943020a43cefa6cc852ddb6bfc1632507d9b182bc21a33dfe"
   },
   "image": {
     "path": "docs/social.png",
-    "sha256": "0f272ca638af95c0f3c5ddeec47c014388798075488894a67acc8285cd72b4ca",
+    "sha256": "2722bcbfd92dd8cbe0b4188d5adf9055caeb2337ca394c4f84ead045c49bf3dc",
     "width": 1200,
     "height": 630
   }
