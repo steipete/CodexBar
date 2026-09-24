@@ -306,6 +306,6 @@ subsequent in-place edits continue to be detected. App-originated writes retain 
 ## Notes
 - Fields not relevant to a provider are ignored.
 - Omitted providers are appended with defaults during normalization.
-- Unknown or retired provider entries (including Crof after its shutdown) are ignored with an `Ignoring unknown provider in config` warning (visible in the CLI with `--log-level warning`). Reading does not rewrite the file; the next settings save removes those entries and keeps supported provider settings.
+- Unknown or retired provider entries are retained with all their fields, settings, and secrets in their original array positions during unrelated saves. This also applies when plugin discovery fails or the plugin runtime is unavailable. `config providers` labels unavailable entries as `plugin (not loaded)`; `config dump` includes them but redacts their opaque fields unless `--show-secrets` is explicitly requested. Remove plugin data through explicit plugin deletion, or remove the entry by editing the file.
 - Keep the file private; it contains secrets.
 - Validate the file with `codexbar config validate` (JSON output available with `--format json`).

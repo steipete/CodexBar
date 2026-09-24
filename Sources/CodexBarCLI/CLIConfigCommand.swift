@@ -56,7 +56,13 @@ extension CodexBarCLI {
         let output = CLIOutputPreferences.from(values: values)
         let showSecrets = values.flags.contains("showSecrets")
         let config = Self.loadConfig(output: output).sanitizedForDump(showSecrets: showSecrets)
-        Self.printJSON(config, pretty: output.pretty)
+        do {
+            let data = try config.encodedData(pretty: output.pretty)
+            FileHandle.standardOutput.write(data)
+            FileHandle.standardOutput.write(Data("\n".utf8))
+        } catch {
+            Self.exit(code: .failure, message: error.localizedDescription, output: output, kind: .config)
+        }
         Self.exit(code: .success, output: output, kind: .config)
     }
 
@@ -320,16 +326,25 @@ extension CodexBarCLI {
 
     static func configProviderStatuses(_ config: CodexBarConfig) -> [ConfigProviderStatusResult] {
         let metadata = ProviderDescriptorRegistry.metadata
-        return config.normalized().providers.map { providerConfig in
+        var results = config.normalized().providers.map { providerConfig in
             let provider = providerConfig.id.firstPartyProvider
             let meta = provider.flatMap { metadata[$0] }
             let defaultEnabled = meta?.defaultEnabled ?? false
             return ConfigProviderStatusResult(
                 provider: providerConfig.id.rawValue,
-                displayName: meta?.displayName ?? providerConfig.id.rawValue,
+                displayName: meta?.displayName ?? UserProviderPluginRegistry.plugin(for: providerConfig.id)?
+                    .manifest.name ?? providerConfig.id.rawValue,
                 enabled: providerConfig.enabled ?? defaultEnabled,
                 defaultEnabled: defaultEnabled)
         }
+        for entry in config.unavailableProviders {
+            results.insert(ConfigProviderStatusResult(
+                provider: entry.id,
+                displayName: "plugin (not loaded)",
+                enabled: entry.enabled,
+                defaultEnabled: false), at: min(entry.index, results.count))
+        }
+        return results
     }
 
     private static func cleanSingleLineConfigValue(_ raw: String?, fieldName: String) throws -> String? {

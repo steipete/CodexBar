@@ -318,6 +318,13 @@ targets. Other bundled providers fail manifest validation if they request that p
 fields and can approve only from an interactive terminal; redirected/headless input fails closed. Browser-cookie plugins
 are app-only and fail closed in the CLI.
 
+Every CLI command discovers user plugins before loading config, so `config providers` and `config dump` include
+installed plugins. Unrelated app and CLI config writes preserve unavailable plugin records, including settings and
+secrets, in their original positions. Missing files, discovery failures, and platforms without the plugin runtime do
+not delete saved data. `config providers` labels these entries as `plugin (not loaded)`. Their opaque fields are
+redacted in `config dump` unless `--show-secrets` is explicitly requested.
+After discovery, entries using an unsupported future config format remain unchanged if an edit would lose data.
+
 Delete from Settings with **Delete…**. CodexBar removes the plugin file, matching TypeScript cache output, approval,
 per-instance settings and secrets, and per-instance usage history. Invalid plugin files are listed with their validation
 error and can also be deleted.

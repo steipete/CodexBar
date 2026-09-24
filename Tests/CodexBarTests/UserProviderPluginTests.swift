@@ -480,8 +480,8 @@ struct UserProviderPluginTests {
         #expect(await access.calls == 0)
     }
 
-    @Test
-    func `delete removes source cache approval secrets config and history`() throws {
+    @Test(arguments: [false, true])
+    func `delete removes source cache approval secrets config and history`(unavailableAtLoad: Bool) throws {
         let fixture = try Fixture()
         defer { fixture.remove() }
         let plugin = try fixture.loader(transport: RecordingTransport(responseJSON: "{}"))
@@ -495,6 +495,11 @@ struct UserProviderPluginTests {
                 pluginSettings: ["REGION": "west"],
                 pluginSecrets: ["TOKEN": "fixture-secret"]),
         ])
+        if unavailableAtLoad {
+            config = try JSONDecoder().decode(CodexBarConfig.self, from: JSONEncoder().encode(config))
+            #expect(config.providers.isEmpty)
+            #expect(config.unavailableProviders.count == 1)
+        }
         try FileManager.default.createDirectory(at: fixture.history, withIntermediateDirectories: true)
         let historyURL = fixture.history.appendingPathComponent("delete-me.json")
         try Data("history".utf8).write(to: historyURL)
@@ -513,6 +518,7 @@ struct UserProviderPluginTests {
         #expect(!FileManager.default.fileExists(atPath: staleCacheURL.path))
         #expect(!fixture.approvals.isApproved(binding))
         #expect(config.providers.isEmpty)
+        #expect(config.unavailableProviders.isEmpty)
         #expect(!FileManager.default.fileExists(atPath: historyURL.path))
     }
 
@@ -905,6 +911,42 @@ extension UserProviderPluginTests {
     }
 }
 
+extension UserProviderPluginTests {
+    @Test(arguments: [false, true])
+    func `recovered plugin settings retain secrets without duplicating the opaque record`(opaqueNumber: Bool) throws {
+        let fixture = try Fixture()
+        defer { fixture.remove() }
+        let id = try #require(ProviderInstanceID(rawValue: "recovered-fixture"))
+        let raw = #"""
+        {"version":1,"providers":[{"id":"recovered-fixture","enabled":true,
+         "pluginSettings":{"REGION":"west"},"pluginSecrets":{"TOKEN":"fixture-secret"}}]}
+        """#
+        let input = opaqueNumber ? raw.replacingOccurrences(
+            of: "\"enabled\":true", with: "\"enabled\":true,\"future\":1.0000000000000000000000000001") : raw
+        // Use a distinct ID for each argument so registry state cannot pre-load the next fixture.
+        let fixtureID = opaqueNumber ? "recovered-numeric-fixture" : id.rawValue
+        var config = try CodexBarConfig.decode(from: Data(input.replacingOccurrences(
+            of: id.rawValue, with: fixtureID).utf8))
+        #expect(config.unavailableProviders.count == 1)
+        _ = try fixture.write(name: "recover.js", source: Self.javaScriptPlugin(id: fixtureID))
+        UserProviderPluginRegistry.refresh(loader: fixture.loader(transport: RecordingTransport(responseJSON: "{}")))
+        let recoveredID = try #require(ProviderInstanceID(rawValue: fixtureID))
+        var provider = try #require(config.providerConfig(for: recoveredID))
+        provider.enabled = false
+        config.setProviderConfig(provider)
+        let saved = try config.encodedData()
+        if opaqueNumber {
+            let text = try #require(String(data: saved, encoding: .utf8))
+            #expect(text.contains("1.0000000000000000000000000001"))
+        }
+        let reloaded = try CodexBarConfig.decode(from: saved)
+        #expect(reloaded.providers.count == (opaqueNumber ? 0 : 1))
+        #expect(reloaded.providerConfig(for: recoveredID)?.enabled == opaqueNumber)
+        #expect(reloaded.providerConfig(for: recoveredID)?.pluginSecrets == ["TOKEN": "fixture-secret"])
+        #expect(reloaded.providerConfig(for: recoveredID)?.pluginSettings == ["REGION": "west"])
+    }
+}
+
 private final class RecordingTransport: ProviderHTTPTransport, @unchecked Sendable {
     private let lock = NSLock()
     private let responseJSON: String
@@ -1004,6 +1046,9 @@ private struct Fixture {
     }
 
     func remove() {
+        UserProviderPluginRegistry.refresh(loader: UserProviderPluginLoader(
+            providersDirectory: self.root.appendingPathComponent("empty"),
+            cacheDirectory: self.cache))
         try? FileManager.default.removeItem(at: self.root)
     }
 }

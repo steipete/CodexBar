@@ -899,16 +899,27 @@ final class CLIEntryTests: XCTestCase {
         let failureLog = stderr.split(separator: "\n").filter { $0.contains("Provider fetch failed") }.joined()
         XCTAssertFalse(failureLog.contains("Google auth not found"))
     }
+}
 
-    private static func runCLI(
+extension CLIEntryTests {
+    fileprivate static func runCLI(
         arguments: [String],
         environment: [String: String] = [:]) throws -> (status: Int32, stdout: Data, stderr: Data)
 
     {
+        let home = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: home) }
         let process = Process()
         process.executableURL = TestBuildProducts.executableURL(named: "CodexBarCLI")
         process.arguments = arguments
-        process.environment = ProcessInfo.processInfo.environment.merging(environment) { _, override in override }
+        process.environment = ProcessInfo.processInfo.environment.merging([
+            "HOME": home.path,
+            "CFFIXED_USER_HOME": home.path,
+            "CODEX_HOME": home.appendingPathComponent(".codex").path,
+            "CODEXBAR_CONFIG": home.appendingPathComponent("config.json").path,
+            "CODEXBAR_SUPPRESS_TEST_KEYCHAIN_ACCESS": "1",
+        ]) { _, override in override }.merging(environment) { _, override in override }
 
         let stdout = Pipe()
         let stderr = Pipe()

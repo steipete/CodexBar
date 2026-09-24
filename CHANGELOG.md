@@ -12,6 +12,7 @@
 ### Fixed
 
 - Grok: preserve team identity and local token history when a missing billing RPC method changes its error wording, using the JSON-RPC error code for fallback (related to #3716).
+- Provider plugins: preserve unrecognized plugin settings and secrets across app and CLI config writes, and discover installed plugins before CLI config loads (#3944). Thanks @lockhartheavyindustries!
 - Command Code: size monthly usage from the grant reported with credits, keeping the row available when the optional subscription lookup fails (#3939). Thanks @enieuwy!
 - Kimi: import web access tokens from Chromium local storage for the selected region, preserving manual and saved-account credential isolation (#3923). Thanks @kaishin!
 - Manus and T3 Chat: use bundled providers on both engines, retry rejected Manus sessions before environment fallback, and retain T3 Chat’s captured browser headers and 60-second web timeout (#3933, #3934).

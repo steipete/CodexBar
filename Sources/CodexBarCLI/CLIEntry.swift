@@ -48,6 +48,7 @@ enum CodexBarCLI {
         do {
             let invocation = try program.resolve(argv: argv)
             Self.bootstrapLogging(path: invocation.path, values: invocation.parsedValues)
+            UserProviderPluginRegistry.refresh()
             switch invocation.path {
             case ["cards"], ["usage"]:
                 await self.runUsageDisplay(path: invocation.path, values: invocation.parsedValues)
