@@ -209,6 +209,7 @@ and stable account numbers distinguish rows while usable workspace labels remain
 - Workspace balances attach and persist only when the dashboard response account ID matches the selected account. Same-email workspace mismatches and old workspace caches without an account ID are rejected by both the app and CLI.
 - A newer explicitly unavailable workspace balance suppresses an older cached amount, including after restart. A later successful positive or zero balance restores visibility. Usage-only refreshes that skip the balance read preserve the account's prior observation; account changes never inherit it.
 - The custom **Balance** menu-bar token supports Codex credits, rounded and grouped as whole credits. Workspace pools remain distinct from a member's monthly cap and do not imply a total pool capacity.
+- Personal credit bars without a reported monthly cap use the next power of ten above the balance as their visual scale (for example, 1,250 credits on a 10K scale). This scale is not an inferred allowance; reported monthly caps keep their exact scale, and workspace pools remain amount-only.
 - CLI RPC: `account/rateLimits/read` → credits balance.
 - CLI PTY diagnostics can still parse `Credits:` from saved/manual `/status` output.
 

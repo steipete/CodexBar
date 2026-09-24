@@ -14,6 +14,7 @@
 - Grok: preserve team identity and local token history when a missing billing RPC method changes its error wording, using the JSON-RPC error code for fallback (related to #3716).
 - Codex: prefer the fresh CLI usage response's plan over the cached account plan after a subscription change (#3389).
 - Claude: preserve quota-threshold warnings across repeated CLI account-identity gaps instead of re-alerting on each refresh (#3450).
+- Codex: scale personal credit bars with the balance instead of filling the bar at 1,000 credits, while preserving reported monthly caps and workspace balances (#3912).
 - Command Code: size monthly usage from the grant reported with credits, keeping the row available when the optional subscription lookup fails (#3939). Thanks @enieuwy!
 - Kimi: import web access tokens from Chromium local storage for the selected region, preserving manual and saved-account credential isolation (#3923). Thanks @kaishin!
 - Manus and T3 Chat: use bundled providers on both engines, retry rejected Manus sessions before environment fallback, and retain T3 Chat’s captured browser headers and 60-second web timeout (#3933, #3934).

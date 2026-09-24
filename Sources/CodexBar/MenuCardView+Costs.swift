@@ -155,13 +155,29 @@ extension UsageMenuCardView.Model {
 
     static func creditsProgressPercent(credits: CreditsSnapshot?) -> Double? {
         guard credits?.hasWorkspaceBalance != true else { return nil }
-        return credits?.codexCreditLimit?.remainingPercent
+        if let limit = credits?.codexCreditLimit { return limit.remainingPercent }
+        guard let balance = credits?.displayRemaining, let scale = self.fallbackCreditsScale(credits: credits) else {
+            return nil
+        }
+        return min(100, max(0, balance / scale * 100))
     }
 
     static func creditsScaleText(credits: CreditsSnapshot?) -> String? {
         guard credits?.hasWorkspaceBalance != true else { return nil }
-        guard let limit = credits?.codexCreditLimit else { return nil }
-        return L("of %@", UsageFormatter.creditsNumberString(from: limit.limit))
+        if let limit = credits?.codexCreditLimit {
+            return L("of %@", UsageFormatter.creditsNumberString(from: limit.limit))
+        }
+        guard let scale = self.fallbackCreditsScale(credits: credits) else { return nil }
+        let number = Int(exactly: scale).map(UsageFormatter.tokenCountString)
+            ?? UsageFormatter.creditsNumberString(from: scale)
+        return "\(number) \(L("tokens"))"
+    }
+
+    private static func fallbackCreditsScale(credits: CreditsSnapshot?) -> Double? {
+        guard let balance = credits?.displayRemaining, balance.isFinite else { return nil }
+        let maximum = max(balance, credits?.codexCreditLimit?.limit ?? 0)
+        let exponent = maximum > 0 ? floor(log10(maximum)) + 1 : 0
+        return min(Double.greatestFiniteMagnitude, pow(10, exponent))
     }
 
     static func codexCreditLimitDetail(credits: CreditsSnapshot?, now: Date) -> String? {
