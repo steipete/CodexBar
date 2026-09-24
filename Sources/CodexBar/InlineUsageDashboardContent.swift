@@ -729,9 +729,6 @@ struct InlineUsageDashboardContent: View {
                     .accessibilityElement(children: .contain)
                     .accessibilityLabel(self.model.accessibilityLabel)
             }
-            if !self.model.quotaWindows.isEmpty {
-                self.quotaWindows
-            }
             self.detailLines
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -748,44 +745,6 @@ struct InlineUsageDashboardContent: View {
         {
             ForEach(Array(self.model.kpis.enumerated()), id: \.offset) { _, kpi in
                 KPIBlock(title: kpi.title, value: kpi.value, emphasis: kpi.emphasis)
-            }
-        }
-    }
-
-    private var quotaWindows: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(L("Recent windows"))
-                .font(.caption2)
-                .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
-            ForEach(self.model.quotaWindows) { window in
-                VStack(alignment: .leading, spacing: 1) {
-                    HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        Text(window.title)
-                            .font(.caption)
-                            .foregroundStyle(MenuHighlightStyle.primary(self.isHighlighted))
-                            .lineLimit(1)
-                        Spacer(minLength: 8)
-                        Text(window.value)
-                            .font(.caption)
-                            .fontWeight(.semibold)
-                            .foregroundStyle(MenuHighlightStyle.primary(self.isHighlighted))
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.8)
-                            .monospacedDigit()
-                    }
-                    if let note = window.note {
-                        Text(note)
-                            .font(.caption2)
-                            .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    Text(window.range)
-                        .font(.caption2)
-                        .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
-                }
-                .accessibilityElement(children: .combine)
             }
         }
     }
@@ -955,6 +914,47 @@ struct InlineUsageDashboardContent: View {
                 return Color(red: 0.48, green: 0.41, blue: 0.86)
             case .points:
                 return Color(red: 0.16, green: 0.62, blue: 0.36)
+            }
+        }
+    }
+}
+
+/// Codex/Claude weekly quota windows, shown in the "Recent windows" submenu.
+struct InlineUsageQuotaWindowsView: View {
+    let windows: [InlineUsageDashboardModel.QuotaWindow]
+    @Environment(\.menuItemHighlighted) private var isHighlighted
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            ForEach(self.windows) { window in
+                VStack(alignment: .leading, spacing: 1) {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text(window.title)
+                            .font(.caption)
+                            .foregroundStyle(MenuHighlightStyle.primary(self.isHighlighted))
+                            .lineLimit(1)
+                        Spacer(minLength: 8)
+                        Text(window.value)
+                            .font(.caption)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(MenuHighlightStyle.primary(self.isHighlighted))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
+                            .monospacedDigit()
+                    }
+                    if let note = window.note {
+                        Text(note)
+                            .font(.caption2)
+                            .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Text(window.range)
+                        .font(.caption2)
+                        .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                }
+                .accessibilityElement(children: .combine)
             }
         }
     }

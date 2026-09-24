@@ -32,6 +32,10 @@ extension StatusItemController {
                     heightCacheScope: account.id,
                     heightCacheFingerprint: model.heightFingerprint(section: "card"),
                     containsInteractiveControls: true))
+                self.addRecentWindowsMenuItemIfNeeded(
+                    to: menu,
+                    dashboard: model.inlineUsageDashboard,
+                    width: context.menuWidth)
                 cardIndex += 1
                 if account.id != section.accounts.last?.id {
                     menu.addItem(.separator())
@@ -51,6 +55,10 @@ extension StatusItemController {
                 heightCacheScope: context.currentProvider.rawValue,
                 heightCacheFingerprint: model.heightFingerprint(section: "card"),
                 containsInteractiveControls: true))
+            self.addRecentWindowsMenuItemIfNeeded(
+                to: menu,
+                dashboard: model.inlineUsageDashboard,
+                width: context.menuWidth)
         }
         menu.addItem(.separator())
         if self.addStorageMenuCardSection(to: menu, provider: context.currentProvider, width: context.menuWidth) {
@@ -95,6 +103,7 @@ extension StatusItemController {
                 width: context.menuWidth,
                 heightCacheScope: provider.rawValue,
                 heightCacheFingerprint: model.heightFingerprint(section: "usage")))
+            self.addRecentWindowsMenuItemIfNeeded(to: menu, dashboard: dashboard, width: context.menuWidth)
         }
         if model.tokenUsage != nil {
             menu.addItem(self.makeCostMenuCardItem(

@@ -781,6 +781,10 @@ extension StatusItemController {
             heightCacheScope: context.currentProvider.rawValue,
             heightCacheFingerprint: renderedModel.heightFingerprint(section: "card"),
             containsInteractiveControls: true))
+        self.addRecentWindowsMenuItemIfNeeded(
+            to: menu,
+            dashboard: model.inlineUsageDashboard,
+            width: context.menuWidth)
         self.addFleetAccountMenuCards(fleetProjection.additionalAccounts, to: menu, context: context)
         if self.addStorageMenuCardSection(to: menu, provider: context.currentProvider, width: context.menuWidth) {
             menu.addItem(.separator())
@@ -1344,6 +1348,7 @@ extension StatusItemController {
                 heightCacheFingerprint: layoutModel.heightFingerprint(section: "header"),
                 containsInteractiveControls: true))
         }
+        self.addRecentWindowsMenuItemIfNeeded(to: menu, dashboard: model.inlineUsageDashboard, width: width)
 
         if self.addStorageMenuCardSection(to: menu, provider: provider, width: width),
            hasCredits || hasExtraUsage

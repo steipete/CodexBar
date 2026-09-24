@@ -197,6 +197,10 @@ extension StatusItemController {
                 heightCacheScope: context.currentProvider.rawValue,
                 heightCacheFingerprint: renderedModel.heightFingerprint(section: "card"),
                 containsInteractiveControls: true))
+            self.addRecentWindowsMenuItemIfNeeded(
+                to: menu,
+                dashboard: model.inlineUsageDashboard,
+                width: context.menuWidth)
             menu.addItem(.separator())
         } else {
             for (index, model) in cards.enumerated() {
@@ -210,6 +214,10 @@ extension StatusItemController {
                     heightCacheScope: "\(context.currentProvider.rawValue)-\(index)",
                     heightCacheFingerprint: model.heightFingerprint(section: "card"),
                     containsInteractiveControls: true))
+                self.addRecentWindowsMenuItemIfNeeded(
+                    to: menu,
+                    dashboard: model.inlineUsageDashboard,
+                    width: context.menuWidth)
                 if index < cards.count - 1 {
                     menu.addItem(.separator())
                 }
