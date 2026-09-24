@@ -3,6 +3,9 @@ import SweetCookieKit
 
 public enum MistralProviderDescriptor {
     public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
+    /// Extra rate window carrying the Vibe Code plan allowance (settings metric "Monthly Plan").
+    public static let monthlyPlanWindowID = "mistral-monthly-plan"
+    public static let monthlyPlanWindowTitle = "Monthly Plan"
     private static let credentials = ProviderCredentialAdapter(tokenAccountSupport: TokenAccountSupport(
         title: "Session tokens",
         subtitle: "Store multiple Mistral Cookie headers.",
@@ -23,7 +26,10 @@ public enum MistralProviderDescriptor {
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
             id: .mistral,
-            menuBarMetrics: ProviderMenuBarMetricCapabilities(supported: [.automatic, .primary, .monthlyPlan]),
+            menuBarMetrics: ProviderMenuBarMetricCapabilities(
+                supported: [.automatic, .primary, .monthlyPlan],
+                // Exposes a "Monthly Plan %" token in the menu bar layout editor for the Vibe plan allowance.
+                namedExtras: [monthlyPlanWindowID: self.monthlyPlanWindowTitle]),
             settingsSection: .init(MistralProviderSettingsKey.self, cookieSettings: MistralProviderSettings.self),
             credentials: self.credentials,
             metadata: ProviderMetadata(
@@ -68,13 +74,29 @@ public enum MistralProviderDescriptor {
                         tertiary: metadata.opusLabel ?? "Sonnet",
                         showsTertiary: metadata.supportsOpus)
                 },
+                identityPresenter: { _, snapshot in
+                    // Plan labels already use Mistral's display names ("Pro", "API pay-as-you-go"); skip
+                    // the default `.capitalized` pass that would turn "API" into "Api".
+                    guard let plan = snapshot.mistralUsage?.account?.planLabel, !plan.isEmpty else {
+                        return ProviderIdentityPresentation(badge: nil, plan: nil)
+                    }
+                    return ProviderIdentityPresentation(badge: plan, plan: plan)
+                },
+                extraRateWindowSelector: { snapshot in
+                    snapshot.extraRateWindows?.filter { $0.id == Self.monthlyPlanWindowID } ?? []
+                },
                 menuBarLayoutPrimaryLabel: "Included API",
                 menuBarWindowResolver: { context in
                     switch context.metric {
                     case .automatic:
-                        .resolved(nil)
+                        // Plan accounts: show the most constrained allowance (Included API or Vibe plan).
+                        // Pay-as-you-go accounts have no allowance window and keep showing API spend.
+                        .resolved(ProviderUsagePresentation.mostConstrained(
+                            context.snapshot.primary,
+                            context.snapshot.extraRateWindows?.first { $0.id == Self.monthlyPlanWindowID }?.window))
                     case .monthlyPlan:
-                        .resolved(context.snapshot.extraRateWindows?.first { $0.id == "mistral-monthly-plan" }?.window)
+                        .resolved(context.snapshot.extraRateWindows?.first { $0.id == Self.monthlyPlanWindowID }?
+                            .window)
                     default:
                         .unhandled
                     }
@@ -88,7 +110,7 @@ public enum MistralProviderDescriptor {
                     },
                     showsPrimaryBalanceDescription: true,
                     hidesPrimaryResetWithoutDate: true,
-                    extraRateWindowUsesResetDescriptionAsDetail: { $0.id == "mistral-monthly-plan" }),
+                    extraRateWindowUsesResetDescriptionAsDetail: { $0.id == Self.monthlyPlanWindowID }),
                 menu: ProviderMenuDescriptorPresentation(primaryDescriptionIsDetail: { _ in true })),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .web],
@@ -193,6 +215,7 @@ struct MistralWebFetchStrategy: ProviderFetchStrategy {
         let budgets: MistralSubscriptionBudgets? = if remaining > 0 {
             try await Self.fetchOptionalSubscriptionBudgets(
                 cookieHeader: cookieHeader,
+                csrfToken: csrfToken,
                 timeout: min(remaining, 4),
                 transport: transport)
         } else {
@@ -221,24 +244,72 @@ struct MistralWebFetchStrategy: ProviderFetchStrategy {
         } else {
             nil
         }
-        var result = snapshot.with(credits: credits).toUsageSnapshot()
+        remaining = deadline.timeIntervalSinceNow
+        let account: MistralAccountSnapshot? = if remaining > 0 {
+            try await Self.fetchOptionalAccount(
+                cookieHeader: cookieHeader,
+                csrfToken: csrfToken,
+                timeout: min(remaining, 4),
+                transport: transport)
+        } else {
+            nil
+        }
+        var result = snapshot.with(credits: credits).with(account: account).toUsageSnapshot()
         if let budgets {
             result = Self.attachSubscriptionBudgets(to: result, budgets: budgets)
         }
         return Self.attachVibeWindow(to: result, vibeResult: vibeResult)
     }
 
+    /// Allowances come from the JSON budget endpoint; the subscription page scrape stays as a fallback for
+    /// tenants where that endpoint is unavailable. Both are best-effort.
     static func fetchOptionalSubscriptionBudgets(
         cookieHeader: String,
+        csrfToken: String? = nil,
         timeout: TimeInterval,
         transport: ProviderHTTPTransport = ProviderHTTPClient.shared) async throws
         -> MistralSubscriptionBudgets?
     {
-        do {
-            return try await MistralUsageFetcher.fetchSubscriptionBudgets(
+        let deadline = Date().addingTimeInterval(timeout)
+        if let budgets = try await Self.optional({
+            try await MistralUsageFetcher.fetchBudget(
                 cookieHeader: cookieHeader,
+                csrfToken: csrfToken,
                 timeout: timeout,
                 transport: transport)
+        }) {
+            return budgets
+        }
+        let remaining = deadline.timeIntervalSinceNow
+        guard remaining > 0 else { return nil }
+        return try await Self.optional {
+            try await MistralUsageFetcher.fetchSubscriptionBudgets(
+                cookieHeader: cookieHeader,
+                timeout: remaining,
+                transport: transport)
+        }
+    }
+
+    static func fetchOptionalAccount(
+        cookieHeader: String,
+        csrfToken: String?,
+        timeout: TimeInterval,
+        transport: ProviderHTTPTransport = ProviderHTTPClient.shared) async throws
+        -> MistralAccountSnapshot?
+    {
+        try await self.optional {
+            try await MistralUsageFetcher.fetchAccount(
+                cookieHeader: cookieHeader,
+                csrfToken: csrfToken,
+                timeout: timeout,
+                transport: transport)
+        }
+    }
+
+    /// Runs a best-effort request: ordinary failures yield nil, cancellation still propagates.
+    private static func optional<T>(_ body: () async throws -> T) async throws -> T? {
+        do {
+            return try await body()
         } catch {
             if error is CancellationError || (error as? URLError)?.code == .cancelled || Task.isCancelled {
                 throw CancellationError()
@@ -254,17 +325,12 @@ struct MistralWebFetchStrategy: ProviderFetchStrategy {
         transport: ProviderHTTPTransport = ProviderHTTPClient.shared) async throws
         -> MistralCreditsSnapshot?
     {
-        do {
-            return try await MistralUsageFetcher.fetchCredits(
+        try await self.optional {
+            try await MistralUsageFetcher.fetchCredits(
                 cookieHeader: cookieHeader,
                 csrfToken: csrfToken,
                 timeout: timeout,
                 transport: transport)
-        } catch {
-            if error is CancellationError || (error as? URLError)?.code == .cancelled || Task.isCancelled {
-                throw CancellationError()
-            }
-            return nil
         }
     }
 
@@ -275,17 +341,12 @@ struct MistralWebFetchStrategy: ProviderFetchStrategy {
         transport: ProviderHTTPTransport = ProviderHTTPClient.shared) async throws
         -> MistralUsageFetcher.MistralVibeUsageResult?
     {
-        do {
-            return try await MistralUsageFetcher.fetchVibeUsage(
+        try await self.optional {
+            try await MistralUsageFetcher.fetchVibeUsage(
                 csrfToken: csrfToken,
                 cookieHeader: cookieHeader,
                 timeout: timeout,
                 transport: transport)
-        } catch {
-            if error is CancellationError || (error as? URLError)?.code == .cancelled || Task.isCancelled {
-                throw CancellationError()
-            }
-            return nil
         }
     }
 
@@ -300,7 +361,8 @@ struct MistralWebFetchStrategy: ProviderFetchStrategy {
                 resetsAt: budget.resetsAt,
                 resetDescription: Self.budgetDescription(budget))
         }
-        var extraWindows = usageSnapshot.extraRateWindows?.filter { $0.id != "mistral-monthly-plan" } ?? []
+        var extraWindows = usageSnapshot.extraRateWindows?
+            .filter { $0.id != MistralProviderDescriptor.monthlyPlanWindowID } ?? []
         if let vibe = budgets.vibe {
             let vibeWindow = RateWindow(
                 usedPercent: vibe.usagePercentage,
@@ -308,8 +370,8 @@ struct MistralWebFetchStrategy: ProviderFetchStrategy {
                 resetsAt: vibe.resetsAt,
                 resetDescription: Self.budgetDescription(vibe))
             extraWindows.append(NamedRateWindow(
-                id: "mistral-monthly-plan",
-                title: "Monthly Plan",
+                id: MistralProviderDescriptor.monthlyPlanWindowID,
+                title: MistralProviderDescriptor.monthlyPlanWindowTitle,
                 window: vibeWindow))
         }
         return usageSnapshot
@@ -334,7 +396,10 @@ struct MistralWebFetchStrategy: ProviderFetchStrategy {
             windowMinutes: nil,
             resetsAt: vibeResult.resetAt,
             resetDescription: nil)
-        let named = NamedRateWindow(id: "mistral-monthly-plan", title: "Monthly Plan", window: window)
+        let named = NamedRateWindow(
+            id: MistralProviderDescriptor.monthlyPlanWindowID,
+            title: MistralProviderDescriptor.monthlyPlanWindowTitle,
+            window: window)
         let existing = usageSnapshot.extraRateWindows?.filter { $0.id != named.id } ?? []
         return usageSnapshot.with(extraRateWindows: existing + [named])
     }

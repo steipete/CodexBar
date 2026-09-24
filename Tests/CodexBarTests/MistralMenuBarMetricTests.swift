@@ -21,11 +21,11 @@ struct MistralMenuBarMetricTests {
     }
 
     @Test(arguments: [
-        (MenuBarMetricPreference.automatic, "€1.2345"),
+        (MenuBarMetricPreference.automatic, "42%"),
         (.primary, "2%"),
         (.monthlyPlan, "42%"),
     ])
-    func `Mistral keeps spend and allowance choices distinct`(
+    func `Mistral automatic follows the most constrained allowance`(
         preference: MenuBarMetricPreference, expected: String)
     {
         let settings = testSettingsStore(
@@ -73,6 +73,22 @@ struct MistralMenuBarMetricTests {
 
         #expect(displayText == expected)
         #expect(MenuBarPercentWindowPreference.session.label(for: .mistral) == "Included API")
+    }
+
+    @Test
+    func `Monthly Plan is offered as a named layout token when the allowance is known`() {
+        let monthly = NamedRateWindow(
+            id: MistralProviderDescriptor.monthlyPlanWindowID,
+            title: MistralProviderDescriptor.monthlyPlanWindowTitle,
+            window: RateWindow(usedPercent: 70, windowMinutes: nil, resetsAt: nil, resetDescription: nil))
+        let snapshot = UsageSnapshot(primary: nil, secondary: nil, extraRateWindows: [monthly], updatedAt: Date())
+
+        let tokens = MenuBarLayoutNamedExtra.availableTokens(provider: .mistral, snapshot: snapshot)
+        #expect(tokens == [.extraPercent(id: MistralProviderDescriptor.monthlyPlanWindowID)])
+        #expect(tokens.first?.editorLabel(provider: .mistral) == "Monthly Plan %")
+
+        let empty = UsageSnapshot(primary: nil, secondary: nil, updatedAt: Date())
+        #expect(MenuBarLayoutNamedExtra.availableTokens(provider: .mistral, snapshot: empty).isEmpty)
     }
 
     private static func makeStoreAndController(settings: SettingsStore)

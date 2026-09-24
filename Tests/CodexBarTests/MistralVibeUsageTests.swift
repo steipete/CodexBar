@@ -106,6 +106,71 @@ struct MistralVibeUsageTests {
     }
     #endif
 
+    @Test(arguments: [301, 302, 303, 307, 308])
+    func `login redirects count as invalid credentials`(statusCode: Int) async throws {
+        let transport = ProviderHTTPTransportHandler { request in
+            let url = try #require(request.url)
+            let response = try #require(HTTPURLResponse(
+                url: url,
+                statusCode: statusCode,
+                httpVersion: nil,
+                headerFields: ["Location": "https://auth.mistral.ai/self-service/login/browser"]))
+            return (Data("<html>302 Found</html>".utf8), response)
+        }
+
+        let usageError = await #expect(throws: MistralUsageError.self) {
+            try await MistralUsageFetcher.fetchUsage(
+                cookieHeader: "ory_session_stale=abc",
+                csrfToken: nil,
+                timeout: 2,
+                transport: transport)
+        }
+        guard case .invalidCredentials = usageError else {
+            Issue.record("Expected invalidCredentials, got \(String(describing: usageError))")
+            return
+        }
+        let budgetError = await #expect(throws: MistralUsageError.self) {
+            try await MistralUsageFetcher.fetchBudget(
+                cookieHeader: "ory_session_stale=abc",
+                csrfToken: nil,
+                timeout: 2,
+                transport: transport)
+        }
+        guard case .invalidCredentials = budgetError else {
+            Issue.record("Expected invalidCredentials, got \(String(describing: budgetError))")
+            return
+        }
+    }
+
+    #if os(macOS)
+    @Test
+    func `tries later browser sessions after a login redirect`() async throws {
+        let usageData = Data(Self.billingUsageResponseJSON.utf8)
+        let sessions = try [
+            Self.session(cookieName: "ory_session_chrome", value: "expired", sourceLabel: "Chrome"),
+            Self.session(cookieName: "ory_session_firefox", value: "valid", sourceLabel: "Firefox"),
+        ]
+        let transport = ProviderHTTPTransportHandler { request in
+            let url = try #require(request.url)
+            let cookieHeader = request.value(forHTTPHeaderField: "Cookie") ?? ""
+            guard url.path == "/api/billing/v2/usage" else {
+                return try (Data(), Self.response(url: url, statusCode: 404))
+            }
+            if cookieHeader.contains("ory_session_firefox=valid") {
+                return try (usageData, Self.response(url: url, statusCode: 200))
+            }
+            return try (Data(), Self.response(url: url, statusCode: 302))
+        }
+
+        let (_, session) = try await MistralWebFetchStrategy.fetchUsageFromSessions(
+            sessions,
+            timeout: 2,
+            transport: transport)
+
+        #expect(session.sourceLabel == "Firefox")
+    }
+    #endif
+
     @Test
     func `parses subscription percentage and reset`() throws {
         let data = Data(Self.responseJSON(usagePercentage: 2.8141356666666666).utf8)
@@ -241,9 +306,11 @@ struct MistralVibeUsageTests {
         #expect(snapshot.mistralUsage?.credits == nil)
         #expect(requestLog.paths == [
             "admin.mistral.ai/api/billing/v2/usage",
+            "admin.mistral.ai/api/billing/v2/budget",
             "admin.mistral.ai/subscription",
             "console.mistral.ai/api-ui/trpc/billing.vibeUsage",
             "admin.mistral.ai/api/billing/credits",
+            "admin.mistral.ai/api/users/me",
         ])
     }
 
@@ -279,7 +346,55 @@ struct MistralVibeUsageTests {
         #expect(snapshot.extraRateWindows?.first { $0.id == "mistral-monthly-plan" }?.window.usedPercent == 37)
         #expect(snapshot.mistralUsage?.credits?.availableAmount == 35)
         #expect(snapshot.mistralUsage?.totalCost != nil)
-        #expect(log.paths.count == 4)
+        #expect(log.paths.count == 6)
+    }
+
+    @Test
+    func `combined fetch prefers the budget endpoint and skips page and console fallbacks`() async throws {
+        let log = MistralRequestPathLog()
+        let transport = ProviderHTTPTransportHandler { request in
+            log.record(request)
+            let url = try #require(request.url)
+            let body: String
+            switch url.path {
+            case "/api/billing/v2/usage": body = Self.billingUsageResponseJSON
+            case "/api/billing/v2/budget":
+                body = #"""
+                {"vibe_budget":{"usage_percentage":70.4302321,"initial_budget":255.0,"currency":"EUR",
+                 "reset_at":"2026-10-01T00:00:00Z","payg_enabled":false},
+                 "api_budget":{"usage_percentage":0.0,"initial_budget":25.5,"currency":"EUR",
+                 "reset_at":"2026-10-01T00:00:00Z","payg_enabled":false},
+                 "usage_percentage":0.0,"initial_budget":25.5,"currency":"EUR","reset_at":"2026-10-01T00:00:00Z"}
+                """#
+            case "/api/billing/credits":
+                body = #"{"wallet_amount":0,"credit_notes_amount":0,"ongoing_usage_balance":0,"currency":"EUR"}"#
+            case "/api/users/me":
+                body = #"""
+                {"email":"dev@example.com","organization":{"name":"Org","active_chat_plan":"INDIVIDUAL",
+                 "has_vibe_pro":true,"active_api_plan":"FREE"}}
+                """#
+            default: throw URLError(.unsupportedURL)
+            }
+            return try (Data(body.utf8), Self.response(url: url, statusCode: 200))
+        }
+
+        let snapshot = try await MistralWebFetchStrategy.fetchUsageWithVibe(
+            cookieHeader: "ory_session_test=abc; csrftoken=csrf", csrfToken: "csrf", timeout: 2, transport: transport)
+
+        #expect(snapshot.primary?.usedPercent == 0)
+        #expect(snapshot.primary?.resetDescription == "€0.00 / €25.50 · €25.50 left")
+        let monthly = try #require(snapshot.extraRateWindows?.first { $0.id == "mistral-monthly-plan" })
+        #expect(monthly.window.usedPercent == 70.4302321)
+        #expect(monthly.window.resetDescription == "€179.60 / €255.00 · €75.40 left")
+        #expect(monthly.window.resetsAt == ISO8601DateFormatter().date(from: "2026-10-01T00:00:00Z"))
+        #expect(snapshot.identity?.accountEmail == "dev@example.com")
+        #expect(snapshot.identity?.loginMethod == "Pro")
+        #expect(log.paths == [
+            "admin.mistral.ai/api/billing/v2/usage",
+            "admin.mistral.ai/api/billing/v2/budget",
+            "admin.mistral.ai/api/billing/credits",
+            "admin.mistral.ai/api/users/me",
+        ])
     }
 
     @Test

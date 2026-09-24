@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.66.1 — Unreleased
+
+### Fixed
+
+- Mistral: count usage covered by the included API allowance and the Vibe Code plan (tokens, daily buckets, top model were zero on plan accounts), read allowances and account plan from the Admin budget and user endpoints, treat login redirects as an expired session so the next browser is tried, and let the Automatic menu bar lane and a "Monthly Plan %" layout token show the Vibe Code allowance (#3953). Thanks @welcoMattic!
+
 ## 0.66.0 — 2026-09-24
 
 ### Highlights

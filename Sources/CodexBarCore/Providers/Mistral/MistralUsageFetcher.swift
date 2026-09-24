@@ -45,15 +45,7 @@ public enum MistralUsageFetcher {
         let response = try await transport.response(for: request)
         let data = response.data
 
-        switch response.statusCode {
-        case 200:
-            break
-        case 401, 403:
-            throw MistralUsageError.invalidCredentials
-        default:
-            let body = String(data: data.prefix(200), encoding: .utf8) ?? ""
-            throw MistralUsageError.apiError("HTTP \(response.statusCode): \(body)")
-        }
+        try Self.validate(statusCode: response.statusCode, data: data)
 
         return try Self.parseResponse(data: data, updatedAt: now)
     }
@@ -83,15 +75,7 @@ public enum MistralUsageFetcher {
         let response = try await transport.response(for: request)
         let data = response.data
 
-        switch response.statusCode {
-        case 200:
-            break
-        case 401, 403:
-            throw MistralUsageError.invalidCredentials
-        default:
-            let body = String(data: data.prefix(200), encoding: .utf8) ?? ""
-            throw MistralUsageError.apiError("HTTP \(response.statusCode): \(body)")
-        }
+        try Self.validate(statusCode: response.statusCode, data: data)
 
         return try Self.parseVibeUsage(data: data)
     }
@@ -110,15 +94,7 @@ public enum MistralUsageFetcher {
         request.setValue(url.absoluteString, forHTTPHeaderField: "Referer")
 
         let response = try await transport.response(for: request)
-        switch response.statusCode {
-        case 200:
-            break
-        case 401, 403:
-            throw MistralUsageError.invalidCredentials
-        default:
-            let body = String(data: response.data.prefix(200), encoding: .utf8) ?? ""
-            throw MistralUsageError.apiError("HTTP \(response.statusCode): \(body)")
-        }
+        try Self.validate(statusCode: response.statusCode, data: response.data)
         guard response.response.url?.scheme?.lowercased() == "https",
               response.response.url?.host?.lowercased() == self.baseURL.host,
               let html = String(data: response.data, encoding: .utf8),
@@ -133,36 +109,101 @@ public enum MistralUsageFetcher {
         }
     }
 
+    /// Subscription allowances from the JSON endpoint backing the Admin subscription page.
+    /// Mirrors the `budget` record embedded in that page, without scraping Next.js flight data.
+    static func fetchBudget(
+        cookieHeader: String,
+        csrfToken: String?,
+        timeout: TimeInterval = 4,
+        transport: ProviderHTTPTransport = ProviderHTTPClient.shared) async throws -> MistralSubscriptionBudgets
+    {
+        let data = try await self.fetchAdminJSON(
+            path: "/api/billing/v2/budget",
+            referer: "https://admin.mistral.ai/subscription",
+            session: AdminSession(cookieHeader: cookieHeader, csrfToken: csrfToken),
+            timeout: timeout,
+            transport: transport)
+        do {
+            return try MistralSubscriptionBudgetParser.parse(jsonData: data)
+        } catch {
+            throw MistralUsageError.parseFailed(error.localizedDescription)
+        }
+    }
+
+    public static func fetchAccount(
+        cookieHeader: String,
+        csrfToken: String?,
+        timeout: TimeInterval = 4,
+        transport: ProviderHTTPTransport = ProviderHTTPClient.shared) async throws -> MistralAccountSnapshot
+    {
+        let data = try await self.fetchAdminJSON(
+            path: "/api/users/me",
+            referer: "https://admin.mistral.ai/organization/usage",
+            session: AdminSession(cookieHeader: cookieHeader, csrfToken: csrfToken),
+            timeout: timeout,
+            transport: transport)
+        return try Self.parseAccount(data: data)
+    }
+
     public static func fetchCredits(
         cookieHeader: String,
         csrfToken: String?,
         timeout: TimeInterval = 4,
         transport: ProviderHTTPTransport = ProviderHTTPClient.shared) async throws -> MistralCreditsSnapshot
     {
-        let url = self.baseURL.appendingPathComponent("/api/billing/credits")
+        let data = try await self.fetchAdminJSON(
+            path: "/api/billing/credits",
+            referer: "https://admin.mistral.ai/organization/billing",
+            session: AdminSession(cookieHeader: cookieHeader, csrfToken: csrfToken),
+            timeout: timeout,
+            transport: transport)
+        return try Self.parseCredits(data: data)
+    }
+
+    private struct AdminSession {
+        let cookieHeader: String
+        let csrfToken: String?
+    }
+
+    private static func fetchAdminJSON(
+        path: String,
+        referer: String,
+        session: AdminSession,
+        timeout: TimeInterval,
+        transport: ProviderHTTPTransport) async throws -> Data
+    {
+        let url = self.baseURL.appendingPathComponent(path)
         var request = URLRequest(url: url, timeoutInterval: timeout)
         request.setValue("*/*", forHTTPHeaderField: "Accept")
-        request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
-        request.setValue("https://admin.mistral.ai/organization/billing", forHTTPHeaderField: "Referer")
+        request.setValue(session.cookieHeader, forHTTPHeaderField: "Cookie")
+        request.setValue(referer, forHTTPHeaderField: "Referer")
         request.setValue("https://admin.mistral.ai", forHTTPHeaderField: "Origin")
-        if let csrfToken {
+        if let csrfToken = session.csrfToken {
             request.setValue(csrfToken, forHTTPHeaderField: "X-CSRFTOKEN")
         }
 
         let response = try await transport.response(for: request)
-        let data = response.data
+        try Self.validate(statusCode: response.statusCode, data: response.data)
+        return response.data
+    }
 
-        switch response.statusCode {
+    /// Mistral Admin answers a missing or expired `ory_session_*` cookie with a redirect to
+    /// `auth.mistral.ai` instead of a 401; the shared client refuses cross-host redirects, so the raw
+    /// 302 surfaces here. Treat it as invalid credentials so the next browser session gets a chance.
+    private static let redirectStatusCodes: Set<Int> = [301, 302, 303, 307, 308]
+
+    static func validate(statusCode: Int, data: Data) throws {
+        switch statusCode {
         case 200:
-            break
+            return
         case 401, 403:
+            throw MistralUsageError.invalidCredentials
+        case let code where Self.redirectStatusCodes.contains(code):
             throw MistralUsageError.invalidCredentials
         default:
             let body = String(data: data.prefix(200), encoding: .utf8) ?? ""
-            throw MistralUsageError.apiError("HTTP \(response.statusCode): \(body)")
+            throw MistralUsageError.apiError("HTTP \(statusCode): \(body)")
         }
-
-        return try Self.parseCredits(data: data)
     }
 
     static func parseVibeUsage(data: Data) throws -> MistralVibeUsageResult {
@@ -202,6 +243,26 @@ public enum MistralUsageFetcher {
             throw MistralUsageError.parseFailed("Invalid credit amount")
         }
         return snapshot
+    }
+
+    static func parseAccount(data: Data) throws -> MistralAccountSnapshot {
+        let response: MistralUserResponse
+        do {
+            response = try JSONDecoder().decode(MistralUserResponse.self, from: data)
+        } catch {
+            throw MistralUsageError.parseFailed(error.localizedDescription)
+        }
+        func cleaned(_ value: String?) -> String? {
+            let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            return trimmed.isEmpty ? nil : trimmed
+        }
+        return MistralAccountSnapshot(
+            email: cleaned(response.email),
+            organizationName: cleaned(response.organization?.name),
+            chatPlan: cleaned(response.organization?.activeChatPlan),
+            apiPlan: cleaned(response.organization?.activeApiPlan),
+            codePlan: cleaned(response.organization?.activeCodePlan),
+            hasVibePro: response.organization?.hasVibePro ?? false)
     }
 
     static func vibeCookieHeader(csrfToken: String) throws -> String {
@@ -245,9 +306,16 @@ public enum MistralUsageFetcher {
         var modelCount = 0
         var daily: [String: DailyAccumulator] = [:]
 
-        // Aggregate completion tokens
-        if let models = billing.completion?.models {
-            for (modelName, modelData) in models {
+        // Token-metered categories: API completions, Le Chat, and Vibe Code completions.
+        // Vibe Code entries are consumed against the Vibe plan; their tokens count, their billed cost is
+        // whatever exceeds the plan (`value_paid`).
+        let tokenCategories: [MistralModelUsageCategory?] = [
+            billing.completion,
+            billing.chat,
+            billing.vibeCode?.completion,
+        ]
+        for category in tokenCategories {
+            for (modelName, modelData) in category?.models ?? [:] {
                 modelCount += 1
                 let aggregate = try Self.aggregateModel(modelData, prices: prices, countsTokens: true)
                 try totalTokens.add(aggregate.tokens)
@@ -261,25 +329,24 @@ public enum MistralUsageFetcher {
             }
         }
 
-        // Aggregate OCR, connectors, audio if present
-        for category in [billing.ocr, billing.connectors, billing.audio] {
-            if let models = category?.models {
-                for (modelName, modelData) in models {
-                    let (_, cost) = try Self.aggregateModel(modelData, prices: prices, countsTokens: false)
-                    Self.accumulateFiniteCost(cost, into: &totalCost)
-                    try Self.addDailyEntries(
-                        modelName: modelName,
-                        data: modelData,
-                        prices: prices,
-                        daily: &daily,
-                        countsTokens: false)
-                }
-            }
-        }
-
-        // Aggregate libraries_api (pages + tokens)
-        if let models = billing.librariesApi?.pages?.models {
-            for (modelName, modelData) in models {
+        // Cost-only categories (pages, seconds, characters, connector calls, library indexing, fine-tuning).
+        let costOnlyModels: [[String: MistralModelUsageData]?] = [
+            billing.ocr?.models,
+            billing.connectors?.models,
+            billing.audio?.models,
+            billing.audioCharacters?.models,
+            billing.vibeCode?.ocr?.models,
+            billing.vibeCode?.connectors?.models,
+            billing.vibeCode?.audio?.models,
+            billing.vibeCode?.audioCharacters?.models,
+            billing.librariesApi?.pages?.models,
+            billing.librariesApi?.tokens?.models,
+            billing.librariesApi?.audioSeconds?.models,
+            billing.fineTuning?.training,
+            billing.fineTuning?.storage,
+        ]
+        for models in costOnlyModels {
+            for (modelName, modelData) in models ?? [:] {
                 let (_, cost) = try Self.aggregateModel(modelData, prices: prices, countsTokens: false)
                 Self.accumulateFiniteCost(cost, into: &totalCost)
                 try Self.addDailyEntries(
@@ -288,34 +355,6 @@ public enum MistralUsageFetcher {
                     prices: prices,
                     daily: &daily,
                     countsTokens: false)
-            }
-        }
-        if let models = billing.librariesApi?.tokens?.models {
-            for (modelName, modelData) in models {
-                let (_, cost) = try Self.aggregateModel(modelData, prices: prices, countsTokens: false)
-                Self.accumulateFiniteCost(cost, into: &totalCost)
-                try Self.addDailyEntries(
-                    modelName: modelName,
-                    data: modelData,
-                    prices: prices,
-                    daily: &daily,
-                    countsTokens: true)
-            }
-        }
-
-        // Aggregate fine_tuning (training + storage)
-        for models in [billing.fineTuning?.training, billing.fineTuning?.storage] {
-            if let models {
-                for (modelName, modelData) in models {
-                    let (_, cost) = try Self.aggregateModel(modelData, prices: prices, countsTokens: false)
-                    Self.accumulateFiniteCost(cost, into: &totalCost)
-                    try Self.addDailyEntries(
-                        modelName: modelName,
-                        data: modelData,
-                        prices: prices,
-                        daily: &daily,
-                        countsTokens: false)
-                }
             }
         }
 
@@ -376,9 +415,10 @@ public enum MistralUsageFetcher {
         ]
         for (kind, entries) in lanes {
             for entry in entries ?? [] {
-                let units = entry.valuePaid ?? entry.value ?? 0
-                if countsTokens { try tokens.add(units, kind: kind) }
-                Self.accumulateFiniteCost(Self.cost(for: entry, units: units, prices: prices), into: &totalCost)
+                if countsTokens { try tokens.add(Self.consumedUnits(entry), kind: kind) }
+                Self.accumulateFiniteCost(
+                    Self.cost(for: entry, units: Self.billedUnits(entry), prices: prices),
+                    into: &totalCost)
             }
         }
         return (tokens, totalCost)
@@ -430,17 +470,27 @@ public enum MistralUsageFetcher {
     {
         for entry in entries {
             guard let day = dayKey(from: entry.timestamp) else { continue }
-            let units = entry.valuePaid ?? entry.value ?? 0
-            let cost = Self.cost(for: entry, units: units, prices: context.prices)
+            let cost = Self.cost(for: entry, units: Self.billedUnits(entry), prices: context.prices)
             var accumulator = daily[day] ?? DailyAccumulator(day: day)
             try accumulator.add(
                 modelName: Self.displayModelName(context.modelName, entry: entry),
                 kind: context.kind,
-                units: units,
+                units: Self.consumedUnits(entry),
                 cost: cost,
                 countsTokens: context.countsTokens)
             daily[day] = accumulator
         }
+    }
+
+    /// Units actually consumed (tokens, pages, seconds), including usage covered by an included allowance.
+    private static func consumedUnits(_ entry: MistralUsageEntry) -> Int {
+        entry.value ?? entry.valuePaid ?? 0
+    }
+
+    /// Units billed pay-as-you-go. Usage covered by the included API allowance or the Vibe plan reports
+    /// `value_paid == 0`; pay-as-you-go accounts report `value_paid == value`.
+    private static func billedUnits(_ entry: MistralUsageEntry) -> Int {
+        entry.valuePaid ?? entry.value ?? 0
     }
 
     private static func cost(for entry: MistralUsageEntry, units: Int, prices: [String: Double]) -> Double {
@@ -598,5 +648,26 @@ private struct MistralCreditsResponse: Decodable {
         case walletAmount = "wallet_amount"
         case creditNotesAmount = "credit_notes_amount"
         case ongoingUsageBalance = "ongoing_usage_balance"
+    }
+}
+
+private struct MistralUserResponse: Decodable {
+    let email: String?
+    let organization: Organization?
+
+    struct Organization: Decodable {
+        let name: String?
+        let activeChatPlan: String?
+        let activeApiPlan: String?
+        let activeCodePlan: String?
+        let hasVibePro: Bool?
+
+        enum CodingKeys: String, CodingKey {
+            case name
+            case activeChatPlan = "active_chat_plan"
+            case activeApiPlan = "active_api_plan"
+            case activeCodePlan = "active_code_plan"
+            case hasVibePro = "has_vibe_pro"
+        }
     }
 }

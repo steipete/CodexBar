@@ -628,8 +628,7 @@ enum MenuBarLayoutBalanceResolver {
                 ? value?.split(separator: "·", maxSplits: 1).first?.trimmingCharacters(in: .whitespacesAndNewlines)
                 : value
         case .mistral:
-            return self.displayValue(
-                from: snapshot?.identity?.loginMethod, prefix: "API spend:", removingSuffix: " this month")
+            return snapshot?.mistralUsage?.menuBarSpendText
         case .opencodego:
             guard let cost = snapshot?.providerCost, cost.period == "Zen balance" else { return nil }
             return UsageFormatter.currencyString(cost.used, currencyCode: cost.currencyCode)

@@ -75,11 +75,16 @@ struct MistralTokenArithmeticTests {
     }
 
     @Test
-    func `library entries still participate in checked daily lanes`() throws {
-        try Self.expectOverflow([
-            "completion": ["models": ["completion": ["input": [Self.entry(Int.max)]]]],
-            "libraries_api": ["tokens": ["models": ["library": ["input": [Self.entry(1)]]]]],
+    func `library token entries are cost only in daily and monthly lanes`() throws {
+        let snapshot = try Self.parse([
+            "completion": ["models": ["completion": ["input": [Self.entry(1, name: "completion")]]]],
+            "libraries_api": ["tokens": ["models": ["library": ["input": [Self.entry(Int.max, name: "library")]]]]],
         ])
+        #expect(snapshot.totalInputTokens == 1)
+        #expect(snapshot.daily.first?.totalTokens == 1)
+        #expect(snapshot.daily.first?.models.map(\.totalTokens) == [1, 0])
+        #expect(snapshot.totalCost == Double(Int.max) * 0.25 + 0.25)
+        #expect(snapshot.toCostUsageTokenSnapshot().last30DaysTokens == 1)
     }
 
     @Test
@@ -111,7 +116,7 @@ struct MistralTokenArithmeticTests {
     }
 
     @Test
-    func `library month lanes are not invented for signed daily adjustments`() throws {
+    func `library lanes stay consistent between daily and monthly totals for signed adjustments`() throws {
         let snapshot = try Self.parse(["libraries_api": ["tokens": ["models": ["library": [
             "input": [Self.entry(Int.max, day: "2026-09-01"), Self.entry(1, day: "2026-09-02")],
             "output": [Self.entry(-1, day: "2026-09-02")],
@@ -119,8 +124,8 @@ struct MistralTokenArithmeticTests {
         #expect(snapshot.totalInputTokens == 0)
         #expect(snapshot.totalOutputTokens == 0)
         #expect(snapshot.totalCachedTokens == 0)
-        #expect(snapshot.daily.map(\.totalTokens) == [Int.max, 0])
-        #expect(snapshot.toCostUsageTokenSnapshot().last30DaysTokens == nil)
+        #expect(snapshot.daily.map(\.totalTokens) == [0, 0])
+        #expect(snapshot.toCostUsageTokenSnapshot().last30DaysTokens == 0)
     }
 
     @Test
@@ -128,7 +133,7 @@ struct MistralTokenArithmeticTests {
         let snapshot = try Self.parse(["libraries_api": ["tokens": ["models": ["library": [
             "input": [Self.entry(Int.max, day: "2026-09-01"), Self.entry(1, day: "2026-09-02")],
         ]]]]])
-        #expect(snapshot.daily.map(\.totalTokens) == [Int.max, 1])
+        #expect(snapshot.daily.map(\.totalTokens) == [0, 0])
         #expect(snapshot.totalInputTokens == 0)
         #expect(snapshot.totalCost.isFinite)
         #expect(snapshot.totalCost > 0)
@@ -151,13 +156,21 @@ struct MistralTokenArithmeticTests {
     }
 
     @Test
-    func `paid zero retains precedence over a large raw value`() throws {
-        var entry = Self.entry(Int.max)
+    func `paid zero keeps cost at zero while consumed tokens still count`() throws {
+        var entry = Self.entry(1000)
         entry["value_paid"] = 0
         let snapshot = try Self.parse(["completion": ["models": ["fixture": ["input": [entry, entry]]]]])
-        #expect(snapshot.totalInputTokens == 0)
+        #expect(snapshot.totalInputTokens == 2000)
         #expect(snapshot.totalCost == 0)
-        #expect(snapshot.daily.first?.totalTokens == 0)
+        #expect(snapshot.daily.first?.totalTokens == 2000)
+        #expect(snapshot.daily.first?.cost == 0)
+    }
+
+    @Test
+    func `paid zero does not hide an unrepresentable consumed value`() throws {
+        var entry = Self.entry(Int.max)
+        entry["value_paid"] = 0
+        try Self.expectOverflow(["completion": ["models": ["fixture": ["input": [entry, entry]]]]])
     }
 
     private static func entry(

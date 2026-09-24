@@ -18,6 +18,19 @@ private final class MistralSubscriptionRequestCapture: @unchecked Sendable {
     }
 }
 
+private final class MistralSubscriptionRequestPathLog: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storedPaths: [String] = []
+
+    var paths: [String] {
+        self.lock.withLock { self.storedPaths }
+    }
+
+    func record(_ path: String) {
+        self.lock.withLock { self.storedPaths.append(path) }
+    }
+}
+
 @Suite
 struct MistralSubscriptionBudgetTests {
     private static func flightPush(_ chunk: String) throws -> String {
@@ -105,6 +118,98 @@ struct MistralSubscriptionBudgetTests {
         #expect(request.httpShouldHandleCookies == false)
         #expect(request.value(forHTTPHeaderField: "Cookie") == "ory_session_test=abc; csrftoken=csrf")
         #expect(request.value(forHTTPHeaderField: "Accept") == "text/html")
+    }
+
+    @Test
+    func `parses allowances from the budget endpoint payload`() throws {
+        let json = #"""
+        {"vibe_budget":{"usage_percentage":70.4302321,"initial_budget":255.0,"currency":"EUR",
+         "reset_at":"2026-10-01T00:00:00Z","payg_enabled":false},
+         "api_budget":{"usage_percentage":0.0,"initial_budget":25.5,"currency":"eur",
+         "reset_at":"2026-10-01T00:00:00Z","payg_enabled":true},
+         "usage_percentage":0.0,"initial_budget":25.5,"currency":"EUR","reset_at":"2026-10-01T00:00:00Z"}
+        """#
+
+        let result = try MistralSubscriptionBudgetParser.parse(jsonData: Data(json.utf8))
+
+        let api = try #require(result.api)
+        #expect(api.usagePercentage == 0)
+        #expect(api.limit == 25.5)
+        #expect(api.currencyCode == "EUR")
+        let vibe = try #require(result.vibe)
+        #expect(vibe.usagePercentage == 70.4302321)
+        #expect(vibe.limit == 255)
+        #expect(abs(vibe.usedAmount - 179.597) < 0.001)
+        #expect(vibe.resetsAt == ISO8601DateFormatter().date(from: "2026-10-01T00:00:00Z"))
+    }
+
+    @Test(arguments: [
+        #"{"usage_percentage":0.0,"initial_budget":25.5,"currency":"EUR"}"#,
+        #"{"api_budget":{"usage_percentage":0.0,"initial_budget":0,"currency":"EUR"}}"#,
+        "[]",
+        "not json",
+    ])
+    func `budget endpoint payload without a usable allowance fails`(json: String) {
+        #expect(throws: MistralSubscriptionBudgetParser.ParseError.self) {
+            try MistralSubscriptionBudgetParser.parse(jsonData: Data(json.utf8))
+        }
+    }
+
+    @Test
+    func `budget request targets the JSON endpoint with the admin session`() async throws {
+        let capture = MistralSubscriptionRequestCapture()
+        let body = #"{"api_budget":{"usage_percentage":10,"initial_budget":25.5,"currency":"EUR"}}"#
+        let transport = ProviderHTTPTransportHandler { request in
+            capture.record(request)
+            let url = try #require(request.url)
+            let response = try #require(HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil))
+            return (Data(body.utf8), response)
+        }
+
+        let result = try await MistralUsageFetcher.fetchBudget(
+            cookieHeader: "ory_session_test=abc; csrftoken=csrf",
+            csrfToken: "csrf",
+            timeout: 2,
+            transport: transport)
+        let request = try #require(capture.request)
+
+        #expect(result.api?.limit == 25.5)
+        #expect(result.vibe == nil)
+        #expect(request.url?.absoluteString == "https://admin.mistral.ai/api/billing/v2/budget")
+        #expect(request.timeoutInterval == 2)
+        #expect(request.value(forHTTPHeaderField: "Cookie") == "ory_session_test=abc; csrftoken=csrf")
+        #expect(request.value(forHTTPHeaderField: "X-CSRFTOKEN") == "csrf")
+    }
+
+    @Test
+    func `optional budgets fall back to the subscription page when the endpoint is missing`() async throws {
+        let html = try Self.flightPush(Self.apiOnlyRecord)
+        let paths = MistralSubscriptionRequestPathLog()
+        let transport = ProviderHTTPTransportHandler { request in
+            let url = try #require(request.url)
+            paths.record(url.path)
+            switch url.path {
+            case "/api/billing/v2/budget":
+                return try (
+                    Data(),
+                    #require(HTTPURLResponse(url: url, statusCode: 404, httpVersion: nil, headerFields: nil)))
+            case "/subscription":
+                return try (
+                    Data(html.utf8),
+                    #require(HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)))
+            default:
+                throw URLError(.unsupportedURL)
+            }
+        }
+
+        let result = try await MistralWebFetchStrategy.fetchOptionalSubscriptionBudgets(
+            cookieHeader: "ory_session_test=abc",
+            csrfToken: nil,
+            timeout: 2,
+            transport: transport)
+
+        #expect(result?.api?.limit == 25.5)
+        #expect(paths.paths == ["/api/billing/v2/budget", "/subscription"])
     }
 
     @Test

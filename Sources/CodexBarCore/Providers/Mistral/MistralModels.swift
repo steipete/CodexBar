@@ -5,11 +5,15 @@ import Foundation
 /// Top-level response from `GET https://admin.mistral.ai/api/billing/v2/usage`.
 struct MistralBillingResponse: Codable {
     let completion: MistralModelUsageCategory?
+    let chat: MistralModelUsageCategory?
     let ocr: MistralModelUsageCategory?
     let connectors: MistralModelUsageCategory?
     let librariesApi: MistralLibrariesUsageCategory?
     let fineTuning: MistralFineTuningCategory?
     let audio: MistralModelUsageCategory?
+    let audioCharacters: MistralModelUsageCategory?
+    /// Vibe Code (CLI, ACP, editor extensions) consumption, reported separately from API usage.
+    let vibeCode: MistralVibeCodeUsageCategory?
     let vibeUsage: Double?
     let date: String?
     let previousMonth: String?
@@ -21,7 +25,9 @@ struct MistralBillingResponse: Codable {
     let prices: [MistralPrice]?
 
     enum CodingKeys: String, CodingKey {
-        case completion, ocr, connectors, audio, date, currency, prices
+        case completion, chat, ocr, connectors, audio, date, currency, prices
+        case audioCharacters = "audio_characters"
+        case vibeCode = "vibe_code"
         case librariesApi = "libraries_api"
         case fineTuning = "fine_tuning"
         case vibeUsage = "vibe_usage"
@@ -37,9 +43,28 @@ struct MistralModelUsageCategory: Codable {
     let models: [String: MistralModelUsageData]?
 }
 
+struct MistralVibeCodeUsageCategory: Codable {
+    let completion: MistralModelUsageCategory?
+    let ocr: MistralModelUsageCategory?
+    let connectors: MistralModelUsageCategory?
+    let audio: MistralModelUsageCategory?
+    let audioCharacters: MistralModelUsageCategory?
+
+    enum CodingKeys: String, CodingKey {
+        case completion, ocr, connectors, audio
+        case audioCharacters = "audio_characters"
+    }
+}
+
 struct MistralLibrariesUsageCategory: Codable {
     let pages: MistralModelUsageCategory?
     let tokens: MistralModelUsageCategory?
+    let audioSeconds: MistralModelUsageCategory?
+
+    enum CodingKeys: String, CodingKey {
+        case pages, tokens
+        case audioSeconds = "audio_seconds"
+    }
 }
 
 struct MistralFineTuningCategory: Codable {
@@ -171,6 +196,8 @@ public struct MistralUsageSnapshot: Codable, Sendable {
     public let modelCount: Int
     public let daily: [MistralDailyUsageBucket]
     public let credits: MistralCreditsSnapshot?
+    /// Best-effort account identity from `/api/users/me`; nil when the request failed or was skipped.
+    public let account: MistralAccountSnapshot?
     public let startDate: Date?
     public let endDate: Date?
     public let updatedAt: Date
@@ -190,6 +217,7 @@ public struct MistralUsageSnapshot: Codable, Sendable {
         modelCount: Int,
         daily: [MistralDailyUsageBucket] = [],
         credits: MistralCreditsSnapshot? = nil,
+        account: MistralAccountSnapshot? = nil,
         startDate: Date?,
         endDate: Date?,
         updatedAt: Date)
@@ -203,6 +231,7 @@ public struct MistralUsageSnapshot: Codable, Sendable {
         self.modelCount = modelCount
         self.daily = daily.sorted { $0.day < $1.day }
         self.credits = credits
+        self.account = account
         self.startDate = startDate
         self.endDate = endDate
         self.updatedAt = updatedAt
@@ -219,24 +248,46 @@ public struct MistralUsageSnapshot: Codable, Sendable {
             modelCount: self.modelCount,
             daily: self.daily,
             credits: credits,
+            account: self.account,
             startDate: self.startDate,
             endDate: self.endDate,
             updatedAt: self.updatedAt)
     }
 
+    public func with(account: MistralAccountSnapshot?) -> MistralUsageSnapshot {
+        MistralUsageSnapshot(
+            totalCost: self.totalCost,
+            currency: self.currency,
+            currencySymbol: self.currencySymbol,
+            totalInputTokens: self.totalInputTokens,
+            totalOutputTokens: self.totalOutputTokens,
+            totalCachedTokens: self.totalCachedTokens,
+            modelCount: self.modelCount,
+            daily: self.daily,
+            credits: self.credits,
+            account: account,
+            startDate: self.startDate,
+            endDate: self.endDate,
+            updatedAt: self.updatedAt)
+    }
+
+    /// Current-month pay-as-you-go API spend as shown in the menu bar (`€1.2345`).
+    /// Negative totals are refund/credit adjustments and clamp to zero rather than showing a negative amount.
+    public var menuBarSpendText: String {
+        "\(self.currencySymbol)\(String(format: "%.4f", max(0, self.totalCost)))"
+    }
+
+    /// Menu card / CLI detail line for the current-month API spend.
+    public var spendDescription: String {
+        "API spend: \(self.menuBarSpendText) this month"
+    }
+
     public func toUsageSnapshot() -> UsageSnapshot {
-        // Negative totalCost means a refund/credit adjustment; clamp to zero rather than
-        // showing a confusing negative amount in the menu bar.
-        let spendText = if self.totalCost > 0 {
-            "\(self.currencySymbol)\(String(format: "%.4f", self.totalCost)) this month"
-        } else {
-            "\(self.currencySymbol)0.0000 this month"
-        }
         let identity = ProviderIdentitySnapshot(
             providerID: .mistral,
-            accountEmail: nil,
-            accountOrganization: nil,
-            loginMethod: "API spend: \(spendText)")
+            accountEmail: self.account?.email,
+            accountOrganization: self.account?.organizationName,
+            loginMethod: self.account?.planLabel)
         return UsageSnapshot(
             primary: nil,
             secondary: nil,
@@ -519,6 +570,57 @@ public struct MistralUsageSnapshot: Codable, Sendable {
                   day: day)
         else { return nil }
         return calendar.startOfDay(for: date)
+    }
+}
+
+/// Identity and plan information from `GET https://admin.mistral.ai/api/users/me`.
+public struct MistralAccountSnapshot: Codable, Equatable, Sendable {
+    public let email: String?
+    public let organizationName: String?
+    /// `active_chat_plan`: `INDIVIDUAL` (Pro), `TEAM`, `EDU`, or nil (Free).
+    public let chatPlan: String?
+    /// `active_api_plan`: `FREE` or `PAY_AS_YOU_GO`.
+    public let apiPlan: String?
+    /// `active_code_plan`: currently only `ENTERPRISE`.
+    public let codePlan: String?
+    public let hasVibePro: Bool
+
+    public init(
+        email: String?,
+        organizationName: String?,
+        chatPlan: String?,
+        apiPlan: String?,
+        codePlan: String?,
+        hasVibePro: Bool)
+    {
+        self.email = email
+        self.organizationName = organizationName
+        self.chatPlan = chatPlan
+        self.apiPlan = apiPlan
+        self.codePlan = codePlan
+        self.hasVibePro = hasVibePro
+    }
+
+    /// Plan label using the same names as the Mistral Admin subscription page.
+    public var planLabel: String? {
+        var parts: [String] = []
+        switch self.chatPlan?.uppercased() {
+        case "INDIVIDUAL": parts.append("Pro")
+        case "TEAM": parts.append("Team")
+        case "EDU": parts.append("Education")
+        case let .some(other) where !other.isEmpty: parts.append(other.capitalized)
+        default: parts.append("Free")
+        }
+        if self.hasVibePro, parts.first == "Free" {
+            parts.append("Vibe Pro")
+        }
+        if self.codePlan?.uppercased() == "ENTERPRISE" {
+            parts.append("Code Enterprise")
+        }
+        if self.apiPlan?.uppercased() == "PAY_AS_YOU_GO" {
+            parts.append("API pay-as-you-go")
+        }
+        return parts.joined(separator: " · ")
     }
 }
 

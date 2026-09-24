@@ -733,10 +733,14 @@ struct MenuBarMetricWindowResolverTests {
             supportsAverage: false)
 
         #expect(window?.usedPercent == 42)
+        // Automatic follows the most constrained allowance; without any allowance it stays nil (API spend text).
         #expect(MenuBarMetricWindowResolver.rateWindow(
-            preference: .automatic, provider: .mistral, snapshot: snapshot, supportsAverage: false) == nil)
+            preference: .automatic, provider: .mistral, snapshot: snapshot, supportsAverage: false)?.usedPercent == 42)
         #expect(MenuBarMetricWindowResolver.rateWindow(
             preference: .primary, provider: .mistral, snapshot: snapshot, supportsAverage: false)?.usedPercent == 2)
+        let spendOnly = UsageSnapshot(primary: nil, secondary: nil, updatedAt: Date())
+        #expect(MenuBarMetricWindowResolver.rateWindow(
+            preference: .automatic, provider: .mistral, snapshot: spendOnly, supportsAverage: false) == nil)
     }
 
     @Test

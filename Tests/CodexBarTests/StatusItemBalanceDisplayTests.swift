@@ -532,7 +532,7 @@ struct StatusItemBalanceDisplayTests {
         let displayText = controller.menuBarDisplayText(for: .mistral, snapshot: snapshot)
 
         #expect(snapshot.primary == nil)
-        #expect(snapshot.identity?.loginMethod == "API spend: €1.2345 this month")
+        #expect(snapshot.mistralUsage?.menuBarSpendText == "€1.2345")
         #expect(displayText == "€1.2345")
     }
 
@@ -572,7 +572,7 @@ struct StatusItemBalanceDisplayTests {
 
         let displayText = controller.menuBarDisplayText(for: .mistral, snapshot: snapshot)
 
-        #expect(snapshot.identity?.loginMethod == "API spend: €1.2345 this month")
+        #expect(snapshot.mistralUsage?.menuBarSpendText == "€1.2345")
         #expect(displayText == "42%")
     }
 
@@ -602,7 +602,7 @@ struct StatusItemBalanceDisplayTests {
 
         let displayText = controller.menuBarDisplayText(for: .mistral, snapshot: snapshot)
 
-        #expect(snapshot.identity?.loginMethod == "API spend: €1.2345 this month")
+        #expect(snapshot.mistralUsage?.menuBarSpendText == "€1.2345")
         #expect(displayText == "€1.2345")
     }
 

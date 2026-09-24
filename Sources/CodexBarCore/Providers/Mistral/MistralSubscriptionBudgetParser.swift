@@ -44,6 +44,18 @@ enum MistralSubscriptionBudgetParser {
     private static let flightPushMarker = Data("self.__next_f.push(".utf8)
     private static let lengthDelimitedTags = Set("TAOoUSsLlGgMmV".utf8)
 
+    /// Parses the `GET /api/billing/v2/budget` payload: `{"api_budget": {...}, "vibe_budget": {...}, ...}`.
+    static func parse(jsonData: Data) throws -> MistralSubscriptionBudgets {
+        guard let root = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any] else {
+            throw ParseError.invalidRecord
+        }
+        let budgets = MistralSubscriptionBudgets(
+            api: self.budget(from: root["api_budget"]),
+            vibe: self.budget(from: root["vibe_budget"]))
+        guard budgets.api != nil || budgets.vibe != nil else { throw ParseError.budgetNotFound }
+        return budgets
+    }
+
     static func parse(html: String) throws -> MistralSubscriptionBudgets {
         let stream = Data(self.flightChunks(in: html).joined().utf8)
         var matches: Set<MistralSubscriptionBudgets> = []

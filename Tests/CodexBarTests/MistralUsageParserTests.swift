@@ -2,6 +2,19 @@ import Foundation
 import Testing
 @testable import CodexBarCore
 
+private final class MistralRequestCapture: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storedRequest: URLRequest?
+
+    var request: URLRequest? {
+        self.lock.withLock { self.storedRequest }
+    }
+
+    func record(_ request: URLRequest) {
+        self.lock.withLock { self.storedRequest = request }
+    }
+}
+
 struct MistralUsageParserTests {
     // swiftlint:disable line_length
 
@@ -341,7 +354,9 @@ struct MistralUsageSnapshotConversionTests {
         let usage = snapshot.toUsageSnapshot()
         #expect(usage.primary == nil)
         #expect(usage.identity?.providerID == .mistral)
-        #expect(usage.identity?.loginMethod == "API spend: €1.2345 this month")
+        #expect(usage.identity?.loginMethod == nil)
+        #expect(usage.mistralUsage?.menuBarSpendText == "€1.2345")
+        #expect(usage.mistralUsage?.spendDescription == "API spend: €1.2345 this month")
         #expect(usage.providerCost == nil)
     }
 
@@ -367,7 +382,7 @@ struct MistralUsageSnapshotConversionTests {
 
         let usage = snapshot.toUsageSnapshot()
         #expect(usage.primary == nil)
-        #expect(usage.identity?.loginMethod == "API spend: $1.2345 this month")
+        #expect(usage.mistralUsage?.menuBarSpendText == "$1.2345")
         #expect(usage.mistralUsage?.credits == credits)
         #expect(usage.mistralUsage?.credits?.formattedAvailableAmount == "$11.50")
     }
@@ -388,7 +403,196 @@ struct MistralUsageSnapshotConversionTests {
 
         let usage = snapshot.toUsageSnapshot()
         #expect(usage.primary == nil)
-        #expect(usage.identity?.loginMethod == "API spend: $0.0000 this month")
+        #expect(usage.mistralUsage?.menuBarSpendText == "$0.0000")
+    }
+
+    @Test
+    func `tokens count consumed units while cost only counts billed units`() throws {
+        // Usage covered by the included API allowance or the Vibe plan reports `value_paid == 0`.
+        let json = """
+        {
+          "completion": {
+            "models": {
+              "mistral-large-latest::mistral-large-2512": {
+                "input": [
+                  {"usage_type": "usage", "event_type": "api_tokens", "billing_metric": "mistral-large-2512",
+                   "billing_display_name": "mistral-large-latest", "billing_group": "input",
+                   "timestamp": "2026-08-12", "value": 1000, "value_paid": 0}
+                ],
+                "output": [
+                  {"usage_type": "usage", "event_type": "api_tokens", "billing_metric": "mistral-large-2512",
+                   "billing_display_name": "mistral-large-latest", "billing_group": "output",
+                   "timestamp": "2026-08-12", "value": 500, "value_paid": 200}
+                ]
+              }
+            }
+          },
+          "vibe_code": {
+            "completion": {
+              "models": {
+                "mistral-vibe-cli-latest::mistral-medium-3-5": {
+                  "input": [
+                    {"usage_type": "vibe", "event_type": "api_tokens", "billing_metric": "mistral-medium-3-5",
+                     "billing_display_name": "mistral-vibe-cli-latest", "billing_group": "input",
+                     "timestamp": "2026-08-13", "value": 245458, "value_paid": 0}
+                  ],
+                  "cached": [
+                    {"usage_type": "vibe", "event_type": "api_tokens", "billing_metric": "mistral-medium-3-5",
+                     "billing_display_name": "mistral-vibe-cli-latest", "billing_group": "cached",
+                     "timestamp": "2026-08-13", "value": 6777856, "value_paid": 0}
+                  ],
+                  "output": [
+                    {"usage_type": "vibe", "event_type": "api_tokens", "billing_metric": "mistral-medium-3-5",
+                     "billing_display_name": "mistral-vibe-cli-latest", "billing_group": "output",
+                     "timestamp": "2026-08-13", "value": 29994, "value_paid": 0}
+                  ]
+                }
+              }
+            },
+            "ocr": {"models": {}}
+          },
+          "vibe_usage": 0.0,
+          "start_date": "2026-08-01T00:00:00Z",
+          "end_date": "2026-08-31T23:59:59.999Z",
+          "currency": "EUR",
+          "currency_symbol": "€",
+          "prices": [
+            {"billing_metric": "mistral-large-2512", "billing_group": "input", "price": "0.001"},
+            {"billing_metric": "mistral-large-2512", "billing_group": "output", "price": "0.01"},
+            {"billing_metric": "mistral-medium-3-5", "billing_group": "input", "price": "0.0000012750"},
+            {"billing_metric": "mistral-medium-3-5", "billing_group": "cached", "price": "1.275E-7"},
+            {"billing_metric": "mistral-medium-3-5", "billing_group": "output", "price": "0.0000063750"}
+          ]
+        }
+        """
+        let snapshot = try MistralUsageFetcher.parseResponse(
+            data: Data(json.utf8),
+            updatedAt: Date(timeIntervalSince1970: 1_787_184_000)) // 2026-08-20T00:00:00Z
+
+        #expect(snapshot.modelCount == 2)
+        #expect(snapshot.totalInputTokens == 1000 + 245_458)
+        #expect(snapshot.totalCachedTokens == 6_777_856)
+        #expect(snapshot.totalOutputTokens == 500 + 29994)
+        // Only the 200 billed output tokens cost anything: 200 × 0.01.
+        #expect(abs(snapshot.totalCost - 2) < 0.0001)
+        #expect(snapshot.daily.map(\.day) == ["2026-08-12", "2026-08-13"])
+        let vibeDay = try #require(snapshot.daily.last)
+        #expect(vibeDay.cost == 0)
+        #expect(vibeDay.totalTokens == 245_458 + 6_777_856 + 29994)
+        #expect(vibeDay.models.map(\.name) == ["mistral-vibe-cli-latest"])
+        let apiDay = try #require(snapshot.daily.first)
+        #expect(abs(apiDay.cost - 2) < 0.0001)
+        #expect(apiDay.totalTokens == 1500)
+
+        let cost = snapshot.toCostUsageTokenSnapshot()
+        #expect(cost.last30DaysTokens == snapshot.totalInputTokens + snapshot.totalCachedTokens + snapshot
+            .totalOutputTokens)
+        #expect(cost.last30DaysCostUSD.map { abs($0 - 2) < 0.0001 } == true)
+    }
+
+    @Test
+    func `parses account identity and maps plan names`() throws {
+        let json = """
+        {"uuid":"u","first_name":"M","last_name":"S","name":"M S","email":" dev@example.com ","role":"A",
+         "organization":{"uuid":"o","name":"Example Org","org_tier":"B","kind":"S","is_le_chat_pro":true,
+           "active_chat_plan":"INDIVIDUAL","has_vibe_pro":true,"active_code_plan":null,"active_api_plan":"FREE"},
+         "phone_hash":"h","language_preference":"fr"}
+        """
+        let account = try MistralUsageFetcher.parseAccount(data: Data(json.utf8))
+
+        #expect(account.email == "dev@example.com")
+        #expect(account.organizationName == "Example Org")
+        #expect(account.chatPlan == "INDIVIDUAL")
+        #expect(account.apiPlan == "FREE")
+        #expect(account.codePlan == nil)
+        #expect(account.hasVibePro)
+        #expect(account.planLabel == "Pro")
+
+        let usage = MistralUsageSnapshot(
+            totalCost: 0,
+            currency: "EUR",
+            currencySymbol: "€",
+            totalInputTokens: 0,
+            totalOutputTokens: 0,
+            totalCachedTokens: 0,
+            modelCount: 0,
+            account: account,
+            startDate: nil,
+            endDate: nil,
+            updatedAt: Date()).toUsageSnapshot()
+        #expect(usage.identity?.accountEmail == "dev@example.com")
+        #expect(usage.identity?.accountOrganization == "Example Org")
+        #expect(usage.identity?.loginMethod == "Pro")
+        let presentation = MistralProviderDescriptor.descriptor.presentation
+        #expect(presentation.identity(provider: .mistral, snapshot: usage).plan == "Pro")
+    }
+
+    @Test(arguments: [
+        (nil as String?, false, nil as String?, nil as String?, "Free"),
+        (nil as String?, true, nil as String?, nil as String?, "Free · Vibe Pro"),
+        ("TEAM" as String?, true, nil as String?, "PAY_AS_YOU_GO" as String?, "Team · API pay-as-you-go"),
+        ("EDU" as String?, false, "ENTERPRISE" as String?, nil as String?, "Education · Code Enterprise"),
+        ("MYSTERY" as String?, false, nil as String?, nil as String?, "Mystery"),
+    ])
+    func `plan label follows admin subscription naming`(
+        chatPlan: String?,
+        hasVibePro: Bool,
+        codePlan: String?,
+        apiPlan: String?,
+        expected: String)
+    {
+        let account = MistralAccountSnapshot(
+            email: nil,
+            organizationName: nil,
+            chatPlan: chatPlan,
+            apiPlan: apiPlan,
+            codePlan: codePlan,
+            hasVibePro: hasVibePro)
+        #expect(account.planLabel == expected)
+    }
+
+    @Test
+    func `account request targets users me with the admin session`() async throws {
+        let capture = MistralRequestCapture()
+        let body = #"{"email":"dev@example.com","organization":{"name":"Org","active_chat_plan":"TEAM"}}"#
+        let transport = ProviderHTTPTransportHandler { request in
+            capture.record(request)
+            let url = try #require(request.url)
+            let response = try #require(HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil))
+            return (Data(body.utf8), response)
+        }
+
+        let account = try await MistralUsageFetcher.fetchAccount(
+            cookieHeader: "ory_session_test=abc; csrftoken=csrf",
+            csrfToken: "csrf",
+            timeout: 2,
+            transport: transport)
+        let request = try #require(capture.request)
+
+        #expect(account.planLabel == "Team")
+        #expect(request.url?.absoluteString == "https://admin.mistral.ai/api/users/me")
+        #expect(request.value(forHTTPHeaderField: "Cookie") == "ory_session_test=abc; csrftoken=csrf")
+        #expect(request.value(forHTTPHeaderField: "X-CSRFTOKEN") == "csrf")
+    }
+
+    @Test
+    func `descriptor exposes the monthly plan window to CLI and menu surfaces`() {
+        let monthly = NamedRateWindow(
+            id: MistralProviderDescriptor.monthlyPlanWindowID,
+            title: "Monthly Plan",
+            window: RateWindow(usedPercent: 70, windowMinutes: nil, resetsAt: nil, resetDescription: nil))
+        let other = NamedRateWindow(
+            id: "other",
+            title: "Other",
+            window: RateWindow(usedPercent: 1, windowMinutes: nil, resetsAt: nil, resetDescription: nil))
+        let snapshot = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            extraRateWindows: [other, monthly],
+            updatedAt: Date())
+
+        let extras = MistralProviderDescriptor.descriptor.presentation.extraRateWindows(snapshot: snapshot)
+        #expect(extras.map(\.id) == [MistralProviderDescriptor.monthlyPlanWindowID])
     }
 
     @Test
@@ -768,7 +972,7 @@ struct MistralUsageSnapshotConversionTests {
         #expect(cost.daily.first?.modelBreakdowns?.first?.costUSD == nil)
         #expect(cost.last30DaysTokens == 125)
         #expect(cost.sessionTokens == 125)
-        #expect(snapshot.toUsageSnapshot().identity?.loginMethod == "API spend: €0.0000 this month")
+        #expect(snapshot.menuBarSpendText == "€0.0000")
     }
 
     @Test
@@ -806,7 +1010,7 @@ struct MistralUsageSnapshotConversionTests {
         #expect(cost.last30DaysCostUSD == nil)
         #expect(cost.sessionCostUSD == nil)
         #expect(cost.daily.map(\.costUSD) == [nil, nil])
-        #expect(snapshot.toUsageSnapshot().identity?.loginMethod == "API spend: €8.0000 this month")
+        #expect(snapshot.menuBarSpendText == "€8.0000")
     }
 
     private static func bucket(day: String) -> MistralDailyUsageBucket {
