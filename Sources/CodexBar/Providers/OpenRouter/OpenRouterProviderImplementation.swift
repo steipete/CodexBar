@@ -58,7 +58,8 @@ struct OpenRouterProviderImplementation: ProviderImplementation {
                 id: "openrouter-management-api-key",
                 title: "Management API key",
                 subtitle: "Optional additional key for account Activity. "
-                    + "Only needed to use a separate Management API key from the one in the required API key field above.",
+                    + "Only needed to use a separate Management API key "
+                    + "from the one in the required API key field above.",
                 kind: .secure,
                 placeholder: "sk-or-v1-...",
                 binding: context.providerConfigSecretBinding(
