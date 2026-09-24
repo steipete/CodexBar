@@ -241,10 +241,17 @@ struct ProviderSettingsDescriptorTests {
         let context = fixture.settingsContext(provider: .openrouter)
 
         let fields = OpenRouterProviderImplementation().settingsFields(context: context)
+        let apiKey = try #require(fields.first(where: { $0.id == "openrouter-api-key" }))
         let managementKey = try #require(fields.first(where: { $0.id == "openrouter-management-api-key" }))
         managementKey.binding.wrappedValue = " fixture-management-key "
 
+        #expect(apiKey.title == "API key")
+        #expect(apiKey.subtitle == "Required. Enter a regular API key or a Management API key here. "
+            + "Management keys also enable account Activity on the official OpenRouter API.")
         #expect(managementKey.title == "Management API key")
+        #expect(managementKey.subtitle == "Optional additional key for account Activity. "
+            + "Only needed to use a separate Management API key "
+            + "from the one in the required API key field above.")
         #expect(managementKey.kind == .secure)
         #expect(managementKey.binding.wrappedValue == "fixture-management-key")
         #expect(fixture.settings.providerConfig(for: .openrouter)?.pluginSecrets?[
