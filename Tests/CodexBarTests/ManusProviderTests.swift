@@ -2,235 +2,8 @@ import Foundation
 import Testing
 @testable import CodexBarCore
 
-@Suite(.serialized)
 struct ManusProviderTests {
     private static let now = Date(timeIntervalSince1970: 1_744_000_000)
-
-    private final class LockedArray<Element>: @unchecked Sendable {
-        private let lock = NSLock()
-        private var values: [Element] = []
-
-        func append(_ value: Element) {
-            self.lock.lock()
-            defer { self.lock.unlock() }
-            self.values.append(value)
-        }
-
-        func snapshot() -> [Element] {
-            self.lock.lock()
-            defer { self.lock.unlock() }
-            return self.values
-        }
-    }
-
-    private struct StubClaudeFetcher: ClaudeUsageFetching {
-        func loadLatestUsage(model _: String) async throws -> ClaudeUsageSnapshot {
-            throw ClaudeUsageError.parseFailed("stub")
-        }
-
-        func debugRawProbe(model _: String) async -> String {
-            "stub"
-        }
-
-        func detectVersion() -> String? {
-            nil
-        }
-    }
-
-    private func makeContext(
-        settings: ProviderSettingsSnapshot?,
-        env: [String: String] = [:]) -> ProviderFetchContext
-    {
-        ProviderFetchContext(
-            runtime: .app,
-            sourceMode: .auto,
-            includeCredits: false,
-            webTimeout: 1,
-            webDebugDumpHTML: false,
-            verbose: false,
-            env: env,
-            settings: settings,
-            fetcher: UsageFetcher(environment: env),
-            claudeFetcher: StubClaudeFetcher(),
-            browserDetection: BrowserDetection(cacheTTL: 0))
-    }
-
-    private func stubResponse() -> ManusCreditsResponse {
-        ManusCreditsResponse(
-            totalCredits: 120,
-            freeCredits: 20,
-            periodicCredits: 80,
-            addonCredits: 10,
-            refreshCredits: 30,
-            maxRefreshCredits: 300,
-            proMonthlyCredits: 100,
-            eventCredits: 10,
-            nextRefreshTime: Date(timeIntervalSince1970: 1_744_003_600),
-            refreshInterval: "daily")
-    }
-
-    private func withIsolatedCacheStore<T>(operation: () async throws -> T) async rethrows -> T {
-        let service = "manus-provider-tests-\(UUID().uuidString)"
-        return try await KeychainCacheStore.withServiceOverrideForTesting(service) {
-            KeychainCacheStore.setTestStoreForTesting(true)
-            defer { KeychainCacheStore.setTestStoreForTesting(false) }
-            return try await operation()
-        }
-    }
-
-    @Test
-    func `off mode ignores environment session token`() async {
-        let strategy = ManusWebFetchStrategy()
-        let settings = ProviderSettingsSnapshot.make(
-            manus: ProviderSettingsSnapshot.ManusProviderSettings(
-                cookieSource: .off,
-                manualCookieHeader: nil))
-        let context = self.makeContext(
-            settings: settings,
-            env: ["MANUS_SESSION_TOKEN": "env-token"])
-
-        #expect(await strategy.isAvailable(context) == false)
-    }
-
-    @Test
-    func `manual mode invalid cookie does not fall back to cache or environment`() async {
-        await self.withIsolatedCacheStore {
-            CookieHeaderCache.store(
-                provider: .manus,
-                cookieHeader: "session_id=cached-token",
-                sourceLabel: "web")
-
-            let strategy = ManusWebFetchStrategy()
-            let settings = ProviderSettingsSnapshot.make(
-                manus: ProviderSettingsSnapshot.ManusProviderSettings(
-                    cookieSource: .manual,
-                    manualCookieHeader: "foo=bar"))
-            let context = self.makeContext(
-                settings: settings,
-                env: ["MANUS_SESSION_TOKEN": "env-token"])
-
-            do {
-                _ = try await strategy.fetch(context)
-                Issue.record("Expected invalid manual cookie instead of falling back to cache/environment")
-            } catch let error as ManusAPIError {
-                #expect(error == .invalidCookie)
-            } catch {
-                Issue.record("Expected ManusAPIError.invalidCookie, got \(error)")
-            }
-        }
-    }
-
-    @Test
-    func `environment token does not populate browser cache`() async throws {
-        try await self.withIsolatedCacheStore {
-            let operation: () async throws -> Void = {
-                let strategy = ManusWebFetchStrategy()
-                let settings = ProviderSettingsSnapshot.make(
-                    manus: ProviderSettingsSnapshot.ManusProviderSettings(
-                        cookieSource: .auto,
-                        manualCookieHeader: nil))
-                let context = self.makeContext(
-                    settings: settings,
-                    env: ["MANUS_SESSION_TOKEN": "env-token"])
-                let fetchOverride: @Sendable (String, Date) async throws -> ManusCreditsResponse = { token, _ in
-                    #expect(token == "env-token")
-                    return self.stubResponse()
-                }
-
-                _ = try await ManusUsageFetcher.$fetchCreditsOverride.withValue(fetchOverride, operation: {
-                    try await strategy.fetch(context)
-                })
-
-                #expect(CookieHeaderCache.load(provider: .manus) == nil)
-            }
-            #if os(macOS)
-            try await ManusCookieImporter.withImportSessionsOverrideForTesting { _, _ in
-                throw ManusCookieImportError.noCookies
-            } operation: {
-                try await operation()
-            }
-            #else
-            try await operation()
-            #endif
-        }
-    }
-
-    #if os(macOS)
-    @Test
-    func `invalid browser token falls back to environment token`() async throws {
-        try await self.withIsolatedCacheStore {
-            let browserCookie = try #require(HTTPCookie(properties: [
-                .domain: "manus.im",
-                .path: "/",
-                .name: "session_id",
-                .value: "browser-token",
-                .secure: "TRUE",
-            ]))
-            try await ManusCookieImporter.withImportSessionOverrideForTesting { _, _ in
-                ManusCookieImporter.SessionInfo(cookies: [browserCookie], sourceLabel: "Chrome")
-            } operation: {
-                let attempts = LockedArray<String>()
-                let strategy = ManusWebFetchStrategy()
-                let settings = ProviderSettingsSnapshot.make(
-                    manus: ProviderSettingsSnapshot.ManusProviderSettings(
-                        cookieSource: .auto,
-                        manualCookieHeader: nil))
-                let context = self.makeContext(
-                    settings: settings,
-                    env: ["MANUS_SESSION_TOKEN": "env-token"])
-                let fetchOverride: @Sendable (String, Date) async throws -> ManusCreditsResponse = { token, _ in
-                    attempts.append(token)
-                    if token == "browser-token" {
-                        throw ManusAPIError.invalidToken
-                    }
-                    #expect(token == "env-token")
-                    return self.stubResponse()
-                }
-
-                _ = try await ManusUsageFetcher.$fetchCreditsOverride.withValue(fetchOverride, operation: {
-                    try await strategy.fetch(context)
-                })
-
-                #expect(attempts.snapshot() == ["browser-token", "env-token"])
-                #expect(CookieHeaderCache.load(provider: .manus) == nil)
-            }
-        }
-    }
-
-    @Test
-    func `browser token populates cache after successful fetch`() async throws {
-        try await self.withIsolatedCacheStore {
-            let browserCookie = try #require(HTTPCookie(properties: [
-                .domain: "manus.im",
-                .path: "/",
-                .name: "session_id",
-                .value: "browser-token",
-                .secure: "TRUE",
-            ]))
-            try await ManusCookieImporter.withImportSessionOverrideForTesting { _, _ in
-                ManusCookieImporter.SessionInfo(cookies: [browserCookie], sourceLabel: "Chrome")
-            } operation: {
-                let strategy = ManusWebFetchStrategy()
-                let settings = ProviderSettingsSnapshot.make(
-                    manus: ProviderSettingsSnapshot.ManusProviderSettings(
-                        cookieSource: .auto,
-                        manualCookieHeader: nil))
-                let context = self.makeContext(settings: settings)
-                let fetchOverride: @Sendable (String, Date) async throws -> ManusCreditsResponse = { token, _ in
-                    #expect(token == "browser-token")
-                    return self.stubResponse()
-                }
-
-                _ = try await ManusUsageFetcher.$fetchCreditsOverride.withValue(fetchOverride, operation: {
-                    try await strategy.fetch(context)
-                })
-
-                let cached = CookieHeaderCache.load(provider: .manus)
-                #expect(cached?.cookieHeader == "session_id=browser-token")
-            }
-        }
-    }
-    #endif
 
     @Test
     func `settings reader accepts full cookie header from environment`() {
@@ -239,7 +12,7 @@ struct ManusProviderTests {
     }
 
     @Test
-    func `parse response tolerates sparse live payload`() throws {
+    func `parse response tolerates sparse live payload`() async throws {
         let data = Data("""
         {
           "totalCredits": 2869,
@@ -253,7 +26,7 @@ struct ManusProviderTests {
         }
         """.utf8)
 
-        let response = try ManusUsageFetcher.parseResponse(data)
+        let response = try await CookiePluginFixtures.manus(data)
         #expect(response.totalCredits == 2869)
         #expect(response.periodicCredits == 1369)
         #expect(response.proMonthlyCredits == 4000)
@@ -275,12 +48,12 @@ struct ManusProviderTests {
         #"{"error":"unauthorized","message":"session expired"}"#,
         #"{"nextRefreshTime":"2026-04-13T00:00:00Z","refreshInterval":"daily"}"#,
     ])
-    func `parse response rejects payload without credits fields`(envelope: String, payload: String) {
+    func `parse response rejects payload without credits fields`(envelope: String, payload: String) async {
         let json = envelope.isEmpty ? payload : "{\"\(envelope)\":\(payload)}"
         let data = Data(json.utf8)
 
-        #expect(throws: ManusAPIError.parseFailed("response missing expected credits fields")) {
-            try ManusUsageFetcher.parseResponse(data)
+        await #expect(throws: ManusAPIError.parseFailed("response missing expected credits fields")) {
+            try await CookiePluginFixtures.manus(data)
         }
     }
 
@@ -288,10 +61,10 @@ struct ManusProviderTests {
         "totalCredits", "freeCredits", "periodicCredits", "addonCredits",
         "refreshCredits", "maxRefreshCredits", "proMonthlyCredits", "eventCredits",
     ])
-    func `parse response preserves sparse zero credit payloads`(envelope: String, creditKey: String) throws {
+    func `parse response preserves sparse zero credit payloads`(envelope: String, creditKey: String) async throws {
         let payload = "{\"\(creditKey)\":0}"
         let json = envelope.isEmpty ? payload : "{\"\(envelope)\":\(payload)}"
-        let response = try ManusUsageFetcher.parseResponse(Data(json.utf8))
+        let response = try await CookiePluginFixtures.manus(Data(json.utf8))
         #expect(response.totalCredits == 0)
         #expect(response.toUsageSnapshot(now: Self.now).identity?.loginMethod == "Balance: 0 credits")
     }
@@ -300,14 +73,14 @@ struct ManusProviderTests {
         #"{"data":{},"result":{"totalCredits":5}}"#,
         #"{"data":{},"totalCredits":5}"#,
     ])
-    func `parse response rejects the selected invalid envelope`(body: String) {
-        #expect(throws: ManusAPIError.parseFailed("response missing expected credits fields")) {
-            try ManusUsageFetcher.parseResponse(Data(body.utf8))
+    func `parse response rejects the selected invalid envelope`(body: String) async {
+        await #expect(throws: ManusAPIError.parseFailed("response missing expected credits fields")) {
+            try await CookiePluginFixtures.manus(Data(body.utf8))
         }
     }
 
     @Test
-    func `parse response accepts wrapped envelope`() throws {
+    func `parse response accepts wrapped envelope`() async throws {
         let data = Data("""
         {
           "data": {
@@ -320,7 +93,7 @@ struct ManusProviderTests {
         }
         """.utf8)
 
-        let response = try ManusUsageFetcher.parseResponse(data)
+        let response = try await CookiePluginFixtures.manus(data)
         #expect(response.totalCredits == 100)
         #expect(response.periodicCredits == 50)
     }

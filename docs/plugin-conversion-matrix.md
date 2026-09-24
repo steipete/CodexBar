@@ -21,8 +21,8 @@ authoritative on its supported engines; each row states whether a Linux native c
 
 `needs-cookie-import` now means **additional cookie/session capability**, not absence of cookie import. The current
 broker imports declared domains, caches each domain separately (#3815), and offers policy-only
-`ctx.browser.availability`. It still returns a flattened header from one profile: no path/domain metadata, candidate
-iteration, or same-refresh fresh import after rejection. Availability reports policy, not a validated browser login.
+`ctx.browser.availability`. It now offers origin-bound candidate iteration and same-refresh advancement after rejection (#3933).
+Remaining cookie rows need individual parity audits for their provider-specific ranking and recovery policies. Availability reports policy, not a validated browser login.
 `needs-files/subprocess/oauth-broker` identifies native credential/storage flows beyond that broker.
 `needs-host-extension` means another existing native behavior cannot be preserved with the current host APIs.
 
@@ -30,13 +30,13 @@ iteration, or same-refresh fresh import after rejection. Availability reports po
 
 | Status | Count |
 |---|---:|
-| `cut-over` | 26 |
-| `converted` | 2 |
-| `convertible-now` | 1 |
+| `cut-over` | 28 |
+| `converted` | 0 |
+| `convertible-now` | 0 |
 | `needs-cookie-import` | 7 |
 | `needs-files/subprocess/oauth-broker` | 20 |
 | `needs-pty/webview/native` | 8 |
-| `needs-host-extension` | 5 |
+| `needs-host-extension` | 6 |
 | **Total** | **69** |
 
 ## Matrix
@@ -62,7 +62,7 @@ iteration, or same-refresh fresh import after rejection. Availability reports po
 | devin | `needs-files/subprocess/oauth-broker` | No | Full auth discovery reads Chromium localStorage and organization state; manual bearer alone is partial. |
 | zai | `cut-over` | Yes | Cut over on both engines: regional and validated override endpoints, personal/team settings, quota lanes, model totals, and hourly/daily token charts; dashboard routing remains native and the fetch twin is deleted. |
 | minimax | `needs-files/subprocess/oauth-broker` | No | Full auth recovery includes browser localStorage and group/session state, beyond declared-domain cookie headers. |
-| manus | `converted` | Yes | Converted: declared-domain cookie import, session-token extraction, JSON POST, and generic credit windows. |
+| manus | `cut-over` | Yes | Both engines iterate rejected cached/browser sessions before environment fallback, preserving manual/off policy, JSON POST, sparse credits, and reset details. The native fetcher and cookie importer are deleted. |
 | kimi | `needs-files/subprocess/oauth-broker` | No | Credential/device files and desktop token discovery remain native; domain cookies cover only the web account path. |
 | kilo | `needs-files/subprocess/oauth-broker` | No | The default source reads Kilo's local auth file and organization metadata. |
 | kiro | `needs-pty/webview/native` | No | Usage exists only through bounded CLI pipe/PTY automation and a bespoke credit/overage model. |
@@ -71,7 +71,7 @@ iteration, or same-refresh fresh import after rejection. Availability reports po
 | jetbrains | `needs-pty/webview/native` | No | There is no HTTP strategy; native IDE discovery and local XML parsing are the provider. |
 | moonshot | `cut-over` | Yes | Both engines use the bundled TypeScript plugin for regional bearer GET and identity-only balances, preserving USD/CNY rounding and negative zero. Swift resolves region-bound credentials; the native fetcher is deleted. |
 | amp | `needs-files/subprocess/oauth-broker` | No | CLI subprocess and browser-cookie strategies plus workspace credit details are outside this host. |
-| t3chat | `converted` | Yes | Converted: declared-domain cookie import, JSONL text parsing, and generic base/overage windows. |
+| t3chat | `cut-over` | Yes | Both engines preserve the 60-second default web timeout (bounded to 90 seconds), safe captured cURL headers, JSONL parsing, and base/overage windows. The native fetcher and parser are deleted. |
 | ollama | `needs-cookie-import` | No | HTML parsing and API-key arbitration fit scripts, but automatic auth tries multiple browser-session candidates and preserves browser access diagnostics. |
 | synthetic | `cut-over` | Yes | Cut over on both engines: fixed-origin bearer GET with generic windows, cost, dates, and identity; the native fetch twin is deleted. |
 | warp | `needs-pty/webview/native` | No | Legacy classification pending a separate parity audit: GraphQL JSON POST is now supported, so the former GET-only rationale no longer establishes a blocker. |
@@ -82,7 +82,7 @@ iteration, or same-refresh fresh import after rejection. Availability reports po
 | perplexity | `cut-over` | Yes | Both engines use the bundled script for candidate retries, bare-token cookie names, chunk assembly, environment fallback, and recurring/bonus/purchased credit windows. Native fetching and projection are deleted. |
 | mimo | `needs-files/subprocess/oauth-broker` | No | The canonical pipeline includes the file-based local usage fallback as well as browser sessions; cookies alone cannot preserve it. |
 | doubao | `needs-files/subprocess/oauth-broker` | No | Full parity needs a CLI subprocess or Volcengine HMAC signing and POST-based plan calls. |
-| sakana | `convertible-now` | No | Manual cookie credentials already enter through the core descriptor; two fixed-origin HTML GETs and generic quota/PAYG detail projection fit the host. |
+| sakana | `needs-host-extension` | No | HTML parsing and generic quota/PAYG details fit scripts, but native PAYG collection shares a 200 ms budget from primary start and cancels unfinished work. The host lacks bounded optional-request collection and per-request cancellation. |
 | abacus | `needs-host-extension` | No | Billing duration subtracts one Calendar.current month; the host exposes daily resets but no calendar/month subtraction with timezone parity. |
 | mistral | `needs-cookie-import` | No | CSRF extraction and dependent GETs fit scripts, but auth rejection iterates alternate browser profiles and preserves session selection. |
 | deepseek | `needs-files/subprocess/oauth-broker` | No | Platform auth/profile selection reads Chromium localStorage, and the result has a bespoke history model. |

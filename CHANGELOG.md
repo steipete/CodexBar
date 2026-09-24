@@ -14,6 +14,8 @@
 - CLI: bound shell-discovery output to 1 MiB and reject incomplete captures so noisy startup scripts cannot cause runaway buffering or truncated PATH results (refs #1999).
 - Command Code: size monthly usage from the grant reported with credits, keeping the row available when the optional subscription lookup fails (#3939). Thanks @enieuwy!
 - Kimi: import web access tokens from Chromium local storage for the selected region, preserving manual and saved-account credential isolation (#3923). Thanks @kaishin!
+- Manus and T3 Chat: use bundled providers on both engines, retry rejected Manus sessions before environment fallback, and retain T3 Chat’s captured browser headers and 60-second web timeout (#3933, #3934).
+- Provider plugins: allow explicit HTTP deadlines up to 90 seconds while preserving request-start timing and overall fetch cancellation (#2784).
 
 - Alibaba Token Plan / Qwen Cloud: parse monthly quota windows, retain rolling windows alongside monthly usage, and read Personal/Solo monthly usage through the Bailian CLI's raw usage endpoint (#3903). Thanks @Josephur!
 - Claude: document browser-session recovery and the explicit cookie-import retry when Claude works in Chrome but CodexBar cannot read the session (#3919). Thanks @PakAbhishek!

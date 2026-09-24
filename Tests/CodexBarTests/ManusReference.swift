@@ -1,4 +1,5 @@
 import Foundation
+@testable import CodexBarCore
 
 #if canImport(FoundationNetworking)
 import FoundationNetworking
@@ -71,65 +72,8 @@ public struct ManusCreditsResponse: Decodable, Sendable {
     }
 }
 
-public enum ManusUsageFetcher {
-    private static let log = CodexBarLog.logger(LogCategories.provider(.manus, scope: "api"))
-    private static let creditsURL =
-        URL(string: "https://api.manus.im/user.v1.UserService/GetAvailableCredits")!
-    @TaskLocal static var fetchCreditsOverride:
-        (@Sendable (String, Date) async throws -> ManusCreditsResponse)?
-
-    public static func fetchCredits(
-        sessionToken: String,
-        now: Date = Date()) async throws -> ManusCreditsResponse
-    {
-        if let override = self.fetchCreditsOverride {
-            return try await override(sessionToken, now)
-        }
-
-        guard !sessionToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            throw ManusAPIError.missingToken
-        }
-
-        var request = URLRequest(url: self.creditsURL)
-        request.httpMethod = "POST"
-        request.timeoutInterval = 15
-        request.httpBody = Data("{}".utf8)
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("Bearer \(sessionToken)", forHTTPHeaderField: "Authorization")
-        request.setValue("https://manus.im", forHTTPHeaderField: "Origin")
-        request.setValue("https://manus.im/", forHTTPHeaderField: "Referer")
-        request.setValue("1", forHTTPHeaderField: "Connect-Protocol-Version")
-        let userAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) " +
-            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
-        request.setValue(
-            userAgent,
-            forHTTPHeaderField: "User-Agent")
-
-        let response = try await ProviderHTTPClient.shared.response(for: request)
-        let data = response.data
-        guard response.statusCode == 200 else {
-            let body = String(data: data, encoding: .utf8) ?? "<binary>"
-            let truncated = body.count > 200 ? String(body.prefix(200)) + "…" : body
-            Self.log.error("Manus API returned \(response.statusCode): \(truncated)")
-            if response.statusCode == 401 || response.statusCode == 403 {
-                throw ManusAPIError.invalidToken
-            }
-            throw ManusAPIError.apiError("HTTP \(response.statusCode)")
-        }
-
-        do {
-            return try self.parseResponse(data)
-        } catch let error as ManusAPIError {
-            throw error
-        } catch {
-            let preview = String(data: data.prefix(500), encoding: .utf8) ?? "<binary>"
-            Self.log.error("Manus parse failed: \(error) — response: \(preview)")
-            throw ManusAPIError.parseFailed(error.localizedDescription)
-        }
-    }
-
-    public static func parseResponse(_ data: Data) throws -> ManusCreditsResponse {
+enum ManusReferenceParser {
+    static func parseResponse(_ data: Data) throws -> ManusCreditsResponse {
         try JSONDecoder().decode(ManusCreditsEnvelope.self, from: data).credits
     }
 }

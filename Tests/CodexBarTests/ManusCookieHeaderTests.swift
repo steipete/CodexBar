@@ -24,25 +24,4 @@ struct ManusCookieHeaderTests {
     func `unsupported cookie header returns nil`() {
         #expect(ManusCookieHeader.token(from: "foo=bar; hello=world") == nil)
     }
-
-    #if os(macOS)
-    @Test
-    func `importer session info extracts session token`() throws {
-        let cookies = try [
-            #require(self.makeCookie(name: "session_id", value: "cookie-token")),
-        ]
-        let session = ManusCookieImporter.SessionInfo(cookies: cookies, sourceLabel: "Chrome")
-        #expect(session.sessionToken == "cookie-token")
-    }
-
-    private func makeCookie(name: String, value: String) -> HTTPCookie? {
-        HTTPCookie(properties: [
-            .domain: "manus.im",
-            .path: "/",
-            .name: name,
-            .value: value,
-            .secure: "TRUE",
-        ])
-    }
-    #endif
 }

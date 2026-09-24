@@ -48,66 +48,52 @@ public enum T3ChatProviderDescriptor {
                 versionDetector: nil))
     }
 
+    private static let forwardedManualHeaders = [
+        "accept": "Accept",
+        "accept-language": "Accept-Language",
+        "cache-control": "Cache-Control",
+        "pragma": "Pragma",
+        "priority": "Priority",
+        "referer": "Referer",
+        "sec-fetch-dest": "Sec-Fetch-Dest",
+        "sec-fetch-mode": "Sec-Fetch-Mode",
+        "sec-fetch-site": "Sec-Fetch-Site",
+        "trpc-accept": "trpc-accept",
+        "user-agent": "User-Agent",
+        "x-client-context": "x-client-context",
+        "x-deployment-id": "X-Deployment-Id",
+        "x-trpc-batch": "x-trpc-batch",
+        "x-trpc-source": "x-trpc-source",
+    ]
+
+    static func pluginValues(_ context: ProviderFetchContext) -> ScriptFetchStrategy.Values? {
+        let source = context.settings?.t3chat?.cookieSource ?? .auto
+        guard source != .off else { return nil }
+        let raw = source == .manual ? context.settings?.t3chat?.manualCookieHeader : nil
+        let fields = CurlCaptureParser.headerFields(from: raw ?? "")
+        let cookie = CookieHeaderNormalizer.normalize(
+            CurlCaptureParser.headerValue(named: "Cookie", in: fields) ?? raw)
+        if source == .manual, cookie == nil { return nil }
+        let headers = CurlCaptureParser.forwardedHeaders(from: fields, allowlist: self.forwardedManualHeaders)
+        let encodedHeaders = (try? JSONEncoder().encode(headers)).flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
+        return .init(
+            settings: ["TIMEOUT_SECONDS": String(min(90, max(1, context.webTimeout)))],
+            secrets: ["MANUAL_COOKIE": cookie ?? "", "CAPTURED_HEADERS": encodedHeaders])
+    }
+
     private static func fetchPlan() -> ProviderFetchPlan {
         ProviderFetchPlan(
             sourceModes: [.auto, .web],
             pipeline: ProviderFetchPipeline(resolveStrategies: { context in
-                let swift = T3ChatWebFetchStrategy()
-                guard ProviderPluginPrototype.isEnabled(environment: context.env) else { return [swift] }
-                return [
-                    ScriptFetchStrategy(
-                        id: "t3chat.js",
-                        provider: .t3chat,
-                        bundledPlugin: "t3chat",
-                        kind: .web,
-                        resolveValues: { context in
-                            guard context.settings?.t3chat?.cookieSource != .off else { return nil }
-                            return ScriptFetchStrategy.Values()
-                        }),
-                    swift,
-                ]
+                [ScriptFetchStrategy(
+                    id: "t3chat.js",
+                    provider: .t3chat,
+                    bundledPlugin: "t3chat",
+                    sourceLabel: "web",
+                    kind: .web,
+                    timeout: max(20, min(90, context.webTimeout) + 5),
+                    resolveValues: Self.pluginValues,
+                    isEnabled: { _ in true })]
             }))
-    }
-}
-
-struct T3ChatWebFetchStrategy: ProviderFetchStrategy {
-    let id: String = "t3chat.web"
-    let kind: ProviderFetchKind = .web
-
-    func isAvailable(_ context: ProviderFetchContext) async -> Bool {
-        let cookieSource = context.settings?.t3chat?.cookieSource ?? .auto
-        guard cookieSource != .off else { return false }
-        if cookieSource == .manual {
-            return T3ChatUsageFetcher.requestContext(from: context.settings?.t3chat?.manualCookieHeader) != nil
-        }
-        #if os(macOS)
-        return true
-        #else
-        return false
-        #endif
-    }
-
-    func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
-        let fetcher = T3ChatUsageFetcher(browserDetection: context.browserDetection)
-        let manual = Self.manualCookieHeader(from: context)
-        let logger: ((String) -> Void)? = context.verbose
-            ? { msg in CodexBarLog.logger(LogCategories.provider(.t3chat)).verbose(msg) }
-            : nil
-        let snapshot = try await fetcher.fetch(
-            cookieHeaderOverride: manual,
-            timeout: context.webTimeout,
-            logger: logger)
-        return self.makeResult(
-            usage: snapshot.toUsageSnapshot(),
-            sourceLabel: "web")
-    }
-
-    func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {
-        false
-    }
-
-    private static func manualCookieHeader(from context: ProviderFetchContext) -> String? {
-        guard context.settings?.t3chat?.cookieSource == .manual else { return nil }
-        return context.settings?.t3chat?.manualCookieHeader
     }
 }

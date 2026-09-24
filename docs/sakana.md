@@ -77,8 +77,12 @@ purchased still returns a `$0.00` balance (the card is always rendered), so abse
 request itself failed rather than "no credit."
 
 The optional request runs concurrently with the required subscription request and has its own five-second bound.
-It is cancelled when the required request fails or the caller cancels, so it cannot add a second full request
-timeout or outlive the refresh that started it.
+Collection shares a 200 ms budget measured from the primary request start: a slow primary only takes an already
+completed PAYG result, while a fast primary may briefly wait for the remainder of that budget. Unfinished PAYG work
+is cancelled after collection, when the required request fails, or when the caller cancels.
+
+The provider remains native until the plugin host exposes bounded optional-request collection and per-request
+cancellation. A plain awaited second GET would change this refresh-latency contract.
 
 - Menu: an `Extra usage` card shows `Balance: $X.XX` and, when available, `Usage: $X.XX` alongside the quota windows.
   The values are gated on Settings → Advanced → "Show optional credits and extra usage" at **both**

@@ -86,11 +86,11 @@ enum ProviderPluginHTTPResponse {
     private static func timeoutSeconds(_ options: [String: Any]) throws -> TimeInterval {
         guard let value = options["timeoutSeconds"] else { return 15 }
         guard let number = value as? NSNumber, CFGetTypeID(number) != CFBooleanGetTypeID() else {
-            throw ProviderPluginError.http("timeoutSeconds must be a number from 1 through 30")
+            throw ProviderPluginError.http("timeoutSeconds must be a number from 1 through 90")
         }
         let seconds = number.doubleValue
-        guard seconds.isFinite, (1...30).contains(seconds) else {
-            throw ProviderPluginError.http("timeoutSeconds must be a number from 1 through 30")
+        guard seconds.isFinite, (1...90).contains(seconds) else {
+            throw ProviderPluginError.http("timeoutSeconds must be a number from 1 through 90")
         }
         return seconds
     }
