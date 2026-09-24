@@ -37,7 +37,8 @@ extension UsageStore {
                     id: "claude/swap:\(account.id.opaqueID):\(owner)",
                     label: "Account \(account.id.opaqueID)",
                     snapshot: account.snapshot,
-                    now: now)
+                    now: now,
+                    isActive: account.isActive)
             }
         }
         // Provider-specific by design: Codex accounts come from its reconciled managed/profile projection.
@@ -60,7 +61,8 @@ extension UsageStore {
                     id: id,
                     label: self.settings.hidePersonalInfo ? "Account \(index + 1)" : account.menuDisplayName,
                     snapshot: snapshot,
-                    now: now)
+                    now: now,
+                    isActive: projection?.activeVisibleAccountID == account.id)
             }
         }
         guard self.settings.effectiveSelectedTokenAccount(for: provider) != nil else {
@@ -102,7 +104,8 @@ extension UsageStore {
                     id: record.widgetID,
                     provider: provider.instanceID,
                     label: self.settings.hidePersonalInfo ? "Account \(index + 1)" : account.displayName,
-                    usage: record.usage)
+                    usage: record.usage,
+                    isActive: account.id == self.settings.effectiveSelectedTokenAccount(for: provider)?.id)
             }
         self.widgetVerifiedTokenSnapshots[provider] = verified
         return entries
@@ -204,10 +207,12 @@ extension UsageStore {
         id: String,
         label: String,
         snapshot: UsageSnapshot?,
-        now: Date) -> WidgetSnapshot.AccountEntry
+        now: Date,
+        isActive: Bool = false) -> WidgetSnapshot.AccountEntry
     {
         let usage = snapshot.map { self.widgetAccountQuota(provider: provider, snapshot: $0, now: now) }
-        return WidgetSnapshot.AccountEntry(id: id, provider: provider.instanceID, label: label, usage: usage)
+        return WidgetSnapshot.AccountEntry(
+            id: id, provider: provider.instanceID, label: label, usage: usage, isActive: isActive)
     }
 
     private func widgetAccountQuota(

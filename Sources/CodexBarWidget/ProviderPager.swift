@@ -40,3 +40,42 @@ struct ProviderPager: Equatable {
             total: count)
     }
 }
+
+/// Pages display-only companions while the active account remains the tile's headline.
+struct WidgetAccountPager {
+    let selected: WidgetSnapshot.AccountEntry
+    let previous: WidgetSnapshot.AccountEntry
+    let next: WidgetSnapshot.AccountEntry
+    let position: Int
+    let total: Int
+
+    var isPageable: Bool {
+        self.total > 1
+    }
+
+    var positionText: String {
+        "\(self.position)/\(self.total)"
+    }
+
+    static func make(
+        accounts: [WidgetSnapshot.AccountEntry],
+        selectedID: String?,
+        excludingAccountID: String?) -> WidgetAccountPager?
+    {
+        let inactive = accounts.filter { !$0.isActive && $0.id != excludingAccountID }
+        guard !inactive.isEmpty else { return nil }
+        let index = inactive.firstIndex { $0.id == selectedID } ?? 0
+        let count = inactive.count
+        return WidgetAccountPager(
+            selected: inactive[index],
+            previous: inactive[(index - 1 + count) % count],
+            next: inactive[(index + 1) % count],
+            position: index + 1,
+            total: count)
+    }
+
+    static func canSelect(accountID: String, provider: UsageProvider, snapshot: WidgetSnapshot) -> Bool {
+        guard let account = snapshot.account(id: accountID, provider: provider.instanceID) else { return false }
+        return !account.isActive
+    }
+}

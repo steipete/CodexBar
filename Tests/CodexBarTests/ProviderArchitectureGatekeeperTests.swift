@@ -1734,19 +1734,19 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This WidgetKit default or preview pins the established Codex sample provider."),
         SuppressedProviderReference(
             path: "Sources/CodexBarWidget/CodexBarWidgetProvider.swift",
-            line: 152,
+            line: 153,
             anchor: "provider: .codex,",
             expectedProviderIDs: ["codex"],
             reason: "This WidgetKit default or preview pins the established Codex sample provider."),
         SuppressedProviderReference(
             path: "Sources/CodexBarWidget/CodexBarWidgetProvider.swift",
-            line: 233,
+            line: 239,
             anchor: "provider: .codex,",
             expectedProviderIDs: ["codex"],
             reason: "This WidgetKit default or preview pins the established Codex sample provider."),
         SuppressedProviderReference(
             path: "Sources/CodexBarWidget/CodexBarWidgetProvider.swift",
-            line: 278,
+            line: 284,
             anchor: "provider: .codex,",
             expectedProviderIDs: ["codex"],
             reason: "This WidgetKit default or preview pins the established Codex sample provider."),
@@ -3926,7 +3926,7 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact WidgetKit construct preserves its compile-time provider selection contract."),
         AllowedProviderConstruct(
             path: "Sources/CodexBarWidget/CodexBarWidgetProvider.swift",
-            line: 183,
+            line: 189,
             anchor: "provider: providers.first ?? .codex,",
             expectedProviderIDs: ["codex"],
             expectedReferenceCount: 1,
@@ -3934,7 +3934,7 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact WidgetKit construct preserves its compile-time provider selection contract."),
         AllowedProviderConstruct(
             path: "Sources/CodexBarWidget/CodexBarWidgetProvider.swift",
-            line: 205,
+            line: 211,
             anchor: "let selected = providers.first { $0.instanceID == stored } ?? providers.first ?? .codex",
             expectedProviderIDs: ["codex"],
             expectedReferenceCount: 1,
@@ -3942,7 +3942,7 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact WidgetKit construct preserves its compile-time provider selection contract."),
         AllowedProviderConstruct(
             path: "Sources/CodexBarWidget/CodexBarWidgetProvider.swift",
-            line: 225,
+            line: 231,
             anchor: "return supported.isEmpty ? [.codex] : supported",
             expectedProviderIDs: ["codex"],
             expectedReferenceCount: 1,

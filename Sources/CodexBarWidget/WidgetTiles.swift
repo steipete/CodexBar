@@ -57,6 +57,33 @@ enum WidgetTileSize {
     }
 }
 
+/// Combined local history is chart-only; account quota and cost rows never inherit provider totals.
+struct WidgetAccountHistory: Sendable {
+    let provider: ProviderInstanceID
+    let points: [WidgetSnapshot.DailyUsagePoint]
+    let currencyCode: String?
+    let title: String
+
+    static func resolve(
+        in snapshot: WidgetSnapshot,
+        for provider: UsageProvider,
+        accountID: String) -> WidgetAccountHistory?
+    {
+        guard let account = snapshot.account(id: accountID, provider: provider.instanceID),
+              let usage = account.usage, usage.provider == provider.instanceID,
+              usage.dailyUsage.isEmpty,
+              let local = snapshot.entries.first(where: { $0.provider == provider.instanceID }),
+              !local.dailyUsage.isEmpty
+        else { return nil }
+        let name = ProviderDefaults.metadata[provider]?.displayName ?? provider.rawValue.capitalized
+        return WidgetAccountHistory(
+            provider: provider.instanceID,
+            points: local.dailyUsage,
+            currencyCode: local.tokenUsage?.currencyCode,
+            title: "Combined local \(name) history")
+    }
+}
+
 // MARK: - Tile
 
 /// Shared body for the usage and switcher widgets across all three families.
@@ -67,10 +94,15 @@ struct UsageTile<Header: View>: View {
     @Environment(\.widgetUsageShowsUsed) private var showsUsed
     let entry: WidgetSnapshot.ProviderEntry
     let size: WidgetTileSize
+    var accountHistory: WidgetAccountHistory?
+    var companionAccount: WidgetSnapshot.AccountEntry?
+    var sectionSpacing: CGFloat = WidgetLayout.sectionSpacing
     @ViewBuilder let header: () -> Header
 
     var body: some View {
         let color = WidgetColors.color(for: self.entry.provider)
+        let history = self.accountHistory?.provider == self.entry.provider ? self.accountHistory : nil
+        let historyPoints = self.entry.dailyUsage.isEmpty ? history?.points ?? [] : self.entry.dailyUsage
         // The provider's compact row cap curates what a tile may LIST; it must not decide which
         // lane is binding. Headline and overflow are computed against the full set.
         let allLanes = WidgetTileLane.lanes(for: self.entry)
@@ -79,7 +111,7 @@ struct UsageTile<Header: View>: View {
             : WidgetTileLane.lanes(for: self.entry, limit: self.laneLimit)
         let hasChart = self.size.showsChart(
             laneCount: allLanes.count,
-            hasHistory: !self.entry.dailyUsage.isEmpty)
+            hasHistory: !historyPoints.isEmpty)
         let fallback = allLanes.contains(where: \.isHeadlineCandidate) ? nil : WidgetFallbackHero.make(for: self.entry)
         let metrics = WidgetMetricRows.rows(
             for: self.entry,
@@ -121,7 +153,7 @@ struct UsageTile<Header: View>: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         } else {
-            VStack(alignment: .leading, spacing: WidgetLayout.sectionSpacing) {
+            VStack(alignment: .leading, spacing: self.sectionSpacing) {
                 self.header()
                 // Medium splits into columns only when there are lanes to fill the right one. A
                 // single-lane provider in two columns leaves a void beside the headline; down one
@@ -141,16 +173,41 @@ struct UsageTile<Header: View>: View {
                     }
                     .frame(maxHeight: .infinity)
                 } else {
-                    self.hero(plan: plan, fallback: fallback, color: color, spreads: false)
+                    if let companionAccount, self.size == .large {
+                        HStack(alignment: .top, spacing: 14) {
+                            self.hero(plan: plan, fallback: fallback, color: color, spreads: false, showsBar: false)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .frame(maxWidth: .infinity, alignment: .topLeading)
+                            AccountUsageCompanion(account: companionAccount, color: color)
+                                .frame(maxWidth: .infinity, alignment: .topLeading)
+                        }
+                        if let lane = plan.hero {
+                            QuotaBar(
+                                percent: WidgetUsageDisplay.percent(
+                                    fromRemaining: lane.remainingPercent,
+                                    showUsed: self.showsUsed),
+                                color: color,
+                                height: WidgetLayout.heroBarHeight)
+                        }
+                    } else {
+                        self.hero(plan: plan, fallback: fallback, color: color, spreads: false)
+                    }
                     VStack(alignment: .leading, spacing: self.size.laneSpacing) {
                         self.lanes(plan: plan, color: color)
                     }
                     self.metrics(metrics)
                     if hasChart {
+                        if self.entry.dailyUsage.isEmpty, let history {
+                            Text(history.title)
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                        }
                         UsageHistoryChart(
-                            points: self.entry.dailyUsage,
+                            points: historyPoints,
                             color: color,
-                            currencyCode: self.entry.tokenUsage?.currencyCode)
+                            currencyCode: self.entry.dailyUsage.isEmpty
+                                ? history?.currencyCode : self.entry.tokenUsage?.currencyCode)
                             .frame(minHeight: 66, maxHeight: .infinity)
                     } else {
                         Spacer(minLength: 0)
@@ -194,7 +251,8 @@ struct UsageTile<Header: View>: View {
         plan: WidgetTilePlan,
         fallback: WidgetFallbackHeroContent?,
         color: Color,
-        spreads: Bool) -> some View
+        spreads: Bool,
+        showsBar: Bool = true) -> some View
     {
         if let lane = plan.hero {
             let displayed = WidgetUsageDisplay.percent(
@@ -204,7 +262,7 @@ struct UsageTile<Header: View>: View {
                 value: WidgetFormat.percent(displayed),
                 caption: Text(WidgetLaneCopy.caption(title: lane.title, showUsed: self.showsUsed)),
                 detail: self.resetText(lane),
-                barPercent: displayed ?? 0,
+                barPercent: showsBar ? displayed ?? 0 : nil,
                 isLow: QuotaSeverity.isLow(remaining: lane.remainingPercent),
                 color: color,
                 numberSize: self.size.heroNumberSize,

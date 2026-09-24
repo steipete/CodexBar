@@ -129,6 +129,7 @@ struct CodexBarWidgetEntry: TimelineEntry {
     let date: Date
     let provider: UsageProvider
     let snapshot: WidgetSnapshot
+    var selectedAccountID: String?
 }
 
 struct CodexBarCompactEntry: TimelineEntry {
@@ -158,7 +159,8 @@ struct CodexBarTimelineProvider: AppIntentTimelineProvider {
         return CodexBarWidgetEntry(
             date: Date(),
             provider: provider,
-            snapshot: WidgetSnapshotStore.load() ?? WidgetPreviewData.snapshot())
+            snapshot: WidgetSnapshotStore.load() ?? WidgetPreviewData.snapshot(),
+            selectedAccountID: WidgetSelectionStore.loadSelectedAccount(for: provider))
     }
 
     func timeline(
@@ -168,7 +170,11 @@ struct CodexBarTimelineProvider: AppIntentTimelineProvider {
         let provider = configuration.provider.provider
         let snapshot = WidgetSnapshotStore.load() ?? WidgetPreviewData.emptySnapshot()
         let now = Date()
-        let entry = CodexBarWidgetEntry(date: now, provider: provider, snapshot: snapshot)
+        let entry = CodexBarWidgetEntry(
+            date: now,
+            provider: provider,
+            snapshot: snapshot,
+            selectedAccountID: WidgetSelectionStore.loadSelectedAccount(for: provider))
         let refresh = BurnDownRefreshSchedule.nextRefresh(snapshot: snapshot, provider: provider, now: now)
         return Timeline(entries: [entry], policy: .after(refresh))
     }

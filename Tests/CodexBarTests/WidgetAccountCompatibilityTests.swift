@@ -9,6 +9,14 @@ struct WidgetAccountCompatibilityTests {
     private let measuredAt = Date(timeIntervalSince1970: 1_782_000_000)
 
     @Test
+    func `older account snapshots decode without an active marker`() throws {
+        let json = Data(#"{"id":"account-1","provider":"claude","label":"Account 1","usage":null}"#.utf8)
+        let account = try JSONDecoder().decode(WidgetSnapshot.AccountEntry.self, from: json)
+        #expect(account.id == "account-1")
+        #expect(!account.isActive)
+    }
+
+    @Test
     func `removing a Claude Swap sibling preserves the remaining pinned widget`() throws {
         let (settings, store) = self.makeStore(provider: .claude)
         settings.claudeSwapEnabled = true

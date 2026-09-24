@@ -4,6 +4,7 @@
 
 ### Added
 
+- Widgets: add an opt-in Accounts tile with the active account kept visible and controls to browse other saved accounts (#3144).
 - Atlas Cloud: show account-wide available USD balance through the documented API-key endpoint (#2714). Thanks @clairernovotny!
 - Vercel AI Gateway: show team-wide USD balance and lifetime spend through the documented API-key endpoint (#2975). Thanks @pikant!
 - DevPass: track plan credits, premium weekly usage and resets, and API-key spending through the documented LLM Gateway API (#3433). Thanks @MichelKerkmeester!
@@ -11,6 +12,7 @@
 
 ### Fixed
 
+- Account widgets: align small and medium headers with Usage tiles, preserve the large headline size, and clearly label combined local history while keeping quota and cost rows account-specific.
 - Alibaba Token Plan / Qwen Cloud: parse monthly quota windows, retain rolling windows alongside monthly usage, and read Personal/Solo monthly usage through the Bailian CLI's raw usage endpoint (#3903). Thanks @Josephur!
 - Claude: document browser-session recovery and the explicit cookie-import retry when Claude works in Chrome but CodexBar cannot read the session (#3919). Thanks @PakAbhishek!
 - Perplexity and Qoder: use bundled providers on both JavaScript engines, retry rejected browser sessions safely, and keep Qoder China manual cookies bound to the China endpoint.

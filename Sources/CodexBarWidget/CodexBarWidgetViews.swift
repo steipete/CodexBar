@@ -13,7 +13,13 @@ extension WidgetTileSize {
 }
 
 struct CodexBarUsageWidgetView: View {
-    @Environment(\.widgetFamily) private var family
+    @Environment(\.widgetFamily) private var widgetFamily
+    @Environment(\.widgetFamilyOverride) private var familyOverride
+
+    private var family: WidgetFamily {
+        self.familyOverride ?? self.widgetFamily
+    }
+
     let entry: CodexBarWidgetEntry
 
     var body: some View {
@@ -37,7 +43,13 @@ struct CodexBarUsageWidgetView: View {
 }
 
 struct CodexBarHistoryWidgetView: View {
-    @Environment(\.widgetFamily) private var family
+    @Environment(\.widgetFamily) private var widgetFamily
+    @Environment(\.widgetFamilyOverride) private var familyOverride
+
+    private var family: WidgetFamily {
+        self.familyOverride ?? self.widgetFamily
+    }
+
     let entry: CodexBarWidgetEntry
 
     var body: some View {
@@ -72,7 +84,13 @@ struct CodexBarCompactWidgetView: View {
 }
 
 struct CodexBarSwitcherWidgetView: View {
-    @Environment(\.widgetFamily) private var family
+    @Environment(\.widgetFamily) private var widgetFamily
+    @Environment(\.widgetFamilyOverride) private var familyOverride
+
+    private var family: WidgetFamily {
+        self.familyOverride ?? self.widgetFamily
+    }
+
     let entry: CodexBarSwitcherEntry
 
     var body: some View {

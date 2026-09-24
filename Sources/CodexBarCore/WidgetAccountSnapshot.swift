@@ -8,12 +8,33 @@ extension WidgetSnapshot {
         public let provider: ProviderInstanceID
         public let label: String
         public let usage: ProviderEntry?
+        public let isActive: Bool
 
-        public init(id: String, provider: ProviderInstanceID, label: String, usage: ProviderEntry?) {
+        public init(
+            id: String,
+            provider: ProviderInstanceID,
+            label: String,
+            usage: ProviderEntry?,
+            isActive: Bool = false)
+        {
             self.id = id
             self.provider = provider
             self.label = label
             self.usage = usage
+            self.isActive = isActive
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case id, provider, label, usage, isActive
+        }
+
+        public init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            self.id = try container.decode(String.self, forKey: .id)
+            self.provider = try container.decode(ProviderInstanceID.self, forKey: .provider)
+            self.label = try container.decode(String.self, forKey: .label)
+            self.usage = try container.decodeIfPresent(ProviderEntry.self, forKey: .usage)
+            self.isActive = try container.decodeIfPresent(Bool.self, forKey: .isActive) ?? false
         }
     }
 

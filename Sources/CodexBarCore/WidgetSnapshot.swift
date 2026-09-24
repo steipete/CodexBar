@@ -376,6 +376,10 @@ public enum WidgetSnapshotStore {
 public enum WidgetSelectionStore {
     private static let selectedProviderKey = "widgetSelectedProvider"
 
+    private static func selectedAccountKey(for provider: UsageProvider) -> String {
+        "widgetSelectedInactiveAccount.\(provider.rawValue)"
+    }
+
     public static func loadSelectedProvider(bundleID: String? = Bundle.main.bundleIdentifier) -> ProviderInstanceID? {
         let defaults = self.sharedDefaults(bundleID: bundleID)
         guard let raw = defaults.string(forKey: self.selectedProviderKey) else { return nil }
@@ -395,6 +399,37 @@ public enum WidgetSelectionStore {
         bundleID: String? = Bundle.main.bundleIdentifier)
     {
         self.saveSelectedProvider(instanceID: provider.instanceID, bundleID: bundleID)
+    }
+
+    /// Only changes which inactive account an Accounts widget previews; it does not switch credentials.
+    public static func loadSelectedAccount(
+        for provider: UsageProvider,
+        bundleID: String? = Bundle.main.bundleIdentifier)
+        -> String?
+    {
+        self.loadSelectedAccount(for: provider, defaults: self.sharedDefaults(bundleID: bundleID))
+    }
+
+    public static func saveSelectedAccount(
+        _ accountID: String,
+        for provider: UsageProvider,
+        bundleID: String? = Bundle.main.bundleIdentifier)
+    {
+        self.saveSelectedAccount(accountID, for: provider, defaults: self.sharedDefaults(bundleID: bundleID))
+    }
+
+    static func loadSelectedAccount(for provider: UsageProvider, defaults: UserDefaults) -> String? {
+        let value = defaults.string(forKey: self.selectedAccountKey(for: provider))
+        return value?.isEmpty == false ? value : nil
+    }
+
+    static func saveSelectedAccount(_ accountID: String, for provider: UsageProvider, defaults: UserDefaults) {
+        let key = self.selectedAccountKey(for: provider)
+        if accountID.isEmpty {
+            defaults.removeObject(forKey: key)
+        } else {
+            defaults.set(accountID, forKey: key)
+        }
     }
 
     private static func sharedDefaults(bundleID: String?) -> UserDefaults {

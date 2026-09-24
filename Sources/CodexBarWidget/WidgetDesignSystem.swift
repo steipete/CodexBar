@@ -11,8 +11,14 @@ extension EnvironmentValues {
     /// this. Always nil in the shipping widget.
     @Entry var widgetRenderingModeOverride: WidgetRenderingMode?
 
+    /// Native rendering tests supply the family without a WidgetKit host. Nil in shipping widgets.
+    @Entry var widgetFamilyOverride: WidgetFamily?
+
     /// Native previews keep selection local instead of writing shared widget preferences.
     @Entry var widgetProviderSelectionOverride: ((UsageProvider) -> Void)?
+
+    /// Native account previews browse local state without writing the shared widget selection.
+    @Entry var widgetAccountSelectionOverride: ((UsageProvider, String) -> Void)?
 }
 
 // MARK: - Layout metrics
@@ -386,6 +392,8 @@ struct TileHeader: View {
     let provider: ProviderInstanceID
     let updatedAt: Date
     var size: WidgetTileSize = .medium
+    var accountLabel: String?
+    var isActiveAccount = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
@@ -398,13 +406,30 @@ struct TileHeader: View {
                     .lineLimit(2)
                     .minimumScaleFactor(0.85)
                     .layoutPriority(1)
+                if self.size != .small, let accountLabel = self.accountLabel {
+                    Text(accountLabel)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    if self.isActiveAccount {
+                        Text("Active").font(.caption2).foregroundStyle(.secondary).fixedSize()
+                    }
+                }
                 Spacer(minLength: 0)
                 if self.size != .small {
                     FreshnessLabel(updatedAt: self.updatedAt)
                 }
             }
             if self.size == .small {
-                FreshnessLabel(updatedAt: self.updatedAt)
+                HStack(spacing: 6) {
+                    if let accountLabel = self.accountLabel {
+                        Text(accountLabel).font(.caption2).foregroundStyle(.secondary)
+                            .lineLimit(1).truncationMode(.middle)
+                        Spacer(minLength: 0)
+                    }
+                    FreshnessLabel(updatedAt: self.updatedAt)
+                }
             }
         }
     }
