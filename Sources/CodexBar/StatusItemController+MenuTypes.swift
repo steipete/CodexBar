@@ -35,6 +35,8 @@ extension ProviderSwitcherSelection {
 
 struct OverviewMenuCardRowView: View {
     static let showsSectionDividers = false
+    /// Overview rows have no "Recent windows" submenu, so quota windows stay inline.
+    static let showsInlineQuotaWindows = true
 
     let model: UsageMenuCardView.Model
     let storageText: String?
@@ -80,6 +82,7 @@ struct OverviewMenuCardRowView: View {
             }
         }
         .frame(width: self.width, alignment: .leading)
+        .environment(\.inlineUsageDashboardShowsQuotaWindows, Self.showsInlineQuotaWindows)
     }
 
     private var hasUsageBlock: Bool {

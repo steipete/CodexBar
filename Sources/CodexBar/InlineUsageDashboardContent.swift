@@ -712,9 +712,16 @@ extension UsageMenuCardView.Model {
     }
 }
 
+extension EnvironmentValues {
+    /// Provider menus move quota windows into a "Recent windows" submenu; rows without that submenu
+    /// (detailed Overview) opt in to rendering them inline.
+    @Entry var inlineUsageDashboardShowsQuotaWindows: Bool = false
+}
+
 struct InlineUsageDashboardContent: View {
     private let model: InlineUsageDashboardModel
     @Environment(\.menuItemHighlighted) private var isHighlighted
+    @Environment(\.inlineUsageDashboardShowsQuotaWindows) private var showsQuotaWindows
 
     init(model: InlineUsageDashboardModel) {
         self.model = model
@@ -728,6 +735,14 @@ struct InlineUsageDashboardContent: View {
                     .frame(height: 58)
                     .accessibilityElement(children: .contain)
                     .accessibilityLabel(self.model.accessibilityLabel)
+            }
+            if self.showsQuotaWindows, !self.model.quotaWindows.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(L("Recent windows"))
+                        .font(.caption2)
+                        .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
+                    InlineUsageQuotaWindowsView(windows: self.model.quotaWindows)
+                }
             }
             self.detailLines
         }

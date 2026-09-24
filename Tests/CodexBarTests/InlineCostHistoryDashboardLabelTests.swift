@@ -105,7 +105,7 @@ struct InlineCostHistoryDashboardLabelTests {
             .contains("Partial local history · recorded token subtotal") == true)
     }
 
-    private static func antigravitySnapshot(
+    static func antigravitySnapshot(
         now: Date,
         historyDays: Int = 30,
         scanIsPartial: Bool = false) -> CostUsageTokenSnapshot
