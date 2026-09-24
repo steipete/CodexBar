@@ -380,6 +380,7 @@ extension UsageStore {
 
         return Task { @MainActor [weak self] in
             guard let self else { return }
+            defer { self.scheduleMemoryPressureRelief() }
             guard await self.refreshPiHistoryScope(for: .codex) else { return }
             let scope = self.tokenCostScope(for: .codex)
             let historyDays = self.settings.costUsageHistoryDays

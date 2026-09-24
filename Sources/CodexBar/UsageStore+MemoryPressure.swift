@@ -3,15 +3,24 @@ import Foundation
 @MainActor
 extension UsageStore {
     func scheduleMemoryPressureRelief() {
-        guard self.memoryPressureReliefTask == nil else { return }
+        // A completed scan can free a large temporary graph while an earlier relief pass is
+        // still waiting. Restart from the latest completion so that graph is reclaimed promptly.
+        self.memoryPressureReliefTask?.cancel()
+        self.memoryPressureReliefGeneration &+= 1
+        let generation = self.memoryPressureReliefGeneration
 
         self.memoryPressureReliefTask = Task.detached(priority: .utility) { [weak self] in
-            for delay in [Duration.seconds(2), .seconds(8), .seconds(20)] {
-                try? await Task.sleep(for: delay)
+            for delay in [Duration.milliseconds(500), .seconds(2), .seconds(8)] {
+                do {
+                    try await Task.sleep(for: delay)
+                } catch {
+                    return
+                }
                 guard !Task.isCancelled else { return }
                 MemoryPressureRelief.releaseFreeMallocPages()
             }
             await MainActor.run { [weak self] in
+                guard self?.memoryPressureReliefGeneration == generation else { return }
                 self?.memoryPressureReliefTask = nil
             }
         }

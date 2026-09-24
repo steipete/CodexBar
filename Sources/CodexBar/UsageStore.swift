@@ -404,6 +404,7 @@ final class UsageStore {
     @ObservationIgnored var requiredRefreshRequestGeneration: UInt64 = 0
     @ObservationIgnored var requiredRefreshCompletedGeneration: UInt64 = 0
     @ObservationIgnored var memoryPressureReliefTask: Task<Void, Never>?
+    @ObservationIgnored var memoryPressureReliefGeneration: UInt64 = 0
     @ObservationIgnored var startupConnectivityRetryTask: Task<Void, Never>?
     @ObservationIgnored var startupConnectivityRetryNeeded = false
     @ObservationIgnored var startupConnectivityRetryRefreshActive = false
@@ -1523,7 +1524,10 @@ extension UsageStore {
         self.lastTokenFetchAt[provider.instanceID] = now
         self.lastTokenFetchScope[provider.instanceID] = costScopeSignature
         self.tokenRefreshInFlight.insert(provider.instanceID)
-        defer { self.tokenRefreshInFlight.remove(provider.instanceID) }
+        defer {
+            self.tokenRefreshInFlight.remove(provider.instanceID)
+            self.scheduleMemoryPressureRelief()
+        }
 
         if let override = self._test_tokenUsageRefreshOverride {
             await override(provider, force)

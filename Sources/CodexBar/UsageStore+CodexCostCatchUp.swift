@@ -117,6 +117,7 @@ extension UsageStore {
     }
 
     private func runCodexCostCatchUp(context: CodexCostCatchUpContext) async {
+        defer { self.scheduleMemoryPressureRelief() }
         while self.codexCostCatchUpContextIsCurrent(context) {
             var status = await self.loadCodexCostCatchUpStatus(codexHomePath: context.codexHomePath)
             self.publishCodexCostCatchUpActivity(
@@ -168,6 +169,7 @@ extension UsageStore {
                             codexHomePath: context.codexHomePath,
                             historyDays: context.historyDays)
                         self.codexCostCatchUpPassIsRunning = false
+                        self.scheduleMemoryPressureRelief()
                     } catch {
                         self.codexCostCatchUpPassIsRunning = false
                         throw error

@@ -69,7 +69,6 @@ extension UsageStore {
             // A scoped user refresh can run beside unrelated scheduled work. The scheduled
             // sequence still owns the shared slot, so provider refreshes cannot introduce a third pass.
             await self.refreshTokenUsage(provider, force: true)
-            self.scheduleMemoryPressureRelief()
             return
         }
         guard let task = await self.serializedTokenRefreshTask(force: force, scope: .provider(provider.instanceID))
@@ -199,7 +198,6 @@ extension UsageStore {
             await self.refreshTokenUsage(provider, force: force)
             self.tokenRefreshSequenceProvider = nil
         }
-        self.scheduleMemoryPressureRelief()
     }
 
     #if DEBUG
