@@ -80,6 +80,7 @@ actor CostUsageStore {
         parserHash: CodexParserHash.value)
     static let cacheGeneration = "sqlite:\(CostUsageStore.schemaVersion)"
     static let compatiblePredecessorParserHashes: Set<String> = [
+        "9972dad7f7aeff21", // 0.66.0 native rows and checkpoints are unchanged by unused-helper removal.
         "4dd9e5769818370a", // Linux Priority trace support preserves native rows and checkpoints.
         "03e43d1217789d16", // Fork baseline corrections use bounded native parser-revision migration.
         "50813ce2a3edfdc7", // 0.63.0 native history is unchanged by Claude-only numeric guards.
