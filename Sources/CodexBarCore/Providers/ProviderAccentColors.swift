@@ -38,6 +38,14 @@ public enum ProviderAccentColors {
         }
     }
 
+    /// Reads the overrides the app last mirrored into the App Group. Used by the widget extension.
+    public static func sharedOverrides(
+        bundleID: String? = Bundle.main.bundleIdentifier) -> [ProviderInstanceID: ProviderColor]
+    {
+        guard let defaults = self.defaults(bundleID: bundleID) else { return [:] }
+        return self.decode(defaults.dictionary(forKey: self.defaultsKey) as? [String: String] ?? [:])
+    }
+
     /// Reads a single mirrored override. Returns nil when the provider keeps its shipped color.
     public static func sharedOverride(
         for instanceID: ProviderInstanceID,

@@ -129,6 +129,10 @@ public struct CopilotUsageFetcher: Sendable {
             identity: identity)
     }
 
+    public static func fetchGitHubUsername(token: String) async throws -> String {
+        try await self.fetchGitHubIdentity(token: token).login
+    }
+
     public static func fetchGitHubIdentity(
         token: String,
         enterpriseHost: String? = nil,

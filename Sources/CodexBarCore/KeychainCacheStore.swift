@@ -360,6 +360,15 @@ public enum KeychainCacheStore {
         }
     }
 
+    public static func withCurrentServiceOverrideForTesting<T>(
+        operation: () async throws -> T) async rethrows -> T
+    {
+        let service = self.serviceOverride
+        return try await self.$serviceOverride.withValue(service) {
+            try await operation()
+        }
+    }
+
     static func withImplicitTestStoreForTesting<T>(
         operation: () throws -> T) rethrows -> T
     {

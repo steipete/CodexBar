@@ -328,6 +328,23 @@ extension ClaudeStatusProbe {
         return self.extractIdentity(usageText: usageClean, statusText: statusClean)
     }
 
+    public static func fetchIdentity(
+        timeout: TimeInterval = 12.0,
+        environment: [String: String] = ProcessInfo.processInfo.environment) async throws -> ClaudeAccountIdentity
+    {
+        let resolved = self.resolvedBinaryPath(binaryName: "claude", environment: environment)
+        guard let resolved, self.isBinaryAvailable(resolved) else {
+            throw ClaudeStatusProbeError.claudeNotInstalled
+        }
+        let statusText = try await Self.capture(
+            subcommand: "/status",
+            binary: resolved,
+            accountScope: ClaudeAccountProfile.sessionScope(environment: environment),
+            timeout: timeout,
+            environment: environment)
+        return Self.parseIdentity(usageText: nil, statusText: statusText)
+    }
+
     public static func touchOAuthAuthPath(
         timeout: TimeInterval = 8,
         environment: [String: String] = ProcessInfo.processInfo.environment) async throws
@@ -355,6 +372,13 @@ extension ClaudeStatusProbe {
             await ClaudeCLISession.current.reset()
             throw error
         }
+    }
+
+    public static func isClaudeBinaryAvailable(
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> Bool
+    {
+        let resolved = self.resolvedBinaryPath(binaryName: "claude", environment: environment)
+        return self.isBinaryAvailable(resolved)
     }
 
     private static func extractPercent(labelSubstring: String, context: LabelSearchContext) -> Int? {

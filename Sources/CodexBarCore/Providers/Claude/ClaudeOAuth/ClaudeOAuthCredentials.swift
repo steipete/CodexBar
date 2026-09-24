@@ -1720,6 +1720,14 @@ public enum ClaudeOAuthCredentialsStore {
         return (try? ClaudeOAuthCredentials.parse(data: data)) != nil
     }
 
+    public static func credentialsFileFingerprintToken(
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> String?
+    {
+        guard let fingerprint = self.currentFileFingerprint(environment: environment) else { return nil }
+        let modifiedAt = fingerprint.modifiedAtMs.map(String.init) ?? "nil"
+        return "\(fingerprint.path):\(modifiedAt):\(fingerprint.size)"
+    }
+
     /// Rejects the selected profile's current credentials file until its fingerprint changes. This prevents an
     /// account-mismatched OAuth record from re-entering through the file after its memory/Keychain cache is cleared.
     @discardableResult
@@ -1750,6 +1758,53 @@ public enum ClaudeOAuthCredentialsStore {
             return false
         }
         return true
+    }
+
+    public static func authFingerprintToken(
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> String
+    {
+        let file = self.credentialsFileFingerprintToken(environment: environment) ?? "nil"
+        let keychain = self.claudeKeychainFingerprintToken() ?? "nil"
+        return "file=\(file)|keychain=\(keychain)"
+    }
+
+    public static func consumeClaudeKeychainFingerprintChangeWithoutPrompt() -> Bool {
+        let current: ClaudeKeychainFingerprint?
+        switch self.probeClaudeKeychainFingerprintWithoutPrompt() {
+        case .unavailable:
+            return false
+        case let .value(fingerprint):
+            current = fingerprint
+        }
+        let stored = self.loadClaudeKeychainFingerprint()
+        guard current != stored else { return false }
+        self.saveClaudeKeychainFingerprint(current)
+        return true
+    }
+
+    public static func claudeKeychainFingerprintChangedWithoutConsuming() -> Bool {
+        let current: ClaudeKeychainFingerprint?
+        switch self.probeClaudeKeychainFingerprintWithoutPrompt() {
+        case .unavailable:
+            return false
+        case let .value(fingerprint):
+            current = fingerprint
+        }
+        return current != self.loadClaudeKeychainFingerprint()
+    }
+
+    public static func claudeKeychainFingerprintToken() -> String? {
+        let fingerprint: ClaudeKeychainFingerprint? = switch self.probeClaudeKeychainFingerprintWithoutPrompt() {
+        case .unavailable:
+            self.loadClaudeKeychainFingerprint()
+        case let .value(probed):
+            probed
+        }
+        guard let fingerprint else { return nil }
+        let modifiedAt = fingerprint.modifiedAt.map(String.init) ?? "nil"
+        let createdAt = fingerprint.createdAt.map(String.init) ?? "nil"
+        let persistentRefHash = fingerprint.persistentRefHash ?? "nil"
+        return "\(modifiedAt):\(createdAt):\(persistentRefHash)"
     }
 
     /// Returns the current Claude Code Keychain item's opaque persistent-reference hash without
@@ -2219,6 +2274,11 @@ public enum ClaudeOAuthCredentialsStore {
                 allowKeychainPrompt: true)
         }
         return try self.loadFromClaudeKeychainUsingSecurityFramework()
+    }
+
+    /// Legacy alias for backward compatibility
+    public static func loadFromKeychain() throws -> Data {
+        try self.loadFromClaudeKeychain()
     }
 
     private static func loadFromClaudeKeychainUsingSecurityFramework(
