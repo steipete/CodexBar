@@ -17,8 +17,9 @@ struct KimiLocalStorageTokenImporterTests {
         Data([0x05, 0x08, 0x61, 0x62, 0x63]),
         Data([0x03, 0x09, 0x05]),
         Data([0x80]),
+        Data([0x81, 0x80, 0x40]),
     ])
-    func `snappy decoder rejects truncated or out of range input`(input: Data) {
+    func `snappy decoder rejects truncated or oversized input`(input: Data) {
         #expect(SnappyBlockDecoder.decompress(input) == nil)
     }
 

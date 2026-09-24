@@ -2,10 +2,15 @@ import Foundation
 
 /// Decodes raw (unframed) Snappy blocks, as used by Gecko's `ls/data.sqlite` local storage values.
 enum SnappyBlockDecoder {
+    /// Local-storage tokens are a few kilobytes. Reject anything larger before allocating.
+    static let maximumOutputLength = 1 << 20
+
     static func decompress(_ data: Data) -> Data? {
         let input = [UInt8](data)
         var index = 0
-        guard let expectedLength = self.readVarint(input, index: &index) else { return nil }
+        guard let expectedLength = self.readVarint(input, index: &index),
+              expectedLength <= self.maximumOutputLength
+        else { return nil }
         var output: [UInt8] = []
         output.reserveCapacity(expectedLength)
 

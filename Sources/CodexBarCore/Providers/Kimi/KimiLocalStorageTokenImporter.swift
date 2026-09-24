@@ -65,10 +65,9 @@ enum KimiLocalStorageTokenImporter {
             host: host,
             browsers: browsers.filter(\.usesGeckoProfileStore))
         candidates += gecko.map { ($0.sourceLabel, $0.value) }
-        if browsers.contains(.safari) {
-            candidates += SQLiteWebStorageReader.safariValues(key: self.tokenKey, host: host)
-                .map { ($0.sourceLabel, $0.value) }
-        }
+        // Safari local storage lives under the WebKit container, not the cookie file BrowserDetection checks.
+        candidates += SQLiteWebStorageReader.safariValues(key: self.tokenKey, host: host)
+            .map { ($0.sourceLabel, $0.value) }
         return candidates
     }
 
