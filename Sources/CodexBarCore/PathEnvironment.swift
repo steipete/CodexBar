@@ -769,42 +769,6 @@ public enum ShellCommandLocator {
         return nil
     }
 
-    /// Thread-safe buffer for collecting pipe output from a readability handler.
-    private final class CapturedData: @unchecked Sendable {
-        private let lock = NSLock()
-        private var data = Data()
-
-        func append(_ other: Data) {
-            self.lock.lock()
-            self.data.append(other)
-            self.lock.unlock()
-        }
-
-        func drain() -> Data {
-            self.lock.lock()
-            let result = self.data
-            self.lock.unlock()
-            return result
-        }
-    }
-
-    /// Idempotent one-shot flag — `fire()` returns true exactly once.
-    /// Used to make `DispatchGroup.leave()` safe to attempt from multiple paths.
-    private final class OnceFlag: @unchecked Sendable {
-        private let lock = NSLock()
-        private var fired = false
-
-        func fire() -> Bool {
-            self.lock.lock()
-            defer { self.lock.unlock() }
-            if self.fired {
-                return false
-            }
-            self.fired = true
-            return true
-        }
-    }
-
     private static func makeCloseOnExecPipe() -> (read: Int32, write: Int32)? {
         var fds: (read: Int32, write: Int32) = (-1, -1)
         #if os(Linux)
@@ -829,7 +793,6 @@ public enum ShellCommandLocator {
         return fds
     }
 
-    // swiftlint:disable cyclomatic_complexity
     /// Runs a shell command, draining both stdout and stderr concurrently so that
     /// verbose shell init scripts (oh-my-zsh, nvm, pyenv, etc.) cannot deadlock on
     /// a full pipe buffer.  The child is launched via `posix_spawn` with
@@ -951,45 +914,26 @@ public enum ShellCommandLocator {
             return nil
         }
 
-        // Track EOF on each pipe so we can wait for full drain instead of sleeping.
-        // The readability handler fires with empty data when every writer end is
-        // closed (i.e. the child *and* any inheriting background helpers are gone).
-        let drainGroup = DispatchGroup()
-        drainGroup.enter()
-        drainGroup.enter()
-        let stdoutDone = OnceFlag()
-        let stderrDone = OnceFlag()
+        // Retain one overflow byte so discovery rejects oversized output instead of parsing a truncated path.
+        let maxOutputBytes = ProcessPipeCapture.defaultMaxBytes
+        let stdoutCapture = ProcessPipeCapture(
+            handle: FileHandle(fileDescriptor: stdoutFds.read, closeOnDealloc: true),
+            maxBytes: maxOutputBytes + 1)
+        let stderrCapture = ProcessPipeCapture(
+            handle: FileHandle(fileDescriptor: stderrFds.read, closeOnDealloc: true),
+            maxBytes: 0)
 
-        let stdoutCollector = CapturedData()
-        let stdoutHandle = FileHandle(fileDescriptor: stdoutFds.read, closeOnDealloc: true)
-        stdoutHandle.readabilityHandler = { handle in
-            let data = handle.availableData
-            if data.isEmpty {
-                handle.readabilityHandler = nil
-                if stdoutDone.fire() {
-                    drainGroup.leave()
-                }
-            } else {
-                stdoutCollector.append(data)
-            }
-        }
-
-        let stderrHandle = FileHandle(fileDescriptor: stderrFds.read, closeOnDealloc: true)
-        stderrHandle.readabilityHandler = { handle in
-            let data = handle.availableData
-            if data.isEmpty {
-                handle.readabilityHandler = nil
-                if stderrDone.fire() {
-                    drainGroup.leave()
-                }
-            }
-        }
-
-        // Adopt the already-spawned session so cleanup can also discover helpers
-        // that escape into a new process group while retaining our output pipes.
+        // Snapshot pipe identities before the readers can reach EOF and close their descriptors.
         let process = SpawnedProcessGroup.adopt(
             pid: pid,
             outputFileDescriptors: [stdoutFds.read, stderrFds.read])
+        stdoutCapture.start()
+        stderrCapture.start()
+        defer {
+            stdoutCapture.stop()
+            stderrCapture.stop()
+        }
+
         let deadline = Date().addingTimeInterval(timeout)
         while process.isRunning, Date() < deadline {
             usleep(10000)
@@ -997,14 +941,6 @@ public enum ShellCommandLocator {
 
         if process.isRunning {
             process.terminateSynchronously()
-            stdoutHandle.readabilityHandler = nil
-            stderrHandle.readabilityHandler = nil
-            if stdoutDone.fire() {
-                drainGroup.leave()
-            }
-            if stderrDone.fire() {
-                drainGroup.leave()
-            }
             return nil
         }
 
@@ -1012,25 +948,10 @@ public enum ShellCommandLocator {
         // including session-escaped helpers that still hold our output pipes open.
         process.terminateSynchronously()
 
-        // Wait for both pipes to deliver EOF so no buffered bytes are lost.
-        // Bounded so a stuck handler can't hang the caller indefinitely.
-        if drainGroup.wait(timeout: .now() + 0.4) != .success {
-            process.terminateSynchronously(grace: 0)
-        }
-        if drainGroup.wait(timeout: .now() + 0.6) != .success {
-            stdoutHandle.readabilityHandler = nil
-            stderrHandle.readabilityHandler = nil
-            if stdoutDone.fire() {
-                drainGroup.leave()
-            }
-            if stderrDone.fire() {
-                drainGroup.leave()
-            }
-        }
-        return stdoutCollector.drain()
+        let data = stdoutCapture.finishSynchronously(timeout: 1)
+        guard stdoutCapture.reachedEOF, data.count <= maxOutputBytes else { return nil }
+        return data
     }
-
-    // swiftlint:enable cyclomatic_complexity
 
     private static func runShellCapture(_ shell: String?, _ timeout: TimeInterval, _ command: String) -> String? {
         let shellPath = (shell?.isEmpty == false) ? shell! : "/bin/zsh"

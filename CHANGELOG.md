@@ -11,6 +11,7 @@
 
 ### Fixed
 
+- CLI: bound shell-discovery output to 1 MiB and reject incomplete captures so noisy startup scripts cannot cause runaway buffering or truncated PATH results (refs #1999).
 - Command Code: size monthly usage from the grant reported with credits, keeping the row available when the optional subscription lookup fails (#3939). Thanks @enieuwy!
 - Kimi: import web access tokens from Chromium local storage for the selected region, preserving manual and saved-account credential isolation (#3923). Thanks @kaishin!
 

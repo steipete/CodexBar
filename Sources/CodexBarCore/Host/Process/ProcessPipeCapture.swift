@@ -26,12 +26,20 @@ package final class ProcessPipeCapture: @unchecked Sendable {
     private var callbackRequested = false
     #endif
 
-    package init(
+    package convenience init(
         pipe: Pipe,
         maxBytes: Int = ProcessPipeCapture.defaultMaxBytes,
         onData: (@Sendable () -> Void)? = nil)
     {
-        self.handle = pipe.fileHandleForReading
+        self.init(handle: pipe.fileHandleForReading, maxBytes: maxBytes, onData: onData)
+    }
+
+    package init(
+        handle: FileHandle,
+        maxBytes: Int = ProcessPipeCapture.defaultMaxBytes,
+        onData: (@Sendable () -> Void)? = nil)
+    {
+        self.handle = handle
         self.maxBytes = max(0, maxBytes)
         self.onData = onData
     }
