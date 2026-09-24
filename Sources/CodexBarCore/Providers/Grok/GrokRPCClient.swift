@@ -159,7 +159,7 @@ final class GrokRPCClient: @unchecked Sendable {
                     guard let messageID = self.jsonID(message["id"]), messageID == id else { continue }
                     if let error = message["error"] as? [String: Any] {
                         let messageText = (error["message"] as? String) ?? "unknown JSON-RPC error"
-                        throw GrokRPCError.requestFailed(messageText)
+                        throw GrokRPCError.requestFailed(messageText, code: error["code"] as? Int)
                     }
                     return SendableJSONMessage(value: message)
                 }
@@ -246,7 +246,7 @@ final class GrokRPCClient: @unchecked Sendable {
 public enum GrokRPCError: LocalizedError, Sendable {
     case binaryNotFound
     case startFailed(String)
-    case requestFailed(String)
+    case requestFailed(String, code: Int? = nil)
     case timeout(method: String)
     case malformed(String)
     case notAuthenticated
@@ -257,7 +257,7 @@ public enum GrokRPCError: LocalizedError, Sendable {
             return "Grok CLI not found. Install via `curl -fsSL https://x.ai/cli/install.sh | bash`."
         case let .startFailed(message):
             return "Grok CLI failed to start: \(message)"
-        case let .requestFailed(message):
+        case let .requestFailed(message, _):
             // Surface the auth-required hint that billing.rs emits verbatim.
             if message.localizedCaseInsensitiveContains("authentication required")
                 || message.localizedCaseInsensitiveContains("grok login")

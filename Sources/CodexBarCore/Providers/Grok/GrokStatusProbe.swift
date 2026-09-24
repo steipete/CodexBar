@@ -209,12 +209,11 @@ public struct GrokStatusProbe: Sendable {
 
     static func isBillingMethodUnavailable(_ error: Error?) -> Bool {
         guard let error,
-              case let GrokRPCError.requestFailed(message) = error
+              case let GrokRPCError.requestFailed(_, code) = error
         else {
             return false
         }
-        let normalized = message.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        return normalized == "method not found" || normalized.hasPrefix("method not found:")
+        return code == -32601
     }
 
     static func shouldUseIdentityOnlyFallback(

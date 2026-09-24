@@ -1,4 +1,5 @@
 import Foundation
+@testable import CodexBarCore
 
 public enum T3ChatUsageError: LocalizedError, Sendable {
     case noSessionCookie

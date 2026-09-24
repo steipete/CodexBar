@@ -228,26 +228,31 @@ struct ProviderPluginRuntimeTests {
         }
     }
 
-    @Test
-    func `HTTP request deadline defaults to fifteen seconds and accepts bounded override`() async throws {
+    @Test(arguments: Self.labelValidationEngines)
+    func `HTTP request deadline defaults to fifteen seconds and accepts bounded override`(
+        engine: ProviderPluginEngineKind) async throws
+    {
         let requests = RequestRecorder()
         let runtime = try ProviderPluginRuntime(
             source: Self.plugin(fetchBody: """
             await ctx.http.getJSON("https://api.example.test/default");
-            const response = await ctx.http.getJSON("https://api.example.test/override", { timeoutSeconds: 7.5 });
+            await ctx.http.getJSON("https://api.example.test/fractional", { timeoutSeconds: 7.5 });
+            await ctx.http.getJSON("https://api.example.test/web", { timeoutSeconds: 60 });
+            const response = await ctx.http.getJSON("https://api.example.test/maximum", { timeoutSeconds: 90 });
             return { primary: { usedPercent: response.json.used } };
             """),
-            transport: Self.transport(recorder: requests, body: #"{"used":11}"#))
+            transport: Self.transport(recorder: requests, body: #"{"used":11}"#),
+            engine: engine)
 
         let snapshot = try await runtime.fetchUsage(secrets: ["TEST_KEY": "secret-value"])
 
         #expect(snapshot.primary?.usedPercent == 11)
         let recorded = await requests.all
-        #expect(recorded.map(\.timeoutInterval) == [15, 7.5])
+        #expect(recorded.map(\.timeoutInterval) == [15, 7.5, 60, 90])
     }
 
-    @Test(arguments: ["0", "0.5", "31", #""slow""#])
-    func `HTTP request deadline rejects values outside one through thirty seconds`(value: String) async throws {
+    @Test(arguments: ["0", "0.5", "90.1", "true", "null", #""slow""#])
+    func `HTTP request deadline rejects values outside one through ninety seconds`(value: String) async throws {
         let requests = RequestRecorder()
         let runtime = try ProviderPluginRuntime(
             source: Self.plugin(fetchBody: """

@@ -158,6 +158,7 @@ interface CodexBarFetchResult {
 
 interface CodexBarHTTPRequestOptions {
   headers?: Readonly<Record<string, string>>;
+  /** Hard deadline from transport start, 1–90 seconds (default 15); also bounded by the overall fetch deadline. */
   timeoutSeconds?: number;
   /** One native delayed retry for transient GET failures; POST is never retried. */
   retryPolicy?: "transientIdempotent";

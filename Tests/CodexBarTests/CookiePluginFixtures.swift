@@ -13,6 +13,43 @@ enum CookiePluginFixtures {
         return (Data(body.utf8), response)
     }
 
+    static func manus(_ data: Data, now: Date = Date()) async throws -> ManusCreditsResponse {
+        let reference: ManusCreditsResponse
+        do {
+            reference = try ManusReferenceParser.parseResponse(data)
+        } catch {
+            for engine in BundledPluginTestSupport.engines {
+                let runtime = try self.runtime("manus", data: data, engine: engine)
+                await self.expectFailure(.parseFailure) {
+                    try await runtime.fetchUsage(cookieResolver: { _, _ in "session_id=fixture" })
+                }
+            }
+            throw error
+        }
+        for engine in BundledPluginTestSupport.engines {
+            let usage = try await self.runtime("manus", data: data, engine: engine)
+                .fetchUsage(now: now, cookieResolver: { _, _ in "session_id=fixture" })
+            let expected = reference.toUsageSnapshot(now: now)
+            #expect(usage.primary == expected.primary)
+            #expect(usage.secondary == expected.secondary)
+            #expect(usage.identity?.loginMethod == expected.identity?.loginMethod)
+        }
+        return reference
+    }
+
+    static func t3chat(_ text: String, now: Date = Date()) async throws -> T3ChatUsageSnapshot {
+        let reference = try T3ChatUsageParser.parseJSONLines(text, now: now)
+        for engine in BundledPluginTestSupport.engines {
+            let usage = try await self.runtime("t3chat", data: Data(text.utf8), engine: engine)
+                .fetchUsage(now: now, cookieResolver: { _, _ in "session=fixture" })
+            let expected = reference.toUsageSnapshot()
+            #expect(usage.primary == expected.primary)
+            #expect(usage.secondary == expected.secondary)
+            #expect(usage.identity?.loginMethod == expected.identity?.loginMethod)
+        }
+        return reference
+    }
+
     static func perplexity(_ data: Data, now: Date = Date()) async throws -> PerplexityUsageSnapshot {
         let reference: PerplexityUsageSnapshot
         do {

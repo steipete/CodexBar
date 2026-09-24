@@ -11,10 +11,11 @@
 
 ### Fixed
 
-- iCloud Sync: let other Macs and their stale usage snapshots be removed from the Macs list, including duplicate records left after reinstalling (#3234).
-
+- Grok: preserve team identity and local token history when a missing billing RPC method changes its error wording, using the JSON-RPC error code for fallback (related to #3716).
 - Command Code: size monthly usage from the grant reported with credits, keeping the row available when the optional subscription lookup fails (#3939). Thanks @enieuwy!
 - Kimi: import web access tokens from Chromium local storage for the selected region, preserving manual and saved-account credential isolation (#3923). Thanks @kaishin!
+- Manus and T3 Chat: use bundled providers on both engines, retry rejected Manus sessions before environment fallback, and retain T3 Chat’s captured browser headers and 60-second web timeout (#3933, #3934).
+- Provider plugins: allow explicit HTTP deadlines up to 90 seconds while preserving request-start timing and overall fetch cancellation (#2784).
 
 - Alibaba Token Plan / Qwen Cloud: parse monthly quota windows, retain rolling windows alongside monthly usage, and read Personal/Solo monthly usage through the Bailian CLI's raw usage endpoint (#3903). Thanks @Josephur!
 - Claude: document browser-session recovery and the explicit cookie-import retry when Claude works in Chrome but CodexBar cannot read the session (#3919). Thanks @PakAbhishek!
@@ -36,6 +37,7 @@
 - Cost history: back off forbidden Cursor cost requests for six hours, honor timeout cooldowns without cached data, and preserve quota refreshes and manual recovery (#3910, #3918). Thanks @harjothkhara and @Sogl!
 - Chutes: refresh subscription and pay-as-you-go quotas through the bundled plugin on both engines, preserving empty usage responses and best-effort quota details.
 - ai&: refresh 30-day spending through the bundled plugin on both engines, preserving decimal totals, partial pages, and empty windows without a guessed currency.
+- iCloud Sync: let other Macs and their stale usage snapshots be removed from the Macs list, including duplicate records left after reinstalling (#3234).
 
 ## 0.65.0 — 2026-09-22
 

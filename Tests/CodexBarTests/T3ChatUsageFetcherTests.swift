@@ -38,8 +38,8 @@ struct T3ChatUsageFetcherTests {
     ].joined(separator: "\n")
 
     @Test
-    func `parses customer data from json lines response`() throws {
-        let snapshot = try T3ChatUsageParser.parseJSONLines(Self.sampleResponse, now: Self.now)
+    func `parses customer data from json lines response`() async throws {
+        let snapshot = try await CookiePluginFixtures.t3chat(Self.sampleResponse, now: Self.now)
 
         #expect(snapshot.customerData.subTier == "pro")
         #expect(snapshot.customerData.usageBand == "max")
@@ -49,8 +49,8 @@ struct T3ChatUsageFetcherTests {
     }
 
     @Test
-    func `maps customer data to base and overage windows`() throws {
-        let usage = try T3ChatUsageParser.parseJSONLines(Self.sampleResponse, now: Self.now)
+    func `maps customer data to base and overage windows`() async throws {
+        let usage = try await CookiePluginFixtures.t3chat(Self.sampleResponse, now: Self.now)
             .toUsageSnapshot()
 
         #expect(usage.primary?.usedPercent == 12.5)
@@ -64,11 +64,11 @@ struct T3ChatUsageFetcherTests {
     }
 
     @Test
-    func `falls back to usage period percentage when month percentage is absent`() throws {
+    func `falls back to usage period percentage when month percentage is absent`() async throws {
         let response = """
         {"json":[2,0,[[{"subTier":"free","usageFourHourPercentage":5,"usagePeriodPercentage":65}]]]}
         """
-        let usage = try T3ChatUsageParser.parseJSONLines(response, now: Self.now)
+        let usage = try await CookiePluginFixtures.t3chat(response, now: Self.now)
             .toUsageSnapshot()
 
         #expect(usage.primary?.usedPercent == 5)
@@ -76,10 +76,10 @@ struct T3ChatUsageFetcherTests {
     }
 
     @Test
-    func `overage reset ignores billing next reset`() throws {
+    func `overage reset ignores billing next reset`() async throws {
         let response = Self.customerDataResponse(
             #"{"usageMonthPercentage":20,"billingNextResetAt":\#(Self.billingNextResetMilliseconds)}"#)
-        let usage = try T3ChatUsageParser.parseJSONLines(response, now: Self.now)
+        let usage = try await CookiePluginFixtures.t3chat(response, now: Self.now)
             .toUsageSnapshot()
 
         #expect(usage.secondary?.usedPercent == 20)
@@ -87,11 +87,11 @@ struct T3ChatUsageFetcherTests {
     }
 
     @Test
-    func `overage reset uses subscription current period end`() throws {
+    func `overage reset uses subscription current period end`() async throws {
         let currentPeriodEnd = Self.subscriptionPeriodEndMilliseconds
         let response = Self.customerDataResponse(
             #"{"usageMonthPercentage":20,"subscription":{"currentPeriodEnd":\#(currentPeriodEnd)}}"#)
-        let usage = try T3ChatUsageParser.parseJSONLines(response, now: Self.now)
+        let usage = try await CookiePluginFixtures.t3chat(response, now: Self.now)
             .toUsageSnapshot()
 
         #expect(usage.secondary?.usedPercent == 20)
@@ -116,12 +116,12 @@ struct T3ChatUsageFetcherTests {
             return (Data(Self.sampleResponse.utf8), response)
         }
 
-        let snapshot = try await T3ChatUsageFetcher.fetchCustomerData(
+        let snapshot = try await Self.fetch(
             cookieHeader: "session=abc",
             now: Self.now,
             transport: stub)
 
-        #expect(snapshot.customerData.planName == "Pro")
+        #expect(snapshot.identity?.loginMethod == "Pro")
     }
 
     @Test
@@ -152,9 +152,8 @@ struct T3ChatUsageFetcherTests {
             return (Data(Self.sampleResponse.utf8), response)
         }
 
-        let fetcher = T3ChatUsageFetcher(browserDetection: BrowserDetection(cacheTTL: 0))
-        _ = try await fetcher.fetch(
-            cookieHeaderOverride: curl,
+        _ = try await Self.fetch(
+            cookieHeader: curl,
             now: Self.now,
             transport: stub)
     }
@@ -179,9 +178,8 @@ struct T3ChatUsageFetcherTests {
             return (Data(Self.sampleResponse.utf8), response)
         }
 
-        let fetcher = T3ChatUsageFetcher(browserDetection: BrowserDetection(cacheTTL: 0))
-        _ = try await fetcher.fetch(
-            cookieHeaderOverride: curl,
+        _ = try await Self.fetch(
+            cookieHeader: curl,
             now: Self.now,
             transport: stub)
     }
@@ -207,9 +205,8 @@ struct T3ChatUsageFetcherTests {
             return (Data(Self.sampleResponse.utf8), response)
         }
 
-        let fetcher = T3ChatUsageFetcher(browserDetection: BrowserDetection(cacheTTL: 0))
-        _ = try await fetcher.fetch(
-            cookieHeaderOverride: curl,
+        _ = try await Self.fetch(
+            cookieHeader: curl,
             now: Self.now,
             transport: stub)
     }
@@ -227,7 +224,10 @@ struct T3ChatUsageFetcherTests {
                 cookieSource: .manual,
                 manualCookieHeader: curl))
 
-        #expect(await T3ChatWebFetchStrategy().isAvailable(Self.makeContext(settings: settings)))
+        let context = Self.makeContext(settings: settings)
+        let strategies = await T3ChatProviderDescriptor.descriptor.fetchPlan.pipeline.resolveStrategies(context)
+        #expect(strategies.count == 1)
+        #expect(await strategies[0].isAvailable(context))
     }
 
     @Test
@@ -242,13 +242,12 @@ struct T3ChatUsageFetcherTests {
         }
 
         await #expect {
-            _ = try await T3ChatUsageFetcher.fetchCustomerData(
+            _ = try await Self.fetch(
                 cookieHeader: "session=abc",
                 now: Self.now,
                 transport: stub)
         } throws: { error in
-            guard case T3ChatUsageError.invalidCredentials = error else { return false }
-            return true
+            (error as? ProviderFetchClassifiedError)?.kind == .authenticationExpired
         }
     }
 
@@ -264,14 +263,37 @@ struct T3ChatUsageFetcherTests {
         }
 
         await #expect {
-            _ = try await T3ChatUsageFetcher.fetchCustomerData(
+            _ = try await Self.fetch(
                 cookieHeader: "session=abc",
                 now: Self.now,
                 transport: stub)
         } throws: { error in
-            guard case T3ChatUsageError.vercelChallenge = error else { return false }
-            return true
+            (error as? ProviderFetchClassifiedError)?.message.contains("Vercel security challenge") == true
         }
+    }
+
+    private static func fetch(
+        cookieHeader: String,
+        now: Date,
+        transport: any ProviderHTTPTransport) async throws -> UsageSnapshot
+    {
+        let context = self.makeContext(settings: .make(t3chat: .init(
+            cookieSource: .manual, manualCookieHeader: cookieHeader)))
+        let values = try #require(T3ChatProviderDescriptor.pluginValues(context))
+        var snapshots: [UsageSnapshot] = []
+        for engine in BundledPluginTestSupport.engines {
+            let runtime = try BundledPluginTestSupport.runtime("t3chat", engine: engine, transport: transport)
+            try await snapshots.append(runtime.fetchUsage(
+                settings: values.settings,
+                secrets: values.secrets,
+                now: now,
+                cookieSource: .manual,
+                cookieResolver: { _, _ in
+                    Issue.record("Manual cURL credentials must bypass browser import")
+                    return ""
+                }))
+        }
+        return try #require(snapshots.first)
     }
 
     private static func customerDataResponse(_ customerDataJSON: String) -> String {

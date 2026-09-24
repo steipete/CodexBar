@@ -196,9 +196,13 @@ struct GrokAuthTests {
     @Test
     func `team method unavailable is classified without broadening other rpc failures`() {
         #expect(GrokStatusProbe.isBillingMethodUnavailable(
-            GrokRPCError.requestFailed("Method not found")))
+            GrokRPCError.requestFailed("Method not found", code: -32601)))
         #expect(GrokStatusProbe.isBillingMethodUnavailable(
-            GrokRPCError.requestFailed("Method not found: x.ai/billing")))
+            GrokRPCError.requestFailed("Unsupported RPC method: x.ai/billing", code: -32601)))
+        #expect(!GrokStatusProbe.isBillingMethodUnavailable(
+            GrokRPCError.requestFailed("Method not found", code: -32001)))
+        #expect(!GrokStatusProbe.isBillingMethodUnavailable(
+            GrokRPCError.requestFailed("Method not found")))
         #expect(!GrokStatusProbe.isBillingMethodUnavailable(
             GrokRPCError.requestFailed("Authentication required")))
         #expect(!GrokStatusProbe.isBillingMethodUnavailable(nil))
@@ -208,7 +212,7 @@ struct GrokAuthTests {
     func `team identity fallback requires an attempted billing call`() throws {
         let json = #"{"https://auth.x.ai::client":{"key":"token","principal_type":"Team"}}"#
         let credentials = try GrokCredentialsStore.parse(data: Data(json.utf8))
-        let methodNotFound = GrokRPCError.requestFailed("Method not found")
+        let methodNotFound = GrokRPCError.requestFailed("Method not found", code: -32601)
 
         #expect(GrokStatusProbe.shouldUseIdentityOnlyFallback(
             credentials: credentials,

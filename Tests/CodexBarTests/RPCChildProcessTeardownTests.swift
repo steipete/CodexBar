@@ -98,11 +98,12 @@ struct RPCChildProcessTeardownTests {
         let error = await #expect(throws: GrokRPCError.self) {
             try await client.initialize()
         }
-        guard case let .requestFailed(message) = error else {
+        guard case let .requestFailed(message, code) = error else {
             Issue.record("Expected a normal Grok request failure, got \(String(describing: error))")
             return
         }
         #expect(message.contains("stdin closed"))
+        #expect(code == nil)
     }
 
     @Test

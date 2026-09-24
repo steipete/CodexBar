@@ -25,7 +25,7 @@ struct ProviderPluginExtensionParityTests {
     func `Manus cookie plugin matches Swift generic projection`() async throws {
         let fixture = #"{"totalCredits":1200,"freeCredits":200,"periodicCredits":300,"refreshCredits":40,"maxRefreshCredits":100,"proMonthlyCredits":1000,"eventCredits":0,"addonCredits":0,"nextRefreshTime":"2027-01-15T00:00:00Z","refreshInterval":"daily"}"#
         let now = Date(timeIntervalSince1970: 1_800_000_000)
-        let swift = try ManusUsageFetcher.parseResponse(Data(fixture.utf8)).toUsageSnapshot(now: now)
+        let swift = try ManusReferenceParser.parseResponse(Data(fixture.utf8)).toUsageSnapshot(now: now)
         let script = try await ProviderPluginRuntime(
             bundledPlugin: "manus",
             transport: Self.transport { _ in fixture })
@@ -40,7 +40,7 @@ struct ProviderPluginExtensionParityTests {
         #"{"response":{"totalCredits":5},"availableCredits":{}}"#,
     ])
     func `Manus ignores unused lower priority envelopes`(body: String) async throws {
-        let swift = try ManusUsageFetcher.parseResponse(Data(body.utf8)).toUsageSnapshot()
+        let swift = try ManusReferenceParser.parseResponse(Data(body.utf8)).toUsageSnapshot()
         let script = try await ProviderPluginRuntime(bundledPlugin: "manus", transport: Self.transport { _ in body })
             .fetchUsage(cookieResolver: { _, _ in "session_id=fixture-session" })
         #expect(swift.identity?.loginMethod == "Balance: 5 credits")
@@ -51,10 +51,10 @@ struct ProviderPluginExtensionParityTests {
     func `Manus rejects selected primitive envelopes`(payload: String) async throws {
         let body = "{\"data\":\(payload),\"result\":{\"totalCredits\":5}}"
         #expect(throws: (any Error).self) {
-            try ManusUsageFetcher.parseResponse(Data(body.utf8))
+            try ManusReferenceParser.parseResponse(Data(body.utf8))
         }
         let runtime = try ProviderPluginRuntime(bundledPlugin: "manus", transport: Self.transport { _ in body })
-        await #expect(throws: ProviderPluginError.self) {
+        await #expect(throws: ProviderFetchClassifiedError.self) {
             try await runtime.fetchUsage(cookieResolver: { _, _ in "session_id=fixture-session" })
         }
     }

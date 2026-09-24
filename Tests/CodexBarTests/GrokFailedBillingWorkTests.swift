@@ -6,9 +6,11 @@ struct GrokFailedBillingWorkTests {
     enum Scenario: String, CaseIterable, Sendable {
         case personalUnavailable, teamUnauthorized, initializationFailure, expiredTeam, teamFallback, billingSuccess
         case expiresDuringScan, expiresDuringVersion, acceptedIdentity
+        case methodUnavailableAlternateMessage, methodMessageWrongCode
 
         var acceptsSnapshot: Bool {
             self == .teamFallback || self == .billingSuccess || self == .acceptedIdentity
+                || self == .methodUnavailableAlternateMessage
         }
 
         var scansBeforeResult: Bool {
@@ -19,7 +21,16 @@ struct GrokFailedBillingWorkTests {
             switch self {
             case .teamUnauthorized: "Unauthorized"
             case .initializationFailure: "Initialize failed"
+            case .methodUnavailableAlternateMessage: "Unsupported RPC method: x.ai/billing"
             default: "Method not found"
+            }
+        }
+
+        var errorCode: Int {
+            switch self {
+            case .teamUnauthorized, .methodMessageWrongCode: -32001
+            case .initializationFailure: -32603
+            default: -32601
             }
         }
     }
@@ -45,7 +56,7 @@ struct GrokFailedBillingWorkTests {
         func reply(id: Int, result: [String: Any], error: String?) throws -> String {
             var value: [String: Any] = ["jsonrpc": "2.0", "id": id]
             if let error {
-                value["error"] = ["code": -32601, "message": error]
+                value["error"] = ["code": scenario.errorCode, "message": error]
             } else {
                 value["result"] = result
             }
@@ -118,6 +129,7 @@ struct GrokFailedBillingWorkTests {
             #expect(scenario.acceptsSnapshot)
             #expect(snapshot.localSummary?.totalTokens == 42)
             #expect(snapshot.localSummary?.daily == summary.daily)
+            #expect(snapshot.toUsageSnapshot().costUsage?.last30DaysTokens == 42)
             #expect(snapshot.cliVersion == "synthetic-version")
             if scenario != .billingSuccess {
                 #expect(snapshot.billing == nil)
@@ -129,14 +141,16 @@ struct GrokFailedBillingWorkTests {
             }
         } catch let error as GrokRPCError {
             #expect(!scenario.acceptsSnapshot)
-            guard case let .requestFailed(message) = error else {
+            guard case let .requestFailed(message, code) = error else {
                 Issue.record("Unexpected RPC error: \(error)")
                 return
             }
             #expect(message == scenario.errorMessage)
+            #expect(code == scenario.errorCode)
         }
         #expect(await calls.scans == (scenario.scansBeforeResult ? 1 : 0))
-        #expect(await calls.settings == (scenario == .teamFallback ? 1 : 0))
+        #expect(await calls
+            .settings == ([.teamFallback, .methodUnavailableAlternateMessage].contains(scenario) ? 1 : 0))
     }
 }
 
