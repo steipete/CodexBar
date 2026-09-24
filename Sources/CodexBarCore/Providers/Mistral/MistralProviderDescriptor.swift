@@ -261,8 +261,9 @@ struct MistralWebFetchStrategy: ProviderFetchStrategy {
         return Self.attachVibeWindow(to: result, vibeResult: vibeResult)
     }
 
-    /// Allowances come from the JSON budget endpoint; the subscription page scrape stays as a fallback for
-    /// tenants where that endpoint is unavailable. Both are best-effort.
+    /// Allowances come from the JSON budget endpoint first. The subscription page scrape fills whatever the
+    /// endpoint left out (unavailable endpoint, or a partial record with only one allowance) so an existing
+    /// Monthly Plan window never disappears because the JSON answer was incomplete. Both are best-effort.
     static func fetchOptionalSubscriptionBudgets(
         cookieHeader: String,
         csrfToken: String? = nil,
@@ -271,23 +272,36 @@ struct MistralWebFetchStrategy: ProviderFetchStrategy {
         -> MistralSubscriptionBudgets?
     {
         let deadline = Date().addingTimeInterval(timeout)
-        if let budgets = try await Self.optional({
+        let fromEndpoint = try await Self.optional {
             try await MistralUsageFetcher.fetchBudget(
                 cookieHeader: cookieHeader,
                 csrfToken: csrfToken,
                 timeout: timeout,
                 transport: transport)
-        }) {
-            return budgets
+        }
+        if let fromEndpoint, fromEndpoint.api != nil, fromEndpoint.vibe != nil {
+            return fromEndpoint
         }
         let remaining = deadline.timeIntervalSinceNow
-        guard remaining > 0 else { return nil }
-        return try await Self.optional {
+        guard remaining > 0 else { return fromEndpoint }
+        let fromPage = try await Self.optional {
             try await MistralUsageFetcher.fetchSubscriptionBudgets(
                 cookieHeader: cookieHeader,
                 timeout: remaining,
                 transport: transport)
         }
+        return Self.mergedBudgets(preferred: fromEndpoint, fallback: fromPage)
+    }
+
+    /// Field-wise merge: the preferred source wins per allowance, the fallback fills the gaps.
+    static func mergedBudgets(
+        preferred: MistralSubscriptionBudgets?,
+        fallback: MistralSubscriptionBudgets?) -> MistralSubscriptionBudgets?
+    {
+        guard preferred != nil || fallback != nil else { return nil }
+        return MistralSubscriptionBudgets(
+            api: preferred?.api ?? fallback?.api,
+            vibe: preferred?.vibe ?? fallback?.vibe)
     }
 
     static func fetchOptionalAccount(

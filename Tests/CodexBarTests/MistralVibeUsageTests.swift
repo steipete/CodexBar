@@ -398,6 +398,48 @@ struct MistralVibeUsageTests {
     }
 
     @Test
+    func `combined fetch keeps the page Vibe allowance when the endpoint is partial and no csrf exists`() async throws {
+        let budgetRecord = try JSONSerialization.data(withJSONObject: ["budget": [
+            "api_budget": ["usage_percentage": 20, "initial_budget": 50, "currency": "EUR"],
+            "vibe_budget": ["usage_percentage": 70, "initial_budget": 255, "currency": "EUR"],
+        ]])
+        let record = try "7:\(#require(String(bytes: budgetRecord, encoding: .utf8)))\n"
+        let push = try JSONSerialization.data(withJSONObject: [1, record])
+        let page = try "<script>self.__next_f.push(\(#require(String(bytes: push, encoding: .utf8))))</script>"
+        let log = MistralRequestPathLog()
+        let transport = ProviderHTTPTransportHandler { request in
+            log.record(request)
+            let url = try #require(request.url)
+            let body: String
+            switch url.path {
+            case "/api/billing/v2/usage": body = Self.billingUsageResponseJSON
+            case "/api/billing/v2/budget":
+                body = #"{"api_budget":{"usage_percentage":20,"initial_budget":50,"currency":"EUR"}}"#
+            case "/subscription": body = page
+            case "/api/billing/credits":
+                body = #"{"wallet_amount":0,"credit_notes_amount":0,"ongoing_usage_balance":0,"currency":"EUR"}"#
+            case "/api/users/me": body = #"{"email":"dev@example.com","organization":{"name":"Org"}}"#
+            default: throw URLError(.unsupportedURL)
+            }
+            return try (Data(body.utf8), Self.response(url: url, statusCode: 200))
+        }
+
+        let snapshot = try await MistralWebFetchStrategy.fetchUsageWithVibe(
+            cookieHeader: "ory_session_test=abc", csrfToken: nil, timeout: 2, transport: transport)
+
+        #expect(snapshot.primary?.usedPercent == 20)
+        #expect(snapshot.extraRateWindows?.first { $0.id == "mistral-monthly-plan" }?.window.usedPercent == 70)
+        #expect(snapshot.identity?.loginMethod == "Free")
+        #expect(log.paths == [
+            "admin.mistral.ai/api/billing/v2/usage",
+            "admin.mistral.ai/api/billing/v2/budget",
+            "admin.mistral.ai/subscription",
+            "admin.mistral.ai/api/billing/credits",
+            "admin.mistral.ai/api/users/me",
+        ])
+    }
+
+    @Test
     func `monthly plan window preserves existing extras`() {
         let existing = NamedRateWindow(
             id: "existing",

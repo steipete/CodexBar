@@ -213,6 +213,85 @@ struct MistralSubscriptionBudgetTests {
     }
 
     @Test
+    func `optional budgets fill a partial endpoint record from the subscription page`() async throws {
+        // Endpoint answers with the API allowance only; the page still carries the Vibe allowance.
+        let html = try Self.flightPush(Self.fullRecord)
+        let endpointBody = #"{"api_budget":{"usage_percentage":10,"initial_budget":30,"currency":"EUR"}}"#
+        let paths = MistralSubscriptionRequestPathLog()
+        let transport = ProviderHTTPTransportHandler { request in
+            let url = try #require(request.url)
+            paths.record(url.path)
+            switch url.path {
+            case "/api/billing/v2/budget":
+                return try (
+                    Data(endpointBody.utf8),
+                    #require(HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)))
+            case "/subscription":
+                return try (
+                    Data(html.utf8),
+                    #require(HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)))
+            default:
+                throw URLError(.unsupportedURL)
+            }
+        }
+
+        let result = try await MistralWebFetchStrategy.fetchOptionalSubscriptionBudgets(
+            cookieHeader: "ory_session_test=abc",
+            csrfToken: nil,
+            timeout: 2,
+            transport: transport)
+
+        // The endpoint's API allowance wins over the page's; the page supplies the missing Vibe allowance.
+        #expect(result?.api?.limit == 30)
+        #expect(result?.vibe?.limit == 255)
+        #expect(paths.paths == ["/api/billing/v2/budget", "/subscription"])
+    }
+
+    @Test
+    func `optional budgets skip the subscription page when the endpoint record is complete`() async throws {
+        let endpointBody = #"""
+        {"api_budget":{"usage_percentage":10,"initial_budget":30,"currency":"EUR"},
+         "vibe_budget":{"usage_percentage":70,"initial_budget":255,"currency":"EUR"}}
+        """#
+        let paths = MistralSubscriptionRequestPathLog()
+        let transport = ProviderHTTPTransportHandler { request in
+            let url = try #require(request.url)
+            paths.record(url.path)
+            guard url.path == "/api/billing/v2/budget" else { throw URLError(.unsupportedURL) }
+            return try (
+                Data(endpointBody.utf8),
+                #require(HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)))
+        }
+
+        let result = try await MistralWebFetchStrategy.fetchOptionalSubscriptionBudgets(
+            cookieHeader: "ory_session_test=abc",
+            csrfToken: nil,
+            timeout: 2,
+            transport: transport)
+
+        #expect(result?.api?.limit == 30)
+        #expect(result?.vibe?.limit == 255)
+        #expect(paths.paths == ["/api/billing/v2/budget"])
+    }
+
+    @Test
+    func `merged budgets prefer the endpoint and fill gaps from the page`() {
+        let endpointAPI = MistralSubscriptionBudget(usagePercentage: 1, limit: 30, currencyCode: "EUR", resetsAt: nil)
+        let pageAPI = MistralSubscriptionBudget(usagePercentage: 2, limit: 25.5, currencyCode: "EUR", resetsAt: nil)
+        let pageVibe = MistralSubscriptionBudget(usagePercentage: 70, limit: 255, currencyCode: "EUR", resetsAt: nil)
+
+        let merged = MistralWebFetchStrategy.mergedBudgets(
+            preferred: MistralSubscriptionBudgets(api: endpointAPI, vibe: nil),
+            fallback: MistralSubscriptionBudgets(api: pageAPI, vibe: pageVibe))
+        #expect(merged?.api == endpointAPI)
+        #expect(merged?.vibe == pageVibe)
+
+        #expect(MistralWebFetchStrategy.mergedBudgets(preferred: nil, fallback: nil) == nil)
+        #expect(MistralWebFetchStrategy.mergedBudgets(
+            preferred: nil, fallback: MistralSubscriptionBudgets(api: pageAPI, vibe: nil))?.api == pageAPI)
+    }
+
+    @Test
     func `subscription budgets become API and Vibe windows`() throws {
         let html = try Self.flightPush(Self.fullRecord)
         let budgets = try MistralSubscriptionBudgetParser.parse(html: html)

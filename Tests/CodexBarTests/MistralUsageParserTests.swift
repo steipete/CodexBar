@@ -576,6 +576,30 @@ struct MistralUsageSnapshotConversionTests {
     }
 
     @Test
+    func `serialized snapshots without the account field still decode`() throws {
+        // Payload shape produced before the `account` field existed (Cloud Sync, cached usage snapshots).
+        let legacy = """
+        {"totalCost":1.5,"currency":"EUR","currencySymbol":"€","totalInputTokens":10,"totalOutputTokens":5,
+         "totalCachedTokens":0,"modelCount":1,"daily":[],"credits":{"walletAmount":2,"creditNotesAmount":0,
+         "ongoingUsageBalance":0,"currency":"EUR"},"startDate":null,"endDate":null,"updatedAt":700000000}
+        """
+        let snapshot = try JSONDecoder().decode(MistralUsageSnapshot.self, from: Data(legacy.utf8))
+
+        #expect(snapshot.account == nil)
+        #expect(snapshot.totalInputTokens == 10)
+        #expect(snapshot.credits?.walletAmount == 2)
+        let usage = snapshot.toUsageSnapshot()
+        #expect(usage.identity?.accountEmail == nil)
+        #expect(usage.identity?.loginMethod == nil)
+        #expect(usage.mistralUsage?.menuBarSpendText == "€1.5000")
+
+        let reencoded = try JSONEncoder().encode(snapshot)
+        let roundTrip = try JSONDecoder().decode(MistralUsageSnapshot.self, from: reencoded)
+        #expect(roundTrip.account == nil)
+        #expect(roundTrip.totalCost == 1.5)
+    }
+
+    @Test
     func `descriptor exposes the monthly plan window to CLI and menu surfaces`() {
         let monthly = NamedRateWindow(
             id: MistralProviderDescriptor.monthlyPlanWindowID,
