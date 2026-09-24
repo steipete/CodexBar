@@ -250,6 +250,120 @@ struct ClaudeCredentialQuotaWarningTests {
         #expect(store.quotaLowHookUsage[accountKey] == 0.9)
     }
 
+    @Test(arguments: [true, false], ["session", "weekly", "scoped"])
+    func `repeated CLI identity gaps preserve threshold history`(hasReset: Bool, lane: String) throws {
+        try self.checkIdentitySamples(
+            [49.0, 48, 47, 46, 45, 44].enumerated().map { index, remaining in
+                (index.isMultiple(of: 2) ? "account-a" : nil, remaining, hasReset ? 3600 : nil)
+            },
+            expectedThresholds: hasReset ? [50] : [50, 50],
+            lane: lane)
+    }
+
+    @Test(arguments: [true, false], [true, false])
+    func `later thresholds do not repeat across either identity key`(hasReset: Bool, crossingIsKnown: Bool) throws {
+        let remaining = crossingIsKnown ? [49.0, 48, 19, 18, 17, 16] : [49.0, 48, 47, 19, 18, 17]
+        try self.checkIdentitySamples(
+            remaining.enumerated().map { index, value in
+                (index.isMultiple(of: 2) ? "account-a" : nil, value, hasReset ? 3600 : nil)
+            },
+            expectedThresholds: hasReset ? [50, 20] : [50, 50, 20])
+    }
+
+    @Test(arguments: ["reset", "increase", "missing"])
+    func `discontinuous identity gaps start one independent fallback episode`(discontinuity: String) throws {
+        let reset: TimeInterval? = discontinuity == "missing" ? nil : (discontinuity == "reset" ? 7200 : 3600)
+        try self.checkIdentitySamples(
+            [
+                ("account-a", 40, 3600),
+                (nil, discontinuity == "increase" ? 49 : 39, reset),
+                ("account-a", 38, 3600),
+                (nil, discontinuity == "increase" ? 49 : 37, reset),
+                ("account-a", 36, 3600),
+                (nil, discontinuity == "increase" ? 49 : 35, reset),
+            ],
+            expectedThresholds: [50, 50])
+    }
+
+    @Test
+    func `identity gaps follow the most recently known account without merging known accounts`() throws {
+        try self.checkIdentitySamples(
+            [
+                ("account-a", 49, 3600),
+                ("account-b", 48, 3600),
+                (nil, 47, 3600),
+                ("account-a", 46, 3600),
+                (nil, 45, 3600),
+                ("account-b", 44, 3600),
+                (nil, 43, 3600),
+            ],
+            expectedThresholds: [50, 50])
+    }
+
+    @Test(arguments: [true, false])
+    func `initial unresolved history survives repeated resolution and quota recovery`(hasReset: Bool) throws {
+        let reset: TimeInterval? = hasReset ? 3600 : nil
+        try self.checkIdentitySamples(
+            [
+                (nil, 49, reset),
+                ("account-a", 48, reset),
+                (nil, 47, reset),
+                ("account-a", 19, reset),
+                (nil, 18, reset),
+                ("account-a", 60, reset),
+                (nil, 49, reset),
+                ("account-a", 48, reset),
+                (nil, 47, reset),
+            ],
+            expectedThresholds: [50, 20, 50])
+    }
+
+    private func checkIdentitySamples(
+        _ samples: [(identity: String?, remaining: Double, reset: TimeInterval?)],
+        expectedThresholds: [Int],
+        lane: String = "session") throws
+    {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ClaudeRepeatedIdentityGapTests-\(UUID())", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let environment = ["HOME": root.path, "CLAUDE_CONFIG_DIR": root.path]
+        let settings = try self.makeSettings(root: root)
+        defer { settings.configFileWatcher?.stop() }
+        settings.setQuotaWarningWindowEnabled(.weekly, enabled: true)
+        let notifier = NotifierSpy()
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: environment),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            sessionQuotaNotifier: notifier,
+            startupBehavior: .testing,
+            environmentBase: environment)
+        let now = Date(timeIntervalSince1970: 1_900_000_000)
+        for (index, sample) in samples.enumerated() {
+            let scopes = store.warningClaudeAccountDiscriminators(
+                strategyKind: .cli,
+                observation: .stable(identity: sample.identity))
+            let window = RateWindow(
+                usedPercent: 100 - sample.remaining,
+                windowMinutes: lane == "session" ? 300 : 10080,
+                resetsAt: sample.reset.map { now.addingTimeInterval($0) },
+                resetDescription: nil)
+            store.handleQuotaWarningTransitions(
+                provider: .claude,
+                snapshot: UsageSnapshot(
+                    primary: lane == "session" ? window : nil,
+                    secondary: lane == "weekly" ? window : nil,
+                    extraRateWindows: lane == "scoped"
+                        ? [NamedRateWindow(id: "claude-weekly-scoped-fable", title: "Fable", window: window)] : nil,
+                    updatedAt: now.addingTimeInterval(Double(index))),
+                accountDiscriminator: scopes.quota,
+                hookAccountDiscriminator: scopes.source,
+                requiresKnownAccount: true)
+        }
+        #expect(notifier.thresholds == expectedThresholds)
+    }
+
     private func checkRefreshes(
         activeAccount: String?,
         historyOwner: String?,

@@ -246,6 +246,7 @@ extension UsageStore {
         }
         if let account, account != unknownAccount {
             self.reconcileClaudeQuotaWarningOwner(unknownAccount, account: account)
+            self.lastClaudeQuotaWarningAccount = account
         }
         return (account ?? source, source)
     }
@@ -256,6 +257,9 @@ extension UsageStore {
                 provider: key.provider, window: key.window, accountDiscriminator: account, windowID: key.windowID)
             if prior.observedAt >= (self.quotaWarningState[accountKey]?.observedAt ?? .distantPast) {
                 self.quotaWarningState[accountKey] = prior
+            }
+            if owner == "claude-account:unknown" {
+                self.quotaWarningState[accountKey]?.sharedWithUnresolvedAccount = true
             }
             self.quotaWarningState.removeValue(forKey: key)
         }

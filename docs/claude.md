@@ -149,8 +149,11 @@ the cookie import.
   their baselines are not merged with threshold notification state. OAuth/CLI samples without a warning owner use
   one stable unresolved-account scope, so credential rewrites preserve threshold crossings and predictive warnings
   remain available. When a stable account identity or verified owner binding becomes available, its threshold scope
-  adopts the newest unresolved history and removes that fallback entry. The first sample in a new unresolved episode
-  can issue an initial warning. Unverified credential owners remain independent; changing such an owner can still
+  adopts the newest unresolved history. Later identity gaps reuse the last known account when the reset timestamp
+  is unchanged and remaining quota has not increased. Without that continuity, samples use the stable unresolved
+  scope; once its history has joined an account, subsequent gaps preserve already-fired thresholds rather than
+  starting a new warning episode on every refresh. The first independent unresolved sample can still issue an
+  initial warning. Unverified credential owners remain independent; changing such an owner can still
   produce an initial warning because account continuity cannot be established.
 - Successful OAuth login enables Claude and preserves the selected usage source. With the default Auto source, OAuth
   remains preferred when readable, while CLI/Web fallback stays available when OAuth credentials are not usable.
