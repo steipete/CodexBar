@@ -33,12 +33,4 @@ public enum Sub2APISettingsReader {
         else { return nil }
         return url
     }
-
-    public static func validateBaseURL(
-        environment: [String: String] = ProcessInfo.processInfo.environment) throws
-    {
-        guard self.baseURL(environment: environment) != nil else {
-            throw Sub2APISettingsError.invalidBaseURL
-        }
-    }
 }

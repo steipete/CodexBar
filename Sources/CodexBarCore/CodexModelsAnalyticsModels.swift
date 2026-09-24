@@ -27,20 +27,6 @@ public enum CodexModelsMetric: String, CaseIterable, Codable, Identifiable, Send
     }
 }
 
-public enum CodexModelsGranularity: String, CaseIterable, Codable, Identifiable, Sendable {
-    case daily
-    case weekly
-    case monthly
-
-    public var id: Self {
-        self
-    }
-
-    public var title: String {
-        self.rawValue.capitalized
-    }
-}
-
 public enum CodexModelsComparison: Codable, Equatable, Sendable {
     case unavailable
     case new

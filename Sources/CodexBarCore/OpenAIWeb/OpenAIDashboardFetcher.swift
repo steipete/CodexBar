@@ -301,18 +301,6 @@ public struct OpenAIDashboardFetcher {
             log: lease.log))
     }
 
-    /// Fetches optional subscription metadata independently of the dashboard result.
-    /// Callers can return usage promptly, then apply this result only after re-checking
-    /// account authority.
-    public func clearSessionData(
-        accountEmail: String?,
-        cacheScope: CookieHeaderCache.Scope? = nil) async
-    {
-        let store = OpenAIDashboardWebsiteDataStore.store(forAccountEmail: accountEmail, scope: cacheScope)
-        OpenAIDashboardWebViewCache.shared.evict(websiteDataStore: store)
-        await OpenAIDashboardWebsiteDataStore.clearStore(forAccountEmail: accountEmail, scope: cacheScope)
-    }
-
     public static func evictAllCachedWebViews() {
         OpenAIDashboardWebViewCache.shared.evictAll()
     }

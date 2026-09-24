@@ -40,15 +40,6 @@ public struct CodexBarConfigStore: @unchecked Sendable {
         }
     }
 
-    public func loadOrCreateDefault() throws -> CodexBarConfig {
-        if let existing = try self.load() {
-            return existing
-        }
-        let config = CodexBarConfig.makeDefault()
-        try self.save(config)
-        return config
-    }
-
     public func save(_ config: CodexBarConfig) throws {
         let data = try self.encodedData(for: config)
         try self.saveEncodedData(data)

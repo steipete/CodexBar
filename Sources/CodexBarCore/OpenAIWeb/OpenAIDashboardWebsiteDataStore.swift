@@ -38,35 +38,6 @@ public enum OpenAIDashboardWebsiteDataStore {
         return store
     }
 
-    /// Clears the persistent cookie store for a single account email.
-    ///
-    /// Note: this does *not* impact other accounts, and is safe to use when the stored session is "stuck"
-    /// or signed in to a different account than expected.
-    public static func clearStore(
-        forAccountEmail email: String?,
-        scope: CookieHeaderCache.Scope? = nil) async
-    {
-        // Clear only ChatGPT/OpenAI domain data for the per-account store.
-        // Avoid deleting the entire persistent store (WebKit requires all WKWebViews using it to be released).
-        let store = self.store(forAccountEmail: email, scope: scope)
-        await withCheckedContinuation { cont in
-            store.fetchDataRecords(ofTypes: WKWebsiteDataStore.allWebsiteDataTypes()) { records in
-                let filtered = records.filter { record in
-                    let name = record.displayName.lowercased()
-                    return name.contains("chatgpt.com") || name.contains("openai.com")
-                }
-                store.removeData(ofTypes: WKWebsiteDataStore.allWebsiteDataTypes(), for: filtered) {
-                    cont.resume()
-                }
-            }
-        }
-
-        // Remove from cache so a fresh instance is created on next access
-        if let normalized = normalizeEmail(email) {
-            self.cachedStores.removeValue(forKey: self.storageKey(normalizedEmail: normalized, scope: scope))
-        }
-    }
-
     #if DEBUG
     /// Clear all cached store instances (for test isolation).
     public static func clearCacheForTesting() {

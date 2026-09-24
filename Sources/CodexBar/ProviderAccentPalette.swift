@@ -43,10 +43,4 @@ enum ProviderAccentPalette {
     static func color(for provider: UsageProvider) -> ProviderColor {
         self.override(for: provider) ?? ProviderDescriptorRegistry.descriptor(for: provider).branding.color
     }
-
-    static func _test_reset() {
-        self.lock.lock()
-        self.overrides = [:]
-        self.lock.unlock()
-    }
 }

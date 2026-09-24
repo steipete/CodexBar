@@ -8,80 +8,10 @@ import Darwin
 #endif
 
 extension CostUsageScanner {
-    static func codexRowsByDayModel(
-        rows: [CodexUsageRow],
-        range: CostUsageDayRange) -> [String: [String: [CodexUsageRow]]]
-    {
-        var rowsByDayModel: [String: [String: [CodexUsageRow]]] = [:]
-        for row in rows {
-            guard CostUsageDayRange.isInRange(dayKey: row.day, since: range.sinceKey, until: range.untilKey)
-            else { continue }
-            rowsByDayModel[row.day, default: [:]][row.model, default: []].append(row)
-        }
-        return rowsByDayModel
-    }
-
-    static func codexCostNanosByDayModel(
-        cache: CostUsageCache,
-        range: CostUsageDayRange) -> [String: [String: Int64]]
-    {
-        self.codexNanosByDayModel(cache: cache, range: range) { $0.codexCostNanos }
-    }
-
-    static func codexStandardTokensByDayModel(
-        cache: CostUsageCache,
-        range: CostUsageDayRange) -> [String: [String: Int]]
-    {
-        self.codexIntByDayModel(cache: cache, range: range) { $0.codexStandardTokens }
-    }
-
-    static func codexPriorityTokensByDayModel(
-        cache: CostUsageCache,
-        range: CostUsageDayRange) -> [String: [String: Int]]
-    {
-        self.codexIntByDayModel(cache: cache, range: range) { $0.codexPriorityTokens }
-    }
-
     static func codexReportDayKeys(cache: CostUsageCache, range: CostUsageDayRange) -> [String] {
         cache.days.keys.sorted().filter {
             CostUsageDayRange.isInRange(dayKey: $0, since: range.sinceKey, until: range.untilKey)
         }
-    }
-
-    static func codexNanosByDayModel(
-        cache: CostUsageCache,
-        range: CostUsageDayRange,
-        keyPath: (CostUsageFileUsage) -> [String: [String: Int64]]?) -> [String: [String: Int64]]
-    {
-        var out: [String: [String: Int64]] = [:]
-        for usage in cache.files.values {
-            for (day, models) in keyPath(usage) ?? [:] {
-                guard CostUsageDayRange.isInRange(dayKey: day, since: range.sinceKey, until: range.untilKey)
-                else { continue }
-                for (model, value) in models {
-                    out[day, default: [:]][model, default: .zero] += value
-                }
-            }
-        }
-        return out
-    }
-
-    static func codexIntByDayModel(
-        cache: CostUsageCache,
-        range: CostUsageDayRange,
-        keyPath: (CostUsageFileUsage) -> [String: [String: Int]]?) -> [String: [String: Int]]
-    {
-        var out: [String: [String: Int]] = [:]
-        for usage in cache.files.values {
-            for (day, models) in keyPath(usage) ?? [:] {
-                guard CostUsageDayRange.isInRange(dayKey: day, since: range.sinceKey, until: range.untilKey)
-                else { continue }
-                for (model, value) in models {
-                    out[day, default: [:]][model, default: .zero] += value
-                }
-            }
-        }
-        return out
     }
 
     struct CodexRowCostBreakdown {

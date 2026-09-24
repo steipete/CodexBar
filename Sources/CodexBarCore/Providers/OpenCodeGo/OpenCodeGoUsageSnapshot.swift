@@ -163,12 +163,6 @@ public struct OpenCodeGoUsageSnapshot: Sendable {
             updatedAt: self.updatedAt)
     }
 
-    public func withDaily(_ daily: [CostUsageDailyReport.Entry]) -> OpenCodeGoUsageSnapshot {
-        var copy = self
-        copy.daily = daily
-        return copy
-    }
-
     /// Projects the local per-day cost buckets into the shared cost-history model so OpenCode Go
     /// can reuse the same daily usage chart as Codex/Claude instead of a bespoke view.
     public func toCostUsageTokenSnapshot(historyDays: Int = 30) -> CostUsageTokenSnapshot {

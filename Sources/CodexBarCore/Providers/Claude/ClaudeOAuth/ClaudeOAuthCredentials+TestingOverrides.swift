@@ -32,7 +32,6 @@ extension ClaudeOAuthCredentialsStore {
         DirectKeychainReadConsentRevocationMarkerStore?
     @TaskLocal static var taskUseEnvironmentCredentialsURLForTesting = false
 
-    typealias OAuthCacheOperation = KeychainCacheStore.Operation
     typealias OAuthCacheOperationRecorder = KeychainCacheStore.OperationRecorder
 
     final class PendingCacheClearMemoryStore: ClaudeOAuthPendingCacheClearStore, @unchecked Sendable {

@@ -190,10 +190,6 @@ public enum IBMBobUsageFetcher {
         try await self.fetchUsage(apiKey: apiKey, transport: transport, now: now)
     }
 
-    static func _parseProfileForTesting(_ data: Data) throws -> Int {
-        try self.decodeProfile(data).instances.count
-    }
-
     private static func fetchUsage(
         apiKey: String,
         transport: any ProviderHTTPTransport,
