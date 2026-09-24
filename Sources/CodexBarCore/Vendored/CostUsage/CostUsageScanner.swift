@@ -413,12 +413,6 @@ enum CostUsageScanner {
         }
     }
 
-    private struct CodexTimestampedTotals {
-        let timestamp: String
-        let date: Date?
-        let totals: CostUsageCodexTotals
-    }
-
     enum CodexForkBaseline {
         case resolved(CostUsageCodexTotals?)
         case unresolved
@@ -745,6 +739,10 @@ enum CostUsageScanner {
             last: CostUsageCodexTotals?,
             total: CostUsageCodexTotals?) -> CostUsageCodexTotals
         {
+            // Parent snapshots retain the counter's inherited origin; it is not new billed usage.
+            if self.countedTotals == nil, let total, let last {
+                self.countedTotals = CostUsageScanner.codexTotalDelta(from: last, to: total)
+            }
             let hasReasoning = last?.reasoning != nil || total?.reasoning != nil
             let base = self.countedTotals ?? .init(
                 input: 0,
@@ -1597,34 +1595,40 @@ enum CostUsageScanner {
     final class CodexInheritedTotalsResolver {
         private struct SnapshotResolution {
             let dependencyKey: String?
-            let snapshots: [CodexTimestampedTotals]?
             let indexedEvents: [CostUsageCodexTokenSnapshot]?
             let checkpoints: [CostUsageCodexTokenCheckpoint]
             let indexedTimestampsMonotonic: Bool
             let isComplete: Bool
+            let isFork: Bool
+            let forkOrigin: CodexForkAccountingState?
+            let forkOriginDependencyKey: String?
 
             init(
                 dependencyKey: String?,
-                snapshots: [CodexTimestampedTotals]? = nil,
                 indexedEvents: [CostUsageCodexTokenSnapshot]? = nil,
                 checkpoints: [CostUsageCodexTokenCheckpoint] = [],
                 indexedTimestampsMonotonic: Bool = false,
-                isComplete: Bool)
+                isComplete: Bool,
+                isFork: Bool = false,
+                forkOrigin: CodexForkAccountingState? = nil,
+                forkOriginDependencyKey: String? = nil)
             {
                 self.dependencyKey = dependencyKey
-                self.snapshots = snapshots
                 self.indexedEvents = indexedEvents
                 self.checkpoints = checkpoints
                 self.indexedTimestampsMonotonic = indexedTimestampsMonotonic
                 self.isComplete = isComplete
+                self.isFork = isFork
+                self.forkOrigin = forkOrigin
+                self.forkOriginDependencyKey = forkOriginDependencyKey
             }
 
             var lastTimestamp: String? {
-                self.indexedEvents?.last?.timestamp ?? self.snapshots?.last?.timestamp
+                self.indexedEvents?.last?.timestamp
             }
 
             var hasSnapshotSource: Bool {
-                self.indexedEvents != nil || self.snapshots != nil
+                self.indexedEvents != nil
             }
         }
 
@@ -1635,6 +1639,7 @@ enum CostUsageScanner {
         private var snapshotResolutions: [String: SnapshotResolution] = [:]
         private var resolvedDependencyKeys: [String: String] = [:]
         private var pendingParentFiles: [String: URL] = [:]
+        private var resolvingSessionIDs: Set<String> = []
 
         init(
             fileIndex: CodexSessionFileIndex,
@@ -1667,6 +1672,9 @@ enum CostUsageScanner {
         }
 
         func inheritedTotals(for sessionId: String, atOrBefore cutoffTimestamp: String) throws -> CodexForkBaseline {
+            guard self.resolvingSessionIDs.count < 64,
+                  self.resolvingSessionIDs.insert(sessionId).inserted else { return .unresolved }
+            defer { self.resolvingSessionIDs.remove(sessionId) }
             guard !cutoffTimestamp.isEmpty else {
                 CostUsageScanner.log.warning(
                     "Codex cost usage fork timestamp missing; treating parent baseline as unresolved",
@@ -1695,8 +1703,10 @@ enum CostUsageScanner {
                 from: resolution,
                 cutoffTimestamp: cutoffTimestamp,
                 cutoffDate: cutoffDate)
+            if inherited == nil, resolution.isFork, resolution.forkOrigin == nil { return .unresolved }
             if let dependencyKey = resolution.dependencyKey {
                 self.resolvedDependencyKeys[sessionId] = dependencyKey
+                    + (resolution.forkOriginDependencyKey.map { "|inherited|" + $0 } ?? "")
             }
             return .resolved(inherited)
         }
@@ -1756,24 +1766,27 @@ enum CostUsageScanner {
                         inherited = counted
                     }
                 }
-                return inherited
+                return inherited ?? resolution.forkOrigin?.inheritedTotals
             }
-
-            var inherited: CostUsageCodexTotals?
-            for snapshot in resolution.snapshots ?? [] where isAtOrBefore(snapshot.timestamp, date: snapshot.date) {
-                inherited = snapshot.totals
-            }
-            return inherited
+            return nil
         }
 
-        func currentDependencyKey(for sessionId: String) throws -> String? {
+        func currentDependencyKey(for sessionId: String, ancestors: Set<String> = []) throws -> String? {
+            guard ancestors.count < 64, !ancestors.contains(sessionId) else { return nil }
             switch try self.fileIndex.lookup(sessionId: sessionId) {
             case let .found(fileURL):
-                self.dependencyKey(for: sessionId, fileURL: fileURL)
+                let key = self.dependencyKey(for: sessionId, fileURL: fileURL)
+                let usage = self.cachedFiles[fileURL.path] ?? self.cachedFiles[fileURL.standardizedFileURL.path]
+                let parentID = usage?.codexForkAccountingState?.metadata.forkedFromId
+                    ?? self.snapshotResolutions[sessionId]?.forkOrigin?.metadata.forkedFromId
+                guard let parentID else { return key }
+                guard let inheritedKey = try self.currentDependencyKey(
+                    for: parentID, ancestors: ancestors.union([sessionId])) else { return nil }
+                return key + "|inherited|" + inheritedKey
             case let .missing(dependencyKey):
-                dependencyKey
+                return dependencyKey
             case .deferred:
-                nil
+                return nil
             }
         }
 
@@ -1800,9 +1813,6 @@ enum CostUsageScanner {
         }
 
         private func snapshotResolution(for sessionId: String) throws -> SnapshotResolution {
-            if let cached = self.snapshotResolutions[sessionId] {
-                return cached
-            }
             try self.checkCancellation?()
             let lookup = try self.fileIndex.lookup(sessionId: sessionId)
             let fileURL: URL
@@ -1815,7 +1825,6 @@ enum CostUsageScanner {
                     metadata: ["sessionId": sessionId])
                 let resolution = SnapshotResolution(
                     dependencyKey: dependencyKey,
-                    snapshots: nil,
                     isComplete: false)
                 self.snapshotResolutions[sessionId] = resolution
                 self.resolvedDependencyKeys[sessionId] = dependencyKey
@@ -1823,14 +1832,24 @@ enum CostUsageScanner {
             case .deferred:
                 let resolution = SnapshotResolution(
                     dependencyKey: nil,
-                    snapshots: nil,
                     isComplete: false)
                 self.snapshotResolutions[sessionId] = resolution
                 return resolution
             }
 
+            if let cached = self.snapshotResolutions[sessionId],
+               cached.dependencyKey == self.dependencyKey(for: sessionId, fileURL: fileURL)
+            {
+                if let parentID = cached.forkOrigin?.metadata.forkedFromId {
+                    if try cached.forkOriginDependencyKey == self.currentDependencyKey(for: parentID) {
+                        return cached
+                    }
+                } else {
+                    return cached
+                }
+            }
             let parentMetadata = CostUsageScanner.codexFileMetadata(fileURL: fileURL)
-            if let cachedResolution = self.cachedSnapshotResolution(
+            if let cachedResolution = try self.cachedSnapshotResolution(
                 for: sessionId,
                 fileURL: fileURL,
                 metadata: parentMetadata)
@@ -1848,7 +1867,6 @@ enum CostUsageScanner {
                 self.pendingParentFiles[fileURL.standardizedFileURL.path] = fileURL
                 let resolution = SnapshotResolution(
                     dependencyKey: self.dependencyKey(for: sessionId, fileURL: fileURL),
-                    snapshots: nil,
                     isComplete: false)
                 self.snapshotResolutions[sessionId] = resolution
                 return resolution
@@ -1858,8 +1876,10 @@ enum CostUsageScanner {
             // tests and explicit unbounded callers. Production refreshes always install a budget.
             for _ in 0..<2 {
                 let dependencyKeyBeforeParse = self.dependencyKey(for: sessionId, fileURL: fileURL)
-                let parsed = try CostUsageScanner.parseCodexTokenSnapshots(
+                let parsed = try CostUsageScanner.parseCodexFileCancellable(
                     fileURL: fileURL,
+                    range: .init(since: Date(), until: Date()),
+                    inheritedTotalsResolver: { try self.inheritedTotals(for: $0, atOrBefore: $1) },
                     checkCancellation: self.checkCancellation)
                 let dependencyKeyAfterParse = self.dependencyKey(for: sessionId, fileURL: fileURL)
                 guard dependencyKeyBeforeParse == dependencyKeyAfterParse else { continue }
@@ -1870,7 +1890,6 @@ enum CostUsageScanner {
                         metadata: ["sessionId": sessionId, "path": fileURL.path])
                     let resolution = SnapshotResolution(
                         dependencyKey: dependencyKeyAfterParse,
-                        snapshots: nil,
                         isComplete: false)
                     self.snapshotResolutions[sessionId] = resolution
                     self.scanBudget?.consume(workBytes: parentMetadata.size)
@@ -1886,7 +1905,6 @@ enum CostUsageScanner {
                         ])
                     let resolution = SnapshotResolution(
                         dependencyKey: dependencyKeyAfterParse,
-                        snapshots: nil,
                         isComplete: false)
                     self.snapshotResolutions[sessionId] = resolution
                     self.scanBudget?.consume(workBytes: parentMetadata.size)
@@ -1894,8 +1912,13 @@ enum CostUsageScanner {
                 }
                 let resolution = SnapshotResolution(
                     dependencyKey: dependencyKeyAfterParse,
-                    snapshots: parsed.snapshots,
-                    isComplete: true)
+                    indexedEvents: parsed.tokenSnapshots,
+                    isComplete: parsed.parsedBytes >= parentMetadata.size
+                        && parsed.bufferedUnresolvedForkLines == nil,
+                    isFork: parsed.forkedFromId != nil,
+                    forkOrigin: parsed.forkAccountingState,
+                    forkOriginDependencyKey: parsed.forkAccountingState != nil
+                        ? parsed.forkedFromId.flatMap { self.dependencyKeyUsed(for: $0) } : nil)
                 self.snapshotResolutions[sessionId] = resolution
                 self.scanBudget?.consume(workBytes: parentMetadata.size)
                 return resolution
@@ -1904,7 +1927,7 @@ enum CostUsageScanner {
             CostUsageScanner.log.warning(
                 "Codex cost usage parent session changed while reading; deferring inherited baseline",
                 metadata: ["sessionId": sessionId, "path": fileURL.path])
-            let resolution = SnapshotResolution(dependencyKey: nil, snapshots: nil, isComplete: false)
+            let resolution = SnapshotResolution(dependencyKey: nil, isComplete: false)
             self.snapshotResolutions[sessionId] = resolution
             return resolution
         }
@@ -1912,11 +1935,12 @@ enum CostUsageScanner {
         private func cachedSnapshotResolution(
             for sessionId: String,
             fileURL: URL,
-            metadata: CodexFileMetadata) -> SnapshotResolution?
+            metadata: CodexFileMetadata) throws -> SnapshotResolution?
         {
             let standardizedPath = fileURL.standardizedFileURL.path
             let cachedUsage = self.cachedFiles[fileURL.path] ?? self.cachedFiles[standardizedPath]
             guard let usage = cachedUsage,
+                  usage.hasCurrentCodexParser,
                   usage.sessionId == sessionId,
                   usage.codexScanFileId == nil || usage.codexScanFileId == metadata.fileId,
                   let cachedSnapshots = usage.codexTokenSnapshots
@@ -1933,6 +1957,11 @@ enum CostUsageScanner {
                         metadata: metadata)
                 } == true
             guard metadataMatches || appendSafePrefixMatches else { return nil }
+            if let parentID = usage.codexForkAccountingState?.metadata.forkedFromId,
+               try usage.forkBaselineDependencyKey != self.currentDependencyKey(for: parentID)
+            {
+                return nil
+            }
 
             let indexedBytes = usage.codexTokenIndexAnchor?.indexedBytes ?? usage.parsedBytes ?? usage.size
             let coversCurrentFile = usage.codexScanComplete != false
@@ -1942,7 +1971,11 @@ enum CostUsageScanner {
                 indexedEvents: cachedSnapshots,
                 checkpoints: usage.codexTokenCheckpoints ?? [],
                 indexedTimestampsMonotonic: usage.codexTokenTimestampsMonotonic == true,
-                isComplete: coversCurrentFile)
+                isComplete: coversCurrentFile && !usage.hasBufferedCodexForkRetryLines,
+                isFork: usage.forkedFromId != nil,
+                forkOrigin: usage.codexForkAccountingState,
+                forkOriginDependencyKey: usage.codexForkAccountingState != nil
+                    ? usage.forkBaselineDependencyKey : nil)
         }
     }
 
@@ -4090,128 +4123,6 @@ enum CostUsageScanner {
         try self.parseCodexSessionMetadata(
             fileURL: fileURL,
             checkCancellation: checkCancellation)?.isSubagentThread == true
-    }
-
-    private static func parseCodexTokenSnapshots(
-        fileURL: URL,
-        checkCancellation: CancellationCheck? = nil) throws -> (
-        sessionId: String?,
-        snapshots: [CodexTimestampedTotals])
-    {
-        var sessionId: String?
-        var accumulator = CodexSnapshotAccumulator()
-        var snapshots: [CodexTimestampedTotals] = []
-        var warnedAboutUnparsedTimestamp = false
-
-        func parsedSnapshotDate(timestamp: String) -> Date? {
-            let date = Self.dateFromTimestamp(timestamp)
-            if date == nil, !warnedAboutUnparsedTimestamp {
-                warnedAboutUnparsedTimestamp = true
-                self.log.warning(
-                    "Codex cost usage could not parse parent token snapshot timestamp; "
-                        + "falling back to lexical comparison",
-                    metadata: ["path": fileURL.path, "timestamp": timestamp])
-            }
-            return date
-        }
-
-        func appendSnapshot(timestamp: String, last: CostUsageCodexTotals?, total: CostUsageCodexTotals?) {
-            guard last != nil || total != nil else { return }
-            let counted = accumulator.apply(last: last, total: total)
-            snapshots.append(CodexTimestampedTotals(
-                timestamp: timestamp,
-                date: parsedSnapshotDate(timestamp: timestamp),
-                totals: counted))
-        }
-
-        do {
-            _ = try CostUsageJsonl.scan(
-                fileURL: fileURL,
-                maxLineBytes: 512 * 1024,
-                prefixBytes: 512 * 1024,
-                checkCancellation: checkCancellation,
-                onLine: { line in
-                    guard !line.bytes.isEmpty, !line.wasTruncated else { return }
-                    if let fastLine = Self.parseCodexFastLine(line.bytes) {
-                        switch fastLine {
-                        case let .sessionMeta(metadata):
-                            if sessionId == nil {
-                                sessionId = metadata.sessionId
-                            }
-                        case let .tokenCount(record):
-                            appendSnapshot(timestamp: record.timestamp, last: record.last, total: record.total)
-                        case .turnContext, .interAgentCommunication, .taskStarted:
-                            break
-                        }
-                        return
-                    }
-
-                    autoreleasepool {
-                        guard let obj = (try? JSONSerialization.jsonObject(with: line.bytes)) as? [String: Any]
-                        else { return }
-
-                        if obj["type"] as? String == "session_meta" {
-                            let payload = obj["payload"] as? [String: Any]
-                            if sessionId == nil {
-                                sessionId = payload?["session_id"] as? String
-                                    ?? payload?["sessionId"] as? String
-                                    ?? payload?["id"] as? String
-                                    ?? obj["session_id"] as? String
-                                    ?? obj["sessionId"] as? String
-                                    ?? obj["id"] as? String
-                            }
-                            return
-                        }
-
-                        guard obj["type"] as? String == "event_msg" else { return }
-                        guard let payload = obj["payload"] as? [String: Any] else { return }
-                        guard payload["type"] as? String == "token_count" else { return }
-                        guard let info = payload["info"] as? [String: Any] else { return }
-                        guard let timestamp = obj["timestamp"] as? String else { return }
-
-                        func toInt(_ value: Any?) -> Int {
-                            if let number = value as? NSNumber {
-                                return number.intValue
-                            }
-                            return 0
-                        }
-
-                        let total = (info["total_token_usage"] as? [String: Any]).map {
-                            let output = toInt($0["output_tokens"])
-                            return CostUsageCodexTotals(
-                                input: toInt($0["input_tokens"]),
-                                cached: max(
-                                    toInt($0["cached_input_tokens"] ?? 0),
-                                    toInt($0["cache_read_input_tokens"] ?? 0)),
-                                output: output,
-                                reasoning: ($0["reasoning_output_tokens"] as? NSNumber)
-                                    .map { min(max(0, $0.intValue), max(0, output)) })
-                        }
-                        let last = (info["last_token_usage"] as? [String: Any]).map {
-                            let output = max(0, toInt($0["output_tokens"]))
-                            return CostUsageCodexTotals(
-                                input: max(0, toInt($0["input_tokens"])),
-                                cached: max(
-                                    0,
-                                    max(
-                                        toInt($0["cached_input_tokens"] ?? 0),
-                                        toInt($0["cache_read_input_tokens"] ?? 0))),
-                                output: output,
-                                reasoning: ($0["reasoning_output_tokens"] as? NSNumber)
-                                    .map { min(max(0, $0.intValue), output) })
-                        }
-                        appendSnapshot(timestamp: timestamp, last: last, total: total)
-                    }
-                })
-        } catch is CancellationError {
-            throw CancellationError()
-        } catch {
-            self.log.warning(
-                "Codex cost usage failed while scanning parent token snapshots",
-                metadata: ["path": fileURL.path, "error": error.localizedDescription])
-        }
-
-        return (sessionId, snapshots)
     }
 
     static func parseCodexFile(
