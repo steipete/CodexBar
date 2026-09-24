@@ -93,6 +93,18 @@ enum PreferredCurrencyOption: String, CaseIterable, Identifiable {
     case chf = "CHF"
     case aed = "AED"
     case `try` = "TRY"
+    case nzd = "NZD"
+    case sek = "SEK"
+    case nok = "NOK"
+    case dkk = "DKK"
+    case pln = "PLN"
+    case brl = "BRL"
+    case mxn = "MXN"
+    case zar = "ZAR"
+    case thb = "THB"
+    case idr = "IDR"
+    case vnd = "VND"
+    case uah = "UAH"
 
     var id: String {
         self.rawValue
@@ -117,6 +129,18 @@ enum PreferredCurrencyOption: String, CaseIterable, Identifiable {
         case .chf: "CHF (Fr.)"
         case .aed: "AED (د.إ)"
         case .try: "TRY (₺)"
+        case .nzd: "NZD ($)"
+        case .sek: "SEK (kr)"
+        case .nok: "NOK (kr)"
+        case .dkk: "DKK (kr)"
+        case .pln: "PLN (zł)"
+        case .brl: "BRL (R$)"
+        case .mxn: "MXN ($)"
+        case .zar: "ZAR (R)"
+        case .thb: "THB (฿)"
+        case .idr: "IDR (Rp)"
+        case .vnd: "VND (₫)"
+        case .uah: "UAH (₴)"
         }
     }
 }

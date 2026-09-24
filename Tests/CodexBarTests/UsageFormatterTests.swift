@@ -445,6 +445,11 @@ struct UsageFormatterTests {
     }
 
     @Test
+    func `currency string formats NZD with a distinct dollar symbol`() {
+        #expect(UsageFormatter.currencyString(54.72, currencyCode: "NZD") == "NZ$54.72")
+    }
+
+    @Test
     func `currency string handles large values`() {
         let result = UsageFormatter.currencyString(1234.56, currencyCode: "USD")
         // For USD, we use direct string formatting with thousand separators
@@ -670,6 +675,8 @@ struct UsageFormatterTests {
         #expect(CurrencyExchange.requiresLiveRates(preferredCurrencyCode: " aed "))
         #expect(CurrencyExchange.requiresLiveRates(preferredCurrencyCode: "TRY"))
         #expect(CurrencyExchange.requiresLiveRates(preferredCurrencyCode: " try "))
+        #expect(CurrencyExchange.requiresLiveRates(preferredCurrencyCode: "NZD"))
+        #expect(CurrencyExchange.requiresLiveRates(preferredCurrencyCode: " nzd "))
     }
 
     @Test

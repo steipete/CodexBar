@@ -894,6 +894,7 @@ struct SettingsStoreCoverageTests {
         #expect(pickerCurrencies == CurrencyExchange.supportedCurrencies)
         #expect(PreferredCurrencyOption.aed.label == "AED (د.إ)")
         #expect(PreferredCurrencyOption.try.label == "TRY (₺)")
+        #expect(PreferredCurrencyOption.nzd.label == "NZD ($)")
     }
 
     private static func makeSettingsStore(
