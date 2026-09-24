@@ -73,8 +73,9 @@ extension UsageStore {
                     self.codexCostCatchUpTask = nil
                     self.codexCostCatchUpToken = nil
                     self.codexCostCatchUpScopeSignature = nil
-                    if self.codexCostCatchUpRestartRequested {
-                        self.codexCostCatchUpRestartRequested = false
+                    let restartRequested = self.codexCostCatchUpRestartRequested
+                    self.codexCostCatchUpRestartRequested = false
+                    if restartRequested, self.codexCostCatchUpActivity?.phase != .paused {
                         self.startCodexCostCatchUpIfNeeded(mode: self.codexCostCatchUpMode)
                     }
                 }
@@ -163,14 +164,11 @@ extension UsageStore {
                     self.codexCostCatchUpPassIsRunning = true
                     let result: CostUsageScanExecutor.TimedResult<CostUsageFetcher.CodexScanCatchUpStatus>
                     do {
+                        defer { self.codexCostCatchUpPassIsRunning = false }
                         result = try await self.advanceCodexCostCatchUp(
                             now: Date(),
                             codexHomePath: context.codexHomePath,
                             historyDays: context.historyDays)
-                        self.codexCostCatchUpPassIsRunning = false
-                    } catch {
-                        self.codexCostCatchUpPassIsRunning = false
-                        throw error
                     }
                     let nextStatus = result.value
                     previousActiveDuration = result.activeDuration
