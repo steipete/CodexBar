@@ -25,6 +25,27 @@ final class CloudSyncState {
     var status = SyncStatus()
     var fleetDevices: [String: DeviceSyncPayload] = [:]
     var fleetSnapshots: [String: AccountSnapshotSyncPayload] = [:]
+    var removeDeviceHandler: ((String) async -> Void)?
+    @ObservationIgnored private var removingDevices: Set<String> = []
+
+    func requestDeviceRemoval(_ deviceID: String) async {
+        guard self.removingDevices.insert(deviceID).inserted else { return }
+        defer { self.removingDevices.remove(deviceID) }
+        await self.removeDeviceHandler?(deviceID)
+    }
+
+    func recordNames(removing deviceID: String, currentDeviceID: String) -> [String] {
+        guard deviceID != currentDeviceID else { return [] }
+        return self.fleetDevices.filter { $0.value.deviceID == deviceID }.map(\.key) +
+            self.fleetSnapshots.filter { $0.value.deviceID == deviceID }.map(\.key)
+    }
+
+    func removeRecords(_ names: [String]) {
+        for name in names {
+            self.fleetDevices.removeValue(forKey: name)
+            self.fleetSnapshots.removeValue(forKey: name)
+        }
+    }
 }
 
 struct CloudSyncQuotaRetryState: Equatable, Sendable {
@@ -70,6 +91,12 @@ final class CloudSyncDelegateEventQueue: Sendable {
 
     func enqueue(_ operation: @escaping Operation) {
         self.continuation.yield(operation)
+    }
+
+    func drain() async {
+        await withCheckedContinuation { continuation in
+            self.enqueue { continuation.resume() }
+        }
     }
 }
 
@@ -771,20 +798,7 @@ actor CloudSyncEngine: CKSyncEngineDelegate {
             }
         case let .fetchedRecordZoneChanges(changes):
             await self.applyFetchedRecords(changes.modifications.map(\.record))
-            let deletedRecordNames = changes.deletions.map(\.recordID.recordName)
-            for deletion in changes.deletions {
-                self.persistenceEnvelope.encodedSystemFields.removeValue(forKey: deletion.recordID.recordName)
-                self.persistenceEnvelope.recordMetadata.removeValue(forKey: deletion.recordID.recordName)
-                self.persistenceEnvelope.fleetDevices.removeValue(forKey: deletion.recordID.recordName)
-                self.persistenceEnvelope.fleetSnapshots.removeValue(forKey: deletion.recordID.recordName)
-            }
-            await MainActor.run {
-                for recordName in deletedRecordNames {
-                    self.state.fleetDevices.removeValue(forKey: recordName)
-                    self.state.fleetSnapshots.removeValue(forKey: recordName)
-                }
-            }
-            self.persistEnvelope()
+            await self.applyDeletedRecords(changes.deletions.map(\.recordID.recordName))
             await MainActor.run { self.state.status.lastSuccessfulFetchAt = Date() }
         case let .sentRecordZoneChanges(changes):
             if !changes.savedRecords.isEmpty || !changes.deletedRecordIDs.isEmpty {
@@ -1249,6 +1263,41 @@ actor CloudSyncEngine: CKSyncEngineDelegate {
 }
 
 extension CloudSyncEngine {
+    func removeDevice(_ deviceID: String) async {
+        guard self.enabled, let engine = self.engine else { return }
+        do {
+            try await engine.fetchChanges(.init(scope: .zoneIDs([Self.zoneID])))
+            await self.delegateEventQueue.drain()
+            let names = await MainActor.run {
+                self.state.status.needsAppUpdate ? [] : self.state.recordNames(
+                    removing: deviceID, currentDeviceID: self.settings.iCloudSyncDeviceID)
+            }
+            guard self.engine === engine, !names.isEmpty else { return }
+            let result = try await engine.database.modifyRecords(
+                saving: [], deleting: names.map { self.recordID(named: $0) }, atomically: true)
+            for deletion in result.deleteResults.values {
+                try deletion.get()
+            }
+            guard self.engine === engine else { return }
+            try await engine.fetchChanges(.init(scope: .zoneIDs([Self.zoneID])))
+            await self.delegateEventQueue.drain()
+        } catch {
+            guard self.engine === engine else { return }
+            await self.record(error: error)
+        }
+    }
+
+    func applyDeletedRecords(_ names: [String]) async {
+        for name in names {
+            self.persistenceEnvelope.encodedSystemFields.removeValue(forKey: name)
+            self.persistenceEnvelope.recordMetadata.removeValue(forKey: name)
+            self.persistenceEnvelope.fleetDevices.removeValue(forKey: name)
+            self.persistenceEnvelope.fleetSnapshots.removeValue(forKey: name)
+        }
+        await MainActor.run { self.state.removeRecords(names) }
+        self.persistEnvelope()
+    }
+
     private func finishConfirmedSnapshotMigrations(
         savedRecordNames: [String],
         syncEngine: CKSyncEngine) async

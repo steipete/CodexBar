@@ -66,9 +66,17 @@ struct ICloudSyncPane: View {
                         .foregroundStyle(.secondary)
                 } else {
                     ForEach(self.devices, id: \.deviceID) { device in
-                        ICloudSyncDeviceRow(
-                            device: device,
-                            isCurrentDevice: device.deviceID == self.settings.iCloudSyncDeviceID)
+                        HStack {
+                            ICloudSyncDeviceRow(
+                                device: device,
+                                isCurrentDevice: device.deviceID == self.settings.iCloudSyncDeviceID)
+                            if device.deviceID != self.settings.iCloudSyncDeviceID {
+                                Button(L("Remove"), role: .destructive) {
+                                    Task { await self.state.requestDeviceRemoval(device.deviceID) }
+                                }
+                                .disabled(!self.syncCanRun || !self.settings.iCloudSyncEnabled)
+                            }
+                        }
                     }
                 }
             } header: {
