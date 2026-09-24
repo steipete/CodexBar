@@ -4,6 +4,40 @@ import Testing
 @testable import CodexBar
 
 struct MenuCardModelCodexBusinessCreditsTests {
+    @Test(arguments: [
+        (0.0, 0.0, "1 tokens"),
+        (0.5, 50.0, "1 tokens"),
+        (1.0, 10.0, "10 tokens"),
+        (750.0, 75.0, "1K tokens"),
+        (1000.0, 10.0, "10K tokens"),
+        (1250.0, 12.5, "10K tokens"),
+        (12000.0, 12.0, "100K tokens"),
+        (-10.0, 0.0, "1 tokens"),
+    ])
+    func `fallback credit scale follows the next power of ten`(
+        balance: Double,
+        percent: Double,
+        scale: String)
+    {
+        let credits = CreditsSnapshot(remaining: balance, events: [], updatedAt: Date())
+        #expect(UsageMenuCardView.Model.creditsProgressPercent(credits: credits) == percent)
+        #expect(UsageMenuCardView.Model.creditsScaleText(credits: credits) == scale)
+    }
+
+    @Test(arguments: [Double.nan, Double.infinity, -Double.infinity])
+    func `nonfinite credit balances have no fallback progress`(balance: Double) {
+        let credits = CreditsSnapshot(remaining: balance, events: [], updatedAt: Date())
+        #expect(UsageMenuCardView.Model.creditsProgressPercent(credits: credits) == nil)
+        #expect(UsageMenuCardView.Model.creditsScaleText(credits: credits) == nil)
+    }
+
+    @Test
+    func `largest finite credit balance does not overflow the fallback scale`() {
+        let credits = CreditsSnapshot(remaining: .greatestFiniteMagnitude, events: [], updatedAt: Date())
+        #expect(UsageMenuCardView.Model.creditsProgressPercent(credits: credits) == 100)
+        #expect(UsageMenuCardView.Model.creditsScaleText(credits: credits) != nil)
+    }
+
     @Test(arguments: [false, true])
     func `workspace balance omits the invented token progress scale`(balanceIsWorkspace: Bool) throws {
         let now = Date()
