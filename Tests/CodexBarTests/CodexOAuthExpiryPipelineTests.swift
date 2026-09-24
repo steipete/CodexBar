@@ -4,6 +4,44 @@ import Testing
 
 @Suite(CodexCredentialFixtures())
 struct CodexOAuthExpiryPipelineTests {
+    @Test(arguments: [ProviderSourceMode.auto, .oauth])
+    func `managed refresh observes owner credential replacement on the next fetch`(
+        mode: ProviderSourceMode) async throws
+    {
+        let stale = try Self.fixture(expiration: 1, lastRefresh: "2000-01-01T00:00:00Z")
+        let fresh = try Self.fixture(expiration: 4_102_444_800, lastRefresh: "2000-01-01T00:00:00Z")
+        let context = Self.context(mode: mode, managed: true, home: stale.home)
+        let transport = ProviderHTTPTransportStub { request in
+            #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer \(fresh.token)")
+            #expect(request.value(forHTTPHeaderField: "ChatGPT-Account-Id") == "fixture-workspace")
+            return try Self.response(request, body: Self.usageBody)
+        }
+        await CodexAuthenticatedHTTPTransport.$overrideForTesting.withValue(transport) {
+            let outcome = await Self.pipeline.fetch(context: context, provider: .codex)
+            guard case let .failure(error) = outcome.result,
+                  case .nativeRefreshRequired = error as? CodexOAuthCredentialsError
+            else {
+                Issue.record("An expired managed credential requires owner renewal")
+                return
+            }
+        }
+        #expect(await transport.requests().isEmpty)
+
+        let authURL = stale.home.appendingPathComponent("auth.json")
+        try fresh.data.write(to: authURL, options: .atomic)
+        try await CodexAuthenticatedHTTPTransport.$overrideForTesting.withValue(transport) {
+            for _ in 0..<2 {
+                let outcome = await Self.pipeline.fetch(context: context, provider: .codex)
+                let result = try outcome.result.get()
+                #expect(result.sourceLabel == "oauth")
+                #expect(result.usage.primary?.usedPercent == 22)
+                #expect(outcome.attempts.filter(\.wasAvailable).map(\.strategyID) == ["codex.oauth"])
+            }
+        }
+        #expect(await transport.requests().count == 2)
+        #expect(try Data(contentsOf: authURL) == fresh.data)
+    }
+
     @Test(arguments: ["reset", "spend", "pat-whoami", "pat-usage"], [401, 403])
     func `Codex endpoints distinguish authentication failures from permission denials`(
         endpoint: String,

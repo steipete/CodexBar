@@ -134,6 +134,27 @@ struct CodexUsageFetcherFallbackTests {
         #expect(snapshot.credits?.remaining == 21)
     }
 
+    @Test(arguments: ["pro", "plus", "", "  ", nil] as [String?], [false, true])
+    func `CLI fresh usage plan takes precedence over cached account plan`(
+        usagePlan: String?,
+        includeWindows: Bool) async throws
+    {
+        let stubCLIPath = try self.makePlanOnlyStubCodexCLI(
+            usagePlan: usagePlan,
+            accountPlan: "plus",
+            includeWindows: includeWindows)
+        defer { try? FileManager.default.removeItem(atPath: stubCLIPath) }
+
+        let snapshot = try await self.makeStubUsageFetcher(stubCLIPath).loadLatestCLIAccountSnapshot()
+
+        let expectedPlan = usagePlan == "pro" ? "pro" : "plus"
+        #expect(snapshot.identity?.loginMethod == expectedPlan)
+        #expect(snapshot.usage?.loginMethod(for: .codex) == expectedPlan)
+        #expect(snapshot.usage?.accountEmail(for: .codex) == "stub@example.com")
+        #expect(snapshot.usage?.primary?.usedPercent == (includeWindows ? 12 : nil))
+        #expect(snapshot.usage?.rateLimitsUnavailable(for: .codex) == !includeWindows)
+    }
+
     @Test
     func `CLI usage fails when RPC body recovery misses session lane`() async throws {
         let stubCLIPath = try self.makeDecodeMismatchStubCodexCLI(message: Self.partialDecodeBodyMessage)
@@ -397,7 +418,12 @@ struct CodexUsageFetcherFallbackTests {
         return url.path
     }
 
-    private func makePlanOnlyStubCodexCLI(includeCredits: Bool = false) throws -> String {
+    private func makePlanOnlyStubCodexCLI(
+        includeCredits: Bool = false,
+        usagePlan: String? = "pro",
+        accountPlan: String = "pro",
+        includeWindows: Bool = false) throws -> String
+    {
         let creditsPayload = includeCredits
             ? [
                 ",",
@@ -436,8 +462,9 @@ struct CodexUsageFetcherFallbackTests {
                         "id": identifier,
                         "result": {
                             "rateLimits": {
-                                "planType": "pro"
+                                "planType": \(usagePlan.map { "\"\($0)\"" } ?? "None")
                                 \(creditsPayload)
+                                \(includeWindows ? ",\"primary\": {\"usedPercent\":12,\"windowDurationMins\":300}" : "")
                             }
                         }
                     }
@@ -448,7 +475,7 @@ struct CodexUsageFetcherFallbackTests {
                             "account": {
                                 "type": "chatgpt",
                                 "email": "stub@example.com",
-                                "planType": "pro"
+                                "planType": "\(accountPlan)"
                             },
                             "requiresOpenaiAuth": False
                         }
