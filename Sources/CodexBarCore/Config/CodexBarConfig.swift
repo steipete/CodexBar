@@ -3,8 +3,6 @@ import Foundation
 public struct CodexBarConfig: Codable, Sendable {
     public static let currentVersion = 1
 
-    private static let log = CodexBarLog.logger(LogCategories.configStore)
-
     private enum CodingKeys: String, CodingKey {
         case version
         case providers
@@ -13,6 +11,13 @@ public struct CodexBarConfig: Codable, Sendable {
 
     private enum ProviderCodingKeys: String, CodingKey {
         case id
+        case enabled
+    }
+
+    private static let rawProvidersKey = CodingUserInfoKey(rawValue: "CodexBarConfig.rawProviders")!
+    private var unknownProviders: [(index: Int, id: String, enabled: Bool, data: Data)] = []
+    public var unavailableProviders: [(index: Int, id: String, enabled: Bool)] {
+        self.unknownProviders.map { ($0.index, $0.id, $0.enabled) }
     }
 
     public var version: Int
@@ -37,31 +42,82 @@ public struct CodexBarConfig: Codable, Sendable {
         var providersContainer = try container.nestedUnkeyedContainer(forKey: .providers)
         var providers: [ProviderConfig] = []
         while !providersContainer.isAtEnd {
+            let index = providersContainer.currentIndex
             let providerDecoder = try providersContainer.superDecoder()
             let providerContainer = try providerDecoder.container(keyedBy: ProviderCodingKeys.self)
             let rawID = try providerContainer.decode(String.self, forKey: .id)
-            guard let instanceID = ProviderInstanceID(rawValue: rawID),
-                  Self.isKnownProviderInstance(instanceID)
-            else {
-                Self.log.warning("Ignoring unknown provider in config", metadata: ["provider": rawID])
+            let instanceID = ProviderInstanceID(rawValue: rawID)
+            if instanceID?.firstPartyProvider != nil {
+                try providers.append(ProviderConfig(from: providerDecoder))
                 continue
             }
-            try providers.append(ProviderConfig(from: providerDecoder))
+            let data: Data
+            if let records = decoder.userInfo[Self.rawProvidersKey] as? [Data] {
+                data = records[index]
+            } else {
+                let value = try ProviderConfigExtensionValue(from: providerDecoder)
+                data = try JSONEncoder().encode(value.requiringExactNumbers())
+            }
+            if let instanceID, UserProviderPluginRegistry.plugin(for: instanceID) != nil,
+               let config = Self.exactProviderConfig(from: data)
+            {
+                providers.append(config)
+            } else {
+                self.unknownProviders.append((
+                    index, rawID, (try? providerContainer.decode(Bool.self, forKey: .enabled)) ?? false, data))
+            }
         }
         self.providers = providers
         self.hooks = try container.decodeIfPresent(HooksConfig.self, forKey: .hooks)
     }
 
-    /// User plugins exist only where JavaScriptCore does; other platforms drop their config entries.
-    private static func isKnownProviderInstance(_ instanceID: ProviderInstanceID) -> Bool {
-        if instanceID.firstPartyProvider != nil {
-            return true
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(self.version, forKey: .version)
+        try container.encodeIfPresent(self.hooks, forKey: .hooks)
+        var entries = container.nestedUnkeyedContainer(forKey: .providers)
+        var providers = self.providers.makeIterator()
+        for unknown in self.unknownProviders {
+            while entries.count < unknown.index, let provider = providers.next() {
+                try entries.encode(provider)
+            }
+            let value = try JSONDecoder().decode(ProviderConfigExtensionValue.self, from: unknown.data)
+            try entries.encode(value.requiringExactNumbers())
         }
-        #if canImport(JavaScriptCore)
-        return UserProviderPluginRegistry.plugin(for: instanceID) != nil
-        #else
-        return false
-        #endif
+        while let provider = providers.next() {
+            try entries.encode(provider)
+        }
+    }
+
+    /// File I/O keeps opaque records as JSON bytes, including numbers outside Codable's numeric range.
+    public static func decode(from data: Data) throws -> Self {
+        let decoder = JSONDecoder()
+        let records = try OpaqueConfigJSON.providers(in: data).entries
+        decoder.userInfo[Self.rawProvidersKey] = records.map { data.subdata(in: $0) }
+        return try decoder.decode(Self.self, from: data)
+    }
+
+    public func encodedData(pretty: Bool = true) throws -> Data {
+        var known = self
+        known.unknownProviders = []
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = pretty ? [.prettyPrinted, .sortedKeys] : [.sortedKeys]
+        let data = try encoder.encode(known)
+        guard !self.unknownProviders.isEmpty else { return data }
+        let array = try OpaqueConfigJSON.providers(in: data)
+        var records = array.entries.map { data.subdata(in: $0) }
+        for unknown in self.unknownProviders {
+            records.insert(unknown.data, at: min(unknown.index, records.count))
+        }
+        var result = data.subdata(in: 0..<array.range.lowerBound)
+        result.append(Data("[".utf8))
+        for (index, record) in records.enumerated() {
+            if index > 0 { result.append(Data(",".utf8)) }
+            result.append(record)
+        }
+        result.append(Data("]".utf8))
+        result.append(data.subdata(in: array.range.upperBound..<data.count))
+        return result
     }
 
     public static func makeDefault(
@@ -122,16 +178,27 @@ public struct CodexBarConfig: Codable, Sendable {
                 alibabaTokenPlanRegion: .chinaMainland))
         }
 
-        return CodexBarConfig(
-            version: Self.currentVersion,
-            providers: normalized,
-            hooks: self.hooks)
+        var copy = self
+        copy.version = Self.currentVersion
+        copy.providers = normalized
+        return copy
     }
 
     public func sanitizedForDump(showSecrets: Bool = false) -> CodexBarConfig {
         guard !showSecrets else { return self }
         var copy = self
         copy.providers = copy.providers.map { $0.sanitizedForDump() }
+        // Unknown schemas may put credentials anywhere; only expose listing metadata by default.
+        for index in copy.unknownProviders.indices {
+            let unknown = copy.unknownProviders[index]
+            let fields = try? JSONDecoder().decode(OpaqueProviderFields.self, from: unknown.data)
+            var redacted = Dictionary(uniqueKeysWithValues: (fields?.keys ?? []).map {
+                ($0, ProviderConfigExtensionValue.string("[REDACTED]"))
+            })
+            redacted["id"] = .string(unknown.id)
+            redacted["enabled"] = .bool(unknown.enabled)
+            copy.unknownProviders[index].data = (try? JSONEncoder().encode(redacted)) ?? Data("null".utf8)
+        }
         return copy
     }
 
@@ -150,15 +217,52 @@ public struct CodexBarConfig: Codable, Sendable {
     }
 
     public func providerConfig(for id: ProviderInstanceID) -> ProviderConfig? {
-        self.providers.first(where: { $0.id == id })
+        if let config = self.providers.first(where: { $0.id == id }) { return config }
+        // Discovery can recover while the app still holds a config loaded before the plugin was available.
+        guard UserProviderPluginRegistry.plugin(for: id) != nil,
+              let unknown = self.unknownProviders.first(where: { $0.id == id.rawValue })
+        else { return nil }
+        return try? JSONDecoder().decode(ProviderConfig.self, from: unknown.data)
     }
 
     public mutating func setProviderConfig(_ config: ProviderConfig) {
         if let index = self.providers.firstIndex(where: { $0.id == config.id }) {
             self.providers[index] = config
+        } else if let index = self.unknownProviders.firstIndex(where: { $0.id == config.id.rawValue }) {
+            guard Self.exactProviderConfig(from: self.unknownProviders[index].data) != nil else { return }
+            let position = min(self.unknownProviders[index].index - index, self.providers.count)
+            self.unknownProviders.remove(at: index)
+            self.providers.insert(config, at: position)
         } else {
             self.providers.append(config)
         }
+    }
+
+    private static func exactProviderConfig(from data: Data) -> ProviderConfig? {
+        guard OpaqueConfigJSON.hasExactIntegerTokens(in: data),
+              let original = try? JSONDecoder().decode(ProviderConfig.self, from: data),
+              let raw = try? JSONDecoder().decode(ProviderConfigExtensionValue.self, from: data),
+              let encoded = try? JSONEncoder().encode(original),
+              let roundTrip = try? JSONDecoder().decode(ProviderConfigExtensionValue.self, from: encoded),
+              raw == roundTrip
+        else { return nil }
+        return original
+    }
+
+    public mutating func removeProviderConfig(for id: ProviderInstanceID) {
+        var ids = self.providers.map(\.id.rawValue)
+        var positions: [Int] = []
+        for unknown in self.unknownProviders {
+            let position = min(unknown.index, ids.count)
+            positions.append(position)
+            ids.insert(unknown.id, at: position)
+        }
+        for index in self.unknownProviders.indices {
+            let position = positions[index]
+            self.unknownProviders[index].index = position - ids.prefix(position).filter { $0 == id.rawValue }.count
+        }
+        self.providers.removeAll { $0.id == id }
+        self.unknownProviders.removeAll { $0.id == id.rawValue }
     }
 
     private static func defaultProviderConfig(
@@ -170,6 +274,14 @@ public struct CodexBarConfig: Codable, Sendable {
             id: provider.instanceID,
             enabled: metadata[provider]?.defaultEnabled,
             region: provider == .alibabatokenplan ? alibabaTokenPlanRegion.rawValue : nil)
+    }
+}
+
+private struct OpaqueProviderFields: Decodable {
+    let keys: [String]
+
+    init(from decoder: any Decoder) throws {
+        self.keys = try decoder.container(keyedBy: ProviderConfigCodingKey.self).allKeys.map(\.stringValue)
     }
 }
 

@@ -22,10 +22,9 @@ struct PluginFetchOptions: CommanderParsable {
 
 extension CodexBarCLI {
     static func runPlugins(path: [String], values: ParsedValues) async {
-        let results = UserProviderPluginRegistry.refresh()
         switch path {
         case ["plugins", "list"]:
-            for result in results {
+            for result in UserProviderPluginRegistry.allResults {
                 if let plugin = result.plugin {
                     print("\(plugin.manifest.id.rawValue)\t\(plugin.manifest.name)\t\(plugin.fileURL.path)")
                 } else {
@@ -35,7 +34,7 @@ extension CodexBarCLI {
         case ["plugins", "fetch"]:
             await self.fetchPlugin(values: values)
         default:
-            Self.exit(code: .failure, message: "Unknown plugins command", kind: .args)
+            exit(code: .failure, message: "Unknown plugins command", kind: .args)
         }
     }
 
