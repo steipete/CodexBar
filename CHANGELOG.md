@@ -11,6 +11,7 @@
 
 ### Fixed
 
+- Grok: preserve team identity and local token history when a missing billing RPC method changes its error wording, using the JSON-RPC error code for fallback (related to #3716).
 - Command Code: size monthly usage from the grant reported with credits, keeping the row available when the optional subscription lookup fails (#3939). Thanks @enieuwy!
 - Kimi: import web access tokens from Chromium local storage for the selected region, preserving manual and saved-account credential isolation (#3923). Thanks @kaishin!
 
