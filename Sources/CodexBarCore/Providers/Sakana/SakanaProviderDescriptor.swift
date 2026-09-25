@@ -1,10 +1,19 @@
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 
 public enum SakanaProviderDescriptor {
     public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
     private static let credentials = ProviderCredentialAdapter(environmentProjections: [
         .cookieHeader(SakanaSettingsReader.cookieHeaderKey),
     ])
+    private static let transport: ProviderHTTPClient = {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.httpCookieStorage = nil
+        configuration.httpShouldSetCookies = false
+        return ProviderHTTPClient(session: ProviderHTTPClient.redirectGuardedSession(configuration: configuration))
+    }()
 
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
@@ -53,8 +62,18 @@ public enum SakanaProviderDescriptor {
                 optionalDetails: ProviderOptionalDetailsPresentation(hidesAllWithoutOptionalUsage: true)),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .web],
-                pipeline: ProviderFetchPipeline(resolveStrategies: { _ in
-                    [SakanaWebFetchStrategy()]
+                pipeline: ProviderFetchPipeline(resolveStrategies: { context in
+                    [ScriptFetchStrategy(
+                        id: "sakana.js",
+                        provider: .sakana,
+                        bundledPlugin: "sakana",
+                        secretKey: SakanaSettingsReader.cookieHeaderKey,
+                        sourceLabel: "web",
+                        kind: .web,
+                        transport: Self.transport,
+                        timeout: max(20, Self.requestTimeout(context) + 1),
+                        resolveValues: Self.scriptValues,
+                        isEnabled: { _ in true })]
                 })),
             cli: ProviderCLIConfig(
                 name: "sakana",
@@ -65,28 +84,18 @@ public enum SakanaProviderDescriptor {
                     return environment.map { SakanaSettingsReader.cookieHeader(environment: $0) != nil } == true
                 }))
     }
-}
 
-struct SakanaWebFetchStrategy: ProviderFetchStrategy {
-    let id: String = "sakana.web"
-    let kind: ProviderFetchKind = .web
-
-    func isAvailable(_ context: ProviderFetchContext) async -> Bool {
-        SakanaSettingsReader.cookieHeader(environment: context.env) != nil
+    static func scriptValues(_ context: ProviderFetchContext) -> ScriptFetchStrategy.Values? {
+        guard let cookie = SakanaSettingsReader.cookieHeader(environment: context.env) else { return nil }
+        return .init(
+            settings: [
+                "OPTIONAL_USAGE": String(context.includeOptionalUsage),
+                "TIMEOUT": String(Self.requestTimeout(context)),
+            ],
+            secrets: [SakanaSettingsReader.cookieHeaderKey: cookie])
     }
 
-    func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
-        guard let cookieHeader = SakanaSettingsReader.cookieHeader(environment: context.env) else {
-            throw SakanaUsageError.missingCookie
-        }
-        let usage = try await SakanaUsageFetcher.fetchUsage(
-            cookieHeader: cookieHeader,
-            timeout: context.webTimeout,
-            includeOptionalUsage: context.includeOptionalUsage)
-        return self.makeResult(usage: usage.toUsageSnapshot(), sourceLabel: "web")
-    }
-
-    func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {
-        false
+    private static func requestTimeout(_ context: ProviderFetchContext) -> TimeInterval {
+        context.webTimeout.isFinite ? min(90, max(1, context.webTimeout)) : 15
     }
 }

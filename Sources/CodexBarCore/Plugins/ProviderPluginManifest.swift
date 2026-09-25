@@ -64,6 +64,7 @@ public enum ProviderPluginEndpoint: Equatable, Hashable, Sendable {
 public enum ProviderPluginCapability: String, Hashable, Sendable {
     case browserCookies = "browser-cookies"
     case httpStatus = "http-status"
+    case persistentStorage = "persistent-storage"
 }
 
 public struct ProviderPluginManifest: Sendable {

@@ -24,6 +24,7 @@ struct ProviderPluginParityTests {
             (.neuralwatt, "NEURALWATT_API_KEY"),
             (.sub2api, "SUB2API_API_KEY"),
             (.synthetic, "SYNTHETIC_API_KEY"),
+            (.sakana, "SAKANA_COOKIE"),
             (.xai, "XAI_MANAGEMENT_API_KEY"),
             (.zai, "Z_AI_API_KEY"),
             (.perplexity, "PERPLEXITY_SESSION_TOKEN"),
