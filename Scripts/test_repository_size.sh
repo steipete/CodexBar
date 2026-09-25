@@ -45,6 +45,29 @@ git -C "$TEMP_DIR" add index-is-authoritative.bin
 dd if=/dev/zero of="$TEMP_DIR/index-is-authoritative.bin" bs=1024 count=2049 2>/dev/null
 "$TEMP_DIR/Scripts/check_repository_size.sh" >/dev/null
 
+mkdir -p "$TEMP_DIR/Sources/CQuickJS"
+dd if=/dev/zero of="$TEMP_DIR/Sources/CQuickJS/quickjs.c" bs=2148068 count=1 2>/dev/null
+git -C "$TEMP_DIR" add Sources/CQuickJS/quickjs.c
+"$TEMP_DIR/Scripts/check_repository_size.sh" >/dev/null
+
+cp "$TEMP_DIR/Sources/CQuickJS/quickjs.c" "$TEMP_DIR/other-source.c"
+git -C "$TEMP_DIR" add other-source.c
+if "$TEMP_DIR/Scripts/check_repository_size.sh" >"$TEMP_DIR/vendor-scope.log" 2>&1; then
+  printf 'ERROR: vendored source allowance widened the general file limit.\n' >&2
+  exit 1
+fi
+grep -Fq 'tracked file exceeds 2097152 bytes: other-source.c (2148068 bytes)' "$TEMP_DIR/vendor-scope.log"
+git -C "$TEMP_DIR" rm --cached --quiet other-source.c
+
+printf 'x' >> "$TEMP_DIR/Sources/CQuickJS/quickjs.c"
+git -C "$TEMP_DIR" add Sources/CQuickJS/quickjs.c
+if "$TEMP_DIR/Scripts/check_repository_size.sh" >"$TEMP_DIR/vendor-boundary.log" 2>&1; then
+  printf 'ERROR: vendored source exceeding its audited size was accepted.\n' >&2
+  exit 1
+fi
+grep -Fq 'tracked file exceeds 2148068 bytes: Sources/CQuickJS/quickjs.c (2148069 bytes)' "$TEMP_DIR/vendor-boundary.log"
+git -C "$TEMP_DIR" rm --cached --quiet Sources/CQuickJS/quickjs.c
+
 odd_path=$'odd\nname.txt'
 printf 'small source file\n' > "$TEMP_DIR/$odd_path"
 git -C "$TEMP_DIR" add "$odd_path"

@@ -3,6 +3,8 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 MAX_BYTES=$((2 * 1024 * 1024))
+# Audited size of pristine QuickJS-NG v0.17.0; do not trim vendored upstream source to fit the default.
+QUICKJS_MAX_BYTES=2148068
 failures=0
 tracked_files=0
 declare -a blob_paths=()
@@ -41,8 +43,12 @@ if ((${#blob_ids[@]} > 0)); then
       index=$((index + 1))
       continue
     fi
-    if ((size > MAX_BYTES)); then
-      printf 'ERROR: tracked file exceeds %d bytes: %q (%d bytes)\n' "$MAX_BYTES" "$path" "$size" >&2
+    max_bytes=$MAX_BYTES
+    if [[ "$path" == "Sources/CQuickJS/quickjs.c" ]]; then
+      max_bytes=$QUICKJS_MAX_BYTES
+    fi
+    if ((size > max_bytes)); then
+      printf 'ERROR: tracked file exceeds %d bytes: %q (%d bytes)\n' "$max_bytes" "$path" "$size" >&2
       failures=$((failures + 1))
     fi
     index=$((index + 1))
@@ -55,4 +61,5 @@ if ((failures > 0)); then
   exit 1
 fi
 
-printf 'repository size OK: %d tracked files, maximum %d bytes each\n' "$tracked_files" "$MAX_BYTES"
+printf 'repository size OK: %d tracked files, default maximum %d bytes, QuickJS maximum %d bytes\n' \
+  "$tracked_files" "$MAX_BYTES" "$QUICKJS_MAX_BYTES"
