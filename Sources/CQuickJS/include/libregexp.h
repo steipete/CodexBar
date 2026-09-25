@@ -47,9 +47,14 @@ extern "C" {
 #define LRE_RET_TIMEOUT        (-2)
 #define LRE_RET_BYTECODE_ERROR (-3)
 
+/* trailer length after the group name including the trailing '\0' */
+#define LRE_GROUP_NAME_TRAILER_LEN 2
+
 uint8_t *lre_compile(int *plen, char *error_msg, int error_msg_size,
                      const char *buf, size_t buf_len, int re_flags,
                      void *opaque);
+int lre_get_alloc_count(const uint8_t *bc_buf);
+int lre_check_bytecode(const uint8_t *bc_buf, int bc_buf_len);
 int lre_get_capture_count(const uint8_t *bc_buf);
 int lre_get_flags(const uint8_t *bc_buf);
 const char *lre_get_groupnames(const uint8_t *bc_buf);
@@ -58,7 +63,7 @@ int lre_exec(uint8_t **capture,
              int cbuf_type, void *opaque);
 
 int lre_parse_escape(const uint8_t **pp, int allow_utf16);
-bool lre_is_space(int c);
+/* lre_is_space() is provided as an inline in libunicode.h */
 
 /* must be provided by the user */
 bool lre_check_stack_overflow(void *opaque, size_t alloca_size);

@@ -2,9 +2,9 @@
 # Reproducibly stages the minimal embeddable quickjs-ng engine in Sources/CQuickJS.
 set -eu
 
-QUICKJS_VERSION="0.15.1"
+QUICKJS_VERSION="0.17.0"
 QUICKJS_TAG="v${QUICKJS_VERSION}"
-EXPECTED_SHA256="c4e813951b7c46845096a948e978c620b11ab4cf5fd622ca09c727ec31f42623"
+EXPECTED_SHA256="559bc4c420475e55c7ab4510adbc562f55d7524d75e8e89d79ce4bb02f5687d9"
 ARCHIVE_URL="https://github.com/quickjs-ng/quickjs/archive/refs/tags/${QUICKJS_TAG}.tar.gz"
 
 ROOT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)

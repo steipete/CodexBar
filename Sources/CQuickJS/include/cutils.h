@@ -52,7 +52,7 @@ extern "C" {
 #endif
 #if defined(__APPLE__)
 #include <malloc/malloc.h>
-#elif defined(__linux__) || defined(__ANDROID__) || defined(__CYGWIN__) || defined(__GLIBC__)
+#elif defined(__linux__) || defined(__ANDROID__) || defined(__CYGWIN__) || defined(__GLIBC__) || defined(__wasi__)
 #include <malloc.h>
 #elif defined(__FreeBSD__)
 #include <malloc_np.h>
@@ -206,6 +206,20 @@ static inline uint32_t hash32(uint32_t a)
     return a * 0x61c88647;
 }
 
+static inline uint64_t hash64(uint64_t a)
+{
+    return a * 0x61c8864680b583ebULL;
+}
+
+static inline uintptr_t hash_uintptr(uintptr_t a)
+{
+    if (sizeof(uintptr_t) == sizeof(uint32_t)) {
+        return hash32(a);
+    } else {
+        return hash64(a);
+    }
+}
+
 /* WARNING: undefined if a = 0 */
 static inline int clz32(unsigned int a)
 {
@@ -235,6 +249,15 @@ static inline int clz64(uint64_t a)
 #else
     return __builtin_clzll(a);
 #endif
+}
+
+static inline uintptr_t clz_uintptr(uintptr_t a)
+{
+    if (sizeof(uintptr_t) == sizeof(uint32_t)) {
+        return clz32(a);
+    } else {
+        return clz64(a);
+    }
 }
 
 /* WARNING: undefined if a = 0 */
@@ -604,7 +627,7 @@ static inline size_t js__malloc_usable_size(const void *ptr)
     return malloc_size(ptr);
 #elif defined(_WIN32)
     return _msize((void *)ptr);
-#elif defined(__linux__) || defined(__ANDROID__) || defined(__CYGWIN__) || defined(__FreeBSD__) || defined(__GLIBC__)
+#elif defined(__linux__) || defined(__ANDROID__) || defined(__CYGWIN__) || defined(__FreeBSD__) || defined(__GLIBC__) || defined(__wasi__)
     return malloc_usable_size((void *)ptr);
 #else
     return 0;
@@ -668,6 +691,7 @@ static inline int js_thread_join(js_thread_t thrd);
 // Note that `*&cw` in the asm constraints looks redundant but isn't.
 #if defined(__i386__) && !defined(_MSC_VER)
 #define JS_X87_FPCW_SAVE_AND_ADJUST(cw)                                     \
+    (void)0;                                                                \
     unsigned short cw;                                                      \
     __asm__ __volatile__("fnstcw %0" : "=m"(*&cw));                         \
     do {                                                                    \
