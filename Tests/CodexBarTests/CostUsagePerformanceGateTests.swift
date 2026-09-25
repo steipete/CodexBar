@@ -1978,11 +1978,11 @@ extension CostUsagePerformanceGateTests {
         #expect(child.forkBaselineDependencyKey != nil)
     }
 
-    @Test
-    func `appended parent resolves from a validated cached prefix without rereading it`() throws {
+    @Test(arguments: [1, 5])
+    func `appended parent resolves from a validated cached prefix without rereading it`(month: Int) throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }
-        let day = try env.makeLocalNoon(year: 2026, month: 5, day: 10)
+        let day = try env.makeLocalNoon(year: 2026, month: month, day: 10)
         let iso = env.isoString(for: day)
         let forkISO = env.isoString(for: day.addingTimeInterval(1))
         let appendedISO = env.isoString(for: day.addingTimeInterval(10))

@@ -2789,7 +2789,10 @@ enum CostUsageScanner {
         }
         let calendar = CostUsageDayRange.localGregorianCalendar(matching: calendar)
         var out: [URL] = []
-        let sinceDate = Self.firstPartitionDate(root: root, sinceKey: scanSinceKey, calendar: calendar)
+        // Budgeted lookback discovery must retain its daily work accounting before admitting file reads.
+        let sinceDate = scanBudget == nil
+            ? Self.firstPartitionDate(root: root, sinceKey: scanSinceKey, calendar: calendar)
+            : Self.parseDayKey(scanSinceKey, calendar: calendar) ?? Date()
         let untilDate = Self.parseDayKey(scanUntilKey, calendar: calendar) ?? sinceDate
         let resumedDate = resumeDayKey.flatMap { Self.parseDayKey($0, calendar: calendar) }
         var date = if let resumedDate, resumedDate >= sinceDate, resumedDate <= untilDate {
