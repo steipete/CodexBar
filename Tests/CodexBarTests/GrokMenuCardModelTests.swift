@@ -198,6 +198,36 @@ struct GrokMenuCardModelTests {
     }
 
     @Test
+    func `product composition appears in card details without adding a metric`() throws {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let billing = GrokWebBillingSnapshot(
+            usedPercent: 29,
+            resetsAt: now.addingTimeInterval(5 * 86400),
+            windowMinutes: 10080,
+            productUsage: [
+                GrokProductUsage(product: "GrokBuild", usedPercent: 28),
+                GrokProductUsage(product: "GrokChat", usedPercent: 1),
+            ])
+        let usage = GrokUsageSnapshot(
+            billing: nil,
+            webBilling: billing,
+            credentials: nil,
+            localSummary: nil,
+            cliVersion: nil,
+            updatedAt: now).toUsageSnapshot()
+        let window = try #require(usage.primary)
+        let withoutProducts = try Self.model(now: now, window: window)
+        let withProducts = try Self.model(now: now, window: window, details: usage.details)
+
+        #expect(withProducts.metrics.map(\.id) == withoutProducts.metrics.map(\.id))
+        #expect(withProducts.metrics.count == 1)
+        #expect(withProducts.providerDetails.count == 1)
+        #expect(withProducts.providerDetails.first?.title == "Usage breakdown")
+        #expect(withProducts.providerDetails.first?.rows.map(\.label) == ["Grok Build", "Grok Chat"])
+        #expect(withProducts.providerDetails.first?.rows.map(\.value) == ["28%", "1%"])
+    }
+
+    @Test
     func `untyped coupon details cannot invent current reset credits`() throws {
         let now = Date(timeIntervalSince1970: 1_787_647_576)
         let details = try [

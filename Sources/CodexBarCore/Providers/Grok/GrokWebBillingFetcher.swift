@@ -4,6 +4,16 @@ import Foundation
 import FoundationNetworking
 #endif
 
+public struct GrokProductUsage: Sendable, Equatable {
+    public let product: String
+    public let usedPercent: Double
+
+    public init(product: String, usedPercent: Double) {
+        self.product = product
+        self.usedPercent = usedPercent
+    }
+}
+
 public struct GrokWebBillingSnapshot: Sendable, Equatable {
     public let usedPercent: Double?
     public let resetsAt: Date?
@@ -17,6 +27,8 @@ public struct GrokWebBillingSnapshot: Sendable, Equatable {
     public let usedPercentIsWirePublished: Bool
     /// The parser validated an active current period with an omitted proto3 usage scalar.
     public let usedPercentIsImplicitZero: Bool
+    /// Shares compose this snapshot's credit `usedPercent` from the same payload before clamping; empty if unverified.
+    public let productUsage: [GrokProductUsage]
 
     public init(
         usedPercent: Double?,
@@ -24,7 +36,8 @@ public struct GrokWebBillingSnapshot: Sendable, Equatable {
         windowMinutes: Int? = nil,
         subscriptionTier: String? = nil,
         usedPercentIsWirePublished: Bool = true,
-        usedPercentIsImplicitZero: Bool = false)
+        usedPercentIsImplicitZero: Bool = false,
+        productUsage: [GrokProductUsage] = [])
     {
         self.usedPercent = usedPercent
         self.resetsAt = resetsAt
@@ -32,6 +45,7 @@ public struct GrokWebBillingSnapshot: Sendable, Equatable {
         self.subscriptionTier = subscriptionTier
         self.usedPercentIsWirePublished = usedPercentIsWirePublished
         self.usedPercentIsImplicitZero = usedPercentIsImplicitZero
+        self.productUsage = productUsage
     }
 
     /// Overlay the CLI settings plan name. Usage percent stays on the existing credits rules.
@@ -42,12 +56,14 @@ public struct GrokWebBillingSnapshot: Sendable, Equatable {
             windowMinutes: self.windowMinutes,
             subscriptionTier: GrokPlan.displayName(from: raw) ?? self.subscriptionTier,
             usedPercentIsWirePublished: self.usedPercentIsWirePublished,
-            usedPercentIsImplicitZero: self.usedPercentIsImplicitZero)
+            usedPercentIsImplicitZero: self.usedPercentIsImplicitZero,
+            productUsage: self.productUsage)
     }
 
     /// Keep period and plan metadata a second billing surface did not publish. Usage percent
     /// always stays with the surface that produced this snapshot, so an unknown percent is
-    /// never backfilled from another response.
+    /// never backfilled from another response. Product shares compose that same payload's
+    /// `usedPercent` and are never borrowed from another billing surface.
     func completing(with other: GrokWebBillingSnapshot) -> GrokWebBillingSnapshot {
         GrokWebBillingSnapshot(
             usedPercent: self.usedPercent,
@@ -55,7 +71,8 @@ public struct GrokWebBillingSnapshot: Sendable, Equatable {
             windowMinutes: other.resetsAt == nil ? self.windowMinutes : other.windowMinutes,
             subscriptionTier: self.subscriptionTier ?? other.subscriptionTier,
             usedPercentIsWirePublished: self.usedPercentIsWirePublished,
-            usedPercentIsImplicitZero: self.usedPercentIsImplicitZero)
+            usedPercentIsImplicitZero: self.usedPercentIsImplicitZero,
+            productUsage: self.productUsage)
     }
 }
 

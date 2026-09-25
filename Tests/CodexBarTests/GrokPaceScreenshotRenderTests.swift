@@ -9,6 +9,48 @@ import XCTest
 /// No app launch, account configuration, provider request, or credential access is involved.
 @MainActor
 final class GrokPaceScreenshotRenderTests: XCTestCase {
+    func test_renderProductUsage() throws {
+        guard let path = ProcessInfo.processInfo.environment["CODEXBAR_GROK_PRODUCT_PROOF_DIR"] else {
+            throw XCTSkip("Set CODEXBAR_GROK_PRODUCT_PROOF_DIR for synthetic product usage proof")
+        }
+        let directory = URL(fileURLWithPath: path, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let now = try XCTUnwrap(ISO8601DateParser.parse("2026-09-25T01:00:00Z"))
+        let billing = try GrokCreditsProxyFetcher.parseSnapshot(
+            Data(LiveMultiProductCreditsPayload.p6.payload.utf8), now: now)
+        let after = GrokUsageSnapshot(
+            billing: nil,
+            webBilling: billing,
+            credentials: nil,
+            localSummary: nil,
+            cliVersion: nil,
+            updatedAt: now).toUsageSnapshot()
+        let before = after.replacing(details: .value([]))
+        try CodexBarLocalizationOverride.$appLanguage.withValue("en") {
+            for (stage, snapshot) in [("before", before), ("after", after)] {
+                let model = try Self.model(snapshot: snapshot, now: now)
+                XCTAssertEqual(model.metrics.count, 1)
+                XCTAssertEqual(model.metrics.first?.title, "Weekly")
+                XCTAssertEqual(model.providerDetails.count, stage == "after" ? 1 : 0)
+                if stage == "after" {
+                    XCTAssertEqual(model.providerDetails.first?.rows.map(\.label), ["Grok Chat", "Grok Build"])
+                    XCTAssertEqual(model.providerDetails.first?.rows.map(\.value), ["4%", "2%"])
+                }
+                for dark in [false, true] {
+                    let view = AnyView(UsageMenuCardView(model: model, width: 320)
+                        .environment(\.locale, Locale(identifier: "en_US_POSIX"))
+                        .environment(\.colorScheme, dark ? .dark : .light)
+                        .environment(\.displayScale, 2)
+                        .background(Color(nsColor: .windowBackgroundColor)))
+                    let hosting = NSHostingView(rootView: view)
+                    hosting.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
+                    try XCTUnwrap(MenuLayoutScreenshotRenderTests.pngDataWithWindow(hosting: hosting))
+                        .write(to: directory.appendingPathComponent("product-\(stage)-\(dark ? "dark" : "light").png"))
+                }
+            }
+        }
+    }
+
     func test_renderResetCoupons() throws {
         guard let path = ProcessInfo.processInfo.environment["CODEXBAR_GROK_COUPON_PROOF_DIR"] else {
             throw XCTSkip("Set CODEXBAR_GROK_COUPON_PROOF_DIR for synthetic coupon proof")
