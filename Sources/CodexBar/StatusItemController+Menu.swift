@@ -988,6 +988,9 @@ extension StatusItemController {
             self.menuAppearanceObserver = StatusMenuAppearanceObserver(controller: self)
         }
         let menu = StatusItemMenu()
+        menu.switcherShortcuts = { [weak self] in self?.settings.providerSwitcherShortcuts
+            ?? ProviderSwitcherShortcuts.defaults
+        }
         menu.autoenablesItems = false
         menu.delegate = self
         menu.persistentActionDelegate = self

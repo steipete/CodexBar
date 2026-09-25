@@ -210,6 +210,8 @@ struct GeneralPane: View {
                 }
             }
 
+            PreferencesTransferSection(settings: self.settings)
+
             Section {
                 LabeledContent(L("open_menu_shortcut_title")) {
                     OpenMenuShortcutRecorder()

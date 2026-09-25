@@ -5,6 +5,10 @@ import Foundation
 extension CodexBarCLI {
     static func runConfig(path: [String], values: ParsedValues) {
         switch path {
+        case ["config", "preferences", "export"]:
+            self.runConfigPreferences(values, importing: false)
+        case ["config", "preferences", "import"]:
+            self.runConfigPreferences(values, importing: true)
         case ["config", "validate"]:
             self.runConfigValidate(values)
         case ["config", "dump"]:

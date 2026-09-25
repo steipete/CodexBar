@@ -3,7 +3,7 @@ import Foundation
 import ServiceManagement
 
 extension SettingsStore {
-    private static let mergedOverviewSelectionEditedActiveProvidersKey = "mergedOverviewSelectionEditedActiveProviders"
+    static let mergedOverviewSelectionEditedActiveProvidersKey = "mergedOverviewSelectionEditedActiveProviders"
 
     func noteBackgroundWorkSettingsChanged() {
         self.backgroundWorkSettingsRevision &+= 1

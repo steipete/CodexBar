@@ -292,10 +292,16 @@ extension StatusItemController {
 
     @discardableResult
     func handleProviderSwitcherShortcut(_ event: NSEvent, menu: NSMenu) -> Bool {
-        if let index = StatusItemMenu.providerSelectionIndex(for: event) {
+        if let index = StatusItemMenu.providerSelectionIndex(
+            for: event,
+            mapping: self.settings.providerSwitcherShortcuts)
+        {
             return self.selectProviderSwitcherSegment(at: index, menu: menu)
         }
-        if let direction = StatusItemMenu.providerNavigationDirection(for: event) {
+        if let direction = StatusItemMenu.providerNavigationDirection(
+            for: event,
+            mapping: self.settings.providerSwitcherShortcuts)
+        {
             self.navigateProviderSwitcher(direction, menu: menu)
             return true
         }

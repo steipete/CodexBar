@@ -270,6 +270,8 @@ extension CodexBarCLI {
                              [--json-output] [--log-level <trace|verbose|debug|info|warning|error|critical>]
                              [-v|--verbose]
                              [--pretty]
+          codexbar config preferences export [--file <preferences.json>]
+          codexbar config preferences import --file <preferences.json> [--json]
           codexbar config providers [--format text|json] [--json] [--json-only] [--pretty]
           codexbar config enable --provider <name> [--format text|json] [--json] [--json-only] [--pretty]
           codexbar config disable --provider <name> [--format text|json] [--json] [--json-only] [--pretty]
@@ -283,6 +285,8 @@ extension CodexBarCLI {
           Validate or print the CodexBar config file (default: validate).
           dump prints normalized config JSON with stored credentials redacted by default
           (use --show-secrets to reveal raw values).
+          preferences transfers allowlisted UI settings on macOS; import applies in the running app or next launch.
+          Export writes JSON to stdout unless --file is supplied. --defaults-domain selects an alternate app domain.
           providers lists persistent provider enablement.
           enable/disable updates the same provider toggle used by Settings.
           set-api-key stores a provider API key in the resolved config file and enables that provider by default.
