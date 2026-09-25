@@ -318,13 +318,16 @@ struct BurnDownState {
     }
 
     var availableSelections: [BurnWindowChoice] {
-        let choices: [BurnWindowChoice] = self.usesLegacyLanes
+        let choices: [BurnWindowChoice] = self.combinedSelections == [.session, .weekly]
             ? [.session, .weekly, .tertiary] : [.primary, .secondary, .tertiary]
         return choices.filter { self.window(for: $0) != nil }
     }
 
     var combinedSelections: [BurnWindowChoice] {
-        self.usesLegacyLanes ? [.session, .weekly] : [.primary, .secondary]
+        let legacyShape = [self.entry.primary, self.entry.secondary].compactMap(\.self).allSatisfy {
+            $0.windowMinutes == nil || $0.windowMinutes == 300 || $0.windowMinutes == 10080
+        }
+        return self.usesLegacyLanes && legacyShape ? [.session, .weekly] : [.primary, .secondary]
     }
 
     func title(for selection: BurnWindowChoice) -> String {
@@ -369,8 +372,9 @@ struct BurnDownState {
     }
 
     func blanksChart(for selection: BurnWindowChoice) -> Bool {
-        (selection == .session || selection == .primary)
-            && self.secondaryExhausted && self.rawWindow(for: selection)?.windowMinutes == 300
+        guard selection == .session || selection == .primary,
+              self.secondaryExhausted, let window = self.rawWindow(for: selection) else { return false }
+        return window.windowMinutes != 10080
     }
 
     var blankPrimaryChart: Bool {

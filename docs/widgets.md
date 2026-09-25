@@ -143,7 +143,8 @@ second quota; a provider with only a compatible third quota appears in the singl
 
 Existing Codex/Claude intents retain their types, provider raw values, defaults, and exact **Session
 (5-hour)** / **Weekly (7-day)** meanings. Their Combined widgets keep those two lanes, including the
-weekly-cap behavior. New provider and window cases are additive; the configuration schema requires no removal and
+weekly-cap behavior. If either provider supplies a different window duration, the new quota-slot choices
+and Combined layout use those actual windows; saved Session/Weekly aliases remain exact. New cases are additive; the configuration schema requires no removal and
 re-adding of widgets. Snapshot persistence, empty-snapshot preservation, and the 5–30-minute timeline schedule are
 unchanged. This does not address Homebrew removing widget placements during bundle replacement (#3627).
 

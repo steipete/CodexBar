@@ -20,15 +20,42 @@ struct BurnDownCapabilityTests {
     @Test
     func `provider eligibility is based on data for every catalog entry`() {
         for provider in UsageProvider.allCases {
-            let snapshot = Self.snapshot(provider: provider, primary: Self.window(minutes: 300))
-            #expect(BurnProviderOptions.choices(in: snapshot).map(\.provider) == [provider])
-            #expect(BurnProviderOptions.choices(in: snapshot, combined: true).map(\.provider) == [provider])
+            for minutes in [90, 300, 1440, 10080, 43200] {
+                let snapshot = Self.snapshot(provider: provider, primary: Self.window(minutes: minutes))
+                #expect(BurnProviderOptions.choices(in: snapshot).map(\.provider) == [provider])
+                #expect(BurnProviderOptions.choices(in: snapshot, combined: true).map(\.provider) == [provider])
+            }
         }
         #expect(BurnProviderOptions.choices(in: nil).isEmpty)
         let enabled = Self.snapshot(provider: .devin, primary: Self.window(minutes: 1440))
         let disabled = WidgetSnapshot(entries: enabled.entries, enabledProviders: [], generatedAt: enabled.generatedAt)
         #expect(BurnProviderOptions.choices(in: disabled).isEmpty)
         #expect(BurnProviderOptions.choices(in: WidgetPreviewData.emptySnapshot()).isEmpty)
+    }
+
+    @Test
+    func `legacy intent aliases stay exact when new provider window shapes become available`() throws {
+        for provider in [UsageProvider.codex, .claude] {
+            let snapshot = Self.snapshot(provider: provider, primary: Self.window(minutes: 1440))
+            let state = try #require(BurnDownState(snapshot: snapshot, provider: provider, selection: .session))
+            #expect(state.selectedWindow == nil)
+            #expect(state.window(for: .weekly) == nil)
+            #expect(state.availableSelections == [.primary])
+            #expect(state.window(for: .primary)?.windowMinutes == 1440)
+            #expect(state.combinedSelections == [.primary, .secondary])
+
+            let capped = try #require(BurnDownState(
+                snapshot: Self.snapshot(
+                    provider: provider,
+                    primary: Self.window(minutes: 1440),
+                    secondary: Self.window(minutes: 10080, used: 100)),
+                provider: provider,
+                selection: .primary,
+                now: Date(timeIntervalSince1970: 1_700_000_000)))
+            #expect(capped.selectedWindow?.remainingPercent == 0)
+            #expect(capped.blankPrimaryChart)
+            #expect(capped.selectedResetOverride == capped.secondaryWindow?.resetsAt)
+        }
     }
 
     @Test
