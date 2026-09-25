@@ -75,6 +75,40 @@ struct MistralMenuBarMetricTests {
         #expect(MenuBarPercentWindowPreference.session.label(for: .mistral) == "Included API")
     }
 
+    @Test
+    func `menu bar spend text shows consumption when billed spend is unknown`() {
+        let settings = testSettingsStore(
+            suiteName: "MistralMenuBarMetricTests-mistral-consumption",
+            userDefaults: InMemoryUserDefaults())
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        settings.selectedMenuProvider = UsageProvider.mistral.instanceID
+        settings.menuBarDisplayMode = .both
+        settings.setMenuBarMetricPreference(.automatic, for: .mistral)
+        let (store, controller) = Self.makeStoreAndController(settings: settings)
+        defer { controller.releaseStatusItemsForTesting() }
+        let snapshot = MistralUsageSnapshot(
+            totalCost: 180.1307,
+            costBasis: .consumption,
+            currency: "EUR",
+            currencySymbol: "€",
+            totalInputTokens: 10000,
+            totalOutputTokens: 5000,
+            totalCachedTokens: 0,
+            modelCount: 2,
+            startDate: nil,
+            endDate: nil,
+            updatedAt: Date())
+            .toUsageSnapshot()
+
+        store._setSnapshotForTesting(snapshot, provider: .mistral)
+        store._setErrorForTesting(nil, provider: .mistral)
+
+        #expect(snapshot.identity?.loginMethod == "Consumption: €180.1307 this month")
+        #expect(controller.menuBarDisplayText(for: .mistral, snapshot: snapshot) == "€180.1307")
+    }
+
     private static func makeStoreAndController(settings: SettingsStore)
         -> (UsageStore, StatusItemController)
     {

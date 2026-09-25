@@ -173,7 +173,20 @@ public struct MistralDailyUsageBucket: Codable, Equatable, Sendable, Identifiabl
 }
 
 public struct MistralUsageSnapshot: Codable, Sendable {
+    /// What `totalCost` and the daily costs measure.
+    public enum CostBasis: String, Codable, Sendable {
+        /// Billed pay-as-you-go units times price (legacy billing endpoint, `value_paid`).
+        case billed
+        /// Consumed units times list price (Admin usage procedures); what plan allowances are consumed against.
+        /// Billed spend is unknown on this basis and must not be presented as API spend.
+        case consumption
+    }
+
+    public static let apiSpendPrefix = "API spend:"
+    public static let consumptionPrefix = "Consumption:"
+
     public let totalCost: Double
+    public let costBasis: CostBasis
     public let currency: String
     public let currencySymbol: String
     public let totalInputTokens: Int
@@ -186,6 +199,11 @@ public struct MistralUsageSnapshot: Codable, Sendable {
     public let endDate: Date?
     public let updatedAt: Date
 
+    private enum CodingKeys: String, CodingKey {
+        case totalCost, costBasis, currency, currencySymbol, totalInputTokens, totalOutputTokens, totalCachedTokens
+        case modelCount, daily, credits, startDate, endDate, updatedAt
+    }
+
     package var checkedTotalTokens: Int? {
         MistralTokenMath.total(
             input: self.totalInputTokens, cached: self.totalCachedTokens, output: self.totalOutputTokens)
@@ -193,6 +211,7 @@ public struct MistralUsageSnapshot: Codable, Sendable {
 
     public init(
         totalCost: Double,
+        costBasis: CostBasis = .billed,
         currency: String,
         currencySymbol: String,
         totalInputTokens: Int,
@@ -206,6 +225,7 @@ public struct MistralUsageSnapshot: Codable, Sendable {
         updatedAt: Date)
     {
         self.totalCost = totalCost
+        self.costBasis = costBasis
         self.currency = currency
         self.currencySymbol = currencySymbol
         self.totalInputTokens = totalInputTokens
@@ -219,9 +239,46 @@ public struct MistralUsageSnapshot: Codable, Sendable {
         self.updatedAt = updatedAt
     }
 
+    /// Payloads written before `costBasis` existed carry billed spend.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        try self.init(
+            totalCost: container.decode(Double.self, forKey: .totalCost),
+            costBasis: container.decodeIfPresent(CostBasis.self, forKey: .costBasis) ?? .billed,
+            currency: container.decode(String.self, forKey: .currency),
+            currencySymbol: container.decode(String.self, forKey: .currencySymbol),
+            totalInputTokens: container.decode(Int.self, forKey: .totalInputTokens),
+            totalOutputTokens: container.decode(Int.self, forKey: .totalOutputTokens),
+            totalCachedTokens: container.decode(Int.self, forKey: .totalCachedTokens),
+            modelCount: container.decode(Int.self, forKey: .modelCount),
+            daily: container.decodeIfPresent([MistralDailyUsageBucket].self, forKey: .daily) ?? [],
+            credits: container.decodeIfPresent(MistralCreditsSnapshot.self, forKey: .credits),
+            startDate: container.decodeIfPresent(Date.self, forKey: .startDate),
+            endDate: container.decodeIfPresent(Date.self, forKey: .endDate),
+            updatedAt: container.decode(Date.self, forKey: .updatedAt))
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(self.totalCost, forKey: .totalCost)
+        try container.encode(self.costBasis, forKey: .costBasis)
+        try container.encode(self.currency, forKey: .currency)
+        try container.encode(self.currencySymbol, forKey: .currencySymbol)
+        try container.encode(self.totalInputTokens, forKey: .totalInputTokens)
+        try container.encode(self.totalOutputTokens, forKey: .totalOutputTokens)
+        try container.encode(self.totalCachedTokens, forKey: .totalCachedTokens)
+        try container.encode(self.modelCount, forKey: .modelCount)
+        try container.encode(self.daily, forKey: .daily)
+        try container.encodeIfPresent(self.credits, forKey: .credits)
+        try container.encodeIfPresent(self.startDate, forKey: .startDate)
+        try container.encodeIfPresent(self.endDate, forKey: .endDate)
+        try container.encode(self.updatedAt, forKey: .updatedAt)
+    }
+
     public func with(credits: MistralCreditsSnapshot?) -> MistralUsageSnapshot {
         MistralUsageSnapshot(
             totalCost: self.totalCost,
+            costBasis: self.costBasis,
             currency: self.currency,
             currencySymbol: self.currencySymbol,
             totalInputTokens: self.totalInputTokens,
@@ -235,19 +292,24 @@ public struct MistralUsageSnapshot: Codable, Sendable {
             updatedAt: self.updatedAt)
     }
 
-    public func toUsageSnapshot() -> UsageSnapshot {
+    /// Menu and CLI line: billed spend on the legacy basis, list-price consumption otherwise. The two labels
+    /// keep the amounts distinguishable; consumption is never presented as API spend.
+    public var monthlyCostDescription: String {
         // Negative totalCost means a refund/credit adjustment; clamp to zero rather than
         // showing a confusing negative amount in the menu bar.
-        let spendText = if self.totalCost > 0 {
-            "\(self.currencySymbol)\(String(format: "%.4f", self.totalCost)) this month"
-        } else {
-            "\(self.currencySymbol)0.0000 this month"
+        let amount = "\(self.currencySymbol)\(String(format: "%.4f", max(0, self.totalCost))) this month"
+        return switch self.costBasis {
+        case .billed: "\(Self.apiSpendPrefix) \(amount)"
+        case .consumption: "\(Self.consumptionPrefix) \(amount)"
         }
+    }
+
+    public func toUsageSnapshot() -> UsageSnapshot {
         let identity = ProviderIdentitySnapshot(
             providerID: .mistral,
             accountEmail: nil,
             accountOrganization: nil,
-            loginMethod: "API spend: \(spendText)")
+            loginMethod: self.monthlyCostDescription)
         return UsageSnapshot(
             primary: nil,
             secondary: nil,

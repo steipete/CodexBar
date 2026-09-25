@@ -94,18 +94,15 @@ public enum MistralUsageFetcher {
     /// rather than a 401; the shared client refuses cross-host redirects, so the raw 3xx surfaces here.
     private static let redirectStatusCodes: Set<Int> = [301, 302, 303, 307, 308]
 
+    static func isSessionFailure(statusCode: Int) -> Bool {
+        statusCode == 401 || statusCode == 403 || self.redirectStatusCodes.contains(statusCode)
+    }
+
     static func validate(statusCode: Int, data: Data) throws {
-        switch statusCode {
-        case 200:
-            return
-        case 401, 403:
-            throw MistralUsageError.invalidCredentials
-        case let code where Self.redirectStatusCodes.contains(code):
-            throw MistralUsageError.invalidCredentials
-        default:
-            let body = String(data: data.prefix(200), encoding: .utf8) ?? ""
-            throw MistralUsageError.apiError("HTTP \(statusCode): \(body)")
-        }
+        if statusCode == 200 { return }
+        if self.isSessionFailure(statusCode: statusCode) { throw MistralUsageError.invalidCredentials }
+        let body = String(data: data.prefix(200), encoding: .utf8) ?? ""
+        throw MistralUsageError.apiError("HTTP \(statusCode): \(body)")
     }
 
     public static func fetchVibeUsage(
@@ -302,6 +299,7 @@ public enum MistralUsageFetcher {
         let currencySymbol = rawCurrencySymbol.isEmpty ? defaultCurrencySymbol : rawCurrencySymbol
 
         return try MistralUsageAggregator.snapshot(entries: entries, period: MistralUsageAggregator.Period(
+            costBasis: .billed,
             currency: currency,
             currencySymbol: currencySymbol,
             startDate: ISO8601DateParser.parse(billing.startDate),
@@ -324,10 +322,9 @@ public enum MistralUsageFetcher {
         ]
         for (lane, laneEntries) in lanes {
             for entry in laneEntries ?? [] {
-                guard let day = MistralUsageAggregator.dayKey(from: entry.timestamp) else { continue }
                 let billedUnits = entry.valuePaid ?? entry.value ?? 0
                 entries.append(MistralUsageAggregator.Entry(
-                    day: day,
+                    day: MistralUsageAggregator.dayKey(from: entry.timestamp),
                     modelName: Self.displayModelName(modelName, entry: entry),
                     modelKey: modelName,
                     lane: lane,

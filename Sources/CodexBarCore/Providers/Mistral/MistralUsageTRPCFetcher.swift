@@ -152,6 +152,7 @@ enum MistralUsageTRPCFetcher {
                 tokenScope: countsTokens ? .all : .none))
         }
         return try MistralUsageAggregator.snapshot(entries: entries, period: MistralUsageAggregator.Period(
+            costBasis: .consumption,
             currency: currency,
             currencySymbol: currencySymbol,
             startDate: range.start,
@@ -315,6 +316,11 @@ enum MistralUsageTRPCFetcher {
 
     static func decode<T: Decodable>(_: T.Type, statusCode: Int, data: Data) throws -> T {
         if statusCode != 200 {
+            // Session failures come first: a 401/403 wrapped in a tRPC error envelope must still let the
+            // provider try the next browser session.
+            guard !MistralUsageFetcher.isSessionFailure(statusCode: statusCode) else {
+                throw MistralUsageError.invalidCredentials
+            }
             if let envelope = try? JSONDecoder().decode([Envelope<T>].self, from: data),
                let message = envelope.first?.error?.json?.message
             {

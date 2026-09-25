@@ -215,6 +215,113 @@ struct MistralUsageTRPCTests {
         }
     }
 
+    @Test(arguments: [401, 403])
+    func `session failures wrapped in a tRPC error envelope are invalid credentials`(statusCode: Int) {
+        let body = #"[{"error":{"json":{"message":"UNAUTHORIZED","code":-32001}}}]"#
+        let error = #expect(throws: MistralUsageError.self) {
+            try MistralUsageTRPCFetcher.decode(
+                MistralUsageTRPCFetcher.UsageResponse.self,
+                statusCode: statusCode,
+                data: Data(body.utf8))
+        }
+        guard case .invalidCredentials = error else {
+            Issue.record("Expected invalidCredentials, got \(String(describing: error))")
+            return
+        }
+    }
+
+    // MARK: - Cost basis
+
+    @Test
+    func `procedure usage is labelled consumption and never API spend`() throws {
+        let usage = try JSONDecoder().decode(
+            MistralUsageTRPCFetcher.UsageResponse.self,
+            from: Data(Self.costTimeseries.utf8))
+        let prices = try JSONDecoder().decode(
+            MistralUsageTRPCFetcher.PricesResponse.self,
+            from: Data(Self.prices.utf8))
+        let snapshot = try MistralUsageTRPCFetcher.makeSnapshot(
+            usage: usage,
+            prices: prices,
+            displayNames: [:],
+            range: MistralUsageTRPCFetcher.monthRange(containing: Date(timeIntervalSince1970: 1_790_000_000)),
+            updatedAt: Date(timeIntervalSince1970: 1_790_000_000))
+
+        #expect(snapshot.costBasis == .consumption)
+        let description = snapshot.toUsageSnapshot().identity?.loginMethod
+        #expect(description?.hasPrefix("Consumption: €") == true)
+        #expect(description?.contains("API spend") == false)
+
+        let legacy = MistralUsageSnapshot(
+            totalCost: 1.5,
+            currency: "EUR",
+            currencySymbol: "€",
+            totalInputTokens: 1,
+            totalOutputTokens: 1,
+            totalCachedTokens: 0,
+            modelCount: 1,
+            startDate: nil,
+            endDate: nil,
+            updatedAt: Date())
+        #expect(legacy.costBasis == .billed)
+        #expect(legacy.toUsageSnapshot().identity?.loginMethod == "API spend: €1.5000 this month")
+    }
+
+    @Test
+    func `snapshots serialized before the cost basis existed decode as billed`() throws {
+        let legacy = """
+        {"totalCost":1.5,"currency":"EUR","currencySymbol":"€","totalInputTokens":10,"totalOutputTokens":5,
+         "totalCachedTokens":0,"modelCount":1,"daily":[],"credits":{"walletAmount":2,"creditNotesAmount":0,
+         "ongoingUsageBalance":0,"currency":"EUR"},"startDate":null,"endDate":null,"updatedAt":700000000}
+        """
+        let snapshot = try JSONDecoder().decode(MistralUsageSnapshot.self, from: Data(legacy.utf8))
+        #expect(snapshot.costBasis == .billed)
+        #expect(snapshot.credits?.walletAmount == 2)
+
+        let consumption = MistralUsageSnapshot(
+            totalCost: 3,
+            costBasis: .consumption,
+            currency: "EUR",
+            currencySymbol: "€",
+            totalInputTokens: 0,
+            totalOutputTokens: 0,
+            totalCachedTokens: 0,
+            modelCount: 0,
+            startDate: nil,
+            endDate: nil,
+            updatedAt: Date(timeIntervalSince1970: 700_000_000))
+        let roundTrip = try JSONDecoder().decode(
+            MistralUsageSnapshot.self,
+            from: JSONEncoder().encode(consumption))
+        #expect(roundTrip.costBasis == .consumption)
+        #expect(roundTrip.with(credits: nil).costBasis == .consumption)
+    }
+
+    @Test
+    func `legacy entries without a timestamp stay in the monthly totals`() throws {
+        let json = """
+        {
+          "completion": {"models": {"mistral-small-latest::mistral-small-2506": {
+            "input": [
+              {"billing_metric": "mistral-small-2506", "billing_group": "input", "timestamp": "2026-09-03",
+               "value": 20, "value_paid": 20},
+              {"billing_metric": "mistral-small-2506", "billing_group": "input",
+               "value": 5, "value_paid": 5}
+            ]
+          }}},
+          "currency": "EUR",
+          "prices": [{"event_type": "api_tokens", "billing_metric": "mistral-small-2506", "billing_group": "input",
+                      "price": "0.1"}]
+        }
+        """
+        let snapshot = try MistralUsageFetcher.parseResponse(data: Data(json.utf8), updatedAt: Date())
+
+        #expect(snapshot.totalInputTokens == 25)
+        #expect(abs(snapshot.totalCost - 2.5) < 0.0001)
+        #expect(snapshot.daily.map(\.day) == ["2026-09-03"])
+        #expect(snapshot.daily.first?.inputTokens == 20)
+    }
+
     // MARK: - Source selection
 
     @Test

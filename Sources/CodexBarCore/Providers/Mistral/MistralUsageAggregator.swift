@@ -29,7 +29,8 @@ enum MistralUsageAggregator {
     }
 
     struct Entry: Sendable {
-        let day: String
+        /// Day bucket key; nil keeps the entry in the monthly totals only (legacy entries without a timestamp).
+        let day: String?
         /// Display name shown in breakdowns.
         let modelName: String
         /// Identity used to count distinct models.
@@ -41,6 +42,7 @@ enum MistralUsageAggregator {
     }
 
     struct Period: Sendable {
+        let costBasis: MistralUsageSnapshot.CostBasis
         let currency: String
         let currencySymbol: String
         let startDate: Date?
@@ -61,18 +63,20 @@ enum MistralUsageAggregator {
             if entry.tokenScope == .all {
                 try totalTokens.add(entry.units, lane: entry.lane)
             }
-            var accumulator = daily[entry.day] ?? DailyAccumulator(day: entry.day)
+            guard let day = entry.day else { continue }
+            var accumulator = daily[day] ?? DailyAccumulator(day: day)
             try accumulator.add(
                 modelName: entry.modelName,
                 lane: entry.lane,
                 units: entry.units,
                 cost: entry.cost,
                 countsTokens: entry.tokenScope != .none)
-            daily[entry.day] = accumulator
+            daily[day] = accumulator
         }
         _ = try totalTokens.total()
         return try MistralUsageSnapshot(
             totalCost: totalCost,
+            costBasis: period.costBasis,
             currency: period.currency,
             currencySymbol: period.currencySymbol,
             totalInputTokens: totalTokens.input,

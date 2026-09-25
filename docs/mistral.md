@@ -71,9 +71,10 @@ For the console request, CodexBar forwards only the `csrftoken` and `ory_session
 
 - **Included API** shows the subscription allowance's used percentage, used / total / remaining amount, and reset time.
 - The optional **Monthly Plan** window shows the separate Vibe Code allowance with the same details.
-- Spend is units times the unit price table. Through the legacy endpoint it is the billed pay-as-you-go share
-  (`value_paid`, falling back to `value`); through the tRPC procedures it is list-price consumption (the Admin page
-  total). Token totals and daily buckets always use consumed units, so plan-covered usage counts.
+- Through the legacy endpoint the monthly amount is billed pay-as-you-go spend (`value_paid`, falling back to
+  `value`, times price) and is labelled **API spend**. Through the tRPC procedures only consumed units are known, so
+  the amount is list-price consumption (the Admin page total) and is labelled **Consumption**; billed spend is not
+  shown on that basis. Token totals and daily buckets always use consumed units, so plan-covered usage counts.
 - Token totals include API completions, Le Chat, and Vibe Code completions (rows priced as `api_tokens`).
 - Daily usage buckets feed the inline usage dashboard.
 - The provider card can show credit balance when the credits endpoint returns it.

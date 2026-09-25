@@ -628,8 +628,12 @@ enum MenuBarLayoutBalanceResolver {
                 ? value?.split(separator: "·", maxSplits: 1).first?.trimmingCharacters(in: .whitespacesAndNewlines)
                 : value
         case .mistral:
+            // Billed spend (legacy billing source) or list-price consumption (Admin usage procedures).
+            let loginMethod = snapshot?.identity?.loginMethod
             return self.displayValue(
-                from: snapshot?.identity?.loginMethod, prefix: "API spend:", removingSuffix: " this month")
+                from: loginMethod, prefix: MistralUsageSnapshot.apiSpendPrefix, removingSuffix: " this month")
+                ?? self.displayValue(
+                    from: loginMethod, prefix: MistralUsageSnapshot.consumptionPrefix, removingSuffix: " this month")
         case .opencodego:
             guard let cost = snapshot?.providerCost, cost.period == "Zen balance" else { return nil }
             return UsageFormatter.currencyString(cost.used, currencyCode: cost.currencyCode)
