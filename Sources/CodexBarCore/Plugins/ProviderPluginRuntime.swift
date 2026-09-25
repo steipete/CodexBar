@@ -709,7 +709,6 @@ final class JavaScriptCoreProviderPluginEngine: ProviderPluginEngine, @unchecked
             }
             var calendar = Calendar(identifier: .gregorian)
             calendar.timeZone = timeZone
-            let now = Date()
             let start = calendar.startOfDay(for: now)
             var candidate = calendar.date(byAdding: .hour, value: Int(rawHour), to: start)!
             if candidate <= now {

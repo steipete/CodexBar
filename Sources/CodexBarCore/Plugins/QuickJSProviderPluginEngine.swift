@@ -205,6 +205,7 @@ final class QuickJSProviderPluginEngine: ProviderPluginEngine, @unchecked Sendab
         let cookieResolver: ProviderPluginRuntime.CookieResolver?
         let instanceCookieResolver: ProviderPluginRuntime.InstanceCookieResolver?
         let redactionValues: QuickJSRedactionValues
+        let now: Date
         let deadline: Date
     }
 
@@ -442,6 +443,7 @@ final class QuickJSProviderPluginEngine: ProviderPluginEngine, @unchecked Sendab
             cookieResolver: cookieResolver,
             instanceCookieResolver: instanceCookieResolver,
             redactionValues: redactionValues,
+            now: now,
             deadline: Date().addingTimeInterval(self.timeout))
         defer { self.fetchState = nil }
         try self.interruptionLock.withLock {
@@ -739,9 +741,11 @@ final class QuickJSProviderPluginEngine: ProviderPluginEngine, @unchecked Sendab
         else {
             throw ProviderPluginError.script("invalid daily reset time zone or hour")
         }
+        guard let now = self.fetchState?.now else {
+            throw ProviderPluginError.script("date bridge is only available during fetchUsage")
+        }
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = timeZone
-        let now = Date()
         let start = calendar.startOfDay(for: now)
         var candidate = calendar.date(byAdding: .hour, value: Int(rawHour), to: start)!
         if candidate <= now {
