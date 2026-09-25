@@ -288,7 +288,9 @@ void DesktopController::copySummary() {
 
 void DesktopController::showWindow(const QString &page) {
     if (page == "spending" && QDateTime::currentMSecsSinceEpoch() - m_costUpdated > 300000) refreshCosts();
-    if (page == "usage" && m_settings.value("refreshOnOpen").toBool()) refresh();
+    if (page == "usage" && m_settings.value("showCosts").toBool() &&
+        QDateTime::currentMSecsSinceEpoch() - m_costUpdated > 300000) refreshCosts();
+    if ((page == "usage" || page == "dashboard") && m_settings.value("refreshOnOpen").toBool()) refresh();
     emit windowRequested(page);
 }
 
@@ -356,7 +358,7 @@ bool DesktopController::listen(const QString &socketPath) {
                     response = {{"ok", ok}, {"enabled", launchAtLogin()}};
                 }
                 else if (command == "refresh") { refresh(); refreshCosts(); }
-                else if (command == "settings" || command == "usage" || command == "spending") showWindow(command);
+                else if (command == "settings" || command == "usage" || command == "dashboard" || command == "spending") showWindow(command);
                 else if (command == "configure" && request.value("settings").isObject()) {
                     const bool ok = saveSettings(request.value("settings").toObject().toVariantMap());
                     response = {{"ok", ok}, {"error", m_configError}};
