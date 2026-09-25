@@ -93,6 +93,13 @@ usage is a separate [OpenAI provider](openai.md), not Codex subscription quota.
   key is configured, a cached or manual session cookie can still overlay the legacy web values (plus Zen balance).
   Both paths keep local daily cost history and never trigger a fresh browser import. When no authoritative overlay is
   available, the menu and text CLI label the quota as estimated, and JSON includes `dataConfidence: "estimated"`.
+- A bundled plugin conversion of the legacy web flow is staged behind `CODEXBAR_JS_PROVIDERS=1`; without the flag the
+  native fetcher runs. The plugin keeps the same server-function requests and parse fallbacks, iterates `opencode.ai`
+  candidates before `app.opencode.ai` ones (the native path merges both domains into one header; the broker binds
+  each imported session to a single domain), and rejects a failed session before importing a fresh profile in the
+  same refresh. One known divergence: an interactive cookie-refresh that imports candidates from both domains in the
+  same pass stages two scoped cache writes, which the single-mutation refresh commit declines — the quota data still
+  updates, and the working session is persisted on the next ordinary refresh.
   Estimated quota keeps its percentages and reset dates but does not show pace, reserve, or run-out advice in the
   menu, menu-bar layouts, or CLI; device-local costs cannot establish account-wide consumption or the billing cycle.
 - OpenCode Go Monthly usage can be selected in the menu-bar percentage picker and layout palette before the first

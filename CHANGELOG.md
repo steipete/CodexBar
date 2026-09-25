@@ -19,6 +19,7 @@
 - Antigravity: preserve decoded local history as a marked lower bound when later databases exhaust the schema budget, while retaining hard scan limits (#3957). Thanks @Niclassslua!
 - Mistral: count plan-covered API, Le Chat, and Vibe Code tokens in usage history while keeping spend based on billed units (#3953). Thanks @welcoMattic!
 - Codex costs: preserve inherited cumulative counters across direct forks and empty intermediate sessions, preventing copied history from becoming oversized billable requests (#3524). Thanks @korboybeats and @vnnkl!
+- OpenCode: convert the legacy web fetch to a bundled plugin staged behind `CODEXBAR_JS_PROVIDERS`, preserving SolidStart subscription parsing, pay-as-you-go billing fallback, manual cookie filtering, and reject-then-reimport browser-session retries on both engines.
 
 ## 0.66.0 — 2026-09-24
 

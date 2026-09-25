@@ -68,13 +68,12 @@ case therefore remain out of scope for this prototype.
 
 ## Enable and test
 
-Set `CODEXBAR_JS_PROVIDERS=1` in CodexBar's environment. Manus,
-Perplexity, T3 Chat, and Qoder then prepend a script strategy to their existing pipeline.
-A missing required secret or disabled cookie source leaves the script
+Set `CODEXBAR_JS_PROVIDERS=1` in CodexBar's environment. OpenCode then prepends a script strategy to its
+existing pipeline. A missing required secret or disabled cookie source leaves the script
 strategy unavailable and permits the Swift strategy to run; a loaded script that fails does not fall back, so parity
 defects stay visible. Without the variable, the resolver returns the original Swift strategy only and does not load
-an engine or plugin resource for those providers. Venice, OpenRouter, ClawRouter, Deepgram, sub2api, Synthetic,
-OpenAI, Fireworks, Poe, xAI, and z.ai always resolve only their script strategy on every platform; `CODEXBAR_JS_PROVIDERS` does not affect
+an engine or plugin resource for that provider. The `cut-over` and plugin-first providers in the conversion matrix
+always resolve only their script strategy on every platform; `CODEXBAR_JS_PROVIDERS` does not affect
 them.
 
 Run the focused proof with:

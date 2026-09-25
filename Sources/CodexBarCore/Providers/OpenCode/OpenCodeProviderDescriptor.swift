@@ -80,10 +80,37 @@ public enum OpenCodeProviderDescriptor {
             }),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .web],
-                pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [OpenCodeUsageFetchStrategy()] })),
+                pipeline: ProviderFetchPipeline(resolveStrategies: { context in
+                    let native = OpenCodeUsageFetchStrategy()
+                    guard ProviderPluginPrototype.isEnabled(environment: context.env) else { return [native] }
+                    return [
+                        ScriptFetchStrategy(
+                            id: "opencode.js",
+                            provider: .opencode,
+                            bundledPlugin: "opencode",
+                            sourceLabel: "web",
+                            kind: .web,
+                            timeout: 60,
+                            resolveValues: Self.scriptValues),
+                        native,
+                    ]
+                })),
             cli: ProviderCLIConfig(
                 name: "opencode",
                 versionDetector: nil))
+    }
+
+    static func scriptValues(_ context: ProviderFetchContext) -> ScriptFetchStrategy.Values? {
+        guard context.settings?.opencode?.cookieSource != .off else { return nil }
+        var values: [String: String] = [
+            "REQUEST_TIMEOUT": String(min(30, max(1, context.webTimeout))),
+        ]
+        if let workspaceID = context.settings?.opencode?.workspaceID
+            ?? context.env["CODEXBAR_OPENCODE_WORKSPACE_ID"]
+        {
+            values["WORKSPACE_ID"] = workspaceID
+        }
+        return ScriptFetchStrategy.Values(settings: values)
     }
 }
 

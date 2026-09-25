@@ -23,8 +23,11 @@ Hugging Face, IBM Bob, Muse, Nous, Pi, Replicate, TypeSafe, and v0).
 
 `needs-cookie-import` now means **additional cookie/session capability**, not absence of cookie import. The current
 broker imports declared domains, caches each domain separately (#3815), and offers policy-only
-`ctx.browser.availability`. It now offers origin-bound candidate iteration and same-refresh advancement after rejection (#3933).
-Remaining cookie rows need individual parity audits for their provider-specific ranking and recovery policies. Availability reports policy, not a validated browser login.
+`ctx.browser.availability`. It now offers origin-bound candidate iteration and same-refresh advancement after
+rejection (#3933). Remaining gaps: imported candidates stay bound to one declared domain per session (no merged
+multi-domain query), manual headers pin to the first queried domain, and an interactive refresh commits a single
+staged cache write. Remaining cookie rows need individual parity audits for their provider-specific ranking and
+recovery policies. Availability reports policy, not a validated browser login.
 `needs-files/subprocess/oauth-broker` identifies native credential/storage flows beyond that broker.
 `needs-host-extension` means another existing native behavior cannot be preserved with the current host APIs.
 
@@ -33,9 +36,9 @@ Remaining cookie rows need individual parity audits for their provider-specific 
 | Status | Count |
 |---|---:|
 | `cut-over` | 28 |
-| `converted` | 0 |
+| `converted` | 1 |
 | `convertible-now` | 0 |
-| `needs-cookie-import` | 7 |
+| `needs-cookie-import` | 6 |
 | `needs-files/subprocess/oauth-broker` | 20 |
 | `needs-pty/webview/native` | 8 |
 | `needs-host-extension` | 6 |
@@ -55,7 +58,7 @@ Remaining cookie rows need individual parity audits for their provider-specific 
 | fireworks | `cut-over` | Yes | Both engines use the bundled script for account discovery and billing spend, including empty results, dynamic source labels, and allowlisted app/CLI slug persistence with save diagnostics. Native fetcher is deleted. |
 | clinepass | `cut-over` | Yes | Cut over on both engines: fixed-origin bearer GET, typed quota lanes, credential aliases, and classified failures match native behavior; the Swift fetcher and Linux fixtures are deleted. |
 | cursor | `needs-files/subprocess/oauth-broker` | No | Native app-auth SQLite discovery and local CSV usage remain required; domain cookies do not replace those sources. |
-| opencode | `needs-cookie-import` | No | GET/JSON POST and SolidStart text decoding fit JavaScript, but cached-session rejection requires a same-refresh fresh cookie import. |
+| opencode | `converted` | Yes | Converted behind the script flag: SolidStart GET/POST fallbacks, subscription parse lanes, pay-as-you-go billing, and reject-then-reimport session retries across both cookie domains run in the bundled plugin on both engines. |
 | opencodego | `needs-files/subprocess/oauth-broker` | No | Local auth/SQLite state and browser sessions are required, with an additional bespoke usage model. |
 | alibaba | `needs-host-extension` | No | Console auth still requires form-encoded POST and CSRF/sec-token discovery; the host only sends JSON POST. |
 | alibabatokenplan | `needs-host-extension` | No | Console requests require form-encoded POST and redirect-aware cookie forwarding, which domain-scoped headers do not supply. |
