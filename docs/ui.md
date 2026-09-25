@@ -39,6 +39,10 @@ read_when:
 - Display → Menu Bar → Layout provides presets plus a token editor. Tokens can be clicked to append, dragged from the
   palette, reordered between one or two lines, dragged out, or removed with Delete. Layouts can be global or overridden
   per provider. Manual edits select the Custom preset.
+- For Codex or Claude weekly usage, select that provider in Layout and add **Weekly %** from Usage.
+  For Antigravity's two independent families, add **Gemini weekly %** and **Claude/GPT weekly %**;
+  both appear when known weekly quota-summary data is available. The separate Gemini provider reports
+  Pro/Flash quotas, not these Antigravity family allowances; it does not synthesize a weekly quota.
 - Layout palette chips use their natural label widths and wrap into rows instead of squeezing longer token names into equal-width columns.
 - Time tokens offer Session and Weekly variants of Resets in and Reset at, including in conditional branches.
   The original unqualified reset tokens continue to follow the automatic window. A selected window that is

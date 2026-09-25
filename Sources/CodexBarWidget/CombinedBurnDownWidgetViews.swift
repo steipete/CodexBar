@@ -18,25 +18,12 @@ struct CombinedBurnDownWidgetView: View {
             if let state {
                 CombinedBurnDownLayout(state: state, provider: self.entry.provider)
             } else {
-                self.emptyState
+                BurnDownEmptyState()
             }
         }
         .containerBackground(for: .widget) {
             BurnWidgetBackground()
         }
-    }
-
-    private var emptyState: some View {
-        VStack(spacing: 6) {
-            Text("Open CodexBar")
-                .font(.body)
-                .fontWeight(.semibold)
-            Text("Usage data will appear once the app refreshes.")
-                .font(.caption)
-                .multilineTextAlignment(.center)
-                .opacity(0.55)
-        }
-        .padding(12)
     }
 }
 

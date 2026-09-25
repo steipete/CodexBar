@@ -22,15 +22,17 @@ struct BurnDownWidgetView: View {
                     blankChart: state.blankPrimaryChart,
                     resetsAtOverride: state.selectedResetOverride)
             } else {
-                self.emptyState
+                BurnDownEmptyState()
             }
         }
         .containerBackground(for: .widget) {
             BurnWidgetBackground()
         }
     }
+}
 
-    private var emptyState: some View {
+struct BurnDownEmptyState: View {
+    var body: some View {
         VStack(spacing: 6) {
             Text("Open CodexBar")
                 .font(.body)

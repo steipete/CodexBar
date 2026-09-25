@@ -126,6 +126,13 @@ Providers without a `ProviderChoice` case can still be present in the app snapsh
 
 Burn-down widgets currently support Codex and Claude. Their dedicated configuration intents keep existing Usage and History widget configurations unchanged.
 
+Burn Down's saved Session and Weekly choices resolve exact five-hour and seven-day windows; missing windows
+remain unavailable. Regular widget support alone does not imply burn-down support: Devin's Daily window and
+Cursor's billing-cycle Total need their own accurate selections and labels. A general burn-down picker must
+check known percentages, a positive duration, and a reset date, and retain each lane's identity when data is missing.
+Expanding the provider list alone would not supply those window semantics. A replacement configuration must
+also preserve existing saved selections.
+
 ## Visibility troubleshooting (macOS 14+)
 When widgets do not appear in the gallery at all, the issue is almost always
 registration, signing, or daemon caching (not SwiftUI code).
