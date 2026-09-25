@@ -382,6 +382,51 @@ struct CloudSyncSettingsTests {
     }
 
     @Test
+    func `portable imports are local edits while remote preferences do not echo`() async throws {
+        let fixture = try self.makeFixture("portable-preferences")
+        let persistence = self.makePersistence("portable-preferences")
+        let engine = CloudSyncEngine(
+            settings: fixture.store,
+            state: CloudSyncState(),
+            persistence: persistence,
+            initialConfiguration: fixture.store.configSnapshot,
+            initialPreferences: fixture.store.syncedPreferences,
+            initialIncludeSecrets: fixture.store.iCloudSyncIncludeSecrets)
+        var remote = fixture.store.syncedPreferences
+        remote.hidePersonalInfo.toggle()
+        let record = CKRecord(recordType: SyncRecordType.preferences.rawValue, recordID: CKRecord.ID(
+            recordName: PreferencesSyncPayload.recordName, zoneID: CloudSyncEngine.zoneID))
+        record["payload"] = try CanonicalSyncJSON.string(PreferencesSyncPayload(preferences: remote)) as CKRecordValue
+        await engine.applyFetchedRecords([record])
+        await engine.localUserPreferencesDidChange(fixture.store.syncedPreferences)
+        #expect(!persistence.load().preferencesDirty)
+
+        var document = PreferencesDocument()
+        try document.set("hidePersonalInfo", !remote.hidePersonalInfo)
+        try fixture.store.importPreferences(document)
+        await engine.localUserPreferencesDidChange(fixture.store.syncedPreferences)
+        #expect(persistence.load().preferencesDirty)
+    }
+
+    @Test
+    func `queued preferences import at coordinator startup becomes a local edit`() async throws {
+        let fixture = try self.makeFixture("queued-preferences")
+        let persistence = self.makePersistence("queued-preferences")
+        var document = PreferencesDocument()
+        try document.set("hidePersonalInfo", !fixture.store.hidePersonalInfo)
+        try document.queueImport(in: fixture.defaults)
+        let coordinator = CloudSyncCoordinator(settings: fixture.store, persistence: persistence)
+        coordinator.start()
+        defer { coordinator.stop() }
+        let deadline = ContinuousClock.now.advanced(by: .seconds(5))
+        while !persistence.load().preferencesDirty, ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        #expect(persistence.load().preferencesDirty)
+        #expect(fixture.defaults.data(forKey: PreferencesDocument.pendingImportKey) == nil)
+    }
+
+    @Test
     func `local provider edit queues exactly that provider`() async throws {
         let fixture = try self.makeFixture("dirty-provider")
         let persistence = self.makePersistence("dirty-provider")

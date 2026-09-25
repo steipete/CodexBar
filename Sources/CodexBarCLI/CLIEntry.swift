@@ -256,6 +256,7 @@ enum CodexBarCLI {
                         abstract: "Store a provider API key",
                         discussion: nil,
                         signature: configSetAPIKeySignature),
+                    Self.preferencesCommandDescriptor(),
                 ],
                 defaultSubcommandName: "validate"),
             Self.hooksCommandDescriptor(),
