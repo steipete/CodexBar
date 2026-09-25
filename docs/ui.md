@@ -124,8 +124,9 @@ model-generic token label while the rendered menu-bar prefix and accessibility l
 - Codex credits can add a separate “Buy Credits…” menu action.
 - Claude capped Extra Usage follows the used/remaining fill preference; spending amounts and “% used” copy stay unchanged.
 - Codex OpenAI web extras: code review remaining and usage breakdown render when dashboard data is attached.
-- Codex and Claude cost cards: a Recent windows list under the daily bars shows each quota window's
-  range, cost, and tokens (Current window, Previous window, N windows ago), split at official and banked resets.
+- Codex and Claude cost cards: a “Recent windows” menu row below the card opens a hover submenu listing each quota
+  window's range, cost, and tokens (Current window, Previous window, N windows ago), split at official and banked
+  resets. Overview rows have no such submenu, so they keep the Recent windows list inline under the daily bars.
   Inferred boundaries are labeled estimated; incomplete local subtotals show ≥ and a partial-estimate note.
   Without weekly reset metadata, the existing calendar cost history remains visible.
 - Token accounts: optional account switcher bar or stacked account cards (up to 6) when multiple manual tokens exist.

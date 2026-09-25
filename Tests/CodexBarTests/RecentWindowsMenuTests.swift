@@ -157,4 +157,54 @@ struct RecentWindowsMenuTests {
         #expect(!windows.isEmpty)
         #expect(overview > withoutWindows)
     }
+
+    @Test
+    func `compact account cards keep recent windows reachable`() throws {
+        let controller = self.makeController(suiteName: "RecentWindowsMenuTests-compact")
+        let model = try self.antigravityModel()
+        let accounts = [1, 2, 3, 4].map { slot in
+            ProviderAccountUsageSnapshot(
+                id: ProviderAccountIdentity(source: "claude-swap", opaqueID: String(slot)),
+                provider: .claude,
+                displayLabel: "Account \(slot)",
+                isActive: slot == 1,
+                snapshot: UsageSnapshot(
+                    primary: RateWindow(usedPercent: 95, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+                    secondary: nil,
+                    updatedAt: Date()),
+                error: nil,
+                sourceLabel: "test")
+        }
+        let plan = AccountMenuLayoutPlanner.plan(accounts: accounts, expandedAccountIDs: [])
+        let cardIDs = plan.rows.compactMap { row -> ProviderAccountIdentity? in
+            guard case let .card(id) = row else { return nil }
+            return id
+        }
+        #expect(!cardIDs.isEmpty)
+
+        let menu = NSMenu()
+        controller.addCompactAccountMenuRows(
+            .init(plan: plan, accounts: accounts, idPrefix: "test", cardModel: { _ in model }),
+            to: menu,
+            captureMenu: menu,
+            context: .init(
+                currentProvider: .claude,
+                selectedProvider: .claude,
+                menuWidth: 310,
+                codexAccountDisplay: nil,
+                tokenAccountDisplay: nil,
+                openAIContext: .init(
+                    hasUsageBreakdown: false,
+                    hasCreditsHistory: false,
+                    hasCostHistory: false,
+                    canShowBuyCredits: false,
+                    hasOpenAIWebMenuItems: false)))
+
+        let ids = menu.items.map { $0.representedObject as? String }
+        for accountID in cardIDs {
+            let cardIndex = try #require(ids.firstIndex(of: "testCard-\(accountID.opaqueID)"))
+            #expect(ids[cardIndex + 1] == StatusItemController.recentWindowsSubmenuID)
+            #expect(menu.items[cardIndex + 1].submenu != nil)
+        }
+    }
 }

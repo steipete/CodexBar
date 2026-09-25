@@ -134,6 +134,10 @@ extension StatusItemController {
                     heightCacheFingerprint: model.heightFingerprint(section: "card"),
                     containsInteractiveControls: true,
                     onClick: collapseClick))
+                self.addRecentWindowsMenuItemIfNeeded(
+                    to: menu,
+                    dashboard: model.inlineUsageDashboard,
+                    width: context.menuWidth)
                 previousRowWasCard = true
             case let .compact(compactRow):
                 if previousRowWasCard {
