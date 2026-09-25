@@ -298,6 +298,7 @@ public struct SyncedPreferences: Codable, Sendable {
     public var confettiOnSessionLimitResetsEnabled: Bool
     public var confettiOnWeeklyLimitResetsEnabled: Bool
     public var menuBarShowsHighestUsage: Bool
+    public var unifiedIconSourceRaw: String?
     public var showOptionalCreditsAndExtraUsage: Bool
     public var providerChangelogLinksEnabled: Bool
     public var preferredCurrencyCode: String
@@ -331,6 +332,7 @@ public struct SyncedPreferences: Codable, Sendable {
         confettiOnSessionLimitResetsEnabled: Bool,
         confettiOnWeeklyLimitResetsEnabled: Bool,
         menuBarShowsHighestUsage: Bool,
+        unifiedIconSourceRaw: String? = nil,
         showOptionalCreditsAndExtraUsage: Bool,
         providerChangelogLinksEnabled: Bool,
         preferredCurrencyCode: String,
@@ -363,6 +365,7 @@ public struct SyncedPreferences: Codable, Sendable {
         self.confettiOnSessionLimitResetsEnabled = confettiOnSessionLimitResetsEnabled
         self.confettiOnWeeklyLimitResetsEnabled = confettiOnWeeklyLimitResetsEnabled
         self.menuBarShowsHighestUsage = menuBarShowsHighestUsage
+        self.unifiedIconSourceRaw = unifiedIconSourceRaw
         self.showOptionalCreditsAndExtraUsage = showOptionalCreditsAndExtraUsage
         self.providerChangelogLinksEnabled = providerChangelogLinksEnabled
         self.preferredCurrencyCode = preferredCurrencyCode

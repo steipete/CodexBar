@@ -69,6 +69,7 @@ enum MenuBarSettingsMenuOptions {
     static let iconStyles = MenuBarIconStyle.allCases
     static let switcherRows = SwitcherRowsOption.allCases
     static let mergedIconStyles = MergedIconDisplayStyle.allCases
+    static let unifiedIconSources = UnifiedIconSource.allCases
 }
 
 enum MenuSettingsMenuOptions {

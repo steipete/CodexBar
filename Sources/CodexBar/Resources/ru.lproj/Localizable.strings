@@ -1624,3 +1624,8 @@
 "antigravity_cost_estimate_hint" = "Локальное использование × публичные цены API · это не счета и не кредиты Antigravity";
 "antigravity_quota_window_note" = "Стоимость окна включает все модели · показано окно самого ограниченного семейства";
 "antigravity_no_priced_token_history" = "Нет оценённой истории токенов Antigravity.";
+"merged_icon_source_title" = "Источник объединённого значка";
+"merged_icon_source_subtitle" = "Выберите провайдера для свёрнутого объединённого значка.";
+"merged_icon_source_current_selection" = "Текущий выбор";
+"merged_icon_source_highest_usage" = "Наибольшее использование";
+"merged_icon_source_frontmost_app" = "Приложение провайдера на переднем плане";

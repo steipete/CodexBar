@@ -147,7 +147,8 @@ public enum CodexProviderDescriptor {
                 supportsCostCommand: true,
                 prefersBinaryLocatorForWhich: true,
                 ttyStatusCommand: "/status",
-                browserSupportExemption: { sourceMode, _, _ in sourceMode == .auto }))
+                browserSupportExemption: { sourceMode, _, _ in sourceMode == .auto }),
+            nativeAppBundleIdentifiers: ["com.openai.codex"])
     }
 
     private static func resolveStrategies(context: ProviderFetchContext) async -> [any ProviderFetchStrategy] {

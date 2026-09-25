@@ -22,6 +22,8 @@ extension StatusItemController {
     }
 
     private func cancelShutdownTasks() {
+        self.frontmostProviderMonitor?.stop()
+        self.frontmostProviderMonitor = nil
         self.agentSessions.stop()
         self.menuAppearanceObserver?.stop()
         self.menuAppearanceObserver = nil

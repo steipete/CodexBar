@@ -1623,3 +1623,8 @@
 "antigravity_cost_estimate_hint" = "Локальне використання × публічні ціни API · це не рахунки та не кредити Antigravity";
 "antigravity_quota_window_note" = "Вартість вікна охоплює всі моделі · показано вікно найбільш обмеженої родини";
 "antigravity_no_priced_token_history" = "Немає оціненої історії токенів Antigravity.";
+"merged_icon_source_title" = "Джерело об’єднаної іконки";
+"merged_icon_source_subtitle" = "Виберіть провайдера для згорнутої об’єднаної іконки.";
+"merged_icon_source_current_selection" = "Поточний вибір";
+"merged_icon_source_highest_usage" = "Найбільше використання";
+"merged_icon_source_frontmost_app" = "Застосунок провайдера на передньому плані";

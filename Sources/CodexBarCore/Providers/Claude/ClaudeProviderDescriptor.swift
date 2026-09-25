@@ -223,7 +223,8 @@ public enum ClaudeProviderDescriptor {
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .api, .web, .cli, .oauth],
                 pipeline: ProviderFetchPipeline(resolveStrategies: self.resolveStrategies)),
-            cli: self.cli)
+            cli: self.cli,
+            nativeAppBundleIdentifiers: ["com.anthropic.claudefordesktop"])
     }
 
     private static func menuBarWindow(

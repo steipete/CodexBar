@@ -32,6 +32,7 @@
 
 ### Added
 
+- Menu bar: optionally show the frontmost Codex or Claude desktop app on the collapsed merged icon, without changing the selected menu provider or account (#780).
 - Atlas Cloud: show account-wide available USD balance through the documented API-key endpoint (#2714). Thanks @clairernovotny!
 - Vercel AI Gateway: show team-wide USD balance and lifetime spend through the documented API-key endpoint (#2975). Thanks @pikant!
 - DevPass: track plan credits, premium weekly usage and resets, and API-key spending through the documented LLM Gateway API (#3433). Thanks @MichelKerkmeester!

@@ -1623,3 +1623,8 @@
 "antigravity_cost_estimate_hint" = "ローカル使用量 × 公開API価格 · Antigravity の請求やクレジットではありません";
 "antigravity_quota_window_note" = "ウィンドウの費用は全モデルを含みます · 表示中のウィンドウは最も制限の厳しいファミリーです";
 "antigravity_no_priced_token_history" = "価格付きの Antigravity トークン履歴がありません。";
+"merged_icon_source_title" = "結合アイコンの表示元";
+"merged_icon_source_subtitle" = "折りたたまれた結合アイコンに表示するプロバイダーを選択します。";
+"merged_icon_source_current_selection" = "現在の選択";
+"merged_icon_source_highest_usage" = "使用率が最も高いプロバイダー";
+"merged_icon_source_frontmost_app" = "最前面のプロバイダーアプリ";

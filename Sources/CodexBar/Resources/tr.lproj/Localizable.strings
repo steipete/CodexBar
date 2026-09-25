@@ -1625,3 +1625,8 @@
 "antigravity_cost_estimate_hint" = "Yerel kullanım × herkese açık API fiyatları · Antigravity ücretleri veya kredileri değildir";
 "antigravity_quota_window_note" = "Pencere maliyeti tüm modelleri kapsar · gösterilen pencere en kısıtlı ailedir";
 "antigravity_no_priced_token_history" = "Fiyatlandırılmış Antigravity token geçmişi yok.";
+"merged_icon_source_title" = "Birleşik simge kaynağı";
+"merged_icon_source_subtitle" = "Daraltılmış birleşik simgede gösterilecek sağlayıcıyı seçin.";
+"merged_icon_source_current_selection" = "Geçerli seçim";
+"merged_icon_source_highest_usage" = "En yüksek kullanım";
+"merged_icon_source_frontmost_app" = "Öndeki sağlayıcı uygulaması";

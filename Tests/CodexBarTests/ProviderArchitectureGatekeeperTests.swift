@@ -983,13 +983,13 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact provider-owned construct passes a fixed identity to shared infrastructure."),
         SuppressedProviderReference(
             path: "Sources/CodexBar/SettingsStore+MenuObservation.swift",
-            line: 110,
+            line: 111,
             anchor: "_ = self[providerConfig: .synthetic, field: .apiKey]",
             expectedProviderIDs: ["synthetic"],
             reason: "This observation touchpoint reads a fixed provider field so UI invalidation tracks that setting."),
         SuppressedProviderReference(
             path: "Sources/CodexBar/SettingsStore+MenuObservation.swift",
-            line: 129,
+            line: 130,
             anchor: "_ = self[providerConfig: .warp, field: .apiKey]",
             expectedProviderIDs: ["warp"],
             reason: "This observation touchpoint reads a fixed provider field so UI invalidation tracks that setting."),
@@ -2399,7 +2399,7 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact app-runtime bridge coordinates provider-owned state through the shared controller."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/SettingsStore.swift",
-            line: 1205,
+            line: 1207,
             anchor: "if !seen.contains(.factory), let zaiIndex = ordered.firstIndex(of: .zai) {",
             expectedProviderIDs: ["factory", "minimax", "zai"],
             expectedReferenceCount: 8,
@@ -2707,7 +2707,7 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact app-runtime bridge coordinates provider-owned state through the shared controller."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/StatusItemController.swift",
-            line: 348,
+            line: 349,
             anchor: "if provider == .codex {",
             expectedProviderIDs: ["codex"],
             expectedReferenceCount: 1,

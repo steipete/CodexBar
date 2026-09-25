@@ -30,6 +30,8 @@ extension StatusItemController {
             "merge=\(mergeIcons ? "1" : "0")",
             "visible=\(visibleProviders)",
             "primary=\(primaryProvider?.rawValue ?? "nil")",
+            "source=\(self.settings.unifiedIconSource.rawValue)",
+            "focus=\(self.frontmostProviderMonitor?.currentProvider?.rawValue ?? "nil")",
             "iconStyle=\(self.store.iconStyle.rawValue)",
             "showUsed=\(self.settings.usageBarsShowUsed ? "1" : "0")",
             "brandPercent=\(showBrandPercent ? "1" : "0")",

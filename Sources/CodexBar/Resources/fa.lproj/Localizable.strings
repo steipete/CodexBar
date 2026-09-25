@@ -1627,3 +1627,8 @@
 "antigravity_cost_estimate_hint" = "مصرف محلی × قیمت‌های عمومی API · هزینه یا اعتبار Antigravity نیست";
 "antigravity_quota_window_note" = "هزینهٔ بازه همهٔ مدل‌ها را دربر می‌گیرد · بازهٔ نمایش‌داده‌شده محدودترین خانواده است";
 "antigravity_no_priced_token_history" = "تاریخچهٔ قیمت‌گذاری‌شدهٔ توکن Antigravity موجود نیست.";
+"merged_icon_source_title" = "منبع نماد ترکیبی";
+"merged_icon_source_subtitle" = "انتخاب کنید نماد ترکیبی در حالت جمع‌شده کدام ارائه‌دهنده را نشان دهد.";
+"merged_icon_source_current_selection" = "انتخاب فعلی";
+"merged_icon_source_highest_usage" = "بیشترین استفاده";
+"merged_icon_source_frontmost_app" = "برنامه ارائه‌دهنده در پیش‌زمینه";

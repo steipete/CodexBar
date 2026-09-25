@@ -69,6 +69,7 @@ extension SettingsStore {
             confettiOnSessionLimitResetsEnabled: self.confettiOnSessionLimitResetsEnabled,
             confettiOnWeeklyLimitResetsEnabled: self.confettiOnWeeklyLimitResetsEnabled,
             menuBarShowsHighestUsage: self.menuBarShowsHighestUsage,
+            unifiedIconSourceRaw: self.unifiedIconSource.rawValue,
             showOptionalCreditsAndExtraUsage: self.showOptionalCreditsAndExtraUsage,
             providerChangelogLinksEnabled: self.providerChangelogLinksEnabled,
             preferredCurrencyCode: self.preferredCurrencyCode,
@@ -108,7 +109,13 @@ extension SettingsStore {
         self.randomBlinkEnabled = preferences.randomBlinkEnabled
         self.confettiOnSessionLimitResetsEnabled = preferences.confettiOnSessionLimitResetsEnabled
         self.confettiOnWeeklyLimitResetsEnabled = preferences.confettiOnWeeklyLimitResetsEnabled
-        self.menuBarShowsHighestUsage = preferences.menuBarShowsHighestUsage
+        if let raw = preferences.unifiedIconSourceRaw,
+           let source = UnifiedIconSource(rawValue: raw)
+        {
+            self.unifiedIconSource = source
+        } else {
+            self.menuBarShowsHighestUsage = preferences.menuBarShowsHighestUsage
+        }
         self.showOptionalCreditsAndExtraUsage = preferences.showOptionalCreditsAndExtraUsage
         self.providerChangelogLinksEnabled = preferences.providerChangelogLinksEnabled
         self.preferredCurrencyCode = preferences.preferredCurrencyCode

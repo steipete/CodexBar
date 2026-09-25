@@ -1654,3 +1654,8 @@
 "antigravity_cost_estimate_hint" = "本機用量 × 公開 API 價格 · 並非 Antigravity 帳單或額度";
 "antigravity_quota_window_note" = "視窗費用涵蓋所有模型 · 所示視窗為最受限的模型系列";
 "antigravity_no_priced_token_history" = "沒有可計價的 Antigravity 權杖歷史記錄。";
+"merged_icon_source_title" = "合併圖示來源";
+"merged_icon_source_subtitle" = "選擇摺疊後的合併圖示顯示哪個服務提供者。";
+"merged_icon_source_current_selection" = "目前選取";
+"merged_icon_source_highest_usage" = "最高用量";
+"merged_icon_source_frontmost_app" = "最前景的服務提供者 App";

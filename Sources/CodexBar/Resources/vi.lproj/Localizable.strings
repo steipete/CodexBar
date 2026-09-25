@@ -1624,3 +1624,8 @@
 "antigravity_cost_estimate_hint" = "Mức dùng cục bộ × giá API công khai · không phải phí hay tín dụng Antigravity";
 "antigravity_quota_window_note" = "Chi phí cửa sổ bao gồm mọi mô hình · cửa sổ hiển thị là nhóm bị giới hạn nhất";
 "antigravity_no_priced_token_history" = "Không có lịch sử token Antigravity được định giá.";
+"merged_icon_source_title" = "Nguồn biểu tượng kết hợp";
+"merged_icon_source_subtitle" = "Chọn nhà cung cấp hiển thị trên biểu tượng kết hợp khi thu gọn.";
+"merged_icon_source_current_selection" = "Lựa chọn hiện tại";
+"merged_icon_source_highest_usage" = "Mức sử dụng cao nhất";
+"merged_icon_source_frontmost_app" = "Ứng dụng nhà cung cấp ở phía trước";

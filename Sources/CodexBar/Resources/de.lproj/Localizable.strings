@@ -1623,3 +1623,8 @@
 "antigravity_cost_estimate_hint" = "Lokale Nutzung × öffentliche API-Preise · keine Antigravity-Abrechnung oder Credits";
 "antigravity_quota_window_note" = "Fensterkosten umfassen alle Modelle · gezeigtes Fenster ist die am stärksten begrenzte Familie";
 "antigravity_no_priced_token_history" = "Keine bepreiste Antigravity-Token-Historie verfügbar.";
+"merged_icon_source_title" = "Quelle des kombinierten Symbols";
+"merged_icon_source_subtitle" = "Wählen Sie, welchen Anbieter das eingeklappte kombinierte Symbol anzeigt.";
+"merged_icon_source_current_selection" = "Aktuelle Auswahl";
+"merged_icon_source_highest_usage" = "Höchste Nutzung";
+"merged_icon_source_frontmost_app" = "Anbieter-App im Vordergrund";

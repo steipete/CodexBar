@@ -1626,3 +1626,8 @@
 "antigravity_cost_estimate_hint" = "Lokalne użycie × publiczne ceny API · to nie opłaty ani kredyty Antigravity";
 "antigravity_quota_window_note" = "Koszt okna obejmuje wszystkie modele · pokazane okno to najbardziej ograniczona rodzina";
 "antigravity_no_priced_token_history" = "Brak wycenionej historii tokenów Antigravity.";
+"merged_icon_source_title" = "Źródło połączonej ikony";
+"merged_icon_source_subtitle" = "Wybierz dostawcę wyświetlanego przez zwiniętą połączoną ikonę.";
+"merged_icon_source_current_selection" = "Bieżący wybór";
+"merged_icon_source_highest_usage" = "Najwyższe użycie";
+"merged_icon_source_frontmost_app" = "Aplikacja dostawcy na pierwszym planie";

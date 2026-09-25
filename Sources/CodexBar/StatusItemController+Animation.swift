@@ -1278,8 +1278,21 @@ extension StatusItemController {
     }
 
     func primaryProviderForUnifiedIcon() -> UsageProvider {
+        let fallback = self.defaultProviderForUnifiedIcon()
+        return UnifiedIconContext(
+            source: self.settings.unifiedIconSource,
+            focusedProvider: self.frontmostProviderMonitor?.currentProvider,
+            isMergedMenuOpen: self.isMergedMenuOpen,
+            isStacked: self.stackedMergeIconProvidersIfActive() != nil)
+            .resolve(
+                fallback: fallback,
+                mergeIcons: self.shouldMergeIcons,
+                enabledProviders: Set(self.store.enabledFirstPartyProvidersForDisplay()))
+    }
+
+    private func defaultProviderForUnifiedIcon() -> UsageProvider {
         // When "show highest usage" is enabled, rank the existing Overview subset by proximity to its limit.
-        if self.settings.menuBarShowsHighestUsage, self.shouldMergeIcons {
+        if self.settings.unifiedIconSource == .highestUsage, self.shouldMergeIcons {
             let activeProviders = self.store.enabledFirstPartyProvidersForDisplay()
             let overviewProviders = self.settings.resolvedMergedOverviewProviders(
                 activeProviders: activeProviders,

@@ -1626,3 +1626,8 @@
 "antigravity_cost_estimate_hint" = "Penggunaan lokal × harga API publik · bukan tagihan atau kredit Antigravity";
 "antigravity_quota_window_note" = "Biaya jendela mencakup semua model · jendela yang ditampilkan adalah keluarga paling terbatas";
 "antigravity_no_priced_token_history" = "Tidak ada riwayat token Antigravity berharga yang tersedia.";
+"merged_icon_source_title" = "Sumber ikon gabungan";
+"merged_icon_source_subtitle" = "Pilih penyedia yang ditampilkan ikon gabungan saat diciutkan.";
+"merged_icon_source_current_selection" = "Pilihan saat ini";
+"merged_icon_source_highest_usage" = "Penggunaan tertinggi";
+"merged_icon_source_frontmost_app" = "Aplikasi penyedia di depan";

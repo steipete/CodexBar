@@ -1622,3 +1622,8 @@
 "antigravity_cost_estimate_hint" = "Lokal användning × publika API-priser · inte Antigravity-avgifter eller krediter";
 "antigravity_quota_window_note" = "Fönsterkostnaden omfattar alla modeller · fönstret som visas är den mest begränsade familjen";
 "antigravity_no_priced_token_history" = "Ingen prissatt Antigravity-tokenhistorik tillgänglig.";
+"merged_icon_source_title" = "Källa för kombinerad ikon";
+"merged_icon_source_subtitle" = "Välj vilken leverantör den hopfällda kombinerade ikonen visar.";
+"merged_icon_source_current_selection" = "Aktuellt val";
+"merged_icon_source_highest_usage" = "Högsta användning";
+"merged_icon_source_frontmost_app" = "Leverantörsapp i förgrunden";

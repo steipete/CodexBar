@@ -1622,3 +1622,8 @@
 "antigravity_cost_estimate_hint" = "Lokaal gebruik × publieke API-prijzen · geen Antigravity-kosten of -tegoeden";
 "antigravity_quota_window_note" = "Vensterkosten omvatten alle modellen · getoond venster is de meest beperkte familie";
 "antigravity_no_priced_token_history" = "Geen geprijsde Antigravity-tokengeschiedenis beschikbaar.";
+"merged_icon_source_title" = "Bron van gecombineerd pictogram";
+"merged_icon_source_subtitle" = "Kies welke provider het ingeklapte gecombineerde pictogram toont.";
+"merged_icon_source_current_selection" = "Huidige selectie";
+"merged_icon_source_highest_usage" = "Hoogste gebruik";
+"merged_icon_source_frontmost_app" = "Provider-app op de voorgrond";

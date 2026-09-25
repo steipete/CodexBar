@@ -1622,3 +1622,8 @@
 "antigravity_cost_estimate_hint" = "Uso local × prezos públicos da API · non son cargos nin créditos de Antigravity";
 "antigravity_quota_window_note" = "O custo da xanela inclúe todos os modelos · a xanela amosada é a familia máis limitada";
 "antigravity_no_priced_token_history" = "Non hai historial de tokens de Antigravity con prezo dispoñible.";
+"merged_icon_source_title" = "Orixe da icona combinada";
+"merged_icon_source_subtitle" = "Escolle que provedor mostra a icona combinada cando está contraída.";
+"merged_icon_source_current_selection" = "Selección actual";
+"merged_icon_source_highest_usage" = "Maior uso";
+"merged_icon_source_frontmost_app" = "Aplicación do provedor en primeiro plano";

@@ -1627,3 +1627,8 @@
 "antigravity_cost_estimate_hint" = "الاستخدام المحلي × أسعار واجهة البرمجة العامة · ليست رسوم أو أرصدة Antigravity";
 "antigravity_quota_window_note" = "تكلفة النافذة تشمل كل النماذج · النافذة المعروضة هي الفئة الأكثر تقييدًا";
 "antigravity_no_priced_token_history" = "لا يتوفر سجل رموز Antigravity مُسعّر.";
+"merged_icon_source_title" = "مصدر الأيقونة المدمجة";
+"merged_icon_source_subtitle" = "اختر المزوّد الذي تعرضه الأيقونة المدمجة عند طيّها.";
+"merged_icon_source_current_selection" = "التحديد الحالي";
+"merged_icon_source_highest_usage" = "أعلى استخدام";
+"merged_icon_source_frontmost_app" = "تطبيق المزوّد في المقدمة";

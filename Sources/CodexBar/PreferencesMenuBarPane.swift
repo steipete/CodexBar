@@ -111,12 +111,18 @@ struct MenuBarPane: View {
                     })
                     .disabled(!self.settings.mergeIcons)
 
-                Toggle(isOn: self.$settings.menuBarShowsHighestUsage) {
-                    SettingsRowLabel(
-                        L("show_most_used_provider_title"),
-                        subtitle: L("show_most_used_provider_subtitle"))
-                }
-                .disabled(!self.settings.mergeIcons || self.isStackedStyleActive)
+                SettingsMenuPicker(
+                    selection: self.$settings.unifiedIconSource,
+                    options: MenuBarSettingsMenuOptions.unifiedIconSources,
+                    label: {
+                        SettingsRowLabel(
+                            L("merged_icon_source_title"),
+                            subtitle: L("merged_icon_source_subtitle"))
+                    },
+                    optionLabel: { source in
+                        Text(source.label)
+                    })
+                    .disabled(!self.settings.mergeIcons || self.isStackedStyleActive)
 
                 self.overviewProviderRow
                     .disabled(!self.settings.mergeIcons)

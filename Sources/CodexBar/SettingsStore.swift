@@ -574,6 +574,7 @@ extension SettingsStore {
         let randomBlinkEnabled = userDefaults.object(forKey: "randomBlinkEnabled") as? Bool ?? false
         let confettiOnReset = Self.loadConfettiOnResetDefaults(userDefaults: userDefaults)
         let menuBarShowsHighestUsage = userDefaults.object(forKey: "menuBarShowsHighestUsage") as? Bool ?? false
+        let unifiedIconSourceRaw = userDefaults.string(forKey: "unifiedIconSource")
         let claudeOAuthKeychainReadStrategyRaw = Self.loadClaudeOAuthKeychainReadStrategyRaw(userDefaults: userDefaults)
         let claudeOAuthKeychainPromptModeRaw = userDefaults.string(forKey: "claudeOAuthKeychainPromptMode")
         // Explicit consent for reading Claude Code's Keychain item (#2634). Default OFF; never enabled silently.
@@ -715,6 +716,7 @@ extension SettingsStore {
             confettiOnSessionLimitResetsEnabled: confettiOnReset.session,
             confettiOnWeeklyLimitResetsEnabled: confettiOnReset.weekly,
             menuBarShowsHighestUsage: menuBarShowsHighestUsage,
+            unifiedIconSourceRaw: unifiedIconSourceRaw,
             claudeOAuthKeychainPromptModeRaw: claudeOAuthKeychainPromptModeRaw,
             claudeOAuthKeychainReadStrategyRaw: claudeOAuthKeychainReadStrategyRaw,
             claudeOAuthDirectKeychainReadAllowed: claudeOAuthDirectKeychainReadAllowed,

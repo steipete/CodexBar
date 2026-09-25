@@ -722,10 +722,20 @@ extension SettingsStore {
     }
 
     var menuBarShowsHighestUsage: Bool {
-        get { self.defaultsState.menuBarShowsHighestUsage }
+        get { self.unifiedIconSource == .highestUsage }
+        set { self.unifiedIconSource = newValue ? .highestUsage : .currentSelection }
+    }
+
+    var unifiedIconSource: UnifiedIconSource {
+        get {
+            self.defaultsState.unifiedIconSourceRaw.flatMap(UnifiedIconSource.init(rawValue:))
+                ?? (self.defaultsState.menuBarShowsHighestUsage ? .highestUsage : .currentSelection)
+        }
         set {
-            self.defaultsState.menuBarShowsHighestUsage = newValue
-            self.userDefaults.set(newValue, forKey: "menuBarShowsHighestUsage")
+            self.defaultsState.unifiedIconSourceRaw = newValue.rawValue
+            self.userDefaults.set(newValue.rawValue, forKey: "unifiedIconSource")
+            self.defaultsState.menuBarShowsHighestUsage = newValue == .highestUsage
+            self.userDefaults.set(newValue == .highestUsage, forKey: "menuBarShowsHighestUsage")
         }
     }
 

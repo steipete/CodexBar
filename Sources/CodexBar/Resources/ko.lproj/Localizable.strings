@@ -1592,3 +1592,8 @@
 "antigravity_cost_estimate_hint" = "로컬 사용량 × 공개 API 가격 · Antigravity 청구나 크레딧이 아닙니다";
 "antigravity_quota_window_note" = "창 비용은 모든 모델을 포함합니다 · 표시된 창은 가장 제한적인 제품군입니다";
 "antigravity_no_priced_token_history" = "가격이 매겨진 Antigravity 토큰 기록이 없습니다.";
+"merged_icon_source_title" = "통합 아이콘 표시 기준";
+"merged_icon_source_subtitle" = "접힌 통합 아이콘에 표시할 공급자를 선택합니다.";
+"merged_icon_source_current_selection" = "현재 선택";
+"merged_icon_source_highest_usage" = "사용량이 가장 높음";
+"merged_icon_source_frontmost_app" = "전면의 공급자 앱";

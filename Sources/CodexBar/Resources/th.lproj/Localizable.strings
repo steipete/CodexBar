@@ -1627,3 +1627,8 @@
 "antigravity_cost_estimate_hint" = "การใช้งานในเครื่อง × ราคา API สาธารณะ · ไม่ใช่ค่าบริการหรือเครดิตของ Antigravity";
 "antigravity_quota_window_note" = "ค่าใช้จ่ายของหน้าต่างครอบคลุมทุกโมเดล · หน้าต่างที่แสดงคือกลุ่มที่จำกัดมากที่สุด";
 "antigravity_no_priced_token_history" = "ไม่มีประวัติโทเคน Antigravity ที่คิดราคาไว้";
+"merged_icon_source_title" = "แหล่งที่มาของไอคอนรวม";
+"merged_icon_source_subtitle" = "เลือกผู้ให้บริการที่จะแสดงบนไอคอนรวมเมื่อยุบ";
+"merged_icon_source_current_selection" = "ตัวเลือกปัจจุบัน";
+"merged_icon_source_highest_usage" = "การใช้งานสูงสุด";
+"merged_icon_source_frontmost_app" = "แอปผู้ให้บริการที่อยู่ด้านหน้า";

@@ -161,6 +161,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     var fallbackMenu: NSMenu?
     var menuAppearanceObserver: StatusMenuAppearanceObserver?
     var openMenus: [ObjectIdentifier: NSMenu] = [:]
+    var frontmostProviderMonitor: FrontmostProviderMonitor?
     var menuRefreshTasks: [ObjectIdentifier: Task<Void, Never>] = [:]
     /// Manual refreshes tracked per scope so refreshing one provider neither greys out nor blocks
     /// a manual refresh of another. `.global` covers the all-providers refresh (⌘R / merged overview).
@@ -432,6 +433,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
             self.agentSessions.start()
         }
         self.updateVisibility()
+        self.synchronizeFrontmostProviderMonitor()
         self.updateIcons()
         self.scheduleCodexAccountMenuProjectionRevalidationIfNeeded(
             for: self.store.enabledFirstPartyProvidersForDisplay())
@@ -680,6 +682,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
             self.rebuildProviderStatusItems()
         }
         self.updateVisibility()
+        self.synchronizeFrontmostProviderMonitor()
         self.updateIcons()
         self.persistWidgetSnapshotIfWidgetDisplaySettingsChanged()
         if shouldRefreshOpenMenus {

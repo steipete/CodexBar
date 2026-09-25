@@ -1638,3 +1638,8 @@
 "antigravity_cost_estimate_hint" = "本地用量 × 公开 API 价格 · 并非 Antigravity 账单或额度";
 "antigravity_quota_window_note" = "窗口费用涵盖所有模型 · 所示窗口为最受限的模型系列";
 "antigravity_no_priced_token_history" = "没有可计价的 Antigravity 令牌历史记录。";
+"merged_icon_source_title" = "合并图标来源";
+"merged_icon_source_subtitle" = "选择折叠后的合并图标显示哪个服务提供方。";
+"merged_icon_source_current_selection" = "当前选择";
+"merged_icon_source_highest_usage" = "最高用量";
+"merged_icon_source_frontmost_app" = "最前台的服务提供方应用";

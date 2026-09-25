@@ -1627,3 +1627,8 @@
 "antigravity_cost_estimate_hint" = "Local usage × public API prices · not Antigravity charges or credits";
 "antigravity_quota_window_note" = "Window cost covers all models · window shown is the most constrained family";
 "antigravity_no_priced_token_history" = "No priced Antigravity token history is available.";
+"merged_icon_source_title" = "Combined icon source";
+"merged_icon_source_subtitle" = "Choose which provider the collapsed combined icon shows.";
+"merged_icon_source_current_selection" = "Current selection";
+"merged_icon_source_highest_usage" = "Highest usage";
+"merged_icon_source_frontmost_app" = "Frontmost provider app";

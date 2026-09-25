@@ -33,6 +33,7 @@ extension SettingsStore {
         _ = self.menuBarColorPace
         _ = self.menuBarHighContrastOnInactiveDisplays
         _ = self.menuBarShowsHighestUsage
+        _ = self.unifiedIconSource
         _ = self.menuBarDisplayMode
         _ = self.menuBarShowsResetTimeWhenExhausted
         _ = self.kiroMenuBarDisplayMode

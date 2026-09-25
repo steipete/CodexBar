@@ -167,7 +167,7 @@ extension StatusItemController {
             return true
         }
         guard self.stackedMergeIconProvidersIfActive() == nil,
-              self.shouldMergeIcons, self.settings.menuBarShowsHighestUsage
+              self.shouldMergeIcons, self.settings.unifiedIconSource == .highestUsage
         else {
             return false
         }
