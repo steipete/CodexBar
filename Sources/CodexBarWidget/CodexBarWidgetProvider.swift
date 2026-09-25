@@ -268,15 +268,20 @@ enum WidgetPreviewData {
     }
 
     static func snapshot() -> WidgetSnapshot {
-        let primary = RateWindow(usedPercent: 35, windowMinutes: 300, resetsAt: nil, resetDescription: "Resets in 4h")
+        let now = Date()
+        let primary = RateWindow(
+            usedPercent: 35,
+            windowMinutes: 300,
+            resetsAt: now.addingTimeInterval(4 * 3600),
+            resetDescription: "Resets in 4h")
         let secondary = RateWindow(
             usedPercent: 60,
             windowMinutes: 10080,
-            resetsAt: nil,
+            resetsAt: now.addingTimeInterval(3 * 86400),
             resetDescription: "Resets in 3d")
         let entry = WidgetSnapshot.ProviderEntry(
             provider: .codex,
-            updatedAt: Date(),
+            updatedAt: now,
             primary: primary,
             secondary: secondary,
             tertiary: nil,
@@ -296,6 +301,6 @@ enum WidgetPreviewData {
                 WidgetSnapshot.DailyUsagePoint(dayKey: "2025-12-06", totalTokens: 70000, costUSD: 8.9),
                 WidgetSnapshot.DailyUsagePoint(dayKey: "2025-12-07", totalTokens: 110_000, costUSD: 13.7),
             ])
-        return WidgetSnapshot(entries: [entry], generatedAt: Date())
+        return WidgetSnapshot(entries: [entry], generatedAt: now)
     }
 }

@@ -866,8 +866,8 @@ struct CodexBarWidgetProviderTests {
         provider: UsageProvider,
         primaryUsed: Double?,
         secondaryUsed: Double?,
-        primaryReset: Date? = nil,
-        secondaryReset: Date? = nil,
+        primaryReset: Date? = Date(timeIntervalSince1970: 1_800_000_000),
+        secondaryReset: Date? = Date(timeIntervalSince1970: 1_800_000_000),
         primaryWindowMinutes: Int = 5 * 60,
         secondaryWindowMinutes: Int = 7 * 24 * 60) -> WidgetSnapshot
     {
