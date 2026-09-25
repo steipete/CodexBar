@@ -1612,7 +1612,7 @@ extension ProviderSettingsDescriptorTests {
         }
     }
 
-    private func makeSettingsFixture(
+    func makeSettingsFixture(
         suite: String,
         environmentBase: [String: String] = [:]) throws -> ProviderSettingsFixture
     {
@@ -1630,7 +1630,7 @@ extension ProviderSettingsDescriptorTests {
         return ProviderSettingsFixture(settings: settings, store: store)
     }
 
-    private struct ProviderSettingsFixture {
+    struct ProviderSettingsFixture {
         let settings: SettingsStore
         let store: UsageStore
         private let state = ProviderSettingsContextState()

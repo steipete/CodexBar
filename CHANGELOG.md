@@ -4,6 +4,9 @@
 
 ### Added
 
+- LiteLLM: optionally show per-model input/output/total tokens and logged requests for the last 30 days while preserving personal/team budgets (#3432). Thanks @anyingiit!
+- Claude Admin API: optionally break down 30-day spend by workspace while preserving organization totals (#2350). Thanks @ShawNova!
+
 - xKiro: track the account's daily free-token allowance and midnight UTC reset through the documented, unmetered usage API, separately from paid balances (#3729).
 - Raycast: show monthly AI credits and renewal through a bundled plugin, with Chrome/manual cookies and expired-session recovery (#3960). Thanks @raulgg!
 - Aixy: track key-scoped usage and applicable personal/shared budgets, including idle keys with zero spend (#3958). Thanks @oscarcpozas!

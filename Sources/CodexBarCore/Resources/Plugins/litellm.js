@@ -34,6 +34,7 @@ defineProvider({
   settings: [
     { key: "LITELLM_API_KEY", title: "API key", type: "secure" },
     { key: "LITELLM_BASE_URL", title: "Base URL", type: "plain" },
+    { key: "LITELLM_MODEL_USAGE_ENABLED", title: "Show model activity", type: "plain" },
   ],
   capabilities: ["http-status"],
   async fetchUsage(ctx) {
@@ -169,10 +170,69 @@ defineProvider({
       const responseID = nonempty(team.id) || rootID;
       if (responseID !== undefined && responseID !== teamID) return fail("team_id did not match /key/info");
     }
+    const modelActivity = async () => {
+      const end = ctx.date.now().toISOString().slice(0, 10);
+      const start = new Date(ctx.date.now().getTime() - 29 * 86400000).toISOString().slice(0, 10);
+      const totals = new Map();
+      const fields = ["prompt_tokens", "completion_tokens", "total_tokens", "api_requests"];
+      const count = (value) => {
+        const parsed = number(value);
+        if (parsed === undefined || !Number.isSafeInteger(parsed) || parsed < 0) return fail("invalid activity count");
+        return parsed;
+      };
+      for (let page = 1; page <= 3; page++) {
+        const response = await ctx.http.get(
+          `${base}/user/daily/activity?user_id=${encodeURIComponent(userID)}&start_date=${start}&end_date=${end}&page=${page}&page_size=1000`,
+          { timeoutSeconds: 2 },
+        );
+        if (response.status !== 200) return fail("model activity unavailable");
+        const root = object(JSON.parse(response.bodyText));
+        if (!Array.isArray(root.results) || root.results.length > 31) return fail("invalid activity page");
+        for (const raw of root.results) {
+          const row = object(raw),
+            day = text(row.date);
+          if (!day || !/^\d{4}-\d{2}-\d{2}$/u.test(day) || day < start || day > end) {
+            return fail("invalid activity day");
+          }
+          const models = object(object(row.breakdown).models);
+          for (const [name, value] of Object.entries(models)) {
+            if (!ctx.isDetailLabel(name)) return fail("invalid activity model name");
+            const entry = object(value),
+              metrics = object(_nullishCoalesce(entry.metrics, () => entry));
+            const previous = _nullishCoalesce(totals.get(name), () => [0, 0, 0, 0]);
+            totals.set(
+              name,
+              fields.map((field, index) => count(previous[index] + count(metrics[field]))),
+            );
+            if (totals.size > 1000) return fail("too many activity models");
+          }
+        }
+        const metadata = object(_nullishCoalesce(root.metadata, () => ({})));
+        if (metadata.page != null && count(metadata.page) !== page) return fail("repeated activity page");
+        const pages = metadata.total_pages == null ? 1 : count(metadata.total_pages);
+        if (metadata.has_more != null && typeof metadata.has_more !== "boolean") return fail("invalid pagination");
+        if (metadata.has_more !== true && page >= pages) {
+          const rows = [...totals]
+            .sort((a, b) => b[1][2] - a[1][2] || a[0].localeCompare(b[0]))
+            .slice(0, 20)
+            .map(([label, [input, output, total, requests]]) => ({
+              label,
+              value: `${total} tokens · ${requests} requests`,
+              secondaryValue: `Input ${input} · Output ${output}`,
+            }));
+          return rows.length ? [{ title: "Model activity · 30d UTC", rows }] : [];
+        }
+      }
+      return fail("incomplete model activity");
+    };
+    // Optional history must never discard successfully fetched budgets or expose response bodies.
+    const details =
+      userID && ctx.settings.get("LITELLM_MODEL_USAGE_ENABLED") === "true" ? await modelActivity().catch(() => []) : [];
     return {
       primary: _optionalChain([personal, "optionalAccess", (_4) => _4.window]),
       secondary: _optionalChain([team, "optionalAccess", (_5) => _5.window]),
       cost: _nullishCoalesce(personal, () => team).cost,
+      details,
       subscriptionExpiresAt: expires,
       identity: { email, organization: _optionalChain([team, "optionalAccess", (_6) => _6.alias]), loginMethod: "api" },
     };

@@ -27,7 +27,12 @@ public enum ClaudeProviderDescriptor {
         browserSupportExemption: { sourceMode, _, _ in sourceMode == .auto })
     private static let credentials = ProviderCredentialAdapter(
         supportsAPIKeyOverride: true,
-        environmentProjections: [.apiKey(ClaudeAdminAPISettingsReader.adminAPIKeyEnvironmentKey)],
+        environmentProjections: [
+            .apiKey(ClaudeAdminAPISettingsReader.adminAPIKeyEnvironmentKey),
+            ProviderCredentialEnvironmentProjection(
+                key: ClaudeAdminAPISettingsReader.workspaceSpendEnvironmentKey,
+                value: { $0.claudeWorkspaceSpendEnabled.map(String.init) }),
+        ],
         tokenResolver: { kind, environment, _ in
             guard kind == .primary,
                   let token = ClaudeAdminAPISettingsReader.apiKey(environment: environment)
@@ -490,12 +495,13 @@ private struct ClaudePlannedFetchStrategy: ProviderFetchStrategy {
 struct ClaudeAdminAPIFetchStrategy: ProviderFetchStrategy {
     let id: String = "claude.admin-api"
     let kind: ProviderFetchKind = .apiToken
-    let usageFetcher: @Sendable (String) async throws -> ClaudeAdminAPIUsageSnapshot
+    let usageFetcher: @Sendable (String, Bool) async throws -> ClaudeAdminAPIUsageSnapshot
 
     init(
-        usageFetcher: @escaping @Sendable (String) async throws -> ClaudeAdminAPIUsageSnapshot = { apiKey in
-            try await ClaudeAdminAPIUsageFetcher.fetchUsage(apiKey: apiKey)
-        })
+        usageFetcher: @escaping @Sendable (String, Bool) async throws
+            -> ClaudeAdminAPIUsageSnapshot = { apiKey, enabled in
+                try await ClaudeAdminAPIUsageFetcher.fetchUsage(apiKey: apiKey, workspaceSpendEnabled: enabled)
+            })
     {
         self.usageFetcher = usageFetcher
     }
@@ -513,7 +519,8 @@ struct ClaudeAdminAPIFetchStrategy: ProviderFetchStrategy {
         guard let apiKey = Self.resolveToken(environment: context.env) else {
             throw ClaudeAdminAPISettingsError.missingToken
         }
-        let usage = try await self.usageFetcher(apiKey)
+        let usage = try await self.usageFetcher(
+            apiKey, context.env[ClaudeAdminAPISettingsReader.workspaceSpendEnvironmentKey] == "true")
         return self.makeResult(
             usage: usage.toUsageSnapshot(),
             sourceLabel: "admin-api")
