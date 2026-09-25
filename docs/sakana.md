@@ -82,7 +82,8 @@ completed PAYG result, while a fast primary may briefly wait for the remainder o
 is cancelled after collection, when the required request fails, or when the caller cancels.
 
 The bundled `sakana.js` plugin uses the host's `ctx.http.getWithOptional` operation on QuickJS and JavaScriptCore.
-The host runs the requests concurrently and owns collection and cancellation, preserving the latency contract even
+The shared host task group runs the requests concurrently and owns collection and cancellation on macOS and Linux,
+preserving the latency contract even
 on QuickJS's synchronous HTTP bridge. The optional response never triggers a retry. The configured primary timeout
 is clamped to the host's 1–90 second range, with an overall fetch budget that accommodates it.
 

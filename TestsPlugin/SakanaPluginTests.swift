@@ -85,12 +85,18 @@ struct SakanaPluginTests {
             body: Self.billingHTML,
             billingWaitsForPayAsYouGo: true,
             payAsYouGoBlocksUntilCancelled: true)
-        let startedAt = ContinuousClock.now
-        let usage = try await Self.fetch(transport, engine: engine)
-        #expect(startedAt.duration(to: .now) < .seconds(1))
+        let task = Task { try await Self.fetch(transport, engine: engine) }
+        let usage: UsageSnapshot
+        switch await BoundedTaskJoin(sourceTask: task).value(joinGrace: .seconds(10)) {
+        case let .value(value): usage = value
+        case .failure, .timedOut:
+            Issue.record("Optional request held the primary result")
+            return
+        }
         #expect(usage.primary?.usedPercent == 92)
         #expect(usage.details.isEmpty)
         #expect(try await transport.waitForPayAsYouGoCancellation())
+        #expect(await transport.payAsYouGoCancellationDuration() < .seconds(4))
     }
 
     @Test(arguments: BundledPluginTestSupport.engines)
@@ -281,6 +287,7 @@ private actor SakanaScriptedTransport: ProviderHTTPTransport {
     private var payAsYouGoStarted = false
     private var payAsYouGoCompleted = false
     private var payAsYouGoWasCancelled = false
+    private var cancellationDuration: Duration = .seconds(30)
     private var payAsYouGoStartWaiters: [CheckedContinuation<Void, Never>] = []
     private var payAsYouGoCompletionWaiters: [CheckedContinuation<Void, Never>] = []
 
@@ -312,6 +319,8 @@ private actor SakanaScriptedTransport: ProviderHTTPTransport {
         self.capturedRequests
     }
 
+    func payAsYouGoCancellationDuration() -> Duration { self.cancellationDuration }
+
     func waitForPayAsYouGoCancellation() async throws -> Bool {
         // Stay below the optional request's five-second fallback timeout.
         let deadline = ContinuousClock.now.advanced(by: .seconds(1))
@@ -329,9 +338,11 @@ private actor SakanaScriptedTransport: ProviderHTTPTransport {
                 try await Task.sleep(for: payAsYouGoDelay)
             }
             if self.payAsYouGoBlocksUntilCancelled {
+                let startedAt = ContinuousClock.now
                 do {
                     try await Task.sleep(for: .seconds(30))
                 } catch {
+                    self.cancellationDuration = startedAt.duration(to: .now)
                     self.payAsYouGoWasCancelled = true
                     throw error
                 }

@@ -102,7 +102,8 @@ so portable third-party plugins must use the host helpers below instead of ECMA-
 - `await ctx.http.getWithOptional(url, optionalURL, opts?)` runs two text GETs concurrently through the host,
   with the same options and declared-origin/authentication checks for both. It returns the primary response with
   `optional` containing the secondary response or `null`. Optional work has a five-second request limit, no retries,
-  and a shared 200 ms collection budget measured from the pair's start. A slow primary only collects an already
+  and a shared 200 ms collection budget measured from the first primary attempt's admission. Scheduling waits count
+  against the overall fetch timeout, not this collection budget. A slow primary only collects an already
   completed secondary; a fast primary can wait for the remainder of that budget. Failed optional work is discarded.
   Unfinished optional work is cancelled on collection, primary failure, or caller cancellation. This primitive works
   on both engines without relying on JavaScript promise concurrency. HTTP responses also expose their final `url`.

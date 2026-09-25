@@ -54,11 +54,10 @@ enum ProviderPluginHTTPResponse {
         }
     }
 
-    private final class OptionalResult: @unchecked Sendable {
-        private let lock = NSLock()
-        private var response: ProviderHTTPResponse?
-        func complete(_ response: ProviderHTTPResponse) { self.lock.withLock { self.response = response } }
-        func completed() -> ProviderHTTPResponse? { self.lock.withLock { self.response } }
+    private enum Completion: Sendable {
+        case primary(ProviderHTTPResponse)
+        case optional(ProviderHTTPResponse?)
+        case budgetExpired
     }
 
     // swiftlint:disable:next function_parameter_count
@@ -69,55 +68,80 @@ enum ProviderPluginHTTPResponse {
         responseSizeLimit: Int,
         enforcesUserResponsePolicy: Bool,
         rejectsNonSuccessResponses: Bool,
-        beforeAttempt: (@Sendable () async throws -> Void)?) async throws -> Payload
+        beforeAttempt: (@Sendable () async throws -> Void)?,
+        collectionBudget: Duration = .milliseconds(200)) async throws -> Payload
     {
-        let startedAt = ContinuousClock.now
-        let optionalResult = OptionalResult()
-        let optionalTask = request.optional.map { optional in
-            Task<Void, Error> {
-                try await optionalResult.complete(self.response(
-                    for: optional,
+        let (starts, started) = AsyncStream<ContinuousClock.Instant>.makeStream(bufferingPolicy: .bufferingNewest(1))
+        return try await withThrowingTaskGroup(of: Completion.self) { group in
+            defer { group.cancelAll() }
+            group.addTask {
+                defer { started.finish() }
+                return try await .primary(self.response(
+                    for: request.primary,
                     transport: transport,
-                    retryPolicy: .disabled,
-                    beforeAttempt: beforeAttempt))
+                    retryPolicy: request.retryPolicy,
+                    beforeAttempt: {
+                        try await beforeAttempt?()
+                        started.yield(.now)
+                        started.finish()
+                    }))
             }
-        }
-        return try await withTaskCancellationHandler {
-            defer { optionalTask?.cancel() }
-            let response = try await self.response(
-                for: request.primary,
-                transport: transport,
-                retryPolicy: request.retryPolicy,
-                beforeAttempt: beforeAttempt)
+            if let optional = request.optional {
+                group.addTask {
+                    await .optional(try? self.response(
+                        for: optional,
+                        transport: transport,
+                        retryPolicy: .disabled,
+                        beforeAttempt: beforeAttempt))
+                }
+                group.addTask {
+                    // Admission and scheduling waits belong to the overall fetch timeout.
+                    var iterator = starts.makeAsyncIterator()
+                    if let start = await iterator.next() {
+                        try await Task.sleep(until: start.advanced(by: collectionBudget), clock: .continuous)
+                    }
+                    return .budgetExpired
+                }
+            }
+            var primary: ProviderHTTPResponse?
+            var optional: ProviderHTTPResponse?
+            var optionalFinished = request.optional == nil
+            var budgetExpired = false
+            while let completion = try await group.next() {
+                switch completion {
+                case let .primary(response): primary = response
+                case let .optional(response):
+                    optional = response
+                    optionalFinished = true
+                case .budgetExpired: budgetExpired = true
+                }
+                // After expiry, retain optional results only while the required request is still pending.
+                if let primary, optionalFinished || budgetExpired || !(200..<300).contains(primary.statusCode) {
+                    break
+                }
+            }
+            try Task.checkCancellation()
+            guard let primary else { throw CancellationError() }
             var payload = try self.checkedPayload(
-                response,
+                primary,
                 wantsJSON: wantsJSON,
                 responseSizeLimit: responseSizeLimit,
                 enforcesUserResponsePolicy: enforcesUserResponsePolicy,
                 rejectsNonSuccessResponses: rejectsNonSuccessResponses,
                 allowsRetry: request.retryPolicy.maxRetries == 0)
-            if let optionalTask {
-                if (200..<300).contains(response.statusCode) {
-                    let remaining = ContinuousClock.now.duration(to: startedAt.advanced(by: .milliseconds(200)))
-                    if optionalResult.completed() == nil, remaining > .zero {
-                        _ = await BoundedTaskJoin(sourceTask: optionalTask).value(joinGrace: remaining)
-                    }
-                    if let optional = optionalResult.completed(), (200..<300).contains(optional.statusCode) {
-                        payload["optional"] = try? self.checkedPayload(
-                            optional,
-                            wantsJSON: wantsJSON,
-                            responseSizeLimit: responseSizeLimit,
-                            enforcesUserResponsePolicy: enforcesUserResponsePolicy,
-                            rejectsNonSuccessResponses: true,
-                            allowsRetry: false)
-                    }
+            if request.optional != nil {
+                if let optional, (200..<300).contains(primary.statusCode) {
+                    payload["optional"] = try? self.checkedPayload(
+                        optional,
+                        wantsJSON: wantsJSON,
+                        responseSizeLimit: responseSizeLimit,
+                        enforcesUserResponsePolicy: enforcesUserResponsePolicy,
+                        rejectsNonSuccessResponses: true,
+                        allowsRetry: false)
                 }
                 if payload["optional"] == nil { payload["optional"] = NSNull() }
             }
-            try Task.checkCancellation()
             return Payload(value: payload)
-        } onCancel: {
-            optionalTask?.cancel()
         }
     }
 

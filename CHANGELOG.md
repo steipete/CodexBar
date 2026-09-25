@@ -7,7 +7,7 @@
 - LiteLLM: optionally show per-model input/output/total tokens and logged requests for the last 30 days while preserving personal/team budgets (#3432). Thanks @anyingiit!
 - Claude Admin API: optionally break down 30-day spend by workspace while preserving organization totals (#2350). Thanks @ShawNova!
 - Plugins: preserve small non-secret checkpoints across app and CLI restarts with isolated, bounded string storage and explicit approval (#3170). Thanks @CrackedPoly!
-- Sakana AI: run billing parsing as a bundled plugin on both engines while preserving concurrent, bounded optional balance collection.
+- Sakana AI: run billing parsing as a bundled plugin on macOS and Linux while preserving concurrent, bounded optional balance collection on both engines.
 - xKiro: track the account's daily free-token allowance and midnight UTC reset through the documented, unmetered usage API, separately from paid balances (#3729).
 - Raycast: show monthly AI credits and renewal through a bundled plugin, with Chrome/manual cookies and expired-session recovery (#3960). Thanks @raulgg!
 - Aixy: track key-scoped usage and applicable personal/shared budgets, including idle keys with zero spend (#3958). Thanks @oscarcpozas!

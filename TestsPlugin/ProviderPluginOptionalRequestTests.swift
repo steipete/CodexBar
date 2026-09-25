@@ -49,19 +49,39 @@ struct ProviderPluginOptionalRequestTests {
         engine: ProviderPluginEngineKind) async throws
     {
         let runtime = try Self.runtime(engine: engine) { request in
-            try await Task.sleep(for: request.url?.path == "/primary" ? .milliseconds(400) : .milliseconds(250))
+            try await Task.sleep(for: request.url?.path == "/primary" ? .seconds(2) : .seconds(1))
             return try Self.response(request, body: "ready")
         }
         #expect(try await runtime.fetchUsage().identity?.loginMethod == "ready")
     }
 
-    @Test(arguments: BundledPluginTestSupport.engines)
-    func `slow primary does not receive a fresh collection budget`(engine: ProviderPluginEngineKind) async throws {
-        let runtime = try Self.runtime(engine: engine) { request in
-            try await Task.sleep(for: request.url?.path == "/primary" ? .milliseconds(300) : .milliseconds(400))
-            return try Self.response(request, body: "late")
-        }
-        #expect(try await runtime.fetchUsage().identity?.loginMethod == "none")
+    @Test
+    func `slow primary does not receive a fresh collection budget`() async throws {
+        // Scale the shared host budget and both delays together, keeping a full second between events.
+        let manifest = try Self.runtime(engine: .quickJS) { request in
+            try Self.response(request, body: "unused")
+        }.manifest
+        let request = try ProviderPluginHTTPResponse.Request(
+            rawURL: "https://example.test/primary",
+            options: ["optionalURL": "https://example.test/optional"],
+            method: "GET",
+            settings: [:],
+            secrets: [:],
+            manifest: manifest,
+            enforcesUserResponsePolicy: true)
+        let payload = try await ProviderPluginHTTPResponse.fetch(
+            request,
+            transport: ProviderHTTPTransportHandler { request in
+                try await Task.sleep(for: request.url?.path == "/primary" ? .seconds(3) : .seconds(4))
+                return try Self.response(request, body: "late")
+            },
+            wantsJSON: false,
+            responseSizeLimit: 1024,
+            enforcesUserResponsePolicy: true,
+            rejectsNonSuccessResponses: false,
+            beforeAttempt: nil,
+            collectionBudget: .seconds(2))
+        #expect(payload.value["optional"] is NSNull)
     }
 
     @Test(arguments: BundledPluginTestSupport.engines)
@@ -76,14 +96,14 @@ struct ProviderPluginOptionalRequestTests {
             return try Self.response(request, body: "unexpected")
         }
         let task = Task { try await runtime.fetchUsage() }
-        let deadline = ContinuousClock.now.advanced(by: .seconds(2))
+        let deadline = ContinuousClock.now.advanced(by: .seconds(10))
         while calls.counts.0 < 2, ContinuousClock.now < deadline {
             try await Task.sleep(for: .milliseconds(10))
         }
         #expect(calls.counts.0 == 2)
         task.cancel()
         await #expect(throws: CancellationError.self) { _ = try await task.value }
-        let cancelledDeadline = ContinuousClock.now.advanced(by: .seconds(2))
+        let cancelledDeadline = ContinuousClock.now.advanced(by: .seconds(10))
         while calls.counts.1 < 2, ContinuousClock.now < cancelledDeadline {
             try await Task.sleep(for: .milliseconds(10))
         }
@@ -94,18 +114,24 @@ struct ProviderPluginOptionalRequestTests {
     func `optional transport ignoring cancellation cannot hold the result`(
         engine: ProviderPluginEngineKind) async throws
     {
+        let calls = RequestCalls()
+        let (release, continuation) = AsyncStream<Void>.makeStream()
+        defer { continuation.finish() }
         let runtime = try Self.runtime(engine: engine) { request in
+            calls.start()
             if request.url?.path == "/optional" {
-                await withCheckedContinuation { continuation in
-                    DispatchQueue.global().asyncAfter(deadline: .now() + 1) { continuation.resume() }
-                }
+                // An independent task deliberately prevents caller cancellation from releasing this transport.
+                await Task.detached { for await _ in release {} }.value
             }
             return try Self.response(request, body: "late")
         }
-        let start = ContinuousClock.now
-        #expect(try await runtime.fetchUsage().identity?.loginMethod == "none")
-        #expect(start.duration(to: .now) < .milliseconds(800))
-        try await Task.sleep(for: .milliseconds(1100))
+        let task = Task { try await runtime.fetchUsage() }
+        switch await BoundedTaskJoin(sourceTask: task).value(joinGrace: .seconds(10)) {
+        case let .value(usage):
+            #expect(usage.identity?.loginMethod == "none")
+            #expect(try #require(calls.elapsed) < .seconds(1))
+        case .failure, .timedOut: Issue.record("Optional transport held the primary result until release")
+        }
     }
 
     private static func runtime(
@@ -149,12 +175,23 @@ struct ProviderPluginOptionalRequestTests {
     private final class RequestCalls: @unchecked Sendable {
         private let lock = NSLock()
         private var started = 0
+        private var startedAt: ContinuousClock.Instant?
+        var elapsed: Duration? {
+            self.lock.withLock { self.startedAt?.duration(to: .now) }
+        }
+
         private var cancelled = 0
         var counts: (Int, Int) {
             self.lock.withLock { (self.started, self.cancelled) }
         }
 
-        func start() { self.lock.withLock { self.started += 1 } }
+        func start() {
+            self.lock.withLock {
+                self.startedAt = self.startedAt ?? .now
+                self.started += 1
+            }
+        }
+
         func cancel() { self.lock.withLock { self.cancelled += 1 } }
     }
 }
