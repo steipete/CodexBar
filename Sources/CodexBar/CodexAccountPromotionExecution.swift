@@ -308,10 +308,7 @@ struct CodexDisplacedLivePreservationExecutor {
     private func writeManagedAuthData(_ data: Data, to homeURL: URL) throws {
         let authFileURL = CodexAccountPromotionService.authFileURL(for: homeURL)
         guard CodexCredentialFileAccess.permits(authFileURL) else { throw CodexOAuthCredentialsError.notFound }
-        try data.write(to: authFileURL, options: .atomic)
-        try self.fileManager.setAttributes(
-            [.posixPermissions: NSNumber(value: Int16(0o600))],
-            ofItemAtPath: authFileURL.path)
+        try CredentialFileWriter.writePrivate(data, to: authFileURL)
     }
 
     private func removeManagedHomeIfSafe(_ homeURL: URL) throws {

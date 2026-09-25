@@ -1233,13 +1233,13 @@ struct SettingsStoreTests {
         #expect(store.codexCookieSource == .auto)
     }
 
-    @Test
-    func `imports legacy open AI web access defaults key`() throws {
+    @Test(arguments: [false, true])
+    func `imports legacy open AI web access defaults key`(enabled: Bool) throws {
         let suite = "SettingsStoreTests-openai-web-legacy-key"
         let defaults = try #require(UserDefaults(suiteName: suite))
         defaults.removePersistentDomain(forName: suite)
         defaults.removeObject(forKey: "openAIWebAccessEnabled")
-        defaults.set(false, forKey: "openAIWebAccess")
+        defaults.set(enabled, forKey: "openAIWebAccess")
         defaults.set(false, forKey: "debugDisableKeychainAccess")
         let configStore = testConfigStore(suiteName: suite)
         try configStore.save(CodexBarConfig(providers: [
@@ -1252,12 +1252,12 @@ struct SettingsStoreTests {
             zaiTokenStore: NoopZaiTokenStore(),
             syntheticTokenStore: NoopSyntheticTokenStore())
 
-        #expect(store.openAIWebAccessEnabled == false)
-        #expect(defaults.bool(forKey: "openAIWebAccessEnabled") == false)
+        #expect(store.openAIWebAccessEnabled == enabled)
+        #expect(defaults.object(forKey: "openAIWebAccessEnabled") as? Bool == enabled)
     }
 
     @Test
-    func `infers open AI web access enabled for legacy codex config with implicit auto cookies`() throws {
+    func `keeps open AI web access disabled for codex config without explicit cookies`() throws {
         let suite = "SettingsStoreTests-openai-web-legacy-implicit-auto"
         let defaults = try #require(UserDefaults(suiteName: suite))
         defaults.removePersistentDomain(forName: suite)
@@ -1274,11 +1274,11 @@ struct SettingsStoreTests {
             zaiTokenStore: NoopZaiTokenStore(),
             syntheticTokenStore: NoopSyntheticTokenStore())
 
-        #expect(store.openAIWebAccessEnabled == true)
-        #expect(defaults.bool(forKey: "openAIWebAccessEnabled") == true)
+        #expect(store.openAIWebAccessEnabled == false)
+        #expect(defaults.object(forKey: "openAIWebAccessEnabled") as? Bool == false)
         #expect(store.openAIWebBatterySaverEnabled == false)
         #expect(defaults.bool(forKey: "openAIWebBatterySaverEnabled") == false)
-        #expect(store.codexCookieSource == .auto)
+        #expect(store.codexCookieSource == .off)
     }
 
     @Test

@@ -86,8 +86,31 @@ struct SettingsStoreKeychainPreferenceTests {
         }
     }
 
+    @Test(arguments: [nil, ProviderCookieSource.off])
+    func `web opt in after a restart preserves the configured cookie source`(
+        cookieSource: ProviderCookieSource?) throws
+    {
+        let firstDefaults = InMemoryUserDefaults()
+        var savedConfig = CodexBarConfig(providers: [ProviderConfig(id: .codex, cookieSource: cookieSource)])
+        try self.withSettingsStore(defaults: firstDefaults, config: savedConfig) { store in
+            #expect(!store.openAIWebAccessEnabled)
+            #expect(store.codexCookieSource == .off)
+            #expect(firstDefaults.object(forKey: "openAIWebAccessEnabled") as? Bool == false)
+            savedConfig = store.configSnapshot
+        }
+
+        let reloadedDefaults = InMemoryUserDefaults(values: firstDefaults.dictionaryRepresentation())
+        try self.withSettingsStore(defaults: reloadedDefaults, config: savedConfig) { store in
+            #expect(!store.openAIWebAccessEnabled)
+            #expect(store.configSnapshot.providerConfig(for: .codex)?.cookieSource == cookieSource)
+            store.openAIWebAccessEnabled = true
+            #expect(store.codexCookieSource == (cookieSource ?? .auto))
+        }
+    }
+
     private func withSettingsStore(
         defaults: InMemoryUserDefaults,
+        config: CodexBarConfig? = nil,
         keychainAccessPolicy: SettingsStoreKeychainAccessPolicy = SettingsStoreKeychainAccessPolicy(
             setDisabled: { _ in },
             isExplicitlyDisabled: { false }),
@@ -110,9 +133,13 @@ struct SettingsStoreKeychainPreferenceTests {
                 Issue.record("Could not remove synthetic settings fixture: \(error)")
             }
         }
+        let configStore = CodexBarConfigStore(fileURL: root.appendingPathComponent("config.json"))
+        if let config {
+            try configStore.save(config)
+        }
         let store = SettingsStore(
             userDefaults: defaults,
-            configStore: CodexBarConfigStore(fileURL: root.appendingPathComponent("config.json")),
+            configStore: configStore,
             zaiTokenStore: NoopZaiTokenStore(),
             syntheticTokenStore: NoopSyntheticTokenStore(),
             codexCookieStore: InMemoryCookieHeaderStore(),

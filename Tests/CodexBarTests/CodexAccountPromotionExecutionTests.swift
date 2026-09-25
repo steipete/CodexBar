@@ -1,11 +1,50 @@
-import CodexBarCore
 import Foundation
 import Testing
 @testable import CodexBar
+@testable import CodexBarCore
 
 @Suite(.serialized, CodexCredentialFixtures())
 @MainActor
 struct CodexAccountPromotionExecutionTests {
+    #if DEBUG
+    @Test
+    func `displaced auth is private before publication and cancellation cleans up the imported home`() async throws {
+        let container = try CodexAccountPromotionTestContainer(
+            suiteName: "CodexAccountPromotionExecutionTests-private-publication")
+        defer { container.tearDown() }
+
+        let target = try container.createManagedAccount(
+            persistedEmail: "beta@example.com",
+            authAccountID: "acct-beta")
+        try container.persistAccounts([target])
+        let liveAuthData = try container.writeLiveOAuthAuthFile(email: "alpha@example.com", accountID: "acct-alpha")
+        let context = try await self.makeContext(container: container, targetID: target.id)
+        let executor = CodexDisplacedLivePreservationExecutor(
+            store: container.fileStore,
+            homeFactory: container.homeFactory,
+            fileManager: .default)
+
+        let observePublication: @Sendable (URL) throws -> Void = { stagedURL in
+            let attributes = try FileManager.default.attributesOfItem(atPath: stagedURL.path)
+            #expect((attributes[.posixPermissions] as? NSNumber)?.intValue == 0o600)
+            #expect(try Data(contentsOf: stagedURL) == liveAuthData)
+            let authURL = stagedURL.deletingLastPathComponent().appendingPathComponent("auth.json")
+            #expect(!FileManager.default.fileExists(atPath: authURL.path))
+            throw CancellationError()
+        }
+        CredentialFileWriter.$beforePublishForTesting.withValue(observePublication) {
+            #expect(throws: CodexAccountPromotionError.displacedLiveImportFailed) {
+                try executor.execute(plan: .importNew(reason: .noExistingManagedDestination), context: context)
+            }
+        }
+
+        #expect(try container.liveAuthData() == liveAuthData)
+        #expect(try container.managedHomeURLs().count == 1)
+        #expect(try container.loadAccounts().accounts.count == 1)
+    }
+
+    #endif
+
     @Test
     func `executor import store failure cleans up imported home and maps managed store error`() async throws {
         let container = try CodexAccountPromotionTestContainer(

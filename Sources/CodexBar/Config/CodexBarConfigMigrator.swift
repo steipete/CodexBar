@@ -201,15 +201,6 @@ struct CodexBarConfigMigrator {
                 return true
             }
         }
-
-        if userDefaults.object(forKey: "openAIWebAccessEnabled") as? Bool == false {
-            // Provider-specific by design: the retired OpenAI web toggle controlled Codex dashboard cookies.
-            self.updateProvider(.codex, config: &config, state: &state) { entry in
-                guard entry.cookieSource == nil else { return false }
-                entry.cookieSource = .off
-                return true
-            }
-        }
     }
 
     private static func bindLegacyMoonshotAPIKeyRegion(

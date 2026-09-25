@@ -11,7 +11,11 @@ import Foundation
 /// established **before** any bytes are written, then atomically published — the same secure shape
 /// `CodexOAuthCredentials` already uses. Also repairs the mode of a pre-existing file so users who
 /// upgrade from a build that wrote `0644` are corrected on first access.
-enum CredentialFileWriter {
+package enum CredentialFileWriter {
+    #if DEBUG
+    @TaskLocal static var beforePublishForTesting: (@Sendable (URL) throws -> Void)?
+    #endif
+
     /// Atomically write `data` to `url` as an owner-only (`0600`) file. The bytes are written to a
     /// staged temp file created with `O_EXCL|O_CREAT` at mode `0600` (so the credential is never
     /// world-readable, even momentarily), fsync'd, then atomically `rename(2)`d over `url`.
@@ -21,7 +25,7 @@ enum CredentialFileWriter {
     ///
     /// `beforePublish` runs against the staged (already `0600`) file after the bytes are written and
     /// before the atomic rename, for callers that need to validate or post-process before publishing.
-    static func writePrivate(
+    package static func writePrivate(
         _ data: Data,
         to url: URL,
         beforePublish: ((URL) throws -> Void)? = nil) throws
@@ -48,6 +52,9 @@ enum CredentialFileWriter {
             handleOpen = false
 
             try beforePublish?(staged)
+            #if DEBUG
+            try self.beforePublishForTesting?(staged)
+            #endif
 
             // Atomic publish: rename(2) replaces any existing destination in one step.
             let renamed = staged.path.withCString { src in

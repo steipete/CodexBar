@@ -354,7 +354,6 @@ final class SettingsStore {
         {
             userDefaults.set(legacyOpenAIWebAccess, forKey: "openAIWebAccessEnabled")
         }
-        let hasStoredOpenAIWebAccessPreference = userDefaults.object(forKey: "openAIWebAccessEnabled") != nil
         let legacyStores = CodexBarConfigMigrator.LegacyStores(
             zaiTokenStore: zaiTokenStore,
             syntheticTokenStore: syntheticTokenStore,
@@ -375,6 +374,7 @@ final class SettingsStore {
             userDefaults: userDefaults,
             keychainAccessDisabled: keychainAccessPolicy.isExplicitlyDisabled(),
             stores: legacyStores)
+        Self.initializeOpenAIWebAccessPreference(userDefaults: userDefaults, config: config)
         self.userDefaults = userDefaults
         self.configStore = configStore
         self.antigravityOAuthCredentialsStore = antigravityOAuthCredentialsStore
@@ -407,18 +407,6 @@ final class SettingsStore {
             } else {
                 self.defaultsState.claudeWebExtrasEnabledRaw = false
             }
-        }
-        let resolvedOpenAIWebAccessEnabled = if hasStoredOpenAIWebAccessPreference {
-            self.defaultsState.openAIWebAccessEnabled
-        } else {
-            Self.inferredInitialOpenAIWebAccessEnabled(
-                config: config,
-                hadExistingConfig: hadExistingConfig)
-        }
-        if Self.isRunningTests {
-            self.openAIWebAccessEnabled = resolvedOpenAIWebAccessEnabled
-        } else {
-            self.defaultsState.openAIWebAccessEnabled = resolvedOpenAIWebAccessEnabled
         }
         self.keychainAccessPolicy.setDisabled(self.debugDisableKeychainAccess)
         self.startConfigFileWatcher()
@@ -470,10 +458,13 @@ extension SettingsStore {
         }
     }
 
-    private static func inferredInitialOpenAIWebAccessEnabled(
-        config: CodexBarConfig,
-        hadExistingConfig: Bool) -> Bool
-    {
+    static func initializeOpenAIWebAccessPreference(userDefaults: UserDefaults, config: CodexBarConfig) {
+        guard userDefaults.object(forKey: "openAIWebAccessEnabled") == nil else { return }
+        // Persist the first decision in production too, so later launches cannot infer new consent.
+        userDefaults.set(self.inferredInitialOpenAIWebAccessEnabled(config: config), forKey: "openAIWebAccessEnabled")
+    }
+
+    private static func inferredInitialOpenAIWebAccessEnabled(config: CodexBarConfig) -> Bool {
         // Provider-specific by design: the legacy OpenAI web-access flag was inferred from Codex's cookie config.
         guard let codex = config.providerConfig(for: .codex) else { return false }
         if let cookieSource = codex.cookieSource {
@@ -482,7 +473,8 @@ extension SettingsStore {
         if codex.sanitizedCookieHeader != nil {
             return true
         }
-        return hadExistingConfig
+        // A generic provider config is not evidence that the user enabled browser access.
+        return false
     }
 
     // swiftlint:disable:next function_body_length
@@ -608,11 +600,7 @@ extension SettingsStore {
         if Self.isRunningTests, userDefaults.object(forKey: "codexExternalOAuthSourcesAllowed") == nil {
             userDefaults.set(false, forKey: "codexExternalOAuthSourcesAllowed")
         }
-        let openAIWebAccessDefault = userDefaults.object(forKey: "openAIWebAccessEnabled") as? Bool
-        let openAIWebAccessEnabled = openAIWebAccessDefault ?? false
-        if Self.isRunningTests, openAIWebAccessDefault == nil {
-            userDefaults.set(false, forKey: "openAIWebAccessEnabled")
-        }
+        let openAIWebAccessEnabled = userDefaults.object(forKey: "openAIWebAccessEnabled") as? Bool ?? false
         let openAIWebBatterySaverDefault = userDefaults.object(forKey: "openAIWebBatterySaverEnabled") as? Bool
         let openAIWebBatterySaverEnabled = openAIWebBatterySaverDefault ?? false
         if Self.isRunningTests, openAIWebBatterySaverDefault == nil {
