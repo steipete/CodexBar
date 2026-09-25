@@ -139,7 +139,7 @@ struct CodexAccountPromotionExecutionTests {
 
         let result = try executor.execute(plan: .importNew(reason: .noExistingManagedDestination), context: context)
 
-        #expect(result.displacedLiveDisposition == .alreadyManaged(managedAccountID: concurrentManaged.id))
+        #expect(result == .alreadyManaged(managedAccountID: concurrentManaged.id))
         let accounts = try container.loadAccounts().accounts
         let repaired = try #require(accounts.first(where: { $0.id == concurrentManaged.id }))
         #expect(repaired.providerAccountID == "acct-alpha")
@@ -180,7 +180,7 @@ struct CodexAccountPromotionExecutionTests {
 
         let result = try executor.execute(plan: .importNew(reason: .noExistingManagedDestination), context: context)
 
-        #expect(result.displacedLiveDisposition == .alreadyManaged(managedAccountID: concurrentManaged.id))
+        #expect(result == .alreadyManaged(managedAccountID: concurrentManaged.id))
         let accounts = try container.loadAccounts().accounts
         let repaired = try #require(accounts.first(where: { $0.id == concurrentManaged.id }))
         #expect(accounts.count == 2)
@@ -357,7 +357,7 @@ struct CodexAccountPromotionExecutionTests {
         let builder = PreparedPromotionContextBuilder(
             store: container.fileStore,
             workspaceResolver: container.workspaceResolver,
-            snapshotLoader: SettingsStoreCodexAccountReconciliationSnapshotLoader(settingsStore: container.settings),
+            snapshotLoader: container.settings,
             authMaterialReader: DefaultCodexAuthMaterialReader(),
             baseEnvironment: container.baseEnvironment,
             fileManager: .default)

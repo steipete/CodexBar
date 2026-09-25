@@ -219,7 +219,7 @@ struct CodexAccountPromotionPlanningTests {
         let builder = PreparedPromotionContextBuilder(
             store: container.fileStore,
             workspaceResolver: container.workspaceResolver,
-            snapshotLoader: SettingsStoreCodexAccountReconciliationSnapshotLoader(settingsStore: container.settings),
+            snapshotLoader: container.settings,
             authMaterialReader: DefaultCodexAuthMaterialReader(),
             baseEnvironment: container.baseEnvironment,
             fileManager: .default)

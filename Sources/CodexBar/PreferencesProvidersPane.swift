@@ -269,8 +269,11 @@ struct ProvidersPane: View {
         }
 
         let result = await self.codexAccountPromotionCoordinator.promote(managedAccountID: managedAccountID)
-        if case let .failure(error) = result {
+        switch result {
+        case let .failure(error):
             self.codexAccountsNotice = CodexAccountsSectionNotice(text: error.message, tone: .warning)
+        case let .success(promotion):
+            self.codexAccountsNotice = promotion.daemonRestartNote.map { .init(text: $0, tone: .warning) }
         }
     }
 

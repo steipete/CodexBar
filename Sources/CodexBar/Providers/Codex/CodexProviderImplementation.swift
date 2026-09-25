@@ -262,6 +262,9 @@ struct CodexProviderImplementation: ProviderImplementation {
         if context.codexWorkspacesMenuEnabled {
             entries.append(.action(L("Workspaces"), .openCodexWorkspaces))
         }
+        if let note = context.codexAccountPromotionCoordinator?.daemonRestartNote {
+            entries.append(.text(note, .secondary))
+        }
 
         let submenuItems = Self.systemAccountMenuItems(
             projection: context.settings.codexVisibleAccountProjection,

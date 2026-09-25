@@ -87,22 +87,23 @@ final class CodexAccountPromotionTestContainer {
         liveAuthSwapper: (any CodexLiveAuthSwapping)? = nil,
         activeSourceWriter: (any CodexActiveSourceWriting)? = nil,
         snapshotLoader: (any CodexAccountReconciliationSnapshotLoading)? = nil,
-        accountScopedRefresher: (any CodexAccountScopedRefreshing)? = nil)
+        accountScopedRefresher: (any CodexAccountScopedRefreshing)? = nil,
+        daemon: CodexAppServerDaemon = CodexAppServerDaemon())
         -> CodexAccountPromotionService
     {
         CodexAccountPromotionService(
             store: store ?? self.fileStore,
             homeFactory: self.homeFactory,
-            identityReader: self.identityReader,
             workspaceResolver: self.workspaceResolver,
             snapshotLoader: snapshotLoader
-                ?? SettingsStoreCodexAccountReconciliationSnapshotLoader(settingsStore: self.settings),
+                ?? self.settings,
             authMaterialReader: DefaultCodexAuthMaterialReader(),
             liveAuthSwapper: liveAuthSwapper ?? DefaultCodexLiveAuthSwapper(),
             activeSourceWriter: activeSourceWriter
-                ?? SettingsStoreCodexActiveSourceWriter(settingsStore: self.settings),
+                ?? self.settings,
             accountScopedRefresher: accountScopedRefresher
-                ?? UsageStoreCodexAccountScopedRefresher(usageStore: self.usageStore),
+                ?? self.usageStore,
+            daemon: daemon,
             baseEnvironment: self.baseEnvironment,
             fileManager: .default)
     }

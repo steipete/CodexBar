@@ -24,22 +24,25 @@ protocol CodexAccountScopedRefreshing {
     func refreshCodexAccountScopedState(allowDisabled: Bool) async
 }
 
-@MainActor
-struct SettingsStoreCodexAccountReconciliationSnapshotLoader: CodexAccountReconciliationSnapshotLoading {
-    private let settingsStore: SettingsStore
-
-    init(settingsStore: SettingsStore) {
-        self.settingsStore = settingsStore
+extension SettingsStore: CodexAccountReconciliationSnapshotLoading, CodexActiveSourceWriting {
+    func loadSnapshot() -> CodexAccountReconciliationSnapshot {
+        self.codexAccountReconciliationSnapshot
     }
 
-    func loadSnapshot() -> CodexAccountReconciliationSnapshot {
-        self.settingsStore.codexAccountReconciliationSnapshot
+    func writeCodexActiveSource(_ source: CodexActiveSource) {
+        self.codexActiveSource = source
+    }
+}
+
+extension UsageStore: CodexAccountScopedRefreshing {
+    func refreshCodexAccountScopedState(allowDisabled: Bool) async {
+        await self.refreshCodexAccountScopedState(allowDisabled: allowDisabled, phaseDidChange: nil)
     }
 }
 
 struct DefaultCodexAuthMaterialReader: CodexAuthMaterialReading {
     func readAuthData(homeURL: URL) throws -> Data? {
-        let authFileURL = CodexAccountPromotionService.authFileURL(for: homeURL)
+        let authFileURL = CodexAuthFingerprint.authFileURL(homePath: homeURL.path)
         guard CodexCredentialFileAccess.fileExists(at: authFileURL) else {
             return nil
         }
@@ -49,7 +52,7 @@ struct DefaultCodexAuthMaterialReader: CodexAuthMaterialReading {
 
 struct DefaultCodexLiveAuthSwapper: CodexLiveAuthSwapping {
     func swapLiveAuthData(_ data: Data, liveHomeURL: URL) throws {
-        let liveAuthURL = CodexAccountPromotionService.authFileURL(for: liveHomeURL)
+        let liveAuthURL = CodexAuthFingerprint.authFileURL(homePath: liveHomeURL.path)
         guard CodexCredentialFileAccess.permits(liveAuthURL) else { throw CodexOAuthCredentialsError.notFound }
         if try CodexCredentialFileAccess.substituteWriteForTesting(at: liveAuthURL) {
             return
@@ -57,32 +60,6 @@ struct DefaultCodexLiveAuthSwapper: CodexLiveAuthSwapping {
         try CodexCredentialFileAccess.createDirectory(forCredentialAt: liveAuthURL)
 
         try CredentialFileWriter.writePrivate(data, to: liveAuthURL)
-    }
-}
-
-@MainActor
-struct SettingsStoreCodexActiveSourceWriter: CodexActiveSourceWriting {
-    private let settingsStore: SettingsStore
-
-    init(settingsStore: SettingsStore) {
-        self.settingsStore = settingsStore
-    }
-
-    func writeCodexActiveSource(_ source: CodexActiveSource) {
-        self.settingsStore.codexActiveSource = source
-    }
-}
-
-@MainActor
-struct UsageStoreCodexAccountScopedRefresher: CodexAccountScopedRefreshing {
-    private let usageStore: UsageStore
-
-    init(usageStore: UsageStore) {
-        self.usageStore = usageStore
-    }
-
-    func refreshCodexAccountScopedState(allowDisabled: Bool) async {
-        await self.usageStore.refreshCodexAccountScopedState(allowDisabled: allowDisabled)
     }
 }
 
@@ -103,6 +80,7 @@ struct CodexAccountPromotionResult: Equatable {
     let displacedLiveDisposition: DisplacedLiveDisposition
     let didMutateLiveAuth: Bool
     let resultingActiveSource: CodexActiveSource
+    var daemonRestartNote: String?
 }
 
 enum CodexAccountPromotionError: Error, Equatable {
@@ -123,38 +101,38 @@ enum CodexAccountPromotionError: Error, Equatable {
 final class CodexAccountPromotionService {
     private let store: any ManagedCodexAccountStoring
     private let homeFactory: any ManagedCodexHomeProducing
-    private let identityReader: any ManagedCodexIdentityReading
     private let workspaceResolver: any ManagedCodexWorkspaceResolving
     private let snapshotLoader: any CodexAccountReconciliationSnapshotLoading
     private let authMaterialReader: any CodexAuthMaterialReading
     private let liveAuthSwapper: any CodexLiveAuthSwapping
     private let activeSourceWriter: any CodexActiveSourceWriting
     private let accountScopedRefresher: any CodexAccountScopedRefreshing
+    private let daemon: CodexAppServerDaemon
     private let baseEnvironment: [String: String]
     private let fileManager: FileManager
 
     init(
         store: any ManagedCodexAccountStoring,
         homeFactory: any ManagedCodexHomeProducing,
-        identityReader: any ManagedCodexIdentityReading,
         workspaceResolver: any ManagedCodexWorkspaceResolving = DefaultManagedCodexWorkspaceResolver(),
         snapshotLoader: any CodexAccountReconciliationSnapshotLoading,
         authMaterialReader: any CodexAuthMaterialReading,
         liveAuthSwapper: any CodexLiveAuthSwapping,
         activeSourceWriter: any CodexActiveSourceWriting,
         accountScopedRefresher: any CodexAccountScopedRefreshing,
+        daemon: CodexAppServerDaemon = CodexAppServerDaemon(),
         baseEnvironment: [String: String] = ProcessInfo.processInfo.environment,
         fileManager: FileManager = .default)
     {
         self.store = store
         self.homeFactory = homeFactory
-        self.identityReader = identityReader
         self.workspaceResolver = workspaceResolver
         self.snapshotLoader = snapshotLoader
         self.authMaterialReader = authMaterialReader
         self.liveAuthSwapper = liveAuthSwapper
         self.activeSourceWriter = activeSourceWriter
         self.accountScopedRefresher = accountScopedRefresher
+        self.daemon = daemon
         self.baseEnvironment = baseEnvironment
         self.fileManager = fileManager
     }
@@ -168,13 +146,12 @@ final class CodexAccountPromotionService {
         self.init(
             store: FileManagedCodexAccountStore(fileManager: fileManager),
             homeFactory: ManagedCodexHomeFactory(fileManager: fileManager),
-            identityReader: DefaultManagedCodexIdentityReader(),
             workspaceResolver: DefaultManagedCodexWorkspaceResolver(),
-            snapshotLoader: SettingsStoreCodexAccountReconciliationSnapshotLoader(settingsStore: settingsStore),
+            snapshotLoader: settingsStore,
             authMaterialReader: DefaultCodexAuthMaterialReader(),
             liveAuthSwapper: DefaultCodexLiveAuthSwapper(),
-            activeSourceWriter: SettingsStoreCodexActiveSourceWriter(settingsStore: settingsStore),
-            accountScopedRefresher: UsageStoreCodexAccountScopedRefresher(usageStore: usageStore),
+            activeSourceWriter: settingsStore,
+            accountScopedRefresher: usageStore,
             baseEnvironment: baseEnvironment,
             fileManager: fileManager)
     }
@@ -220,18 +197,17 @@ final class CodexAccountPromotionService {
         }
 
         self.activeSourceWriter.writeCodexActiveSource(.liveSystem)
+        let daemonRestartNote = await self.daemon.restartIfRunning(
+            homeURL: context.live.homeURL, environment: self.baseEnvironment)
         await self.accountScopedRefresher.refreshCodexAccountScopedState(allowDisabled: true)
 
         return CodexAccountPromotionResult(
             targetManagedAccountID: id,
             outcome: .promoted,
-            displacedLiveDisposition: executionResult.displacedLiveDisposition,
+            displacedLiveDisposition: executionResult,
             didMutateLiveAuth: true,
-            resultingActiveSource: .liveSystem)
-    }
-
-    nonisolated static func authFileURL(for homeURL: URL) -> URL {
-        homeURL.appendingPathComponent("auth.json", isDirectory: false)
+            resultingActiveSource: .liveSystem,
+            daemonRestartNote: daemonRestartNote)
     }
 
     private func convergedActiveSource(for context: PreparedPromotionContext) -> CodexActiveSource? {

@@ -13,7 +13,6 @@ struct PreparedAuthMaterial {
     let homeURL: URL
     let rawData: Data
     let credentials: CodexOAuthCredentials
-    let runtimeAccount: CodexAuthBackedAccount
     let authIdentity: PreparedIdentity
 }
 
@@ -91,7 +90,6 @@ struct PreparedLiveAccount {
 
 struct PreparedPromotionContext {
     let snapshot: CodexAccountReconciliationSnapshot
-    let managedAccounts: ManagedCodexAccountSet
     let storedManagedAccounts: [PreparedStoredManagedAccount]
     let target: PreparedStoredManagedAccount
     let live: PreparedLiveAccount
@@ -99,28 +97,12 @@ struct PreparedPromotionContext {
 
 @MainActor
 struct PreparedPromotionContextBuilder {
-    private let store: any ManagedCodexAccountStoring
-    private let workspaceResolver: any ManagedCodexWorkspaceResolving
-    private let snapshotLoader: any CodexAccountReconciliationSnapshotLoading
-    private let authMaterialReader: any CodexAuthMaterialReading
-    private let baseEnvironment: [String: String]
-    private let fileManager: FileManager
-
-    init(
-        store: any ManagedCodexAccountStoring,
-        workspaceResolver: any ManagedCodexWorkspaceResolving,
-        snapshotLoader: any CodexAccountReconciliationSnapshotLoading,
-        authMaterialReader: any CodexAuthMaterialReading,
-        baseEnvironment: [String: String] = ProcessInfo.processInfo.environment,
-        fileManager: FileManager = .default)
-    {
-        self.store = store
-        self.workspaceResolver = workspaceResolver
-        self.snapshotLoader = snapshotLoader
-        self.authMaterialReader = authMaterialReader
-        self.baseEnvironment = baseEnvironment
-        self.fileManager = fileManager
-    }
+    let store: any ManagedCodexAccountStoring
+    let workspaceResolver: any ManagedCodexWorkspaceResolving
+    let snapshotLoader: any CodexAccountReconciliationSnapshotLoading
+    let authMaterialReader: any CodexAuthMaterialReading
+    let baseEnvironment: [String: String]
+    let fileManager: FileManager
 
     func build(targetID: UUID) async throws -> PreparedPromotionContext {
         let snapshot = self.snapshotLoader.loadSnapshot()
@@ -128,8 +110,11 @@ struct PreparedPromotionContextBuilder {
         var preparedAccounts: [PreparedStoredManagedAccount] = []
         preparedAccounts.reserveCapacity(managedAccounts.accounts.count)
         for account in managedAccounts.accounts {
-            let preparedAccount = try await self.prepareStoredManagedAccount(account)
-            preparedAccounts.append(preparedAccount)
+            await preparedAccounts.append(PreparedStoredManagedAccount(
+                persisted: account,
+                persistedIdentity: Self.persistedIdentity(from: account),
+                homeState: self.prepareManagedHomeState(
+                    homeURL: URL(fileURLWithPath: account.managedHomePath, isDirectory: true))))
         }
 
         guard let target = preparedAccounts.first(where: { $0.persisted.id == targetID }) else {
@@ -139,58 +124,38 @@ struct PreparedPromotionContextBuilder {
         let live = await self.prepareLiveAccount()
         return PreparedPromotionContext(
             snapshot: snapshot,
-            managedAccounts: managedAccounts,
             storedManagedAccounts: preparedAccounts,
             target: target,
             live: live)
     }
 
-    private func prepareStoredManagedAccount(
-        _ account: ManagedCodexAccount) async throws
-        -> PreparedStoredManagedAccount
-    {
-        let homeURL = URL(fileURLWithPath: account.managedHomePath, isDirectory: true)
-        let persistedIdentity = Self.persistedIdentity(from: account)
-        let homeState = await self.prepareManagedHomeState(homeURL: homeURL)
-
-        return PreparedStoredManagedAccount(
-            persisted: account,
-            persistedIdentity: persistedIdentity,
-            homeState: homeState)
-    }
-
     private func prepareManagedHomeState(homeURL: URL) async -> PreparedManagedHomeState {
-        let readResult = self.readAuthData(homeURL: homeURL)
-        switch readResult {
-        case .missing:
-            return .missing(homeURL: homeURL)
-        case .unreadable:
-            return .unreadable(homeURL: homeURL)
-        case let .readable(rawData):
+        do {
+            guard let rawData = try self.authMaterialReader.readAuthData(homeURL: homeURL) else {
+                return .missing(homeURL: homeURL)
+            }
             guard let authMaterial = await self.inspectAuthMaterial(homeURL: homeURL, rawData: rawData) else {
                 return .unreadable(homeURL: homeURL)
             }
             return .readable(authMaterial)
+        } catch {
+            return .unreadable(homeURL: homeURL)
         }
     }
 
     private func prepareLiveAccount() async -> PreparedLiveAccount {
-        let liveHomeURL = self.liveHomeURL()
-        let readResult = self.readAuthData(homeURL: liveHomeURL)
-        switch readResult {
-        case .missing:
-            return PreparedLiveAccount(homeState: .missing(homeURL: liveHomeURL))
-        case .unreadable:
-            return PreparedLiveAccount(homeState: .unreadable(homeURL: liveHomeURL))
-        case let .readable(rawData):
-            guard let authMaterial = await self.inspectAuthMaterial(homeURL: liveHomeURL, rawData: rawData) else {
-                return PreparedLiveAccount(homeState: .unreadable(homeURL: liveHomeURL))
+        let liveHomeURL = CodexHomeScope.ambientHomeURL(env: self.baseEnvironment, fileManager: self.fileManager)
+        let homeState: PreparedLiveHomeState = switch await self.prepareManagedHomeState(homeURL: liveHomeURL) {
+        case .missing: .missing(homeURL: liveHomeURL)
+        case .unreadable: .unreadable(homeURL: liveHomeURL)
+        case let .readable(material):
+            if Self.isAPIKeyOnly(credentials: material.credentials, rawData: material.rawData) {
+                .apiKeyOnly(material)
+            } else {
+                .readable(material)
             }
-            if Self.isAPIKeyOnly(credentials: authMaterial.credentials, rawData: authMaterial.rawData) {
-                return PreparedLiveAccount(homeState: .apiKeyOnly(authMaterial))
-            }
-            return PreparedLiveAccount(homeState: .readable(authMaterial))
         }
+        return PreparedLiveAccount(homeState: homeState)
     }
 
     private func inspectAuthMaterial(homeURL: URL, rawData: Data) async -> PreparedAuthMaterial? {
@@ -208,12 +173,11 @@ struct PreparedPromotionContextBuilder {
             homeURL: homeURL,
             rawData: rawData,
             credentials: credentials,
-            runtimeAccount: runtimeAccount,
             authIdentity: authIdentity)
     }
 
     private func derivedIdentity(homePath: String, runtimeAccount: CodexAuthBackedAccount) async -> PreparedIdentity {
-        let normalizedEmail = Self.normalizeEmail(runtimeAccount.email)
+        let normalizedEmail = CodexIdentityResolver.normalizeEmail(runtimeAccount.email)
         let normalizedIdentity = Self.normalizedIdentity(runtimeAccount.identity, email: normalizedEmail)
         let providerAccountID: String? = switch normalizedIdentity {
         case let .providerAccount(id):
@@ -238,7 +202,7 @@ struct PreparedPromotionContextBuilder {
     }
 
     private static func persistedIdentity(from account: ManagedCodexAccount) -> PreparedIdentity {
-        let normalizedEmail = Self.normalizeEmail(account.email)
+        let normalizedEmail = CodexIdentityResolver.normalizeEmail(account.email)
         let providerAccountID = account.effectiveWorkspaceAccountID
         let identity = Self.normalizedIdentity(
             CodexIdentityResolver.resolve(accountId: providerAccountID, email: normalizedEmail),
@@ -250,22 +214,6 @@ struct PreparedPromotionContextBuilder {
             providerAccountID: providerAccountID,
             workspaceLabel: account.workspaceLabel,
             workspaceAccountID: providerAccountID)
-    }
-
-    private func liveHomeURL() -> URL {
-        CodexHomeScope.ambientHomeURL(env: self.baseEnvironment, fileManager: self.fileManager)
-    }
-
-    private func readAuthData(homeURL: URL) -> PreparedAuthReadState {
-        do {
-            let rawData = try self.authMaterialReader.readAuthData(homeURL: homeURL)
-            guard let rawData else {
-                return .missing
-            }
-            return .readable(rawData)
-        } catch {
-            return .unreadable
-        }
     }
 
     static func runtimeAccount(from rawData: Data) throws -> CodexAuthBackedAccount {
@@ -281,7 +229,7 @@ struct PreparedPromotionContextBuilder {
         let authDict = payload?["https://api.openai.com/auth"] as? [String: Any]
         let profileDict = payload?["https://api.openai.com/profile"] as? [String: Any]
 
-        let email = Self.normalizeEmail(
+        let email = CodexIdentityResolver.normalizeEmail(
             (payload?["email"] as? String) ?? (profileDict?["email"] as? String))
         let plan = Self.normalizedField(
             (authDict?["chatgpt_plan_type"] as? String) ?? (payload?["chatgpt_plan_type"] as? String))
@@ -303,10 +251,6 @@ struct PreparedPromotionContextBuilder {
             return nil
         }
         return value
-    }
-
-    private static func normalizeEmail(_ email: String?) -> String? {
-        CodexIdentityResolver.normalizeEmail(email)
     }
 
     private static func normalizedIdentity(_ identity: CodexIdentity, email: String?) -> CodexIdentity {
@@ -359,10 +303,4 @@ struct PreparedPromotionContextBuilder {
         }
         return nil
     }
-}
-
-private enum PreparedAuthReadState {
-    case missing
-    case unreadable
-    case readable(Data)
 }

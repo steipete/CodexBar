@@ -81,6 +81,12 @@ Usage source picker:
   refresh is running discards the old workspace's result.
 - System Account promotion fails closed when a managed selection differs from the auth file's default workspace.
   CodexBar keeps that selection managed rather than silently promoting the default or rewriting Codex-owned auth.
+- After a successful System Account promotion, CodexBar restarts an already-running managed `codex app-server`
+  daemon for the destination Codex home so it reloads the selected account. It checks the daemon PID, process command,
+  and home-scoped control socket before running `codex app-server daemon restart` with that home's `CODEX_HOME`.
+  Homes without a running daemon are left alone. If the installed CLI cannot verify or restart it (including older
+  CLIs without daemon commands), the account remains switched and the menu/settings show a manual-restart note.
+  Restarting the background server can interrupt its active work; no login flow runs.
 - In the segmented layout, selecting an account refreshes its card while the menu stays open. Delayed results stay
   scoped to that selection. An open chart submenu or highlighted menu command can defer the update until the submenu
   closes or the highlight clears.
@@ -95,6 +101,8 @@ Usage source picker:
 - CodexBar reads identity from the configured home, exposes it in the Codex account switcher, and scopes
   remote Codex fetches with `CODEX_HOME`.
 - Profile homes are not copied, reauthenticated, or removed by CodexBar.
+- Selecting a profile-home usage card does not promote credentials or restart its daemon. Daemon refresh belongs to
+  System Account promotion and targets only the home whose auth file was replaced.
 
 Example:
 

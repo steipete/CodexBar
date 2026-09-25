@@ -515,7 +515,6 @@ struct CodexAccountPromotionServiceTests {
         let service = CodexAccountPromotionService(
             store: container.fileStore,
             homeFactory: container.homeFactory,
-            identityReader: container.identityReader,
             workspaceResolver: HomePathWorkspaceResolver(
                 byHomePath: [
                     container.liveHomeURL.path: CodexOpenAIWorkspaceIdentity(
@@ -525,11 +524,11 @@ struct CodexAccountPromotionServiceTests {
                         workspaceAccountID: "acct-alpha",
                         workspaceLabel: "Stale"),
                 ]),
-            snapshotLoader: SettingsStoreCodexAccountReconciliationSnapshotLoader(settingsStore: container.settings),
+            snapshotLoader: container.settings,
             authMaterialReader: DefaultCodexAuthMaterialReader(),
             liveAuthSwapper: DefaultCodexLiveAuthSwapper(),
-            activeSourceWriter: SettingsStoreCodexActiveSourceWriter(settingsStore: container.settings),
-            accountScopedRefresher: UsageStoreCodexAccountScopedRefresher(usageStore: container.usageStore),
+            activeSourceWriter: container.settings,
+            accountScopedRefresher: container.usageStore,
             baseEnvironment: container.baseEnvironment,
             fileManager: .default)
 
