@@ -91,7 +91,7 @@ example, `acme-usage` and `API_KEY` use `CODEXBAR_PLUGIN_ACME_USAGE_API_KEY`.
 
 ## `ctx` API
 
-`ctx` exists only during `fetchUsage`. CodexBar uses QuickJS on every platform; both QuickJS and the Apple-only
+`ctx` exists only during `fetchUsage`. CodexBar uses QuickJS-NG 0.17.0 on every platform; both QuickJS and the Apple-only
 JavaScriptCore rollback engine provide ECMAScript built-ins but no browser or Node environment. `Intl` is
 engine-dependent and unavailable in QuickJS,
 so portable third-party plugins must use the host helpers below instead of ECMA-402. `fetch`, `XMLHttpRequest`, timers,

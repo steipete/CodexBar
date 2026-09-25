@@ -7,6 +7,24 @@ import Testing
 
 extension ProviderPluginRuntimeTests {
     @Test(arguments: Self.labelValidationEngines)
+    func `negative big integers wrap at limb boundaries`(engine: ProviderPluginEngineKind) async throws {
+        let runtime = try ProviderPluginRuntime(source: Self.plugin(fetchBody: """
+        for (const width of [64, 128, 192]) {
+          const modulus = 1n << BigInt(width);
+          for (const value of [-1n, -2n, -modulus]) {
+            const expected = (value + modulus) % modulus;
+            if (BigInt.asUintN(width, value) !== expected) {
+              throw new Error(`Incorrect unsigned wrapping at ${width} bits`);
+            }
+          }
+        }
+        return { primary: { usedPercent: 7 } };
+        """), engine: engine)
+        let snapshot = try await runtime.fetchUsage(secrets: ["TEST_KEY": "fixture"])
+        #expect(snapshot.primary?.usedPercent == 7)
+    }
+
+    @Test(arguments: Self.labelValidationEngines)
     func `cookie availability is policy only and Off blocks resolution`(engine: ProviderPluginEngineKind) async throws {
         let runtime = try ProviderPluginRuntime(source: Self.plugin(
             capabilities: #"capabilities: ["browser-cookies"], cookieDomains: ["example.test"],"#,
