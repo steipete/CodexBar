@@ -86,6 +86,19 @@ struct SettingsStoreKeychainPreferenceTests {
         }
     }
 
+    @Test(arguments: ["openAIWebAccess", "openAIWebAccessEnabled"])
+    func `explicit web denial migrates to the config used by CLI cookie refresh`(preferenceKey: String) throws {
+        let defaults = InMemoryUserDefaults(values: [preferenceKey: false])
+        try self.withSettingsStore(defaults: defaults) { store in
+            #expect(!store.openAIWebAccessEnabled)
+            #expect(store.codexCookieSource == .off)
+            // The CLI reads config.json, not the app's UserDefaults consent flag.
+            try store.configStore.save(store.configSnapshot)
+            let config = try #require(try store.configStore.load())
+            #expect(config.providerConfig(for: .codex)?.cookieSource == .off)
+        }
+    }
+
     private func withSettingsStore(
         defaults: InMemoryUserDefaults,
         keychainAccessPolicy: SettingsStoreKeychainAccessPolicy = SettingsStoreKeychainAccessPolicy(
