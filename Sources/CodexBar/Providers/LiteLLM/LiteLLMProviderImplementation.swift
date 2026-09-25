@@ -11,6 +11,7 @@ struct LiteLLMProviderImplementation: ProviderImplementation {
 
     @MainActor
     func observeSettings(_ settings: SettingsStore) {
+        _ = settings.litellmModelUsageEnabled
         _ = settings[providerConfig: .litellm, field: .apiKey]
         _ = settings[providerConfig: .litellm, field: .endpoint]
     }
@@ -19,6 +20,22 @@ struct LiteLLMProviderImplementation: ProviderImplementation {
     func isAvailable(context: ProviderAvailabilityContext) -> Bool {
         ProviderTokenResolver.token(for: .litellm, environment: context.environment) != nil &&
             LiteLLMSettingsReader.hasBaseURLOverride(environment: context.environment)
+    }
+
+    @MainActor
+    func settingsToggles(context: ProviderSettingsContext) -> [ProviderSettingsToggleDescriptor] {
+        [ProviderSettingsToggleDescriptor(
+            id: "litellm-model-usage",
+            title: "Show model activity",
+            subtitle: "Read the user's last 30 days of tokens and logged requests by model.",
+            binding: context.binding(\.litellmModelUsageEnabled),
+            statusText: nil,
+            actions: [],
+            isVisible: nil,
+            isEnabled: nil,
+            onChange: nil,
+            onAppDidBecomeActive: nil,
+            onAppearWhenEnabled: nil)]
     }
 
     @MainActor
@@ -43,5 +60,14 @@ struct LiteLLMProviderImplementation: ProviderImplementation {
                 actions: [],
                 isVisible: nil),
         ]
+    }
+}
+
+extension SettingsStore {
+    var litellmModelUsageEnabled: Bool {
+        get { self.configSnapshot.providerConfig(for: .litellm)?.litellmModelUsageEnabled ?? false }
+        set {
+            self.updateProviderConfig(provider: .litellm) { $0.litellmModelUsageEnabled = newValue }
+        }
     }
 }

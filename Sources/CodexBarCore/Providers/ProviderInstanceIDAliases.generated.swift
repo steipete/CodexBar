@@ -58,6 +58,7 @@ extension ProviderInstanceID {
     public static let llmproxy = UsageProvider.llmproxy.instanceID
     public static let litellm = UsageProvider.litellm.instanceID
     public static let bifrost = UsageProvider.bifrost.instanceID
+    public static let aixy = UsageProvider.aixy.instanceID
     public static let deepgram = UsageProvider.deepgram.instanceID
     public static let poe = UsageProvider.poe.instanceID
     public static let chutes = UsageProvider.chutes.instanceID
@@ -78,6 +79,7 @@ extension ProviderInstanceID {
     public static let coderabbit = UsageProvider.coderabbit.instanceID
     public static let replicate = UsageProvider.replicate.instanceID
     public static let huggingface = UsageProvider.huggingface.instanceID
+    public static let raycast = UsageProvider.raycast.instanceID
     public static let pi = UsageProvider.pi.instanceID
     public static let v0 = UsageProvider.v0.instanceID
     public static let typesafe = UsageProvider.typesafe.instanceID
@@ -87,6 +89,7 @@ extension ProviderInstanceID {
     public static let atlascloud = UsageProvider.atlascloud.instanceID
     public static let vercel = UsageProvider.vercel.instanceID
     public static let llmman = UsageProvider.llmman.instanceID
+    public static let xkiro = UsageProvider.xkiro.instanceID
 }
 
 // swiftformat:enable sortDeclarations

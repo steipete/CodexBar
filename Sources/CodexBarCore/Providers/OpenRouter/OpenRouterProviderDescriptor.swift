@@ -101,31 +101,32 @@ public enum OpenRouterProviderDescriptor {
                     showsCreditsSection: false,
                     primaryDescriptionPlacement: .reset),
                 planRow: ProviderPlanRowPresentation(label: "Balance", stripsBalancePrefix: true)),
-            fetchPlan: self.fetchPlan(),
+            fetchPlan: ProviderFetchPlan(
+                sourceModes: [.auto, .api],
+                pipeline: ProviderFetchPipeline(resolveStrategies: { _ in
+                    [ScriptFetchStrategy(
+                        id: "openrouter.js",
+                        provider: .openrouter,
+                        bundledPlugin: "openrouter",
+                        sourceLabel: "api",
+                        validateContext: { context in
+                            guard self.credentials.resolveToken(environment: context.env) != nil else {
+                                throw ProviderFetchClassifiedError(
+                                    kind: .missingCredential,
+                                    message: OpenRouterSettingsError.missingToken.localizedDescription)
+                            }
+                            try OpenRouterSettingsReader.validateEndpointOverrides(environment: context.env)
+                        },
+                        resolveValues: { context in
+                            // Keep the sole strategy available so missing credentials receive an actionable error.
+                            self.scriptValues(environment: context.env, settings: context.settings) ?? .init()
+                        },
+                        isEnabled: { _ in true })]
+                })),
             cli: ProviderCLIConfig(
                 name: "openrouter",
                 aliases: ["or"],
                 versionDetector: nil))
-    }
-
-    private static func fetchPlan() -> ProviderFetchPlan {
-        ProviderFetchPlan(
-            sourceModes: [.auto, .api],
-            pipeline: ProviderFetchPipeline(resolveStrategies: { _ in
-                [ScriptFetchStrategy(
-                    id: "openrouter.js",
-                    provider: .openrouter,
-                    bundledPlugin: "openrouter",
-                    secretKey: OpenRouterSettingsReader.envKey,
-                    sourceLabel: "api",
-                    validateContext: { context in
-                        try OpenRouterSettingsReader.validateEndpointOverrides(environment: context.env)
-                    },
-                    resolveValues: { context in
-                        self.scriptValues(environment: context.env, settings: context.settings)
-                    },
-                    isEnabled: { _ in true })]
-            }))
     }
 
     static func scriptValues(
@@ -162,7 +163,8 @@ public enum OpenRouterSettingsError: LocalizedError, Sendable, Equatable {
     public var errorDescription: String? {
         switch self {
         case .missingToken:
-            "OpenRouter API token not configured. Set OPENROUTER_API_KEY environment variable or configure in Settings."
+            "Enter a regular API key or a Management API key in the API key field, or set OPENROUTER_API_KEY. "
+                + "In Settings, the optional Management API key field does not replace it."
         case let .invalidEndpointOverride(key):
             "OpenRouter endpoint override \(key) must use HTTPS or a bare host."
         }

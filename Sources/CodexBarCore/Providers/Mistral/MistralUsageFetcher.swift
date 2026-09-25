@@ -245,9 +245,9 @@ public enum MistralUsageFetcher {
         var modelCount = 0
         var daily: [String: DailyAccumulator] = [:]
 
-        // Aggregate completion tokens
-        if let models = billing.completion?.models {
-            for (modelName, modelData) in models {
+        // API, Le Chat, and Vibe completions share consumed-token and billed-cost accounting.
+        for category in [billing.completion, billing.chat, billing.vibeCode?.completion] {
+            for (modelName, modelData) in category?.models ?? [:] {
                 modelCount += 1
                 let aggregate = try Self.aggregateModel(modelData, prices: prices, countsTokens: true)
                 try totalTokens.add(aggregate.tokens)
@@ -377,7 +377,7 @@ public enum MistralUsageFetcher {
         for (kind, entries) in lanes {
             for entry in entries ?? [] {
                 let units = entry.valuePaid ?? entry.value ?? 0
-                if countsTokens { try tokens.add(units, kind: kind) }
+                if countsTokens { try tokens.add(entry.value ?? entry.valuePaid ?? 0, kind: kind) }
                 Self.accumulateFiniteCost(Self.cost(for: entry, units: units, prices: prices), into: &totalCost)
             }
         }
@@ -391,30 +391,19 @@ public enum MistralUsageFetcher {
         daily: inout [String: DailyAccumulator],
         countsTokens: Bool) throws
     {
-        try self.addDaily(
-            entries: data.input ?? [],
-            context: DailyEntryContext(
-                kind: .input,
-                modelName: modelName,
-                prices: prices,
-                countsTokens: countsTokens),
-            daily: &daily)
-        try self.addDaily(
-            entries: data.output ?? [],
-            context: DailyEntryContext(
-                kind: .output,
-                modelName: modelName,
-                prices: prices,
-                countsTokens: countsTokens),
-            daily: &daily)
-        try self.addDaily(
-            entries: data.cached ?? [],
-            context: DailyEntryContext(
-                kind: .cached,
-                modelName: modelName,
-                prices: prices,
-                countsTokens: countsTokens),
-            daily: &daily)
+        let lanes: [(TokenKind, [MistralUsageEntry]?)] = [
+            (.input, data.input), (.output, data.output), (.cached, data.cached),
+        ]
+        for (kind, entries) in lanes {
+            try self.addDaily(
+                entries: entries ?? [],
+                context: DailyEntryContext(
+                    kind: kind,
+                    modelName: modelName,
+                    prices: prices,
+                    countsTokens: countsTokens),
+                daily: &daily)
+        }
     }
 
     fileprivate enum TokenKind {
@@ -436,7 +425,7 @@ public enum MistralUsageFetcher {
             try accumulator.add(
                 modelName: Self.displayModelName(context.modelName, entry: entry),
                 kind: context.kind,
-                units: units,
+                units: entry.value ?? entry.valuePaid ?? 0,
                 cost: cost,
                 countsTokens: context.countsTokens)
             daily[day] = accumulator

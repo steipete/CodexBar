@@ -255,6 +255,11 @@ the local result and returns a nonzero exit code. See [CLI host reporting](cli.m
     checkpoints until each file is refreshed.
   - Native Codex logs parse `event_msg` token_count entries and `turn_context` model markers; when both are present,
     `turn_context` is authoritative for the model bucket.
+  - Direct forks preserve the inherited origin of cumulative counters when resolving parent snapshots, including
+    intermediate sessions that are empty at the child's fork time. Repeated inherited snapshots contribute no
+    new usage; descendants count only their deltas. Ancestry remains a cache dependency, so ancestor changes
+    revalidate descendants even if the intermediate session records its first token event after the fork.
+    Parser revision 5 repairs existing files through bounded reparsing without discarding compatible stored history.
   - A subagent's `subagent_history_start_ordinal` is authoritative: earlier records are inherited context, even if
     they contain delivery markers or the file ends before child-owned history arrives. Later appends count only
     the child's own deltas. Older per-file parser revisions refresh through the normal scan budget while stored

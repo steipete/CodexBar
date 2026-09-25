@@ -144,7 +144,7 @@ enum AntigravityLocalReader {
                 calendar: calendar,
                 budget: budget,
                 pricing: pricing)
-        } catch ScanFailure.exhausted {
+        } catch ScanFailure.exhausted, ScanFailure.schemaExhausted {
             return DailyReportResult(
                 report: .init(data: [], summary: nil), coverage: .partial, statistics: budget.statistics)
         }

@@ -81,8 +81,11 @@ Collection shares a 200 ms budget measured from the primary request start: a slo
 completed PAYG result, while a fast primary may briefly wait for the remainder of that budget. Unfinished PAYG work
 is cancelled after collection, when the required request fails, or when the caller cancels.
 
-The provider remains native until the plugin host exposes bounded optional-request collection and per-request
-cancellation. A plain awaited second GET would change this refresh-latency contract.
+The bundled `sakana.js` plugin uses the host's `ctx.http.getWithOptional` operation on QuickJS and JavaScriptCore.
+The shared host task group runs the requests concurrently and owns collection and cancellation on macOS and Linux,
+preserving the latency contract even
+on QuickJS's synchronous HTTP bridge. The optional response never triggers a retry. The configured primary timeout
+is clamped to the host's 1–90 second range, with an overall fetch budget that accommodates it.
 
 - Menu: an `Extra usage` card shows `Balance: $X.XX` and, when available, `Usage: $X.XX` alongside the quota windows.
   The values are gated on Settings → Advanced → "Show optional credits and extra usage" at **both**
@@ -112,23 +115,23 @@ There is no `codexbar config set` command for `cookieHeader`; use one of the pat
 
 | Error | Meaning |
 |-------|---------|
-| `missingCookie` | No `Cookie:` header is configured and `SAKANA_COOKIE` is unset. |
-| `loginRequired` | The request was unauthorized/forbidden, redirected, or ended on a different origin. |
-| `apiError(Int)` | The billing page returned a non-`200` status not classified as a login failure. |
-| `parseFailed(String)` | The billing response was empty or its quota data could not be parsed. |
+| No available fetch strategy | No `Cookie:` header is configured and `SAKANA_COOKIE` is unset. |
+| `authentication-expired` | The request was unauthorized/forbidden, redirected, or ended on a different origin. |
+| `api-failure` | The billing page returned a non-`200` status not classified as a login failure. |
+| `parse-failure` | The billing response was empty or its quota data could not be parsed. |
 
 ## Related files
 
 - `Sources/CodexBarCore/Providers/Sakana/`
   - `SakanaProviderDescriptor.swift` — provider metadata, fetch plan, CLI config
   - `SakanaSettingsReader.swift` — `SAKANA_COOKIE` env key, cookie normalizer
-  - `SakanaUsageFetcher.swift` — billing-page HTML fetch and quota parser; also defines
-    `SakanaPayAsYouGoSnapshot` and the pay-as-you-go tab fetch/parser
+- `Sources/CodexBarCore/Resources/Plugins/sakana.js` — billing and PAYG parsing into generic usage/details
+- `Sources/CodexBarCore/Plugins/ProviderPluginHTTPResponse.swift` — bounded optional GET collection
 - `Sources/CodexBar/Providers/Sakana/`
   - `SakanaProviderImplementation.swift` — settings UI, availability check
-  - `SakanaSettingsStore.swift` — `sakanaCookieHeader` settings binding
 - `Sources/CodexBar/MenuCardView+Costs.swift` — live menu-card balance and usage section
 - `Sources/CodexBar/MenuDescriptor.swift` — text-descriptor balance and usage rows
-- `Tests/CodexBarTests/SakanaUsageFetcherTests.swift` — parser regression tests
+- `TestsPlugin/SakanaPluginTests.swift` — parser and request parity on both engines
+- `TestsPlugin/ProviderPluginOptionalRequestTests.swift` — collection, cancellation, and response policy tests
 - Dashboard: `https://console.sakana.ai/billing` (subscription tab), `https://console.sakana.ai/billing?tab=payAsYouGo`
   (pay-as-you-go tab)

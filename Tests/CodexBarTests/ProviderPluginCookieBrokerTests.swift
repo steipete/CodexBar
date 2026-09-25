@@ -237,6 +237,28 @@ struct ProviderPluginCookieBrokerTests {
         #endif
     }
 
+    #if os(macOS)
+    @Test(arguments: [false, true])
+    func `exact host cookie wins over parent without accepting sibling or lookalike hosts`(reversed: Bool) throws {
+        let rows = [
+            (".example.test", "parent"),
+            ("www.example.test", "host"),
+            ("backend.example.test", "sibling"),
+            ("www.example.test.evil.test", "lookalike"),
+        ]
+        let cookies = try rows.map { domain, value in
+            try #require(HTTPCookie(properties: [
+                .domain: domain, .path: "/", .name: "session", .value: value, .secure: true,
+            ]))
+        }
+        let selected = ProviderPluginCookieBroker.cookiesForRequest(
+            reversed ? Array(cookies.reversed()) : cookies, domain: "www.example.test")
+        #expect(selected.map(\.value) == ["host"])
+        let parent = ProviderPluginCookieBroker.cookiesForRequest(cookies, domain: "example.test")
+        #expect(parent.map(\.value) == ["parent"])
+    }
+    #endif
+
     private func broker(
         source: ProviderCookieSource = .auto,
         importer: @escaping ProviderPluginCookieBroker.Importer = { [("session=\($0)", "Fixture")] })

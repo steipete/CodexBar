@@ -1,6 +1,7 @@
 import Foundation
 
 public enum ClaudeAdminAPISettingsReader {
+    public static let workspaceSpendEnvironmentKey = "ANTHROPIC_ADMIN_WORKSPACE_SPEND"
     public static let adminAPIKeyEnvironmentKey = "ANTHROPIC_ADMIN_KEY"
     public static let alternateAdminAPIKeyEnvironmentKey = "ANTHROPIC_ADMIN_API_KEY"
     public static let apiKeyEnvironmentKeys = [

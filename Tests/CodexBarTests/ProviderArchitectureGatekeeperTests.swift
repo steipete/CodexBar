@@ -155,8 +155,8 @@ struct ProviderArchitectureGatekeeperTests {
             Self.hash(descriptor.branding.burnDownWidgetColor, into: &burnDownFingerprint)
         }
 
-        #expect(widgetFingerprint == 11_933_113_960_923_567_782)
-        #expect(burnDownFingerprint == 12_793_839_836_929_890_861)
+        #expect(widgetFingerprint == 11_274_607_069_720_606_260)
+        #expect(burnDownFingerprint == 16_992_290_873_030_609_074)
     }
 
     @Test
@@ -168,8 +168,8 @@ struct ProviderArchitectureGatekeeperTests {
             try Self.hash(#require(descriptor.metadata.debugLogUnavailableMessage?.utf8), into: &fingerprint)
         }
 
-        #expect(descriptors.count == 39)
-        #expect(fingerprint == 16_299_585_921_752_048_204)
+        #expect(descriptors.count == 40)
+        #expect(fingerprint == 7_407_379_265_387_303_386)
     }
 
     @Test
@@ -200,7 +200,7 @@ struct ProviderArchitectureGatekeeperTests {
         #expect(Set(descriptors.filter(\.metadata.usesDetailBackedWindow).map(\.id)) == [
             .perplexity,
             .warp, .kilo, .mistral, .deepseek, .deepinfra, .qoder, .chutes, .longcat, .litellm, .bifrost, .manus,
-            .mimo, .neuralwatt, .abacus, .v0, .llmman,
+            .mimo, .neuralwatt, .abacus, .v0, .llmman, .aixy, .raycast,
         ])
         // Antigravity charts calendar days for the same reason Codex does: a day with no local row
         // is still a real day in the window.
@@ -1710,13 +1710,13 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "The Claude version detector asks its injected locator for the fixed Claude executable name."),
         SuppressedProviderReference(
             path: "Sources/CodexBarWidget/BurnDownWidgetProvider.swift",
-            line: 180,
+            line: 446,
             anchor: "provider: .codex,",
             expectedProviderIDs: ["codex"],
             reason: "This WidgetKit default or preview pins the established Codex sample provider."),
         SuppressedProviderReference(
             path: "Sources/CodexBarWidget/BurnDownWidgetProvider.swift",
-            line: 211,
+            line: 477,
             anchor: "provider: .codex,",
             expectedProviderIDs: ["codex"],
             reason: "This WidgetKit default or preview pins the established Codex sample provider."),
@@ -1746,7 +1746,7 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This WidgetKit default or preview pins the established Codex sample provider."),
         SuppressedProviderReference(
             path: "Sources/CodexBarWidget/CodexBarWidgetProvider.swift",
-            line: 278,
+            line: 283,
             anchor: "provider: .codex,",
             expectedProviderIDs: ["codex"],
             reason: "This WidgetKit default or preview pins the established Codex sample provider."),

@@ -12,6 +12,7 @@ private enum QuickJSHostFunction: Int32 {
     case rejectCookie
     case cookieHeader
     case cookieSession
+    case storage
     case cacheGet
     case cacheSet
     case log
@@ -204,7 +205,8 @@ final class QuickJSProviderPluginEngine: ProviderPluginEngine, @unchecked Sendab
         let secrets: [String: String]
         let cookieResolver: ProviderPluginRuntime.CookieResolver?
         let instanceCookieResolver: ProviderPluginRuntime.InstanceCookieResolver?
-        let redactionValues: QuickJSRedactionValues
+        let redactionValues: ProviderPluginRedactionValues
+        let now: Date
         let deadline: Date
     }
 
@@ -434,7 +436,7 @@ final class QuickJSProviderPluginEngine: ProviderPluginEngine, @unchecked Sendab
         else {
             throw ProviderPluginError.load("QuickJS plugin is not initialized")
         }
-        let redactionValues = QuickJSRedactionValues(secrets.values)
+        let redactionValues = ProviderPluginRedactionValues(secrets.values)
         self.fetchState = FetchState(
             contextOptions: contextOptions,
             settings: settings,
@@ -442,6 +444,7 @@ final class QuickJSProviderPluginEngine: ProviderPluginEngine, @unchecked Sendab
             cookieResolver: cookieResolver,
             instanceCookieResolver: instanceCookieResolver,
             redactionValues: redactionValues,
+            now: now,
             deadline: Date().addingTimeInterval(self.timeout))
         defer { self.fetchState = nil }
         try self.interruptionLock.withLock {
@@ -512,6 +515,7 @@ final class QuickJSProviderPluginEngine: ProviderPluginEngine, @unchecked Sendab
             (.rejectCookie, "rejectCookie", 2),
             (.cookieSession, "cookieSession", 4),
             (.cookieAvailability, "cookieAvailability", 1),
+            (.storage, "storage", 3),
             (.cacheGet, "cacheGet", 1),
             (.cacheSet, "cacheSet", 3),
             (.log, "log", 1),
@@ -538,14 +542,7 @@ final class QuickJSProviderPluginEngine: ProviderPluginEngine, @unchecked Sendab
             let values = UnsafeBufferPointer(start: arguments, count: count)
             switch function {
             case .defineProvider:
-                guard let value = values.first else {
-                    throw ProviderPluginError.invalidManifest("defineProvider(...) requires an object")
-                }
-                if let definition = self.definition {
-                    cqjs_free_value(self.context, definition)
-                }
-                self.definition = cqjs_dup_value(self.context, value)
-                return cqjs_undefined()
+                return try self.hostDefineProvider(values)
             case .settingGet:
                 return try self.hostSettingGet(values)
             case .http:
@@ -566,6 +563,8 @@ final class QuickJSProviderPluginEngine: ProviderPluginEngine, @unchecked Sendab
             case .cookieHeader, .cookieSession:
                 try self.hostCookieHeader(values, session: function == .cookieSession)
                 return cqjs_undefined()
+            case .storage:
+                return try self.hostStorage(values)
             case .cacheGet:
                 return try self.hostCacheGet(values)
             case .cacheSet:
@@ -593,11 +592,33 @@ final class QuickJSProviderPluginEngine: ProviderPluginEngine, @unchecked Sendab
                     throw ProviderPluginError.script("currency requires an amount and currency code")
                 }
                 return try self.makeString(UsageFormatter.currencyString(
-                    amount, currencyCode: self.string(from: values[1])))
+                    amount,
+                    currencyCode: self.string(from: values[1])))
             }
         } catch {
             return self.throwError(error)
         }
+    }
+
+    private func hostDefineProvider(_ values: UnsafeBufferPointer<JSValue>) throws -> JSValue {
+        guard let value = values.first else {
+            throw ProviderPluginError.invalidManifest("defineProvider(...) requires an object")
+        }
+        if let definition = self.definition {
+            cqjs_free_value(self.context, definition)
+        }
+        self.definition = cqjs_dup_value(self.context, value)
+        return cqjs_undefined()
+    }
+
+    private func hostStorage(_ values: UnsafeBufferPointer<JSValue>) throws -> JSValue {
+        guard values.count == 3, let storage = self.fetchState?.contextOptions.storage else {
+            throw ProviderPluginError.script("persistent storage is unavailable or not declared")
+        }
+        let key = QuickJSPluginValue(engine: self, value: cqjs_dup_value(self.context, values[1]))
+        let value = QuickJSPluginValue(engine: self, value: cqjs_dup_value(self.context, values[2]))
+        let result = try storage.access(self.string(from: values[0]), key: key, value: value)
+        return result.map(self.makeString) ?? cqjs_null()
     }
 
     private func hostSettingGet(_ arguments: UnsafeBufferPointer<JSValue>) throws -> JSValue {
@@ -624,9 +645,7 @@ final class QuickJSProviderPluginEngine: ProviderPluginEngine, @unchecked Sendab
             let options = try self.jsonDictionary(from: arguments[1])
             let method = try self.string(from: arguments[2])
             let wantsJSON = JS_ToBool(self.context, arguments[3]) == 1
-            let retryPolicy = try ProviderPluginHTTPResponse.retryPolicy(
-                options["retryPolicy"].map(JSONProviderPluginValue.init))
-            let request = try ProviderPluginHTTPResponse.request(
+            let request = try ProviderPluginHTTPResponse.Request(
                 rawURL: rawURL,
                 options: options,
                 method: method,
@@ -634,30 +653,18 @@ final class QuickJSProviderPluginEngine: ProviderPluginEngine, @unchecked Sendab
                 secrets: state.secrets,
                 manifest: self.manifest,
                 enforcesUserResponsePolicy: self.enforcesUserResponsePolicy)
-            // The shared transport bounds each started attempt; this wait retains the fetch deadline/watchdog.
-            let response = try self.blockingValue(timeout: self.timeout) {
-                try await ProviderPluginHTTPResponse.response(
-                    for: request,
+            // Paired GETs run in the host, even while this confined worker waits for their result.
+            let payload = try self.blockingValue(timeout: self.timeout) {
+                try await ProviderPluginHTTPResponse.fetch(
+                    request,
                     transport: self.transport,
-                    retryPolicy: retryPolicy,
+                    wantsJSON: wantsJSON,
+                    responseSizeLimit: self.responseSizeLimit,
+                    enforcesUserResponsePolicy: self.enforcesUserResponsePolicy,
+                    rejectsNonSuccessResponses: self.rejectsNonSuccessResponses,
                     beforeAttempt: state.contextOptions.beforeHTTPAttempt)
             }
-            guard response.data.count <= self.responseSizeLimit else {
-                throw ProviderPluginError.http("response exceeded the \(self.responseSizeLimit)-byte limit")
-            }
-            if self.rejectsNonSuccessResponses, !(200..<300).contains(response.statusCode) {
-                throw ProviderPluginHTTPResponse.StatusFailure(
-                    response: response.response, allowsRetry: retryPolicy.maxRetries == 0)
-            }
-            if self.enforcesUserResponsePolicy,
-               let encoding = response.response.value(forHTTPHeaderField: "Content-Encoding"),
-               !encoding.isEmpty,
-               encoding.caseInsensitiveCompare("identity") != .orderedSame
-            {
-                throw ProviderPluginError.http("compressed responses are not allowed")
-            }
-            let payload = try ProviderPluginHTTPResponse.payload(response, wantsJSON: wantsJSON)
-            let value = try self.parseJSON(payload)
+            let value = try self.parseJSON(payload.value)
             defer { cqjs_free_value(self.context, value) }
             try self.invoke(arguments[4], argument: value)
         } catch {
@@ -739,9 +746,11 @@ final class QuickJSProviderPluginEngine: ProviderPluginEngine, @unchecked Sendab
         else {
             throw ProviderPluginError.script("invalid daily reset time zone or hour")
         }
+        guard let now = self.fetchState?.now else {
+            throw ProviderPluginError.script("date bridge is only available during fetchUsage")
+        }
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = timeZone
-        let now = Date()
         let start = calendar.startOfDay(for: now)
         var candidate = calendar.date(byAdding: .hour, value: Int(rawHour), to: start)!
         if candidate <= now {
@@ -800,7 +809,7 @@ final class QuickJSProviderPluginEngine: ProviderPluginEngine, @unchecked Sendab
     private func reject(
         _ function: JSValue,
         error: Error,
-        redactionValues: QuickJSRedactionValues,
+        redactionValues: ProviderPluginRedactionValues,
         structured: Bool = false) throws
     {
         let message = redactionValues.redact(error.localizedDescription)
@@ -851,7 +860,7 @@ final class QuickJSProviderPluginEngine: ProviderPluginEngine, @unchecked Sendab
         return ProviderPluginError.script((try? self.message(from: exception)) ?? "unknown QuickJS exception")
     }
 
-    private func failure(from value: JSValue, redactionValues: QuickJSRedactionValues) -> Error {
+    private func failure(from value: JSValue, redactionValues: ProviderPluginRedactionValues) -> Error {
         if let error = redactionValues.transportErrors.error(for:
             QuickJSPluginValue(engine: self, value: cqjs_dup_value(self.context, value))) { return error }
         let message = redactionValues.redact((try? self.message(from: value)) ?? "unknown plugin failure")
@@ -1119,26 +1128,5 @@ final class QuickJSBlockingResult<Value: Sendable>: @unchecked Sendable {
             preconditionFailure("QuickJS blocking result signaled without a value")
         }
         return result
-    }
-}
-
-private final class QuickJSRedactionValues: @unchecked Sendable {
-    let transportErrors = ProviderPluginHTTPResponse.TransportErrors()
-    private let lock = NSLock()
-    private var values: Set<String>
-
-    init(_ values: some Sequence<String>) {
-        self.values = Set(values.filter { !$0.isEmpty })
-    }
-
-    func insert(_ value: String) {
-        guard !value.isEmpty else { return }
-        _ = self.lock.withLock { self.values.insert(value) }
-    }
-
-    func redact(_ message: String) -> String {
-        self.lock.withLock {
-            self.values.reduce(message) { $0.replacingOccurrences(of: $1, with: "<redacted>") }
-        }
     }
 }

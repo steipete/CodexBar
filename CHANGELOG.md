@@ -4,7 +4,24 @@
 
 ### Added
 
+- LiteLLM: optionally show per-model input/output/total tokens and logged requests for the last 30 days while preserving personal/team budgets (#3432). Thanks @anyingiit!
+- Claude Admin API: optionally break down 30-day spend by workspace while preserving organization totals (#2350). Thanks @ShawNova!
+- Plugins: preserve small non-secret checkpoints across app and CLI restarts with isolated, bounded string storage and explicit approval (#3170). Thanks @CrackedPoly!
+- Sakana AI: run billing parsing as a bundled plugin on macOS and Linux while preserving concurrent, bounded optional balance collection on both engines.
+- xKiro: track the account's daily free-token allowance and midnight UTC reset through the documented, unmetered usage API, separately from paid balances (#3729).
+- Raycast: show monthly AI credits and renewal through a bundled plugin, with Chrome/manual cookies and expired-session recovery (#3960). Thanks @raulgg!
+- Aixy: track key-scoped usage and applicable personal/shared budgets, including idle keys with zero spend (#3958). Thanks @oscarcpozas!
+- Widgets: offer Burn Down for compatible provider quotas, including Devin daily/weekly and Cursor billing cycles, with accurate labels and preserved Codex/Claude selections (#3097). Thanks @thatlev!
 - General → Preferred Currency: add New Zealand dollar (`NZD`), Swedish, Norwegian, and Danish krone/krona (`SEK`, `NOK`, `DKK`), Polish złoty (`PLN`), Brazilian real (`BRL`), Mexican peso (`MXN`), South African rand (`ZAR`), Thai baht (`THB`), Indonesian rupiah (`IDR`), Vietnamese đồng (`VND`), and Ukrainian hryvnia (`UAH`) for usage and spend estimates, using the shared daily exchange rates and offline fallback.
+
+### Fixed
+
+- Antigravity: let menu-bar layouts pin Gemini and Claude/GPT weekly percentages separately when each allowance is available (#3394). Thanks @ksuchoi216!
+- Plugins: compute daily reset times from the refresh clock in both plugin engines, so xKiro and other daily-reset plugins report the same reset the rest of the refresh saw.
+- OpenRouter: explain the required API key field instead of reporting no available fetch strategy, and clarify where regular and Management keys belong (#3966, #3969). Thanks @harjothkhara!
+- Antigravity: preserve decoded local history as a marked lower bound when later databases exhaust the schema budget, while retaining hard scan limits (#3957). Thanks @Niclassslua!
+- Mistral: count plan-covered API, Le Chat, and Vibe Code tokens in usage history while keeping spend based on billed units (#3953). Thanks @welcoMattic!
+- Codex costs: preserve inherited cumulative counters across direct forks and empty intermediate sessions, preventing copied history from becoming oversized billable requests (#3524). Thanks @korboybeats and @vnnkl!
 
 ## 0.66.0 — 2026-09-24
 

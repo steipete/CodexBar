@@ -157,6 +157,12 @@ This preserves counted-baseline recovery without allowing high/low lineage gaps 
 
 Otherwise fork children can inherit baselines computed under a different policy.
 
+Parent snapshot accumulation retains the inherited counter origin from the opening `total - last` components.
+That origin is context for descendant subtraction, not newly billed usage in the parent. Direct forks carry their
+resolved inherited baseline and ancestor dependency forward when no snapshot exists before a descendant's cutoff.
+This includes parents whose first token event arrives after the descendant forks. Subsequent counter drops use the
+same conservative containment rule; this does not recover the reset undercounts described above.
+
 ### 5.6 Cache: persist correctness-critical state
 
 `CostUsageFileUsage` gains:

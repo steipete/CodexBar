@@ -8,7 +8,7 @@ read_when:
 
 # Providers
 
-CodexBar currently registers 84 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
+CodexBar currently registers 87 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
 OpenCode vs OpenCode Go, because the auth source and quota shape differ.
 
 ## Fetch strategies (current)
@@ -99,6 +99,7 @@ complete when the available scan window covers fewer days.
 | [Replicate](replicate.md) | Native Chrome cookie candidates or a manual header → bundled plugin for monthly spend and optional prepaid credits (`web`). |
 | [TypeSafe](typesafe.md) | Chrome cookies or a manual header → bundled plugin for billing spend and credit balance (`web`). |
 | [Hugging Face](huggingface.md) | Access token from settings/env/CLI → bundled plugin for Inference Providers charges, optional ZeroGPU quota, and token-scoped identity (`api`). |
+| [Raycast](raycast.md) | Chrome cookies for `www.raycast.com` or a manual Cookie header → bundled plugin for monthly AI credits (`web`). |
 | [v0](v0.md) | API key and optional project scope from settings/env → bundled plugin for Platform API billing and rate limits (`api`). |
 | [DevPass](devpass.md) | Regular LLM Gateway API key → bundled plugin for plan credits, premium weekly usage, and all-time key spend (`api`). |
 | [Atlas Cloud](atlascloud.md) | Standard API key → account-wide available USD balance (`api`). |
@@ -106,6 +107,7 @@ complete when the available scan window covers fewer days.
 | Windsurf | Web session bundle from browser localStorage (`web`) → local SQLite cache (`local`). |
 | Ollama | API key verifies Cloud API access (`api`); browser cookies expose Cloud quota windows (`web`). |
 | [llmman](llmman.md) | Local `llmman serve` node report, optional API key → bundled plugin for loaded-model memory and store summary (`api`). |
+| [xKiro](xkiro.md) | API key → bundled plugin for account-wide daily free tokens and the midnight UTC reset (`api`). |
 | Synthetic | API key from config/env → quota API (`api`). |
 | OpenRouter | API token (config, overrides env) → key quota and credits APIs; a management key enables account Activity on the official API (`api`). |
 | Perplexity | Browser cookies/manual cookie/env session token → credits API (`web`). |
@@ -135,6 +137,7 @@ complete when the available scan window covers fewer days.
 | Wayfinder | Local gateway URL → `/healthz`, `/v1/savings`, `/router/models`, `/metrics` for health, routing split, savings, and decision latency (`api`). |
 | LiteLLM | API key + base URL → `/key/info`, then `/user/info` or `/team/info` budget usage (`api`). |
 | Bifrost | Virtual key + base URL → `/api/governance/virtual-keys/quota` budget and rate-limit usage (`api`). |
+| Aixy | Project API key + optional base URL → `/v1/usage` key usage and applicable budgets (`api`). |
 | Deepgram | API key → project discovery and usage breakdown API (`api`). |
 | Poe | API key → current point balance and best-effort points history (`api`). |
 | Chutes | API key from config/env → subscription usage and quota API (`api`). |
@@ -631,6 +634,12 @@ JavaScriptCore is the macOS rollback engine. The committed `.js` is generated fr
 - Spend remains visible in the API-spend row when LiteLLM has no budget limit configured.
 - Accepts base URLs with or without a `/v1` suffix; management requests are sent to the proxy root.
 - Details: `docs/litellm.md`.
+
+## Aixy
+- API key from config or `AIXY_API_KEY`; optional `enterpriseHost` / `AIXY_BASE_URL` defaults to the hosted Aixy gateway.
+- Reads key-scoped seven-day usage and applicable budget aggregates; no browser session or administrator credential.
+- Separates shared/personal limits, hard reservations, recorded spend, and unknown balances; overlapping budgets are not added together.
+- Details: `docs/aixy.md`.
 
 ## Bifrost
 - Virtual key from config or `BIFROST_API_KEY`; base URL from config `enterpriseHost` or `BIFROST_BASE_URL` (required).

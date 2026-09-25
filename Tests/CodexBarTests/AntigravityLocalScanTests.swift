@@ -50,6 +50,59 @@ struct AntigravityLocalScanTests {
     }
 
     @Test
+    func `database reading preserves decoded rows when subsequent databases exhaust the schema budget`() throws {
+        let fixture = try Fixture()
+        try fixture.database("session-1", blobs: [Fixture.blob()])
+        let initial = try fixture.report()
+        #expect(initial.coverage == .complete)
+        #expect(initial.report.summary?.totalTokens == 198)
+
+        try fixture.database("session-2", blobs: [Fixture.blob()])
+        var limits = AntigravityLocalReader.Limits()
+        limits.schemaBytes = initial.statistics.schemaBytes
+        let partial = try fixture.report(limits: limits)
+        #expect(partial.coverage == .partial)
+        #expect(!partial.report.data.isEmpty)
+        #expect(partial.report.summary?.totalTokens == 198)
+        #expect(partial.statistics.files == 2)
+        #expect(partial.statistics.rows == 1)
+        #expect(partial.statistics.schemaBytes > limits.schemaBytes)
+    }
+
+    @Test
+    func `hard row exhaustion across databases withholds the truncated report`() throws {
+        let fixture = try Fixture()
+        try fixture.database("first", blobs: [Fixture.blob()])
+        try fixture.database("second", blobs: [Fixture.blob()])
+        var limits = AntigravityLocalReader.Limits()
+        limits.rows = 1
+        let report = try fixture.report(limits: limits)
+        // Hard row exhaustion must withhold — the documented contract says newly truncated reports
+        // are unavailable, even though the first database produced valid rows.
+        #expect(report.coverage == .partial)
+        #expect(report.report.data.isEmpty)
+        #expect(report.report.summary == nil)
+        #expect(report.statistics.files == 2)
+    }
+
+    @Test
+    func `hard byte exhaustion across databases withholds the truncated report`() throws {
+        let fixture = try Fixture()
+        let blob = Fixture.blob()
+        try fixture.database("first", blobs: [blob])
+        try fixture.database("second", blobs: [blob])
+        var limits = AntigravityLocalReader.Limits()
+        limits.bytes = blob.count
+        let report = try fixture.report(limits: limits)
+        // Hard byte exhaustion must withhold — the documented contract says newly truncated reports
+        // are unavailable, even though the first database produced valid rows.
+        #expect(report.coverage == .partial)
+        #expect(report.report.data.isEmpty)
+        #expect(report.report.summary == nil)
+        #expect(report.statistics.files == 2)
+    }
+
+    @Test
     func `discovery stops before collecting every irrelevant filename`() throws {
         let fixture = try Fixture()
         let root = fixture.context.databaseRoots[0]

@@ -29,6 +29,7 @@ public final class ProviderPluginRuntime: @unchecked Sendable {
     private let allowsDynamicID: Bool
     private let contextOptions: ProviderPluginContextOptions
     private let engineKind: ProviderPluginEngineKind
+    private let storage: ProviderPluginStorage?
     private let lock = NSLock()
     private var worker: (any ProviderPluginEngine)?
 
@@ -88,7 +89,8 @@ public final class ProviderPluginRuntime: @unchecked Sendable {
         responseSizeLimit: Int = ProviderPluginRuntime.maximumResponseBytes,
         enforcesUserResponsePolicy: Bool = false,
         allowsDynamicID: Bool = false,
-        engine: ProviderPluginEngineKind = .automatic) throws
+        engine: ProviderPluginEngineKind = .automatic,
+        storageDirectory: URL? = nil) throws
     {
         try self.init(
             source: source,
@@ -99,7 +101,8 @@ public final class ProviderPluginRuntime: @unchecked Sendable {
             enforcesUserResponsePolicy: enforcesUserResponsePolicy,
             allowsDynamicID: allowsDynamicID,
             contextOptions: .production,
-            engine: engine)
+            engine: engine,
+            storageDirectory: storageDirectory)
     }
 
     init(
@@ -111,7 +114,8 @@ public final class ProviderPluginRuntime: @unchecked Sendable {
         enforcesUserResponsePolicy: Bool = false,
         allowsDynamicID: Bool = false,
         contextOptions: ProviderPluginContextOptions = .production,
-        engine: ProviderPluginEngineKind = .automatic) throws
+        engine: ProviderPluginEngineKind = .automatic,
+        storageDirectory: URL? = nil) throws
     {
         guard timeout > 0 else { throw ProviderPluginError.load("timeout must be positive") }
         guard responseSizeLimit > 0 else { throw ProviderPluginError.load("response size limit must be positive") }
@@ -151,6 +155,11 @@ public final class ProviderPluginRuntime: @unchecked Sendable {
             allowsDynamicID: allowsDynamicID)
         self.worker = worker
         self.manifest = worker.manifest
+        self.storage = worker.manifest.capabilities.contains(.persistentStorage)
+            ? ProviderPluginStorage(
+                directory: storageDirectory ?? ProviderPluginStorage.defaultDirectory,
+                instanceID: worker.manifest.id)
+            : nil
     }
 
     public func fetchUsage(
@@ -206,6 +215,7 @@ public final class ProviderPluginRuntime: @unchecked Sendable {
         }
 
         var contextOptions = self.contextOptions
+        contextOptions.storage = self.storage
         contextOptions.cookieSource = sourceMode.usesWeb ? cookieSource : .off
         contextOptions.cookieInvalidator = cookieInvalidator
         contextOptions.cookieSessionResolver = cookieSessionResolver ?? ProviderPluginCookieSession.legacyResolver(
@@ -248,6 +258,10 @@ public final class ProviderPluginRuntime: @unchecked Sendable {
                 self.discard(worker)
             }
         }
+    }
+
+    func removePersistentStorage() throws {
+        try self.storage?.removeAll()
     }
 
     public func globalType(of name: String) throws -> String {
@@ -393,41 +407,10 @@ private final class ProviderPluginJSValueBox: @unchecked Sendable {
     }
 }
 
-private final class ProviderPluginObjectBox: @unchecked Sendable {
-    let value: [String: Any]
-
-    init(_ value: [String: Any]) {
-        self.value = value
-    }
-}
-
 private struct ProviderPluginHTTPRequestCallbacks: @unchecked Sendable {
     let wantsJSON: Bool
     let resolve: ProviderPluginJSValueBox
     let reject: ProviderPluginJSValueBox
-}
-
-private final class ProviderPluginRedactionValues: @unchecked Sendable {
-    let transportErrors = ProviderPluginHTTPResponse.TransportErrors()
-    private let lock = NSLock()
-    private var values: Set<String>
-
-    init(_ values: some Sequence<String>) {
-        self.values = Set(values.filter { !$0.isEmpty })
-    }
-
-    func insert(_ value: String) {
-        guard !value.isEmpty else { return }
-        _ = self.lock.withLock { self.values.insert(value) }
-    }
-
-    func redact(_ message: String) -> String {
-        self.lock.withLock {
-            self.values.reduce(message) { partial, value in
-                partial.replacingOccurrences(of: value, with: "<redacted>")
-            }
-        }
-    }
 }
 
 final class JavaScriptCoreProviderPluginEngine: ProviderPluginEngine, @unchecked Sendable {
@@ -675,6 +658,24 @@ final class JavaScriptCoreProviderPluginEngine: ProviderPluginEngine, @unchecked
         }
         host.setObject(settingGet, forKeyedSubscript: "settingGet" as NSString)
 
+        let storage: @convention(block) (String, JSValue, JSValue) -> JSValue = { [weak self] operation, key, value in
+            guard let self else { return JSValue(undefinedIn: nil) }
+            do {
+                guard let storage = contextOptions.storage,
+                      !self.requestLock.withLock({ self.interrupted })
+                else { throw ProviderPluginError.script("persistent storage is unavailable or not declared") }
+                let result = try storage.access(
+                    operation,
+                    key: JavaScriptCorePluginValue(key, keyEnumerator: self.keyEnumerator),
+                    value: JavaScriptCorePluginValue(value, keyEnumerator: self.keyEnumerator))
+                return result.map { JSValue(object: $0, in: self.context) } ?? JSValue(nullIn: self.context)
+            } catch {
+                self.context.exception = JSValue(newErrorFromMessage: error.localizedDescription, in: self.context)
+                return JSValue(undefinedIn: self.context)
+            }
+        }
+        host.setObject(storage, forKeyedSubscript: "storage" as NSString)
+
         let env = JSValue(newObjectIn: self.context)!
         env.setObject(Self.normalizedTimeZoneIdentifier(timeZone), forKeyedSubscript: "timeZone" as NSString)
         ctx.setObject(env, forKeyedSubscript: "env" as NSString)
@@ -709,7 +710,6 @@ final class JavaScriptCoreProviderPluginEngine: ProviderPluginEngine, @unchecked
             }
             var calendar = Calendar(identifier: .gregorian)
             calendar.timeZone = timeZone
-            let now = Date()
             let start = calendar.startOfDay(for: now)
             var candidate = calendar.date(byAdding: .hour, value: Int(rawHour), to: start)!
             if candidate <= now {
@@ -844,16 +844,12 @@ final class JavaScriptCoreProviderPluginEngine: ProviderPluginEngine, @unchecked
         beforeAttempt: (@Sendable () async throws -> Void)?,
         callbacks: ProviderPluginHTTPRequestCallbacks)
     {
-        let request: URLRequest
-        let retryPolicy: ProviderHTTPRetryPolicy
+        let request: ProviderPluginHTTPResponse.Request
         do {
-            retryPolicy = try ProviderPluginHTTPResponse.retryPolicy(
-                options.forProperty("retryPolicy")
-                    .map { JavaScriptCorePluginValue($0, keyEnumerator: self.keyEnumerator) })
             guard let dictionary = options.toDictionary() as? [String: Any] else {
                 throw ProviderPluginError.http("request options must be an object")
             }
-            request = try ProviderPluginHTTPResponse.request(
+            request = try ProviderPluginHTTPResponse.Request(
                 rawURL: rawURL,
                 options: dictionary,
                 method: method,
@@ -880,25 +876,14 @@ final class JavaScriptCoreProviderPluginEngine: ProviderPluginEngine, @unchecked
         self.requests[requestID] = Task.detached {
             defer { _ = worker.requestLock.withLock { worker.requests.removeValue(forKey: requestID) } }
             do {
-                let response = try await ProviderPluginHTTPResponse.response(
-                    for: request, transport: transport, retryPolicy: retryPolicy, beforeAttempt: beforeAttempt)
-                guard response.data.count <= responseSizeLimit else {
-                    throw ProviderPluginError.http("response exceeded the \(responseSizeLimit)-byte limit")
-                }
-                if worker.rejectsNonSuccessResponses, !(200..<300).contains(response.statusCode) {
-                    throw ProviderPluginHTTPResponse.StatusFailure(
-                        response: response.response, allowsRetry: retryPolicy.maxRetries == 0)
-                }
-                if worker.enforcesUserResponsePolicy,
-                   let encoding = response.response.value(forHTTPHeaderField: "Content-Encoding"),
-                   !encoding.isEmpty,
-                   encoding.caseInsensitiveCompare("identity") != .orderedSame
-                {
-                    throw ProviderPluginError.http("compressed responses are not allowed")
-                }
-                let payload = try ProviderPluginObjectBox(ProviderPluginHTTPResponse.payload(
-                    response,
-                    wantsJSON: callbacks.wantsJSON))
+                let payload = try await ProviderPluginHTTPResponse.fetch(
+                    request,
+                    transport: transport,
+                    wantsJSON: callbacks.wantsJSON,
+                    responseSizeLimit: responseSizeLimit,
+                    enforcesUserResponsePolicy: worker.enforcesUserResponsePolicy,
+                    rejectsNonSuccessResponses: worker.rejectsNonSuccessResponses,
+                    beforeAttempt: beforeAttempt)
                 worker.queue.async {
                     let value = JSValue(object: payload.value, in: worker.context) ?? JSValue(nullIn: worker.context)
                     _ = callbacks.resolve.value.call(withArguments: [value as Any])

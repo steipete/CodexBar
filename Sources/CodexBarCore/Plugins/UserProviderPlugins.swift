@@ -242,29 +242,34 @@ public final class UserProviderPluginLoader: @unchecked Sendable {
     private let cacheDirectory: URL
     private let transport: any ProviderHTTPTransport
     private let resourceBundle: Bundle?
+    private let storageDirectory: URL?
 
     public convenience init(
         providersDirectory: URL = UserProviderPluginLoader.defaultProvidersDirectory,
         cacheDirectory: URL = UserProviderPluginLoader.defaultCacheDirectory,
-        transport: (any ProviderHTTPTransport)? = nil)
+        transport: (any ProviderHTTPTransport)? = nil,
+        storageDirectory: URL? = nil)
     {
         self.init(
             providersDirectory: providersDirectory,
             cacheDirectory: cacheDirectory,
             transport: transport,
-            resourceBundle: CodexBarCoreResources.bundle)
+            resourceBundle: CodexBarCoreResources.bundle,
+            storageDirectory: storageDirectory)
     }
 
     init(
         providersDirectory: URL,
         cacheDirectory: URL,
         transport: (any ProviderHTTPTransport)?,
-        resourceBundle: Bundle?)
+        resourceBundle: Bundle?,
+        storageDirectory: URL? = nil)
     {
         self.providersDirectory = providersDirectory
         self.cacheDirectory = cacheDirectory
         self.transport = transport ?? UserProviderPluginHTTPTransport.make()
         self.resourceBundle = resourceBundle
+        self.storageDirectory = storageDirectory
     }
 
     public func discover() -> [UserProviderPluginLoadResult] {
@@ -329,7 +334,8 @@ public final class UserProviderPluginLoader: @unchecked Sendable {
             transport: self.transport,
             responseSizeLimit: UserProviderPlugin.maximumSourceBytes,
             enforcesUserResponsePolicy: true,
-            allowsDynamicID: true)
+            allowsDynamicID: true,
+            storageDirectory: self.storageDirectory)
         return UserProviderPlugin(
             fileURL: fileURL,
             sourceHash: hash,
@@ -464,6 +470,7 @@ public enum UserProviderPluginManager {
         config: inout CodexBarConfig,
         historyDirectory: URL? = nil) throws
     {
+        try plugin.runtime.removePersistentStorage()
         if FileManager.default.fileExists(atPath: plugin.fileURL.path) {
             try FileManager.default.removeItem(at: plugin.fileURL)
         }

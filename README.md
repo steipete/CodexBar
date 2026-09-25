@@ -10,7 +10,7 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-6e5aff?style=flat-square)](LICENSE)
 [![Site](https://img.shields.io/badge/site-codexbar.app-16d3b4?style=flat-square)](https://codexbar.app)
 
-<a href="https://codexbar.app"><img src="docs/social.png?v=0f272ca638af95c0" alt="CodexBar — every AI coding limit in your menu bar. 84 providers." width="100%" /></a>
+<a href="https://codexbar.app"><img src="docs/social.png?v=dd6ec2d887455441" alt="CodexBar — every AI coding limit in your menu bar. 87 providers." width="100%" /></a>
 
 Tiny macOS 14+ menu bar app that keeps **AI coding-provider limits visible** and shows when each window resets. Codex, OpenAI, Claude, Cursor, Gemini, Copilot, Grok, GroqCloud, ElevenLabs, Deepgram, z.ai, MiniMax, Kiro, Zed, Vertex AI, Augment, OpenRouter, LiteLLM, LLM Proxy, Codebuff, Command Code, ClinePass, AWS Bedrock, and many newer coding providers. One status item per provider, or Merge Icons mode with a provider switcher. No Dock icon, minimal UI, dynamic bar icons.
 
@@ -153,6 +153,7 @@ See [CLI configuration](docs/cli-configuration.md) for the full flow.
 - [Wayfinder](docs/wayfinder.md) — Local router gateway polling for health, per-route breakdown, savings, and decision latency.
 - [LiteLLM](docs/litellm.md) — Virtual key + proxy URL for personal and team budget/spend tracking.
 - [Bifrost](docs/bifrost.md) — Virtual key + self-hosted gateway URL for budgets, rate limits, and model spend.
+- [Aixy](docs/aixy.md) — API key for key-scoped spend, tokens, and applicable personal/shared budgets.
 - [Deepgram](docs/deepgram.md) — API key usage summaries across speech, agent, token, and TTS metrics.
 - [Poe](docs/poe.md) — API key for current point balance and recent points history.
 - [Chutes](docs/chutes.md) — API key for subscription usage, rolling and monthly quota windows, and pay-as-you-go quotas.
@@ -169,6 +170,7 @@ See [CLI configuration](docs/cli-configuration.md) for the full flow.
 - [CodeRabbit](docs/coderabbit.md) — Local CLI usage report for review counts, billing state, and period resets.
 - [Replicate](docs/replicate.md) — Browser or manual cookies for monthly spend and optional prepaid credits.
 - [Hugging Face](docs/huggingface.md) — Access token for Inference Providers charges and optional ZeroGPU quota.
+- [Raycast](docs/raycast.md) — Chrome or manual website session for monthly AI credits and renewal.
 - [Pi](docs/pi.md) — Local Pi/OMP transcripts for token history and API-rate cost estimates.
 - [v0](docs/v0.md) — Platform API key for billing and on-demand balances, plus rate limits.
 - [TypeSafe](docs/typesafe.md) — Chrome or manual console cookies for billing spend, balance, and credit expirations.
@@ -176,6 +178,7 @@ See [CLI configuration](docs/cli-configuration.md) for the full flow.
 - [DevPass](docs/devpass.md) — API key for plan credits, premium weekly allowances, and key-scoped spending.
 - [Atlas Cloud](docs/atlascloud.md) — API key for the account's available USD balance.
 - [Vercel AI Gateway](docs/vercel.md) — API key for the team's USD balance and lifetime spend.
+- [xKiro](docs/xkiro.md) — API key for daily free-token usage, remaining allowance, and the midnight UTC reset.
 - Open to new providers: [provider authoring guide](docs/provider.md).
 
 ## Icon & Screenshot

@@ -174,6 +174,7 @@ interface CodexBarHTTPError extends Error {
 }
 
 interface CodexBarHTTPResponse {
+  readonly url: string;
   /** `http-status` exposes non-2xx responses so the plugin can take over classification from the host. */
   status: number;
   headers: Readonly<Record<string, string>>;
@@ -205,6 +206,11 @@ interface CodexBarFailures {
 
 interface CodexBarPluginContext {
   readonly http: {
+    getWithOptional(
+      url: string,
+      optionalURL: string,
+      opts?: CodexBarHTTPRequestOptions,
+    ): Promise<CodexBarHTTPTextResponse & { optional: CodexBarHTTPTextResponse | null }>;
     getJSON<T = unknown>(url: string, options?: CodexBarHTTPRequestOptions): Promise<CodexBarHTTPJSONResponse<T>>;
     get(url: string, options?: CodexBarHTTPRequestOptions): Promise<CodexBarHTTPTextResponse>;
     /** POST a JSON body and retain the response text, including non-JSON error responses. */
@@ -253,6 +259,11 @@ interface CodexBarPluginContext {
     get<T = unknown>(key: string): T | undefined;
     set(key: string, value: unknown, ttlSeconds: number): void;
   };
+  readonly storage: {
+    get(key: string): string | null;
+    set(key: string, value: string): void;
+    remove(key: string): void;
+  };
   readonly jwt: {
     decode<T = unknown>(token: string): T;
   };
@@ -271,8 +282,8 @@ interface CodexBarProviderDefinition {
   endpoints: CodexBarEndpoint[];
   auth?: CodexBarAuth;
   settings: CodexBarSetting[];
-  /** Grants declared browser-cookie access or lets the plugin observe and classify non-2xx HTTP responses. */
-  capabilities?: Array<"browser-cookies" | "http-status">;
+  /** Grants declared cookie access, HTTP status handling, or bounded non-secret persistent state. */
+  capabilities?: Array<"browser-cookies" | "http-status" | "persistent-storage">;
   cookieDomains?: string[];
   fetchUsage(
     ctx: CodexBarPluginContext,

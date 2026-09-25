@@ -61,6 +61,9 @@ extension AntigravityLocalReader {
 
     enum ScanFailure: Error {
         case exhausted
+        /// Schema-budget exhaustion (bytes, entries, or columns). Unlike hard row/byte/duration exhaustion,
+        /// schema exhaustion preserves already-decoded rows as partial history instead of withholding the report.
+        case schemaExhausted
         case invalid
     }
 
@@ -105,7 +108,7 @@ extension AntigravityLocalReader {
             try self.check()
             let (attempted, overflow) = self.statistics.schemaBytes.addingReportingOverflow(count)
             self.statistics.schemaBytes = overflow ? Int.max : attempted
-            guard !overflow, attempted <= self.limits.schemaBytes else { throw ScanFailure.exhausted }
+            guard !overflow, attempted <= self.limits.schemaBytes else { throw ScanFailure.schemaExhausted }
         }
     }
 
