@@ -40,7 +40,7 @@ struct SpendDashboardClockRolloverTests {
 
         controller.update(configuration: configuration)
         await Self.waitUntil { !controller.isRefreshing }
-        controller.selectDays(7)
+        controller.selectPeriod(.rolling(days: 7))
         #expect(controller.model.groups.first?.totalCost == 4)
         let generation = controller.generation
 

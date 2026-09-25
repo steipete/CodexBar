@@ -57,7 +57,7 @@ final class SpendDashboardNativeProofTests: XCTestCase {
             nowProvider: { now },
             publicationHandler: { store.spendDashboardPublication = $0 })
         store.sharedSpendDashboardControllerStorage = controller
-        controller.selectDays(7)
+        controller.selectPeriod(.rolling(days: 7))
         controller.update(configuration: configuration)
         try await SpendDashboardStateWait.until { !controller.isRefreshing && !controller.model.groups.isEmpty }
         controller.selectDay(now)
@@ -103,7 +103,7 @@ final class SpendDashboardNativeProofTests: XCTestCase {
                 "pid": ProcessInfo.processInfo.processIdentifier,
                 "window": window.windowNumber,
                 "syntheticOnly": true,
-                "selectedDays": controller.selectedDays,
+                "selectedDays": controller.model.requestedDays,
                 "selectedDay": controller.selectedDay == nil ? "none" : "set",
                 "privacy": settings.hidePersonalInfo,
                 "groups": controller.model.groups.count,

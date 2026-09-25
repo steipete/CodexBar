@@ -495,6 +495,7 @@
 "cost_summary_style_inline_help" = "Mostra o resumo de custos diretamente no menu principal.";
 "cost_summary_style_submenu_help" = "Mostra o submenu Custo detalhado em vez disso.";
 "cost_summary_style_both_help" = "Mostra o resumo no menu principal e o submenu Custo detalhado.";
+"Month to date" = "Mês até agora";
 "cost_history_window_title" = "Janela do histórico";
 "cost_history_window_help" = "Define quantos dias de logs de uso locais aparecem no menu.";
 "cost_history_days_title" = "Janela do histórico: %d dias";

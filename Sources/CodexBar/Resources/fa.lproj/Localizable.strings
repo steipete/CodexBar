@@ -482,6 +482,7 @@
 "cost_summary_style_inline_help" = "خلاصه هزینه را مستقیماً در منوی اصلی نشان می‌دهد.";
 "cost_summary_style_submenu_help" = "در عوض زیرمنوی جزئیات هزینه را نشان می‌دهد.";
 "cost_summary_style_both_help" = "هم خلاصه منوی اصلی و هم زیرمنوی جزئیات هزینه را نشان می‌دهد.";
+"Month to date" = "از ابتدای ماه تاکنون";
 "cost_history_window_title" = "پنجره تاریخچه";
 "cost_history_window_help" = "تعیین می‌کند چند روز از گزارش‌های استفاده محلی در منو نشان داده شود.";
 "cost_history_days_title" = "پنجره تاریخچه: %d روز";

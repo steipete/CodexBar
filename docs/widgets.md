@@ -253,3 +253,5 @@ If the widget appears but always shows preview data:
 - Validate that both app and widget resolve the same app-group container.
 
 See also: `docs/ui.md`, `docs/packaging.md`.
+
+The **Cost** metric follows the app’s [cost reporting period](cost-reporting-periods.md), including month-to-date and all available history. The displayed period label travels with the cost snapshot.

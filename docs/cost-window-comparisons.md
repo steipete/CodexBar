@@ -22,7 +22,7 @@ The implementation derives every comparison from the already-loaded daily report
 
 ## Why this does not claim lifetime cost
 
-“All available local logs” and “lifetime since install” are different contracts. Local Codex, Claude, and Pi logs may be moved, pruned, excluded, or created before CodexBar was installed. The existing plan-utilization history is also capped and has no token or cost ledger. A 365-day total therefore cannot honestly be labeled a lifetime bill.
+“All available local logs” and “lifetime since install” are different contracts. Local Codex, Claude, and Pi logs may be moved, pruned, excluded, or created before CodexBar was installed. The existing plan-utilization history is also capped and has no token or cost ledger. A rolling total or an All available history total therefore cannot honestly be labeled a lifetime bill. The shared [reporting-period model](cost-reporting-periods.md) now supports month-to-date and scanning available logs beyond one year; it does not add a permanent ledger.
 
 A true #1708 implementation needs separate approval for an append-only local ledger with:
 

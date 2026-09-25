@@ -496,6 +496,7 @@
 "cost_summary_style_inline_help" = "Zeigt die Kostenübersicht direkt im Hauptmenü.";
 "cost_summary_style_submenu_help" = "Zeigt stattdessen das detaillierte Kosten-Untermenü.";
 "cost_summary_style_both_help" = "Zeigt die Hauptmenü-Übersicht und das detaillierte Kosten-Untermenü.";
+"Month to date" = "Seit Monatsbeginn";
 "cost_history_window_title" = "Verlaufsfenster";
 "cost_history_window_help" = "Legt fest, wie viele Tage lokaler Nutzungsprotokolle im Menü erscheinen.";
 "cost_history_days_title" = "Verlaufsfenster: %d Tage";

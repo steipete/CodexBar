@@ -296,40 +296,19 @@ extension UsageMenuCardView.Model {
                 providerCurrency: snapshot.currencyCode)
         }
 
-        let historyDays = max(1, min(365, snapshot.historyDays))
-        let defaultHistoryTitle = snapshot.historyLabel
-            ?? (historyDays == 1
-                ? L("Today")
-                : historyDays == 30
-                ? L("30d cost")
-                : "\(String(format: L("Last %d days"), historyDays)) \(L("Cost"))")
-        let codexHistoryPeriod = snapshot.historyLabel
-            ?? (historyDays == 1
-                ? L("Today")
-                : historyDays == 30
-                ? "30d"
-                : String(format: L("Last %d days"), historyDays))
+        let historyDays = snapshot.displayHistoryDays(calendar: input.costUsageBucketCalendar)
+        let explicitLabel = snapshot.historyLabel.map { L($0) }
+        let period = explicitLabel ?? (historyDays == 1 ? L("Today") : String(format: L("Last %d days"), historyDays))
+        let legacyMonth = explicitLabel == nil && historyDays == 30
         let tokenCost = ProviderDescriptorRegistry.descriptor(for: input.provider).tokenCost
-        let historyTitle = tokenCost.historyTitleStyle == .compact ? codexHistoryPeriod : defaultHistoryTitle
-        let tokenHistoryTitle = snapshot.historyLabel.map { "\($0) \(L("tokens"))" }
-            ?? (historyDays == 1
-                ? L("Today tokens")
-                : historyDays == 30
-                ? L("30d tokens")
-                : String(format: L("%@ tokens"), String(format: L("Last %d days"), historyDays)))
-        let requestHistoryTitle = snapshot.historyLabel.map { "\($0) \(L("requests"))" }
-            ?? (historyDays == 1
-                ? L("Today requests")
-                : historyDays == 30
-                ? L("30d requests")
-                : String(format: L("%@ requests"), String(format: L("Last %d days"), historyDays)))
-        let accessibilityCostLabel: String = if let historyLabel = snapshot.historyLabel {
-            L("%@ cost", historyLabel)
-        } else if historyDays == 30 {
-            L("30d cost")
-        } else {
-            L("%@ cost", historyDays == 1 ? L("Today") : String(format: L("Last %d days"), historyDays))
-        }
+        let historyTitle = tokenCost.historyTitleStyle == .compact
+            ? (legacyMonth ? "30d" : period)
+            :
+            (explicitLabel ??
+                (legacyMonth ? L("30d cost") : historyDays == 1 ? L("Today") : "\(period) \(L("Cost"))"))
+        let tokenHistoryTitle = legacyMonth ? L("30d tokens") : String(format: L("%@ tokens"), period)
+        let requestHistoryTitle = legacyMonth ? L("30d requests") : String(format: L("%@ requests"), period)
+        let accessibilityCostLabel = legacyMonth ? L("30d cost") : L("%@ cost", period)
         let points = Self.inlineCostHistoryPoints(
             days: Self.inlineCostHistoryDays(
                 snapshot: snapshot,
@@ -506,8 +485,8 @@ extension UsageMenuCardView.Model {
         calendar: Calendar) -> InlineUsageDashboardModel
     {
         let config = ProviderDescriptorRegistry.descriptor(for: provider).tokenCost
-        let historyDays = max(1, min(365, snapshot.historyDays))
-        let historyLabel = snapshot.historyLabel ?? Self.costHistoryWindowLabel(days: historyDays)
+        let historyDays = snapshot.displayHistoryDays(calendar: calendar)
+        let historyLabel = snapshot.historyLabel.map { L($0) } ?? Self.costHistoryWindowLabel(days: historyDays)
         var kpis = [InlineUsageDashboardModel.KPI(
             title: L("Today"),
             value: L("%@ tokens", snapshot.sessionTokens.map(UsageFormatter.tokenCountString) ?? "—"),

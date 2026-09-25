@@ -27,7 +27,7 @@ struct SpendDashboardClaudeCacheRoutingTests {
         var options = fixture.options
         options.calendar = settings.costUsageBucketCalendar
         let costFetcher = CostUsageFetcher(scannerOptions: options)
-        for days in [365, 30] {
+        for days in [SpendDashboardSource.scanDays, 30] {
             _ = try await costFetcher.loadTokenSnapshot(
                 provider: .claude,
                 environment: [:],
@@ -69,7 +69,7 @@ struct SpendDashboardClaudeCacheRoutingTests {
         await store.refreshSpendDashboardTokenUsageNow(for: .claude, force: true)
         let dashboard = try #require(store.spendDashboardTokenSnapshotPublicationForCurrentConfig(for: .claude)?
             .snapshot)
-        #expect(dashboard.historyDays == 365)
+        #expect(dashboard.historyDays == SpendDashboardSource.scanDays)
         #expect(dashboard.last30DaysTokens == 20)
         #expect(try Data(contentsOf: regularURL) == regularData)
         #expect(try Data(contentsOf: pricingURL) == pricingData)

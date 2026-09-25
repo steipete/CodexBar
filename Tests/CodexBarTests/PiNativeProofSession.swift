@@ -97,7 +97,7 @@ final class PiNativeProofSession {
                 await SpendDashboardSource.makeRequest(settings: settings, store: store, mode: mode)
             },
             publicationHandler: { [weak store] publication in store?.spendDashboardPublication = publication })
-        dashboard.selectDays(30)
+        dashboard.selectPeriod(.rolling(days: 30))
         store.sharedSpendDashboardControllerStorage = dashboard
         store.startSharedSpendDashboardPublication()
     }

@@ -484,6 +484,7 @@
 "cost_summary_style_inline_help" = "Mostra il riepilogo dei costi direttamente nel menu principale.";
 "cost_summary_style_submenu_help" = "Mostra invece il sottomenu Costo dettagliato.";
 "cost_summary_style_both_help" = "Mostra sia il riepilogo nel menu principale sia il sottomenu Costo dettagliato.";
+"Month to date" = "Dall’inizio del mese";
 "cost_history_window_title" = "Finestra storica";
 "cost_history_window_help" = "Imposta quanti giorni di log di utilizzo locali mostrare nel menu.";
 "cost_history_days_title" = "Finestra storica: %d giorni";

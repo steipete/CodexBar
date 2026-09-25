@@ -1508,7 +1508,9 @@ extension UsageStore {
         guard !self.tokenRefreshInFlight.contains(provider.instanceID) else { return }
 
         let now = Date()
-        let historyDays = self.settings.costUsageHistoryDays
+        let historyDays = self.settings.costReportingPeriod.days(
+            now: now,
+            calendar: self.settings.costUsageBucketCalendar)
         // Cursor cost reuses the status cookie policy: a Manual source forwards the manual header so
         // cost and status share the same session; other sources fall back to auto resolution.
         guard case let .proceed(cursorCookieHeaderOverride) = self.prepareCursorCostCookie(for: provider) else {

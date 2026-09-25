@@ -12,6 +12,7 @@
 - Sakana AI: run billing parsing as a bundled plugin on macOS and Linux while preserving concurrent, bounded optional balance collection on both engines.
 - Preferences: export and import portable UI settings as versioned JSON from Settings or the CLI, preserving local credentials and consent (#1282). Thanks @kiankyars!
 - Provider switcher: customize local navigation and selection shortcuts in Settings or portable preferences, with duplicate and reserved-command validation (#3457). Thanks @lghsigma597!
+- Costs: select calendar month-to-date or all available history across menus, Usage & Spend, CLI, HTTP cost output, and widgets; preserve rolling windows and the pinned cost time zone (#2087, #2859, #1708).
 - xKiro: track the account's daily free-token allowance and midnight UTC reset through the documented, unmetered usage API, separately from paid balances (#3729).
 - Raycast: show monthly AI credits and renewal through a bundled plugin, with Chrome/manual cookies and expired-session recovery (#3960). Thanks @raulgg!
 - Aixy: track key-scoped usage and applicable personal/shared budgets, including idle keys with zero spend (#3958). Thanks @oscarcpozas!

@@ -47,7 +47,7 @@ enum OpenCodexUsageAggregator {
         modelsDevCatalog: ModelsDevCatalog? = nil,
         customPricingOverlay: CostUsageCustomPricing? = nil) -> CostUsageTokenSnapshot
     {
-        let days = max(1, min(365, historyDays))
+        let days = max(1, historyDays)
         let today = calendar.startOfDay(for: now)
         let windowStart = calendar.date(byAdding: .day, value: -(days - 1), to: today) ?? today
         var unique: [String: OpenCodexUsageEntry] = [:]

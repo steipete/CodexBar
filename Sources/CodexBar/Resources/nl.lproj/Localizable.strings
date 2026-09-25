@@ -498,6 +498,7 @@
 "cost_summary_style_inline_help" = "Toont het kostenoverzicht rechtstreeks in het hoofdmenu.";
 "cost_summary_style_submenu_help" = "Toont in plaats daarvan het gedetailleerde Kosten-submenu.";
 "cost_summary_style_both_help" = "Toont zowel het hoofdmenu-overzicht als het gedetailleerde Kosten-submenu.";
+"Month to date" = "Deze maand tot nu toe";
 "cost_history_window_title" = "Geschiedenisvenster";
 "cost_history_window_help" = "Stelt in hoeveel dagen lokale gebruikslogboeken in het menu verschijnen.";
 "cost_history_days_title" = "Geschiedenisvenster: %d dagen";

@@ -499,6 +499,7 @@
 "cost_summary_style_inline_help" = "Показывает сводку затрат прямо в главном меню.";
 "cost_summary_style_submenu_help" = "Вместо этого отображается подробное подменю «Стоимость».";
 "cost_summary_style_both_help" = "Показывает как сводку главного меню, так и подробное подменю «Стоимость».";
+"Month to date" = "С начала месяца";
 "cost_history_window_title" = "Окно истории";
 "cost_history_window_help" = "Задаёт, за сколько дней показывать локальные журналы использования в меню.";
 "cost_history_days_title" = "Окно истории: %d дней";

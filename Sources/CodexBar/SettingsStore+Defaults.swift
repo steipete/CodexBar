@@ -611,15 +611,17 @@ extension SettingsStore {
     }
 
     var costUsageHistoryDays: Int {
-        get { self.defaultsState.costUsageHistoryDays }
+        get { self.costReportingPeriod.days(now: Date(), calendar: self.costUsageBucketCalendar) }
+        set { self.costReportingPeriod = .rolling(days: max(1, min(365, newValue))) }
+    }
+
+    var costReportingPeriod: CostReportingPeriod {
+        get { self.defaultsState.costReportingPeriod }
         set {
-            let clamped = max(1, min(365, newValue))
-            let changed = self.defaultsState.costUsageHistoryDays != clamped
-            self.defaultsState.costUsageHistoryDays = clamped
-            self.userDefaults.set(clamped, forKey: "tokenCostUsageHistoryDays")
-            if changed {
-                self.costUsageSettingsRevision &+= 1
-            }
+            guard self.defaultsState.costReportingPeriod != newValue else { return }
+            self.defaultsState.costReportingPeriod = newValue
+            self.userDefaults.set(newValue.rawValue, forKey: CostReportingPeriod.defaultsKey)
+            self.costUsageSettingsRevision &+= 1
             self.noteBackgroundWorkSettingsChanged()
         }
     }

@@ -2699,6 +2699,16 @@ enum CostUsageScanner {
             workRecorder: workRecorder)
     }
 
+    /// Skip calendar dates before the first existing partition; all-history scans must not probe empty centuries.
+    private static func firstPartitionDate(root: URL, sinceKey: String, calendar: Calendar) -> Date {
+        let requested = Self.parseDayKey(sinceKey, calendar: calendar) ?? Date.distantPast
+        let years = (try? FileManager.default.contentsOfDirectory(atPath: root.path)) ?? []
+        guard let year = years.filter({ $0.count == 4 }).compactMap(Int.init).min(),
+              let first = calendar.date(from: DateComponents(year: year, month: 1, day: 1))
+        else { return Date.distantFuture }
+        return max(requested, first)
+    }
+
     // swiftlint:disable:next function_parameter_count
     private static func listCodexSessionFilesByDatePartitionPage(
         root: URL,
@@ -2715,7 +2725,7 @@ enum CostUsageScanner {
             return CodexPartitionPage(files: [], nextDayKey: nil, nextDirectoryOffset: nil, visits: 0)
         }
         let calendar = CostUsageDayRange.localGregorianCalendar(matching: calendar)
-        let sinceDate = Self.parseDayKey(scanSinceKey, calendar: calendar) ?? Date()
+        let sinceDate = Self.firstPartitionDate(root: root, sinceKey: scanSinceKey, calendar: calendar)
         let untilDate = Self.parseDayKey(scanUntilKey, calendar: calendar) ?? sinceDate
         let resumedDate = resumeDayKey.flatMap { Self.parseDayKey($0, calendar: calendar) }
         var date = if let resumedDate, resumedDate >= sinceDate, resumedDate <= untilDate {
@@ -2779,7 +2789,7 @@ enum CostUsageScanner {
         }
         let calendar = CostUsageDayRange.localGregorianCalendar(matching: calendar)
         var out: [URL] = []
-        let sinceDate = Self.parseDayKey(scanSinceKey, calendar: calendar) ?? Date()
+        let sinceDate = Self.firstPartitionDate(root: root, sinceKey: scanSinceKey, calendar: calendar)
         let untilDate = Self.parseDayKey(scanUntilKey, calendar: calendar) ?? sinceDate
         let resumedDate = resumeDayKey.flatMap { Self.parseDayKey($0, calendar: calendar) }
         var date = if let resumedDate, resumedDate >= sinceDate, resumedDate <= untilDate {

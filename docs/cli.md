@@ -237,6 +237,10 @@ payloads include the visible account label in `account`.
 
 ### Cost JSON payload
 `codexbar cost --format json` emits an array of payloads (one per provider).
+
+The saved app reporting period applies by default. `--period month-to-date|all` selects a calendar month or available source history; `--days N` always overrides it with rolling days. `/cost` follows the saved selection without restarting the server. See [cost reporting periods](cost-reporting-periods.md).
+
+- `reportingPeriod`, `historyLabel`: semantic selection and its display label; `totals` describes that selected window.
 - `provider`, `source` (`local` for Claude/Codex log scans, `web` for Cursor dashboard data), `updatedAt`
 - `sessionTokens`, `sessionCostUSD`
 - `last30DaysTokens`, `last30DaysCostUSD`: for histories longer than 30 days, totals for the latest 30 local calendar dates ending at `updatedAt` (today and the preceding 29 days). Histories of 30 days or fewer retain their available/requested-history totals. Missing amounts remain unavailable.
@@ -255,7 +259,9 @@ codexbar --provider claude        # force Claude
 codexbar --provider all           # query all registered providers
 codexbar --format json --pretty   # machine output
 codexbar --format json --provider both
-codexbar cost                     # cost usage (default 30-day window + today)
+codexbar cost                     # saved app period, otherwise 30 days + today
+codexbar cost --period month-to-date --json
+codexbar cost --period all --json
 codexbar cost --days 90           # choose a 1...365 day cost window
 codexbar cost --provider codex --group-by project
 codexbar cost --provider codex --group-by session

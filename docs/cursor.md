@@ -191,3 +191,7 @@ fifty members. It requires consistent page-count metadata, full intermediate pag
 matching member. Missing completion metadata, duplicate matches, or unavailable, invalid, or incomplete responses
 preserve usage-summary behavior. Billing dates and extra/on-demand charges remain sourced from usage-summary;
 team response dates and other members' details are not retained. Caller cancellation still stops the fetch.
+
+## Cost reporting period
+
+The shared [cost reporting period](cost-reporting-periods.md) supports month-to-date in the pinned cost time zone. Cursor-metered spend and daily estimates use the same event window. Quota bars continue to follow Cursor’s billing-cycle start/end dates, which can fall mid-month.

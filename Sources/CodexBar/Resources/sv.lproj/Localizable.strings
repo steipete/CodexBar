@@ -498,6 +498,7 @@
 "cost_summary_style_inline_help" = "Visar kostnadssammanfattningen direkt i huvudmenyn.";
 "cost_summary_style_submenu_help" = "Visar den detaljerade Kostnad-undermenyn i stället.";
 "cost_summary_style_both_help" = "Visar både huvudmenyns sammanfattning och den detaljerade Kostnad-undermenyn.";
+"Month to date" = "Sedan månadens början";
 "cost_history_window_title" = "Historikfönster";
 "cost_history_window_help" = "Anger hur många dagar med lokala användningsloggar som visas i menyn.";
 "cost_history_days_title" = "Historikfönster: %d dagar";

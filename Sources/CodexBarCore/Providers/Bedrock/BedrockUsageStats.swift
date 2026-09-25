@@ -164,10 +164,7 @@ enum BedrockUsageFetcher {
         environment: [String: String] = ProcessInfo.processInfo.environment) async throws
         -> CostUsageDailyReport
     {
-        let formatter = Self.dateFormatter()
-        let startDate = formatter.string(from: since)
-        let inclusiveEnd = Self.utcCalendar().date(byAdding: .day, value: 1, to: until) ?? until
-        let endDate = formatter.string(from: inclusiveEnd)
+        let (startDate, endDate) = Self.dailyRange(since: since, until: until)
 
         let pages = try await Self.callCostExplorerPages(
             startDate: startDate,
@@ -411,21 +408,21 @@ enum BedrockUsageFetcher {
         return formatter
     }
 
-    private static func utcCalendar() -> Calendar {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
-        return calendar
+    static func dailyRange(since: Date, until: Date) -> (start: String, end: String) {
+        let calendar = CostUsageBucketTimeZone.calendar(identifier: "UTC")
+        let monthStart = CostReportingPeriod.monthToDate.bounds(now: until, calendar: calendar).lowerBound
+        // Cost Explorer exposes the current month plus thirteen historical months.
+        let earliest = calendar.date(byAdding: .month, value: -13, to: monthStart) ?? monthStart
+        let tomorrow = calendar.date(byAdding: .day, value: 1, to: until) ?? until
+        let formatter = Self.dateFormatter()
+        return (formatter.string(from: max(since, earliest)), formatter.string(from: tomorrow))
     }
 
     static func currentMonthRange(now: Date = Date()) -> (start: String, end: String) {
-        let calendar = Self.utcCalendar()
-        let components = calendar.dateComponents([.year, .month], from: now)
-        let startOfMonth = calendar.date(from: components)!
-
-        let formatter = Self.dateFormatter()
-        let startOfToday = calendar.startOfDay(for: now)
-        let tomorrow = calendar.date(byAdding: .day, value: 1, to: startOfToday)!
-        return (formatter.string(from: startOfMonth), formatter.string(from: tomorrow))
+        self.dailyRange(
+            since: CostReportingPeriod.monthToDate.bounds(
+                now: now, calendar: CostUsageBucketTimeZone.calendar(identifier: "UTC")).lowerBound,
+            until: now)
     }
 
     private static func isDataUnavailableResponse(statusCode: Int, data: Data) -> Bool {

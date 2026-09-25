@@ -23,7 +23,7 @@ struct SpendDashboardFreshnessTests {
             initial.sourceRevisions.first { $0.hasPrefix("claude:") })
 
         let request = await fixture.request()
-        #expect(fixture.requests == [365, 30, 365])
+        #expect(fixture.requests == [SpendDashboardSource.scanDays, 30, SpendDashboardSource.scanDays])
         let snapshot = try #require(request.capturedInputs.first?.snapshot)
         #expect(snapshot.daily.map(\.date) == ["2026-01-01", "2026-07-15"])
         #expect(snapshot.daily.compactMap(\.costUSD).reduce(0, +) == 15)
@@ -33,7 +33,7 @@ struct SpendDashboardFreshnessTests {
         for _ in 0..<3 {
             _ = await fixture.request()
         }
-        #expect(fixture.requests == [365, 30, 365])
+        #expect(fixture.requests == [SpendDashboardSource.scanDays, 30, SpendDashboardSource.scanDays])
     }
 
     @Test
@@ -46,7 +46,7 @@ struct SpendDashboardFreshnessTests {
         #expect(capture.capturedInputs.isEmpty)
         #expect(capture.unavailableSourceIDs == ["claude"])
         let refreshed = await fixture.request()
-        #expect(fixture.requests == [30, 365])
+        #expect(fixture.requests == [30, SpendDashboardSource.scanDays])
         #expect(refreshed.capturedInputs.first?.snapshot.daily.count == 2)
     }
 
@@ -62,11 +62,18 @@ struct SpendDashboardFreshnessTests {
         await fixture.store.refreshSpendDashboardTokenUsageNow(for: .vertexai, force: true)
         await fixture.store.refreshTokenUsageNow(for: .claude, force: true)
         _ = await fixture.request()
-        #expect(fixture.providerRequests == ["claude:365", "vertexai:365", "claude:30", "claude:365"])
+        #expect(fixture.providerRequests == [
+            "claude:\(SpendDashboardSource.scanDays)",
+            "vertexai:\(SpendDashboardSource.scanDays)",
+            "claude:30",
+            "claude:\(SpendDashboardSource.scanDays)",
+        ])
         await fixture.store.refreshTokenUsageNow(for: .vertexai, force: true)
         _ = await fixture.request()
         #expect(fixture.providerRequests == [
-            "claude:365", "vertexai:365", "claude:30", "claude:365", "vertexai:30", "vertexai:365",
+            "claude:\(SpendDashboardSource.scanDays)", "vertexai:\(SpendDashboardSource.scanDays)", "claude:30",
+            "claude:\(SpendDashboardSource.scanDays)",
+            "vertexai:30", "vertexai:\(SpendDashboardSource.scanDays)",
         ])
     }
 
@@ -93,7 +100,14 @@ struct SpendDashboardFreshnessTests {
         gate.release.open()
         try await fixture.waitForSharedCost(5)
 
-        #expect(fixture.requests == [365, 30, 365, 30, 30, 365])
+        #expect(fixture.requests == [
+            SpendDashboardSource.scanDays,
+            30,
+            SpendDashboardSource.scanDays,
+            30,
+            30,
+            SpendDashboardSource.scanDays,
+        ])
         #expect(fixture.store.spendDashboardTokenIncorporatedTriggers[.claude]?.regularPublicationRevision == 3)
         #expect(fixture.store.spendDashboardPublication.inputs.first?.snapshot.daily.count == 2)
         #expect(fixture.store.tokenSnapshot(for: .claude)?.historyDays == 30)
@@ -140,7 +154,13 @@ struct SpendDashboardFreshnessTests {
             !controller.isRefreshing && controller.publication.inputs.first?.snapshot.last30DaysCostUSD == 7
         }
         #expect(fixture.requestCount == 2)
-        #expect(fixture.requests == [365, 30, 365, 30, 365])
+        #expect(fixture.requests == [
+            SpendDashboardSource.scanDays,
+            30,
+            SpendDashboardSource.scanDays,
+            30,
+            SpendDashboardSource.scanDays,
+        ])
     }
 
     @Test
@@ -162,7 +182,13 @@ struct SpendDashboardFreshnessTests {
         await fixture.store.refreshTokenUsageNow(for: .claude, force: true)
         gate.release.open()
         try await fixture.waitForSharedCost(9)
-        #expect(fixture.requests == [365, 365, 30, 30, 365])
+        #expect(fixture.requests == [
+            SpendDashboardSource.scanDays,
+            SpendDashboardSource.scanDays,
+            30,
+            30,
+            SpendDashboardSource.scanDays,
+        ])
         #expect(fixture.store.spendDashboardTokenIncorporatedTriggers[.claude]?.regularPublicationRevision == 2)
     }
 
@@ -191,7 +217,12 @@ struct SpendDashboardFreshnessTests {
         gate.release.open()
         try await fixture.waitForSharedCost(7)
         #expect(fixture.store.spendDashboardPublication.configuration?.sourceOwnershipFingerprints == owner)
-        #expect(fixture.requests == [365, 30, 365, 365])
+        #expect(fixture.requests == [
+            SpendDashboardSource.scanDays,
+            30,
+            SpendDashboardSource.scanDays,
+            SpendDashboardSource.scanDays,
+        ])
     }
 
     @Test
@@ -214,7 +245,7 @@ struct SpendDashboardFreshnessTests {
         for _ in 0..<3 {
             _ = await fixture.request()
         }
-        #expect(fixture.requests == [365, 30, 365])
+        #expect(fixture.requests == [SpendDashboardSource.scanDays, 30, SpendDashboardSource.scanDays])
 
         fixture.failDashboard = false
         fixture.latestCost = 6
@@ -231,7 +262,15 @@ struct SpendDashboardFreshnessTests {
         fixture.store.sharedSpendDashboardController().refresh()
         try await fixture.waitForSharedCost(9)
         #expect(fixture.store.spendDashboardTokenFailedTriggers[.claude] == nil)
-        #expect(fixture.requests == [365, 30, 365, 30, 365, 365, 365])
+        #expect(fixture.requests == [
+            SpendDashboardSource.scanDays,
+            30,
+            SpendDashboardSource.scanDays,
+            30,
+            SpendDashboardSource.scanDays,
+            SpendDashboardSource.scanDays,
+            SpendDashboardSource.scanDays,
+        ])
     }
 
     @Test
@@ -250,7 +289,7 @@ struct SpendDashboardFreshnessTests {
         for _ in 0..<3 {
             _ = await fixture.request()
         }
-        #expect(fixture.requests == [365, 30, 365])
+        #expect(fixture.requests == [SpendDashboardSource.scanDays, 30, SpendDashboardSource.scanDays])
     }
 
     @Test(arguments: ["cancel", "disable", "account"])
@@ -284,7 +323,7 @@ struct SpendDashboardFreshnessTests {
         }
         let recovered = await fixture.request()
         #expect(recovered.capturedInputs.first?.snapshot.daily.count == 2)
-        #expect(fixture.requests == [30, 365, 365])
+        #expect(fixture.requests == [30, SpendDashboardSource.scanDays, SpendDashboardSource.scanDays])
     }
 }
 
@@ -346,7 +385,7 @@ final class SpendDashboardFreshnessFixture {
             #expect(provider == .claude)
             self.requests.append(days)
             let snapshot = self.snapshot(days: days, recentCost: self.latestCost)
-            if days == 365 {
+            if days == SpendDashboardSource.scanDays {
                 if let gate = self.nextDashboardGate {
                     self.nextDashboardGate = nil
                     gate.arrival.open()
@@ -382,7 +421,7 @@ final class SpendDashboardFreshnessFixture {
     }
 
     func snapshot(days: Int, recentCost: Double) -> CostUsageTokenSnapshot {
-        let rows: [(String, Double)] = days == 365
+        let rows: [(String, Double)] = days == SpendDashboardSource.scanDays
             ? [("2026-01-01", 10), ("2026-07-15", recentCost)] : [("2026-07-15", recentCost)]
         return CostUsageTokenSnapshot(
             sessionTokens: nil,

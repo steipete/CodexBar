@@ -408,7 +408,7 @@ extension UsageStore {
         default: "Today"
         }
         let defaultMonthLabel = snapshot.historyDays == 1 ? "Today" : "\(snapshot.historyDays)d"
-        let monthLabel = snapshot.historyLabel ?? defaultMonthLabel
+        let monthLabel = snapshot.historyLabel.map { L($0) } ?? defaultMonthLabel
         let estimateSuffix = provider == .codex ? " API est. · not billed" : ""
         return WidgetSnapshot.TokenUsageSummary(
             sessionCostUSD: snapshot.sessionCostUSD,

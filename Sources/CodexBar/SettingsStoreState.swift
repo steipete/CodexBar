@@ -1,3 +1,4 @@
+import CodexBarCore
 import Foundation
 
 struct SettingsDefaultsState {
@@ -53,7 +54,7 @@ struct SettingsDefaultsState {
     var copilotSeatCreditEntitlementRaw: String
     var costUsageEnabled: Bool
     var codexLocalSessionCostLedgerEnabled: Bool
-    var costUsageHistoryDays: Int
+    var costReportingPeriod: CostReportingPeriod
     var costUsageBucketTimeZoneIdentifier: String
     var openCodexUsageLogsEnabled: Bool
     var hideNativeCodexCostWhenOpenCodexPresent: Bool

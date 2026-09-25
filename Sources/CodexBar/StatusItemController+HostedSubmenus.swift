@@ -444,7 +444,7 @@ extension StatusItemController {
             totalCostUSD: tokenSnapshot.last30DaysCostUSD,
             currencyCode: displayConversion.currencyCode,
             costMultiplier: displayConversion.multiplier,
-            historyDays: tokenSnapshot.historyDays,
+            historyDays: tokenSnapshot.displayHistoryDays(calendar: self.settings.costUsageBucketCalendar),
             historyCoverageIsEstablished: tokenSnapshot.historyCoverageIsEstablished,
             windowLabel: tokenSnapshot.historyLabel,
             projects: provider == .codex ? tokenSnapshot.projects : [],

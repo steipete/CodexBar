@@ -371,7 +371,8 @@ struct SpendDashboardModel: Equatable, Sendable {
 
     static func build(
         inputs: [ProviderInput],
-        requestedDays: Int,
+        requestedDays: Int = 30,
+        reportingPeriod: CostReportingPeriod? = nil,
         now: Date,
         calendar: Calendar = .current,
         preferredCurrencyCode: String = "auto",
@@ -379,7 +380,6 @@ struct SpendDashboardModel: Equatable, Sendable {
         hideNativeCodexWhenOpenCodexPresent: Bool = false,
         selectedDay: Date? = nil) -> Self
     {
-        let days = max(1, min(SpendDashboardSource.scanDays, requestedDays))
         let calculationCalendar = Self.gregorianCalendar(timeZone: calendar.timeZone)
         let availableSources = inputs
             .map { SourceFilterItem(id: $0.id, displayName: $0.displayName) }
@@ -411,7 +411,15 @@ struct SpendDashboardModel: Equatable, Sendable {
                 input: input,
                 costMultiplier: conversion ?? 1)
         }
-        let bounds = Self.bounds(days: days, now: now, calendar: calculationCalendar)
+        let period = reportingPeriod
+            ?? (requestedDays >= SpendDashboardSource.scanDays ? .allTime : .rolling(days: max(1, requestedDays)))
+        let earliest = inputs.flatMap { input in
+            input.snapshot.daily.compactMap {
+                Self.day($0.date, provider: input.provider, displayCalendar: calculationCalendar)
+            }
+        }.min() ?? now
+        let bounds = period.bounds(now: now, calendar: calculationCalendar, earliest: earliest)
+        let days = period.days(now: now, calendar: calculationCalendar, earliest: earliest)
         let groups = Dictionary(grouping: classifiedInputs, by: { $0.currencyCode })
             .map { currencyCode, inputs in
                 Self.buildCurrencyGroup(
@@ -1227,9 +1235,7 @@ struct SpendDashboardModel: Equatable, Sendable {
     }
 
     private static func bounds(days: Int, now: Date, calendar: Calendar) -> ClosedRange<Date> {
-        let end = calendar.startOfDay(for: now)
-        let start = calendar.date(byAdding: .day, value: -(days - 1), to: end) ?? end
-        return calendar.startOfDay(for: start)...end
+        CostReportingPeriod.rolling(days: days).bounds(now: now, calendar: calendar)
     }
 
     private static let utcCalendar: Calendar = {

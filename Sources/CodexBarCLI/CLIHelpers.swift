@@ -247,57 +247,36 @@ extension CodexBarCLI {
     }
 
     static func boolFromAppDefaults(_ key: String) -> Bool? {
-        let domains = [
-            "com.steipete.codexbar",
-            "com.steipete.codexbar.debug",
-        ]
-        for domain in domains {
-            #if os(macOS)
-            let cfDomain = domain as CFString
-            CFPreferencesSynchronize(cfDomain, kCFPreferencesCurrentUser, kCFPreferencesAnyHost)
-            if let cfValue = CFPreferencesCopyValue(
-                key as CFString,
-                cfDomain,
-                kCFPreferencesCurrentUser,
-                kCFPreferencesAnyHost) as? Bool
-            {
-                return cfValue
-            }
-            #endif
-            if let value = UserDefaults(suiteName: domain)?.object(forKey: key) as? Bool {
-                return value
-            }
-        }
-        return UserDefaults.standard.object(forKey: key) as? Bool
+        self.valueFromAppDefaults(key)
     }
 
     static func stringFromAppDefaults(_ key: String) -> String? {
-        let domains = [
-            "com.steipete.codexbar",
-            "com.steipete.codexbar.debug",
-        ]
-        for domain in domains {
+        let value: String? = self.valueFromAppDefaults(key)
+        return value?.isEmpty == false ? value : nil
+    }
+
+    static func valueFromAppDefaults<Value>(_ key: String) -> Value? {
+        for domain in ["com.steipete.codexbar", "com.steipete.codexbar.debug"] {
             #if os(macOS)
             let cfDomain = domain as CFString
             CFPreferencesSynchronize(cfDomain, kCFPreferencesCurrentUser, kCFPreferencesAnyHost)
-            if let cfValue = CFPreferencesCopyValue(
-                key as CFString,
-                cfDomain,
-                kCFPreferencesCurrentUser,
-                kCFPreferencesAnyHost) as? String,
-                !cfValue.isEmpty
+            if let value = CFPreferencesCopyValue(
+                key as CFString, cfDomain, kCFPreferencesCurrentUser, kCFPreferencesAnyHost) as? Value,
+                (value as? String)?.isEmpty != true
             {
-                return cfValue
-            }
-            #endif
-            if let value = UserDefaults(suiteName: domain)?.string(forKey: key), !value.isEmpty {
                 return value
             }
+            #endif
+            if let value = UserDefaults(suiteName: domain)?.object(forKey: key) as? Value,
+               (value as? String)?.isEmpty != true { return value }
         }
-        if let value = UserDefaults.standard.string(forKey: key), !value.isEmpty {
-            return value
-        }
-        return nil
+        return UserDefaults.standard.object(forKey: key) as? Value
+    }
+
+    static func costReportingPeriodFromDefaults() -> CostReportingPeriod {
+        .migrated(
+            rawValue: self.stringFromAppDefaults(CostReportingPeriod.defaultsKey),
+            legacyDays: self.valueFromAppDefaults(CostReportingPeriod.legacyDaysKey))
     }
 
     static func fetchProviderUsage(

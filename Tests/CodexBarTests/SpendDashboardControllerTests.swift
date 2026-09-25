@@ -741,7 +741,7 @@ struct SpendDashboardControllerTests {
     }
 
     @Test
-    func `range selection persists only supported windows`() throws {
+    func `range selection persists the shared reporting period`() throws {
         let suite = "SpendDashboardControllerTests-days"
         let defaults = try #require(UserDefaults(suiteName: suite))
         defaults.removePersistentDomain(forName: suite)
@@ -754,18 +754,16 @@ struct SpendDashboardControllerTests {
                     force: mode.forcesLoader)
             })
 
-        #expect(controller.selectedDays == 30)
-        controller.selectDays(7)
-        #expect(controller.selectedDays == 7)
-        #expect(defaults.integer(forKey: "settingsSpendDashboardDays") == 7)
-        controller.selectDays(SpendDashboardSource.scanDays)
-        #expect(controller.selectedDays == SpendDashboardSource.scanDays)
-        #expect(defaults.integer(forKey: "settingsSpendDashboardDays") == SpendDashboardSource.scanDays)
-        controller.selectDays(9)
-        #expect(controller.selectedDays == 30)
-        controller.selectDays(90)
-        #expect(controller.selectedDays == 90)
-        #expect(defaults.integer(forKey: "settingsSpendDashboardDays") == 90)
+        #expect(controller.selectedPeriod == .rolling(days: 30))
+        controller.selectPeriod(.rolling(days: 7))
+        #expect(defaults.string(forKey: "settingsSpendDashboardPeriod") == "rolling:7")
+        controller.selectPeriod(.allTime)
+        #expect(defaults.string(forKey: "settingsSpendDashboardPeriod") == "all")
+        controller.selectPeriod(.monthToDate)
+        #expect(controller.selectedPeriod == .monthToDate)
+        #expect(defaults.string(forKey: "settingsSpendDashboardPeriod") == "month-to-date")
+        controller.selectPeriod(.rolling(days: 90))
+        #expect(controller.selectedPeriod == .rolling(days: 90))
     }
 
     private nonisolated static let fixtureNow = Date(timeIntervalSince1970: 1_784_179_200)

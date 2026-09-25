@@ -480,6 +480,7 @@
 "cost_summary_style_inline_help" = "Mostra el resum de cost directament al menú principal.";
 "cost_summary_style_submenu_help" = "Mostra el submenú Cost detallat en lloc d'això.";
 "cost_summary_style_both_help" = "Mostra el resum del menú principal i el submenú Cost detallat.";
+"Month to date" = "Mes fins avui";
 "cost_history_window_title" = "Finestra d'historial";
 "cost_history_window_help" = "Defineix quants dies de registres d'ús locals apareixen al menú.";
 "cost_history_days_title" = "Finestra d'historial: %d dies";

@@ -484,6 +484,7 @@
 "cost_summary_style_inline_help" = "Menampilkan ringkasan biaya langsung di menu utama.";
 "cost_summary_style_submenu_help" = "Menampilkan submenu Biaya terperinci sebagai gantinya.";
 "cost_summary_style_both_help" = "Menampilkan ringkasan menu utama dan submenu Biaya terperinci.";
+"Month to date" = "Bulan ini hingga kini";
 "cost_history_window_title" = "Jendela riwayat";
 "cost_history_window_help" = "Menentukan berapa hari log penggunaan lokal yang ditampilkan di menu.";
 "cost_history_days_title" = "Jendela riwayat: %d hari";

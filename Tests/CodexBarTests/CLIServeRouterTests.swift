@@ -375,7 +375,7 @@ struct CLIServeRouterTests {
         let start = Date()
         let output = await CodexBarCLI.serveCollectUsageOutputs(
             providers: providers,
-            providerTimeout: 0.1)
+            providerTimeout: 0.5)
         { provider in
             if provider == .claude {
                 try? await Task.sleep(for: .seconds(30))

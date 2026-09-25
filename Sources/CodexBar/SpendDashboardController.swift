@@ -166,8 +166,10 @@ enum SpendDashboardSource {
     typealias CodexCacheRootResolver = @Sendable (CodexSpendScanRequest) -> URL
 
     static let activityDays = 365
-    /// Local spend scan window. Matches token-activity depth so 7d / 30d / All share one snapshot.
-    static let scanDays = activityDays
+    /// Scan available logs once; display periods and the activity heatmap project this history.
+    static var scanDays: Int {
+        CostReportingPeriod.allTime.days(now: Date())
+    }
 
     @MainActor
     static func configuration(settings: SettingsStore, store: UsageStore) -> SpendDashboardConfiguration {
@@ -1174,10 +1176,10 @@ final class SpendDashboardController {
     private(set) var failedSourceCount = 0
     private(set) var generation: UInt64 = 0
     private(set) var configuration: SpendDashboardConfiguration?
-    private(set) var selectedDays: Int
+    private(set) var selectedPeriod: CostReportingPeriod
     private(set) var selectedDay: Date?
 
-    private static let daysDefaultsKey = "settingsSpendDashboardDays"
+    private static let periodDefaultsKey = "settingsSpendDashboardPeriod"
     private let userDefaults: UserDefaults
     private let requestBuilder: RequestBuilder
     private let cachedLoader: CachedLoader?
@@ -1210,7 +1212,12 @@ final class SpendDashboardController {
         self.loader = loader
         self.nowProvider = nowProvider
         self.publicationHandler = publicationHandler
-        self.selectedDays = Self.normalizedDays(userDefaults.integer(forKey: Self.daysDefaultsKey))
+        let legacyDays = userDefaults.object(forKey: "settingsSpendDashboardDays") as? Int
+        self.selectedPeriod = userDefaults.string(forKey: Self.periodDefaultsKey)
+            .flatMap(CostReportingPeriod.init(rawValue:))
+            ?? (legacyDays == 365 ? .allTime : CostReportingPeriod.migrated(
+                rawValue: legacyDays == nil ? userDefaults.string(forKey: CostReportingPeriod.defaultsKey) : nil,
+                legacyDays: legacyDays))
     }
 
     func update(configuration: SpendDashboardConfiguration, force: Bool = false) {
@@ -1613,11 +1620,10 @@ final class SpendDashboardController {
         self.startLoad(configuration: configuration, phase: .ordinary)
     }
 
-    func selectDays(_ days: Int) {
-        let days = Self.normalizedDays(days)
-        guard days != self.selectedDays else { return }
-        self.selectedDays = days
-        self.userDefaults.set(days, forKey: Self.daysDefaultsKey)
+    func selectPeriod(_ period: CostReportingPeriod) {
+        guard period != self.selectedPeriod else { return }
+        self.selectedPeriod = period
+        self.userDefaults.set(period.rawValue, forKey: Self.periodDefaultsKey)
         self.rebuildModel(publish: false)
     }
 
@@ -1681,7 +1687,7 @@ final class SpendDashboardController {
         let configuration = self.configuration
         self.model = SpendDashboardModel.build(
             inputs: self.loadedInputs,
-            requestedDays: self.selectedDays,
+            reportingPeriod: self.selectedPeriod,
             now: self.loadedAt,
             calendar: configuration?.bucketCalendar ?? .current,
             preferredCurrencyCode: configuration?.preferredCurrencyCode ?? "auto",
@@ -1908,11 +1914,5 @@ final class SpendDashboardController {
             guard !accountID.isEmpty else { return nil }
             return ("codex:\(accountID)", identity)
         })
-    }
-
-    private static let supportedDayRanges = [7, 30, 90, SpendDashboardSource.scanDays]
-
-    private static func normalizedDays(_ value: Int) -> Int {
-        self.supportedDayRanges.contains(value) ? value : 30
     }
 }

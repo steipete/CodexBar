@@ -498,6 +498,7 @@
 "cost_summary_style_inline_help" = "Показує підсумок витрат безпосередньо в головному меню.";
 "cost_summary_style_submenu_help" = "Натомість показує детальне підменю Вартість.";
 "cost_summary_style_both_help" = "Показує підсумок у головному меню та детальне підменю Вартість.";
+"Month to date" = "Від початку місяця";
 "cost_history_window_title" = "Вікно історії";
 "cost_history_window_help" = "Визначає, скільки днів локальних журналів використання показувати в меню.";
 "cost_history_days_title" = "Вікно історії: %d днів";

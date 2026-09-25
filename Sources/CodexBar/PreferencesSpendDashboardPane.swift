@@ -241,15 +241,19 @@ struct SpendDashboardPane: View {
                     .foregroundStyle(.secondary)
             }
             Spacer()
-            Picker(L("Time range"), selection: self.daysBinding) {
-                Text(spendDashboardDayRangeText(7)).tag(7)
-                Text(spendDashboardDayRangeText(30)).tag(30)
-                Text(spendDashboardDayRangeText(90)).tag(90)
-                Text(spendDashboardDayRangeText(SpendDashboardSource.scanDays)).tag(SpendDashboardSource.scanDays)
+            Picker(L("Time range"), selection: self.periodBinding) {
+                Text(spendDashboardDayRangeText(7)).tag(CostReportingPeriod.rolling(days: 7))
+                Text(spendDashboardDayRangeText(30)).tag(CostReportingPeriod.rolling(days: 30))
+                Text(spendDashboardDayRangeText(90)).tag(CostReportingPeriod.rolling(days: 90))
+                Text(L("Month to date")).tag(CostReportingPeriod.monthToDate)
+                Text(L("All")).tag(CostReportingPeriod.allTime)
+                if case let .rolling(days) = self.controller.selectedPeriod, ![7, 30, 90].contains(days) {
+                    Text(spendDashboardDayRangeText(days)).tag(self.controller.selectedPeriod)
+                }
             }
             .labelsHidden()
             .pickerStyle(.segmented)
-            .frame(width: 248)
+            .frame(width: 360)
             .accessibilityIdentifier("spend-dashboard-range-picker")
 
             Button {
@@ -550,10 +554,10 @@ struct SpendDashboardPane: View {
         ShareStatsPayloadFactory.make(model: self.controller.model, store: self.store)
     }
 
-    private var daysBinding: Binding<Int> {
+    private var periodBinding: Binding<CostReportingPeriod> {
         Binding(
-            get: { self.controller.selectedDays },
-            set: { self.controller.selectDays($0) })
+            get: { self.controller.selectedPeriod },
+            set: { self.controller.selectPeriod($0) })
     }
 }
 

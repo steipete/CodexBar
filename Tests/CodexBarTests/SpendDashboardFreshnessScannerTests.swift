@@ -19,7 +19,8 @@ struct SpendDashboardFreshnessScannerTests {
         fixture.store._test_tokenUsageSnapshotLoaderOverride = { provider, _, _, _, days in
             #expect(provider == .claude)
             fixture.requests.append(days)
-            // Count requests separately: changing between 30 and 365 days can legitimately reparse a transcript.
+            // Count requests separately: changing between menu and dashboard windows can legitimately
+            // reparse a transcript.
             return try await scanner.load(days: days)
         }
         await fixture.store.refreshSpendDashboardTokenUsageNow(for: .claude, force: true)
@@ -32,7 +33,7 @@ struct SpendDashboardFreshnessScannerTests {
         try scanner.append(day: recentDay, id: "appended", input: 30)
         await fixture.store.refreshTokenUsageNow(for: .claude, force: true)
         try await fixture.waitForSharedCost(0.0015)
-        #expect(fixture.requests == [365, 30, 365])
+        #expect(fixture.requests == [SpendDashboardSource.scanDays, 30, SpendDashboardSource.scanDays])
         try Self.expectShared(fixture, tokens: [100, 50], costs: [0.001, 0.0005], now: recentDay)
         #expect(fixture.store.tokenSnapshot(for: .claude)?.daily.map(\.date) == ["2026-07-15"])
         #expect(fixture.store.tokenSnapshot(for: .claude)?.historyDays == 30)
@@ -43,7 +44,7 @@ struct SpendDashboardFreshnessScannerTests {
         #expect(FileManager.default.fileExists(atPath: cacheURL.path))
         CostUsageScanner.evictClaudeReportMemoForTesting(provider: .claude, cacheRoot: fixture.env.cacheRoot)
         let beforeCold = scanner.recorder.snapshot()
-        let cold = try await scanner.load(days: 365)
+        let cold = try await scanner.load(days: SpendDashboardSource.scanDays)
         #expect(cold.daily == fixture.store.spendDashboardPublication.inputs.first?.snapshot.daily)
         #expect(scanner.recorder.snapshot().cacheDecodes == beforeCold.cacheDecodes)
         #expect(scanner.recorder.snapshot().transcriptParses == beforeCold.transcriptParses)
@@ -57,11 +58,17 @@ struct SpendDashboardFreshnessScannerTests {
             !fixture.store.spendDashboardPublication.isRefreshing &&
                 fixture.store.spendDashboardPublication.revision > beforeRollover
         }
-        #expect(fixture.requests == [365, 30, 365])
+        #expect(fixture.requests == [SpendDashboardSource.scanDays, 30, SpendDashboardSource.scanDays])
         await fixture.store.refreshTokenUsageNow(for: .claude, force: true)
         try await fixture.waitForSharedCost(0.0019)
         try Self.expectShared(fixture, tokens: [100, 50, 40], costs: [0.001, 0.0005, 0.0004], now: tomorrow)
-        #expect(fixture.requests == [365, 30, 365, 30, 365])
+        #expect(fixture.requests == [
+            SpendDashboardSource.scanDays,
+            30,
+            SpendDashboardSource.scanDays,
+            30,
+            SpendDashboardSource.scanDays,
+        ])
         #expect(fixture.store.tokenSnapshot(for: .claude)?.sessionTokens == 40)
         #expect(fixture.store.tokenSnapshot(for: .claude)?.last30DaysTokens == 90)
         #expect(fixture.store.tokenSnapshot(for: .claude)?.historyDays == 30)
@@ -71,7 +78,13 @@ struct SpendDashboardFreshnessScannerTests {
             fixture.store.sharedSpendDashboardController().update(configuration: fixture.configuration)
             _ = await fixture.request()
         }
-        #expect(fixture.requests == [365, 30, 365, 30, 365])
+        #expect(fixture.requests == [
+            SpendDashboardSource.scanDays,
+            30,
+            SpendDashboardSource.scanDays,
+            30,
+            SpendDashboardSource.scanDays,
+        ])
         #expect(scanner.recorder.snapshot() == beforeIdle)
     }
 
@@ -83,7 +96,7 @@ struct SpendDashboardFreshnessScannerTests {
     {
         let publication = fixture.store.spendDashboardPublication
         let snapshot = try #require(publication.inputs.first?.snapshot)
-        #expect(snapshot.historyDays == 365)
+        #expect(snapshot.historyDays == SpendDashboardSource.scanDays)
         #expect(snapshot.daily.compactMap(\.totalTokens) == tokens)
         #expect(snapshot.daily.count == costs.count)
         for (row, cost) in zip(snapshot.daily, costs) {
@@ -91,7 +104,7 @@ struct SpendDashboardFreshnessScannerTests {
         }
         #expect(snapshot.daily.first?.date == "2026-01-01")
         let model = publication.model(
-            requestedDays: 365,
+            requestedDays: SpendDashboardSource.scanDays,
             now: now,
             calendar: CostUsageBucketTimeZone.calendar(identifier: "UTC"),
             preferredCurrencyCode: "USD")

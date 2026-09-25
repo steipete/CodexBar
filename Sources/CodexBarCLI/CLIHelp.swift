@@ -119,7 +119,7 @@ extension CodexBarCLI {
                        [--json-output] [--log-level <trace|verbose|debug|info|warning|error|critical>] [-v|--verbose]
                        [--provider \(ProviderHelp.list)]
                        [--no-color] [--pretty] [--refresh] [--breakdown] [--provider-native-only]
-                       [--days <days>] [--group-by project|session]
+                       [--period month-to-date|all] [--days <days>] [--group-by project|session]
                        [--remote <ssh-host> | --summary-only]
 
         Description:
@@ -476,7 +476,7 @@ extension CodexBarCLI {
                        [--json-output] [--log-level <trace|verbose|debug|info|warning|error|critical>] [-v|--verbose]
                        [--provider \(ProviderHelp.list)] [--no-color] [--pretty] [--refresh] [--breakdown]
                        [--provider-native-only]
-                       [--days <days>] [--group-by project|session]
+                       [--period month-to-date|all] [--days <days>] [--group-by project|session]
           codexbar sessions [--json|--json-v2] [--pretty]
           codexbar sessions focus <id>
           codexbar dashboard [--pretty] [--timeout <seconds>] [--output <path>]

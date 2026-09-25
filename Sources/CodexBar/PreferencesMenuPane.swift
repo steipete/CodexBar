@@ -295,22 +295,25 @@ struct CostHistoryDaysEditor: View {
     }
 
     var body: some View {
-        LabeledContent(Self.title(days: self.settings.costUsageHistoryDays)) {
+        Picker(L("cost_history_window_title"), selection: self.$settings.costReportingPeriod) {
+            Text(L("Month to date")).tag(CostReportingPeriod.monthToDate)
+            Text(L("All")).tag(CostReportingPeriod.allTime)
+            ForEach([1, 7, 30, 90, 365], id: \.self) { days in
+                Text(Self.title(days: days)).tag(CostReportingPeriod.rolling(days: days))
+            }
+            if case let .rolling(days) = self.settings.costReportingPeriod, ![1, 7, 30, 90, 365].contains(days) {
+                Text(Self.title(days: days)).tag(self.settings.costReportingPeriod)
+            }
+        }
+        if case .rolling = self.settings.costReportingPeriod {
             HStack(spacing: 8) {
-                TextField(
-                    Self.title(days: self.settings.costUsageHistoryDays),
-                    value: self.$settings.costUsageHistoryDays,
-                    format: .number)
+                TextField(L("Time range"), value: self.$settings.costUsageHistoryDays, format: .number)
                     .labelsHidden()
                     .textFieldStyle(.roundedBorder)
-                    .multilineTextAlignment(.trailing)
-                    .monospacedDigit()
                     .frame(width: 64)
-
-                Stepper(value: self.$settings.costUsageHistoryDays, in: 1...365, step: 1) {
-                    EmptyView()
+                Stepper(value: self.$settings.costUsageHistoryDays, in: 1...365) {
+                    Text(Self.title(days: self.settings.costUsageHistoryDays))
                 }
-                .labelsHidden()
             }
         }
     }

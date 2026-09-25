@@ -167,9 +167,9 @@ struct SpendDashboardModelTests {
             requestedDays: SpendDashboardSource.scanDays,
             now: Self.now,
             calendar: Self.calendar)
-        #expect(allTime.requestedDays == SpendDashboardSource.scanDays)
+        #expect(allTime.requestedDays == 41)
         #expect(allTime.groups.first?.totalCost == 15)
-        #expect(allTime.groups.first?.coveredDayCount == SpendDashboardSource.scanDays)
+        #expect(allTime.groups.first?.coveredDayCount == 41)
 
         let futureSnapshot = Self.snapshot(
             currency: "USD",
@@ -808,8 +808,8 @@ struct SpendDashboardModelTests {
         #expect(!request.authFileWasReadable)
         #expect(request.displayName == "Codex · #2")
         #expect(request.cacheIdentity.count == 64)
-        #expect(SpendDashboardSource.scanDays == SpendDashboardSource.activityDays)
-        #expect(SpendDashboardSource.scanDays == 365)
+        #expect(SpendDashboardSource.scanDays > SpendDashboardSource.activityDays)
+        #expect(SpendDashboardSource.activityDays == 365)
         #expect(SpendDashboardSource.codexSource(
             account: account,
             homePath: "relative/path",
