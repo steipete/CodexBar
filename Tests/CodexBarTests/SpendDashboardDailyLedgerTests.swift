@@ -4,6 +4,23 @@ import Testing
 @testable import CodexBarCore
 
 struct SpendDashboardDailyLedgerTests {
+    @Test(arguments: [0, 7, 30, 31, 365])
+    func `ledger expansion preserves every day in newest first order`(days: Int) {
+        let summaries = (0..<days).map { day in
+            SpendDashboardModel.DailySummary(
+                day: Self.now.addingTimeInterval(Double(day) * 86400),
+                providers: [],
+                totalTokens: day,
+                requestCount: day,
+                totalCost: Double(day))
+        }
+        let collapsed = spendDailyLedgerVisibleSummaries(summaries, showsAllRows: false, collapsedRowCount: 30)
+        #expect(collapsed.count == min(days, 30))
+        #expect(collapsed == Array(summaries.suffix(30).reversed()))
+        let expanded = spendDailyLedgerVisibleSummaries(summaries, showsAllRows: true, collapsedRowCount: 30)
+        #expect(expanded == Array(summaries.reversed()))
+    }
+
     @Test(arguments: [true, false])
     func `unpriced history outside the window is idle only with complete activity`(complete: Bool) throws {
         let claude = Self.input(

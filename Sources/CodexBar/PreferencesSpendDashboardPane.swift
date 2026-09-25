@@ -880,19 +880,45 @@ private struct SpendDashboardTrendPanel: View {
     }
 }
 
+enum SpendChartContent: Equatable {
+    case chart
+    case unavailable
+}
+
+struct SpendChartSeries: Equatable {
+    let name: String
+    let provider: UsageProvider
+}
+
+private struct SpendChartStyle: ViewModifier {
+    let series: [SpendChartSeries]
+    let currencyCode: String
+
+    func body(content: Content) -> some View {
+        content
+            .chartForegroundStyleScale(
+                domain: self.series.map(\.name),
+                range: self.series.map {
+                    let color = ProviderAccentPalette.color(for: $0.provider)
+                    return Color(red: color.red, green: color.green, blue: color.blue)
+                })
+            .chartLegend(position: .bottom, alignment: .leading, spacing: 8)
+            .chartYAxis {
+                AxisMarks(position: .leading) { value in
+                    AxisGridLine()
+                    AxisValueLabel {
+                        if let amount = value.as(Double.self) {
+                            Text(UsageFormatter.compactCurrencyString(amount, currencyCode: self.currencyCode))
+                        }
+                    }
+                }
+            }
+    }
+}
+
 struct SpendDailyChartPresentation: Equatable {
-    enum Content: Equatable {
-        case chart
-        case unavailable
-    }
-
-    struct Series: Equatable {
-        let name: String
-        let provider: UsageProvider
-    }
-
-    let content: Content
-    let series: [Series]
+    let content: SpendChartContent
+    let series: [SpendChartSeries]
     let dayCount: Int
 
     init(dailyPoints: [SpendDashboardModel.DailyPoint], aggregateTotal: Double?) {
@@ -902,7 +928,7 @@ struct SpendDailyChartPresentation: Equatable {
         var seenNames: Set<String> = []
         self.series = dailyPoints.compactMap { point in
             guard seenNames.insert(point.providerName).inserted else { return nil }
-            return Series(name: point.providerName, provider: point.provider)
+            return SpendChartSeries(name: point.providerName, provider: point.provider)
         }
     }
 
@@ -944,22 +970,7 @@ private struct SpendDailyChartContent: View {
             }
             .chartXScale(domain: self.group.chartDomain)
             .chartXAxis { AxisMarks(format: self.dayFormat) }
-            .chartForegroundStyleScale(
-                domain: presentation.series.map(\.name),
-                range: presentation.series.map { self.providerColor($0.provider) })
-            .chartLegend(position: .bottom, alignment: .leading, spacing: 8)
-            .chartYAxis {
-                AxisMarks(position: .leading) { value in
-                    AxisGridLine()
-                    AxisValueLabel {
-                        if let amount = value.as(Double.self) {
-                            Text(UsageFormatter.compactCurrencyString(
-                                amount,
-                                currencyCode: self.group.currencyCode))
-                        }
-                    }
-                }
-            }
+            .modifier(SpendChartStyle(series: presentation.series, currencyCode: self.group.currencyCode))
             .frame(height: 170)
             .accessibilityLabel(L("Daily estimated spend"))
             .accessibilityValue(presentation.accessibilityValue)
@@ -977,11 +988,6 @@ private struct SpendDailyChartContent: View {
     private func pointAccessibilityLabel(_ point: SpendDashboardModel.DailyPoint) -> String {
         let day = point.day.formatted(self.dayFormat)
         return "\(point.providerName), \(day)"
-    }
-
-    private func providerColor(_ provider: UsageProvider) -> Color {
-        let color = ProviderAccentPalette.color(for: provider)
-        return Color(red: color.red, green: color.green, blue: color.blue)
     }
 }
 
@@ -1017,18 +1023,8 @@ private func spendStackedBarSegmentShape(isTopOfStack: Bool) -> UnevenRoundedRec
 }
 
 struct SpendHourlyChartPresentation: Equatable {
-    enum Content: Equatable {
-        case chart
-        case unavailable
-    }
-
-    struct Series: Equatable {
-        let name: String
-        let provider: UsageProvider
-    }
-
-    let content: Content
-    let series: [Series]
+    let content: SpendChartContent
+    let series: [SpendChartSeries]
     let hourCount: Int
     let includeDateInPointLabels: Bool
 
@@ -1039,7 +1035,7 @@ struct SpendHourlyChartPresentation: Equatable {
         var seenNames: Set<String> = []
         self.series = hourlyPoints.compactMap { point in
             guard seenNames.insert(point.providerName).inserted else { return nil }
-            return Series(name: point.providerName, provider: point.provider)
+            return SpendChartSeries(name: point.providerName, provider: point.provider)
         }
     }
 
@@ -1084,22 +1080,7 @@ private struct SpendHourlyChartContent: View {
                         currencyCode: self.group.currencyCode)))
             }
             .chartXScale(domain: self.group.hourlyChartDomain ?? self.group.chartDomain)
-            .chartForegroundStyleScale(
-                domain: presentation.series.map(\.name),
-                range: presentation.series.map { self.providerColor($0.provider) })
-            .chartLegend(position: .bottom, alignment: .leading, spacing: 8)
-            .chartYAxis {
-                AxisMarks(position: .leading) { value in
-                    AxisGridLine()
-                    AxisValueLabel {
-                        if let amount = value.as(Double.self) {
-                            Text(UsageFormatter.compactCurrencyString(
-                                amount,
-                                currencyCode: self.group.currencyCode))
-                        }
-                    }
-                }
-            }
+            .modifier(SpendChartStyle(series: presentation.series, currencyCode: self.group.currencyCode))
             .frame(height: 170)
             .accessibilityLabel(L("Hourly estimated spend"))
             .accessibilityValue(presentation.accessibilityValue)
@@ -1115,11 +1096,6 @@ private struct SpendHourlyChartContent: View {
             hour: point.hour,
             timeZone: self.group.timeZone,
             includeDate: includeDate)
-    }
-
-    private func providerColor(_ provider: UsageProvider) -> Color {
-        let color = ProviderAccentPalette.color(for: provider)
-        return Color(red: color.red, green: color.green, blue: color.blue)
     }
 }
 
@@ -1141,8 +1117,27 @@ private enum SpendDailyLedgerLayout {
             + (horizontalPadding * 2)
 }
 
+/// Bound initial ledger layout on long ranges; expansion still exposes the complete history.
+func spendDailyLedgerVisibleSummaries(
+    _ summaries: [SpendDashboardModel.DailySummary],
+    showsAllRows: Bool,
+    collapsedRowCount: Int) -> [SpendDashboardModel.DailySummary]
+{
+    Array(summaries.suffix(showsAllRows ? summaries.count : collapsedRowCount).reversed())
+}
+
 private struct SpendDailyLedger: View {
     let group: SpendDashboardModel.CurrencyGroup
+    @State private var showsAllRows = false
+
+    static let collapsedRowCount = 30
+
+    private var visibleSummaries: [SpendDashboardModel.DailySummary] {
+        spendDailyLedgerVisibleSummaries(
+            self.group.dailySummaries,
+            showsAllRows: self.showsAllRows,
+            collapsedRowCount: Self.collapsedRowCount)
+    }
 
     var body: some View {
         SpendDashboardPanel {
@@ -1161,20 +1156,24 @@ private struct SpendDailyLedger: View {
                         VStack(alignment: .leading, spacing: 0) {
                             self.header
                             Divider()
-                            LazyVStack(spacing: 0) {
-                                ForEach(self.group.dailySummaries.reversed()) { summary in
+                            VStack(spacing: 0) {
+                                ForEach(Array(self.visibleSummaries.enumerated()), id: \.element.id) { index, summary in
+                                    if index > 0 {
+                                        Divider()
+                                    }
                                     SpendDailyLedgerRow(
                                         summary: summary,
                                         currencyCode: self.group.currencyCode,
                                         timeZone: self.group.timeZone)
-                                    if summary.day != self.group.dailySummaries.first?.day {
-                                        Divider()
-                                    }
                                 }
                             }
                         }
                         .frame(minWidth: SpendDailyLedgerLayout.minimumTableWidth, alignment: .leading)
                     }
+                    SpendPanelExpandButton(
+                        rowCount: self.group.dailySummaries.count,
+                        collapsedRowCount: Self.collapsedRowCount,
+                        showsAllRows: self.$showsAllRows)
                 }
             }
         }
@@ -1243,7 +1242,6 @@ private struct SpendDailyLedgerRow: View {
             HStack(spacing: 5) {
                 ForEach(self.activeProviders.prefix(4)) { row in
                     SpendProviderIcon(provider: row.provider)
-                        .help(row.displayName)
                 }
                 if self.activeProviders.count > 4 {
                     Text("+\(codexBarLocalizedInteger(self.activeProviders.count - 4))")
@@ -1251,6 +1249,7 @@ private struct SpendDailyLedgerRow: View {
                         .foregroundStyle(.secondary)
                 }
             }
+            .help(self.activeProviders.map(\.displayName).joined(separator: ", "))
         }
     }
 

@@ -2005,6 +2005,24 @@ private final class MenuBarLayoutSizeCountingImage: NSImage {
 
 extension MenuBarLayoutRendererTests {
     @Test
+    func `default status item preserves the 0_65_0 width contract`() {
+        let icon = NSImage(size: NSSize(width: 16, height: 16))
+        let renderer = MenuBarLayoutRenderer()
+        let output = renderer.render(
+            layout: .defaultLayout, data: self.data(), icon: icon, options: self.options())
+        #expect(output.attributedTitle.string == "\u{2009}50%")
+        // The renderer and sizing implementation are unchanged from v0.65.0.
+        #expect(output.statusItemWidth(gap: .tight) == 49)
+        #expect(output.statusItemWidth(gap: .regular) == 56)
+        let iconOnly = renderer.render(
+            layout: MenuBarLayout(lines: [[.icon]]), data: self.data(), icon: icon, options: self.options())
+        #expect(iconOnly.statusItemWidth(gap: .tight) == 19)
+        #expect(iconOnly.statusItemWidth(gap: .regular) == 26)
+        print("STATUS_WIDTH default regular=\(output.statusItemWidth(gap: .regular)) "
+            + "tight=\(output.statusItemWidth(gap: .tight)) iconOnly regular=26 tight=19")
+    }
+
+    @Test
     func `plain single line status content reuses a template image by value`() throws {
         let cache = MenuBarLayoutTitleCache(capacity: 2)
         let renderer = MenuBarLayoutRenderer(cache: cache)
