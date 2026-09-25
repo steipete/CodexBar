@@ -84,7 +84,8 @@ struct GrokRemainingResetsRoutingTests {
                 GrokWebBillingResult(
                     snapshot: GrokWebBillingSnapshot(
                         usedPercent: 29,
-                        resetsAt: now.addingTimeInterval(86400)),
+                        resetsAt: now.addingTimeInterval(86400),
+                        productUsage: [GrokProductUsage(product: "GrokBuild", usedPercent: 4)]),
                     sourceLabel: "Chrome Profile 2",
                     authContext: .cookie("sso=winning"))
             },
@@ -104,6 +105,30 @@ struct GrokRemainingResetsRoutingTests {
 
         #expect(capturedCookie.value == "sso=winning")
         #expect(result.usage.details.first?.rows.first?.value == "1 available")
+        #expect(result.usage.details.count == 2)
+        #expect(result.usage.details[1].title == "Usage breakdown")
+        #expect(result.usage.details[1].rows.first?.value == "4%")
+    }
+
+    @Test
+    func `web strategy keeps product details when no reset credit is available`() async throws {
+        let result = try await GrokWebFetchStrategy().fetch(
+            Self.webContext(includeOptionalUsage: true),
+            webBilling: { _ in
+                GrokWebBillingResult(
+                    snapshot: GrokWebBillingSnapshot(
+                        usedPercent: 29,
+                        resetsAt: nil,
+                        productUsage: [GrokProductUsage(product: "GrokChat", usedPercent: 3)]),
+                    sourceLabel: "Chrome",
+                    authContext: .cookie("sso=winning"))
+            },
+            settingsTier: { _ in nil },
+            remainingResets: { _, _, _ in .empty })
+
+        #expect(result.usage.details.count == 1)
+        #expect(result.usage.details.first?.title == "Usage breakdown")
+        #expect(result.usage.details.first?.rows.first?.label == "Grok Chat")
     }
 
     @Test
@@ -169,7 +194,8 @@ struct GrokRemainingResetsRoutingTests {
             billing: nil,
             webBilling: GrokWebBillingSnapshot(
                 usedPercent: 29,
-                resetsAt: now.addingTimeInterval(86400)),
+                resetsAt: now.addingTimeInterval(86400),
+                productUsage: [GrokProductUsage(product: "GrokImagine", usedPercent: 2)]),
             credentials: nil,
             localSummary: nil,
             cliVersion: nil,
@@ -185,6 +211,9 @@ struct GrokRemainingResetsRoutingTests {
 
         #expect(result.usage.grokResetCredits == resetCredits)
         #expect(result.usage.details.first?.rows.first?.value == "1 available")
+        #expect(result.usage.details.count == 2)
+        #expect(result.usage.details[1].title == "Usage breakdown")
+        #expect(result.usage.details[1].rows.first?.label == "Grok Imagine")
         #expect(result.supplementalUsageTask == nil)
     }
 

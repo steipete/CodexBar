@@ -1,5 +1,33 @@
 import Foundation
 
+enum GrokProductUsageDetails {
+    static func sections(for products: [GrokProductUsage]) -> [ProviderDetailSection] {
+        let rows = products.enumerated()
+            .filter { $0.element.usedPercent.isFinite && $0.element.usedPercent > 0 }
+            .sorted {
+                $0.element.usedPercent == $1.element.usedPercent
+                    ? $0.offset < $1.offset
+                    : $0.element.usedPercent > $1.element.usedPercent
+            }
+            .map { _, usage in
+                let product = usage.product.trimmingCharacters(in: .whitespacesAndNewlines)
+                let label = switch product {
+                case "GrokBuild": "Grok Build"
+                case "GrokChat": "Grok Chat"
+                case "GrokImagine": "Grok Imagine"
+                case "GrokAppBuilder": "Grok App Builder"
+                default: product
+                }
+                return ProviderDetailSection.makeRow(
+                    id: "grok.product.\(product)",
+                    label: label,
+                    value: UsageFormatter.percentString(usage.usedPercent))
+            }
+        guard !rows.isEmpty else { return [] }
+        return [.makeSection(title: "Usage breakdown", rows: rows)]
+    }
+}
+
 public struct GrokUsageSnapshot: Sendable {
     public let billing: GrokBillingResponse?
     public let webBilling: GrokWebBillingSnapshot?
@@ -34,6 +62,7 @@ public struct GrokUsageSnapshot: Sendable {
         // Primary window: credit usage (against included limit) from the CLI RPC,
         // falling back to the web billing RPC used by grok.com when the agent surface lacks billing.
         var primary: RateWindow?
+        var details: [ProviderDetailSection] = []
         if let billing,
            let percent = billing.monthlyUsedPercent
         {
@@ -52,6 +81,7 @@ public struct GrokUsageSnapshot: Sendable {
                 windowMinutes: webBilling.windowMinutes,
                 resetsAt: webBilling.resetsAt,
                 resetDescription: nil)
+            details = GrokProductUsageDetails.sections(for: webBilling.productUsage)
         }
 
         let identity = ProviderIdentitySnapshot(
@@ -68,6 +98,7 @@ public struct GrokUsageSnapshot: Sendable {
             tertiary: nil,
             costUsage: self.localSummary?.toCostUsageTokenSnapshot(
                 historyDays: GrokLocalSessionScanner.defaultLookbackDays),
+            details: details,
             updatedAt: self.updatedAt,
             identity: identity)
     }
