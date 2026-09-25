@@ -11,6 +11,13 @@ public enum MistralUsageFetcher {
         public let resetAt: Date?
     }
 
+    private static let log = CodexBarLog.logger(LogCategories.provider(.mistral, scope: "usage"))
+
+    /// Current-month usage. The legacy billing endpoint stays first so tenants where it answers keep billed-spend
+    /// accounting; when it fails for anything but a session problem, usage is read through the tRPC procedures
+    /// behind the Admin usage page (Mistral moved the page there in September 2026 and the legacy endpoint started
+    /// answering HTTP 500). Session failures (401/403 or a redirect to the login page) surface immediately so the
+    /// next browser session is tried.
     public static func fetchUsage(
         cookieHeader: String,
         csrfToken: String?,
@@ -18,6 +25,41 @@ public enum MistralUsageFetcher {
         transport: ProviderHTTPTransport = ProviderHTTPClient.shared) async throws -> MistralUsageSnapshot
     {
         let now = Date()
+        let legacyError: Error
+        do {
+            return try await Self.fetchLegacyUsage(
+                cookieHeader: cookieHeader,
+                csrfToken: csrfToken,
+                now: now,
+                timeout: timeout,
+                transport: transport)
+        } catch let error as MistralUsageError {
+            if case .invalidCredentials = error { throw error }
+            legacyError = error
+        } catch {
+            if error is CancellationError || (error as? URLError)?.code == .cancelled || Task.isCancelled {
+                throw CancellationError()
+            }
+            legacyError = error
+        }
+        Self.log.info(
+            "Legacy billing usage failed; reading usage through Admin tRPC procedures",
+            metadata: ["error": "\(legacyError.localizedDescription.prefix(200))"])
+        return try await MistralUsageTRPCFetcher.fetchUsage(
+            session: MistralUsageTRPCFetcher.Session(cookieHeader: cookieHeader, csrfToken: csrfToken),
+            now: now,
+            timeout: timeout,
+            transport: transport)
+    }
+
+    /// `GET /api/billing/v2/usage?month&year`: the pre-September-2026 usage source.
+    static func fetchLegacyUsage(
+        cookieHeader: String,
+        csrfToken: String?,
+        now: Date = Date(),
+        timeout: TimeInterval = 15,
+        transport: ProviderHTTPTransport = ProviderHTTPClient.shared) async throws -> MistralUsageSnapshot
+    {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(identifier: "UTC")!
         let month = calendar.component(.month, from: now)
@@ -44,18 +86,26 @@ public enum MistralUsageFetcher {
 
         let response = try await transport.response(for: request)
         let data = response.data
+        try Self.validate(statusCode: response.statusCode, data: data)
+        return try Self.parseResponse(data: data, updatedAt: now)
+    }
 
-        switch response.statusCode {
+    /// Mistral Admin answers a missing or expired `ory_session_*` cookie with a redirect to `auth.mistral.ai`
+    /// rather than a 401; the shared client refuses cross-host redirects, so the raw 3xx surfaces here.
+    private static let redirectStatusCodes: Set<Int> = [301, 302, 303, 307, 308]
+
+    static func validate(statusCode: Int, data: Data) throws {
+        switch statusCode {
         case 200:
-            break
+            return
         case 401, 403:
+            throw MistralUsageError.invalidCredentials
+        case let code where Self.redirectStatusCodes.contains(code):
             throw MistralUsageError.invalidCredentials
         default:
             let body = String(data: data.prefix(200), encoding: .utf8) ?? ""
-            throw MistralUsageError.apiError("HTTP \(response.statusCode): \(body)")
+            throw MistralUsageError.apiError("HTTP \(statusCode): \(body)")
         }
-
-        return try Self.parseResponse(data: data, updatedAt: now)
     }
 
     public static func fetchVibeUsage(
@@ -83,15 +133,7 @@ public enum MistralUsageFetcher {
         let response = try await transport.response(for: request)
         let data = response.data
 
-        switch response.statusCode {
-        case 200:
-            break
-        case 401, 403:
-            throw MistralUsageError.invalidCredentials
-        default:
-            let body = String(data: data.prefix(200), encoding: .utf8) ?? ""
-            throw MistralUsageError.apiError("HTTP \(response.statusCode): \(body)")
-        }
+        try Self.validate(statusCode: response.statusCode, data: data)
 
         return try Self.parseVibeUsage(data: data)
     }
@@ -110,15 +152,7 @@ public enum MistralUsageFetcher {
         request.setValue(url.absoluteString, forHTTPHeaderField: "Referer")
 
         let response = try await transport.response(for: request)
-        switch response.statusCode {
-        case 200:
-            break
-        case 401, 403:
-            throw MistralUsageError.invalidCredentials
-        default:
-            let body = String(data: response.data.prefix(200), encoding: .utf8) ?? ""
-            throw MistralUsageError.apiError("HTTP \(response.statusCode): \(body)")
-        }
+        try Self.validate(statusCode: response.statusCode, data: response.data)
         guard response.response.url?.scheme?.lowercased() == "https",
               response.response.url?.host?.lowercased() == self.baseURL.host,
               let html = String(data: response.data, encoding: .utf8),
@@ -152,15 +186,7 @@ public enum MistralUsageFetcher {
         let response = try await transport.response(for: request)
         let data = response.data
 
-        switch response.statusCode {
-        case 200:
-            break
-        case 401, 403:
-            throw MistralUsageError.invalidCredentials
-        default:
-            let body = String(data: data.prefix(200), encoding: .utf8) ?? ""
-            throw MistralUsageError.apiError("HTTP \(response.statusCode): \(body)")
-        }
+        try Self.validate(statusCode: response.statusCode, data: data)
 
         return try Self.parseCredits(data: data)
     }
@@ -239,83 +265,29 @@ public enum MistralUsageFetcher {
             throw MistralUsageError.parseFailed(error.localizedDescription)
         }
 
-        let prices = Self.buildPriceIndex(billing.prices ?? [])
-        var totalCost: Double = 0
-        var totalTokens = TokenCounts()
-        var modelCount = 0
-        var daily: [String: DailyAccumulator] = [:]
+        let prices = MistralPriceIndex(legacyPrices: billing.prices ?? [])
+        var entries: [MistralUsageAggregator.Entry] = []
 
         // API, Le Chat, and Vibe completions share consumed-token and billed-cost accounting.
         for category in [billing.completion, billing.chat, billing.vibeCode?.completion] {
             for (modelName, modelData) in category?.models ?? [:] {
-                modelCount += 1
-                let aggregate = try Self.aggregateModel(modelData, prices: prices, countsTokens: true)
-                try totalTokens.add(aggregate.tokens)
-                Self.accumulateFiniteCost(aggregate.cost, into: &totalCost)
-                try Self.addDailyEntries(
-                    modelName: modelName,
-                    data: modelData,
-                    prices: prices,
-                    daily: &daily,
-                    countsTokens: true)
+                Self.appendEntries(modelName: modelName, data: modelData, prices: prices, scope: .all, into: &entries)
             }
         }
-
-        // Aggregate OCR, connectors, audio if present
         for category in [billing.ocr, billing.connectors, billing.audio] {
-            if let models = category?.models {
-                for (modelName, modelData) in models {
-                    let (_, cost) = try Self.aggregateModel(modelData, prices: prices, countsTokens: false)
-                    Self.accumulateFiniteCost(cost, into: &totalCost)
-                    try Self.addDailyEntries(
-                        modelName: modelName,
-                        data: modelData,
-                        prices: prices,
-                        daily: &daily,
-                        countsTokens: false)
-                }
+            for (modelName, modelData) in category?.models ?? [:] {
+                Self.appendEntries(modelName: modelName, data: modelData, prices: prices, scope: .none, into: &entries)
             }
         }
-
-        // Aggregate libraries_api (pages + tokens)
-        if let models = billing.librariesApi?.pages?.models {
-            for (modelName, modelData) in models {
-                let (_, cost) = try Self.aggregateModel(modelData, prices: prices, countsTokens: false)
-                Self.accumulateFiniteCost(cost, into: &totalCost)
-                try Self.addDailyEntries(
-                    modelName: modelName,
-                    data: modelData,
-                    prices: prices,
-                    daily: &daily,
-                    countsTokens: false)
-            }
+        for (modelName, modelData) in billing.librariesApi?.pages?.models ?? [:] {
+            Self.appendEntries(modelName: modelName, data: modelData, prices: prices, scope: .none, into: &entries)
         }
-        if let models = billing.librariesApi?.tokens?.models {
-            for (modelName, modelData) in models {
-                let (_, cost) = try Self.aggregateModel(modelData, prices: prices, countsTokens: false)
-                Self.accumulateFiniteCost(cost, into: &totalCost)
-                try Self.addDailyEntries(
-                    modelName: modelName,
-                    data: modelData,
-                    prices: prices,
-                    daily: &daily,
-                    countsTokens: true)
-            }
+        for (modelName, modelData) in billing.librariesApi?.tokens?.models ?? [:] {
+            Self.appendEntries(modelName: modelName, data: modelData, prices: prices, scope: .dailyOnly, into: &entries)
         }
-
-        // Aggregate fine_tuning (training + storage)
         for models in [billing.fineTuning?.training, billing.fineTuning?.storage] {
-            if let models {
-                for (modelName, modelData) in models {
-                    let (_, cost) = try Self.aggregateModel(modelData, prices: prices, countsTokens: false)
-                    Self.accumulateFiniteCost(cost, into: &totalCost)
-                    try Self.addDailyEntries(
-                        modelName: modelName,
-                        data: modelData,
-                        prices: prices,
-                        daily: &daily,
-                        countsTokens: false)
-                }
+            for (modelName, modelData) in models ?? [:] {
+                Self.appendEntries(modelName: modelName, data: modelData, prices: prices, scope: .none, into: &entries)
             }
         }
 
@@ -329,120 +301,53 @@ public enum MistralUsageFetcher {
         }
         let currencySymbol = rawCurrencySymbol.isEmpty ? defaultCurrencySymbol : rawCurrencySymbol
 
-        let startDate = ISO8601DateParser.parse(billing.startDate)
-        let endDate = ISO8601DateParser.parse(billing.endDate)
-        _ = try totalTokens.total()
-
-        return try MistralUsageSnapshot(
-            totalCost: totalCost,
+        return try MistralUsageAggregator.snapshot(entries: entries, period: MistralUsageAggregator.Period(
             currency: currency,
             currencySymbol: currencySymbol,
-            totalInputTokens: totalTokens.input,
-            totalOutputTokens: totalTokens.output,
-            totalCachedTokens: totalTokens.cached,
-            modelCount: modelCount,
-            daily: daily.values.map { try $0.makeBucket() },
-            startDate: startDate,
-            endDate: endDate,
-            updatedAt: updatedAt)
+            startDate: ISO8601DateParser.parse(billing.startDate),
+            endDate: ISO8601DateParser.parse(billing.endDate),
+            updatedAt: updatedAt))
     }
 
     // MARK: - Private Helpers
 
-    private static func buildPriceIndex(_ prices: [MistralPrice]) -> [String: Double] {
-        var index: [String: Double] = [:]
-        for price in prices {
-            guard let metric = price.billingMetric,
-                  let group = price.billingGroup,
-                  let priceStr = price.price,
-                  let value = Double(priceStr),
-                  value.isFinite
-            else { continue }
-            let key = "\(metric)::\(group)"
-            index[key] = value
-        }
-        return index
-    }
-
-    private static func aggregateModel(
-        _ data: MistralModelUsageData,
-        prices: [String: Double],
-        countsTokens: Bool) throws -> (tokens: TokenCounts, cost: Double)
-    {
-        var tokens = TokenCounts()
-        var totalCost: Double = 0
-        let lanes: [(TokenKind, [MistralUsageEntry]?)] = [
-            (.input, data.input), (.output, data.output), (.cached, data.cached),
-        ]
-        for (kind, entries) in lanes {
-            for entry in entries ?? [] {
-                let units = entry.valuePaid ?? entry.value ?? 0
-                if countsTokens { try tokens.add(entry.value ?? entry.valuePaid ?? 0, kind: kind) }
-                Self.accumulateFiniteCost(Self.cost(for: entry, units: units, prices: prices), into: &totalCost)
-            }
-        }
-        return (tokens, totalCost)
-    }
-
-    private static func addDailyEntries(
+    /// Legacy entries: tokens are consumed units (`value`), cost is billed units (`value_paid`) times price.
+    private static func appendEntries(
         modelName: String,
         data: MistralModelUsageData,
-        prices: [String: Double],
-        daily: inout [String: DailyAccumulator],
-        countsTokens: Bool) throws
+        prices: MistralPriceIndex,
+        scope: MistralUsageAggregator.TokenScope,
+        into entries: inout [MistralUsageAggregator.Entry])
     {
-        let lanes: [(TokenKind, [MistralUsageEntry]?)] = [
+        let lanes: [(MistralUsageAggregator.Lane, [MistralUsageEntry]?)] = [
             (.input, data.input), (.output, data.output), (.cached, data.cached),
         ]
-        for (kind, entries) in lanes {
-            try self.addDaily(
-                entries: entries ?? [],
-                context: DailyEntryContext(
-                    kind: kind,
-                    modelName: modelName,
-                    prices: prices,
-                    countsTokens: countsTokens),
-                daily: &daily)
+        for (lane, laneEntries) in lanes {
+            for entry in laneEntries ?? [] {
+                guard let day = MistralUsageAggregator.dayKey(from: entry.timestamp) else { continue }
+                let billedUnits = entry.valuePaid ?? entry.value ?? 0
+                entries.append(MistralUsageAggregator.Entry(
+                    day: day,
+                    modelName: Self.displayModelName(modelName, entry: entry),
+                    modelKey: modelName,
+                    lane: lane,
+                    units: entry.value ?? entry.valuePaid ?? 0,
+                    cost: Self.cost(for: entry, units: billedUnits, prices: prices),
+                    tokenScope: scope))
+            }
         }
     }
 
-    fileprivate enum TokenKind {
-        case input
-        case cached
-        case output
-    }
-
-    private static func addDaily(
-        entries: [MistralUsageEntry],
-        context: DailyEntryContext,
-        daily: inout [String: DailyAccumulator]) throws
-    {
-        for entry in entries {
-            guard let day = dayKey(from: entry.timestamp) else { continue }
-            let units = entry.valuePaid ?? entry.value ?? 0
-            let cost = Self.cost(for: entry, units: units, prices: context.prices)
-            var accumulator = daily[day] ?? DailyAccumulator(day: day)
-            try accumulator.add(
-                modelName: Self.displayModelName(context.modelName, entry: entry),
-                kind: context.kind,
-                units: entry.value ?? entry.valuePaid ?? 0,
-                cost: cost,
-                countsTokens: context.countsTokens)
-            daily[day] = accumulator
-        }
-    }
-
-    private static func cost(for entry: MistralUsageEntry, units: Int, prices: [String: Double]) -> Double {
+    private static func cost(for entry: MistralUsageEntry, units: Int, prices: MistralPriceIndex) -> Double {
         guard let metric = entry.billingMetric, let group = entry.billingGroup else { return 0 }
-        let cost = Double(units) * (prices["\(metric)::\(group)"] ?? 0)
+        let lookup = MistralPriceIndex.Lookup(
+            billingMetric: metric,
+            billingGroup: group,
+            eventType: entry.eventType,
+            apiZone: nil,
+            serviceTier: nil)
+        let cost = Double(units) * (prices.price(for: lookup) ?? 0)
         return cost.isFinite ? cost : 0
-    }
-
-    fileprivate static func accumulateFiniteCost(_ cost: Double, into total: inout Double) {
-        guard cost.isFinite else { return }
-        let updatedTotal = total + cost
-        guard updatedTotal.isFinite else { return }
-        total = updatedTotal
     }
 
     private static func displayModelName(_ raw: String, entry: MistralUsageEntry) -> String {
@@ -452,109 +357,6 @@ public enum MistralUsageFetcher {
             return display
         }
         return raw.split(separator: "::").first.map(String.init) ?? raw
-    }
-
-    private static func dayKey(from timestamp: String?) -> String? {
-        guard let trimmed = timestamp?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else {
-            return nil
-        }
-        if trimmed.count >= 10 {
-            return String(trimmed.prefix(10))
-        }
-        return nil
-    }
-}
-
-private struct DailyEntryContext {
-    let kind: MistralUsageFetcher.TokenKind
-    let modelName: String
-    let prices: [String: Double]
-    let countsTokens: Bool
-}
-
-private struct TokenCounts {
-    var input = 0
-    var cached = 0
-    var output = 0
-
-    mutating func add(_ units: Int, kind: MistralUsageFetcher.TokenKind) throws {
-        let lane: WritableKeyPath<Self, Int> = switch kind {
-        case .input: \.input
-        case .cached: \.cached
-        case .output: \.output
-        }
-        let addition = self[keyPath: lane].addingReportingOverflow(units)
-        guard !addition.overflow else { throw MistralUsageError.parseFailed("Token count exceeds supported range") }
-        self[keyPath: lane] = addition.partialValue
-    }
-
-    mutating func add(_ other: Self) throws {
-        try self.add(other.input, kind: .input)
-        try self.add(other.output, kind: .output)
-        try self.add(other.cached, kind: .cached)
-    }
-
-    func total() throws -> Int {
-        guard let total = MistralTokenMath.total(input: self.input, cached: self.cached, output: self.output) else {
-            throw MistralUsageError.parseFailed("Token count exceeds supported range")
-        }
-        return total
-    }
-}
-
-private struct DailyAccumulator {
-    let day: String
-    var cost: Double = 0
-    var tokens = TokenCounts()
-    var models: [String: ModelAccumulator] = [:]
-
-    mutating func add(
-        modelName: String,
-        kind: MistralUsageFetcher.TokenKind,
-        units: Int,
-        cost: Double,
-        countsTokens: Bool) throws
-    {
-        MistralUsageFetcher.accumulateFiniteCost(cost, into: &self.cost)
-        var model = self.models[modelName] ?? ModelAccumulator(name: modelName)
-        MistralUsageFetcher.accumulateFiniteCost(cost, into: &model.cost)
-        if countsTokens {
-            try self.tokens.add(units, kind: kind)
-            try model.tokens.add(units, kind: kind)
-        }
-        self.models[modelName] = model
-    }
-
-    func makeBucket() throws -> MistralDailyUsageBucket {
-        _ = try self.tokens.total()
-        let models = try self.models.values.map { model in
-            try (breakdown: model.makeBreakdown(), total: model.tokens.total())
-        }.sorted {
-            if $0.total == $1.total { return $0.breakdown.name < $1.breakdown.name }
-            return $0.total > $1.total
-        }
-        return MistralDailyUsageBucket(
-            day: self.day,
-            cost: self.cost,
-            inputTokens: self.tokens.input,
-            cachedTokens: self.tokens.cached,
-            outputTokens: self.tokens.output,
-            models: models.map(\.breakdown))
-    }
-}
-
-private struct ModelAccumulator {
-    let name: String
-    var cost: Double = 0
-    var tokens = TokenCounts()
-
-    func makeBreakdown() -> MistralDailyUsageBucket.ModelBreakdown {
-        MistralDailyUsageBucket.ModelBreakdown(
-            name: self.name,
-            cost: self.cost,
-            inputTokens: self.tokens.input,
-            cachedTokens: self.tokens.cached,
-            outputTokens: self.tokens.output)
     }
 }
 

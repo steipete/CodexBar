@@ -29,9 +29,33 @@ the documented Mistral domains.
 
 ## Data Sources
 
-CodexBar requests the current UTC month, subscription allowances, and credits from Mistral Admin:
+CodexBar requests the current UTC month from the legacy billing endpoint first, whose entries report consumed units
+(`value`) and billed pay-as-you-go units (`value_paid`):
 
 - `GET https://admin.mistral.ai/api/billing/v2/usage?month=<month>&year=<year>`
+
+When that request fails for anything but a session problem (since September 2026 it answers HTTP 500 for valid
+sessions on some accounts), CodexBar reads usage through the tRPC procedures behind the Admin usage page:
+
+- `GET https://admin.mistral.ai/api/users/me` (default workspace id)
+- `GET https://admin.mistral.ai/api/local-trpc/usage.prices?batch=1&input=…` (unit prices for that workspace)
+- `GET https://admin.mistral.ai/api/local-trpc/usage.costTimeseries?batch=1&input=…` (`granularity: "day"`)
+- `GET https://admin.mistral.ai/api/local-trpc/usage.breakdownByModel?batch=1&input=…` (best-effort model names)
+
+The `input` query parameter is a superjson envelope: `{"0":{"json":{…},"meta":{"values":{"start":["Date"],
+"end":["Date"]}}}}`. Rows carry consumed units per day, billing metric, billing group, usage type, API zone, and
+service tier; cost is those units times the matching unit price, which is the "Total cost" the Admin page shows and
+what plan allowances are consumed against. A response flagged `hasMore` is refused rather than under-counted.
+
+Unit prices (both sources) are keyed by billing metric, billing group, event type, API zone, and service tier: one
+metric can be priced per token and per audio second under the same billing group, so the token price must be matched
+by event type.
+
+A missing or expired session answers either path with a redirect to `auth.mistral.ai`; CodexBar treats that like a
+401 and tries the next browser session.
+
+Allowances and credits come from Mistral Admin as well:
+
 - `GET https://admin.mistral.ai/subscription` (best-effort included API and Vibe allowances)
 - `GET https://admin.mistral.ai/api/billing/credits` (best-effort credit balance)
 
@@ -47,9 +71,10 @@ For the console request, CodexBar forwards only the `csrftoken` and `ory_session
 
 - **Included API** shows the subscription allowance's used percentage, used / total / remaining amount, and reset time.
 - The optional **Monthly Plan** window shows the separate Vibe Code allowance with the same details.
-- API spend is computed from billed units (`value_paid`, falling back to `value`) and the pricing table. Token totals
-  and daily buckets use consumed units (`value`, falling back to `value_paid`), so plan-covered usage still counts.
-- Token totals include API completions, Le Chat, and Vibe Code completions from the billing usage response.
+- Spend is units times the unit price table. Through the legacy endpoint it is the billed pay-as-you-go share
+  (`value_paid`, falling back to `value`); through the tRPC procedures it is list-price consumption (the Admin page
+  total). Token totals and daily buckets always use consumed units, so plan-covered usage counts.
+- Token totals include API completions, Le Chat, and Vibe Code completions (rows priced as `api_tokens`).
 - Daily usage buckets feed the inline usage dashboard.
 - The provider card can show credit balance when the credits endpoint returns it.
 - Allowance amounts derive from Mistral's reported percentage and allowance size, independently of billed API spend. Zero or malformed allowances are omitted without discarding a valid sibling allowance.
@@ -86,6 +111,9 @@ optional source fails or does not expose data for the account, CodexBar keeps th
 
 - `Sources/CodexBarCore/Providers/Mistral/MistralProviderDescriptor.swift`
 - `Sources/CodexBarCore/Providers/Mistral/MistralUsageFetcher.swift`
+- `Sources/CodexBarCore/Providers/Mistral/MistralUsageTRPCFetcher.swift`
+- `Sources/CodexBarCore/Providers/Mistral/MistralUsageAggregator.swift`
+- `Sources/CodexBarCore/Providers/Mistral/MistralPriceIndex.swift`
 - `Sources/CodexBarCore/Providers/Mistral/MistralSubscriptionBudgetParser.swift`
 - `Sources/CodexBarCore/Providers/Mistral/MistralModels.swift`
 - `Sources/CodexBarCore/Providers/Mistral/MistralCookieImporter.swift`

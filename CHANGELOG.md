@@ -21,6 +21,7 @@
 
 ### Fixed
 
+- Mistral: fall back to the tRPC procedures behind the Admin usage page when the legacy billing endpoint fails (it now answers HTTP 500 for valid sessions), match unit prices by event type so token prices are no longer overwritten by audio-second prices of the same model, and treat login redirects as an expired session so the next browser is tried. Thanks @welcoMattic!
 - Antigravity: let menu-bar layouts pin Gemini and Claude/GPT weekly percentages separately when each allowance is available (#3394). Thanks @ksuchoi216!
 - Plugins: compute daily reset times from the refresh clock in both plugin engines, so xKiro and other daily-reset plugins report the same reset the rest of the refresh saw.
 - OpenRouter: explain the required API key field instead of reporting no available fetch strategy, and clarify where regular and Management keys belong (#3966, #3969). Thanks @harjothkhara!

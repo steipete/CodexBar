@@ -82,7 +82,7 @@ struct MistralUsageParserTests {
             return (Data(json.utf8), response)
         }
 
-        let snapshot = try await MistralUsageFetcher.fetchUsage(
+        let snapshot = try await MistralUsageFetcher.fetchLegacyUsage(
             cookieHeader: "ory_session_test=abc",
             csrfToken: nil,
             transport: transport)
