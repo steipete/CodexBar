@@ -241,10 +241,17 @@ struct ProviderSettingsDescriptorTests {
         let context = fixture.settingsContext(provider: .openrouter)
 
         let fields = OpenRouterProviderImplementation().settingsFields(context: context)
+        let apiKey = try #require(fields.first(where: { $0.id == "openrouter-api-key" }))
         let managementKey = try #require(fields.first(where: { $0.id == "openrouter-management-api-key" }))
         managementKey.binding.wrappedValue = " fixture-management-key "
 
+        #expect(apiKey.title == "API key")
+        #expect(apiKey.subtitle == "Required. Enter a regular API key or a Management API key here. "
+            + "Management keys also enable account Activity on the official OpenRouter API.")
         #expect(managementKey.title == "Management API key")
+        #expect(managementKey.subtitle == "Optional additional key for account Activity. "
+            + "Only needed to use a separate Management API key "
+            + "from the one in the required API key field above.")
         #expect(managementKey.kind == .secure)
         #expect(managementKey.binding.wrappedValue == "fixture-management-key")
         #expect(fixture.settings.providerConfig(for: .openrouter)?.pluginSecrets?[
@@ -1562,12 +1569,54 @@ extension ProviderSettingsDescriptorTests {
 }
 
 extension ProviderSettingsDescriptorTests {
+    @Test
+    func `render synthetic OpenRouter key guidance`() throws {
+        guard let directory = ProcessInfo.processInfo.environment["CODEXBAR_OPENROUTER_KEY_GUIDANCE_PROOF_DIR"] else {
+            return
+        }
+        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-openrouter-guidance")
+        let fields = OpenRouterProviderImplementation().settingsFields(
+            context: fixture.settingsContext(provider: .openrouter))
+        let previousSubtitles = [
+            "openrouter-api-key": "Stored in your CodexBar config. Shows spend for this key. "
+                + "Management keys also enable account Activity on the official OpenRouter API.",
+            "openrouter-management-api-key": "Optional account Activity key. "
+                + "Takes precedence over a management key in the API key field.",
+        ]
+        let output = URL(fileURLWithPath: directory, isDirectory: true)
+        try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
+        for stage in ["before", "after"] {
+            let displayedFields = fields.map { field in
+                ProviderSettingsFieldDescriptor(
+                    id: field.id,
+                    title: field.title,
+                    subtitle: stage == "before" ? previousSubtitles[field.id] ?? field.subtitle : field.subtitle,
+                    kind: field.kind,
+                    placeholder: field.placeholder,
+                    binding: .constant(""),
+                    actions: [],
+                    isVisible: nil)
+            }
+            let hosting = NSHostingView(rootView: Form {
+                ForEach(displayedFields) { field in
+                    ProviderSettingsFieldRowView(field: field)
+                }
+            }
+            .formStyle(.grouped)
+            .frame(width: 580, height: 420)
+            .environment(\.locale, Locale(identifier: "en"))
+            .preferredColorScheme(.light))
+            hosting.appearance = NSAppearance(named: .aqua)
+            let png = try #require(MenuLayoutScreenshotRenderTests.pngDataWithWindow(hosting: hosting))
+            try png.write(to: output.appendingPathComponent("openrouter-key-guidance-\(stage).png"))
+        }
+    }
+
     private func makeSettingsFixture(
         suite: String,
         environmentBase: [String: String] = [:]) throws -> ProviderSettingsFixture
     {
-        let defaults = try #require(UserDefaults(suiteName: suite))
-        defaults.removePersistentDomain(forName: suite)
+        let defaults = InMemoryUserDefaults()
         let settings = SettingsStore(
             userDefaults: defaults,
             configStore: testConfigStore(suiteName: suite),
