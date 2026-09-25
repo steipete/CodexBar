@@ -206,6 +206,7 @@ final class QuickJSProviderPluginEngine: ProviderPluginEngine, @unchecked Sendab
         let instanceCookieResolver: ProviderPluginRuntime.InstanceCookieResolver?
         let redactionValues: QuickJSRedactionValues
         let deadline: Date
+        let now: Date
     }
 
     private struct CacheEntry {
@@ -442,7 +443,8 @@ final class QuickJSProviderPluginEngine: ProviderPluginEngine, @unchecked Sendab
             cookieResolver: cookieResolver,
             instanceCookieResolver: instanceCookieResolver,
             redactionValues: redactionValues,
-            deadline: Date().addingTimeInterval(self.timeout))
+            deadline: Date().addingTimeInterval(self.timeout),
+            now: now)
         defer { self.fetchState = nil }
         try self.interruptionLock.withLock {
             guard !self.interrupted else { throw CancellationError() }
@@ -739,15 +741,11 @@ final class QuickJSProviderPluginEngine: ProviderPluginEngine, @unchecked Sendab
         else {
             throw ProviderPluginError.script("invalid daily reset time zone or hour")
         }
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = timeZone
-        let now = Date()
-        let start = calendar.startOfDay(for: now)
-        var candidate = calendar.date(byAdding: .hour, value: Int(rawHour), to: start)!
-        if candidate <= now {
-            candidate = calendar.date(byAdding: .day, value: 1, to: candidate)!
+        guard let now = self.fetchState?.now else {
+            throw ProviderPluginError.script("date bridge requires an active fetch")
         }
-        return JS_NewFloat64(self.context, candidate.timeIntervalSince1970 * 1000)
+        let reset = ProviderPluginDailyReset.next(after: now, hour: Int(rawHour), timeZone: timeZone)
+        return JS_NewFloat64(self.context, reset.timeIntervalSince1970 * 1000)
     }
 
     private func hostPercentage(_ arguments: UnsafeBufferPointer<JSValue>) throws -> JSValue {

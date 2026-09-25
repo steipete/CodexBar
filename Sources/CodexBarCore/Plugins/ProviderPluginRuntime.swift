@@ -707,15 +707,8 @@ final class JavaScriptCoreProviderPluginEngine: ProviderPluginEngine, @unchecked
                     in: self?.context)
                 return .nan
             }
-            var calendar = Calendar(identifier: .gregorian)
-            calendar.timeZone = timeZone
-            let now = Date()
-            let start = calendar.startOfDay(for: now)
-            var candidate = calendar.date(byAdding: .hour, value: Int(rawHour), to: start)!
-            if candidate <= now {
-                candidate = calendar.date(byAdding: .day, value: 1, to: candidate)!
-            }
-            return candidate.timeIntervalSince1970 * 1000
+            return ProviderPluginDailyReset.next(after: now, hour: Int(rawHour), timeZone: timeZone)
+                .timeIntervalSince1970 * 1000
         }
         host.setObject(nextDailyReset, forKeyedSubscript: "nextDailyReset" as NSString)
 
@@ -1034,3 +1027,17 @@ final class JavaScriptCoreProviderPluginEngine: ProviderPluginEngine, @unchecked
     }
 }
 #endif
+
+enum ProviderPluginDailyReset {
+    /// Next occurrence of `hour`:00 in `timeZone` strictly after `now`.
+    static func next(after now: Date, hour: Int, timeZone: TimeZone) -> Date {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZone
+        let start = calendar.startOfDay(for: now)
+        var candidate = calendar.date(byAdding: .hour, value: hour, to: start)!
+        if candidate <= now {
+            candidate = calendar.date(byAdding: .day, value: 1, to: candidate)!
+        }
+        return candidate
+    }
+}

@@ -88,6 +88,28 @@ struct ProviderPluginRuntimeTests {
         #expect(snapshot.primary?.usedPercent == 25)
     }
 
+    @Test(arguments: Self.labelValidationEngines)
+    func `date nextDailyReset uses the injected fetch clock`(engine: ProviderPluginEngineKind) async throws {
+        let cases: [(now: TimeInterval, timeZone: String, hour: Int, expected: TimeInterval)] = [
+            // 2020-03-10 12:00 UTC -> next 00:00 UTC.
+            (1_583_841_600, "UTC", 0, 1_583_884_800),
+            // Exactly at the reset hour rolls to the following day.
+            (1_583_884_800, "UTC", 0, 1_583_971_200),
+            // 08:00 EDT -> 09:00 EDT the same day.
+            (1_583_841_600, "America/New_York", 9, 1_583_845_200),
+        ]
+        for testCase in cases {
+            let runtime = try ProviderPluginRuntime(source: Self.plugin(fetchBody: """
+            const reset = ctx.date.nextDailyReset("\(testCase.timeZone)", \(testCase.hour));
+            return { primary: { usedPercent: 1, resetsAt: reset } };
+            """), engine: engine)
+            let snapshot = try await runtime.fetchUsage(
+                secrets: ["TEST_KEY": "fixture-key"],
+                now: Date(timeIntervalSince1970: testCase.now))
+            #expect(snapshot.primary?.resetsAt == Date(timeIntervalSince1970: testCase.expected))
+        }
+    }
+
     private static var labelValidationEngines: [ProviderPluginEngineKind] {
         #if canImport(JavaScriptCore)
         [.quickJS, .javaScriptCore]
