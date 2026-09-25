@@ -25,18 +25,12 @@ public final class AugmentSessionKeepalive {
 
     private var timerTask: Task<Void, Never>?
     private var refreshTasks: [UUID: Task<Void, Never>] = [:]
-    private var notificationTasks: [UUID: Task<Void, Never>] = [:]
-    private var submittedNotificationIDs: Set<String> = []
     private var lifecycle = UUID()
     private var stopped = false
     private let dependencies: AugmentKeepaliveDependencies
     #if DEBUG
     var _test_timerTask: Task<Void, Never>? {
         self.timerTask
-    }
-
-    var _test_notificationTasks: [Task<Void, Never>] {
-        Array(self.notificationTasks.values)
     }
 
     var _test_consecutiveFailures: Int {
@@ -55,6 +49,7 @@ public final class AugmentSessionKeepalive {
 
     private let logger: ((String) -> Void)?
     private var onSessionRecovered: (() async -> Void)?
+    private let onLoginRequired: (() -> Void)?
 
     /// Track consecutive failures to stop retrying after too many failures
     private var consecutiveFailures = 0
@@ -63,24 +58,33 @@ public final class AugmentSessionKeepalive {
 
     // MARK: - Initialization
 
-    public convenience init(logger: ((String) -> Void)? = nil, onSessionRecovered: (() async -> Void)? = nil) {
-        self.init(dependencies: .live, logger: logger, onSessionRecovered: onSessionRecovered)
+    public convenience init(
+        logger: ((String) -> Void)? = nil,
+        onSessionRecovered: (() async -> Void)? = nil,
+        onLoginRequired: (() -> Void)? = nil)
+    {
+        self.init(
+            dependencies: .live,
+            logger: logger,
+            onSessionRecovered: onSessionRecovered,
+            onLoginRequired: onLoginRequired)
     }
 
     init(
         dependencies: AugmentKeepaliveDependencies,
         logger: ((String) -> Void)? = nil,
-        onSessionRecovered: (() async -> Void)? = nil)
+        onSessionRecovered: (() async -> Void)? = nil,
+        onLoginRequired: (() -> Void)? = nil)
     {
         self.dependencies = dependencies
         self.logger = logger
         self.onSessionRecovered = onSessionRecovered
+        self.onLoginRequired = onLoginRequired
     }
 
     deinit {
         self.timerTask?.cancel()
         self.refreshTasks.values.forEach { $0.cancel() }
-        self.notificationTasks.values.forEach { $0.cancel() }
     }
 
     // MARK: - Public API
@@ -127,10 +131,6 @@ public final class AugmentSessionKeepalive {
         self.timerTask = nil
         self.refreshTasks.values.forEach { $0.cancel() }
         self.refreshTasks.removeAll()
-        self.notificationTasks.values.forEach { $0.cancel() }
-        self.notificationTasks.removeAll()
-        self.submittedNotificationIDs.forEach { self.dependencies.removeNotification($0) }
-        self.submittedNotificationIDs.removeAll()
     }
 
     /// Manually trigger a session refresh (bypasses rate limiting)
@@ -245,7 +245,7 @@ public final class AugmentSessionKeepalive {
         }
     }
 
-    private func performRefresh(forced: Bool) async {
+    func performRefresh(forced: Bool) async {
         let lifecycle = self.lifecycle
         guard self.canRun(lifecycle) else { return }
         let id = UUID()
@@ -307,7 +307,7 @@ public final class AugmentSessionKeepalive {
             } else {
                 self.log("⚠️ Session refresh returned no new cookies")
                 self.consecutiveFailures += 1
-                self.checkIfShouldGiveUp(lifecycle: lifecycle)
+                self.checkIfShouldGiveUp()
             }
         } catch AugmentSessionKeepaliveError.sessionExpired {
             guard self.canRun(lifecycle) else { return }
@@ -326,16 +326,15 @@ public final class AugmentSessionKeepalive {
             guard self.canRun(lifecycle), !(error is CancellationError) else { return }
             self.log("✗ Session refresh failed: \(error.localizedDescription)")
             self.consecutiveFailures += 1
-            self.checkIfShouldGiveUp(lifecycle: lifecycle)
+            self.checkIfShouldGiveUp()
         }
     }
 
-    private func checkIfShouldGiveUp(lifecycle: UUID) {
+    private func checkIfShouldGiveUp() {
         if self.consecutiveFailures >= self.maxConsecutiveFailures {
             self.log("❌ Too many consecutive failures (\(self.consecutiveFailures)) - giving up")
             self.log("   User must manually log in to Augment and click 'Refresh Session'")
             self.hasGivenUp = true
-            self.notifyUserLoginRequired(lifecycle: lifecycle)
         }
     }
 
@@ -389,51 +388,9 @@ public final class AugmentSessionKeepalive {
         #endif
     }
 
-    /// Notify the user that they need to log in to Augment
     private func notifyUserLoginRequired(lifecycle: UUID) {
-        #if os(macOS)
         guard self.canRun(lifecycle) else { return }
-        self.log("📢 Sending notification: Augment session expired")
-
-        let id = UUID()
-        let notificationID = "augment-session-expired-\(id.uuidString)"
-        self.notificationTasks[id] = Task { @MainActor [weak self] in
-            guard let self else { return }
-            defer { self.notificationTasks.removeValue(forKey: id) }
-            guard self.canRun(lifecycle) else { return }
-            // Request authorization if needed
-            do {
-                let granted = try await self.dependencies.authorizeNotification()
-                guard self.canRun(lifecycle) else { return }
-                guard granted else {
-                    self.log("⚠️ Notification permission denied")
-                    return
-                }
-            } catch {
-                guard self.canRun(lifecycle), !(error is CancellationError) else { return }
-                self.log("✗ Failed to request notification permission: \(error)")
-                return
-            }
-
-            // Deliver notification
-            self.submittedNotificationIDs.insert(notificationID)
-            do {
-                try await self.dependencies.deliverNotification(notificationID)
-                guard self.canRun(lifecycle) else {
-                    // Submission may complete after stop already tried to withdraw this request.
-                    self.dependencies.removeNotification(notificationID)
-                    self.submittedNotificationIDs.remove(notificationID)
-                    return
-                }
-                self.log("✅ Notification delivered successfully")
-            } catch {
-                self.dependencies.removeNotification(notificationID)
-                self.submittedNotificationIDs.remove(notificationID)
-                guard self.canRun(lifecycle), !(error is CancellationError) else { return }
-                self.log("✗ Failed to deliver notification: \(error)")
-            }
-        }
-        #endif
+        self.onLoginRequired?()
     }
 
     /// Ping Augment's session endpoint to trigger cookie refresh

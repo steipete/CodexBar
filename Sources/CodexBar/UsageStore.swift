@@ -74,6 +74,7 @@ extension UsageStore {
                 self.invalidateProviderAvailabilityCache()
                 self.probeLogs = [:]
                 guard self.startupBehavior.automaticallyStartsBackgroundWork else { return }
+                self.retireDisabledCredentialNotifications()
                 self.startTimer()
                 self.updateProviderRuntimes()
                 let enabledNow = Set(self.settings.enabledProvidersOrdered(
@@ -446,6 +447,13 @@ final class UsageStore {
     @ObservationIgnored var quotaLowHookUsage: [QuotaWarningStateKey: Double] = [:]
     @ObservationIgnored var quotaLowHookConfigRevision: Int?
     @ObservationIgnored var predictivePaceWarningNotifiedKeys: Set<PredictivePaceWarningStateKey> = []
+    #if DEBUG
+    @ObservationIgnored var _test_credentialNotificationPost: ((String, @escaping @MainActor (Bool) -> Void) -> Void)?
+    @ObservationIgnored var _test_credentialNotificationRemove: ((String) -> Void)?
+    #endif
+    @ObservationIgnored var claudeCredentialNotificationScopes: [String: String] = [:]
+    @ObservationIgnored var credentialNotificationsStopped = false
+    @ObservationIgnored var credentialNotificationEpisodes: [CredentialNotificationKey: UUID] = [:]
     @ObservationIgnored var lastPermissionPromptNotificationAt: [ProviderInstanceID: Date] = [:]
     @ObservationIgnored var lastTokenFetchAt: [ProviderInstanceID: Date] = [:]
     @ObservationIgnored var lastTokenFetchScope: [ProviderInstanceID: String] = [:]

@@ -12,6 +12,8 @@ struct SettingsDefaultsState {
     var debugLoadingPatternRaw: String?
     var debugKeepCLISessionsAlive: Bool
     var statusChecksEnabled: Bool
+    var stayAwakeEnabled: Bool
+    var credentialExpiryNotificationsEnabled: Bool
     var sessionQuotaNotificationsEnabled: Bool
     var quotaWarningNotificationsEnabled: Bool
     var predictivePaceWarningNotificationsEnabled: Bool

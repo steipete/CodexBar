@@ -52,6 +52,8 @@ final class AgentSessionsStore {
     private let remoteHostDiscovery: RemoteHostDiscovery
     private let remoteFetch: RemoteFetch
     private let remoteFetcher: RemoteSessionFetcher
+    private let powerAssertion: AgentSessionPowerAssertion
+    private var powerAssertionID: UInt32?
     private let periodicSleep: PeriodicSleep
     @ObservationIgnored private var localPeriodicTask: Task<Void, Never>?
     @ObservationIgnored private var remotePeriodicTask: Task<Void, Never>?
@@ -67,44 +69,30 @@ final class AgentSessionsStore {
     private(set) var lastUpdatedAt: Date?
     private(set) var latestLocalActivityAt: Date?
 
-    init(
+    convenience init(
         settings: SettingsStore,
         localScanner: LocalAgentSessionScanner = LocalAgentSessionScanner(),
         remoteFetcher: RemoteSessionFetcher = RemoteSessionFetcher())
     {
-        self.settings = settings
-        self.localScan = { includeFileOnlySessions in
-            await localScanner.scan(includeFileOnlySessions: includeFileOnlySessions)
-        }
-        self.remoteHostDiscovery = {
-            await remoteFetcher.discoveredHosts()
-        }
-        self.remoteFetch = { hosts in
-            await remoteFetcher.fetch(hosts: hosts)
-        }
-        self.remoteFetcher = remoteFetcher
-        self.periodicSleep = { duration in
-            try await Task.sleep(for: duration)
-        }
+        self.init(
+            settings: settings,
+            localScan: { includeFileOnlySessions in
+                await localScanner.scan(includeFileOnlySessions: includeFileOnlySessions)
+            },
+            remoteFetcher: remoteFetcher)
     }
 
-    init(
+    convenience init(
         settings: SettingsStore,
         localScan: @escaping LocalScan,
         remoteFetcher: RemoteSessionFetcher = RemoteSessionFetcher())
     {
-        self.settings = settings
-        self.localScan = localScan
-        self.remoteHostDiscovery = {
-            await remoteFetcher.discoveredHosts()
-        }
-        self.remoteFetch = { hosts in
-            await remoteFetcher.fetch(hosts: hosts)
-        }
-        self.remoteFetcher = remoteFetcher
-        self.periodicSleep = { duration in
-            try await Task.sleep(for: duration)
-        }
+        self.init(
+            settings: settings,
+            localScan: localScan,
+            remoteHostDiscovery: { await remoteFetcher.discoveredHosts() },
+            remoteFetch: { await remoteFetcher.fetch(hosts: $0) },
+            remoteFetcher: remoteFetcher)
     }
 
     init(
@@ -112,17 +100,21 @@ final class AgentSessionsStore {
         localScan: @escaping LocalScan,
         remoteHostDiscovery: @escaping RemoteHostDiscovery,
         remoteFetch: @escaping RemoteFetch,
+        remoteFetcher: RemoteSessionFetcher = RemoteSessionFetcher(),
+        powerAssertion: AgentSessionPowerAssertion = .live,
         periodicSleep: @escaping PeriodicSleep = { duration in try await Task.sleep(for: duration) })
     {
         self.settings = settings
         self.localScan = localScan
         self.remoteHostDiscovery = remoteHostDiscovery
         self.remoteFetch = remoteFetch
-        self.remoteFetcher = RemoteSessionFetcher()
+        self.remoteFetcher = remoteFetcher
+        self.powerAssertion = powerAssertion
         self.periodicSleep = periodicSleep
     }
 
-    deinit {
+    isolated deinit {
+        if let powerAssertionID { self.powerAssertion.release(powerAssertionID) }
         self.localPeriodicTask?.cancel()
         self.remotePeriodicTask?.cancel()
         self.localImmediateTask?.cancel()
@@ -136,7 +128,8 @@ final class AgentSessionsStore {
     /// Adaptive refresh uses local metadata only after explicit consent. Remote sessions remain
     /// behind the Agent Sessions setting because they can involve Tailscale discovery and SSH.
     var localMonitoringEnabled: Bool {
-        self.settings.agentSessionsEnabled || self.settings.adaptiveActivityScanningEnabled
+        self.settings.agentSessionsEnabled || self.settings.adaptiveActivityScanningEnabled ||
+            self.settings.stayAwakeEnabled
     }
 
     var schedulerState: SchedulerState {
@@ -176,6 +169,7 @@ final class AgentSessionsStore {
     }
 
     func stop() {
+        self.updatePowerAssertion(hasLiveSession: false)
         guard self.isStarted || self.hasOwnedTasks else { return }
         self.isStarted = false
         self.localRefreshGate.settingsDidChange()
@@ -184,6 +178,7 @@ final class AgentSessionsStore {
     }
 
     func settingsDidChange(remoteConfigurationChanged: Bool = true) {
+        if !self.settings.stayAwakeEnabled { self.updatePowerAssertion(hasLiveSession: false) }
         self.localRefreshGate.settingsDidChange()
         if remoteConfigurationChanged {
             self.remoteRefreshGate.settingsDidChange()
@@ -235,12 +230,16 @@ final class AgentSessionsStore {
     }
 
     func applyLocalScanResult(_ sessions: [AgentSession], updatedAt: Date = Date()) {
+        let wasKeepingAwake = self.isKeepingAwake
+        self.updatePowerAssertion(hasLiveSession: sessions.contains { ($0.pid ?? 0) > 0 })
         let latestActivityAt = Self.latestActivityAt(in: sessions)
         let effectiveSessions = self.settings.agentSessionsEnabled ? sessions : []
         // Rescans that reproduce the current content must not publish: `onUpdate` invalidates
         // menus, and a redundant invalidation landing while the user hovers an Overview row's
         // chart submenu fed the open/close rebuild flicker loop in #2652.
-        if latestActivityAt == self.latestLocalActivityAt, effectiveSessions == self.localSessions {
+        if wasKeepingAwake == self.isKeepingAwake,
+           latestActivityAt == self.latestLocalActivityAt, effectiveSessions == self.localSessions
+        {
             self.lastUpdatedAt = updatedAt
             return
         }
@@ -248,6 +247,19 @@ final class AgentSessionsStore {
         self.localSessions = effectiveSessions
         self.lastUpdatedAt = updatedAt
         self.onUpdate?()
+    }
+
+    var isKeepingAwake: Bool {
+        self.powerAssertionID != nil
+    }
+
+    private func updatePowerAssertion(hasLiveSession: Bool) {
+        if self.isStarted, self.settings.stayAwakeEnabled, hasLiveSession {
+            if self.powerAssertionID == nil { self.powerAssertionID = self.powerAssertion.acquire() }
+        } else if let powerAssertionID {
+            self.powerAssertion.release(powerAssertionID)
+            self.powerAssertionID = nil
+        }
     }
 
     private var hasOwnedTasks: Bool {
@@ -311,7 +323,7 @@ final class AgentSessionsStore {
     private func requestLocalRefresh() {
         guard self.isStarted, self.localMonitoringEnabled, self.localImmediateTask == nil else { return }
         let processInfo = ProcessInfo.processInfo
-        guard Self.shouldScanLocally(
+        guard self.settings.stayAwakeEnabled || Self.shouldScanLocally(
             agentSessionsEnabled: self.settings.agentSessionsEnabled,
             adaptiveActivityScanningEnabled: self.settings.adaptiveActivityScanningEnabled,
             lowPowerModeEnabled: processInfo.isLowPowerModeEnabled,
