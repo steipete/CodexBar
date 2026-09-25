@@ -24,19 +24,16 @@ final class AppNotifications {
         title: String,
         body: String,
         badge: NSNumber? = nil,
-        soundEnabled: Bool = true)
+        soundEnabled: Bool = true,
+        identifier: String? = nil,
+        isCurrent: @escaping @MainActor () -> Bool = { true },
+        onCompletion: (@MainActor (Bool) -> Void)? = nil)
     {
         guard !Self.isRunningUnderTests else { return }
         let center = self.centerProvider()
         let logger = self.logger
 
         Task { @MainActor in
-            let granted = await self.ensureAuthorized()
-            guard granted else {
-                logger.debug("not authorized; skipping post", metadata: ["prefix": idPrefix])
-                return
-            }
-
             let content = UNMutableNotificationContent()
             content.title = title
             content.body = body
@@ -44,18 +41,55 @@ final class AppNotifications {
             content.badge = badge
 
             let request = UNNotificationRequest(
-                identifier: "codexbar-\(idPrefix)-\(UUID().uuidString)",
+                identifier: identifier ?? "codexbar-\(idPrefix)-\(UUID().uuidString)",
                 content: content,
                 trigger: nil)
 
             logger.info("posting", metadata: ["prefix": idPrefix])
             do {
-                try await center.add(request)
+                let delivered = try await Self.deliverIfCurrent(
+                    authorize: { await self.ensureAuthorized() },
+                    submit: { try await center.add(request) },
+                    remove: {
+                        center.removePendingNotificationRequests(withIdentifiers: [request.identifier])
+                        center.removeDeliveredNotifications(withIdentifiers: [request.identifier])
+                    },
+                    isCurrent: isCurrent)
+                onCompletion?(delivered)
             } catch {
+                onCompletion?(false)
                 let errorText = String(describing: error)
                 logger.error("failed to post", metadata: ["prefix": idPrefix, "error": errorText])
             }
         }
+    }
+
+    func remove(identifier: String) {
+        guard !Self.isRunningUnderTests else { return }
+        let center = self.centerProvider()
+        center.removePendingNotificationRequests(withIdentifiers: [identifier])
+        center.removeDeliveredNotifications(withIdentifiers: [identifier])
+    }
+
+    @discardableResult
+    static func deliverIfCurrent(
+        authorize: () async -> Bool,
+        submit: () async throws -> Void,
+        remove: () -> Void,
+        isCurrent: () -> Bool) async throws -> Bool
+    {
+        guard isCurrent(), await authorize(), isCurrent() else { return false }
+        do {
+            try await submit()
+        } catch {
+            remove()
+            throw error
+        }
+        guard isCurrent() else {
+            remove()
+            return false
+        }
+        return true
     }
 
     // MARK: - Private
@@ -70,7 +104,10 @@ final class AppNotifications {
     }
 
     private func ensureAuthorized() async -> Bool {
-        await self.ensureAuthorizationTask().value
+        let granted = await self.ensureAuthorizationTask().value
+        // A later System Settings permission change must be observable after a denied attempt.
+        if !granted { self.authorizationTask = nil }
+        return granted
     }
 
     private func requestAuthorization() async -> Bool {

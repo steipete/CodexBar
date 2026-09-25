@@ -140,6 +140,22 @@ extension SettingsStore {
         }
     }
 
+    var stayAwakeEnabled: Bool {
+        get { self.defaultsState.stayAwakeEnabled }
+        set {
+            self.defaultsState.stayAwakeEnabled = newValue
+            self.userDefaults.set(newValue, forKey: "stayAwakeEnabled")
+        }
+    }
+
+    var credentialExpiryNotificationsEnabled: Bool {
+        get { self.defaultsState.credentialExpiryNotificationsEnabled }
+        set {
+            self.defaultsState.credentialExpiryNotificationsEnabled = newValue
+            self.userDefaults.set(newValue, forKey: "credentialExpiryNotificationsEnabled")
+        }
+    }
+
     var sessionQuotaNotificationsEnabled: Bool {
         get { self.defaultsState.sessionQuotaNotificationsEnabled }
         set {

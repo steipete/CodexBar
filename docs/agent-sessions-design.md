@@ -7,7 +7,7 @@ read_when:
 
 # Agent Sessions design
 
-CodexBar tracks live Codex, Claude Code, and Pi-family agent sessions locally and over SSH. Discovery is process-backed: a transcript, session file, or terminal breadcrumb by itself is not evidence that a session is live.
+CodexBar discovers Codex, Claude Code, and Pi-family agent sessions locally and over SSH. Local discovery correlates processes with bounded metadata and can show recent Codex file-only fallback rows. Those fallback rows do not prove process lifetime and never activate Stay Awake.
 
 ## Data model
 
@@ -41,6 +41,20 @@ Local focus walks from the session PID to the owning terminal/editor application
 ## Privacy and safety
 
 CodexBar never invokes `ps eww`, reads `/proc/<pid>/environ`, or otherwise captures full target-process environments for session discovery. It reads only bounded session metadata under resolved roots, never loads prompt/tool transcript bodies for this feature, never changes upstream session state, and never persists extracted titles separately.
+
+## Stay Awake
+
+Settings → Menu → Agent Sessions includes **Stay Awake**, off by default and local to this Mac.
+It independently enables local scanning every 30 seconds, without enabling the Agent Sessions menu or
+remote discovery. CodexBar holds one `PreventUserIdleSystemSleep` assertion while the local scanner reports
+at least one positive session PID. Idle processes waiting for a prompt count; remote sessions and file-only
+rollouts do not. The menu says “Stay Awake: local agent session is live” while the assertion is held.
+
+The assertion is released when the next scan sees no process-backed sessions, immediately when the toggle
+is turned off, or when CodexBar quits. Stale scan completions cannot acquire it after disabling or shutdown.
+macOS also releases the process-owned assertion if the app crashes. A failed acquisition is retried on the
+next scan. Stay Awake can use battery power; it does not prevent display sleep, explicit sleep, or lid-close
+sleep and cannot wake a sleeping Mac. This version has no timer, grace period, or always-on mode.
 
 ## Tests
 

@@ -5,6 +5,27 @@ import Testing
 
 @MainActor
 struct AgentSessionMenuDescriptorTests {
+    @Test(arguments: [false, true])
+    func `stay awake status follows the held assertion independently of session visibility`(held: Bool) {
+        let settings = testSettingsStore(suiteName: "awake-menu-\(held)")
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            startupBehavior: .testing)
+        let descriptor = MenuDescriptor.build(
+            provider: .codex,
+            store: store,
+            settings: settings,
+            account: AccountInfo(email: nil, plan: nil),
+            updateReady: false,
+            isKeepingAwake: held)
+        #expect(descriptor.sections.flatMap(\.entries).contains { entry in
+            if case let .text(title, _) = entry { return title.hasPrefix("Stay Awake:") }
+            return false
+        } == held)
+    }
+
     @Test
     func `fresh settings omit agent sessions until explicitly enabled`() {
         let settings = testSettingsStore(suiteName: "AgentSessionMenuDescriptorTests-default-off")

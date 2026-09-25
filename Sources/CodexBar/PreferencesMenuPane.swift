@@ -125,6 +125,13 @@ struct AgentSessionsSettingsSection: View {
 
     var body: some View {
         Section {
+            Toggle(isOn: self.$settings.stayAwakeEnabled) {
+                SettingsRowLabel(
+                    "Stay Awake",
+                    subtitle: "Prevent idle system sleep while a local agent process is running, even when idle. " +
+                        "Uses battery power; does not prevent lid-close or display sleep.")
+            }
+
             Toggle(isOn: self.$settings.agentSessionsEnabled) {
                 SettingsRowLabel(
                     L("agent_sessions_title"),

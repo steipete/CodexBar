@@ -7,6 +7,12 @@ struct NotificationsPane: View {
     var body: some View {
         Form {
             Section {
+                Toggle(isOn: self.$settings.credentialExpiryNotificationsEnabled) {
+                    SettingsRowLabel(
+                        "Credential expiry",
+                        subtitle: "Notify once when a provider account needs you to sign in again.")
+                }
+
                 Toggle(isOn: self.$settings.sessionQuotaNotificationsEnabled) {
                     SettingsRowLabel(
                         L("quota_depleted_title"),

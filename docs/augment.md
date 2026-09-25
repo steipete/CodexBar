@@ -90,6 +90,10 @@ Disabling Augment stops its timer and cancels in-flight automatic and forced ref
 follow-up cookie imports, cache writes, recovery actions, or notifications after it resumes. Re-enabling starts a new
 keepalive lifecycle, and cancelling one manual refresh does not cancel another active refresh.
 
+Login-required events use the shared, off-by-default **Settings → Notifications → Credential expiry**
+option. Repeated keepalive and usage failures share one episode, and network retry exhaustion does not
+send an expiry alert. See [credential notifications](credential-notifications.md).
+
 ### API Endpoints
 
 The provider fetches data from:

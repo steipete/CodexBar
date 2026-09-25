@@ -56,7 +56,7 @@ extension StatusItemController {
             } else {
                 self.store.clearCodingActivityObservation()
             }
-            if self.settings.agentSessionsEnabled {
+            if self.settings.agentSessionsEnabled || self.settings.stayAwakeEnabled {
                 // Match the store-observation path (`handleObservedStoreMenuChange`): mark menus
                 // stale but never rebuild a tracked parent in place. Rebuilding the Overview
                 // parent mid-hover replaces the hovered row and force-closes its hosted chart
@@ -74,10 +74,12 @@ extension StatusItemController {
             self.settings.agentSessionsEnabled != self.lastAgentSessionsEnabled ||
             self.settings.agentSessionsManualHosts != self.lastAgentSessionsManualHosts
         let monitoringChanged =
+            self.settings.stayAwakeEnabled != self.lastStayAwakeEnabled ||
             self.settings.refreshFrequency != self.lastAgentSessionsRefreshFrequency ||
             self.settings.adaptiveActivityScanningEnabled != self.lastAdaptiveActivityScanningEnabled
         guard remoteConfigurationChanged || monitoringChanged else { return }
 
+        self.lastStayAwakeEnabled = self.settings.stayAwakeEnabled
         self.lastAgentSessionsEnabled = self.settings.agentSessionsEnabled
         self.lastAgentSessionsManualHosts = self.settings.agentSessionsManualHosts
         self.lastAgentSessionsRefreshFrequency = self.settings.refreshFrequency

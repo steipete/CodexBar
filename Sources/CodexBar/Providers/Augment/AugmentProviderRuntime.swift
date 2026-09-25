@@ -4,6 +4,7 @@ import Foundation
 @MainActor
 final class AugmentProviderRuntime: ProviderRuntime {
     let id: UsageProvider = .augment
+    private var keepaliveGeneration = UUID()
     private var keepalive: AugmentSessionKeepalive?
     #if DEBUG
     var _test_clearCookieCache: (() -> Void)?
@@ -85,7 +86,19 @@ final class AugmentProviderRuntime: ProviderRuntime {
             await store.refreshProvider(.augment)
         }
 
-        self.keepalive = AugmentSessionKeepalive(logger: logger, onSessionRecovered: onSessionRecovered)
+        let generation = UUID()
+        self.keepaliveGeneration = generation
+        self.keepalive = AugmentSessionKeepalive(
+            logger: logger,
+            onSessionRecovered: onSessionRecovered,
+            onLoginRequired: { [weak self, weak store = context.store] in
+                guard let self, let store, store.isEnabled(.augment),
+                      self.keepaliveGeneration == generation else { return }
+                store.handleCredentialOutcome(
+                    provider: .augment,
+                    result: .failure(AugmentStatusProbeError.sessionExpired),
+                    isCurrent: { [weak self] in self?.keepaliveGeneration == generation })
+            })
         self.keepalive?.start()
         context.store.augmentLogger.info("Augment keepalive started")
         #endif
@@ -94,6 +107,8 @@ final class AugmentProviderRuntime: ProviderRuntime {
     private func stopKeepalive(context: ProviderRuntimeContext, reason: String) {
         #if os(macOS)
         guard let keepalive = self.keepalive else { return }
+        self.keepaliveGeneration = UUID()
+        context.store.retireCredentialNotifications(provider: .augment)
         keepalive.stop()
         self.keepalive = nil
         #if DEBUG

@@ -668,6 +668,8 @@ extension SettingsStore {
             debugLoadingPatternRaw: debugLoadingPatternRaw,
             debugKeepCLISessionsAlive: debugKeepCLISessionsAlive,
             statusChecksEnabled: notificationDefaults.statusChecksEnabled,
+            stayAwakeEnabled: userDefaults.bool(forKey: "stayAwakeEnabled"),
+            credentialExpiryNotificationsEnabled: userDefaults.bool(forKey: "credentialExpiryNotificationsEnabled"),
             sessionQuotaNotificationsEnabled: notificationDefaults.sessionQuotaNotificationsEnabled,
             quotaWarningNotificationsEnabled: quotaWarnings.notificationsEnabled,
             predictivePaceWarningNotificationsEnabled: notificationDefaults.predictivePaceWarningNotificationsEnabled,

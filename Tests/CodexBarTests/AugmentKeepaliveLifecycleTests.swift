@@ -6,12 +6,13 @@ import Testing
 @MainActor
 struct AugmentKeepaliveLifecycleTests {
     enum Stage {
-        case none, transport, unauthorizedTransport, browserDelay, recoveryDelay, persistence, authorization, delivery,
+        case none, networkFailure, transport, unauthorizedTransport, browserDelay, recoveryDelay, persistence,
+             loginRequired,
              timer
     }
 
     @Test(arguments: [
-        Stage.transport, .unauthorizedTransport, .browserDelay, .recoveryDelay, .persistence, .authorization, .delivery,
+        Stage.transport, .unauthorizedTransport, .browserDelay, .recoveryDelay, .persistence,
     ])
     func `stop prevents every later keepalive effect`(stage: Stage) async throws {
         let fixture = try Fixture(stage: stage)
@@ -23,24 +24,29 @@ struct AugmentKeepaliveLifecycleTests {
         await fixture.stopAndDrain(keepalive, requests: [request])
         #expect(fixture.effects == prior)
         #expect(keepalive._test_consecutiveFailures == failures)
-        #expect(fixture.activeNotificationIDs.isEmpty)
     }
 
     @Test
-    func `current notification is submitted and removed when the lifecycle stops`() async throws {
-        let fixture = try Fixture(stage: .delivery)
+    func `expired session reports login required to the app and stops reporting after stop`() async throws {
+        let fixture = try Fixture(stage: .loginRequired)
         let keepalive = fixture.makeKeepalive()
-        let request = Task { await keepalive.forceRefresh() }
-        guard await fixture.waitFor(fixture.gate, keepalive: keepalive, requests: [request]) else { return }
-        let notifications = keepalive._test_notificationTasks
-        await fixture.gate.open()
-        await request.value
-        for notification in notifications {
-            await notification.value
+        await keepalive.forceRefresh()
+        #expect(fixture.effects.loginRequired == 1)
+        keepalive.stop()
+        await keepalive.forceRefresh()
+        #expect(fixture.effects.loginRequired == 1)
+    }
+
+    @Test
+    func `network retry exhaustion does not report credential expiry`() async throws {
+        let fixture = try Fixture(stage: .networkFailure)
+        let keepalive = fixture.makeKeepalive()
+        for _ in 0..<3 {
+            await keepalive.performRefresh(forced: false)
         }
-        #expect(fixture.activeNotificationIDs.count == 1)
-        await fixture.stopAndDrain(keepalive)
-        #expect(fixture.activeNotificationIDs.isEmpty)
+        #expect(keepalive._test_consecutiveFailures == 3)
+        #expect(fixture.effects.loginRequired == 0)
+        keepalive.stop()
     }
 
     @Test
@@ -155,8 +161,7 @@ struct AugmentKeepaliveLifecycleTests {
         var cached = 0
         var callbacks = 0
         var opened = 0
-        var authorizations = 0
-        var delivered = 0
+        var loginRequired = 0
     }
 
     @MainActor
@@ -169,7 +174,6 @@ struct AugmentKeepaliveLifecycleTests {
         var holdReplacement = false
         var effects = Effects()
         var logs: [String] = []
-        var activeNotificationIDs: Set<String> = []
 
         init(stage: Stage) throws {
             self.stage = stage
@@ -187,12 +191,13 @@ struct AugmentKeepaliveLifecycleTests {
                 },
                 send: { request in
                     self.effects.pings += 1
+                    if self.stage == .networkFailure { throw URLError(.notConnectedToInternet) }
                     if self.effects.pings == 1, self.stage == .transport || self.stage == .unauthorizedTransport {
                         await self.gate.pause()
                     } else if self.holdReplacement, self.effects.pings == 2 {
                         await self.replacementGate.pause()
                     }
-                    let expired = [.unauthorizedTransport, .recoveryDelay, .authorization, .delivery]
+                    let expired = [.unauthorizedTransport, .recoveryDelay, .loginRequired]
                         .contains(self.stage)
                     let response = HTTPURLResponse(
                         url: request.url!,
@@ -215,22 +220,12 @@ struct AugmentKeepaliveLifecycleTests {
                     if !Task.isCancelled { self.effects.writes += 1 }
                 },
                 cacheSession: { _ in self.effects.cached += 1 },
-                openDashboard: { self.effects.opened += 1 },
-                authorizeNotification: {
-                    self.effects.authorizations += 1
-                    if self.stage == .authorization { await self.gate.pause() }
-                    return true
-                },
-                deliverNotification: { identifier in
-                    self.effects.delivered += 1
-                    if self.stage == .delivery { await self.gate.pause() }
-                    self.activeNotificationIDs.insert(identifier)
-                },
-                removeNotification: { self.activeNotificationIDs.remove($0) })
+                openDashboard: { self.effects.opened += 1 })
             return AugmentSessionKeepalive(
                 dependencies: dependencies,
                 logger: { self.logs.append($0) },
-                onSessionRecovered: { self.effects.callbacks += 1 })
+                onSessionRecovered: { self.effects.callbacks += 1 },
+                onLoginRequired: { self.effects.loginRequired += 1 })
         }
 
         func waitFor(
@@ -248,7 +243,6 @@ struct AugmentKeepaliveLifecycleTests {
 
         func stopAndDrain(_ keepalive: AugmentSessionKeepalive, requests: [Task<Void, Never>] = []) async {
             let timer = keepalive._test_timerTask
-            let notifications = keepalive._test_notificationTasks
             keepalive.stop()
             await self.gate.open()
             await self.replacementGate.open()
@@ -257,9 +251,6 @@ struct AugmentKeepaliveLifecycleTests {
                 await request.value
             }
             await timer?.value
-            for notification in notifications + keepalive._test_notificationTasks {
-                await notification.value
-            }
             keepalive.stop()
         }
     }
@@ -283,7 +274,8 @@ struct AugmentKeepaliveLifecycleTests {
         }
 
         func waitUntilEntered() async -> Bool {
-            let deadline = ContinuousClock.now + .seconds(5)
+            // Other suites can hold MainActor during synchronous source audits.
+            let deadline = ContinuousClock.now + .seconds(30)
             while !self.entered, ContinuousClock.now < deadline {
                 do { try await Task.sleep(for: .milliseconds(10)) } catch { return false }
             }

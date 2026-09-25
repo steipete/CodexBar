@@ -4,6 +4,8 @@
 
 ### Added
 
+- Agent sessions: add opt-in Stay Awake for live local agent processes, including idle sessions, with automatic release and a menu status indicator (#2740). Thanks @kocaemre!
+- Notifications: add opt-in, account-scoped credential-expiry alerts and route Augment keepalive through shared delivery without repeated refresh notifications (#2512). Thanks @LeoLin990405!
 - LiteLLM: optionally show per-model input/output/total tokens and logged requests for the last 30 days while preserving personal/team budgets (#3432). Thanks @anyingiit!
 - Claude Admin API: optionally break down 30-day spend by workspace while preserving organization totals (#2350). Thanks @ShawNova!
 - Plugins: preserve small non-secret checkpoints across app and CLI restarts with isolated, bounded string storage and explicit approval (#3170). Thanks @CrackedPoly!

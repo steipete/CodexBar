@@ -2,6 +2,33 @@ import CodexBarCore
 import CryptoKit
 import Foundation
 
+struct TokenAccountUsageSnapshot: Identifiable {
+    let id: UUID
+    let account: ProviderTokenAccount
+    let snapshot: UsageSnapshot?
+    let error: String?
+    let sourceLabel: String?
+    let cacheKey: String
+    let fetchError: (any Error)?
+
+    init(
+        account: ProviderTokenAccount,
+        snapshot: UsageSnapshot?,
+        error: String?,
+        sourceLabel: String?,
+        cacheKey: String,
+        fetchError: (any Error)? = nil)
+    {
+        self.id = account.id
+        self.account = account
+        self.snapshot = snapshot
+        self.error = error
+        self.sourceLabel = sourceLabel
+        self.cacheKey = cacheKey
+        self.fetchError = fetchError
+    }
+}
+
 extension UsageStore {
     func tokenAccountSnapshotCacheKey(provider: UsageProvider, account: ProviderTokenAccount) -> String {
         var config = (self.settings.configSnapshot.providerConfig(for: provider.instanceID)
