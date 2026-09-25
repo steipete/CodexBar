@@ -41,7 +41,7 @@ ApplicationWindow {
         reset.currentIndex = reset.model.indexOf(s.resetDisplay);
         trayStyle.currentIndex = trayStyle.model.indexOf(s.trayStyle);
         theme.checked = s.followOmarchyTheme; pace.checked = s.showPace; warnings.checked = s.warningColors;
-        refreshOnOpen.checked = s.refreshOnOpen;
+        refreshOnOpen.checked = s.refreshOnOpen; compactQuickView.checked = s.compactQuickView;
         tray.checked = s.showTray; executable.text = s.executable; feedback = "";
     }
     Shortcut { sequence: "Escape"; onActivated: window.hide() }
@@ -167,6 +167,7 @@ ApplicationWindow {
                                 onClicked: desktop.setLaunchAtLogin(!desktop.launchAtLogin)
                             }
                             Option { id: tray; text: "Tray icon" }
+                            Option { id: compactQuickView; text: "Use compact Quick View from the tray" }
                             Label { text: "Optional with the Omarchy widget. CodexBar is also available in the application launcher."; Layout.fillWidth: true; wrapMode: Text.Wrap; opacity: 0.65 }
                             RowLayout {
                                 Layout.fillWidth: true
@@ -220,7 +221,8 @@ ApplicationWindow {
                         notifyThreshold: threshold.value, refreshSeconds: interval.value,
                         providerOrder: window.providerOrder, quotaDisplay: quota.currentText, resetDisplay: reset.currentText,
                         followOmarchyTheme: theme.checked, showPace: pace.checked, warningColors: warnings.checked, trayStyle: trayStyle.currentText,
-                        refreshOnOpen: refreshOnOpen.checked, showTray: tray.checked, executable: executable.text.trim()})) window.feedback = "Settings saved";
+                        refreshOnOpen: refreshOnOpen.checked, showTray: tray.checked, compactQuickView: compactQuickView.checked,
+                        executable: executable.text.trim()})) window.feedback = "Settings saved";
                 }
             }
         }

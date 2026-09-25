@@ -199,13 +199,19 @@ else:
         self.assertTrue(value['stale'])
         self.assertEqual(value['summary'], 'CX 60%')
 
-    def test_quick_view_scans_cost_once_and_refresh_on_open_is_optional(self):
+    def test_quick_view_is_explicit_and_scans_cost_only_when_opened(self):
         calls = self.root / 'calls.jsonl'
+        self.assertFalse((self.root / 'config/codexbar/linux.json').exists())
         self.client('--usage')
+        self.assertEqual([json.loads(line)['args'][0] for line in calls.read_text().splitlines()], ['usage'])
+        self.client('--quick-view')
         self.wait_for(lambda value: value.get('costProviders') == 1 and not value['costBusy'])
         self.assertEqual([json.loads(line)['args'][0] for line in calls.read_text().splitlines()],
                          ['usage', 'cost'])
-        self.client('--configure', '{"refreshOnOpen":true}')
+        self.client('--configure', '{"compactQuickView":true,"refreshOnOpen":true}')
+        self.assertTrue(json.loads((self.root / 'config/codexbar/linux.json').read_text())['compactQuickView'])
+        self.client('--configure', '{"showCosts":false}')
+        self.client('--configure', '{"showCosts":true}')
         self.wait_for(lambda value: bool(value.get('entries')) and not value['busy'])
         previous = len(calls.read_text().splitlines())
         self.client('--usage')
@@ -214,6 +220,10 @@ else:
             time.sleep(0.05)
         self.assertEqual(len(calls.read_text().splitlines()), previous + 1)
         self.assertEqual(json.loads(calls.read_text().splitlines()[-1])['args'][0], 'usage')
+        self.assertNotIn('cost', [json.loads(line)['args'][0] for line in calls.read_text().splitlines()[previous:]])
+        self.client('--quick-view')
+        self.wait_for(lambda value: value.get('costProviders') == 1 and not value['costBusy'])
+        self.assertIn('cost', [json.loads(line)['args'][0] for line in calls.read_text().splitlines()[previous + 1:]])
 
     def test_failed_spending_preserves_previous_scan(self):
         self.client('--spending')

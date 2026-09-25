@@ -357,7 +357,7 @@ ApplicationWindow {
                         width: parent.width
                         spacing: 8
                         Rectangle { Layout.fillWidth: true; height: 1; color: window.dividerColor }
-                        Label { text: "Cost"; color: window.primaryText; font.pixelSize: 15; font.weight: Font.DemiBold }
+                        Label { text: "Cost across accounts"; color: window.primaryText; font.pixelSize: 15; font.weight: Font.DemiBold }
                         Label {
                             text: window.selectedCost ? "Today " + Usage.money(window.selectedCost.today) +
                                 "  ·  Last 30 days " + Usage.money(window.selectedCost.month) : "Reading local history…"

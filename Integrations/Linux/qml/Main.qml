@@ -9,8 +9,8 @@ QtObject {
         target: desktop
         function onWindowRequested(page) {
             var target = page === "settings" ? root.preferences :
-                page === "usage" ? root.quickView : root.dashboard;
-            if (page === "dashboard" || page === "spending")
+                page === "quick-view" ? root.quickView : root.dashboard;
+            if (page === "usage" || page === "dashboard" || page === "spending")
                 root.dashboard.selectedTab = page === "spending" ? 1 : 0;
             target.show();
             target.raise();

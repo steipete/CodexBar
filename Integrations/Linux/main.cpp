@@ -79,14 +79,14 @@ int main(int argc, char **argv) {
     QCommandLineParser parser;
     parser.setApplicationDescription("CodexBar desktop for Linux · Qt windows and optional tray");
     parser.addHelpOption(); parser.addVersionOption();
-    for (const auto &name : {"snapshot", "refresh", "settings", "spending", "dashboard", "usage", "quit", "background", "no-tray"})
+    for (const auto &name : {"snapshot", "refresh", "settings", "spending", "dashboard", "usage", "quick-view", "quit", "background", "no-tray"})
         parser.addOption(QCommandLineOption(name, QString("%1 the running desktop app").arg(name)));
     parser.addOption(QCommandLineOption("autostart", "Set login startup: enable, disable, status", "action"));
     parser.addOption(QCommandLineOption("configure", "Update desktop settings through local IPC", "json"));
     parser.addOption(QCommandLineOption("cli", "CodexBar CLI executable for a new instance", "path"));
     parser.process(*application);
     QString command = "usage";
-    for (const auto &name : {"background", "usage", "settings", "spending", "dashboard", "refresh", "snapshot", "quit", "configure", "autostart"})
+    for (const auto &name : {"background", "usage", "quick-view", "settings", "spending", "dashboard", "refresh", "snapshot", "quit", "configure", "autostart"})
         if (parser.isSet(name)) command = name;
     const bool clientOnly = QStringList{"snapshot", "refresh", "quit", "configure", "autostart"}.contains(command);
     const bool noTray = parser.isSet("no-tray");
@@ -176,7 +176,7 @@ int main(int argc, char **argv) {
     if (engine.rootObjects().isEmpty()) return 1;
     QSystemTrayIcon tray(QIcon(":/icon.svg"));
     QMenu menu;
-    menu.addAction("Quick View", &controller, [&controller] { controller.showWindow("usage"); });
+    menu.addAction("Quick View", &controller, [&controller] { controller.showWindow("quick-view"); });
     menu.addAction("Usage & Spend…", &controller, [&controller] { controller.showWindow("dashboard"); });
     menu.addAction("Settings…", &controller, [&controller] { controller.showWindow("settings"); });
     menu.addSeparator();
@@ -184,7 +184,8 @@ int main(int argc, char **argv) {
     menu.addAction("Quit CodexBar", &app, &QCoreApplication::quit);
     tray.setContextMenu(&menu);
     QObject::connect(&tray, &QSystemTrayIcon::activated, &controller, [&controller](QSystemTrayIcon::ActivationReason reason) {
-        if (reason == QSystemTrayIcon::Trigger || reason == QSystemTrayIcon::DoubleClick) controller.showWindow("usage");
+        if (reason == QSystemTrayIcon::Trigger || reason == QSystemTrayIcon::DoubleClick)
+            controller.showWindow(controller.settings().value("compactQuickView").toBool() ? "quick-view" : "usage");
     });
     auto updateTray = [&] {
         tray.setVisible(!noTray && controller.settings().value("showTray").toBool());
