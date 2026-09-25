@@ -75,49 +75,11 @@ enum AppLanguage: String, CaseIterable, Identifiable {
     }
 }
 
-enum PreferredCurrencyOption: String, CaseIterable, Identifiable {
-    case auto
-    case usd = "USD"
-    case gbp = "GBP"
-    case eur = "EUR"
-    case czk = "CZK"
-    case cny = "CNY"
-    case jpy = "JPY"
-    case krw = "KRW"
-    case cad = "CAD"
-    case aud = "AUD"
-    case hkd = "HKD"
-    case twd = "TWD"
-    case sgd = "SGD"
-    case inr = "INR"
-    case chf = "CHF"
-    case aed = "AED"
-    case `try` = "TRY"
+enum PreferredCurrencyOption {
+    static let codes = ["auto"] + CurrencyExchange.supportedCurrencies
 
-    var id: String {
-        self.rawValue
-    }
-
-    var label: String {
-        switch self {
-        case .auto: L("currency_auto")
-        case .usd: "USD ($)"
-        case .gbp: "GBP (£)"
-        case .eur: "EUR (€)"
-        case .czk: "CZK (Kč)"
-        case .cny: "CNY (¥)"
-        case .jpy: "JPY (¥)"
-        case .krw: "KRW (₩)"
-        case .cad: "CAD ($)"
-        case .aud: "AUD ($)"
-        case .hkd: "HKD ($)"
-        case .twd: "TWD (NT$)"
-        case .sgd: "SGD ($)"
-        case .inr: "INR (₹)"
-        case .chf: "CHF (Fr.)"
-        case .aed: "AED (د.إ)"
-        case .try: "TRY (₺)"
-        }
+    static func label(for code: String) -> String {
+        code == "auto" ? L("currency_auto") : CurrencyExchange.pickerLabel(for: code) ?? code
     }
 }
 
@@ -140,12 +102,12 @@ struct GeneralPane: View {
 
                 SettingsMenuPicker(
                     selection: self.$settings.preferredCurrencyCode,
-                    options: PreferredCurrencyOption.allCases.map(\.rawValue),
+                    options: PreferredCurrencyOption.codes,
                     label: {
                         SettingsRowLabel(L("currency_title"), subtitle: L("currency_subtitle"))
                     },
                     optionLabel: { rawValue in
-                        Text(verbatim: PreferredCurrencyOption(rawValue: rawValue)?.label ?? rawValue)
+                        Text(verbatim: PreferredCurrencyOption.label(for: rawValue))
                     })
                     .onChange(of: self.settings.preferredCurrencyCode) { _, newValue in
                         guard CurrencyExchange.requiresLiveRates(preferredCurrencyCode: newValue) else { return }

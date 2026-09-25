@@ -4,7 +4,7 @@ import FoundationNetworking
 #endif
 
 /// Manages currency exchange rates for converting USD-denominated AI model token estimates
-/// into user-preferred currencies (GBP, EUR, CNY, JPY, CAD, AUD, etc.).
+/// into user-preferred currencies (GBP, EUR, CNY, JPY, CAD, AUD, NZD, etc.).
 ///
 /// Rates are sourced from the ExchangeRate-API (open.er-api.com), a free service
 /// aggregating data from central banks and market sources. Rates are updated daily
@@ -14,32 +14,50 @@ public final class CurrencyExchange: @unchecked Sendable {
     public static let shared = CurrencyExchange()
 
     /// All currency codes supported by the converter.
-    public static let supportedCurrencies: [String] = [
-        "USD", "GBP", "EUR", "CZK", "CNY", "JPY", "KRW", "CAD", "AUD", "HKD", "TWD", "SGD", "INR", "CHF", "AED", "TRY",
-    ]
+    public static let supportedCurrencies = CurrencyExchange.currencies.map(\.code)
 
-    private let lock = NSLock()
-    private let defaults: UserDefaults
+    public static func pickerLabel(for code: String) -> String? {
+        guard let currency = currencies.first(where: { $0.code == code }) else { return nil }
+        return "\(currency.code) (\(currency.symbol))"
+    }
+
+    /// Picker order, symbols, and offline rates share one catalog.
     /// Hardcoded fallback rates (approximate mid-market rates as of 2025-07).
     /// These are only used when no cached or live rates are available.
-    private var rates: [String: Double] = [
-        "USD": 1.0,
-        "GBP": 0.79,
-        "EUR": 0.92,
-        "CZK": 21.0,
-        "CNY": 7.27,
-        "JPY": 154.0,
-        "KRW": 1428.90,
-        "CAD": 1.38,
-        "AUD": 1.55,
-        "HKD": 7.80,
-        "TWD": 32.30,
-        "SGD": 1.34,
-        "INR": 84.50,
-        "CHF": 0.80,
-        "AED": 3.6725,
-        "TRY": 48.5, // Due to high inflation, rate from 2026-09-13.
+    private static let currencies: [(code: String, symbol: String, rate: Double)] = [
+        ("USD", "$", 1.0),
+        ("GBP", "£", 0.79),
+        ("EUR", "€", 0.92),
+        ("CZK", "Kč", 21.0),
+        ("CNY", "¥", 7.27),
+        ("JPY", "¥", 154.0),
+        ("KRW", "₩", 1428.90),
+        ("CAD", "$", 1.38),
+        ("AUD", "$", 1.55),
+        ("HKD", "$", 7.80),
+        ("TWD", "NT$", 32.30),
+        ("SGD", "$", 1.34),
+        ("INR", "₹", 84.50),
+        ("CHF", "Fr.", 0.80),
+        ("AED", "د.إ", 3.6725),
+        ("TRY", "₺", 48.5), // Due to high inflation, rate from 2026-09-13.
+        // Rates below from open.er-api.com on 2026-09-24.
+        ("NZD", "$", 1.761),
+        ("SEK", "kr", 9.908),
+        ("NOK", "kr", 9.480),
+        ("DKK", "kr", 6.554),
+        ("PLN", "zł", 3.838),
+        ("BRL", "R$", 5.117),
+        ("MXN", "$", 17.47),
+        ("ZAR", "R", 16.36),
+        ("THB", "฿", 33.37),
+        ("IDR", "Rp", 17836.0),
+        ("VND", "₫", 25962.0),
+        ("UAH", "₴", 44.86),
     ]
+    private let lock = NSLock()
+    private let defaults: UserDefaults
+    private var rates = Dictionary(uniqueKeysWithValues: CurrencyExchange.currencies.map { ($0.code, $0.rate) })
     private var lastFetchTime: Date?
 
     private static let userDefaultsKey = "CodexBar.CurrencyExchangeRates"

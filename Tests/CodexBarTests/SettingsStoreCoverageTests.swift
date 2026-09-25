@@ -867,10 +867,9 @@ struct SettingsStoreCoverageTests {
     }
 
     @Test
-    func `preferred currency defaults to USD and persists an explicit selection`() throws {
+    func `preferred currency defaults to USD and persists an explicit selection`() {
         let suite = "SettingsStoreCoverageTests-preferred-currency"
-        let defaults = try #require(UserDefaults(suiteName: suite))
-        defaults.removePersistentDomain(forName: suite)
+        let defaults = InMemoryUserDefaults()
         let configStore = testConfigStore(suiteName: suite)
 
         let fresh = Self.makeSettingsStore(userDefaults: defaults, configStore: configStore)
@@ -883,17 +882,28 @@ struct SettingsStoreCoverageTests {
         reloaded.preferredCurrencyCode = "AED"
         let reloadedAED = Self.makeSettingsStore(userDefaults: defaults, configStore: configStore)
         #expect(reloadedAED.preferredCurrencyCode == "AED")
+
+        for code in ["NZD", "SEK", "NOK", "DKK", "PLN", "BRL", "MXN", "ZAR", "THB", "IDR", "VND", "UAH"] {
+            reloadedAED.preferredCurrencyCode = code
+            let reloadedCurrency = Self.makeSettingsStore(userDefaults: defaults, configStore: configStore)
+            #expect(reloadedCurrency.preferredCurrencyCode == code)
+        }
     }
 
     @Test
     func `preferred currency picker matches every supported exchange currency`() {
-        let pickerCurrencies = PreferredCurrencyOption.allCases
-            .filter { $0 != .auto }
-            .map(\.rawValue)
-
-        #expect(pickerCurrencies == CurrencyExchange.supportedCurrencies)
-        #expect(PreferredCurrencyOption.aed.label == "AED (د.إ)")
-        #expect(PreferredCurrencyOption.try.label == "TRY (₺)")
+        let codes = PreferredCurrencyOption.codes
+        #expect(codes.first == "auto")
+        #expect(Array(codes.dropFirst()) == CurrencyExchange.supportedCurrencies)
+        #expect(Set(codes).count == codes.count)
+        #expect(codes.dropFirst().map { PreferredCurrencyOption.label(for: $0) } == [
+            "USD ($)", "GBP (£)", "EUR (€)", "CZK (Kč)", "CNY (¥)", "JPY (¥)", "KRW (₩)", "CAD ($)",
+            "AUD ($)", "HKD ($)", "TWD (NT$)", "SGD ($)", "INR (₹)", "CHF (Fr.)", "AED (د.إ)", "TRY (₺)",
+            "NZD ($)", "SEK (kr)", "NOK (kr)", "DKK (kr)", "PLN (zł)", "BRL (R$)", "MXN ($)", "ZAR (R)",
+            "THB (฿)", "IDR (Rp)", "VND (₫)", "UAH (₴)",
+        ])
+        #expect(PreferredCurrencyOption.label(for: "auto") == L("currency_auto"))
+        #expect(PreferredCurrencyOption.label(for: "XYZ") == "XYZ")
     }
 
     private static func makeSettingsStore(

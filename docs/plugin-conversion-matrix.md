@@ -55,7 +55,7 @@ Remaining cookie rows need individual parity audits for their provider-specific 
 | fireworks | `cut-over` | Yes | Both engines use the bundled script for account discovery and billing spend, including empty results, dynamic source labels, and allowlisted app/CLI slug persistence with save diagnostics. Native fetcher is deleted. |
 | clinepass | `cut-over` | Yes | Cut over on both engines: fixed-origin bearer GET, typed quota lanes, credential aliases, and classified failures match native behavior; the Swift fetcher and Linux fixtures are deleted. |
 | cursor | `needs-files/subprocess/oauth-broker` | No | Native app-auth SQLite discovery and local CSV usage remain required; domain cookies do not replace those sources. |
-| opencode | `needs-cookie-import` | No | GET/JSON POST and SolidStart text decoding fit JavaScript, but cached-session rejection requires a same-refresh fresh cookie import. |
+| opencode | `needs-cookie-import` | No | Same-refresh candidate rejection is supported, but native import merges two cookie domains into one cache entry; domain-scoped plugin imports can stage two writes, which interactive refresh cannot commit atomically (#3982). |
 | opencodego | `needs-files/subprocess/oauth-broker` | No | Local auth/SQLite state and browser sessions are required, with an additional bespoke usage model. |
 | alibaba | `needs-host-extension` | No | Console auth still requires form-encoded POST and CSRF/sec-token discovery; the host only sends JSON POST. |
 | alibabatokenplan | `needs-host-extension` | No | Console requests require form-encoded POST and redirect-aware cookie forwarding, which domain-scoped headers do not supply. |
