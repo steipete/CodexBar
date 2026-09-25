@@ -2,6 +2,10 @@
 
 ## 0.67.1 — Unreleased
 
+### Changed
+
+- Settings: simplify menu bar layout controls while keeping token-removal instructions in the section footer (#3999). Thanks @elijahfriedman!
+
 ## 0.67.0 — 2026-09-25
 
 ### Highlights
@@ -498,7 +502,6 @@
 - Grok: skip discarded local-history scans and version probes after terminal CLI billing failures, allowing fallback to start sooner (extracted from #3236). Thanks @Yuxin-Qiao!
 - Groq: reject unavailable, malformed, or overflowing Prometheus rates instead of showing nonnumeric usage or inventing zero, while preserving genuine empty-query results and API error messages.
 - Documentation: link the community-maintained CodexBar for Windows companion and AI Monitor USB desk display (#3525, #3544). Thanks @hinneslung and @tobymarks!
-
 
 ## 0.59.0 — 2026-09-10
 
@@ -2602,7 +2605,6 @@
 - Codex/OpenAI web: reduce CPU and energy overhead by shortening failed CLI probe windows, capping web retry timeouts, and using adaptive idle blink scheduling (#402). Thanks @bald-ai!
 - Cost usage scanner: optimize JSONL chunk parsing to avoid buffer-front removal overhead on large logs (#392). Thanks @asonawalla!
 - TTY runner: fence shutdown registration to avoid launch/shutdown races, isolate process groups before shutdown rejection, and ensure lingering CLI descendants are cleaned up on app termination (#429). Thanks @uraimo!
-
 
 ## 0.18.0-beta.3 — 2026-02-13
 ### Highlights

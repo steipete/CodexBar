@@ -1422,7 +1422,6 @@
 "menu_bar_layout_gap_tight" = "Tight";
 "menu_bar_layout_gap_regular" = "Regular";
 "menu_bar_layout_vertical_adjustment" = "Vertical";
-"menu_bar_layout_keyboard_hint" = "Delete removes the selected token";
 "menu_bar_layout_sample_account" = "account";
 "menu_bar_layout_sample_runs_out" = "runs out Fri";
 "menu_bar_layout_token_icon" = "Icon";

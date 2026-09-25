@@ -58,6 +58,8 @@ read_when:
   editing still starts from the representative provider's effective layout.
 - Small/Regular controls the token font scale. Tight/Regular controls status-item padding. Compact stacked uses two
   tightly spaced lines sized to fit the menu bar.
+- Size, gap, and vertical adjustment share a compact options row. The Layout section footer keeps the token-editing
+  instructions, including selecting a placed token and pressing Delete to remove it.
 
 ### Layout tokens
 

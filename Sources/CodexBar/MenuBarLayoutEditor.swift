@@ -716,48 +716,10 @@ struct MenuBarLayoutEditor: View {
     }
 
     private var displayOptions: some View {
-        HStack(spacing: 18) {
-            Picker(L("menu_bar_layout_size"), selection: self.sizeBinding) {
-                ForEach(MenuBarLayoutSize.allCases) { size in
-                    Text(size.label).tag(size)
-                }
-            }
-            .pickerStyle(.menu)
-
-            Picker(L("menu_bar_layout_gap"), selection: self.gapBinding) {
-                ForEach(MenuBarLayoutGap.allCases) { gap in
-                    Text(gap.label).tag(gap)
-                }
-            }
-            .pickerStyle(.menu)
-
-            HStack(spacing: 8) {
-                Text(L("menu_bar_layout_vertical_adjustment"))
-                    .lineLimit(1)
-                    .fixedSize()
-
-                TextField(
-                    "",
-                    value: self.$settings.menuBarLayoutVerticalAdjustment,
-                    format: .number)
-                    .labelsHidden()
-                    .textFieldStyle(.roundedBorder)
-                    .multilineTextAlignment(.trailing)
-                    .monospacedDigit()
-                    .frame(width: 44)
-
-                Stepper(value: self.$settings.menuBarLayoutVerticalAdjustment, in: -20...20, step: 1) {
-                    EmptyView()
-                }
-                .labelsHidden()
-            }
-
-            Spacer()
-
-            Text(L("menu_bar_layout_keyboard_hint"))
-                .font(.caption)
-                .foregroundStyle(.tertiary)
-        }
+        MenuBarLayoutDisplayOptions(
+            size: self.sizeBinding,
+            gap: self.gapBinding,
+            verticalAdjustment: self.$settings.menuBarLayoutVerticalAdjustment)
     }
 
     private func applyPreset(_ preset: MenuBarLayoutPreset) {
@@ -1342,6 +1304,53 @@ extension MenuBarLayoutToken {
         case .space: "space"
         case .conditional: "switch.2"
         case .hidden: "eye.slash"
+        }
+    }
+}
+
+struct MenuBarLayoutDisplayOptions: View {
+    @Binding var size: MenuBarLayoutSize
+    @Binding var gap: MenuBarLayoutGap
+    @Binding var verticalAdjustment: Int
+
+    var body: some View {
+        HStack(spacing: 18) {
+            Picker(L("menu_bar_layout_size"), selection: self.$size) {
+                ForEach(MenuBarLayoutSize.allCases) { size in
+                    Text(size.label).tag(size)
+                }
+            }
+            .pickerStyle(.menu)
+
+            Picker(L("menu_bar_layout_gap"), selection: self.$gap) {
+                ForEach(MenuBarLayoutGap.allCases) { gap in
+                    Text(gap.label).tag(gap)
+                }
+            }
+            .pickerStyle(.menu)
+
+            HStack(spacing: 8) {
+                Text(L("menu_bar_layout_vertical_adjustment"))
+                    .lineLimit(1)
+                    .fixedSize()
+
+                TextField(
+                    "",
+                    value: self.$verticalAdjustment,
+                    format: .number)
+                    .labelsHidden()
+                    .textFieldStyle(.roundedBorder)
+                    .multilineTextAlignment(.trailing)
+                    .monospacedDigit()
+                    .frame(width: 44)
+
+                Stepper(value: self.$verticalAdjustment, in: -20...20, step: 1) {
+                    EmptyView()
+                }
+                .labelsHidden()
+            }
+
+            Spacer()
         }
     }
 }

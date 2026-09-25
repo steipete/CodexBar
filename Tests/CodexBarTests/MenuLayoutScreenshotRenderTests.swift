@@ -215,7 +215,7 @@ final class MenuLayoutScreenshotRenderTests: XCTestCase {
         }
     }
 
-    private static func accessibilityText(_ element: Any, depth: Int = 0) -> String {
+    static func accessibilityText(_ element: Any, depth: Int = 0) -> String {
         guard depth < 30, let accessible = element as? NSObject else { return "" }
         // SwiftUI nodes implement these public selectors without adopting the full NSAccessibility protocol.
         let fields = [
@@ -261,6 +261,7 @@ final class MenuLayoutScreenshotRenderTests: XCTestCase {
                             .map { ProviderConfig(id: $0.instanceID, enabled: order.contains($0)) })
                     let settings = testSettingsStore(
                         suiteName: "MenuLayoutScreenshotRenderTests-overrides",
+                        userDefaults: InMemoryUserDefaults(),
                         config: config,
                         prepareDefaults: { defaults in
                             defaults.set(AppGroupSupport.migrationVersion, forKey: AppGroupSupport.migrationVersionKey)
@@ -291,16 +292,26 @@ final class MenuLayoutScreenshotRenderTests: XCTestCase {
                     XCTAssertEqual(settings.menuBarLayoutForGlobalEditing(representativeProvider: .claude), global)
                     XCTAssertEqual(settings.menuBarLayout(for: .claude), override)
 
-                    let view = AnyView(MenuBarLayoutEditor(settings: settings, store: store)
+                    let directory = URL(fileURLWithPath: dir, isDirectory: true)
+                    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+                    for dark in [false, true] {
+                        let view = AnyView(VStack(alignment: .leading, spacing: 12) {
+                            MenuBarLayoutEditor(settings: settings, store: store)
+                            SettingsSectionFooter(L("menu_bar_layout_footer"))
+                        }
                         .frame(width: 560)
                         .padding(16)
                         .environment(\.locale, Locale(identifier: "en_US_POSIX"))
-                        .environment(\.colorScheme, .dark)
+                        .environment(\.colorScheme, dark ? .dark : .light)
+                        .environment(\.accessibilityEnabled, true)
                         .background(Color(nsColor: .windowBackgroundColor)))
-                    let data = try XCTUnwrap(Self.pngData(for: view))
-                    let directory = URL(fileURLWithPath: dir, isDirectory: true)
-                    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-                    try data.write(to: directory.appendingPathComponent("layout-override.png"))
+                        let hosting = NSHostingView(rootView: view)
+                        hosting.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
+                        let data = try XCTUnwrap(Self.pngData(hosting: hosting))
+                        XCTAssertTrue(Self.accessibilityText(hosting).contains(L("menu_bar_layout_footer")))
+                        let appearance = dark ? "dark" : "light"
+                        try data.write(to: directory.appendingPathComponent("layout-override-\(appearance).png"))
+                    }
                     XCTAssertEqual(settings.menuBarLayoutOverrides, [.claude: override])
                     XCTAssertEqual(settings.menuBarLayout, global)
                 }
