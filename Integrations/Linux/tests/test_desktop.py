@@ -171,6 +171,46 @@ else:
         self.assertEqual(windows[0]['label'], 'Rate limit')
         self.assertEqual(windows[0]['remaining'], 80)
 
+    def test_bar_detail_is_opt_in_and_survives_an_upgrade(self):
+        usage = {'primary': {'usedPercent': 63, 'windowMinutes': 300, 'resetsAt': '2030-01-01T05:00:00Z'},
+                 'secondary': {'usedPercent': 39, 'windowMinutes': 10080, 'resetsAt': '2030-01-03T00:00:00Z'},
+                 'extraRateWindows': [{'id': 'claude-weekly-scoped-fable', 'title': 'Fable only',
+                                       'window': {'usedPercent': 100, 'windowMinutes': 10080}}]}
+        (self.root / 'state.json').write_text(json.dumps({'usage': usage}))
+        self.client('--refresh')
+        value = self.wait_for(lambda value: value.get('entries') and not value['busy'])
+        # Default: the single leading percentage this adapter has always drawn.
+        self.assertEqual([entry['text'] for entry in value['barEntries']], ['37%'])
+        self.assertTrue(self.client('--configure', '{"showBarDetail":true}')['ok'])
+        value = self.wait_for(lambda value: value['barEntries'][0]['text'] != '37%')
+        self.assertEqual([entry['text'] for entry in value['barEntries']], ['5H 37% · 7D 61%'])
+        self.assertTrue(self.client('--configure', '{"showScopedCaps":true}')['ok'])
+        value = self.wait_for(lambda value: 'Fable' in value['barEntries'][0]['text'])
+        self.assertEqual([entry['text'] for entry in value['barEntries']], ['5H 37% · 7D 61% · Fable 0%'])
+        # The tray tooltip keeps its own compact form.
+        self.assertEqual(value['summary'], 'CX 37%')
+
+    def test_settings_from_before_the_bar_preferences_survive_an_upgrade(self):
+        self.client('--quit')
+        self.process.wait(timeout=4)
+        settings = self.root / 'config/codexbar/linux.json'
+        settings.parent.mkdir(parents=True, exist_ok=True)
+        # Written by a release without showBarDetail, showScopedCaps or barProviders.
+        settings.write_text(json.dumps({'provider': 'custom', 'providerOrder': ['claude', 'codex'],
+                                        'quotaDisplay': 'used', 'showPace': False, 'refreshSeconds': 600}))
+        self.process = subprocess.Popen([str(APP), '--background', '--no-tray', '--cli', str(self.fake)],
+                                        env=self.environment, stdout=self.log, stderr=self.log)
+        value = self.wait_for(lambda value: len(value.get('entries', [])) == 2 and not value['busy'])
+        self.assertEqual([entry['provider'] for entry in value['entries']], ['claude', 'codex'])
+        self.assertEqual(value['quotaDisplay'], 'used')
+        self.assertEqual([entry['text'] for entry in value['barEntries']], ['40%', '40%'])
+        self.assertTrue(self.client('--configure', '{"notifyThreshold":20}')['ok'])
+        saved = json.loads(settings.read_text())
+        self.assertEqual({key: saved[key] for key in ['provider', 'providerOrder', 'quotaDisplay', 'showPace', 'refreshSeconds']},
+                         {'provider': 'custom', 'providerOrder': ['claude', 'codex'], 'quotaDisplay': 'used',
+                          'showPace': False, 'refreshSeconds': 600})
+        self.assertEqual((saved['showBarDetail'], saved['showScopedCaps'], saved['barProviders']), (False, False, 2))
+
     def test_invalid_config_is_not_overwritten(self):
         self.client('--quit')
         self.process.wait(timeout=4)

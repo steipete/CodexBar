@@ -41,6 +41,31 @@ providers remain in the popup and continue polling. Both checkout and release
 archive installs include the existing Mac app SVGs. The backend supplies structured
 `barEntries`, and older backends fall back to their plain `summary` text.
 
+Three display preferences extend that bar. All are off, or at the count the bar
+already used, so an upgrade changes nothing. None of them changes what is polled:
+a provider the bar hides is still queried, listed in the popup and notified about.
+
+**Show session, weekly and pace in the bar** gives each provider its session
+quota, weekly quota and weekly pace, as in `5H 37% · 7D 61% · +14%`. A positive
+pace is a deficit against the sustainable weekly rate and a negative one a
+reserve, matching the menu bar on macOS. A lane the provider does not report
+contributes no text and no separator, so a weekly-only account reads
+`7D 61% · +14%`, and a pace CodexBar cannot compute contributes nothing rather
+than a placeholder. **Show pace** hides the pace on its own.
+
+**Show per-model caps in the bar** adds a cap a provider scopes to one model,
+named by the provider's own title. Caps the provider labels as one model's own
+budget, Claude's per-model weekly windows such as Fable and Codex's per-model
+limits such as Codex Spark, always show. Other per-model lanes, such as
+Antigravity's model pools, show only while they bind harder than the general
+lane beside them, because they often repeat it.
+
+**Providers in the bar** sets how many providers appear, two by default, and
+`0` shows every one. Four providers each showing a session lane, a weekly lane
+and a pace take about 1500 logical pixels, so raise it where the display has room.
+
+The tray tooltip keeps its own compact two-provider form.
+
 The `steipete.codexbar` layout entry in `~/.config/omarchy/shell.json` now accepts
 only `desktopExecutable` (default `codexbar-linux`) in addition to its ID. Configure
 providers and their order, accounts, status, costs, notifications, display, and polling in the Settings

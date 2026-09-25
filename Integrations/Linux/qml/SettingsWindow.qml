@@ -29,6 +29,7 @@ ApplicationWindow {
         reset.currentIndex = reset.model.indexOf(s.resetDisplay);
         trayStyle.currentIndex = trayStyle.model.indexOf(s.trayStyle);
         theme.checked = s.followOmarchyTheme; pace.checked = s.showPace; warnings.checked = s.warningColors;
+        barDetail.checked = s.showBarDetail; scopedCaps.checked = s.showScopedCaps; barProviders.value = s.barProviders;
         refreshOnOpen.checked = s.refreshOnOpen;
         tray.checked = s.showTray; executable.text = s.executable; feedback = "";
     }
@@ -165,6 +166,20 @@ ApplicationWindow {
                         }
                         Option { id: theme; text: "Follow Omarchy theme colors" }
                         Option { id: pace; text: "Show pace" }
+                        Option { id: barDetail; text: "Show session, weekly and pace in the bar" }
+                        Option { id: scopedCaps; text: "Show per-model caps in the bar" }
+                        RowLayout {
+                            Layout.fillWidth: true
+                            Label { text: "Providers in the bar"; Layout.fillWidth: true; wrapMode: Text.Wrap }
+                            // Not editable: "All" is not a number, so typed text would need a parser
+                            // that handles both it and localized digits. The arrows cover 0 to 80.
+                            SpinBox {
+                                id: barProviders; from: 0; to: 80
+                                textFromValue: function(value, locale) {
+                                    return value === 0 ? "All" : Number(value).toLocaleString(locale, "f", 0)
+                                }
+                            }
+                        }
                         Option { id: warnings; text: "Highlight low quota" }
                     }
                 }
@@ -191,7 +206,8 @@ ApplicationWindow {
                         showCosts: costs.checked, showStatus: status.checked, notifications: notices.checked,
                         notifyThreshold: threshold.value, refreshSeconds: interval.value,
                         providerOrder: window.providerOrder, quotaDisplay: quota.currentText, resetDisplay: reset.currentText,
-                        followOmarchyTheme: theme.checked, showPace: pace.checked, warningColors: warnings.checked, trayStyle: trayStyle.currentText,
+                        followOmarchyTheme: theme.checked, showPace: pace.checked,
+                        showBarDetail: barDetail.checked, showScopedCaps: scopedCaps.checked, barProviders: barProviders.value, warningColors: warnings.checked, trayStyle: trayStyle.currentText,
                         refreshOnOpen: refreshOnOpen.checked, showTray: tray.checked, executable: executable.text.trim()})) window.feedback = "Settings saved";
                 }
             }
