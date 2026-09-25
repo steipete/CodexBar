@@ -1,6 +1,11 @@
 import Foundation
 
 extension ProviderConfig {
+    public var claudeWorkspaceSpendEnabled: Bool? {
+        get { self.extensionValue(forKey: "claudeWorkspaceSpendEnabled") }
+        set { self.setExtensionValue(newValue, forKey: "claudeWorkspaceSpendEnabled") }
+    }
+
     public var claudeSwapEnabled: Bool? {
         get { self.extensionValue(forKey: "claudeSwapEnabled") }
         set { self.setExtensionValue(newValue, forKey: "claudeSwapEnabled") }

@@ -4,7 +4,12 @@ public enum LiteLLMProviderDescriptor {
     public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
     private static let credentials = ProviderCredentialAdapter.apiKey(
         environmentKey: LiteLLMSettingsReader.apiKeyEnvironmentKey,
-        additionalProjections: [.enterpriseHost(LiteLLMSettingsReader.baseURLEnvironmentKey)],
+        additionalProjections: [
+            .enterpriseHost(LiteLLMSettingsReader.baseURLEnvironmentKey),
+            ProviderCredentialEnvironmentProjection(
+                key: LiteLLMSettingsReader.modelUsageEnvironmentKey,
+                value: { $0.litellmModelUsageEnabled.map(String.init) }),
+        ],
         resolve: LiteLLMSettingsReader.apiKey,
         tokenAccountSupport: TokenAccountSupport(
             title: "API keys",
@@ -78,13 +83,15 @@ public enum LiteLLMProviderDescriptor {
                     secondaryDescriptionMode: .detailWhenResetDatePresent)),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .api],
-                pipeline: ProviderFetchPipeline(resolveStrategies: { _ in
+                pipeline: ProviderFetchPipeline(resolveStrategies: { context in
                     [ScriptFetchStrategy(
                         id: "litellm.js",
                         provider: .litellm,
                         bundledPlugin: "litellm",
                         secretKey: LiteLLMSettingsReader.apiKeyEnvironmentKey,
                         sourceLabel: "api",
+                        timeout: context.env[LiteLLMSettingsReader.modelUsageEnvironmentKey] == "true"
+                            ? 40 : ProviderPluginRuntime.defaultTimeout,
                         validateContext: { context in
                             guard LiteLLMSettingsReader.baseURL(environment: context.env) != nil else {
                                 throw LiteLLMUsageError.invalidEndpointOverride(
@@ -96,8 +103,12 @@ public enum LiteLLMProviderDescriptor {
                                   LiteLLMSettingsReader.hasBaseURLOverride(environment: context.env)
                             else { return nil }
                             return ScriptFetchStrategy.Values(
-                                settings: [LiteLLMSettingsReader.baseURLEnvironmentKey:
-                                    LiteLLMSettingsReader.baseURL(environment: context.env)?.absoluteString ?? ""],
+                                settings: [
+                                    LiteLLMSettingsReader.baseURLEnvironmentKey:
+                                        LiteLLMSettingsReader.baseURL(environment: context.env)?.absoluteString ?? "",
+                                    LiteLLMSettingsReader.modelUsageEnvironmentKey:
+                                        context.env[LiteLLMSettingsReader.modelUsageEnvironmentKey] ?? "false",
+                                ],
                                 secrets: [LiteLLMSettingsReader.apiKeyEnvironmentKey: key])
                         },
                         isEnabled: { _ in true })]

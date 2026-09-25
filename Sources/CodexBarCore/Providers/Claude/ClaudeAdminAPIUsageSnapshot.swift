@@ -113,10 +113,12 @@ public struct ClaudeAdminAPIUsageSnapshot: Codable, Equatable, Sendable {
         }
     }
 
+    public let workspaceCosts: [CostBreakdown]?
     public let daily: [DailyBucket]
     public let updatedAt: Date
 
-    public init(daily: [DailyBucket], updatedAt: Date) {
+    public init(daily: [DailyBucket], updatedAt: Date, workspaceCosts: [CostBreakdown]? = nil) {
+        self.workspaceCosts = workspaceCosts
         self.daily = daily.sorted { $0.startTime < $1.startTime }
         self.updatedAt = updatedAt
     }
@@ -218,6 +220,11 @@ public struct ClaudeAdminAPIUsageSnapshot: Codable, Equatable, Sendable {
                 points: self.daily.map { ($0.day, $0.costUSD) }))]
         if !self.topCostItems.isEmpty {
             details.append(.makeSection(title: "Cost items", rows: self.topCostItems.prefix(20).map {
+                .makeRow(label: $0.name, value: UsageFormatter.usdString($0.costUSD))
+            }))
+        }
+        if let workspaces = self.workspaceCosts, workspaces.count > 1 {
+            details.append(.makeSection(title: "Workspace spend · 30d", rows: workspaces.prefix(20).map {
                 .makeRow(label: $0.name, value: UsageFormatter.usdString($0.costUSD))
             }))
         }

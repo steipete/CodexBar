@@ -34,6 +34,7 @@ public enum ClaudeAdminAPIUsageFetcher {
 
     public static func fetchUsage(
         apiKey: String,
+        workspaceSpendEnabled: Bool = false,
         costURL: URL = Self.costReportURL,
         messagesURL: URL = Self.messagesUsageURL,
         session transport: any ProviderHTTPTransport = ProviderHTTPClient.shared,
@@ -50,6 +51,7 @@ public enum ClaudeAdminAPIUsageFetcher {
             apiKey: trimmed,
             baseURL: costURL,
             range: range,
+            workspaceSpendEnabled: workspaceSpendEnabled,
             transport: transport)
         let messages = try await Self.fetchMessagesUsage(
             apiKey: trimmed,
@@ -57,32 +59,43 @@ public enum ClaudeAdminAPIUsageFetcher {
             range: range,
             transport: transport)
 
-        return Self.makeSnapshot(costs: costs, messages: messages, now: now, calendar: calendar)
+        return Self.makeSnapshot(
+            costs: costs,
+            messages: messages,
+            now: now,
+            calendar: calendar,
+            workspaceSpendEnabled: workspaceSpendEnabled)
     }
 
     static func _parseSnapshotForTesting(
         costs: Data,
         messages: Data,
         now: Date,
+        workspaceSpendEnabled: Bool = false,
         calendar: Calendar = Self.utcCalendar) throws -> ClaudeAdminAPIUsageSnapshot
     {
         let costs = try Self.decodeCosts(costs)
         let messages = try Self.decodeMessages(messages)
-        return Self.makeSnapshot(costs: costs, messages: messages, now: now, calendar: calendar)
+        return Self.makeSnapshot(
+            costs: costs,
+            messages: messages,
+            now: now,
+            calendar: calendar,
+            workspaceSpendEnabled: workspaceSpendEnabled)
     }
 
     private static func fetchCostReport(
         apiKey: String,
         baseURL: URL,
         range: DateRange,
+        workspaceSpendEnabled: Bool,
         transport: any ProviderHTTPTransport) async throws -> CostReportResponse
     {
         let url = Self.url(
             baseURL: baseURL,
             range: range,
-            queryItems: [
-                URLQueryItem(name: "group_by[]", value: "description"),
-            ])
+            queryItems: (workspaceSpendEnabled ? ["description", "workspace_id"] : ["description"])
+                .map { URLQueryItem(name: "group_by[]", value: $0) })
         let data = try await Self.fetchData(url: url, apiKey: apiKey, endpoint: "cost_report", transport: transport)
         return try Self.decodeCosts(data)
     }
@@ -150,7 +163,8 @@ public enum ClaudeAdminAPIUsageFetcher {
         costs: CostReportResponse,
         messages: MessagesUsageResponse,
         now: Date,
-        calendar: Calendar) -> ClaudeAdminAPIUsageSnapshot
+        calendar: Calendar,
+        workspaceSpendEnabled: Bool) -> ClaudeAdminAPIUsageSnapshot
     {
         var accumulators: [String: DailyAccumulator] = [:]
 
@@ -198,7 +212,26 @@ public enum ClaudeAdminAPIUsageFetcher {
             .compactMap { $0.makeBucket(calendar: calendar) }
             .filter { $0.startTime <= now }
             .sorted { $0.startTime < $1.startTime }
-        return ClaudeAdminAPIUsageSnapshot(daily: daily, updatedAt: now)
+        var workspaces: [String: Double] = [:]
+        if workspaceSpendEnabled {
+            let includedDays = Set(daily.suffix(30).map(\.startTime))
+            for bucket in costs.data {
+                guard let start = Self.parseDate(bucket.startingAt), includedDays.contains(start) else { continue }
+                for result in bucket.results {
+                    let name = Self.displayName(result.workspaceID, fallback: "Default")
+                    workspaces[name, default: 0] += Self.usdFromAnthropicLowestUnitAmount(result.amount)
+                }
+            }
+        }
+        return ClaudeAdminAPIUsageSnapshot(
+            daily: daily,
+            updatedAt: now,
+            workspaceCosts: workspaceSpendEnabled ? workspaces
+                .map { .init(name: $0.key, costUSD: $0.value) }
+                .sorted {
+                    if $0.costUSD == $1.costUSD { return $0.name < $1.name }
+                    return $0.costUSD > $1.costUSD
+                } : nil)
     }
 
     private static func displayName(_ raw: String?, fallback: String) -> String {
@@ -368,12 +401,14 @@ private struct CostResult: Decodable {
     let amount: String
     let description: String?
     let costType: String?
+    let workspaceID: String?
 
     private enum CodingKeys: String, CodingKey {
         case currency
         case amount
         case description
         case costType = "cost_type"
+        case workspaceID = "workspace_id"
     }
 }
 
