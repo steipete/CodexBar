@@ -1,7 +1,7 @@
 # CodexBar for Linux
 
-A Qt 6 desktop app with separate Usage & Spend and Settings windows, an optional
-system tray icon, and a launcher entry. The Swift `codexbar` CLI owns provider
+A Qt 6 desktop app with an opt-in compact Quick View, separate Usage & Spend and Settings
+windows, an optional system tray icon, and a launcher entry. The Swift `codexbar` CLI owns provider
 fetching and authentication. The desktop owns polling, settings, notifications,
 and a private local socket for desktop adapters. No HTTP server is needed.
 
@@ -185,8 +185,14 @@ The app does not read terminal output or store credentials. Finish the flow, the
 refresh usage. These controls manage the active CLI session; browser imports,
 token-account editing and Mac managed profiles are not implemented here.
 
-Usage displays used or remaining quota, reset times, pace, credits, status, generic provider
-details, and charts. Unknown values stay unknown. Identity is hidden by default. Display preferences control reset countdowns,
+Ordinary launch and `--usage` open the full Usage & Spend window. Quick View opens
+with `--quick-view`, from the tray menu, or by clicking the tray icon after enabling
+"Use compact Quick View from the tray" in Settings (off by default). It presents
+an Overview and provider tabs with the same provider icons used by the macOS menu, compact quota meters,
+reset times, pace, and optional local cost. The footer opens the full Usage & Spend
+window, Settings, About, or Quit. `--dashboard` also opens the full Usage & Spend window
+directly; `--spending` opens its Spending tab. The full Usage & Spend window retains
+generic provider details and charts. Unknown values stay unknown. Identity is hidden by default. Display preferences control reset countdowns,
 absolute times, pace visibility, and low-quota colors. The tray can show two quota
 meters for the first displayed provider or a static icon. Unknown meters remain
 empty tracks. The tooltip identifies the displayed providers and stale data.
@@ -203,7 +209,7 @@ are not invoices. Opening spending scans independently of quota polling, with a
 five-minute cache; Refresh forces a new scan.
 
 Quota polling defaults to five minutes. Optional refresh-on-open updates usage
-when its window opens. Refresh and Ctrl+R update the selected tab independently;
+when Quick View or the full usage window opens. Refresh and Ctrl+R update the selected tab independently;
 Ctrl+, opens Settings, and Ctrl+Q quits. Queries never overlap within each stream,
 stop after 60 seconds, and cap output at 8 MiB. Failed refreshes retain previous
 results with a stale indicator. Changing selection rejects old in-flight results.
@@ -211,7 +217,7 @@ Optional notifications use the desktop's D-Bus notification service for remainin
 quota threshold crossings, observed resets, and service-status transitions.
 Startup, provider errors, and ambiguous multi-account results stay silent.
 
-Closing a window leaves the backend running. Quit from the usage window or tray,
+Closing a window leaves the backend running. Quit from Quick View or the tray,
 or use `codexbar-linux --quit`. Launching again opens the existing process.
 Preferences live in `$XDG_CONFIG_HOME/codexbar/linux.json` (normally `~/.config`),
 written atomically with user-only permissions. Invalid files are never overwritten:
@@ -222,6 +228,8 @@ fix or remove the file and restart. Authentication remains in the CLI's stores.
 ```sh
 codexbar-linux --background
 codexbar-linux --usage
+codexbar-linux --quick-view
+codexbar-linux --dashboard
 codexbar-linux --settings
 codexbar-linux --spending
 codexbar-linux --refresh
