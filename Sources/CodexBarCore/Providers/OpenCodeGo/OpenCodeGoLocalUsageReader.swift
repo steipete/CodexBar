@@ -99,7 +99,7 @@ public struct OpenCodeGoLocalUsageReader: Sendable {
 
         let sql = try self.hasTable(named: "part", db: db)
             ? Self.messageAndPartUsageSQL
-            : Self.messageUsageSQL
+            : "SELECT createdMs, cost, modelID, tokens FROM (\(Self.providerMessagesSQL)) WHERE hasCost"
 
         var stmt: OpaquePointer?
         let prepareResult = sqlite3_prepare_v2(db, sql, -1, &stmt, nil)
@@ -121,9 +121,15 @@ public struct OpenCodeGoLocalUsageReader: Sendable {
             let createdMs = sqlite3_column_int64(stmt, 0)
             let cost = sqlite3_column_double(stmt, 1)
             guard createdMs > 0, cost >= 0, cost.isFinite else { continue }
-            let requestCount = max(1, Int(sqlite3_column_int64(stmt, 2)))
-            let model = sqlite3_column_text(stmt, 3).map { String(cString: $0) } ?? ""
-            rows.append(UsageRow(createdMs: createdMs, cost: cost, requestCount: requestCount, model: model))
+            let model = sqlite3_column_text(stmt, 2).map { String(cString: $0) } ?? ""
+            let tokens = sqlite3_column_text(stmt, 3).flatMap { json in
+                try? JSONDecoder().decode(TokenCounts.self, from: Data(String(cString: json).utf8))
+            }
+            rows.append(UsageRow(
+                createdMs: createdMs,
+                cost: cost,
+                model: model,
+                tokens: tokens.flatMap { $0.isValid ? $0 : nil }))
         }
         return rows
     }
@@ -162,45 +168,37 @@ public struct OpenCodeGoLocalUsageReader: Sendable {
             message: db.map { String(cString: sqlite3_errmsg($0)) } ?? "unknown error")
     }
 
-    private static let messageUsageSQL = """
+    private static let providerMessagesSQL = """
         SELECT
+          id AS messageID,
           CAST(COALESCE(json_extract(data, '$.time.created'), time_created) AS INTEGER) AS createdMs,
           CAST(json_extract(data, '$.cost') AS REAL) AS cost,
-          1 AS requestCount,
-          COALESCE(json_extract(data, '$.modelID'), '') AS modelID
+          json_type(data, '$.cost') IN ('integer', 'real') AS hasCost,
+          COALESCE(json_extract(data, '$.modelID'), '') AS modelID,
+          CASE WHEN json_type(data, '$.tokens') = 'object'
+            THEN json_extract(data, '$.tokens') END AS tokens
         FROM message
         WHERE json_valid(data)
           AND json_extract(data, '$.providerID') = 'opencode-go'
           AND json_extract(data, '$.role') = 'assistant'
-          AND json_type(data, '$.cost') IN ('integer', 'real')
     """
 
     private static let messageAndPartUsageSQL = """
-        WITH provider_messages AS (
-          SELECT
-            id AS messageID,
-            CAST(COALESCE(json_extract(data, '$.time.created'), time_created) AS INTEGER) AS createdMs,
-            CAST(json_extract(data, '$.cost') AS REAL) AS cost,
-            json_type(data, '$.cost') IN ('integer', 'real') AS hasCost,
-            COALESCE(json_extract(data, '$.modelID'), '') AS modelID
-          FROM message
-          WHERE json_valid(data)
-            AND json_extract(data, '$.providerID') = 'opencode-go'
-            AND json_extract(data, '$.role') = 'assistant'
-        )
+        WITH provider_messages AS (\(Self.providerMessagesSQL))
         SELECT
           CAST(COALESCE(json_extract(p.data, '$.time.created'), p.time_created, m.createdMs) AS INTEGER)
             AS createdMs,
           CAST(json_extract(p.data, '$.cost') AS REAL) AS cost,
-          1 AS requestCount,
-          m.modelID AS modelID
+          m.modelID AS modelID,
+          CASE WHEN json_type(p.data, '$.tokens') = 'object'
+            THEN json_extract(p.data, '$.tokens') END AS tokens
         FROM part p
         JOIN provider_messages m ON m.messageID = p.message_id
         WHERE json_valid(p.data)
           AND json_extract(p.data, '$.type') = 'step-finish'
           AND json_type(p.data, '$.cost') IN ('integer', 'real')
         UNION ALL
-        SELECT createdMs, cost, 1 AS requestCount, modelID
+        SELECT createdMs, cost, modelID, tokens
         FROM provider_messages m
         WHERE hasCost
           AND NOT EXISTS (
@@ -216,10 +214,36 @@ public struct OpenCodeGoLocalUsageReader: Sendable {
     private struct UsageRow {
         let createdMs: Int64
         let cost: Double
-        /// One provider invocation per step-finish part; message-only databases fall back to one.
-        let requestCount: Int
         /// The underlying model behind the `opencode-go` Zen proxy; empty when unattributed.
         let model: String
+        let tokens: TokenCounts?
+    }
+
+    private struct TokenCounts: Decodable {
+        struct Cache: Decodable {
+            let read: Int?
+            let write: Int?
+        }
+
+        let total: Int?
+        let input: Int?
+        let output: Int?
+        let reasoning: Int?
+        let cache: Cache?
+
+        private var components: [Int?] {
+            [self.input, self.output, self.reasoning, self.cache?.read, self.cache?.write]
+        }
+
+        var resolvedTotal: Int? {
+            // OpenCode separates output from reasoning and input from cache counts.
+            self.total ?? (self.components.allSatisfy { $0 != nil }
+                ? CheckedSum.integers(self.components.compactMap(\.self)) : nil)
+        }
+
+        var isValid: Bool {
+            (self.components + [self.total]).allSatisfy { ($0 ?? 0) >= 0 } && self.resolvedTotal != nil
+        }
     }
 
     private struct SQLiteReadFailure: Error {
@@ -247,64 +271,34 @@ public struct OpenCodeGoLocalUsageReader: Sendable {
         let earliestMs = rows.map(\.createdMs).min()
         let monthBounds = self.monthBounds(now: now, anchorMs: earliestMs)
 
-        // Single pass over `rows` for all three window sums plus the oldest-in-session timestamp,
-        // rather than four separate full scans (one per window plus one for the reset countdown).
-        let windows = RowAggregateWindows(
-            sessionStartMs: sessionStart,
-            nowMs: nowMs,
-            weekStartMs: weekStartMs,
-            weekEndMs: weekEndMs,
-            monthStartMs: monthBounds.startMs,
-            monthEndMs: monthBounds.endMs)
-        let aggregates = self.aggregate(rows: rows, windows: windows)
-        let oldestSessionMs = aggregates.oldestSessionMs ?? nowMs
+        var sessionCost = 0.0
+        var weeklyCost = 0.0
+        var monthlyCost = 0.0
+        var oldestSessionMs = nowMs
+        for row in rows {
+            if row.createdMs >= sessionStart, row.createdMs < nowMs {
+                sessionCost += row.cost
+                oldestSessionMs = min(oldestSessionMs, row.createdMs)
+            }
+            if row.createdMs >= weekStartMs, row.createdMs < weekEndMs {
+                weeklyCost += row.cost
+            }
+            if row.createdMs >= monthBounds.startMs, row.createdMs < monthBounds.endMs {
+                monthlyCost += row.cost
+            }
+        }
         let rollingResetInSec = max(0, Int((oldestSessionMs + Int64(Self.fiveHours * 1000) - nowMs) / 1000))
 
         return OpenCodeGoUsageSnapshot(
             hasMonthlyUsage: true,
-            rollingUsagePercent: self.percent(used: aggregates.sessionCost, limit: self.limits.session),
-            weeklyUsagePercent: self.percent(used: aggregates.weeklyCost, limit: self.limits.weekly),
-            monthlyUsagePercent: self.percent(used: aggregates.monthlyCost, limit: self.limits.monthly),
+            rollingUsagePercent: self.percent(used: sessionCost, limit: self.limits.session),
+            weeklyUsagePercent: self.percent(used: weeklyCost, limit: self.limits.weekly),
+            monthlyUsagePercent: self.percent(used: monthlyCost, limit: self.limits.monthly),
             rollingResetInSec: rollingResetInSec,
             weeklyResetInSec: max(0, Int((weekEndMs - nowMs) / 1000)),
             monthlyResetInSec: max(0, Int((monthBounds.endMs - nowMs) / 1000)),
             daily: self.dailyEntries(rows: rows, now: now, historyDays: historyDays),
             updatedAt: now)
-    }
-
-    private struct RowAggregateWindows {
-        let sessionStartMs: Int64
-        let nowMs: Int64
-        let weekStartMs: Int64
-        let weekEndMs: Int64
-        let monthStartMs: Int64
-        let monthEndMs: Int64
-    }
-
-    private struct RowAggregates {
-        var sessionCost: Double = 0
-        var weeklyCost: Double = 0
-        var monthlyCost: Double = 0
-        var oldestSessionMs: Int64?
-    }
-
-    private static func aggregate(rows: [UsageRow], windows: RowAggregateWindows) -> RowAggregates {
-        var result = RowAggregates()
-        for row in rows {
-            if row.createdMs >= windows.sessionStartMs, row.createdMs < windows.nowMs {
-                result.sessionCost += row.cost
-                if result.oldestSessionMs.map({ row.createdMs < $0 }) ?? true {
-                    result.oldestSessionMs = row.createdMs
-                }
-            }
-            if row.createdMs >= windows.weekStartMs, row.createdMs < windows.weekEndMs {
-                result.weeklyCost += row.cost
-            }
-            if row.createdMs >= windows.monthStartMs, row.createdMs < windows.monthEndMs {
-                result.monthlyCost += row.cost
-            }
-        }
-        return result
     }
 
     /// Buckets local `opencode-go` message costs into calendar-day entries (device local time,
@@ -322,42 +316,38 @@ public struct OpenCodeGoLocalUsageReader: Sendable {
         }
         let sinceStartOfDay = calendar.startOfDay(for: since)
 
-        var totalsByModel: [String: [String: (cost: Double, requestCount: Int)]] = [:]
-        for row in rows {
+        let entries: [CostUsageDailyReport.Entry] = rows.compactMap { row in
             let date = Date(timeIntervalSince1970: TimeInterval(row.createdMs) / 1000)
-            guard date >= sinceStartOfDay, date <= now else { continue }
+            guard date >= sinceStartOfDay, date <= now else { return nil }
             let key = CostUsageScanner.CostUsageDayRange.dayKey(from: date)
             let trimmedModel = row.model.trimmingCharacters(in: .whitespacesAndNewlines)
-            let model = trimmedModel.isEmpty ? Self.unknownModelName : trimmedModel
-            totalsByModel[key, default: [:]][model, default: (0, 0)].cost += row.cost
-            totalsByModel[key, default: [:]][model, default: (0, 0)].requestCount += row.requestCount
-        }
-
-        return totalsByModel.keys.sorted().compactMap { key in
-            guard let dayTotals = totalsByModel[key] else { return nil }
-            let modelBreakdowns = dayTotals.keys.sorted().map { model in
-                let bucket = dayTotals[model] ?? (cost: 0, requestCount: 0)
-                return CostUsageDailyReport.ModelBreakdown(
-                    modelName: model,
-                    costUSD: bucket.cost,
-                    requestCount: bucket.requestCount)
-            }.sorted { ($0.costUSD ?? 0) > ($1.costUSD ?? 0) }
-            let totalCost = dayTotals.values.reduce(0) { $0 + $1.cost }
-            let totalRequests = dayTotals.values.reduce(0) { $0 + $1.requestCount }
+            let model = trimmedModel.isEmpty ? "unknown" : trimmedModel
+            let tokens = row.tokens
+            let breakdown = CostUsageDailyReport.ModelBreakdown(
+                modelName: model,
+                costUSD: row.cost,
+                totalTokens: tokens?.resolvedTotal,
+                requestCount: 1,
+                inputTokens: tokens?.input,
+                outputTokens: tokens?.output,
+                cacheReadTokens: tokens?.cache?.read,
+                cacheCreationTokens: tokens?.cache?.write,
+                reasoningTokens: tokens?.reasoning)
             return CostUsageDailyReport.Entry(
                 date: key,
-                inputTokens: nil,
-                outputTokens: nil,
-                totalTokens: nil,
-                requestCount: totalRequests,
-                costUSD: totalCost,
-                modelsUsed: dayTotals.keys.sorted(),
-                modelBreakdowns: modelBreakdowns)
+                inputTokens: tokens?.input,
+                outputTokens: tokens?.output,
+                cacheReadTokens: tokens?.cache?.read,
+                cacheCreationTokens: tokens?.cache?.write,
+                reasoningTokens: tokens?.reasoning,
+                totalTokens: tokens?.resolvedTotal,
+                requestCount: 1,
+                costUSD: row.cost,
+                modelsUsed: [model],
+                modelBreakdowns: [breakdown])
         }
+        return CostUsageDailyReport.merged([.init(data: entries, summary: nil)], calendar: calendar).data
     }
-
-    /// Bucket label for rows whose local `modelID` is missing or blank.
-    private static let unknownModelName = "unknown"
 
     private static func percent(used: Double, limit: Double) -> Double {
         guard used.isFinite, limit > 0 else { return 0 }
