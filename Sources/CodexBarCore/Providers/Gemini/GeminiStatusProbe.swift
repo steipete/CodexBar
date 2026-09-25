@@ -870,7 +870,7 @@ public struct GeminiStatusProbe: Sendable {
         return newAccessToken
     }
 
-    private static func updateStoredCredentials(_ refreshResponse: [String: Any], homeDirectory: String) throws {
+    static func updateStoredCredentials(_ refreshResponse: [String: Any], homeDirectory: String) throws {
         let credsURL = URL(fileURLWithPath: homeDirectory + Self.credentialsPath)
 
         guard let existingCreds = try? Data(contentsOf: credsURL),
@@ -891,7 +891,7 @@ public struct GeminiStatusProbe: Sendable {
         }
 
         let updatedData = try JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted])
-        try updatedData.write(to: credsURL, options: .atomic)
+        try CredentialFileWriter.writePrivate(updatedData, to: credsURL)
     }
 
     private static func loadCredentials(homeDirectory: String) throws -> OAuthCredentials {

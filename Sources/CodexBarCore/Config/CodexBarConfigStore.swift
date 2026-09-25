@@ -63,12 +63,7 @@ public struct CodexBarConfigStore: @unchecked Sendable {
     }
 
     public func saveEncodedData(_ data: Data) throws {
-        let directory = self.fileURL.deletingLastPathComponent()
-        if !self.fileManager.fileExists(atPath: directory.path) {
-            try self.fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
-        }
-        try data.write(to: self.fileURL, options: [.atomic])
-        try self.applySecurePermissionsIfNeeded()
+        try CredentialFileWriter.writePrivate(data, to: self.fileURL)
     }
 
     public func deleteIfPresent() throws {
@@ -116,13 +111,5 @@ public struct CodexBarConfigStore: @unchecked Sendable {
         }
 
         return xdgDefault
-    }
-
-    private func applySecurePermissionsIfNeeded() throws {
-        #if os(macOS) || os(Linux)
-        try self.fileManager.setAttributes([
-            .posixPermissions: NSNumber(value: Int16(0o600)),
-        ], ofItemAtPath: self.fileURL.path)
-        #endif
     }
 }

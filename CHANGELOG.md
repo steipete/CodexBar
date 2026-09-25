@@ -31,6 +31,7 @@
 
 ### Fixed
 
+- Security: preserve browser-cookie denial across restarts and CLI configuration, and stage credential writes privately before atomic replacement (reported in #3986). Thanks @bo-vavrik!
 - Provider plugins: update bundled QuickJS-NG to 0.17.0 with upstream memory-safety and numeric-correctness fixes (#3987). Thanks @bo-vavrik!
 - OpenRouter: explain the required API key field instead of reporting no available fetch strategy, and clarify where regular and Management keys belong (#3966, #3969). Thanks @harjothkhara!
 - Antigravity: let menu-bar layouts pin Gemini and Claude/GPT weekly percentages separately when each allowance is available (#3394). Thanks @ksuchoi216!

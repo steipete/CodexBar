@@ -11,17 +11,22 @@ import Foundation
 /// established **before** any bytes are written, then atomically published — the same secure shape
 /// `CodexOAuthCredentials` already uses. Also repairs the mode of a pre-existing file so users who
 /// upgrade from a build that wrote `0644` are corrected on first access.
-enum CredentialFileWriter {
+package enum CredentialFileWriter {
+    #if DEBUG
+    @TaskLocal static var beforeWriteForTesting: (@Sendable (URL) throws -> Void)?
+    @TaskLocal static var beforePublishForTesting: (@Sendable (URL) throws -> Void)?
+    #endif
+
     /// Atomically write `data` to `url` as an owner-only (`0600`) file. The bytes are written to a
-    /// staged temp file created with `O_EXCL|O_CREAT` at mode `0600` (so the credential is never
-    /// world-readable, even momentarily), fsync'd, then atomically `rename(2)`d over `url`.
+    /// staged file created with `O_EXCL|O_CREAT` at mode `0600` inside a task-owned `0700` directory
+    /// beside the destination, fsync'd, then atomically `rename(2)`d over `url` on the same volume.
     ///
     /// Throws on any failure and leaves no partial file — callers may `try?` this and rely on it
     /// failing closed (no insecure file is published) rather than leaving a `0644` file behind.
     ///
     /// `beforePublish` runs against the staged (already `0600`) file after the bytes are written and
     /// before the atomic rename, for callers that need to validate or post-process before publishing.
-    static func writePrivate(
+    package static func writePrivate(
         _ data: Data,
         to url: URL,
         beforePublish: ((URL) throws -> Void)? = nil) throws
@@ -30,8 +35,15 @@ enum CredentialFileWriter {
         let directory = url.deletingLastPathComponent()
         try fm.createDirectory(at: directory, withIntermediateDirectories: true)
 
-        let staged = directory.appendingPathComponent(
-            ".\(url.lastPathComponent).codexbar-staged-\(UUID().uuidString)", isDirectory: false)
+        let stagingDirectory = directory.appendingPathComponent(".codexbar-staged-\(UUID().uuidString)")
+        guard stagingDirectory.path.withCString({ mkdir($0, mode_t(0o700)) }) == 0 else {
+            throw Self.posixError(errno, path: stagingDirectory.path)
+        }
+        defer { try? fm.removeItem(at: stagingDirectory) }
+        guard stagingDirectory.path.withCString({ chmod($0, mode_t(0o700)) }) == 0 else {
+            throw Self.posixError(errno, path: stagingDirectory.path)
+        }
+        let staged = stagingDirectory.appendingPathComponent(url.lastPathComponent)
         let descriptor = staged.path.withCString {
             open($0, O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, mode_t(0o600))
         }
@@ -40,14 +52,20 @@ enum CredentialFileWriter {
         let handle = FileHandle(fileDescriptor: descriptor, closeOnDealloc: true)
         var handleOpen = true
         do {
-            // Belt-and-braces: force 0600 even if umask or a permissive O_CREAT mode widened it.
+            // Restore owner access even under a restrictive umask, before writing any bytes.
             guard fchmod(descriptor, mode_t(0o600)) == 0 else { throw Self.posixError(errno, path: staged.path) }
+            #if DEBUG
+            try self.beforeWriteForTesting?(staged)
+            #endif
             try handle.write(contentsOf: data)
             try handle.synchronize()
             try handle.close()
             handleOpen = false
 
             try beforePublish?(staged)
+            #if DEBUG
+            try self.beforePublishForTesting?(staged)
+            #endif
 
             // Atomic publish: rename(2) replaces any existing destination in one step.
             let renamed = staged.path.withCString { src in
@@ -56,7 +74,6 @@ enum CredentialFileWriter {
             guard renamed == 0 else { throw Self.posixError(errno, path: url.path) }
         } catch {
             if handleOpen { try? handle.close() }
-            try? fm.removeItem(at: staged)
             throw error
         }
     }

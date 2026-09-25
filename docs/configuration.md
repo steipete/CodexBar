@@ -21,7 +21,7 @@ API keys, manual cookie headers, source selection, ordering, and token accounts 
 - `~/.config/codexbar/config.json` by default for new installs.
 - `~/.codexbar/config.json` for existing legacy installs when no XDG config exists.
 - The directory is created if missing.
-- Permissions are set to `0600` whenever CodexBar writes the file on macOS and Linux.
+- Writes on macOS and Linux create a `0600` file inside a private `0700` staging directory beside the destination before writing any bytes, then sync and atomically replace the destination. Failed writes preserve the previous file and remove staging.
 
 ## Root shape
 ```json

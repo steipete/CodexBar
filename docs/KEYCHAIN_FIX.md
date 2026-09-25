@@ -29,6 +29,20 @@ User-facing behavior and troubleshooting live in [Keychain prompts](keychain-pro
 - `KeychainCacheStore` retains its existing ACL-creation fallback and disabled-mode in-memory cookie behavior; those
   are separate from this prompt-containment change.
 
+## Browser consent and credential files
+
+Startup persists its resolved OpenAI web-access preference before loading app state. Both the legacy
+`openAIWebAccess` key and current `openAIWebAccessEnabled` key preserve explicit denial across launches. A denied
+preference with no configured cookie source is saved as Codex `cookieSource: "off"`, so CLI refresh cannot interpret
+an absent source as Auto. Existing explicit cookie-source choices and legacy inference on the first upgrade remain
+unchanged. This does not reset browser-denial cooldowns, read cookies, or introduce interactive access.
+
+Credential-bearing file writes share `CredentialFileWriter`: each write creates its own `0700` staging directory
+beside the destination and an exclusive `0600` file before writing bytes. The writer syncs the file and atomically
+renames it over the destination on the same volume, then removes its staging directory. A failed write leaves the
+previous destination intact. Config, token accounts, Codex auth/promotion, Antigravity OAuth, Gemini OAuth/curl requests,
+and file-backed cookie/session stores use this path.
+
 ## Unified legacy migration
 
 `CodexBarConfigMigrator` is the single migration owner for retired token, cookie, MiniMax, Kimi, OpenCode, and token-

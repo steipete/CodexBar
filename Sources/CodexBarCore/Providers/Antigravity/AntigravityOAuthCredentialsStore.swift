@@ -442,12 +442,7 @@ public struct AntigravityOAuthCredentialsStore: @unchecked Sendable {
     public func save(_ credentials: AntigravityOAuthCredentials) throws {
         try Self.fileLock.withLock {
             let data = try JSONEncoder.antigravityCredentials.encode(credentials)
-            let directory = self.fileURL.deletingLastPathComponent()
-            if !self.fileManager.fileExists(atPath: directory.path) {
-                try self.fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
-            }
-            try data.write(to: self.fileURL, options: [.atomic])
-            try self.applySecurePermissionsIfNeeded()
+            try CredentialFileWriter.writePrivate(data, to: self.fileURL)
         }
     }
 
@@ -494,14 +489,6 @@ public struct AntigravityOAuthCredentialsStore: @unchecked Sendable {
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, let data = trimmed.data(using: .utf8) else { return nil }
         return try? JSONDecoder().decode(AntigravityOAuthCredentials.self, from: data)
-    }
-
-    private func applySecurePermissionsIfNeeded() throws {
-        #if os(macOS) || os(Linux)
-        try self.fileManager.setAttributes([
-            .posixPermissions: NSNumber(value: Int16(0o600)),
-        ], ofItemAtPath: self.fileURL.path)
-        #endif
     }
 }
 

@@ -57,6 +57,20 @@ extension GeminiStatusProbe {
             try? fileManager.removeItem(at: tempDir)
         }
 
+        let configURL = try Self.writeCurlRequest(request, to: tempDir)
+
+        let result = try await SubprocessRunner.run(
+            binary: "/usr/bin/curl",
+            arguments: ["--config", configURL.path],
+            environment: TTYCommandRunner.enrichedEnvironment(),
+            timeout: max(5, request.timeoutInterval + 2),
+            label: "gemini-api-curl")
+
+        return try Self.parseCurlDataLoaderResult(result.stdout, url: url)
+    }
+
+    static func writeCurlRequest(_ request: URLRequest, to tempDir: URL) throws -> URL {
+        guard let url = request.url else { throw URLError(.badURL) }
         let configURL = tempDir.appendingPathComponent("curl.conf")
         var config = [
             "silent",
@@ -80,23 +94,14 @@ extension GeminiStatusProbe {
 
         if let body = request.httpBody {
             let bodyURL = tempDir.appendingPathComponent("body")
-            try body.write(to: bodyURL, options: .atomic)
-            try fileManager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: bodyURL.path)
+            try CredentialFileWriter.writePrivate(body, to: bodyURL)
             config.append("data-binary = \(Self.curlConfigQuote("@\(bodyURL.path)"))")
         }
 
         config.append("write-out = \(Self.curlConfigQuote(Self.curlHTTPStatusMarker + "%{http_code}"))")
-        try config.joined(separator: "\n").write(to: configURL, atomically: true, encoding: .utf8)
-        try fileManager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: configURL.path)
+        try CredentialFileWriter.writePrivate(Data(config.joined(separator: "\n").utf8), to: configURL)
 
-        let result = try await SubprocessRunner.run(
-            binary: "/usr/bin/curl",
-            arguments: ["--config", configURL.path],
-            environment: TTYCommandRunner.enrichedEnvironment(),
-            timeout: max(5, request.timeoutInterval + 2),
-            label: "gemini-api-curl")
-
-        return try Self.parseCurlDataLoaderResult(result.stdout, url: url)
+        return configURL
     }
 
     private static let curlHTTPStatusMarker = "__CODEXBAR_HTTP_STATUS__:"

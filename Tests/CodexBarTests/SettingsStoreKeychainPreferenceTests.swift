@@ -99,8 +99,60 @@ struct SettingsStoreKeychainPreferenceTests {
         }
     }
 
+    @Test
+    func `startup persists inferred denial before a later launch sees generic configuration`() {
+        let first = InMemoryUserDefaults()
+        #expect(!SettingsStore.initializeOpenAIWebAccessPreference(
+            userDefaults: first, config: CodexBarConfig(providers: []), hadExistingConfig: false))
+        #expect(first.object(forKey: "openAIWebAccessEnabled") as? Bool == false)
+        let reloaded = InMemoryUserDefaults(values: first.dictionaryRepresentation())
+        #expect(!SettingsStore.initializeOpenAIWebAccessPreference(
+            userDefaults: reloaded,
+            config: CodexBarConfig(providers: [ProviderConfig(id: .codex)]),
+            hadExistingConfig: true))
+    }
+
+    @Test(arguments: ["false", "invalid"])
+    func `malformed stored web preference stays denied instead of inferring new consent`(value: String) throws {
+        let defaults = InMemoryUserDefaults(values: ["openAIWebAccessEnabled": value])
+        let config = CodexBarConfig(providers: [ProviderConfig(id: .codex)])
+        #expect(!SettingsStore.initializeOpenAIWebAccessPreference(
+            userDefaults: defaults, config: config, hadExistingConfig: true))
+        try self.withSettingsStore(defaults: defaults, config: config) { store in
+            #expect(!store.openAIWebAccessEnabled)
+            #expect(store.configSnapshot.providerConfig(for: .codex)?.cookieSource == .off)
+        }
+    }
+
+    @Test(arguments: ["openAIWebAccess", "openAIWebAccessEnabled"])
+    func `startup denial survives two launches and remains off in CLI configuration`(preferenceKey: String) throws {
+        var values: [String: Any] = [preferenceKey: false]
+        var savedConfig: CodexBarConfig?
+        for _ in 0..<2 {
+            let defaults = InMemoryUserDefaults(values: values)
+            try self.withSettingsStore(defaults: defaults, config: savedConfig) { store in
+                #expect(!store.openAIWebAccessEnabled)
+                #expect(store.codexCookieSource == .off)
+                savedConfig = try store.configStore.load()
+                #expect(savedConfig?.providerConfig(for: .codex)?.cookieSource == .off)
+                values = defaults.dictionaryRepresentation()
+                #expect(values["openAIWebAccessEnabled"] as? Bool == false)
+            }
+        }
+    }
+
+    @Test
+    func `first launch publishes disabled browser access to CLI configuration`() throws {
+        try self.withSettingsStore(defaults: InMemoryUserDefaults()) { store in
+            #expect(!store.openAIWebAccessEnabled)
+            let saved = try store.configStore.load()
+            #expect(saved?.providerConfig(for: .codex)?.cookieSource == .off)
+        }
+    }
+
     private func withSettingsStore(
         defaults: InMemoryUserDefaults,
+        config: CodexBarConfig? = nil,
         keychainAccessPolicy: SettingsStoreKeychainAccessPolicy = SettingsStoreKeychainAccessPolicy(
             setDisabled: { _ in },
             isExplicitlyDisabled: { false }),
@@ -123,9 +175,11 @@ struct SettingsStoreKeychainPreferenceTests {
                 Issue.record("Could not remove synthetic settings fixture: \(error)")
             }
         }
+        let configStore = CodexBarConfigStore(fileURL: root.appendingPathComponent("config.json"))
+        if let config { try configStore.save(config) }
         let store = SettingsStore(
             userDefaults: defaults,
-            configStore: CodexBarConfigStore(fileURL: root.appendingPathComponent("config.json")),
+            configStore: configStore,
             zaiTokenStore: NoopZaiTokenStore(),
             syntheticTokenStore: NoopSyntheticTokenStore(),
             codexCookieStore: InMemoryCookieHeaderStore(),

@@ -804,12 +804,10 @@ public enum CookieHeaderCache {
 
     static func store(_ entry: Entry, to url: URL) {
         do {
-            let dir = url.deletingLastPathComponent()
-            try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
             let encoder = JSONEncoder()
             encoder.dateEncodingStrategy = .iso8601
             let data = try encoder.encode(entry)
-            try data.write(to: url, options: [.atomic])
+            try CredentialFileWriter.writePrivate(data, to: url)
         } catch {
             self.log.error("Failed to persist cookie cache: \(error)")
         }
