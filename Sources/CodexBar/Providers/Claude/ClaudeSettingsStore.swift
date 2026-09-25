@@ -35,6 +35,13 @@ extension SettingsStore {
         set { self.setCookieSource(newValue, provider: .claude) }
     }
 
+    var claudeWorkspaceSpendEnabled: Bool {
+        get { self.configSnapshot.providerConfig(for: .claude)?.claudeWorkspaceSpendEnabled ?? false }
+        set {
+            self.updateProviderConfig(provider: .claude) { $0.claudeWorkspaceSpendEnabled = newValue }
+        }
+    }
+
     var claudeAdminAPIKey: String {
         get { self[providerConfig: .claude, field: .apiKey] }
         set { self[providerConfig: .claude, field: .apiKey] = newValue }

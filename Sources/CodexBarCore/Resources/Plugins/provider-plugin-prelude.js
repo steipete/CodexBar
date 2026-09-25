@@ -3,17 +3,20 @@
   "use strict";
 
   const httpRejection = (reject) => (failure) => reject(Object.assign(new Error(failure.message), failure));
+  const get = (url, opts, wantsJSON) =>
+    new Promise((resolve, reject) =>
+      host.http(String(url), opts || {}, "GET", wantsJSON, resolve, httpRejection(reject)),
+    );
 
   ctx.http = Object.freeze({
     getJSON(url, opts) {
-      return new Promise((resolve, reject) =>
-        host.http(String(url), opts || {}, "GET", true, resolve, httpRejection(reject)),
-      );
+      return get(url, opts, true);
     },
     get(url, opts) {
-      return new Promise((resolve, reject) =>
-        host.http(String(url), opts || {}, "GET", false, resolve, httpRejection(reject)),
-      );
+      return get(url, opts, false);
+    },
+    getWithOptional(url, optionalURL, opts) {
+      return get(url, { ...opts, optionalURL: String(optionalURL) }, false);
     },
     post(url, opts) {
       return jsonPost(url, opts, false);
@@ -54,6 +57,18 @@
     },
     getSecret(key) {
       return host.settingGet(String(key), true);
+    },
+  });
+
+  ctx.storage = Object.freeze({
+    get(key) {
+      return host.storage("get", key, undefined);
+    },
+    set(key, value) {
+      host.storage("set", key, value);
+    },
+    remove(key) {
+      host.storage("remove", key, undefined);
     },
   });
 

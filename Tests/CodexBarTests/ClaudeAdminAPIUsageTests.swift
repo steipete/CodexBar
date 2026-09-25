@@ -1,14 +1,21 @@
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 import Testing
 @testable import CodexBarCore
 
 struct ClaudeAdminAPIUsageTests {
     private func makeContext(
         apiKey: String = "sk-ant-admin-test",
-        sourceMode: ProviderSourceMode = .api) -> ProviderFetchContext
+        sourceMode: ProviderSourceMode = .api,
+        workspaceSpendEnabled: Bool = false) -> ProviderFetchContext
     {
         let browserDetection = BrowserDetection(cacheTTL: 0)
-        let env = [ClaudeAdminAPISettingsReader.adminAPIKeyEnvironmentKey: apiKey]
+        let env = [
+            ClaudeAdminAPISettingsReader.adminAPIKeyEnvironmentKey: apiKey,
+            ClaudeAdminAPISettingsReader.workspaceSpendEnvironmentKey: String(workspaceSpendEnabled),
+        ]
         return ProviderFetchContext(
             runtime: .app,
             sourceMode: sourceMode,
@@ -208,17 +215,125 @@ struct ClaudeAdminAPIUsageTests {
         #expect(apiUsage.latestDay.totalTokens == 1950)
     }
 
-    @Test
-    func `fetch strategy reports admin api source label`() async throws {
-        let strategy = ClaudeAdminAPIFetchStrategy(usageFetcher: { apiKey in
+    @Test(arguments: [false, true])
+    func `fetch strategy reports admin api source label`(enabled: Bool) async throws {
+        let strategy = ClaudeAdminAPIFetchStrategy(usageFetcher: { apiKey, workspaceSpendEnabled in
+            #expect(workspaceSpendEnabled == enabled)
             #expect(apiKey == "sk-ant-admin-test")
             return ClaudeAdminAPIUsageSnapshot(daily: [], updatedAt: Date(timeIntervalSince1970: 1_700_000_000))
         })
 
-        let result = try await strategy.fetch(self.makeContext())
+        let result = try await strategy.fetch(self.makeContext(workspaceSpendEnabled: enabled))
 
         #expect(result.sourceLabel == "admin-api")
         #expect(result.usage.identity?.loginMethod == "Admin API")
+    }
+
+    @Test
+    func `workspace details preserve organization totals and default workspace cents`() throws {
+        let costs = """
+        {"data":[
+          {"starting_at":"2026-09-23T00:00:00Z","ending_at":"2026-09-24T00:00:00Z","results":[
+            {"currency":"USD","amount":"1250","description":"Input tokens","workspace_id":"wrk_fixture"},
+            {"currency":"USD","amount":"250","description":"Output tokens","workspace_id":"wrk_fixture"},
+            {"currency":"USD","amount":"50","description":"Input tokens","workspace_id":null}]},
+          {"starting_at":"2026-09-24T00:00:00Z","ending_at":"2026-09-25T00:00:00Z","results":[
+            {"currency":"USD","amount":"75","description":"Input tokens","workspace_id":null}]}]}
+        """
+        let now = try #require(ISO8601DateParser.parse("2026-09-24T12:00:00Z"))
+        for enabled in [false, true] {
+            let snapshot = try ClaudeAdminAPIUsageFetcher._parseSnapshotForTesting(
+                costs: Data(costs.utf8),
+                messages: Data(#"{"data":[]}"#.utf8),
+                now: now,
+                workspaceSpendEnabled: enabled)
+            let usage = snapshot.toUsageSnapshot()
+            #expect(usage.providerCost?.used == 16.25)
+            #expect(snapshot.topCostItems.first?.costUSD == 13.75)
+            let section = usage.details.first { $0.title == "Workspace spend · 30d" }
+            if enabled {
+                let rows = try #require(section?.rows)
+                #expect(rows.map(\.label) == ["wrk_fixture", "Default"])
+                #expect(rows.map(\.value) == ["$15.00", "$1.25"])
+            } else {
+                #expect(section == nil)
+            }
+        }
+    }
+
+    @Test(arguments: [false, true])
+    func `workspace option groups the existing cost request only`(enabled: Bool) async throws {
+        let calls = LockIsolated(0)
+        let transport = ProviderHTTPTransportHandler { request in
+            calls.setValue(calls.value + 1)
+            let url = try #require(request.url)
+            let items = try #require(URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems)
+            let groups = items.filter { $0.name == "group_by[]" }.compactMap(\.value)
+            if url.path.hasSuffix("cost_report") {
+                #expect(groups == (enabled ? ["description", "workspace_id"] : ["description"]))
+            } else {
+                #expect(url.path.hasSuffix("usage_report/messages"))
+                #expect(groups == ["model"])
+            }
+            #expect(request.value(forHTTPHeaderField: "x-api-key") == "fixture-admin-key")
+            return (Data(#"{"data":[]}"#.utf8), HTTPURLResponse(
+                url: url, statusCode: 200, httpVersion: nil, headerFields: nil)!)
+        }
+        let snapshot = try await ClaudeAdminAPIUsageFetcher.fetchUsage(
+            apiKey: "fixture-admin-key", workspaceSpendEnabled: enabled, session: transport)
+        #expect(calls.value == 2)
+        #expect(snapshot.toUsageSnapshot().details.allSatisfy { $0.title != "Workspace spend · 30d" })
+    }
+
+    @Test
+    func `workspace rows are bounded and single workspace retains the organization view`() throws {
+        let now = try #require(ISO8601DateParser.parse("2026-09-24T12:00:00Z"))
+        for count in [1, 25] {
+            let rows = (0..<count).map {
+                #"{"amount":"\#($0 * 100)","workspace_id":"wrk_fixture_\#($0)"}"#
+            }.joined(separator: ",")
+            let costs = """
+            {"data":[{"starting_at":"2026-09-24T00:00:00Z","ending_at":"2026-09-25T00:00:00Z",
+            "results":[\(rows)]}]}
+            """
+            let snapshot = try ClaudeAdminAPIUsageFetcher._parseSnapshotForTesting(
+                costs: Data(costs.utf8),
+                messages: Data(#"{"data":[]}"#.utf8),
+                now: now,
+                workspaceSpendEnabled: true)
+            let usage = snapshot.toUsageSnapshot()
+            let section = usage.details.first { $0.title == "Workspace spend · 30d" }
+            #expect(usage.providerCost?.used == Double(count * (count - 1) / 2))
+            #expect(section?.rows.count == (count == 1 ? nil : 20))
+            if count > 1 {
+                #expect(section?.rows.first?.label == "wrk_fixture_24")
+                #expect(section?.rows.last?.label == "wrk_fixture_5")
+            }
+        }
+    }
+
+    @Test
+    func `workspace totals use the same last thirty buckets as organization spend`() throws {
+        let now = try #require(ISO8601DateParser.parse("2026-09-24T12:00:00Z"))
+        let buckets = (0..<31).map { offset in
+            let start = now.addingTimeInterval(Double(-offset) * 86400)
+            let end = start.addingTimeInterval(86400)
+            let amount = offset == 30 ? 10000 : 100
+            return """
+            {"starting_at":"\(ISO8601DateFormatter().string(from: start))",
+             "ending_at":"\(ISO8601DateFormatter().string(from: end))",
+             "results":[{"amount":"\(amount)","workspace_id":"wrk_fixture_\(offset % 2)"}]}
+            """
+        }.joined(separator: ",")
+        let snapshot = try ClaudeAdminAPIUsageFetcher._parseSnapshotForTesting(
+            costs: Data("{\"data\":[\(buckets)]}".utf8),
+            messages: Data(#"{"data":[]}"#.utf8),
+            now: now,
+            workspaceSpendEnabled: true)
+        #expect(snapshot.last30Days.costUSD == 30)
+        #expect(snapshot.workspaceCosts?.map(\.costUSD) == [15, 15])
+        let data = try JSONEncoder().encode(snapshot)
+        #expect(try JSONDecoder().decode(ClaudeAdminAPIUsageSnapshot.self, from: data) == snapshot)
     }
 
     private static func localNoon(year: Int, month: Int, day: Int) throws -> Date {

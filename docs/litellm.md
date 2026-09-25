@@ -79,6 +79,25 @@ shared snapshot model uses `limit: 0` to represent an absent budget; no quota wi
 zero spend is valid, while empty, malformed, or unavailable reports remain errors. Other management failures and
 report rate limits, server errors, or transport failures are not hidden by fallback.
 
+### Optional model activity
+
+Enable **Show model activity** in Settings → Providers → LiteLLM, set `litellmModelUsageEnabled: true` on the
+LiteLLM provider config entry, or set `LITELLM_MODEL_USAGE_ENABLED=true`. It is off by default.
+
+The bundled plugin calls the documented [`GET /user/daily/activity`](https://docs.litellm.ai/docs/proxy/cost_tracking#daily-spend-breakdown-api)
+with the user ID returned by `/key/info`. The detail section shows the top 20 models by total tokens over the last
+30 UTC dates, including today: input, output, total tokens, and logged requests. This is user-wide activity across
+keys, not the selected key's or team's activity. Request counts represent logged upstream attempts and can differ
+from client request counts. Historical activity does not reset with a budget.
+
+Requests are bounded to three pages of 1,000 spend records, with a two-second deadline per activity request.
+LiteLLM groups each page by day, so contributions from the same day across pages are combined. When enabled, the provider
+allows up to 40 seconds overall for the existing budget requests and optional history. Team-only keys and spend-only
+fallbacks do not request model activity because they lack a validated user ID. Denied, unsupported, malformed, timed-out,
+or incomplete history omits the detail section and retains spend and budgets. Both the documented flat model counters
+and the newer nested `metrics` shape are supported. No master key or new authentication is needed; the virtual key must
+have permission to read its user's activity. The upstream endpoint is beta.
+
 ## Security
 
 Treat LiteLLM keys as secrets. CodexBar stores configured keys only in provider config or token-account storage and

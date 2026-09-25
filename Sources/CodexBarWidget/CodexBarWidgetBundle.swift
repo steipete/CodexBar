@@ -115,7 +115,7 @@ struct CodexBarCombinedBurnDownWidget: Widget {
             CombinedBurnDownWidgetView(entry: entry)
         }
         .configurationDisplayName("CodexBar Burn Down (Combined)")
-        .description("Session and weekly burn-down charts in one tile.")
+        .description("Two quota burn-down charts in one tile.")
         .supportedFamilies([.systemMedium])
         .containerBackgroundRemovable(BurnDownWidgetBackgroundConfiguration.isRemovable)
     }

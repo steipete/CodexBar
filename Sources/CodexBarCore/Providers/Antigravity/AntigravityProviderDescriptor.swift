@@ -14,6 +14,12 @@ public enum AntigravityProviderDescriptor {
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
             id: .antigravity,
+            menuBarMetrics: ProviderMenuBarMetricCapabilities(
+                supported: [.automatic, .primary, .secondary],
+                namedExtras: [
+                    "antigravity-quota-summary-gemini-weekly": "Gemini weekly",
+                    "antigravity-quota-summary-3p-weekly": "Claude/GPT weekly",
+                ]),
             credentials: self.credentials,
             metadata: ProviderMetadata(
                 id: .antigravity,

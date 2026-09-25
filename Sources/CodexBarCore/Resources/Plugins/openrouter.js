@@ -7,13 +7,13 @@ defineProvider({
     {
       key: "OPENROUTER_API_KEY",
       title: "API key",
-      subtitle: "Inference or management key. Management keys also enable account Activity on the official API.",
+      subtitle: "Required regular or Management API key. Management keys enable Activity on the official API.",
       type: "secure",
     },
     {
       key: "OPENROUTER_MANAGEMENT_API_KEY",
       title: "Management API key",
-      subtitle: "Optional account Activity key; takes precedence over a management key in the API key field.",
+      subtitle: "Optional additional Activity key. Does not replace the required API key field.",
       type: "secure",
     },
     { key: "OPENROUTER_API_URL", title: "API URL", type: "plain" },

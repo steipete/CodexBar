@@ -24,7 +24,9 @@ public enum OpenRouterSettingsReader {
 
     /// Returns the API URL, defaulting to production endpoint
     public static func apiURL(environment: [String: String] = ProcessInfo.processInfo.environment) -> URL {
-        if let override = self.validAPIURL(environment: environment) {
+        if let raw = SettingsValue.cleaned(environment[self.apiURLEnvironmentKey]),
+           let override = ProviderEndpointOverrideValidator.normalizedHTTPSURL(from: raw)
+        {
             return override
         }
         return URL(string: "https://openrouter.ai/api/v1")!
@@ -44,10 +46,5 @@ public enum OpenRouterSettingsReader {
 
     public static func clientTitle(environment: [String: String] = ProcessInfo.processInfo.environment) -> String {
         SettingsValue.cleaned(environment[self.clientTitleEnvironmentKey]) ?? self.defaultClientTitle
-    }
-
-    private static func validAPIURL(environment: [String: String]) -> URL? {
-        guard let raw = SettingsValue.cleaned(environment[self.apiURLEnvironmentKey]) else { return nil }
-        return ProviderEndpointOverrideValidator.normalizedHTTPSURL(from: raw)
     }
 }

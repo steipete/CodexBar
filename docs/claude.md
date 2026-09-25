@@ -51,6 +51,19 @@ Admin API key setup:
   - Inline 30-day dashboard chart when daily buckets are present.
   - Identity login method: `Admin API`.
 
+### Optional workspace spend
+
+Enable **Show workspace spend** in Settings → Providers → Claude, set `claudeWorkspaceSpendEnabled: true` on the
+Claude provider config entry, or set `ANTHROPIC_ADMIN_WORKSPACE_SPEND=true`. It is off by default and applies only
+to the Admin API source.
+
+The existing [cost report](https://platform.claude.com/docs/en/api/admin/cost_report/retrieve) request adds
+`group_by[]=workspace_id` alongside `group_by[]=description`; no extra request or credentials are required.
+The organization totals, cost items, token summaries, and daily chart remain unchanged. When more than one workspace
+has cost rows, **Workspace spend · 30d** shows up to 20 workspaces, highest spend first, over the same 30-day buckets
+as the organization total. Labels use workspace IDs; a null workspace is **Default**. Amounts are converted from
+Anthropic's USD cents to dollars. A single workspace keeps the existing organization view.
+
 ## Recover usage when Claude is already signed in
 
 A working Claude Code login or Claude browser tab does not by itself confirm that CodexBar can read that

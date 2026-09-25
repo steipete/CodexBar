@@ -32,13 +32,13 @@ Remaining cookie rows need individual parity audits for their provider-specific 
 
 | Status | Count |
 |---|---:|
-| `cut-over` | 28 |
+| `cut-over` | 29 |
 | `converted` | 0 |
 | `convertible-now` | 0 |
 | `needs-cookie-import` | 7 |
 | `needs-files/subprocess/oauth-broker` | 20 |
 | `needs-pty/webview/native` | 8 |
-| `needs-host-extension` | 6 |
+| `needs-host-extension` | 5 |
 | **Audit total** | **69** |
 | Additional plugin-first providers | 9 |
 | Registered providers not yet classified here | 9 |
@@ -87,7 +87,7 @@ Remaining cookie rows need individual parity audits for their provider-specific 
 | perplexity | `cut-over` | Yes | Both engines use the bundled script for candidate retries, bare-token cookie names, chunk assembly, environment fallback, and recurring/bonus/purchased credit windows. Native fetching and projection are deleted. |
 | mimo | `needs-files/subprocess/oauth-broker` | No | The canonical pipeline includes the file-based local usage fallback as well as browser sessions; cookies alone cannot preserve it. |
 | doubao | `needs-files/subprocess/oauth-broker` | No | Full parity needs a CLI subprocess or Volcengine HMAC signing and POST-based plan calls. |
-| sakana | `needs-host-extension` | No | HTML parsing and generic quota/PAYG details fit scripts, but native PAYG collection shares a 200 ms budget from primary start and cancels unfinished work. The host lacks bounded optional-request collection and per-request cancellation. |
+| sakana | `cut-over` | Yes | Both engines use the bundled billing/PAYG parser and generic details. The host runs concurrent GETs with a shared 200 ms collection budget, a five-second optional request limit, and cancellation of unfinished work. The native fetcher and snapshot twin are deleted. |
 | abacus | `needs-host-extension` | No | Billing duration subtracts one Calendar.current month; the host exposes daily resets but no calendar/month subtraction with timezone parity. |
 | mistral | `needs-cookie-import` | No | CSRF extraction and dependent GETs fit scripts, but auth rejection iterates alternate browser profiles and preserves session selection. |
 | deepseek | `needs-files/subprocess/oauth-broker` | No | Platform auth/profile selection reads Chromium localStorage, and the result has a bespoke history model. |
@@ -101,7 +101,7 @@ Remaining cookie rows need individual parity audits for their provider-specific 
 | grok | `needs-pty/webview/native` | No | Persistent stdio JSON-RPC, auth/session files, cookies, logs, and binary gRPC-web are strongly native. |
 | groq | `needs-cookie-import` | No | Stytch JSON POST/JWT decoding fit scripts, but auth selects and retries merged browser-profile sessions; local-calendar history bounds also need parity proof. |
 | llmproxy | `cut-over` | Yes | Cut over on both engines: configured HTTPS/private-network HTTP, quota-group variants, aggregate totals, provider summaries, and classified failures; the native fetch twin is deleted. |
-| litellm | `cut-over` | Yes | Cut over on both engines: configured HTTPS/private-network HTTP, key-bound user/team lookups, budgets, spend-only and identity-only snapshots; the native fetch twin is deleted. |
+| litellm | `cut-over` | Yes | Cut over on both engines: configured HTTPS/private-network HTTP, key-bound user/team lookups, budgets, optional user-scoped model activity, spend-only and identity-only snapshots; the native fetch twin is deleted. |
 | bifrost | `cut-over` | Yes | Bundled TypeScript on both engines: configured HTTPS/private-network HTTP, virtual-key header auth, budget overrides, reset-only rate limits, and numeric model/budget details. Swift owns registration and settings only. |
 | deepgram | `cut-over` | Yes | Cut over on JavaScriptCore: project discovery, aggregation, configured origins, numeric validation, and classified auth/permission/rate/network/API/parse failures match native behavior; the native fetch core is Linux-only. |
 | poe | `cut-over` | Yes | Cut over on both engines: fixed-origin bearer GET balance/history pagination with daily points and model/type summaries; the native fetch twins are deleted. |

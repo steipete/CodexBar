@@ -297,6 +297,11 @@ shared OAuth file can still be used as a fallback credential source.
   represent different cadences. Unknown or missing summary cadences remain unavailable; snapshots without summary
   rows retain the standard cadence fallback. Automatic selection, its exhausted-quota option, and explicit family
   metrics retain their existing selection policies.
+- To pin both weekly allowances, open **Settings → Display → Menu Bar → Layout**, select **Antigravity**,
+  and add **Gemini weekly %** and **Claude/GPT weekly %** from Usage. Add a **Line break** between them for
+  a stacked display. These choices appear when the corresponding known quota-summary windows are available;
+  a missing or unknown family allowance hides only its token, without substituting its session quota or the
+  other family's weekly quota. The existing **Weekly %** token still shows the most constrained family.
 - Antigravity reports every model family the plan covers, so an account that only uses Gemini still receives a
   Claude/GPT pair pinned at 0%. Menu cards and widgets hide a family once every lane in it reports known zero usage.
   A family with unknown usage stays visible, and every family remains visible when all are untouched, for example

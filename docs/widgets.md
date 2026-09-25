@@ -52,8 +52,8 @@ also lets persistence integration tests count reload attempts without calling Wi
 - **CodexBar Account Usage** (`CodexBarAccountUsageWidget`): pins one saved account’s quota windows, small/medium/large.
 - **CodexBar History** (`CodexBarHistoryWidget`): configurable usage-history chart, medium/large.
 - **CodexBar Metric** (`CodexBarCompactWidget`): compact credits/today-cost/30-day-cost widget, small only.
-- **CodexBar Burn Down** (`CodexBarBurnDownWidget`): configurable session or weekly burn-down chart, medium only.
-- **CodexBar Burn Down (Combined)** (`CodexBarCombinedBurnDownWidget`): session and weekly burn-down charts, medium only.
+- **CodexBar Burn Down** (`CodexBarBurnDownWidget`): configurable quota burn-down chart, medium only.
+- **CodexBar Burn Down (Combined)** (`CodexBarCombinedBurnDownWidget`): two quota burn-down charts, medium only.
 
 Switcher widgets share one remembered provider selection, so switching one updates all Switcher widgets. To keep Claude and Codex visible side by side, add two **CodexBar Usage** widgets and configure each widget's **Provider** separately. Usage widgets read their own configured provider instead of the shared Switcher selection.
 
@@ -124,7 +124,34 @@ the key is uncapped. The Metric widget's **Credits left** choice shows the same 
 
 Providers without a `ProviderChoice` case can still be present in the app snapshot, but they are not selectable from the widget configuration UI yet.
 
-Burn-down widgets currently support Codex and Claude. Their dedicated configuration intents keep existing Usage and History widget configurations unchanged.
+Burn-down provider choices are filtered from the enabled providers in the latest saved snapshot. A quota
+qualifies when it has a finite usage percentage, a positive `windowMinutes`, a reset date, and is not a
+synthetic placeholder. The compile-time AppIntent catalog covers all built-in providers; providers that
+only report balances, unknown durations, or unknown resets do not appear. Refresh CodexBar before
+configuring a newly enabled provider. Custom plugin instance IDs are not part of the AppEnum catalog.
+
+For **Burn Down**, select **Provider**, then **Usage window**. The choices use the snapshot's quota names:
+Devin offers **Daily** and **Weekly**; Cursor offers **Total**, **Cursor**, and **Third Party** when those
+billing-cycle quotas are present. Each chart uses that quota's actual duration and reset, including
+Cursor's billing cycle. The choice stays pinned to its quota slot: missing data shows the empty state,
+never another quota. Provider titles in the snapshot take precedence over descriptor defaults.
+
+**Burn Down (Combined)** shows the first two quota lanes with their own names and durations, such as
+Devin's **Daily & Weekly** or Cursor's **Total & Cursor**. A missing lane shows **No data** under its own
+name. The single widget also offers the third quota when available. Combined requires a compatible first or
+second quota; a provider with only a compatible third quota appears in the single widget picker.
+
+Existing Codex/Claude intents retain their types, provider raw values, defaults, and exact **Session
+(5-hour)** / **Weekly (7-day)** meanings. Their Combined widgets keep those two lanes, including the
+weekly-cap behavior. If either provider supplies a different window duration, the new quota-slot choices
+and Combined layout use those actual windows; saved Session/Weekly aliases remain exact. New cases are additive; the configuration schema requires no removal and
+re-adding of widgets. Snapshot persistence, empty-snapshot preservation, and the 5–30-minute timeline schedule are
+unchanged. This does not address Homebrew removing widget placements during bundle replacement (#3627).
+
+Migration tests pin the original raw values and parameter types and exercise the old selections against
+legacy snapshots. Offscreen synthetic renders verify labels and chart layout; they do not prove installed
+WidgetKit upgrade behavior. Native upgrade verification should keep non-default Claude/Weekly widgets
+installed across an in-place signed bundle upgrade, then check Devin/Cursor choices in the widget editor.
 
 ## Visibility troubleshooting (macOS 14+)
 When widgets do not appear in the gallery at all, the issue is almost always

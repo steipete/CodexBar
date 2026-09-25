@@ -26,7 +26,11 @@ export OPENROUTER_API_KEY="sk-or-v1-..."
 
 You can also configure the API key in CodexBar Settings → Providers → OpenRouter.
 
-A management key in the API key field enables account Activity when using the official OpenRouter API. A separately configured Management API key takes precedence for Activity; the selected API key still supplies quota and balance when OpenRouter permits it.
+The **API key** field is required and accepts either a regular API key or a Management API key. If you only have a Management API key, enter it here; it enables account Activity when using the official OpenRouter API.
+
+The separate **Management API key** field is an optional additional key for account Activity, only needed when you want to use a different Management API key from the one in the required field above. It does not replace the required API key. When configured, it takes precedence for Activity; the selected API key still supplies quota and balance when OpenRouter permits it.
+
+If the primary field is empty, CodexBar reports a missing credential and asks you to enter either key type in **API key** (or set `OPENROUTER_API_KEY`). Filling only the optional Management field does not select an account for quota or balance requests.
 
 ### CLI config
 

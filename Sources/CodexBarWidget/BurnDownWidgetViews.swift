@@ -18,19 +18,22 @@ struct BurnDownWidgetView: View {
             if let state, let window = state.selectedWindow {
                 BurnDownLayout(
                     window: window,
+                    title: state.selectedTitle,
                     provider: self.entry.provider,
                     blankChart: state.blankPrimaryChart,
                     resetsAtOverride: state.selectedResetOverride)
             } else {
-                self.emptyState
+                BurnDownEmptyState()
             }
         }
         .containerBackground(for: .widget) {
             BurnWidgetBackground()
         }
     }
+}
 
-    private var emptyState: some View {
+struct BurnDownEmptyState: View {
+    var body: some View {
         VStack(spacing: 6) {
             Text("Open CodexBar")
                 .font(.body)
@@ -51,6 +54,7 @@ private struct BurnDownLayout: View {
     @Environment(\.colorScheme) private var colorScheme
 
     let window: RateWindow
+    let title: String
     let provider: UsageProvider
     /// True when the session window is blocked because the weekly budget is exhausted:
     /// suppress the chart and retarget "Resets in" to the weekly reset.
@@ -119,7 +123,7 @@ private struct BurnDownLayout: View {
                             .foregroundStyle(theme.text)
                             .lineLimit(1)
                     }
-                    Text(burnWindowLabel(self.window.windowMinutes))
+                    Text("\(self.title) · \(burnWindowLabel(self.window.windowMinutes))")
                         .font(.system(size: 11))
                         .foregroundStyle(theme.sub)
                         .kerning(0.2)
@@ -307,15 +311,17 @@ private struct BurnAxisRow: View {
 
 // MARK: - Chart Canvas
 
-private struct BurnChartCanvas: View {
+struct BurnChartCanvas: View {
     let geom: BurnGeom
     let theme: BurnTheme
+    var periods: Int?
+    var dark = false
 
     var body: some View {
         Canvas { context, size in
             let w = size.width
             let h = size.height
-            let padT: CGFloat = 8
+            let padT: CGFloat = self.periods == nil ? 8 : 5
             let padB: CGFloat = 2
             let padL: CGFloat = 1
             let padR: CGFloat = 1
@@ -329,6 +335,86 @@ private struct BurnChartCanvas: View {
 
             let tNow = self.geom.tNow
             let vNow = self.geom.vNow
+
+            if let periods = self.periods {
+                let barColor = self.dark ? Color.white : Color.black
+
+                // --- Usage bars (background texture) ---
+                // Drawn first so the actual line renders on top.
+                // Heights are relative-to-ideal: idealPerPeriod maps to ~46% of plot height.
+                let plotH = h - padT - padB
+                let refH = 0.46 * plotH // reference height = ideal-pace bar height
+                let idealPerPeriod = 100.0 / Double(periods)
+                let burnRate = tNow > 0.001 ? (100.0 - vNow) / tNow : 0.0 // %/unit-t
+                let slotW = (w - padL - padR) / CGFloat(periods)
+
+                for i in 0..<periods {
+                    let slotStart = Double(i) / Double(periods)
+                    let slotEnd = Double(i + 1) / Double(periods)
+                    let slotX = padL + CGFloat(slotStart) * (w - padL - padR)
+
+                    if slotEnd <= tNow {
+                        // Completed period — full-width bar
+                        let consumed = burnRate * (slotEnd - slotStart)
+                        let ratio = consumed / idealPerPeriod
+                        let totalBarH = CGFloat(ratio) * refH
+                        let baseH = min(totalBarH, refH)
+
+                        if baseH > 0 {
+                            let rect = CGRect(
+                                x: slotX,
+                                y: h - padB - baseH,
+                                width: slotW - 1,
+                                height: baseH)
+                            context.fill(Path(rect), with: .color(barColor.opacity(0.17)))
+                        }
+                        // Overage segment — above ideal reference line
+                        if totalBarH > refH {
+                            let overH = totalBarH - refH
+                            let rect = CGRect(
+                                x: slotX,
+                                y: h - padB - totalBarH,
+                                width: slotW - 1,
+                                height: overH)
+                            context.fill(Path(rect), with: .color(barColor.opacity(0.34)))
+                        }
+                    } else if slotStart < tNow {
+                        // Current (partial) period — narrower bar ending at tNow
+                        let partialFrac = (tNow - slotStart) / (slotEnd - slotStart)
+                        let consumed = burnRate * (tNow - slotStart)
+                        let ratio = consumed / idealPerPeriod
+                        let totalBarH = CGFloat(ratio) * refH
+                        let baseH = min(totalBarH, refH)
+                        let barW = CGFloat(partialFrac) * (slotW - 1)
+
+                        if baseH > 0 {
+                            let rect = CGRect(
+                                x: slotX,
+                                y: h - padB - baseH,
+                                width: barW,
+                                height: baseH)
+                            context.fill(Path(rect), with: .color(barColor.opacity(0.13)))
+                        }
+                        if totalBarH > refH {
+                            let overH = totalBarH - refH
+                            let rect = CGRect(
+                                x: slotX,
+                                y: h - padB - totalBarH,
+                                width: barW,
+                                height: overH)
+                            context.fill(Path(rect), with: .color(barColor.opacity(0.26)))
+                        }
+                    } else {
+                        // Future period — faint full-height placeholder
+                        let rect = CGRect(
+                            x: slotX,
+                            y: h - padB - refH,
+                            width: slotW - 1,
+                            height: refH)
+                        context.fill(Path(rect), with: .color(barColor.opacity(0.045)))
+                    }
+                }
+            }
 
             // --- Now vertical hairline ---
             do {
@@ -347,7 +433,7 @@ private struct BurnChartCanvas: View {
             }
 
             // --- Area fill (gradient from actual line down to baseline) ---
-            do {
+            if self.periods == nil {
                 var p = Path()
                 p.move(to: CGPoint(x: X(0), y: Y(100)))
                 p.addLine(to: CGPoint(x: X(tNow), y: Y(vNow)))
@@ -608,11 +694,9 @@ func burnWindowLabel(_ windowMinutes: Int?) -> String {
     if mins < 60 {
         return "\(mins)-minute limit"
     }
-    let hours = mins / 60
-    if hours < 24 {
-        return "\(hours)-hour limit"
-    }
-    return "\(hours / 24)-day limit"
+    if mins % 1440 == 0 { return "\(mins / 1440)-day limit" }
+    if mins % 60 == 0 { return "\(mins / 60)-hour limit" }
+    return "\(mins)-minute limit"
 }
 
 func burnEffectiveResetDate(
@@ -638,14 +722,9 @@ func burnAxisDateRange(
 
 func burnCompactWindowLabel(_ windowMinutes: Int?, fallback: String) -> String {
     guard let minutes = windowMinutes else { return fallback }
-    if minutes < 60 {
-        return "\(minutes)M"
-    }
-    let hours = minutes / 60
-    if hours < 24 {
-        return "\(hours)H"
-    }
-    return "\(hours / 24)D"
+    if minutes > 1440, minutes % 1440 == 0 { return "\(minutes / 1440)D" }
+    if minutes % 60 == 0 { return "\(minutes / 60)H" }
+    return "\(minutes)M"
 }
 
 func burnFmtDuration(_ minutes: Double) -> String {

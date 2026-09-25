@@ -6,6 +6,169 @@ import FoundationNetworking
 
 /// Shared request policy and HTTP values exposed to both plugin engines.
 enum ProviderPluginHTTPResponse {
+    struct Payload: @unchecked Sendable {
+        let value: [String: Any]
+    }
+
+    struct Request: Sendable {
+        let primary: URLRequest
+        let optional: URLRequest?
+        let retryPolicy: ProviderHTTPRetryPolicy
+
+        init(
+            rawURL: String,
+            options: [String: Any],
+            method: String,
+            settings: [String: String],
+            secrets: [String: String],
+            manifest: ProviderPluginManifest,
+            enforcesUserResponsePolicy: Bool) throws
+        {
+            self.retryPolicy = try ProviderPluginHTTPResponse.retryPolicy(
+                options["retryPolicy"].map(JSONProviderPluginValue.init))
+            self.primary = try ProviderPluginHTTPResponse.request(
+                rawURL: rawURL,
+                options: options,
+                method: method,
+                settings: settings,
+                secrets: secrets,
+                manifest: manifest,
+                enforcesUserResponsePolicy: enforcesUserResponsePolicy)
+            if let optionalURL = options["optionalURL"] {
+                guard method == "GET", let optionalURL = optionalURL as? String else {
+                    throw ProviderPluginError.http("optionalURL requires a string URL and GET")
+                }
+                var request = try ProviderPluginHTTPResponse.request(
+                    rawURL: optionalURL,
+                    options: options,
+                    method: "GET",
+                    settings: settings,
+                    secrets: secrets,
+                    manifest: manifest,
+                    enforcesUserResponsePolicy: enforcesUserResponsePolicy)
+                request.timeoutInterval = min(request.timeoutInterval, 5)
+                self.optional = request
+            } else {
+                self.optional = nil
+            }
+        }
+    }
+
+    private enum Completion: Sendable {
+        case primary(ProviderHTTPResponse)
+        case optional(ProviderHTTPResponse?)
+        case budgetExpired
+    }
+
+    // swiftlint:disable:next function_parameter_count
+    static func fetch(
+        _ request: Request,
+        transport: any ProviderHTTPTransport,
+        wantsJSON: Bool,
+        responseSizeLimit: Int,
+        enforcesUserResponsePolicy: Bool,
+        rejectsNonSuccessResponses: Bool,
+        beforeAttempt: (@Sendable () async throws -> Void)?,
+        collectionBudget: Duration = .milliseconds(200)) async throws -> Payload
+    {
+        let (starts, started) = AsyncStream<ContinuousClock.Instant>.makeStream(bufferingPolicy: .bufferingNewest(1))
+        return try await withThrowingTaskGroup(of: Completion.self) { group in
+            defer { group.cancelAll() }
+            group.addTask {
+                defer { started.finish() }
+                return try await .primary(self.response(
+                    for: request.primary,
+                    transport: transport,
+                    retryPolicy: request.retryPolicy,
+                    beforeAttempt: {
+                        try await beforeAttempt?()
+                        started.yield(.now)
+                        started.finish()
+                    }))
+            }
+            if let optional = request.optional {
+                group.addTask {
+                    await .optional(try? self.response(
+                        for: optional,
+                        transport: transport,
+                        retryPolicy: .disabled,
+                        beforeAttempt: beforeAttempt))
+                }
+                group.addTask {
+                    // Admission and scheduling waits belong to the overall fetch timeout.
+                    var iterator = starts.makeAsyncIterator()
+                    if let start = await iterator.next() {
+                        try await Task.sleep(until: start.advanced(by: collectionBudget), clock: .continuous)
+                    }
+                    return .budgetExpired
+                }
+            }
+            var primary: ProviderHTTPResponse?
+            var optional: ProviderHTTPResponse?
+            var optionalFinished = request.optional == nil
+            var budgetExpired = false
+            while let completion = try await group.next() {
+                switch completion {
+                case let .primary(response): primary = response
+                case let .optional(response):
+                    optional = response
+                    optionalFinished = true
+                case .budgetExpired: budgetExpired = true
+                }
+                // After expiry, retain optional results only while the required request is still pending.
+                if let primary, optionalFinished || budgetExpired || !(200..<300).contains(primary.statusCode) {
+                    break
+                }
+            }
+            try Task.checkCancellation()
+            guard let primary else { throw CancellationError() }
+            var payload = try self.checkedPayload(
+                primary,
+                wantsJSON: wantsJSON,
+                responseSizeLimit: responseSizeLimit,
+                enforcesUserResponsePolicy: enforcesUserResponsePolicy,
+                rejectsNonSuccessResponses: rejectsNonSuccessResponses,
+                allowsRetry: request.retryPolicy.maxRetries == 0)
+            if request.optional != nil {
+                if let optional, (200..<300).contains(primary.statusCode) {
+                    payload["optional"] = try? self.checkedPayload(
+                        optional,
+                        wantsJSON: wantsJSON,
+                        responseSizeLimit: responseSizeLimit,
+                        enforcesUserResponsePolicy: enforcesUserResponsePolicy,
+                        rejectsNonSuccessResponses: true,
+                        allowsRetry: false)
+                }
+                if payload["optional"] == nil { payload["optional"] = NSNull() }
+            }
+            return Payload(value: payload)
+        }
+    }
+
+    // swiftlint:disable:next function_parameter_count
+    private static func checkedPayload(
+        _ response: ProviderHTTPResponse,
+        wantsJSON: Bool,
+        responseSizeLimit: Int,
+        enforcesUserResponsePolicy: Bool,
+        rejectsNonSuccessResponses: Bool,
+        allowsRetry: Bool) throws -> [String: Any]
+    {
+        guard response.data.count <= responseSizeLimit else {
+            throw ProviderPluginError.http("response exceeded the \(responseSizeLimit)-byte limit")
+        }
+        if rejectsNonSuccessResponses, !(200..<300).contains(response.statusCode) {
+            throw StatusFailure(response: response.response, allowsRetry: allowsRetry)
+        }
+        if enforcesUserResponsePolicy,
+           let encoding = response.response.value(forHTTPHeaderField: "Content-Encoding"),
+           !encoding.isEmpty, encoding.caseInsensitiveCompare("identity") != .orderedSame
+        {
+            throw ProviderPluginError.http("compressed responses are not allowed")
+        }
+        return try self.payload(response, wantsJSON: wantsJSON)
+    }
+
     // swiftlint:disable:next function_parameter_count
     static func request(
         rawURL: String,
@@ -153,7 +316,9 @@ enum ProviderPluginHTTPResponse {
     }
 
     static func failure(
-        _ error: Error, message: String, transportErrors: TransportErrors? = nil) -> [String: Any]
+        _ error: Error,
+        message: String,
+        transportErrors: TransportErrors? = nil) -> [String: Any]
     {
         var payload: [String: Any] = ["message": message]
         if let failure = error as? StatusFailure {
@@ -207,6 +372,7 @@ enum ProviderPluginHTTPResponse {
         }
         var payload: [String: Any] = [
             "status": response.statusCode,
+            "url": response.response.url?.absoluteString ?? "",
             "headers": headers,
         ]
         if wantsJSON {

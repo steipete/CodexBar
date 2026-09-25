@@ -30,14 +30,7 @@ struct MenuDescriptorSakanaTests {
 
     private static func menuLines(showOptionalUsage: Bool) throws -> [String] {
         let suite = "MenuDescriptorSakanaTests-\(showOptionalUsage)"
-        let defaults = try #require(UserDefaults(suiteName: suite))
-        defaults.removePersistentDomain(forName: suite)
-
-        let settings = SettingsStore(
-            userDefaults: defaults,
-            configStore: testConfigStore(suiteName: suite),
-            zaiTokenStore: NoopZaiTokenStore(),
-            syntheticTokenStore: NoopSyntheticTokenStore())
+        let settings = testSettingsStore(suiteName: suite, userDefaults: InMemoryUserDefaults())
         settings.statusChecksEnabled = false
         settings.showOptionalCreditsAndExtraUsage = showOptionalUsage
 
@@ -45,16 +38,7 @@ struct MenuDescriptorSakanaTests {
             fetcher: UsageFetcher(environment: [:]),
             browserDetection: BrowserDetection(cacheTTL: 0),
             settings: settings)
-        let snapshot = SakanaUsageSnapshot(
-            planName: "Standard",
-            priceLabel: "$20/mo",
-            fiveHour: .init(usedPercent: 10, resetsAt: nil),
-            weekly: .init(usedPercent: 20, resetsAt: nil),
-            payAsYouGo: SakanaPayAsYouGoSnapshot(
-                creditBalance: 12.34,
-                periodUsageTotal: 5.67,
-                periodLabel: "Jun 02, 2026 - Jul 01, 2026"))
-        store._setSnapshotForTesting(snapshot.toUsageSnapshot(), provider: .sakana)
+        try store._setSnapshotForTesting(sakanaMenuSnapshot(now: Date()), provider: .sakana)
 
         let descriptor = MenuDescriptor.build(
             provider: .sakana,
@@ -93,22 +77,13 @@ struct SakanaMenuCardModelTests {
 
     private static func model(showOptionalUsage: Bool) throws -> UsageMenuCardView.Model {
         let now = Date(timeIntervalSince1970: 0)
-        let snapshot = SakanaUsageSnapshot(
-            planName: "Standard",
-            priceLabel: "$20/mo",
-            fiveHour: .init(usedPercent: 10, resetsAt: nil),
-            weekly: .init(usedPercent: 20, resetsAt: nil),
-            payAsYouGo: SakanaPayAsYouGoSnapshot(
-                creditBalance: 12.34,
-                periodUsageTotal: 5.67,
-                periodLabel: "Jun 02, 2026 - Jul 01, 2026"),
-            updatedAt: now)
+        let snapshot = try sakanaMenuSnapshot(now: now)
         let metadata = try #require(ProviderDefaults.metadata[.sakana])
 
         return UsageMenuCardView.Model.make(.init(
             provider: .sakana,
             metadata: metadata,
-            snapshot: snapshot.toUsageSnapshot(),
+            snapshot: snapshot,
             credits: nil,
             creditsError: nil,
             dashboardError: nil,
@@ -124,4 +99,18 @@ struct SakanaMenuCardModelTests {
             hidePersonalInfo: false,
             now: now))
     }
+}
+
+private func sakanaMenuSnapshot(now: Date) throws -> UsageSnapshot {
+    try UsageSnapshot(
+        primary: RateWindow(usedPercent: 10, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+        secondary: RateWindow(usedPercent: 20, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
+        tertiary: nil,
+        details: [ProviderDetailSection(title: "Extra usage", rows: [
+            ProviderDetailSection.Row(label: "Balance", value: "$12.34"),
+            ProviderDetailSection.Row(label: "Usage", value: "$5.67", secondaryValue: "Jun 02, 2026 - Jul 01, 2026"),
+        ])],
+        updatedAt: now,
+        identity: ProviderIdentitySnapshot(
+            providerID: .sakana, accountEmail: nil, accountOrganization: nil, loginMethod: "Standard $20/mo"))
 }
