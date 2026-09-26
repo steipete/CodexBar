@@ -25,13 +25,16 @@ extension StatusItemController {
             legacyDefaultItemIndex: legacyDefaultItemIndex)
         // AppKit has no named factory: keep the item zero-width until its stable identity is attached.
         let item = create(0)
+        MenuBarStatusItemWindowProbe.trace("created", item: item as? NSStatusItem)
         // Registration must see the stable identity before its callback can re-enter setup.
         item.autosaveName = identity.autosaveName
+        MenuBarStatusItemWindowProbe.trace("named", item: item as? NSStatusItem)
         onCreated?(item)
         // Reentrant registration may have already rendered a custom width.
         if item.length == 0 {
             item.length = NSStatusItem.variableLength
         }
+        MenuBarStatusItemWindowProbe.trace("sized", item: item as? NSStatusItem)
         if let button = item.button {
             let title = self.statusItemAccessibilityTitle(
                 isDebugApp: self.isDebugApp(bundleIdentifier: Bundle.main.bundleIdentifier))

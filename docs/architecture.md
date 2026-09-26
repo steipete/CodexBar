@@ -18,6 +18,8 @@ read_when:
 ## Entry points
 - `CodexBarApp`: SwiftUI keepalive + Settings scene.
 - `AppDelegate`: wires status controller, Sparkle updater, notifications.
+- Status items are created on the main actor from `applicationDidFinishLaunching`; see
+  [status-item startup diagnostics](status-item-diagnostics.md) for opt-in lifecycle and Control Center traces.
 
 ## Data flow
 - Background refresh → `UsageFetcher`/provider probes → `UsageStore` → menu/icon/widgets.

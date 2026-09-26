@@ -2,6 +2,10 @@
 
 ## 0.67.1 — Unreleased
 
+### Added
+
+- Menu bar: add opt-in, bounded startup diagnostics for status-item creation and Control Center hosting investigations (#3377).
+
 ## 0.67.0 — 2026-09-25
 
 ### Highlights

@@ -37,10 +37,63 @@ struct MenuBarStatusItemWindowSnapshot: Equatable, CustomStringConvertible {
 }
 
 enum MenuBarStatusItemWindowProbe {
+    @MainActor static let diagnosticsEnabled = ProcessInfo.processInfo
+        .environment["CODEXBAR_STATUS_ITEM_DIAGNOSTICS"] == "1"
+    @MainActor private static var diagnosticRecords = 0
+
+    /// Opt-in, bounded stdout trace; never includes window titles, accounts, or provider content.
+    @MainActor static func trace(_ stage: String, item: NSStatusItem? = nil, evidence: String = "") {
+        guard self.diagnosticsEnabled, self.diagnosticRecords < 128 else { return }
+        self.diagnosticRecords += 1
+        let name = item?.autosaveName ?? ""
+        let window = item?.button?.window
+        let records = self.windowInfo()
+        let receipt: [String: Any] = [
+            "stage": stage, "sequence": self.diagnosticRecords,
+            "uptime": ProcessInfo.processInfo.systemUptime,
+            "bundle": Bundle.main.bundleIdentifier ?? "unknown",
+            "git": Bundle.main.object(forInfoDictionaryKey: "CodexGitCommit") as? String ?? "unknown",
+            "mainThread": Thread.isMainThread, "running": NSApp?.isRunning ?? false,
+            "activationPolicy": NSApp?.activationPolicy().rawValue ?? -1,
+            "identity": name, "visible": item?.isVisible ?? false, "length": item?.length ?? 0, "evidence": evidence,
+            "buttonWindow": window?.windowNumber ?? -1,
+            "buttonFrame": NSStringFromRect(item?.button?.frame ?? .zero),
+            "windowFrame": NSStringFromRect(window?.frame ?? .zero),
+            "screens": NSScreen.screens.map { NSStringFromRect($0.frame) },
+            "placeholderWindows": NSApp?.windows.filter {
+                $0.identifier?.rawValue.contains(PlaceholderSettingsWindowDecision.swiftUISettingsNameFragment) == true
+            }.map { ["number": $0.windowNumber, "frame": NSStringFromRect($0.frame), "visible": $0.isVisible] } ?? [],
+            "windowQuerySucceeded": records != nil,
+            "controlCenter": self.hostingDiagnostics(name: name, windowInfo: records ?? []),
+        ]
+        guard let data = try? JSONSerialization.data(withJSONObject: receipt, options: [.sortedKeys]) else { return }
+        FileHandle.standardOutput.write(data + Data([0x0A]))
+    }
+
+    static func hostingDiagnostics(name: String, windowInfo: [[String: Any]]) -> [String: Any] {
+        let windows = windowInfo.filter {
+            ($0[kCGWindowLayer as String] as? Int) == 25
+                && ["Control Center", "Control Centre"].contains($0[kCGWindowOwnerName as String] as? String ?? "")
+        }
+        let matches = windows.filter { !name.isEmpty && ($0[kCGWindowName as String] as? String) == name }
+        return [
+            "layer25Count": windows.count,
+            "layer25Numbers": windows.compactMap { $0[kCGWindowNumber as String] as? Int }.sorted(),
+            "unnamedCount": windows.filter { ($0[kCGWindowName as String] as? String ?? "").isEmpty }.count,
+            "namedMatches": matches.map { record in
+                [
+                    "number": record[kCGWindowNumber as String] as? Int ?? -1,
+                    "bounds": NSStringFromRect(self.bounds(record[kCGWindowBounds as String]) ?? .zero),
+                    "onscreen": (record[kCGWindowIsOnscreen as String] as? Bool) ?? false,
+                ] as [String: Any]
+            },
+        ]
+    }
+
     static func snapshots(matching names: Set<String>) -> [MenuBarStatusItemWindowSnapshot] {
         self.snapshots(
             matching: names,
-            windowInfo: self.windowInfo(),
+            windowInfo: self.windowInfo() ?? [],
             screenFrames: NSScreen.screens.map(\.frame))
     }
 
@@ -61,11 +114,8 @@ enum MenuBarStatusItemWindowProbe {
         }
     }
 
-    private static func windowInfo() -> [[String: Any]] {
-        guard let windows = CGWindowListCopyWindowInfo([.optionAll], kCGNullWindowID) as? [[String: Any]] else {
-            return []
-        }
-        return windows
+    private static func windowInfo() -> [[String: Any]]? {
+        CGWindowListCopyWindowInfo([.optionAll], kCGNullWindowID) as? [[String: Any]]
     }
 
     private static func snapshot(

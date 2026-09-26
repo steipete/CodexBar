@@ -555,10 +555,7 @@ struct MenuBarVisibilityWatcherTests {
             hasScreen: true,
             buttonWidth: 18)
 
-        #expect(!MenuBarVisibilityWatcher.shouldRefreshScreenChangePlacement(
-            previousScreenCount: 2,
-            currentScreenCount: 1,
-            snapshots: [healthy]))
+        #expect(!MenuBarVisibilityWatcher.hasAnyDisplacedVisibleSnapshot([healthy]))
     }
 
     @Test
@@ -570,10 +567,7 @@ struct MenuBarVisibilityWatcherTests {
             hasScreen: true,
             buttonWidth: 18)
 
-        #expect(!MenuBarVisibilityWatcher.shouldRefreshScreenChangePlacement(
-            previousScreenCount: 2,
-            currentScreenCount: 1,
-            snapshots: [hidden]))
+        #expect(!MenuBarVisibilityWatcher.hasAnyDisplacedVisibleSnapshot([hidden]))
     }
 
     @Test
@@ -585,7 +579,7 @@ struct MenuBarVisibilityWatcherTests {
             hasScreen: false,
             buttonWidth: 18)
 
-        #expect(MenuBarVisibilityWatcher.shouldAttemptScreenChangeRecovery(snapshots: [blocked]))
+        #expect(MenuBarVisibilityWatcher.hasAnyBlockedVisibleSnapshot([blocked]))
     }
 
     @Test
@@ -598,10 +592,7 @@ struct MenuBarVisibilityWatcherTests {
             isOnCurrentScreen: false,
             buttonWidth: 18)
 
-        #expect(MenuBarVisibilityWatcher.shouldRefreshScreenChangePlacement(
-            previousScreenCount: 2,
-            currentScreenCount: 1,
-            snapshots: [displaced]))
+        #expect(MenuBarVisibilityWatcher.hasAnyDisplacedVisibleSnapshot([displaced]))
     }
 
     @Test
@@ -614,10 +605,7 @@ struct MenuBarVisibilityWatcherTests {
             isOnCurrentScreen: false,
             buttonWidth: 18)
 
-        #expect(MenuBarVisibilityWatcher.shouldRefreshScreenChangePlacement(
-            previousScreenCount: 2,
-            currentScreenCount: 1,
-            snapshots: [displaced]))
+        #expect(MenuBarVisibilityWatcher.hasAnyDisplacedVisibleSnapshot([displaced]))
     }
 
     @Test
@@ -629,10 +617,7 @@ struct MenuBarVisibilityWatcherTests {
             hasScreen: true,
             buttonWidth: 18)
 
-        #expect(!MenuBarVisibilityWatcher.shouldRefreshScreenChangePlacement(
-            previousScreenCount: 1,
-            currentScreenCount: 2,
-            snapshots: [healthy]))
+        #expect(!MenuBarVisibilityWatcher.hasAnyDisplacedVisibleSnapshot([healthy]))
     }
 
     @Test
@@ -645,10 +630,7 @@ struct MenuBarVisibilityWatcherTests {
             isOnCurrentScreen: false,
             buttonWidth: 18)
 
-        #expect(MenuBarVisibilityWatcher.shouldRefreshScreenChangePlacement(
-            previousScreenCount: 2,
-            currentScreenCount: 2,
-            snapshots: [displaced]))
+        #expect(MenuBarVisibilityWatcher.hasAnyDisplacedVisibleSnapshot([displaced]))
     }
 
     @Test
