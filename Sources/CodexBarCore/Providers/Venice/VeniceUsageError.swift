@@ -17,13 +17,13 @@ public enum VeniceUsageError: LocalizedError, Sendable, Equatable {
         case .cookiesDisabled:
             "Venice browser cookies are disabled. Enable cookies in Settings to use the Web source."
         case .missingCredentials:
-            "Venice browser session cookie not found. Sign in to venice.ai in your browser."
-        case .invalidCredentials:
-            "Venice browser session is invalid or expired. Sign in to venice.ai again."
+            "Venice session cookie not found (__session, __session_<suffix>, or __venice-auth.session-token). "
+                + "Open a signed-in venice.ai tab and retry, or paste a fresh Cookie header."
+        case .invalidCredentials, .expiredSession:
+            "Venice browser session is invalid or expired. Keep a signed-in venice.ai tab active and retry; "
+                + "Clerk sessions last about 60 seconds. In Manual mode, paste a fresh Cookie header."
         case .anonymousSession:
             "Venice browser session is anonymous and has no subscription quota."
-        case .expiredSession:
-            "Venice browser session token is expired. Sign in to venice.ai again."
         case .missingQuota:
             "Venice browser session did not include subscription quota."
         case let .networkError(message):

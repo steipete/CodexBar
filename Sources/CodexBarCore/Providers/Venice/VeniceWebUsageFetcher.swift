@@ -26,12 +26,18 @@ public enum VeniceWebUsageFetcher {
         timeout: TimeInterval = Self.defaultTimeout,
         now: Date = Date()) async throws -> UsageSnapshot
     {
-        let header = try Self.requireSessionCookieHeader(cookieHeader)
+        guard let header = VeniceCookieHeader.header(from: cookieHeader),
+              let cookie = CookieHeaderNormalizer.pairs(from: header).first
+        else { throw VeniceUsageError.missingCredentials }
         var request = URLRequest(url: self.sessionURL)
         request.httpShouldHandleCookies = false
         request.httpMethod = "GET"
         request.timeoutInterval = timeout
-        request.setValue(header, forHTTPHeaderField: "Cookie")
+        if cookie.name == VeniceCookieHeader.sessionCookieName {
+            request.setValue(header, forHTTPHeaderField: "Cookie")
+        } else {
+            request.setValue("Bearer \(cookie.value)", forHTTPHeaderField: "Authorization")
+        }
         request.setValue("application/json", forHTTPHeaderField: "Accept")
 
         let response: ProviderHTTPResponse
@@ -113,13 +119,6 @@ public enum VeniceWebUsageFetcher {
             updatedAt: now,
             identity: identity,
             dataConfidence: .exact)
-    }
-
-    private static func requireSessionCookieHeader(_ raw: String) throws -> String {
-        guard let header = VeniceCookieHeader.header(from: raw) else {
-            throw VeniceUsageError.missingCredentials
-        }
-        return header
     }
 
     private static func sessionObject(from data: Data) throws -> [String: Any] {

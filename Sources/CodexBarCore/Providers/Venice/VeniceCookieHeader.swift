@@ -7,6 +7,9 @@ public enum VeniceCookieHeader {
     public static let sessionCookieName = "__venice-auth.session-token"
 
     public static func isSessionCookieName(_ name: String) -> Bool {
+        if name == "__session" || (name.hasPrefix("__session_") && name.count > "__session_".count) {
+            return true
+        }
         if name == self.sessionCookieName {
             return true
         }
@@ -17,7 +20,10 @@ public enum VeniceCookieHeader {
     }
 
     public static func header(from cookies: [HTTPCookie]) -> String? {
-        self.header(from: cookies.map { (name: $0.name, value: $0.value) })
+        let cookies = cookies.filter {
+            $0.domain.lowercased().trimmingCharacters(in: CharacterSet(charactersIn: ".")) == "venice.ai"
+        }
+        return self.header(from: cookies.map { (name: $0.name, value: $0.value) })
     }
 
     public static func header(from raw: String?) -> String? {
@@ -27,12 +33,17 @@ public enum VeniceCookieHeader {
 
     public static func header(from pairs: [(name: String, value: String)]) -> String? {
         var exact: (name: String, value: String)?
+        var clerk: (name: String, value: String)?
         var chunks: [Int: (name: String, value: String)] = [:]
 
         for pair in pairs {
             let name = pair.name.trimmingCharacters(in: .whitespacesAndNewlines)
             let value = pair.value.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !name.isEmpty, !value.isEmpty, self.isSessionCookieName(name) else { continue }
+            if name == "__session" || name.hasPrefix("__session_") {
+                if clerk == nil || name == "__session" { clerk = (name, value) }
+                continue
+            }
             if name == self.sessionCookieName {
                 exact = (name, value)
                 continue
@@ -45,7 +56,7 @@ public enum VeniceCookieHeader {
         if let exact {
             return "\(exact.name)=\(exact.value)"
         }
-        return self.reassembledChunkHeader(chunks)
+        return self.reassembledChunkHeader(chunks) ?? clerk.map { "\($0.name)=\($0.value)" }
     }
 
     private static func reassembledChunkHeader(_ chunks: [Int: (name: String, value: String)]) -> String? {
