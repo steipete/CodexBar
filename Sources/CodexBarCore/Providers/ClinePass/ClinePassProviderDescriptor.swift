@@ -2,9 +2,35 @@ import Foundation
 
 public enum ClinePassProviderDescriptor {
     public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
-    private static let credentials = ProviderCredentialAdapter.apiKey(
-        environmentKey: ClinePassSettingsReader.apiKeyEnvironmentKey,
-        resolve: ClinePassSettingsReader.apiKey)
+    private static let credentials = ProviderCredentialAdapter(
+        supportsAPIKeyOverride: true,
+        environmentProjections: [.apiKey(ClinePassSettingsReader.apiKeyEnvironmentKey)],
+        tokenResolver: { kind, environment, authFileURL in
+            guard kind == .primary else { return nil }
+            if let token = ClinePassSettingsReader.apiKey(environment: environment) {
+                return ProviderTokenResolution(token: token, source: .environment)
+            }
+            let fileToken: String? = if let authFileURL {
+                ClinePassSettingsReader.authToken(authFileURL: authFileURL)
+            } else {
+                ClinePassSettingsReader.authToken(environment: environment)
+            }
+            guard let fileToken else { return nil }
+            return ProviderTokenResolution(token: fileToken, source: .authFile)
+        },
+        authDetector: { environment, _ in
+            if ClinePassSettingsReader.apiKey(environment: environment) != nil {
+                return ["api"]
+            }
+            guard let credential = ClinePassSettingsReader.resolvedCredential(environment: environment) else {
+                return []
+            }
+            return [credential.isOAuth ? "oauth" : "api"]
+        },
+        missingCredentialMessage: { _ in
+            "ClinePass credentials not found. Paste an API key from app.cline.bot Settings → API Keys, " +
+                "or run `cline auth` to sign in with your browser."
+        })
 
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
@@ -61,8 +87,20 @@ public enum ClinePassProviderDescriptor {
                     bundledPlugin: "clinepass",
                     secretKey: ClinePassSettingsReader.apiKeyEnvironmentKey,
                     sourceLabel: "api",
-                    resolveSecret: { environment in
-                        self.credentials.resolveToken(environment: environment)?.token
+                    resolveValues: { context in
+                        if let key = ClinePassSettingsReader.apiKey(environment: context.env) {
+                            return ScriptFetchStrategy.Values(
+                                settings: [ClinePassSettingsReader.authSourceSettingKey: "api"],
+                                secrets: [ClinePassSettingsReader.apiKeyEnvironmentKey: key])
+                        }
+                        guard let credential = ClinePassSettingsReader.resolvedCredential(
+                            environment: context.env)
+                        else { return nil }
+                        return ScriptFetchStrategy.Values(
+                            settings: [ClinePassSettingsReader.authSourceSettingKey: credential.isOAuth
+                                ? "oauth"
+                                : "api"],
+                            secrets: [ClinePassSettingsReader.apiKeyEnvironmentKey: credential.token])
                     },
                     isEnabled: { _ in true })]
             }))
