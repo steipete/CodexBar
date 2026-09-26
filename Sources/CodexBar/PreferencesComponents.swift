@@ -29,15 +29,18 @@ struct SettingsIconChip: View {
 struct SettingsRowLabel: View {
     let title: String
     let subtitle: String?
+    let isDimmed: Bool
 
-    init(_ title: String, subtitle: String? = nil) {
+    init(_ title: String, subtitle: String? = nil, isDimmed: Bool = false) {
         self.title = title
         self.subtitle = subtitle
+        self.isDimmed = isDimmed
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(self.title)
+                .foregroundStyle(self.isDimmed ? .secondary : .primary)
             if let subtitle, !subtitle.isEmpty {
                 Text(subtitle)
                     .font(.caption)
