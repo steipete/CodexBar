@@ -92,6 +92,7 @@ enum BurnProviderChoice: String, AppEnum {
     case vercel
     case llmman
     case xkiro
+    case cline
 
     static let typeDisplayRepresentation = TypeDisplayRepresentation(name: "Provider")
 
@@ -186,6 +187,7 @@ enum BurnProviderChoice: String, AppEnum {
         .vercel: DisplayRepresentation(title: "Vercel AI Gateway"),
         .llmman: DisplayRepresentation(title: "llmman"),
         .xkiro: DisplayRepresentation(title: "xKiro"),
+        .cline: DisplayRepresentation(title: "Cline"),
     ]
 
     var provider: UsageProvider {

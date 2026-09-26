@@ -19,11 +19,15 @@ struct ProviderSettingsDescriptorTests {
         #expect(fixture.settings.providerConfig(for: .xkiro)?.apiKey == "fixture-key")
     }
 
-    @Test(arguments: [UsageProvider.atlascloud, .vercel])
+    @Test(arguments: [UsageProvider.atlascloud, .vercel, .cline])
     func `balance providers keep API keys in their own config`(provider: UsageProvider) throws {
         let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-\(provider.rawValue)")
-        let implementation: any ProviderImplementation = provider == .atlascloud
-            ? AtlasCloudProviderImplementation() : VercelProviderImplementation()
+        let implementation: any ProviderImplementation = switch provider {
+        case .atlascloud: AtlasCloudProviderImplementation()
+        case .vercel: VercelProviderImplementation()
+        case .cline: ClineProviderImplementation()
+        default: AtlasCloudProviderImplementation()
+        }
         let fields = implementation.settingsFields(context: fixture.settingsContext(provider: provider))
         #expect(fields.map(\.id) == ["\(provider.rawValue)-api-key"])
         #expect(fields.map(\.kind) == [.secure])
