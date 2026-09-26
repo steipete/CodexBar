@@ -6,6 +6,10 @@
 
 - Menu bar: add opt-in, bounded startup diagnostics for status-item creation and Control Center hosting investigations (#3377).
 
+### Changed
+
+- Settings: simplify menu bar layout controls while keeping token-removal instructions in the section footer (#3999). Thanks @elijahfriedman!
+
 ## 0.67.0 — 2026-09-25
 
 ### Highlights
