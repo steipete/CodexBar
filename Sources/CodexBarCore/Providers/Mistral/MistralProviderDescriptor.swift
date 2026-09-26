@@ -68,6 +68,9 @@ public enum MistralProviderDescriptor {
                         tertiary: metadata.opusLabel ?? "Sonnet",
                         showsTertiary: metadata.supportsOpus)
                 },
+                extraRateWindowSelector: { snapshot in
+                    (snapshot.extraRateWindows ?? []).filter { $0.id == "mistral-monthly-plan" }
+                },
                 menuBarLayoutPrimaryLabel: "Included API",
                 menuBarWindowResolver: { context in
                     switch context.metric {
