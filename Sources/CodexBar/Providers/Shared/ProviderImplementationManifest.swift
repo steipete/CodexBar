@@ -92,5 +92,6 @@ enum ProviderImplementationManifest {
         VercelProviderImplementation(),
         LLMManProviderImplementation(),
         XKiroProviderImplementation(),
+        ClineProviderImplementation(),
     ]
 }

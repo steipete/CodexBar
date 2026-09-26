@@ -233,6 +233,7 @@ struct SettingsStoreAdditionalTests {
             .hyper: [.automatic],
             .atlascloud: [.automatic],
             .vercel: [.automatic],
+            .cline: [.automatic],
             .huggingface: [.automatic, .secondary],
             .deepseek: [.automatic],
             .deepinfra: [.automatic],

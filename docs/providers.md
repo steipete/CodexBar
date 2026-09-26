@@ -8,7 +8,7 @@ read_when:
 
 # Providers
 
-CodexBar currently registers 87 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
+CodexBar currently registers 88 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
 OpenCode vs OpenCode Go, because the auth source and quota shape differ.
 
 ## Fetch strategies (current)
@@ -127,6 +127,7 @@ complete when the available scan window covers fewer days.
 | Codebuff | API token from config/env or `codebuff login` credentials → usage API (`api`). |
 | Venice | Auto/API: API key from config/env → DIEM/USD balance (`api`). Explicit Web: Chrome or manual cookies → subscription credit details (`web`). |
 | Command Code | Web billing API via Command Code session cookies (`web`). |
+| [Cline](cline.md) | API key from config/env or `cline auth` browser session → pay-as-you-go credit balance (`api`). |
 | ClinePass | API key from config/env → 5-hour, weekly, and monthly subscription usage limits (`api`). |
 | Qoder | Browser or manual cookies → big model credit usage (`web`). |
 | StepFun | Username/password login or manual Oasis token (`web`). |
@@ -558,6 +559,17 @@ JavaScriptCore is the macOS rollback engine. The committed `.js` is generated fr
 - ClinePass subscription limits are distinct from Cline pay-as-you-go balance and usage.
 - Status: none yet.
 - Details: `docs/clinepass.md`.
+
+## Cline
+
+Cline usage-billing is fetched by the bundled TypeScript plugin on macOS and Linux; QuickJS is the default engine and
+JavaScriptCore is the macOS rollback engine. The committed `.js` is generated from `cline.ts`.
+- API key from `~/.codexbar/config.json`, `CLINE_API_KEY`, or `CLINEPASS_API_KEY`, or `cline auth` browser session
+  (`~/.cline/data/settings/providers.json`, `workos:` bearer token).
+- Reads pay-as-you-go credit balance from `GET /api/v1/users/me` then `GET /api/v1/users/{id}/balance`.
+- Cline pay-as-you-go balance is distinct from ClinePass subscription limits.
+- Status: none yet.
+- Details: `docs/cline.md`.
 
 ## Qoder
 - Chrome session cookies from automatic import, or a manual `Cookie:` header/cURL capture on macOS or Linux.
