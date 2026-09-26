@@ -349,12 +349,21 @@ struct MenuDescriptor {
                     resetOverride: opusResetOverride)
             }
             for extra in presentation.extraRateWindows(snapshot: snap) {
+                // Match the menu card: a detail-backed window's description is a detail, never a reset time.
+                let detail = presentation.menuCard.extraRateWindowShowsResetDescriptionAsDetail(extra)
+                    ? extra.window.resetDescription?.trimmingCharacters(in: .whitespacesAndNewlines)
+                    .flatMap { $0.isEmpty ? nil : $0 }
+                    : nil
                 Self.appendRateWindow(
                     entries: &entries,
                     title: extra.title,
                     window: extra.window,
                     resetStyle: resetStyle,
-                    showUsed: settings.usageBarsShowUsed)
+                    showUsed: settings.usageBarsShowUsed,
+                    resetOverride: extra.window.resetsAt == nil ? detail : nil)
+                if extra.window.resetsAt != nil, let detail {
+                    entries.append(.text(detail, .secondary))
+                }
             }
 
             Self.appendProviderUsageSummaries(
