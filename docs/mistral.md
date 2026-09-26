@@ -23,6 +23,9 @@ page does not expose a Vibe allowance.
 Manual cookies must include an `ory_session_*` cookie. A `csrftoken` cookie enables fallback Vibe requests that
 require the `X-CSRFTOKEN` header.
 
+On Linux, browser import is unavailable, so the CLI reads Mistral only in Manual mode: set the provider's
+`cookieSource` to `manual` and its `cookieHeader` to the pasted header in `~/.config/codexbar/config.json`.
+
 Automatic import tries Chrome, Firefox (including Developer Edition), then Safari. Safari requires Full Disk Access.
 Other Chromium browsers remain available through Manual mode. Automatic import reads only unexpired cookies from
 the documented Mistral domains.
