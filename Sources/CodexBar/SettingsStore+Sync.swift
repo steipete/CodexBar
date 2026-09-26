@@ -4,42 +4,27 @@ import Foundation
 extension SettingsStore {
     var iCloudSyncEnabled: Bool {
         get { self.defaultsState.iCloudSyncEnabled }
-        set {
-            self.defaultsState.iCloudSyncEnabled = newValue
-            self.userDefaults.set(newValue, forKey: "iCloudSyncEnabled")
-        }
+        set { self.setDefault(\.iCloudSyncEnabled, newValue, key: "iCloudSyncEnabled") }
     }
 
     var iCloudSyncIncludeSecrets: Bool {
         get { self.defaultsState.iCloudSyncIncludeSecrets }
-        set {
-            self.defaultsState.iCloudSyncIncludeSecrets = newValue
-            self.userDefaults.set(newValue, forKey: "iCloudSyncIncludeSecrets")
-        }
+        set { self.setDefault(\.iCloudSyncIncludeSecrets, newValue, key: "iCloudSyncIncludeSecrets") }
     }
 
     var iCloudSyncSnapshotsEnabled: Bool {
         get { self.defaultsState.iCloudSyncSnapshotsEnabled }
-        set {
-            self.defaultsState.iCloudSyncSnapshotsEnabled = newValue
-            self.userDefaults.set(newValue, forKey: "iCloudSyncSnapshotsEnabled")
-        }
+        set { self.setDefault(\.iCloudSyncSnapshotsEnabled, newValue, key: "iCloudSyncSnapshotsEnabled") }
     }
 
     var iCloudSyncShowFleetAccounts: Bool {
         get { self.defaultsState.iCloudSyncShowFleetAccounts }
-        set {
-            self.defaultsState.iCloudSyncShowFleetAccounts = newValue
-            self.userDefaults.set(newValue, forKey: "iCloudSyncShowFleetAccounts")
-        }
+        set { self.setDefault(\.iCloudSyncShowFleetAccounts, newValue, key: "iCloudSyncShowFleetAccounts") }
     }
 
     var iCloudSyncDeviceID: String {
         get { self.defaultsState.iCloudSyncDeviceID }
-        set {
-            self.defaultsState.iCloudSyncDeviceID = newValue
-            self.userDefaults.set(newValue, forKey: "iCloudSyncDeviceID")
-        }
+        set { self.setDefault(\.iCloudSyncDeviceID, newValue, key: "iCloudSyncDeviceID") }
     }
 
     var syncedPreferences: SyncedPreferences {
