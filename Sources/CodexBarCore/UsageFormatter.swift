@@ -525,3 +525,24 @@ public enum UsageFormatter {
         return cleaned
     }
 }
+
+extension UsageFormatter {
+    static func compactResetDescription(_ date: Date?, now: Date = Date()) -> String? {
+        guard let date else { return nil }
+        let interval = date.timeIntervalSince(now)
+        guard interval > 0 else { return "Expired" }
+
+        let hours = Int(interval / 3600)
+        let minutes = Int((interval.truncatingRemainder(dividingBy: 3600)) / 60)
+
+        if hours >= 24 {
+            let days = hours / 24
+            let remainingHours = hours % 24
+            return "Resets in \(days)d \(remainingHours)h"
+        } else if hours > 0 {
+            return "Resets in \(hours)h \(minutes)m"
+        } else {
+            return "Resets in \(minutes)m"
+        }
+    }
+}

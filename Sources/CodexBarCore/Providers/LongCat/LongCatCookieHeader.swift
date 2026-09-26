@@ -14,7 +14,6 @@ public struct LongCatCookieOverride: Sendable {
 }
 
 public enum LongCatCookieHeader {
-    private static let log = CodexBarLog.logger(LogCategories.provider(.longcat, scope: "cookie"))
     private static let headerPatterns: [String] = [
         #"(?i)-H\s*'Cookie:\s*([^']+)'"#,
         #"(?i)-H\s*"Cookie:\s*([^"]+)""#,
@@ -51,7 +50,7 @@ public enum LongCatCookieHeader {
             return nil
         }
 
-        if let header = self.extractHeader(from: raw) {
+        if let header = CookieHeaderNormalizer.extractHeader(from: raw, patterns: self.headerPatterns) {
             return LongCatCookieOverride(cookieHeader: header)
         }
 
@@ -104,23 +103,5 @@ public enum LongCatCookieHeader {
         }
         let boundary = requestPath.index(requestPath.startIndex, offsetBy: normalized.count)
         return requestPath[boundary] == "/"
-    }
-
-    private static func extractHeader(from raw: String) -> String? {
-        for pattern in self.headerPatterns {
-            guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else { continue }
-            let range = NSRange(raw.startIndex..<raw.endIndex, in: raw)
-            guard let match = regex.firstMatch(in: raw, options: [], range: range),
-                  match.numberOfRanges >= 2,
-                  let captureRange = Range(match.range(at: 1), in: raw)
-            else {
-                continue
-            }
-            let captured = String(raw[captureRange]).trimmingCharacters(in: .whitespacesAndNewlines)
-            if !captured.isEmpty {
-                return captured
-            }
-        }
-        return nil
     }
 }

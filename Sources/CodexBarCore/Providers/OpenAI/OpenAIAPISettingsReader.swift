@@ -10,10 +10,7 @@ public enum OpenAIAPISettingsReader {
     ]
 
     public static func apiKey(environment: [String: String] = ProcessInfo.processInfo.environment) -> String? {
-        for key in self.apiKeyEnvironmentKeys {
-            if let token = SettingsValue.cleaned(environment[key]) { return token }
-        }
-        return nil
+        SettingsValue.first(in: environment, keys: self.apiKeyEnvironmentKeys)
     }
 
     public static func adminAPIKey(environment: [String: String] = ProcessInfo.processInfo.environment) -> String? {
@@ -22,16 +19,5 @@ public enum OpenAIAPISettingsReader {
 
     public static func projectID(environment: [String: String] = ProcessInfo.processInfo.environment) -> String? {
         SettingsValue.cleaned(environment[self.projectIDEnvironmentKey])
-    }
-}
-
-public enum OpenAIAPISettingsError: LocalizedError, Sendable {
-    case missingToken
-
-    public var errorDescription: String? {
-        switch self {
-        case .missingToken:
-            "OpenAI API key not configured. Set OPENAI_API_KEY or configure an API key in Settings."
-        }
     }
 }

@@ -37,8 +37,8 @@ public enum MiniMaxCookieHeader {
             return nil
         }
         guard let cookie = self.normalized(from: raw) else { return nil }
-        let authorizationToken = self.extractFirst(pattern: self.authorizationPattern, text: raw)
-        let groupID = self.extractFirst(patterns: self.groupIDPatterns, text: raw)
+        let authorizationToken = CookieHeaderNormalizer.extractHeader(from: raw, patterns: [self.authorizationPattern])
+        let groupID = CookieHeaderNormalizer.extractHeader(from: raw, patterns: self.groupIDPatterns)
         return MiniMaxCookieOverride(
             cookieHeader: cookie,
             authorizationToken: authorizationToken,
@@ -46,73 +46,6 @@ public enum MiniMaxCookieHeader {
     }
 
     public static func normalized(from raw: String?) -> String? {
-        guard var value = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else {
-            return nil
-        }
-
-        if let extracted = self.extractHeader(from: value) {
-            value = extracted
-        }
-
-        value = self.stripCookiePrefix(value)
-        value = self.stripWrappingQuotes(value)
-        value = value.trimmingCharacters(in: .whitespacesAndNewlines)
-
-        return value.isEmpty ? nil : value
-    }
-
-    private static func extractHeader(from raw: String) -> String? {
-        for pattern in self.headerPatterns {
-            guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else { continue }
-            let range = NSRange(raw.startIndex..<raw.endIndex, in: raw)
-            guard let match = regex.firstMatch(in: raw, options: [], range: range),
-                  match.numberOfRanges >= 2,
-                  let captureRange = Range(match.range(at: 1), in: raw)
-            else {
-                continue
-            }
-            let captured = String(raw[captureRange]).trimmingCharacters(in: .whitespacesAndNewlines)
-            if !captured.isEmpty { return captured }
-        }
-        return nil
-    }
-
-    private static func stripCookiePrefix(_ raw: String) -> String {
-        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmed.lowercased().hasPrefix("cookie:") else { return trimmed }
-        let idx = trimmed.index(trimmed.startIndex, offsetBy: "cookie:".count)
-        return String(trimmed[idx...]).trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    private static func stripWrappingQuotes(_ raw: String) -> String {
-        guard raw.count >= 2 else { return raw }
-        if (raw.hasPrefix("\"") && raw.hasSuffix("\"")) ||
-            (raw.hasPrefix("'") && raw.hasSuffix("'"))
-        {
-            return String(raw.dropFirst().dropLast())
-        }
-        return raw
-    }
-
-    private static func extractFirst(pattern: String, text: String) -> String? {
-        guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else { return nil }
-        let range = NSRange(text.startIndex..<text.endIndex, in: text)
-        guard let match = regex.firstMatch(in: text, options: [], range: range),
-              match.numberOfRanges >= 2,
-              let captureRange = Range(match.range(at: 1), in: text)
-        else {
-            return nil
-        }
-        let value = text[captureRange].trimmingCharacters(in: .whitespacesAndNewlines)
-        return value.isEmpty ? nil : String(value)
-    }
-
-    private static func extractFirst(patterns: [String], text: String) -> String? {
-        for pattern in patterns {
-            if let value = self.extractFirst(pattern: pattern, text: text) {
-                return value
-            }
-        }
-        return nil
+        CookieHeaderNormalizer.normalize(raw, headerPatterns: self.headerPatterns)
     }
 }
