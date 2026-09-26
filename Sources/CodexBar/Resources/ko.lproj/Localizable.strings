@@ -1592,3 +1592,30 @@
 "antigravity_cost_estimate_hint" = "로컬 사용량 × 공개 API 가격 · Antigravity 청구나 크레딧이 아닙니다";
 "antigravity_quota_window_note" = "창 비용은 모든 모델을 포함합니다 · 표시된 창은 가장 제한적인 제품군입니다";
 "antigravity_no_priced_token_history" = "가격이 매겨진 Antigravity 토큰 기록이 없습니다.";
+
+/* Manual SSH cost reports */
+"SSH Cost Report…" = "SSH 비용 보고서…";
+"Codex SSH Cost Report" = "Codex SSH 비용 보고서";
+"SSH host" = "SSH 호스트";
+"Uses native Codex history. The SSH host needs a compatible CodexBar CLI." = "Codex 기본 기록을 사용합니다. SSH 호스트에 호환되는 CodexBar CLI가 필요합니다.";
+"API-equivalent estimates · USD · Host totals are separate." = "API 요금 기준 추정치 · USD · 호스트별 합계는 별도로 집계됩니다.";
+"Cancelling…" = "취소 중…";
+"Reading this Mac…" = "이 Mac을 읽는 중…";
+"Reading SSH host…" = "SSH 호스트를 읽는 중…";
+"Cancelled" = "취소됨";
+"Waiting for summary…" = "요약을 기다리는 중…";
+"No summary loaded." = "불러온 요약이 없습니다.";
+"Snapshot updated: %@" = "스냅샷 업데이트: %@";
+"Day boundaries: %@" = "날짜 구분 시간대: %@";
+"Partial history; scan is incomplete." = "일부 기록만 있습니다. 스캔이 완료되지 않았습니다.";
+"Some usage has no known price." = "일부 사용량의 가격을 알 수 없습니다.";
+"Today: %d incomplete requests excluded." = "오늘: 불완전한 요청 %d개 제외됨.";
+"Last 30 days: %d incomplete requests excluded." = "최근 30일: 불완전한 요청 %d개 제외됨.";
+"Local Codex cost history is unavailable." = "로컬 Codex 비용 기록을 사용할 수 없습니다.";
+"Cost history unavailable" = "비용 기록을 사용할 수 없음";
+"Enter one SSH host alias or user@host." = "SSH 호스트 별칭 또는 user@host를 하나 입력하세요.";
+"The remote CLI returned an unsupported or invalid cost summary. Update CodexBar on that host." = "원격 CLI가 지원되지 않거나 유효하지 않은 비용 요약을 반환했습니다. 해당 호스트의 CodexBar를 업데이트하세요.";
+"Could not read remote costs. Check SSH and that the remote CodexBar CLI supports --summary-only." = "원격 비용을 읽을 수 없습니다. SSH를 확인하고 원격 CodexBar CLI가 --summary-only를 지원하는지 확인하세요.";
+
+"Uses native Codex history. The SSH host needs a CodexBar CLI supporting --daily-summary." = "Codex 기본 기록을 사용합니다. SSH 호스트에 --daily-summary를 지원하는 CodexBar CLI가 필요합니다.";
+"Could not read daily costs. Check SSH and update the remote CodexBar CLI to support --daily-summary." = "일별 비용을 읽을 수 없습니다. SSH를 확인하고 원격 CodexBar CLI를 --daily-summary 지원 버전으로 업데이트하세요.";

@@ -1623,3 +1623,30 @@
 "antigravity_cost_estimate_hint" = "Uso local × preços públicos da API · não são cobranças ou créditos da Antigravity";
 "antigravity_quota_window_note" = "O custo da janela cobre todos os modelos · a janela exibida é a família mais restrita";
 "antigravity_no_priced_token_history" = "Nenhum histórico de tokens da Antigravity com preço disponível.";
+
+/* Manual SSH cost reports */
+"SSH Cost Report…" = "Relatório de custos via SSH…";
+"Codex SSH Cost Report" = "Relatório de custos do Codex via SSH";
+"SSH host" = "Host SSH";
+"Uses native Codex history. The SSH host needs a compatible CodexBar CLI." = "Usa o histórico nativo do Codex. O host SSH precisa de uma CLI do CodexBar compatível.";
+"API-equivalent estimates · USD · Host totals are separate." = "Estimativas equivalentes aos preços da API · USD · Os totais de cada host são separados.";
+"Cancelling…" = "Cancelando…";
+"Reading this Mac…" = "Lendo este Mac…";
+"Reading SSH host…" = "Lendo o host SSH…";
+"Cancelled" = "Cancelado";
+"Waiting for summary…" = "Aguardando o resumo…";
+"No summary loaded." = "Nenhum resumo carregado.";
+"Snapshot updated: %@" = "Instantâneo atualizado: %@";
+"Day boundaries: %@" = "Fuso horário que delimita os dias: %@";
+"Partial history; scan is incomplete." = "Histórico parcial; a varredura está incompleta.";
+"Some usage has no known price." = "Parte do uso não tem preço conhecido.";
+"Today: %d incomplete requests excluded." = "Hoje: %d solicitações incompletas excluídas.";
+"Last 30 days: %d incomplete requests excluded." = "Últimos 30 dias: %d solicitações incompletas excluídas.";
+"Local Codex cost history is unavailable." = "O histórico local de custos do Codex está indisponível.";
+"Cost history unavailable" = "Histórico de custos indisponível";
+"Enter one SSH host alias or user@host." = "Insira um único alias de host SSH ou user@host.";
+"The remote CLI returned an unsupported or invalid cost summary. Update CodexBar on that host." = "A CLI remota retornou um resumo de custos não compatível ou inválido. Atualize o CodexBar nesse host.";
+"Could not read remote costs. Check SSH and that the remote CodexBar CLI supports --summary-only." = "Não foi possível ler os custos remotos. Verifique o SSH e se a CLI remota do CodexBar oferece suporte a --summary-only.";
+
+"Uses native Codex history. The SSH host needs a CodexBar CLI supporting --daily-summary." = "Usa o histórico nativo do Codex. O host SSH precisa de uma CLI do CodexBar compatível com --daily-summary.";
+"Could not read daily costs. Check SSH and update the remote CodexBar CLI to support --daily-summary." = "Não foi possível ler os custos diários. Verifique o SSH e atualize a CLI remota do CodexBar para oferecer suporte a --daily-summary.";

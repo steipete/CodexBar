@@ -8,6 +8,17 @@ extension CodexBarCLI {
 
     static func runCost(_ values: ParsedValues) async {
         let output = CLIOutputPreferences.from(values: values)
+        if Self.isCodexDailySummaryRequest(values) {
+            await Self.runCodexDailySummary(
+                values,
+                historyDays: Self.decodeCostHistoryDays(from: values),
+                output: output)
+            return
+        }
+        await Self.runConfiguredCost(values, output: output)
+    }
+
+    private static func runConfiguredCost(_ values: ParsedValues, output: CLIOutputPreferences) async {
         let config = CodexBarCLI.loadConfig(output: output)
         let selection = CodexBarCLI.decodeProvider(from: values, config: config)
         let providers = Self.costProviders(from: selection)
@@ -825,6 +836,13 @@ extension CodexBarCLI {
             incompleteRequestCount: CostUsageIncompleteRequests.sum(entries.map(\.incompleteRequestCount)))
     }
 
+    private static func decodeCostHistoryDays(from values: ParsedValues) -> Int {
+        guard let raw = values.options["days"]?.last,
+              let parsed = Int(raw)
+        else { return 30 }
+        return max(1, min(365, parsed))
+    }
+
     static func decodeCostReportingPeriod(
         from values: ParsedValues,
         saved: CostReportingPeriod) -> CostReportingPeriod
@@ -968,6 +986,12 @@ struct CostOptions: CommanderParsable {
 
     @Flag(name: .long("summary-only"), help: "Versioned native Codex JSON totals without account or session details")
     var summaryOnly: Bool = false
+
+    @Flag(name: .long("daily-summary"), help: "Versioned native Codex JSON daily totals without identifying details")
+    var dailySummary: Bool = false
+
+    @Option(name: .long("bucket-time-zone"), help: "Day-bucket time zone, required with --daily-summary")
+    var bucketTimeZone: String?
 }
 
 struct CostPayload: Encodable, Sendable {

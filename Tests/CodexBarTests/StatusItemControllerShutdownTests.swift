@@ -7,6 +7,18 @@ import Testing
 @Suite(.serialized)
 struct StatusItemControllerShutdownTests {
     @Test
+    func `SSH cost menu action maps to its window selector`() {
+        let controller = self.makeController()
+        defer {
+            StatusItemController.menuCardRenderingEnabled = !SettingsStore.isRunningTests
+            StatusItemController.resetMenuRefreshEnabledForTesting()
+        }
+        let (selector, representedObject) = controller.selector(for: .openCodexSSHCostReport)
+        #expect(selector == #selector(StatusItemController.openCodexSSHCostReport))
+        #expect(representedObject == nil)
+    }
+
+    @Test
     func `app shutdown closes tracked menus and removes status items`() {
         StatusItemController.menuCardRenderingEnabled = false
         StatusItemController.setMenuRefreshEnabledForTesting(true)

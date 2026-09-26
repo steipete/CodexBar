@@ -1623,3 +1623,30 @@
 "antigravity_cost_estimate_hint" = "ローカル使用量 × 公開API価格 · Antigravity の請求やクレジットではありません";
 "antigravity_quota_window_note" = "ウィンドウの費用は全モデルを含みます · 表示中のウィンドウは最も制限の厳しいファミリーです";
 "antigravity_no_priced_token_history" = "価格付きの Antigravity トークン履歴がありません。";
+
+/* Manual SSH cost reports */
+"SSH Cost Report…" = "SSH コストレポート…";
+"Codex SSH Cost Report" = "Codex SSH コストレポート";
+"SSH host" = "SSH ホスト";
+"Uses native Codex history. The SSH host needs a compatible CodexBar CLI." = "Codex のネイティブ履歴を使用します。SSH ホストには互換性のある CodexBar CLI が必要です。";
+"API-equivalent estimates · USD · Host totals are separate." = "API 料金換算の推定値 · 米ドル · ホストごとに個別に集計。";
+"Cancelling…" = "キャンセル中…";
+"Reading this Mac…" = "この Mac を読み込み中…";
+"Reading SSH host…" = "SSH ホストを読み込み中…";
+"Cancelled" = "キャンセル済み";
+"Waiting for summary…" = "サマリーを待機中…";
+"No summary loaded." = "サマリーが読み込まれていません。";
+"Snapshot updated: %@" = "スナップショット更新日時: %@";
+"Day boundaries: %@" = "日の区切りのタイムゾーン: %@";
+"Partial history; scan is incomplete." = "履歴は一部のみです。スキャンが完了していません。";
+"Some usage has no known price." = "一部の使用量の料金が不明です。";
+"Today: %d incomplete requests excluded." = "今日: 不完全なリクエスト %d 件を除外。";
+"Last 30 days: %d incomplete requests excluded." = "過去 30 日間: 不完全なリクエスト %d 件を除外。";
+"Local Codex cost history is unavailable." = "ローカルの Codex コスト履歴を利用できません。";
+"Cost history unavailable" = "コスト履歴を利用できません";
+"Enter one SSH host alias or user@host." = "SSH ホストのエイリアスまたは user@host を 1 つ入力してください。";
+"The remote CLI returned an unsupported or invalid cost summary. Update CodexBar on that host." = "リモート CLI が未対応または無効なコストサマリーを返しました。そのホストの CodexBar を更新してください。";
+"Could not read remote costs. Check SSH and that the remote CodexBar CLI supports --summary-only." = "リモートのコストを読み込めませんでした。SSH と、リモートの CodexBar CLI が --summary-only に対応していることを確認してください。";
+
+"Uses native Codex history. The SSH host needs a CodexBar CLI supporting --daily-summary." = "Codex のネイティブ履歴を使用します。SSH ホストには --daily-summary に対応した CodexBar CLI が必要です。";
+"Could not read daily costs. Check SSH and update the remote CodexBar CLI to support --daily-summary." = "日別コストを読み取れませんでした。SSH を確認し、リモートの CodexBar CLI を --daily-summary 対応版に更新してください。";

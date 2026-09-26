@@ -1654,3 +1654,30 @@
 "antigravity_cost_estimate_hint" = "本機用量 × 公開 API 價格 · 並非 Antigravity 帳單或額度";
 "antigravity_quota_window_note" = "視窗費用涵蓋所有模型 · 所示視窗為最受限的模型系列";
 "antigravity_no_priced_token_history" = "沒有可計價的 Antigravity 權杖歷史記錄。";
+
+/* Manual SSH cost reports */
+"SSH Cost Report…" = "SSH 費用報告…";
+"Codex SSH Cost Report" = "Codex SSH 費用報告";
+"SSH host" = "SSH 主機";
+"Uses native Codex history. The SSH host needs a compatible CodexBar CLI." = "使用 Codex 原生歷史記錄。SSH 主機需要安裝相容的 CodexBar CLI。";
+"API-equivalent estimates · USD · Host totals are separate." = "API 等價估算 · 美元 · 各主機分別統計。";
+"Cancelling…" = "正在取消…";
+"Reading this Mac…" = "正在讀取這台 Mac…";
+"Reading SSH host…" = "正在讀取 SSH 主機…";
+"Cancelled" = "已取消";
+"Waiting for summary…" = "正在等待摘要…";
+"No summary loaded." = "尚未載入摘要。";
+"Snapshot updated: %@" = "快照更新時間：%@";
+"Day boundaries: %@" = "日期劃分時區：%@";
+"Partial history; scan is incomplete." = "歷史記錄不完整，掃描尚未完成。";
+"Some usage has no known price." = "部分用量的價格未知。";
+"Today: %d incomplete requests excluded." = "今天：已排除 %d 個不完整請求。";
+"Last 30 days: %d incomplete requests excluded." = "近 30 天：已排除 %d 個不完整請求。";
+"Local Codex cost history is unavailable." = "無法讀取本機 Codex 費用歷史。";
+"Cost history unavailable" = "費用歷史無法使用";
+"Enter one SSH host alias or user@host." = "請輸入一個 SSH 主機別名或 user@host。";
+"The remote CLI returned an unsupported or invalid cost summary. Update CodexBar on that host." = "遠端 CLI 傳回的費用摘要無效或不受支援。請更新該主機上的 CodexBar。";
+"Could not read remote costs. Check SSH and that the remote CodexBar CLI supports --summary-only." = "無法讀取遠端費用。請檢查 SSH，並確認遠端 CodexBar CLI 支援 --summary-only。";
+
+"Uses native Codex history. The SSH host needs a CodexBar CLI supporting --daily-summary." = "使用原生 Codex 歷史記錄。SSH 主機上的 CodexBar CLI 需支援 --daily-summary。";
+"Could not read daily costs. Check SSH and update the remote CodexBar CLI to support --daily-summary." = "無法讀取每日費用。請檢查 SSH，並更新遠端 CodexBar CLI，使其支援 --daily-summary。";

@@ -159,8 +159,8 @@ extension StatusItemController {
             "openTerminal:\(command)"
         case let .loginToProvider(url):
             "loginToProvider:\(url)"
-        case .openCodexWorkspaces:
-            CodexWorkspacesWindowIdentity.menuItem
+        case .openCodexWorkspaces, .openCodexSSHCostReport:
+            action == .openCodexWorkspaces ? CodexWorkspacesWindowIdentity.menuItem : "openCodexSSHCostReport"
         case .settings:
             "settings"
         case let .providerSettings(provider):

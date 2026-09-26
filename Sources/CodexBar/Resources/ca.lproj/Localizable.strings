@@ -1625,3 +1625,30 @@
 "antigravity_cost_estimate_hint" = "Ús local × preus públics de l'API · no són càrrecs ni crèdits d'Antigravity";
 "antigravity_quota_window_note" = "El cost de la finestra inclou tots els models · la finestra mostrada és la família més limitada";
 "antigravity_no_priced_token_history" = "No hi ha historial de tokens d'Antigravity amb preu disponible.";
+
+/* Manual SSH cost reports */
+"SSH Cost Report…" = "Informe de costos per SSH…";
+"Codex SSH Cost Report" = "Informe de costos de Codex per SSH";
+"SSH host" = "Amfitrió SSH";
+"Uses native Codex history. The SSH host needs a compatible CodexBar CLI." = "Utilitza l’historial natiu de Codex. L’amfitrió SSH necessita una CLI de CodexBar compatible.";
+"API-equivalent estimates · USD · Host totals are separate." = "Estimacions equivalents a l’API · USD · Els totals de cada amfitrió són independents.";
+"Cancelling…" = "S’està cancel·lant…";
+"Reading this Mac…" = "S’està llegint aquest Mac…";
+"Reading SSH host…" = "S’està llegint l’amfitrió SSH…";
+"Cancelled" = "Cancel·lat";
+"Waiting for summary…" = "S’està esperant el resum…";
+"No summary loaded." = "No s’ha carregat cap resum.";
+"Snapshot updated: %@" = "Instantània actualitzada: %@";
+"Day boundaries: %@" = "Fus horari dels límits del dia: %@";
+"Partial history; scan is incomplete." = "Historial parcial; l’escaneig és incomplet.";
+"Some usage has no known price." = "Alguns usos no tenen un preu conegut.";
+"Today: %d incomplete requests excluded." = "Avui: s’han exclòs %d sol·licituds incompletes.";
+"Last 30 days: %d incomplete requests excluded." = "Darrers 30 dies: s’han exclòs %d sol·licituds incompletes.";
+"Local Codex cost history is unavailable." = "L’historial local de costos de Codex no està disponible.";
+"Cost history unavailable" = "Historial de costos no disponible";
+"Enter one SSH host alias or user@host." = "Introduïu un únic àlies d’amfitrió SSH o user@host.";
+"The remote CLI returned an unsupported or invalid cost summary. Update CodexBar on that host." = "La CLI remota ha retornat un resum de costos no compatible o no vàlid. Actualitzeu CodexBar en aquell amfitrió.";
+"Could not read remote costs. Check SSH and that the remote CodexBar CLI supports --summary-only." = "No s’han pogut llegir els costos remots. Comproveu SSH i que la CLI remota de CodexBar admeti --summary-only.";
+
+"Uses native Codex history. The SSH host needs a CodexBar CLI supporting --daily-summary." = "Utilitza l’historial natiu de Codex. L’amfitrió SSH necessita una CLI de CodexBar compatible amb --daily-summary.";
+"Could not read daily costs. Check SSH and update the remote CodexBar CLI to support --daily-summary." = "No s’han pogut llegir els costos diaris. Comprova SSH i actualitza la CLI remota de CodexBar perquè admeti --daily-summary.";

@@ -1624,3 +1624,30 @@
 "antigravity_cost_estimate_hint" = "Mức dùng cục bộ × giá API công khai · không phải phí hay tín dụng Antigravity";
 "antigravity_quota_window_note" = "Chi phí cửa sổ bao gồm mọi mô hình · cửa sổ hiển thị là nhóm bị giới hạn nhất";
 "antigravity_no_priced_token_history" = "Không có lịch sử token Antigravity được định giá.";
+
+/* Manual SSH cost reports */
+"SSH Cost Report…" = "Báo cáo chi phí qua SSH…";
+"Codex SSH Cost Report" = "Báo cáo chi phí Codex qua SSH";
+"SSH host" = "Máy chủ SSH";
+"Uses native Codex history. The SSH host needs a compatible CodexBar CLI." = "Sử dụng lịch sử gốc của Codex. Máy chủ SSH cần có CLI CodexBar tương thích.";
+"API-equivalent estimates · USD · Host totals are separate." = "Ước tính tương đương giá API · USD · Tổng chi phí được tính riêng cho từng máy chủ.";
+"Cancelling…" = "Đang hủy…";
+"Reading this Mac…" = "Đang đọc máy Mac này…";
+"Reading SSH host…" = "Đang đọc máy chủ SSH…";
+"Cancelled" = "Đã hủy";
+"Waiting for summary…" = "Đang chờ bản tóm tắt…";
+"No summary loaded." = "Chưa tải bản tóm tắt nào.";
+"Snapshot updated: %@" = "Ảnh chụp nhanh được cập nhật: %@";
+"Day boundaries: %@" = "Múi giờ phân chia ngày: %@";
+"Partial history; scan is incomplete." = "Chỉ có một phần lịch sử; quá trình quét chưa hoàn tất.";
+"Some usage has no known price." = "Một phần mức sử dụng chưa có giá xác định.";
+"Today: %d incomplete requests excluded." = "Hôm nay: đã loại trừ %d yêu cầu không đầy đủ.";
+"Last 30 days: %d incomplete requests excluded." = "30 ngày qua: đã loại trừ %d yêu cầu không đầy đủ.";
+"Local Codex cost history is unavailable." = "Không có lịch sử chi phí Codex trên máy này.";
+"Cost history unavailable" = "Không có lịch sử chi phí";
+"Enter one SSH host alias or user@host." = "Nhập một bí danh máy chủ SSH hoặc user@host.";
+"The remote CLI returned an unsupported or invalid cost summary. Update CodexBar on that host." = "CLI từ xa đã trả về bản tóm tắt chi phí không được hỗ trợ hoặc không hợp lệ. Hãy cập nhật CodexBar trên máy chủ đó.";
+"Could not read remote costs. Check SSH and that the remote CodexBar CLI supports --summary-only." = "Không thể đọc chi phí từ xa. Hãy kiểm tra SSH và đảm bảo CLI CodexBar từ xa hỗ trợ --summary-only.";
+
+"Uses native Codex history. The SSH host needs a CodexBar CLI supporting --daily-summary." = "Sử dụng lịch sử gốc của Codex. Máy chủ SSH cần CodexBar CLI hỗ trợ --daily-summary.";
+"Could not read daily costs. Check SSH and update the remote CodexBar CLI to support --daily-summary." = "Không thể đọc chi phí hằng ngày. Hãy kiểm tra SSH và cập nhật CodexBar CLI từ xa để hỗ trợ --daily-summary.";

@@ -2,6 +2,10 @@
 
 ## 0.67.1 — Unreleased
 
+### Added
+
+- Codex: open **SSH Cost Report…** from the menu to manually compare this Mac with one SSH host using separate 30-day token/cost charts. Reports retain source snapshot times and coverage, use the app's day-boundary timezone, and keep ordinary menu totals unchanged. Queries can be cancelled and host names honor Hide Personal Info; the remote CLI must support the numerical `--daily-summary` protocol.
+
 ### Changed
 
 - Settings: simplify menu bar layout controls while keeping token-removal instructions in the section footer (#3999). Thanks @elijahfriedman!

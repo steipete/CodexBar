@@ -76,6 +76,7 @@ struct MenuDescriptor {
         case openTerminal(command: String)
         case loginToProvider(url: String)
         case openCodexWorkspaces
+        case openCodexSSHCostReport
         case settings
         case providerSettings(UsageProvider)
         case about
@@ -807,6 +808,7 @@ extension MenuDescriptor.MenuAction {
         case .openTerminal: MenuDescriptor.MenuActionSystemImage.openTerminal.rawValue
         case .loginToProvider: MenuDescriptor.MenuActionSystemImage.loginToProvider.rawValue
         case .openCodexWorkspaces: MenuDescriptor.MenuActionSystemImage.workspaces.rawValue
+        case .openCodexSSHCostReport: "network"
         case .copyError: MenuDescriptor.MenuActionSystemImage.copyError.rawValue
         case .focusAgentSession:
             nil

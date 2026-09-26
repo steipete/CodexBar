@@ -114,6 +114,8 @@ final class StatusMenuSwitcherWarmupTests: XCTestCase {
                 let cached = try XCTUnwrap(caches[.provider(provider.instanceID)])
                 let cachedStatus = try XCTUnwrap(cached.items.first { $0.title == L("Status Page") })
                 try self.assertStatusProvider(provider, item: cachedStatus, controller: controller)
+                // Row reuse can swap the cached item's contents; retain the original submenu itself.
+                let warmedSubmenu = cachedStatus.submenu
 
                 controller.preservingMergedSwitcherContentCachesDuringInvalidation {
                     controller.selectedMenuProvider = provider.instanceID
@@ -134,7 +136,7 @@ final class StatusMenuSwitcherWarmupTests: XCTestCase {
                         openAIContext: controller.openAIWebContext(currentProvider: provider, showAllAccounts: false),
                         descriptor: controller.makeMenuDescriptor(provider: provider, includeContextualActions: true)))
                 let liveStatus = try XCTUnwrap(menu.items.first { $0.title == L("Status Page") })
-                XCTAssertTrue(liveStatus.submenu === cachedStatus.submenu)
+                XCTAssertTrue(liveStatus.submenu === warmedSubmenu)
                 try self.assertStatusProvider(provider, item: liveStatus, controller: controller)
 
                 controller.menuDidClose(menu)

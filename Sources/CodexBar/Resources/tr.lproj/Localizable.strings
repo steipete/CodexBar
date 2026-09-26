@@ -1625,3 +1625,30 @@
 "antigravity_cost_estimate_hint" = "Yerel kullanım × herkese açık API fiyatları · Antigravity ücretleri veya kredileri değildir";
 "antigravity_quota_window_note" = "Pencere maliyeti tüm modelleri kapsar · gösterilen pencere en kısıtlı ailedir";
 "antigravity_no_priced_token_history" = "Fiyatlandırılmış Antigravity token geçmişi yok.";
+
+/* Manual SSH cost reports */
+"SSH Cost Report…" = "SSH Maliyet Raporu…";
+"Codex SSH Cost Report" = "Codex SSH Maliyet Raporu";
+"SSH host" = "SSH ana makinesi";
+"Uses native Codex history. The SSH host needs a compatible CodexBar CLI." = "Codex’in kendi geçmişini kullanır. SSH ana makinesinde uyumlu bir CodexBar CLI bulunmalıdır.";
+"API-equivalent estimates · USD · Host totals are separate." = "API fiyatlarına eşdeğer tahminler · USD · Ana makine toplamları ayrıdır.";
+"Cancelling…" = "İptal ediliyor…";
+"Reading this Mac…" = "Bu Mac okunuyor…";
+"Reading SSH host…" = "SSH ana makinesi okunuyor…";
+"Cancelled" = "İptal edildi";
+"Waiting for summary…" = "Özet bekleniyor…";
+"No summary loaded." = "Özet yüklenmedi.";
+"Snapshot updated: %@" = "Anlık görüntü güncellendi: %@";
+"Day boundaries: %@" = "Gün sınırları için saat dilimi: %@";
+"Partial history; scan is incomplete." = "Geçmiş kısmi; tarama tamamlanmadı.";
+"Some usage has no known price." = "Bazı kullanımların fiyatı bilinmiyor.";
+"Today: %d incomplete requests excluded." = "Bugün: %d eksik istek hariç tutuldu.";
+"Last 30 days: %d incomplete requests excluded." = "Son 30 gün: %d eksik istek hariç tutuldu.";
+"Local Codex cost history is unavailable." = "Yerel Codex maliyet geçmişi kullanılamıyor.";
+"Cost history unavailable" = "Maliyet geçmişi kullanılamıyor";
+"Enter one SSH host alias or user@host." = "Tek bir SSH ana makine takma adı veya user@host girin.";
+"The remote CLI returned an unsupported or invalid cost summary. Update CodexBar on that host." = "Uzak CLI, desteklenmeyen veya geçersiz bir maliyet özeti döndürdü. O ana makinedeki CodexBar’ı güncelleyin.";
+"Could not read remote costs. Check SSH and that the remote CodexBar CLI supports --summary-only." = "Uzak maliyetler okunamadı. SSH’yi ve uzak CodexBar CLI’nin --summary-only desteğini kontrol edin.";
+
+"Uses native Codex history. The SSH host needs a CodexBar CLI supporting --daily-summary." = "Codex’in yerel geçmişini kullanır. SSH ana bilgisayarında --daily-summary destekleyen bir CodexBar CLI gerekir.";
+"Could not read daily costs. Check SSH and update the remote CodexBar CLI to support --daily-summary." = "Günlük maliyetler okunamadı. SSH bağlantısını kontrol edin ve uzak CodexBar CLI’yi --daily-summary desteği için güncelleyin.";

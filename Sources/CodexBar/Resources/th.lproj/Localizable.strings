@@ -1627,3 +1627,30 @@
 "antigravity_cost_estimate_hint" = "การใช้งานในเครื่อง × ราคา API สาธารณะ · ไม่ใช่ค่าบริการหรือเครดิตของ Antigravity";
 "antigravity_quota_window_note" = "ค่าใช้จ่ายของหน้าต่างครอบคลุมทุกโมเดล · หน้าต่างที่แสดงคือกลุ่มที่จำกัดมากที่สุด";
 "antigravity_no_priced_token_history" = "ไม่มีประวัติโทเคน Antigravity ที่คิดราคาไว้";
+
+/* Manual SSH cost reports */
+"SSH Cost Report…" = "รายงานค่าใช้จ่ายผ่าน SSH…";
+"Codex SSH Cost Report" = "รายงานค่าใช้จ่าย Codex ผ่าน SSH";
+"SSH host" = "โฮสต์ SSH";
+"Uses native Codex history. The SSH host needs a compatible CodexBar CLI." = "ใช้ประวัติเดิมของ Codex โฮสต์ SSH ต้องมี CodexBar CLI ที่เข้ากันได้";
+"API-equivalent estimates · USD · Host totals are separate." = "ค่าประมาณเทียบเท่าราคา API · USD · แสดงยอดรวมแยกแต่ละโฮสต์";
+"Cancelling…" = "กำลังยกเลิก…";
+"Reading this Mac…" = "กำลังอ่านข้อมูลจาก Mac เครื่องนี้…";
+"Reading SSH host…" = "กำลังอ่านข้อมูลจากโฮสต์ SSH…";
+"Cancelled" = "ยกเลิกแล้ว";
+"Waiting for summary…" = "กำลังรอสรุป…";
+"No summary loaded." = "ยังไม่ได้โหลดสรุป";
+"Snapshot updated: %@" = "อัปเดตสแนปช็อต: %@";
+"Day boundaries: %@" = "เขตเวลาที่ใช้แบ่งวัน: %@";
+"Partial history; scan is incomplete." = "มีประวัติเพียงบางส่วน การสแกนยังไม่สมบูรณ์";
+"Some usage has no known price." = "การใช้งานบางส่วนไม่มีราคาที่ทราบ";
+"Today: %d incomplete requests excluded." = "วันนี้: ไม่นับคำขอที่ไม่สมบูรณ์ %d รายการ";
+"Last 30 days: %d incomplete requests excluded." = "30 วันที่ผ่านมา: ไม่นับคำขอที่ไม่สมบูรณ์ %d รายการ";
+"Local Codex cost history is unavailable." = "ไม่สามารถใช้ประวัติค่าใช้จ่าย Codex ในเครื่องได้";
+"Cost history unavailable" = "ไม่สามารถใช้ประวัติค่าใช้จ่ายได้";
+"Enter one SSH host alias or user@host." = "ป้อนชื่อแทนโฮสต์ SSH หรือ user@host เพียงหนึ่งรายการ";
+"The remote CLI returned an unsupported or invalid cost summary. Update CodexBar on that host." = "CLI ระยะไกลส่งสรุปค่าใช้จ่ายที่ไม่รองรับหรือไม่ถูกต้องกลับมา โปรดอัปเดต CodexBar บนโฮสต์นั้น";
+"Could not read remote costs. Check SSH and that the remote CodexBar CLI supports --summary-only." = "ไม่สามารถอ่านค่าใช้จ่ายระยะไกลได้ ตรวจสอบ SSH และตรวจสอบว่า CodexBar CLI ระยะไกลรองรับ --summary-only";
+
+"Uses native Codex history. The SSH host needs a CodexBar CLI supporting --daily-summary." = "ใช้ประวัติ Codex ดั้งเดิม โฮสต์ SSH ต้องมี CodexBar CLI ที่รองรับ --daily-summary";
+"Could not read daily costs. Check SSH and update the remote CodexBar CLI to support --daily-summary." = "อ่านค่าใช้จ่ายรายวันไม่ได้ ตรวจสอบ SSH และอัปเดต CodexBar CLI บนเครื่องระยะไกลให้รองรับ --daily-summary";

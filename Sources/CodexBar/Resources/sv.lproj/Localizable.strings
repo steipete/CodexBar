@@ -1622,3 +1622,30 @@
 "antigravity_cost_estimate_hint" = "Lokal användning × publika API-priser · inte Antigravity-avgifter eller krediter";
 "antigravity_quota_window_note" = "Fönsterkostnaden omfattar alla modeller · fönstret som visas är den mest begränsade familjen";
 "antigravity_no_priced_token_history" = "Ingen prissatt Antigravity-tokenhistorik tillgänglig.";
+
+/* Manual SSH cost reports */
+"SSH Cost Report…" = "Kostnadsrapport via SSH…";
+"Codex SSH Cost Report" = "Kostnadsrapport för Codex via SSH";
+"SSH host" = "SSH-värd";
+"Uses native Codex history. The SSH host needs a compatible CodexBar CLI." = "Använder Codex egen historik. SSH-värden behöver en kompatibel CodexBar-CLI.";
+"API-equivalent estimates · USD · Host totals are separate." = "Uppskattningar enligt API-priser · USD · Varje värds total redovisas separat.";
+"Cancelling…" = "Avbryter…";
+"Reading this Mac…" = "Läser den här Macen…";
+"Reading SSH host…" = "Läser SSH-värden…";
+"Cancelled" = "Avbruten";
+"Waiting for summary…" = "Väntar på sammanfattning…";
+"No summary loaded." = "Ingen sammanfattning har lästs in.";
+"Snapshot updated: %@" = "Ögonblicksbild uppdaterad: %@";
+"Day boundaries: %@" = "Tidszon för dygnsgränser: %@";
+"Partial history; scan is incomplete." = "Delvis historik; skanningen är ofullständig.";
+"Some usage has no known price." = "Viss användning saknar känt pris.";
+"Today: %d incomplete requests excluded." = "I dag: %d ofullständiga förfrågningar har uteslutits.";
+"Last 30 days: %d incomplete requests excluded." = "Senaste 30 dagarna: %d ofullständiga förfrågningar har uteslutits.";
+"Local Codex cost history is unavailable." = "Den lokala kostnadshistoriken för Codex är inte tillgänglig.";
+"Cost history unavailable" = "Kostnadshistoriken är inte tillgänglig";
+"Enter one SSH host alias or user@host." = "Ange ett enda SSH-värdalias eller user@host.";
+"The remote CLI returned an unsupported or invalid cost summary. Update CodexBar on that host." = "Den fjärranslutna CLI:n returnerade en kostnadssammanfattning som inte stöds eller är ogiltig. Uppdatera CodexBar på den värden.";
+"Could not read remote costs. Check SSH and that the remote CodexBar CLI supports --summary-only." = "Kunde inte läsa fjärrkostnader. Kontrollera SSH och att den fjärranslutna CodexBar-CLI:n stöder --summary-only.";
+
+"Uses native Codex history. The SSH host needs a CodexBar CLI supporting --daily-summary." = "Använder Codex egen historik. SSH-värden behöver en CodexBar-CLI med stöd för --daily-summary.";
+"Could not read daily costs. Check SSH and update the remote CodexBar CLI to support --daily-summary." = "Kunde inte läsa dagliga kostnader. Kontrollera SSH och uppdatera den fjärranslutna CodexBar-CLI:n för stöd för --daily-summary.";

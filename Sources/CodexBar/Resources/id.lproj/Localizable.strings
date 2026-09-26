@@ -1626,3 +1626,30 @@
 "antigravity_cost_estimate_hint" = "Penggunaan lokal × harga API publik · bukan tagihan atau kredit Antigravity";
 "antigravity_quota_window_note" = "Biaya jendela mencakup semua model · jendela yang ditampilkan adalah keluarga paling terbatas";
 "antigravity_no_priced_token_history" = "Tidak ada riwayat token Antigravity berharga yang tersedia.";
+
+/* Manual SSH cost reports */
+"SSH Cost Report…" = "Laporan Biaya SSH…";
+"Codex SSH Cost Report" = "Laporan Biaya Codex melalui SSH";
+"SSH host" = "Host SSH";
+"Uses native Codex history. The SSH host needs a compatible CodexBar CLI." = "Menggunakan riwayat asli Codex. Host SSH memerlukan CLI CodexBar yang kompatibel.";
+"API-equivalent estimates · USD · Host totals are separate." = "Estimasi setara API · USD · Total tiap host dihitung terpisah.";
+"Cancelling…" = "Membatalkan…";
+"Reading this Mac…" = "Membaca Mac ini…";
+"Reading SSH host…" = "Membaca host SSH…";
+"Cancelled" = "Dibatalkan";
+"Waiting for summary…" = "Menunggu ringkasan…";
+"No summary loaded." = "Belum ada ringkasan yang dimuat.";
+"Snapshot updated: %@" = "Cuplikan diperbarui: %@";
+"Day boundaries: %@" = "Zona waktu batas hari: %@";
+"Partial history; scan is incomplete." = "Riwayat sebagian; pemindaian belum lengkap.";
+"Some usage has no known price." = "Sebagian penggunaan belum memiliki harga yang diketahui.";
+"Today: %d incomplete requests excluded." = "Hari ini: %d permintaan tidak lengkap dikecualikan.";
+"Last 30 days: %d incomplete requests excluded." = "30 hari terakhir: %d permintaan tidak lengkap dikecualikan.";
+"Local Codex cost history is unavailable." = "Riwayat biaya Codex lokal tidak tersedia.";
+"Cost history unavailable" = "Riwayat biaya tidak tersedia";
+"Enter one SSH host alias or user@host." = "Masukkan satu alias host SSH atau user@host.";
+"The remote CLI returned an unsupported or invalid cost summary. Update CodexBar on that host." = "CLI jarak jauh mengembalikan ringkasan biaya yang tidak didukung atau tidak valid. Perbarui CodexBar di host tersebut.";
+"Could not read remote costs. Check SSH and that the remote CodexBar CLI supports --summary-only." = "Tidak dapat membaca biaya jarak jauh. Periksa SSH dan pastikan CLI CodexBar jarak jauh mendukung --summary-only.";
+
+"Uses native Codex history. The SSH host needs a CodexBar CLI supporting --daily-summary." = "Menggunakan riwayat asli Codex. Host SSH memerlukan CLI CodexBar yang mendukung --daily-summary.";
+"Could not read daily costs. Check SSH and update the remote CodexBar CLI to support --daily-summary." = "Tidak dapat membaca biaya harian. Periksa SSH dan perbarui CLI CodexBar jarak jauh agar mendukung --daily-summary.";

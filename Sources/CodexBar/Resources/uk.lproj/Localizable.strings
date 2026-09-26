@@ -1623,3 +1623,30 @@
 "antigravity_cost_estimate_hint" = "Локальне використання × публічні ціни API · це не рахунки та не кредити Antigravity";
 "antigravity_quota_window_note" = "Вартість вікна охоплює всі моделі · показано вікно найбільш обмеженої родини";
 "antigravity_no_priced_token_history" = "Немає оціненої історії токенів Antigravity.";
+
+/* Manual SSH cost reports */
+"SSH Cost Report…" = "Звіт про витрати через SSH…";
+"Codex SSH Cost Report" = "Звіт про витрати Codex через SSH";
+"SSH host" = "Хост SSH";
+"Uses native Codex history. The SSH host needs a compatible CodexBar CLI." = "Використовує власну історію Codex. На хості SSH потрібен сумісний CLI CodexBar.";
+"API-equivalent estimates · USD · Host totals are separate." = "Оцінки за тарифами API · USD · Підсумки кожного хоста обліковуються окремо.";
+"Cancelling…" = "Скасування…";
+"Reading this Mac…" = "Читання даних цього Mac…";
+"Reading SSH host…" = "Читання даних хоста SSH…";
+"Cancelled" = "Скасовано";
+"Waiting for summary…" = "Очікування зведення…";
+"No summary loaded." = "Зведення не завантажено.";
+"Snapshot updated: %@" = "Знімок оновлено: %@";
+"Day boundaries: %@" = "Часовий пояс меж доби: %@";
+"Partial history; scan is incomplete." = "Часткова історія; сканування неповне.";
+"Some usage has no known price." = "Ціна частини використання невідома.";
+"Today: %d incomplete requests excluded." = "Сьогодні: виключено неповних запитів — %d.";
+"Last 30 days: %d incomplete requests excluded." = "Останні 30 днів: виключено неповних запитів — %d.";
+"Local Codex cost history is unavailable." = "Локальна історія витрат Codex недоступна.";
+"Cost history unavailable" = "Історія витрат недоступна";
+"Enter one SSH host alias or user@host." = "Введіть один псевдонім хоста SSH або user@host.";
+"The remote CLI returned an unsupported or invalid cost summary. Update CodexBar on that host." = "Віддалений CLI повернув непідтримуване або некоректне зведення витрат. Оновіть CodexBar на цьому хості.";
+"Could not read remote costs. Check SSH and that the remote CodexBar CLI supports --summary-only." = "Не вдалося прочитати віддалені витрати. Перевірте SSH і підтримку --summary-only у віддаленому CLI CodexBar.";
+
+"Uses native Codex history. The SSH host needs a CodexBar CLI supporting --daily-summary." = "Використовується власна історія Codex. На SSH-хості потрібен CLI CodexBar із підтримкою --daily-summary.";
+"Could not read daily costs. Check SSH and update the remote CodexBar CLI to support --daily-summary." = "Не вдалося прочитати щоденні витрати. Перевірте SSH та оновіть віддалений CLI CodexBar для підтримки --daily-summary.";

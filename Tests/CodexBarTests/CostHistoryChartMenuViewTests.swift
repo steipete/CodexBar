@@ -8,6 +8,45 @@ import Testing
 // swiftlint:disable:next type_body_length
 struct CostHistoryChartMenuViewTests {
     @Test
+    func `token axis safely labels the largest validated daily total`() {
+        #expect(CostHistoryChartMenuView._yAxisTokenStringForTesting(Double(Int.max))
+            == UsageFormatter.tokenCountString(Int.max))
+    }
+
+    @Test
+    func `completed manual partial charts do not claim to refresh`() {
+        #expect(!CostHistoryChartMenuView._showsHistoryRefreshingForTesting(
+            provider: .codex, metric: .tokens, historyCoverageIsEstablished: false, historyIsRefreshing: false))
+    }
+
+    @Test(arguments: [
+        ("GMT", "2026-03-07T00:00:00Z", "2026-03-09T00:00:00Z"),
+        ("Asia/Shanghai", "2026-03-06T16:00:00Z", "2026-03-08T16:00:00Z"),
+        ("America/Los_Angeles", "2026-03-07T08:00:00Z", "2026-03-09T07:00:00Z"),
+    ])
+    func `daily chart model uses the injected bucket timezone rather than system time`(
+        zone: String, start: String, end: String) throws
+    {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try #require(TimeZone(identifier: zone))
+        let entries = ["2026-03-07", "2026-03-09"].map { day in
+            CostUsageDailyReport.Entry(
+                date: day,
+                inputTokens: nil,
+                outputTokens: nil,
+                totalTokens: 100,
+                costUSD: 0.25,
+                modelsUsed: nil,
+                modelBreakdowns: nil)
+        }
+        let dates = CostHistoryChartMenuView._axisDatesForTesting(provider: .codex, daily: entries, calendar: calendar)
+        #expect(try dates == [
+            #require(ISO8601DateFormatter().date(from: start)),
+            #require(ISO8601DateFormatter().date(from: end)),
+        ])
+    }
+
+    @Test
     func `privacy masks project and source identity without changing visible costs or grouping`() {
         let projects = Self.makeProjects(count: 6, sourcesPerProject: 3)
         let snapshot = Self.makeSnapshot(projects: projects)
