@@ -350,10 +350,13 @@ struct MenuDescriptor {
             }
             for extra in presentation.extraRateWindows(snapshot: snap) {
                 // Match the menu card: a detail-backed window's description is a detail, never a reset time.
-                let detail = presentation.menuCard.extraRateWindowShowsResetDescriptionAsDetail(extra)
-                    ? extra.window.resetDescription?.trimmingCharacters(in: .whitespacesAndNewlines)
-                    .flatMap { $0.isEmpty ? nil : $0 }
-                    : nil
+                var detail: String?
+                if presentation.menuCard.extraRateWindowShowsResetDescriptionAsDetail(extra),
+                   let text = extra.window.resetDescription?.trimmingCharacters(in: .whitespacesAndNewlines),
+                   !text.isEmpty
+                {
+                    detail = text
+                }
                 Self.appendRateWindow(
                     entries: &entries,
                     title: extra.title,
