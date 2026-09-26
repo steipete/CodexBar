@@ -835,6 +835,8 @@ enum SpendDashboardSource {
             encoder.append(session.totalTokens)
             encoder.append(session.costUSD)
             encoder.append(session.requestCount)
+            encoder.append(session.title ?? "")
+            encoder.append(session.projectPath ?? "")
             encoder.append(session.modelBreakdowns.count)
             for breakdown in session.modelBreakdowns {
                 encoder.append(breakdown.modelName)

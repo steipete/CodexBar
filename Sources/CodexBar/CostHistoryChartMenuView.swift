@@ -524,7 +524,7 @@ struct CostHistoryChartMenuView: View {
         .accessibilityElement(children: .combine)
     }
 
-    static func shortSessionID(_ sessionID: String) -> String {
+    nonisolated static func shortSessionID(_ sessionID: String) -> String {
         let trimmed = sessionID.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed.count > 12 else { return trimmed }
         return "\(trimmed.prefix(4))...\(trimmed.suffix(8))"

@@ -18,3 +18,21 @@ extension SpendDashboardModel.ProjectRow {
             hidePersonalInfo: hidePersonalInfo)
     }
 }
+
+extension SpendDashboardModel.SessionRow {
+    /// Thread names and project folders are personal; the short session ID is the masked label.
+    func displayIdentity(hidePersonalInfo: Bool) -> CostHistoryIdentity {
+        let fallbackName = L("Session %@", CostHistoryChartMenuView.shortSessionID(self.sessionID))
+        return CostHistoryIdentity(
+            name: self.title ?? fallbackName,
+            path: self.projectPath,
+            placeholder: fallbackName,
+            hidePersonalInfo: hidePersonalInfo)
+    }
+
+    func displaySubtitle(hidePersonalInfo: Bool) -> String {
+        let projectName = hidePersonalInfo ? nil : self.projectName
+        let date = SpendActivityDateFormatting.mediumDateString(self.lastActivity)
+        return [projectName, self.modelName, date].compactMap(\.self).joined(separator: " · ")
+    }
+}

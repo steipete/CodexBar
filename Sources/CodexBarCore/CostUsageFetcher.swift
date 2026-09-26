@@ -896,10 +896,12 @@ public struct CostUsageFetcher: Sendable {
                     projects = view.projects(
                         range: range,
                         cacheRoot: options.scanOptions.cacheRoot)
-                    sessions = view.sessions(
-                        range: range,
-                        cacheRoot: options.scanOptions.cacheRoot,
-                        roots: roots)
+                    sessions = Self.codexSessionsWithThreadTitles(
+                        view.sessions(
+                            range: range,
+                            cacheRoot: options.scanOptions.cacheRoot,
+                            roots: roots),
+                        sessionsRoot: roots.first)
                 }
             }
             let native = LocalTokenScanReport(
@@ -954,6 +956,25 @@ public struct CostUsageFetcher: Sendable {
                     historyCoverageIsEstablished: native.historyCoverageIsEstablished && piScanIsComplete),
                 native: native,
                 piScope: piScope)
+        }
+    }
+
+    /// Codex keeps thread names outside the rollout files, so overlay them after the cost scan.
+    static func codexSessionsWithThreadTitles(
+        _ sessions: [CostUsageSessionBreakdown],
+        sessionsRoot: URL?) -> [CostUsageSessionBreakdown]
+    {
+        guard !sessions.isEmpty,
+              let sessionsRoot,
+              sessionsRoot.lastPathComponent == "sessions"
+        else {
+            return sessions
+        }
+        let reader = CodexThreadMetadataReader(codexHomeDirectory: sessionsRoot.deletingLastPathComponent())
+        let metadata = reader.metadata(for: Set(sessions.map(\.sessionID)))
+        return sessions.map { session in
+            guard let title = metadata[session.sessionID]?.title else { return session }
+            return session.withTitle(title)
         }
     }
 

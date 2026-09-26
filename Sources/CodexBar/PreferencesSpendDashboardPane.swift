@@ -748,7 +748,7 @@ private struct SpendDashboardDetailPanel: View {
         case .projects:
             SpendProjectRows(group: self.group, hidePersonalInfo: self.hidePersonalInfo)
         case .sessions:
-            SpendSessionRows(group: self.group)
+            SpendSessionRows(group: self.group, hidePersonalInfo: self.hidePersonalInfo)
         }
     }
 }
@@ -1284,20 +1284,29 @@ private struct SpendDailyLedgerRow: View {
 
 private struct SpendSessionRows: View {
     let group: SpendDashboardModel.CurrencyGroup
+    let hidePersonalInfo: Bool
+    @State private var showsAllRows = false
+
+    private static let collapsedRowCount = 8
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            ForEach(Array(self.group.sessions.enumerated()), id: \.element.id) { index, row in
-                let subtitle = row.modelName ?? SpendActivityDateFormatting.mediumDateString(row.lastActivity)
-                if index > 0 {
+            ForEach(self.visibleRows) { row in
+                let identity = row.displayIdentity(hidePersonalInfo: self.hidePersonalInfo)
+                let subtitle = row.displaySubtitle(hidePersonalInfo: self.hidePersonalInfo)
+                if row.rank > 1 {
                     Divider()
                 }
                 HStack(spacing: 10) {
+                    Text(spendDashboardRankText(row.rank))
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.tertiary)
+                        .frame(width: 26, alignment: .leading)
                     SpendProviderIcon(provider: row.provider, sourceKind: .native)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(row.displayName)
+                        Text(identity.name)
                             .lineLimit(1)
-                            .help(row.displayName)
+                            .help(identity.name)
                         Text(subtitle)
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -1313,7 +1322,16 @@ private struct SpendSessionRows: View {
                 }
                 .padding(.vertical, 9)
             }
+            SpendPanelExpandButton(
+                rowCount: self.group.sessions.count,
+                collapsedRowCount: Self.collapsedRowCount,
+                showsAllRows: self.$showsAllRows)
         }
+    }
+
+    private var visibleRows: ArraySlice<SpendDashboardModel.SessionRow> {
+        self.group.sessions.prefix(
+            self.showsAllRows ? self.group.sessions.count : Self.collapsedRowCount)
     }
 }
 

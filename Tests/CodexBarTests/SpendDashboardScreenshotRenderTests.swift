@@ -174,7 +174,10 @@ final class SpendDashboardScreenshotRenderTests: XCTestCase {
                         totalTokens: 40,
                         requestCount: 1,
                         costUSD: 2.1,
-                        modelBreakdowns: []),
+                        modelBreakdowns: [],
+                        projectPath: "/Users/example/Projects/example-app",
+                        projectName: "example-app",
+                        title: "Fix the menu bar icon"),
                 ],
                 updatedAt: now))
         let hourly = SpendDashboardModel.build(

@@ -125,6 +125,11 @@ public struct CostUsageSessionBreakdown: Sendable, Equatable, Identifiable {
     public let requestCount: Int?
     public let costUSD: Double?
     public let modelBreakdowns: [CostUsageDailyReport.ModelBreakdown]
+    /// Canonical project path, matching the key of the session's Projects row.
+    public let projectPath: String?
+    public let projectName: String?
+    /// Thread name from Codex metadata, when one exists.
+    public let title: String?
 
     public var id: String {
         self.sessionID
@@ -140,7 +145,10 @@ public struct CostUsageSessionBreakdown: Sendable, Equatable, Identifiable {
         totalTokens: Int?,
         requestCount: Int?,
         costUSD: Double?,
-        modelBreakdowns: [CostUsageDailyReport.ModelBreakdown])
+        modelBreakdowns: [CostUsageDailyReport.ModelBreakdown],
+        projectPath: String? = nil,
+        projectName: String? = nil,
+        title: String? = nil)
     {
         self.sessionID = sessionID
         self.lastActivity = lastActivity
@@ -152,6 +160,26 @@ public struct CostUsageSessionBreakdown: Sendable, Equatable, Identifiable {
         self.requestCount = requestCount
         self.costUSD = costUSD
         self.modelBreakdowns = modelBreakdowns
+        self.projectPath = projectPath
+        self.projectName = projectName
+        self.title = title
+    }
+
+    public func withTitle(_ title: String?) -> CostUsageSessionBreakdown {
+        CostUsageSessionBreakdown(
+            sessionID: self.sessionID,
+            lastActivity: self.lastActivity,
+            inputTokens: self.inputTokens,
+            cachedInputTokens: self.cachedInputTokens,
+            outputTokens: self.outputTokens,
+            reasoningTokens: self.reasoningTokens,
+            totalTokens: self.totalTokens,
+            requestCount: self.requestCount,
+            costUSD: self.costUSD,
+            modelBreakdowns: self.modelBreakdowns,
+            projectPath: self.projectPath,
+            projectName: self.projectName,
+            title: title)
     }
 }
 
