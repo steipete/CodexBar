@@ -128,6 +128,25 @@ struct ClinePassSettingsReaderTests {
         let resolution = descriptor.credentials?.resolveToken(environment: environment)
         #expect(resolution?.token == "workos:browser-token")
         #expect(resolution?.source == .authFile)
+        // Diagnostics report browser sessions as OAuth, not API-key auth.
+        let summary = descriptor.credentials?.diagnosticAuthSummary(
+            account: nil,
+            config: nil,
+            environment: environment,
+            settings: nil)
+        #expect(summary?.configured == true)
+        #expect(summary?.modes == ["oauth"])
+    }
+
+    @Test
+    func `diagnostics report explicit api key as api`() {
+        let descriptor = ProviderDescriptorRegistry.descriptor(for: .clinepass)
+        let summary = descriptor.credentials?.diagnosticAuthSummary(
+            account: nil,
+            config: nil,
+            environment: ["CLINE_API_KEY": "token"],
+            settings: nil)
+        #expect(summary?.modes == ["api"])
     }
 
     private func writeProvidersFile(contents: String) throws -> URL {

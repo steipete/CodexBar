@@ -19,7 +19,13 @@ public enum ClinePassProviderDescriptor {
             return ProviderTokenResolution(token: fileToken, source: .authFile)
         },
         authDetector: { environment, _ in
-            ClinePassSettingsReader.resolvedToken(environment: environment) == nil ? [] : ["api"]
+            if ClinePassSettingsReader.apiKey(environment: environment) != nil {
+                return ["api"]
+            }
+            guard let credential = ClinePassSettingsReader.resolvedCredential(environment: environment) else {
+                return []
+            }
+            return [credential.isOAuth ? "oauth" : "api"]
         },
         missingCredentialMessage: { _ in
             "ClinePass credentials not found. Paste an API key from app.cline.bot Settings → API Keys, " +
