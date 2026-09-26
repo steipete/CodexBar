@@ -62,6 +62,22 @@ struct ClinePassSettingsReaderTests {
 
         let env = [ClinePassSettingsReader.providerSettingsPathEnvironmentKey: file.path]
         #expect(ClinePassSettingsReader.authToken(environment: env) == "stored-api-key")
+        #expect(ClinePassSettingsReader.resolvedCredential(environment: env) == .init(
+            token: "stored-api-key",
+            isOAuth: false))
+        #expect(ClinePassSettingsReader.usesBrowserSession(environment: env) == false)
+    }
+
+    @Test
+    func `stored api key in file reports api source not browser`() throws {
+        let file = try self.writeProvidersFile(contents: """
+        {"providers":{"cline":{"settings":{"apiKey":"stored-api-key"}}}}
+        """)
+        defer { try? FileManager.default.removeItem(at: file.deletingLastPathComponent()) }
+
+        let credential = ClinePassSettingsReader.resolvedCredential(authFileURL: file)
+        #expect(credential?.token == "stored-api-key")
+        #expect(credential?.isOAuth == false)
     }
 
     @Test

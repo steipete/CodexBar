@@ -82,15 +82,19 @@ public enum ClinePassProviderDescriptor {
                     secretKey: ClinePassSettingsReader.apiKeyEnvironmentKey,
                     sourceLabel: "api",
                     resolveValues: { context in
-                        guard let token = ClinePassSettingsReader.apiKey(environment: context.env)
-                            ?? ClinePassSettingsReader.authToken(environment: context.env)
+                        if let key = ClinePassSettingsReader.apiKey(environment: context.env) {
+                            return ScriptFetchStrategy.Values(
+                                settings: [ClinePassSettingsReader.authSourceSettingKey: "api"],
+                                secrets: [ClinePassSettingsReader.apiKeyEnvironmentKey: key])
+                        }
+                        guard let credential = ClinePassSettingsReader.resolvedCredential(
+                            environment: context.env)
                         else { return nil }
-                        let source = ClinePassSettingsReader.apiKey(environment: context.env) != nil
-                            ? "api"
-                            : "oauth"
                         return ScriptFetchStrategy.Values(
-                            settings: [ClinePassSettingsReader.authSourceSettingKey: source],
-                            secrets: [ClinePassSettingsReader.apiKeyEnvironmentKey: token])
+                            settings: [ClinePassSettingsReader.authSourceSettingKey: credential.isOAuth
+                                ? "oauth"
+                                : "api"],
+                            secrets: [ClinePassSettingsReader.apiKeyEnvironmentKey: credential.token])
                     },
                     isEnabled: { _ in true })]
             }))
