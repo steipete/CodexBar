@@ -14,7 +14,10 @@ defineProvider({
   name: "ClinePass",
   endpoints: ["https://api.cline.bot"],
   auth: { type: "bearer", secret: "CLINE_API_KEY" },
-  settings: [{ key: "CLINE_API_KEY", title: "API key", type: "secure" }],
+  settings: [
+    { key: "CLINE_API_KEY", title: "API key", type: "secure" },
+    { key: "CLINE_AUTH_SOURCE", title: "Auth source", type: "plain" },
+  ],
 
   async fetchUsage(ctx) {
     let response;
@@ -26,7 +29,9 @@ defineProvider({
       throw ctx.fail.networkFailure(`ClinePass network error: ${(error as Error)?.message || String(error)}`);
     }
     if (response.status === 401 || response.status === 403) {
-      throw ctx.fail.authenticationExpired("ClinePass API key was rejected.");
+      throw ctx.fail.authenticationExpired(
+        "ClinePass credentials were rejected. Check your API key or run `cline auth` to refresh your browser session.",
+      );
     }
     if (response.status === 429) {
       throw ctx.fail.rateLimited("ClinePass API error: HTTP 429");
@@ -111,7 +116,7 @@ defineProvider({
       primary: windows.five_hour,
       secondary: windows.weekly,
       tertiary: windows.monthly,
-      identity: { loginMethod: "API key" },
+      identity: { loginMethod: ctx.settings.get("CLINE_AUTH_SOURCE") === "oauth" ? "Browser" : "API key" },
     };
   },
 });

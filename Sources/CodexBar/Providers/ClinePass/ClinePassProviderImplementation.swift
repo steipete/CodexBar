@@ -16,7 +16,7 @@ struct ClinePassProviderImplementation: ProviderImplementation {
 
     @MainActor
     func isAvailable(context: ProviderAvailabilityContext) -> Bool {
-        if ClinePassSettingsReader.apiKey(environment: context.environment) != nil {
+        if ClinePassSettingsReader.resolvedToken(environment: context.environment) != nil {
             return true
         }
         return !context.settings[providerConfig: .clinepass, field: .apiKey]
@@ -29,7 +29,8 @@ struct ClinePassProviderImplementation: ProviderImplementation {
             ProviderSettingsFieldDescriptor(
                 id: "clinepass-api-key",
                 title: "API key",
-                subtitle: "Stored in ~/.codexbar/config.json. Paste a ClinePass API key.",
+                subtitle: "Stored in ~/.codexbar/config.json. Paste a Cline API key, or run `cline auth` " +
+                    "to sign in with your browser (reads ~/.cline/data/settings/providers.json).",
                 kind: .secure,
                 placeholder: "ClinePass API key...",
                 binding: context.providerConfigBinding(.apiKey),

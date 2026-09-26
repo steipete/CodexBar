@@ -103,7 +103,7 @@ struct ClinePassPluginTests {
         await Self.expectFailure(
             kind,
             contains: status == 401 || status == 403
-                ? "ClinePass API key was rejected."
+                ? "ClinePass credentials were rejected."
                 : "ClinePass API error: HTTP \(status)")
         {
             try await runtime.fetchUsage(secrets: ["CLINE_API_KEY": "test-key"])
