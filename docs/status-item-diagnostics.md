@@ -66,14 +66,15 @@ Run these commands in the diagnostic checkout; no command launches or overwrites
 
 ```sh
 swift build --configuration debug --jobs 2 --product CodexBar
+diagnostic_bin_dir="$(swift build --configuration debug --show-bin-path)"
 mkdir -p .build/control-center-diagnostic
 codesign -d --entitlements :- /Applications/CodexBar.app \
   > .build/control-center-diagnostic/entitlements.plist 2>/dev/null
 ditto /Applications/CodexBar.app .build/control-center-diagnostic/CodexBar.app
-cp .build/debug/CodexBar .build/control-center-diagnostic/CodexBar.app/Contents/MacOS/CodexBar
+cp "$diagnostic_bin_dir/CodexBar" .build/control-center-diagnostic/CodexBar.app/Contents/MacOS/CodexBar
 install_name_tool -add_rpath '@executable_path/../Frameworks' \
   .build/control-center-diagnostic/CodexBar.app/Contents/MacOS/CodexBar
-for bundle in .build/debug/*.bundle; do
+for bundle in "$diagnostic_bin_dir"/*.bundle; do
   ditto "$bundle" ".build/control-center-diagnostic/CodexBar.app/Contents/Resources/$(basename "$bundle")"
 done
 /usr/libexec/PlistBuddy -c "Set :CodexGitCommit $(git rev-parse HEAD)" \
