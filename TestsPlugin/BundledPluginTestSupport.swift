@@ -11,7 +11,8 @@ enum BundledPluginTestSupport {
     static func runtime(
         _ name: String,
         engine: ProviderPluginEngineKind,
-        transport: any ProviderHTTPTransport) throws -> ProviderPluginRuntime
+        transport: any ProviderHTTPTransport,
+        contextOptions: ProviderPluginContextOptions = .production) throws -> ProviderPluginRuntime
     {
         guard let bundle = CodexBarCoreResources.bundle,
               let url = bundle.url(forResource: name, withExtension: "js")
@@ -19,6 +20,11 @@ enum BundledPluginTestSupport {
             throw ProviderPluginError.load("bundled plugin '\(name).js' was not found")
         }
         let source = try String(contentsOf: url, encoding: .utf8)
-        return try ProviderPluginRuntime(source: source, transport: transport, engine: engine)
+        return try ProviderPluginRuntime(
+            source: source,
+            resourceBundle: bundle,
+            transport: transport,
+            contextOptions: contextOptions,
+            engine: engine)
     }
 }

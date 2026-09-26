@@ -68,9 +68,9 @@ enum ProviderPluginHTTPResponse {
         responseSizeLimit: Int,
         enforcesUserResponsePolicy: Bool,
         rejectsNonSuccessResponses: Bool,
-        beforeAttempt: (@Sendable () async throws -> Void)?,
-        collectionBudget: Duration = .milliseconds(200)) async throws -> Payload
+        contextOptions: ProviderPluginContextOptions = .production) async throws -> Payload
     {
+        let collectionBudget = contextOptions.optionalCollectionBudget
         let (starts, started) = AsyncStream<ContinuousClock.Instant>.makeStream(bufferingPolicy: .bufferingNewest(1))
         return try await withThrowingTaskGroup(of: Completion.self) { group in
             defer { group.cancelAll() }
@@ -81,7 +81,7 @@ enum ProviderPluginHTTPResponse {
                     transport: transport,
                     retryPolicy: request.retryPolicy,
                     beforeAttempt: {
-                        try await beforeAttempt?()
+                        try await contextOptions.beforeHTTPAttempt?()
                         started.yield(.now)
                         started.finish()
                     }))
@@ -92,7 +92,7 @@ enum ProviderPluginHTTPResponse {
                         for: optional,
                         transport: transport,
                         retryPolicy: .disabled,
-                        beforeAttempt: beforeAttempt))
+                        beforeAttempt: contextOptions.beforeHTTPAttempt))
                 }
                 group.addTask {
                     // Admission and scheduling waits belong to the overall fetch timeout.

@@ -662,7 +662,7 @@ final class QuickJSProviderPluginEngine: ProviderPluginEngine, @unchecked Sendab
                     responseSizeLimit: self.responseSizeLimit,
                     enforcesUserResponsePolicy: self.enforcesUserResponsePolicy,
                     rejectsNonSuccessResponses: self.rejectsNonSuccessResponses,
-                    beforeAttempt: state.contextOptions.beforeHTTPAttempt)
+                    contextOptions: state.contextOptions)
             }
             let value = try self.parseJSON(payload.value)
             defer { cqjs_free_value(self.context, value) }
