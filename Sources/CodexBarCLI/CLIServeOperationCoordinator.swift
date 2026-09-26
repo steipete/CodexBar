@@ -10,6 +10,8 @@ actor CLIServeOperationCoordinator<Value: Sendable> {
     typealias Instant = ContinuousClock.Instant
     typealias Now = @Sendable () -> Instant
     typealias SleepUntil = @Sendable (Instant) async throws -> Void
+    typealias PublishPartial = @Sendable (Value) async -> Void
+    typealias Source = @Sendable (@escaping PublishPartial) async -> Value
 
     struct Snapshot: Equatable, Sendable {
         let operationCount: Int
@@ -34,12 +36,13 @@ actor CLIServeOperationCoordinator<Value: Sendable> {
         let generation: UInt64
         let fingerprint: String
         var deadline: Instant?
-        let makeValue: @Sendable () async -> Value
+        let makeValue: Source
         let acceptValue: @Sendable (Value) async -> Value
         var sourceTask: Task<Void, Never>?
         var deadlineTask: Task<Void, Never>?
         var waiters: [Waiter]
         var phase: OperationPhase
+        var partialValue: Value?
     }
 
     private struct Slot {
@@ -52,7 +55,7 @@ actor CLIServeOperationCoordinator<Value: Sendable> {
         let fingerprint: String
         let deadline: Instant?
         let timeoutValue: Value
-        let makeValue: @Sendable () async -> Value
+        let makeValue: Source
         let acceptValue: @Sendable (Value) async -> Value
     }
 
@@ -86,6 +89,25 @@ actor CLIServeOperationCoordinator<Value: Sendable> {
         timeoutValue: Value,
         accept: @Sendable @escaping (Value) async -> Value = { $0 },
         operation makeValue: @Sendable @escaping () async -> Value) async -> Value
+    {
+        await self.value(
+            for: key,
+            fingerprint: fingerprint,
+            deadline: deadline,
+            timeoutValue: timeoutValue,
+            accept: accept,
+            operationWithProgress: { _ in await makeValue() })
+    }
+
+    /// Partial values are caller-prepared timeout fallbacks, never committed through `accept`.
+    /// They belong to the source generation, so all coalesced waiters see the same progress.
+    func value(
+        for key: String,
+        fingerprint: String,
+        deadline: Instant?,
+        timeoutValue: Value,
+        accept: @Sendable @escaping (Value) async -> Value = { $0 },
+        operationWithProgress makeValue: @escaping Source) async -> Value
     {
         let request = OperationRequest(
             key: key,
@@ -284,18 +306,33 @@ actor CLIServeOperationCoordinator<Value: Sendable> {
             sourceTask: nil,
             deadlineTask: nil,
             waiters: [waiter],
-            phase: .running)
+            phase: .running,
+            partialValue: nil)
     }
 
     private func makeSourceTask(
         key: String,
         generation: UInt64,
-        makeValue: @Sendable @escaping () async -> Value) -> Task<Void, Never>
+        makeValue: @escaping Source) -> Task<Void, Never>
     {
         Task.detached { [self] in
-            let value = await makeValue()
+            let value = await makeValue { partial in
+                await self.publishPartial(partial, for: key, generation: generation)
+            }
             await self.sourceProduced(value, for: key, generation: generation)
         }
+    }
+
+    private func publishPartial(_ value: Value, for key: String, generation: UInt64) {
+        guard var slot = self.slots[key],
+              var operation = slot.active,
+              operation.generation == generation,
+              operation.phase == .running,
+              !self.isExpired(operation.deadline)
+        else { return }
+        operation.partialValue = value
+        slot.active = operation
+        self.slots[key] = slot
     }
 
     private func makeDeadlineTask(
@@ -323,7 +360,7 @@ actor CLIServeOperationCoordinator<Value: Sendable> {
             let waiter = active.waiters.remove(at: index)
             slot.active = active
             self.slots[key] = slot
-            waiter.continuation.resume(returning: waiter.timeoutValue)
+            waiter.continuation.resume(returning: active.partialValue ?? waiter.timeoutValue)
             if active.waiters.isEmpty, active.phase == .running {
                 self.timeoutActive(for: key, generation: active.generation)
             }
@@ -387,7 +424,7 @@ actor CLIServeOperationCoordinator<Value: Sendable> {
         self.slots[key] = slot
 
         for waiter in waiters {
-            waiter.continuation.resume(returning: waiter.timeoutValue)
+            waiter.continuation.resume(returning: operation.partialValue ?? waiter.timeoutValue)
         }
     }
 
@@ -411,7 +448,7 @@ actor CLIServeOperationCoordinator<Value: Sendable> {
         slot.active = operation
         self.slots[key] = slot
         for waiter in waiters {
-            waiter.continuation.resume(returning: waiter.timeoutValue)
+            waiter.continuation.resume(returning: operation.partialValue ?? waiter.timeoutValue)
         }
     }
 

@@ -60,12 +60,13 @@ struct DashboardSnapshotProducer: Sendable {
     var collectClaudeSwapAccounts: @Sendable (CodexBarConfig) async -> DashboardClaudeSwapCollection? = { _ in nil }
     var weeklyWorkDays: @Sendable () -> Int? = { nil }
     var usageBarsShowUsed: @Sendable () -> Bool = { false }
+    var allAccounts: Bool = false
 
     func collect(
         config: CodexBarConfig,
         refreshInterval: TimeInterval,
         codexBarVersion: String?,
-        identityMode: DashboardIdentityMode = .full,
+        identityMode: DashboardIdentityMode? = nil,
         providers requestedProviders: [UsageProvider]? = nil) async throws -> DashboardSnapshotResult
     {
         let selection = requestedProviders.map(ProviderSelection.custom) ?? CodexBarCLI.providerSelection(
@@ -87,7 +88,7 @@ struct DashboardSnapshotProducer: Sendable {
             usagePayloads: usageOutput.payload,
             costPayloads: costPayloads,
             config: config,
-            identityMode: identityMode,
+            identityMode: identityMode ?? (self.allAccounts ? .none : .full),
             generatedAt: generatedAt,
             refreshInterval: refreshInterval,
             codexBarVersion: codexBarVersion,
@@ -97,10 +98,12 @@ struct DashboardSnapshotProducer: Sendable {
                     adapterError: $0.adapterError,
                     weeklyWorkDays: self.weeklyWorkDays())
             },
-            usageBarsShowUsed: self.usageBarsShowUsed())
+            usageBarsShowUsed: self.usageBarsShowUsed(),
+            allAccounts: self.allAccounts)
         return DashboardSnapshotResult(
             payload: payload,
-            usageCacheKeys: usageOutput.payload.map(\.cacheAccountKey))
+            usageCacheKeys: DashboardSnapshotBuilder.selectedPayloads(
+                usageOutput.payload, allAccounts: self.allAccounts).map(\.cacheAccountKey))
     }
 
     static func live(context: DashboardSnapshotContext) -> Self {
@@ -166,7 +169,8 @@ struct DashboardSnapshotProducer: Sendable {
                 }
             },
             weeklyWorkDays: { CodexBarCLI.weeklyProgressWorkDaysFromDefaults() },
-            usageBarsShowUsed: { CodexBarCLI.usageBarsShowUsedFromDefaults() })
+            usageBarsShowUsed: { CodexBarCLI.usageBarsShowUsedFromDefaults() },
+            allAccounts: context.usage.includeAllAccounts)
     }
 }
 
@@ -350,9 +354,7 @@ extension CodexBarCLI {
             ])
     }
 
-    /// `.none` is deliberately not accepted: the flag chooses between full
-    /// identity by default and opt-in email redaction; suppressing identity
-    /// entirely is not a supported dashboard shape.
+    /// One-shot snapshots retain their full default; the flag accepts full or redacted identity.
     static func decodeDashboardIdentityMode(from values: ParsedValues) -> DashboardIdentityMode? {
         guard let raw = values.options["identity"]?.last else { return .full }
         switch raw.lowercased() {
@@ -372,16 +374,17 @@ extension CodexBarCLI {
     }
 
     /// Identity detail for one dashboard snapshot request. An explicit `--identity` wins,
-    /// so a scripted client keeps the mode it asked for. Without the flag the app's
-    /// "Hide personal information" toggle decides, which keeps the serve dashboard in step
-    /// with the menu UI.
+    /// so a scripted client keeps the mode it asked for. Expanded snapshots are private
+    /// without the flag; selected-account snapshots still follow the app privacy setting.
     static func resolveDashboardIdentityMode(
         configured: DashboardIdentityMode?,
-        hidesPersonalInfo: Bool) -> DashboardIdentityMode
+        hidesPersonalInfo: Bool,
+        allAccounts: Bool = false) -> DashboardIdentityMode
     {
         if let configured {
             return configured
         }
+        if allAccounts { return .none }
         return hidesPersonalInfo ? .redacted : .full
     }
 
