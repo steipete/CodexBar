@@ -644,25 +644,37 @@ enum CLIRenderer {
         now: Date,
         lines: inout [String])
     {
-        let extras = ProviderDescriptorRegistry.descriptor(for: provider)
-            .presentation
-            .extraRateWindows(snapshot: snapshot)
-        self.appendNamedRateWindowLines(extras, context: context, now: now, lines: &lines)
+        let presentation = ProviderDescriptorRegistry.descriptor(for: provider).presentation
+        self.appendNamedRateWindowLines(
+            presentation.extraRateWindows(snapshot: snapshot),
+            context: context,
+            now: now,
+            lines: &lines,
+            usesResetDescriptionAsDetail: presentation.menuCard.extraRateWindowShowsResetDescriptionAsDetail)
     }
 
     private static func appendNamedRateWindowLines(
         _ windows: [NamedRateWindow],
         context: RenderContext,
         now: Date,
-        lines: inout [String])
+        lines: inout [String],
+        usesResetDescriptionAsDetail: (NamedRateWindow) -> Bool = { _ in false })
     {
         for window in windows {
             let line = window.usageKnown
                 ? self.rateLine(title: window.title, window: window.window, useColor: context.useColor)
                 : self.labelValueLine(window.title, value: "Unavailable", useColor: context.useColor)
             lines.append(line)
-            if let reset = self.resetLine(for: window.window, style: context.resetStyle, now: now) {
+            // Match the menu card: a detail-backed window shows its description instead of a reset fallback.
+            let usesDetail = usesResetDescriptionAsDetail(window)
+            let reset = usesDetail
+                ? self.resetLineForDetailBackedWindow(window: window.window, style: context.resetStyle, now: now)
+                : self.resetLine(for: window.window, style: context.resetStyle, now: now)
+            if let reset {
                 lines.append(self.subtleLine(reset, useColor: context.useColor))
+            }
+            if usesDetail, let detail = self.detailLineForDetailBackedWindow(window: window.window) {
+                lines.append(self.subtleLine(detail, useColor: context.useColor))
             }
         }
     }
