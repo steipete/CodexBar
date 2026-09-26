@@ -71,15 +71,19 @@ public enum ClineProviderDescriptor {
                         secretKey: ClineSettingsReader.apiKeyEnvironmentKey,
                         sourceLabel: "api",
                         resolveValues: { context in
-                            guard let token = ClineSettingsReader.apiKey(environment: context.env)
-                                ?? ClineSettingsReader.authToken(environment: context.env)
+                            if let key = ClineSettingsReader.apiKey(environment: context.env) {
+                                return ScriptFetchStrategy.Values(
+                                    settings: [ClineSettingsReader.authSourceSettingKey: "api"],
+                                    secrets: [ClineSettingsReader.apiKeyEnvironmentKey: key])
+                            }
+                            guard let credential = ClineSettingsReader.resolvedCredential(
+                                environment: context.env)
                             else { return nil }
-                            let source = ClineSettingsReader.apiKey(environment: context.env) != nil
-                                ? "api"
-                                : "oauth"
                             return ScriptFetchStrategy.Values(
-                                settings: [ClineSettingsReader.authSourceSettingKey: source],
-                                secrets: [ClineSettingsReader.apiKeyEnvironmentKey: token])
+                                settings: [ClineSettingsReader.authSourceSettingKey: credential.isOAuth
+                                    ? "oauth"
+                                    : "api"],
+                                secrets: [ClineSettingsReader.apiKeyEnvironmentKey: credential.token])
                         },
                         isEnabled: { _ in true })]
                 })),

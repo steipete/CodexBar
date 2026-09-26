@@ -403,6 +403,10 @@ Swift fetcher and parser have been removed.
 account/team balances. Their bundled JavaScript returns generic details without fabricated quota windows;
 Swift provides registration and the shared API-key settings field. Scripts classify HTTP failures and the host bounds retries.
 
+[Cline](cline.md) uses fixed-origin bearer GETs for account resolution plus the pay-as-you-go USD balance. It accepts
+an API key or the `cline auth` browser session (`workos:` bearer token); Swift provides registration and credential
+resolution, and the plugin classifies auth, rate-limit, and availability failures.
+
 ## GitKraken AI bundled provider
 
 [GitKraken AI](gitkraken.md) uses bearer GET against its declared first-party API origin, with optional

@@ -38,6 +38,21 @@ struct ClineSettingsReaderTests {
     }
 
     @Test
+    func `stored api key in file is not a browser session`() throws {
+        let file = try self.writeProvidersFile(contents: """
+        {"providers":{"cline":{"settings":{"apiKey":"stored-api-key"}}}}
+        """)
+        defer { try? FileManager.default.removeItem(at: file.deletingLastPathComponent()) }
+
+        let env = [ClineSettingsReader.providerSettingsPathEnvironmentKey: file.path]
+        #expect(ClineSettingsReader.authToken(environment: env) == "stored-api-key")
+        #expect(ClineSettingsReader.resolvedCredential(environment: env) == .init(
+            token: "stored-api-key",
+            isOAuth: false))
+        #expect(ClineSettingsReader.usesBrowserSession(environment: env) == false)
+    }
+
+    @Test
     func `auth token returns nil for missing file`() {
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)

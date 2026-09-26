@@ -13,6 +13,16 @@ public enum ClineSettingsReader {
     public static let authSourceSettingKey = "CLINE_AUTH_SOURCE"
     public static let workOSPrefix = "workos:"
 
+    public struct ResolvedCredential: Sendable, Equatable {
+        public let token: String
+        public let isOAuth: Bool
+
+        public init(token: String, isOAuth: Bool) {
+            self.token = token
+            self.isOAuth = isOAuth
+        }
+    }
+
     public static func apiKey(
         environment: [String: String] = ProcessInfo.processInfo.environment) -> String?
     {
@@ -42,7 +52,26 @@ public enum ClineSettingsReader {
     public static func usesBrowserSession(
         environment: [String: String] = ProcessInfo.processInfo.environment) -> Bool
     {
-        self.apiKey(environment: environment) == nil && self.authToken(environment: environment) != nil
+        if self.apiKey(environment: environment) != nil {
+            return false
+        }
+        return self.resolvedCredential(environment: environment)?.isOAuth == true
+    }
+
+    /// Resolved file credential, preserving whether it is an OAuth session or a stored API key.
+    public static func resolvedCredential(
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser) -> ResolvedCredential?
+    {
+        let fileURL = self.providersFileURL(environment: environment, homeDirectory: homeDirectory)
+        guard let data = try? Data(contentsOf: fileURL) else { return nil }
+        return self.parseCredential(data: data)
+    }
+
+    public static func resolvedCredential(authFileURL: URL?) -> ResolvedCredential? {
+        guard let fileURL = authFileURL else { return nil }
+        guard let data = try? Data(contentsOf: fileURL) else { return nil }
+        return self.parseCredential(data: data)
     }
 
     /// OAuth bearer token from Cline's `providers.json`, formatted as `workos:<accessToken>`.
@@ -101,17 +130,21 @@ public enum ClineSettingsReader {
     }
 
     static func parseAuthToken(data: Data) -> String? {
+        self.parseCredential(data: data)?.token
+    }
+
+    static func parseCredential(data: Data) -> ResolvedCredential? {
         guard let root = try? JSONDecoder().decode(ProvidersFile.self, from: data) else { return nil }
         for providerID in ["cline", "cline-pass"] {
             guard let settings = root.providers[providerID]?.settings else { continue }
             if let access = SettingsValue.cleaned(settings.auth?.accessToken) {
-                return Self.formatOAuthToken(access)
+                return ResolvedCredential(token: Self.formatOAuthToken(access), isOAuth: true)
             }
             if let key = SettingsValue.cleaned(settings.apiKey) {
-                return key
+                return ResolvedCredential(token: key, isOAuth: false)
             }
             if let key = SettingsValue.cleaned(settings.auth?.apiKey) {
-                return key
+                return ResolvedCredential(token: key, isOAuth: false)
             }
         }
         return nil
