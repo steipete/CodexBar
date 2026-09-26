@@ -18,6 +18,8 @@ public enum OpenCodexRouteDispatcher {
             .subscription(.kimi)
         case "deepseek":
             .subscription(.deepseek)
+        case "nous":
+            .subscription(.nous)
         case "opencode-free", "opencode":
             .tokenOnly
         default:
@@ -36,10 +38,7 @@ public enum OpenCodexRouteDispatcher {
     }
 
     public static func countsTowardCodexSubscription(modelName: String) -> Bool {
-        if case .subscription(.codex) = self.route(modelName: modelName) {
-            return true
-        }
-        return false
+        self.route(modelName: modelName) == .subscription(.codex)
     }
 
     public static func route(provider: String, modelName: String) -> OpenCodexRouteTarget {

@@ -68,6 +68,26 @@ Money fields are accepted as finite JSON numbers or decimal strings. Missing amo
 becoming zero; a monthly meter requires both a positive grant and a reported remaining balance. A Free tier with no
 monthly grant shows no meter and only the reported purchased balance. Malformed amounts fail the refresh.
 
+## Local usage and spend
+
+With **Include OpenCodex usage logs** enabled, Usage & Spend attributes OpenCodex-format ledger rows whose
+`provider` is `nous` to Nous Portal. The source stays labeled OpenCodex; these local token estimates are separate
+from the Portal's monthly and top-up credits. The toggle is off by default. CodexBar reads
+`~/.opencodex/usage.jsonl` (or `$OPENCODEX_HOME/usage.jsonl`); it does not run an extractor or read Hermes's session
+database. Nous still has no native token-cost scanner, so its provider-level cost capability remains disabled.
+
+The [extractor supplied for #4008](https://github.com/steipete/CodexBar/issues/4008#issuecomment-5843400899)
+writes `provider: "nous"`, epoch-second `timestamp` values, the exact inference `model` ID, and the standard
+`usage` token counters. It emits one aggregate per session/model at `first_seen`, not one row per API call;
+dashboard request counts therefore count ledger rows, and activity is dated to that first timestamp.
+`usageStatus: "estimated"` rows use CodexBar's exact Nous/model catalog price or a custom pricing override.
+Missing prices stay unpriced with token activity preserved; another vendor's rates are never inferred from a
+model prefix. `unreported` rows retain tokens without a dollar estimate. See [model pricing](model-pricing.md).
+
+The extractor's non-standard `_meta.hermesEstimatedCostUSD`, `_meta.costSource`, and `_meta.apiCalls` are ignored;
+they are neither a pricing contract nor Portal-metered credits. Its `conversationID` spelling is also ignored
+(the standard field is `conversationId`), so session grouping falls back to the unique `requestId`.
+
 ## API keys
 
 Nous Portal API keys authenticate only the inference API (`/v1/chat/completions`, `/v1/completions`). The portal's

@@ -56,6 +56,9 @@ double-count the same traffic. An optional toggle can hide native Codex while Op
 emits the currently aggregated model (provenance, mix, coverage). Invalid numeric fields are omitted while valid
 neighboring fields remain available. Existing cached rows are reparsed once after the numeric parser update;
 subsequent unchanged reads continue to reuse the corrected cache.
+Rows explicitly billed to `nous` appear under Nous Portal with OpenCodex provenance, even when their model IDs
+name another vendor. Their dollar amounts are estimates from exact Nous/model pricing, never Portal credits or
+the producer's ignored `_meta` values; missing rates stay unpriced. See [Nous local usage and spend](nous.md#local-usage-and-spend).
 
 The view stays local and does not upload usage history. Refreshes retain the last successful model if a replacement
 scan fails, while provider/account configuration changes replace obsolete results. Coverage text reports how many
