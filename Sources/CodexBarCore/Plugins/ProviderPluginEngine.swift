@@ -11,6 +11,8 @@ struct ProviderPluginContextOptions: Sendable {
     static let production = Self(optionalRequestTimeoutSeconds: nil)
 
     let optionalRequestTimeoutSeconds: TimeInterval?
+    // Internal test control; public runtime initializers always use the production budget.
+    var optionalCollectionBudget: Duration = .milliseconds(200)
     var storage: ProviderPluginStorage?
     var beforeHTTPAttempt: (@Sendable () async throws -> Void)?
     var cookieSource: ProviderCookieSource = .auto

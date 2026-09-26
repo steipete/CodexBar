@@ -1,4 +1,4 @@
-import AppKit
+import Foundation
 
 /// Keeps `NSStatusItem Preferred Position <autosaveName>` across status-item mutations.
 ///
@@ -23,19 +23,5 @@ enum MenuBarStatusItemPlacementPreservation {
             defaults.set(savedPosition, forKey: key)
         }
         return result
-    }
-
-    static func removeStatusItem(_ item: NSStatusItem, from statusBar: NSStatusBar, defaults: UserDefaults) {
-        self.preservingPreferredPosition(autosaveName: item.autosaveName ?? "", defaults: defaults) {
-            // Retire the autosave identity before AppKit's later cleanup can clear the stable key again.
-            item.autosaveName = nil
-            statusBar.removeStatusItem(item)
-        }
-    }
-
-    static func setVisible(_ isVisible: Bool, for item: NSStatusItem, defaults: UserDefaults) {
-        self.preservingPreferredPosition(autosaveName: item.autosaveName ?? "", defaults: defaults) {
-            item.isVisible = isVisible
-        }
     }
 }

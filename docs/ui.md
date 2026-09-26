@@ -30,6 +30,7 @@ read_when:
 - With the automatic metric selected, switcher progress honors a provider's exhausted-quota selection before
   showing normal weekly progress. Healthy allowances, explicit metric choices, and separate provider pools
   retain their existing selection rules.
+- Normal quit removes status items with their stable identities intact, preventing retained blank menu bar slots on macOS 26.6.2 while preserving saved placement.
 - Status items receive stable autosave names before normal sizing, including during visibility recovery. Saved
   positions beyond the widest attached display plus 512 points are cleared before creation; valid placements remain.
 - When Overview has selected providers, the switcher includes an Overview tab that renders up to 6 provider rows.

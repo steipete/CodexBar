@@ -6,6 +6,11 @@ import Testing
 @testable import CodexBarCore
 
 struct ProviderPluginOptionalRequestTests {
+    @Test
+    func `production optional collection budget stays at 200 milliseconds`() {
+        #expect(ProviderPluginContextOptions.production.optionalCollectionBudget == .milliseconds(200))
+    }
+
     @Test(arguments: BundledPluginTestSupport.engines)
     func `both origins are validated before either request is sent`(engine: ProviderPluginEngineKind) async throws {
         let runtime = try Self.runtime(engine: engine, optionalURL: "https://undeclared.test/optional") { _ in
@@ -48,7 +53,7 @@ struct ProviderPluginOptionalRequestTests {
     func `slow primary keeps a secondary that completed after the collection budget`(
         engine: ProviderPluginEngineKind) async throws
     {
-        let runtime = try Self.runtime(engine: engine) { request in
+        let runtime = try Self.runtime(engine: engine, collectionBudget: .milliseconds(200)) { request in
             try await Task.sleep(for: request.url?.path == "/primary" ? .seconds(2) : .seconds(1))
             return try Self.response(request, body: "ready")
         }
@@ -79,8 +84,9 @@ struct ProviderPluginOptionalRequestTests {
             responseSizeLimit: 1024,
             enforcesUserResponsePolicy: true,
             rejectsNonSuccessResponses: false,
-            beforeAttempt: nil,
-            collectionBudget: .seconds(2))
+            contextOptions: ProviderPluginContextOptions(
+                optionalRequestTimeoutSeconds: nil,
+                optionalCollectionBudget: .seconds(2)))
         #expect(payload.value["optional"] is NSNull)
     }
 
@@ -117,7 +123,7 @@ struct ProviderPluginOptionalRequestTests {
         let calls = RequestCalls()
         let (release, continuation) = AsyncStream<Void>.makeStream()
         defer { continuation.finish() }
-        let runtime = try Self.runtime(engine: engine) { request in
+        let runtime = try Self.runtime(engine: engine, collectionBudget: .milliseconds(200)) { request in
             calls.start()
             if request.url?.path == "/optional" {
                 // An independent task deliberately prevents caller cancellation from releasing this transport.
@@ -138,6 +144,7 @@ struct ProviderPluginOptionalRequestTests {
         engine: ProviderPluginEngineKind,
         optionalURL: String = "https://example.test/optional",
         limit: Int = 1024,
+        collectionBudget: Duration = .seconds(3),
         handler: @escaping @Sendable (URLRequest) async throws -> (Data, URLResponse)) throws -> ProviderPluginRuntime
     {
         try ProviderPluginRuntime(
@@ -151,10 +158,14 @@ struct ProviderPluginOptionalRequestTests {
               }
             });
             """,
+            resourceBundle: CodexBarCoreResources.bundle,
             transport: ProviderHTTPTransportHandler(handler),
             responseSizeLimit: limit,
             enforcesUserResponsePolicy: true,
             allowsDynamicID: true,
+            contextOptions: ProviderPluginContextOptions(
+                optionalRequestTimeoutSeconds: nil,
+                optionalCollectionBudget: collectionBudget),
             engine: engine)
     }
 

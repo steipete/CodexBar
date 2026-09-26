@@ -30,7 +30,8 @@ struct ProviderPluginOptionalAdmissionTests {
             allowsDynamicID: true,
             contextOptions: ProviderPluginContextOptions(
                 optionalRequestTimeoutSeconds: nil,
-                beforeHTTPAttempt: { try await Task.sleep(for: .seconds(1)) }),
+                optionalCollectionBudget: .seconds(2),
+                beforeHTTPAttempt: { try await Task.sleep(for: .seconds(3)) }),
             engine: engine)
         #expect(try await runtime.fetchUsage().identity?.loginMethod == "ready")
     }

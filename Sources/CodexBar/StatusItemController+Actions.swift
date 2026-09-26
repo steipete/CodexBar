@@ -663,7 +663,7 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
 
         self.scheduleQuitTermination { [weak self] in
             guard let self else { return }
-            self.prepareForAppShutdown()
+            // Let applicationWillTerminate remove items so released provider items keep their saved positions.
             self.terminateApplicationForQuit()
         }
     }

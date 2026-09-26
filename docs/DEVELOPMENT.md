@@ -141,10 +141,16 @@ items. AppKit exposes no public factory taking an autosave name, so zero-length 
 manager enumerates an item inside AppKit's factory. These tests also do not establish the writer of a position that
 changes after launch; recurring placement and Bartender UUID behavior still require isolated runtime evidence.
 
-Runtime removal and visibility changes preserve the current saved position if AppKit clears it. This also covers
-status-menu Quit, which removes items before AppKit termination begins. The deterministic tests use in-memory
-defaults; native proof must use a signed, isolated app with a visibly hosted item and exercise removal/recreation,
-hide/show, and removal before termination. This does not diagnose older out-of-range placement reports.
+Runtime removal and visibility changes preserve the current saved position if AppKit clears it. Runtime removal
+retires the autosave identity to prevent later cleanup from clearing the restored position. During
+`applicationWillTerminate`, removal instead keeps the identity intact: renaming a host immediately before exit can
+leave a blank Control Center slot on macOS 26.6.2. Status-menu Quit requests termination after menu tracking unwinds
+and leaves cleanup to that callback; shutdown detaches menus without hiding or renaming the items before removal.
+The deterministic tests use in-memory defaults and an injected recording status bar to check teardown ordering,
+identity, visibility, and placement restoration. Native proof must use a signed, isolated app with visibly hosted
+merged and provider items: record the exact old window IDs, quit normally, confirm those windows disappear, then
+relaunch and check custom positions. Also exercise runtime removal/recreation and hide/show. Unit tests cannot prove
+Control Center host removal or placement after process exit. This does not diagnose older out-of-range placement reports.
 
 ### Run Tests Only
 

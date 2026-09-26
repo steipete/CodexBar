@@ -5,6 +5,7 @@
 ### Fixed
 
 - Mistral: show the Vibe Monthly Plan window, with its used / total / remaining amounts, in `codexbar usage` text output and the menu descriptor (#4025). Thanks @T0mSIlver!
+- Menu bar: prevent blank status-item slots after normal quit on macOS 26.6.2 while preserving saved icon positions (#4022). Fixes #4021. Thanks @mymatejackson and @giuseppebisemi!
 - Codex: resolve control socket symlinks when checking the running daemon, so System Account switches do not silently skip its restart (#3990, #4018). Thanks @massdo!
 - Venice: accept Clerk session cookies in Web and Manual modes, authenticate with a Bearer token, and explain active-tab recovery for expired sessions. Fixes #3940. Thanks @LachieFREEDOM!
 - Nous Portal: include Nous-billed OpenCodex ledger activity in Usage & Spend, preserving estimated or unpriced costs separately from Portal credits. Fixes #4008. Thanks @Reztahla!
