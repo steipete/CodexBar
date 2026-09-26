@@ -309,6 +309,7 @@ struct SpendDashboardControllerTests {
         await Self.waitUntil { !controller.isRefreshing }
         #expect(controller.model.groups.first?.totalCost == 3)
         #expect(controller.failedSourceCount == 1)
+        #expect(controller.failedSourceNames == ["Claude"])
 
         store._setTokenSnapshotForTesting(snapshot, provider: .claude)
         let replacementConfiguration = SpendDashboardSource.configuration(settings: settings, store: store)
@@ -319,6 +320,7 @@ struct SpendDashboardControllerTests {
         #expect(controller.generation == 4)
         #expect(controller.model.groups.first?.totalCost == 3)
         #expect(controller.failedSourceCount == 0)
+        #expect(controller.failedSourceNames.isEmpty)
 
         let settledGeneration = controller.generation
         controller.update(configuration: replacementConfiguration)
@@ -395,6 +397,7 @@ struct SpendDashboardControllerTests {
         #expect(controller.model.groups.first?.totalCost == 10)
         #expect(Set(controller.model.groups.flatMap(\.providers).map(\.id)) == ["codex", "openai"])
         #expect(controller.failedSourceCount == 2)
+        #expect(controller.failedSourceNames == ["Claude", "openai"])
     }
 
     @Test

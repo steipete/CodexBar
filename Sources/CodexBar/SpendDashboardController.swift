@@ -1174,6 +1174,12 @@ final class SpendDashboardController {
     private(set) var publication = SpendDashboardPublication.empty
     private(set) var isRefreshing = false
     private(set) var failedSourceCount = 0
+    var failedSourceNames: [String] {
+        self.publication.sources
+            .filter { self.failedSourceIDs.contains($0.id) }
+            .map(\.displayName)
+    }
+
     private(set) var generation: UInt64 = 0
     private(set) var configuration: SpendDashboardConfiguration?
     private(set) var selectedPeriod: CostReportingPeriod

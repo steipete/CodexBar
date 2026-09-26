@@ -273,7 +273,8 @@ struct SpendDashboardPane: View {
     private var refreshStatus: some View {
         if self.controller.failedSourceCount > 0 {
             Label(
-                spendDashboardRefreshFailureText(self.controller.failedSourceCount),
+                spendDashboardRefreshFailureText(self.controller.failedSourceCount)
+                    + " · " + self.controller.failedSourceNames.joined(separator: ", "),
                 systemImage: "exclamationmark.triangle.fill")
                 .font(.caption.weight(.medium))
                 .foregroundStyle(.orange)
