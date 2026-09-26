@@ -100,63 +100,6 @@ private struct ToonKeyedContainer<Key: CodingKey>: KeyedEncodingContainerProtoco
         _ = self.child(for: key)
     }
 
-    mutating func encode(_ value: Bool, forKey key: Key) throws {
-        self.child(for: key).kind = .bool(value)
-    }
-
-    mutating func encode(_ value: String, forKey key: Key) throws {
-        self.child(for: key).kind = .string(value)
-    }
-
-    mutating func encode(_ value: Double, forKey key: Key) throws {
-        self.child(for: key).kind = try .double(ToonFormatter.requireFinite(value, codingPath: self.codingPath))
-    }
-
-    mutating func encode(_ value: Float, forKey key: Key) throws {
-        self.child(for: key).kind = try .double(
-            ToonFormatter.requireFinite(Double(value), codingPath: self.codingPath))
-    }
-
-    mutating func encode(_ value: Int, forKey key: Key) throws {
-        self.child(for: key).kind = .int(Int64(value))
-    }
-
-    mutating func encode(_ value: Int8, forKey key: Key) throws {
-        self.child(for: key).kind = .int(Int64(value))
-    }
-
-    mutating func encode(_ value: Int16, forKey key: Key) throws {
-        self.child(for: key).kind = .int(Int64(value))
-    }
-
-    mutating func encode(_ value: Int32, forKey key: Key) throws {
-        self.child(for: key).kind = .int(Int64(value))
-    }
-
-    mutating func encode(_ value: Int64, forKey key: Key) throws {
-        self.child(for: key).kind = .int(value)
-    }
-
-    mutating func encode(_ value: UInt, forKey key: Key) throws {
-        self.child(for: key).kind = ToonNode.intKind(value)
-    }
-
-    mutating func encode(_ value: UInt8, forKey key: Key) throws {
-        self.child(for: key).kind = .int(Int64(value))
-    }
-
-    mutating func encode(_ value: UInt16, forKey key: Key) throws {
-        self.child(for: key).kind = .int(Int64(value))
-    }
-
-    mutating func encode(_ value: UInt32, forKey key: Key) throws {
-        self.child(for: key).kind = .int(Int64(value))
-    }
-
-    mutating func encode(_ value: UInt64, forKey key: Key) throws {
-        self.child(for: key).kind = ToonNode.intKind(value)
-    }
-
     mutating func encode(_ value: some Encodable, forKey key: Key) throws {
         try ToonFormatter.encodeValue(value, into: self.child(for: key))
     }
@@ -206,63 +149,6 @@ private struct ToonUnkeyedContainer: UnkeyedEncodingContainer {
         _ = self.appendChild()
     }
 
-    mutating func encode(_ value: Bool) throws {
-        self.appendChild().kind = .bool(value)
-    }
-
-    mutating func encode(_ value: String) throws {
-        self.appendChild().kind = .string(value)
-    }
-
-    mutating func encode(_ value: Double) throws {
-        self.appendChild().kind = try .double(ToonFormatter.requireFinite(value, codingPath: self.codingPath))
-    }
-
-    mutating func encode(_ value: Float) throws {
-        self.appendChild().kind = try .double(
-            ToonFormatter.requireFinite(Double(value), codingPath: self.codingPath))
-    }
-
-    mutating func encode(_ value: Int) throws {
-        self.appendChild().kind = .int(Int64(value))
-    }
-
-    mutating func encode(_ value: Int8) throws {
-        self.appendChild().kind = .int(Int64(value))
-    }
-
-    mutating func encode(_ value: Int16) throws {
-        self.appendChild().kind = .int(Int64(value))
-    }
-
-    mutating func encode(_ value: Int32) throws {
-        self.appendChild().kind = .int(Int64(value))
-    }
-
-    mutating func encode(_ value: Int64) throws {
-        self.appendChild().kind = .int(value)
-    }
-
-    mutating func encode(_ value: UInt) throws {
-        self.appendChild().kind = ToonNode.intKind(value)
-    }
-
-    mutating func encode(_ value: UInt8) throws {
-        self.appendChild().kind = .int(Int64(value))
-    }
-
-    mutating func encode(_ value: UInt16) throws {
-        self.appendChild().kind = .int(Int64(value))
-    }
-
-    mutating func encode(_ value: UInt32) throws {
-        self.appendChild().kind = .int(Int64(value))
-    }
-
-    mutating func encode(_ value: UInt64) throws {
-        self.appendChild().kind = ToonNode.intKind(value)
-    }
-
     mutating func encode(_ value: some Encodable) throws {
         try ToonFormatter.encodeValue(value, into: self.appendChild())
     }
@@ -310,43 +196,7 @@ private struct ToonSingleValueContainer: SingleValueEncodingContainer {
         self.node.kind = try .double(ToonFormatter.requireFinite(Double(value), codingPath: self.codingPath))
     }
 
-    mutating func encode(_ value: Int) throws {
-        self.node.kind = .int(Int64(value))
-    }
-
-    mutating func encode(_ value: Int8) throws {
-        self.node.kind = .int(Int64(value))
-    }
-
-    mutating func encode(_ value: Int16) throws {
-        self.node.kind = .int(Int64(value))
-    }
-
-    mutating func encode(_ value: Int32) throws {
-        self.node.kind = .int(Int64(value))
-    }
-
-    mutating func encode(_ value: Int64) throws {
-        self.node.kind = .int(value)
-    }
-
-    mutating func encode(_ value: UInt) throws {
-        self.node.kind = ToonNode.intKind(value)
-    }
-
-    mutating func encode(_ value: UInt8) throws {
-        self.node.kind = .int(Int64(value))
-    }
-
-    mutating func encode(_ value: UInt16) throws {
-        self.node.kind = .int(Int64(value))
-    }
-
-    mutating func encode(_ value: UInt32) throws {
-        self.node.kind = .int(Int64(value))
-    }
-
-    mutating func encode(_ value: UInt64) throws {
+    mutating func encode(_ value: some BinaryInteger & Encodable) throws {
         self.node.kind = ToonNode.intKind(value)
     }
 
