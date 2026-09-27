@@ -253,6 +253,7 @@ extension StatusItemController {
     }
 
     private func isBlinkingAllowed(at date: Date = .init()) -> Bool {
+        guard !self.settings.backgroundWorkLowPowerModeEnabled else { return false }
         if self.settings.randomBlinkEnabled {
             return true
         }
@@ -1359,6 +1360,7 @@ extension StatusItemController {
     }
 
     func shouldAnimate(provider: UsageProvider, mergeIcons: Bool? = nil) -> Bool {
+        guard !self.settings.backgroundWorkLowPowerModeEnabled else { return false }
         if self.store.debugForceAnimation {
             return true
         }
