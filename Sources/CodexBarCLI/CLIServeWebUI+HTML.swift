@@ -921,7 +921,7 @@ extension CLIServeWebUI {
           return node("span", `pill ${level}`, label);
         }
 
-        function renderAccountCard(provider, account) {
+        function renderAccountCard(provider, account, selected = false) {
           const card = node("article", "card");
           card.style.setProperty("--accent", accentColor(provider.display?.accentColor));
           if (account.active) card.classList.add("active-account");
@@ -954,6 +954,13 @@ extension CLIServeWebUI {
           const windows = node("div", "windows");
           for (const window of visibleWindows(account.windows)) windows.append(renderWindow(window));
           card.append(windows);
+          // Provider-specific by design: Codex binds compatibility credits to its selected account.
+          // Do not apply ambient credits to independently discovered claude-swap accounts.
+          if (provider.id === "codex" && selected) {
+            const metrics = node("div", "metrics");
+            appendCredits(metrics, provider.credits);
+            if (metrics.childElementCount) card.append(metrics);
+          }
           return card;
         }
 
@@ -1013,12 +1020,16 @@ extension CLIServeWebUI {
           }
 
           const metrics = node("div", "metrics");
-          if (provider.credits?.remaining !== null && provider.credits?.remaining !== undefined) {
-            const unit = provider.credits.unit ? ` ${provider.credits.unit}` : "";
-            metrics.append(metric("Remaining", `${amount(provider.credits.remaining)}${unit}`));
-          }
+          appendCredits(metrics, provider.credits);
           appendCostSummary(card, provider, metrics);
           return card;
+        }
+
+        function appendCredits(metrics, credits) {
+          if (credits?.remaining !== null && credits?.remaining !== undefined) {
+            const unit = credits.unit ? ` ${credits.unit}` : "";
+            metrics.append(metric("Remaining", `${amount(credits.remaining)}${unit}`));
+          }
         }
 
         function appendCostSummary(card, provider, metrics = node("div", "metrics")) {
@@ -1092,7 +1103,8 @@ extension CLIServeWebUI {
           for (const provider of providers) {
             const accounts = Array.isArray(provider.accounts) ? provider.accounts : [];
             if (accounts.length) {
-              const cards = accounts.map(account => renderAccountCard(provider, account));
+              const selected = accounts.find(account => account.active) || accounts[0];
+              const cards = accounts.map(account => renderAccountCard(provider, account, account === selected));
               const summary = node("article", "card");
               summary.style.setProperty("--accent", accentColor(provider.display?.accentColor));
               summary.append(node("h3", "provider-name", `${provider.name || provider.id} local spend`));

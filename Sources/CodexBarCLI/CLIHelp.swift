@@ -211,7 +211,7 @@ extension CodexBarCLI {
           codexbar serve [--host <host>] [--port <port>] [--refresh-interval <seconds>]
                          [--request-timeout <seconds>]
                          [--dashboard-token <token>] [--allow-plain-http]
-                         [--identity <redacted|full>]
+                         [--identity <redacted|full>] [--all-accounts]
                          [--json-output] [--log-level <trace|verbose|debug|info|warning|error|critical>]
                          [-v|--verbose]
 
@@ -229,8 +229,12 @@ extension CodexBarCLI {
           non-loopback host the token also gates /usage and /cost (account data);
           / and /health are always open. Use a TLS-terminating reverse proxy for anything
           beyond a trusted network segment.
-          Snapshot identity defaults to full account emails. --identity redacted hides
-          email local parts and is recommended whenever responses cross a network.
+          Selected-account identity follows the app privacy setting unless --identity is set.
+          --all-accounts includes visible Codex profiles and configured token accounts
+          in dashboard snapshots only, with neutral labels and no identity by default.
+          --identity full explicitly includes account identities, labels and error details;
+          --identity redacted keeps email domains but hides labels and error details.
+          /usage keeps its existing Codex enumeration.
 
         Endpoints:
           GET /                    Built-in web dashboard

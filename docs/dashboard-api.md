@@ -67,6 +67,53 @@ The UI does not change the transport threat model: `codexbar serve` is plain HTT
   `staleAfterSeconds` keeps the schema's 180-second minimum.
 - Both transports include the fill preference in host metadata; one-shot snapshots resolve it when collected.
 
+## Optional local multi-account snapshots
+
+Start `codexbar serve --all-accounts` to include visible Codex
+accounts/profile homes and configured token accounts in `providers[].accounts[]`. The option is off by default;
+existing claude-swap enrichment remains available without it and retains precedence for Claude account rows.
+Providers without configured accounts keep their ambient source rather than reporting a missing-account error.
+
+Each provider appears once. Its top-level identity, usage windows, credits and error describe the selected account,
+even when that account is not first in discovery order. Account entries carry their own active flag, identity,
+windows, timestamp and error. A failed/expired sibling does not replace healthy usage or become the provider error;
+a failed selected account is not silently replaced by a healthy sibling. Completed account results also survive a sibling exceeding the provider deadline; unfinished accounts retain their identity metadata and receive account-local timeout errors. The web dashboard displays the selected Codex account's credits on that account card, never as a shared balance. Provider-level cost collection is unchanged
+and is not repeated or apportioned across account entries. More accounts can take longer; the existing request or
+command deadline still applies.
+
+Public account IDs use persisted token-account UUIDs or a SHA-256 projection of durable Codex source metadata
+(managed UUID, normalized profile-home path, or live workspace ID). They never export internal cache keys, email
+addresses, raw filesystem paths or credential fingerprints. IDs survive credential refresh and email/label changes;
+managed IDs also survive promotion to the live source. Moving a profile home changes its ID. An unmanaged live
+source without a workspace ID uses a stable system-scope ID, not an individual-person ID. IDs are opaque correlation
+handles, not an authentication or anonymity guarantee.
+
+Expanded snapshots default to no identity (including the selected provider row), neutral numbered account labels
+such as "Account 1", and generic account/adapter errors, independently of the app privacy preference. Numbering
+follows discovery/configuration order, including failed accounts; it can change when accounts are added or reordered.
+Clients should correlate updates by opaque ID, not by display label. Explicit `--identity full` includes emails,
+aliases and error details. Explicit `--identity redacted` includes masked email domains and plan labels, but keeps
+account labels neutral and errors generic. These flags apply only to dashboard snapshots, not `/usage`.
+Ordinary selected-account snapshots and one-shot `codexbar dashboard` retain their existing defaults.
+The usage-bar preference remains in effect.
+
+When the Claude adapter is configured, its account result is authoritative: a whole-adapter failure emits
+`accountsError` and omits `accounts`, never substituting configured token accounts. Independent top-level usage
+remains available. A successful empty adapter result likewise does not fall back to another source.
+The adapter also takes precedence during collection: ordinary selected-account collection supplies the Claude
+provider-level data, without querying non-selected configured Claude token accounts whose results would be discarded.
+Other providers still expand normally; disabling the adapter restores all configured Claude accounts in expanded mode.
+
+The all-account scope is isolated in both response-cache keys and shared provider-operation fingerprints.
+`/usage` retains its existing Codex enumeration, `/cost` is unchanged, and no remote-client configuration or
+credential-store behavior is added. This is a server projection of accounts already configured locally.
+Expanded snapshots also report a generic `accountsError: "Account list incomplete"` when the managed Codex
+account store is unreadable or a configured token account is missing from the collected rows. Any available
+accounts remain visible. An account with an error or timeout still counts as collected; it keeps its own
+account-local error instead of being mistaken for an undiscovered account. This warning never includes
+account names, paths, or raw discovery diagnostics, even with `--identity full`. Claude adapter results
+remain authoritative, including successful empty lists. Ordinary snapshots and `/usage` are unchanged.
+
 ## Configuring the token
 
 ```bash
@@ -156,7 +203,7 @@ After a fresh cache entry expires, `codexbar serve` may answer immediately with 
 
 ## Payload
 
-The snapshot is a stable display contract, not a raw dump of provider internals. Identity defaults to full account emails and plan labels. Pass `--identity redacted` to replace email local parts with `redacted` while keeping domains and plan labels. On `codexbar serve` an absent `--identity` follows the app's "Hide personal information" setting instead of the full default.
+The snapshot is a stable display contract, not a raw dump of provider internals. Without `--all-accounts`, identity defaults to full account emails and plan labels. Pass `--identity redacted` to replace email local parts with `redacted` while keeping domains and plan labels. On `codexbar serve` an absent `--identity` follows the app's "Hide personal information" setting instead of the full default.
 
 ```json
 {
