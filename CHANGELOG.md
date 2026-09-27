@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.68.1 — Unreleased
+
+### Added
+
+- AnyRouter: show the prepaid credit balance, the plan/top-up split, lifetime spend, and today's UTC spend from the gateway's documented Credits API. The key must have Management permissions enabled, and a key scoped away from the credits route is reported as a permissions problem instead of a rejected credential.
+
 ## 0.68.0 — 2026-09-27
 
 ### Highlights

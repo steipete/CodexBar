@@ -635,7 +635,7 @@ enum MenuBarLayoutBalanceResolver {
             return UsageFormatter.currencyString(cost.used, currencyCode: cost.currencyCode)
         case .mimo, .hyper:
             return snapshot?.detailRow(label: "Balance")?.value.components(separatedBy: " (Paid:").first
-        case .atlascloud, .vercel:
+        case .atlascloud, .vercel, .anyrouter:
             return snapshot?.detailRow(label: "Available balance")?.value
         case .devpass:
             return snapshot?.detailRow(label: "Cycle remaining")?.value

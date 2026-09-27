@@ -92,5 +92,6 @@ enum ProviderImplementationManifest {
         PluginAPIKeyProviderImplementation(spec: VercelProviderDescriptor.spec),
         PluginAPIKeyProviderImplementation(spec: LLMManProviderDescriptor.spec),
         PluginAPIKeyProviderImplementation(spec: XKiroProviderDescriptor.spec),
+        PluginAPIKeyProviderImplementation(spec: AnyRouterProviderDescriptor.spec),
     ]
 }

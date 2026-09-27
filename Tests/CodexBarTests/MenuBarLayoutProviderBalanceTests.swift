@@ -7,7 +7,7 @@ import Testing
 struct MenuBarLayoutProviderBalanceTests {
     private let now = Date(timeIntervalSince1970: 1_752_768_000)
 
-    @Test(arguments: [UsageProvider.mimo, .hyper, .atlascloud, .vercel, .devpass])
+    @Test(arguments: [UsageProvider.mimo, .hyper, .atlascloud, .vercel, .devpass, .anyrouter])
     func `stored balance and automatic tokens resolve provider amounts`(provider: UsageProvider) throws {
         let (snapshot, expected) = try self.fixture(provider: provider)
         let data = self.data(provider: provider, snapshot: snapshot)
@@ -57,7 +57,7 @@ struct MenuBarLayoutProviderBalanceTests {
             .attributedTitle.string == "25%")
     }
 
-    @Test(arguments: [UsageProvider.mimo, .hyper, .atlascloud, .vercel, .devpass, .doubao])
+    @Test(arguments: [UsageProvider.mimo, .hyper, .atlascloud, .vercel, .devpass, .doubao, .anyrouter])
     func `absent balances never borrow unrelated spend`(provider: UsageProvider) throws {
         let snapshot = try UsageSnapshot(
             primary: nil,

@@ -437,7 +437,7 @@ Bundled scripts own requests, error classification, and snapshot mapping; Swift 
 | [Moonshot](moonshot.md) | `moonshot.ts` runs on both engines. Swift resolves the regional credential and `BASE_URL`; the script validates fixed International/China origins and uses `ctx.format.currency` for identity-only balance/deficit text. |
 | [DeepInfra](deepinfra.md) | Both engines require both billing GETs, preserve prepaid deductions and monthly cents conversion, and retry transient failures once. |
 | [ZenMux](zenmux.md) | Both engines require subscription quotas. Optional USD PAYG enrichment failures preserve quotas except for credential rejection and cancellation. |
-| [Atlas Cloud](atlascloud.md), [Vercel AI Gateway](vercel.md) | Fixed-origin bearer GETs return account/team balances as generic details without quota windows. Scripts classify HTTP failures; the host bounds retries. |
+| [Atlas Cloud](atlascloud.md), [Vercel AI Gateway](vercel.md), [AnyRouter](anyrouter.md) | Fixed-origin bearer GETs return account/team/prepaid balances as generic details without quota windows. Scripts classify HTTP failures; the host bounds retries. |
 | [GitKraken AI](gitkraken.md) | First-party bearer GET with optional organization scope returns generic weekly windows/details. |
 | [Charm Hyper](hyper.md) | Declared-domain cookies or a secure API key reach one fixed credits endpoint. TypeScript owns session preference, API fallback, errors, and HC balance parsing. |
 | [Zed](zed.md) | Swift discovers editor settings and Keychain credentials. Opt-in browser billing uses only the declared `zed.dev` cookie session, never editor credentials. |
