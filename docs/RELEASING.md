@@ -101,6 +101,8 @@ asset upload; it replaces assets with the same names. Do not publish a new relea
 just to test this workflow. Existing releases whose tags predate the integration
 are not automatically backfilled.
 
+If a published release's CLI build fails on a source bug, rerunning it rebuilds the broken tag. Instead push a branch from the tag carrying only the fix, run `gh workflow run release-cli.yml --ref <branch> -f tag=<tag>`, upload the workflow artifacts to the release, and dispatch the tap's `update-formula.yml` with the inputs from the workflow's `Dispatch tap update` step.
+
 Each Homebrew handoff uses the release tag, workflow run ID, and run attempt as its request ID, so a retry waits for its own tap update instead of observing an earlier attempt.
 
 ## Checklist (quick)
@@ -108,6 +110,7 @@ Each Homebrew handoff uses the release tag, workflow run ID, and run attempt as 
 - [ ] Update versions (scripts/Info.plist, CHANGELOG, About text) — changelog top section must be finalized; release script pulls notes from it automatically.
 - [ ] `swiftformat`, `swiftlint`, `make test` (zero warnings/errors)
 - [ ] `./Scripts/build_icon.sh` if icon changed
+- [ ] Preflight the CLI on the release commit: `gh workflow run release-cli.yml --ref main` and wait for green. The macOS CLI jobs build with Xcode 26.3 on the macOS 15 images, older than main CI's toolchain, so type-checker regressions only show up there.
 - [ ] `./Scripts/sign-and-notarize.sh`
 - [ ] Generate Sparkle appcast via `Scripts/release.sh` or `Scripts/make_appcast.sh`; use `SPARKLE_PRIVATE_KEY_FILE` only if overriding Keychain signing.
   - Upload the dSYM archive alongside the app zip on the GitHub release; the release script now automates this and will fail if it’s missing.
