@@ -11,7 +11,7 @@ public enum SyntheticProviderDescriptor {
         creditsHint: "Weekly token quota regenerates continuously.",
         sharePlanLabels: ["starter": "Starter", "pro": "Pro", "team": "Team", "enterprise": "Enterprise"],
         dashboardURL: nil,
-        color: ProviderColor(red: 20 / 255, green: 20 / 255, blue: 20 / 255),
+        color: ProviderColor(hex: 0x141414),
         confetti: [0x6366F1, 0x3E3E3E, 0xF7F6F3],
         noDataMessage: "Synthetic cost summary is not supported.",
         environmentKey: SyntheticSettingsReader.apiKeyKey,

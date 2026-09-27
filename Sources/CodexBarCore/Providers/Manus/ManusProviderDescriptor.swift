@@ -10,9 +10,9 @@ public enum ManusProviderDescriptor {
         debugLogUnavailableMessage: "Manus debug log not yet implemented",
         usesDetailBackedWindow: true,
         dashboardURL: "https://manus.im",
-        color: .init(red: 52 / 255, green: 50 / 255, blue: 45 / 255),
+        color: .init(hex: 0x34322D),
         confetti: [0x34322D, 0xF2F0E9, 0x0099FF],
-        widgetColor: .init(red: 24 / 255, green: 24 / 255, blue: 24 / 255),
+        widgetColor: .init(hex: 0x181818),
         noDataMessage: "Manus cost summary is not supported.",
         presentation: ProviderUsagePresentation(
             costPresenter: { _ in ProviderCostPresentation(menuCardStyle: .hidden) },

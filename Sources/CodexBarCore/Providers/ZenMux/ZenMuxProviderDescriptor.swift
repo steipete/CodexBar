@@ -9,7 +9,7 @@ public enum ZenMuxProviderDescriptor {
         weeklyLabel: "Weekly quota",
         debugLogUnavailableMessage: "ZenMux debug log not yet implemented",
         dashboardURL: "https://zenmux.ai/platform/management",
-        color: .init(red: 108 / 255, green: 92 / 255, blue: 231 / 255),
+        color: .init(hex: 0x6C5CE7),
         confetti: [0x6C5CE7, 0xA29BFE, 0xFFFFFF],
         noDataMessage: "ZenMux cost history is not exposed by the Management API.",
         environmentKey: "ZENMUX_MANAGEMENT_API_KEY",

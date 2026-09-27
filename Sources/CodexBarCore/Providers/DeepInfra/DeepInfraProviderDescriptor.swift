@@ -12,7 +12,7 @@ public enum DeepInfraProviderDescriptor {
         usesDetailBackedWindow: true,
         dashboardURL: "https://deepinfra.com/dash",
         statusLinkURL: "https://status.deepinfra.com",
-        color: .init(red: 42 / 255, green: 50 / 255, blue: 117 / 255),
+        color: .init(hex: 0x2A3275),
         confetti: [0x2A3275, 0x747FDE, 0xFFFFFF],
         noDataMessage: "DeepInfra per-request cost history is not available in CodexBar.",
         environmentKey: "DEEPINFRA_API_KEY",

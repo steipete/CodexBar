@@ -9,7 +9,7 @@ public enum LLMProxyProviderDescriptor {
         weeklyLabel: "Requests",
         debugLogUnavailableMessage: "LLM Proxy debug log not yet implemented",
         dashboardURL: nil,
-        color: ProviderColor(red: 36 / 255, green: 180 / 255, blue: 126 / 255),
+        color: ProviderColor(hex: 0x24B47E),
         confetti: [0x00FFFF, 0xFFFFFF, 0x000000],
         noDataMessage: "LLM Proxy cost history is reported in the quota-stats summary.",
         environmentKey: LLMProxySettingsReader.apiKeyEnvironmentKey,

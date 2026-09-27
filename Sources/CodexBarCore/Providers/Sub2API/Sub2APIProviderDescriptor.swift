@@ -15,7 +15,7 @@ public enum Sub2APIProviderDescriptor {
         ],
         debugLogUnavailableMessage: "sub2api debug log not yet implemented",
         dashboardURL: nil,
-        color: ProviderColor(red: 45 / 255, green: 198 / 255, blue: 216 / 255),
+        color: ProviderColor(hex: 0x2DC6D8),
         confetti: [0x1F62FF, 0x60EDF6, 0x74F9B0],
         noDataMessage: "sub2api spend is reported by its usage API.",
         environmentKey: Sub2APISettingsReader.apiKeyEnvironmentKey,

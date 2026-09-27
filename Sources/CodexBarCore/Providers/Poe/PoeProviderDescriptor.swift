@@ -9,7 +9,7 @@ public enum PoeProviderDescriptor {
         weeklyLabel: "Points",
         balanceOnly: true,
         dashboardURL: "https://poe.com/api/keys",
-        color: .init(red: 93 / 255, green: 92 / 255, blue: 222 / 255),
+        color: .init(hex: 0x5D5CDE),
         confetti: [0x5D5CDE, 0x2A2AA2, 0xE051ED],
         noDataMessage: "Poe usage history is unavailable.",
         environmentKey: "POE_API_KEY",

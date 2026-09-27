@@ -19,7 +19,7 @@ public enum ElevenLabsProviderDescriptor {
         statusLinkURL: "https://status.elevenlabs.io",
         color: ProviderColor(red: 0.92, green: 0.92, blue: 0.90),
         confetti: [0x000000, 0x808080, 0xFDFCFC],
-        widgetColor: ProviderColor(red: 235 / 255, green: 235 / 255, blue: 230 / 255),
+        widgetColor: ProviderColor(hex: 0xEBEBE6),
         progressColorStyle: .label,
         noDataMessage: "ElevenLabs cost history is not available via API yet.",
         environmentKey: ElevenLabsSettingsReader.apiKeyEnvironmentKey,
