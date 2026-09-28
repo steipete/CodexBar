@@ -65,11 +65,13 @@ struct ProviderSessionStoreFileTests {
         let cursor = CursorSessionStore()
         let augment = AugmentSessionStore()
         let factory = FactorySessionStore()
-        let notion = NotionSessionStore()
+        let notion = ProviderPluginSessionFile(
+            provider: .notion,
+            policy: .init(tokenField: "tokenV2", cookieName: "token_v2"))
         await cursor.setCookies([cookie])
         await augment.setCookies([cookie])
         await factory.setCookies([cookie])
-        await notion.setSession(tokenV2: "synthetic-notion", sourceLabel: "Fixture")
+        notion.replace(expected: nil, header: "token_v2=synthetic-notion", source: "Fixture")
         for file in files {
             let attributes = try FileManager.default.attributesOfItem(atPath: file.path)
             let permissions = try #require(attributes[.posixPermissions] as? NSNumber)
@@ -78,11 +80,11 @@ struct ProviderSessionStoreFileTests {
         #expect(await CursorSessionStore().getCookies().map(\.value) == ["synthetic-default"])
         #expect(await AugmentSessionStore().getCookies().map(\.value) == ["synthetic-default"])
         #expect(await FactorySessionStore().getCookies().map(\.value) == ["synthetic-default"])
-        #expect(await NotionSessionStore().getSession()?.tokenV2 == "synthetic-notion")
+        #expect(notion.read()?["tokenV2"] == "synthetic-notion")
         await cursor.clearCookies()
         await augment.clearCookies()
         await factory.clearSession()
-        await notion.clearSession()
+        notion.replace(expected: notion.read(), header: nil, source: "Fixture")
         #expect(files.allSatisfy { !FileManager.default.fileExists(atPath: $0.path) })
     }
 

@@ -9,6 +9,7 @@ private enum QuickJSHostFunction: Int32 {
     case settingGet
     case http
     case cookieAvailability
+    case acceptCookie
     case rejectCookie
     case cookieHeader
     case cookieSession
@@ -505,7 +506,8 @@ final class QuickJSProviderPluginEngine: ProviderPluginEngine, @unchecked Sendab
             QuickJSPluginValue(engine: self, value: result),
             provider: self.manifest.id,
             now: now,
-            allowsProviderExtensions: !self.enforcesUserResponsePolicy)
+            allowsProviderExtensions: !self.enforcesUserResponsePolicy,
+            percentPolicy: self.manifest.percentPolicy)
     }
 
     private func installHostFunctions(on host: JSValue) throws {
@@ -514,6 +516,7 @@ final class QuickJSProviderPluginEngine: ProviderPluginEngine, @unchecked Sendab
             (.http, "http", 6),
             (.cookieHeader, "cookieHeader", 4),
             (.rejectCookie, "rejectCookie", 2),
+            (.acceptCookie, "acceptCookie", 2),
             (.cookieSession, "cookieSession", 4),
             (.cookieAvailability, "cookieAvailability", 1),
             (.storage, "storage", 3),
@@ -551,12 +554,10 @@ final class QuickJSProviderPluginEngine: ProviderPluginEngine, @unchecked Sendab
                 try self.hostHTTP(values)
                 return cqjs_undefined()
             case .cookieAvailability:
-                _ = try self.manifest.cookieDomain(values.first.map { try self.string(from: $0) } ?? "")
-                guard let state = self.fetchState else { return self.makeString("off") }
-                return self.makeString(state.contextOptions.cookieSource.pluginAvailability(
-                    hasResolver: state.contextOptions.cookieSessionResolver != nil
-                        || (self.manifest.id.firstPartyProvider != nil && state.cookieResolver != nil)
-                        || state.instanceCookieResolver != nil))
+                return try self.hostCookieAvailability(values)
+            case .acceptCookie:
+                try self.hostAcceptCookie(values)
+                return cqjs_undefined()
             case .rejectCookie:
                 let domain = try self.manifest.cookieDomain(values.first.map { try self.string(from: $0) } ?? "")
                 let id = values.count > 1 ? try self.string(from: values[1]) : ""
@@ -678,6 +679,24 @@ final class QuickJSProviderPluginEngine: ProviderPluginEngine, @unchecked Sendab
         }
     }
 
+    private func hostCookieAvailability(_ values: UnsafeBufferPointer<JSValue>) throws -> JSValue {
+        _ = try self.manifest.cookieDomain(values.first.map { try self.string(from: $0) } ?? "")
+        guard let state = self.fetchState else { return self.makeString("off") }
+        return self.makeString(state.contextOptions.cookieSource.pluginAvailability(
+            hasResolver: state.contextOptions.cookieSessionResolver != nil
+                || (self.manifest.id.firstPartyProvider != nil && state.cookieResolver != nil)
+                || state.instanceCookieResolver != nil))
+    }
+
+    private func hostAcceptCookie(_ values: UnsafeBufferPointer<JSValue>) throws {
+        let domain = try self.manifest.cookieDomain(values.first.map { try self.string(from: $0) } ?? "")
+        let id = values.count > 1 ? try self.string(from: values[1]) : ""
+        guard self.manifest.cookiePolicy?.cache == .validatedSingleEntry,
+              let options = self.fetchState?.contextOptions
+        else { throw ProviderPluginError.secretAccess("cookie persistence is unavailable") }
+        try options.acceptCookie(domain: domain, id: id)
+    }
+
     private func hostCookieHeader(_ arguments: UnsafeBufferPointer<JSValue>, session: Bool) throws {
         guard arguments.count >= 4, let state = self.fetchState else {
             throw ProviderPluginError.secretAccess("cookie bridge is unavailable")
@@ -699,8 +718,8 @@ final class QuickJSProviderPluginEngine: ProviderPluginEngine, @unchecked Sendab
                     throw ProviderPluginError.secretAccess("cookie session origin does not match its domain")
                 }
                 header = candidate?.header ?? ""
-                for record in candidate?.records ?? [] {
-                    state.redactionValues.insert(record.value)
+                for value in candidate?.redactionValues ?? [] {
+                    state.redactionValues.insert(value)
                 }
                 payload = try candidate?.json(opaque: self.manifest.usesCookieJar) ?? "null"
             } else if !session, let provider = self.manifest.id.firstPartyProvider,
@@ -729,6 +748,11 @@ final class QuickJSProviderPluginEngine: ProviderPluginEngine, @unchecked Sendab
     private func hostCacheGet(_ arguments: UnsafeBufferPointer<JSValue>) throws -> JSValue {
         guard let keyValue = arguments.first else { return cqjs_undefined() }
         let key = try self.string(from: keyValue)
+        if self.manifest.cookiePolicy?.cache == .validatedSingleEntry {
+            guard let json = ProviderPluginMemoryCache.shared.get(namespace: self.manifest.id.rawValue, key: key)
+            else { return cqjs_undefined() }
+            return try self.parseJSON(json)
+        }
         guard let entry = self.cache[key], entry.expiresAt > Date() else {
             self.cache[key] = nil
             return cqjs_undefined()
@@ -742,6 +766,10 @@ final class QuickJSProviderPluginEngine: ProviderPluginEngine, @unchecked Sendab
         var ttl = 0.0
         guard JS_ToFloat64(self.context, &ttl, arguments[2]) == 0, ttl.isFinite, ttl > 0 else { return }
         let json = try self.jsonString(from: arguments[1])
+        if self.manifest.cookiePolicy?.cache == .validatedSingleEntry {
+            ProviderPluginMemoryCache.shared.set(namespace: self.manifest.id.rawValue, key: key, json: json, ttl: ttl)
+            return
+        }
         self.cache[key] = CacheEntry(json: json, expiresAt: Date().addingTimeInterval(min(ttl, 86400)))
     }
 

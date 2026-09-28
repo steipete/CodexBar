@@ -16,7 +16,7 @@ public enum NotionProviderDescriptor {
                 cookieSettings: { settings in
                     CookieProviderSettings(
                         cookieSource: settings.cookieSource,
-                        manualCookieHeader: settings.manualCookieHeader)
+                        manualCookieHeader: Self.manualHeader(settings.manualCookieHeader))
                 },
                 credentialSettings: { context in
                     let settings = context.cookieSettings(for: .notion)
@@ -92,7 +92,9 @@ public enum NotionProviderDescriptor {
                 menuBarLayoutSecondaryLabel: "Monthly"),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .web],
-                pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [NotionWebFetchStrategy()] })),
+                pipeline: ProviderFetchPipeline(resolveStrategies: { context in
+                    [Self.webStrategy(timeout: context.webTimeout)]
+                })),
             cli: ProviderCLIConfig(
                 name: "notion",
                 aliases: ["notion-ai", "notionai"],
@@ -100,45 +102,49 @@ public enum NotionProviderDescriptor {
     }
 }
 
-struct NotionWebFetchStrategy: ProviderFetchStrategy {
-    let id: String = "notion.web"
-    let kind: ProviderFetchKind = .web
-
-    func isAvailable(_ context: ProviderFetchContext) async -> Bool {
-        let cookieSource = context.settings?.notion?.cookieSource ?? .auto
-        guard cookieSource != .off else { return false }
-        if cookieSource == .manual {
-            return NotionUsageFetcher.requestContext(from: context.settings?.notion?.manualCookieHeader) != nil
-        }
-        #if os(macOS)
-        return true
-        #else
-        return false
-        #endif
+extension NotionProviderDescriptor {
+    static func manualHeader(_ raw: String?) -> String? {
+        let fields = CurlCaptureParser.headerFields(from: raw ?? "")
+        guard let header = CookieHeaderNormalizer.normalize(
+            CurlCaptureParser.headerValue(named: "Cookie", in: fields) ?? raw) else { return nil }
+        return CookieHeaderNormalizer.pairs(from: header).isEmpty ? "token_v2=\(header)" : header
     }
 
-    func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
-        let fetcher = NotionUsageFetcher(browserDetection: context.browserDetection)
-        let manual = Self.manualCookieHeader(from: context)
-        let logger: ((String) -> Void)? = context.verbose
-            ? { msg in CodexBarLog.logger(LogCategories.provider(.notion)).verbose(msg) }
-            : nil
-        let snapshot = try await fetcher.fetch(
-            cookieHeaderOverride: manual,
-            preferredSpaceID: context.settings?.notion?.workspaceID,
-            timeout: context.webTimeout,
-            logger: logger)
-        return self.makeResult(
-            usage: snapshot.toUsageSnapshot(),
-            sourceLabel: "web")
-    }
-
-    func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {
-        false
-    }
-
-    private static func manualCookieHeader(from context: ProviderFetchContext) -> String? {
-        guard context.settings?.notion?.cookieSource == .manual else { return nil }
-        return context.settings?.notion?.manualCookieHeader
+    public static func webStrategy(
+        timeout: TimeInterval = 15,
+        transport: any ProviderHTTPTransport = ProviderHTTPClient.shared) -> ScriptFetchStrategy
+    {
+        ScriptFetchStrategy(
+            id: "notion.web",
+            provider: .notion,
+            bundledPlugin: "notion",
+            sourceLabel: "web",
+            kind: .web,
+            transport: transport,
+            timeout: max(30, timeout * 2),
+            resolveValues: { context in
+                let settings = context.settings?.notion
+                guard settings?.cookieSource != .off else { return nil }
+                let fields = settings?.cookieSource == .manual
+                    ? CurlCaptureParser.headerFields(from: settings?.manualCookieHeader ?? "") : []
+                let names = [
+                    "accept",
+                    "accept-language",
+                    "notion-audit-log-platform",
+                    "notion-client-version",
+                    "referer",
+                    "sec-fetch-dest",
+                    "sec-fetch-mode",
+                    "sec-fetch-site",
+                    "user-agent",
+                    "x-notion-active-user-header",
+                ]
+                let headers = CurlCaptureParser.forwardedHeaders(
+                    from: fields, allowlist: Dictionary(uniqueKeysWithValues: names.map { ($0, $0) }))
+                let encoded = (try? JSONSerialization.data(withJSONObject: headers)) ?? Data("{}".utf8)
+                return .init(
+                    settings: ["WORKSPACE_ID": settings?.workspaceID ?? ""],
+                    secrets: ["HEADERS": String(data: encoded, encoding: .utf8) ?? "{}"])
+            }, isEnabled: { _ in true })
     }
 }

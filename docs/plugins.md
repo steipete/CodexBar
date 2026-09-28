@@ -412,12 +412,23 @@ refreshes update visible plugin cards, and repeated requests for the same plugin
 Overview continues to summarize built-in providers. This setting changes placement only: it grants no additional host
 capabilities and does not change network approval.
 
+## Over-quota snapshots
+
+`snapshotPolicy: {percent: "preserve-overage"}` explicitly preserves finite `usedPercent` values above 100 in all rate
+windows, including extra windows. Negative values still become zero, and nonfinite/non-numeric values are rejected.
+The default policy (`"clamp"`) remains 0–100. Notion opts in because its allowance endpoint reports meaningful overages;
+`ctx.pct` remains clamped, so a preserving plugin computes its own ratio.
+
 ## Browser session cache
 
 Bundled providers may declare `cookiePolicy: { selection: "request-url", cache: "nonpersistent" }` alongside
 `browser-cookies` and `cookieDomains`. This policy imports declared domains together as one candidate per browser
-profile. It never reads or writes the persistent cookie cache, and automatic imports require a user-initiated app
-refresh. Manual headers remain usable in the CLI; Off disables both sources.
+profile. It never reads or writes the persistent cookie cache. The default `imports: "app-interactive"` requires a
+user-initiated app refresh. `imports: "access-gated"` delegates import admission to the existing browser access gate,
+including explicit CLI cookie refreshes and already-authorized, strictly no-UI background reads. Notion and ZoomMate
+declare this policy to preserve their native source behavior. The caller's interaction and explicit-retry scope follow
+the importer across engine callbacks; background calls do not gain interactive authorization. Manual headers remain
+usable in the CLI; Off disables both sources.
 
 With this policy, `ctx.browser.sessions(domain)` exposes only the candidate's `id`, source label, and origin.
 The header and cookie records remain in Swift, and `ctx.browser.cookieHeader` is denied. Pass the candidate ID as
@@ -428,9 +439,36 @@ scripts cannot combine this option with a Cookie or Host override.
 
 The production transport uses an ephemeral session without ambient cookies, credentials, or response caching.
 Same-origin HTTPS redirects reselect cookies for each hop through that same matcher; cross-origin redirects are
-rejected. This is not Qwen Cloud's cross-origin dashboard/navigation policy. Ranked source-domain selection,
-validated persistent jars, and native session-file migration are not part of this initial policy. User-installed
-plugins cannot request it.
+rejected. User-installed plugins cannot request these policies.
+
+`cache: "validated-single-entry"` opts into one host-owned cache row for the whole profile, including paired hosts.
+Imported candidates are not persisted until the script calls `ctx.browser.acceptCookie(domain, session)` at its
+validation boundary: ZoomMate does so after a successful bootstrap, Notion after a successful allowance response.
+The call cannot accept unknown, rejected, previous-fetch, or wrong-origin IDs. Cache writes and rejection compare
+against the observed entry, so late requests cannot overwrite or erase a replacement session. Interactive cookie
+refreshes stage the single replacement and commit it only when the refresh succeeds; failure leaves the old entry intact.
+Legacy plain headers and paired `headersByHost` entries are read by the host and upgraded on validation. No cookies
+are copied into plugin storage. Candidates expose an opaque `cacheKey`, derived from the canonical credential rather
+than the per-fetch ID. For this persistence policy, `ctx.cache` is process-memory-only JSON state shared across runtime
+instances within the provider namespace (128 entries, 128-byte keys, 16 KiB values, maximum 24-hour TTL). ZoomMate
+uses that key to reuse readable-expiry bearers until 60 seconds before expiry; bearer tokens are never persisted.
+
+`selection: "ranked-source-domains"` also requires an ordered `sourceDomains` list drawn from `cookieDomains`.
+The host selects each cookie name from the highest-ranked source within one profile, binds the result to the declared
+request host, and then uses the existing URL matcher. `requiredCookies` admits only candidates containing all listed
+names. Notion ranks `app.notion.com`, `www.notion.com`, `notion.com`, `www.notion.so`, and `notion.so`, requiring `token_v2`.
+Ranked source domains authorize that explicit legacy-to-current-host migration; scripts still receive no cookie values.
+
+An optional `sessionFile: {tokenField: "tokenV2", cookieName: "token_v2"}` declares migration of the provider's existing
+`<provider-id>-session.json` file. It cannot name an arbitrary path and requires ranked, single-origin, validated
+persistence. The host reads this candidate first in background contexts, writes the compatible file after validation,
+and conditionally clears the observed file when rejected. File write-back participates in interactive refresh commit
+and rollback and never runs after a failed cookie-cache commit. Files retain owner-only permissions.
+
+`missingCookies: "omit"` allows a declared HTTPS destination to receive a request with no matching cookie; the default
+is `"reject"`. ZoomMate needs omission for bearer-only manual captures and failover to a sibling host lacking a leaf
+cookie. This never forwards the first host's cookie to its sibling and never permits undeclared destinations.
+Qwen Cloud's cross-origin dashboard navigation remains outside this contract.
 
 Bundled plugins that declare multiple cookie domains use separate Keychain-backed cache scopes for each requested
 domain under the default header policy. Single-domain plugins retain their existing provider cache. Automatic imports query only the requested domain;

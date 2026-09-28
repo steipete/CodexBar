@@ -8,6 +8,39 @@ import Testing
 struct ProviderPluginCookieJarTests {
     private static let now = Date(timeIntervalSince1970: 1_800_000_000)
 
+    #if os(macOS)
+    @Test(arguments: BundledPluginTestSupport.engines)
+    func `jar import retains interactive authorization across the engine callback`(
+        engine: ProviderPluginEngineKind) async throws
+    {
+        let broker = ProviderInteractionContext.$current.withValue(.userInitiated) {
+            ProviderPluginCookieBroker(
+                provider: .longcat,
+                domains: ["example.test"],
+                settings: .init(cookieSource: .auto, manualCookieHeader: nil),
+                batches: { _, _ in nil },
+                jarImporter: {
+                    [.init(
+                        header: "",
+                        source: ProviderInteractionContext.current == .userInitiated
+                            ? "interactive" : "background",
+                        origin: "",
+                        records: [])]
+                })
+        }
+        let runtime = try Self.runtime(engine: engine, script: """
+        for await (const session of ctx.browser.sessions('example.test')) {
+          return {identity: {loginMethod: session.source}};
+        }
+        throw new Error('missing fixture session');
+        """, transport: ProviderHTTPTransportHandler { _ in throw URLError(.badURL) })
+        let usage = try await runtime.fetchUsage(cookieSessionResolver: { domain, cachedOnly in
+            try broker.nextSession(domain: domain, cachedOnly: cachedOnly)
+        })
+        #expect(usage.identity?.loginMethod == "interactive")
+    }
+    #endif
+
     @Test
     func `URL matcher preserves duplicate names and path boundaries`() throws {
         let records = try [
@@ -34,10 +67,14 @@ struct ProviderPluginCookieJarTests {
     @Test
     func `same-origin redirects reselect cookies and reject credential-leaking destinations`() throws {
         let jar = ProviderPluginCookieJar()
-        let session = ProviderPluginCookieSession(header: "", source: "Fixture", origin: "https://example.test", records: try [
-            Self.record("session", "root", domain: "example.test"),
-            Self.record("session", "scoped", domain: "example.test", path: "/api"),
-        ])
+        let session = try ProviderPluginCookieSession(
+            header: "",
+            source: "Fixture",
+            origin: "https://example.test",
+            records: [
+                Self.record("session", "root", domain: "example.test"),
+                Self.record("session", "scoped", domain: "example.test", path: "/api"),
+            ])
         jar.register(session)
         let delegate = ProviderPluginCookieTransport.CookieRedirectDelegate(jar: jar, id: session.id)
         let original = try #require(URL(string: "https://example.test/api/me"))
@@ -57,7 +94,9 @@ struct ProviderPluginCookieJarTests {
     }
 
     @Test(arguments: BundledPluginTestSupport.engines)
-    func `scripts see metadata only and host selects cookies for every request`(engine: ProviderPluginEngineKind) async throws {
+    func `scripts see metadata only and host selects cookies for every request`(
+        engine: ProviderPluginEngineKind) async throws
+    {
         let record = try Self.record("session", "private-fixture", domain: "example.test", path: "/api")
         let runtime = try Self.runtime(engine: engine, script: """
         for await (const session of ctx.browser.sessions("example.test")) {
@@ -87,7 +126,9 @@ struct ProviderPluginCookieJarTests {
     }
 
     @Test(arguments: BundledPluginTestSupport.engines)
-    func `forged and previous-fetch session identifiers fail before transport`(engine: ProviderPluginEngineKind) async throws {
+    func `forged and previous-fetch session identifiers fail before transport`(
+        engine: ProviderPluginEngineKind) async throws
+    {
         let runtime = try Self.runtime(engine: engine, script: """
         const prior = ctx.cache.get("session") || "forged";
         for await (const session of ctx.browser.sessions("example.test")) {
@@ -144,7 +185,8 @@ struct ProviderPluginCookieJarTests {
     }
 
     private static func runtime(
-        engine: ProviderPluginEngineKind, script: String, transport: any ProviderHTTPTransport) throws -> ProviderPluginRuntime
+        engine: ProviderPluginEngineKind, script: String,
+        transport: any ProviderHTTPTransport) throws -> ProviderPluginRuntime
     {
         try ProviderPluginRuntime(source: """
         defineProvider({id: "longcat", name: "Fixture", settings: [], endpoints: ["https://example.test", "https://other.test", "https://example.test:444"],
@@ -194,7 +236,9 @@ struct ProviderPluginCookieJarTests {
 
     private static func response(_ request: URLRequest) throws -> (Data, URLResponse) {
         let url = try #require(request.url)
-        return try (Data("{}".utf8), #require(HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)))
+        return try (
+            Data("{}".utf8),
+            #require(HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)))
     }
 
     private static func record(

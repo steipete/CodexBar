@@ -13,28 +13,18 @@ struct NotionMenuCardModelTests {
     private static let periodEnd = Date(timeIntervalSince1970: 1_772_323_200)
 
     private static func snapshot() -> UsageSnapshot {
-        NotionUsageSnapshot(
-            rateLimit: NotionCreditRateLimitStatus(
-                status: "enforced",
-                window: NotionRollingWindow(
-                    creditType: nil,
-                    scope: nil,
-                    window: "6h",
-                    used: 50,
-                    limit: 100),
-                resetsInSeconds: 3600,
-                billingPeriodWindow: NotionBillingPeriodWindow(
-                    creditType: nil,
-                    scope: nil,
-                    cadence: nil,
-                    used: 40,
-                    limit: 100,
-                    periodEndMs: self.periodEnd.timeIntervalSince1970 * 1000),
-                enforcement: nil),
-            workspace: nil,
-            account: nil,
+        UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 50,
+                windowMinutes: 360,
+                resetsAt: self.now.addingTimeInterval(3600),
+                resetDescription: nil),
+            secondary: RateWindow(
+                usedPercent: 40,
+                windowMinutes: 43200,
+                resetsAt: self.periodEnd,
+                resetDescription: nil),
             updatedAt: self.now)
-            .toUsageSnapshot()
     }
 
     private static func model(weeklyPace: UsagePace?) throws -> UsageMenuCardView.Model {

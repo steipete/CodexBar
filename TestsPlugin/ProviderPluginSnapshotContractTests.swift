@@ -82,3 +82,22 @@ struct ProviderPluginSnapshotContractTests {
         }
     }
 }
+
+struct ProviderPluginOverQuotaTests {
+    @Test(arguments: ProviderPluginTransportTests.engines)
+    func `over quota values require an explicit manifest policy`(engine: ProviderPluginEngineKind) async throws {
+        for (policy, expected) in [("", 100.0), ("snapshotPolicy: {percent: 'preserve-overage'},", 120.0)] {
+            let runtime = try ProviderPluginRuntime(source: """
+            defineProvider({id: 'notion', name: 'Fixture', settings: [], endpoints: ['https://example.test'],
+              \(policy)
+              async fetchUsage() { return {primary: {usedPercent: 120}, secondary: {usedPercent: -5},
+                extraWindows: [{id: 'extra', title: 'Extra', usedPercent: 120}]}; }
+            });
+            """, engine: engine)
+            let result = try await runtime.fetchUsage()
+            #expect(result.primary?.usedPercent == expected)
+            #expect(result.secondary?.usedPercent == 0)
+            #expect(result.extraRateWindows?.first?.window.usedPercent == expected)
+        }
+    }
+}

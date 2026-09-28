@@ -38,6 +38,20 @@ public struct ProviderPluginCookieRecord: Codable, Equatable, Sendable {
         self.expires = cookie.expiresDate
     }
 
+    private init(name: String, value: String, domain: String, expires: Date?) {
+        self.name = name
+        self.value = value
+        self.domain = domain
+        self.hostOnly = true
+        self.path = "/"
+        self.secure = true
+        self.expires = expires
+    }
+
+    func bound(to domain: String) -> Self {
+        Self(name: self.name, value: self.value, domain: domain, expires: self.expires)
+    }
+
     func matches(_ url: URL, now: Date) -> Bool {
         guard let host = url.host?.lowercased(), self.expires.map({ $0 > now }) ?? true,
               !self.secure || url.scheme?.lowercased() == "https",
@@ -69,6 +83,10 @@ final class ProviderPluginCookieJar: @unchecked Sendable {
         self.lock.withLock { self.sessions[session.id] = session }
     }
 
+    func contains(id: String, domain: String) -> Bool {
+        self.lock.withLock { self.sessions[id]?.origin == "https://\(domain)" }
+    }
+
     func reject(id: String) {
         _ = self.lock.withLock { self.sessions.removeValue(forKey: id) }
     }
@@ -95,12 +113,19 @@ final class ProviderPluginCookieJar: @unchecked Sendable {
               url.scheme?.lowercased() == "https", url.port == nil || url.port == 443,
               url.user == nil, url.password == nil
         else { throw ProviderPluginError.secretAccess("cookie session is unavailable") }
+        return try Self.header(for: session, url: url, now: now)
+    }
+
+    static func header(for session: ProviderPluginCookieSession, url: URL, now: Date = Date()) throws -> String {
         let header: String? = if let records = session.records {
             ProviderPluginCookieRecord.header(records, for: url, now: now)
+        } else if let headers = session.headersByHost {
+            headers[url.host?.lowercased() ?? ""]
         } else {
             session.origin == "https://\(url.host?.lowercased() ?? "")" ? session.header : nil
         }
-        guard let header, !header.isEmpty else {
+        if header == nil, session.permitsEmptyHosts.contains(url.host?.lowercased() ?? "") { return "" }
+        guard let header, !header.isEmpty || session.permitsEmptyHosts.contains(url.host?.lowercased() ?? "") else {
             throw ProviderFetchClassifiedError(
                 kind: .missingCredential,
                 message: "No session cookies match this request URL.")

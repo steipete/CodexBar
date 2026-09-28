@@ -31,13 +31,21 @@ provider error rather than an empty gauge.
 1. Sign in to Notion in Chrome.
 2. Enable **Notion AI** in **Settings → Providers**.
 
-CodexBar imports your browser session cookie automatically and sends it only to `https://app.notion.com`.
+The bundled Notion plugin runs on both engines. The host imports your browser session cookie automatically and sends
+it only to `https://app.notion.com`; the script sees an opaque session ID, never the cookie values. Within each profile,
+source domains rank as `app.notion.com`, `www.notion.com`, `notion.com`, `www.notion.so`, then `notion.so`.
 The import requires the `token_v2` session cookie; a browser profile that has Notion cookies but no
 `token_v2` is skipped rather than used for a request that would fail with 401.
 
 **Note**: Automatic import defaults to Chrome only to avoid probing unrelated browser stores. Callers using
 the shared browser-cookie plumbing can still supply an explicit browser list. Chrome cookie decryption may
 require macOS Keychain approval.
+
+Validated sessions remain in the shared cookie cache. Background refreshes first reuse the existing owner-only
+`notion-session.json` token file, then the shared cache. If neither succeeds, browser reads remain subject to the shared
+access gate: background reads require existing prompt-free authorization, while explicit CLI cookie refreshes retain
+their acknowledged retry scope. A successful allowance fetch updates both stores; a 401 conditionally clears the rejected session without erasing a newer one. An interactive
+cookie refresh commits its replacement only after success, preserving both prior stores on failure.
 
 ### Manual
 
@@ -103,7 +111,7 @@ The rate-limit response looks like this:
 
 Usage is reported against the returned `limit` rather than assumed to be a percentage, so a future
 non-100 limit keeps working. Over-quota values are preserved rather than clamped; display clamping happens
-downstream.
+downstream. The plugin declares `snapshotPolicy: {percent: "preserve-overage"}` to retain this behavior on both engines.
 
 Custom Agents and Workers are **not** covered by this allowance — Notion meters those with Notion credits
 (`getAIUsageEligibilityV2`), which this provider does not read.

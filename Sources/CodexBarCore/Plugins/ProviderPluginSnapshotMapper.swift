@@ -37,7 +37,8 @@ enum ProviderPluginSnapshotMapper {
     static func map(
         _ value: any ProviderPluginValue,
         provider: ProviderInstanceID,
-        now: Date = Date()) throws -> UsageSnapshot
+        now: Date = Date(),
+        percentPolicy: ProviderPluginPercentPolicy = .clamp) throws -> UsageSnapshot
     {
         guard value.isObject, !value.isArray, !value.isNull else {
             throw ProviderPluginError.invalidSnapshot("fetchUsage must resolve to an object")
@@ -52,10 +53,10 @@ enum ProviderPluginSnapshotMapper {
             ],
             path: "usage")
 
-        let primary = try self.window(value, property: "primary")
-        let secondary = try self.window(value, property: "secondary")
-        let tertiary = try self.window(value, property: "tertiary")
-        let extraRateWindows = try self.extraWindows(value)
+        let primary = try self.window(value, property: "primary", percentPolicy: percentPolicy)
+        let secondary = try self.window(value, property: "secondary", percentPolicy: percentPolicy)
+        let tertiary = try self.window(value, property: "tertiary", percentPolicy: percentPolicy)
+        let extraRateWindows = try self.extraWindows(value, percentPolicy: percentPolicy)
         let providerCost = try self.cost(value, now: now)
         let costUsage = try self.costUsage(value)
         let details = try self.details(value)
@@ -226,17 +227,25 @@ enum ProviderPluginSnapshotMapper {
         return string.isEmpty ? nil : string
     }
 
-    private static func window(_ root: any ProviderPluginValue, property: String) throws -> RateWindow? {
+    private static func window(
+        _ root: any ProviderPluginValue,
+        property: String,
+        percentPolicy: ProviderPluginPercentPolicy) throws -> RateWindow?
+    {
         guard let value = root.property(property), !value.isUndefined, !value.isNull else { return nil }
-        return try self.window(value, path: property)
+        return try self.window(value, path: property, percentPolicy: percentPolicy)
     }
 
-    private static func window(_ value: any ProviderPluginValue, path: String) throws -> RateWindow {
+    private static func window(
+        _ value: any ProviderPluginValue,
+        path: String,
+        percentPolicy: ProviderPluginPercentPolicy) throws -> RateWindow
+    {
         guard value.isObject, !value.isArray else {
             throw ProviderPluginError.invalidSnapshot("\(path) must be an object")
         }
         let rawPercent = try self.requiredFiniteNumber(value, property: "usedPercent", path: path)
-        let usedPercent = min(100, max(0, rawPercent))
+        let usedPercent = percentPolicy.map(rawPercent)
         let windowMinutes = try self.optionalPositiveInteger(value, property: "windowMinutes", path: path)
         let resetsAt = try self.optionalDate(value, property: "resetsAt", path: path)
         let resetDescription = try self.optionalString(value, property: "resetDescription", path: path)
@@ -249,7 +258,9 @@ enum ProviderPluginSnapshotMapper {
             nextRegenPercent: nextRegenPercent.map { min(100, max(0, $0)) })
     }
 
-    private static func extraWindows(_ root: any ProviderPluginValue) throws -> [NamedRateWindow]? {
+    private static func extraWindows(
+        _ root: any ProviderPluginValue, percentPolicy: ProviderPluginPercentPolicy) throws -> [NamedRateWindow]?
+    {
         guard let value = root.property("extraWindows"), !value.isUndefined, !value.isNull else { return nil }
         guard value.isArray else {
             throw ProviderPluginError.invalidSnapshot("extraWindows must be an array")
@@ -265,7 +276,8 @@ enum ProviderPluginSnapshotMapper {
             let windowValue = item.property("window")
             let window = try self.window(
                 windowValue?.isObject == true && windowValue?.isNull == false ? windowValue! : item,
-                path: "\(path).window")
+                path: "\(path).window",
+                percentPolicy: percentPolicy)
             var usageKnown = true
             if let value = item.property("usageKnown"), !value.isUndefined {
                 guard value.isBoolean else {

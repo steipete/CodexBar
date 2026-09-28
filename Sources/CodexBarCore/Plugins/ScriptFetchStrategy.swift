@@ -138,7 +138,7 @@ public final class ScriptFetchStrategy: ProviderFetchStrategy, @unchecked Sendab
             domains: runtime.manifest.cookieDomains,
             context: context,
             importer: importer,
-            usesCookieJar: runtime.manifest.usesCookieJar,
+            policy: runtime.manifest.cookiePolicy,
             settingsOverride: self.cookieSettings?(context))
         let result = try await runtime.fetchResult(
             settings: values.settings,
@@ -148,6 +148,7 @@ public final class ScriptFetchStrategy: ProviderFetchStrategy, @unchecked Sendab
             cookieInvalidator: { cookies.rejectCookie(domain: $0) },
             cookieSessionResolver: { try cookies.nextSession(domain: $0, cachedOnly: $1) },
             cookieSessionInvalidator: { cookies.rejectCookie(domain: $0, id: $1) },
+            cookieSessionValidator: { try cookies.acceptCookie(domain: $0, id: $1) },
             cookieResolver: { _, domain in try cookies.cookieHeader(domain: domain) })
         try Task.checkCancellation()
         let saved = result.persist.isEmpty ? ProviderSettingsSaveOutcome.unchanged

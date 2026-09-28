@@ -55,7 +55,9 @@ public enum ZoomMateProviderDescriptor {
                 noDataMessage: { "ZoomMate cost summary is not supported." }),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .web],
-                pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [ZoomMateWebFetchStrategy()] })),
+                pipeline: ProviderFetchPipeline(resolveStrategies: { context in
+                    [Self.webStrategy(timeout: context.webTimeout)]
+                })),
             cli: ProviderCLIConfig(
                 name: "zoommate",
                 aliases: [],
@@ -63,114 +65,72 @@ public enum ZoomMateProviderDescriptor {
     }
 }
 
-/// Single unified strategy (modeled on `T3ChatWebFetchStrategy`) branching internally on the
-/// selected `cookieSource`: `.auto` resolves a cookie session — the `CookieHeaderCache`d host map
-/// first, else a fresh browser import whose validated headers are persisted back through the cache —
-/// and mints a bearer JWT via `ZoomMateUsageFetcher.mintBearerToken`, reusing a still-valid token
-/// from `ZoomMateBearerTokenCache` across refreshes; `.manual` uses the pasted cURL capture.
-/// Cookies outlive the ~hourly JWT by weeks, so minting from cookies (and caching the result until
-/// it nears expiry) avoids the manual re-paste entirely as long as the underlying browser session
-/// stays valid, and the persisted headers let background refreshes and the bundled CLI reuse that
-/// session without rereading Chrome. A rejected session clears the cached header and retries once
-/// with a fresh import (see `fetch`).
-struct ZoomMateWebFetchStrategy: ProviderFetchStrategy {
-    let id: String = "zoommate.web"
-    let kind: ProviderFetchKind = .web
+extension ZoomMateProviderDescriptor {
+    static let hosts = ["ai.zoom.us", "zoommate.zoom.us"]
 
-    func isAvailable(_ context: ProviderFetchContext) async -> Bool {
-        let cookieSource = context.settings?.zoommate?.cookieSource ?? .auto
-        guard cookieSource != .off else { return false }
-        if cookieSource == .manual {
-            return true
-        }
-        #if os(macOS)
-        return true
-        #else
-        return false
-        #endif
+    static func capture(_ raw: String?) -> (host: String, headers: [String: String])? {
+        guard let raw, let url = CurlCaptureParser.requestURL(from: raw), let host = url.host?.lowercased(),
+              hosts.contains(host), url.scheme?.lowercased() == "https", url.port == nil,
+              url.user == nil, url.password == nil, url.query == nil, url.fragment == nil,
+              url.path == "/ai-computer/api/v1/credits/status" else { return nil }
+        let fields = CurlCaptureParser.headerFields(from: raw)
+        let names = [
+            "authorization",
+            "cookie",
+            "user-agent",
+            "accept",
+            "accept-language",
+            "sec-fetch-dest",
+            "sec-fetch-mode",
+            "sec-fetch-site",
+        ]
+        let headers = CurlCaptureParser.forwardedHeaders(
+            from: fields, allowlist: Dictionary(uniqueKeysWithValues: names.map { ($0, $0) }))
+        guard headers["authorization"]?.isEmpty == false else { return nil }
+        return (host, headers)
     }
 
-    func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
-        let cookieSource = context.settings?.zoommate?.cookieSource ?? .auto
-        do {
-            return try await self.fetchOnce(context, allowCachedCookieHeader: true)
-        } catch ZoomMateUsageError.invalidCredentials where cookieSource == .auto {
-            // The persisted cookie session (or a bearer minted from it) was rejected. Drop the
-            // cached headers and retry once against a fresh browser import, mirroring
-            // OpenCodeUsageFetchStrategy. Outside user-initiated contexts the import is
-            // gate-blocked, so the retry surfaces `noSession` instead of replaying a dead cookie.
-            CookieHeaderCache.clear(provider: .zoommate)
-            return try await self.fetchOnce(context, allowCachedCookieHeader: false)
-        }
-    }
-
-    private func fetchOnce(
-        _ context: ProviderFetchContext,
-        allowCachedCookieHeader: Bool) async throws -> ProviderFetchResult
+    static func webStrategy(
+        timeout: TimeInterval = 15,
+        transport: any ProviderHTTPTransport = ProviderHTTPClient.shared) -> ScriptFetchStrategy
     {
-        let fetcher = ZoomMateUsageFetcher(browserDetection: context.browserDetection)
-        let manual = Self.manualCookieHeader(from: context)
-        let logger: (@Sendable (String) -> Void)? = context.verbose
-            ? { @Sendable msg in CodexBarLog.logger(LogCategories.provider(.zoommate)).verbose(msg) }
-            : nil
-        let requestContext = try await fetcher.resolveRequestContext(
-            manualCaptureOverride: manual,
-            allowCachedCookieHeader: allowCachedCookieHeader,
-            timeout: context.webTimeout,
-            logger: logger)
-        let snapshot: ZoomMateUsageSnapshot
-        do {
-            snapshot = try await ZoomMateUsageFetcher.fetchCreditsStatus(
-                context: requestContext,
-                timeout: context.webTimeout)
-        } catch ZoomMateUsageError.invalidCredentials {
-            // A reused cached bearer token was rejected (revoked session before its own expiry).
-            // Evict it so the next refresh mints fresh rather than replaying the dead token.
-            await Self.invalidateCachedBearerToken(for: requestContext)
-            throw ZoomMateUsageError.invalidCredentials
-        }
-
-        // The Today/30-day history chart (design.md D3) is a non-fatal adjunct: a failure here
-        // (e.g. a transient credits/history error) must never block the primary credits/status
-        // snapshot from being usable, mirroring ZaiUsageStats.fetchUsageWithModelUsage's
-        // secondary-fetch pattern.
-        var history: ZoomMateCreditsHistorySnapshot?
-        do {
-            let now = Date()
-            let startTime = Calendar.current.date(byAdding: .day, value: -30, to: now) ?? now
-            history = try await ZoomMateCreditsHistoryFetcher.fetch(
-                context: requestContext,
-                startTime: startTime,
-                endTime: now,
-                creditStatus: snapshot.creditStatus,
-                timeout: context.webTimeout)
-        } catch ZoomMateUsageError.invalidCredentials {
-            await Self.invalidateCachedBearerToken(for: requestContext)
-            CodexBarLog.logger(LogCategories.provider(.zoommate))
-                .info("ZoomMate credits history fetch failed (non-fatal): invalid credentials")
-            history = nil
-        } catch {
-            CodexBarLog.logger(LogCategories.provider(.zoommate))
-                .info("ZoomMate credits history fetch failed (non-fatal): \(error.localizedDescription)")
-            history = nil
-        }
-
-        return self.makeResult(
-            usage: snapshot.toUsageSnapshot(history: history, accountEmail: requestContext.accountEmail),
-            sourceLabel: "web")
-    }
-
-    func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {
-        false
-    }
-
-    private static func manualCookieHeader(from context: ProviderFetchContext) -> String? {
-        guard context.settings?.zoommate?.cookieSource == .manual else { return nil }
-        return context.settings?.zoommate?.manualCookieHeader ?? ""
-    }
-
-    private static func invalidateCachedBearerToken(for requestContext: ZoomMateUsageFetcher.RequestContext) async {
-        guard let cacheKey = requestContext.cacheKey else { return }
-        await ZoomMateBearerTokenCache.shared.invalidate(forKey: cacheKey)
+        ScriptFetchStrategy(
+            id: "zoommate.web",
+            provider: .zoommate,
+            bundledPlugin: "zoommate",
+            sourceLabel: "web",
+            kind: .web,
+            transport: transport,
+            timeout: max(30, timeout * 4),
+            validateContext: { context in
+                if context.settings?.zoommate?.cookieSource == .manual,
+                   Self.capture(context.settings?.zoommate?.manualCookieHeader) == nil
+                {
+                    throw ProviderFetchClassifiedError(
+                        kind: .missingCredential,
+                        message: "Paste a cURL capture of the HTTPS ZoomMate credits/status request.")
+                }
+            }, cookieSettings: { context in
+                let settings = context.settings?.zoommate
+                let capture = Self.capture(settings?.manualCookieHeader)
+                return .init(
+                    cookieSource: settings?.cookieSource ?? .auto,
+                    manualCookieHeader: capture?.headers["cookie"],
+                    manualCookieOrigin: capture.map { "https://\($0.host)" })
+            }, resolveValues: { context in
+                let settings = context.settings?.zoommate
+                guard settings?.cookieSource != .off else { return nil }
+                let capture = settings?.cookieSource == .manual ? Self.capture(settings?.manualCookieHeader) : nil
+                var headers = capture?.headers ?? [:]
+                let auth = headers.removeValue(forKey: "authorization")
+                headers.removeValue(forKey: "cookie")
+                let encoded = (try? JSONSerialization.data(withJSONObject: headers)) ?? Data("{}".utf8)
+                return .init(
+                    settings: ["HOST": capture?.host ?? ""],
+                    secrets: [
+                        "AUTHORIZATION": auth ?? "",
+                        "HEADERS": String(data: encoded, encoding: .utf8) ?? "{}",
+                    ])
+            }, isEnabled: { _ in true })
     }
 }

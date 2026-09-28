@@ -31,7 +31,11 @@
 - Token history: show observed model names when per-model totals are unavailable, including Grok local sessions (#4056). Fixes #4054. Thanks @BUKOWSKIREAL!
 - TypeSafe: show the credit balance in the menu bar and layout preview instead of missing-value dashes, using shared balance-label metadata (#4050). Thanks @lg!
 - Grok: retain the product usage breakdown on the grok.com billing fallback, with bounded shared protobuf decoding (#4041). Thanks @olddonkey!
+- Browser sessions: preserve interactive cookie-refresh authorization across plugin engine callbacks (#4098).
+
 ### Changed
+
+- Notion AI and ZoomMate: run usage fetching through bundled plugins while preserving browser-session reuse, validated cache migration, Notion over-quota values, and ZoomMate credits history (#4098).
 
 - Plugins: user plugins now get their own switcher tab by default when Merge Icons is on; set `topLevel: false` to keep the appended card.
 - Menu bar: align the persistent Refresh row with other menu actions by removing its decorative icon, preserving the shortcut and accessibility action (#4057). Thanks @elijahfriedman!

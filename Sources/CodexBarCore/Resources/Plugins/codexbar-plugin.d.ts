@@ -5,6 +5,7 @@ interface CodexBarCookieSession {
   readonly source: string;
   readonly origin: string;
   readonly cachedAt?: number;
+  readonly cacheKey?: string;
 }
 
 type CodexBarJSONPrimitive = boolean | number | string | null;
@@ -231,6 +232,7 @@ interface CodexBarPluginContext {
   };
   readonly browser: {
     availability(domain: string): "available" | "off" | "manual";
+    acceptCookie(domain: string, session: CodexBarCookieSession): void;
     rejectCookie(domain: string, session?: CodexBarCookieSession): void;
     sessions(domain: string, options?: { cachedOnly?: boolean }): AsyncIterable<CodexBarCookieSession>;
     cookieHeader(domain: string): Promise<string>;
@@ -289,8 +291,17 @@ interface CodexBarProviderDefinition {
   /** Grants declared cookie access, HTTP status handling, or bounded non-secret persistent state. */
   capabilities?: Array<"browser-cookies" | "http-status" | "persistent-storage">;
   cookieDomains?: string[];
+  snapshotPolicy?: { percent: "clamp" | "preserve-overage" };
   /** Bundled-only, host-owned per-profile cookie selection without persistent session caching. */
-  cookiePolicy?: { selection: "request-url"; cache: "nonpersistent" };
+  cookiePolicy?: {
+    selection: "request-url" | "ranked-source-domains";
+    cache: "nonpersistent" | "validated-single-entry";
+    sourceDomains?: string[];
+    requiredCookies?: string[];
+    missingCookies?: "reject" | "omit";
+    imports?: "app-interactive" | "access-gated";
+    sessionFile?: { tokenField: string; cookieName: string };
+  };
   fetchUsage(
     ctx: CodexBarPluginContext,
   ): CodexBarUsageSnapshot | CodexBarFetchResult | Promise<CodexBarUsageSnapshot | CodexBarFetchResult>;

@@ -67,6 +67,15 @@ public enum ProviderPluginCapability: String, Hashable, Sendable {
     case persistentStorage = "persistent-storage"
 }
 
+public enum ProviderPluginPercentPolicy: String, Sendable {
+    case clamp
+    case preserveOverage = "preserve-overage"
+
+    func map(_ value: Double) -> Double {
+        self == .preserveOverage ? max(0, value) : min(100, max(0, value))
+    }
+}
+
 public struct ProviderPluginManifest: Sendable {
     public let id: ProviderInstanceID
     public let name: String
@@ -77,7 +86,11 @@ public struct ProviderPluginManifest: Sendable {
     public let settings: [ProviderPluginSetting]
     public let capabilities: Set<ProviderPluginCapability>
     public let cookieDomains: Set<String>
-    public let usesCookieJar: Bool
+    public let percentPolicy: ProviderPluginPercentPolicy
+    public let cookiePolicy: ProviderPluginCookiePolicy?
+    public var usesCookieJar: Bool {
+        self.cookiePolicy != nil
+    }
 
     func cookieDomain(_ rawDomain: String) throws -> String {
         let domain = rawDomain.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
@@ -288,21 +301,28 @@ public struct ProviderPluginManifest: Sendable {
                 "the browser-cookies capability requires at least one declared cookie domain")
         }
         self.cookieDomains = cookieDomains
-        if let policy = definition.property("cookiePolicy"), !policy.isUndefined {
-            guard !allowsDynamicID, self.id.firstPartyProvider != nil, capabilities.contains(.browserCookies),
-                  policy.isObject, !policy.isArray,
-                  try Set(policy.propertyNames()) == ["selection", "cache"],
-                  policy.property("selection")?.isString == true,
-                  policy.property("cache")?.isString == true,
-                  policy.property("selection")?.stringValue() == "request-url",
-                  policy.property("cache")?.stringValue() == "nonpersistent"
+        if let snapshot = definition.property("snapshotPolicy"), !snapshot.isUndefined {
+            guard snapshot.isObject, !snapshot.isArray, try Set(snapshot.propertyNames()) == ["percent"],
+                  let value = snapshot.property("percent"), value.isString,
+                  let policy = ProviderPluginPercentPolicy(rawValue: value.stringValue())
             else {
-                throw ProviderPluginError
-                    .invalidManifest("cookiePolicy requires bundled request-url/nonpersistent cookies")
+                throw ProviderPluginError.invalidManifest("snapshotPolicy requires a valid percent policy")
             }
-            self.usesCookieJar = true
+            self.percentPolicy = policy
         } else {
-            self.usesCookieJar = false
+            self.percentPolicy = .clamp
+        }
+
+        if let policy = definition.property("cookiePolicy"), !policy.isUndefined {
+            guard !allowsDynamicID, self.id.firstPartyProvider != nil, capabilities.contains(.browserCookies) else {
+                throw ProviderPluginError.invalidManifest("cookiePolicy requires bundled browser cookies")
+            }
+            self.cookiePolicy = try ProviderPluginCookiePolicy(
+                policy,
+                domains: cookieDomains,
+                endpoints: self.endpoints)
+        } else {
+            self.cookiePolicy = nil
         }
     }
 

@@ -27,6 +27,16 @@ struct ProviderPluginContextOptions: Sendable {
     var cookieSessionResolver: ProviderPluginRuntime.CookieSessionResolver?
     var cookieSessionInvalidator: ProviderPluginRuntime.CookieSessionInvalidator?
     var cookieJar: ProviderPluginCookieJar?
+    var cookieSessionValidator: ProviderPluginRuntime.CookieSessionValidator?
+
+    func acceptCookie(domain: String, id: String) throws {
+        guard self.cookieJar?.contains(id: id, domain: domain) == true,
+              let validate = self.cookieSessionValidator
+        else {
+            throw ProviderPluginError.secretAccess("validated cookie session is unavailable")
+        }
+        try validate(domain, id)
+    }
 
     func rejectCookie(domain: String, id: String) {
         self.cookieJar?.reject(id: id)

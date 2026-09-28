@@ -42,7 +42,7 @@ public struct CookieRefreshCommitSummary: Equatable, Sendable {
 }
 
 private enum CookieRefreshStagedMutation: Sendable {
-    case store(CookieHeaderCacheEntry)
+    case store(CookieHeaderCacheEntry, (@Sendable () -> Void)? = nil)
     case clear
 }
 
@@ -563,7 +563,8 @@ public enum CookieHeaderCache {
         expected: Entry?,
         cookieHeader: String,
         sourceLabel: String,
-        now: Date = Date()) -> Bool
+        now: Date = Date(),
+        onCommit: (@Sendable () -> Void)? = nil) -> Bool
     {
         let trimmed = cookieHeader.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let normalized = CookieHeaderNormalizer.normalize(trimmed), !normalized.isEmpty else { return false }
@@ -571,7 +572,8 @@ public enum CookieHeaderCache {
         do {
             return try self.withLegacyMutationLock {
                 guard self.currentEntryMatches(expected, provider: provider, scope: scope) else { return false }
-                return self.storeLocked(entry: entry, provider: provider, scope: scope, sourceLabel: sourceLabel)
+                return self.storeLocked(
+                    entry: entry, provider: provider, scope: scope, sourceLabel: sourceLabel, onCommit: onCommit)
             }
         } catch {
             self.log.error("Cookie cache conditional store lock failed: \(error)")
@@ -584,11 +586,13 @@ public enum CookieHeaderCache {
     static func clearIfCurrent(
         provider: UsageProvider,
         scope: Scope? = nil,
-        expected: Entry?) -> Bool
+        expected: Entry?,
+        onClear: (@Sendable () -> Void)? = nil) -> Bool
     {
         do {
             return try self.withLegacyMutationLock {
                 guard self.currentEntryMatches(expected, provider: provider, scope: scope) else { return false }
+                if self.stageRefreshMutation(.clear, key: self.key(for: provider, scope: scope)) { return true }
                 // Keep the expected Keychain row intact when legacy cleanup fails so fallback can replace it.
                 if scope == nil, self.removeLegacyEntry(for: provider) == .failed {
                     return false
@@ -597,6 +601,7 @@ public enum CookieHeaderCache {
                 let result = KeychainCacheStore.clearResult(key: key)
                 guard result != .failed else { return false }
                 self.updateDisplaySnapshot(key: key, entry: nil)
+                onClear?()
                 return true
             }
         } catch {
@@ -1006,10 +1011,11 @@ extension CookieHeaderCache {
         entry: Entry,
         provider: UsageProvider,
         scope: Scope?,
-        sourceLabel: String) -> Bool
+        sourceLabel: String,
+        onCommit: (@Sendable () -> Void)? = nil) -> Bool
     {
         let key = self.key(for: provider, scope: scope)
-        if self.stageRefreshMutation(.store(entry), key: key) {
+        if self.stageRefreshMutation(.store(entry, onCommit), key: key) {
             self.log.debug("Cookie cache refresh staged", metadata: [
                 "provider": provider.rawValue,
                 "source": sourceLabel,
@@ -1024,6 +1030,7 @@ extension CookieHeaderCache {
         if scope == nil {
             _ = self.removeLegacyEntry(for: provider)
         }
+        onCommit?()
         self.log.debug("Cookie cache stored", metadata: ["provider": provider.rawValue, "source": sourceLabel])
         return true
     }
@@ -1055,7 +1062,7 @@ extension CookieHeaderCache {
                 let stagedCount = state.stagedMutations.count
                 guard stagedCount == 1,
                       let (key, mutation) = state.stagedMutations.first,
-                      case let .store(entry) = mutation
+                      case let .store(entry, onCommit) = mutation
                 else {
                     return CookieRefreshCommitSummary(
                         stagedCount: stagedCount,
@@ -1069,6 +1076,7 @@ extension CookieHeaderCache {
                 if key == self.key(for: state.provider, scope: nil) {
                     _ = self.removeLegacyEntry(for: state.provider)
                 }
+                onCommit?()
                 return CookieRefreshCommitSummary(
                     stagedCount: 1,
                     committedCount: 1,
@@ -1086,6 +1094,12 @@ extension CookieHeaderCache {
         }
     }
 
+    static func isRefreshReadSuppressed(provider: UsageProvider) -> Bool {
+        self.refreshReadSuppressionLock.withLock {
+            self.refreshReadSuppressions.values.contains { $0.provider == provider }
+        }
+    }
+
     private static func resolveRefreshRead(
         key: KeychainCacheStore.Key,
         persisted _: Entry?) -> CookieRefreshReadResolution
@@ -1096,7 +1110,7 @@ extension CookieHeaderCache {
             }) else { return .noGate }
             if let mutation = state.stagedMutations[key] {
                 return switch mutation {
-                case let .store(entry): .visible(entry)
+                case let .store(entry, _): .visible(entry)
                 case .clear: .visible(nil)
                 }
             }
