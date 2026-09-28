@@ -16,7 +16,7 @@ if [[ "$*" == "build --show-bin-path" ]]; then
 fi
 if [[ "$*" == "test list" ]]; then
   if [[ "${FAKE_SWIFT_MODE:-success}" == "list_fail" ]]; then
-    sleep 0.25
+    sleep "${FAKE_SWIFT_LIST_DELAY:?}"
     printf 'test-list stdout marker\n'
     printf 'test-list stderr marker\n' >&2
     exit 42
@@ -246,18 +246,24 @@ set -e
 grep -Fq '| Full-group retries | `1` |' "${GITHUB_STEP_SUMMARY}"
 grep -Fq '| Recovered groups | `0` |' "${GITHUB_STEP_SUMMARY}"
 
-reset_case list-failure
-export FAKE_SWIFT_MODE=list_fail
-set +e
-run_harness --group-size 1 --timeout 10 > "${TEMP_DIR}/list-failure.log" 2>&1
-list_failure_status=$?
-set -e
-[[ "${list_failure_status}" -ne 0 ]]
-grep -Fq "test-list stdout marker" "${TEMP_DIR}/list-failure.log"
-grep -Fq "test-list stderr marker" "${TEMP_DIR}/list-failure.log"
-[[ "$(wc -l < "${FAKE_SWIFT_LOG}")" -eq 1 ]]
-grep -Eq -- '- Discovery seconds: 0\.[1-9]' "${TEMP_DIR}/list-failure.log"
-grep -Fq '| Discovered selections | `0` |' "${GITHUB_STEP_SUMMARY}"
+for list_delay in 0.25 1.1; do
+  reset_case list-failure
+  export FAKE_SWIFT_MODE=list_fail
+  export FAKE_SWIFT_LIST_DELAY="$list_delay"
+  set +e
+  run_harness --group-size 1 --timeout 10 > "${TEMP_DIR}/list-failure.log" 2>&1
+  list_failure_status=$?
+  set -e
+  [[ "${list_failure_status}" -ne 0 ]]
+  grep -Fq "test-list stdout marker" "${TEMP_DIR}/list-failure.log"
+  grep -Fq "test-list stderr marker" "${TEMP_DIR}/list-failure.log"
+  [[ "$(wc -l < "${FAKE_SWIFT_LOG}")" -eq 1 ]]
+  # Scheduling can push discovery past one second; only a positive duration is required.
+  awk '/- Discovery seconds:/ { positive = ($4 + 0) > 0 } END { exit !positive }' \
+    "${TEMP_DIR}/list-failure.log"
+  grep -Fq '| Discovered selections | `0` |' "${GITHUB_STEP_SUMMARY}"
+done
+unset FAKE_SWIFT_LIST_DELAY
 
 reset_case sparkle-recovery
 export FAKE_SWIFT_MODE=list_sparkle_fail_once

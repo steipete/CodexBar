@@ -700,15 +700,17 @@ struct TokenAccountEnvironmentPrecedenceTests {
             codexActiveSourceOverride: .liveSystem)
         #expect(liveEnv["CODEX_HOME"] == ambientHome.path)
 
+        try Self.writeCodexAuthFile(homeURL: firstHome, email: "first@example.com", accountID: "acct_first")
+        try Self.writeCodexAuthFile(homeURL: ambientHome, email: "ambient@example.com", accountID: "acct_ambient")
         let firstFetcher = context.fetcher(
             base: UsageFetcher(environment: ["CODEX_HOME": ambientHome.path]),
             provider: .codex,
             env: firstEnv)
-        #expect(Self.codexHomePath(from: firstFetcher) == firstHome.path)
+        #expect(firstFetcher.loadAccountInfo().email == "first@example.com")
 
         let nonCodexBaseFetcher = UsageFetcher(environment: ["CODEX_HOME": ambientHome.path])
         let nonCodexFetcher = context.fetcher(base: nonCodexBaseFetcher, provider: .claude, env: firstEnv)
-        #expect(Self.codexHomePath(from: nonCodexFetcher) == ambientHome.path)
+        #expect(nonCodexFetcher.loadAccountInfo().email == "ambient@example.com")
 
         let labeled = try context.applyCodexVisibleAccountLabel(
             UsageSnapshot(primary: nil, secondary: nil, updatedAt: Date()),
@@ -1068,15 +1070,6 @@ extension TokenAccountEnvironmentPrecedenceTests {
             baseEnvironment: ["CODEX_HOME": ambientHome.path],
             managedCodexAccountStoreURL: managedStoreURL)
         return context.settingsSnapshot(for: .codex, account: nil)?.codex?.dashboardAuthorityKnownOwners
-    }
-
-    fileprivate static func codexHomePath(from fetcher: UsageFetcher) -> String? {
-        guard let environment = Mirror(reflecting: fetcher).children.first(where: { $0.label == "environment" })?
-            .value as? [String: String]
-        else {
-            return nil
-        }
-        return environment["CODEX_HOME"]
     }
 
     fileprivate static func writeCodexAuthFile(homeURL: URL, email: String, accountID: String) throws {

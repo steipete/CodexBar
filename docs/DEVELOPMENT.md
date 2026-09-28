@@ -172,6 +172,22 @@ Control Center host removal or placement after process exit. This does not diagn
 
 ### Run Tests Only
 
+The shell test runners and all Make test targets source `Scripts/test_environment.sh` before launching Swift.
+The Linux CI test step sources it too. It removes exported variables whose names contain `TOKEN`, `KEY`, `SECRET`,
+`PASSWORD`, `PASSWD`, `WEBHOOK`, `CREDENTIAL`, `COOKIE`, `PRIVATE`, or `_PAT`, ignoring case. Explicit non-secret
+exceptions preserve `CODEXBAR_ALLOW_TEST_KEYCHAIN_ACCESS`, `CODEXBAR_SUPPRESS_TEST_KEYCHAIN_ACCESS`,
+`CODEXBAR_DISABLE_KEYCHAIN_ACCESS`, and `CODEXBAR_USE_LOCAL_SWEETCOOKIEKIT`. Standard build and loader search paths
+(`LD_LIBRARY_PATH`, `DYLD_LIBRARY_PATH`, `DYLD_FRAMEWORK_PATH`, `LIBRARY_PATH`, and `PKG_CONFIG_PATH`) are also preserved:
+their `_PATH` suffix otherwise matches `_PAT`. Other matching variables, including `CODEXBAR_*` credentials, are removed.
+Use synthetic dictionaries or set synthetic sentinels inside fixtures; never depend on inherited real credentials.
+For direct `swift test`, source the script in a Bash subshell first. This does not authorize live account tests.
+
+`ProcessEnvironment` provides count-only descriptions and reflection for stored environment dictionaries.
+The Codex and Claude usage fetchers and shared fetch context use it so failed expectations cannot expand their
+stored environments. Explicit dictionary access still returns the original values for provider/subprocess use;
+never log that dictionary. Other stored environment types still need migration, so harness scrubbing remains
+essential and does not replace a review of debug output before sharing it.
+
 Lint tools are installed at repository-pinned versions by `Scripts/install_lint_tools.sh`, with archive checksums
 verified before installation. TypeScript 7 installs its native package for the running Node platform and architecture
 (including Rosetta). Plugin typechecking uses only its declared libraries and source declarations, so unrelated

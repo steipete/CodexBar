@@ -2,6 +2,10 @@
 
 ## 0.68.1 — Unreleased
 
+### Security
+
+- Tests: scrub inherited credentials from test runners and redact stored environment dictionaries in Codex/Claude usage fetcher and shared fetch-context debug output.
+
 ### Added
 
 - Claude: show saved usage-limit resets and their expiry from the Web source in the menu and `codexbar usage` details (#4048). Thanks @enieuwy!

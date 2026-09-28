@@ -116,7 +116,7 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
     private static let cliProbeTimeout: TimeInterval = 24
     private static let cliRetryProbeTimeout: TimeInterval = 60
     private struct Configuration {
-        let environment: [String: String]
+        @ProcessEnvironment var environment: [String: String]
         let runtime: ProviderRuntime
         let dataSource: ClaudeUsageDataSource
         let oauthKeychainPromptCooldownEnabled: Bool

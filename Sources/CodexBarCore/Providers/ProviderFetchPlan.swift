@@ -35,7 +35,7 @@ public struct ProviderFetchContext: Sendable {
     public let webTimeout: TimeInterval
     public let webDebugDumpHTML: Bool
     public let verbose: Bool
-    public let env: [String: String]
+    @ProcessEnvironment public private(set) var env: [String: String]
     public let settings: ProviderSettingsSnapshot?
     public let fetcher: UsageFetcher
     public let claudeFetcher: any ClaudeUsageFetching

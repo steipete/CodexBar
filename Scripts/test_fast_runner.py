@@ -86,6 +86,28 @@ class NativeTestRunnerTests(unittest.TestCase):
         result = self.run_command(["bash", str(ROOT / "Scripts/test_fast.sh"), "--filter", "Example"])
         self.assertEqual(result.returncode, 23, result.stderr)
 
+    def test_make_does_not_launch_swift_when_environment_setup_fails(self):
+        for target in ["test-tty", "test-live"]:
+            with self.subTest(target=target):
+                self.capture.unlink(missing_ok=True)
+                # This fixture directory intentionally has no Scripts/test_environment.sh.
+                result = self.run_command([
+                    "make", "-s", "-C", str(self.directory), "-f", str(ROOT / "Makefile"), target,
+                ])
+                self.assertNotEqual(result.returncode, 0)
+                self.assertFalse(self.capture.exists())
+
+    def test_scrubber_preserves_explicit_build_search_paths(self):
+        for name in ["LD_LIBRARY_PATH", "DYLD_LIBRARY_PATH", "DYLD_FRAMEWORK_PATH",
+                     "LIBRARY_PATH", "PKG_CONFIG_PATH"]:
+            with self.subTest(name=name):
+                # Assign inside Bash: macOS can strip DYLD variables when launching system binaries.
+                probe = (f"export {name}=synthetic-build-path\n"
+                         "source Scripts/test_environment.sh\n"
+                         f'[[ "${{{name}:-}}" == synthetic-build-path ]]')
+                result = self.run_command(["bash", "-c", probe])
+                self.assertEqual(result.returncode, 0, result.stderr)
+
     def test_invalid_deadline_fails_before_launch(self):
         for value in ["0", "-1", "invalid"]:
             with self.subTest(value=value):
@@ -114,6 +136,46 @@ class NativeTestRunnerTests(unittest.TestCase):
                 self.assertEqual(environment["CODEXBAR_TEST_CODEX_FILE_ISOLATION"], "1")
                 self.assertEqual(environment["CODEXBAR_TEST_SESSION_FILE_ISOLATION"], "1")
                 self.assertIsNone(environment["CODEXBAR_TEST_CODEX_FILE_FIXTURES"])
+
+    def test_all_test_entry_points_scrub_secret_names(self):
+        sensitive_names = [
+            "CODEXBAR_TEST_SENTINEL_SECRET", "service_token", "Api_Key", "clientSECRET",
+            "PASSWORD", "test_Passwd", "a_webhook_url", "CREDENTIAL_path", "CookieJar",
+            "PRIVATE_FILE", "service_PAT", "CODEXBAR_API_KEY", "CODEXBAR_TEST_COOKIE",
+        ]
+        # The fake Swift process records only booleans, never inherited values.
+        binary = self.directory / "swift"
+        binary.write_text(
+            "#!/usr/bin/env python3\n"
+            "import json, os, sys\n"
+            "from pathlib import Path\n"
+            f"names = {sensitive_names!r}\n"
+            "Path(os.environ['NATIVE_TEST_CAPTURE']).write_text(json.dumps({\n"
+            "'secrets_absent': all(name not in os.environ for name in names),\n"
+            "'ci_preserved': os.environ.get('CI') == 'true',\n"
+            "'flag_preserved': os.environ.get('CODEXBAR_DISABLE_KEYCHAIN_ACCESS') == '1',\n"
+            "'local_dependency_preserved': os.environ.get('CODEXBAR_USE_LOCAL_SWEETCOOKIEKIT') == '1',\n"
+            "}))\n"
+            "if sys.argv[1:] == ['test', 'list']: print('CodexBarTests.FixtureTests/example()')\n",
+            encoding="utf-8",
+        )
+        self.environment.update(dict.fromkeys(sensitive_names, "sentinel-harness-secret"))
+        self.environment.update(CI="true", CODEXBAR_DISABLE_KEYCHAIN_ACCESS="1",
+                                CODEXBAR_USE_LOCAL_SWEETCOOKIEKIT="1")
+        commands = [
+            ["bash", "Scripts/test.sh"], ["bash", "Scripts/test_fast.sh"],
+            ["bash", "Scripts/test-plugin-engines.sh"],
+            *[["make", "-s", target] for target in
+              ["test", "test-fast", "test-skip-build", "test-tty", "test-live"]],
+        ]
+        for command in commands:
+            with self.subTest(command=command):
+                result = self.run_command(command)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(json.loads(self.capture.read_text()), {
+                    "secrets_absent": True, "ci_preserved": True, "flag_preserved": True,
+                    "local_dependency_preserved": True,
+                })
 
 
 class TestGroupTests(unittest.TestCase):
