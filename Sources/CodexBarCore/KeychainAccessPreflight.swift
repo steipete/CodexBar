@@ -417,10 +417,12 @@ public enum KeychainAccessPreflight {
             named: "SecTrustedApplicationValidateWithPath",
             as: SecTrustedApplicationValidateWithPathFunction.self)
         else { return nil }
+        // Security's immutable handle must stay alive even if its validation outlasts the caller's wait.
+        nonisolated(unsafe) let retainedApplication = application
         return self.validationMemo.validate(
             trustedApplication: self.trustedApplicationRepresentation(application), path: path)
         {
-            path.withCString { validate(application, $0) }
+            path.withCString { validate(retainedApplication, $0) }
         }
     }
 

@@ -108,7 +108,10 @@ the cookie import.
 - CodexBar's `Always allow prompts` permits future prompts; macOS's **Always Allow** grants access to the current
   Keychain item. Claude Code can recreate `Claude Code-credentials` and reset that grant. An ACL entry still named
   CodexBar does not prove that its stored code-signing requirement matches the running binary. `Only on user action`
-  reduces background interruptions but may require a manual Refresh to recover OAuth access.
+  reduces background interruptions but may require a manual Refresh to recover OAuth access. In #3798, a
+  before/after trace shows Claude Code preserving the decrypt ACL's CodexBar entry but removing CodexBar's Team ID
+  from the separate partition ACL. Decrypt-ACL preflight alone cannot establish partition authorization; repeated
+  manual grants therefore need not survive the next Claude Code refresh.
 - If Preferences → Advanced → Disable Keychain access is enabled, this policy remains visible but inactive until
   Keychain access is re-enabled.
 
@@ -122,6 +125,7 @@ the cookie import.
 - OAuth refresh form-encodes credential values, preserving literal plus signs and other reserved characters.
 - Expiry values outside the diagnostic integer range are reported as `out_of_range` without changing credential expiry or refresh decisions.
 - Credentials:
+  - Explicit OAuth environment override, when configured.
   - CodexBar OAuth cache when available.
   - File fallback: `~/.claude/.credentials.json`.
   - Claude CLI Keychain bootstrap/repair fallback: `Claude Code-credentials`.
@@ -131,8 +135,14 @@ the cookie import.
 - If CodexBar's cache is temporarily unavailable, automatic refreshes can reuse an unexpired credential already in
   memory beyond the normal 30-minute cache window, ahead of a stale credentials file. Each refresh retries the
   persistent cache. Token expiry, profile changes, cache invalidation, and Never prompt still prevent reuse;
-  pending invalidation after a rejected cache write remains a separate recovery limitation.
+  after a rejected cache write, the next refresh first clears the stale persistent entry, then reuses and persists
+  a still-fresh in-memory credential once that cleanup succeeds.
 - For the default CLI profile, expired cached or file credentials can adopt a fresh CLI Keychain token after file fallback, even when its fingerprint was already observed during an earlier repair. Existing direct-read consent, prompt policy, cooldown, one-minute freshness-check throttle, and noninteractive-read checks still apply. Custom profiles are not recovered from the unscoped global item, and CLI credentials are never rewritten by this synchronization. Background recovery still requires the Always allow prompts policy; the default Only on user action policy requires an explicit Refresh.
+- Credential selection does not rank unrelated sources by the largest `expiresAt`: expiry establishes validity,
+  not account identity or issuance order. A valid profile file remains ahead of Keychain bootstrap. Keychain candidates
+  are ordered by modification date (creation date as fallback); freshness sync reads only that newest item and never
+  rewrites Claude Code's credentials file. An expired default-profile record can be replaced even when the stored
+  Keychain fingerprint already matches, subject to the access gates above.
 - On Claude Code 2.1.x, `Claude Code-credentials` may contain only MCP server OAuth state (`mcpOAuth`) with no `claudeAiOauth`. CodexBar treats that as an OAuth configuration error, does not run background delegated `claude /status` refresh, and surfaces re-auth guidance. Use Web or CLI usage source, or restore a valid Claude OAuth keychain entry. See #1844.
 - Requires `user:profile` scope (CLI tokens with only `user:inference` cannot call usage).
 - Missing-scope errors require a Claude Code sign-in token with usage access. `claude setup-token` produces a token for model requests and is not a usage-scope recovery step ([Claude Code authentication](https://code.claude.com/docs/en/authentication#generate-a-long-lived-token)). Remove any configured OAuth token override before switching Claude Source to Web/CLI.

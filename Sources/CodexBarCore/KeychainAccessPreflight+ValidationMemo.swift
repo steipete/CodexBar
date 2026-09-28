@@ -10,45 +10,56 @@ extension KeychainAccessPreflight {
 
         /// Preflights are synchronous. Each pending key has its own result promise, so waiting callers
         /// share even a transient result without holding the dictionary lock or blocking unrelated keys.
-        private final class Flight {
-            private let condition = NSCondition()
-            private var completed = false
+        private final class Flight: @unchecked Sendable {
+            private let completion = DispatchGroup()
+            /// Written once before leave(), read only after a successful wait().
             private var result: OSStatus?
 
-            func wait() -> OSStatus? {
-                self.condition.lock()
-                defer { self.condition.unlock() }
-                while !self.completed {
-                    self.condition.wait()
-                }
+            init() { self.completion.enter() }
+
+            func wait(timeout: DispatchTime = .distantFuture) -> OSStatus? {
+                guard self.completion.wait(timeout: timeout) == .success else { return nil }
                 return self.result
             }
 
             func complete(_ result: OSStatus?) {
-                self.condition.lock()
                 self.result = result
-                self.completed = true
-                self.condition.broadcast()
-                self.condition.unlock()
+                self.completion.leave()
             }
         }
 
+        // A timed-out native validation cannot be cancelled. Keep its slot occupied until it returns.
+        private let validationSlots = DispatchSemaphore(value: 4)
         private let lock = NSLock()
         private var entries: [ValidationKey: (status: OSStatus, expiresAt: TimeInterval)] = [:]
         private var flights: [ValidationKey: Flight] = [:]
         private let onJoin: @Sendable () -> Void
+        private let validationTimeout: TimeInterval
 
-        init(onJoin: @escaping @Sendable () -> Void = {}) {
+        init(validationTimeout: TimeInterval = 2, onJoin: @escaping @Sendable () -> Void = {}) {
+            self.validationTimeout = validationTimeout
             self.onJoin = onJoin
+        }
+
+        private func performBoundedValidation(_ check: @escaping @Sendable () -> OSStatus?) -> OSStatus? {
+            guard self.validationSlots.wait(timeout: .now()) == .success else { return nil }
+            let result = Flight()
+            DispatchQueue.global(qos: .utility).async {
+                let value = check()
+                self.validationSlots.signal()
+                result.complete(value)
+            }
+            return result.wait(timeout: .now() + self.validationTimeout)
         }
 
         func validate(
             trustedApplication: Data?,
             path: String,
             now: TimeInterval = ProcessInfo.processInfo.systemUptime,
-            check: () -> OSStatus?) -> OSStatus?
+            check: @escaping @Sendable () -> OSStatus?) -> OSStatus?
         {
-            guard let key = ValidationKey(trustedApplication: trustedApplication, path: path) else { return check() }
+            guard let key = ValidationKey(trustedApplication: trustedApplication, path: path)
+            else { return self.performBoundedValidation(check) }
             self.lock.lock()
             if let entry = self.entries[key], now < entry.expiresAt {
                 self.lock.unlock()
@@ -63,7 +74,7 @@ extension KeychainAccessPreflight {
             self.flights[key] = flight
             self.lock.unlock()
 
-            let result = check()
+            let result = self.performBoundedValidation(check)
             self.lock.withLock {
                 self.entries = self.entries.filter { now < $0.value.expiresAt }
                 // Executable and bundle metadata cannot prove that all sealed resources are unchanged.

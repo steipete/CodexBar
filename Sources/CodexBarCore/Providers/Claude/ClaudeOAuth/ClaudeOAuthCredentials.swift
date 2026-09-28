@@ -373,12 +373,18 @@ public enum ClaudeOAuthCredentialsStore {
 
                 // A cache outage does not expire a token already read with consent. Retry persistent storage
                 // on every load after the normal memory window, but keep valid memory ahead of stale files.
-                if cacheTemporarilyUnavailable,
-                   let record = self.memoryCredentialRecord(
-                       environment: environment,
-                       profileIdentifier: profileIdentifier,
-                       requireFreshTimestamp: false)
+                // A rejected write may also have left a tombstone: reconsider memory after its cleanup succeeds.
+                if let record = self.memoryCredentialRecord(
+                    environment: environment,
+                    profileIdentifier: profileIdentifier,
+                    requireFreshTimestamp: !cacheTemporarilyUnavailable)
                 {
+                    ClaudeOAuthCredentialsStore.saveCredentialsToCache(
+                        record.credentials,
+                        historyOwnerIdentifier: record.historyOwnerIdentifier,
+                        profileIdentifier: profileIdentifier,
+                        owner: record.owner,
+                        allowCacheKeychainWrite: !cacheTemporarilyUnavailable)
                     return record
                 }
 
@@ -1229,6 +1235,20 @@ public enum ClaudeOAuthCredentialsStore {
             #endif
         }
 
+        private func cacheClaudeKeychainCredentials(_ credentials: ClaudeOAuthCredentials, data: Data, now: Date) {
+            ClaudeOAuthCredentialsStore.writeMemoryCache(
+                record: ClaudeOAuthCredentialRecord(
+                    credentials: credentials,
+                    owner: .claudeCLI,
+                    source: .memoryCache),
+                timestamp: now,
+                profileIdentifier: self.profileIdentifier)
+            ClaudeOAuthCredentialsStore.saveToCacheKeychain(
+                data,
+                owner: .claudeCLI,
+                profileIdentifier: self.profileIdentifier)
+        }
+
         @discardableResult
         func syncFromClaudeKeychainWithoutPrompt(now: Date = Date()) -> Bool {
             self.context.run {
@@ -1242,17 +1262,7 @@ public enum ClaudeOAuthCredentialsStore {
                     !data.isEmpty
                 {
                     if let creds = try? ClaudeOAuthCredentials.parse(data: data), !creds.isExpired {
-                        ClaudeOAuthCredentialsStore.writeMemoryCache(
-                            record: ClaudeOAuthCredentialRecord(
-                                credentials: creds,
-                                owner: .claudeCLI,
-                                source: .memoryCache),
-                            timestamp: now,
-                            profileIdentifier: self.profileIdentifier)
-                        ClaudeOAuthCredentialsStore.saveToCacheKeychain(
-                            data,
-                            owner: .claudeCLI,
-                            profileIdentifier: self.profileIdentifier)
+                        self.cacheClaudeKeychainCredentials(creds, data: data, now: now)
                         return true
                     }
                 }
@@ -1280,17 +1290,7 @@ public enum ClaudeOAuthCredentialsStore {
                 {
                     ClaudeOAuthCredentialsStore.saveClaudeKeychainFingerprint(
                         ClaudeOAuthCredentialsStore.currentClaudeKeychainFingerprintWithoutPrompt())
-                    ClaudeOAuthCredentialsStore.writeMemoryCache(
-                        record: ClaudeOAuthCredentialRecord(
-                            credentials: creds,
-                            owner: .claudeCLI,
-                            source: .memoryCache),
-                        timestamp: now,
-                        profileIdentifier: self.profileIdentifier)
-                    ClaudeOAuthCredentialsStore.saveToCacheKeychain(
-                        override,
-                        owner: .claudeCLI,
-                        profileIdentifier: self.profileIdentifier)
+                    self.cacheClaudeKeychainCredentials(creds, data: override, now: now)
                     return true
                 }
                 #endif
@@ -1313,17 +1313,7 @@ public enum ClaudeOAuthCredentialsStore {
 
                     if let creds = try? ClaudeOAuthCredentials.parse(data: data), !creds.isExpired {
                         ClaudeOAuthCredentialsStore.saveClaudeKeychainFingerprint(fingerprint)
-                        ClaudeOAuthCredentialsStore.writeMemoryCache(
-                            record: ClaudeOAuthCredentialRecord(
-                                credentials: creds,
-                                owner: .claudeCLI,
-                                source: .memoryCache),
-                            timestamp: now,
-                            profileIdentifier: self.profileIdentifier)
-                        ClaudeOAuthCredentialsStore.saveToCacheKeychain(
-                            data,
-                            owner: .claudeCLI,
-                            profileIdentifier: self.profileIdentifier)
+                        self.cacheClaudeKeychainCredentials(creds, data: data, now: now)
                         return true
                     }
 
@@ -1340,17 +1330,7 @@ public enum ClaudeOAuthCredentialsStore {
                 {
                     ClaudeOAuthCredentialsStore.saveClaudeKeychainFingerprint(
                         ClaudeOAuthCredentialsStore.currentClaudeKeychainFingerprintWithoutPrompt())
-                    ClaudeOAuthCredentialsStore.writeMemoryCache(
-                        record: ClaudeOAuthCredentialRecord(
-                            credentials: creds,
-                            owner: .claudeCLI,
-                            source: .memoryCache),
-                        timestamp: now,
-                        profileIdentifier: self.profileIdentifier)
-                    ClaudeOAuthCredentialsStore.saveToCacheKeychain(
-                        legacyData,
-                        owner: .claudeCLI,
-                        profileIdentifier: self.profileIdentifier)
+                    self.cacheClaudeKeychainCredentials(creds, data: legacyData, now: now)
                     return true
                 }
 
@@ -1382,7 +1362,7 @@ public enum ClaudeOAuthCredentialsStore {
                     existingRateLimitTier: existingRateLimitTier,
                     existingSubscriptionType: existingSubscriptionType)
 
-                ClaudeOAuthCredentialsStore.saveRefreshedCredentialsToCache(
+                ClaudeOAuthCredentialsStore.saveCredentialsToCache(
                     newCredentials,
                     historyOwnerIdentifier: historyOwnerIdentifier,
                     profileIdentifier: self.profileIdentifier)
@@ -1642,12 +1622,15 @@ public enum ClaudeOAuthCredentialsStore {
         }
     }
 
-    /// Save refreshed credentials to CodexBar's keychain cache
-    private static func saveRefreshedCredentialsToCache(
+    /// Persist a credential without changing who owns its refresh chain.
+    private static func saveCredentialsToCache(
         _ credentials: ClaudeOAuthCredentials,
         historyOwnerIdentifier: String?,
-        profileIdentifier: String)
+        profileIdentifier: String,
+        owner: ClaudeOAuthCredentialOwner = .codexbar,
+        allowCacheKeychainWrite: Bool = true)
     {
+        guard allowCacheKeychainWrite else { return }
         var oauth: [String: Any] = [
             "accessToken": credentials.accessToken,
             "expiresAt": (credentials.expiresAt?.timeIntervalSince1970 ?? 0) * 1000,
@@ -1667,16 +1650,16 @@ public enum ClaudeOAuthCredentialsStore {
         let oauthData: [String: Any] = ["claudeAiOauth": oauth]
 
         guard let jsonData = try? JSONSerialization.data(withJSONObject: oauthData) else {
-            self.log.error("Failed to serialize refreshed credentials for cache")
+            self.log.error("Failed to serialize credentials for cache")
             return
         }
 
         self.saveToCacheKeychain(
             jsonData,
-            owner: .codexbar,
+            owner: owner,
             historyOwnerIdentifier: historyOwnerIdentifier,
             profileIdentifier: profileIdentifier)
-        self.log.debug("Saved refreshed credentials to CodexBar keychain cache")
+        self.log.debug("Saved credentials to CodexBar keychain cache")
     }
 
     /// Response from the OAuth token refresh endpoint

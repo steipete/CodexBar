@@ -66,6 +66,9 @@ When fresh cache data becomes available, CodexBar can delete and recreate its ow
 replacement is attempted at most once per cooldown; a failed retry starts another cooldown even if the old item is
 already gone. Successful replacement clears the rejection immediately, including when another first-party process wins
 the add race. Cache clearing honors an existing repair cooldown and uses no-UI deletion without requiring decrypt access.
+Signature validation during preflight has a bounded wait. If macOS stalls inside validation, preflight returns an
+inconclusive result so the caller can release its cache locks and the refresh cycle can finish. Timed-out validations
+retain their worker slots until they actually return; retries cannot create an unlimited queue of blocked workers.
 Foreign items are never recreated this way. A direct delete that is only temporarily unavailable stays retryable; it does
 not establish a stale ACL. A temporarily locked Keychain or an incomplete ACL preflight also remains retryable sooner and
 is not replaced.

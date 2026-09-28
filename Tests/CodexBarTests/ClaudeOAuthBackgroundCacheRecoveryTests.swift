@@ -7,12 +7,17 @@ import Testing
 @Suite(.serialized)
 struct ClaudeOAuthBackgroundCacheRecoveryTests {
     enum CacheScenario: CaseIterable {
-        case available, writeRejected, temporarilyUnavailable, memoryOlderThanThirtyMinutes
+        case available, writeRejected, writeRejectedWithoutExpiry, temporarilyUnavailable, memoryOlderThanThirtyMinutes
         case expiredFile, expiredMemory, invalidated, neverPrompt, pendingInvalidation, profileChanged
+
+        var rejectsWrite: Bool {
+            self == .writeRejected || self == .writeRejectedWithoutExpiry
+        }
 
         var expectsRecovery: Bool {
             switch self {
-            case .available, .temporarilyUnavailable, .memoryOlderThanThirtyMinutes, .expiredFile: true
+            case .available, .writeRejected, .temporarilyUnavailable,
+                 .memoryOlderThanThirtyMinutes, .expiredFile: true
             default: false
             }
         }
@@ -30,7 +35,7 @@ struct ClaudeOAuthBackgroundCacheRecoveryTests {
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
         let environment = ["HOME": root.path, "CLAUDE_CONFIG_DIR": root.path]
-        let data = self.credentialsData()
+        let data = self.credentialsData(expiresIn: scenario == .writeRejectedWithoutExpiry ? nil : 7200)
 
         try await KeychainCacheStore.withServiceOverrideForTesting(service) {
             KeychainCacheStore.setTestStoreForTesting(true)
@@ -82,7 +87,7 @@ struct ClaudeOAuthBackgroundCacheRecoveryTests {
                 .write(to: ClaudeOAuthCredentialsStore.resolvedCredentialsURLForTesting)
             #expect(ClaudeOAuthCredentialsStore.invalidateCacheIfCredentialsFileChanged(environment: environment))
         }
-        let loadFailure: OSStatus? = scenario == .available || scenario == .writeRejected
+        let loadFailure: OSStatus? = scenario == .available || scenario.rejectsWrite
             ? nil : errSecInteractionNotAllowed
         let interactiveRead: @Sendable () throws -> Data = { data }
         try await KeychainCacheStore.withLoadFailureStatusOverrideForTesting(loadFailure) {
@@ -90,7 +95,7 @@ struct ClaudeOAuthBackgroundCacheRecoveryTests {
                 read: interactiveRead)
             {
                 try KeychainCacheStore.withStoreFailureStatusOverrideForTesting(
-                    scenario == .writeRejected ? errSecInteractionNotAllowed : nil)
+                    scenario.rejectsWrite ? errSecInteractionNotAllowed : nil)
                 {
                     let manual = try ProviderInteractionContext.$current.withValue(.userInitiated) {
                         try ClaudeOAuthCredentialsStore.loadRecord(
@@ -104,7 +109,7 @@ struct ClaudeOAuthBackgroundCacheRecoveryTests {
                     #expect(memory.record?.credentials.accessToken == "synthetic-manual-token")
                 }
             }
-            if scenario != .available, scenario != .temporarilyUnavailable, scenario != .writeRejected {
+            if scenario != .available, scenario != .temporarilyUnavailable, !scenario.rejectsWrite {
                 memory.timestamp = Date(timeIntervalSinceNow: -1860)
             }
             if scenario == .expiredMemory {
@@ -144,8 +149,22 @@ struct ClaudeOAuthBackgroundCacheRecoveryTests {
                                 let automatic = try load()
                                 #expect(automatic.credentials.accessToken == "synthetic-manual-token")
                                 #expect(automatic.source == .memoryCache)
+                                if scenario.rejectsWrite {
+                                    let profile = try #require(memory.profileIdentifier)
+                                    let key = ClaudeOAuthCredentialsStore.cacheKeyForTesting(profileIdentifier: profile)
+                                    guard case let .found(entry) = KeychainCacheStore.load(
+                                        key: key, as: ClaudeOAuthCredentialsStore.CacheEntry.self)
+                                    else {
+                                        Issue.record("Recovered credentials must be persisted for subsequent refreshes")
+                                        return
+                                    }
+                                    let persisted = try ClaudeOAuthCredentials.parse(data: entry.data)
+                                    #expect(persisted.accessToken == automatic.credentials.accessToken)
+                                    #expect(persisted.expiresAt == automatic.credentials.expiresAt)
+                                    #expect(entry.owner == .claudeCLI)
+                                }
                             } else {
-                                // A retained credential must not bypass pending invalidation after a rejected write.
+                                // Pending invalidation must be cleared before a retained credential can be reused.
                                 #expect(throws: ClaudeOAuthCredentialsError.self, performing: load)
                             }
                         }
@@ -155,10 +174,12 @@ struct ClaudeOAuthBackgroundCacheRecoveryTests {
         }
     }
 
-    private func credentialsData(expiresIn: TimeInterval = 7200) -> Data {
-        Data("""
+    private func credentialsData(expiresIn: TimeInterval? = 7200) -> Data {
+        let expiry = expiresIn.map { Int(Date(timeIntervalSinceNow: $0).timeIntervalSince1970 * 1000) }
+        let expiryField = expiry.map { "\"expiresAt\":\($0)," } ?? ""
+        return Data("""
         {"claudeAiOauth":{"accessToken":"synthetic-manual-token",
-        "expiresAt":\(Int(Date(timeIntervalSinceNow: expiresIn).timeIntervalSince1970 * 1000)),
+        \(expiryField)
         "scopes":["user:profile"]}}
         """.utf8)
     }
