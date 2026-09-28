@@ -179,7 +179,7 @@ extension UsageStore {
                         context: context,
                         phase: nextStatus.pending ? .indexing : .complete)
                     status = nextStatus
-                    if status.pending, !publishedCurrentWindow,
+                    if status.pending,
                        let publishedStatus = try await self.publishAvailableCodexCostCatchUpSnapshot(context: context)
                     {
                         publishedCurrentWindow = true

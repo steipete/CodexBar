@@ -285,7 +285,9 @@ the local result and returns a nonzero exit code. See [CLI host reporting](cli.m
     During historical catch-up, a validated reporting window can publish once its discovery, parser, materialization,
     and fork-ownership checks are complete. Metadata-only reads do not establish day coverage; unresolved or unparsed
     work retains the previous report. Cached publication is attempted before duty-cycle and resource-pause sleeps and
-    after bounded passes, preserving power limits and actual cache timestamps rather than stamping publication as a new scan.
+    after every bounded pass, including when an earlier pass already published a valid snapshot. Fresh validated totals
+    replace that earlier snapshot before the next sleep; final reconciliation can still lower totals. Publications use
+    actual cache timestamps, and the existing power limits and completeness checks still apply.
     A native scan loads exact usage rows once, deferring raw token history and checkpoints until a file changes
     or a fork needs its ancestors. A single-use receipt binds those deferred reads and saves to the original
     connection, database identity and SQLite change observations,
