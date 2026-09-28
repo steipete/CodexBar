@@ -206,7 +206,7 @@ struct AntigravityStatusProbeTests {
     }
 
     @Test
-    func `local snapshot score prefers quota summary over legacy model quotas`() {
+    func `local snapshot score prefers quota summary over legacy model quotas`() throws {
         let legacy = AntigravityStatusSnapshot(
             modelQuotas: [
                 AntigravityModelQuota(
@@ -225,48 +225,8 @@ struct AntigravityStatusProbeTests {
             accountEmail: "user@example.com",
             accountPlan: "Pro",
             source: .local)
-        let summary = AntigravityStatusSnapshot(
-            quotaSummary: AntigravityQuotaSummary(
-                description: nil,
-                groups: [
-                    AntigravityQuotaSummaryGroup(
-                        displayName: "Gemini Models",
-                        description: nil,
-                        buckets: [
-                            AntigravityQuotaSummaryBucket(
-                                bucketId: "gemini-5h",
-                                displayName: "Five Hour Limit",
-                                remainingFraction: 0.9,
-                                resetDescription: nil,
-                                disabled: false),
-                            AntigravityQuotaSummaryBucket(
-                                bucketId: "gemini-weekly",
-                                displayName: "Weekly Limit",
-                                remainingFraction: 0.8,
-                                resetDescription: nil,
-                                disabled: false),
-                        ]),
-                    AntigravityQuotaSummaryGroup(
-                        displayName: "Claude and GPT models",
-                        description: nil,
-                        buckets: [
-                            AntigravityQuotaSummaryBucket(
-                                bucketId: "3p-5h",
-                                displayName: "Five Hour Limit",
-                                remainingFraction: 0.7,
-                                resetDescription: nil,
-                                disabled: false),
-                            AntigravityQuotaSummaryBucket(
-                                bucketId: "3p-weekly",
-                                displayName: "Weekly Limit",
-                                remainingFraction: 0.6,
-                                resetDescription: nil,
-                                disabled: false),
-                        ]),
-                ]),
-            accountEmail: "user@example.com",
-            accountPlan: "Pro",
-            source: .local)
+        let summary = try AntigravityStatusProbe.parseQuotaSummaryResponse(Data(antigravityQuotaSummaryJSON().utf8))
+            .withIdentity(from: legacy)
 
         #expect(AntigravityStatusProbe.localSnapshotScore(summary) > AntigravityStatusProbe.localSnapshotScore(legacy))
     }

@@ -1689,16 +1689,6 @@ struct ProviderArchitectureGatekeeperTests {
             expectedProviderIDs: ["claude"],
             reason: "Antigravity quota titles use this token to identify a model family for display."),
         SuppressedProviderReference(
-            path: "Sources/CodexBarCore/Providers/Antigravity/AntigravityStatusProbe.swift",
-            anchor: "if title.contains(\"gemini\") {",
-            expectedProviderIDs: ["gemini"],
-            reason: "Antigravity quota titles use this token to rank a model family."),
-        SuppressedProviderReference(
-            path: "Sources/CodexBarCore/Providers/Antigravity/AntigravityStatusProbe.swift",
-            anchor: "if title.contains(\"claude\") || title.contains(\"gpt\") {",
-            expectedProviderIDs: ["claude"],
-            reason: "Antigravity quota titles use this token to rank a model family."),
-        SuppressedProviderReference(
             path: "Sources/CodexBarCore/Providers/AzureOpenAI/AzureOpenAIUsageFetcher.swift",
             anchor: "let base = self.apiRoot(endpoint: endpoint, pathComponents: [\"openai\", \"v1\"])",
             expectedProviderIDs: ["openai"],

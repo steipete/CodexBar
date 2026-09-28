@@ -36,8 +36,6 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
     private static let baseURL = "https://cloudcode-pa.googleapis.com"
     private static let loadCodeAssistEndpoint = "\(baseURL)/v1internal:loadCodeAssist"
     private static let onboardUserEndpoint = "\(baseURL)/v1internal:onboardUser"
-    private static let fetchAvailableModelsEndpoint = "\(baseURL)/v1internal:fetchAvailableModels"
-    private static let retrieveUserQuotaEndpoint = "\(baseURL)/v1internal:retrieveUserQuota"
     private static let refreshSafetyWindow: TimeInterval = 60
 
     private struct FetchContext {
@@ -137,6 +135,25 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
                 Self.log.warning("Could not persist Antigravity project ID: \(error.localizedDescription)")
             }
         }
+        let plan = Self.resolvePlan(response: codeAssist, claims: claims)
+        do {
+            let response: AntigravityQuotaSummaryResponse = try await Self.fetchQuotaResponse(
+                method: "retrieveUserQuotaSummary",
+                accessToken: accessToken,
+                projectId: projectId,
+                timeout: min(self.timeout, 2),
+                dataLoader: self.dataLoader)
+            try Task.checkCancellation()
+            let summary = try response.snapshot(accountEmail: claims.email, accountPlan: plan, source: .remote)
+            if summary.hasKnownQuotaSummary { return summary }
+        } catch {
+            if error is CancellationError || (error as? URLError)?.code == .cancelled ||
+                (error as? AntigravityRemoteFetchError) == .notLoggedIn
+            {
+                throw error
+            }
+            try Task.checkCancellation()
+        }
         let models = try await Self.fetchModelQuotas(
             accessToken: accessToken,
             projectId: projectId,
@@ -146,7 +163,7 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
         return AntigravityStatusSnapshot(
             modelQuotas: models,
             accountEmail: claims.email,
-            accountPlan: Self.resolvePlan(response: codeAssist, claims: claims),
+            accountPlan: plan,
             source: .remote)
     }
 
@@ -176,12 +193,13 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
             dataLoader: dataLoader)
     }
 
-    private static func fetchAvailableModels(
+    private static func fetchQuotaResponse<Response: Decodable>(
+        method: String,
         accessToken: String,
         projectId: String?,
         timeout: TimeInterval,
         dataLoader: @escaping @Sendable (URLRequest) async throws -> (Data, URLResponse)) async throws
-        -> FetchAvailableModelsResponse
+        -> Response
     {
         let body: [String: Any] = if let projectId = projectId?.trimmedNonEmpty {
             ["project": projectId]
@@ -189,7 +207,7 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
             [:]
         }
         return try await Self.sendRequest(
-            endpoint: Self.fetchAvailableModelsEndpoint,
+            endpoint: "\(Self.baseURL)/v1internal:\(method)",
             accessToken: accessToken,
             body: body,
             timeout: timeout,
@@ -204,7 +222,8 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
         -> [AntigravityModelQuota]
     {
         do {
-            let response = try await Self.fetchAvailableModels(
+            let response: FetchAvailableModelsResponse = try await Self.fetchQuotaResponse(
+                method: "fetchAvailableModels",
                 accessToken: accessToken,
                 projectId: projectId,
                 timeout: timeout,
@@ -216,7 +235,7 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
                     projectId: projectId,
                     timeout: timeout,
                     dataLoader: dataLoader)
-                guard let quotaBuckets, Self.hasQuotaFractionData(quotaBuckets) else {
+                guard let quotaBuckets, quotaBuckets.contains(where: { $0.remainingFraction != nil }) else {
                     return []
                 }
                 return Self.mergeVerifiedQuotas(modelQuotas: modelQuotas, verifiedQuotas: quotaBuckets)
@@ -274,12 +293,6 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
         }
     }
 
-    private static func hasQuotaFractionData(_ quotas: [AntigravityModelQuota]) -> Bool {
-        quotas.contains { quota in
-            quota.remainingFraction != nil
-        }
-    }
-
     private static func fetchQuotaBucketsIfPermitted(
         accessToken: String,
         projectId: String?,
@@ -288,7 +301,8 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
         -> [AntigravityModelQuota]?
     {
         do {
-            let response = try await Self.retrieveUserQuota(
+            let response: RetrieveUserQuotaResponse = try await Self.fetchQuotaResponse(
+                method: "retrieveUserQuota",
                 accessToken: accessToken,
                 projectId: projectId,
                 timeout: timeout,
@@ -301,26 +315,6 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
             Self.log.info("Antigravity remote quota endpoint is not permitted for this account")
             return nil
         }
-    }
-
-    private static func retrieveUserQuota(
-        accessToken: String,
-        projectId: String?,
-        timeout: TimeInterval,
-        dataLoader: @escaping @Sendable (URLRequest) async throws -> (Data, URLResponse)) async throws
-        -> RetrieveUserQuotaResponse
-    {
-        let body: [String: Any] = if let projectId = projectId?.trimmedNonEmpty {
-            ["project": projectId]
-        } else {
-            [:]
-        }
-        return try await Self.sendRequest(
-            endpoint: Self.retrieveUserQuotaEndpoint,
-            accessToken: accessToken,
-            body: body,
-            timeout: timeout,
-            dataLoader: dataLoader)
     }
 
     private static func resolveProjectID(
@@ -451,19 +445,15 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
         for bucket in buckets {
             guard let modelID = bucket.modelId?.trimmedNonEmpty else { continue }
             let next = (bucket.remainingFraction, bucket.resetTime)
-            if let existing = modelQuotaMap[modelID] {
-                let existingValue = existing.fraction ?? Double.greatestFiniteMagnitude
-                let nextValue = next.0 ?? Double.greatestFiniteMagnitude
-                if nextValue < existingValue {
-                    modelQuotaMap[modelID] = next
-                }
-            } else {
-                modelQuotaMap[modelID] = next
+            if let existing = modelQuotaMap[modelID],
+               (existing.fraction ?? .greatestFiniteMagnitude) <= (next.0 ?? .greatestFiniteMagnitude)
+            {
+                continue
             }
+            modelQuotaMap[modelID] = next
         }
 
-        return modelQuotaMap.keys.sorted().compactMap { modelID in
-            guard let info = modelQuotaMap[modelID] else { return nil }
+        return modelQuotaMap.sorted { $0.key < $1.key }.map { modelID, info in
             let resetTime = ISO8601DateParser.parse(info.resetTime)
             return AntigravityModelQuota(
                 label: modelID,

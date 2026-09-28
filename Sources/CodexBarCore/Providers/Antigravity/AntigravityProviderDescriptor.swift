@@ -885,7 +885,7 @@ struct AntigravityOAuthFetchStrategy: ProviderFetchStrategy {
         from snapshot: AntigravityStatusSnapshot,
         updatedAt: Date = Date()) throws -> UsageSnapshot
     {
-        if snapshot.modelQuotas.isEmpty {
+        if snapshot.modelQuotas.isEmpty, snapshot.quotaSummary == nil {
             return UsageSnapshot(
                 primary: nil,
                 secondary: nil,
