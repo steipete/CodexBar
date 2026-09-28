@@ -8,6 +8,32 @@ import Testing
 struct ZaiPluginResetTests {
     private static let now = Date(timeIntervalSince1970: 1_800_000_000)
 
+    @Test
+    func `reported August payload uses its five hour cadence and exact epoch`() async throws {
+        // Transcribed from #2871's quota screenshot; the menu capture reads 18:39 in Santiago.
+        let now = try #require(ISO8601DateFormatter().date(from: "2026-08-11T22:39:00Z"))
+        let body = """
+        {"code":200,"success":true,"data":{"level":"pro","limits":[
+          {"type":"TIME_LIMIT","unit":5,"number":1,"usage":1000,"currentValue":0,"remaining":1000,
+           "percentage":0,"nextResetTime":1786489348996,"usageDetails":[
+             {"modelCode":"search-prime","usage":0},{"modelCode":"web-reader","usage":0},
+             {"modelCode":"zread","usage":0}]},
+          {"type":"TOKENS_LIMIT","unit":3,"number":5,"percentage":42,"nextResetTime":1786493397235}
+        ]}}
+        """
+        let snapshot = try await Self.fetch(body: body, now: now)
+        let reset = try #require(snapshot.primary?.resetsAt)
+        #expect(snapshot.primary?.windowMinutes == 300)
+        #expect(snapshot.primary?.usedPercent == 42)
+        #expect(reset.timeIntervalSince1970 == 1_786_493_397.235)
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try #require(TimeZone(identifier: "America/Santiago"))
+        #expect(calendar.component(.hour, from: reset) == 20)
+        #expect(calendar.component(.minute, from: reset) == 9)
+        #expect(snapshot.secondary == nil)
+        #expect(snapshot.extraRateWindows?.first?.window.resetDescription == "MCP")
+    }
+
     @Test(arguments: ["TOKENS_LIMIT", "CREDIT_LIMIT"])
     func `five hour windows omit impossible resets and preserve quota`(type: String) async throws {
         for offset in [TimeInterval(36000), 18060.001] {
@@ -101,6 +127,10 @@ struct ZaiPluginResetTests {
           {"type":"TIME_LIMIT","unit":5,"number":1,"percentage":22,"nextResetTime":\(mcpMillis)}
         ]}}
         """
+        return try await Self.fetch(body: body, now: Self.now)
+    }
+
+    private static func fetch(body: String, now: Date) async throws -> UsageSnapshot {
         let runtime = try ProviderPluginRuntime(
             bundledPlugin: "zai",
             transport: ProviderHTTPTransportHandler { request in
@@ -116,6 +146,6 @@ struct ZaiPluginResetTests {
         return try await runtime.fetchUsage(
             settings: ["Z_AI_REGION": "global", "Z_AI_USAGE_SCOPE": "personal"],
             secrets: ["Z_AI_API_KEY": "fixture-key"],
-            now: Self.now)
+            now: now)
     }
 }

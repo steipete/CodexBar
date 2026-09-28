@@ -18,6 +18,8 @@
 - Antigravity: preserve grouped OAuth quotas, including weekly-only Starter allowances, and honor explicit quota-window cadence using the shared CLI parser (#2427, #3789).
 - Kimi: direct stale CLI sessions to run `kimi` or configure an API key in Settings, while retaining web fallback and leaving rotating CLI credentials read-only (#4063). Thanks @kid0114!
 - Claude and Vertex: reuse freshly saved cost-history rows, skip encoding unchanged caches, and compact retained row fields to reduce CPU and disk writes during repeated refreshes (#3882, #3247, #3323).
+- Kimi Code: mark shorter Code windows as blocked when the known monthly membership pool is exhausted, without showing fresh quota or pace forecasts (#3536).
+- z.ai: explain unavailable Coding Plan usage for empty or unsupported quota shapes while preserving recognized quotas and analytics (#2522).
 - Token history: show observed model names when per-model totals are unavailable, including Grok local sessions (#4056). Fixes #4054. Thanks @BUKOWSKIREAL!
 - TypeSafe: show the credit balance in the menu bar and layout preview instead of missing-value dashes, using shared balance-label metadata (#4050). Thanks @lg!
 - Grok: retain the product usage breakdown on the grok.com billing fallback, with bounded shared protobuf decoding (#4041). Thanks @olddonkey!

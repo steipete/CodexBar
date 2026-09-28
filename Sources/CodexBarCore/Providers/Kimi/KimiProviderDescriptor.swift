@@ -106,14 +106,8 @@ public enum KimiProviderDescriptor {
                 semanticWindowResolver: { snapshot in
                     let candidates = [snapshot.primary, snapshot.secondary, snapshot.tertiary]
                         + (snapshot.extraRateWindows ?? []).map(\.window)
-                    let usable = candidates.compactMap { window -> RateWindow? in
-                        guard let window, !window.isSyntheticPlaceholder else { return nil }
-                        return window
-                    }
-                    let session = usable.first { window in
-                        guard let minutes = window.windowMinutes else { return false }
-                        return (60...(12 * 60)).contains(minutes)
-                    }
+                    let usable = candidates.compactMap(\.self).filter { !$0.isSyntheticPlaceholder }
+                    let session = usable.first { (60...(12 * 60)).contains($0.windowMinutes ?? 0) }
                     let cadenceWeekly = usable.first { $0.windowMinutes == 7 * 24 * 60 }
                     let primary = snapshot.primary.flatMap { $0.isSyntheticPlaceholder ? nil : $0 }
                     return ProviderSemanticWindows(session: session, weekly: primary ?? cadenceWeekly)
@@ -122,7 +116,9 @@ public enum KimiProviderDescriptor {
                 secondarySemanticWindow: .session,
                 menuBarWindowResolver: self.menuBarWindow,
                 widgetRowLimitResolver: { _, _ in 3 },
-                menuCard: ProviderMenuCardPresentation(resetWindowUsesWeeklyPace: true)),
+                menuCard: ProviderMenuCardPresentation(
+                    resetWindowUsesWeeklyPace: true,
+                    blockingQuota: ("kimi-monthly", "Blocked by monthly limit"))),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .api, .web],
                 pipeline: ProviderFetchPipeline(resolveStrategies: self.resolveStrategies)),

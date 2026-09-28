@@ -32,15 +32,15 @@ struct UsageMenuCardView: View {
             }
 
             let id: String
-            let title: String
-            let percent: Double
+            var title: String
+            var percent: Double
             let percentStyle: PercentStyle
-            let statusText: String?
-            let resetText: String?
-            let detailText: String?
-            let detailLeftText: String?
-            let detailRightText: String?
-            let pacePercent: Double?
+            var statusText: String?
+            var resetText: String?
+            var detailText: String?
+            var detailLeftText: String?
+            var detailRightText: String?
+            var pacePercent: Double?
             /// True when detailLeftText/detailRightText came from a pace forecast.
             let detailIsPaceDerived: Bool
             let paceOnTop: Bool
@@ -48,7 +48,7 @@ struct UsageMenuCardView: View {
             let workdayMarkerPercents: [Double]
             let workdayTickAppearance: WorkdayTickAppearance
             let cardStyle: Bool
-            let sessionEquivalentDetail: UsagePaceText.SessionEquivalentDetail?
+            var sessionEquivalentDetail: UsagePaceText.SessionEquivalentDetail?
 
             init(
                 id: String,
@@ -1247,7 +1247,7 @@ extension UsageMenuCardView.Model {
                 pacePercent: nil,
                 paceOnTop: true))
         }
-        return metrics
+        return Self.blockingQuotaMetrics(metrics, input: input, snapshot: snapshot)
     }
 
     private static func primaryMetric(

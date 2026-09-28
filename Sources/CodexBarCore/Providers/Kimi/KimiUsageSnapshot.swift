@@ -11,14 +11,7 @@ public struct KimiUsageSnapshot: Sendable {
     let codeUsagePools: KimiCodeUsagePools?
 
     public init(weekly: KimiUsageDetail?, rateLimit: KimiUsageDetail?, updatedAt: Date) {
-        self.weekly = weekly
-        self.rateLimit = rateLimit
-        self.updatedAt = updatedAt
-        self.rateLimitWindow = nil
-        self.subscriptionBalance = nil
-        self.subscriptionCodeWeeklyLimit = nil
-        self.planName = nil
-        self.codeUsagePools = nil
+        self.init(weekly: weekly, rateLimit: rateLimit, subscriptionBalance: nil, updatedAt: updatedAt)
     }
 
     init(
@@ -185,20 +178,16 @@ extension KimiUsageSnapshot {
             showsDistinctCodeWeeklyWindow ? subscriptionCodeWeeklyWindow : nil,
         ].compactMap(\.self)
 
-        let identity = ProviderIdentitySnapshot(
-            providerID: .kimi,
-            accountEmail: nil,
-            accountOrganization: nil,
-            loginMethod: self.planName)
-
         return UsageSnapshot(
             primary: weeklyWindow,
             secondary: rateLimitWindow,
-            tertiary: nil,
             extraRateWindows: extraRateWindows.isEmpty ? nil : extraRateWindows,
-            providerCost: nil,
             updatedAt: self.updatedAt,
-            identity: identity)
+            identity: ProviderIdentitySnapshot(
+                providerID: .kimi,
+                accountEmail: nil,
+                accountOrganization: nil,
+                loginMethod: self.planName))
     }
 
     private static func isEquivalentToWeeklyWindow(_ window: RateWindow, weeklyWindow: RateWindow?) -> Bool {

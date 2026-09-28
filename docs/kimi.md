@@ -22,6 +22,7 @@ Code subscription credentials.
 - Detects the installed Kimi CLI version, including standalone installs outside the GUI app PATH
 - Enriches Code API/CLI usage with the monthly membership pool when a web session is available
 - Automatic menu-bar usage prioritizes an exhausted monthly Total usage pool over reset Code windows; explicit window selections remain authoritative
+- When a known monthly Total usage pool is exhausted, the menu card marks shorter Code windows as blocked by the monthly limit and omits their pace forecasts. Raw API percentages and explicit menu-bar selections remain available; unknown or expired monthly limits do not block the card.
 - API-key, Kimi Code CLI, automatic cookie, and manual cookie authentication methods
 - Multiple labeled web accounts through the shared token-account editor
 - Automatic refresh countdown

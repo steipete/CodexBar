@@ -142,7 +142,8 @@ Copy each value once, on one line. Multi-line or duplicated IDs can make the API
   - A single Coding Plan limit becomes primary. With multiple limits, the first becomes primary and the last becomes secondary after sorting by duration; unknown durations sort last.
   - `TIME_LIMIT` → a separate MCP lane when a Coding Plan window is available, otherwise the primary MCP window; never a fabricated monthly Coding Plan window.
 - Usage percentage:
-  - Empty or unrecognized quota limits remain unavailable; they never imply 0% used. Reported zero usage remains visible, and plan details and optional analytics are retained without a quota window.
+  - Empty or wholly unrecognized quota limits show Coding Plan usage as unavailable and direct users to Usage Dashboard; they never imply 0% used. Unknown string limit types are skipped without requiring legacy window fields. Mixed responses retain recognized windows and explain that additional quota is unavailable. Malformed entries and unsupported response envelopes fail with Dashboard guidance. Reported zero usage, plan details, and optional analytics remain supported.
+  - `CREDIT_LIMIT` supports points-based quotas using the supplied counts. An unknown plan shape is not treated as verified GLM Coding Plan V3 compatibility.
   - An integer `percentage` is required. When a positive `usage` limit and a `currentValue` or `remaining` count are present, the counts determine the used percentage. The result is clamped to 0–100%.
 - Window duration:
   - Unit + number → minutes/hours/days.

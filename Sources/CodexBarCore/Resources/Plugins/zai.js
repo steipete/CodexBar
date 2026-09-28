@@ -49,7 +49,7 @@ defineProvider({
       throw new Error(`z.ai quota API error: ${root && root.msg ? root.msg : "invalid response"}`);
     }
     if (!root.data || typeof root.data !== "object" || !Array.isArray(root.data.limits)) {
-      throw new Error("Failed to parse z.ai quota data");
+      throw new Error("Unsupported z.ai quota format. Check Usage Dashboard for plan usage.");
     }
 
     function optionalInteger(value, field) {
@@ -58,6 +58,8 @@ defineProvider({
       return value;
     }
     function parseLimit(raw) {
+      if (raw && typeof raw.type === "string" && !["TOKENS_LIMIT", "TIME_LIMIT", "CREDIT_LIMIT"].includes(raw.type))
+        return null;
       if (
         !raw ||
         typeof raw !== "object" ||
@@ -67,9 +69,8 @@ defineProvider({
         !Number.isInteger(raw.number) ||
         !Number.isInteger(raw.percentage)
       ) {
-        throw new Error("Failed to parse z.ai limit entry");
+        throw new Error("Unsupported z.ai quota entry. Check Usage Dashboard for plan usage.");
       }
-      if (raw.type !== "TOKENS_LIMIT" && raw.type !== "TIME_LIMIT" && raw.type !== "CREDIT_LIMIT") return null;
       const usage = optionalInteger(raw.usage, "limit.usage");
       const current = optionalInteger(raw.currentValue, "limit.currentValue");
       const remaining = optionalInteger(raw.remaining, "limit.remaining");
@@ -176,6 +177,13 @@ defineProvider({
       identity: {},
       details: [{ title: "Quota details", rows: [] }],
     };
+    if (!limits.length || limits.length < root.data.limits.length) {
+      result.details[0].rows.push({
+        label: tokenLimits.length ? "Additional quota" : "Coding Plan usage",
+        value: "Unavailable",
+        secondaryValue: "Check Usage Dashboard for complete plan usage.",
+      });
+    }
     if (tokenLimits.length >= 2) result.secondary = window(tokenLimit);
     if (tokenLimit && timeLimit) {
       result.extraWindows = [{ id: "zai-mcp", title: "MCP", window: window(timeLimit) }];

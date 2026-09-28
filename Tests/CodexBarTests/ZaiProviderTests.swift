@@ -6,6 +6,7 @@ struct ZaiProviderTests {
     @Test(arguments: BundledPluginTestSupport.engines, [
         "",
         #"{"type":"FUTURE_LIMIT","unit":3,"number":5,"percentage":40}"#,
+        #"{"type":"FUTURE_POINTS_POOL","pointsRemaining":800}"#,
     ])
     func `missing recognized limits never fabricate unused quota`(
         engine: ProviderPluginEngineKind,
@@ -21,6 +22,8 @@ struct ZaiProviderTests {
             #expect(snapshot.secondary == nil)
             #expect(snapshot.extraRateWindows?.isEmpty != false)
             #expect(snapshot.identity?.loginMethod == "Pro")
+            #expect(snapshot.detailRow(label: "Coding Plan usage")?.value == "Unavailable")
+            #expect(snapshot.detailRow(label: "Coding Plan usage")?.secondaryValue?.contains("Usage Dashboard") == true)
             #expect(snapshot.details.map(\.title) == (analytics == Self.emptyModelUsageFixture
                     ? ["Quota details"] : ["Quota details", "Hourly tokens", "Daily tokens"]))
         }
@@ -40,6 +43,59 @@ struct ZaiProviderTests {
         #expect(snapshot.primary?.usedPercent == 0)
         #expect(snapshot.primary?.windowMinutes == 300)
         #expect(snapshot.secondary == nil)
+        #expect(snapshot.detailRow(label: "Coding Plan usage") == nil)
+    }
+
+    @Test(arguments: BundledPluginTestSupport.engines)
+    func `unsupported plan pool preserves known MCP without implying Coding Plan availability`(
+        engine: ProviderPluginEngineKind) async throws
+    {
+        let fixture = #"""
+        {"code":200,"success":true,"data":{"limits":[
+          {"type":"FUTURE_POINTS_POOL","pointsRemaining":800},
+          {"type":"TIME_LIMIT","unit":5,"number":1,"percentage":25}
+        ]}}
+        """#
+        let snapshot = try await Self.pluginSnapshot(quotaFixture: fixture, engine: engine)
+        #expect(snapshot.primary?.resetDescription == "MCP")
+        #expect(snapshot.primary?.usedPercent == 25)
+        #expect(snapshot.detailRow(label: "Coding Plan usage")?.value == "Unavailable")
+    }
+
+    @Test(arguments: BundledPluginTestSupport.engines)
+    func `unknown extra limits do not mark recognized Coding Plan usage unavailable`(
+        engine: ProviderPluginEngineKind) async throws
+    {
+        let fixture = #"""
+        {"code":200,"success":true,"data":{"limits":[
+          {"type":"TOKENS_LIMIT","unit":3,"number":5,"percentage":25},
+          {"type":"FUTURE_POINTS_POOL","pointsRemaining":800}
+        ]}}
+        """#
+        let snapshot = try await Self.pluginSnapshot(quotaFixture: fixture, engine: engine)
+        #expect(snapshot.primary?.usedPercent == 25)
+        #expect(snapshot.detailRow(label: "Coding Plan usage") == nil)
+        #expect(snapshot.detailRow(label: "Additional quota")?.value == "Unavailable")
+    }
+
+    @Test(arguments: BundledPluginTestSupport.engines, [
+        #"{"pointsPool":{"remaining":800}}"#,
+        #"{"limits":[{"unit":3,"number":5,"percentage":25}]}"#,
+        #"{"limits":[{"type":null,"unit":3,"number":5,"percentage":25}]}"#,
+        #"{"limits":[{"type":42,"unit":3,"number":5,"percentage":25}]}"#,
+    ])
+    func `unsupported quota shapes explain where to check usage`(
+        engine: ProviderPluginEngineKind,
+        data: String) async
+    {
+        do {
+            _ = try await Self.pluginSnapshot(
+                quotaFixture: #"{"code":200,"success":true,"data":\#(data)}"#,
+                engine: engine)
+            Issue.record("An unsupported quota envelope must not invent usage")
+        } catch {
+            #expect(error.localizedDescription.contains("Usage Dashboard"))
+        }
     }
 
     @Test(arguments: BundledPluginTestSupport.engines)
