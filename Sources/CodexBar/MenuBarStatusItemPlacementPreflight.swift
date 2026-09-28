@@ -19,24 +19,17 @@ enum MenuBarStatusItemPlacementPreflight {
         -> Bool
     {
         let names = [autosaveName] + (legacyDefaultItemIndex.map { ["Item-\($0)"] } ?? [])
-        let keys = self.keysToClear(
-            defaults.dictionaryRepresentation(),
-            autosaveNames: names,
-            screenWidths: maximumPreferredPosition.map { [$0] } ?? [])
+        let keys = names.map { self.preferredPositionKey(autosaveName: $0) }.filter { key in
+            defaults.object(forKey: key).map {
+                self.shouldClearPreferredPosition($0, maximumPreferredPosition: maximumPreferredPosition)
+            } ?? false
+        }
         for key in keys {
             defaults.removeObject(forKey: key)
             CodexBarLog.logger(LogCategories.app).info(
                 "Repaired macOS status-item preferred position", metadata: ["key": key])
         }
         return !keys.isEmpty
-    }
-
-    static func keysToClear(_ defaults: [String: Any], autosaveNames: [String], screenWidths: [Double]) -> [String] {
-        autosaveNames.map { self.preferredPositionKey(autosaveName: $0) }.filter { key in
-            defaults[key].map {
-                self.shouldClearPreferredPosition($0, maximumPreferredPosition: screenWidths.max())
-            } ?? false
-        }
     }
 
     static func shouldClearPreferredPosition(_ value: Any, maximumPreferredPosition: Double?) -> Bool {

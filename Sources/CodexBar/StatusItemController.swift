@@ -783,7 +783,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
                 let shouldBeVisible = isEnabled || fallback == provider || force
                 if shouldBeVisible {
                     let item = self.lazyStatusItem(for: provider)
-                    item.isVisible = true
+                    self.setStatusItemVisiblePreservingPlacement(item, true)
                     expectedVisibleAutosaveNames.insert(item.autosaveName)
                 } else {
                     self.removeProviderStatusItem(for: provider)

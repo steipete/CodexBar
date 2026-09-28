@@ -32,7 +32,9 @@ read_when:
   retain their existing selection rules.
 - Normal quit removes status items with their stable identities intact, preventing retained blank menu bar slots on macOS 26.6.2 while preserving saved placement.
 - Status items receive stable autosave names before normal sizing, including during visibility recovery. Saved
-  positions beyond the widest attached display plus 512 points are cleared before creation; valid placements remain.
+  positions beyond the widest attached display plus 512 points are cleared before creation. Visibility changes and
+  removal validate positions before saving and after AppKit updates them: a missing or invalid result restores only
+  a valid previous position. Valid new positions remain untouched; unrelated defaults are never repaired by this path.
 - When Overview has selected providers, the switcher includes an Overview tab that renders up to 6 provider rows.
 - Overview row order follows provider order; selecting a row jumps to that provider detail card.
 - Menu → Overview layout offers Detailed (default) and Compact. Compact keeps provider/account headers and labeled quota bars, omits their reset/detail lines and supplemental sections, and retains detail-only providers. Select a provider for its full card. Visibility choices and the shared Usage & Spend summary continue to apply.

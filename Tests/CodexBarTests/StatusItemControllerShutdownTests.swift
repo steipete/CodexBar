@@ -196,8 +196,10 @@ struct StatusItemControllerShutdownTests {
         }
     }
 
-    @Test
-    func `runtime removal hides and removes before retiring identity and restores saved placement`() {
+    @Test(arguments: [false, true])
+    func `runtime removal hides and removes before retiring identity and restores saved placement`(
+        invalidRewrite: Bool)
+    {
         let statusBar = RecordingStatusBar()
         let controller = self.makeController(statusBar: statusBar)
         defer {
@@ -216,7 +218,11 @@ struct StatusItemControllerShutdownTests {
                 #expect(removed === item)
                 #expect(removed.autosaveName == name)
                 #expect(!removed.isVisible)
-                defaults.removeObject(forKey: key)
+                if invalidRewrite {
+                    defaults.set(Double.infinity, forKey: key)
+                } else {
+                    defaults.removeObject(forKey: key)
+                }
             }
 
             controller.removeStatusItemPreservingPlacement(item)
@@ -227,8 +233,8 @@ struct StatusItemControllerShutdownTests {
         statusBar.onRemove = nil
     }
 
-    @Test
-    func `visibility changes retain identity and restore saved placement`() {
+    @Test(arguments: [false, true])
+    func `visibility changes retain identity and restore saved placement`(invalidRewrite: Bool) {
         let controller = self.makeController(statusBar: RecordingStatusBar())
         defer {
             controller.prepareForAppShutdown()
@@ -239,7 +245,13 @@ struct StatusItemControllerShutdownTests {
         item.autosaveName = "codexbar-claude"
         let defaults = controller.settings.userDefaults
         let key = MenuBarStatusItemPlacementPreflight.preferredPositionKey(autosaveName: item.autosaveName)
-        item.onVisibilityChange = { defaults.removeObject(forKey: key) }
+        item.onVisibilityChange = {
+            if invalidRewrite {
+                defaults.set(Double.infinity, forKey: key)
+            } else {
+                defaults.removeObject(forKey: key)
+            }
+        }
         for isVisible in [false, true] {
             defaults.set(845, forKey: key)
 
