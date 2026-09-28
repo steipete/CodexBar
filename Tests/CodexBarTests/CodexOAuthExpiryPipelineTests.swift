@@ -4,6 +4,127 @@ import Testing
 
 @Suite(CodexCredentialFixtures())
 struct CodexOAuthExpiryPipelineTests {
+    private typealias Reader = @Sendable (CodexCredentialFileAccess.Operation, URL) throws -> Data
+
+    @Test(arguments: ["missing", "partial", "incomplete", "expired", "near-expiry"])
+    func `OAuth fetch retries an owner publication in progress`(publication: String) async throws {
+        let fresh = try Self.fixture(expiration: 4_102_444_800, lastRefresh: "2000-01-01T00:00:00Z")
+        let stale = try Self.fixture(
+            expiration: publication == "near-expiry" ? Int64(Date().timeIntervalSince1970 + 120) : 1,
+            lastRefresh: "2000-01-01T00:00:00Z")
+        let reads = LockIsolated(0)
+        let transport = ProviderHTTPTransportStub { request in
+            #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer \(fresh.token)")
+            #expect(request.value(forHTTPHeaderField: "ChatGPT-Account-Id") == "fixture-workspace")
+            return try Self.response(request, body: Self.usageBody)
+        }
+        let reader: Reader = { operation, url in
+            guard case .read = operation else { return Data(url.resolvingSymlinksInPath().path.utf8) }
+            let attempt = reads.value + 1
+            reads.setValue(attempt)
+            guard attempt == 1 else { return fresh.data }
+            switch publication {
+            case "missing": throw CocoaError(.fileReadNoSuchFile)
+            case "partial": return Data(#"{"tokens":"#.utf8)
+            case "incomplete": return Data(#"{"tokens":{}}"#.utf8)
+            default: return stale.data
+            }
+        }
+        let result = try await CodexCredentialFileAccess.$testIO.withValue(reader) {
+            try await CodexAuthenticatedHTTPTransport.$overrideForTesting.withValue(transport) {
+                try await CodexOAuthFetchStrategy().fetch(Self.context(mode: .oauth, managed: true, home: fresh.home))
+            }
+        }
+        #expect(result.usage.primary?.usedPercent == 22)
+        #expect(reads.value == 2)
+        #expect(await transport.requests().count == 1)
+        try fresh.expectUnchanged()
+    }
+
+    @Test
+    func `OAuth availability retries a partial credential publication`() async throws {
+        let fresh = try Self.fixture(expiration: 4_102_444_800, lastRefresh: "2000-01-01T00:00:00Z")
+        let reads = LockIsolated(0)
+        let reader: Reader = { operation, url in
+            guard case .read = operation else { return Data(url.resolvingSymlinksInPath().path.utf8) }
+            reads.setValue(reads.value + 1)
+            return reads.value == 1 ? Data("{".utf8) : fresh.data
+        }
+        let available = await CodexCredentialFileAccess.$testIO.withValue(reader) {
+            await CodexOAuthFetchStrategy().isAvailable(Self.context(mode: .auto, managed: true, home: fresh.home))
+        }
+        #expect(available)
+        #expect(reads.value == 2)
+    }
+
+    @Test(arguments: ["missing", "partial", "incomplete", "expired", "unreadable"])
+    func `OAuth read retries are bounded and preserve the final error`(failure: String) async throws {
+        let stale = try Self.fixture(expiration: 1, lastRefresh: "2000-01-01T00:00:00Z")
+        let reads = LockIsolated(0)
+        let transport = ProviderHTTPTransportStub { _ in
+            Issue.record("Unusable credentials must never reach HTTP")
+            throw URLError(.cancelled)
+        }
+        let reader: Reader = { operation, url in
+            guard case .read = operation else { return Data(url.resolvingSymlinksInPath().path.utf8) }
+            reads.setValue(reads.value + 1)
+            switch failure {
+            case "missing": throw CocoaError(.fileReadNoSuchFile)
+            case "unreadable": throw CocoaError(.fileReadNoPermission)
+            case "partial": return Data("{".utf8)
+            case "incomplete": return Data(#"{"tokens":{}}"#.utf8)
+            default: return stale.data
+            }
+        }
+        await CodexCredentialFileAccess.$testIO.withValue(reader) {
+            await CodexAuthenticatedHTTPTransport.$overrideForTesting.withValue(transport) {
+                do {
+                    _ = try await CodexOAuthFetchStrategy().fetch(
+                        Self.context(mode: .oauth, managed: true, home: stale.home))
+                    Issue.record("Expected a credential error")
+                } catch let error as CodexOAuthCredentialsError {
+                    switch (failure, error) {
+                    case ("missing", .notFound), ("partial", .decodeFailed), ("incomplete", .missingTokens),
+                         ("expired", .nativeRefreshRequired), ("unreadable", .unreadable): break
+                    default: Issue.record("The final credential failure was misclassified")
+                    }
+                } catch {
+                    Issue.record("Unexpected error type")
+                }
+            }
+        }
+        #expect(reads.value == 3)
+        #expect(await transport.requests().isEmpty)
+        try stale.expectUnchanged()
+    }
+
+    @Test
+    func `cancelled OAuth fetch does not read credentials`() async throws {
+        let fresh = try Self.fixture(expiration: 4_102_444_800, lastRefresh: "2000-01-01T00:00:00Z")
+        let reads = LockIsolated(0)
+        let reader: Reader = { operation, url in
+            guard case .read = operation else { return Data(url.resolvingSymlinksInPath().path.utf8) }
+            reads.setValue(reads.value + 1)
+            throw CocoaError(.fileReadNoSuchFile)
+        }
+        let task = Task {
+            withUnsafeCurrentTask { $0?.cancel() }
+            return await CodexCredentialFileAccess.$testIO.withValue(reader) {
+                do {
+                    _ = try await CodexOAuthFetchStrategy().fetch(
+                        Self.context(mode: .oauth, managed: true, home: fresh.home))
+                    return false
+                } catch is CancellationError {
+                    return true
+                } catch {
+                    return false
+                }
+            }
+        }
+        #expect(await task.value)
+        #expect(reads.value == 0)
+    }
+
     @Test(arguments: [ProviderSourceMode.auto, .oauth])
     func `managed refresh observes owner credential replacement on the next fetch`(
         mode: ProviderSourceMode) async throws

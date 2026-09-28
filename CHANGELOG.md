@@ -8,6 +8,7 @@
 
 ### Fixed
 
+- Codex: retry brief credential-file publication races before reporting refresh errors, and discard the previous plan's quota baseline after a subscription change so fresh usage can appear (#3635, #3389).
 - Development: restore test compilation on Xcode 26.3 / Swift 6.2 and check app, CLI, and test compatibility in CI (#4070). Thanks @RowboTony!
 - Configuration: treat empty or whitespace-only config files like missing files so usage keeps working; settings saves write valid JSON, while malformed non-empty files still report errors (#4071).
 - Menu bar: reject corrupt saved positions during status-item visibility changes and removal while preserving valid placement across restarts (#3355).

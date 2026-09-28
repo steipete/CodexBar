@@ -49,16 +49,19 @@ extension UsageStore {
             return CodexWeeklyResetPublicationAdmission(outcome: initialOutcome, pendingCandidate: candidateForRetry)
         }
         let rawInitialSnapshot = rawInitialResult.usage.scoped(to: .codex)
-        let publicationBaseline = [previousSnapshot, missingWindowBackfillSnapshot]
+        let cachedBaseline = [previousSnapshot, missingWindowBackfillSnapshot]
             .compactMap(\.self)
             .max { $0.updatedAt < $1.updatedAt }
-        let publicationInitialOutcome = if let missingWindowBackfillSnapshot {
-            initialOutcome.replacingUsage(Self.codexBackfillingResetWindows(
-                rawInitialSnapshot,
-                from: missingWindowBackfillSnapshot))
-        } else {
-            initialOutcome
-        }
+        let planBaseline = previousSnapshot ?? missingWindowBackfillSnapshot
+        let planChanged = Self.isExactCodexOAuthResult(rawInitialResult)
+            && rawInitialSnapshot.updatedAt > (cachedBaseline?.updatedAt ?? .distantFuture)
+            && Self.codexPlanChanged(from: planBaseline, to: rawInitialSnapshot)
+        // A new subscription has a different quota baseline, not evidence of a reset on the old plan.
+        let previousSnapshot = planChanged ? nil : previousSnapshot
+        let missingWindowBackfillSnapshot = planChanged ? nil : missingWindowBackfillSnapshot
+        let publicationBaseline = planChanged ? nil : cachedBaseline
+        if planChanged { candidateForRetry = nil }
+        let publicationInitialOutcome = initialOutcome.backfillingCodexResetWindows(from: missingWindowBackfillSnapshot)
 
         if CodexConsumerProjection.sourceRateWindow(for: .weekly, snapshot: rawInitialSnapshot) == nil {
             return Self.codexMissingWeeklyAdmission(input: CodexMissingWeeklyAdmissionInput(
@@ -168,15 +171,8 @@ extension UsageStore {
             trace: confirmationTrace)
         switch confirmationDecision {
         case .publishConfirmation:
-            if let missingWindowBackfillSnapshot {
-                return CodexWeeklyResetPublicationAdmission(
-                    outcome: confirmationOutcome.replacingUsage(Self.codexBackfillingResetWindows(
-                        confirmationSnapshot,
-                        from: missingWindowBackfillSnapshot)),
-                    pendingCandidate: nil)
-            }
             return CodexWeeklyResetPublicationAdmission(
-                outcome: confirmationOutcome,
+                outcome: confirmationOutcome.backfillingCodexResetWindows(from: missingWindowBackfillSnapshot),
                 pendingCandidate: nil)
         case .preservePrevious:
             let candidate = Self.makeCodexDelayedCandidate(

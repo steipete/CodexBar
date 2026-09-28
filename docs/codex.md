@@ -29,6 +29,9 @@ Usage source picker:
 
 ### OAuth API (preferred for the app)
 - Reads OAuth tokens from `~/.codex/auth.json` (or `$CODEX_HOME/auth.json`).
+- OAuth availability and usage reads retry a missing, unreadable, or partially published credential file twice,
+  50 milliseconds apart. Usage also rereads a native token due for renewal before reporting that it needs refresh.
+  A successful retry retains the selected workspace; unchanged stale credentials still require their owner's renewal.
 - CodexBar never publishes refreshed native tokens into `auth.json`; when native credentials are stale,
   the explicit OAuth path delegates recovery to the Codex CLI, which owns that file. If the CLI is unavailable,
   the OAuth error is surfaced instead of mutating the shared file.
@@ -42,6 +45,9 @@ Usage source picker:
 - Suspicious weekly resets keep the last trusted usage while confirmation is pending. A successful refresh for the
   same account and workspace clears stale connectivity errors even when the reading is withheld; failed, cancelled,
   or superseded refreshes do not clear them. Cached usage, credits, and other accounts remain unchanged.
+- A fresh exact OAuth result with a changed, known plan starts a new quota baseline for that account. Previous-plan
+  reset backfill and pending reset candidates cannot hold the old plan on screen. A first near-zero weekly reading
+  still requires confirmation from the same plan; missing or unchanged plans retain the normal reset safeguards.
 - Credits-only updates preserve pending weekly-reset evidence in memory and account-snapshot storage, including
   when published credits are cleared. Candidate admission, expiry, boundary tolerances, and account guards remain
   unchanged; preserving evidence does not make an otherwise incompatible reset eligible for publication.

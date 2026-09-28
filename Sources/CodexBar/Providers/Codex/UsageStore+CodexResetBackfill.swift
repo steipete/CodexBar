@@ -4,10 +4,18 @@ import Foundation
 /// Reset-time backfill for Codex rate windows: rebuilds raw snapshot slots from cached lane data so
 /// missing reset timestamps survive refreshes without disturbing fresh quota values.
 extension UsageStore {
+    nonisolated static func codexPlanChanged(from previous: UsageSnapshot?, to current: UsageSnapshot) -> Bool {
+        guard let previousPlan = CodexWeeklyResetConfirmation.normalizedPlan(previous),
+              let currentPlan = CodexWeeklyResetConfirmation.normalizedPlan(current)
+        else { return false }
+        return previousPlan != currentPlan
+    }
+
     nonisolated static func codexBackfillingResetWindows(
         _ snapshot: UsageSnapshot,
         from cached: UsageSnapshot) -> UsageSnapshot
     {
+        guard !self.codexPlanChanged(from: cached, to: snapshot) else { return snapshot }
         let primary = self.codexBackfilledSlotWindow(
             slotWindow: snapshot.primary,
             lane: .session,
@@ -130,5 +138,14 @@ extension UsageStore {
             windowMinutes: windowMinutes,
             resetsAt: resetsAt,
             resetDescription: cached.resetDescription)
+    }
+}
+
+extension ProviderFetchOutcome {
+    nonisolated func backfillingCodexResetWindows(from cached: UsageSnapshot?) -> ProviderFetchOutcome {
+        guard let cached, case let .success(result) = self.result else { return self }
+        return self.replacingUsage(UsageStore.codexBackfillingResetWindows(
+            result.usage.scoped(to: .codex),
+            from: cached))
     }
 }

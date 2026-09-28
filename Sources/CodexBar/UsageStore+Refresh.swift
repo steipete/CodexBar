@@ -821,6 +821,8 @@ extension UsageStore {
         resetBackfillSource: UsageSnapshot?,
         context: ProviderRefreshOutcomeContext) -> UsageSnapshot
     {
+        let resetBackfillSource = provider == .codex && Self.codexPlanChanged(from: resetBackfillSource, to: snapshot)
+            ? nil : resetBackfillSource
         let profileStable = self.preservingDeepSeekProfileCatalog(in: snapshot, provider: provider)
         let stabilized = Self.commandCodeSnapshotResolvingDepletionOnEnrichmentFailure(
             current: profileStable,

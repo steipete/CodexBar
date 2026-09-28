@@ -192,7 +192,8 @@ struct CodexWeeklyResetConfirmation: Sendable {
             return .publishConfirmation
         }
 
-        guard initialWeekly.usedPercent <= Self.resetThreshold,
+        guard Self.normalizedPlan(initial) == Self.normalizedPlan(confirmation),
+              initialWeekly.usedPercent <= Self.resetThreshold,
               let initialBoundary = Self.validResetBoundary(initialWeekly, capturedAt: initial.updatedAt),
               let confirmationBoundary = Self.validResetBoundary(
                   confirmationWeekly,
@@ -402,6 +403,11 @@ struct CodexWeeklyResetConfirmation: Sendable {
         let identities = snapshots.map { CodexIdentityResolver.normalizeEmail($0.accountEmail(for: .codex)) }
         guard let first = identities.compactMap(\.self).first else { return false }
         return identities.allSatisfy { $0 == first }
+    }
+
+    static func normalizedPlan(_ snapshot: UsageSnapshot?) -> String? {
+        let plan = snapshot?.loginMethod(for: .codex)?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return plan?.isEmpty == false ? plan : nil
     }
 
     private static func haveCompatiblePlans(_ snapshots: UsageSnapshot...) -> Bool {

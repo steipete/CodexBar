@@ -1313,7 +1313,9 @@ extension UsageStore {
             }
             let labeled = self.applyCodexVisibleAccountLabel(scoped, account: account)
             let backfilled =
-                Self.codexMergedResetBackfillSnapshot(resetBackfillSnapshots)
+                Self.codexMergedResetBackfillSnapshot(resetBackfillSnapshots.filter {
+                    !Self.codexPlanChanged(from: $0, to: labeled)
+                })
                 .map { Self.codexBackfillingResetWindows(labeled, from: $0) } ?? labeled
             let credits = CodexMonthlyCreditPreservation.merging(
                 incoming: result.credits,

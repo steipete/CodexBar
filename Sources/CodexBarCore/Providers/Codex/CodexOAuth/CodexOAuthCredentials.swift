@@ -241,10 +241,9 @@ public enum CodexOAuthCredentialsStore {
     private static func readAuthData(at url: URL) throws -> Data {
         guard CodexCredentialFileAccess.permits(url) else { throw CodexOAuthCredentialsError.notFound }
         do {
-            // Read once instead of checking existence first. Codex publishes auth.json atomically,
-            // so a single read avoids a TOCTOU window and lets us distinguish a missing file from a
-            // transiently unreadable/partially published one without logging credentials.
-            return try CodexCredentialFileAccess.read(at: url, options: [.mappedIfSafe])
+            // Keep owned bytes while the owner may replace or truncate auth.json. The OAuth
+            // strategy retries publication races; retain filesystem error categories here.
+            return try CodexCredentialFileAccess.read(at: url)
         } catch {
             let nsError = error as NSError
             let missingFile =

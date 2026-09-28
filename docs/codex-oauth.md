@@ -53,6 +53,11 @@ If expiry is unavailable, the existing eight-day `last_refresh` rule applies; a 
 timestamp still requires refresh. This keeps a future-expiry token on the OAuth path, including
 its model-specific usage windows, even when the refresh timestamp is old (#3221, #3222).
 
+OAuth strategy reads allow three attempts, with cancellable 50-millisecond delays, to observe an owner publication
+that overlaps availability or usage fetching. Usage rereads native credentials inside the renewal window; this is
+not token redemption and does not alter the five-minute expiry margin. After the bounded retry, missing, unreadable,
+malformed, incomplete, and stale credentials retain their separate error categories. No credentials are written.
+
 The claim must be a signed integer JSON spelling within Codex's supported UTC date range
 (`-8334601228800...8210266876799` seconds). Booleans, strings, fractions, integral floating-point
 or exponent spellings, overflow, duplicate claims, and out-of-range dates fall back to age.

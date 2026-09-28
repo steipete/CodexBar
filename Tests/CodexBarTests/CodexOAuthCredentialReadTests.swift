@@ -246,9 +246,7 @@ struct CodexOAuthCredentialReadTests {
             homeDirectory: home,
             allowExternalSources: true)
         let error = await #expect(throws: CodexOAuthCredentialsError.self) {
-            try await CodexOAuthFetchStrategy._prepareCredentialsForTesting(
-                credentials,
-                env: ["XDG_DATA_HOME": dataHome.path])
+            try await CodexOAuthFetchStrategy._prepareCredentialsForTesting(credentials)
         }
         guard case .readOnlySource = error else {
             Issue.record("Expired external credentials must fail closed")
@@ -321,9 +319,7 @@ struct CodexOAuthCredentialReadTests {
             lastRefresh: Date(timeIntervalSince1970: 0),
             source: .codexHome)
         let error = await #expect(throws: CodexOAuthCredentialsError.self) {
-            try await CodexOAuthFetchStrategy._prepareCredentialsForTesting(
-                credentials,
-                env: ["CODEX_HOME": "/tmp/codexbar-native-refresh-memory"])
+            try await CodexOAuthFetchStrategy._prepareCredentialsForTesting(credentials)
         }
         guard case .nativeRefreshRequired = error else {
             Issue.record("Native stale credentials must be handed to Codex CLI")

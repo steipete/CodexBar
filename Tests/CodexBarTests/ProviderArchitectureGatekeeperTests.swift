@@ -1241,6 +1241,11 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This provider-specific app branch passes its already-selected identity to a shared helper."),
         SuppressedProviderReference(
             path: "Sources/CodexBar/UsageStore+Refresh.swift",
+            anchor: "let resetBackfillSource = provider == .codex && Self.codexPlanChanged(from: resetBackfillSource, to: snapshot)",
+            expectedProviderIDs: ["codex"],
+            reason: "Codex subscription changes must not inherit reset times from the previous plan."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/UsageStore+Refresh.swift",
             anchor: "previousSourceLabel: hydratedPrior?.sourceLabel ?? self.lastSourceLabels[.codex],",
             expectedProviderIDs: ["codex"],
             reason: "This Codex publication preparation reads the already-selected provider source label."),
