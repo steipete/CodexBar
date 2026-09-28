@@ -9,6 +9,7 @@
 ### Fixed
 
 - Development: restore test compilation on Xcode 26.3 / Swift 6.2 and check app, CLI, and test compatibility in CI (#4070). Thanks @RowboTony!
+- Configuration: treat empty or whitespace-only config files like missing files so usage keeps working; settings saves write valid JSON, while malformed non-empty files still report errors (#4071).
 - Token history: show observed model names when per-model totals are unavailable, including Grok local sessions (#4056). Fixes #4054. Thanks @BUKOWSKIREAL!
 - TypeSafe: show the credit balance in the menu bar and layout preview instead of missing-value dashes, using shared balance-label metadata (#4050). Thanks @lg!
 - Grok: retain the product usage breakdown on the grok.com billing fallback, with bounded shared protobuf decoding (#4041). Thanks @olddonkey!

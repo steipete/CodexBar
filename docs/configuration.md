@@ -22,6 +22,12 @@ Keychain holds runtime cookie caches, browser Safe Storage access, and provider 
 - The directory is created if missing.
 - Writes on macOS and Linux create a `0600` file inside a private `0700` staging directory beside the destination before writing any bytes, then sync and atomically replace the destination. Failed writes preserve the previous file and remove staging.
 
+A missing, zero-byte, or JSON-whitespace-only file (spaces, tabs, carriage returns, and line feeds) means no
+configuration. Reads use defaults without creating or rewriting the file; the next settings save writes valid JSON.
+If the running app sees a blank file, it retains its in-memory settings just as it does when the file is removed.
+Non-empty malformed JSON still reports a decode error in the CLI, blocks usage and config edits, and is not
+replaced by `loadOrCreateDefault()`.
+
 ## Root shape
 ```json
 {

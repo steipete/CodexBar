@@ -116,3 +116,7 @@ codexbar config dump --pretty
 ```
 
 `dump` prints normalized config, including providers omitted from a hand-written file.
+
+Missing, empty, or JSON-whitespace-only config files use defaults on macOS and Linux. `validate`, `dump`, and
+`usage` leave such files unchanged; the next `config enable`, `disable`, or `set-api-key` writes valid JSON.
+Malformed non-empty JSON still produces a config error and a nonzero exit without overwriting the file.

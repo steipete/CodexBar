@@ -32,9 +32,9 @@ public struct CodexBarConfigStore: @unchecked Sendable {
     public func load() throws -> CodexBarConfig? {
         guard self.fileManager.fileExists(atPath: self.fileURL.path) else { return nil }
         let data = try Data(contentsOf: self.fileURL)
+        guard !data.allSatisfy({ $0 == 0x20 || $0 == 0x09 || $0 == 0x0A || $0 == 0x0D }) else { return nil }
         do {
-            let decoded = try CodexBarConfig.decode(from: data)
-            return decoded.normalized()
+            return try CodexBarConfig.decode(from: data).normalized()
         } catch {
             throw CodexBarConfigStoreError.decodeFailed(error.localizedDescription)
         }
