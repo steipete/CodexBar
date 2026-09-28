@@ -16,7 +16,7 @@ private struct KimiStubClaudeFetcher: ClaudeUsageFetching {
     }
 }
 
-private func makeKimiFetchContext(
+func makeKimiFetchContext(
     sourceMode: ProviderSourceMode,
     environment: [String: String] = [:],
     settings: ProviderSettingsSnapshot? = nil) -> ProviderFetchContext
@@ -36,7 +36,7 @@ private func makeKimiFetchContext(
         browserDetection: BrowserDetection(cacheTTL: 0))
 }
 
-private func makeTemporaryKimiCodeHome() throws -> URL {
+func makeTemporaryKimiCodeHome() throws -> URL {
     let home = FileManager.default.temporaryDirectory
         .appendingPathComponent("CodexBar-KimiCode-\(UUID().uuidString)", isDirectory: true)
     try FileManager.default.createDirectory(
@@ -46,7 +46,7 @@ private func makeTemporaryKimiCodeHome() throws -> URL {
     return home
 }
 
-private func writeKimiCodeCredential(
+func writeKimiCodeCredential(
     home: URL,
     accessToken: String,
     refreshToken: String = "refresh",
@@ -57,16 +57,20 @@ private func writeKimiCodeCredential(
     var payload: [String: Any] = [
         "access_token": accessToken,
         "refresh_token": refreshToken,
+        "expires_in": 900,
+        "scope": "synthetic-scope",
+        "token_type": "Bearer",
     ]
     if let expiresAt {
         payload["expires_at"] = expiresAt
     }
     let url = credentials.appendingPathComponent("kimi-code.json")
-    try JSONSerialization.data(withJSONObject: payload, options: [.prettyPrinted, .sortedKeys]).write(to: url)
+    try JSONSerialization.data(withJSONObject: payload, options: [.prettyPrinted, .sortedKeys])
+        .write(to: url, options: .atomic)
     return url
 }
 
-private actor KimiOrderedCredentialTransport: ProviderHTTPTransport {
+actor KimiOrderedCredentialTransport: ProviderHTTPTransport {
     private var headers: [String] = []
 
     func authorizationHeaders() -> [String] {
@@ -1572,22 +1576,5 @@ struct KimiTokenResolverTests {
             #expect(resolution?.token == "test.jwt.token")
             #expect(resolution?.source == .environment)
         }
-    }
-}
-
-struct KimiAPIErrorTests {
-    @Test
-    func `error descriptions are helpful`() {
-        #expect(KimiAPIError.missingToken.errorDescription?.contains("missing") == true)
-        #expect(KimiAPIError.invalidToken.errorDescription?.contains("invalid") == true)
-        #expect(KimiAPIError.missingAPIKey.errorDescription?.contains("Settings > Providers > Kimi") == true)
-        #expect(KimiAPIError.missingAPIKey.errorDescription?.contains("KIMI_CODE_API_KEY") == true)
-        #expect(KimiAPIError.expiredCodeCredential.errorDescription?.contains("does not refresh") == true)
-        #expect(KimiAPIError.invalidCodeCredential.errorDescription?.contains("Sign in again") == true)
-        #expect(KimiAPIError.invalidAPIKey.errorDescription?.contains("API key") == true)
-        #expect(KimiAPIError.invalidRequest("Bad request").errorDescription?.contains("Bad request") == true)
-        #expect(KimiAPIError.networkError("Timeout").errorDescription?.contains("Timeout") == true)
-        #expect(KimiAPIError.apiError("HTTP 500").errorDescription?.contains("HTTP 500") == true)
-        #expect(KimiAPIError.parseFailed("Invalid JSON").errorDescription?.contains("Invalid JSON") == true)
     }
 }
