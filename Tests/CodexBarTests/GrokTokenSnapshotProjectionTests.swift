@@ -97,7 +97,7 @@ struct GrokTokenSnapshotProjectionTests {
     }
 
     @Test
-    func `requested history wider than the published grok scan is marked incomplete`() throws {
+    func `requested history wider than the published grok scan preserves its actual coverage`() throws {
         let now = Date(timeIntervalSince1970: 1_787_079_600)
         let published = Self.snapshot(
             daily: [Self.entry(date: Self.dayKey(now, calendar: .current), tokens: 85)],
@@ -110,24 +110,67 @@ struct GrokTokenSnapshotProjectionTests {
             provider: .grok,
             historyDays: 60))
 
-        #expect(projected.historyDays == 60)
-        #expect(!projected.historyCoverageIsEstablished)
+        #expect(projected.historyDays == 30)
+        #expect(projected.historyCoverageIsEstablished)
         #expect(projected.last30DaysTokens == 85)
     }
 
+    @Test
+    func `successful quota refresh keeps local tokens in wider dashboard requests`() async throws {
+        let now = Date()
+        let published = Self.snapshot(
+            daily: [Self.entry(date: Self.dayKey(now, calendar: .current), tokens: 85)],
+            updatedAt: now)
+        let home = FileManager.default.temporaryDirectory.appendingPathComponent("grok-dashboard-\(UUID())")
+        let store = Self.makeStore(environment: ["GROK_HOME": home.path])
+        store.settings.costUsageEnabled = true
+        let metadata = try #require(ProviderRegistry.shared.metadata[.grok])
+        store.settings.setProviderEnabled(provider: .grok, metadata: metadata, enabled: true)
+        store._test_providerFetchOutcomeOverride = { _ in
+            .init(result: .success(ProviderFetchResult(
+                usage: UsageSnapshot(
+                    primary: .init(usedPercent: 25, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+                    secondary: nil,
+                    costUsage: published,
+                    updatedAt: now),
+                credits: nil,
+                dashboard: nil,
+                sourceLabel: "grok-cli-proxy",
+                strategyID: "grok.fixture",
+                strategyKind: .web)), attempts: [])
+        }
+
+        await store.refreshProvider(.grok, allowDisabled: true)
+        #expect(store.snapshot(for: .grok)?.costUsage?.last30DaysTokens == 85)
+        let request = await SpendDashboardSource.makeRequest(
+            settings: store.settings, store: store, mode: .captureOnly, now: now)
+        let history = try #require(request.capturedInputs.first { $0.provider == .grok }?.snapshot)
+        #expect(history.historyDays == 30)
+        #expect(history.historyCoverageIsEstablished)
+        let model = SpendDashboardModel.build(inputs: request.capturedInputs, requestedDays: 60, now: now)
+        let row = try #require(model.groups.flatMap(\.providers).first { $0.provider == .grok })
+        #expect(row.totalTokens == 85)
+        #expect(row.coveredDayCount == 30)
+        let shared = try #require(ShareStatsBuilder.make(model: model))
+        #expect(shared.providers.first { $0.provider == .grok }?.totalTokens == 85)
+        #expect(shared.providers.first { $0.provider == .grok }?.estimatedCost == nil)
+    }
+
     private static func makeStore(environment: [String: String]) -> UsageStore {
-        let suite = "GrokTokenSnapshotProjectionTests-\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suite)!
-        defaults.removePersistentDomain(forName: suite)
-        let settings = SettingsStore(
-            userDefaults: defaults,
-            configStore: testConfigStore(suiteName: suite),
-            zaiTokenStore: NoopZaiTokenStore(),
-            syntheticTokenStore: NoopSyntheticTokenStore())
+        let settings = testSettingsStore(
+            suiteName: "GrokTokenSnapshotProjectionTests",
+            userDefaults: InMemoryUserDefaults(),
+            keychainAccessPolicy: .init(setDisabled: { _ in }, isExplicitlyDisabled: { false }))
         settings.providerDetectionCompleted = true
+        settings.refreshFrequency = .manual
+        settings.statusChecksEnabled = false
         return UsageStore(
             fetcher: UsageFetcher(environment: environment),
-            browserDetection: BrowserDetection(cacheTTL: 0),
+            browserDetection: BrowserDetection(
+                homeDirectory: environment["GROK_HOME"] ?? "/nonexistent",
+                cacheTTL: 0,
+                fileExists: { _ in false },
+                directoryContents: { _ in [] }),
             settings: settings,
             startupBehavior: .testing,
             environmentBase: environment)

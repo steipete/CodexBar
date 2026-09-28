@@ -3,6 +3,36 @@ import Testing
 @testable import CodexBarCore
 
 struct GrokLocalSessionScannerTests {
+    @Test(arguments: [1, 7, 30])
+    func `scan totals cover only the advertised local calendar days`(days: Int) throws {
+        let home = FileManager.default.temporaryDirectory.appendingPathComponent("grok-window-\(UUID())")
+        defer { try? FileManager.default.removeItem(at: home) }
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date(timeIntervalSince1970: 1_787_079_600))
+        let now = today.addingTimeInterval(12 * 3600)
+        let outside = try #require(calendar.date(byAdding: .day, value: -days, to: today))
+        let first = try #require(calendar.date(byAdding: .day, value: -(days - 1), to: today))
+        let tomorrow = try #require(calendar.date(byAdding: .day, value: 1, to: today))
+        let dates = [
+            outside.addingTimeInterval(18 * 3600),
+            first.addingTimeInterval(3600),
+            today.addingTimeInterval(2 * 3600),
+            tomorrow.addingTimeInterval(3600),
+        ]
+        for (index, date) in dates.enumerated() {
+            let session = home.appendingPathComponent("sessions/project/session-\(index)")
+            try FileManager.default.createDirectory(at: session, withIntermediateDirectories: true)
+            try self.writeSignals(
+                at: session.appendingPathComponent("signals.json"), tokens: 100, model: "example-model", date: date)
+        }
+
+        let summary = GrokLocalSessionScanner.summarize(env: ["GROK_HOME": home.path], lookbackDays: days, now: now)
+        #expect(summary.sessionCount == 2)
+        #expect(summary.totalTokens == 200)
+        let snapshot = try #require(summary.toCostUsageTokenSnapshot(historyDays: days))
+        #expect(snapshot.summary(forLastDays: days, calendar: calendar).totalTokens == snapshot.last30DaysTokens)
+    }
+
     @Test
     func `daily buckets stay local and never invent dollars`() throws {
         let root = FileManager.default.temporaryDirectory

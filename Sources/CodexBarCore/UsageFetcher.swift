@@ -520,7 +520,7 @@ public struct UsageSnapshot: Codable, Sendable {
         return true
     }
 
-    enum Replacement<Value> {
+    package enum Replacement<Value> {
         case unchanged
         case value(Value)
 
@@ -532,12 +532,13 @@ public struct UsageSnapshot: Codable, Sendable {
         }
     }
 
-    func replacing(
+    package func replacing(
         primary: Replacement<RateWindow?> = .unchanged,
         secondary: Replacement<RateWindow?> = .unchanged,
         tertiary: Replacement<RateWindow?> = .unchanged,
         extraRateWindows: Replacement<[NamedRateWindow]?> = .unchanged,
         providerCost: Replacement<ProviderCostSnapshot?> = .unchanged,
+        costUsage: Replacement<CostUsageTokenSnapshot?> = .unchanged,
         details: Replacement<[ProviderDetailSection]> = .unchanged,
         deepseekDetailedUsageState: Replacement<DeepSeekDetailedUsageState> = .unchanged,
         deepseekPlatformProfiles: Replacement<[DeepSeekPlatformProfile]> = .unchanged,
@@ -554,7 +555,7 @@ public struct UsageSnapshot: Codable, Sendable {
             tertiary: tertiary.resolving(self.tertiary),
             extraRateWindows: extraRateWindows.resolving(self.extraRateWindows),
             providerCost: providerCost.resolving(self.providerCost),
-            costUsage: self.costUsage,
+            costUsage: costUsage.resolving(self.costUsage),
             details: details.resolving(self.details),
             deepseekDetailedUsageState: deepseekDetailedUsageState.resolving(self.deepseekDetailedUsageState),
             deepseekPlatformProfiles: deepseekPlatformProfiles.resolving(self.deepseekPlatformProfiles),

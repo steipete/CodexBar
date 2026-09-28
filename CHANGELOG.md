@@ -20,6 +20,7 @@
 - Claude and Vertex: reuse freshly saved cost-history rows, skip encoding unchanged caches, and compact retained row fields to reduce CPU and disk writes during repeated refreshes (#3882, #3247, #3323).
 - Kimi Code: mark shorter Code windows as blocked when the known monthly membership pool is exhausted, without showing fresh quota or pace forecasts (#3536).
 - z.ai: explain unavailable Coding Plan usage for empty or unsupported quota shapes while preserving recognized quotas and analytics (#2522).
+- Grok: keep local token totals visible in Usage & Spend and shared cards across wider history views and billing outages, with consistent daily scan windows (#3716). Thanks @Chipagosfinest!
 - Token history: show observed model names when per-model totals are unavailable, including Grok local sessions (#4056). Fixes #4054. Thanks @BUKOWSKIREAL!
 - TypeSafe: show the credit balance in the menu bar and layout preview instead of missing-value dashes, using shared balance-label metadata (#4050). Thanks @lg!
 - Grok: retain the product usage breakdown on the grok.com billing fallback, with bounded shared protobuf decoding (#4041). Thanks @olddonkey!

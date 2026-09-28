@@ -158,7 +158,8 @@ The grok.com billing gRPC-web endpoint remains a best-effort fallback.
      above. This keeps billing visible when
      `grok agent stdio` returns `Method not found`.
 5) **Local session signals** (informational fallback)
-   - Walks `~/.grok/sessions/<encoded-cwd>/<session-id>/signals.json` files (last 30 days).
+   - Quota fetches scan `~/.grok/sessions/<encoded-cwd>/<session-id>/signals.json` for the last 30 local calendar days,
+     including today. Files dated outside that window are excluded so daily buckets and aggregate totals agree.
    - Aggregates `totalTokensBeforeCompaction`, `contextTokensUsed`, `modelsUsed`,
      and the most recent session timestamp.
 
@@ -318,6 +319,13 @@ credits remain a quota window on the usage bar; they are never converted into
 dollars. Local session scans run on the dedicated background usage-scan queue;
 menu cards and spend views reuse the already-published snapshot instead of
 walking the session directory whenever they render.
+
+Wider dashboard ranges retain the scan's actual coverage instead of marking all of its token history unknown.
+For example, a 30-day scan still contributes its tokens in a 60-day view; older days remain unscanned.
+
+If remote billing fails, readable local sessions still update Usage & Spend and shared cards, including when CodexBar
+retains an older quota snapshot. The quota keeps its original timestamp; refreshed local tokens do not imply a fresh
+quota response. Results from a refresh whose account or configuration changed are discarded.
 
 `costUsage` is live-only data and is intentionally omitted from `codexbar usage`
 JSON and persisted usage snapshots. Its absence in JSON does not establish that
