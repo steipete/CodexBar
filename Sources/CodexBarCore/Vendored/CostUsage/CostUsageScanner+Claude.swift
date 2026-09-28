@@ -572,7 +572,7 @@ extension CostUsageScanner {
         }
     }
 
-    private final class ClaudeScanState {
+    private struct ClaudeScanState {
         var cache: CostUsageCache
         var sourceFileIDs: [String: String]
         let range: CostUsageDayRange
@@ -581,31 +581,11 @@ extension CostUsageScanner {
         let changedPaths: Set<String>
         let pricingResolver: CostUsagePricing.ClaudeResolver
         let checkCancellation: CancellationCheck?
-
-        init(
-            cache: CostUsageCache,
-            sourceFileIDs: [String: String],
-            range: CostUsageDayRange,
-            providerFilter: ClaudeLogProviderFilter,
-            forceFullScan: Bool,
-            changedPaths: Set<String>,
-            pricingResolver: CostUsagePricing.ClaudeResolver,
-            checkCancellation: CancellationCheck?)
-        {
-            self.cache = cache
-            self.sourceFileIDs = sourceFileIDs
-            self.range = range
-            self.providerFilter = providerFilter
-            self.forceFullScan = forceFullScan
-            self.changedPaths = changedPaths
-            self.pricingResolver = pricingResolver
-            self.checkCancellation = checkCancellation
-        }
     }
 
     private static func processClaudeFile(
         source: ClaudeSourceFile,
-        state: ClaudeScanState) throws
+        state: inout ClaudeScanState) throws
     {
         try state.checkCancellation?()
         let path = source.url.path
@@ -775,7 +755,7 @@ extension CostUsageScanner {
             } else {
                 []
             }
-            let scanState = ClaudeScanState(
+            var scanState = ClaudeScanState(
                 cache: cache,
                 sourceFileIDs: artifact.sourceFileIDs,
                 range: range,
@@ -787,7 +767,7 @@ extension CostUsageScanner {
 
             for path in inventory.files.keys.sorted() {
                 guard let source = inventory.files[path] else { continue }
-                try Self.processClaudeFile(source: source, state: scanState)
+                try Self.processClaudeFile(source: source, state: &scanState)
             }
             try checkCancellation?()
 

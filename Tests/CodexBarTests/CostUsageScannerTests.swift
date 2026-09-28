@@ -1234,6 +1234,14 @@ struct CostUsageTestEnvironment {
     }
 
     func cleanup() {
+        for provider in [UsageProvider.claude, .vertexai] {
+            for context in [CostUsageReportContext.regular, .spendDashboard] {
+                CostUsageScanner.evictClaudeReportMemoForTesting(
+                    provider: provider, cacheRoot: self.cacheRoot, reportContext: context)
+                CostUsageClaudeCacheIO.evictArtifactMemoForTesting(at: CostUsageClaudeCacheIO.cacheFileURL(
+                    provider: provider, cacheRoot: self.cacheRoot, reportContext: context))
+            }
+        }
         try? FileManager.default.removeItem(at: self.root)
     }
 

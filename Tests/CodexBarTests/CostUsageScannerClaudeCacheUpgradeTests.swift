@@ -80,7 +80,7 @@ struct CostUsageScannerClaudeCacheUpgradeTests {
 
         let savedCache = try JSONDecoder().decode(CostUsageClaudeCache.self, from: Data(contentsOf: cacheURL))
         let savedMemo = try JSONDecoder().decode(PersistedReportMemo.self, from: Data(contentsOf: memoURL))
-        #expect(savedCache.usage.version == 3)
+        #expect(savedCache.usage.version == 4)
         #expect(savedCache.usage.files.count == 1)
         #expect(savedCache.usage.files[path]?.claudeRows?.map(\.output) == [19])
         #expect(savedCache.usage.days == [dayKey: [model: [50, 100, 0, 19, 465_000, 1, 1, 0]]])
@@ -161,7 +161,7 @@ struct CostUsageScannerClaudeCacheUpgradeTests {
             costNanos: 611_593_000,
             costPriced: true)]
         cache.usage.days[dayKey]?[model]?[4] = 611_593_000
-        #expect(cache.usage.version == 3)
+        #expect(cache.usage.version == 4)
         try JSONEncoder().encode(cache).write(to: cacheURL)
         let cacheStamp = try #require(CostUsageClaudeFileStamp.read(at: cacheURL))
         var memo = try JSONDecoder().decode(PersistedReportMemo.self, from: Data(contentsOf: memoURL))
@@ -305,7 +305,7 @@ struct CostUsageScannerClaudeCacheUpgradeTests {
         #expect(work.transcriptParses == 1)
         #expect(work.cacheEncodes == 1)
         let savedCache = try JSONDecoder().decode(CostUsageClaudeCache.self, from: Data(contentsOf: cacheURL))
-        #expect(savedCache.usage.version == 3)
+        #expect(savedCache.usage.version == 4)
         #expect(savedCache.usage.files[path]?.claudeRows?.first?.isIncomplete == true)
         let savedMemo = try JSONDecoder().decode(PersistedReportMemo.self, from: Data(contentsOf: memoURL))
         #expect(savedMemo.reportSemanticsVersion == CostUsageClaudeReportMemo.reportSemanticsVersion)
