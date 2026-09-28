@@ -23,6 +23,7 @@
 - z.ai: explain unavailable Coding Plan usage for empty or unsupported quota shapes while preserving recognized quotas and analytics (#2522).
 - Grok: keep local token totals visible in Usage & Spend and shared cards across wider history views and billing outages, with consistent daily scan windows (#3716). Thanks @Chipagosfinest!
 - Adaptive refresh: recognize ChatGPT's nested Codex app-server with per-scan running-process validation and update-aware signed-bundle assessment caching, avoiding repeated Gatekeeper subprocesses while keeping idle servers at the normal cadence (#4069, #4090).
+- Widgets: retain each eligible provider's last-good reading and original age after failed refreshes, even when another provider is unavailable, disabled, or changes accounts (#3500).
 - Token history: show observed model names when per-model totals are unavailable, including Grok local sessions (#4056). Fixes #4054. Thanks @BUKOWSKIREAL!
 - TypeSafe: show the credit balance in the menu bar and layout preview instead of missing-value dashes, using shared balance-label metadata (#4050). Thanks @lg!
 - Grok: retain the product usage breakdown on the grok.com billing fallback, with bounded shared protobuf decoding (#4041). Thanks @olddonkey!

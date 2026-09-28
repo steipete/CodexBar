@@ -15,7 +15,7 @@ read_when:
 - WidgetKit owns the outer margins. All sizes share rendering and quota-selection rules, with overflow labels for omitted rows. Native relative-date text keeps snapshot ages and resets current between timeline reloads. Token-cost rows show their own saved age when more than ten minutes behind quota data. New usage still requires an app refresh and an accepted WidgetKit timeline.
 - The app writes snapshots after the main refresh pipeline and token-usage refreshes; narrow single-provider refresh paths may wait for the next snapshot write.
 - Claude-swap refreshes and cleared adapter state publish snapshots even when account widgets are off. When Claude-swap owns account presentation, provider widgets follow its active slot and measurement time. Missing quota can retain only that slot owner's saved reading, never ambient or another slot's quota. Local cost remains provider-wide.
-- If every provider entry disappears during a failed refresh, the writer can retain its last queued entries while their providers remain enabled and preservation has not been invalidated. Measurement timestamps stay unchanged, so the widgets show the data's original age. Account invalidation keeps a queued publication retired until valid replacement usage is published. This fallback is limited to the current app session; it does not restore generic provider entries from disk across account changes or restarts. Claude keeps its existing ownership-checked preservation path.
+- When a failed refresh has no usage for a provider, the writer can retain that provider's last queued entry while it remains enabled and preservation has not been invalidated. Another provider's missing, disabled, or invalidated entry does not discard eligible readings. Measurement timestamps stay unchanged, so widgets show the data's original age. Account invalidation retires only that provider's queued entry until valid replacement usage is published. This fallback is limited to the current app session; it does not restore generic provider entries from disk across account changes or restarts. Claude keeps its existing ownership-checked preservation path.
 - Scheduled provider refreshes trigger token/cost refreshes when their TTL permits, with a 15-minute local-history minimum (30 minutes in low-power mode). Manual disables the recurring timer; startup and pending Codex catch-up may still scan. These limits bound history work and WidgetKit reload requests without changing provider usage/status cadence.
 - Claude local cost/token history remains eligible for widget snapshots when its account does not expose numeric
   session or weekly quota data.
@@ -139,6 +139,16 @@ For this specific failure, collect app/extension versions, snapshot byte size, a
 extension and `chronod` logs. The reporter recovered by quitting only the `CodexBarWidget`
 extension process and allowing macOS to relaunch it. This is a manual diagnostic workaround,
 not an automatic recovery policy; restarting the main app may leave that process alive.
+
+After an update, distinguish the installed extension from the executable already mapped by
+its running process. In #2838 the reporter found an old extension mapped from a deleted
+Sparkle staging directory while the installed app and extension had matching new versions.
+`chronod` reported `bundleStubNotSupported` and "Bundle version did not match" before error
+1050. The process command shown by `ps` and the installed `Info.plist` do not establish the
+version of the running executable. Compare its mapped executable using `lsof -p <pid>` with
+the installed extension, and redact paths before sharing logs. Reload requests and a fresh
+snapshot alone do not replace a stale extension process. This failure is separate from
+Homebrew deleting widget placements and from a snapshot containing no provider entries.
 
 ### 1) Verify the extension bundle exists where macOS expects it
 ```

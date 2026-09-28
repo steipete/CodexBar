@@ -38,9 +38,7 @@ extension UsageStore {
         }()
         let snapshot = self.makeWidgetSnapshot(previousSnapshot: previousSnapshot)
         self.lastQueuedWidgetSnapshot = snapshot
-        self.lastQueuedWidgetSnapshotIsPreservable = snapshot.entries.allSatisfy {
-            !self.widgetUsagePreservationBlockedProviders.contains($0.provider)
-        }
+        self.invalidatedQueuedWidgetProviders = self.widgetUsagePreservationBlockedProviders
         NotificationCenter.default.post(
             name: .codexbarUsageSnapshotsDidChange,
             object: UsageSnapshotsDidChangeEvent(snapshots: self.cloudSyncAccountSnapshots()))
@@ -191,33 +189,28 @@ extension UsageStore {
         self.lastWidgetSourceSnapshots[provider.instanceID] = nil
         self.widgetUsagePreservationBlockedProviders.insert(provider.instanceID)
         // A successful fetch cannot make an older queued account valid again.
-        if self.lastQueuedWidgetSnapshot?.entries.contains(where: { $0.provider == provider.instanceID }) == true {
-            self.lastQueuedWidgetSnapshotIsPreservable = false
-        }
+        self.invalidatedQueuedWidgetProviders.insert(provider.instanceID)
     }
 
     private func makeWidgetSnapshot(previousSnapshot: WidgetSnapshot?) -> WidgetSnapshot {
         let now = Date()
         let enabledProviders = self.enabledProviders()
-        var entries = UsageProvider.allCases.compactMap { provider in
-            self.makeWidgetEntry(
+        let entries = UsageProvider.allCases.compactMap { provider -> WidgetSnapshot.ProviderEntry? in
+            if let entry = self.makeWidgetEntry(
                 for: provider,
                 now: now,
                 previousEntry: previousSnapshot?.entries.first { $0.provider == provider.instanceID })
-        }
-        // Only reuse this process's publication; disk entries do not establish the current account's ownership.
-        if entries.isEmpty, self.lastQueuedWidgetSnapshotIsPreservable,
-           let previousSnapshot = self.lastQueuedWidgetSnapshot,
-           previousSnapshot.enabledProviders.allSatisfy(enabledProviders.contains),
-           previousSnapshot.entries.allSatisfy({ entry in
-               // Provider-specific by design: Claude's owner-aware preservation above remains authoritative.
-               entry.provider != .claude && enabledProviders.contains(entry.provider) &&
-                   self.errors[entry.provider] != nil &&
-                   (entry.providerCost == nil || self.settings.showOptionalCreditsAndExtraUsage) &&
-                   !self.widgetUsagePreservationBlockedProviders.contains(entry.provider)
-           })
-        {
-            entries = previousSnapshot.entries.map { self.preservedWidgetEntryForCurrentMetric($0) }
+            { return entry }
+            // Provider-specific by design: Claude uses its owner-aware path; others require this process's publication.
+            guard provider != .claude, enabledProviders.contains(provider.instanceID),
+                  self.errors[provider.instanceID] != nil,
+                  !self.invalidatedQueuedWidgetProviders.contains(provider.instanceID),
+                  !self.widgetUsagePreservationBlockedProviders.contains(provider.instanceID),
+                  let entry = self.lastQueuedWidgetSnapshot?.entries
+                      .first(where: { $0.provider == provider.instanceID }),
+                      entry.providerCost == nil || self.settings.showOptionalCreditsAndExtraUsage
+            else { return nil }
+            return self.preservedWidgetEntryForCurrentMetric(entry)
         }
         return WidgetSnapshot(
             entries: entries,

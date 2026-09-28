@@ -1,11 +1,82 @@
+import AppKit
 import CodexBarCore
 import Foundation
+import SwiftUI
 import Testing
+import WidgetKit
 @testable import CodexBar
+@testable import CodexBarWidget
 
 @Suite(.serialized, ProviderTransportRegressionFixtures())
 @MainActor
 struct WidgetEmptyProjectionTests {
+    @Test(arguments: ["claude", "disabled", "retired", "partial"])
+    func `one ineligible provider cannot erase another providers last good widget reading`(
+        scenario: String) async throws
+    {
+        let (store, settings) = self.makeStore(providers: [.minimax, .deepseek, .claude])
+        var saved: WidgetSnapshot?
+        store._test_widgetSnapshotSaveOverride = { saved = $0 }
+        self.seed(store, measuredAt: Date().addingTimeInterval(-3600))
+        if scenario == "claude" { self.seed(store, providers: [.claude]) }
+        store.persistWidgetSnapshot(reason: "synthetic-before-wake")
+        await store.widgetSnapshotPersistTask?.value
+        let before = try #require(saved?.entries.first { $0.provider == .deepseek })
+        #expect(before.balanceText == "$25.00")
+        store.snapshots.removeAll()
+        store.errors = [
+            .minimax: "Synthetic offline failure",
+            .deepseek: "Synthetic offline failure",
+            .claude: "Synthetic offline failure",
+        ]
+        switch scenario {
+        case "claude": store.widgetUsagePreservationBlockedProviders.insert(.claude)
+        case "disabled":
+            settings.setProviderEnabled(provider: .minimax, metadata: store.metadata(for: .minimax), enabled: false)
+        case "retired":
+            store.clearProviderRuntimeState(.minimax)
+            store.errors[.minimax] = "Synthetic offline failure"
+        case "partial": self.seed(store, providers: [.minimax])
+        default: break
+        }
+        store.persistWidgetSnapshot(reason: "synthetic-after-wake")
+        await store.widgetSnapshotPersistTask?.value
+        try self.renderProof(#require(saved), scenario: scenario)
+        let after = try #require(saved?.entries.first { $0.provider == .deepseek })
+        #expect(after.updatedAt == before.updatedAt)
+        #expect(after.primary == before.primary)
+        #expect(after.balanceText == before.balanceText)
+        #expect(saved?.entries.contains { $0.provider == .claude } == false)
+        if scenario == "disabled" || scenario == "retired" {
+            #expect(saved?.entries.contains { $0.provider == .minimax } == false)
+        }
+    }
+
+    private func renderProof(_ snapshot: WidgetSnapshot, scenario: String) throws {
+        guard let path = ProcessInfo.processInfo.environment["CODEXBAR_WIDGET_RETENTION_PROOF_DIR"] else { return }
+        let output = URL(fileURLWithPath: path, isDirectory: true)
+        try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
+        let entry = CodexBarSwitcherEntry(
+            date: snapshot.generatedAt,
+            provider: .deepseek,
+            availableProviders: [.minimax, .deepseek, .claude],
+            snapshot: snapshot)
+        let view = CodexBarSwitcherWidgetView(entry: entry)
+            .environment(\.widgetRenderingMode, .fullColor)
+            .environment(\.colorScheme, .light)
+            .padding(14)
+            .frame(width: 360, height: 170)
+            .background(.background)
+        let hosting = NSHostingView(rootView: view)
+        hosting.frame = NSRect(x: 0, y: 0, width: 360, height: 170)
+        hosting.appearance = NSAppearance(named: .aqua)
+        hosting.layoutSubtreeIfNeeded()
+        let bitmap = try #require(hosting.bitmapImageRepForCachingDisplay(in: hosting.bounds))
+        hosting.cacheDisplay(in: hosting.bounds, to: bitmap)
+        try #require(bitmap.representation(using: .png, properties: [:]))
+            .write(to: output.appendingPathComponent("\(scenario).png"))
+    }
+
     @Test(arguments: [false, true])
     func `all failed providers retain published entries and original ages`(queued: Bool) async throws {
         let (store, settings) = self.makeStore()
@@ -63,7 +134,12 @@ struct WidgetEmptyProjectionTests {
         store.persistWidgetSnapshot(reason: "synthetic-invalidation")
         await store.widgetSnapshotPersistTask?.value
         if scenario == "cold-start" { saved = WidgetSnapshotStore.load(from: url) }
-        #expect(saved?.entries.count == (scenario == "partial" ? 1 : 0))
+        let expected: Set<ProviderInstanceID> = switch scenario {
+        case "disabled", "blocked", "retired": [.deepseek]
+        case "partial": [.minimax, .deepseek]
+        default: []
+        }
+        #expect(Set(saved?.entries.map(\.provider) ?? []) == expected)
     }
 
     @Test(arguments: [false, true])
@@ -334,13 +410,21 @@ struct WidgetEmptyProjectionTests {
         return (store, settings)
     }
 
-    private func seed(_ store: UsageStore, providers: [UsageProvider] = [.minimax, .deepseek]) {
+    private func seed(
+        _ store: UsageStore,
+        providers: [UsageProvider] = [.minimax, .deepseek],
+        measuredAt: Date = Date(timeIntervalSince1970: 1_800_000_000))
+    {
         for (index, provider) in providers.enumerated() {
             store._setSnapshotForTesting(
                 UsageSnapshot(
-                    primary: RateWindow(usedPercent: 25, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+                    primary: RateWindow(
+                        usedPercent: 25,
+                        windowMinutes: 300,
+                        resetsAt: nil,
+                        resetDescription: provider == .deepseek ? "$25.00 (Paid: $25.00 / Granted: $0.00)" : nil),
                     secondary: nil,
-                    updatedAt: Date(timeIntervalSince1970: 1_800_000_000 + Double(index))),
+                    updatedAt: measuredAt.addingTimeInterval(Double(index))),
                 provider: provider)
         }
     }
