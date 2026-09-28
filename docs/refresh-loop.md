@@ -59,8 +59,8 @@ read_when:
   persisted `adaptiveActivityScanConsent` value is `undecided`, `allowed`, or `declined`; missing or invalid values are
   repaired to `undecided`, which never authorizes a scan. Declining selects plain Adaptive; explicitly selecting the
   agent-aware option again asks again.
-- An allowed scan runs `ps -axo ... command=` to inspect the running-process list and identify Codex/Claude, then runs
-  `lsof` when needed and enumerates known session metadata only when an agent process is detected. It then reads
+- An allowed scan inspects running processes and their arguments (through native process APIs on macOS, `ps` elsewhere),
+  resolves working directories, and enumerates known session metadata only when an agent process is detected. It then reads
   recent Codex rollouts, reads rollout first-line metadata and mtimes, and inspects Claude transcript metadata. When
   the Agent Sessions UI is off, CodexBar discards the resulting session records and retains only the latest `Date`.
   Each scan considers at most 64 agent processes, parses at most 128 Codex rollout metadata records, keeps at most 64
@@ -72,6 +72,18 @@ read_when:
   Sessions continues to authorize its local scan independently of the Adaptive consent choice. Tailscale discovery and
   SSH remain behind the Agent Sessions setting. The activity timestamp is not persisted, logged, or uploaded, and it is
   cleared when consent is revoked.
+- ChatGPT's Codex `app-server` can authorize that local rollout scan at exactly
+  `/Applications/ChatGPT.app/Contents/Resources/codex` or
+  `/Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex`.
+  The scanner requires an `app-server` argument, verifies the running PID's kernel-reported executable path and
+  Apple-anchored OpenAI signing team (`2DC432GLL2`), rejects symlink redirects, and validates the outer ChatGPT
+  bundle (`com.openai.codex`) with the existing signature and Gatekeeper preflight. Running-process trust is rechecked
+  on each scan. Successful bundle assessments are reused while the resolved paths and filesystem attributes
+  (including device, inode, and modification date) of the bundle, Info.plist, main executable, and CodeResources
+  remain unchanged. Updates trigger a new assessment; missing metadata and failed assessments are never cached.
+  A matching process name or command line alone is insufficient. Home-directory installations, temporary paths,
+  and similarly named bundles do not qualify for this app-server gate. Recent rollout modification times determine
+  coding activity; the app-server's presence alone never keeps the 5-minute cadence active.
 - Each adaptive tick recomputes the delay after the previous refresh completes, sleeps, then calls the same
   `UsageStore.refresh()` used by fixed-interval mode, so the existing `isRefreshing` coalescing guard still
   applies — only one provider-batch refresh runs at a time regardless of cadence mode.

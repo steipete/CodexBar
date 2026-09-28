@@ -327,34 +327,25 @@ public enum AgentPSOutputParser {
         }
     }
 
-    static func chatGPTCodexAppServerExecutable(
+    static let chatGPTCodexExecutablePaths: Set<String> = [
+        "/Applications/ChatGPT.app/Contents/Resources/codex",
+        "/Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex",
+    ]
+
+    static func hasTrustedChatGPTCodexAppServer(
         in records: [AgentProcessRecord],
-        homeDirectory: URL) -> String?
+        validator: (AgentProcessRecord) -> Bool) -> Bool
     {
-        let allowedPaths = Set([
-            URL(fileURLWithPath: "/Applications/ChatGPT.app/Contents/Resources/codex")
-                .standardizedFileURL.path,
-            homeDirectory.appendingPathComponent("Applications/ChatGPT.app/Contents/Resources/codex")
-                .standardizedFileURL.path,
-        ])
-
-        return records.lazy.compactMap { record -> String? in
-            guard record.executableBasename.lowercased() == AgentSession.Provider.codex.rawValue,
-                  self.arguments(record).contains("app-server"),
-                  let executable = record.arguments?.first ?? record.command.split(whereSeparator: \ .isWhitespace)
-                      .first.map(String.init)
-            else { return nil }
-
-            let path = URL(fileURLWithPath: executable).standardizedFileURL.path
-            return allowedPaths.contains(path) ? path : nil
-        }.first
+        records.contains { record in
+            let executable = record.arguments?.first ?? record.command.split(whereSeparator: \ .isWhitespace)
+                .first.map(String.init) ?? ""
+            return self.chatGPTCodexExecutablePaths.contains(executable) &&
+                self.arguments(record).contains("app-server") && validator(record)
+        }
     }
 
     private static func arguments(_ record: AgentProcessRecord) -> [String] {
-        if let arguments = record.arguments {
-            return Array(arguments.dropFirst())
-        }
-        return self.arguments(record.command)
+        Array((record.arguments ?? record.command.split(whereSeparator: \ .isWhitespace).map(String.init)).dropFirst())
     }
 
     private static func arguments(_ command: String) -> [String] {
