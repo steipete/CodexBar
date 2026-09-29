@@ -64,7 +64,8 @@ struct ClaudeDirectUsageFallbackTests {
             #expect(!invocations.contains("secret-env"))
             #expect(!invocations.contains("remote-registration-would-occur"))
             #expect(!invocations.contains("nonessential-traffic-blocked"))
-            #expect(self.log.arguments(for: "direct") == ClaudeCLISession.probeSettingsArguments + ["/usage"])
+            #expect(!invocations.contains("ambient-mcp-would-load"))
+            #expect(self.log.arguments(for: "direct") == ClaudeCLISession.directUsageArguments)
             let ptyArguments = self.log.arguments(for: "pty")
             #expect(Array(ptyArguments.dropLast()) == ["--allowed-tools", "", "--strict-mcp-config"]
                 + ClaudeCLISession.probeSettingsArguments + ["--session-id"])
@@ -231,8 +232,10 @@ struct ClaudeDirectUsageFallbackTests {
         done
         REMOTE_CONTROL_DISABLED=0
         USAGE_FETCH_ALLOWED=0
+        MCP_ISOLATED=0
         EXPECT_SETTINGS=0
         for argument in "$@"; do
+          if [ "$argument" = "--strict-mcp-config" ]; then MCP_ISOLATED=1; fi
           if [ "$EXPECT_SETTINGS" = "1" ]; then
             case "$argument" in *'"remoteControlAtStartup":false'*) REMOTE_CONTROL_DISABLED=1 ;; esac
             case "$argument" in *'"CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC":""'*) USAGE_FETCH_ALLOWED=1 ;; esac
@@ -245,6 +248,9 @@ struct ClaudeDirectUsageFallbackTests {
         fi
         if [ "$USAGE_FETCH_ALLOWED" != "1" ]; then
           printf '%s-nonessential-traffic-blocked\\n' "$MODE" >> "$LOG_FILE"
+        fi
+        if [ "$MCP_ISOLATED" != "1" ]; then
+          printf '%s-ambient-mcp-would-load\\n' "$MODE" >> "$LOG_FILE"
         fi
         if [ "$DISABLE_AUTOUPDATER" = "1" ]; then
           printf '%s-auto-updater-disabled\\n' "$MODE" >> "$LOG_FILE"

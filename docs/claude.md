@@ -370,10 +370,13 @@ Model-scoped weekly-window proof (synthetic data, no real accounts or credential
   settings stay unchanged; Claude's managed-settings policy still applies.
   - `remoteControlAtStartup: false` disables Remote Control startup for the probe process.
   - An empty `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` in `env` lets `/usage` fetch live quota even when saved
-    settings disable nonessential traffic. With that flag active, Claude never asks the usage endpoint and only
-    replays its persisted usage snapshot, omitting the quota rows once that snapshot is stale. That surfaced as an
-    intermittent subscription-notice error (#4083). Only an empty string clears the flag.
-  - `DISABLE_TELEMETRY` and `DISABLE_ERROR_REPORTING` are set, so lifting that flag does not turn them back on.
+    settings disable nonessential traffic. With that flag active, Claude does not wait for the usage endpoint and
+    only replays its persisted usage snapshot, omitting the quota rows once that snapshot is stale. That surfaced as
+    an intermittent subscription-notice error (#4083). Only an empty string clears the flag.
+  - `DISABLE_TELEMETRY` and `DISABLE_ERROR_REPORTING` are set, so lifting that flag does not turn them back on. It
+    does allow Claude's startup config fetch alongside the usage request.
+- Like the PTY launch, the non-PTY `/usage` fallback passes `--strict-mcp-config`, so it neither starts the user's
+  MCP servers nor lets claude.ai connectors connect.
 - A PTY timeout or usage-loading failure can trigger the non-PTY `/usage` fallback. Cancellation and rate limits stop the probe; a subscription-only notice from the fallback takes precedence over the original PTY failure.
 - Probe working directory: `~/Library/Application Support/CodexBar/ClaudeProbe` with local Claude settings that disable
   deep-link URL handler registration during headless probes.

@@ -420,14 +420,18 @@ actor ClaudeCLISession {
     /// Process-local probe settings; saved settings and managed policy stay unchanged.
     /// - Opt usage probes out of Remote Control.
     /// - Clear `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC`, which Claude re-applies from the user's settings `env`.
-    ///   While it is set, `/usage` never asks the usage endpoint and only replays a persisted snapshot, so the quota
-    ///   rows disappear once that snapshot is stale. Only an empty string clears it; any other value keeps it on.
+    ///   While it is set, `/usage` does not wait for the usage endpoint and only replays a persisted snapshot, so the
+    ///   quota rows disappear once that snapshot is stale. Only an empty string clears it; any other value keeps it on.
     /// - Keep telemetry and error reporting off, which that flag would otherwise also cover.
     static let probeSettingsArguments = [
         "--settings",
         #"{"remoteControlAtStartup":false,"env":{"CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC":"","#
             + #""DISABLE_TELEMETRY":"1","DISABLE_ERROR_REPORTING":"1"}}"#,
     ]
+
+    /// Non-PTY `/usage` fallback. Like the PTY launch, it ignores ambient MCP servers: the probe never uses them, and
+    /// loading them would start the user's local servers and let claude.ai connectors connect on every fallback.
+    static let directUsageArguments = ["--strict-mcp-config"] + ClaudeCLISession.probeSettingsArguments + ["/usage"]
 
     static func launchArguments(sessionID: UUID) -> [String] {
         // Reuse a probe-owned ID: interactive `/usage` cannot use print-only no-persistence.
