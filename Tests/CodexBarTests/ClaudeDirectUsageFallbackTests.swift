@@ -63,14 +63,11 @@ struct ClaudeDirectUsageFallbackTests {
             #expect(invocations.contains("direct-auto-updater-disabled"))
             #expect(!invocations.contains("secret-env"))
             #expect(!invocations.contains("remote-registration-would-occur"))
-            #expect(self.log.arguments(for: "direct") == [
-                "--settings", #"{"remoteControlAtStartup":false}"#, "/usage",
-            ])
+            #expect(!invocations.contains("nonessential-traffic-blocked"))
+            #expect(self.log.arguments(for: "direct") == ClaudeCLISession.probeSettingsArguments + ["/usage"])
             let ptyArguments = self.log.arguments(for: "pty")
-            #expect(Array(ptyArguments.dropLast()) == [
-                "--allowed-tools", "", "--strict-mcp-config",
-                "--settings", #"{"remoteControlAtStartup":false}"#, "--session-id",
-            ])
+            #expect(Array(ptyArguments.dropLast()) == ["--allowed-tools", "", "--strict-mcp-config"]
+                + ClaudeCLISession.probeSettingsArguments + ["--session-id"])
             let sessionID = try #require(ptyArguments.last)
             #expect(UUID(uuidString: sessionID) != nil)
             for (url, original) in self.savedSettings {
@@ -90,6 +87,19 @@ struct ClaudeDirectUsageFallbackTests {
         #expect(environment["DISABLE_AUTOUPDATER"] == "1")
         #expect(environment[ClaudeOAuthCredentialsStore.environmentTokenKey] == nil)
         #expect(environment["ANTHROPIC_API_KEY"] == nil)
+    }
+
+    @Test
+    func `probe settings let usage fetch live quota while telemetry stays off`() throws {
+        #expect(ClaudeCLISession.probeSettingsArguments.first == "--settings")
+        let json = try #require(ClaudeCLISession.probeSettingsArguments.last)
+        let settings = try #require(JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any])
+        #expect(settings["remoteControlAtStartup"] as? Bool == false)
+        let env = try #require(settings["env"] as? [String: String])
+        // Claude treats any non-empty value as set, so only an empty string lifts a saved opt-out.
+        #expect(env["CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC"]?.isEmpty == true)
+        #expect(env["DISABLE_TELEMETRY"] == "1")
+        #expect(env["DISABLE_ERROR_REPORTING"] == "1")
     }
 
     @Test
@@ -194,7 +204,8 @@ struct ClaudeDirectUsageFallbackTests {
         let home = directory.appendingPathComponent("home", isDirectory: true)
         let profile = directory.appendingPathComponent("profile", isDirectory: true)
         let secureStorage = directory.appendingPathComponent("secure", isDirectory: true)
-        let settings = Data(#"{"remoteControlAtStartup":true,"env":{"SYNTHETIC_SENTINEL":"unchanged"}}"#.utf8)
+        let settings = Data((#"{"remoteControlAtStartup":true,"env":{"SYNTHETIC_SENTINEL":"unchanged","#
+                + #""CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC":"1"}}"#).utf8)
         let settingsURLs = [
             home.appendingPathComponent(".claude/settings.json"),
             profile.appendingPathComponent("settings.json"),
@@ -219,16 +230,21 @@ struct ClaudeDirectUsageFallbackTests {
           printf '%s-arg:%s\\n' "$MODE" "$argument" >> "$LOG_FILE"
         done
         REMOTE_CONTROL_DISABLED=0
+        USAGE_FETCH_ALLOWED=0
         EXPECT_SETTINGS=0
         for argument in "$@"; do
-          if [ "$EXPECT_SETTINGS" = "1" ] && [ "$argument" = '{"remoteControlAtStartup":false}' ]; then
-            REMOTE_CONTROL_DISABLED=1
+          if [ "$EXPECT_SETTINGS" = "1" ]; then
+            case "$argument" in *'"remoteControlAtStartup":false'*) REMOTE_CONTROL_DISABLED=1 ;; esac
+            case "$argument" in *'"CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC":""'*) USAGE_FETCH_ALLOWED=1 ;; esac
           fi
           EXPECT_SETTINGS=0
           if [ "$argument" = "--settings" ]; then EXPECT_SETTINGS=1; fi
         done
         if [ "$REMOTE_CONTROL_DISABLED" != "1" ]; then
           printf '%s-remote-registration-would-occur\\n' "$MODE" >> "$LOG_FILE"
+        fi
+        if [ "$USAGE_FETCH_ALLOWED" != "1" ]; then
+          printf '%s-nonessential-traffic-blocked\\n' "$MODE" >> "$LOG_FILE"
         fi
         if [ "$DISABLE_AUTOUPDATER" = "1" ]; then
           printf '%s-auto-updater-disabled\\n' "$MODE" >> "$LOG_FILE"

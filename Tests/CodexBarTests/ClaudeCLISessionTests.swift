@@ -206,8 +206,7 @@ struct ClaudeCLISessionTests {
             "--allowed-tools",
             "",
             "--strict-mcp-config",
-            "--settings",
-            #"{"remoteControlAtStartup":false}"#,
+        ] + ClaudeCLISession.probeSettingsArguments + [
             "--session-id",
             first.uuidString.lowercased(),
         ])

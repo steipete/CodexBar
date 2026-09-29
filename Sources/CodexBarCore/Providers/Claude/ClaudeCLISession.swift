@@ -417,8 +417,17 @@ actor ClaudeCLISession {
         return false
     }
 
-    /// Opt usage probes out of Remote Control without changing saved settings or managed policy.
-    static let probeSettingsArguments = ["--settings", #"{"remoteControlAtStartup":false}"#]
+    /// Process-local probe settings; saved settings and managed policy stay unchanged.
+    /// - Opt usage probes out of Remote Control.
+    /// - Clear `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC`, which Claude re-applies from the user's settings `env`.
+    ///   While it is set, `/usage` never asks the usage endpoint and only replays a persisted snapshot, so the quota
+    ///   rows disappear once that snapshot is stale. Only an empty string clears it; any other value keeps it on.
+    /// - Keep telemetry and error reporting off, which that flag would otherwise also cover.
+    static let probeSettingsArguments = [
+        "--settings",
+        #"{"remoteControlAtStartup":false,"env":{"CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC":"","#
+            + #""DISABLE_TELEMETRY":"1","DISABLE_ERROR_REPORTING":"1"}}"#,
+    ]
 
     static func launchArguments(sessionID: UUID) -> [String] {
         // Reuse a probe-owned ID: interactive `/usage` cannot use print-only no-persistence.

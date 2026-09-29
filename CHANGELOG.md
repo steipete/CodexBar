@@ -4,6 +4,7 @@
 
 ### Fixed
 
+- Claude: let CLI usage probes fetch live quota when Claude settings set `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC`, instead of intermittently failing with a subscription notice once Claude's cached usage snapshot goes stale; probes keep telemetry and error reporting off (#4112, related to #4083). Thanks @sudoHG!
 - Costs: price documented Antigravity and Codex model aliases, add published Cyber fallback rates, and preserve Sol estimates across the August 21 price change (#4094). Thanks @urda!
 - Mistral: offer Monthly Plan in the provider's Menu bar metric picker, so the menu bar and widgets can show the Vibe allowance without a `defaults write` (#4072). Thanks @T0mSIlver!
 - Mistral: price billing usage by event type, API zone, and service tier, so a per-second audio or priority price no longer inflates API spend and 30-day token cost (#4076). Thanks @T0mSIlver!
