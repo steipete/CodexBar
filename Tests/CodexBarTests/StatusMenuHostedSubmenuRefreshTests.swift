@@ -1,5 +1,6 @@
 import AppKit
 import CodexBarCore
+import SwiftUI
 import Testing
 @testable import CodexBar
 
@@ -380,6 +381,55 @@ struct StatusMenuHostedSubmenuRefreshTests {
         #expect(bobView !== aliceView)
     }
 
+    @Test
+    func `active saved quota keeps utilization history accessible through submenu refresh`() throws {
+        let previousMenuCardRendering = StatusItemController.menuCardRenderingEnabled
+        StatusItemController.menuCardRenderingEnabled = true
+        defer { StatusItemController.menuCardRenderingEnabled = previousMenuCardRendering }
+        let settings = Self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        Self.enableOnlyClaude(settings)
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        Self.seedClaudeSnapshots(in: store)
+        let now = Date()
+        store.planUtilizationHistory[.claude] = PlanUtilizationHistoryBuckets(unscoped: [
+            PlanUtilizationSeriesHistory(
+                name: .weekly,
+                windowMinutes: 10080,
+                entries: [.init(
+                    capturedAt: now.addingTimeInterval(-21600),
+                    usedPercent: 24,
+                    resetsAt: now.addingTimeInterval(86400))]),
+        ])
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: .system)
+        defer { controller.releaseStatusItemsForTesting() }
+        let submenu = try #require(controller.makeUsageHistorySubmenu(
+            provider: .claude,
+            width: StatusItemController.menuCardBaseWidth))
+        controller.menuWillOpen(submenu)
+
+        #expect(submenu.items.count == 3)
+        #expect(submenu.items.first?.view is NSHostingView<QuotaBurndownChartMenuView>)
+        #expect(submenu.items[1].isSeparatorItem)
+        #expect(submenu.items.last?.view is NSHostingView<PlanUtilizationHistoryChartMenuView>)
+
+        store.planUtilizationHistory[.claude] = PlanUtilizationHistoryBuckets(unscoped: [Self.makePlanHistory(
+            usedPercent: 30)])
+        store.planUtilizationHistoryRevision &+= 1
+        controller.refreshHostedSubviewMenu(submenu)
+
+        #expect(submenu.items.count == 1)
+        #expect(submenu.items.first?.view is NSHostingView<PlanUtilizationHistoryChartMenuView>)
+    }
+
     private func assertHostedChartItemHeightMatchesRefresh(
         chartID: String,
         provider: UsageProvider,
@@ -492,14 +542,10 @@ struct StatusMenuHostedSubmenuRefreshTests {
     }
 
     private static func makeSettings() -> SettingsStore {
-        let suite = "StatusMenuHostedSubmenuRefreshTests-\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suite)!
-        defaults.removePersistentDomain(forName: suite)
-        return SettingsStore(
-            userDefaults: defaults,
-            configStore: testConfigStore(suiteName: suite),
-            zaiTokenStore: NoopZaiTokenStore(),
-            syntheticTokenStore: NoopSyntheticTokenStore())
+        testSettingsStore(
+            suiteName: "StatusMenuHostedSubmenuRefreshTests",
+            userDefaults: InMemoryUserDefaults(),
+            config: testConfigWithAllProvidersDisabled())
     }
 
     private static func enableOnlyClaude(_ settings: SettingsStore) {

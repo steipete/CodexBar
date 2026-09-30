@@ -32,7 +32,7 @@ public enum WarpProviderDescriptor {
             branding: ProviderBranding(
                 iconStyle: .init(provider: .warp),
                 iconResourceName: "ProviderIcon-warp",
-                color: ProviderColor(red: 147 / 255, green: 139 / 255, blue: 180 / 255),
+                color: ProviderColor(hex: 0x938BB4),
                 confettiPalette: [
                     ProviderColor(hex: 0xC7AEFF),
                     ProviderColor(hex: 0x1C1A26),

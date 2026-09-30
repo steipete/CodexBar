@@ -61,7 +61,7 @@ public enum MoonshotProviderDescriptor {
                 // Provider-specific by design: Moonshot's Open Platform product deliberately uses Kimi branding.
                 iconStyle: .init(provider: .kimi),
                 iconResourceName: "ProviderIcon-kimi",
-                color: ProviderColor(red: 32 / 255, green: 93 / 255, blue: 235 / 255),
+                color: ProviderColor(hex: 0x205DEB),
                 confettiPalette: [
                     ProviderColor(hex: 0x121212),
                     ProviderColor(hex: 0x305140),

@@ -49,11 +49,33 @@ extension StatusItemController {
             return true
         }
 
+        // Provider-specific by design: this menu burndown currently targets Codex and Claude quota histories.
+        if provider == .codex || provider == .claude {
+            let burndownView = QuotaBurndownChartMenuView(
+                provider: provider,
+                histories: histories,
+                width: width)
+            if burndownView.hasSeries {
+                self.appendUsageHistoryChart(burndownView, to: submenu, provider: provider, width: width)
+                submenu.addItem(.separator())
+            }
+        }
+
         let chartView = PlanUtilizationHistoryChartMenuView(
             provider: provider,
             histories: histories,
             snapshot: snapshot,
             width: width)
+        self.appendUsageHistoryChart(chartView, to: submenu, provider: provider, width: width)
+        return true
+    }
+
+    private func appendUsageHistoryChart(
+        _ chartView: some View,
+        to submenu: NSMenu,
+        provider: UsageProvider,
+        width: CGFloat)
+    {
         let hosting = UsageHistoryMenuHostingView(rootView: chartView)
         hosting.frame = NSRect(
             origin: .zero,
@@ -65,6 +87,5 @@ extension StatusItemController {
         chartItem.representedObject = Self.usageHistoryChartID
         chartItem.toolTip = provider.rawValue
         submenu.addItem(chartItem)
-        return true
     }
 }

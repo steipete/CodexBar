@@ -13,7 +13,7 @@ struct PlanUtilizationHistoryChartMenuView: View {
         static let barWidth: CGFloat = 6
     }
 
-    private struct SeriesSelection: Hashable {
+    struct SeriesSelection: Hashable {
         let name: PlanUtilizationSeriesName
         let windowMinutes: Int
 
@@ -22,7 +22,7 @@ struct PlanUtilizationHistoryChartMenuView: View {
         }
     }
 
-    private struct VisibleSeries: Identifiable, Equatable {
+    struct VisibleSeries: Identifiable, Equatable {
         let selection: SeriesSelection
         let title: String
         let history: PlanUtilizationSeriesHistory
@@ -76,14 +76,14 @@ struct PlanUtilizationHistoryChartMenuView: View {
         provider: UsageProvider,
         histories: [PlanUtilizationSeriesHistory],
         snapshot: UsageSnapshot? = nil,
-        width: CGFloat)
+        width: CGFloat,
+        referenceDate: Date = Date())
     {
         self.provider = provider
         let visibleSeries = Self.visibleSeries(
             histories: histories,
             provider: provider,
             snapshot: snapshot)
-        let referenceDate = Date()
         self.visibleSeries = visibleSeries
         self.modelsBySeriesID = Dictionary(uniqueKeysWithValues: visibleSeries.map {
             ($0.id, Self.makeModel(history: $0.history, provider: provider, referenceDate: referenceDate))
@@ -179,7 +179,7 @@ struct PlanUtilizationHistoryChartMenuView: View {
         }
     }
 
-    private nonisolated static func visibleSeries(
+    nonisolated static func visibleSeries(
         histories: [PlanUtilizationSeriesHistory],
         provider: UsageProvider,
         snapshot: UsageSnapshot?) -> [VisibleSeries]

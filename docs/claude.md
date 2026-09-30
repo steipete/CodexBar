@@ -9,6 +9,10 @@ read_when:
 
 # Claude provider
 
+The **Plan Usage** submenu includes recorded remaining-quota burndown above utilization history,
+using the same Session, Weekly, and Sonnet labels. See [recorded quota burndown](widgets/burndown-proof.md)
+for capture-age semantics and the existing history retention/privacy behavior.
+
 Claude supports three usage data paths plus local cost usage. The main provider pipeline uses runtime-specific
 automatic selection, but the codebase still has multiple active Claude `.auto` decision sites while the refactor is
 pending. For the exact current-state parity contract, see

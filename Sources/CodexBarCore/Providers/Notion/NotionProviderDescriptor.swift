@@ -52,7 +52,7 @@ public enum NotionProviderDescriptor {
                 iconResourceName: "ProviderIcon-notion",
                 // Notion's UI accent blue, not its near-black brand ink: the ink is
                 // indistinguishable from the unfilled track in a usage gauge.
-                color: ProviderColor(red: 51 / 255, green: 126 / 255, blue: 169 / 255),
+                color: ProviderColor(hex: 0x337EA9),
                 confettiPalette: [
                     ProviderColor(hex: 0x337EA9),
                     ProviderColor(hex: 0xE16259),

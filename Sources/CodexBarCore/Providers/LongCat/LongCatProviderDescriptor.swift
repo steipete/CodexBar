@@ -43,12 +43,13 @@ public enum LongCatProviderDescriptor {
             branding: ProviderBranding(
                 iconStyle: .init(provider: .longcat),
                 iconResourceName: "ProviderIcon-longcat",
-                color: ProviderColor(red: 255 / 255, green: 209 / 255, blue: 0 / 255),
+                color: ProviderColor(hex: 0x29E154),
                 confettiPalette: [
-                    ProviderColor(hex: 0xFFD100),
+                    ProviderColor(hex: 0x29E154),
                     ProviderColor(hex: 0x111111),
                     ProviderColor(hex: 0xFFFFFF),
-                ]),
+                ],
+                widgetColor: ProviderColor(hex: 0xFFD100)),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "LongCat cost summary is not supported." }),

@@ -12,7 +12,7 @@ public enum T3ChatProviderDescriptor {
         debugPane: ProviderDebugPaneCapabilities(errorSimulationOrder: 6),
         dashboardURL: "https://t3.chat/settings/customization",
         subscriptionDashboardURL: "https://t3.chat/settings/subscription",
-        color: .init(hex: 0xF56647),
+        color: ProviderColor(hex: 0xF56647),
         confetti: [0x970B72, 0xE6229C, 0xFEA0F6],
         noDataMessage: "T3 Chat cost summary is not supported.",
         aliases: ["t3-chat", "t3"],

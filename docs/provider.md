@@ -93,7 +93,7 @@ lexical policy scan with a SwiftSyntax-based implementation that can model expre
 Introduce a single descriptor per provider:
 - `id` (stable `UsageProvider`)
 - display/labels/URLs (menu title, dashboard URL, status URL)
-- UI branding (icon name, primary color, 2–3-color confetti palette)
+- UI branding (icon name, primary color, 2–3-color confetti palette); see the [palette audit](provider-palette.md) for sourced accents and contrast decisions.
 - capabilities (supportsCredits, supportsTokenCost, supportsStatusPolling, supportsLogin)
 - fetch plan (allowed `--source` modes + ordered strategy pipeline)
 - CLI metadata (cliName, aliases, version provider)

@@ -54,7 +54,7 @@ public enum CopilotProviderDescriptor {
             branding: ProviderBranding(
                 iconStyle: .init(provider: .copilot),
                 iconResourceName: "ProviderIcon-copilot",
-                color: ProviderColor(red: 168 / 255, green: 85 / 255, blue: 247 / 255),
+                color: ProviderColor(hex: 0xA855F7),
                 confettiPalette: [
                     ProviderColor(hex: 0x8534F3),
                     ProviderColor(hex: 0xF08A3A),

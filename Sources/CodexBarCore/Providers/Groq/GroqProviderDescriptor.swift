@@ -40,7 +40,7 @@ public enum GroqProviderDescriptor {
             branding: ProviderBranding(
                 iconStyle: .init(provider: .groq),
                 iconResourceName: "ProviderIcon-groq",
-                color: ProviderColor(red: 245 / 255, green: 104 / 255, blue: 68 / 255),
+                color: ProviderColor(hex: 0xF56844),
                 confettiPalette: [
                     ProviderColor(hex: 0xF43E01),
                     ProviderColor(hex: 0xFFFFFF),

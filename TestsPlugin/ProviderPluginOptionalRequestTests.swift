@@ -53,7 +53,7 @@ struct ProviderPluginOptionalRequestTests {
     func `slow primary keeps a secondary that completed after the collection budget`(
         engine: ProviderPluginEngineKind) async throws
     {
-        let runtime = try Self.runtime(engine: engine, collectionBudget: .milliseconds(200)) { request in
+        let runtime = try Self.runtime(engine: engine, contextOptions: .production) { request in
             try await Task.sleep(for: request.url?.path == "/primary" ? .seconds(2) : .seconds(1))
             return try Self.response(request, body: "ready")
         }
@@ -116,27 +116,82 @@ struct ProviderPluginOptionalRequestTests {
         #expect(calls.counts.1 == 2)
     }
 
-    @Test(arguments: BundledPluginTestSupport.engines)
+    @Test(.timeLimit(.minutes(1)), arguments: BundledPluginTestSupport.engines, [false, true])
     func `optional transport ignoring cancellation cannot hold the result`(
-        engine: ProviderPluginEngineKind) async throws
+        engine: ProviderPluginEngineKind, waitingForAdmission: Bool) async throws
     {
-        let calls = RequestCalls()
+        let (starts, started) = AsyncStream<Void>.makeStream()
         let (release, continuation) = AsyncStream<Void>.makeStream()
-        defer { continuation.finish() }
-        let runtime = try Self.runtime(engine: engine, collectionBudget: .milliseconds(200)) { request in
-            calls.start()
-            if request.url?.path == "/optional" {
+        let (cancellations, cancelled) = AsyncStream<Void>.makeStream()
+        defer {
+            started.finish()
+            continuation.finish()
+            cancelled.finish()
+        }
+        let holdOptional: @Sendable () async -> Void = {
+            await withTaskCancellationHandler {
+                started.yield()
                 // An independent task deliberately prevents caller cancellation from releasing this transport.
                 await Task.detached { for await _ in release {} }.value
+            } onCancel: {
+                cancelled.yield()
             }
+        }
+        let options = ProviderPluginContextOptions(
+            optionalRequestTimeoutSeconds: nil,
+            waitForOptionalDeadline: { _, budget in
+                #expect(budget == .milliseconds(200))
+                var iterator = starts.makeAsyncIterator()
+                #expect(await iterator.next() != nil)
+            },
+            beforeHTTPAttempt: { request in
+                // Before admission, the independent five-second request timer cannot mask a broken collection deadline.
+                if waitingForAdmission, request.url?.path == "/optional" { await holdOptional() }
+            })
+        let runtime = try Self.runtime(engine: engine, contextOptions: options) { request in
+            if !waitingForAdmission, request.url?.path == "/optional" { await holdOptional() }
             return try Self.response(request, body: "late")
         }
-        let task = Task { try await runtime.fetchUsage() }
+        let task = Task {
+            let usage = try await runtime.fetchUsage()
+            var iterator = cancellations.makeAsyncIterator()
+            #expect(await iterator.next() != nil)
+            return usage
+        }
+        defer { task.cancel() }
         switch await BoundedTaskJoin(sourceTask: task).value(joinGrace: .seconds(10)) {
         case let .value(usage):
             #expect(usage.identity?.loginMethod == "none")
-            #expect(try #require(calls.elapsed) < .seconds(1))
         case .failure, .timedOut: Issue.record("Optional transport held the primary result until release")
+        }
+    }
+
+    @Test(.timeLimit(.minutes(1)))
+    func `bounded request join cancels without waiting for an uncooperative transport or its timeout`() async {
+        let (starts, started) = AsyncStream<Void>.makeStream()
+        let (pending, release) = AsyncStream<Void>.makeStream()
+        defer {
+            started.finish()
+            release.finish()
+        }
+        let transport = Task<Void, Error> {
+            started.yield()
+            await Task.detached { for await _ in pending {} }.value
+        }
+        // Exercise the post-admission join directly so cancellation cannot win at an earlier admission check.
+        let task = Task<BoundedTaskJoinOutcome<Void>, Error> {
+            await BoundedTaskJoin(sourceTask: transport).value(joinGrace: .seconds(60))
+        }
+        defer {
+            task.cancel()
+            transport.cancel()
+        }
+        var iterator = starts.makeAsyncIterator()
+        #expect(await iterator.next() != nil)
+        task.cancel()
+        switch await BoundedTaskJoin(sourceTask: task).value(joinGrace: .seconds(10)) {
+        case let .value(.failure(error)): #expect(error is CancellationError)
+        case .value, .failure, .timedOut: Issue.record("Request cancellation waited for the transport or its timeout")
         }
     }
 
@@ -144,7 +199,9 @@ struct ProviderPluginOptionalRequestTests {
         engine: ProviderPluginEngineKind,
         optionalURL: String = "https://example.test/optional",
         limit: Int = 1024,
-        collectionBudget: Duration = .seconds(3),
+        contextOptions: ProviderPluginContextOptions = .init(
+            optionalRequestTimeoutSeconds: nil,
+            optionalCollectionBudget: .seconds(3)),
         handler: @escaping @Sendable (URLRequest) async throws -> (Data, URLResponse)) throws -> ProviderPluginRuntime
     {
         try ProviderPluginRuntime(
@@ -163,9 +220,7 @@ struct ProviderPluginOptionalRequestTests {
             responseSizeLimit: limit,
             enforcesUserResponsePolicy: true,
             allowsDynamicID: true,
-            contextOptions: ProviderPluginContextOptions(
-                optionalRequestTimeoutSeconds: nil,
-                optionalCollectionBudget: collectionBudget),
+            contextOptions: contextOptions,
             engine: engine)
     }
 
@@ -186,11 +241,6 @@ struct ProviderPluginOptionalRequestTests {
     private final class RequestCalls: @unchecked Sendable {
         private let lock = NSLock()
         private var started = 0
-        private var startedAt: ContinuousClock.Instant?
-        var elapsed: Duration? {
-            self.lock.withLock { self.startedAt?.duration(to: .now) }
-        }
-
         private var cancelled = 0
         var counts: (Int, Int) {
             self.lock.withLock { (self.started, self.cancelled) }
@@ -198,7 +248,6 @@ struct ProviderPluginOptionalRequestTests {
 
         func start() {
             self.lock.withLock {
-                self.startedAt = self.startedAt ?? .now
                 self.started += 1
             }
         }

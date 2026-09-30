@@ -65,12 +65,13 @@ public enum AugmentProviderDescriptor {
             branding: ProviderBranding(
                 iconStyle: .init(provider: .augment),
                 iconResourceName: "ProviderIcon-augment",
-                color: ProviderColor(red: 99 / 255, green: 102 / 255, blue: 241 / 255),
+                color: ProviderColor(hex: 0x1AA049),
                 confettiPalette: [
-                    ProviderColor(hex: 0xF97316),
+                    ProviderColor(hex: 0x1AA049),
                     ProviderColor(hex: 0x111111),
                     ProviderColor(hex: 0xFFF7ED),
-                ]),
+                ],
+                widgetColor: ProviderColor(hex: 0x6366F1)),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "Augment cost summary is not supported." }),

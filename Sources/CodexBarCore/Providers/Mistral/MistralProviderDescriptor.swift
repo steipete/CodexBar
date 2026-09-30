@@ -48,12 +48,13 @@ public enum MistralProviderDescriptor {
             branding: ProviderBranding(
                 iconStyle: .init(provider: .mistral),
                 iconResourceName: "ProviderIcon-mistral",
-                color: ProviderColor(red: 255 / 255, green: 80 / 255, blue: 15 / 255),
+                color: ProviderColor(hex: 0xFF5229),
                 confettiPalette: [
-                    ProviderColor(hex: 0xFA500F),
+                    ProviderColor(hex: 0xFF5229),
                     ProviderColor(hex: 0xFFAF01),
                     ProviderColor(hex: 0xFFE000),
-                ]),
+                ],
+                widgetColor: ProviderColor(hex: 0xFF500F)),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: true,
                 noDataMessage: { "Mistral cost history needs a billing web session." },

@@ -146,7 +146,7 @@ struct ProviderArchitectureGatekeeperTests {
     }
 
     @Test
-    func `descriptor widget colors preserve the pre-derivation literals`() {
+    func `descriptor widget colors preserve the audited palette`() {
         var widgetFingerprint: UInt64 = 1_469_598_103_934_665_603
         var burnDownFingerprint = widgetFingerprint
         for descriptor in ProviderDescriptorRegistry.all {
@@ -156,7 +156,8 @@ struct ProviderArchitectureGatekeeperTests {
             Self.hash(descriptor.branding.burnDownWidgetColor, into: &burnDownFingerprint)
         }
 
-        #expect(widgetFingerprint == 11_274_607_069_720_606_260)
+        // Hex normalization rounds ClinePass to #61A3FA; other widget components remain unchanged.
+        #expect(widgetFingerprint == 6_927_315_133_167_192_314)
         #expect(burnDownFingerprint == 16_992_290_873_030_609_074)
     }
 

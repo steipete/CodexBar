@@ -63,13 +63,13 @@ public enum DoubaoProviderDescriptor {
             branding: ProviderBranding(
                 iconStyle: .init(provider: .doubao),
                 iconResourceName: "ProviderIcon-doubao",
-                color: ProviderColor(red: 51 / 255, green: 112 / 255, blue: 255 / 255),
+                color: ProviderColor(hex: 0x3370FF),
                 confettiPalette: [
                     ProviderColor(hex: 0x0057FF),
                     ProviderColor(hex: 0xEFC5BA),
                     ProviderColor(hex: 0x493530),
                 ],
-                widgetColor: ProviderColor(red: 45 / 255, green: 136 / 255, blue: 255 / 255)),
+                widgetColor: ProviderColor(hex: 0x2D88FF)),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "Doubao cost summary is not available." }),

@@ -9,6 +9,10 @@ read_when:
 
 # Codex provider
 
+The **Plan Usage** submenu includes recorded remaining-quota burndown above utilization history,
+including saved Monthly windows. See [recorded quota burndown](widgets/burndown-proof.md)
+for capture-age semantics and the existing history retention/privacy behavior.
+
 Codex has three automatic usage data paths (OAuth API, web dashboard, CLI RPC) plus a manual CLI PTY diagnostic parser and a local cost-usage scanner.
 The OAuth API is the default app source when credentials are available; web access is optional for dashboard extras.
 
