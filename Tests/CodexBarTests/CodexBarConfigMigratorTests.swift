@@ -295,6 +295,25 @@ struct CodexBarConfigMigratorTests {
         #expect(defaults.bool(forKey: Self.legacyMigrationCompletedKey))
     }
 
+    @Test
+    func `already migrated kimi cookie is removed from user defaults on next launch`() throws {
+        let suite = "CodexBarConfigMigratorTests-kimi-cookie-done-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        defer { defaults.removePersistentDomain(forName: suite) }
+        defaults.set("fixture-cookie=manual", forKey: "kimiManualCookieHeader")
+        defaults.set(true, forKey: Self.legacyMigrationCompletedKey)
+
+        let secrets = CountingLegacySecretStore(token: nil)
+        let stores = Self.legacyStores(secrets: secrets, accountStore: CountingTokenAccountStore())
+        let configStore = testConfigStore(suiteName: suite)
+
+        _ = Self.migrate(configStore: configStore, defaults: defaults, stores: stores)
+
+        #expect(defaults.string(forKey: "kimiManualCookieHeader") == nil)
+        #expect(defaults.bool(forKey: Self.legacyMigrationCompletedKey))
+    }
+
     private static func migrate(
         configStore: CodexBarConfigStore,
         defaults: UserDefaults,

@@ -54,6 +54,40 @@ struct LogRedactorCoverageTests {
     }
 
     @Test
+    func `mixed case provider tokens are redacted`() {
+        for token in [
+            "xai-AbCdEfGhIjKlMnOpQrStUvWxYz01",
+            "gsk_AbCdEfGhIjKlMnOpQrStUvWxYz01",
+            "pplx-AbCdEfGhIjKlMnOpQrStUvWxYz01",
+            "hf_AbCdEfGhIjKlMnOpQrStUvWxYz01",
+            "AIzaAbCdEfGhIjKlMnOpQrStUvWxYz01",
+        ] {
+            let input = "key=\(token)"
+            let redacted = LogRedactor.redact(input)
+            #expect(redacted.contains(token) == false, "expected \(token) to be redacted")
+            #expect(redacted.contains("<redacted-token>"))
+        }
+    }
+
+    @Test
+    func `spaced api key label value is redacted`() {
+        let input = "api key: abcdef0123456789"
+        let redacted = LogRedactor.redact(input)
+        #expect(redacted.contains("abcdef0123456789") == false)
+        #expect(redacted.contains("api key: <redacted>"))
+    }
+
+    @Test
+    func `query secret redaction keeps compact json valid`() throws {
+        let input = #"{"url":"https://api.example?token=secretvalue123","provider":"kimi"}"#
+        let redacted = LogRedactor.redact(input)
+        #expect(redacted.contains("secretvalue123") == false)
+        let data = try #require(redacted.data(using: .utf8))
+        let object = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+        #expect(object?["provider"] as? String == "kimi")
+    }
+
+    @Test
     func `url query token parameter is redacted`() {
         let input = "https://api.example.com/v1/usage?token=secretvalue123&format=json"
         let redacted = LogRedactor.redact(input)
