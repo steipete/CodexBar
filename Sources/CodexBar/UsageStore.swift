@@ -1042,10 +1042,11 @@ final class UsageStore {
 extension UsageStore {
     func dumpLog(toFileFor provider: UsageProvider) async -> URL? {
         let text = await self.debugLog(for: provider)
+        let redactedText = LogRedactor.redact(text)
         let filename = "codexbar-\(provider.rawValue)-probe.txt"
         let url = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent(filename)
         do {
-            try text.write(to: url, atomically: true, encoding: .utf8)
+            try redactedText.write(to: url, atomically: true, encoding: .utf8)
             _ = await MainActor.run { NSWorkspace.shared.open(url) }
             return url
         } catch {

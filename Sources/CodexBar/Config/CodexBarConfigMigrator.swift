@@ -90,7 +90,11 @@ struct CodexBarConfigMigrator {
         }
 
         if state.sawLegacySecrets || state.sawLegacyAccounts {
-            let cleared = self.clearLegacyStores(stores: stores, sawAccounts: state.sawLegacyAccounts, log: log)
+            let cleared = self.clearLegacyStores(
+                stores: stores,
+                sawAccounts: state.sawLegacyAccounts,
+                userDefaults: userDefaults,
+                log: log)
             if cleared {
                 userDefaults.set(true, forKey: Self.legacyMigrationCompletedKey)
             }
@@ -453,6 +457,7 @@ struct CodexBarConfigMigrator {
     private static func clearLegacyStores(
         stores: LegacyStores,
         sawAccounts: Bool,
+        userDefaults: UserDefaults,
         log: CodexBarLogger) -> Bool
     {
         var success = true
@@ -474,6 +479,9 @@ struct CodexBarConfigMigrator {
             log.error("Failed to clear legacy secrets: \(error)")
             success = false
         }
+
+        // The migrated Kimi cookie lives in config.json now; drop the plaintext UserDefaults copy.
+        userDefaults.removeObject(forKey: "kimiManualCookieHeader")
 
         if sawAccounts {
             let legacyURL = FileTokenAccountStore.defaultURL()
