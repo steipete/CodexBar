@@ -311,6 +311,7 @@ struct CodexBarConfigMigratorTests {
         _ = Self.migrate(configStore: configStore, defaults: defaults, stores: stores)
 
         #expect(defaults.string(forKey: "kimiManualCookieHeader") == nil)
+        #expect(try configStore.load()?.providerConfig(for: .kimi)?.cookieHeader == "fixture-cookie=manual")
         #expect(defaults.bool(forKey: Self.legacyMigrationCompletedKey))
     }
 

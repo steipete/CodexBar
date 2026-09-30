@@ -90,8 +90,23 @@ struct CodexBarConfigMigrator {
         }
 
         // The migrated Kimi cookie lives in config.json now; drop the plaintext UserDefaults copy.
-        // Runs every launch so already-migrated installs also lose the stale value.
-        userDefaults.removeObject(forKey: "kimiManualCookieHeader")
+        // Runs every launch so already-migrated installs also lose the stale value. When the
+        // completion flag skipped migrateKimi (e.g. config.json was deleted or lacks the cookie),
+        // heal the defaults value into config and persist before removing — never delete the
+        // last copy of the credential.
+        if userDefaults.string(forKey: "kimiManualCookieHeader") != nil {
+            self.migrateKimi(userDefaults: userDefaults, stores: stores, config: &config, state: &state, log: log)
+            if state.didUpdate {
+                do {
+                    try configStore.save(config)
+                } catch {
+                    log.error("Failed to persist config: \(error)")
+                }
+            }
+            if config.providerConfig(for: .kimi)?.cookieHeader?.isEmpty == false {
+                userDefaults.removeObject(forKey: "kimiManualCookieHeader")
+            }
+        }
 
         if state.sawLegacySecrets || state.sawLegacyAccounts {
             let cleared = self.clearLegacyStores(
