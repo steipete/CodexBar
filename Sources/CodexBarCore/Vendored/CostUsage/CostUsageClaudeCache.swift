@@ -205,6 +205,7 @@ extension CostUsageScanner {
         case normalizationCacheMiss
         case vertexMetadataWalk
         case claudeLineDecode
+        case claudeCostCalculation
         case catalogModelLookup(found: Bool)
     }
 
@@ -218,6 +219,7 @@ extension CostUsageScanner {
         var normalizationCacheMisses = 0
         var vertexMetadataWalks = 0
         var claudeLineDecodes = 0
+        var claudeCostCalculations = 0
         var catalogModelLookups = 0
         var catalogModelHits = 0
         var catalogModelMisses = 0
@@ -246,6 +248,7 @@ extension CostUsageScanner {
             case .normalizationCacheMiss: self.metrics.normalizationCacheMisses += 1
             case .vertexMetadataWalk: self.metrics.vertexMetadataWalks += 1
             case .claudeLineDecode: self.metrics.claudeLineDecodes += 1
+            case .claudeCostCalculation: self.metrics.claudeCostCalculations += 1
             case let .catalogModelLookup(found):
                 self.metrics.catalogModelLookups += 1
                 if found {
