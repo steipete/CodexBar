@@ -504,10 +504,13 @@ extension CostUsageStore {
         retryPresence: [String: CostUsageCodexRetryBufferPresence]? = nil,
         tokenSnapshotsLoaded: Bool = true,
         unloadedTokenSnapshotPathRecorder: ((String) -> Void)? = nil,
-        decodedUsageRows: [String: [CostUsageScanner.CodexUsageRow]]? = nil) -> CostUsageCache
+        decodedUsageRows: [String: [CostUsageScanner.CodexUsageRow]]? = nil,
+        makeDecoder: () -> JSONDecoder = JSONDecoder.init) -> CostUsageCache
     {
         recorder?.recordCacheConversion()
+        let decoder = makeDecoder()
         var cache = CostUsageCache()
+        cache.files.reserveCapacity(snapshot.files.count)
         let metadata = snapshot.metadata
         cache.lastScanUnixMs = metadata.lastScanUnixMs
         cache.scanSinceKey = metadata.scanSinceDay
@@ -524,17 +527,19 @@ extension CostUsageStore {
         cache.roots = metadata.rootMtimes
         cache.codexProjectMetadataVersion = metadata.projectMetadataVersion
         cache.codexPreviousReport = metadata.previousReportPayload.flatMap {
-            try? JSONDecoder().decode(CostUsageCodexPreviousReport.self, from: $0)
+            try? decoder.decode(CostUsageCodexPreviousReport.self, from: $0)
         }
         if let priority = metadata.priorityTurnStatePayload.flatMap({
-            try? JSONDecoder().decode(StoredPriorityState.self, from: $0)
+            try? decoder.decode(StoredPriorityState.self, from: $0)
         }) {
             cache.codexPriorityTurnKeys = priority.turnKeys
             cache.codexPriorityTurnIDsByDay = priority.turnIDsByDay
             cache.codexPriorityTurnsCursor = priority.turnsCursor
             cache.codexResolvedPriorityTurns = priority.resolvedTurns
         }
-        cache.codexSessionDiscovery = snapshot.discoveryState.flatMap(Self.discovery(from:))
+        cache.codexSessionDiscovery = snapshot.discoveryState?.payload.flatMap {
+            try? decoder.decode(CostUsageCodexSessionDiscovery.self, from: $0)
+        }
         cache.codexActiveLookbackState = snapshot.lookbackState.map(Self.lookback(from:))
 
         let snapshotsByPath = Dictionary(grouping: snapshot.tokenSnapshots, by: \.path)
@@ -546,7 +551,7 @@ extension CostUsageStore {
 
         for file in snapshot.files {
             guard let detailsData = file.scanState.detailsPayload,
-                  let details = try? JSONDecoder().decode(StoredFileDetails.self, from: detailsData)
+                  let details = try? decoder.decode(StoredFileDetails.self, from: detailsData)
             else { continue }
             let aggregates = (aggregatesByPath[file.path] ?? []).map(\.aggregate)
             let rows: [CostUsageScanner.CodexUsageRow]
@@ -555,7 +560,7 @@ extension CostUsageStore {
             } else {
                 recorder?.recordUsageRowDecodes(count: rowsByPath[file.path]?.count ?? 0)
                 rows = (rowsByPath[file.path] ?? []).compactMap {
-                    try? JSONDecoder().decode(CostUsageScanner.CodexUsageRow.self, from: $0.payload)
+                    try? decoder.decode(CostUsageScanner.CodexUsageRow.self, from: $0.payload)
                 }
             }
             let restoredRows = rows.isEmpty ? Self.aggregateRows(from: aggregates) : rows
@@ -600,15 +605,15 @@ extension CostUsageStore {
                 codexRows: details.hasRows ? restoredRows : nil,
                 codexNextUsageRowIndex: details.hasExactUsageRowIndex == true ? file.scanState.nextUsageRowIndex : nil,
                 codexPendingPricing: buffers.first { $0.kind == .pricingEvidence }.flatMap {
-                    try? JSONDecoder().decode([String: CostUsageScanner.CodexPricingEvidence].self, from: $0.payload)
+                    try? decoder.decode([String: CostUsageScanner.CodexPricingEvidence].self, from: $0.payload)
                 },
                 codexPendingSourcePricing: buffers.first { $0.kind == .sourcePricingEvidence }.map {
-                    (try? JSONDecoder().decode(
+                    (try? decoder.decode(
                         [CostUsageScanner.CodexSourcePricingKey: CostUsageScanner.CodexPricingEvidence].self,
                         from: $0.payload)) ?? [:]
                 },
                 codexPendingSourcePricingAnchor: buffers.first { $0.kind == .sourcePricingAnchor }.flatMap {
-                    try? JSONDecoder().decode(CostUsageCodexTokenIndexAnchor.self, from: $0.payload)
+                    try? decoder.decode(CostUsageCodexTokenIndexAnchor.self, from: $0.payload)
                 },
                 codexTokenSnapshots: details.hasTokenSnapshots && tokenSnapshotsLoaded ? tokenSnapshots : nil,
                 codexTokenCheckpoints: details.hasTokenSnapshots && tokenSnapshotsLoaded
@@ -625,11 +630,11 @@ extension CostUsageStore {
                 codexScanTargetSize: file.scanState.targetSize,
                 codexScanComplete: file.scanState.isComplete,
                 codexJSONLResumeState: file.scanState.resumePayload.flatMap {
-                    try? JSONDecoder().decode(CostUsageJsonl.ResumeState.self, from: $0)
+                    try? decoder.decode(CostUsageJsonl.ResumeState.self, from: $0)
                 },
                 codexForkAccountingState: details.forkAccountingState,
-                codexBufferedSubagentLines: Self.bufferedLines(buffers, kind: .subagent),
-                codexBufferedUnresolvedForkLines: Self.bufferedLines(buffers, kind: .unresolvedFork),
+                codexBufferedSubagentLines: Self.bufferedLines(buffers, kind: .subagent, decoder: decoder),
+                codexBufferedUnresolvedForkLines: Self.bufferedLines(buffers, kind: .unresolvedFork, decoder: decoder),
                 codexReadRetryBufferPresence: retryPresence.map { $0[file.path] ?? .init() },
                 codexParserRevision: details.parserRevision)
             cache.files[file.path] = usage
@@ -1360,10 +1365,6 @@ extension CostUsageStore {
         }
     }
 
-    private static func discovery(from value: CostUsageStoreDiscoveryState) -> CostUsageCodexSessionDiscovery? {
-        value.payload.flatMap { try? JSONDecoder().decode(CostUsageCodexSessionDiscovery.self, from: $0) }
-    }
-
     private static func lookbackState(_ value: CostUsageCodexActiveLookbackState?) -> CostUsageStoreLookbackState? {
         value.map {
             CostUsageStoreLookbackState(
@@ -1458,10 +1459,11 @@ extension CostUsageStore {
 
     private static func bufferedLines(
         _ values: [CostUsageStoreBufferedLine],
-        kind: CostUsageStoreBufferedLineKind) -> [CostUsageScanner.CodexBufferedFastLine]?
+        kind: CostUsageStoreBufferedLineKind,
+        decoder: JSONDecoder) -> [CostUsageScanner.CodexBufferedFastLine]?
     {
-        let lines = values.filter { $0.kind == kind }.compactMap {
-            try? JSONDecoder().decode(CostUsageScanner.CodexBufferedFastLine.self, from: $0.payload)
+        let lines: [CostUsageScanner.CodexBufferedFastLine] = values.lazy.filter { $0.kind == kind }.compactMap {
+            try? decoder.decode(CostUsageScanner.CodexBufferedFastLine.self, from: $0.payload)
         }
         return lines.isEmpty ? nil : lines
     }
