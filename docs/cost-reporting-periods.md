@@ -21,3 +21,5 @@ All reads the available source history, including local logs older than a year. 
 Cursor's quota bars keep the billing-cycle dates reported by Cursor. Calendar-month cost is a complementary view of dated usage events; it does not reinterpret a mid-month billing-cycle allowance as a calendar-month quota.
 
 Claude cache updates reconcile transcript rows once per load and reuse that ordered result for cached daily totals and the report. Winner precedence, report ordering, and cache invalidation remain unchanged; separate reporting windows still retain their own rows.
+
+Claude and Vertex cache saves reuse encoded transcript fragments when their metadata bytes and row contents are unchanged. Each cache URL has independent fragments; removed files are discarded and the bounded in-memory memo can be evicted without changing saved JSON or report results. Key ordering and escaping still come from the JSON encoder.

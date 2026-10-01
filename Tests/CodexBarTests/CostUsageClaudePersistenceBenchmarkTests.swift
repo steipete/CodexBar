@@ -40,16 +40,33 @@ struct CostUsageClaudePersistenceBenchmarkTests {
         _ = try CostUsageClaudeCacheIO.save(provider: .claude, cache: cache, cacheRoot: root)
         for phase in ["unchanged-warm", "unchanged-evicted", "changed"] {
             var times: [Double] = []
+            var cpuTimes: [Double] = []
             let recorder = CostUsageScanner.ClaudeScanWorkRecorder()
             try CostUsageScanner.withClaudeScanWorkRecorderForTesting(recorder) {
                 for _ in 0..<3 {
                     if phase == "unchanged-evicted" { CostUsageClaudeCacheIO.evictArtifactMemoForTesting(at: url) }
-                    if phase == "changed" { cache.usage.lastScanUnixMs += 1 }
+                    if phase == "changed" {
+                        cache.usage.lastScanUnixMs += 1
+                        for file in 0..<3 {
+                            let path = "/synthetic/project/session-\(file).jsonl"
+                            cache.usage.files[path]?.mtimeUnixMs += 1
+                            let previous = cache.usage.files[path]?.claudeRows?[0].isIncomplete
+                            cache.usage.files[path]?.claudeRows?[0].isIncomplete = previous != true
+                        }
+                    }
                     try autoreleasepool {
+                        var before = rusage()
+                        getrusage(RUSAGE_SELF, &before)
                         let start = ContinuousClock.now
                         _ = try CostUsageClaudeCacheIO.save(provider: .claude, cache: cache, cacheRoot: root)
                         let duration = start.duration(to: .now).components
                         times.append(Double(duration.seconds) + Double(duration.attoseconds) / 1e18)
+                        var after = rusage()
+                        getrusage(RUSAGE_SELF, &after)
+                        cpuTimes.append(Double(after.ru_utime.tv_sec - before.ru_utime.tv_sec
+                                + after.ru_stime.tv_sec - before.ru_stime.tv_sec)
+                            + Double(after.ru_utime.tv_usec - before.ru_utime.tv_usec
+                                + after.ru_stime.tv_usec - before.ru_stime.tv_usec) / 1e6)
                     }
                 }
             }
@@ -58,7 +75,8 @@ struct CostUsageClaudePersistenceBenchmarkTests {
             let bytes = try #require(CostUsageClaudeFileStamp.read(at: url)).size
             print("[persistence-benchmark] rows=200000 bytes=\(bytes) phase=\(phase) " +
                 "seconds=\(times) median=\(times.sorted()[1]) encodes=\(recorder.snapshot().cacheEncodes) " +
-                "peakRSSBytes=\(usage.ru_maxrss)")
+                "fragments=\(recorder.snapshot().fragmentEncodes) fallbacks=\(recorder.snapshot().fragmentFallbacks) " +
+                "cpuSeconds=\(cpuTimes) medianCPU=\(cpuTimes.sorted()[1]) peakRSSBytes=\(usage.ru_maxrss)")
         }
     }
 }

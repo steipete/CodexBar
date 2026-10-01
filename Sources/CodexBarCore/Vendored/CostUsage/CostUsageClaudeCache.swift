@@ -199,6 +199,8 @@ extension CostUsageScanner {
         case transcriptParse(startOffset: Int64)
         case reconcile
         case cacheEncode
+        case fragmentEncode
+        case fragmentFallback
         case artifactRead
         case artifactWrite
         case reprice
@@ -215,6 +217,8 @@ extension CostUsageScanner {
         var incrementalTranscriptParses = 0
         var reconciliations = 0
         var cacheEncodes = 0
+        var fragmentEncodes = 0
+        var fragmentFallbacks = 0
         var repricedRows = 0
         var normalizationCacheMisses = 0
         var vertexMetadataWalks = 0
@@ -242,6 +246,8 @@ extension CostUsageScanner {
                 }
             case .reconcile: self.metrics.reconciliations += 1
             case .cacheEncode: self.metrics.cacheEncodes += 1
+            case .fragmentEncode: self.metrics.fragmentEncodes += 1
+            case .fragmentFallback: self.metrics.fragmentFallbacks += 1
             case .artifactRead: self.artifactIO.reads += 1
             case .artifactWrite: self.artifactIO.writes += 1
             case .reprice: self.metrics.repricedRows += 1
@@ -497,7 +503,12 @@ enum CostUsageClaudeCacheIO {
         let encoder = JSONEncoder()
         // Stable fingerprints preserve stamps when a rescan rebuilds byte-identical content with a new UUID.
         encoder.outputFormatting = [.sortedKeys]
-        guard let data = try? encoder.encode(value) else { return nil }
+        let data: Data? = if let cache = value as? CostUsageClaudeCache {
+            try? CostUsageClaudeFragments.shared.encode(cache, at: key, encoder: encoder)
+        } else {
+            try? encoder.encode(value)
+        }
+        guard let data else { return nil }
         try checkCancellation?()
         let digest = SHA256.hash(data: data)
         if let identity, identity.digest == digest, CostUsageClaudeFileStamp.read(at: url) == identity.stamp {
