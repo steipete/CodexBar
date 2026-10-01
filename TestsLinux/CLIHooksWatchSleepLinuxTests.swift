@@ -5,44 +5,40 @@ import Testing
 
 struct CLIHooksWatchSleepLinuxTests {
     @Test
-    func `returns quickly when stop already requested`() async {
+    func `already requested stop skips every sleep tick`() async {
         let stop = HooksWatchStopSignal()
         stop.request()
 
-        let start = DispatchTime.now()
-        await CodexBarCLI.sleepInterruptibly(interval: 30, stop: stop)
-        let elapsedSeconds = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1e9
-
-        #expect(elapsedSeconds < 1)
+        await CodexBarCLI.sleepInterruptibly(interval: 30, stop: stop) { _ in
+            Issue.record("An already requested stop must not sleep")
+        }
     }
 
     @Test
-    func `stops promptly when signaled mid sleep`() async {
-        // Regression: CLITerminationSignalMonitor only flips a flag, it does not
-        // cancel the running task. A single long Task.sleep would leave `hooks
-        // watch` appearing hung on SIGINT until the full interval elapsed.
+    func `stop requested during a tick prevents the next sleep`() async {
+        // The signal monitor flips the flag without cancelling this task. Record the
+        // requested ticks so a single full-interval sleep cannot satisfy this test.
         let stop = HooksWatchStopSignal()
-        Task.detached {
-            try? await Task.sleep(nanoseconds: 300_000_000)
+        var ticks: [UInt64] = []
+        await CodexBarCLI.sleepInterruptibly(interval: 10, stop: stop) { nanoseconds in
+            ticks.append(nanoseconds)
             stop.request()
         }
 
-        let start = DispatchTime.now()
-        await CodexBarCLI.sleepInterruptibly(interval: 10, stop: stop)
-        let elapsedSeconds = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1e9
-
-        // The 0.3s signal must interrupt the 10s interval promptly; allow headroom for loaded
-        // CI runners (observed 2.02s on x64 under contention).
-        #expect(elapsedSeconds < 5)
+        #expect(ticks == [200_000_000])
     }
 
-    @Test
-    func `sleeps the full interval when never signaled`() async {
+    @Test(arguments: [0.0, -1.0, 0.05, 0.4, 0.45])
+    func `unsignaled sleep requests the full interval in bounded ticks`(interval: TimeInterval) async {
         let stop = HooksWatchStopSignal()
-        let start = DispatchTime.now()
-        await CodexBarCLI.sleepInterruptibly(interval: 0.4, stop: stop)
-        let elapsedSeconds = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1e9
+        var ticks: [UInt64] = []
+        await CodexBarCLI.sleepInterruptibly(interval: interval, stop: stop) { nanoseconds in
+            ticks.append(nanoseconds)
+        }
 
-        #expect(elapsedSeconds >= 0.35)
+        let expected = UInt64((max(0, interval) * 1_000_000_000).rounded())
+        #expect(ticks.reduce(0, +) == expected)
+        #expect(ticks.allSatisfy { $0 > 0 && $0 <= 200_000_000 })
+        #expect(ticks.count == Int((expected + 199_999_999) / 200_000_000))
     }
 }

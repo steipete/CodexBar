@@ -277,11 +277,15 @@ extension CodexBarCLI {
     /// end. `CLITerminationSignalMonitor` only flips a flag — it does not cancel the
     /// running task — so a single long `Task.sleep` would leave `hooks watch`
     /// appearing hung on SIGINT/SIGTERM/SIGHUP until the full interval elapsed.
-    static func sleepInterruptibly(interval: TimeInterval, stop: HooksWatchStopSignal) async {
+    static func sleepInterruptibly(
+        interval: TimeInterval,
+        stop: HooksWatchStopSignal,
+        sleep: (UInt64) async throws -> Void = { try await Task.sleep(nanoseconds: $0) }) async
+    {
         var remainingNanoseconds = UInt64((max(0, interval) * 1_000_000_000).rounded())
         while remainingNanoseconds > 0, !stop.isRequested {
             let sleepNanoseconds = min(remainingNanoseconds, Self.hooksWatchSleepTickNanoseconds)
-            try? await Task.sleep(nanoseconds: sleepNanoseconds)
+            try? await sleep(sleepNanoseconds)
             remainingNanoseconds -= sleepNanoseconds
         }
     }
@@ -372,15 +376,11 @@ final class HooksWatchStopSignal: @unchecked Sendable {
     private var requested = false
 
     func request() {
-        self.lock.lock()
-        self.requested = true
-        self.lock.unlock()
+        self.lock.withLock { self.requested = true }
     }
 
     var isRequested: Bool {
-        self.lock.lock()
-        defer { self.lock.unlock() }
-        return self.requested
+        self.lock.withLock { self.requested }
     }
 }
 

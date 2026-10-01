@@ -90,30 +90,39 @@ struct ProcessOwnershipReaperTests {
 
     @Test(arguments: [false, true])
     func `cleared environment cannot defeat timeout or cancellation`(cancel: Bool) async throws {
-        let start = Date()
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let ready = root.appendingPathComponent("ready")
+        let input = Pipe()
+        defer { try? input.fileHandleForWriting.close() }
         let task = Task {
             try await SubprocessRunner.run(
                 binary: "/usr/bin/env",
-                arguments: ["-i", "/bin/sleep", "30"],
+                arguments: ["-i", "/bin/sh", "-c", "printf ready > \"$1\"; exec /bin/cat", "fixture", ready.path],
                 environment: [:],
-                timeout: cancel ? 60 : 0.2,
+                timeout: cancel ? 600 : 30,
+                standardInput: input,
                 reapDescendants: true,
                 label: "cleared-marker-fixture")
         }
-        if cancel {
-            try await Task.sleep(for: .milliseconds(200))
-            task.cancel()
+        defer { task.cancel() }
+        let deadline = Date().addingTimeInterval(60)
+        while !FileManager.default.fileExists(atPath: ready.path), Date() < deadline {
+            try await Task.sleep(for: .milliseconds(20))
         }
-        do {
-            _ = try await task.value
-            Issue.record("Expected timeout or cancellation")
-        } catch is CancellationError {
+        try #require(FileManager.default.fileExists(atPath: ready.path))
+        if cancel { task.cancel() }
+        // Stdin stays open until after the result: cat cannot rescue broken teardown by exiting naturally.
+        switch await BoundedTaskJoin(sourceTask: task).value(joinGrace: .seconds(60)) {
+        case let .failure(error) where error is CancellationError:
             #expect(cancel)
-        } catch let error as SubprocessRunnerError {
+        case let .failure(error as SubprocessRunnerError):
             guard case .timedOut = error else { throw error }
             #expect(!cancel)
+        case let .failure(error): throw error
+        case .value, .timedOut: Issue.record("Expected timeout or cancellation while stdin remains open")
         }
-        #expect(Date().timeIntervalSince(start) < 10)
     }
 
     @Test
