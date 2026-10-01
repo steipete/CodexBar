@@ -21,6 +21,7 @@ Keychain holds runtime cookie caches, browser Safe Storage access, and provider 
 - `~/.codexbar/config.json` for existing legacy installs when no XDG config exists.
 - The directory is created if missing.
 - Writes on macOS and Linux create a `0600` file inside a private `0700` staging directory beside the destination before writing any bytes, then sync and atomically replace the destination. Failed writes preserve the previous file and remove staging.
+- Current app and CLI writers coordinate through a persistent, empty `config.json.lock` beside the config. CLI token refresh compares the saved credential and publishes its replacement under this lock, skipping the update if another writer holds it. Older versions and external editors do not participate in this advisory lock.
 
 A missing, zero-byte, or JSON-whitespace-only file (spaces, tabs, carriage returns, and line feeds) means no
 configuration. Reads use defaults without creating or rewriting the file; the next settings save writes valid JSON.

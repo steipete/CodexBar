@@ -45,7 +45,8 @@ final class StatusMenuTokenAccountSwitcherTests: XCTestCase {
     private func installRotatingProvider(
         on store: UsageStore,
         provider: UsageProvider,
-        rotatedToken: String)
+        rotatedToken: String,
+        beforeUpdater: (@Sendable () async -> Void)? = nil)
     {
         let baseSpec = store.providerSpecs[provider]!
         let baseDescriptor = baseSpec.descriptor
@@ -61,7 +62,8 @@ final class StatusMenuTokenAccountSwitcherTests: XCTestCase {
                     RotatingTokenAccountFetchStrategy(
                         provider: provider,
                         rotatedToken: rotatedToken,
-                        snapshot: snapshot),
+                        snapshot: snapshot,
+                        beforeUpdater: beforeUpdater),
                 ] }),
             cli: baseDescriptor.cli)
         store.providerSpecs[provider] = ProviderSpec(
@@ -520,6 +522,34 @@ final class StatusMenuTokenAccountSwitcherTests: XCTestCase {
 
         XCTAssertEqual(store.snapshot(for: .antigravity)?.primary?.usedPercent, 37)
         XCTAssertEqual(store.accountSnapshots[.antigravity]?.count, 2)
+    }
+
+    func test_tokenAccountUpdaterDropsWritebackWhenCredentialChangedDuringFetch() async throws {
+        self.disableMenuCardsForTesting()
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.multiAccountMenuLayout = .segmented
+        self.enableOnly(.antigravity, settings)
+        settings.addTokenAccount(provider: .antigravity, label: "Primary", token: "p1")
+        settings.setActiveTokenAccountIndex(0, for: .antigravity)
+        let accountID = try XCTUnwrap(settings.tokenAccounts(for: .antigravity).first?.id)
+
+        let store = UsageStore(
+            fetcher: UsageFetcher(),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings)
+        self.installRotatingProvider(on: store, provider: .antigravity, rotatedToken: "n1") {
+            // Simulate the user re-authorizing the account while a fetch is in flight.
+            await MainActor.run {
+                settings.updateTokenAccount(provider: .antigravity, accountID: accountID, token: "edited-mid-run")
+            }
+        }
+
+        await store.refreshProvider(.antigravity)
+
+        // The writeback must not clobber the credential saved during the fetch.
+        XCTAssertEqual(settings.tokenAccounts(for: .antigravity).first?.token, "edited-mid-run")
     }
 
     func test_tokenAccountSwitchDefersOpenMenuRebuildUntilAfterSwitcherAction() async throws {
@@ -993,6 +1023,7 @@ private struct RotatingTokenAccountFetchStrategy: ProviderFetchStrategy {
     let provider: UsageProvider
     let rotatedToken: String
     let snapshot: UsageSnapshot
+    var beforeUpdater: (@Sendable () async -> Void)?
 
     var id: String {
         "rotating-token-account-test"
@@ -1012,6 +1043,7 @@ private struct RotatingTokenAccountFetchStrategy: ProviderFetchStrategy {
         else {
             throw RotatingTokenAccountTestError.missingUpdater
         }
+        await self.beforeUpdater?()
         await updater(self.provider, accountID, self.rotatedToken)
         return self.makeResult(usage: self.snapshot, sourceLabel: "rotating-token-account-test")
     }

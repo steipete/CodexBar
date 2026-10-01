@@ -96,7 +96,8 @@ struct CredentialFileWriterTests {
             }
         }
         #expect(try Data(contentsOf: url) == original)
-        #expect(try FileManager.default.contentsOfDirectory(atPath: root.path) == ["auth.json"])
+        let expectedFiles = kind == "config" ? ["auth.json", "auth.json.lock"] : ["auth.json"]
+        #expect(try FileManager.default.contentsOfDirectory(atPath: root.path).sorted() == expectedFiles)
     }
 
     private static func mode(_ url: URL) throws -> Int {

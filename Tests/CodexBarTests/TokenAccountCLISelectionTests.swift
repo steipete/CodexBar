@@ -66,6 +66,87 @@ struct TokenAccountCLISelectionTests {
         }
     }
 
+    @Test
+    func `cli token updater writes refreshed credential when stored token is unchanged`() async throws {
+        let account = Self.account(token: "original-token")
+        let config = Self.config(with: account)
+        let store = try Self.configStore()
+        defer { try? FileManager.default.removeItem(at: store.fileURL.deletingLastPathComponent()) }
+        try store.save(config)
+        let context = try Self.writebackContext(config: config, store: store)
+        let updater = try #require(context.tokenUpdater(for: account))
+
+        await updater(.antigravity, account.id, "refreshed-token")
+
+        let stored = try Self.storedToken(store: store, accountID: account.id)
+        #expect(stored == "refreshed-token")
+    }
+
+    @Test
+    func `cli token updater drops writeback when stored credential changed mid run`() async throws {
+        let account = Self.account(token: "original-token")
+        let config = Self.config(with: account)
+        let store = try Self.configStore()
+        defer { try? FileManager.default.removeItem(at: store.fileURL.deletingLastPathComponent()) }
+        try store.save(config)
+        let context = try Self.writebackContext(config: config, store: store)
+        let updater = try #require(context.tokenUpdater(for: account))
+
+        // Another process reauthorized the account while the fetch was in flight.
+        let reassigned = Self.account(id: account.id, token: "reauthorized-token")
+        try store.save(Self.config(with: reassigned))
+
+        await updater(.antigravity, account.id, "stale-refresh")
+
+        let stored = try Self.storedToken(store: store, accountID: account.id)
+        #expect(stored == "reauthorized-token")
+    }
+
+    @Test
+    func `cli token updater accepts successive owned writes but rejects external reauthorization`() async throws {
+        let account = Self.account(token: "original-token")
+        let config = Self.config(with: account)
+        let store = try Self.configStore()
+        defer { try? FileManager.default.removeItem(at: store.fileURL.deletingLastPathComponent()) }
+        try store.save(config)
+        let context = try Self.writebackContext(config: config, store: store)
+        let updater = try #require(context.tokenUpdater(for: account))
+
+        // OAuth first refreshes the grant, then persists the discovered project on the same fetch.
+        await updater(.antigravity, account.id, "refreshed-token")
+        await updater(.antigravity, account.id, "refreshed-token-with-project")
+        #expect(try Self.storedToken(store: store, accountID: account.id) == "refreshed-token-with-project")
+
+        try store.save(Self.config(with: Self.account(id: account.id, token: "reauthorized-token")))
+        await updater(.antigravity, account.id, "late-owned-update")
+        #expect(try Self.storedToken(store: store, accountID: account.id) == "reauthorized-token")
+    }
+
+    @Test
+    func `cli refresh cannot publish during another config writer transaction`() throws {
+        let account = Self.account(token: "original-token")
+        let store = try Self.configStore()
+        defer { try? FileManager.default.removeItem(at: store.fileURL.deletingLastPathComponent()) }
+        try store.save(Self.config(with: account))
+        let reauthorized = Self.account(id: account.id, token: "reauthorized-token")
+        // Pause the other writer at its final rename, after it has staged the new authorization.
+        let beforePublish: @Sendable (URL) throws -> Void = { _ in
+            try CredentialFileWriter.$beforePublishForTesting.withValue(nil) {
+                try TokenAccountCLIContext.updateStoredTokenAccount(
+                    store: store,
+                    provider: .antigravity,
+                    accountID: account.id,
+                    expectedToken: account.token,
+                    token: "stale-refresh")
+                #expect(try Self.storedToken(store: store, accountID: account.id) == "original-token")
+            }
+        }
+        try CredentialFileWriter.$beforePublishForTesting.withValue(beforePublish) {
+            try store.save(Self.config(with: reauthorized))
+        }
+        #expect(try Self.storedToken(store: store, accountID: account.id) == "reauthorized-token")
+    }
+
     private static var accountOverrides: [TokenAccountCLISelection] {
         [
             TokenAccountCLISelection(label: "Primary", index: nil, allAccounts: false),
@@ -88,6 +169,42 @@ struct TokenAccountCLISelectionTests {
             tokenAccounts: ProviderTokenAccountData(version: 1, accounts: [account], activeIndex: 0))])
         return try TokenAccountCLIContext(
             selection: selection, config: config, verbose: false, baseEnvironment: [:])
+    }
+
+    private static func account(id: UUID = UUID(), token: String) -> ProviderTokenAccount {
+        ProviderTokenAccount(id: id, label: "Primary", token: token, addedAt: 0, lastUsed: nil)
+    }
+
+    private static func config(with account: ProviderTokenAccount) -> CodexBarConfig {
+        CodexBarConfig(providers: [ProviderConfig(
+            id: UsageProvider.antigravity.instanceID,
+            tokenAccounts: ProviderTokenAccountData(version: 1, accounts: [account], activeIndex: 0))])
+    }
+
+    private static func configStore() throws -> CodexBarConfigStore {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("token-account-cli-tests-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        return CodexBarConfigStore(fileURL: directory.appendingPathComponent("config.json"))
+    }
+
+    private static func writebackContext(
+        config: CodexBarConfig,
+        store: CodexBarConfigStore) throws -> TokenAccountCLIContext
+    {
+        try TokenAccountCLIContext(
+            selection: TokenAccountCLISelection(label: nil, index: nil, allAccounts: false),
+            config: config,
+            verbose: false,
+            baseEnvironment: [:],
+            configStore: store)
+    }
+
+    private static func storedToken(store: CodexBarConfigStore, accountID: UUID) throws -> String? {
+        try store.load()?
+            .providerConfig(for: UsageProvider.antigravity.instanceID)?
+            .tokenAccounts?.accounts
+            .first(where: { $0.id == accountID })?.token
     }
 
     private static func expectCLIAccountConflict(_ resolve: () throws -> [ProviderTokenAccount]) {

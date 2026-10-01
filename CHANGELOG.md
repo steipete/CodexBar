@@ -9,6 +9,9 @@
 ### Changed
 
 - Docs: link the community codexbar-kde Plasma widget for Linux usage meters and agent-session views (#4117). Thanks @materemias!
+### Added
+
+- Antigravity: fetch quotas for saved Google accounts through private, temporary `agy` sessions, verify each account's identity, and retain refreshed credentials without changing the ambient CLI login (#4103). Thanks @Sogl!
 
 ### Fixed
 

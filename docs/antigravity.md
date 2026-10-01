@@ -48,8 +48,28 @@ unreadable environments are skipped. Cleanup never selects a process by name, ex
 Children that deliberately discard the inherited environment cannot be identified by this safety net. The installed
 `agy` 1.2.11 `--help` offers MCP configuration commands but no per-probe switch to disable MCP startup.
 The report contains no account or plan identity: explicit CLI mode remains authoritative, while Auto uses
-this fallback only without a selected token account or explicitly injected OAuth credentials. Successful
+the ambient print fallback only without a selected token account or explicitly injected OAuth credentials. Successful
 HTTPS results retain their verified identity. Failed command diagnostics do not include raw stderr.
+
+On macOS, Auto can also run the print command for a selected or injected Google account. CodexBar writes
+its credentials into a temporary `0700` home with a `0600` token file, then runs `agy` with only PATH,
+locale, temporary-directory, and proxy settings inherited. `SSH_TTY` selects agy's file-token storage,
+keeping the ambient CLI login and Keychain untouched. Credentials without an ID token are supported;
+`agy` can refresh an expired grant in that temporary home without starting a login.
+
+Before attributing usage, CodexBar checks the effective access token through Google's userinfo endpoint
+and rejects a different or unverifiable account, including conflicting refreshed ID-token claims.
+Only verified refreshed credentials reach the existing saved-account updater. The CLI compares and saves
+under the shared config-file lock, advancing its comparison only after its own successful write. A concurrent
+writer or externally changed credential skips the best-effort update.
+The app retains its account-token and config-revision guards. The temporary home is removed on success,
+failure, and cancellation. Scoped failures retain the ambient diagnostic and allow account-scoped OAuth
+fallback; cancellation stops the pipeline. Linux keeps its existing OAuth fallback.
+
+Scoped runs share the ambient runner's three-second version check, 90-second command limit, 1 MiB output
+limit, and descendant cleanup. Identity verification has a 15-second request and resource deadline.
+The existing menu account model caps a refresh at six accounts; CLI `--all-accounts` refreshes sequentially.
+Grouped weekly-only Starter quotas use the same parser as the other sources.
 
 If live sources fail and local conversation history is available, CodexBar labels the result as offline and
 shows a safe explanation of the live failure in settings and CLI usage output. CLI failures distinguish sign-in,
@@ -101,8 +121,8 @@ when CodexBar has a selected/injected Google account or an existing shared crede
 `fetchAvailableModels` payload is only accepted after `retrieveUserQuota` echoes bucket fractions; this can be an
 availability-style fallback rather than the full Antigravity quota summary.
 When OAuth identifies the account but quota endpoints deny access, CodexBar shows `Limits not available` instead of an
-empty quota card. Auto also skips `agy` reports without account identity when a Google account is selected or injected,
-because it cannot verify that those quotas belong to that account. Settings explains this beside **Usage source**.
+empty quota card. Auto skips ambient `agy` reports without account identity when a Google account is selected or injected;
+on macOS it can instead verify a private scoped run as described above.
 To try the local app or `agy` account instead, select **Local API / agy CLI** (CLI: `--source cli`).
 That source may use a different signed-in account from the Google account selected in CodexBar; it does not verify a match.
 Saved Google accounts remain stored but inactive in this mode: they do not label local reports or trigger
@@ -119,7 +139,8 @@ be polled within the readiness deadline.
 - Each token-account entry stores serialized `AntigravityOAuthCredentials` and is injected into remote fetches through `ANTIGRAVITY_OAUTH_CREDENTIALS_JSON`.
 - When a token account is selected, the OAuth fetcher uses that account before falling back to the shared credentials file.
   In `auto` mode the ambient Antigravity app, `agy` CLI, and IDE probes still run first, but a snapshot whose account
-  does not match the selected account is rejected so the pipeline falls through to the account-scoped OAuth fetch (see
+  does not match the selected account is rejected. The CLI strategy can try a private scoped run on macOS before
+  the pipeline falls through to the account-scoped OAuth fetch (see
   `AntigravitySelectedAccountGuard`). If no account is selected/injected, `auto` includes OAuth only when the legacy
   shared credentials file already exists. Explicit `cli`/`oauth` source modes stay authoritative and are not re-checked.
 - Removing the last saved token account that matches `~/.codexbar/antigravity/oauth_creds.json` deletes that shared file,
