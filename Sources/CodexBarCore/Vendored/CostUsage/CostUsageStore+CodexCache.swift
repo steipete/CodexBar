@@ -94,7 +94,7 @@ extension CostUsageStore {
                     }
                 }
                 #if DEBUG
-                if let checkpoint = Self.codexCacheReadCheckpointForTesting,
+                if let checkpoint = CostUsageStoreTestHooks.current.codexCacheReadCheckpoint,
                    checkpoint.databaseURL == self.databaseURL
                 {
                     try checkpoint.checkpoint()

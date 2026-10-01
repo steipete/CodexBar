@@ -10,5 +10,9 @@ struct CostUsageStoreTestHooks: Sendable {
     var identicalContentPreLockCheckpoint: (databaseURL: URL, checkpoint: @Sendable () -> Void)?
     var codexCatchUpReconciliationVisit: (@Sendable () -> Void)?
     var readWorkRecorder: CostUsageStoreReadWorkRecorder?
+    var codexTokenSnapshotReadFailure: (@Sendable (URL, String) -> Bool)?
+    var codexBaselineReadCheckpoint: (databaseURL: URL, checkpoint: @Sendable () throws -> Void)?
+    var codexTokenHydrationCheckpoint: (databaseURL: URL, checkpoint: @Sendable () throws -> Void)?
+    var codexCacheReadCheckpoint: (databaseURL: URL, checkpoint: @Sendable () throws -> Void)?
 }
 #endif

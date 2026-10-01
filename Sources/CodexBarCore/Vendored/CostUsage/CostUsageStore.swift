@@ -139,9 +139,6 @@ actor CostUsageStore {
         "8050a4faf4fddb96",
     ]
 
-    /// Test-only read failures scoped by database and path. Never set in production.
-    nonisolated(unsafe) static var codexTokenSnapshotReadFailureForTesting: ((URL, String) -> Bool)?
-
     /// Process-wide serialization keeps every writable store connection on the same queue.
     /// This matches the scan pipeline's single-writer contract without multiplying executor
     /// threads when tests or short-lived readers create several store actors.
@@ -244,13 +241,17 @@ extension CostUsageStore {
                 let persisted = try Self.inReadTransaction(database) {
                     var snapshots: [String: [CostUsageStoreTokenSnapshot]] = [:]
                     for path in paths.sorted() {
-                        if Self.codexTokenSnapshotReadFailureForTesting?(store.databaseURL, path) == true {
+                        #if DEBUG
+                        if CostUsageStoreTestHooks.current
+                            .codexTokenSnapshotReadFailure?(store.databaseURL, path) == true
+                        {
                             throw StoreError.sqlite(SQLITE_IOERR)
                         }
+                        #endif
                         snapshots[path] = try Self.readTokenSnapshots(
                             database, path: path, recorder: store.scopedReadWorkRecorderForTesting)
                         #if DEBUG
-                        if let checkpoint = Self.codexTokenHydrationCheckpointForTesting,
+                        if let checkpoint = CostUsageStoreTestHooks.current.codexTokenHydrationCheckpoint,
                            checkpoint.databaseURL == store.databaseURL
                         {
                             try checkpoint.checkpoint()

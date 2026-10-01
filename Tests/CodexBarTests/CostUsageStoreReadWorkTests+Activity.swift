@@ -140,22 +140,27 @@ extension CostUsageStoreReadWorkTests {
         var recordingHooks = CostUsageStoreTestHooks.current
         recordingHooks.readWorkRecorder = recorder
         try await CostUsageStoreTestHooks.$current.withValue(recordingHooks) {
-            CostUsageStore.codexBaselineReadCheckpointForTesting = (fixture.store.databaseURL, {
+            var checkpointHooks = CostUsageStoreTestHooks.current
+            checkpointHooks.codexBaselineReadCheckpoint = (fixture.store.databaseURL, {
                 try writer.execute("UPDATE scan_metadata SET payload = X'\(encodedMetadata)' WHERE id = 1")
             })
-            defer { CostUsageStore.codexBaselineReadCheckpointForTesting = nil }
-            let raced = reader.syncLoadCodexReadView(calendar: fixture.calendar, purpose: .activity)
-            #expect(raced.lastScanUnixMs == 0)
-            #expect(await reader.rebuildCount == 0)
-            #expect(await fixture.store.readSnapshot().metadata == metadata)
-            CostUsageStore.codexBaselineReadCheckpointForTesting = nil
-            let retried = reader.syncLoadCodexReadView(calendar: fixture.calendar, purpose: .activity)
-            let fresh = fixture.store.syncLoadCodexReadView(calendar: fixture.calendar, purpose: .activity)
-            #expect(retried.days == fresh.days)
-            #expect(retried.hasPendingScan == fresh.hasPendingScan)
-            #expect(retried.lastScanUnixMs == metadata.lastScanUnixMs)
-            #expect(recorder.snapshot().integrityChecks == 1)
-            #expect(await reader.rebuildCount == 0)
+            try await CostUsageStoreTestHooks.$current.withValue(checkpointHooks) {
+                let raced = reader.syncLoadCodexReadView(calendar: fixture.calendar, purpose: .activity)
+                #expect(raced.lastScanUnixMs == 0)
+                #expect(await reader.rebuildCount == 0)
+                #expect(await fixture.store.readSnapshot().metadata == metadata)
+                var clearedHooks = CostUsageStoreTestHooks.current
+                clearedHooks.codexBaselineReadCheckpoint = nil
+                try await CostUsageStoreTestHooks.$current.withValue(clearedHooks) {
+                    let retried = reader.syncLoadCodexReadView(calendar: fixture.calendar, purpose: .activity)
+                    let fresh = fixture.store.syncLoadCodexReadView(calendar: fixture.calendar, purpose: .activity)
+                    #expect(retried.days == fresh.days)
+                    #expect(retried.hasPendingScan == fresh.hasPendingScan)
+                    #expect(retried.lastScanUnixMs == metadata.lastScanUnixMs)
+                    #expect(recorder.snapshot().integrityChecks == 1)
+                    #expect(await reader.rebuildCount == 0)
+                }
+            }
         }
     }
 

@@ -94,22 +94,25 @@ extension CostUsageStoreReadWorkTests {
         let fixture = try ReadWorkFixture(fileCount: 2, rowsPerFile: 4)
         defer { fixture.remove() }
         let writer = try BaselineSQLiteConnection(url: fixture.store.databaseURL)
-        CostUsageStore.codexCacheReadCheckpointForTesting = (fixture.store.databaseURL, {
+        var checkpointHooks = CostUsageStoreTestHooks.current
+        checkpointHooks.codexCacheReadCheckpoint = (fixture.store.databaseURL, {
             try writer.execute("UPDATE files SET parsed_bytes = 999999")
         })
-        defer { CostUsageStore.codexCacheReadCheckpointForTesting = nil }
-
-        let lean = fixture.store.syncLoadCodexCache(calendar: fixture.calendar, loadTokenSnapshots: false)
-        CostUsageStore.codexCacheReadCheckpointForTesting = nil
-
-        #expect(lean == Self.cacheWithoutTokenHistories(fixture.canonical))
-        #expect(lean.files.count == fixture.fileCount)
-        #expect(lean.files.values.allSatisfy { $0.parsedBytes != 999_999 })
-        let current = await fixture.store.readSnapshot()
-        #expect(current.files.count == fixture.fileCount)
-        #expect(current.files.allSatisfy { $0.parsedBytes == 999_999 })
-        #expect(await fixture.store.retainedCodexBaselineCountForTesting == 0)
-        #expect(await fixture.store.rebuildCount == 0)
+        try await CostUsageStoreTestHooks.$current.withValue(checkpointHooks) {
+            let lean = fixture.store.syncLoadCodexCache(calendar: fixture.calendar, loadTokenSnapshots: false)
+            var clearedHooks = CostUsageStoreTestHooks.current
+            clearedHooks.codexCacheReadCheckpoint = nil
+            try await CostUsageStoreTestHooks.$current.withValue(clearedHooks) {
+                #expect(lean == Self.cacheWithoutTokenHistories(fixture.canonical))
+                #expect(lean.files.count == fixture.fileCount)
+                #expect(lean.files.values.allSatisfy { $0.parsedBytes != 999_999 })
+                let current = await fixture.store.readSnapshot()
+                #expect(current.files.count == fixture.fileCount)
+                #expect(current.files.allSatisfy { $0.parsedBytes == 999_999 })
+                #expect(await fixture.store.retainedCodexBaselineCountForTesting == 0)
+                #expect(await fixture.store.rebuildCount == 0)
+            }
+        }
     }
 
     private static func cacheWithoutTokenHistories(_ cache: CostUsageCache) -> CostUsageCache {
