@@ -32,6 +32,11 @@ in-memory activity timestamp and changes the fallback after the offline replay, 
 and scanner-cost proof recorded here. It does not approve per-account prediction, persistent interaction history,
 learned ranking, or menu prewarming.
 
+The 2026-09-30 decision in [#4119](https://github.com/steipete/CodexBar/issues/4119) permits recent Codex rollout
+modification times to supply that activity timestamp without a recognized process. Existing agent-aware consent
+covers this contents-free, bounded scan. Process/signature checks remain responsible for identity enrichment;
+Plain Adaptive, remote discovery, persistence, and power constraints keep their existing behavior.
+
 ## Options considered
 
 | Option | Freshness | Complexity | Provider work | Decision |
@@ -180,16 +185,23 @@ Adaptive stores no persistent interaction history.
 - Keep `lastMenuOpenAt` and `lastCodingActivityAt` in memory; reset both on launch.
 - Read Low Power Mode and thermal state at decision time.
 - Log only the selected delay and stable `Reason` code through the existing local logger.
-- After the agent-aware mode is selected and explicit consent is granted, reuse the existing local scanner every 30 seconds. It inspects the running-process list and
-  command lines via `ps`, runs `lsof` when needed, and, only after detecting an agent process, enumerates recent Codex
-  rollouts; reads rollout first-line metadata and mtimes; and inspects Claude transcript metadata. This is a local
-  metadata scan, not a provider request. Pause agent-aware scans under Low Power Mode or serious/critical thermal
-  pressure; keep scanning when the user explicitly enables Agent Sessions presentation.
+- After the agent-aware mode is selected and explicit consent is granted, reuse the existing local scanner every 30 seconds.
+  Enumerate today's and yesterday's Codex `rollout-*.jsonl` modification times even without a recognized live process.
+  This cadence signal reads no rollout contents and uses the same bounded enumeration as Agent Sessions. A sync or
+  restore can also update those times and select the five-minute activity cadence; the signal does not establish
+  process or session identity. Inspect running processes through native APIs on macOS (`ps` elsewhere), resolve
+  working directories when needed, and keep Claude transcript inspection process-gated. Codex first-line metadata
+  and identity enrichment remain in the session path, with its existing process/signature checks or explicit Agent
+  Sessions authorization. This is a local metadata scan, not a provider request. Pause agent-aware scans under Low
+  Power Mode or serious/critical thermal pressure; keep scanning when the user explicitly enables Agent Sessions presentation.
+  Stay Awake retains its live-process scan without enabling process-independent rollout activity while constrained.
 - Bound each scan to the newest 64 agent processes, 128 Codex rollout metadata records, and 64 Claude transcript
   candidates per project. Share a 512-entry, depth-1, 150 ms budget across agent-aware Codex and Claude directory
   enumeration, and
-  clamp future transcript mtimes to the scan time. Keep the first clamped value for an unchanged future-dated file so
-  repeated scans cannot synthesize newer activity.
+  clamp future transcript mtimes to one scanner-lifetime timestamp. The clamp stores no file paths, and repeated scans
+  of unchanged future-dated files cannot synthesize newer activity.
+  Activity-only scans inspect process-backed Claude transcripts before spending the remaining shared budget on
+  process-independent Codex rollouts.
 - When Agent Sessions presentation is disabled, discard the full scan result after deriving the newest `Date`. Do not
   retain or publish its PID, CWD, project, transcript path, or session identity fields.
 - Do not log or persist provider identity, account identity, email, workspace, path, credentials, response data, menu

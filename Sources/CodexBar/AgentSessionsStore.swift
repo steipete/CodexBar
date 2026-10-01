@@ -34,10 +34,12 @@ typealias AgentSessionRemoteRefreshGate = AgentSessionRefreshGate
 @MainActor
 @Observable
 final class AgentSessionsStore {
-    typealias LocalScan = @Sendable (_ includeFileOnlySessions: Bool) async -> [AgentSession]
+    typealias LocalScan = @Sendable (
+        _ includeFileOnlySessions: Bool, _ includeRolloutActivity: Bool) async -> LocalAgentSessionScanner.ScanResult
     typealias RemoteHostDiscovery = @Sendable () async -> [String]
     typealias RemoteFetch = @Sendable (_ hosts: [String]) async -> [RemoteSessionHostResult]
     typealias PeriodicSleep = @Sendable (_ duration: Duration) async throws -> Void
+    typealias PowerState = @Sendable () -> (lowPowerModeEnabled: Bool, thermalState: ProcessInfo.ThermalState)
 
     struct SchedulerState: Equatable {
         let isStarted: Bool
@@ -55,6 +57,7 @@ final class AgentSessionsStore {
     private let powerAssertion: AgentSessionPowerAssertion
     private nonisolated(unsafe) var powerAssertionID: UInt32? // Read last in deinit: its getter escapes self.
     private let periodicSleep: PeriodicSleep
+    private let powerState: PowerState
     @ObservationIgnored private var localPeriodicTask: Task<Void, Never>?
     @ObservationIgnored private var remotePeriodicTask: Task<Void, Never>?
     @ObservationIgnored private var localImmediateTask: Task<Void, Never>?
@@ -76,8 +79,10 @@ final class AgentSessionsStore {
     {
         self.init(
             settings: settings,
-            localScan: { includeFileOnlySessions in
-                await localScanner.scan(includeFileOnlySessions: includeFileOnlySessions)
+            localScan: { includeFileOnlySessions, includeRolloutActivity in
+                await localScanner.scanWithActivity(
+                    includeFileOnlySessions: includeFileOnlySessions,
+                    includeRolloutActivity: includeRolloutActivity)
             },
             remoteFetcher: remoteFetcher)
     }
@@ -102,6 +107,10 @@ final class AgentSessionsStore {
         remoteFetch: @escaping RemoteFetch,
         remoteFetcher: RemoteSessionFetcher = RemoteSessionFetcher(),
         powerAssertion: AgentSessionPowerAssertion = .live,
+        powerState: @escaping PowerState = {
+            let info = ProcessInfo.processInfo
+            return (info.isLowPowerModeEnabled, info.thermalState)
+        },
         periodicSleep: @escaping PeriodicSleep = { duration in try await Task.sleep(for: duration) })
     {
         self.settings = settings
@@ -110,6 +119,7 @@ final class AgentSessionsStore {
         self.remoteFetch = remoteFetch
         self.remoteFetcher = remoteFetcher
         self.powerAssertion = powerAssertion
+        self.powerState = powerState
         self.periodicSleep = periodicSleep
     }
 
@@ -141,8 +151,8 @@ final class AgentSessionsStore {
             hasRemoteImmediateTask: self.remoteImmediateTask != nil)
     }
 
-    nonisolated static func latestActivityAt(in sessions: [AgentSession]) -> Date? {
-        sessions.compactMap(\.lastActivityAt).max()
+    nonisolated static func latestActivityAt(in sessions: [AgentSession], rolloutActivityAt: Date? = nil) -> Date? {
+        (sessions.compactMap(\.lastActivityAt) + [rolloutActivityAt].compactMap(\.self)).max()
     }
 
     nonisolated static func shouldScanLocally(
@@ -229,10 +239,14 @@ final class AgentSessionsStore {
         await task?.value
     }
 
-    func applyLocalScanResult(_ sessions: [AgentSession], updatedAt: Date = Date()) {
+    func applyLocalScanResult(
+        _ sessions: [AgentSession], rolloutActivityAt: Date? = nil, updatedAt: Date = Date())
+    {
         let wasKeepingAwake = self.isKeepingAwake
         self.updatePowerAssertion(hasLiveSession: sessions.contains { ($0.pid ?? 0) > 0 })
-        let latestActivityAt = Self.latestActivityAt(in: sessions)
+        let latestActivityAt = Self.latestActivityAt(
+            in: sessions,
+            rolloutActivityAt: self.settings.adaptiveActivityScanningEnabled ? rolloutActivityAt : nil)
         let effectiveSessions = self.settings.agentSessionsEnabled ? sessions : []
         // Rescans that reproduce the current content must not publish: `onUpdate` invalidates
         // menus, and a redundant invalidation landing while the user hovers an Overview row's
@@ -322,39 +336,40 @@ final class AgentSessionsStore {
 
     private func requestLocalRefresh() {
         guard self.isStarted, self.localMonitoringEnabled, self.localImmediateTask == nil else { return }
-        let processInfo = ProcessInfo.processInfo
-        guard self.settings.stayAwakeEnabled || Self.shouldScanLocally(
+        let powerState = self.powerState()
+        let activityScanAllowed = Self.shouldScanLocally(
             agentSessionsEnabled: self.settings.agentSessionsEnabled,
             adaptiveActivityScanningEnabled: self.settings.adaptiveActivityScanningEnabled,
-            lowPowerModeEnabled: processInfo.isLowPowerModeEnabled,
-            thermalState: processInfo.thermalState)
-        else { return }
+            lowPowerModeEnabled: powerState.lowPowerModeEnabled,
+            thermalState: powerState.thermalState)
+        guard self.settings.stayAwakeEnabled || activityScanAllowed else { return }
         guard let generation = self.localRefreshGate.begin() else { return }
 
         let includeFileOnlySessions = self.settings.agentSessionsEnabled
+        let includeRolloutActivity = self.settings.adaptiveActivityScanningEnabled && activityScanAllowed
         let localScan = self.localScan
         self.localImmediateTask = Task { [weak self] in
             guard !Task.isCancelled else {
-                self?.completeLocalRefresh(generation: generation, sessions: nil, wasCancelled: true)
+                self?.completeLocalRefresh(generation: generation, result: nil, wasCancelled: true)
                 return
             }
-            let sessions = await localScan(includeFileOnlySessions)
+            let result = await localScan(includeFileOnlySessions, includeRolloutActivity)
             self?.completeLocalRefresh(
                 generation: generation,
-                sessions: sessions,
+                result: result,
                 wasCancelled: Task.isCancelled)
         }
     }
 
     private func completeLocalRefresh(
         generation: Int,
-        sessions: [AgentSession]?,
+        result: LocalAgentSessionScanner.ScanResult?,
         wasCancelled: Bool)
     {
         self.localImmediateTask = nil
         let outcome = self.localRefreshGate.finish(generation: generation)
-        if !wasCancelled, outcome.shouldPublish, self.isStarted, self.localMonitoringEnabled, let sessions {
-            self.applyLocalScanResult(sessions)
+        if !wasCancelled, outcome.shouldPublish, self.isStarted, self.localMonitoringEnabled, let result {
+            self.applyLocalScanResult(result.sessions, rolloutActivityAt: result.latestRolloutActivityAt)
         }
         if outcome.shouldRetry, self.isStarted, self.localMonitoringEnabled {
             self.requestLocalRefresh()

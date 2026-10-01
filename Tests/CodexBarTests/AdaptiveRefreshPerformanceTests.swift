@@ -88,20 +88,31 @@ struct AdaptiveRefreshPerformanceTests {
         let spy = AdaptiveLocalScanSpy()
         let store = AgentSessionsStore(
             settings: settings,
-            localScan: { includeFileOnlySessions in
-                await spy.scan(includeFileOnlySessions: includeFileOnlySessions)
+            localScan: { includeFileOnlySessions, _ in
+                await .init(sessions: spy.scan(includeFileOnlySessions: includeFileOnlySessions))
             })
+        store.start()
+        defer { store.stop() }
 
+        store.settingsDidChange(remoteConfigurationChanged: false)
         await store.refreshLocal()
+        #expect(!store.schedulerState.hasLocalPeriodicTask)
+        #expect(!store.schedulerState.hasLocalImmediateTask)
         #expect(await spy.callCount == 0)
 
         settings.refreshFrequency = .adaptiveAgentAware
         settings.adaptiveActivityScanConsent = .undecided
+        store.settingsDidChange(remoteConfigurationChanged: false)
         await store.refreshLocal()
+        #expect(!store.schedulerState.hasLocalPeriodicTask)
+        #expect(!store.schedulerState.hasLocalImmediateTask)
         #expect(await spy.callCount == 0)
 
         settings.adaptiveActivityScanConsent = .declined
+        store.settingsDidChange(remoteConfigurationChanged: false)
         await store.refreshLocal()
+        #expect(!store.schedulerState.hasLocalPeriodicTask)
+        #expect(!store.schedulerState.hasLocalImmediateTask)
         #expect(await spy.callCount == 0)
     }
 }

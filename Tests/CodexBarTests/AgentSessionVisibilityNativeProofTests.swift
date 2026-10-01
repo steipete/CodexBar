@@ -32,7 +32,7 @@ final class AgentSessionVisibilityNativeProofTests: XCTestCase {
             environmentBase: [:])
         let sessions = AgentSessionsStore(
             settings: settings,
-            localScan: { _ in [] },
+            localScan: { _, _ in .init() },
             remoteHostDiscovery: { ["ready.example.invalid", "offline.example.invalid"] },
             remoteFetch: { _ in
                 [

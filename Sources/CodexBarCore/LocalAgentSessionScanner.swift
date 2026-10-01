@@ -120,6 +120,17 @@ public struct LocalAgentSessionScanner: Sendable {
     typealias ProcessEnvironmentProvider = @Sendable ([Int32]) async -> [Int32: [String: String]]
     typealias AppServerTrustValidator = @Sendable (AgentProcessRecord) -> Bool
 
+    public struct ScanResult: Sendable {
+        public let sessions: [AgentSession]
+        public let latestRolloutActivityAt: Date?
+
+        public init(sessions: [AgentSession] = [], latestRolloutActivityAt: Date? = nil) {
+            self.sessions = sessions
+            self.latestRolloutActivityAt = latestRolloutActivityAt
+        }
+    }
+
+    private typealias RolloutCandidate = (url: URL, modifiedAt: Date)
     private struct Rollout: Sendable {
         let url: URL
         let modifiedAt: Date
@@ -142,6 +153,8 @@ public struct LocalAgentSessionScanner: Sendable {
     private let cwdProvider: CWDProvider?
     private let processEnvironmentProvider: ProcessEnvironmentProvider?
     private let appServerTrustValidator: AppServerTrustValidator
+    private let rolloutMetadataReader: @Sendable (URL) -> CodexRolloutMetadata?
+    private let directoryScanStartedAt: @Sendable () -> Date
     private let didVisitDirectoryEntry: (@Sendable () -> Void)?
 
     public init(config: SessionScanConfig = SessionScanConfig()) {
@@ -156,6 +169,10 @@ public struct LocalAgentSessionScanner: Sendable {
         appServerTrustValidator: @escaping AppServerTrustValidator = {
             ChatGPTCodexProcessTrust.isTrusted($0.pid)
         },
+        rolloutMetadataReader: @escaping @Sendable (URL) -> CodexRolloutMetadata? = {
+            CodexRolloutFirstLineParser.read(from: $0)
+        },
+        directoryScanStartedAt: @escaping @Sendable () -> Date = Date.init,
         didVisitDirectoryEntry: (@Sendable () -> Void)? = nil)
     {
         self.config = config
@@ -163,6 +180,8 @@ public struct LocalAgentSessionScanner: Sendable {
         self.cwdProvider = cwdProvider
         self.processEnvironmentProvider = processEnvironmentProvider
         self.appServerTrustValidator = appServerTrustValidator
+        self.rolloutMetadataReader = rolloutMetadataReader
+        self.directoryScanStartedAt = directoryScanStartedAt
         self.didVisitDirectoryEntry = didVisitDirectoryEntry
     }
 
@@ -172,18 +191,34 @@ public struct LocalAgentSessionScanner: Sendable {
         environment: [String: String] = ProcessInfo.processInfo.environment,
         includeFileOnlySessions: Bool = true) async -> [AgentSession]
     {
+        await self.scanWithActivity(
+            now: now,
+            environment: environment,
+            includeFileOnlySessions: includeFileOnlySessions,
+            includeRolloutActivity: false).sessions
+    }
+
+    /// Activity is a timestamp projection, never a file-only session or an identity assertion.
+    @concurrent
+    public func scanWithActivity(
+        now: Date = Date(),
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        includeFileOnlySessions: Bool,
+        includeRolloutActivity: Bool) async -> ScanResult
+    {
         let allProcesses = await self.processRecords(environment: environment)
         let processes = Array(AgentSessionCorrelation.newestProcessesFirst(
             AgentPSOutputParser.agentProcesses(from: allProcesses))
             .prefix(max(0, self.config.maxProcessCount)))
         let homeDirectory = URL(fileURLWithPath: environment["HOME"] ?? NSHomeDirectory(), isDirectory: true)
-        let trustedCodexAppServerPresent = AgentPSOutputParser.hasTrustedChatGPTCodexAppServer(
+        let readRolloutMetadata = includeFileOnlySessions || !includeRolloutActivity
+        let trustedCodexAppServerPresent = readRolloutMetadata && AgentPSOutputParser.hasTrustedChatGPTCodexAppServer(
             in: allProcesses, validator: self.appServerTrustValidator)
         guard Self.shouldScanSessionMetadata(
             hasAgentProcesses: !processes.isEmpty,
             includeFileOnlySessions: includeFileOnlySessions,
-            hasTrustedCodexAppServer: trustedCodexAppServerPresent)
-        else { return [] }
+            hasTrustedCodexAppServer: trustedCodexAppServerPresent) || includeRolloutActivity
+        else { return ScanResult() }
         let codexAppServerPresent = AgentPSOutputParser.hasCodexAppServer(in: allProcesses) ||
             trustedCodexAppServerPresent
         let cwdByPID = await self.cwdByPID(processes.map(\.pid), environment: environment)
@@ -199,6 +234,7 @@ public struct LocalAgentSessionScanner: Sendable {
             timeLimit: includeFileOnlySessions
                 ? self.config.directoryScanBudget
                 : min(self.config.directoryScanBudget, self.config.adaptiveDirectoryScanBudget),
+            startedAt: self.directoryScanStartedAt(),
             didVisitEntry: self.didVisitDirectoryEntry)
         var piFamilyDirectoryBudget = directoryBudget
         let piFamilySessions = PiFamilySessionScanner.scan(
@@ -211,20 +247,18 @@ public struct LocalAgentSessionScanner: Sendable {
                 config: self.config),
             directoryBudget: &piFamilyDirectoryBudget)
         let includeUnmatchedCodexRollouts = includeFileOnlySessions || trustedCodexAppServerPresent
-        let rollouts: [Rollout] = if includeUnmatchedCodexRollouts || !codexCWDs.isEmpty {
-            self.codexRollouts(
-                now: now,
-                codexHomeDirectory: codexHomeDirectory,
-                matchingCWDs: includeUnmatchedCodexRollouts ? nil : codexCWDs,
-                directoryBudget: &directoryBudget)
-        } else {
-            []
-        }
-        let threadMetadata = Self.codexThreadMetadata(
+        let enrichRollouts = readRolloutMetadata && (includeUnmatchedCodexRollouts || !codexCWDs.isEmpty)
+        var candidates = enrichRollouts ? self.codexRolloutCandidates(
+            now: now, codexHomeDirectory: codexHomeDirectory, directoryBudget: &directoryBudget) : []
+        let rollouts = enrichRollouts ? self.codexRollouts(
+            candidates: candidates,
+            matchingCWDs: includeUnmatchedCodexRollouts ? nil : codexCWDs,
+            directoryBudget: &directoryBudget) : []
+        let threadMetadata = rollouts.isEmpty ? [:] : Self.codexThreadMetadata(
             rollouts: rollouts,
             codexHomeDirectory: codexHomeDirectory,
             environment: environment)
-        return self.sessions(
+        let sessions = self.sessions(
             processes: processes,
             cwdByPID: cwdByPID,
             rollouts: rollouts,
@@ -237,6 +271,14 @@ public struct LocalAgentSessionScanner: Sendable {
                 threadMetadata: threadMetadata,
                 piFamilySessions: piFamilySessions),
             directoryBudget: &directoryBudget)
+        if includeRolloutActivity, !enrichRollouts {
+            // Preserve the shared budget for process-backed Claude activity before the new file-only signal.
+            candidates = self.codexRolloutCandidates(
+                now: now, codexHomeDirectory: codexHomeDirectory, directoryBudget: &directoryBudget)
+        }
+        return ScanResult(
+            sessions: sessions,
+            latestRolloutActivityAt: includeRolloutActivity ? candidates.first?.modifiedAt : nil)
     }
 
     /// Returns the project directories of live Pi processes so historical cost scans can resolve
@@ -527,11 +569,10 @@ public struct LocalAgentSessionScanner: Sendable {
         #endif
     }
 
-    private func codexRollouts(
+    private func codexRolloutCandidates(
         now: Date,
         codexHomeDirectory: URL,
-        matchingCWDs: [String]?,
-        directoryBudget: inout DirectoryMetadataScanBudget) -> [Rollout]
+        directoryBudget: inout DirectoryMetadataScanBudget) -> [RolloutCandidate]
     {
         let root = codexHomeDirectory.appendingPathComponent("sessions", isDirectory: true)
         let calendar = Calendar(identifier: .gregorian)
@@ -541,7 +582,7 @@ public struct LocalAgentSessionScanner: Sendable {
         formatter.dateFormat = "yyyy/MM/dd"
         let fileManager = FileManager.default
 
-        let candidates = days.flatMap { day -> [(url: URL, modifiedAt: Date)] in
+        let candidates = days.flatMap { day -> [RolloutCandidate] in
             let directory = root.appendingPathComponent(formatter.string(from: day), isDirectory: true)
             let files = directoryBudget.files(in: directory, fileManager: fileManager)
             return directoryBudget.compactMapWhileTimeRemains(files) { file in
@@ -555,12 +596,19 @@ public struct LocalAgentSessionScanner: Sendable {
                     now: now))
             }
         }.sorted { $0.modifiedAt > $1.modifiedAt }
+        return Array(candidates.prefix(max(0, self.config.maxCodexRolloutCount)))
+    }
 
+    private func codexRollouts(
+        candidates: [RolloutCandidate],
+        matchingCWDs: [String]?,
+        directoryBudget: inout DirectoryMetadataScanBudget) -> [Rollout]
+    {
         var remainingCWDs = matchingCWDs ?? []
         var rollouts: [Rollout] = []
-        for candidate in candidates.prefix(max(0, self.config.maxCodexRolloutCount)) {
+        for candidate in candidates {
             guard directoryBudget.hasTimeRemaining() else { break }
-            guard let metadata = CodexRolloutFirstLineParser.read(from: candidate.url) else { continue }
+            guard let metadata = self.rolloutMetadataReader(candidate.url) else { continue }
             rollouts.append(Rollout(url: candidate.url, modifiedAt: candidate.modifiedAt, metadata: metadata))
             if let index = remainingCWDs.firstIndex(where: {
                 AgentSessionCorrelation.codexWorkingDirectoriesMatch(metadata.cwd, $0)

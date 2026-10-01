@@ -459,7 +459,8 @@ struct CodexSessionRolloutTests {
                     "-c features.code_mode_host=true app-server --analytics-default-enabled"
             },
             cwdProvider: { _, _ in [:] },
-            appServerTrustValidator: appServerTrustValidator ?? { _ in appServerIsTrusted })
+            appServerTrustValidator: appServerTrustValidator ?? { _ in appServerIsTrusted },
+            directoryScanStartedAt: { .distantFuture })
         return AdaptiveChatGPTFixture(
             root: root,
             rollout: rollout,
