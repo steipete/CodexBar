@@ -11,6 +11,7 @@
 
 ### Changed
 
+- Reduce CPU use when importing browser sessions for Devin, MiniMax, and Windsurf.
 - Docs: link the community codexbar-kde Plasma widget for Linux usage meters and agent-session views (#4117). Thanks @materemias!
 ### Added
 
