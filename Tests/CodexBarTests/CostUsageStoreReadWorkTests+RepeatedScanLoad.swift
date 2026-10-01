@@ -8,25 +8,27 @@ extension CostUsageStoreReadWorkTests {
         let fixture = try ReadWorkFixture(fileCount: fileCount, rowsPerFile: 64)
         defer { fixture.remove() }
         let recorder = CostUsageStoreReadWorkRecorder(databaseURL: fixture.store.databaseURL)
-        CostUsageStore.readWorkRecorderForTesting = recorder
-        defer { CostUsageStore.readWorkRecorderForTesting = nil }
-        let first = fixture.store.syncLoadCodexScan(calendar: fixture.calendar)
-        first.release()
-        let firstWork = recorder.snapshot()
-        let stamp = await fixture.store.currentDatabaseStamp()
-        recorder.reset()
-        let second = fixture.store.syncLoadCodexScan(calendar: fixture.calendar)
-        defer { second.release() }
-        let work = recorder.snapshot()
-        #expect(await fixture.store.currentDatabaseStamp() == stamp)
-        #expect(second.cache == first.cache)
-        #expect(second.unloadedTokenSnapshotPaths == first.unloadedTokenSnapshotPaths)
-        #expect(firstWork.usageRowDecodeAttempts == fixture.rowCount)
-        #expect(work.scannerSnapshotReads == 0)
-        #expect(work.usageRowDecodeAttempts == 0)
-        #expect(!fixture.save(second.cache, load: second).catchUpRequired)
-        print("[repeated-scan-load] rows=\(fixture.rowCount) first_decodes=\(firstWork.usageRowDecodeAttempts) " +
-            "warm_snapshots=\(work.scannerSnapshotReads) warm_decodes=\(work.usageRowDecodeAttempts)")
+        var recordingHooks = CostUsageStoreTestHooks.current
+        recordingHooks.readWorkRecorder = recorder
+        try await CostUsageStoreTestHooks.$current.withValue(recordingHooks) {
+            let first = fixture.store.syncLoadCodexScan(calendar: fixture.calendar)
+            first.release()
+            let firstWork = recorder.snapshot()
+            let stamp = await fixture.store.currentDatabaseStamp()
+            recorder.reset()
+            let second = fixture.store.syncLoadCodexScan(calendar: fixture.calendar)
+            defer { second.release() }
+            let work = recorder.snapshot()
+            #expect(await fixture.store.currentDatabaseStamp() == stamp)
+            #expect(second.cache == first.cache)
+            #expect(second.unloadedTokenSnapshotPaths == first.unloadedTokenSnapshotPaths)
+            #expect(firstWork.usageRowDecodeAttempts == fixture.rowCount)
+            #expect(work.scannerSnapshotReads == 0)
+            #expect(work.usageRowDecodeAttempts == 0)
+            #expect(!fixture.save(second.cache, load: second).catchUpRequired)
+            print("[repeated-scan-load] rows=\(fixture.rowCount) first_decodes=\(firstWork.usageRowDecodeAttempts) " +
+                "warm_snapshots=\(work.scannerSnapshotReads) warm_decodes=\(work.usageRowDecodeAttempts)")
+        }
     }
 }
 
@@ -36,28 +38,30 @@ extension CostUsageStoreReadWorkTests {
         let fixture = try ReadWorkFixture(fileCount: 2, rowsPerFile: 64)
         defer { fixture.remove() }
         let recorder = CostUsageStoreReadWorkRecorder(databaseURL: fixture.store.databaseURL)
-        CostUsageStore.readWorkRecorderForTesting = recorder
-        defer { CostUsageStore.readWorkRecorderForTesting = nil }
-        let first = CostUsageStoreAccess.load(cacheRoot: fixture.env.cacheRoot, calendar: fixture.calendar)
-        first.release()
-        _ = CostUsageStoreAccess.readView(
-            cacheRoot: fixture.env.cacheRoot, calendar: fixture.calendar, purpose: .report)
-        recorder.reset()
-        let second = CostUsageStoreAccess.load(cacheRoot: fixture.env.cacheRoot, calendar: fixture.calendar)
-        defer { second.release() }
-        #expect(first.store === second.store)
-        #expect(second.cache == first.cache)
-        #expect(recorder.snapshot().usageRowDecodeAttempts == 0)
-        #expect(recorder.snapshot().scannerSnapshotReads == 0)
-        #expect(recorder.snapshot().integrityChecks == 0)
-        #expect(!CostUsageStoreAccess.save(
-            store: second.store,
-            cache: second.cache,
-            calendar: fixture.calendar,
-            requestedScanWindow: (sinceKey: ReadWorkFixture.day, untilKey: ReadWorkFixture.day),
-            unloadedTokenSnapshotPaths: second.unloadedTokenSnapshotPaths,
-            skipIdenticalContent: true,
-            receipt: second.receipt).catchUpRequired)
+        var recordingHooks = CostUsageStoreTestHooks.current
+        recordingHooks.readWorkRecorder = recorder
+        try CostUsageStoreTestHooks.$current.withValue(recordingHooks) {
+            let first = CostUsageStoreAccess.load(cacheRoot: fixture.env.cacheRoot, calendar: fixture.calendar)
+            first.release()
+            _ = CostUsageStoreAccess.readView(
+                cacheRoot: fixture.env.cacheRoot, calendar: fixture.calendar, purpose: .report)
+            recorder.reset()
+            let second = CostUsageStoreAccess.load(cacheRoot: fixture.env.cacheRoot, calendar: fixture.calendar)
+            defer { second.release() }
+            #expect(first.store === second.store)
+            #expect(second.cache == first.cache)
+            #expect(recorder.snapshot().usageRowDecodeAttempts == 0)
+            #expect(recorder.snapshot().scannerSnapshotReads == 0)
+            #expect(recorder.snapshot().integrityChecks == 0)
+            #expect(!CostUsageStoreAccess.save(
+                store: second.store,
+                cache: second.cache,
+                calendar: fixture.calendar,
+                requestedScanWindow: (sinceKey: ReadWorkFixture.day, untilKey: ReadWorkFixture.day),
+                unloadedTokenSnapshotPaths: second.unloadedTokenSnapshotPaths,
+                skipIdenticalContent: true,
+                receipt: second.receipt).catchUpRequired)
+        }
     }
 
     @Test(arguments: ["external", "local", "schema", "reopen", "failure"])
@@ -83,16 +87,18 @@ extension CostUsageStoreReadWorkTests {
             await fixture.store.closeConnectionForTesting()
         }
         let recorder = CostUsageStoreReadWorkRecorder(databaseURL: fixture.store.databaseURL)
-        CostUsageStore.readWorkRecorderForTesting = recorder
-        defer { CostUsageStore.readWorkRecorderForTesting = nil }
-        let loaded = fixture.store.syncLoadCodexScan(calendar: fixture.calendar)
-        defer { loaded.release() }
-        #expect(recorder.snapshot().usageRowDecodeAttempts == fixture.rowCount)
-        #expect(recorder.snapshot().scannerSnapshotReads == 1)
-        let fresh = CostUsageStore(cacheRoot: fixture.env.cacheRoot).syncLoadCodexScan(calendar: fixture.calendar)
-        defer { fresh.release() }
-        #expect(loaded.cache == fresh.cache)
-        #expect(loaded.unloadedTokenSnapshotPaths == fresh.unloadedTokenSnapshotPaths)
+        var recordingHooks = CostUsageStoreTestHooks.current
+        recordingHooks.readWorkRecorder = recorder
+        try await CostUsageStoreTestHooks.$current.withValue(recordingHooks) {
+            let loaded = fixture.store.syncLoadCodexScan(calendar: fixture.calendar)
+            defer { loaded.release() }
+            #expect(recorder.snapshot().usageRowDecodeAttempts == fixture.rowCount)
+            #expect(recorder.snapshot().scannerSnapshotReads == 1)
+            let fresh = CostUsageStore(cacheRoot: fixture.env.cacheRoot).syncLoadCodexScan(calendar: fixture.calendar)
+            defer { fresh.release() }
+            #expect(loaded.cache == fresh.cache)
+            #expect(loaded.unloadedTokenSnapshotPaths == fresh.unloadedTokenSnapshotPaths)
+        }
     }
 
     @Test
@@ -106,19 +112,21 @@ extension CostUsageStoreReadWorkTests {
         first.release()
         #expect(first.cache.codexScanCatchUpPending != true)
         let recorder = CostUsageStoreReadWorkRecorder(databaseURL: fixture.store.databaseURL)
-        CostUsageStore.readWorkRecorderForTesting = recorder
-        defer { CostUsageStore.readWorkRecorderForTesting = nil }
-        var otherCalendar = fixture.calendar
-        otherCalendar.timeZone = try #require(TimeZone(identifier: "Europe/Rome"))
-        let mismatched = fixture.store.syncLoadCodexScan(calendar: otherCalendar)
-        mismatched.release()
-        #expect(mismatched.cache.files.isEmpty)
-        let path = try #require(fixture.canonical.files.keys.min())
-        try Data("changed transcript\n".utf8).write(to: URL(fileURLWithPath: path), options: .atomic)
-        let changed = fixture.store.syncLoadCodexScan(calendar: fixture.calendar)
-        defer { changed.release() }
-        #expect(changed.cache.codexScanCatchUpPending == true)
-        #expect(recorder.snapshot().usageRowDecodeAttempts == 0)
+        var recordingHooks = CostUsageStoreTestHooks.current
+        recordingHooks.readWorkRecorder = recorder
+        try await CostUsageStoreTestHooks.$current.withValue(recordingHooks) {
+            var otherCalendar = fixture.calendar
+            otherCalendar.timeZone = try #require(TimeZone(identifier: "Europe/Rome"))
+            let mismatched = fixture.store.syncLoadCodexScan(calendar: otherCalendar)
+            mismatched.release()
+            #expect(mismatched.cache.files.isEmpty)
+            let path = try #require(fixture.canonical.files.keys.min())
+            try Data("changed transcript\n".utf8).write(to: URL(fileURLWithPath: path), options: .atomic)
+            let changed = fixture.store.syncLoadCodexScan(calendar: fixture.calendar)
+            defer { changed.release() }
+            #expect(changed.cache.codexScanCatchUpPending == true)
+            #expect(recorder.snapshot().usageRowDecodeAttempts == 0)
+        }
     }
 }
 

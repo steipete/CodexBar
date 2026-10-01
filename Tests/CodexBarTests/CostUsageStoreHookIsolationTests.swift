@@ -49,6 +49,53 @@ struct CostUsageStoreHookIsolationTests {
     }
 }
 
+extension CostUsageStoreHookIsolationTests {
+    @Test
+    func `overlapping read recorders keep their database ownership across executor hops`() async throws {
+        let roots = (0..<2).map { _ in
+            FileManager.default.temporaryDirectory.appendingPathComponent("cost-read-hook-\(UUID().uuidString)")
+        }
+        defer { roots.forEach { try? FileManager.default.removeItem(at: $0) } }
+        let stores = roots.map { CostUsageStore(cacheRoot: $0) }
+        let cache = CostUsageStoreCrashHarness.seededCache()
+        let calendar = CostUsageStoreCrashHarness.fixtureCalendar
+        for store in stores {
+            _ = store.syncSaveCodexCache(
+                cache, calendar: calendar, requestedScanWindow: CostUsageStoreCrashHarness.scanWindow)
+        }
+        let rendezvous = HookRendezvous()
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            for (index, store) in stores.enumerated() {
+                let other = stores[1 - index]
+                group.addTask {
+                    let recorder = CostUsageStoreReadWorkRecorder(databaseURL: store.databaseURL)
+                    var hooks = CostUsageStoreTestHooks.current
+                    hooks.readWorkRecorder = recorder
+                    try await CostUsageStoreTestHooks.$current.withValue(hooks) {
+                        await rendezvous.arrive()
+                        #expect(await store.readSnapshot().files.count == cache.files.count)
+                        #expect(recorder.snapshot().fullSnapshotReads == 1)
+                        #expect(recorder.snapshot().fileRows == cache.files.count)
+                        let loaded = try await CostUsageScanExecutor.run { _ in
+                            store.syncLoadCodexCache(calendar: calendar)
+                        }
+                        #expect(loaded.files.count == cache.files.count)
+                        let work = recorder.snapshot()
+                        #expect(work.fullSnapshotReads == 2)
+                        #expect(work.fileRows == cache.files.count * 2)
+                        _ = await other.readSnapshot()
+                        #expect(recorder.snapshot() == work)
+                    }
+                    let work = recorder.snapshot()
+                    _ = await store.readSnapshot()
+                    #expect(recorder.snapshot() == work)
+                }
+            }
+            try await group.waitForAll()
+        }
+    }
+}
+
 private actor HookRendezvous {
     private var first: CheckedContinuation<Void, Never>?
 

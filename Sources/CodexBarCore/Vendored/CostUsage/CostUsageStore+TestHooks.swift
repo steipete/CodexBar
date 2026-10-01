@@ -9,5 +9,6 @@ struct CostUsageStoreTestHooks: Sendable {
     var saveCycleCheckpoint: (@Sendable (Int) -> Void)?
     var identicalContentPreLockCheckpoint: (databaseURL: URL, checkpoint: @Sendable () -> Void)?
     var codexCatchUpReconciliationVisit: (@Sendable () -> Void)?
+    var readWorkRecorder: CostUsageStoreReadWorkRecorder?
 }
 #endif

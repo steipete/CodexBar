@@ -13,27 +13,28 @@ extension CostUsageStoreReadWorkTests {
         #expect(full.files.values.allSatisfy { $0.codexTokenCheckpoints != nil })
 
         let recorder = CostUsageStoreReadWorkRecorder(databaseURL: fixture.store.databaseURL)
-        CostUsageStore.readWorkRecorderForTesting = recorder
-        defer { CostUsageStore.readWorkRecorderForTesting = nil }
-
-        let lean = CostUsageStoreAccess.readWithoutTokenSnapshots(
-            cacheRoot: fixture.env.cacheRoot,
-            calendar: fixture.calendar)
-        let work = recorder.snapshot()
-        #expect(lean == Self.cacheWithoutTokenHistories(full))
-        #expect(lean.files.values.allSatisfy { $0.codexTokenSnapshots == nil })
-        #expect(lean.files.values.allSatisfy { $0.codexTokenCheckpoints == nil })
-        #expect(lean.codexScanCatchUpPending == incomplete)
-        #expect(work.fullSnapshotReads == 0)
-        #expect(work.scannerSnapshotReads == 1)
-        #expect(work.tokenSnapshotRows == 0)
-        #expect(work.fileRows == fixture.fileCount)
-        #expect(work.usageRows == fixture.rowCount)
-        #expect(work.usageRowDecodeAttempts == fixture.rowCount)
-        #expect(work.usagePayloadBytes > 0)
-        #expect(work.accumulatorRows == fixture.fileCount)
-        #expect(work.bufferedLines == (incomplete ? 1 : 0))
-        #expect(work.cacheConversions == 1)
+        var recordingHooks = CostUsageStoreTestHooks.current
+        recordingHooks.readWorkRecorder = recorder
+        try CostUsageStoreTestHooks.$current.withValue(recordingHooks) {
+            let lean = CostUsageStoreAccess.readWithoutTokenSnapshots(
+                cacheRoot: fixture.env.cacheRoot,
+                calendar: fixture.calendar)
+            let work = recorder.snapshot()
+            #expect(lean == Self.cacheWithoutTokenHistories(full))
+            #expect(lean.files.values.allSatisfy { $0.codexTokenSnapshots == nil })
+            #expect(lean.files.values.allSatisfy { $0.codexTokenCheckpoints == nil })
+            #expect(lean.codexScanCatchUpPending == incomplete)
+            #expect(work.fullSnapshotReads == 0)
+            #expect(work.scannerSnapshotReads == 1)
+            #expect(work.tokenSnapshotRows == 0)
+            #expect(work.fileRows == fixture.fileCount)
+            #expect(work.usageRows == fixture.rowCount)
+            #expect(work.usageRowDecodeAttempts == fixture.rowCount)
+            #expect(work.usagePayloadBytes > 0)
+            #expect(work.accumulatorRows == fixture.fileCount)
+            #expect(work.bufferedLines == (incomplete ? 1 : 0))
+            #expect(work.cacheConversions == 1)
+        }
     }
 
     @Test(arguments: [false, true])

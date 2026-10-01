@@ -14,35 +14,37 @@ extension CostUsageStoreReadWorkTests {
         let fixture = try ReadWorkFixture(fileCount: fileCount, rowsPerFile: fileCount == 2 ? 4 : 64)
         defer { fixture.remove() }
         let recorder = CostUsageStoreReadWorkRecorder(databaseURL: fixture.store.databaseURL)
-        CostUsageStore.readWorkRecorderForTesting = recorder
-        defer { CostUsageStore.readWorkRecorderForTesting = nil }
-        let before = await fixture.store.persistenceWriteMetricsForTesting()
-        let loaded = fixture.store.syncLoadCodexScan(calendar: fixture.calendar)
-        defer { loaded.release() }
-        #expect(loaded.unloadedTokenSnapshotPaths.count == fileCount)
-        #expect(loaded.cache.files.values.allSatisfy { $0.codexTokenSnapshots == nil })
-        #expect(loaded.cache.files.values.allSatisfy { $0.codexRows != nil })
-        #expect(await fixture.store.retainedCodexBaselineCountForTesting == 1)
-        var refreshed = loaded.cache
-        refreshed.lastScanUnixMs += 1000
-        let saved = fixture.save(refreshed, load: loaded)
-        let after = await fixture.store.persistenceWriteMetricsForTesting()
-        let work = recorder.snapshot()
-        #expect(!saved.catchUpRequired)
-        #expect(work.fullSnapshotReads == 0)
-        #expect(work.scannerSnapshotReads == 1)
-        #expect(work.cacheConversions == 1)
-        #expect(work.usageRowDecodeAttempts == fixture.rowCount)
-        #expect(work.usageRows == fixture.rowCount)
-        #expect(work.aggregateGroupingRowVisits == 0)
-        #expect(after.rows - before.rows == 1)
-        #expect(await fixture.store.retainedCodexBaselineCountForTesting == 0)
-        var expected = fixture.canonical
-        expected.lastScanUnixMs = refreshed.lastScanUnixMs
-        #expect(fixture.store.syncLoadCodexCache(calendar: fixture.calendar) == expected)
-        print("[lazy-baseline-proof] files=\(fileCount) rows=\(fixture.rowCount) " +
-            "scanner_snapshots=\(work.scannerSnapshotReads) decodes=\(work.usageRowDecodeAttempts) " +
-            "freshness_writes=\(after.rows - before.rows) grouping_visits=\(work.aggregateGroupingRowVisits)")
+        var recordingHooks = CostUsageStoreTestHooks.current
+        recordingHooks.readWorkRecorder = recorder
+        try await CostUsageStoreTestHooks.$current.withValue(recordingHooks) {
+            let before = await fixture.store.persistenceWriteMetricsForTesting()
+            let loaded = fixture.store.syncLoadCodexScan(calendar: fixture.calendar)
+            defer { loaded.release() }
+            #expect(loaded.unloadedTokenSnapshotPaths.count == fileCount)
+            #expect(loaded.cache.files.values.allSatisfy { $0.codexTokenSnapshots == nil })
+            #expect(loaded.cache.files.values.allSatisfy { $0.codexRows != nil })
+            #expect(await fixture.store.retainedCodexBaselineCountForTesting == 1)
+            var refreshed = loaded.cache
+            refreshed.lastScanUnixMs += 1000
+            let saved = fixture.save(refreshed, load: loaded)
+            let after = await fixture.store.persistenceWriteMetricsForTesting()
+            let work = recorder.snapshot()
+            #expect(!saved.catchUpRequired)
+            #expect(work.fullSnapshotReads == 0)
+            #expect(work.scannerSnapshotReads == 1)
+            #expect(work.cacheConversions == 1)
+            #expect(work.usageRowDecodeAttempts == fixture.rowCount)
+            #expect(work.usageRows == fixture.rowCount)
+            #expect(work.aggregateGroupingRowVisits == 0)
+            #expect(after.rows - before.rows == 1)
+            #expect(await fixture.store.retainedCodexBaselineCountForTesting == 0)
+            var expected = fixture.canonical
+            expected.lastScanUnixMs = refreshed.lastScanUnixMs
+            #expect(fixture.store.syncLoadCodexCache(calendar: fixture.calendar) == expected)
+            print("[lazy-baseline-proof] files=\(fileCount) rows=\(fixture.rowCount) " +
+                "scanner_snapshots=\(work.scannerSnapshotReads) decodes=\(work.usageRowDecodeAttempts) " +
+                "freshness_writes=\(after.rows - before.rows) grouping_visits=\(work.aggregateGroupingRowVisits)")
+        }
     }
 
     @Test
