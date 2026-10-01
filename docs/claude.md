@@ -372,7 +372,11 @@ Model-scoped weekly-window proof (synthetic data, no real accounts or credential
 - The bundled watchdog is discovered only in the running executable's resolved app bundle; launching through a CLI symlink preserves that association.
 - Default behavior: exit after each probe; Debug → "Keep CLI sessions alive" keeps it running between probes.
 - Both PTY probes and the non-PTY `/usage` fallback pass `--settings '{"remoteControlAtStartup":false}'` to disable Remote Control startup for the probe process. This process-local override leaves the user's saved settings unchanged; Claude's managed-settings policy still applies.
+- Both launches use `--strict-mcp-config` to skip the user's configured MCP servers. Saved nonessential-traffic restrictions remain in force.
 - A PTY timeout or usage-loading failure can trigger the non-PTY `/usage` fallback. Cancellation and rate limits stop the probe; a subscription-only notice from the fallback takes precedence over the original PTY failure.
+- Transient CLI timeouts and loading stalls preserve availability already established for that account, so a later
+  Auto refresh can retry CLI instead of stopping at missing OAuth credentials. They do not establish availability
+  for a previously unverified account; the existing Keychain and prompt policies still apply.
 - Probe working directory: `~/Library/Application Support/CodexBar/ClaudeProbe` with local Claude settings that disable
   deep-link URL handler registration during headless probes.
 - After transient probes exit, CodexBar removes Claude Code `.jsonl` session artifacts for that dedicated
@@ -391,6 +395,8 @@ Model-scoped weekly-window proof (synthetic data, no real accounts or credential
   - Extracts percent left/used and reset text near those headers.
   - When a reset date cannot be parsed, the menu preserves its description and normalizes leading `Reset` or `Resets` labels once, including scoped weekly limits.
   - Parses `Account:` and `Org:` lines when present.
+  - Excludes the "What's contributing to your limits usage?" insights section from quota and identity parsing.
+    User-defined tool names and usage-share percentages cannot become a plan badge or quota value.
   - A successful CLI quota read keeps the menu's Switch Account action even when optional identity fields are absent. Restored history and failed refreshes do not count as a successful sign-in.
   - Surfaces CLI errors (e.g. token expired) directly.
   - Some Education and organization-managed subscriptions return only a subscription notice, with no numeric

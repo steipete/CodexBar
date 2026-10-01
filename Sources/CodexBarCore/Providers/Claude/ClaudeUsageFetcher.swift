@@ -562,7 +562,7 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
             case .web:
                 return try await self.fetcher.loadViaWebAPI()
             case .cli:
-                return try await self.loadViaCLIWithRetry(model: model)
+                return try await self.loadViaCLIWithRetry(model: model, timeout: ClaudeUsageFetcher.cliProbeTimeout)
             }
         }
 
@@ -652,25 +652,14 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
             else {
                 throw ClaudeUsageError.parseFailed("Claude CLI is not logged in.")
             }
-            do {
-                return try await self.loadViaCLI(model: model, timeout: ClaudeUsageFetcher.cliAutoProbeTimeout)
-            } catch {
-                if error is CancellationError {
-                    throw error
-                }
-                guard Self.shouldRetryCLIProbe(after: error) else { throw error }
-                return try await self.loadViaCLI(model: model, timeout: ClaudeUsageFetcher.cliRetryProbeTimeout)
-            }
+            return try await self.loadViaCLIWithRetry(model: model, timeout: ClaudeUsageFetcher.cliAutoProbeTimeout)
         }
 
-        private func loadViaCLIWithRetry(model: String) async throws -> ClaudeUsageSnapshot {
+        private func loadViaCLIWithRetry(model: String, timeout: TimeInterval) async throws -> ClaudeUsageSnapshot {
             do {
-                return try await self.loadViaCLI(model: model, timeout: ClaudeUsageFetcher.cliProbeTimeout)
+                return try await self.loadViaCLI(model: model, timeout: timeout)
             } catch {
-                if error is CancellationError {
-                    throw error
-                }
-                guard Self.shouldRetryCLIProbe(after: error) else { throw error }
+                guard ClaudeUsageFetcher.isRetryableCLIProbeError(error) else { throw error }
                 return try await self.loadViaCLI(model: model, timeout: ClaudeUsageFetcher.cliRetryProbeTimeout)
             }
         }
@@ -728,26 +717,12 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
         }
 
         private static func shouldTryDirectCLIUsage(after error: Error) -> Bool {
-            if case ClaudeStatusProbeError.timedOut = error {
+            if case let ClaudeStatusProbeError.parseFailed(message) = error,
+               message.lowercased().contains("could not load usage data")
+            {
                 return true
             }
-            if case let ClaudeStatusProbeError.parseFailed(message) = error {
-                let lower = message.lowercased()
-                return lower.contains("still loading usage") || lower.contains("could not load usage data")
-            }
-            let message = error.localizedDescription.lowercased()
-            return message.contains("timed out") || message.contains("timeout")
-        }
-
-        private static func shouldRetryCLIProbe(after error: Error) -> Bool {
-            if case ClaudeStatusProbeError.timedOut = error {
-                return true
-            }
-            if case let ClaudeStatusProbeError.parseFailed(message) = error {
-                return message.lowercased().contains("still loading usage")
-            }
-            let message = error.localizedDescription.lowercased()
-            return message.contains("timed out") || message.contains("timeout")
+            return ClaudeUsageFetcher.isRetryableCLIProbeError(error)
         }
     }
 }
@@ -863,6 +838,19 @@ extension ClaudeUsageFetcher {
 
     public func loadLatestUsage(model: String = "sonnet") async throws -> ClaudeUsageSnapshot {
         try await StepExecutor(fetcher: self).loadLatestUsage(model: model)
+    }
+
+    static func isRetryableCLIProbeError(_ error: Error) -> Bool {
+        guard !(error is CancellationError) else { return false }
+        if case ClaudeStatusProbeError.authenticationFailed = error { return false }
+        if case ClaudeStatusProbeError.timedOut = error {
+            return true
+        }
+        if case let ClaudeStatusProbeError.parseFailed(message) = error {
+            return message.lowercased().contains("still loading usage")
+        }
+        let message = error.localizedDescription.lowercased()
+        return message.contains("timed out") || message.contains("timeout")
     }
 
     public static func isCLIRateLimitError(_ error: Error) -> Bool {
@@ -1321,7 +1309,7 @@ extension ClaudeUsageFetcher {
 
         let result = try await SubprocessRunner.run(
             binary: claudeBinary,
-            arguments: ClaudeCLISession.probeSettingsArguments + ["/usage"],
+            arguments: ["--strict-mcp-config"] + ClaudeCLISession.probeSettingsArguments + ["/usage"],
             environment: environment,
             timeout: timeout,
             standardInput: FileHandle.nullDevice,

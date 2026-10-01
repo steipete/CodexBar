@@ -202,7 +202,11 @@ extension ClaudeStatusProbe {
     // MARK: - Parsing helpers
 
     private static func cleanCapture(_ text: String) -> String {
-        ClaudeCLIScreen.render(text, preservePlainReports: true)
+        // Insights contain arbitrary tool names and percentages, not account or quota fields.
+        let rendered = ClaudeCLIScreen.render(text, preservePlainReports: true)
+        let marker = "What's contributing to your limits usage?"
+        guard let insights = rendered.range(of: marker, options: .caseInsensitive) else { return rendered }
+        return String(rendered[..<insights.lowerBound])
     }
 
     private struct LabelSearchContext {
@@ -1244,7 +1248,7 @@ extension ClaudeStatusProbe {
     private static func extractLoginMethod(text: String) -> String? {
         guard !text.isEmpty else { return nil }
         if let explicit = self.extractFirst(pattern: #"(?i)login\s+method:\s*(.+)"#, text: text) {
-            return ClaudePlan.cliCompatibilityLoginMethod(self.cleanPlan(explicit))
+            return ClaudePlan.cliCompatibilityLoginMethod(UsageFormatter.cleanPlanName(explicit))
         }
         // Capture any "Claude <...>" phrase (e.g., Max/Pro/Ultra/Team) to avoid future plan-name churn.
         // Strip any leading ANSI that may have survived (rare) before matching.
@@ -1259,9 +1263,8 @@ extension ClaudeStatusProbe {
                 guard let match,
                       match.numberOfRanges >= 2,
                       let r = Range(match.range(at: 1), in: text) else { return }
-                let raw = String(text[r])
-                let val = ClaudePlan.cliCompatibilityLoginMethod(Self.cleanPlan(raw)) ?? Self.cleanPlan(raw)
-                candidates.append(val)
+                let cleaned = UsageFormatter.cleanPlanName(String(text[r]))
+                candidates.append(ClaudePlan.cliCompatibilityLoginMethod(cleaned) ?? cleaned)
             }
         }
         if let plan = candidates.first(where: { cand in
@@ -1271,11 +1274,6 @@ extension ClaudeStatusProbe {
             return plan
         }
         return nil
-    }
-
-    /// Strips ANSI and stray bracketed codes like "[22m" that can survive CLI output.
-    private static func cleanPlan(_ text: String) -> String {
-        UsageFormatter.cleanPlanName(text)
     }
 
     private static func dumpIfNeeded(enabled: Bool, reason: String, usage: String, status: String?) {

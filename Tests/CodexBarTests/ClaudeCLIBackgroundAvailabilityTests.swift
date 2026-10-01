@@ -3,6 +3,38 @@ import Testing
 @testable import CodexBarCore
 
 struct ClaudeCLIBackgroundAvailabilityTests {
+    @Test(arguments: [
+        (false, ClaudeStatusProbeError.timedOut, false),
+        (true, ClaudeStatusProbeError.timedOut, true),
+        (true, ClaudeStatusProbeError.parseFailed("Claude CLI /usage is still loading usage data."), true),
+        (true, ClaudeStatusProbeError.authenticationFailed("Synthetic authentication timeout"), false),
+    ])
+    func `transient failures preserve only established background CLI availability`(
+        established: Bool, failure: ClaudeStatusProbeError, remainsAvailable: Bool) async throws
+    {
+        let strategy = self.makeStrategy()
+        let profile = try self.makeProfile(accountID: "timeout-account")
+        defer { try? FileManager.default.removeItem(at: profile.root) }
+        let context = self.makeContext(environment: profile.environment)
+        await self.withBackgroundGates(
+            keychainDisabled: !established,
+            promptMode: .always,
+            establishedBinary: established ? "/bin/echo" : nil,
+            establishedEnvironment: context.env,
+            oauthCredentialsMissing: true)
+        {
+            #expect(await strategy.isAvailable(context))
+            let fetchOverride: ClaudeStatusProbe.FetchOverride = { _, _, _ in throw failure }
+            let error = await #expect(throws: ClaudeStatusProbeError.self) {
+                try await ClaudeStatusProbe.$fetchOverride.withValue(fetchOverride) {
+                    try await strategy.fetch(context)
+                }
+            }
+            #expect(error?.localizedDescription == failure.localizedDescription)
+            #expect(await strategy.isAvailable(context) == remainsAvailable)
+        }
+    }
+
     @Test
     func `disabled Keychain allows cold background Auto usage without an established marker`() async throws {
         let strategy = self.makeStrategy()

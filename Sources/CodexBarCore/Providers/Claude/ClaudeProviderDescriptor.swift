@@ -1067,6 +1067,12 @@ struct ClaudeCLIFetchStrategy: ProviderFetchStrategy {
             if Task.isCancelled || ClaudeOAuthFetchError.isCancellation(error) {
                 throw error
             }
+            // A transient probe failure does not revoke this account's established CLI availability.
+            if ClaudeUsageFetcher.isRetryableCLIProbeError(error),
+               ClaudeCLIBackgroundAvailability.isEstablished(backgroundAvailabilityMarker)
+            {
+                throw error
+            }
             if let backgroundAvailabilityMarker {
                 ClaudeCLIBackgroundAvailability.revoke(backgroundAvailabilityMarker)
             }
@@ -1152,8 +1158,11 @@ enum ClaudeCLIBackgroundAvailability {
     }
 
     static func isEstablished(binary: String, environment: [String: String]) -> Bool {
-        guard let marker = self.captureMarker(binary: binary, environment: environment) else { return false }
-        return self.store.contains(marker)
+        self.isEstablished(self.captureMarker(binary: binary, environment: environment))
+    }
+
+    static func isEstablished(_ marker: Marker?) -> Bool {
+        marker.map { self.store.contains($0) } ?? false
     }
 
     static func allowsOpaqueChildExecution(binary: String, environment: [String: String]) -> Bool {

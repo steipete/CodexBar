@@ -64,7 +64,7 @@ struct ClaudeDirectUsageFallbackTests {
             #expect(!invocations.contains("secret-env"))
             #expect(!invocations.contains("remote-registration-would-occur"))
             #expect(self.log.arguments(for: "direct") == [
-                "--settings", #"{"remoteControlAtStartup":false}"#, "/usage",
+                "--strict-mcp-config", "--settings", #"{"remoteControlAtStartup":false}"#, "/usage",
             ])
             let ptyArguments = self.log.arguments(for: "pty")
             #expect(Array(ptyArguments.dropLast()) == [
