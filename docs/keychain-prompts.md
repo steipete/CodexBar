@@ -39,6 +39,11 @@ repeated checks within one operation reuse the final result. This applies to gen
 browser storage, credential repair, and CodexBar caches, without changing their permission requirements.
 
 Concurrent preflights for the same trusted application and executable share an in-flight code-signature validation.
+For the running executable (or its own main app bundle), preflight checks the ACL's signing requirement against the
+process's dynamic code identity with default Security flags, avoiding sealed-resource hashing. A bundled CLI helper
+only validates its own identity; it cannot authorize its enclosing app. Other paths and ACLs without an available
+signing requirement keep the static validator. Requirement mismatches remain confirmed rejections; other dynamic
+errors stay inconclusive.
 Completed successful validations and transient failures are not retained process-wide: executable and app metadata
 cannot detect every change to a sealed resource. The existing short, explicit operation memo can still reuse a
 generic-password preflight within that operation; it does not span asynchronous refreshes or deferred work.
