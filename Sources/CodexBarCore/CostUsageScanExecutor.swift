@@ -145,6 +145,9 @@ public enum CostUsageScanExecutor {
         _ work: @escaping @Sendable (_ checkCancellation: @escaping @Sendable () throws -> Void) throws -> T)
         async throws -> T
     {
+        #if DEBUG
+        let storeTestHooks = CostUsageStoreTestHooks.current
+        #endif
         let state = RunState<T>()
         let checkCancellation: @Sendable () throws -> Void = {
             try state.checkCancellation()
@@ -154,7 +157,15 @@ public enum CostUsageScanExecutor {
                 guard state.install(continuation) else { return }
                 queue.async {
                     guard state.begin() else { return }
-                    state.complete(with: Result { try work(checkCancellation) })
+                    state.complete(with: Result {
+                        #if DEBUG
+                        try CostUsageStoreTestHooks.$current.withValue(storeTestHooks) {
+                            try work(checkCancellation)
+                        }
+                        #else
+                        try work(checkCancellation)
+                        #endif
+                    })
                 }
             }
         } onCancel: {

@@ -121,7 +121,8 @@ extension CostUsageStoreReadWorkTests {
         let inTransaction = LockIsolated(-1)
         let failure = LockIsolated<String?>(nil)
         CostUsageStore.readWorkRecorderForTesting = recorder
-        CostUsageStore.codexCatchUpReconciliationVisitForTesting = {
+        var hooks = CostUsageStoreTestHooks.current
+        hooks.codexCatchUpReconciliationVisit = {
             let work = recorder.snapshot()
             guard work.readViewConversions == 2, writes.value == 0 else { return }
             writes.setValue(1)
@@ -132,14 +133,12 @@ extension CostUsageStoreReadWorkTests {
                 failure.setValue(error.localizedDescription)
             }
         }
-        defer {
-            CostUsageStore.codexCatchUpReconciliationVisitForTesting = nil
-            CostUsageStore.readWorkRecorderForTesting = nil
-        }
+        defer { CostUsageStore.readWorkRecorderForTesting = nil }
 
-        let result = await fixture.strictSnapshot()
+        let result = await CostUsageStoreTestHooks.$current.withValue(hooks) {
+            await fixture.strictSnapshot()
+        }
         let work = recorder.snapshot()
-        CostUsageStore.codexCatchUpReconciliationVisitForTesting = nil
         CostUsageStore.readWorkRecorderForTesting = nil
 
         #expect(result == nil)

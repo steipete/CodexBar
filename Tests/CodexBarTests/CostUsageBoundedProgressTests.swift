@@ -392,21 +392,25 @@ struct CostUsageBoundedProgressTests {
 
         var options = Self.boundedOptions(env: env)
         let saveCounter = BoundedProgressCounter()
-        CostUsageStore.codexCatchUpReconciliationVisitForTesting = { saveCounter.increment() }
+        var hooks = CostUsageStoreTestHooks.current
+        hooks.codexCatchUpReconciliationVisit = { saveCounter.increment() }
         let firstRecorder = CostUsageScanner.CodexScanWorkRecorder()
         options.codexScanWorkRecorderForTesting = firstRecorder
-        _ = CostUsageScanner.loadDailyReport(
-            provider: .codex,
-            since: day,
-            until: day,
-            now: day,
-            options: options)
+        CostUsageStoreTestHooks.$current.withValue(hooks) {
+            _ = CostUsageScanner.loadDailyReport(
+                provider: .codex,
+                since: day,
+                until: day,
+                now: day,
+                options: options)
+        }
         let firstMetrics = firstRecorder.snapshot()
 
         let loadCounter = BoundedProgressCounter()
-        CostUsageStore.codexCatchUpReconciliationVisitForTesting = { loadCounter.increment() }
-        let firstCache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
-        CostUsageStore.codexCatchUpReconciliationVisitForTesting = nil
+        hooks.codexCatchUpReconciliationVisit = { loadCounter.increment() }
+        let firstCache = CostUsageStoreTestHooks.$current.withValue(hooks) {
+            CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        }
         #expect(saveCounter.value == 0)
         #expect(loadCounter.value == 0)
         #expect(firstMetrics.codexFileScanAttempts == 512)

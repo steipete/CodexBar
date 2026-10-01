@@ -28,7 +28,9 @@ extension CostUsageStoreReadWorkTests {
         var incoming = loaded.cache
         incoming.lastScanUnixMs += 1000
         let writer = try BaselineSQLiteConnection(url: fixture.store.databaseURL)
-        CostUsageStore.identicalContentPreLockCheckpointForTesting = (fixture.store.databaseURL, {
+        let fileSize = file.size
+        var hooks = CostUsageStoreTestHooks.current
+        hooks.identicalContentPreLockCheckpoint = (fixture.store.databaseURL, {
             do {
                 if change == "retry" {
                     try writer.execute("""
@@ -36,7 +38,7 @@ extension CostUsageStoreReadWorkTests {
                     SELECT id, 'unresolvedFork', 0, 0, size, X'00' FROM files
                     """)
                 } else {
-                    let bytes = Data(repeating: 32, count: Int(file.size))
+                    let bytes = Data(repeating: 32, count: Int(fileSize))
                     if change == "replacement" {
                         try bytes.write(to: url, options: .atomic)
                     } else {
@@ -46,8 +48,10 @@ extension CostUsageStoreReadWorkTests {
                 }
             } catch { Issue.record(error) }
         })
-        defer { CostUsageStore.identicalContentPreLockCheckpointForTesting = nil }
-        #expect(fixture.save(incoming, load: loaded).catchUpRequired)
+        let saved = CostUsageStoreTestHooks.$current.withValue(hooks) {
+            fixture.save(incoming, load: loaded)
+        }
+        #expect(saved.catchUpRequired)
         #expect(await fixture.store.fetchMetadata().catchUpPending == true)
         #expect(await fixture.store.fetchMetadata().lastScanUnixMs == fixture.canonical.lastScanUnixMs)
         let fresh = fixture.store.syncLoadCodexReadView(calendar: fixture.calendar, purpose: .status)

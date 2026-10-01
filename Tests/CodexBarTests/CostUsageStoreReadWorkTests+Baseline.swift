@@ -136,15 +136,18 @@ extension CostUsageStoreReadWorkTests {
             incoming.codexProjectMetadataVersion = 999
         }
         let writer = try BaselineSQLiteConnection(url: fixture.store.databaseURL)
-        CostUsageStore.identicalContentPreLockCheckpointForTesting = (fixture.store.databaseURL, {
+        var hooks = CostUsageStoreTestHooks.current
+        hooks.identicalContentPreLockCheckpoint = (fixture.store.databaseURL, {
             do {
                 try writer.execute("UPDATE files SET parsed_bytes = 777")
             } catch {
                 Issue.record(error)
             }
         })
-        defer { CostUsageStore.identicalContentPreLockCheckpointForTesting = nil }
-        #expect(fixture.save(incoming, load: loaded).catchUpRequired)
+        let saved = CostUsageStoreTestHooks.$current.withValue(hooks) {
+            fixture.save(incoming, load: loaded)
+        }
+        #expect(saved.catchUpRequired)
         #expect(await fixture.store.readSnapshot().files.allSatisfy { $0.parsedBytes == 777 })
         #expect(await fixture.store.fetchMetadata().lastScanUnixMs == fixture.canonical.lastScanUnixMs)
         #expect(await fixture.store.retainedCodexBaselineCountForTesting == 0)
@@ -304,11 +307,14 @@ extension CostUsageStoreReadWorkTests {
         let loaded = fixture.store.syncLoadCodexScan(calendar: fixture.calendar)
         defer { loaded.release() }
         let writer = try BaselineSQLiteConnection(url: fixture.store.databaseURL)
-        CostUsageStore.identicalContentPreLockCheckpointForTesting = (fixture.store.databaseURL, {
+        var hooks = CostUsageStoreTestHooks.current
+        hooks.identicalContentPreLockCheckpoint = (fixture.store.databaseURL, {
             do { try writer.execute("DROP TABLE meta") } catch { Issue.record(error) }
         })
-        defer { CostUsageStore.identicalContentPreLockCheckpointForTesting = nil }
-        #expect(fixture.save(loaded.cache, load: loaded).catchUpRequired)
+        let saved = CostUsageStoreTestHooks.$current.withValue(hooks) {
+            fixture.save(loaded.cache, load: loaded)
+        }
+        #expect(saved.catchUpRequired)
         #expect(await fixture.store.rebuildCount == 0)
         #expect(await fixture.store.readSnapshot().files.count == fixture.fileCount)
     }
