@@ -235,7 +235,7 @@ public struct RemoteSessionFetcher: Sendable {
     /// that omits the standard CLI locations, so we also probe them explicitly before
     /// falling back to the app binary itself.
     package static func tailscaleBinaryCandidates(path: String?) -> [String] {
-        let pathDirs = path?.split(separator: ":").map(String.init) ?? []
+        let pathDirs = PathBuilder.searchDirectories(path?.split(separator: ":").map(String.init) ?? [])
         var seen = Set<String>()
         var candidates = (pathDirs + ["/usr/local/bin", "/opt/homebrew/bin"])
             .filter { seen.insert($0).inserted }
@@ -262,9 +262,7 @@ public struct RemoteSessionFetcher: Sendable {
 
     private func findExecutable(_ name: String, environment: [String: String]) -> String? {
         let path = environment["PATH"] ?? "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
-        return path.split(separator: ":")
-            .map { String($0) + "/" + name }
-            .first { FileManager.default.isExecutableFile(atPath: $0) }
+        return BinaryLocator.find(name, in: path.split(separator: ":").map(String.init), fileManager: .default)
     }
 
     public static func sanitizedHosts(_ hosts: [String]) -> [String] {

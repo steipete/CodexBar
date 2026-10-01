@@ -157,12 +157,13 @@ public enum SubprocessRunner {
         reapDescendants: Bool = false,
         label: String) async throws -> SubprocessResult
     {
-        guard FileManager.default.isExecutableFile(atPath: binary) else {
+        let executableURL = URL(fileURLWithPath: binary).standardizedFileURL
+        guard FileManager.default.isExecutableFile(atPath: executableURL.path) else {
             throw SubprocessRunnerError.binaryNotFound(binary)
         }
 
         let start = Date()
-        let binaryName = URL(fileURLWithPath: binary).lastPathComponent
+        let binaryName = executableURL.lastPathComponent
         func logMetadata(duration: TimeInterval, exitCode: Int32? = nil) -> [String: String] {
             var metadata = ["label": label, "binary": binaryName, "duration_ms": "\(Int(duration * 1000))"]
             if let exitCode { metadata["status"] = "\(exitCode)" }
@@ -173,12 +174,14 @@ public enum SubprocessRunner {
             metadata: ["label": label, "binary": binaryName, "timeout": "\(timeout)"])
 
         let process = Process()
-        process.executableURL = URL(fileURLWithPath: binary)
+        process.executableURL = executableURL
         process.arguments = arguments
+        var launchEnvironment = environment
+        launchEnvironment["PATH"] = PathBuilder.effectivePATH(purposes: [.tty], env: environment, loginPATH: nil)
         let ownership = reapDescendants ? ProcessOwnershipReaper() : nil
         process.environment = ownership
-            .map { environment.merging([ProcessOwnershipReaper.environmentKey: $0.marker]) { _, new in new } } ??
-            environment
+            .map { launchEnvironment.merging([ProcessOwnershipReaper.environmentKey: $0.marker]) { _, new in new } } ??
+            launchEnvironment
         process.currentDirectoryURL = currentDirectoryURL
 
         let stdoutPipe = Pipe()

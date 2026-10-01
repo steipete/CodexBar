@@ -998,6 +998,7 @@ enum CostUsageScanner {
 
         private func gitWorktreeList(projectPath: String) -> String? {
             let process = Process()
+            process.environment = TTYCommandRunner.enrichedEnvironment()
             process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
             process.arguments = ["git", "-C", projectPath, "worktree", "list", "--porcelain"]
 

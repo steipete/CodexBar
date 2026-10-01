@@ -446,51 +446,20 @@ public struct TTYCommandRunner {
     }
 
     static func locateBundledHelper(_ name: String) -> String? {
-        let fm = FileManager.default
-
-        func isExecutable(_ path: String) -> Bool {
-            fm.isExecutableFile(atPath: path)
-        }
-
         if let override = ProcessInfo.processInfo.environment["CODEXBAR_HELPER_\(name.uppercased())"],
-           isExecutable(override)
+           FileManager.default.isExecutableFile(atPath: override)
         {
             return override
         }
+        guard let exe = ExecutableLocation.runningURL(bundle: .main) else { return nil }
+        return self.bundledHelperPath(name, executableURL: exe)
+    }
 
-        func candidate(inAppBundleURL appURL: URL) -> String? {
-            let path = appURL
-                .appendingPathComponent("Contents", isDirectory: true)
-                .appendingPathComponent("Helpers", isDirectory: true)
-                .appendingPathComponent(name, isDirectory: false)
-                .path
-            return isExecutable(path) ? path : nil
-        }
-
-        let mainURL = Bundle.main.bundleURL
-        if mainURL.pathExtension == "app", let found = candidate(inAppBundleURL: mainURL) {
-            return found
-        }
-
-        if let argv0 = CommandLine.arguments.first {
-            var url = URL(fileURLWithPath: argv0)
-            if !argv0.hasPrefix("/") {
-                url = URL(fileURLWithPath: FileManager.default.currentDirectoryPath).appendingPathComponent(argv0)
-            }
-            var probe = url
-            for _ in 0..<6 {
-                let parent = probe.deletingLastPathComponent()
-                if parent.pathExtension == "app", let found = candidate(inAppBundleURL: parent) {
-                    return found
-                }
-                if parent.path == probe.path {
-                    break
-                }
-                probe = parent
-            }
-        }
-
-        return nil
+    /// Expects the real location to be `<X>.app/Contents/{MacOS,Helpers}/<exe>`, even when launched via a symlink.
+    static func bundledHelperPath(_ name: String, executableURL: URL) -> String? {
+        guard let app = ExecutableLocation.appBundleURL(containing: executableURL) else { return nil }
+        let helper = app.appendingPathComponent("Contents/Helpers/\(name)").path
+        return FileManager.default.isExecutableFile(atPath: helper) ? helper : nil
     }
 
     // swiftlint:disable function_body_length
@@ -501,12 +470,7 @@ public struct TTYCommandRunner {
         options: Options = Options(),
         onURLDetected: (@Sendable () -> Void)? = nil) throws -> Result
     {
-        let resolved: String
-        if FileManager.default.isExecutableFile(atPath: binary) {
-            resolved = binary
-        } else if let hit = Self.which(binary) {
-            resolved = hit
-        } else {
+        guard let resolved = Self.which(binary) else {
             Self.log.warning("PTY binary not found", metadata: ["binary": binary])
             throw Error.binaryNotFound(binary)
         }
@@ -1154,11 +1118,14 @@ extension TTYCommandRunner {
     }
 
     public static func which(_ tool: String) -> String? {
+        if tool.contains("/") {
+            return BinaryLocator.find(tool, in: [], fileManager: .default)
+        }
         if let cli = ProviderDescriptorRegistry.all.first(where: { $0.cli.name == tool })?.cli,
            cli.prefersBinaryLocatorForWhich,
            let located = cli.binaryLocator?()
         {
-            return located
+            return URL(fileURLWithPath: located).standardizedFileURL.path
         }
         return self.runWhich(tool)
     }
@@ -1201,26 +1168,11 @@ extension TTYCommandRunner {
     }
 
     private static func runWhich(_ tool: String) -> String? {
-        let proc = Process()
-        proc.executableURL = URL(fileURLWithPath: "/usr/bin/which")
-        proc.arguments = [tool]
-        var env = ProcessInfo.processInfo.environment
         let loginPATH = LoginShellPathCache.shared.currentOrCapture()
-        env["PATH"] = PathBuilder.effectivePATH(
+        let path = PathBuilder.effectivePATH(
             purposes: [.tty, .nodeTooling],
-            env: env,
             loginPATH: loginPATH)
-        proc.environment = env
-        let pipe = Pipe()
-        proc.standardOutput = pipe
-        try? proc.run()
-        proc.waitUntilExit()
-        guard proc.terminationStatus == 0 else { return nil }
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        guard let path = String(data: data, encoding: .utf8)?
-            .trimmingCharacters(in: .whitespacesAndNewlines),
-            !path.isEmpty else { return nil }
-        return path
+        return BinaryLocator.find(tool, in: path.split(separator: ":").map(String.init), fileManager: .default)
     }
 
     /// Uses login-shell PATH when available so TTY probes match the user's shell configuration.

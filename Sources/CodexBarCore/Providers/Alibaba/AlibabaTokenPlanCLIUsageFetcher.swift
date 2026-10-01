@@ -138,13 +138,6 @@ enum AlibabaTokenPlanCLIUsageFetcher {
         fileManager: FileManager = .default) -> String?
     {
         guard let path = environment["PATH"] else { return nil }
-        for directory in path.split(separator: ":", omittingEmptySubsequences: false) {
-            let base = directory.isEmpty ? "." : String(directory)
-            let candidate = URL(fileURLWithPath: base).appendingPathComponent("bl").path
-            if fileManager.isExecutableFile(atPath: candidate) {
-                return candidate
-            }
-        }
-        return nil
+        return BinaryLocator.find("bl", in: path.split(separator: ":").map(String.init), fileManager: fileManager)
     }
 }

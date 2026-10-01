@@ -576,8 +576,6 @@ public struct LocalAgentSessionScanner: Sendable {
 
     private func findExecutable(_ name: String, environment: [String: String]) -> String? {
         let path = environment["PATH"] ?? "/usr/local/bin:/usr/bin:/bin:/opt/homebrew/bin"
-        return path.split(separator: ":")
-            .map { String($0) + "/" + name }
-            .first { FileManager.default.isExecutableFile(atPath: $0) }
+        return BinaryLocator.find(name, in: path.split(separator: ":").map(String.init), fileManager: .default)
     }
 }

@@ -526,15 +526,7 @@ public struct GeminiStatusProbe: Sendable {
         environment: [String: String]) -> String?
     {
         guard let path = environment["PATH"] else { return nil }
-        for directory in path.split(separator: ":") where !directory.isEmpty {
-            let candidate = URL(fileURLWithPath: String(directory), isDirectory: true)
-                .appendingPathComponent(executable)
-                .path
-            if FileManager.default.isExecutableFile(atPath: candidate) {
-                return candidate
-            }
-        }
-        return nil
+        return BinaryLocator.find(executable, in: path.split(separator: ":").map(String.init), fileManager: .default)
     }
 
     private static func resolveGeminiPackageRootViaFnm(

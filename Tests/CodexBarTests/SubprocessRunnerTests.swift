@@ -179,15 +179,21 @@ struct SubprocessRunnerTests {
     /// This test was previously deleted (commit 3961770) because `waitUntilExit()` blocked
     /// the cooperative thread pool, starving the timeout task. The fix moves blocking calls
     /// to `DispatchQueue.global()`, making this test reliable.
-    @Test
+    @Test(.timeLimit(.minutes(1)))
     func `throws timed out when process hangs`() async throws {
-        let start = Date()
+        let stdin = Pipe()
+        defer {
+            try? stdin.fileHandleForWriting.close()
+            try? stdin.fileHandleForReading.close()
+        }
+        // Hold stdin open so only termination, not natural completion, can release the child.
         do {
             _ = try await SubprocessRunner.run(
-                binary: "/bin/sleep",
-                arguments: ["5"],
-                environment: ProcessInfo.processInfo.environment,
+                binary: "/bin/cat",
+                arguments: [],
+                environment: [:],
                 timeout: 1,
+                standardInput: stdin,
                 label: "hung-process-test")
             Issue.record("Expected SubprocessRunnerError.timedOut but no error was thrown")
         } catch let error as SubprocessRunnerError {
@@ -199,10 +205,6 @@ struct SubprocessRunnerTests {
         } catch {
             Issue.record("Expected SubprocessRunnerError.timedOut, got unexpected error: \(error)")
         }
-
-        let elapsed = Date().timeIntervalSince(start)
-        // Must complete in well under 5s (the sleep duration). Allow generous bound for CI.
-        #expect(elapsed < 3, "Timeout should fire in ~1s, not wait for process to exit naturally")
     }
 
     @Test

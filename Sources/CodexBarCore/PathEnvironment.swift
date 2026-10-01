@@ -412,6 +412,7 @@ public enum BinaryLocator {
 
         // 5b) Alias fallback (login shell); only attempt after all standard lookups fail.
         if let aliasHit = aliasResolver(name, env["SHELL"], 2.0, fileManager, home),
+           aliasHit.hasPrefix("/"),
            fileManager.isExecutableFile(atPath: aliasHit),
            launchCandidateFilter(aliasHit, fileManager)
         {
@@ -426,13 +427,19 @@ public enum BinaryLocator {
             launchCandidateFilter: launchCandidateFilter)
     }
 
-    private static func find(
+    static func find(
         _ binary: String,
         in paths: [String],
         fileManager: FileManager,
         launchCandidateFilter: (String, FileManager) -> Bool = { _, _ in true }) -> String?
     {
-        for path in paths where !path.isEmpty {
+        if binary.contains("/") {
+            let path = URL(fileURLWithPath: binary).standardizedFileURL.path
+            return fileManager.isExecutableFile(atPath: path) && launchCandidateFilter(path, fileManager)
+                ? path : nil
+        }
+        guard !binary.isEmpty else { return nil }
+        for path in PathBuilder.searchDirectories(paths) {
             let candidate = "\(path.hasSuffix("/") ? String(path.dropLast()) : path)/\(binary)"
             if fileManager.isExecutableFile(atPath: candidate), launchCandidateFilter(candidate, fileManager) {
                 return candidate
@@ -885,7 +892,9 @@ public enum ShellCommandLocator {
         // Inherit the parent environment.  Build a NULL-terminated `KEY=VALUE`
         // array since `extern char **environ` isn't directly visible from Swift.
         var cEnv: [UnsafeMutablePointer<CChar>?] = []
-        for (key, value) in ProcessInfo.processInfo.environment {
+        var environment = ProcessInfo.processInfo.environment
+        environment["PATH"] = PathBuilder.effectivePATH(purposes: [.tty], env: environment, loginPATH: nil)
+        for (key, value) in environment {
             cEnv.append(strdup("\(key)=\(value)"))
         }
         cEnv.append(nil)
@@ -1027,6 +1036,11 @@ public enum ShellCommandLocator {
 }
 
 public enum PathBuilder {
+    /// Relative and empty PATH entries depend on an untrusted invocation directory.
+    static func searchDirectories(_ paths: [String]) -> [String] {
+        paths.filter { $0.hasPrefix("/") }
+    }
+
     public static func effectivePATH(
         purposes _: Set<PathPurpose>,
         env: [String: String] = ProcessInfo.processInfo.environment,
@@ -1043,20 +1057,13 @@ public enum PathBuilder {
             parts.append(contentsOf: existing.split(separator: ":").map(String.init))
         }
 
+        parts = self.searchDirectories(parts)
         if parts.isEmpty {
             parts.append(contentsOf: ["/usr/bin", "/bin", "/usr/sbin", "/sbin"])
         }
 
         var seen = Set<String>()
-        let deduped = parts.compactMap { part -> String? in
-            guard !part.isEmpty else { return nil }
-            if seen.insert(part).inserted {
-                return part
-            }
-            return nil
-        }
-
-        return deduped.joined(separator: ":")
+        return parts.filter { seen.insert($0).inserted }.joined(separator: ":")
     }
 
     public static func debugSnapshot(
@@ -1227,5 +1234,39 @@ public final class LoginShellPathCache: @unchecked Sendable {
 
         callbacks.forEach { $0(result) }
         return result
+    }
+}
+
+/// Resolves bundle ownership from the executable, never argv[0] or the invocation directory.
+enum ExecutableLocation {
+    static func appBundleURL(containing executableURL: URL) -> URL? {
+        let directory = executableURL.resolvingSymlinksInPath().deletingLastPathComponent()
+        let contents = directory.deletingLastPathComponent()
+        let app = contents.deletingLastPathComponent()
+        guard ["MacOS", "Helpers"].contains(directory.lastPathComponent),
+              contents.lastPathComponent == "Contents", app.pathExtension == "app" else { return nil }
+        return app
+    }
+
+    static func runningURL(bundle: Bundle) -> URL? {
+        if let executableURL = bundle.executableURL {
+            return executableURL
+        }
+
+        #if canImport(Darwin)
+        var size: UInt32 = 0
+        guard _NSGetExecutablePath(nil, &size) != 0 else { return nil }
+        var buffer = [Int8](repeating: 0, count: Int(size))
+        guard _NSGetExecutablePath(&buffer, &size) == 0 else { return nil }
+        let pathBytes = buffer.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }
+        guard let path = String(bytes: pathBytes, encoding: .utf8) else { return nil }
+        return URL(fileURLWithPath: path)
+        #elseif os(Linux)
+        let path = "/proc/self/exe"
+        guard FileManager.default.fileExists(atPath: path) else { return nil }
+        return URL(fileURLWithPath: path)
+        #else
+        return nil
+        #endif
     }
 }
