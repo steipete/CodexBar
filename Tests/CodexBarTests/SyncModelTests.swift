@@ -776,20 +776,22 @@ struct CloudSyncSnapshotMigrationSaveThenDeleteTests {
     }
 
     @Test
-    func `delayed delete retries do not resume on a replacement sync engine`() {
+    func `events and retries do not resume on a retired sync engine`() {
         let original = NSObject()
         #expect(
-            CloudSyncSnapshotMigration.shouldResumeDelayedRetry(
+            CloudSyncLifecycle.isCurrentEngine(
                 originatingEngine: ObjectIdentifier(original),
                 currentEngine: ObjectIdentifier(original)))
         #expect(
-            !CloudSyncSnapshotMigration.shouldResumeDelayedRetry(
+            !CloudSyncLifecycle.isCurrentEngine(
                 originatingEngine: ObjectIdentifier(original),
                 currentEngine: ObjectIdentifier(NSObject())))
         #expect(
-            !CloudSyncSnapshotMigration.shouldResumeDelayedRetry(
+            !CloudSyncLifecycle.isCurrentEngine(
                 originatingEngine: ObjectIdentifier(original),
                 currentEngine: nil))
+        #expect(!CloudSyncLifecycle.isCurrentEngine(originatingEngine: nil, currentEngine: ObjectIdentifier(original)))
+        #expect(!CloudSyncLifecycle.isCurrentEngine(originatingEngine: nil, currentEngine: nil))
     }
 
     private static func cloudKitError(_ code: CKError.Code, retryAfter: TimeInterval? = nil) -> CKError {

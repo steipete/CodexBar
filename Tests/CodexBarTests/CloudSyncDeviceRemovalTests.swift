@@ -103,6 +103,57 @@ struct CloudSyncDeviceRemovalTests {
         #expect(Set(state.fleetSnapshots.keys) == Set(saved.fleetSnapshots.keys))
     }
 
+    @Test(arguments: [SyncRecordType.device, .accountSnapshot], [false, true])
+    func `removed live record is recreated once with its payload intact`(
+        _ type: SyncRecordType, deletionFetched: Bool) async throws
+    {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let persistence = CloudSyncPersistence(fileURL: directory.appendingPathComponent("sync.json"))
+        let state = CloudSyncState()
+        let id = CKRecord.ID(recordName: "removed-current", zoneID: CloudSyncEngine.zoneID)
+        let stale = deletionFetched
+            ? PreviouslySavedRecord(recordType: type.rawValue, recordID: id)
+            : CKRecord(recordType: type.rawValue, recordID: id)
+        stale["deviceID"] = "current" as CKRecordValue
+        stale["schemaVersion"] = 1 as CKRecordValue
+        stale.encryptedValues["usagePayload"] = "synthetic usage" as CKRecordValue
+        var envelope = CloudSyncPersistence.Envelope(
+            stateSerialization: nil, encodedSystemFields: [:], dirtyProviders: ["claude"], preferencesDirty: true)
+        CloudSyncPersistence.cacheSystemFields(of: stale, in: &envelope)
+        envelope.encodedSystemFields["unrelated"] = Data([1])
+        envelope.pendingPredecessorDeletes[id.recordName] = ["predecessor"]
+        try persistence.save(envelope)
+        let engine = CloudSyncEngine(
+            settings: Self.makeSettings(directory: directory), state: state, persistence: persistence)
+        let error = CKError(_nsError: NSError(domain: CKErrorDomain, code: CKError.unknownItem.rawValue))
+
+        if deletionFetched { await engine.applyDeletedRecords([id.recordName]) }
+        await engine.handleSaveFailure(stale, error: error)
+
+        let saved = persistence.load()
+        #expect(saved.encodedSystemFields[id.recordName] == nil)
+        #expect(saved.recordMetadata[id.recordName] == nil)
+        #expect(saved.encodedSystemFields["unrelated"] == Data([1]))
+        #expect(saved.pendingPredecessorDeletes[id.recordName] == ["predecessor"])
+        #expect(saved.dirtyProviders == ["claude"])
+        #expect(saved.preferencesDirty)
+        #expect(state.status.lastError == nil)
+        let replacement = try #require(await engine.recordForPendingSave(id))
+        #expect(replacement !== stale)
+        #expect(replacement.recordID == id)
+        #expect(replacement.recordType == type.rawValue)
+        #expect(replacement.recordChangeTag == nil)
+        #expect(replacement["deviceID"] as? String == "current")
+        #expect(replacement["schemaVersion"] as? Int == 1)
+        #expect(replacement.encryptedValues["usagePayload"] as? String == "synthetic usage")
+
+        await engine.handleSaveFailure(replacement, error: error)
+
+        #expect(state.status.lastError != nil)
+        #expect(await engine.recordForPendingSave(id) === replacement)
+    }
+
     @Test
     func `disabled engine does not remove records or access CloudKit`() async {
         let state = Self.makeState()
@@ -207,5 +258,11 @@ struct CloudSyncDeviceRemovalTests {
                 usage: UsageSnapshot(primary: nil, secondary: nil, updatedAt: Date(timeIntervalSince1970: 100)))
         }
         return state
+    }
+}
+
+private final class PreviouslySavedRecord: CKRecord, @unchecked Sendable {
+    override var recordChangeTag: String? {
+        "fixture-change-tag"
     }
 }
