@@ -373,20 +373,25 @@ struct AntigravityQuotaSummaryTests {
             csrfToken: "token",
             source: .languageServer)
         let paths = AntigravityQuotaSummaryPathRecorder()
+        let clock = AntigravityDeadlineClock()
 
-        let snapshot = try await AntigravityStatusProbe.fetchSnapshot(
-            context: AntigravityStatusProbe.RequestContext(
-                endpoints: [endpoint],
-                timeout: 1,
-                deadline: Date().addingTimeInterval(2)),
-            send: { payload, _, timeout in
-                paths.append(payload.path)
-                if payload.path.contains("RetrieveUserQuotaSummary") {
-                    try await Task.sleep(for: .seconds(timeout))
-                    throw AntigravityStatusProbeError.timedOut
-                }
-                return Data(antigravityUserStatusJSON().utf8)
-            })
+        let snapshot = try await AntigravityStatusProbe.$deadlineNow.withValue(clock.now) {
+            try await AntigravityStatusProbe.fetchSnapshot(
+                context: AntigravityStatusProbe.RequestContext(
+                    endpoints: [endpoint],
+                    timeout: 1,
+                    deadline: clock.now().addingTimeInterval(2)),
+                send: { payload, _, timeout in
+                    paths.append(payload.path)
+                    if payload.path.contains("RetrieveUserQuotaSummary") {
+                        #expect(timeout == 1)
+                        clock.advance(by: timeout)
+                        throw AntigravityStatusProbeError.timedOut
+                    }
+                    #expect(timeout == 0.5)
+                    return Data(antigravityUserStatusJSON().utf8)
+                })
+        }
         let usage = try snapshot.toUsageSnapshot()
 
         #expect(paths.snapshot() == [
@@ -404,23 +409,28 @@ struct AntigravityQuotaSummaryTests {
             csrfToken: "token",
             source: .languageServer)
         let paths = AntigravityQuotaSummaryPathRecorder()
+        let clock = AntigravityDeadlineClock()
 
-        let snapshot = try await AntigravityStatusProbe.fetchSnapshot(
-            context: AntigravityStatusProbe.RequestContext(
-                endpoints: [endpoint],
-                timeout: 1,
-                deadline: Date().addingTimeInterval(2)),
-            send: { payload, _, timeout in
-                paths.append(payload.path)
-                if payload.path.contains("RetrieveUserQuotaSummary") {
-                    throw AntigravityStatusProbeError.apiError("unsupported")
-                }
-                if payload.path.contains("GetUserStatus") {
-                    try await Task.sleep(for: .seconds(timeout))
-                    throw AntigravityStatusProbeError.timedOut
-                }
-                return Data(antigravityCommandModelConfigJSON().utf8)
-            })
+        let snapshot = try await AntigravityStatusProbe.$deadlineNow.withValue(clock.now) {
+            try await AntigravityStatusProbe.fetchSnapshot(
+                context: AntigravityStatusProbe.RequestContext(
+                    endpoints: [endpoint],
+                    timeout: 1,
+                    deadline: clock.now().addingTimeInterval(2)),
+                send: { payload, _, timeout in
+                    paths.append(payload.path)
+                    if payload.path.contains("RetrieveUserQuotaSummary") {
+                        throw AntigravityStatusProbeError.apiError("unsupported")
+                    }
+                    if payload.path.contains("GetUserStatus") {
+                        #expect(timeout == 1)
+                        clock.advance(by: timeout)
+                        throw AntigravityStatusProbeError.timedOut
+                    }
+                    #expect(timeout == 1)
+                    return Data(antigravityCommandModelConfigJSON().utf8)
+                })
+        }
         let usage = try snapshot.toUsageSnapshot()
 
         #expect(paths.snapshot() == [
