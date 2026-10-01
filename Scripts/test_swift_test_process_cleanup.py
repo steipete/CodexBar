@@ -8,6 +8,7 @@ import io
 import json
 import os
 from pathlib import Path
+import select
 import signal
 import subprocess
 import sys
@@ -59,6 +60,14 @@ def release_observed_fixture(root, owned, include_grandchild=False):
 
 def fixture(mode, directory, ready_delay=0):
     root = Path(directory)
+    if mode == "ready-sentinel":
+        if os.getpgrp() != os.getpid():
+            os.setpgid(0, 0)
+        publish_fixture_identity(root)
+        print("ready", flush=True)
+        # The controller owns this sentinel's lifetime; startup load must not consume it.
+        sys.stdin.buffer.read(1)
+        return
     if mode == "session-leader":
         publish_fixture_identity(root)
         grandchild = root / "grandchild"
@@ -153,7 +162,8 @@ class NestedProcessCleanupTests(unittest.TestCase):
             child_root.mkdir()
             sentinel_root.mkdir()
             sentinel = subprocess.Popen(
-                [sys.executable, __file__, "--fixture", "sentinel", str(sentinel_root)], start_new_session=True)
+                [sys.executable, __file__, "--fixture", "ready-sentinel", str(sentinel_root)],
+                start_new_session=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
             original_snapshot = runner.test_process_snapshot
             original_refresh = runner.TestProcessOwnership.refresh
             original_send = runner.TestProcessOwnership.send
@@ -206,7 +216,8 @@ class NestedProcessCleanupTests(unittest.TestCase):
                 signaled.append(info.pid)
                 original_send(ownership, info, sig)
             try:
-                wait_until(lambda: (sentinel_root / "ready").exists())
+                self.assertTrue(select.select([sentinel.stdout], [], [], 60)[0], "sentinel did not become ready")
+                self.assertEqual(sentinel.stdout.readline(), b"ready\n")
                 with patch.object(runner, "test_process_snapshot", side_effect=snapshot), \
                         patch.object(runner.TestProcessOwnership, "refresh", refresh), \
                         patch.object(runner.TestProcessOwnership, "send", send):
@@ -227,7 +238,9 @@ class NestedProcessCleanupTests(unittest.TestCase):
                 (root / "allow-drain").touch()
                 (child_root / "stop").touch()
                 (sentinel_root / "stop").touch()
+                sentinel.stdin.close()
                 runner.stop_unreaped_child(sentinel)
+                sentinel.stdout.close()
                 for name in ("pid", "parent-pid"):
                     path = child_root / name
                     if path.exists():
