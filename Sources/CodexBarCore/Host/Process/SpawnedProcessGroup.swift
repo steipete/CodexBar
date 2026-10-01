@@ -9,9 +9,8 @@ import Foundation
 
 #if DEBUG
 private enum SpawnedProcessGroupTestingOverrides {
-    @TaskLocal static var outputHolderDiscoveryDelay: TimeInterval?
+    @TaskLocal static var outputHolderDiscoveryHook: (@Sendable () -> Void)?
     @TaskLocal static var outputHolderPreKillSnapshotHook: (@Sendable () -> Void)?
-    @TaskLocal static var outputHolderPreKillDelay: TimeInterval?
     @TaskLocal static var outputHolderCleanupMaxLifetime: TimeInterval?
     @TaskLocal static var forcePTYPrimaryDescriptorReservationFailure = false
 }
@@ -955,7 +954,6 @@ extension SpawnedProcessGroup {
         let excludedPIDs: Set<pid_t>
         let grace: TimeInterval
         let preKillSnapshotHook: (@Sendable () -> Void)?
-        let preKillDelay: TimeInterval
 
         private let deadline: DispatchTime
         private let completion = DispatchGroup()
@@ -970,7 +968,6 @@ extension SpawnedProcessGroup {
             excludedPIDs: Set<pid_t>,
             grace: TimeInterval,
             preKillSnapshotHook: (@Sendable () -> Void)?,
-            preKillDelay: TimeInterval,
             maxLifetime: TimeInterval)
         {
             self.duplicatedPrimaryFileDescriptor = duplicatedPrimaryFileDescriptor
@@ -979,7 +976,6 @@ extension SpawnedProcessGroup {
             self.excludedPIDs = excludedPIDs
             self.grace = max(0, grace)
             self.preKillSnapshotHook = preKillSnapshotHook
-            self.preKillDelay = max(0, preKillDelay)
             self.deadline = .now() + max(0, maxLifetime)
             self.completion.enter()
         }
@@ -1038,21 +1034,19 @@ extension SpawnedProcessGroup {
     @discardableResult
     package func hardStopLivePTYRootSynchronously(grace: TimeInterval = 0.4) -> Int32? {
         #if DEBUG
-        // Task-local values do not cross a GCD boundary, so capture the test delay before dispatching.
-        let discoveryDelay = max(0, SpawnedProcessGroupTestingOverrides.outputHolderDiscoveryDelay ?? 0)
+        // Task-local values do not cross a GCD boundary, so capture the test hooks before dispatching.
+        let discoveryHook = SpawnedProcessGroupTestingOverrides.outputHolderDiscoveryHook
         let preKillSnapshotHook = SpawnedProcessGroupTestingOverrides.outputHolderPreKillSnapshotHook
-        let preKillDelay = max(0, SpawnedProcessGroupTestingOverrides.outputHolderPreKillDelay ?? 0)
         let cleanupMaxLifetime = max(0, SpawnedProcessGroupTestingOverrides.outputHolderCleanupMaxLifetime ?? 15)
         #else
-        let discoveryDelay: TimeInterval = 0
+        let discoveryHook: (@Sendable () -> Void)? = nil
         let preKillSnapshotHook: (@Sendable () -> Void)? = nil
-        let preKillDelay: TimeInterval = 0
         let cleanupMaxLifetime: TimeInterval = 15
         #endif
         guard let reservedPrimaryFileDescriptor = self.reservedPTYPrimaryDescriptor?.take() else {
             return self.abortSynchronously(grace: grace)
         }
-        // Production caps the lease at 15 seconds; DEBUG fixtures may add their artificial delay separately.
+        // Production caps the lease at 15 seconds; DEBUG fixtures may hold discovery behind a readiness gate.
         let lease = OutputHolderCleanupLease(
             duplicatedPrimaryFileDescriptor: reservedPrimaryFileDescriptor,
             outputPipes: self.outputPipes,
@@ -1060,15 +1054,12 @@ extension SpawnedProcessGroup {
             excludedPIDs: [getpid(), self.pid],
             grace: grace,
             preKillSnapshotHook: preKillSnapshotHook,
-            preKillDelay: preKillDelay,
             maxLifetime: cleanupMaxLifetime)
         lease.scheduleExpiry()
         let status = self.abortSynchronously(grace: grace)
         DispatchQueue.global(qos: .utility).async {
             defer { lease.finish() }
-            if discoveryDelay > 0 {
-                Thread.sleep(forTimeInterval: discoveryDelay)
-            }
+            discoveryHook?()
             SpawnedProcessGroup.terminateOutputHoldersSynchronously(lease: lease)
         }
         _ = lease.waitForCompletion(timeout: 0.2)
@@ -1118,9 +1109,6 @@ extension SpawnedProcessGroup {
             guard lease.isActive else { return }
             guard !currentIdentities.isEmpty else { return }
             lease.preKillSnapshotHook?()
-            if lease.preKillDelay > 0 {
-                Thread.sleep(forTimeInterval: lease.preKillDelay)
-            }
             guard lease.isActive,
                   Self.signal(processIdentities: currentIdentities, signal: SIGKILL, lease: lease)
             else { return }
@@ -1158,18 +1146,11 @@ extension SpawnedProcessGroup {
     }
 
     #if DEBUG
-    package static func withOutputHolderDiscoveryDelayForTesting<T>(
-        _ delay: TimeInterval,
+    package static func withOutputHolderDiscoveryHookForTesting<T>(
+        _ hook: @escaping @Sendable () -> Void,
         operation: () throws -> T) rethrows -> T
     {
-        try SpawnedProcessGroupTestingOverrides.$outputHolderDiscoveryDelay.withValue(delay, operation: operation)
-    }
-
-    package static func withOutputHolderPreKillDelayForTesting<T>(
-        _ delay: TimeInterval,
-        operation: () throws -> T) rethrows -> T
-    {
-        try SpawnedProcessGroupTestingOverrides.$outputHolderPreKillDelay.withValue(delay, operation: operation)
+        try SpawnedProcessGroupTestingOverrides.$outputHolderDiscoveryHook.withValue(hook, operation: operation)
     }
 
     package static func withOutputHolderPreKillSnapshotHookForTesting<T>(
@@ -1229,7 +1210,6 @@ extension SpawnedProcessGroup {
             excludedPIDs: [],
             grace: 0,
             preKillSnapshotHook: nil,
-            preKillDelay: 0,
             maxLifetime: maxLifetime)
         lease.scheduleExpiry()
         let completed = lease.waitForCompletion(timeout: waitTimeout)
