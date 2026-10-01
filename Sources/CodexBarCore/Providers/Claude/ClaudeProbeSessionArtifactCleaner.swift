@@ -10,6 +10,7 @@ enum ClaudeProbeSessionArtifactCleaner {
         environment: [String: String] = ProcessInfo.processInfo.environment,
         fileManager fm: FileManager = .default) -> [URL]
     {
+        guard ClaudeStatusProbe.isDedicatedProbeWorkingDirectory(probeDirectory) else { return [] }
         let projectDirectoryName = self.claudeProjectDirectoryName(for: probeDirectory)
         let profileRoot = ClaudeConfigPaths.configRoot(
             environment: environment,

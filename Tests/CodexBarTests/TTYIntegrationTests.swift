@@ -6,6 +6,55 @@ import Testing
 @Suite(.serialized)
 struct TTYIntegrationTests {
     @Test
+    func `claude pty waits for real quota beyond usage insights`() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let binary = directory.appendingPathComponent("claude-insights")
+        let script = #"""
+        #!/bin/bash
+        /bin/stty -echo
+        pending=0
+        while IFS= read -r line; do
+          case "$line" in
+            *"/usage"*)
+              pending=1
+              printf '\033[2J\033[H'
+              printf '%s\n' 'Current session' 'Loading usage...' "What's contributing to your limits usage?" \
+                '30% of your usage was at >150k context'
+              ;;
+            "")
+              printf 'continue\n' >> "$HOME/continues.log"
+              if [[ "$pending" == 1 ]]; then
+                pending=0
+                printf '\033[2J\033[H'
+                printf '%s\n' 'Current session' '13% used' 'Current week (all models)' '2% used' \
+                  "What's contributing to your limits usage?" '30% of your usage was at >150k context' \
+                  'Top MCP servers: Show plan 10%'
+              fi
+              ;;
+            *"/status"*) printf '%s\n' 'Account: fixture@example.com' ;;
+            *"/exit"*) exit 0 ;;
+          esac
+        done
+        """#
+        try script.write(to: binary, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: binary.path)
+        let probe = ClaudeStatusProbe(claudeBinary: binary.path, timeout: 8, environment: [
+            "HOME": directory.path,
+            "CLAUDE_CONFIG_DIR": directory.path,
+            "CLAUDE_SECURESTORAGE_CONFIG_DIR": directory.path,
+        ])
+        let snapshot = try await ClaudeCLISession.withIsolatedSessionForTesting {
+            try await probe.fetch()
+        }
+        #expect(snapshot.sessionPercentLeft == 87)
+        #expect(snapshot.weeklyPercentLeft == 98)
+        let continues = try String(contentsOf: directory.appendingPathComponent("continues.log"), encoding: .utf8)
+        #expect(continues == "continue\n")
+    }
+
+    @Test
     func `codex RPC usage live`() async throws {
         guard ProcessInfo.processInfo.environment["LIVE_CODEX_TTY"] == "1" else {
             return

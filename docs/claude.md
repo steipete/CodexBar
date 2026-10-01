@@ -383,7 +383,11 @@ Model-scoped weekly-window proof (synthetic data, no real accounts or credential
   `ClaudeProbe` project directory so background `/usage` polling does not clutter the user's Claude project history.
 - Command flow:
   1) Start CLI with `--allowed-tools ""` (no tools).
-  2) Auto-respond to first-run prompts (trust files, workspace, telemetry).
+  2) Handle first-run prompts during startup and command capture. For the modern trust dialog, move the `❯`
+     selection to "Yes, I trust this folder" before confirming. Modern and legacy trust prompts are accepted only
+     in the dedicated probe directory. Redirected paths are rejected before local settings are prepared; headless
+     probes require that isolated directory and do not launch from the shared temporary fallback. Transcript cleanup
+     is also limited to that directory. An explicitly supplied different working directory never receives trust.
   3) Send `/usage`, wait for rendered panel; send Enter retries if needed.
   4) Dismiss the open panel with Escape before reusing the session for `/status` identity or the next `/usage` refresh.
   5) Optionally send `/status` to extract identity fields.
@@ -392,6 +396,9 @@ Model-scoped weekly-window proof (synthetic data, no real accounts or credential
     "Current session" + "Current week" headers. Cursor jumps preserve unchanged cells from earlier frames, keeping
     scoped weekly percentages, reset spacing, and account identity intact. Erased content is not reused as history.
   - Plain reports, including color-only ANSI output and legacy CR-delimited text, retain their existing parsing behavior.
+  - Capture completion uses the current rendered frame and waits for session quota values; percentages in the
+    "What's contributing to your limits usage?" insights section cannot finish a loading quota probe. Once quota is
+    complete, insight text cannot trigger another command-palette confirmation.
   - Extracts percent left/used and reset text near those headers.
   - When a reset date cannot be parsed, the menu preserves its description and normalizes leading `Reset` or `Resets` labels once, including scoped weekly limits.
   - Parses `Account:` and `Org:` lines when present.
