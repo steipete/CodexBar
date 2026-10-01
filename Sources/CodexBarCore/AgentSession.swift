@@ -218,6 +218,12 @@ public struct AgentProcessRecord: Equatable, Sendable {
         self.piSelectorEnvironment = PiProcessEnvironment.filtered(piSelectorEnvironment)
     }
 
+    func withPiSelectorEnvironment(_ environment: [String: String]?) -> Self {
+        var record = self
+        record.piSelectorEnvironment = PiProcessEnvironment.filtered(environment)
+        return record
+    }
+
     public var executableBasename: String {
         let firstToken = self.arguments?.first ?? self.command.split(whereSeparator: \ .isWhitespace).first
             .map(String.init) ?? ""

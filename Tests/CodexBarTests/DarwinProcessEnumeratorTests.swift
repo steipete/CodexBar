@@ -8,10 +8,9 @@ import Darwin
 
 struct DarwinProcessEnumeratorTests {
     @Test
-    func `proc args parser joins normal argv`() {
+    func `proc args parser preserves normal argv`() {
         let data = Self.procArgsData(arguments: ["/usr/bin/tool", "--flag", "value"])
 
-        #expect(DarwinProcessEnumerator.parseProcArgs2(data) == "/usr/bin/tool --flag value")
         #expect(DarwinProcessEnumerator.parseProcArgs2Arguments(data) == ["/usr/bin/tool", "--flag", "value"])
     }
 
@@ -19,12 +18,12 @@ struct DarwinProcessEnumeratorTests {
     func `proc args parser accepts zero argc`() {
         let data = Self.procArgsData(arguments: [])
 
-        #expect(DarwinProcessEnumerator.parseProcArgs2(data)?.isEmpty == true)
+        #expect(DarwinProcessEnumerator.parseProcArgs2Arguments(data) == [])
     }
 
     @Test
     func `proc args parser rejects truncated buffer`() {
-        #expect(DarwinProcessEnumerator.parseProcArgs2(Data([2, 0, 0])) == nil)
+        #expect(DarwinProcessEnumerator.parseProcArgs2Arguments(Data([2, 0, 0])) == nil)
     }
 
     @Test
@@ -33,7 +32,7 @@ struct DarwinProcessEnumeratorTests {
             arguments: ["/usr/bin/tool", "--flag"],
             environment: ["SECRET=value", "HOME=/tmp"])
 
-        let command = DarwinProcessEnumerator.parseProcArgs2(data)
+        let command = DarwinProcessEnumerator.parseProcArgs2Arguments(data)?.joined(separator: " ")
         #expect(command == "/usr/bin/tool --flag")
         #expect(command?.contains("SECRET") == false)
         #expect(command?.contains("HOME") == false)
@@ -52,7 +51,7 @@ struct DarwinProcessEnumeratorTests {
         #expect(DarwinProcessEnumerator.parseProcArgs2Environment(data) == [
             "HOME": "/synthetic/home", "OMP_PROFILE": "work",
         ])
-        #expect(DarwinProcessEnumerator.parseProcArgs2(data)?.contains("HOME=") == false)
+        #expect(DarwinProcessEnumerator.parseProcArgs2Arguments(data)?.contains("HOME=/synthetic/home") == false)
     }
 
     @Test
@@ -84,7 +83,7 @@ struct DarwinProcessEnumeratorTests {
     func `proc args parser preserves embedded empty arguments`() {
         let data = Self.procArgsData(arguments: ["/usr/bin/tool", "", "value"])
 
-        #expect(DarwinProcessEnumerator.parseProcArgs2(data) == "/usr/bin/tool  value")
+        #expect(DarwinProcessEnumerator.parseProcArgs2Arguments(data) == ["/usr/bin/tool", "", "value"])
     }
 
     @Test
@@ -92,7 +91,7 @@ struct DarwinProcessEnumeratorTests {
         var data = Self.procArgsData(arguments: ["/usr/bin/tool", "value"])
         data.replaceSubrange(0..<4, with: Self.littleEndianBytes(3))
 
-        #expect(DarwinProcessEnumerator.parseProcArgs2(data) == nil)
+        #expect(DarwinProcessEnumerator.parseProcArgs2Arguments(data) == nil)
     }
 
     @Test
@@ -188,6 +187,95 @@ struct DarwinProcessEnumeratorTests {
         defer { close(listener.fileDescriptor) }
 
         #expect(DarwinProcessEnumerator.listeningTCPPorts(pid: getpid()).contains(listener.port))
+    }
+
+    @Test
+    func `darwin process record keeps agent argv when the executable was deleted`() throws {
+        // proc_pidpath returns ENOENT after an updater removes the package directory of a running binary.
+        let record = try #require(LocalAgentSessionScanner.darwinProcessRecord(
+            pid: 4242,
+            bsdInfo: { _ in (ppid: 1, startTime: Date(timeIntervalSince1970: 1_700_000_000)) },
+            processArguments: { _ in (arguments: ["claude"], piSelectorEnvironment: nil) },
+            executablePath: { _ in nil }))
+
+        #expect(record.command == "claude")
+        #expect(record.arguments == ["claude"])
+        #expect(AgentPSOutputParser.provider(for: record) == .claude)
+        #expect(AgentPSOutputParser.agentProcesses(from: [record]).map(\.pid) == [4242])
+    }
+
+    @Test
+    func `running agent remains discoverable after its executable is unlinked`() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let executable = root.appendingPathComponent("claude")
+        try Data(contentsOf: URL(fileURLWithPath: "/bin/cat")).write(to: executable)
+        try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: executable.path)
+        // Relocated platform binaries need a new signature; ad-hoc signing never accesses a signing key.
+        _ = try await SubprocessRunner.run(
+            binary: "/usr/bin/codesign",
+            arguments: ["--force", "--sign", "-", executable.path],
+            environment: [:],
+            timeout: 10,
+            label: "synthetic-agent-signing")
+        let input = Pipe()
+        let output = Pipe()
+        let process = Process()
+        process.executableURL = executable
+        process.environment = [:]
+        process.standardInput = input
+        process.standardOutput = output
+        try process.run()
+        defer {
+            process.terminate()
+            process.waitUntilExit()
+        }
+        let ready = Data("ready\n".utf8)
+        try input.fileHandleForWriting.write(contentsOf: ready)
+        #expect(try output.fileHandleForReading.read(upToCount: ready.count) == ready)
+        let pid = process.processIdentifier
+        #expect(DarwinProcessEnumerator.executablePath(pid: pid) != nil)
+        try FileManager.default.removeItem(at: executable)
+        #expect(DarwinProcessEnumerator.executablePath(pid: pid) == nil)
+        let record = try #require(LocalAgentSessionScanner.darwinProcessRecord(pid: pid))
+        #expect(AgentPSOutputParser.agentProcesses(from: [record]).map(\.pid) == [pid])
+        #expect(AgentPSOutputParser.provider(for: record) == .claude)
+    }
+
+    @Test
+    func `deleted executable cannot establish trusted chatgpt app server identity`() {
+        #expect(!ChatGPTCodexProcessTrust.isTrusted(
+            4242,
+            executablePath: { _ in nil },
+            processIsTrusted: { _ in
+                Issue.record("Missing executable path must fail before signature validation")
+                return true
+            },
+            appIsTrusted: { _ in true }))
+    }
+
+    @Test
+    func `darwin process record falls back to the executable path without argv`() throws {
+        let record = try #require(LocalAgentSessionScanner.darwinProcessRecord(
+            pid: 4243,
+            bsdInfo: { _ in (ppid: 1, startTime: Date(timeIntervalSince1970: 1_700_000_000)) },
+            processArguments: { _ in nil },
+            executablePath: { _ in "/opt/homebrew/bin/codex" }))
+
+        #expect(record.command == "/opt/homebrew/bin/codex")
+        #expect(record.arguments == nil)
+    }
+
+    @Test
+    func `darwin process record skips processes without argv or executable path`() {
+        let record = LocalAgentSessionScanner.darwinProcessRecord(
+            pid: 4244,
+            bsdInfo: { _ in (ppid: 1, startTime: Date(timeIntervalSince1970: 1_700_000_000)) },
+            processArguments: { _ in nil },
+            executablePath: { _ in nil })
+
+        #expect(record == nil)
     }
     #endif
 
