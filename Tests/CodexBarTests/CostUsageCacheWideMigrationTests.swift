@@ -22,7 +22,7 @@ struct CostUsageCacheWideMigrationTests {
 
         var options = Self.boundedOptions(env: env)
         options.maxCodexScanDurationPerRefresh = nil
-        _ = CostUsageScanner.loadDailyReport(
+        _ = CostUsageControlledClockScanner.loadDailyReport(
             provider: .codex,
             since: day,
             until: day,
@@ -36,7 +36,7 @@ struct CostUsageCacheWideMigrationTests {
         options.maxCodexScanDurationPerRefresh = 60
         let recorder = CostUsageScanner.CodexScanWorkRecorder()
         options.codexScanWorkRecorderForTesting = recorder
-        _ = CostUsageScanner.loadDailyReport(
+        _ = CostUsageControlledClockScanner.loadDailyReport(
             provider: .codex,
             since: day,
             until: day,
@@ -66,7 +66,7 @@ struct CostUsageCacheWideMigrationTests {
         }
 
         var options = Self.boundedOptions(env: env)
-        _ = CostUsageScanner.loadDailyReport(
+        _ = CostUsageControlledClockScanner.loadDailyReport(
             provider: .codex,
             since: day,
             until: day,
@@ -80,7 +80,7 @@ struct CostUsageCacheWideMigrationTests {
 
         let recorder = CostUsageScanner.CodexScanWorkRecorder()
         options.codexScanWorkRecorderForTesting = recorder
-        _ = CostUsageScanner.loadDailyReport(
+        _ = CostUsageControlledClockScanner.loadDailyReport(
             provider: .codex,
             since: day,
             until: day,
@@ -115,7 +115,7 @@ struct CostUsageCacheWideMigrationTests {
         options.codexTraceDatabaseURL = traceDatabaseURL
         options.maxCodexScanDurationPerRefresh = nil
         options.preferNewestCodexSessionsFirst = false
-        _ = CostUsageScanner.loadDailyReport(
+        _ = CostUsageControlledClockScanner.loadDailyReport(
             provider: .codex,
             since: day,
             until: day,
@@ -158,7 +158,7 @@ struct CostUsageCacheWideMigrationTests {
         options.maxCodexScanDurationPerRefresh = 60
         let firstRecorder = CostUsageScanner.CodexScanWorkRecorder()
         options.codexScanWorkRecorderForTesting = firstRecorder
-        _ = CostUsageScanner.loadDailyReport(
+        _ = CostUsageControlledClockScanner.loadDailyReport(
             provider: .codex,
             since: day,
             until: day,
@@ -183,7 +183,7 @@ struct CostUsageCacheWideMigrationTests {
 
         let secondRecorder = CostUsageScanner.CodexScanWorkRecorder()
         options.codexScanWorkRecorderForTesting = secondRecorder
-        _ = CostUsageScanner.loadDailyReport(
+        _ = CostUsageControlledClockScanner.loadDailyReport(
             provider: .codex,
             since: day,
             until: day,
@@ -204,7 +204,7 @@ struct CostUsageCacheWideMigrationTests {
 
         let exactRecorder = CostUsageScanner.CodexScanWorkRecorder()
         options.codexScanWorkRecorderForTesting = exactRecorder
-        _ = CostUsageScanner.loadDailyReport(
+        _ = CostUsageControlledClockScanner.loadDailyReport(
             provider: .codex,
             since: day,
             until: day,
@@ -227,7 +227,7 @@ struct CostUsageCacheWideMigrationTests {
         options.refreshMinIntervalSeconds = 60
         let warmRecorder = CostUsageScanner.CodexScanWorkRecorder()
         options.codexScanWorkRecorderForTesting = warmRecorder
-        _ = CostUsageScanner.loadDailyReport(
+        _ = CostUsageControlledClockScanner.loadDailyReport(
             provider: .codex,
             since: day,
             until: day,
