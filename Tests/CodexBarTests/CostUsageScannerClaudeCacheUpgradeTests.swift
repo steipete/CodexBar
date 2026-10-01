@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import CodexBarCore
 
-@Suite(.serialized)
+@Suite(.serialized, CostUsageClaudeCacheFixtures())
 struct CostUsageScannerClaudeCacheUpgradeTests {
     @Test(arguments: [UsageProvider.claude, .vertexai])
     func `cold restart rebuilds inflated proxy caches and replaces prior report semantics`(

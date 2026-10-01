@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import CodexBarCore
 
-@Suite(.serialized)
+@Suite(.serialized, CostUsageClaudeCacheFixtures())
 struct CostUsageScannerClaudePricingMemoTests {
     @Test(arguments: [40, 80])
     func `full append and report parsing share two model lookups across files`(rowsPerFile: Int) throws {

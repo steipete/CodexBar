@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import CodexBarCore
 
-@Suite(.serialized)
+@Suite(.serialized, CostUsageClaudeCacheFixtures())
 struct CostUsageClaudeWriteAmplificationTests {
     @Test(arguments: [2, 128], [false, true])
     func `unchanged scans preserve both cache and memo artifacts`(rowCount: Int, forceRescan: Bool) throws {

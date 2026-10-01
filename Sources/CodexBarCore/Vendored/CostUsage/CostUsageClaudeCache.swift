@@ -75,7 +75,11 @@ final class CostUsageClaudeReportMemo: @unchecked Sendable {
         }
     }
 
+    #if DEBUG
+    @TaskLocal static var shared = CostUsageClaudeReportMemo()
+    #else
     static let shared = CostUsageClaudeReportMemo()
+    #endif
     static let persistedVersion = 1
     /// Bump when bundled pricing, model aliases, or daily-report aggregation changes without new artifact stamps.
     static let reportSemanticsVersion = 6
@@ -381,7 +385,11 @@ enum CostUsageClaudeCacheIO {
             }
         }
 
+        #if DEBUG
+        @TaskLocal static var shared = ArtifactMemo()
+        #else
         static let shared = ArtifactMemo()
+        #endif
         let entries = NSCache<NSURL, Entry>()
 
         private let lock = NSLock()
@@ -400,12 +408,22 @@ enum CostUsageClaudeCacheIO {
             }
         }
 
-        private init() {
+        init() {
             self.entries.countLimit = 4
         }
     }
 
     #if DEBUG
+    static func withIsolatedCachesForTesting(operation: @Sendable () async throws -> Void) async throws {
+        try await ArtifactMemo.$shared.withValue(ArtifactMemo()) {
+            try await CostUsageClaudeReportMemo.$shared.withValue(CostUsageClaudeReportMemo()) {
+                try await CostUsageClaudeFragments.$shared.withValue(CostUsageClaudeFragments()) {
+                    try await operation()
+                }
+            }
+        }
+    }
+
     static func evictArtifactMemoForTesting(at url: URL) {
         ArtifactMemo.shared.entries.removeObject(forKey: url.standardizedFileURL.resolvingSymlinksInPath() as NSURL)
     }
