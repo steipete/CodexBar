@@ -1626,13 +1626,12 @@ public struct AntigravityStatusProbe: Sendable {
 
     private static func fallbackReservingRequestContext(from context: RequestContext) -> RequestContext {
         guard let deadline = context.deadline else { return context }
-        let now = Self.deadlineNow()
-        let remaining = max(0, deadline.timeIntervalSince(now))
+        let remaining = max(0, deadline.timeIntervalSince(Self.deadlineNow()))
         let attemptBudget = remaining / 2
         return RequestContext(
             endpoints: context.endpoints,
             timeout: min(context.timeout, attemptBudget),
-            deadline: now.addingTimeInterval(attemptBudget))
+            deadline: Self.deadlineNow().addingTimeInterval(attemptBudget))
     }
 
     private static func identityRequestContext(from context: RequestContext) -> RequestContext {
