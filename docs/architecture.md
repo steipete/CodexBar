@@ -25,6 +25,8 @@ read_when:
 - Background refresh → `UsageFetcher`/provider probes → `UsageStore` → menu/icon/widgets.
 - Settings toggles feed `SettingsStore` → `UsageStore` refresh cadence + feature flags.
 - Runtime-only provider settings flow through typed, descriptor-registered sections in `ProviderSettingsSnapshot`.
+- Codex cost conversation titles reuse SQLite database discovery per working directory and SQLite home within each
+  enrichment call. The next call resolves paths again, so config edits and new state database versions are picked up.
 
 ## CLI login lifecycle
 - `CodexLoginRunner` and `KiroLoginRunner` resolve their own executable and environment, including Codex home scoping.

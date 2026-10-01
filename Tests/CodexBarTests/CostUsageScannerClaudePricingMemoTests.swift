@@ -207,6 +207,114 @@ struct CostUsageScannerClaudePricingMemoTests {
         #expect(freshWork.transcriptParses == 0)
     }
 
+    @Test(arguments: [false, true])
+    func `identical pricing refetch preserves warm and persisted report memos`(restart: Bool) async throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let day = try env.makeLocalNoon(year: 2026, month: 7, day: 1)
+        let catalog = try ModelsDevIdenticalRefreshTests.catalog()
+        #expect(ModelsDevCache.save(
+            catalog: catalog,
+            fetchedAt: day.addingTimeInterval(-901),
+            cacheRoot: env.cacheRoot))
+        _ = try env.writeClaudeProjectFile(relativePath: "project/session.jsonl", contents: env.jsonl([
+            self.event(day: day, env: env, id: "known", model: "claude-test-known", input: 100),
+            self.event(day: day, env: env, id: "unknown", model: "claude-test-unknown", input: 200),
+        ]))
+        let (cold, coldWork, _) = try self.load(env: env, day: day)
+        #expect(coldWork.transcriptParses == 1)
+        let transport = try ModelsDevIdenticalRefreshTests.Transport(catalog: catalog)
+        _ = await ModelsDevPricingPipeline.refreshForUnknownModelsIfNeeded(
+            providerID: "anthropic",
+            modelIDs: ["claude-test-unknown"],
+            now: day,
+            cacheRoot: env.cacheRoot,
+            client: ModelsDevClient(transport: transport))
+        #expect(transport.calls == 1)
+        if restart {
+            CostUsageScanner.evictClaudeReportMemoForTesting(provider: .claude, cacheRoot: env.cacheRoot)
+        }
+        let (warm, work, reads) = try self.load(env: env, day: day)
+        #expect(warm.data == cold.data)
+        #expect(warm.summary == cold.summary)
+        #expect(work == CostUsageScanner.ClaudeScanWorkMetrics())
+        #expect(reads == 0)
+    }
+
+    @Test
+    func `identical pricing save during report construction still publishes its memo`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let day = try env.makeLocalNoon(year: 2026, month: 7, day: 1)
+        let catalog = try ModelsDevIdenticalRefreshTests.catalog()
+        #expect(ModelsDevCache.save(
+            catalog: catalog,
+            fetchedAt: day.addingTimeInterval(-901),
+            cacheRoot: env.cacheRoot))
+        _ = try env.writeClaudeProjectFile(relativePath: "project/session.jsonl", contents: env.jsonl([
+            self.event(day: day, env: env, id: "known", model: "claude-test-known", input: 100),
+        ]))
+        let recorder = CostUsageScanner.ClaudeScanWorkRecorder()
+        var saved = false
+        let first = try CostUsageScanner.withClaudeScanWorkRecorderForTesting(recorder) {
+            try CostUsageScanner.loadDailyReportCancellable(
+                provider: .claude,
+                since: day,
+                until: day,
+                now: day,
+                options: self.options(env: env),
+                checkCancellation: {
+                    if !saved, recorder.snapshot().repricedRows > 0 {
+                        #expect(ModelsDevCache.save(catalog: catalog, fetchedAt: day, cacheRoot: env.cacheRoot))
+                        saved = true
+                    }
+                })
+        }
+        #expect(saved)
+        let (second, work, _) = try self.load(env: env, day: day)
+        #expect(second.data == first.data)
+        #expect(second.summary == first.summary)
+        #expect(work == CostUsageScanner.ClaudeScanWorkMetrics())
+    }
+
+    @Test(.enabled(if: ProcessInfo.processInfo.environment["CODEXBAR_IDENTICAL_PRICING_BENCHMARK"] == "1"))
+    func `measure identical pricing refetch and warm report`() async throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let day = try env.makeLocalNoon(year: 2026, month: 7, day: 1)
+        let catalog = try ModelsDevIdenticalRefreshTests.catalog()
+        #expect(ModelsDevCache.save(
+            catalog: catalog,
+            fetchedAt: day.addingTimeInterval(-901),
+            cacheRoot: env.cacheRoot))
+        let events = (0..<24000).map { index in
+            self.event(
+                day: day,
+                env: env,
+                id: "event-\(index)",
+                model: index.isMultiple(of: 2) ? "claude-test-known" : "claude-test-unknown",
+                input: 100)
+        }
+        _ = try env.writeClaudeProjectFile(relativePath: "project/session.jsonl", contents: env.jsonl(events))
+        let (cold, _, _) = try self.load(env: env, day: day)
+        let transport = try ModelsDevIdenticalRefreshTests.Transport(catalog: catalog)
+        for cycle in 0..<5 {
+            let started = ContinuousClock.now
+            _ = await ModelsDevPricingPipeline.refreshForUnknownModelsIfNeeded(
+                providerID: "anthropic",
+                modelIDs: ["claude-test-unknown"],
+                now: day.addingTimeInterval(Double(cycle * 900)),
+                cacheRoot: env.cacheRoot,
+                client: ModelsDevClient(transport: transport))
+            let (report, work, _) = try self.load(env: env, day: day)
+            let elapsed = ContinuousClock.now - started
+            #expect(report.data == cold.data)
+            #expect(report.summary == cold.summary)
+            print("[identical-pricing] cycle=\(cycle) elapsed=\(elapsed) work=\(work)")
+        }
+        #expect(transport.calls == 5)
+    }
+
     private func options(env: CostUsageTestEnvironment) -> CostUsageScanner.Options {
         var options = CostUsageScanner.Options(
             claudeProjectsRoots: [env.claudeProjectsRoot], cacheRoot: env.cacheRoot)

@@ -20,7 +20,15 @@ CodexBar uses models.dev as an additive pricing source alongside bundled fallbac
 
 The pipeline lets future scanner code read the last valid cache synchronously with `ModelsDevPricingPipeline.lookup` and refresh stale metadata separately with `ModelsDevPricingPipeline.refreshIfNeeded`. If a refresh fails, the last valid cache remains usable.
 
-Catalog saves use a single atomic write on macOS and Linux, so refreshing an existing cache replaces its contents without removing the destination first. Successful saves invalidate the in-memory catalog memo.
+Changed catalogs use a single atomic write on macOS and Linux. After fallback pricing is merged, an identical
+catalog instead atomically updates `models-dev-v1.json.refresh`, preserving the catalog stamp and cached Claude
+reports. The sidecar stores the successful fetch time bound to the catalog's device/inode, size, and modification
+time. Both file stamps validate the bounded in-memory catalog memo; missing, corrupt, or mismatched sidecars
+fall back to the catalog's embedded fetch time. The 24-hour TTL and 15-minute unknown-model retry cooldown
+use the effective fetch time, including after relaunch. The version-1 catalog remains readable by older releases,
+which ignore the sidecar and use its embedded fetch time. Successful saves invalidate the decoded catalog memo.
+
+Refreshes preserve cached pricing for removed models using a provider-local stable-identity index. The index and model-ID normalization memo exist only during the merge; lookups likewise build their normalized-ID index only for the current provider and call. These indexes do not change cache lifetimes, provider boundaries, alias precedence, or dated snapshot pricing.
 
 Fresh OpenCodex dashboard loads and the opt-in CLI OpenCodex payload also refresh the catalog, even when
 no native Codex or Claude scan runs. Missing exact provider/model targets may trigger an earlier refresh,

@@ -472,7 +472,7 @@ extension CostUsageStore {
         var usage: CostUsageFileUsage?
     }
 
-    private struct CurrentCodexRootDevice {
+    struct CurrentCodexRootDevice {
         var path: String
         var device: String
     }
@@ -662,8 +662,7 @@ extension CostUsageStore {
                 remainingIdentityValidationVisits -= 1
                 restoredScanState = Self.restoredCodexScanState(
                     file: file,
-                    currentRootDevices: currentRootDevices,
-                    validateMetadata: true)
+                    identity: normalizedIdentity)
                 if restoredScanState.isComplete, restoredScanState.validatedCurrentSnapshot {
                     completedIdentityValidationPaths.append(file.path)
                 } else {
@@ -679,6 +678,9 @@ extension CostUsageStore {
                     identity: normalizedIdentity,
                     isComplete: file.scanState.isComplete)
             }
+            guard usage.codexScanFileId != restoredScanState.identity
+                || usage.codexScanComplete != restoredScanState.isComplete
+            else { continue }
             usage.codexScanFileId = restoredScanState.identity
             usage.codexScanComplete = restoredScanState.isComplete
             cache.files[file.path] = usage
@@ -747,9 +749,10 @@ extension CostUsageStore {
         }.sorted { $0.path.count > $1.path.count }
     }
 
-    private static func normalizedCodexFileIdentity(
+    static func normalizedCodexFileIdentity(
         file: CostUsageStoreFile,
-        currentRootDevices: [CurrentCodexRootDevice]) -> String?
+        currentRootDevices: [CurrentCodexRootDevice],
+        normalizePath: (String) -> String = CostUsageStore.normalizedCodexPath) -> String?
     {
         guard let identity = file.scanState.fileIdentity,
               let inode = Self.inode(from: identity)
@@ -757,7 +760,9 @@ extension CostUsageStore {
         if let persistedInode = file.inode, persistedInode != inode {
             return identity
         }
-        let filePath = Self.normalizedCodexPath(file.path)
+        // A root lookup cannot change an identity that every current device would reproduce.
+        guard !currentRootDevices.allSatisfy({ identity == "\($0.device):\(inode)" }) else { return identity }
+        let filePath = normalizePath(file.path)
         guard let root = currentRootDevices.first(where: { root in
             if filePath == root.path {
                 return true
@@ -770,17 +775,9 @@ extension CostUsageStore {
 
     private static func restoredCodexScanState(
         file: CostUsageStoreFile,
-        currentRootDevices: [CurrentCodexRootDevice],
-        validateMetadata: Bool) -> RestoredCodexScanState
+        identity: String?) -> RestoredCodexScanState
     {
-        let identity = Self.normalizedCodexFileIdentity(
-            file: file,
-            currentRootDevices: currentRootDevices)
-        guard validateMetadata else {
-            return RestoredCodexScanState(identity: identity, isComplete: file.scanState.isComplete)
-        }
-
-        let fileURL = URL(fileURLWithPath: file.path)
+        let fileURL = URL(fileURLWithPath: file.path, isDirectory: false)
         let metadata = CostUsageScanner.codexFileMetadata(fileURL: fileURL)
         guard let currentIdentity = metadata.fileId else {
             return RestoredCodexScanState(identity: identity, isComplete: file.scanState.isComplete)
@@ -801,8 +798,8 @@ extension CostUsageStore {
             isComplete: false)
     }
 
-    private static func normalizedCodexPath(_ path: String) -> String {
-        let path = URL(fileURLWithPath: path).standardizedFileURL.path
+    static func normalizedCodexPath(_ path: String) -> String {
+        let path = URL(fileURLWithPath: path, isDirectory: false).standardizedFileURL.path
         if path.hasPrefix("/private/var/") {
             return String(path.dropFirst("/private".count))
         }
@@ -821,7 +818,7 @@ extension CostUsageStore {
             var completedIdentityValidationPathKeys: Set<String> = []
             for path in candidatePaths {
                 Self.codexCatchUpReconciliationVisitForTesting?()
-                let fileURL = URL(fileURLWithPath: path)
+                let fileURL = URL(fileURLWithPath: path, isDirectory: false)
                 let metadata = CostUsageScanner.codexFileMetadata(fileURL: fileURL)
                 guard let fileId = metadata.fileId,
                       let cachedEntry = Self.cachedCodexUsageEntry(for: path, cache: cache),
@@ -939,7 +936,7 @@ extension CostUsageStore {
         var seenIdentities: Set<String> = []
         var totalBytes: Int64 = 0
         for path in inventoryPaths {
-            let fileURL = URL(fileURLWithPath: path)
+            let fileURL = URL(fileURLWithPath: path, isDirectory: false)
             let metadata = CostUsageScanner.codexFileMetadata(fileURL: fileURL)
             guard let fileId = metadata.fileId else { return nil }
             guard seenIdentities.insert(fileId).inserted else { continue }

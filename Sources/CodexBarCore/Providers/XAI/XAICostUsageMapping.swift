@@ -49,11 +49,6 @@ public enum XAICostUsageMapping {
     static func utcDayKey(_ date: Date) -> String {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt
-        let components = calendar.dateComponents([.year, .month, .day], from: date)
-        return String(
-            format: "%04d-%02d-%02d",
-            components.year ?? 0,
-            components.month ?? 0,
-            components.day ?? 0)
+        return CostUsageLocalDay.key(from: date, calendar: calendar)
     }
 }

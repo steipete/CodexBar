@@ -338,11 +338,10 @@ public struct OpenAIDashboardDailyBreakdown: Codable, Equatable, Sendable {
 
     private static func dayKey(from date: Date, calendar: Calendar) -> String {
         let components = calendar.dateComponents([.year, .month, .day], from: date)
-        return String(
-            format: "%04d-%02d-%02d",
-            components.year ?? 0,
-            components.month ?? 0,
-            components.day ?? 0)
+        return CostUsageLocalDay.key(
+            year: components.year ?? 0,
+            month: components.month ?? 0,
+            day: components.day ?? 0)
     }
 }
 

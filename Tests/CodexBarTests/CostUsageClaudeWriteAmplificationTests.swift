@@ -87,6 +87,150 @@ struct CostUsageClaudeWriteAmplificationTests {
     }
 
     @Test
+    func `unchanged saves survive decoded artifact eviction without encoding`() throws {
+        let fixture = try Fixture(rowCount: 128)
+        defer { fixture.env.cleanup() }
+        _ = try fixture.load(context: .regular)
+        let url = fixture.cacheURL(context: .regular)
+        let cache = CostUsageClaudeCacheIO.load(provider: .claude, cacheRoot: fixture.env.cacheRoot)
+        let before = try fixture.stamps(context: .regular)
+        let recorder = CostUsageScanner.ClaudeScanWorkRecorder()
+        try CostUsageScanner.withClaudeScanWorkRecorderForTesting(recorder) {
+            for _ in 0..<3 {
+                CostUsageClaudeCacheIO.evictArtifactMemoForTesting(at: url)
+                _ = try CostUsageClaudeCacheIO.save(provider: .claude, cache: cache, cacheRoot: fixture.env.cacheRoot)
+            }
+        }
+        #expect(recorder.snapshot().cacheEncodes == 0)
+        #expect(recorder.persistenceSnapshot().reads == 0)
+        #expect(recorder.persistenceSnapshot().writes == 0)
+        #expect(try fixture.stamps(context: .regular) == before)
+    }
+
+    @Test
+    func `changed content writes once without reading back either artifact`() throws {
+        let fixture = try Fixture(rowCount: 2)
+        defer { fixture.env.cleanup() }
+        _ = try fixture.load(context: .regular)
+        let url = fixture.cacheURL(context: .regular)
+        var cache = CostUsageClaudeCacheIO.load(provider: .claude, cacheRoot: fixture.env.cacheRoot)
+        cache.usage.lastScanUnixMs += 1
+        let recorder = CostUsageScanner.ClaudeScanWorkRecorder()
+        try CostUsageScanner.withClaudeScanWorkRecorderForTesting(recorder) {
+            for _ in 0..<3 {
+                _ = try CostUsageClaudeCacheIO.save(provider: .claude, cache: cache, cacheRoot: fixture.env.cacheRoot)
+            }
+        }
+        #expect(recorder.snapshot().cacheEncodes == 1)
+        #expect(recorder.persistenceSnapshot().writes == 1)
+        #expect(recorder.persistenceSnapshot().reads == 0)
+        let decoded = try JSONDecoder().decode(CostUsageClaudeCache.self, from: Data(contentsOf: url))
+        #expect(decoded.usage == cache.usage)
+        #expect(decoded.sourceFileIDs == cache.sourceFileIDs)
+
+        let memo = try #require(CostUsageClaudeReportMemo.shared.entry(
+            provider: .claude, canonicalCachePath: url.path))
+        var inventory = memo.sourceInventory
+        inventory.removeAll()
+        let memoRecorder = CostUsageScanner.ClaudeScanWorkRecorder()
+        CostUsageScanner.withClaudeScanWorkRecorderForTesting(memoRecorder) {
+            for _ in 0..<3 {
+                CostUsageClaudeReportMemo.shared.store(
+                    provider: .claude,
+                    canonicalCachePath: url.path,
+                    sourceInventory: inventory,
+                    reportKey: memo.reportKey,
+                    report: memo.report,
+                    hasWindowScopedRows: memo.hasWindowScopedRows)
+            }
+        }
+        #expect(memoRecorder.persistenceSnapshot().writes == 1)
+        #expect(memoRecorder.persistenceSnapshot().reads == 0)
+        CostUsageClaudeReportMemo.shared.evict(provider: .claude, canonicalCachePath: url.path)
+        let loaded = try #require(CostUsageClaudeReportMemo.shared.entry(
+            provider: .claude, canonicalCachePath: url.path))
+        #expect(loaded.sourceInventory.isEmpty)
+        #expect(loaded.report.data == memo.report.data)
+        #expect(loaded.report.hourly == memo.report.hourly)
+        #expect(loaded.report.quotaSlices == memo.report.quotaSlices)
+    }
+
+    @Test
+    func `identical external replacements still rewrite with matching size and mtime`() throws {
+        let fixture = try Fixture(rowCount: 2)
+        defer { fixture.env.cleanup() }
+        _ = try fixture.load(context: .regular)
+        let url = fixture.cacheURL(context: .regular)
+        let memoURL = CostUsageClaudeReportMemo.reportMemoFileURL(cacheFileURL: url)
+        for artifactURL in [url, memoURL] {
+            try FileManager.default.setAttributes([.modificationDate: fixture.day], ofItemAtPath: artifactURL.path)
+        }
+        CostUsageClaudeReportMemo.shared.evict(provider: .claude, canonicalCachePath: url.path)
+        let memo = try #require(CostUsageClaudeReportMemo.shared.entry(
+            provider: .claude, canonicalCachePath: url.path))
+        let cache = CostUsageClaudeCacheIO.load(provider: .claude, cacheRoot: fixture.env.cacheRoot)
+        let before = try fixture.stamps(context: .regular)
+        for (index, artifactURL) in [url, memoURL].enumerated() {
+            try Data(contentsOf: artifactURL).write(to: artifactURL, options: .atomic)
+            try FileManager.default.setAttributes([.modificationDate: fixture.day], ofItemAtPath: artifactURL.path)
+            let replacement = try #require(CostUsageClaudeFileStamp.read(at: artifactURL))
+            #expect(replacement.size == before[index].size)
+            #expect(replacement.modifiedSeconds == before[index].modifiedSeconds)
+            #expect(replacement.modifiedNanoseconds == before[index].modifiedNanoseconds)
+            #expect(replacement.fileID != before[index].fileID)
+        }
+        let recorder = CostUsageScanner.ClaudeScanWorkRecorder()
+        try CostUsageScanner.withClaudeScanWorkRecorderForTesting(recorder) {
+            _ = try CostUsageClaudeCacheIO.save(provider: .claude, cache: cache, cacheRoot: fixture.env.cacheRoot)
+            CostUsageClaudeReportMemo.shared.store(
+                provider: .claude,
+                canonicalCachePath: url.path,
+                sourceInventory: memo.sourceInventory,
+                reportKey: memo.reportKey,
+                report: memo.report,
+                hasWindowScopedRows: memo.hasWindowScopedRows)
+        }
+        #expect(recorder.snapshot().cacheEncodes == 1)
+        #expect(recorder.persistenceSnapshot().writes == 2)
+        #expect(recorder.persistenceSnapshot().reads == 0)
+    }
+
+    @Test
+    func `legacy sorted JSON loads and rebuilt identical content preserves stamps`() throws {
+        let fixture = try Fixture(rowCount: 2)
+        defer { fixture.env.cleanup() }
+        _ = try fixture.load(context: .regular)
+        let url = fixture.cacheURL(context: .regular)
+        let original = CostUsageClaudeCacheIO.load(provider: .claude, cacheRoot: fixture.env.cacheRoot)
+        // The current release's encoder and atomic replacement path, without any new identity memo.
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        let legacyBytes = try encoder.encode(original)
+        let temporaryURL = url.appendingPathExtension("legacy")
+        try legacyBytes.write(to: temporaryURL)
+        #expect(rename(temporaryURL.path, url.path) == 0)
+        CostUsageClaudeCacheIO.evictArtifactMemoForTesting(at: url)
+        var loaded = CostUsageClaudeCacheIO.load(provider: .claude, cacheRoot: fixture.env.cacheRoot)
+        #expect(loaded.usage == original.usage)
+        #expect(loaded.sourceFileIDs == original.sourceFileIDs)
+        let before = try #require(CostUsageClaudeFileStamp.read(at: url))
+        let usage = loaded.usage
+        loaded.usage = usage // A rebuilt value has a new UUID even when its serialized bytes are identical.
+        #expect(loaded.contentID != original.contentID)
+        let recorder = CostUsageScanner.ClaudeScanWorkRecorder()
+        try CostUsageScanner.withClaudeScanWorkRecorderForTesting(recorder) {
+            for _ in 0..<2 {
+                _ = try CostUsageClaudeCacheIO.save(provider: .claude, cache: loaded, cacheRoot: fixture.env.cacheRoot)
+            }
+        }
+        #expect(recorder.snapshot().cacheEncodes == 1)
+        #expect(recorder.persistenceSnapshot().writes == 0)
+        #expect(recorder.persistenceSnapshot().reads == 0)
+        #expect(CostUsageClaudeFileStamp.read(at: url) == before)
+        #expect(try Data(contentsOf: url) == legacyBytes)
+    }
+
+    @Test
     func `retained row encoding stays compact and preserves every field`() throws {
         let row = CostUsageScanner.ClaudeUsageRow(
             dayKey: "2026-07-01",

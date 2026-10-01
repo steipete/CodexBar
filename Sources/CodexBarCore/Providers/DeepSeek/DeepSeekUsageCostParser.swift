@@ -417,7 +417,7 @@ enum DeepSeekUsageCostParser {
                   let month = components.month,
                   let day = components.day
             else { return "" }
-            return String(format: "%04d-%02d-%02d", year, month, day)
+            return CostUsageLocalDay.key(year: year, month: month, day: day)
         }
 
         static func buildAmountMap(

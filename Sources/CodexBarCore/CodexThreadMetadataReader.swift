@@ -29,20 +29,24 @@ public struct CodexThreadMetadataReader: Sendable {
             codexHomeDirectory: codexHomeDirectory,
             environment: environment,
             resolvedWorkingDirectory: resolvedWorkingDirectory)
-        let candidates = (try? fileManager.contentsOfDirectory(
-            at: sqliteHomeDirectory,
-            includingPropertiesForKeys: nil,
-            options: [.skipsHiddenFiles])) ?? []
-        self.databaseURL = candidates
-            .filter { $0.pathExtension == "sqlite" && $0.deletingPathExtension().lastPathComponent.hasPrefix("state_") }
-            .max { Self.stateVersion($0) < Self.stateVersion($1) }
-            ?? sqliteHomeDirectory.appendingPathComponent("state_5.sqlite")
+        self.databaseURL = Self.databaseURL(sqliteHomeDirectory: sqliteHomeDirectory, fileManager: fileManager)
         self.sessionIndexURL = codexHomeDirectory.appendingPathComponent("session_index.jsonl")
     }
 
     public init(databaseURL: URL) {
         self.databaseURL = databaseURL
         self.sessionIndexURL = nil
+    }
+
+    static func databaseURL(sqliteHomeDirectory: URL, fileManager: FileManager) -> URL {
+        let candidates = (try? fileManager.contentsOfDirectory(
+            at: sqliteHomeDirectory,
+            includingPropertiesForKeys: nil,
+            options: [.skipsHiddenFiles])) ?? []
+        return candidates
+            .filter { $0.pathExtension == "sqlite" && $0.deletingPathExtension().lastPathComponent.hasPrefix("state_") }
+            .max { Self.stateVersion($0) < Self.stateVersion($1) }
+            ?? sqliteHomeDirectory.appendingPathComponent("state_5.sqlite")
     }
 
     public func metadata(for sessionIDs: Set<String>) -> [String: CodexThreadMetadata] {
@@ -144,7 +148,7 @@ public struct CodexThreadMetadataReader: Sendable {
         Int(url.deletingPathExtension().lastPathComponent.dropFirst("state_".count)) ?? 0
     }
 
-    private static func sqliteHomeDirectory(
+    static func sqliteHomeDirectory(
         codexHomeDirectory: URL,
         environment: [String: String],
         resolvedWorkingDirectory: URL?)

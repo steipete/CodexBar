@@ -968,7 +968,8 @@ public struct CostUsageFetcher: Sendable {
     static func codexSessionsWithThreadTitles(
         _ sessions: [CostUsageSessionBreakdown],
         sessionsRoot: URL?,
-        environment: [String: String] = ProcessInfo.processInfo.environment) -> [CostUsageSessionBreakdown]
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        fileManager: FileManager = .default) -> [CostUsageSessionBreakdown]
     {
         guard !sessions.isEmpty,
               let sessionsRoot,
@@ -979,13 +980,21 @@ public struct CostUsageFetcher: Sendable {
         let home = sessionsRoot.deletingLastPathComponent()
         let indexedNames = CodexThreadMetadataReader.indexedThreadNames(
             codexHomeDirectory: home, sessionIDs: Set(sessions.map(\.sessionID)))
+        var databasesByWorkingDirectory: [String?: URL] = [:]
+        var databasesBySQLiteHome: [URL: URL] = [:]
         let groups = Dictionary(grouping: sessions) { session in
-            CodexThreadMetadataReader(
+            if let database = databasesByWorkingDirectory[session.workingDirectory] { return database }
+            let sqliteHome = CodexThreadMetadataReader.sqliteHomeDirectory(
                 codexHomeDirectory: home,
                 environment: environment,
                 resolvedWorkingDirectory: session.workingDirectory.map {
                     URL(fileURLWithPath: $0, isDirectory: true)
-                }).databaseURL
+                })
+            let database = databasesBySQLiteHome[sqliteHome] ?? CodexThreadMetadataReader.databaseURL(
+                sqliteHomeDirectory: sqliteHome, fileManager: fileManager)
+            databasesBySQLiteHome[sqliteHome] = database
+            databasesByWorkingDirectory[session.workingDirectory] = database
+            return database
         }
         var metadata: [String: CodexThreadMetadata] = [:]
         for (database, sessions) in groups {

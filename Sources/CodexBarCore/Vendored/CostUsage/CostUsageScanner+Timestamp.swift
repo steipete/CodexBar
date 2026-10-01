@@ -163,7 +163,7 @@ extension CostUsageScanner {
         }
 
         var comps = DateComponents()
-        comps.calendar = Calendar(identifier: .gregorian)
+        comps.calendar = CostUsageLocalDay.gregorianCalendar()
         comps.timeZone = TimeZone(secondsFromGMT: offsetSeconds)
         comps.year = year
         comps.month = month
@@ -178,7 +178,7 @@ extension CostUsageScanner {
         guard let localYear = local.year,
               let localMonth = local.month,
               let localDay = local.day else { return nil }
-        return String(format: "%04d-%02d-%02d", localYear, localMonth, localDay)
+        return CostUsageLocalDay.key(year: localYear, month: localMonth, day: localDay)
     }
 
     static func dayKeyFromParsedISO(_ text: String, calendar: Calendar = .current) -> String? {

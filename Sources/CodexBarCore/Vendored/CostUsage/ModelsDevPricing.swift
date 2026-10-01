@@ -1,9 +1,4 @@
 import Foundation
-#if canImport(Darwin)
-import Darwin
-#elseif canImport(Glibc)
-import Glibc
-#endif
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
@@ -86,7 +81,17 @@ struct ModelsDevCatalog: Codable, Equatable {
         }
     }
 
-    func mergingFallbackPricing(from cachedCatalog: ModelsDevCatalog) -> ModelsDevCatalog {
+    func mergingFallbackPricing(
+        from cachedCatalog: ModelsDevCatalog,
+        stableIdentity: (String) -> String = ModelsDevModelIDNormalizer.stableIdentity) -> ModelsDevCatalog
+    {
+        var identities: [String: String] = [:]
+        func identity(_ model: ModelsDevModel) -> String {
+            if let cached = identities[model.id] { return cached }
+            let value = stableIdentity(model.id)
+            identities[model.id] = value
+            return value
+        }
         var merged = self
         for (providerID, cachedProvider) in cachedCatalog.providers {
             let normalizedProviderID = ModelsDevProvider.normalizeProviderID(providerID)
@@ -95,14 +100,21 @@ struct ModelsDevCatalog: Codable, Equatable {
                 continue
             }
 
-            for (modelKey, cachedModel) in cachedProvider.models
-                where cachedModel.isPriceable && !provider.containsPricedModel(
-                    withStableIdentity: cachedModel.stableIdentity)
-            {
+            var pricedIdentities: [String: Int] = [:]
+            for model in provider.models.values where model.isPriceable {
+                pricedIdentities[identity(model), default: 0] += 1
+            }
+            for (modelKey, cachedModel) in cachedProvider.models where cachedModel.isPriceable {
+                let modelIdentity = identity(cachedModel)
+                guard pricedIdentities[modelIdentity, default: 0] == 0 else { continue }
                 let fallbackKey = provider.models[modelKey] == nil
                     ? modelKey
                     : "codexbar-fallback:\(modelKey):\(cachedModel.normalizedID)"
-                provider.models[fallbackKey] = cachedModel
+                // A preexisting fallback key can be replaced; retain counts for duplicate identities.
+                if let replaced = provider.models.updateValue(cachedModel, forKey: fallbackKey), replaced.isPriceable {
+                    pricedIdentities[identity(replaced), default: 0] -= 1
+                }
+                pricedIdentities[modelIdentity, default: 0] += 1
             }
             merged.providers[normalizedProviderID] = provider
         }
@@ -173,6 +185,7 @@ struct ModelsDevProvider: Codable, Equatable {
         let candidates = exactModelID
             ? [ModelsDevModelIDNormalizer.normalize(rawModelID)]
             : ModelsDevModelIDNormalizer.candidates(rawModelID)
+        var normalizedModels: [String: ModelsDevModel]?
         for candidate in candidates {
             if let model = self.models[candidate],
                let pricing = model.pricing(providerID: self.id ?? self.mapKey ?? "", providerName: self.name)
@@ -180,20 +193,26 @@ struct ModelsDevProvider: Codable, Equatable {
                 return ModelsDevPricingLookup(pricing: pricing, normalizedModelID: candidate)
             }
 
-            for match in self.models.values where match.normalizedID == candidate {
-                if let pricing = match.pricing(providerID: self.id ?? self.mapKey ?? "", providerName: self.name) {
-                    return ModelsDevPricingLookup(pricing: pricing, normalizedModelID: match.normalizedID)
+            if normalizedModels == nil {
+                normalizedModels = [:]
+                var normalizedIDs: [String: String] = [:]
+                for model in self.models.values where model.isPriceable {
+                    let normalizedID = normalizedIDs[model.id] ?? model.normalizedID
+                    normalizedIDs[model.id] = normalizedID
+                    if normalizedModels?[normalizedID] == nil { normalizedModels?[normalizedID] = model }
                 }
+            }
+            if let normalizedModels,
+               let index = normalizedModels.index(forKey: candidate),
+               let pricing = normalizedModels[index].value.pricing(
+                   providerID: self.id ?? self.mapKey ?? "", providerName: self.name)
+            {
+                // Preserve the catalog's spelling when Unicode-equivalent query strings differ in bytes.
+                return ModelsDevPricingLookup(pricing: pricing, normalizedModelID: normalizedModels[index].key)
             }
         }
 
         return nil
-    }
-
-    func containsPricedModel(withStableIdentity modelID: String) -> Bool {
-        self.models.values.contains { model in
-            model.isPriceable && model.stableIdentity == modelID
-        }
     }
 }
 
@@ -205,10 +224,6 @@ struct ModelsDevModel: Codable, Equatable {
 
     var normalizedID: String {
         ModelsDevModelIDNormalizer.normalize(self.id)
-    }
-
-    var stableIdentity: String {
-        ModelsDevModelIDNormalizer.stableIdentity(self.id)
     }
 
     var isPriceable: Bool {
@@ -274,6 +289,21 @@ struct ModelsDevLimit: Codable, Equatable {
 }
 
 enum ModelsDevModelIDNormalizer {
+    private static let snapshotDate = try? NSRegularExpression(pattern: #"^\d{8}$"#)
+    private static let dashedDate = try? NSRegularExpression(pattern: #"-\d{4}-\d{2}-\d{2}$"#)
+    private static let compactDate = try? NSRegularExpression(pattern: #"-\d{8}$"#)
+    private static let version = try? NSRegularExpression(pattern: #"-v\d+:\d+$"#)
+
+    private static func range(of expression: NSRegularExpression?, in value: String) -> Range<String.Index>? {
+        guard let expression else { return nil }
+        // String.range can match whole graphemes where ICU only matches Unicode scalars.
+        guard value.utf8.allSatisfy({ $0 < 128 }) else {
+            return value.range(of: expression.pattern, options: .regularExpression)
+        }
+        return expression.firstMatch(in: value, range: NSRange(value.startIndex..., in: value))
+            .flatMap { Range($0.range, in: value) }
+    }
+
     static func normalize(_ raw: String) -> String {
         raw.trimmingCharacters(in: .whitespacesAndNewlines)
     }
@@ -283,7 +313,7 @@ enum ModelsDevModelIDNormalizer {
         if let atSign = normalized.firstIndex(of: "@") {
             let base = String(normalized[..<atSign])
             let suffix = String(normalized[normalized.index(after: atSign)...])
-            if suffix.range(of: #"^\d{8}$"#, options: .regularExpression) != nil {
+            if self.range(of: self.snapshotDate, in: suffix) != nil {
                 return "\(self.canonicalAliasIdentity(base))-\(suffix)"
             }
         }
@@ -335,7 +365,7 @@ enum ModelsDevModelIDNormalizer {
             if let atSign = candidate.firstIndex(of: "@") {
                 let base = String(candidate[..<atSign])
                 let suffix = String(candidate[candidate.index(after: atSign)...])
-                if suffix.range(of: #"^\d{8}$"#, options: .regularExpression) != nil {
+                if self.range(of: self.snapshotDate, in: suffix) != nil {
                     append("\(base)-\(suffix)")
                 }
                 append(base)
@@ -344,14 +374,14 @@ enum ModelsDevModelIDNormalizer {
             }
 
             if !preserveDatedSnapshots {
-                if let dated = candidate.range(of: #"-\d{4}-\d{2}-\d{2}$"#, options: .regularExpression) {
+                if let dated = self.range(of: self.dashedDate, in: candidate) {
                     append(String(candidate[..<dated.lowerBound]))
                 }
-                if let compactDate = candidate.range(of: #"-\d{8}$"#, options: .regularExpression) {
+                if let compactDate = self.range(of: self.compactDate, in: candidate) {
                     append(String(candidate[..<compactDate.lowerBound]))
                 }
             }
-            if let version = candidate.range(of: #"-v\d+:\d+$"#, options: .regularExpression) {
+            if let version = self.range(of: self.version, in: candidate) {
                 var base = candidate
                 base.removeSubrange(version)
                 append(base)
@@ -394,30 +424,31 @@ private final class ModelsDevCacheMemo: @unchecked Sendable {
     }
 
     private struct Entry {
-        let modificationDate: Date?
-        let size: Int?
+        let metadata: ModelsDevCache.FileMetadata
         let outcome: Outcome
     }
 
     private let lock = NSLock()
     private var entries: [String: Entry] = [:]
 
-    func outcome(path: String, modificationDate: Date?, size: Int?) -> Outcome? {
+    func outcome(path: String, metadata: ModelsDevCache.FileMetadata) -> Outcome? {
         self.lock.lock()
         defer { self.lock.unlock() }
         guard let entry = self.entries[path],
-              entry.modificationDate == modificationDate,
-              entry.size == size
+              entry.metadata == metadata
         else {
             return nil
         }
         return entry.outcome
     }
 
-    func store(path: String, modificationDate: Date?, size: Int?, outcome: Outcome) {
+    func store(path: String, metadata: ModelsDevCache.FileMetadata, outcome: Outcome) {
         self.lock.lock()
         defer { self.lock.unlock() }
-        self.entries[path] = Entry(modificationDate: modificationDate, size: size, outcome: outcome)
+        if self.entries.count >= 128, self.entries[path] == nil {
+            self.entries.removeAll(keepingCapacity: true)
+        }
+        self.entries[path] = Entry(metadata: metadata, outcome: outcome)
     }
 
     func invalidate(path: String) {
@@ -437,8 +468,18 @@ enum ModelsDevCache {
     static let artifactVersion = 1
     static let ttlSeconds: TimeInterval = 24 * 60 * 60
 
+    struct FileMetadata: Equatable {
+        let catalog: CostUsageClaudeFileStamp?
+        let refresh: CostUsageClaudeFileStamp?
+    }
+
+    private struct RefreshMetadata: Codable {
+        let catalogStamp: CostUsageClaudeFileStamp
+        let fetchedAt: Date
+    }
+
     private static let memo = ModelsDevCacheMemo()
-    /// Test-only instrumentation: counts `fileMetadata(at:)` reads (one per `load`) so tests can prove callers
+    /// Test-only instrumentation: counts initial metadata snapshots (one per `load`) so tests can prove callers
     /// resolve the catalog once instead of per pricing call. Task-local, so concurrent tests do not see each other's
     /// counts, and unset (zero cost) in production.
     @TaskLocal private static var metadataReadRecorder: MetadataReadRecorder?
@@ -446,11 +487,17 @@ enum ModelsDevCache {
     final class MetadataReadRecorder: @unchecked Sendable {
         private let lock = NSLock()
         private var count = 0
+        private let onRead: (@Sendable () -> Void)?
+
+        init(onRead: (@Sendable () -> Void)? = nil) {
+            self.onRead = onRead
+        }
 
         func record() {
             self.lock.lock()
             self.count += 1
             self.lock.unlock()
+            self.onRead?()
         }
 
         func snapshot() -> Int {
@@ -478,33 +525,6 @@ enum ModelsDevCache {
         }
     }
 
-    /// Cheap POSIX stat for the (mtime, size) memo key. `attributesOfItem` also reads xattrs.
-    /// `stat(2)` follows a terminal symlink (matching what `Data(contentsOf:)` later reads) whereas
-    /// `attributesOfItem` did not.
-    private static func fileMetadata(at url: URL) -> (modificationDate: Date?, size: Int?) {
-        self.metadataReadRecorder?.record()
-
-        return url.withUnsafeFileSystemRepresentation { pointer in
-            guard let pointer else { return (nil, nil) }
-            var status = stat()
-            guard stat(pointer, &status) == 0 else {
-                return (nil, nil)
-            }
-            return (Self.modificationDate(from: status), Int(status.st_size))
-        }
-    }
-
-    private static func modificationDate(from status: stat) -> Date {
-        #if canImport(Darwin)
-        let seconds = TimeInterval(status.st_mtimespec.tv_sec)
-        let nanoseconds = TimeInterval(status.st_mtimespec.tv_nsec)
-        #else
-        let seconds = TimeInterval(status.st_mtim.tv_sec)
-        let nanoseconds = TimeInterval(status.st_mtim.tv_nsec)
-        #endif
-        return Date(timeIntervalSince1970: seconds + nanoseconds / 1_000_000_000)
-    }
-
     private static func defaultCacheRoot() -> URL {
         let root = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
         return root.appendingPathComponent("CodexBar", isDirectory: true)
@@ -519,38 +539,41 @@ enum ModelsDevCache {
 
     static func load(now: Date = Date(), cacheRoot: URL? = nil) -> ModelsDevCacheLoadResult {
         let url = self.cacheFileURL(cacheRoot: cacheRoot)
-        let metadata = Self.fileMetadata(at: url)
+        let metadata = FileMetadata(
+            catalog: CostUsageClaudeFileStamp.read(at: url),
+            refresh: CostUsageClaudeFileStamp.read(at: url.appendingPathExtension("refresh")))
+        self.metadataReadRecorder?.record()
 
         // Staleness depends on `now`, so the result is always rebuilt; only the read+decode outcome is memoized.
-        if let outcome = Self.memo.outcome(
-            path: url.path,
-            modificationDate: metadata.modificationDate,
-            size: metadata.size)
-        {
+        if let outcome = Self.memo.outcome(path: url.path, metadata: metadata) {
             return Self.result(for: outcome, now: now)
         }
 
-        let outcome = Self.readOutcome(at: url)
-        Self.memo.store(
-            path: url.path,
-            modificationDate: metadata.modificationDate,
-            size: metadata.size,
-            outcome: outcome)
+        let outcome = Self.readOutcome(at: url, metadata: metadata)
+        Self.memo.store(path: url.path, metadata: metadata, outcome: outcome)
         return Self.result(for: outcome, now: now)
     }
 
-    private static func readOutcome(at url: URL) -> ModelsDevCacheMemo.Outcome {
+    private static func readOutcome(at url: URL, metadata: FileMetadata) -> ModelsDevCacheMemo.Outcome {
         guard let data = try? Data(contentsOf: url) else {
             return .failure(.unreadable)
         }
 
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
-        guard let decoded = try? decoder.decode(ModelsDevCacheArtifact.self, from: data) else {
+        guard var decoded = try? decoder.decode(ModelsDevCacheArtifact.self, from: data) else {
             return .failure(.invalidJSON)
         }
         guard decoded.version == Self.artifactVersion else {
             return .failure(.invalidVersion)
+        }
+        if metadata.refresh != nil,
+           let data = try? Data(contentsOf: url.appendingPathExtension("refresh")),
+           let refresh = try? decoder.decode(RefreshMetadata.self, from: data),
+           refresh.catalogStamp == metadata.catalog,
+           CostUsageClaudeFileStamp.read(at: url) == metadata.catalog
+        {
+            decoded.fetchedAt = refresh.fetchedAt
         }
         return .decoded(decoded)
     }
@@ -584,11 +607,23 @@ enum ModelsDevCache {
 
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
-        guard let data = try? encoder.encode(artifact) else { return false }
-
+        let stamp = CostUsageClaudeFileStamp.read(at: url)
+        let cached = Self.load(cacheRoot: cacheRoot).artifact
+        let destination: URL
+        let data: Data
         do {
-            try data.write(to: url, options: [.atomic])
-            // The on-disk catalog changed; drop the memo so the next load decodes the fresh file.
+            if let stamp, cached?.version == artifact.version, cached?.catalog == artifact.catalog,
+               CostUsageClaudeFileStamp.read(at: url) == stamp
+            {
+                // Fetch time must survive relaunches without invalidating consumers of the catalog stamp.
+                destination = url.appendingPathExtension("refresh")
+                data = try encoder.encode(RefreshMetadata(catalogStamp: stamp, fetchedAt: artifact.fetchedAt))
+            } else {
+                destination = url
+                data = try encoder.encode(artifact)
+            }
+            try data.write(to: destination, options: [.atomic])
+            // Either the catalog or its successful fetch time changed.
             Self.memo.invalidate(path: url.path)
             return true
         } catch {

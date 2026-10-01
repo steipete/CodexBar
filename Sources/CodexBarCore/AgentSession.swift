@@ -192,6 +192,33 @@ struct DirectoryMetadataScanBudget {
     }
 }
 
+enum AgentProcessPath {
+    /// Foundation's tilde rules vary by runtime/SDK. An explicit directory hint avoids a metadata probe.
+    static let expandsBareTilde = URL(fileURLWithPath: "~", isDirectory: false).relativePath != "~"
+
+    static func basename(
+        _ path: String,
+        currentDirectory: @autoclosure () -> String = FileManager.default.currentDirectoryPath,
+        expandTilde: (String) -> String = { ($0 as NSString).expandingTildeInPath },
+        expandsBareTilde: Bool = Self.expandsBareTilde) -> String
+    {
+        let path = path.hasPrefix("~") && (expandsBareTilde || path.hasPrefix("~/")) ? expandTilde(path) : path
+        let basename = (path as NSString).lastPathComponent
+        if path.hasPrefix("/") { return basename }
+        guard basename.isEmpty || basename == "." || basename == ".." else { return basename }
+        // File URLs resolve relative dot components against CWD, but leave absolute ones alone.
+        var components = currentDirectory().components(separatedBy: "/")
+        for component in path.components(separatedBy: "/") {
+            if component == ".." {
+                if components.count > 1 { components.removeLast() }
+            } else if component != "." {
+                components.append(component)
+            }
+        }
+        return components.last(where: { !$0.isEmpty }) ?? "/"
+    }
+}
+
 public struct AgentProcessRecord: Equatable, Sendable {
     public let pid: Int32
     public let ppid: Int32
@@ -221,11 +248,8 @@ public struct AgentProcessRecord: Equatable, Sendable {
     public var executableBasename: String {
         let firstToken = self.arguments?.first ?? self.command.split(whereSeparator: \ .isWhitespace).first
             .map(String.init) ?? ""
-        let firstBasename = URL(fileURLWithPath: firstToken).lastPathComponent
-        if firstBasename == "disclaimer" {
-            return firstBasename
-        }
-        if self.command.contains("Application Support/Claude/claude-code/claude") {
+        let firstBasename = AgentProcessPath.basename(firstToken)
+        if firstBasename != "disclaimer", self.command.contains("Application Support/Claude/claude-code/claude") {
             return AgentSession.Provider.claude.rawValue
         }
         return firstBasename
@@ -298,10 +322,23 @@ public enum AgentPSOutputParser {
     }
 
     public static func piDialect(for record: AgentProcessRecord) -> AgentSession.Dialect? {
-        let tokens = [record.executableBasename] + self.arguments(record)
-        guard let firstToken = tokens.first else { return nil }
+        self.piDialect(executableBasename: record.executableBasename, arguments: self.arguments(record))
+    }
 
-        let firstBasename = URL(fileURLWithPath: firstToken).lastPathComponent.lowercased()
+    static func piDialect(arguments: [String]) -> AgentSession.Dialect? {
+        guard let dialect = self.piDialect(
+            executableBasename: AgentProcessPath.basename(arguments.first ?? ""),
+            arguments: Array(arguments.dropFirst()))
+        else { return nil }
+        return arguments.joined(separator: " ")
+            .contains("Application Support/Claude/claude-code/claude") ? nil : dialect
+    }
+
+    static func piDialect(
+        executableBasename: String,
+        arguments: @autoclosure () -> [String]) -> AgentSession.Dialect?
+    {
+        let firstBasename = AgentProcessPath.basename(executableBasename).lowercased()
         if firstBasename == AgentSession.Provider.pi.rawValue {
             return .pi
         }
@@ -309,8 +346,8 @@ public enum AgentPSOutputParser {
             return .omp
         }
         guard firstBasename == "bun" else { return nil }
-        return tokens.dropFirst().contains {
-            URL(fileURLWithPath: $0).lastPathComponent.lowercased() == "omp"
+        return arguments().contains {
+            AgentProcessPath.basename($0).lowercased() == "omp"
         } ? .omp : nil
     }
 
@@ -355,7 +392,7 @@ public enum AgentPSOutputParser {
     private static func normalizedClaudeArguments(_ command: String) -> [String] {
         let arguments = self.arguments(command)
         if let index = arguments.firstIndex(where: {
-            URL(fileURLWithPath: $0).lastPathComponent == AgentSession.Provider.claude.rawValue
+            AgentProcessPath.basename($0) == AgentSession.Provider.claude.rawValue
         }) {
             return Array(arguments.suffix(from: arguments.index(after: index)))
         }

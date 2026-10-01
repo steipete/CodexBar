@@ -2,9 +2,23 @@
 
 ## 0.70.1 — Unreleased
 
+### Changed
+
+- Docs: link the community codexbar-kde Plasma widget for Linux usage meters and agent-session views (#4117). Thanks @materemias!
+
 ### Fixed
 
+- Claude costs: reduce CPU use when rebuilding reports after local transcripts grow.
+- Reduce CPU use when saving unchanged local Claude and Vertex cost history.
+- Costs: avoid rebuilding Claude cost reports when refreshed model pricing is unchanged.
 - Menu bar: show the remaining quota when only the third usage window is available, including Gemini Flash Lite-only accounts, through the shared metric fallback (#4128). Thanks @devYRPauli!
+- Reduce CPU and filesystem work while identifying local agent processes during refreshes.
+- Reduce CPU use when refreshing model pricing while preserving historical fallback rates.
+- Costs: reduce CPU use while bucketing local agent logs into daily usage.
+- Costs: reduce CPU use while reconciling cached local Codex logs.
+- Codex: reduce CPU use when loading conversation titles for large local cost histories.
+- Reduce CPU use while scanning local Codex logs for cost data.
+- Costs: reduce CPU use when separating Claude and Vertex AI usage in local transcripts.
 - Claude: answer current and legacy CLI trust dialogs only in the isolated probe directory, reject redirected paths, and wait for real quota values when usage insights are visible (#4115, #4083). Thanks @sudoHG!
 
 ## 0.70.0 — 2026-09-29

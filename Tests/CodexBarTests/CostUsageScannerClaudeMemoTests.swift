@@ -290,6 +290,7 @@ struct CostUsageScannerClaudeMemoTests {
         #expect(metrics.cacheDecodes == 0)
         #expect(metrics.transcriptParses == 1)
         #expect(metrics.incrementalTranscriptParses == 1)
+        #expect(metrics.reconciliations == 1)
         #expect(metrics.cacheEncodes == 1)
     }
 

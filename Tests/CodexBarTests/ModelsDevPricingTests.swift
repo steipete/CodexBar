@@ -1304,7 +1304,7 @@ extension ModelsDevPricingTests {
     }
 
     @Test
-    func `load metadata check is one stat per load`() throws {
+    func `load records one initial metadata snapshot per call`() throws {
         let root = try Self.cacheRoot()
         try ModelsDevCache.save(catalog: Self.fixtureCatalog(), fetchedAt: Date(), cacheRoot: root)
         let recorder = ModelsDevCache.MetadataReadRecorder()

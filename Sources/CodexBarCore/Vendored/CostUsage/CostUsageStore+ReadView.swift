@@ -95,10 +95,10 @@ struct CostUsageStoreReadView: Sendable {
 
         var filesByResolvedPath: [String: CostUsageFileUsage] = [:]
         for (path, usage) in scoped.cache.files {
-            filesByResolvedPath[Self.resolvedCodexPath(URL(fileURLWithPath: path))] = usage
+            filesByResolvedPath[Self.resolvedCodexPath(URL(fileURLWithPath: path, isDirectory: false))] = usage
         }
         for path in lookback.pendingFilePaths {
-            let resolvedPath = Self.resolvedCodexPath(URL(fileURLWithPath: path))
+            let resolvedPath = Self.resolvedCodexPath(URL(fileURLWithPath: path, isDirectory: false))
             guard let usage = filesByResolvedPath[resolvedPath] else { return false }
             if lookback.cacheWideMigrationQueueActive == true,
                usage.touchesCodexScanWindow(
@@ -108,7 +108,7 @@ struct CostUsageStoreReadView: Sendable {
             {
                 return false
             }
-            let fileURL = URL(fileURLWithPath: resolvedPath)
+            let fileURL = URL(fileURLWithPath: resolvedPath, isDirectory: false)
             guard FileManager.default.fileExists(atPath: fileURL.path) else { continue }
             let metadata = CostUsageScanner.codexFileMetadata(fileURL: fileURL)
             if CostUsageScanner.codexLogicalTargetHasUnconsumedTail(metadata: metadata, cached: usage)
