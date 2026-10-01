@@ -1,10 +1,65 @@
 #if os(macOS)
 import Foundation
-import SweetCookieKit
 import Testing
 @testable import CodexBarCore
+@testable import SweetCookieKit
 
 struct DevinSessionImporterTests {
+    @Test
+    func `repeated imports reuse storage decoding and observe session replacement`() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("devin-cache-\(UUID())")
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try Self.writeLog([
+            StorageEntry(key: "auth1_session", value: #"{"token":"auth1_synthetic-first"}"#),
+        ], to: directory)
+        let work = StorageWork()
+        let cache = LevelDBReadCache(
+            readData: { url in
+                work.recordRead()
+                return try Data(contentsOf: url)
+            },
+            onDerivation: { _ in work.recordDerivation() })
+
+        try ChromiumLocalStorageReader.$levelDBCache.withValue(cache) {
+            let first = try DevinSessionImporter.readLocalStorage(from: directory)
+            #expect(DevinSessionImporter.accessToken(from: first) == "auth1_synthetic-first")
+            #expect(work.counts == [1, 6])
+            #expect(try DevinSessionImporter.readLocalStorage(from: directory) == first)
+            #expect(work.counts == [1, 6])
+
+            try Self.writeLog([
+                StorageEntry(key: "auth1_session", value: #"{"token":"auth1_synthetic-replacement"}"#),
+            ], to: directory)
+            let replacement = try DevinSessionImporter.readLocalStorage(from: directory)
+            #expect(DevinSessionImporter.accessToken(from: replacement) == "auth1_synthetic-replacement")
+            #expect(work.counts == [2, 12])
+            #expect(try DevinSessionImporter.readLocalStorage(from: directory) == replacement)
+            #expect(work.counts == [2, 12])
+
+            ChromiumLocalStorageReader.invalidateCache()
+            #expect(try DevinSessionImporter.readLocalStorage(from: directory) == replacement)
+            #expect(work.counts == [3, 18])
+        }
+    }
+
+    private final class StorageWork: @unchecked Sendable {
+        private let lock = NSLock()
+        private var reads = 0
+        private var derivations = 0
+
+        var counts: [Int] {
+            self.lock.withLock { [self.reads, self.derivations] }
+        }
+
+        func recordRead() {
+            self.lock.withLock { self.reads += 1 }
+        }
+
+        func recordDerivation() {
+            self.lock.withLock { self.derivations += 1 }
+        }
+    }
+
     @Test(arguments: Browser.defaultImportOrder.filter(\.usesChromiumProfileStore))
     func `imports Devin from each supported Chromium browser without cookies`(_ browser: Browser) throws {
         let home = FileManager.default.temporaryDirectory.appendingPathComponent("devin-browser-\(UUID())")
