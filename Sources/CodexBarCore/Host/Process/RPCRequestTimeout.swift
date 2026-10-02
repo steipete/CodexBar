@@ -1,6 +1,10 @@
 import Foundation
 
 enum RPCRequestTimeout {
+    @TaskLocal static var sleep: @Sendable (TimeInterval) async throws -> Void = { seconds in
+        try await Task.sleep(for: .seconds(seconds))
+    }
+
     private enum Result<Value: Sendable>: Sendable {
         case value(Value)
         case timedOut
@@ -15,7 +19,7 @@ enum RPCRequestTimeout {
         try await withThrowingTaskGroup(of: Result<Value>.self) { group in
             group.addTask { try await .value(operation()) }
             group.addTask {
-                try await Task.sleep(for: .seconds(seconds))
+                try await self.sleep(seconds)
                 return .timedOut
             }
             guard let result = try await group.next() else { throw timeoutError }
