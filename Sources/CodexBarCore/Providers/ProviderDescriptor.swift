@@ -83,11 +83,16 @@ public struct ProviderTokenCostConfig: Sendable {
 public struct ProviderHistoryCapability: Sendable, Equatable {
     public static let optIn = ProviderHistoryCapability(alwaysTracksPlanUtilization: false)
     public static let alwaysTracked = ProviderHistoryCapability(alwaysTracksPlanUtilization: true)
+    public static let unavailable = ProviderHistoryCapability(
+        alwaysTracksPlanUtilization: false,
+        supportsPlanUtilization: false)
 
     public let alwaysTracksPlanUtilization: Bool
+    public let supportsPlanUtilization: Bool
 
-    public init(alwaysTracksPlanUtilization: Bool) {
+    public init(alwaysTracksPlanUtilization: Bool, supportsPlanUtilization: Bool = true) {
         self.alwaysTracksPlanUtilization = alwaysTracksPlanUtilization
+        self.supportsPlanUtilization = supportsPlanUtilization
     }
 }
 

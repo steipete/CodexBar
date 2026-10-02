@@ -39,6 +39,9 @@ extension UsageStore {
     }
 
     nonisolated static func underlyingProviderTransportError(_ error: Error) -> Error {
+        if let error = error as? LangdockFetchError {
+            return error.underlyingError
+        }
         if let error = error as? DeepSeekPlatformTransportError {
             return error.underlyingError
         }
@@ -88,6 +91,7 @@ extension UsageStore {
         priorSnapshot: UsageSnapshot?) -> Bool
     {
         guard self.hasMatchingDeepSeekBalanceOwner(after: error, priorSnapshot: priorSnapshot) else { return false }
+        guard LangdockFailurePolicy.hasMatchingOwner(after: error, priorSnapshot: priorSnapshot) else { return false }
         return self.errorIsCancellation(error)
     }
 
@@ -98,10 +102,11 @@ extension UsageStore {
     {
         guard hadPriorData else { return false }
         guard self.hasMatchingDeepSeekBalanceOwner(after: error, priorSnapshot: priorSnapshot) else { return false }
+        guard LangdockFailurePolicy.hasMatchingOwner(after: error, priorSnapshot: priorSnapshot) else { return false }
         if self.underlyingProviderTransportError(error) is CancellationError {
             return true
         }
-        if self.isPreservableNetworkTransportError(error) {
+        if self.isPreservableNetworkTransportError(error) || LangdockFailurePolicy.isTransient(error) {
             return true
         }
 

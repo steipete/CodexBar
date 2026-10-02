@@ -18,12 +18,13 @@ struct BurnDownCapabilityTests {
     }
 
     @Test
-    func `provider eligibility is based on data for every catalog entry`() {
+    func `provider eligibility preserves supported catalog entries`() {
         for provider in UsageProvider.allCases {
+            let expected: [UsageProvider] = provider == .langdock ? [] : [provider]
             for minutes in [90, 300, 1440, 10080, 43200] {
                 let snapshot = Self.snapshot(provider: provider, primary: Self.window(minutes: minutes))
-                #expect(BurnProviderOptions.choices(in: snapshot).map(\.provider) == [provider])
-                #expect(BurnProviderOptions.choices(in: snapshot, combined: true).map(\.provider) == [provider])
+                #expect(BurnProviderOptions.choices(in: snapshot).map(\.provider) == expected)
+                #expect(BurnProviderOptions.choices(in: snapshot, combined: true).map(\.provider) == expected)
             }
         }
         #expect(BurnProviderOptions.choices(in: nil).isEmpty)
@@ -31,6 +32,21 @@ struct BurnDownCapabilityTests {
         let disabled = WidgetSnapshot(entries: enabled.entries, enabledProviders: [], generatedAt: enabled.generatedAt)
         #expect(BurnProviderOptions.choices(in: disabled).isEmpty)
         #expect(BurnProviderOptions.choices(in: WidgetPreviewData.emptySnapshot()).isEmpty)
+    }
+
+    @Test
+    func `Langdock included usage does not enable widgets`() {
+        let metadata = LangdockProviderDescriptor.descriptor.metadata
+        #expect(!metadata.widgetSelectable)
+        #expect(!metadata.burnDownWidgetSelectable)
+        let snapshot = Self.snapshot(
+            provider: .langdock,
+            primary: Self.window(minutes: 300),
+            secondary: Self.window(minutes: 10080))
+
+        #expect(BurnProviderOptions.choices(in: snapshot).isEmpty)
+        #expect(BurnProviderOptions.choices(in: snapshot, combined: true).isEmpty)
+        #expect(BurnDownState(snapshot: snapshot, provider: .langdock, selection: .primary) == nil)
     }
 
     @Test

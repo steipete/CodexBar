@@ -105,7 +105,8 @@ extension UsageStore {
             accountPrivacyOrdinal: account?.privacyOrdinal,
             planOverride: account?.plan ?? .automatic,
             planEmphasis: account?.planEmphasis ?? .none,
-            lastKnownUsageCapturedAt: account?.lastKnownUsageCapturedAt,
+            lastKnownUsageCapturedAt: account?.lastKnownUsageCapturedAt
+                ?? (isLive ? self.langdockLastKnownUsageCapturedAt(for: provider, snapshot: snapshot) : nil),
             isRefreshing: isSettings ? self.refreshingProviders.contains(provider.instanceID)
                 : self.shouldShowRefreshingMenuCardIndicator(for: provider),
             lastError: account?.error ?? codexProjection?.userFacingErrors.usage

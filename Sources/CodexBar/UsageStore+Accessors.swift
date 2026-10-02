@@ -47,7 +47,7 @@ extension UsageStore {
         {
             return transition.snapshot
         }
-        if let snapshot = self.snapshots[provider.instanceID] {
+        if let snapshot = self.snapshot(for: provider.instanceID) {
             if provider == .codex {
                 if self.openAIDashboardAttachmentAuthorized,
                    let dashboard = self.openAIDashboard,

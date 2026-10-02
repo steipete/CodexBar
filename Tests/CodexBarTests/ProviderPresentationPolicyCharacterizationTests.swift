@@ -268,7 +268,9 @@ struct ProviderPresentationPolicyCharacterizationTests {
             #expect(WidgetUsageRow.mediumWidgetRowLimit(for: entry) == medium)
         }
 
-        for provider in UsageProvider.allCases {
+        for provider in UsageProvider.allCases
+            where ProviderDescriptorRegistry.descriptor(for: provider).metadata.burnDownWidgetSelectable
+        {
             let entry = self.widgetEntry(
                 provider: provider,
                 primary: RateWindow(usedPercent: 10, windowMinutes: 300, resetsAt: nil, resetDescription: nil),

@@ -77,6 +77,7 @@
 
 ### Added
 
+- Langdock: show personal session and weekly included-usage limits from an explicitly selected Microsoft Edge profile on macOS, with session ownership checks and clear stale-data errors.
 - Plan Usage: show recorded remaining-quota burndown for Codex and Claude alongside utilization history, with capture age and calendar endpoints (#4085). Thanks @callmejustdodo!
 
 ### Changed

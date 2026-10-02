@@ -15,7 +15,9 @@ extension UsageStore {
     private nonisolated static let claudeOAuthPlanUtilizationAccountKeyPrefix = "__claude_oauth__:"
 
     func supportsPlanUtilizationHistory(for provider: UsageProvider) -> Bool {
-        if ProviderDescriptorRegistry.descriptor(for: provider).history.alwaysTracksPlanUtilization {
+        let capability = ProviderDescriptorRegistry.descriptor(for: provider).history
+        guard capability.supportsPlanUtilization else { return false }
+        if capability.alwaysTracksPlanUtilization {
             return true
         }
         if self.planUtilizationHistory[provider.instanceID]?.isEmpty == false {
@@ -53,6 +55,9 @@ extension UsageStore {
     func planUtilizationHistorySelection(for provider: UsageProvider, readOnly: Bool = false)
         -> PlanUtilizationHistorySelection
     {
+        guard ProviderDescriptorRegistry.descriptor(for: provider).history.supportsPlanUtilization else {
+            return .unavailable
+        }
         // The persisted history has not been read yet. Return the in-memory
         // stub (empty) without performing account migration or enqueueing an
         // empty persistence snapshot — otherwise a startup refresh racing the
@@ -96,7 +101,8 @@ extension UsageStore {
         for provider: UsageProvider,
         account: ProviderTokenAccount) -> PlanUtilizationHistorySelection
     {
-        guard self.planUtilizationHistoryLoaded,
+        guard ProviderDescriptorRegistry.descriptor(for: provider).history.supportsPlanUtilization,
+              self.planUtilizationHistoryLoaded,
               let accountKey = Self.planUtilizationAccountKey(provider: provider, account: account)
         else {
             return .unavailable
@@ -115,7 +121,8 @@ extension UsageStore {
         for provider: UsageProvider,
         snapshotOverride snapshot: UsageSnapshot) -> PlanUtilizationHistorySelection
     {
-        guard self.planUtilizationHistoryLoaded,
+        guard ProviderDescriptorRegistry.descriptor(for: provider).history.supportsPlanUtilization,
+              self.planUtilizationHistoryLoaded,
               let accountKey = Self.planUtilizationIdentityAccountKey(provider: provider, snapshot: snapshot)
         else {
             return .unavailable
@@ -208,6 +215,7 @@ extension UsageStore {
         now: Date = Date())
         async
     {
+        guard ProviderDescriptorRegistry.descriptor(for: provider).history.supportsPlanUtilization else { return }
         let detectorSamples = self.planUtilizationSeriesSamples(
             provider: provider,
             snapshot: snapshot,
@@ -334,8 +342,9 @@ extension UsageStore {
     }
 
     private func shouldRecordPlanUtilizationHistory(for provider: UsageProvider) -> Bool {
-        ProviderDescriptorRegistry.descriptor(for: provider).history.alwaysTracksPlanUtilization ||
-            self.settings.historicalTrackingEnabled
+        let capability = ProviderDescriptorRegistry.descriptor(for: provider).history
+        return capability.supportsPlanUtilization &&
+            (capability.alwaysTracksPlanUtilization || self.settings.historicalTrackingEnabled)
     }
 
     private nonisolated static func updatedPlanUtilizationHistories(
@@ -584,6 +593,7 @@ extension UsageStore {
         capturedAt: Date,
         forSessionEquivalents: Bool = false) -> [PlanUtilizationSeriesSample]
     {
+        guard ProviderDescriptorRegistry.descriptor(for: provider).history.supportsPlanUtilization else { return [] }
         var samplesByKey: [PlanUtilizationSeriesKey: PlanUtilizationSeriesSample] = [:]
 
         func appendWindow(_ window: RateWindow?, name: PlanUtilizationSeriesName?) {

@@ -32,6 +32,7 @@ extension ProviderInstanceID {
     public static let moonshot = UsageProvider.moonshot.instanceID
     public static let amp = UsageProvider.amp.instanceID
     public static let t3chat = UsageProvider.t3chat.instanceID
+    public static let langdock = UsageProvider.langdock.instanceID
     public static let ollama = UsageProvider.ollama.instanceID
     public static let synthetic = UsageProvider.synthetic.instanceID
     public static let openrouter = UsageProvider.openrouter.instanceID

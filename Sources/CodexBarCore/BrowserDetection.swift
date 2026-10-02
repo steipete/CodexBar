@@ -352,6 +352,31 @@ public final class BrowserDetection: Sendable {
         return false
     }
 
+    static func selectedChromiumProfileAccessIssue(
+        profileID: String,
+        browser: Browser,
+        homeDirectories: [URL],
+        listDirectory: (String) throws -> [String] = FileManager.default.contentsOfDirectory(atPath:))
+        -> BrowserProfileAccessIssue?
+    {
+        guard BrowserCookieAccessGate.cookieStoreAccessDecision(homeDirectories: homeDirectories) == .allowed else {
+            return nil
+        }
+        let profile = URL(fileURLWithPath: profileID).standardizedFileURL
+        let root = profile.deletingLastPathComponent()
+        guard ChromiumProfileLocator.roots(for: [browser], homeDirectories: homeDirectories)
+            .contains(where: { $0.url.standardizedFileURL.path == root.path }) else { return nil }
+
+        for directory in [root, profile] {
+            do {
+                _ = try listDirectory(directory.path)
+            } catch {
+                if self.isPermissionError(error) { return .accessDenied }
+            }
+        }
+        return nil
+    }
+
     private static func probeProfileAccessIssue(_ path: String) -> BrowserProfileAccessIssue? {
         do {
             _ = try FileManager.default.contentsOfDirectory(atPath: path)

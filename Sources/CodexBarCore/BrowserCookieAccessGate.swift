@@ -411,6 +411,33 @@ extension BrowserCookieClient {
             throw error
         }
     }
+
+    /// Read one selected store while preserving the same background and retry gates as browser-wide reads.
+    /// Callers must resolve `store` from `codexBarStores(for:)` and must not fall back to another profile.
+    public func codexBarRecords(
+        matching query: BrowserCookieQuery,
+        in store: BrowserCookieStore,
+        logger: ((String) -> Void)? = nil) throws -> [BrowserCookieRecord]
+    {
+        guard BrowserCookieAccessGate.cookieStoreAccessDecision(
+            homeDirectories: self.configuration.homeDirectories) == .allowed
+        else {
+            throw BrowserCookieStoreAccessSuppressedError()
+        }
+        let browser = store.browser
+        guard BrowserCookieAccessGate.shouldAttempt(browser) else { return [] }
+        guard BrowserCookieAccessGate.claimExplicitRetryCookieReadIfNeeded(for: browser) else { return [] }
+        do {
+            let records = try BrowserCookieAccessGate.withRecordReadInteractionPolicy {
+                try self.records(matching: query, in: store, logger: logger)
+            }
+            BrowserCookieAccessGate.recordAllowed(for: browser)
+            return records
+        } catch {
+            BrowserCookieAccessGate.recordIfNeeded(error)
+            throw error
+        }
+    }
 }
 #else
 public enum BrowserCookieAccessGate {

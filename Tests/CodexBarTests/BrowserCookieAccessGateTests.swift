@@ -167,5 +167,33 @@ struct BrowserCookieAccessGateTests {
         #expect(backgroundDisallowed)
         #expect(userInitiatedDisallowed == false)
     }
+
+    @Test
+    func `selected store read obeys the background no prompt gate`() throws {
+        BrowserCookieAccessGate.resetForTesting()
+        defer { BrowserCookieAccessGate.resetForTesting() }
+
+        let home = URL(fileURLWithPath: "/synthetic/codexbar-browser-test")
+        let store = BrowserCookieStore(
+            browser: .edge,
+            profile: BrowserProfile(id: home.appendingPathComponent("Profile 1").path, name: "Synthetic"),
+            kind: .network,
+            label: "Synthetic Edge",
+            databaseURL: home.appendingPathComponent("Profile 1/Network/Cookies"))
+        let client = BrowserCookieClient(configuration: .init(homeDirectories: [home]))
+        let records = try KeychainAccessGate.withTaskOverrideForTesting(false) {
+            try ProviderInteractionContext.$current.withValue(.background) {
+                try KeychainAccessPreflight.withCheckGenericPasswordOverrideForTesting { _, _ in
+                    .interactionRequired
+                } operation: {
+                    try client.codexBarRecords(
+                        matching: BrowserCookieQuery(domains: ["langdock.com"], domainMatch: .exact),
+                        in: store)
+                }
+            }
+        }
+
+        #expect(records.isEmpty)
+    }
 }
 #endif

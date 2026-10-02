@@ -156,9 +156,9 @@ struct ProviderArchitectureGatekeeperTests {
             Self.hash(descriptor.branding.burnDownWidgetColor, into: &burnDownFingerprint)
         }
 
-        // Hex normalization rounds ClinePass to #61A3FA; other widget components remain unchanged.
-        #expect(widgetFingerprint == 6_927_315_133_167_192_314)
-        #expect(burnDownFingerprint == 16_992_290_873_030_609_074)
+        // Adds Langdock to the palette; existing colors, including ClinePass's normalized #61A3FA, are unchanged.
+        #expect(widgetFingerprint == 5_966_974_919_578_634_743)
+        #expect(burnDownFingerprint == 29_810_792_014_170_639)
     }
 
     @Test
