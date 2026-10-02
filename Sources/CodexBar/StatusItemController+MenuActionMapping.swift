@@ -17,8 +17,10 @@ extension StatusItemController {
         case let .switchAccount(provider): (#selector(self.runSwitchAccount(_:)), provider.rawValue)
         case let .openTerminal(command): (#selector(self.openTerminalCommand(_:)), command)
         case let .loginToProvider(url): (#selector(self.openLoginToProvider(_:)), url)
-        case .openCodexWorkspaces:
-            (#selector(self.openCodexWorkspaces(_:)), CodexWorkspacesWindowIdentity.menuItem)
+        case .openCodexWorkspaces, .openCodexSSHCostReport:
+            action == .openCodexWorkspaces
+                ? (#selector(self.openCodexWorkspaces(_:)), CodexWorkspacesWindowIdentity.menuItem)
+                : (#selector(self.openCodexSSHCostReport), nil)
         case .settings: (#selector(self.showSettingsGeneral), nil)
         case let .providerSettings(provider): (#selector(self.showProviderSettings(_:)), provider.rawValue)
         case .about: (#selector(self.showSettingsAbout), nil)

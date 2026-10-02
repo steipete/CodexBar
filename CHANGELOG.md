@@ -11,6 +11,10 @@
 
 - Resolve bundled helpers and plugin resources from the running executable, and ignore working-directory-dependent CLI search paths (#4136). Thanks @maugt!
 
+### Added
+
+- Codex: open **SSH Cost Report…** from the menu to manually compare this Mac with one SSH host using separate 30-day token/cost charts. Reports retain source snapshot times and coverage, use the app's day-boundary timezone, and keep ordinary menu totals unchanged. Queries can be cancelled and host names honor Hide Personal Info; aggregate-only remote CLIs show Today/history totals in their native timezone with an upgrade notice, while capable hosts retain daily charts.
+
 ### Changed
 
 - Reduce CPU use when importing browser sessions for Devin, MiniMax, and Windsurf.

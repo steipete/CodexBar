@@ -19,6 +19,9 @@ extension StatusItemController {
         self.removeShutdownStatusItems()
         self.creditsPurchaseWindow?.close()
         self.creditsPurchaseWindow = nil
+        self.codexSSHCostWindow?.query.cancel(clearResults: true)
+        self.codexSSHCostWindow?.close()
+        self.codexSSHCostWindow = nil
     }
 
     private func cancelShutdownTasks() {

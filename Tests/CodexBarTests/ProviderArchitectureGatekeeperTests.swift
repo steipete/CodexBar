@@ -1784,6 +1784,13 @@ struct ProviderArchitectureGatekeeperTests {
             expectedReferenceFingerprint: ["codex@0"],
             reason: "This exact shared construct dispatches a provider-owned capability at the generic integration boundary."),
         AllowedProviderConstruct(
+            path: "Sources/CodexBar/CodexSSHCostView.swift",
+            anchor: "provider: .codex,",
+            expectedProviderIDs: ["codex"],
+            expectedReferenceCount: 1,
+            expectedReferenceFingerprint: ["codex@0"],
+            reason: "The manual native Codex report renders only its numerical Codex daily history."),
+        AllowedProviderConstruct(
             path: "Sources/CodexBar/CostHistoryChartMenuView.swift",
             anchor: "let projects = provider == .codex ? snapshot.projects : []",
             expectedProviderIDs: ["codex"],
@@ -3315,6 +3322,20 @@ struct ProviderArchitectureGatekeeperTests {
             expectedReferenceCount: 1,
             expectedReferenceFingerprint: ["claude@0"],
             reason: "This exact app-runtime bridge coordinates provider-owned state through the shared controller."),
+        AllowedProviderConstruct(
+            path: "Sources/CodexBarCLI/CLICodexDailySummary.swift",
+            anchor: "values.options[\"provider\"] == [\"codex\"], format == .json,",
+            expectedProviderIDs: ["codex"],
+            expectedReferenceCount: 1,
+            expectedReferenceFingerprint: ["codex@0"],
+            reason: "The numerical daily protocol requires explicit native Codex opt-in before scanning."),
+        AllowedProviderConstruct(
+            path: "Sources/CodexBarCLI/CLICodexDailySummary.swift",
+            anchor: "provider: .codex,",
+            expectedProviderIDs: ["codex"],
+            expectedReferenceCount: 1,
+            expectedReferenceFingerprint: ["codex@0"],
+            reason: "The numerical daily protocol scans only native Codex history and excludes other providers."),
         AllowedProviderConstruct(
             path: "Sources/CodexBarCLI/CLICostCommand.swift",
             anchor: "provider == .codex",

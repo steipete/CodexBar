@@ -114,6 +114,34 @@ struct CodexPrioritySQLiteTests {
         #expect(after.daily.first?.modelBreakdowns?.first?.priorityTokens == 110)
     }
 
+    @Test(arguments: ["GMT", "Pacific/Kiritimati", "America/Los_Angeles"])
+    func `native scanner daily transport uses receiver timezone and keeps priority pricing`(zone: String) async throws {
+        let fixture = try Fixture()
+        defer { fixture.cleanup() }
+        try fixture.createDatabase()
+        try fixture.insert(turn: "priority", priority: true)
+        try fixture.insert(turn: "standard", priority: false)
+        try fixture.writeSessions()
+        try fixture.savePrices()
+        let calendar = try CodexCostDailySummary.calendar(bucketTimeZone: zone)
+        let snapshot = try await fixture.snapshot(calendar: calendar)
+        let payload = try CodexCostDailySummary(snapshot: snapshot, calendar: calendar)
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let wire = try #require(String(data: encoder.encode([payload]), encoding: .utf8))
+        let fetcher = RemoteCodexCostFetcher { _, _ in wire }
+        let received = try await fetcher.fetchDaily(host: "qa-linux", historyDays: 1, bucketTimeZone: zone)
+        let restored = try received.tokenSnapshot()
+        #expect(restored.daily.first?.date == (zone == "Pacific/Kiritimati" ? "2026-05-11" : "2026-05-10"))
+        #expect(restored.daily.first?.totalTokens == 220)
+        #expect(try abs(#require(restored.sessionCostUSD) - 0.00075) < 1e-12)
+        #expect(restored.daily.first?.coverageCounts == snapshot.daily.first?.coverageCounts)
+        #expect(restored.updatedAt == snapshot.updatedAt)
+        #expect(restored.costProvenance == .listPriceEstimate)
+        #expect(!wire.contains("gpt-5.4") && !wire.contains("priority-session"))
+        #expect(!wire.contains(fixture.root.path))
+    }
+
     private struct Fixture {
         let root: URL
         let database: URL
@@ -194,12 +222,12 @@ struct CodexPrioritySQLiteTests {
             try #require(ModelsDevCache.save(catalog: catalog, fetchedAt: self.now, cacheRoot: self.cache))
         }
 
-        func snapshot() async throws -> CostUsageTokenSnapshot {
+        func snapshot(calendar: Calendar? = nil) async throws -> CostUsageTokenSnapshot {
             var options = CostUsageScanner.Options()
             options.codexSessionsRoot = self.sessions
             options.codexTraceDatabaseURL = self.database
             options.cacheRoot = self.cache
-            options.calendar = self.calendar
+            options.calendar = calendar ?? self.calendar
             options.refreshMinIntervalSeconds = 0
             return try await CostUsageFetcher(scannerOptions: options).loadTokenSnapshot(
                 provider: .codex,

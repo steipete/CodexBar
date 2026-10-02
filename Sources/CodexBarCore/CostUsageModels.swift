@@ -16,14 +16,6 @@ package struct CostUsageTokenActivityCache: Sendable, Equatable {
     }
 }
 
-package enum CostUsageIncompleteRequests {
-    /// Reject malformed persisted counts at decode boundaries. Saturate combined reports so
-    /// overflow cannot erase the incomplete marker or crash a consumer.
-    package static func sum(_ counts: some Sequence<Int>) -> Int {
-        CheckedSum.integers(counts.map { max(0, $0) }) ?? Int.max
-    }
-}
-
 public struct CostUsageWindowSummary: Sendable, Equatable {
     public let days: Int
     public let totalTokens: Int?
@@ -608,8 +600,12 @@ public struct CostUsageDailyReport: Sendable, Codable {
             self.incompleteRequestCount > 0 && self.totalTokens == nil && self.costUSD == nil
         }
 
+        /// Aggregate-only sources can preserve this count without manufacturing model details.
+        private let aggregateIncompleteRequestCount: Int?
+
         public var incompleteRequestCount: Int {
-            CostUsageIncompleteRequests.sum((self.modelBreakdowns ?? []).compactMap(\.incompleteRequestCount))
+            self.aggregateIncompleteRequestCount ?? CostUsageIncompleteRequests
+                .sum((self.modelBreakdowns ?? []).compactMap(\.incompleteRequestCount))
         }
 
         public var coverageCounts: CostUsageCoverageCounts {
@@ -678,6 +674,7 @@ public struct CostUsageDailyReport: Sendable, Codable {
             case pricedRequestCount
             case unmeteredRequestCount
             case estimatedRequestCount
+            case incompleteRequestCount
         }
 
         public init(from decoder: Decoder) throws {
@@ -707,6 +704,9 @@ public struct CostUsageDailyReport: Sendable, Codable {
             self.pricedRequestCount = try container.decodeIfPresent(Int.self, forKey: .pricedRequestCount)
             self.unmeteredRequestCount = try container.decodeIfPresent(Int.self, forKey: .unmeteredRequestCount)
             self.estimatedRequestCount = try container.decodeIfPresent(Int.self, forKey: .estimatedRequestCount)
+            self.aggregateIncompleteRequestCount = try container.decodeIfPresent(
+                Int.self,
+                forKey: .incompleteRequestCount)
         }
 
         public init(
@@ -724,7 +724,8 @@ public struct CostUsageDailyReport: Sendable, Codable {
             unpricedRequestCount: Int? = nil,
             unmeteredRequestCount: Int? = nil,
             estimatedRequestCount: Int? = nil,
-            pricedRequestCount: Int? = nil)
+            pricedRequestCount: Int? = nil,
+            incompleteRequestCount: Int? = nil)
         {
             self.date = date
             self.inputTokens = inputTokens
@@ -741,6 +742,7 @@ public struct CostUsageDailyReport: Sendable, Codable {
             self.unmeteredRequestCount = unmeteredRequestCount
             self.estimatedRequestCount = estimatedRequestCount
             self.pricedRequestCount = pricedRequestCount
+            self.aggregateIncompleteRequestCount = incompleteRequestCount
         }
 
         public func encode(to encoder: Encoder) throws {
@@ -760,6 +762,7 @@ public struct CostUsageDailyReport: Sendable, Codable {
             try container.encodeIfPresent(self.pricedRequestCount, forKey: .pricedRequestCount)
             try container.encodeIfPresent(self.unmeteredRequestCount, forKey: .unmeteredRequestCount)
             try container.encodeIfPresent(self.estimatedRequestCount, forKey: .estimatedRequestCount)
+            try container.encodeIfPresent(self.aggregateIncompleteRequestCount, forKey: .incompleteRequestCount)
         }
 
         private static func decodeModelsUsed(from container: KeyedDecodingContainer<CodingKeys>) -> [String]? {

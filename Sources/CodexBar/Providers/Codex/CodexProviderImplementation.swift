@@ -259,6 +259,7 @@ struct CodexProviderImplementation: ProviderImplementation {
 
     @MainActor
     func appendActionMenuEntries(context: ProviderMenuActionContext, entries: inout [ProviderMenuEntry]) {
+        entries.append(.action(L("SSH Cost Report…"), .openCodexSSHCostReport))
         if context.codexWorkspacesMenuEnabled {
             entries.append(.action(L("Workspaces"), .openCodexWorkspaces))
         }
