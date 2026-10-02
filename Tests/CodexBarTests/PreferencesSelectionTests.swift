@@ -11,6 +11,7 @@ struct PreferencesSelectionTests {
             .general,
             .iCloudSync,
             .usageSpend,
+            .storage,
             .notifications,
             .menuBar,
             .menu,

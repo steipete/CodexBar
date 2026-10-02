@@ -1632,3 +1632,8 @@
 "antigravity_cost_estimate_hint" = "Uso local × precios públicos de API · no son cargos ni créditos de Antigravity";
 "antigravity_quota_window_note" = "El coste de la ventana incluye todos los modelos · la ventana mostrada es la familia más limitada";
 "antigravity_no_priced_token_history" = "No hay historial de tokens de Antigravity con precio disponible.";
+"Manage Storage in Settings…" = "Gestionar almacenamiento en Ajustes…";
+"storage_scan_title" = "Analizar almacenamiento de proveedores";
+"storage_scan_subtitle" = "Mide cuánto espacio en disco usan los datos locales de cada proveedor. Se ejecuta en segundo plano.";
+"storage_show_in_menu_title" = "Mostrar almacenamiento en el menú";
+"storage_show_in_menu_subtitle" = "Añade una fila de almacenamiento con el desglose al menú de cada proveedor.";

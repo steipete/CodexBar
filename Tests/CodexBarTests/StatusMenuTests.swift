@@ -1076,6 +1076,7 @@ extension StatusMenuTests {
         let settings = self.makeSettings()
         settings.statusChecksEnabled = false
         settings.refreshFrequency = .manual
+        settings.providerStorageScanEnabled = true
         settings.providerStorageFootprintsEnabled = true
 
         let fetcher = UsageFetcher()

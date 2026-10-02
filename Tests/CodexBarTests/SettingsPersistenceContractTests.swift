@@ -85,3 +85,44 @@ struct SettingsPersistenceContractTests {
         #expect(defaults.object(forKey: "quotaWarningWeeklyEnabled") as? Bool == true)
     }
 }
+
+@MainActor
+struct ProviderStorageScanUpgradeTests {
+    @Test
+    func `fresh install keeps storage scanning off`() {
+        let defaults = InMemoryUserDefaults(values: [:])
+        let settings = testSettingsStore(suiteName: #function, userDefaults: defaults)
+        #expect(!settings.providerStorageScanEnabled)
+        #expect(!settings.providerStorageFootprintsEnabled)
+        #expect(defaults.object(forKey: "providerStorageScanEnabled") as? Bool == false)
+    }
+
+    @Test
+    func `upgraded install that never opted in keeps scanning off`() {
+        let defaults = InMemoryUserDefaults(values: ["providerDetectionCompleted": true])
+        let settings = testSettingsStore(suiteName: #function, userDefaults: defaults)
+        #expect(!settings.providerStorageScanEnabled)
+        #expect(defaults.object(forKey: "providerStorageScanEnabled") as? Bool == false)
+    }
+
+    @Test
+    func `upgraded install that opted in keeps scanning and the menu row`() {
+        let defaults = InMemoryUserDefaults(values: [
+            "providerDetectionCompleted": true,
+            "providerStorageFootprintsEnabled": true,
+        ])
+        let settings = testSettingsStore(suiteName: #function, userDefaults: defaults)
+        #expect(settings.providerStorageScanEnabled)
+        #expect(settings.providerStorageFootprintsEnabled)
+    }
+
+    @Test
+    func `stored scan choice wins over the upgrade fallback`() {
+        let defaults = InMemoryUserDefaults(values: [
+            "providerDetectionCompleted": true,
+            "providerStorageScanEnabled": true,
+        ])
+        let settings = testSettingsStore(suiteName: #function, userDefaults: defaults)
+        #expect(settings.providerStorageScanEnabled)
+    }
+}

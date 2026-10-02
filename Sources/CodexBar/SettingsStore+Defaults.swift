@@ -811,6 +811,20 @@ extension SettingsStore {
         self.openAIWebBatterySaverEnabled || self.backgroundWorkLowPowerModeEnabled
     }
 
+    /// Scans provider-owned local data for Settings → Storage. On by default; the menu is opt-in separately.
+    var providerStorageScanEnabled: Bool {
+        get { self.defaultsState.providerStorageScanEnabled }
+        set {
+            self.setDefault(\.providerStorageScanEnabled, newValue, key: "providerStorageScanEnabled")
+            CodexBarLog.logger(LogCategories.settings).info(
+                "Provider storage scan updated",
+                metadata: ["enabled": newValue ? "1" : "0"])
+            self.noteBackgroundWorkSettingsChanged()
+        }
+    }
+
+    /// The saved menu-row preference. Keeps its historical key, so earlier opt-ins carry over. It is never
+    /// rewritten when scanning is toggled; menu visibility is gated on both settings instead.
     var providerStorageFootprintsEnabled: Bool {
         get { self.defaultsState.providerStorageFootprintsEnabled }
         set {

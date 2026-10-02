@@ -1634,3 +1634,8 @@
 "antigravity_cost_estimate_hint" = "ローカル使用量 × 公開API価格 · Antigravity の請求やクレジットではありません";
 "antigravity_quota_window_note" = "ウィンドウの費用は全モデルを含みます · 表示中のウィンドウは最も制限の厳しいファミリーです";
 "antigravity_no_priced_token_history" = "価格付きの Antigravity トークン履歴がありません。";
+"Manage Storage in Settings…" = "設定でストレージを管理…";
+"storage_scan_title" = "プロバイダのストレージをスキャン";
+"storage_scan_subtitle" = "各プロバイダのローカルデータが使用しているディスク容量を測定します。バックグラウンドで実行されます。";
+"storage_show_in_menu_title" = "メニューにストレージを表示";
+"storage_show_in_menu_subtitle" = "各プロバイダのメニューに内訳付きのストレージ行を追加します。";

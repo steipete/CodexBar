@@ -338,7 +338,7 @@ extension StatusItemController {
     }
 
     private func storageBreakdownRenderSignature(for provider: UsageProvider) -> String {
-        guard let footprint = self.store.storageFootprint(for: provider) else { return "none" }
+        guard let footprint = self.store.menuStorageFootprint(for: provider) else { return "none" }
         let components = footprint.components
             .map { "\($0.path)=\($0.totalBytes)" }
             .joined(separator: ";")
@@ -473,7 +473,7 @@ extension StatusItemController {
         width: CGFloat)
         -> Bool
     {
-        guard let footprint = self.store.storageFootprint(for: provider),
+        guard let footprint = self.store.menuStorageFootprint(for: provider),
               !footprint.components.isEmpty
         else { return false }
 
@@ -512,6 +512,14 @@ extension StatusItemController {
         item.representedObject = Self.storageBreakdownID
         item.toolTip = provider.rawValue
         submenu.addItem(item)
+        submenu.addItem(.separator())
+        let manageItem = NSMenuItem(
+            title: L("Manage Storage in Settings…"),
+            action: #selector(self.showStorageSettings),
+            keyEquivalent: "")
+        manageItem.target = self
+        manageItem.isEnabled = true
+        submenu.addItem(manageItem)
         return true
     }
 

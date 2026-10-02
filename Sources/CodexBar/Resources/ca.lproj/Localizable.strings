@@ -1636,3 +1636,8 @@
 "antigravity_cost_estimate_hint" = "Ús local × preus públics de l'API · no són càrrecs ni crèdits d'Antigravity";
 "antigravity_quota_window_note" = "El cost de la finestra inclou tots els models · la finestra mostrada és la família més limitada";
 "antigravity_no_priced_token_history" = "No hi ha historial de tokens d'Antigravity amb preu disponible.";
+"Manage Storage in Settings…" = "Gestiona l’emmagatzematge a Configuració…";
+"storage_scan_title" = "Analitza l’emmagatzematge dels proveïdors";
+"storage_scan_subtitle" = "Mesura quant espai de disc fan servir les dades locals de cada proveïdor. S’executa en segon pla.";
+"storage_show_in_menu_title" = "Mostra l’emmagatzematge al menú";
+"storage_show_in_menu_subtitle" = "Afegeix una fila d’emmagatzematge amb el desglossament al menú de cada proveïdor.";

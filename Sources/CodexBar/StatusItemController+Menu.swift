@@ -141,7 +141,7 @@ extension StatusItemController {
         if self.isMenuRefreshEnabled, (provider?.instanceID ?? self.lastMenuProvider) == .codex {
             self.deferOpenAIDashboardRefreshUntilMenuCloses(reason: "parent menu open")
         }
-        if self.settings.providerStorageFootprintsEnabled {
+        if self.settings.providerStorageScanEnabled, self.settings.providerStorageFootprintsEnabled {
             self.store.refreshStorageFootprintsForOverview()
         }
 
@@ -1596,7 +1596,7 @@ extension StatusItemController {
     }
 
     func makeStorageBreakdownSubmenu(provider: UsageProvider, width: CGFloat? = nil) -> NSMenu? {
-        guard self.store.storageFootprint(for: provider)?.components.isEmpty == false else { return nil }
+        guard self.store.menuStorageFootprint(for: provider)?.components.isEmpty == false else { return nil }
         if let width {
             return self.makeHostedSubviewPlaceholderMenu(
                 chartID: Self.storageBreakdownID,

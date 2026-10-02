@@ -343,6 +343,7 @@ struct ProviderStorageFootprintTests {
             settings: settings,
             environmentBase: ["CODEX_HOME": codexHome.path])
         settings.providerStorageFootprintsEnabled = true
+        settings.providerStorageScanEnabled = true
         settings.backgroundWorkLowPowerModePreference = .on
         store.managedCodexAccountsForStorageOverride = []
 
@@ -384,6 +385,7 @@ struct ProviderStorageFootprintTests {
             settings: settings,
             environmentBase: ["CODEX_HOME": codexHome.path])
         settings.providerStorageFootprintsEnabled = true
+        settings.providerStorageScanEnabled = true
         store.managedCodexAccountsForStorageOverride = []
 
         await store.refreshStorageFootprintsNow(for: [.codex])
@@ -407,7 +409,42 @@ struct ProviderStorageFootprintTests {
 
     @Test
     @MainActor
-    func `storage refresh is opt in and clears stale footprints when disabled`() async throws {
+    func `providers without storage paths are untracked and settle after a refresh`() async throws {
+        let home = try Self.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: home) }
+        let codexHome = home.appendingPathComponent(".codex", isDirectory: true)
+        try FileManager.default.createDirectory(at: codexHome, withIntermediateDirectories: true)
+        try Data(repeating: 1, count: 16).write(to: codexHome.appendingPathComponent("session.jsonl"))
+
+        let suite = "ProviderStorageFootprintTests-untracked-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        let settings = SettingsStore(
+            userDefaults: defaults,
+            configStore: testConfigStore(suiteName: suite),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        let store = UsageStore(
+            fetcher: UsageFetcher(),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            environmentBase: ["CODEX_HOME": codexHome.path])
+        store.managedCodexAccountsForStorageOverride = []
+        settings.providerStorageScanEnabled = true
+
+        // The catalog has no paths for z.ai, so it is never scanned and must not be presented as pending.
+        #expect(store.isStorageTracked(for: .codex))
+        #expect(!store.isStorageTracked(for: .zai))
+
+        await store.refreshStorageFootprintsNow(for: [.codex, .zai])
+        #expect(!store.isStorageRefreshInFlight)
+        #expect(store.storageFootprint(for: .codex)?.totalBytes == 16)
+        #expect(store.storageFootprint(for: .zai) == nil)
+    }
+
+    @Test
+    @MainActor
+    func `storage scan is off by default, menu row is opt in, and scan off-on keeps the menu choice`() async throws {
         let home = try Self.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: home) }
 
@@ -433,17 +470,30 @@ struct ProviderStorageFootprintTests {
             environmentBase: ["CODEX_HOME": codexHome.path])
         store.managedCodexAccountsForStorageOverride = []
 
-        await store.refreshStorageFootprintsForOverviewNow()
-        #expect(store.storageFootprint(for: .codex) == nil)
-
-        settings.providerStorageFootprintsEnabled = true
+        // Scanning is off by default; once enabled it feeds Settings while the menu row stays opt-in.
+        #expect(!settings.providerStorageScanEnabled)
+        #expect(!settings.providerStorageFootprintsEnabled)
+        settings.providerStorageScanEnabled = true
         await store.refreshStorageFootprintsForOverviewNow()
         #expect(store.storageFootprint(for: .codex)?.totalBytes == 16)
+        #expect(store.menuStorageFootprint(for: .codex) == nil)
 
-        settings.providerStorageFootprintsEnabled = false
+        settings.providerStorageFootprintsEnabled = true
+        #expect(store.menuStorageFootprint(for: .codex)?.totalBytes == 16)
+
+        // Turning scanning off clears results and hides the menu row without overwriting the saved preference.
+        settings.providerStorageScanEnabled = false
         await store.refreshStorageFootprintsForOverviewNow()
+        #expect(settings.providerStorageFootprintsEnabled)
+        #expect(defaults.object(forKey: "providerStorageFootprintsEnabled") as? Bool == true)
         #expect(store.storageFootprint(for: .codex) == nil)
+        #expect(store.menuStorageFootprint(for: .codex) == nil)
         #expect(store.providerStorageFootprints.isEmpty)
+
+        // Turning scanning back on restores the previous menu choice.
+        settings.providerStorageScanEnabled = true
+        await store.refreshStorageFootprintsForOverviewNow()
+        #expect(store.menuStorageFootprint(for: .codex)?.totalBytes == 16)
     }
 
     @Test
@@ -469,6 +519,7 @@ struct ProviderStorageFootprintTests {
             settings: settings,
             environmentBase: ["CODEX_HOME": codexHome.path])
         settings.providerStorageFootprintsEnabled = true
+        settings.providerStorageScanEnabled = true
         store.storageRefreshGeneration = 41
         store.storageRefreshInFlightSignature = "codex=\(codexHome.path)"
         store.storageRefreshTask = Task.detached {
@@ -517,6 +568,7 @@ struct ProviderStorageFootprintTests {
             settings: settings,
             environmentBase: ["CODEX_HOME": ambientHome.path])
         settings.providerStorageFootprintsEnabled = true
+        settings.providerStorageScanEnabled = true
         store.managedCodexAccountsForStorageOverride = [
             Self.managedCodexAccount(homePath: firstManagedHome.path),
         ]

@@ -592,6 +592,10 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
         self.openSettings(pane: .provider(provider.instanceID))
     }
 
+    @objc func showStorageSettings() {
+        self.openSettings(pane: .storage)
+    }
+
     @objc func showSettingsAbout() {
         self.openSettings(pane: .about)
     }

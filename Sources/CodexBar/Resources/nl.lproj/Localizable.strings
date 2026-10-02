@@ -1633,3 +1633,8 @@
 "antigravity_cost_estimate_hint" = "Lokaal gebruik × publieke API-prijzen · geen Antigravity-kosten of -tegoeden";
 "antigravity_quota_window_note" = "Vensterkosten omvatten alle modellen · getoond venster is de meest beperkte familie";
 "antigravity_no_priced_token_history" = "Geen geprijsde Antigravity-tokengeschiedenis beschikbaar.";
+"Manage Storage in Settings…" = "Beheer opslag in Instellingen…";
+"storage_scan_title" = "Opslag van aanbieders scannen";
+"storage_scan_subtitle" = "Meet hoeveel schijfruimte de lokale gegevens van elke aanbieder gebruiken. Draait op de achtergrond.";
+"storage_show_in_menu_title" = "Opslag in menu tonen";
+"storage_show_in_menu_subtitle" = "Voegt een opslagrij met uitsplitsing toe aan het menu van elke aanbieder.";

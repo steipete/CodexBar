@@ -1638,3 +1638,8 @@
 "antigravity_cost_estimate_hint" = "مصرف محلی × قیمت‌های عمومی API · هزینه یا اعتبار Antigravity نیست";
 "antigravity_quota_window_note" = "هزینهٔ بازه همهٔ مدل‌ها را دربر می‌گیرد · بازهٔ نمایش‌داده‌شده محدودترین خانواده است";
 "antigravity_no_priced_token_history" = "تاریخچهٔ قیمت‌گذاری‌شدهٔ توکن Antigravity موجود نیست.";
+"Manage Storage in Settings…" = "مدیریت فضای ذخیره‌سازی در تنظیمات…";
+"storage_scan_title" = "اسکن فضای ذخیره‌سازی ارائه‌دهندگان";
+"storage_scan_subtitle" = "میزان فضای دیسکی را که داده‌های محلی هر ارائه‌دهنده اشغال می‌کند اندازه می‌گیرد. در پس‌زمینه اجرا می‌شود.";
+"storage_show_in_menu_title" = "نمایش فضای ذخیره‌سازی در منو";
+"storage_show_in_menu_subtitle" = "یک ردیف فضای ذخیره‌سازی با جزئیات به منوی هر ارائه‌دهنده اضافه می‌کند.";

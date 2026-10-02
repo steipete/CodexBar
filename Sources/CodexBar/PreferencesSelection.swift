@@ -9,6 +9,7 @@ extension SettingsPane {
         case .general: "general"
         case .iCloudSync: "iCloudSync"
         case .usageSpend: "usageSpend"
+        case .storage: "storage"
         case .notifications: "notifications"
         case .menuBar: "menuBar"
         case .menu: "menu"
@@ -26,6 +27,7 @@ extension SettingsPane {
         case "general": self = .general
         case "iCloudSync": self = .iCloudSync
         case "usageSpend": self = .usageSpend
+        case "storage": self = .storage
         case "notifications": self = .notifications
         case "menuBar": self = .menuBar
         // Pre-0.41.1 releases persisted the retired Display pane; its contents moved to Menu Bar.

@@ -134,6 +134,7 @@ struct StatusMenuNativeSectionSpacingTests {
         settings.selectedMenuProvider = .codex
         settings.costUsageEnabled = true
         settings.costSummaryDisplayStyle = .both
+        settings.providerStorageScanEnabled = true
         settings.providerStorageFootprintsEnabled = true
         self.enableOnly(.codex, settings: settings)
 

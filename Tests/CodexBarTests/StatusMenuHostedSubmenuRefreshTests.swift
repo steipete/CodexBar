@@ -116,6 +116,7 @@ struct StatusMenuHostedSubmenuRefreshTests {
     @Test
     func `storage native row preserves its plain menu title`() throws {
         let settings = Self.makeSettings()
+        settings.providerStorageScanEnabled = true
         settings.providerStorageFootprintsEnabled = true
         let fetcher = UsageFetcher()
         let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
@@ -444,6 +445,7 @@ struct StatusMenuHostedSubmenuRefreshTests {
         settings.statusChecksEnabled = false
         settings.refreshFrequency = .manual
         settings.costUsageEnabled = true
+        settings.providerStorageScanEnabled = true
         settings.providerStorageFootprintsEnabled = true
         Self.enableOnly(settings, provider: provider)
 
@@ -492,6 +494,7 @@ struct StatusMenuHostedSubmenuRefreshTests {
         settings.mergeIcons = true
         settings.selectedMenuProvider = provider.instanceID
         settings.costUsageEnabled = true
+        settings.providerStorageScanEnabled = true
         settings.providerStorageFootprintsEnabled = true
         Self.enableOnly(settings, provider: provider)
 

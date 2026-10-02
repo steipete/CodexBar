@@ -7,6 +7,9 @@ struct StorageBreakdownMenuView: View {
     let width: CGFloat
     let maxHeight: CGFloat
     let onExpansionHeightChange: ((CGFloat) -> Void)?
+    /// Settings renders the breakdown inside a grouped Form row: no scroll wrapper, fixed width, padding,
+    /// or title block, since the row and its provider section header (name + total) supply those.
+    let embedded: Bool
 
     @State private var otherExpanded = false
 
@@ -14,12 +17,14 @@ struct StorageBreakdownMenuView: View {
         footprint: ProviderStorageFootprint,
         width: CGFloat,
         maxHeight: CGFloat = 560,
-        onExpansionHeightChange: ((CGFloat) -> Void)? = nil)
+        onExpansionHeightChange: ((CGFloat) -> Void)? = nil,
+        embedded: Bool = false)
     {
         self.footprint = footprint
         self.width = width
         self.maxHeight = maxHeight
         self.onExpansionHeightChange = onExpansionHeightChange
+        self.embedded = embedded
     }
 
     /// One entry in the segmented bar and its matching legend row. Overflow components past the row
@@ -35,7 +40,7 @@ struct StorageBreakdownMenuView: View {
     /// How many legend rows we let the breakdown show before collapsing the tail into "Other".
     private static let maxRows = 8
 
-    private static let segmentPalette: [Color] = [
+    static let segmentPalette: [Color] = [
         Color(red: 0.20, green: 0.51, blue: 0.96),
         Color(red: 0.96, green: 0.55, blue: 0.20),
         Color(red: 0.30, green: 0.78, blue: 0.47),
@@ -119,27 +124,39 @@ struct StorageBreakdownMenuView: View {
     }
 
     var body: some View {
-        ScrollView(.vertical) {
+        if self.embedded {
             self.content
+                .frame(maxWidth: .infinity, alignment: .leading)
+        } else {
+            ScrollView(.vertical) {
+                self.content
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .frame(width: self.width, alignment: .leading)
+            }
+            .scrollIndicators(.visible)
+            .frame(
+                minWidth: self.width,
+                idealWidth: self.width,
+                maxWidth: self.width,
+                maxHeight: self.maxHeight,
+                alignment: .topLeading)
         }
-        .scrollIndicators(.visible)
-        .frame(
-            minWidth: self.width,
-            idealWidth: self.width,
-            maxWidth: self.width,
-            maxHeight: self.maxHeight,
-            alignment: .topLeading)
     }
 
     private var content: some View {
         VStack(alignment: .leading, spacing: 10) {
-            VStack(alignment: .leading, spacing: 3) {
-                Text(L("Storage"))
-                    .font(.body)
-                    .fontWeight(.medium)
-                Text(String(format: L("Total: %@"), UsageFormatter.byteCountStringLong(self.footprint.totalBytes)))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+            if !self.embedded {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(L("Storage"))
+                        .font(.body)
+                        .fontWeight(.medium)
+                    Text(String(
+                        format: L("Total: %@"),
+                        UsageFormatter.byteCountStringLong(self.footprint.totalBytes)))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
 
             if self.segments.isEmpty {
@@ -173,40 +190,34 @@ struct StorageBreakdownMenuView: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
-        .frame(width: self.width, alignment: .leading)
     }
 
     private var segmentedBar: some View {
-        GeometryReader { proxy in
-            ZStack(alignment: .leading) {
-                Capsule()
-                    .fill(Color(nsColor: .quaternaryLabelColor))
-                HStack(spacing: 0) {
-                    ForEach(self.segments) { segment in
-                        Rectangle()
-                            .fill(segment.color)
-                            .frame(width: self.segmentWidth(segment, barWidth: proxy.size.width))
-                    }
-                }
-            }
-            .clipShape(Capsule())
-        }
-        .frame(height: 5)
+        StorageSegmentBar(
+            slices: self.segments.map { .init(id: $0.id, name: $0.name, bytes: $0.bytes, color: $0.color) },
+            height: self.embedded ? StorageSegmentBar.embeddedHeight : 5)
     }
 
     /// Each segment gets at least `minWidth` so tiny components stay visible, with the remaining width
     /// shared by byte proportion. Reserving the minimums (rather than flooring each width with `max`)
     /// keeps the segments summing to exactly `barWidth`, so none get clipped off the capsule's end.
     private func segmentWidth(_ segment: Segment, barWidth: CGFloat) -> CGFloat {
+        Self.segmentWidth(
+            bytes: segment.bytes,
+            totalBytes: self.segmentTotalBytes,
+            count: self.segments.count,
+            barWidth: barWidth)
+    }
+
+    /// Shared with the Settings total bar so both bars size segments identically.
+    static func segmentWidth(bytes: Int64, totalBytes: Double, count: Int, barWidth: CGFloat) -> CGFloat {
         let minWidth: CGFloat = 2
-        let count = CGFloat(self.segments.count)
-        guard self.segmentTotalBytes > 0 else { return barWidth / max(count, 1) }
+        let count = CGFloat(count)
+        guard totalBytes > 0 else { return barWidth / max(count, 1) }
         let reserved = minWidth * count
         guard barWidth > reserved else { return barWidth / max(count, 1) }
         let remainder = barWidth - reserved
-        let proportion = CGFloat(Double(segment.bytes) / self.segmentTotalBytes)
+        let proportion = CGFloat(Double(bytes) / totalBytes)
         return minWidth + remainder * proportion
     }
 
@@ -310,6 +321,83 @@ struct StorageBreakdownMenuView: View {
                 .lineLimit(3)
                 .fixedSize(horizontal: false, vertical: true)
         }
+    }
+}
+
+/// The capsule bar shared by the per-provider breakdown and Settings' all-providers total, so both render alike.
+struct StorageSegmentBar: View {
+    struct Slice: Identifiable {
+        let id: String
+        let name: String
+        let bytes: Int64
+        let color: Color
+    }
+
+    static let embeddedHeight: CGFloat = 8
+
+    let slices: [Slice]
+    let height: CGFloat
+
+    @State private var hoveredID: String?
+
+    var body: some View {
+        let totalBytes = self.slices.reduce(0) { $0 + Double($1.bytes) }
+        GeometryReader { proxy in
+            ZStack(alignment: .leading) {
+                Capsule()
+                    .fill(Color(nsColor: .quaternaryLabelColor))
+                HStack(spacing: 0) {
+                    ForEach(self.slices) { slice in
+                        Rectangle()
+                            .fill(slice.color)
+                            .frame(width: StorageBreakdownMenuView.segmentWidth(
+                                bytes: slice.bytes,
+                                totalBytes: totalBytes,
+                                count: self.slices.count,
+                                barWidth: proxy.size.width))
+                            .contentShape(Rectangle())
+                            .onHover { inside in
+                                if inside {
+                                    self.hoveredID = slice.id
+                                } else if self.hoveredID == slice.id {
+                                    self.hoveredID = nil
+                                }
+                            }
+                            // A popover is its own window, so it is never clipped by the menu or Form row,
+                            // and AppKit centers it on the hovered segment.
+                            .popover(isPresented: self.isHovered(slice.id), arrowEdge: .top) {
+                                StorageSegmentHoverCard(slice: slice)
+                            }
+                    }
+                }
+            }
+            .clipShape(Capsule())
+        }
+        .frame(height: self.height)
+    }
+
+    private func isHovered(_ id: String) -> Binding<Bool> {
+        Binding(
+            get: { self.hoveredID == id },
+            set: { if !$0, self.hoveredID == id { self.hoveredID = nil } })
+    }
+}
+
+private struct StorageSegmentHoverCard: View {
+    let slice: StorageSegmentBar.Slice
+
+    var body: some View {
+        VStack(alignment: .center, spacing: 2) {
+            Text(self.slice.name)
+                .font(.caption.weight(.semibold))
+                .lineLimit(1)
+            Text(UsageFormatter.byteCountString(self.slice.bytes))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .monospacedDigit()
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
     }
 }
 

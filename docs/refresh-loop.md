@@ -19,7 +19,8 @@ read_when:
 - Background refresh runs off-main and updates `UsageStore` (usage + credits + optional web scrape).
 - Manual “Refresh now” always available in the menu.
 - Stale/error states dim the icon and surface status in-menu.
-- Optional provider-storage scans run only when “Show provider storage usage” is enabled. They are scheduled in the
+- Provider-storage scans run only when Settings → Storage → “Scan provider storage” is on (default off; upgraded
+  installs inherit their previous “Show provider storage usage” opt-in). They are scheduled in the
   background, coalesced/throttled during automatic refreshes, and forced by manual refresh without blocking the usage
   refresh path.
 - Transient Codex OAuth transport failures preserve prior usage and widget entries for the same account, including

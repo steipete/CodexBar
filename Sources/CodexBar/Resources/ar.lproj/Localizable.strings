@@ -1638,3 +1638,8 @@
 "antigravity_cost_estimate_hint" = "الاستخدام المحلي × أسعار واجهة البرمجة العامة · ليست رسوم أو أرصدة Antigravity";
 "antigravity_quota_window_note" = "تكلفة النافذة تشمل كل النماذج · النافذة المعروضة هي الفئة الأكثر تقييدًا";
 "antigravity_no_priced_token_history" = "لا يتوفر سجل رموز Antigravity مُسعّر.";
+"Manage Storage in Settings…" = "إدارة التخزين في الإعدادات…";
+"storage_scan_title" = "فحص تخزين المزوّدين";
+"storage_scan_subtitle" = "يقيس مساحة القرص التي تستخدمها البيانات المحلية لكل مزوّد. يعمل في الخلفية.";
+"storage_show_in_menu_title" = "إظهار التخزين في القائمة";
+"storage_show_in_menu_subtitle" = "يضيف صف التخزين مع التفاصيل إلى قائمة كل مزوّد.";

@@ -1649,3 +1649,8 @@
 "antigravity_cost_estimate_hint" = "本地用量 × 公开 API 价格 · 并非 Antigravity 账单或额度";
 "antigravity_quota_window_note" = "窗口费用涵盖所有模型 · 所示窗口为最受限的模型系列";
 "antigravity_no_priced_token_history" = "没有可计价的 Antigravity 令牌历史记录。";
+"Manage Storage in Settings…" = "在设置中管理存储空间…";
+"storage_scan_title" = "扫描提供商存储空间";
+"storage_scan_subtitle" = "测量每个提供商的本地数据占用的磁盘空间。在后台运行。";
+"storage_show_in_menu_title" = "在菜单中显示存储空间";
+"storage_show_in_menu_subtitle" = "在每个提供商的菜单中添加带明细的存储空间行。";

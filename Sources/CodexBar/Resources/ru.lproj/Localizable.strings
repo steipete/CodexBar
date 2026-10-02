@@ -1635,3 +1635,8 @@
 "antigravity_cost_estimate_hint" = "Локальное использование × публичные цены API · это не счета и не кредиты Antigravity";
 "antigravity_quota_window_note" = "Стоимость окна включает все модели · показано окно самого ограниченного семейства";
 "antigravity_no_priced_token_history" = "Нет оценённой истории токенов Antigravity.";
+"Manage Storage in Settings…" = "Управлять хранилищем в Настройках…";
+"storage_scan_title" = "Сканировать хранилище провайдеров";
+"storage_scan_subtitle" = "Измеряет, сколько места на диске занимают локальные данные каждого провайдера. Работает в фоне.";
+"storage_show_in_menu_title" = "Показывать хранилище в меню";
+"storage_show_in_menu_subtitle" = "Добавляет строку «Хранилище» с разбивкой в меню каждого провайдера.";

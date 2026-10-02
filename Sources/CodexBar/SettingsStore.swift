@@ -499,6 +499,7 @@ extension SettingsStore {
         let refreshFrequency = Self.loadRefreshFrequency(
             userDefaults: userDefaults,
             hadPreviousInstallationState: hadPreviousInstallationState)
+        let providerStorageScanEnabled = Self.loadProviderStorageScanEnabled(userDefaults: userDefaults)
         let adaptiveActivityScanConsent = Self.loadAdaptiveActivityScanConsent(userDefaults: userDefaults)
         let debugDisableKeychainAccess = Self.loadDebugDisableKeychainAccess(userDefaults: userDefaults)
         let debugLogLevelRaw = userDefaults.string(forKey: "debugLogLevel") ?? CodexBarLog.Level.verbose.rawValue
@@ -648,6 +649,7 @@ extension SettingsStore {
                 fallback: false,
                 from: userDefaults),
             backgroundWorkLowPowerModePreference: backgroundWorkLowPowerModePreference,
+            providerStorageScanEnabled: providerStorageScanEnabled,
             providerStorageFootprintsEnabled: Self.loadBoolDefault(
                 "providerStorageFootprintsEnabled",
                 fallback: false,
@@ -705,6 +707,18 @@ extension SettingsStore {
         let frequency: RefreshFrequency = rawValue == nil && !hadPreviousInstallationState ? .adaptive : .fiveMinutes
         userDefaults.set(frequency.rawValue, forKey: "refreshFrequency")
         return frequency
+    }
+
+    private static func loadProviderStorageScanEnabled(userDefaults: UserDefaults) -> Bool {
+        if let stored = userDefaults.object(forKey: "providerStorageScanEnabled") as? Bool {
+            return stored
+        }
+
+        // Scanning stays opt-in. It used to be gated by the `providerStorageFootprintsEnabled` toggle, so an
+        // existing opt-in carries over; everyone else, including fresh installs, starts with scanning off.
+        let enabled = userDefaults.object(forKey: "providerStorageFootprintsEnabled") as? Bool ?? false
+        userDefaults.set(enabled, forKey: "providerStorageScanEnabled")
+        return enabled
     }
 
     private static func loadLowPowerModePreference(userDefaults: UserDefaults) -> LowPowerModePreference {

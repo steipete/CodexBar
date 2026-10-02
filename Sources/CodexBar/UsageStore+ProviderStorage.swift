@@ -20,12 +20,24 @@ extension UsageStore {
     }
 
     func storageFootprint(for provider: UsageProvider) -> ProviderStorageFootprint? {
-        guard self.settings.providerStorageFootprintsEnabled else { return nil }
+        guard self.settings.providerStorageScanEnabled else { return nil }
         return self.providerStorageFootprints[provider.instanceID]
     }
 
+    /// Menu surfaces additionally require the opt-in "show in menu" setting.
+    func menuStorageFootprint(for provider: UsageProvider) -> ProviderStorageFootprint? {
+        guard self.settings.providerStorageFootprintsEnabled else { return nil }
+        return self.storageFootprint(for: provider)
+    }
+
+    /// Whether CodexBar knows any local storage paths for `provider`. Providers without catalog paths are never
+    /// scanned, so they never get a footprint and must not be shown as pending.
+    func isStorageTracked(for provider: UsageProvider) -> Bool {
+        !ProviderStoragePathCatalog.candidatePaths(for: provider, environment: self.environmentBase).isEmpty
+    }
+
     func storageFootprintText(for provider: UsageProvider) -> String? {
-        guard let footprint = self.storageFootprint(for: provider) else { return nil }
+        guard let footprint = self.menuStorageFootprint(for: provider) else { return nil }
         if footprint.hasLocalData {
             return UsageFormatter.byteCountString(footprint.totalBytes)
         }
@@ -45,7 +57,7 @@ extension UsageStore {
     }
 
     func refreshStorageFootprintsNow(for providers: [UsageProvider]) async {
-        guard self.settings.providerStorageFootprintsEnabled else {
+        guard self.settings.providerStorageScanEnabled else {
             self.clearStorageFootprints()
             return
         }
@@ -84,7 +96,7 @@ extension UsageStore {
     }
 
     func scheduleStorageFootprintRefresh(for providers: [UsageProvider], force: Bool = false) {
-        guard self.settings.providerStorageFootprintsEnabled else {
+        guard self.settings.providerStorageScanEnabled else {
             self.clearStorageFootprints()
             return
         }

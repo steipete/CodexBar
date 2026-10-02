@@ -1665,3 +1665,8 @@
 "antigravity_cost_estimate_hint" = "本機用量 × 公開 API 價格 · 並非 Antigravity 帳單或額度";
 "antigravity_quota_window_note" = "視窗費用涵蓋所有模型 · 所示視窗為最受限的模型系列";
 "antigravity_no_priced_token_history" = "沒有可計價的 Antigravity 權杖歷史記錄。";
+"Manage Storage in Settings…" = "在設定中管理儲存空間…";
+"storage_scan_title" = "掃描供應商儲存空間";
+"storage_scan_subtitle" = "測量每個供應商的本機資料所使用的磁碟空間。在背景執行。";
+"storage_show_in_menu_title" = "在選單中顯示儲存空間";
+"storage_show_in_menu_subtitle" = "在每個供應商的選單中加入含明細的儲存空間列。";

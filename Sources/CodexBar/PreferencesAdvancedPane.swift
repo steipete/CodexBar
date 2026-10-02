@@ -52,12 +52,6 @@ struct AdvancedPane: View {
             }
 
             Section {
-                Toggle(isOn: self.$settings.providerStorageFootprintsEnabled) {
-                    SettingsRowLabel(
-                        L("show_provider_storage_usage_title"),
-                        subtitle: L("show_provider_storage_usage_subtitle"))
-                }
-
                 Toggle(isOn: self.$settings.debugMenuEnabled) {
                     SettingsRowLabel(L("show_debug_settings_title"), subtitle: L("show_debug_settings_subtitle"))
                 }
