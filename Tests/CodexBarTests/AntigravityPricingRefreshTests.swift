@@ -32,41 +32,36 @@ struct AntigravityPricingRefreshTests {
             try fixture.database(blobs: blobs)
         }
         let gate = AntigravityPricingGate()
-        let task = Task {
-            let snapshot = try await Self.fetch(
-                fixture,
-                client: ModelsDevClient(transport: AntigravityPricingTransport {
-                    await gate.startAndWait()
-                }))
-            await gate.markReturned()
-            return snapshot
-        }
-        let clock = ContinuousClock()
-        let deadline = clock.now.advanced(by: .seconds(2))
-        while await !gate.returned, clock.now < deadline {
-            try await Task.sleep(for: .milliseconds(10))
-        }
-        let returnedBeforeDownload = await gate.returned
+        let client = ModelsDevClient(transport: AntigravityPricingTransport {
+            await gate.startAndWait()
+        })
+        let task = Task { try await Self.fetch(fixture, client: client) }
+        // The transport stays blocked until the local read completes. This join is only a
+        // deadlock watchdog; it releases the fixture even if the foreground path regresses.
+        let outcome = await BoundedTaskJoin(sourceTask: task).value(joinGrace: .seconds(60))
         await gate.release()
         let snapshot = try await task.value
-        #expect(returnedBeforeDownload)
+        guard case .value = outcome else {
+            Issue.record("Local read did not complete while the pricing transport was blocked")
+            return
+        }
         if scenario == "absent" || scenario == "empty" {
             #expect(await gate.requestCount == 0)
             #expect(snapshot.daily.isEmpty)
         } else {
             #expect(snapshot.last30DaysTokens == 187)
             #expect((snapshot.last30DaysCostUSD != nil) == (scenario == "known"))
-            // Drain the detached refresh before its fixture directory is removed.
-            let drainDeadline = clock.now.advanced(by: .seconds(2))
-            while ModelsDevPricingPipeline.lookup(
-                providerID: "google",
-                modelID: "gemini-fixture-priced",
-                now: Fixture.now,
-                cacheRoot: fixture.root.appendingPathComponent("scanner-cache")) == nil,
-                clock.now < drainDeadline
-            {
-                try await Task.sleep(for: .milliseconds(10))
+            let started = Task<Bool, Error> { await gate.waitUntilStarted() }
+            let startOutcome = await BoundedTaskJoin(sourceTask: started).value(joinGrace: .seconds(60))
+            guard case .value(true) = startOutcome else {
+                Issue.record("Local usage did not start its background pricing refresh")
+                return
             }
+            // Join the already-started refresh before removing its cache directory.
+            await ModelsDevPricingPipeline.refreshIfNeeded(
+                now: Fixture.now,
+                cacheRoot: fixture.root.appendingPathComponent("scanner-cache"),
+                client: client)
             #expect(await gate.requestCount == 1)
             #expect(ModelsDevPricingPipeline.lookup(
                 providerID: "google",
@@ -156,18 +151,25 @@ struct AntigravityPricingRefreshTests {
 }
 
 private actor AntigravityPricingGate {
-    private(set) var returned = false
     private(set) var requestCount = 0
+    private let started = AsyncStream<Void>.makeStream()
     private var released = false
     private var waiters: [CheckedContinuation<Void, Never>] = []
 
     func startAndWait() async {
         self.requestCount += 1
+        self.started.continuation.yield(())
+        self.started.continuation.finish()
         guard !self.released else { return }
         await withCheckedContinuation { self.waiters.append($0) }
     }
 
-    func markReturned() { self.returned = true }
+    func waitUntilStarted() async -> Bool {
+        for await _ in self.started.stream {
+            return true
+        }
+        return false
+    }
 
     func release() {
         self.released = true

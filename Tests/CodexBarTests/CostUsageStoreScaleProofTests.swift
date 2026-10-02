@@ -4,13 +4,13 @@ import Testing
 
 /// Corpus-scale probes for the SQLite store foundation (#2760 phase 1). The shapes mirror
 /// the #2637 incident corpora (~1.5k session files, large per-file payloads, 30-day window)
-/// so phase 2/3 performance work has failing/passing gates before the JSON path is deleted.
+/// with SQL work and storage bounds that do not depend on host scheduling or disk latency.
 @Suite(.serialized)
 struct CostUsageStoreScaleProofTests {
     private static let windowDays = 30
 
     @Test
-    func `incident shaped corpus stays fast and bounded`() async throws {
+    func `incident shaped corpus stays within linear work and storage bounds`() async throws {
         let fixture = try ScaleFixture()
         defer { fixture.remove() }
         let store = CostUsageStore(cacheRoot: fixture.root)
@@ -29,6 +29,7 @@ struct CostUsageStoreScaleProofTests {
         }
 
         let bulkStarted = ContinuousClock.now
+        var bulkWork = CostUsageStoreSQLWork()
         for fileIndex in 0..<1500 {
             let age = fileIndex % Self.windowDays
             guard let day = Self.dayString(daysAgo: age, calendar: calendar, reference: reference) else {
@@ -36,17 +37,23 @@ struct CostUsageStoreScaleProofTests {
                 return
             }
             let path = "/rollouts/session-\(fileIndex).jsonl"
-            #expect(await store.upsertFile(Self.file(path: path, day: day, ordinal: fileIndex)))
-            let snapshots = (0..<100).map { eventIndex in
-                Self.snapshot(path: path, eventIndex: eventIndex, day: day)
+            let (_, fileWork) = try await store.measureSQLWork { store in
+                let fileWritten = store.upsertFile(Self.file(path: path, day: day, ordinal: fileIndex))
+                #expect(fileWritten)
+                let snapshots = (0..<100).map { eventIndex in
+                    Self.snapshot(path: path, eventIndex: eventIndex, day: day)
+                }
+                let snapshotsWritten = store.appendTokenSnapshots(snapshots)
+                #expect(snapshotsWritten)
+                // Spread models independently of the day (fileIndex % 30 correlates with % 3).
+                let aggregate = Self.aggregate(day: day, model: "model-\((fileIndex / 30) % 3)")
+                let fileAggregatesWritten = store.replaceFileDayAggregates(path: path, aggregates: [aggregate])
+                #expect(fileAggregatesWritten)
+                let aggregatesWritten = store.mergeDayAggregates([aggregate])
+                #expect(aggregatesWritten)
             }
-            #expect(await store.appendTokenSnapshots(snapshots))
-            // Spread models independently of the day (fileIndex % 30 correlates with % 3).
-            let aggregate = Self.aggregate(day: day, model: "model-\((fileIndex / 30) % 3)")
-            #expect(await store.replaceFileDayAggregates(
-                path: path,
-                aggregates: [aggregate]))
-            #expect(await store.mergeDayAggregates([aggregate]))
+            bulkWork.statements += fileWork.statements
+            bulkWork.virtualMachineSteps += fileWork.virtualMachineSteps
         }
         let bulkElapsed = ContinuousClock.now - bulkStarted
 
@@ -54,19 +61,23 @@ struct CostUsageStoreScaleProofTests {
 
         // A corpus spanning exactly the active window leaves the out-of-window prune no work.
         let pruneStarted = ContinuousClock.now
-        let pruned = await store.retainDayWindow(sinceDay: windowSince, untilDay: windowUntil)
+        let (pruned, pruneWork) = try await store.measureSQLWork {
+            $0.retainDayWindow(sinceDay: windowSince, untilDay: windowUntil)
+        }
         let pruneElapsed = ContinuousClock.now - pruneStarted
         #expect(pruned.deletedFiles == 0)
         #expect(pruned.deletedTokenSnapshots == 0)
         #expect(pruned.deletedDayAggregates == 0)
 
         let reportStarted = ContinuousClock.now
-        let report = await store.readReport(sinceDay: windowSince, untilDay: windowUntil)
+        let (report, reportWork) = try await store.measureSQLWork {
+            $0.readReport(sinceDay: windowSince, untilDay: windowUntil)
+        }
         let reportElapsed = ContinuousClock.now - reportStarted
         #expect(report.aggregates.count == Self.windowDays * 3)
 
         let snapshotStarted = ContinuousClock.now
-        let snapshot = await store.readSnapshot()
+        let (snapshot, snapshotWork) = try await store.measureSQLWork { $0.readSnapshot() }
         let snapshotElapsed = ContinuousClock.now - snapshotStarted
         #expect(snapshot.files.count == 1500)
         #expect(snapshot.tokenSnapshots.count == 150_000)
@@ -77,12 +88,12 @@ struct CostUsageStoreScaleProofTests {
         print("[scale-proof] readReport(30 days): \(Self.milliseconds(reportElapsed)) ms")
         print("[scale-proof] readSnapshot(150k rows): \(Self.milliseconds(snapshotElapsed)) ms")
 
-        // Generous gates so CI hardware variance does not flake; these catch order-of-magnitude
-        // regressions (e.g. accidental full rewrites or missing indexes) rather than jitter.
-        #expect(bulkElapsed < Self.timingBudget(.seconds(120)))
-        #expect(pruneElapsed < Self.timingBudget(.seconds(2)))
-        #expect(reportElapsed < Self.timingBudget(.seconds(1)))
-        #expect(snapshotElapsed < Self.timingBudget(.seconds(10)))
+        // Bound database work per input row, not time spent waiting for the shared host.
+        Self.expectWork(bulkWork, statements: 180_000, steps: 150_000 * 200, operation: "bulk load")
+        Self.expectWork(pruneWork, statements: 30, steps: 1500 * 100, operation: "no-op prune")
+        // A report reads the 90 aggregate rows, never the 150k token snapshots.
+        Self.expectWork(reportWork, statements: 10, steps: 90 * 100, operation: "report")
+        Self.expectWork(snapshotWork, statements: 30, steps: 150_000 * 100, operation: "snapshot")
         #expect(bulkFileBytes < 300 * 1_048_576)
     }
 
@@ -120,7 +131,9 @@ struct CostUsageStoreScaleProofTests {
         let beforeBytes = await store.fileSizeBytes()
 
         let pruneStarted = ContinuousClock.now
-        let result = await store.retainDayWindow(sinceDay: sinceDay, untilDay: untilDay)
+        let (result, pruneWork) = try await store.measureSQLWork {
+            $0.retainDayWindow(sinceDay: sinceDay, untilDay: untilDay)
+        }
         let pruneElapsed = ContinuousClock.now - pruneStarted
         let afterBytes = await store.fileSizeBytes()
         let snapshot = await store.readSnapshot()
@@ -140,7 +153,7 @@ struct CostUsageStoreScaleProofTests {
 
         print("[scale-proof] window prune 500 -> \(survivors) files: \(Self.milliseconds(pruneElapsed)) ms, ")
         print("[scale-proof] db file \(beforeBytes / 1_048_576) -> \(afterBytes / 1_048_576) MiB")
-        #expect(pruneElapsed < Self.timingBudget(.seconds(5)))
+        Self.expectWork(pruneWork, statements: 500 * 20, steps: 25000 * 200, operation: "window prune")
     }
 
     @Test
@@ -161,30 +174,25 @@ struct CostUsageStoreScaleProofTests {
             payload: payload)
 
         let writeStarted = ContinuousClock.now
-        #expect(await store.replaceBufferedLines(path: path, kind: .deferredReplay, lines: [line]))
+        let (written, writeWork) = try await store.measureSQLWork {
+            $0.replaceBufferedLines(path: path, kind: .deferredReplay, lines: [line])
+        }
+        #expect(written)
         let writeElapsed = ContinuousClock.now - writeStarted
         let persistedBytes = await store.fileSizeBytes()
 
         let readStarted = ContinuousClock.now
-        let fetched = await store.fetchBufferedLines(path: path, kind: .deferredReplay)
+        let (fetched, readWork) = try await store.measureSQLWork {
+            $0.fetchBufferedLines(path: path, kind: .deferredReplay)
+        }
         let readElapsed = ContinuousClock.now - readStarted
         #expect(fetched == [line])
 
         print("[scale-proof] 100 MiB blob write: \(Self.milliseconds(writeElapsed)) ms, ")
         print("[scale-proof] db file after 100 MiB blob: \(persistedBytes / 1_048_576) MiB")
         print("[scale-proof] 100 MiB blob read: \(Self.milliseconds(readElapsed)) ms")
-        // The 100 MiB round trip is by far the heaviest single I/O operation in the suite and the
-        // shared CI scaler was calibrated against much lighter work (see TestTimingBudget), so the
-        // nominal budget carries the headroom here. A healthy write measures ~8.5s on an idle
-        // 32-core machine and ~6-8s on a busy one, which is why the previous 5s ceiling failed
-        // even without contention. 30s stays an order-of-magnitude gate against that real
-        // baseline: quadratic buffering or a full rewrite still trips it.
-        //
-        // No wall-clock gate survives a pathologically oversubscribed host — at two spinning
-        // burners per core this write degrades to 67-171s, which is indistinguishable from a
-        // genuine regression. The byte assertion below is the load-independent correctness check.
-        #expect(writeElapsed < Self.timingBudget(.seconds(30)))
-        #expect(readElapsed < Self.timingBudget(.seconds(30)))
+        Self.expectWork(writeWork, statements: 10, steps: 1000, operation: "blob write")
+        Self.expectWork(readWork, statements: 10, steps: 1000, operation: "blob read")
         // Keep the persisted representation bounded so a second whole-artifact copy cannot
         // hide behind a successful round trip.
         #expect(persistedBytes < 256 * 1_048_576)
@@ -194,8 +202,15 @@ struct CostUsageStoreScaleProofTests {
 // MARK: - Helpers
 
 extension CostUsageStoreScaleProofTests {
-    private static func timingBudget(_ budget: Duration) -> Duration {
-        TestTimingBudget.scaled(budget)
+    private static func expectWork(
+        _ work: CostUsageStoreSQLWork,
+        statements: Int,
+        steps: Int,
+        operation: String)
+    {
+        print("[scale-proof] \(operation): \(work.statements) statements, \(work.virtualMachineSteps) VM steps")
+        #expect(work.statements > 0 && work.statements <= statements)
+        #expect(work.virtualMachineSteps > 0 && work.virtualMachineSteps <= steps)
     }
 
     private static func dayString(

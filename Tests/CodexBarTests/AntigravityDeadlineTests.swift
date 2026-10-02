@@ -175,25 +175,37 @@ struct AntigravityDeadlineTests {
                 source: .languageServer),
         ]
         let recorder = AntigravityTimeoutRecorder()
-        let deadline = Date().addingTimeInterval(2)
+        let clock = AntigravityDeadlineClock()
+        let deadline = clock.now().addingTimeInterval(1)
 
-        let resolved = try await AntigravityStatusProbe.resolveWorkingEndpoint(
-            candidateEndpoints: endpoints,
-            timeout: 1,
-            deadline: deadline,
-            testConnectivity: { endpoint, timeout in
-                recorder.append(timeout)
-                if endpoint.port == 64001 {
-                    try? await Task.sleep(for: .seconds(timeout))
-                    return false
-                }
-                return true
-            })
+        let resolved = try await AntigravityStatusProbe.$deadlineNow.withValue(clock.now) {
+            try await AntigravityStatusProbe.resolveWorkingEndpoint(
+                candidateEndpoints: endpoints,
+                timeout: 1,
+                deadline: deadline,
+                testConnectivity: { endpoint, timeout in
+                    recorder.append(timeout)
+                    if endpoint.port == 64001 {
+                        clock.advance(by: timeout)
+                        return false
+                    }
+                    return true
+                })
+        }
 
         let timeouts = recorder.snapshot()
         #expect(resolved.port == 64002)
-        #expect(timeouts.count == 2)
-        #expect(timeouts[0] < 1.1)
-        #expect(timeouts[1] > 0)
+        #expect(timeouts == [0.5, 0.5])
+    }
+}
+
+final class AntigravityDeadlineClock: @unchecked Sendable {
+    private let lock = NSLock()
+    private var date = Date(timeIntervalSince1970: 1000)
+
+    func now() -> Date { self.lock.withLock { self.date } }
+
+    func advance(by interval: TimeInterval) {
+        self.lock.withLock { self.date.addTimeInterval(interval) }
     }
 }

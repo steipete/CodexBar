@@ -877,7 +877,7 @@ public struct AntigravityStatusProbe: Sendable {
     public func fetch(matchingAccountEmail expectedAccountEmail: String? = nil) async throws
         -> AntigravityStatusSnapshot
     {
-        let deadline = Date().addingTimeInterval(self.timeout)
+        let deadline = Self.deadlineNow().addingTimeInterval(self.timeout)
         let processInfos = try await Self.detectProcessInfos(timeout: self.timeout, scope: self.processScope)
         let result = try await Self.fetchProcessSnapshots(processInfos: processInfos) { processInfo in
             try await Self.fetch(
@@ -1463,7 +1463,7 @@ public struct AntigravityStatusProbe: Sendable {
         remainingAttemptCount: Int) -> TimeInterval?
     {
         guard let deadline else { return timeout }
-        let remaining = deadline.timeIntervalSinceNow
+        let remaining = deadline.timeIntervalSince(Self.deadlineNow())
         guard remaining > 0 else { return nil }
         return min(timeout, remaining / Double(max(1, remainingAttemptCount)))
     }
@@ -1585,7 +1585,7 @@ public struct AntigravityStatusProbe: Sendable {
                 payload: RequestPayload(
                     path: self.quotaSummaryPath,
                     body: ["forceRefresh": true]),
-                context: self.quotaSummaryRequestContext(from: context),
+                context: self.fallbackReservingRequestContext(from: context),
                 send: send,
                 parse: self.parseQuotaSummaryResponse)
             guard quotaSummary.hasKnownQuotaSummary else {
@@ -1610,7 +1610,7 @@ public struct AntigravityStatusProbe: Sendable {
                 payload: RequestPayload(
                     path: self.getUserStatusPath,
                     body: self.defaultRequestBody()),
-                context: self.legacyUserStatusRequestContext(from: context),
+                context: self.fallbackReservingRequestContext(from: context),
                 send: send,
                 parse: self.parseUserStatusResponse)
         } catch {
@@ -1624,24 +1624,14 @@ public struct AntigravityStatusProbe: Sendable {
         }
     }
 
-    private static func legacyUserStatusRequestContext(from context: RequestContext) -> RequestContext {
+    private static func fallbackReservingRequestContext(from context: RequestContext) -> RequestContext {
         guard let deadline = context.deadline else { return context }
-        let remaining = max(0, deadline.timeIntervalSinceNow)
-        let userStatusBudget = remaining / 2
+        let remaining = max(0, deadline.timeIntervalSince(Self.deadlineNow()))
+        let attemptBudget = remaining / 2
         return RequestContext(
             endpoints: context.endpoints,
-            timeout: min(context.timeout, userStatusBudget),
-            deadline: Date().addingTimeInterval(userStatusBudget))
-    }
-
-    private static func quotaSummaryRequestContext(from context: RequestContext) -> RequestContext {
-        guard let deadline = context.deadline else { return context }
-        let remaining = max(0, deadline.timeIntervalSinceNow)
-        let quotaSummaryBudget = remaining / 2
-        return RequestContext(
-            endpoints: context.endpoints,
-            timeout: min(context.timeout, quotaSummaryBudget),
-            deadline: Date().addingTimeInterval(quotaSummaryBudget))
+            timeout: min(context.timeout, attemptBudget),
+            deadline: Self.deadlineNow().addingTimeInterval(attemptBudget))
     }
 
     private static func identityRequestContext(from context: RequestContext) -> RequestContext {
