@@ -109,17 +109,13 @@ final class CostUsageStoreReadWorkRecorder: @unchecked Sendable {
 }
 
 extension CostUsageStore {
-    private nonisolated static let readWorkRecorderLock = NSLock()
-    private nonisolated(unsafe) static var installedReadWorkRecorder: CostUsageStoreReadWorkRecorder?
-
-    nonisolated static var readWorkRecorderForTesting: CostUsageStoreReadWorkRecorder? {
-        get { self.readWorkRecorderLock.withLock { self.installedReadWorkRecorder } }
-        set { self.readWorkRecorderLock.withLock { self.installedReadWorkRecorder = newValue } }
-    }
-
     var scopedReadWorkRecorderForTesting: CostUsageStoreReadWorkRecorder? {
-        guard let recorder = Self.readWorkRecorderForTesting,
+        #if DEBUG
+        guard let recorder = CostUsageStoreTestHooks.current.readWorkRecorder,
               recorder.databaseURL == self.databaseURL else { return nil }
         return recorder
+        #else
+        return nil
+        #endif
     }
 }

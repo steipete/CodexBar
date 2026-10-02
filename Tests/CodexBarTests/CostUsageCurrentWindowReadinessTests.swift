@@ -120,41 +120,44 @@ extension CostUsageStoreReadWorkTests {
         let writes = LockIsolated(0)
         let inTransaction = LockIsolated(-1)
         let failure = LockIsolated<String?>(nil)
-        CostUsageStore.readWorkRecorderForTesting = recorder
-        CostUsageStore.codexCatchUpReconciliationVisitForTesting = {
+        var recordingHooks = CostUsageStoreTestHooks.current
+        recordingHooks.readWorkRecorder = recorder
+        try await CostUsageStoreTestHooks.$current.withValue(recordingHooks) {
+            var hooks = CostUsageStoreTestHooks.current
+            hooks.codexCatchUpReconciliationVisit = {
+                let work = recorder.snapshot()
+                guard work.readViewConversions == 2, writes.value == 0 else { return }
+                writes.setValue(1)
+                inTransaction.setValue(work.readViewConversionsInTransaction)
+                do {
+                    try writer.execute("UPDATE files SET scan_complete = 0 WHERE session_id = 'fixture-session-0'")
+                } catch {
+                    failure.setValue(error.localizedDescription)
+                }
+            }
+
+            let result = await CostUsageStoreTestHooks.$current.withValue(hooks) {
+                await fixture.strictSnapshot()
+            }
             let work = recorder.snapshot()
-            guard work.readViewConversions == 2, writes.value == 0 else { return }
-            writes.setValue(1)
-            inTransaction.setValue(work.readViewConversionsInTransaction)
-            do {
-                try writer.execute("UPDATE files SET scan_complete = 0 WHERE session_id = 'fixture-session-0'")
-            } catch {
-                failure.setValue(error.localizedDescription)
+            var unrecordedHooks = CostUsageStoreTestHooks.current
+            unrecordedHooks.readWorkRecorder = nil
+            try await CostUsageStoreTestHooks.$current.withValue(unrecordedHooks) {
+                #expect(result == nil)
+                #expect(writes.value == 1)
+                #expect(failure.value == nil)
+                #expect(inTransaction.value == 0)
+                #expect(work.readViewConversions == 3)
+                #expect(work.readViewConversionsInTransaction == 0)
+                #expect(work.usageRowDecodeAttempts > 0)
+                #expect(work.tokenSnapshotRows == 0)
+                #expect(work.bufferedLines == 0)
+                #expect(work.bufferedPayloadBytes == 0)
+                let retained = try #require(await fixture.base.cachedSnapshot())
+                #expect(retained.snapshot.last30DaysTokens == 13)
+                #expect(retained.staleSnapshotUpdatedAt == fixture.previousTime)
             }
         }
-        defer {
-            CostUsageStore.codexCatchUpReconciliationVisitForTesting = nil
-            CostUsageStore.readWorkRecorderForTesting = nil
-        }
-
-        let result = await fixture.strictSnapshot()
-        let work = recorder.snapshot()
-        CostUsageStore.codexCatchUpReconciliationVisitForTesting = nil
-        CostUsageStore.readWorkRecorderForTesting = nil
-
-        #expect(result == nil)
-        #expect(writes.value == 1)
-        #expect(failure.value == nil)
-        #expect(inTransaction.value == 0)
-        #expect(work.readViewConversions == 3)
-        #expect(work.readViewConversionsInTransaction == 0)
-        #expect(work.usageRowDecodeAttempts > 0)
-        #expect(work.tokenSnapshotRows == 0)
-        #expect(work.bufferedLines == 0)
-        #expect(work.bufferedPayloadBytes == 0)
-        let retained = try #require(await fixture.base.cachedSnapshot())
-        #expect(retained.snapshot.last30DaysTokens == 13)
-        #expect(retained.staleSnapshotUpdatedAt == fixture.previousTime)
     }
 
     @Test

@@ -14,35 +14,37 @@ extension CostUsageStoreReadWorkTests {
         let fixture = try ReadWorkFixture(fileCount: fileCount, rowsPerFile: fileCount == 2 ? 4 : 64)
         defer { fixture.remove() }
         let recorder = CostUsageStoreReadWorkRecorder(databaseURL: fixture.store.databaseURL)
-        CostUsageStore.readWorkRecorderForTesting = recorder
-        defer { CostUsageStore.readWorkRecorderForTesting = nil }
-        let before = await fixture.store.persistenceWriteMetricsForTesting()
-        let loaded = fixture.store.syncLoadCodexScan(calendar: fixture.calendar)
-        defer { loaded.release() }
-        #expect(loaded.unloadedTokenSnapshotPaths.count == fileCount)
-        #expect(loaded.cache.files.values.allSatisfy { $0.codexTokenSnapshots == nil })
-        #expect(loaded.cache.files.values.allSatisfy { $0.codexRows != nil })
-        #expect(await fixture.store.retainedCodexBaselineCountForTesting == 1)
-        var refreshed = loaded.cache
-        refreshed.lastScanUnixMs += 1000
-        let saved = fixture.save(refreshed, load: loaded)
-        let after = await fixture.store.persistenceWriteMetricsForTesting()
-        let work = recorder.snapshot()
-        #expect(!saved.catchUpRequired)
-        #expect(work.fullSnapshotReads == 0)
-        #expect(work.scannerSnapshotReads == 1)
-        #expect(work.cacheConversions == 1)
-        #expect(work.usageRowDecodeAttempts == fixture.rowCount)
-        #expect(work.usageRows == fixture.rowCount)
-        #expect(work.aggregateGroupingRowVisits == 0)
-        #expect(after.rows - before.rows == 1)
-        #expect(await fixture.store.retainedCodexBaselineCountForTesting == 0)
-        var expected = fixture.canonical
-        expected.lastScanUnixMs = refreshed.lastScanUnixMs
-        #expect(fixture.store.syncLoadCodexCache(calendar: fixture.calendar) == expected)
-        print("[lazy-baseline-proof] files=\(fileCount) rows=\(fixture.rowCount) " +
-            "scanner_snapshots=\(work.scannerSnapshotReads) decodes=\(work.usageRowDecodeAttempts) " +
-            "freshness_writes=\(after.rows - before.rows) grouping_visits=\(work.aggregateGroupingRowVisits)")
+        var recordingHooks = CostUsageStoreTestHooks.current
+        recordingHooks.readWorkRecorder = recorder
+        try await CostUsageStoreTestHooks.$current.withValue(recordingHooks) {
+            let before = await fixture.store.persistenceWriteMetricsForTesting()
+            let loaded = fixture.store.syncLoadCodexScan(calendar: fixture.calendar)
+            defer { loaded.release() }
+            #expect(loaded.unloadedTokenSnapshotPaths.count == fileCount)
+            #expect(loaded.cache.files.values.allSatisfy { $0.codexTokenSnapshots == nil })
+            #expect(loaded.cache.files.values.allSatisfy { $0.codexRows != nil })
+            #expect(await fixture.store.retainedCodexBaselineCountForTesting == 1)
+            var refreshed = loaded.cache
+            refreshed.lastScanUnixMs += 1000
+            let saved = fixture.save(refreshed, load: loaded)
+            let after = await fixture.store.persistenceWriteMetricsForTesting()
+            let work = recorder.snapshot()
+            #expect(!saved.catchUpRequired)
+            #expect(work.fullSnapshotReads == 0)
+            #expect(work.scannerSnapshotReads == 1)
+            #expect(work.cacheConversions == 1)
+            #expect(work.usageRowDecodeAttempts == fixture.rowCount)
+            #expect(work.usageRows == fixture.rowCount)
+            #expect(work.aggregateGroupingRowVisits == 0)
+            #expect(after.rows - before.rows == 1)
+            #expect(await fixture.store.retainedCodexBaselineCountForTesting == 0)
+            var expected = fixture.canonical
+            expected.lastScanUnixMs = refreshed.lastScanUnixMs
+            #expect(fixture.store.syncLoadCodexCache(calendar: fixture.calendar) == expected)
+            print("[lazy-baseline-proof] files=\(fileCount) rows=\(fixture.rowCount) " +
+                "scanner_snapshots=\(work.scannerSnapshotReads) decodes=\(work.usageRowDecodeAttempts) " +
+                "freshness_writes=\(after.rows - before.rows) grouping_visits=\(work.aggregateGroupingRowVisits)")
+        }
     }
 
     @Test
@@ -50,21 +52,26 @@ extension CostUsageStoreReadWorkTests {
         let fixture = try ReadWorkFixture(fileCount: 2, rowsPerFile: 4)
         defer { fixture.remove() }
         let writer = try BaselineSQLiteConnection(url: fixture.store.databaseURL)
-        CostUsageStore.codexBaselineReadCheckpointForTesting = (fixture.store.databaseURL, {
+        var checkpointHooks = CostUsageStoreTestHooks.current
+        checkpointHooks.codexBaselineReadCheckpoint = (fixture.store.databaseURL, {
             try writer.execute("UPDATE files SET parsed_bytes = 999")
         })
-        defer { CostUsageStore.codexBaselineReadCheckpointForTesting = nil }
-        let loaded = fixture.store.syncLoadCodexScan(calendar: fixture.calendar)
-        defer { loaded.release() }
-        #expect(loaded.cache.files.isEmpty)
-        #expect(await fixture.store.retainedCodexBaselineCountForTesting == 0)
-        #expect(fixture.save(fixture.canonical, load: loaded).catchUpRequired)
-        #expect(await fixture.store.readSnapshot().files.allSatisfy { $0.parsedBytes == 999 })
-        #expect(await fixture.store.rebuildCount == 0)
-        CostUsageStore.codexBaselineReadCheckpointForTesting = nil
-        let retry = fixture.store.syncLoadCodexScan(calendar: fixture.calendar)
-        defer { retry.release() }
-        #expect(retry.cache.files.values.allSatisfy { $0.parsedBytes == 999 })
+        try await CostUsageStoreTestHooks.$current.withValue(checkpointHooks) {
+            let loaded = fixture.store.syncLoadCodexScan(calendar: fixture.calendar)
+            defer { loaded.release() }
+            #expect(loaded.cache.files.isEmpty)
+            #expect(await fixture.store.retainedCodexBaselineCountForTesting == 0)
+            #expect(fixture.save(fixture.canonical, load: loaded).catchUpRequired)
+            #expect(await fixture.store.readSnapshot().files.allSatisfy { $0.parsedBytes == 999 })
+            #expect(await fixture.store.rebuildCount == 0)
+            var clearedHooks = CostUsageStoreTestHooks.current
+            clearedHooks.codexBaselineReadCheckpoint = nil
+            try await CostUsageStoreTestHooks.$current.withValue(clearedHooks) {
+                let retry = fixture.store.syncLoadCodexScan(calendar: fixture.calendar)
+                defer { retry.release() }
+                #expect(retry.cache.files.values.allSatisfy { $0.parsedBytes == 999 })
+            }
+        }
     }
 
     @Test
@@ -72,33 +79,37 @@ extension CostUsageStoreReadWorkTests {
         let fixture = try ReadWorkFixture(fileCount: 2, rowsPerFile: 4)
         defer { fixture.remove() }
         let writer = try BaselineSQLiteConnection(url: fixture.store.databaseURL)
-        CostUsageStore.codexBaselineReadCheckpointForTesting = (fixture.store.databaseURL, {
+        var checkpointHooks = CostUsageStoreTestHooks.current
+        checkpointHooks.codexBaselineReadCheckpoint = (fixture.store.databaseURL, {
             try writer.execute("DROP TABLE meta")
         })
-        defer { CostUsageStore.codexBaselineReadCheckpointForTesting = nil }
-        let loaded = fixture.store.syncLoadCodexScan(calendar: fixture.calendar)
-        defer { loaded.release() }
-        #expect(loaded.cache.files.isEmpty)
-        #expect(fixture.save(fixture.canonical, load: loaded).catchUpRequired)
-        #expect(await fixture.store.rebuildCount == 0)
-        #expect(await fixture.store.readSnapshot().files.count == fixture.fileCount)
+        try await CostUsageStoreTestHooks.$current.withValue(checkpointHooks) {
+            let loaded = fixture.store.syncLoadCodexScan(calendar: fixture.calendar)
+            defer { loaded.release() }
+            #expect(loaded.cache.files.isEmpty)
+            #expect(fixture.save(fixture.canonical, load: loaded).catchUpRequired)
+            #expect(await fixture.store.rebuildCount == 0)
+            #expect(await fixture.store.readSnapshot().files.count == fixture.fileCount)
+        }
     }
 
     @Test
     func `failed read transaction cannot produce a reusable receipt`() async throws {
         let fixture = try ReadWorkFixture(fileCount: 2, rowsPerFile: 4)
         defer { fixture.remove() }
-        CostUsageStore.codexBaselineReadCheckpointForTesting = (fixture.store.databaseURL, {
+        var checkpointHooks = CostUsageStoreTestHooks.current
+        checkpointHooks.codexBaselineReadCheckpoint = (fixture.store.databaseURL, {
             throw CostUsageStore.StoreError.sqlite(SQLITE_BUSY)
         })
-        defer { CostUsageStore.codexBaselineReadCheckpointForTesting = nil }
-        let loaded = fixture.store.syncLoadCodexScan(calendar: fixture.calendar)
-        defer { loaded.release() }
-        #expect(loaded.cache.files.isEmpty)
-        #expect(await fixture.store.retainedCodexBaselineCountForTesting == 0)
-        #expect(fixture.save(fixture.canonical, load: loaded).catchUpRequired)
-        #expect(fixture.store.syncLoadCodexCache(calendar: fixture.calendar) == fixture.canonical)
-        #expect(await fixture.store.rebuildCount == 0)
+        try await CostUsageStoreTestHooks.$current.withValue(checkpointHooks) {
+            let loaded = fixture.store.syncLoadCodexScan(calendar: fixture.calendar)
+            defer { loaded.release() }
+            #expect(loaded.cache.files.isEmpty)
+            #expect(await fixture.store.retainedCodexBaselineCountForTesting == 0)
+            #expect(fixture.save(fixture.canonical, load: loaded).catchUpRequired)
+            #expect(fixture.store.syncLoadCodexCache(calendar: fixture.calendar) == fixture.canonical)
+            #expect(await fixture.store.rebuildCount == 0)
+        }
     }
 
     @Test
@@ -136,15 +147,18 @@ extension CostUsageStoreReadWorkTests {
             incoming.codexProjectMetadataVersion = 999
         }
         let writer = try BaselineSQLiteConnection(url: fixture.store.databaseURL)
-        CostUsageStore.identicalContentPreLockCheckpointForTesting = (fixture.store.databaseURL, {
+        var hooks = CostUsageStoreTestHooks.current
+        hooks.identicalContentPreLockCheckpoint = (fixture.store.databaseURL, {
             do {
                 try writer.execute("UPDATE files SET parsed_bytes = 777")
             } catch {
                 Issue.record(error)
             }
         })
-        defer { CostUsageStore.identicalContentPreLockCheckpointForTesting = nil }
-        #expect(fixture.save(incoming, load: loaded).catchUpRequired)
+        let saved = CostUsageStoreTestHooks.$current.withValue(hooks) {
+            fixture.save(incoming, load: loaded)
+        }
+        #expect(saved.catchUpRequired)
         #expect(await fixture.store.readSnapshot().files.allSatisfy { $0.parsedBytes == 777 })
         #expect(await fixture.store.fetchMetadata().lastScanUnixMs == fixture.canonical.lastScanUnixMs)
         #expect(await fixture.store.retainedCodexBaselineCountForTesting == 0)
@@ -304,11 +318,14 @@ extension CostUsageStoreReadWorkTests {
         let loaded = fixture.store.syncLoadCodexScan(calendar: fixture.calendar)
         defer { loaded.release() }
         let writer = try BaselineSQLiteConnection(url: fixture.store.databaseURL)
-        CostUsageStore.identicalContentPreLockCheckpointForTesting = (fixture.store.databaseURL, {
+        var hooks = CostUsageStoreTestHooks.current
+        hooks.identicalContentPreLockCheckpoint = (fixture.store.databaseURL, {
             do { try writer.execute("DROP TABLE meta") } catch { Issue.record(error) }
         })
-        defer { CostUsageStore.identicalContentPreLockCheckpointForTesting = nil }
-        #expect(fixture.save(loaded.cache, load: loaded).catchUpRequired)
+        let saved = CostUsageStoreTestHooks.$current.withValue(hooks) {
+            fixture.save(loaded.cache, load: loaded)
+        }
+        #expect(saved.catchUpRequired)
         #expect(await fixture.store.rebuildCount == 0)
         #expect(await fixture.store.readSnapshot().files.count == fixture.fileCount)
     }

@@ -28,7 +28,9 @@ extension CostUsageStoreReadWorkTests {
         var incoming = loaded.cache
         incoming.lastScanUnixMs += 1000
         let writer = try BaselineSQLiteConnection(url: fixture.store.databaseURL)
-        CostUsageStore.identicalContentPreLockCheckpointForTesting = (fixture.store.databaseURL, {
+        let fileSize = file.size
+        var hooks = CostUsageStoreTestHooks.current
+        hooks.identicalContentPreLockCheckpoint = (fixture.store.databaseURL, {
             do {
                 if change == "retry" {
                     try writer.execute("""
@@ -36,7 +38,7 @@ extension CostUsageStoreReadWorkTests {
                     SELECT id, 'unresolvedFork', 0, 0, size, X'00' FROM files
                     """)
                 } else {
-                    let bytes = Data(repeating: 32, count: Int(file.size))
+                    let bytes = Data(repeating: 32, count: Int(fileSize))
                     if change == "replacement" {
                         try bytes.write(to: url, options: .atomic)
                     } else {
@@ -46,8 +48,10 @@ extension CostUsageStoreReadWorkTests {
                 }
             } catch { Issue.record(error) }
         })
-        defer { CostUsageStore.identicalContentPreLockCheckpointForTesting = nil }
-        #expect(fixture.save(incoming, load: loaded).catchUpRequired)
+        let saved = CostUsageStoreTestHooks.$current.withValue(hooks) {
+            fixture.save(incoming, load: loaded)
+        }
+        #expect(saved.catchUpRequired)
         #expect(await fixture.store.fetchMetadata().catchUpPending == true)
         #expect(await fixture.store.fetchMetadata().lastScanUnixMs == fixture.canonical.lastScanUnixMs)
         let fresh = fixture.store.syncLoadCodexReadView(calendar: fixture.calendar, purpose: .status)
@@ -62,36 +66,38 @@ extension CostUsageStoreReadWorkTests {
         let fixture = try ReadWorkFixture(fileCount: 2, rowsPerFile: 4)
         defer { fixture.remove() }
         let recorder = CostUsageStoreReadWorkRecorder(databaseURL: fixture.store.databaseURL)
-        CostUsageStore.readWorkRecorderForTesting = recorder
-        defer { CostUsageStore.readWorkRecorderForTesting = nil }
-        let loaded = fixture.store.syncLoadCodexScan(calendar: fixture.calendar)
-        defer { loaded.release() }
-        let before = await fixture.store.persistenceWriteMetricsForTesting()
-        var incoming = loaded.cache
-        incoming.codexPriorityTurnsCursor = .init(
-            databasePath: fixture.env.root.appendingPathComponent("synthetic-trace.sqlite").path,
-            coverageSinceEpoch: 0,
-            lastRowID: 7,
-            fileIdentity: 1,
-            anchorRowID: 7,
-            anchorDigest: "synthetic",
-            turns: [:],
-            requestSourcesByTurnID: [:],
-            priorityCompletedModelsByTurnID: [:],
-            completedModelsByTurnID: [:],
-            completedTurnIDInsertionOrder: [],
-            completedTurnIDInsertionOrderStartIndex: 0)
-        incoming.lastScanUnixMs += 1000
-        #expect(!fixture.save(incoming, load: loaded).catchUpRequired)
-        #expect(await fixture.store.persistenceWriteMetricsForTesting().rows - before.rows == 2)
-        #expect(recorder.snapshot().fullSnapshotReads == 0)
-        #expect(recorder.snapshot().scannerSnapshotReads == 1)
-        #expect(recorder.snapshot().usageRowDecodeAttempts == fixture.rowCount)
-        #expect(recorder.snapshot().aggregateGroupingRowVisits == 0)
-        let persisted = fixture.store.syncLoadCodexCache(calendar: fixture.calendar)
-        #expect(persisted.lastScanUnixMs == incoming.lastScanUnixMs)
-        #expect(persisted.codexPriorityTurnsCursor == incoming.codexPriorityTurnsCursor)
-        #expect(persisted.files == fixture.canonical.files)
+        var recordingHooks = CostUsageStoreTestHooks.current
+        recordingHooks.readWorkRecorder = recorder
+        try await CostUsageStoreTestHooks.$current.withValue(recordingHooks) {
+            let loaded = fixture.store.syncLoadCodexScan(calendar: fixture.calendar)
+            defer { loaded.release() }
+            let before = await fixture.store.persistenceWriteMetricsForTesting()
+            var incoming = loaded.cache
+            incoming.codexPriorityTurnsCursor = .init(
+                databasePath: fixture.env.root.appendingPathComponent("synthetic-trace.sqlite").path,
+                coverageSinceEpoch: 0,
+                lastRowID: 7,
+                fileIdentity: 1,
+                anchorRowID: 7,
+                anchorDigest: "synthetic",
+                turns: [:],
+                requestSourcesByTurnID: [:],
+                priorityCompletedModelsByTurnID: [:],
+                completedModelsByTurnID: [:],
+                completedTurnIDInsertionOrder: [],
+                completedTurnIDInsertionOrderStartIndex: 0)
+            incoming.lastScanUnixMs += 1000
+            #expect(!fixture.save(incoming, load: loaded).catchUpRequired)
+            #expect(await fixture.store.persistenceWriteMetricsForTesting().rows - before.rows == 2)
+            #expect(recorder.snapshot().fullSnapshotReads == 0)
+            #expect(recorder.snapshot().scannerSnapshotReads == 1)
+            #expect(recorder.snapshot().usageRowDecodeAttempts == fixture.rowCount)
+            #expect(recorder.snapshot().aggregateGroupingRowVisits == 0)
+            let persisted = fixture.store.syncLoadCodexCache(calendar: fixture.calendar)
+            #expect(persisted.lastScanUnixMs == incoming.lastScanUnixMs)
+            #expect(persisted.codexPriorityTurnsCursor == incoming.codexPriorityTurnsCursor)
+            #expect(persisted.files == fixture.canonical.files)
+        }
     }
 
     @Test
@@ -117,15 +123,17 @@ extension CostUsageStoreReadWorkTests {
         }
         let original = scan(day)
         let recorder = CostUsageStoreReadWorkRecorder(databaseURL: CostUsageStore(cacheRoot: env.cacheRoot).databaseURL)
-        CostUsageStore.readWorkRecorderForTesting = recorder
-        defer { CostUsageStore.readWorkRecorderForTesting = nil }
-        let unchanged = scan(day.addingTimeInterval(1))
-        #expect(unchanged.data == original.data)
-        #expect(unchanged.summary == original.summary)
-        #expect(recorder.snapshot().fullSnapshotReads == 0)
-        #expect(recorder.snapshot().scannerSnapshotReads == 1)
-        #expect(recorder.snapshot().cacheConversions == 1)
-        #expect(recorder.snapshot().usageRowDecodeAttempts == 1)
-        #expect(recorder.snapshot().aggregateGroupingRowVisits == 0)
+        var recordingHooks = CostUsageStoreTestHooks.current
+        recordingHooks.readWorkRecorder = recorder
+        try CostUsageStoreTestHooks.$current.withValue(recordingHooks) {
+            let unchanged = scan(day.addingTimeInterval(1))
+            #expect(unchanged.data == original.data)
+            #expect(unchanged.summary == original.summary)
+            #expect(recorder.snapshot().fullSnapshotReads == 0)
+            #expect(recorder.snapshot().scannerSnapshotReads == 1)
+            #expect(recorder.snapshot().cacheConversions == 1)
+            #expect(recorder.snapshot().usageRowDecodeAttempts == 1)
+            #expect(recorder.snapshot().aggregateGroupingRowVisits == 0)
+        }
     }
 }

@@ -94,7 +94,7 @@ extension CostUsageStore {
                     }
                 }
                 #if DEBUG
-                if let checkpoint = Self.codexCacheReadCheckpointForTesting,
+                if let checkpoint = CostUsageStoreTestHooks.current.codexCacheReadCheckpoint,
                    checkpoint.databaseURL == self.databaseURL
                 {
                     try checkpoint.checkpoint()
@@ -282,7 +282,9 @@ extension CostUsageStore {
                     canReuseRows: canReuseStoredRows,
                     usage: baseline.decoded.files[path]),
                 calendar: calendar)
-            Self.saveCycleCheckpointForTesting?(index + 1)
+            #if DEBUG
+            CostUsageStoreTestHooks.current.saveCycleCheckpoint?(index + 1)
+            #endif
         }
         _ = self.replaceDayAggregates(Self.globalAggregates(
             cache: cache, recorder: self.scopedReadWorkRecorderForTesting))
@@ -317,11 +319,13 @@ extension CostUsageStore {
     }
 
     private func codexSavePreLockCheckpoint() {
-        if let checkpoint = Self.identicalContentPreLockCheckpointForTesting,
+        #if DEBUG
+        if let checkpoint = CostUsageStoreTestHooks.current.identicalContentPreLockCheckpoint,
            checkpoint.databaseURL == self.databaseURL
         {
             checkpoint.checkpoint()
         }
+        #endif
     }
 
     /// True when persisting `cache` would leave every content table semantically unchanged.
@@ -663,7 +667,9 @@ extension CostUsageStore {
             let identityNeedsValidation = normalizedIdentity != file.scanState.fileIdentity
             let restoredScanState: RestoredCodexScanState
             if identityNeedsValidation, remainingIdentityValidationVisits > 0 {
-                Self.codexCatchUpReconciliationVisitForTesting?()
+                #if DEBUG
+                CostUsageStoreTestHooks.current.codexCatchUpReconciliationVisit?()
+                #endif
                 remainingIdentityValidationVisits -= 1
                 restoredScanState = Self.restoredCodexScanState(
                     file: file,
@@ -822,7 +828,9 @@ extension CostUsageStore {
             let candidatePaths = lookback.pendingFilePaths.prefix(reconciliationLimit)
             var completedIdentityValidationPathKeys: Set<String> = []
             for path in candidatePaths {
-                Self.codexCatchUpReconciliationVisitForTesting?()
+                #if DEBUG
+                CostUsageStoreTestHooks.current.codexCatchUpReconciliationVisit?()
+                #endif
                 let fileURL = URL(fileURLWithPath: path, isDirectory: false)
                 let metadata = CostUsageScanner.codexFileMetadata(fileURL: fileURL)
                 guard let fileId = metadata.fileId,

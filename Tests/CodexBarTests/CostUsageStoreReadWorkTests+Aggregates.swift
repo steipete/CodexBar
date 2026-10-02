@@ -30,30 +30,32 @@ extension CostUsageStoreReadWorkTests {
             cache.files[path] = usage
         }
         let recorder = CostUsageStoreReadWorkRecorder(databaseURL: store.databaseURL)
-        let previousRecorder = CostUsageStore.readWorkRecorderForTesting
-        CostUsageStore.readWorkRecorderForTesting = recorder
-        defer { CostUsageStore.readWorkRecorderForTesting = previousRecorder }
+        var recordingHooks = CostUsageStoreTestHooks.current
+        recordingHooks.readWorkRecorder = recorder
+        try await CostUsageStoreTestHooks.$current.withValue(recordingHooks) {
+            #expect(!Self.save(cache, store: store, fixture: fixture).catchUpRequired)
+            let visits = recorder.snapshot().aggregateGroupingRowVisits
+            print("[cost-aggregate-proof] rows=256 keys_per_file=\(keyCount) grouping_row_visits=\(visits)")
+            #expect(visits > 0)
+            #expect(visits <= 2 * fixture.rowCount)
+            let aggregates = await store.fetchDayAggregates(
+                sinceDay: ReadWorkFixture.day,
+                untilDay: ReadWorkFixture.day)
+            #expect(aggregates.count == keyCount)
+            #expect(aggregates.allSatisfy { $0.requestCount == Int64(256 / keyCount) })
+            #expect(aggregates.reduce(0) { $0 + $1.authoritativeCostNanos } == 256_000_000)
 
-        #expect(!Self.save(cache, store: store, fixture: fixture).catchUpRequired)
-        let visits = recorder.snapshot().aggregateGroupingRowVisits
-        print("[cost-aggregate-proof] rows=256 keys_per_file=\(keyCount) grouping_row_visits=\(visits)")
-        #expect(visits > 0)
-        #expect(visits <= 2 * fixture.rowCount)
-        let aggregates = await store.fetchDayAggregates(sinceDay: ReadWorkFixture.day, untilDay: ReadWorkFixture.day)
-        #expect(aggregates.count == keyCount)
-        #expect(aggregates.allSatisfy { $0.requestCount == Int64(256 / keyCount) })
-        #expect(aggregates.reduce(0) { $0 + $1.authoritativeCostNanos } == 256_000_000)
+            var unchanged = store.syncLoadCodexCache(calendar: fixture.calendar)
+            unchanged.lastScanUnixMs += 1000
+            recorder.reset()
+            #expect(!Self.save(unchanged, store: store, fixture: fixture).catchUpRequired)
+            #expect(recorder.snapshot().aggregateGroupingRowVisits == 0)
 
-        var unchanged = store.syncLoadCodexCache(calendar: fixture.calendar)
-        unchanged.lastScanUnixMs += 1000
-        recorder.reset()
-        #expect(!Self.save(unchanged, store: store, fixture: fixture).catchUpRequired)
-        #expect(recorder.snapshot().aggregateGroupingRowVisits == 0)
-
-        var other = fixture.canonical
-        other.codexProjectMetadataVersion = (other.codexProjectMetadataVersion ?? 0) + 1
-        #expect(!fixture.save(other).catchUpRequired)
-        #expect(recorder.snapshot().aggregateGroupingRowVisits == 0)
+            var other = fixture.canonical
+            other.codexProjectMetadataVersion = (other.codexProjectMetadataVersion ?? 0) + 1
+            #expect(!fixture.save(other).catchUpRequired)
+            #expect(recorder.snapshot().aggregateGroupingRowVisits == 0)
+        }
     }
 
     @Test

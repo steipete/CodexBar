@@ -107,7 +107,7 @@ extension CostUsageStore {
                     loadTokenSnapshots: loadTokenSnapshots,
                     recorder: self.scopedReadWorkRecorderForTesting)
                 #if DEBUG
-                if let checkpoint = Self.codexCacheReadCheckpointForTesting,
+                if let checkpoint = CostUsageStoreTestHooks.current.codexCacheReadCheckpoint,
                    checkpoint.databaseURL == self.databaseURL
                 {
                     try checkpoint.checkpoint()
@@ -117,12 +117,6 @@ extension CostUsageStore {
             }
         }
     }
-
-    #if DEBUG
-    nonisolated(unsafe) static var codexCacheReadCheckpointForTesting: (
-        databaseURL: URL,
-        checkpoint: () throws -> Void)?
-    #endif
 
     func configuration() -> CostUsageStoreConfiguration? {
         self.withDatabase(default: nil) { database in

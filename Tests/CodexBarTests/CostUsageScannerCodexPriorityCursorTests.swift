@@ -1237,16 +1237,18 @@ extension CostUsageScannerCodexPriorityCursorTests {
         let firstCursor = try #require(CostUsageStoreAccess.read(cacheRoot: env.cacheRoot).codexPriorityTurnsCursor)
         #expect(firstCursor.lastRowID == 1)
 
-        var persistedFileCount = 0
-        CostUsageStore.saveCycleCheckpointForTesting = { _ in persistedFileCount += 1 }
-        defer { CostUsageStore.saveCycleCheckpointForTesting = nil }
+        let persistedFileCount = CostUsageTestCounter()
+        var hooks = CostUsageStoreTestHooks.current
+        hooks.saveCycleCheckpoint = { _ in persistedFileCount.increment() }
 
         try CostUsageScannerCodexPriorityTests.insertTestLogs(dbURL: dbURL, rows: (0..<3).map { index in
             (epochSeconds: epoch, body: "routine trace row \(index)")
         })
-        Self.loadCodexDailyReport(env: env, databaseURL: dbURL, now: now.addingTimeInterval(2))
+        CostUsageStoreTestHooks.$current.withValue(hooks) {
+            _ = Self.loadCodexDailyReport(env: env, databaseURL: dbURL, now: now.addingTimeInterval(2))
+        }
 
-        #expect(persistedFileCount == 0)
+        #expect(persistedFileCount.value == 0)
         let reloaded = try #require(CostUsageStoreAccess.read(cacheRoot: env.cacheRoot).codexPriorityTurnsCursor)
         #expect(reloaded.lastRowID == firstCursor.lastRowID + 3)
         #expect(reloaded.turns.keys.sorted() == ["turn-a"])

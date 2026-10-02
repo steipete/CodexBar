@@ -47,35 +47,39 @@ struct CostUsageLazyHistoryBenchmarkTests {
             fileCount * snapshotsPerFile)
         #expect(seeded.files.values.reduce(0) { $0 + ($1.codexRows?.count ?? 0) } == fileCount)
         let recorder = CostUsageStoreReadWorkRecorder(databaseURL: store.databaseURL)
-        CostUsageStore.readWorkRecorderForTesting = recorder
-        defer { CostUsageStore.readWorkRecorderForTesting = nil }
-        for (index, mode) in ["unchanged", "debounced", "one-append", "all-append"].enumerated() {
-            options.refreshMinIntervalSeconds = mode == "debounced" ? 3600 : 0
-            if mode == "one-append" || mode == "all-append" {
-                let changed = mode == "one-append" ? Array(files.prefix(1)) : files
-                for file in changed {
-                    let handle = try FileHandle(forWritingTo: file)
-                    defer { try? handle.close() }
-                    try handle.seekToEnd()
-                    try handle.write(contentsOf: Data(tokenLine.utf8))
+        var recordingHooks = CostUsageStoreTestHooks.current
+        recordingHooks.readWorkRecorder = recorder
+        try CostUsageStoreTestHooks.$current.withValue(recordingHooks) {
+            for (index, mode) in ["unchanged", "debounced", "one-append", "all-append"].enumerated() {
+                options.refreshMinIntervalSeconds = mode == "debounced" ? 3600 : 0
+                if mode == "one-append" || mode == "all-append" {
+                    let changed = mode == "one-append" ? Array(files.prefix(1)) : files
+                    for file in changed {
+                        let handle = try FileHandle(forWritingTo: file)
+                        defer { try? handle.close() }
+                        try handle.seekToEnd()
+                        try handle.write(contentsOf: Data(tokenLine.utf8))
+                    }
                 }
+                recorder.reset()
+                let started = ContinuousClock.now
+                let report = CostUsageScanner.loadDailyReport(
+                    provider: .codex,
+                    since: day,
+                    until: day,
+                    now: day.addingTimeInterval(Double(index + 1)),
+                    options: options)
+                let elapsed = (ContinuousClock.now - started).components
+                let milliseconds = Double(elapsed.seconds) * 1000 + Double(elapsed.attoseconds) / 1e15
+                let work = recorder.snapshot()
+                #expect(report.summary?.totalTokens == initial.summary?.totalTokens)
+                #expect(try abs(#require(report.summary?.totalCostUSD) - #require(initial.summary?.totalCostUSD)) <
+                    1e-12)
+                print(
+                    "[lazy-history-benchmark] mode=\(mode) files=\(fileCount) " +
+                        "snapshots=\(fileCount * snapshotsPerFile) " +
+                        "wall_ms=\(milliseconds) token_reads=\(work.tokenSnapshotRows) usage_reads=\(work.usageRows)")
             }
-            recorder.reset()
-            let started = ContinuousClock.now
-            let report = CostUsageScanner.loadDailyReport(
-                provider: .codex,
-                since: day,
-                until: day,
-                now: day.addingTimeInterval(Double(index + 1)),
-                options: options)
-            let elapsed = (ContinuousClock.now - started).components
-            let milliseconds = Double(elapsed.seconds) * 1000 + Double(elapsed.attoseconds) / 1e15
-            let work = recorder.snapshot()
-            #expect(report.summary?.totalTokens == initial.summary?.totalTokens)
-            #expect(try abs(#require(report.summary?.totalCostUSD) - #require(initial.summary?.totalCostUSD)) < 1e-12)
-            print(
-                "[lazy-history-benchmark] mode=\(mode) files=\(fileCount) snapshots=\(fileCount * snapshotsPerFile) " +
-                    "wall_ms=\(milliseconds) token_reads=\(work.tokenSnapshotRows) usage_reads=\(work.usageRows)")
         }
     }
 }

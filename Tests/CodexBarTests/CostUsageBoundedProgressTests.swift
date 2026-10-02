@@ -15,7 +15,7 @@ struct CostUsageBoundedProgressTests {
         let narrowSince = try #require(options.calendar.date(byAdding: .day, value: -89, to: day))
         try Self.writeSyntheticCorpus(env: env, day: day, fileCount: 2)
         options.maxCodexScanDurationPerRefresh = nil
-        _ = CostUsageScanner.loadDailyReport(
+        _ = CostUsageControlledClockScanner.loadDailyReport(
             provider: .codex, since: wideSince, until: day, now: day, options: options)
 
         var cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
@@ -48,7 +48,7 @@ struct CostUsageBoundedProgressTests {
             clock.increment()
             let recorder = CostUsageScanner.CodexScanWorkRecorder()
             options.codexScanWorkRecorderForTesting = recorder
-            _ = CostUsageScanner.loadDailyReport(
+            _ = CostUsageControlledClockScanner.loadDailyReport(
                 provider: .codex,
                 since: since,
                 until: day,
@@ -64,7 +64,7 @@ struct CostUsageBoundedProgressTests {
         options.codexScanBudgetForTesting = nil
         options.maxCodexScanDurationPerRefresh = 60
         for (index, since) in [wideSince, narrowSince, wideSince].enumerated() {
-            _ = CostUsageScanner.loadDailyReport(
+            _ = CostUsageControlledClockScanner.loadDailyReport(
                 provider: .codex,
                 since: since,
                 until: day,
@@ -92,7 +92,7 @@ struct CostUsageBoundedProgressTests {
                 [.modificationDate: day.addingTimeInterval(Double(-index))], ofItemAtPath: file.path)
         }
         options.maxCodexScanDurationPerRefresh = nil
-        let initial = CostUsageScanner.loadDailyReport(
+        let initial = CostUsageControlledClockScanner.loadDailyReport(
             provider: .codex, since: wideSince, until: day, now: day, options: options)
         let baseline = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
         #expect(baseline.codexScanCatchUpPending == false)
@@ -107,7 +107,7 @@ struct CostUsageBoundedProgressTests {
             maxBytesPerRefresh: 0,
             maxDuration: 2,
             now: { origin.advanced(by: .seconds(recorder.snapshot().codexFileScanAttempts >= 1 ? 3 : 0)) })
-        _ = CostUsageScanner.loadDailyReport(
+        _ = CostUsageControlledClockScanner.loadDailyReport(
             provider: .codex, since: narrowSince, until: day, now: day.addingTimeInterval(1), options: options)
         let interrupted = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
         let pending = try #require(interrupted.codexActiveLookbackState)
@@ -127,7 +127,7 @@ struct CostUsageBoundedProgressTests {
             maxDuration: 2,
             now: { origin.advanced(by: .seconds(nextClock.value == 0 ? 0 : 3)) })
         nextClock.increment()
-        _ = CostUsageScanner.loadDailyReport(
+        _ = CostUsageControlledClockScanner.loadDailyReport(
             provider: .codex, since: wideSince, until: day, now: day.addingTimeInterval(2), options: options)
         let resumed = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
         #expect(resumed.codexActiveLookbackState?.pendingFilePaths == pending.pendingFilePaths)
@@ -136,13 +136,13 @@ struct CostUsageBoundedProgressTests {
 
         options.codexScanBudgetForTesting = nil
         options.maxCodexScanDurationPerRefresh = 60
-        _ = CostUsageScanner.loadDailyReport(
+        _ = CostUsageControlledClockScanner.loadDailyReport(
             provider: .codex, since: narrowSince, until: day, now: day.addingTimeInterval(3), options: options)
         let drained = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
         #expect(drained.codexActiveLookbackState?.pendingFilePaths.isEmpty == true)
         #expect(drained.codexScanCatchUpPending == true)
         #expect(drained.codexScanInventoryPaths == nil)
-        let final = CostUsageScanner.loadDailyReport(
+        let final = CostUsageControlledClockScanner.loadDailyReport(
             provider: .codex, since: wideSince, until: day, now: day.addingTimeInterval(4), options: options)
         let completed = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
         #expect(completed.codexScanCatchUpPending == false)
@@ -167,13 +167,13 @@ struct CostUsageBoundedProgressTests {
         options.maxCodexScanDurationPerRefresh = nil
         let wideSince = try #require(options.calendar.date(byAdding: .day, value: -364, to: day))
         let narrowSince = try #require(options.calendar.date(byAdding: .day, value: -89, to: day))
-        let initial = CostUsageScanner.loadDailyReport(
+        let initial = CostUsageControlledClockScanner.loadDailyReport(
             provider: .codex, since: wideSince, until: day, now: day, options: options)
         let baseline = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
         #expect(initial.summary?.totalTokens == 220)
         options.maxCodexScanDurationPerRefresh = 60
 
-        let narrow = CostUsageScanner.loadDailyReport(
+        let narrow = CostUsageControlledClockScanner.loadDailyReport(
             provider: .codex, since: narrowSince, until: day, now: day.addingTimeInterval(1), options: options)
 
         #expect(narrow.summary?.totalTokens == 110)
@@ -196,7 +196,7 @@ struct CostUsageBoundedProgressTests {
         let discoveredDay = try #require(options.calendar.date(byAdding: .day, value: newDay ? 2 : -200, to: day))
         try Self.writeSyntheticCorpus(env: env, day: day, fileCount: 1)
         options.maxCodexScanDurationPerRefresh = nil
-        let baseline = CostUsageScanner.loadDailyReport(
+        let baseline = CostUsageControlledClockScanner.loadDailyReport(
             provider: .codex, since: wideSince, until: day, now: day, options: options)
         var cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
         let roots = CostUsageScanner.codexSessionsRoots(options: options)
@@ -224,7 +224,7 @@ struct CostUsageBoundedProgressTests {
         options.maxCodexScanDurationPerRefresh = 60
         let until = newDay ? discoveredDay : day
         for index in 1...3 {
-            _ = CostUsageScanner.loadDailyReport(
+            _ = CostUsageControlledClockScanner.loadDailyReport(
                 provider: .codex,
                 since: narrowSince,
                 until: until,
@@ -237,7 +237,7 @@ struct CostUsageBoundedProgressTests {
         }?.value)
         #expect(discoveredUsage.days[dayKey]?.values.first == [50, 0, 5])
         #expect(completed.codexScanCatchUpPending == false)
-        let report = CostUsageScanner.loadDailyReport(
+        let report = CostUsageControlledClockScanner.loadDailyReport(
             provider: .codex,
             since: narrowSince,
             until: until,
@@ -256,7 +256,7 @@ struct CostUsageBoundedProgressTests {
         var options = Self.boundedOptions(env: env)
         let priorDay = try #require(options.calendar.date(byAdding: .day, value: -1, to: day))
         options.maxCodexScanDurationPerRefresh = nil
-        _ = CostUsageScanner.loadDailyReport(
+        _ = CostUsageControlledClockScanner.loadDailyReport(
             provider: .codex,
             since: priorDay,
             until: day,
@@ -266,7 +266,7 @@ struct CostUsageBoundedProgressTests {
         let corpusSize = 600
         try Self.writeSyntheticCorpus(env: env, day: day, fileCount: corpusSize)
         options.maxCodexScanDurationPerRefresh = 60
-        _ = CostUsageScanner.loadDailyReport(
+        _ = CostUsageControlledClockScanner.loadDailyReport(
             provider: .codex,
             since: day,
             until: day,
@@ -279,7 +279,7 @@ struct CostUsageBoundedProgressTests {
 
         let secondRecorder = CostUsageScanner.CodexScanWorkRecorder()
         options.codexScanWorkRecorderForTesting = secondRecorder
-        _ = CostUsageScanner.loadDailyReport(
+        _ = CostUsageControlledClockScanner.loadDailyReport(
             provider: .codex,
             since: day,
             until: day,
@@ -296,7 +296,7 @@ struct CostUsageBoundedProgressTests {
 
         let finalRecorder = CostUsageScanner.CodexScanWorkRecorder()
         options.codexScanWorkRecorderForTesting = finalRecorder
-        _ = CostUsageScanner.loadDailyReport(
+        _ = CostUsageControlledClockScanner.loadDailyReport(
             provider: .codex,
             since: day,
             until: day,
@@ -323,7 +323,7 @@ struct CostUsageBoundedProgressTests {
 
         var options = Self.boundedOptions(env: env)
         options.maxCodexScanDurationPerRefresh = nil
-        _ = CostUsageScanner.loadDailyReport(
+        _ = CostUsageControlledClockScanner.loadDailyReport(
             provider: .codex,
             since: priorDay,
             until: day,
@@ -351,7 +351,7 @@ struct CostUsageBoundedProgressTests {
         options.maxCodexScanDurationPerRefresh = 60
         let boundedRecorder = CostUsageScanner.CodexScanWorkRecorder()
         options.codexScanWorkRecorderForTesting = boundedRecorder
-        _ = CostUsageScanner.loadDailyReport(
+        _ = CostUsageControlledClockScanner.loadDailyReport(
             provider: .codex,
             since: day,
             until: day,
@@ -368,7 +368,7 @@ struct CostUsageBoundedProgressTests {
 
         let exactRecorder = CostUsageScanner.CodexScanWorkRecorder()
         options.codexScanWorkRecorderForTesting = exactRecorder
-        _ = CostUsageScanner.loadDailyReport(
+        _ = CostUsageControlledClockScanner.loadDailyReport(
             provider: .codex,
             since: day,
             until: day,
@@ -392,21 +392,25 @@ struct CostUsageBoundedProgressTests {
 
         var options = Self.boundedOptions(env: env)
         let saveCounter = BoundedProgressCounter()
-        CostUsageStore.codexCatchUpReconciliationVisitForTesting = { saveCounter.increment() }
+        var hooks = CostUsageStoreTestHooks.current
+        hooks.codexCatchUpReconciliationVisit = { saveCounter.increment() }
         let firstRecorder = CostUsageScanner.CodexScanWorkRecorder()
         options.codexScanWorkRecorderForTesting = firstRecorder
-        _ = CostUsageScanner.loadDailyReport(
-            provider: .codex,
-            since: day,
-            until: day,
-            now: day,
-            options: options)
+        CostUsageStoreTestHooks.$current.withValue(hooks) {
+            _ = CostUsageControlledClockScanner.loadDailyReport(
+                provider: .codex,
+                since: day,
+                until: day,
+                now: day,
+                options: options)
+        }
         let firstMetrics = firstRecorder.snapshot()
 
         let loadCounter = BoundedProgressCounter()
-        CostUsageStore.codexCatchUpReconciliationVisitForTesting = { loadCounter.increment() }
-        let firstCache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
-        CostUsageStore.codexCatchUpReconciliationVisitForTesting = nil
+        hooks.codexCatchUpReconciliationVisit = { loadCounter.increment() }
+        let firstCache = CostUsageStoreTestHooks.$current.withValue(hooks) {
+            CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        }
         #expect(saveCounter.value == 0)
         #expect(loadCounter.value == 0)
         #expect(firstMetrics.codexFileScanAttempts == 512)
@@ -425,7 +429,7 @@ struct CostUsageBoundedProgressTests {
 
         let secondRecorder = CostUsageScanner.CodexScanWorkRecorder()
         options.codexScanWorkRecorderForTesting = secondRecorder
-        _ = CostUsageScanner.loadDailyReport(
+        _ = CostUsageControlledClockScanner.loadDailyReport(
             provider: .codex,
             since: day,
             until: day,
@@ -450,7 +454,7 @@ struct CostUsageBoundedProgressTests {
         let finalRecorder = CostUsageScanner.CodexScanWorkRecorder()
         options.codexScanWorkRecorderForTesting = finalRecorder
         options.maxCodexScanDurationPerRefresh = nil
-        _ = CostUsageScanner.loadDailyReport(
+        _ = CostUsageControlledClockScanner.loadDailyReport(
             provider: .codex,
             since: day,
             until: day,
@@ -498,7 +502,7 @@ struct CostUsageBoundedProgressTests {
             maxCodexSessionFileBytes: 0,
             maxCodexScanBytesPerRefresh: 0)
         options.refreshMinIntervalSeconds = 0
-        _ = CostUsageScanner.loadDailyReport(
+        _ = CostUsageControlledClockScanner.loadDailyReport(
             provider: .codex,
             since: day,
             until: day,
@@ -519,7 +523,7 @@ struct CostUsageBoundedProgressTests {
         options.maxCodexScanDurationPerRefresh = 60
         let recorder = CostUsageScanner.CodexScanWorkRecorder()
         options.codexScanWorkRecorderForTesting = recorder
-        _ = CostUsageScanner.loadDailyReport(
+        _ = CostUsageControlledClockScanner.loadDailyReport(
             provider: .codex,
             since: day,
             until: day,
@@ -540,7 +544,7 @@ struct CostUsageBoundedProgressTests {
 
         let secondRecorder = CostUsageScanner.CodexScanWorkRecorder()
         options.codexScanWorkRecorderForTesting = secondRecorder
-        _ = CostUsageScanner.loadDailyReport(
+        _ = CostUsageControlledClockScanner.loadDailyReport(
             provider: .codex,
             since: day,
             until: day,
@@ -559,7 +563,7 @@ struct CostUsageBoundedProgressTests {
 
         let finalRecorder = CostUsageScanner.CodexScanWorkRecorder()
         options.codexScanWorkRecorderForTesting = finalRecorder
-        _ = CostUsageScanner.loadDailyReport(
+        _ = CostUsageControlledClockScanner.loadDailyReport(
             provider: .codex,
             since: day,
             until: day,
@@ -592,7 +596,7 @@ struct CostUsageBoundedProgressTests {
         var options = Self.boundedOptions(env: env)
         options.maxCodexScanDurationPerRefresh = nil
         options.preferNewestCodexSessionsFirst = false
-        _ = CostUsageScanner.loadDailyReport(
+        _ = CostUsageControlledClockScanner.loadDailyReport(
             provider: .codex,
             since: day,
             until: day,
@@ -619,7 +623,7 @@ struct CostUsageBoundedProgressTests {
         options.maxCodexScanDurationPerRefresh = 60
         let firstRecorder = CostUsageScanner.CodexScanWorkRecorder()
         options.codexScanWorkRecorderForTesting = firstRecorder
-        _ = CostUsageScanner.loadDailyReport(
+        _ = CostUsageControlledClockScanner.loadDailyReport(
             provider: .codex,
             since: day,
             until: day,
@@ -645,7 +649,7 @@ struct CostUsageBoundedProgressTests {
 
         let secondRecorder = CostUsageScanner.CodexScanWorkRecorder()
         options.codexScanWorkRecorderForTesting = secondRecorder
-        _ = CostUsageScanner.loadDailyReport(
+        _ = CostUsageControlledClockScanner.loadDailyReport(
             provider: .codex,
             since: day,
             until: day,
@@ -669,7 +673,7 @@ struct CostUsageBoundedProgressTests {
 
         let finalRecorder = CostUsageScanner.CodexScanWorkRecorder()
         options.codexScanWorkRecorderForTesting = finalRecorder
-        _ = CostUsageScanner.loadDailyReport(
+        _ = CostUsageControlledClockScanner.loadDailyReport(
             provider: .codex,
             since: day,
             until: day,
@@ -697,7 +701,7 @@ struct CostUsageBoundedProgressTests {
         options.preferNewestCodexSessionsFirst = false
         let firstRecorder = CostUsageScanner.CodexScanWorkRecorder()
         options.codexScanWorkRecorderForTesting = firstRecorder
-        _ = CostUsageScanner.loadDailyReport(
+        _ = CostUsageControlledClockScanner.loadDailyReport(
             provider: .codex,
             since: day,
             until: day,
@@ -721,7 +725,7 @@ struct CostUsageBoundedProgressTests {
 
         let secondRecorder = CostUsageScanner.CodexScanWorkRecorder()
         options.codexScanWorkRecorderForTesting = secondRecorder
-        _ = CostUsageScanner.loadDailyReport(
+        _ = CostUsageControlledClockScanner.loadDailyReport(
             provider: .codex,
             since: day,
             until: day,
@@ -738,7 +742,7 @@ struct CostUsageBoundedProgressTests {
 
         let finalRecorder = CostUsageScanner.CodexScanWorkRecorder()
         options.codexScanWorkRecorderForTesting = finalRecorder
-        _ = CostUsageScanner.loadDailyReport(
+        _ = CostUsageControlledClockScanner.loadDailyReport(
             provider: .codex,
             since: day,
             until: day,
@@ -754,7 +758,7 @@ struct CostUsageBoundedProgressTests {
 
         let validationRecorder = CostUsageScanner.CodexScanWorkRecorder()
         options.codexScanWorkRecorderForTesting = validationRecorder
-        _ = CostUsageScanner.loadDailyReport(
+        _ = CostUsageControlledClockScanner.loadDailyReport(
             provider: .codex,
             since: day,
             until: day,
@@ -769,7 +773,7 @@ struct CostUsageBoundedProgressTests {
 
         let exactRecorder = CostUsageScanner.CodexScanWorkRecorder()
         options.codexScanWorkRecorderForTesting = exactRecorder
-        _ = CostUsageScanner.loadDailyReport(
+        _ = CostUsageControlledClockScanner.loadDailyReport(
             provider: .codex,
             since: day,
             until: day,
@@ -796,7 +800,7 @@ struct CostUsageBoundedProgressTests {
         var options = Self.boundedOptions(env: env)
         options.maxCodexScanDurationPerRefresh = nil
         options.preferNewestCodexSessionsFirst = false
-        _ = CostUsageScanner.loadDailyReport(
+        _ = CostUsageControlledClockScanner.loadDailyReport(
             provider: .codex,
             since: day,
             until: day,
@@ -817,7 +821,7 @@ struct CostUsageBoundedProgressTests {
         options.maxCodexScanDurationPerRefresh = 60
         let firstRecorder = CostUsageScanner.CodexScanWorkRecorder()
         options.codexScanWorkRecorderForTesting = firstRecorder
-        _ = CostUsageScanner.loadDailyReport(
+        _ = CostUsageControlledClockScanner.loadDailyReport(
             provider: .codex,
             since: day,
             until: day,
@@ -837,7 +841,7 @@ struct CostUsageBoundedProgressTests {
 
         let secondRecorder = CostUsageScanner.CodexScanWorkRecorder()
         options.codexScanWorkRecorderForTesting = secondRecorder
-        _ = CostUsageScanner.loadDailyReport(
+        _ = CostUsageControlledClockScanner.loadDailyReport(
             provider: .codex,
             since: day,
             until: day,
@@ -855,7 +859,7 @@ struct CostUsageBoundedProgressTests {
 
         let thirdRecorder = CostUsageScanner.CodexScanWorkRecorder()
         options.codexScanWorkRecorderForTesting = thirdRecorder
-        _ = CostUsageScanner.loadDailyReport(
+        _ = CostUsageControlledClockScanner.loadDailyReport(
             provider: .codex,
             since: day,
             until: day,
@@ -873,7 +877,7 @@ struct CostUsageBoundedProgressTests {
         let finalRecorder = CostUsageScanner.CodexScanWorkRecorder()
         options.codexScanWorkRecorderForTesting = finalRecorder
         options.maxCodexScanDurationPerRefresh = nil
-        _ = CostUsageScanner.loadDailyReport(
+        _ = CostUsageControlledClockScanner.loadDailyReport(
             provider: .codex,
             since: day,
             until: day,
@@ -902,7 +906,7 @@ struct CostUsageBoundedProgressTests {
         var options = Self.boundedOptions(env: env)
         options.maxCodexScanDurationPerRefresh = nil
         options.preferNewestCodexSessionsFirst = false
-        _ = CostUsageScanner.loadDailyReport(
+        _ = CostUsageControlledClockScanner.loadDailyReport(
             provider: .codex,
             since: day,
             until: day,
@@ -932,7 +936,7 @@ struct CostUsageBoundedProgressTests {
         options.maxCodexScanDurationPerRefresh = 60
         let firstRecorder = CostUsageScanner.CodexScanWorkRecorder()
         options.codexScanWorkRecorderForTesting = firstRecorder
-        _ = CostUsageScanner.loadDailyReport(
+        _ = CostUsageControlledClockScanner.loadDailyReport(
             provider: .codex,
             since: day,
             until: day,
@@ -948,7 +952,7 @@ struct CostUsageBoundedProgressTests {
 
         let finalRecorder = CostUsageScanner.CodexScanWorkRecorder()
         options.codexScanWorkRecorderForTesting = finalRecorder
-        _ = CostUsageScanner.loadDailyReport(
+        _ = CostUsageControlledClockScanner.loadDailyReport(
             provider: .codex,
             since: day,
             until: day,
@@ -966,7 +970,7 @@ struct CostUsageBoundedProgressTests {
 
         let validationRecorder = CostUsageScanner.CodexScanWorkRecorder()
         options.codexScanWorkRecorderForTesting = validationRecorder
-        _ = CostUsageScanner.loadDailyReport(
+        _ = CostUsageControlledClockScanner.loadDailyReport(
             provider: .codex,
             since: day,
             until: day,
@@ -993,7 +997,7 @@ struct CostUsageBoundedProgressTests {
         var options = Self.boundedOptions(env: env)
         options.maxCodexScanDurationPerRefresh = nil
         options.preferNewestCodexSessionsFirst = false
-        _ = CostUsageScanner.loadDailyReport(
+        _ = CostUsageControlledClockScanner.loadDailyReport(
             provider: .codex,
             since: day,
             until: day,
@@ -1020,7 +1024,7 @@ struct CostUsageBoundedProgressTests {
         clock.increment()
         let recorder = CostUsageScanner.CodexScanWorkRecorder()
         options.codexScanWorkRecorderForTesting = recorder
-        _ = CostUsageScanner.loadDailyReport(
+        _ = CostUsageControlledClockScanner.loadDailyReport(
             provider: .codex,
             since: day,
             until: day,
@@ -1050,7 +1054,7 @@ struct CostUsageBoundedProgressTests {
         var options = Self.boundedOptions(env: env)
         options.maxCodexScanDurationPerRefresh = nil
         options.preferNewestCodexSessionsFirst = false
-        _ = CostUsageScanner.loadDailyReport(
+        _ = CostUsageControlledClockScanner.loadDailyReport(
             provider: .codex,
             since: day,
             until: day,
@@ -1069,7 +1073,7 @@ struct CostUsageBoundedProgressTests {
         options.maxCodexScanDurationPerRefresh = 60
         let recorder = CostUsageScanner.CodexScanWorkRecorder()
         options.codexScanWorkRecorderForTesting = recorder
-        _ = CostUsageScanner.loadDailyReport(
+        _ = CostUsageControlledClockScanner.loadDailyReport(
             provider: .codex,
             since: day,
             until: day,
@@ -1119,7 +1123,7 @@ struct CostUsageBoundedProgressTests {
                 [.modificationDate: day.addingTimeInterval(Double(-index))], ofItemAtPath: file.path)
         }
         options.maxCodexScanDurationPerRefresh = nil
-        _ = CostUsageScanner.loadDailyReport(
+        _ = CostUsageControlledClockScanner.loadDailyReport(
             provider: .codex, since: since, until: day, now: day, options: options)
         var cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
         #expect(cache.files.count == 600)
@@ -1144,7 +1148,7 @@ struct CostUsageBoundedProgressTests {
             }
             let recorder = CostUsageScanner.CodexScanWorkRecorder()
             options.codexScanWorkRecorderForTesting = recorder
-            _ = CostUsageScanner.loadDailyReport(
+            _ = CostUsageControlledClockScanner.loadDailyReport(
                 provider: .codex,
                 since: since,
                 until: day,
@@ -1159,7 +1163,7 @@ struct CostUsageBoundedProgressTests {
 
         options.codexScanWorkRecorderForTesting = nil
         for index in 0..<3 {
-            _ = CostUsageScanner.loadDailyReport(
+            _ = CostUsageControlledClockScanner.loadDailyReport(
                 provider: .codex,
                 since: since,
                 until: day,

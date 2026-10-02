@@ -54,29 +54,31 @@ extension CostUsageStoreReadWorkTests {
         let fixture = try ReadWorkFixture(fileCount: 2, rowsPerFile: 4)
         defer { fixture.remove() }
         let recorder = CostUsageStoreReadWorkRecorder(databaseURL: fixture.store.databaseURL)
-        CostUsageStore.readWorkRecorderForTesting = recorder
-        defer { CostUsageStore.readWorkRecorderForTesting = nil }
-        let first = CostUsageStoreAccess.readView(
-            cacheRoot: fixture.env.cacheRoot, calendar: fixture.calendar, purpose: .activity)
-        for _ in 0..<2 {
-            let report = CostUsageStoreAccess.readView(
-                cacheRoot: fixture.env.cacheRoot, calendar: fixture.calendar, purpose: .report)
-            let daily = report.dailyReport(range: fixture.range, cacheRoot: fixture.env.cacheRoot)
-            let full = fixture.fullReport(fixture.canonical)
-            #expect(daily.data == full.data)
-            #expect(daily.summary.map(CostUsageCodexPreviousReport.Summary.init)
-                == full.summary.map(CostUsageCodexPreviousReport.Summary.init))
-            #expect(report.sessions(
-                range: fixture.range,
-                cacheRoot: fixture.env.cacheRoot,
-                roots: [fixture.env.codexSessionsRoot]).count == fixture.fileCount)
-            let activity = CostUsageStoreAccess.readView(
+        var recordingHooks = CostUsageStoreTestHooks.current
+        recordingHooks.readWorkRecorder = recorder
+        try CostUsageStoreTestHooks.$current.withValue(recordingHooks) {
+            let first = CostUsageStoreAccess.readView(
                 cacheRoot: fixture.env.cacheRoot, calendar: fixture.calendar, purpose: .activity)
-            #expect(activity.days == first.days)
+            for _ in 0..<2 {
+                let report = CostUsageStoreAccess.readView(
+                    cacheRoot: fixture.env.cacheRoot, calendar: fixture.calendar, purpose: .report)
+                let daily = report.dailyReport(range: fixture.range, cacheRoot: fixture.env.cacheRoot)
+                let full = fixture.fullReport(fixture.canonical)
+                #expect(daily.data == full.data)
+                #expect(daily.summary.map(CostUsageCodexPreviousReport.Summary.init)
+                    == full.summary.map(CostUsageCodexPreviousReport.Summary.init))
+                #expect(report.sessions(
+                    range: fixture.range,
+                    cacheRoot: fixture.env.cacheRoot,
+                    roots: [fixture.env.codexSessionsRoot]).count == fixture.fileCount)
+                let activity = CostUsageStoreAccess.readView(
+                    cacheRoot: fixture.env.cacheRoot, calendar: fixture.calendar, purpose: .activity)
+                #expect(activity.days == first.days)
+            }
+            #expect(recorder.snapshot().usageRowDecodeAttempts == fixture.rowCount * 2)
+            #expect(recorder.snapshot().cacheConversions == 3)
+            #expect(recorder.snapshot().integrityChecks == 1)
         }
-        #expect(recorder.snapshot().usageRowDecodeAttempts == fixture.rowCount * 2)
-        #expect(recorder.snapshot().cacheConversions == 3)
-        #expect(recorder.snapshot().integrityChecks == 1)
     }
 
     @Test
@@ -87,18 +89,20 @@ extension CostUsageStoreReadWorkTests {
         metadata.catchUpPending = true
         #expect(await fixture.store.setMetadata(metadata))
         let recorder = CostUsageStoreReadWorkRecorder(databaseURL: fixture.store.databaseURL)
-        CostUsageStore.readWorkRecorderForTesting = recorder
-        defer { CostUsageStore.readWorkRecorderForTesting = nil }
-        let first = CostUsageStoreAccess.readView(
-            cacheRoot: fixture.env.cacheRoot, calendar: fixture.calendar, purpose: .activity)
-        #expect(!first.hasPendingScan)
-        let path = try #require(fixture.canonical.files.keys.min())
-        try Data("changed fixture\n".utf8).write(to: URL(fileURLWithPath: path), options: .atomic)
-        let second = CostUsageStoreAccess.readView(
-            cacheRoot: fixture.env.cacheRoot, calendar: fixture.calendar, purpose: .activity)
-        #expect(second.hasPendingScan)
-        #expect(recorder.snapshot().cacheConversions == 1)
-        #expect(recorder.snapshot().readViewConversions == 2)
+        var recordingHooks = CostUsageStoreTestHooks.current
+        recordingHooks.readWorkRecorder = recorder
+        try await CostUsageStoreTestHooks.$current.withValue(recordingHooks) {
+            let first = CostUsageStoreAccess.readView(
+                cacheRoot: fixture.env.cacheRoot, calendar: fixture.calendar, purpose: .activity)
+            #expect(!first.hasPendingScan)
+            let path = try #require(fixture.canonical.files.keys.min())
+            try Data("changed fixture\n".utf8).write(to: URL(fileURLWithPath: path), options: .atomic)
+            let second = CostUsageStoreAccess.readView(
+                cacheRoot: fixture.env.cacheRoot, calendar: fixture.calendar, purpose: .activity)
+            #expect(second.hasPendingScan)
+            #expect(recorder.snapshot().cacheConversions == 1)
+            #expect(recorder.snapshot().readViewConversions == 2)
+        }
     }
 
     @Test
@@ -109,16 +113,18 @@ extension CostUsageStoreReadWorkTests {
             try fixtures.append(ReadWorkFixture(fileCount: count, rowsPerFile: 1))
         }
         let recorder = CostUsageStoreReadWorkRecorder(databaseURL: fixtures[1].store.databaseURL)
-        CostUsageStore.readWorkRecorderForTesting = recorder
-        defer { CostUsageStore.readWorkRecorderForTesting = nil }
-        for index in [0, 1, 2, 3, 0, 4, 0, 1] {
-            let fixture = fixtures[index]
-            let view = CostUsageStoreAccess.readView(
-                cacheRoot: fixture.env.cacheRoot, calendar: fixture.calendar, purpose: .activity)
-            #expect(view.days == fixture.canonical.days)
+        var recordingHooks = CostUsageStoreTestHooks.current
+        recordingHooks.readWorkRecorder = recorder
+        try CostUsageStoreTestHooks.$current.withValue(recordingHooks) {
+            for index in [0, 1, 2, 3, 0, 4, 0, 1] {
+                let fixture = fixtures[index]
+                let view = CostUsageStoreAccess.readView(
+                    cacheRoot: fixture.env.cacheRoot, calendar: fixture.calendar, purpose: .activity)
+                #expect(view.days == fixture.canonical.days)
+            }
+            #expect(recorder.snapshot().integrityChecks == 2)
+            #expect(recorder.snapshot().cacheConversions == 2)
         }
-        #expect(recorder.snapshot().integrityChecks == 2)
-        #expect(recorder.snapshot().cacheConversions == 2)
     }
 
     @Test
@@ -131,24 +137,31 @@ extension CostUsageStoreReadWorkTests {
         metadata.lastScanUnixMs += 1000
         let encodedMetadata = try JSONEncoder().encode(metadata).map { String(format: "%02x", $0) }.joined()
         let recorder = CostUsageStoreReadWorkRecorder(databaseURL: fixture.store.databaseURL)
-        CostUsageStore.readWorkRecorderForTesting = recorder
-        defer { CostUsageStore.readWorkRecorderForTesting = nil }
-        CostUsageStore.codexBaselineReadCheckpointForTesting = (fixture.store.databaseURL, {
-            try writer.execute("UPDATE scan_metadata SET payload = X'\(encodedMetadata)' WHERE id = 1")
-        })
-        defer { CostUsageStore.codexBaselineReadCheckpointForTesting = nil }
-        let raced = reader.syncLoadCodexReadView(calendar: fixture.calendar, purpose: .activity)
-        #expect(raced.lastScanUnixMs == 0)
-        #expect(await reader.rebuildCount == 0)
-        #expect(await fixture.store.readSnapshot().metadata == metadata)
-        CostUsageStore.codexBaselineReadCheckpointForTesting = nil
-        let retried = reader.syncLoadCodexReadView(calendar: fixture.calendar, purpose: .activity)
-        let fresh = fixture.store.syncLoadCodexReadView(calendar: fixture.calendar, purpose: .activity)
-        #expect(retried.days == fresh.days)
-        #expect(retried.hasPendingScan == fresh.hasPendingScan)
-        #expect(retried.lastScanUnixMs == metadata.lastScanUnixMs)
-        #expect(recorder.snapshot().integrityChecks == 1)
-        #expect(await reader.rebuildCount == 0)
+        var recordingHooks = CostUsageStoreTestHooks.current
+        recordingHooks.readWorkRecorder = recorder
+        try await CostUsageStoreTestHooks.$current.withValue(recordingHooks) {
+            var checkpointHooks = CostUsageStoreTestHooks.current
+            checkpointHooks.codexBaselineReadCheckpoint = (fixture.store.databaseURL, {
+                try writer.execute("UPDATE scan_metadata SET payload = X'\(encodedMetadata)' WHERE id = 1")
+            })
+            try await CostUsageStoreTestHooks.$current.withValue(checkpointHooks) {
+                let raced = reader.syncLoadCodexReadView(calendar: fixture.calendar, purpose: .activity)
+                #expect(raced.lastScanUnixMs == 0)
+                #expect(await reader.rebuildCount == 0)
+                #expect(await fixture.store.readSnapshot().metadata == metadata)
+                var clearedHooks = CostUsageStoreTestHooks.current
+                clearedHooks.codexBaselineReadCheckpoint = nil
+                try await CostUsageStoreTestHooks.$current.withValue(clearedHooks) {
+                    let retried = reader.syncLoadCodexReadView(calendar: fixture.calendar, purpose: .activity)
+                    let fresh = fixture.store.syncLoadCodexReadView(calendar: fixture.calendar, purpose: .activity)
+                    #expect(retried.days == fresh.days)
+                    #expect(retried.hasPendingScan == fresh.hasPendingScan)
+                    #expect(retried.lastScanUnixMs == metadata.lastScanUnixMs)
+                    #expect(recorder.snapshot().integrityChecks == 1)
+                    #expect(await reader.rebuildCount == 0)
+                }
+            }
+        }
     }
 
     @Test
@@ -156,24 +169,26 @@ extension CostUsageStoreReadWorkTests {
         let fixture = try ReadWorkFixture(fileCount: 16, rowsPerFile: 64)
         defer { fixture.remove() }
         let recorder = CostUsageStoreReadWorkRecorder(databaseURL: fixture.store.databaseURL)
-        CostUsageStore.readWorkRecorderForTesting = recorder
-        defer { CostUsageStore.readWorkRecorderForTesting = nil }
+        var recordingHooks = CostUsageStoreTestHooks.current
+        recordingHooks.readWorkRecorder = recorder
+        try await CostUsageStoreTestHooks.$current.withValue(recordingHooks) {
 
-        var totals: [[Int?]] = []
-        for _ in 0..<3 {
-            let activity = try #require(await CostUsageFetcher.loadCachedCodexTokenActivity(
-                now: fixture.now,
-                maximumDays: 365,
-                scannerOptions: fixture.options))
-            totals.append(activity.daily.map(\.totalTokens))
+            var totals: [[Int?]] = []
+            for _ in 0..<3 {
+                let activity = try #require(await CostUsageFetcher.loadCachedCodexTokenActivity(
+                    now: fixture.now,
+                    maximumDays: 365,
+                    scannerOptions: fixture.options))
+                totals.append(activity.daily.map(\.totalTokens))
+            }
+
+            #expect(totals == Array(repeating: [fixture.rowCount * 13], count: 3))
+            let work = recorder.snapshot()
+            #expect(work.integrityChecks == 1)
+            #expect(work.cacheConversions == 1)
+            #expect(work.fileRows == fixture.fileCount)
+            #expect(work.readViewConversions == 3)
         }
-
-        #expect(totals == Array(repeating: [fixture.rowCount * 13], count: 3))
-        let work = recorder.snapshot()
-        #expect(work.integrityChecks == 1)
-        #expect(work.cacheConversions == 1)
-        #expect(work.fileRows == fixture.fileCount)
-        #expect(work.readViewConversions == 3)
     }
 
     @Test
@@ -181,23 +196,24 @@ extension CostUsageStoreReadWorkTests {
         let fixture = try ReadWorkFixture(fileCount: 16, rowsPerFile: 64)
         defer { fixture.remove() }
         let recorder = CostUsageStoreReadWorkRecorder(databaseURL: fixture.store.databaseURL)
-        CostUsageStore.readWorkRecorderForTesting = recorder
-        defer { CostUsageStore.readWorkRecorderForTesting = nil }
+        var recordingHooks = CostUsageStoreTestHooks.current
+        recordingHooks.readWorkRecorder = recorder
+        try await CostUsageStoreTestHooks.$current.withValue(recordingHooks) {
+            await fixture.expectStatus(CostUsageFetcher(scannerOptions: fixture.options).codexScanCatchUpStatus())
+            let activity = try #require(await CostUsageFetcher.loadCachedCodexTokenActivity(
+                now: fixture.now,
+                maximumDays: 365,
+                scannerOptions: fixture.options))
+            await fixture.expectStatus(CostUsageFetcher(scannerOptions: fixture.options).codexScanCatchUpStatus())
+            await fixture.expectStatus(CostUsageFetcher(scannerOptions: fixture.options).codexScanCatchUpStatus())
 
-        await fixture.expectStatus(CostUsageFetcher(scannerOptions: fixture.options).codexScanCatchUpStatus())
-        let activity = try #require(await CostUsageFetcher.loadCachedCodexTokenActivity(
-            now: fixture.now,
-            maximumDays: 365,
-            scannerOptions: fixture.options))
-        await fixture.expectStatus(CostUsageFetcher(scannerOptions: fixture.options).codexScanCatchUpStatus())
-        await fixture.expectStatus(CostUsageFetcher(scannerOptions: fixture.options).codexScanCatchUpStatus())
-
-        #expect(activity.daily.map(\.totalTokens) == [fixture.rowCount * 13])
-        let work = recorder.snapshot()
-        #expect(work.integrityChecks == 1)
-        #expect(work.cacheConversions == 2)
-        #expect(work.fileRows == fixture.fileCount * 2)
-        #expect(work.readViewConversions == 4)
+            #expect(activity.daily.map(\.totalTokens) == [fixture.rowCount * 13])
+            let work = recorder.snapshot()
+            #expect(work.integrityChecks == 1)
+            #expect(work.cacheConversions == 2)
+            #expect(work.fileRows == fixture.fileCount * 2)
+            #expect(work.readViewConversions == 4)
+        }
     }
 
     @Test
@@ -205,29 +221,30 @@ extension CostUsageStoreReadWorkTests {
         let fixture = try ReadWorkFixture(fileCount: 4, rowsPerFile: 8)
         defer { fixture.remove() }
         let recorder = CostUsageStoreReadWorkRecorder(databaseURL: fixture.store.databaseURL)
-        CostUsageStore.readWorkRecorderForTesting = recorder
-        defer { CostUsageStore.readWorkRecorderForTesting = nil }
+        var recordingHooks = CostUsageStoreTestHooks.current
+        recordingHooks.readWorkRecorder = recorder
+        try await CostUsageStoreTestHooks.$current.withValue(recordingHooks) {
+            let initial = try #require(await CostUsageFetcher.loadCachedCodexTokenActivity(
+                now: fixture.now,
+                maximumDays: 365,
+                scannerOptions: fixture.options))
+            var reduced = fixture.canonical
+            try reduced.files.removeValue(forKey: #require(reduced.files.keys.min()))
+            #expect(!fixture.save(reduced).catchUpRequired)
+            recorder.reset()
+            let refreshed = try #require(await CostUsageFetcher.loadCachedCodexTokenActivity(
+                now: fixture.now,
+                maximumDays: 365,
+                scannerOptions: fixture.options))
 
-        let initial = try #require(await CostUsageFetcher.loadCachedCodexTokenActivity(
-            now: fixture.now,
-            maximumDays: 365,
-            scannerOptions: fixture.options))
-        var reduced = fixture.canonical
-        try reduced.files.removeValue(forKey: #require(reduced.files.keys.min()))
-        #expect(!fixture.save(reduced).catchUpRequired)
-        recorder.reset()
-        let refreshed = try #require(await CostUsageFetcher.loadCachedCodexTokenActivity(
-            now: fixture.now,
-            maximumDays: 365,
-            scannerOptions: fixture.options))
-
-        #expect(initial.daily.map(\.totalTokens) == [fixture.rowCount * 13])
-        #expect(refreshed.daily.map(\.totalTokens) == [(fixture.rowCount - 8) * 13])
-        let work = recorder.snapshot()
-        #expect(work.integrityChecks == 0)
-        #expect(work.cacheConversions == 1)
-        #expect(work.fileRows == fixture.fileCount - 1)
-        #expect(work.readViewConversions == 1)
+            #expect(initial.daily.map(\.totalTokens) == [fixture.rowCount * 13])
+            #expect(refreshed.daily.map(\.totalTokens) == [(fixture.rowCount - 8) * 13])
+            let work = recorder.snapshot()
+            #expect(work.integrityChecks == 0)
+            #expect(work.cacheConversions == 1)
+            #expect(work.fileRows == fixture.fileCount - 1)
+            #expect(work.readViewConversions == 1)
+        }
     }
 
     @Test
@@ -235,39 +252,40 @@ extension CostUsageStoreReadWorkTests {
         let fixture = try ReadWorkFixture(fileCount: 4, rowsPerFile: 8)
         defer { fixture.remove() }
         let recorder = CostUsageStoreReadWorkRecorder(databaseURL: fixture.store.databaseURL)
-        CostUsageStore.readWorkRecorderForTesting = recorder
-        defer { CostUsageStore.readWorkRecorderForTesting = nil }
+        var recordingHooks = CostUsageStoreTestHooks.current
+        recordingHooks.readWorkRecorder = recorder
+        try await CostUsageStoreTestHooks.$current.withValue(recordingHooks) {
+            let initial = try #require(await CostUsageFetcher.loadCachedCodexTokenActivity(
+                now: fixture.now,
+                maximumDays: 365,
+                scannerOptions: fixture.options))
+            let replacementRoot = fixture.env.root.appendingPathComponent("replacement")
+            let replacement = CostUsageStore(cacheRoot: replacementRoot)
+            var reduced = fixture.canonical
+            try reduced.files.removeValue(forKey: #require(reduced.files.keys.min()))
+            #expect(!replacement.syncSaveCodexCache(
+                reduced,
+                calendar: fixture.calendar,
+                requestedScanWindow: (sinceKey: ReadWorkFixture.day, untilKey: ReadWorkFixture.day)).catchUpRequired)
+            #expect(await replacement.truncateWALForTesting())
+            await replacement.closeConnectionForTesting()
+            #expect(await fixture.store.truncateWALForTesting())
+            let originalDirectory = fixture.store.databaseURL.deletingLastPathComponent()
+            try FileManager.default.moveItem(
+                at: originalDirectory,
+                to: fixture.env.root.appendingPathComponent("retired-store"))
+            try FileManager.default.moveItem(
+                at: replacement.databaseURL.deletingLastPathComponent(),
+                to: originalDirectory)
 
-        let initial = try #require(await CostUsageFetcher.loadCachedCodexTokenActivity(
-            now: fixture.now,
-            maximumDays: 365,
-            scannerOptions: fixture.options))
-        let replacementRoot = fixture.env.root.appendingPathComponent("replacement")
-        let replacement = CostUsageStore(cacheRoot: replacementRoot)
-        var reduced = fixture.canonical
-        try reduced.files.removeValue(forKey: #require(reduced.files.keys.min()))
-        #expect(!replacement.syncSaveCodexCache(
-            reduced,
-            calendar: fixture.calendar,
-            requestedScanWindow: (sinceKey: ReadWorkFixture.day, untilKey: ReadWorkFixture.day)).catchUpRequired)
-        #expect(await replacement.truncateWALForTesting())
-        await replacement.closeConnectionForTesting()
-        #expect(await fixture.store.truncateWALForTesting())
-        let originalDirectory = fixture.store.databaseURL.deletingLastPathComponent()
-        try FileManager.default.moveItem(
-            at: originalDirectory,
-            to: fixture.env.root.appendingPathComponent("retired-store"))
-        try FileManager.default.moveItem(
-            at: replacement.databaseURL.deletingLastPathComponent(),
-            to: originalDirectory)
-
-        let refreshed = try #require(await CostUsageFetcher.loadCachedCodexTokenActivity(
-            now: fixture.now,
-            maximumDays: 365,
-            scannerOptions: fixture.options))
-        #expect(initial.daily.map(\.totalTokens) == [fixture.rowCount * 13])
-        #expect(refreshed.daily.map(\.totalTokens) == [(fixture.rowCount - 8) * 13])
-        #expect(recorder.snapshot().integrityChecks == 2)
+            let refreshed = try #require(await CostUsageFetcher.loadCachedCodexTokenActivity(
+                now: fixture.now,
+                maximumDays: 365,
+                scannerOptions: fixture.options))
+            #expect(initial.daily.map(\.totalTokens) == [fixture.rowCount * 13])
+            #expect(refreshed.daily.map(\.totalTokens) == [(fixture.rowCount - 8) * 13])
+            #expect(recorder.snapshot().integrityChecks == 2)
+        }
     }
 
     @Test
@@ -275,22 +293,23 @@ extension CostUsageStoreReadWorkTests {
         let fixture = try ReadWorkFixture(fileCount: 16, rowsPerFile: 64)
         defer { fixture.remove() }
         let recorder = CostUsageStoreReadWorkRecorder(databaseURL: fixture.store.databaseURL)
-        CostUsageStore.readWorkRecorderForTesting = recorder
-        defer { CostUsageStore.readWorkRecorderForTesting = nil }
-
-        let activity = try #require(await CostUsageFetcher.loadCachedCodexTokenActivity(
-            now: fixture.now,
-            maximumDays: 365,
-            scannerOptions: fixture.options))
-        #expect(activity.daily.map(\.totalTokens) == [fixture.rowCount * 13])
-        #expect(activity.coverageSinceKey == fixture.canonical.scanSinceKey)
-        #expect(activity.coverageUntilKey == fixture.canonical.scanUntilKey)
-        let work = recorder.snapshot()
-        #expect(work.usageRows == 0)
-        #expect(work.usagePayloadBytes == 0)
-        #expect(work.usageRowDecodeAttempts == 0)
-        #expect(work.tokenSnapshotRows == 0)
-        #expect(work.fullSnapshotReads == 0)
+        var recordingHooks = CostUsageStoreTestHooks.current
+        recordingHooks.readWorkRecorder = recorder
+        try await CostUsageStoreTestHooks.$current.withValue(recordingHooks) {
+            let activity = try #require(await CostUsageFetcher.loadCachedCodexTokenActivity(
+                now: fixture.now,
+                maximumDays: 365,
+                scannerOptions: fixture.options))
+            #expect(activity.daily.map(\.totalTokens) == [fixture.rowCount * 13])
+            #expect(activity.coverageSinceKey == fixture.canonical.scanSinceKey)
+            #expect(activity.coverageUntilKey == fixture.canonical.scanUntilKey)
+            let work = recorder.snapshot()
+            #expect(work.usageRows == 0)
+            #expect(work.usagePayloadBytes == 0)
+            #expect(work.usageRowDecodeAttempts == 0)
+            #expect(work.tokenSnapshotRows == 0)
+            #expect(work.fullSnapshotReads == 0)
+        }
     }
 
     @Test
@@ -311,13 +330,15 @@ extension CostUsageStoreReadWorkTests {
             path: path, kind: .unresolvedFork, lineIndex: 0, payload: Data("invalid replay JSON".utf8))
         #expect(await fixture.store.replaceBufferedLines(path: path, kind: .unresolvedFork, lines: [malformed]))
         let recorder = CostUsageStoreReadWorkRecorder(databaseURL: fixture.store.databaseURL)
-        CostUsageStore.readWorkRecorderForTesting = recorder
-        defer { CostUsageStore.readWorkRecorderForTesting = nil }
-        #expect(await CostUsageFetcher.loadCachedCodexTokenActivity(
-            now: fixture.now, scannerOptions: fixture.options) == nil)
-        #expect(recorder.snapshot().retryPresenceRows == 1)
-        #expect(recorder.snapshot().bufferedPayloadBytes == 0)
-        #expect(recorder.snapshot().usageRows == 0)
+        var recordingHooks = CostUsageStoreTestHooks.current
+        recordingHooks.readWorkRecorder = recorder
+        try await CostUsageStoreTestHooks.$current.withValue(recordingHooks) {
+            #expect(await CostUsageFetcher.loadCachedCodexTokenActivity(
+                now: fixture.now, scannerOptions: fixture.options) == nil)
+            #expect(recorder.snapshot().retryPresenceRows == 1)
+            #expect(recorder.snapshot().bufferedPayloadBytes == 0)
+            #expect(recorder.snapshot().usageRows == 0)
+        }
     }
 
     @Test

@@ -615,25 +615,24 @@ extension CostUsageStoreTests {
         var reread = CostUsageStoreAccess.read(cacheRoot: fixture.root, calendar: calendar)
         reread.lastScanUnixMs = 2000
         let interloper = try SQLiteTestConnection(url: store.databaseURL)
-        var checkpointError: Error?
-        CostUsageStore.identicalContentPreLockCheckpointForTesting = (store.databaseURL, {
+        let checkpointError = LockIsolated<Error?>(nil)
+        var hooks = CostUsageStoreTestHooks.current
+        hooks.identicalContentPreLockCheckpoint = (store.databaseURL, {
             do {
                 try interloper.execute("UPDATE files SET parsed_bytes = 999 WHERE path = '\(path)'")
             } catch {
-                checkpointError = error
+                checkpointError.setValue(error)
             }
         })
-        defer { CostUsageStore.identicalContentPreLockCheckpointForTesting = nil }
 
-        let result = save(reread)
+        let result = CostUsageStoreTestHooks.$current.withValue(hooks) { save(reread) }
 
-        #expect(checkpointError == nil)
+        #expect(checkpointError.value == nil)
         #expect(result.catchUpRequired)
         #expect(await store.rebuildCount == 0)
         #expect(await store.fetchFile(path: path)?.parsedBytes == 999)
         #expect(CostUsageStoreAccess.read(cacheRoot: fixture.root, calendar: calendar).lastScanUnixMs == 1000)
 
-        CostUsageStore.identicalContentPreLockCheckpointForTesting = nil
         var refreshed = CostUsageStoreAccess.read(cacheRoot: fixture.root, calendar: calendar)
         refreshed.lastScanUnixMs = 3000
         let retried = save(refreshed)

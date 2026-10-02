@@ -212,9 +212,11 @@ struct CostUsageCatchUpCompletionTests {
             pendingFilePaths: waitingPaths,
             legacyRecursivePendingRootPaths: [])))
         let counter = IdentityValidationCounter()
-        CostUsageStore.codexCatchUpReconciliationVisitForTesting = { counter.increment() }
-        defer { CostUsageStore.codexCatchUpReconciliationVisitForTesting = nil }
-        let restored = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        var hooks = CostUsageStoreTestHooks.current
+        hooks.codexCatchUpReconciliationVisit = { counter.increment() }
+        let restored = CostUsageStoreTestHooks.$current.withValue(hooks) {
+            CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        }
 
         #expect(counter.value == CostUsageScanner.codexCatchUpScanCandidateLimit)
         #expect(restored.codexActiveLookbackState?.pendingFilePaths.count

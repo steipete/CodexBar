@@ -201,20 +201,12 @@ extension CostUsageStore {
 
     #if DEBUG
     func runCodexReadCheckpointForTesting() throws {
-        if let checkpoint = Self.codexBaselineReadCheckpointForTesting,
+        if let checkpoint = CostUsageStoreTestHooks.current.codexBaselineReadCheckpoint,
            checkpoint.databaseURL == self.databaseURL
         {
             try checkpoint.checkpoint()
         }
     }
-
-    nonisolated(unsafe) static var codexBaselineReadCheckpointForTesting: (
-        databaseURL: URL,
-        checkpoint: () throws -> Void)?
-
-    nonisolated(unsafe) static var codexTokenHydrationCheckpointForTesting: (
-        databaseURL: URL,
-        checkpoint: () throws -> Void)?
 
     var retainedCodexBaselineCountForTesting: Int {
         self.retainedCodexBaseline == nil ? 0 : 1

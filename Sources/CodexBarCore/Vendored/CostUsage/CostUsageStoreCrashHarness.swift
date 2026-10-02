@@ -51,7 +51,7 @@ package enum CostUsageStoreCrashHarness {
         self.save(self.seededCache(), cacheRoot: cacheRoot, killAfterFiles: nil)
     }
 
-    /// Saves the updated fixture. With `killAfterFiles` set, the process raises SIGKILL
+    /// Saves the updated fixture. In debug builds, `killAfterFiles` makes the process raise SIGKILL
     /// inside the save transaction once that many files have been persisted — after real
     /// table writes have been issued, before the cycle's aggregates and metadata.
     @discardableResult
@@ -68,13 +68,21 @@ package enum CostUsageStoreCrashHarness {
     }
 
     private static func save(_ cache: CostUsageCache, cacheRoot: URL, killAfterFiles: Int?) -> Bool {
+        #if DEBUG
         if let killAfterFiles {
-            CostUsageStore.saveCycleCheckpointForTesting = { persistedFiles in
+            var hooks = CostUsageStoreTestHooks.current
+            hooks.saveCycleCheckpoint = { persistedFiles in
                 if persistedFiles >= killAfterFiles {
                     kill(getpid(), SIGKILL)
                 }
             }
+            return CostUsageStoreTestHooks.$current.withValue(hooks) {
+                self.save(cache, cacheRoot: cacheRoot, killAfterFiles: nil)
+            }
         }
+        #else
+        precondition(killAfterFiles == nil, "Crash injection requires a debug build")
+        #endif
         let store = CostUsageStore(cacheRoot: cacheRoot)
         _ = store.syncSaveCodexCache(
             cache,
