@@ -265,6 +265,7 @@ enum TTYProcessTreeTerminator {
 }
 
 private enum TTYCommandRunnerTestingOverrides {
+    @TaskLocal static var earlyStopSettle: (@Sendable (SpawnedProcessGroup) throws -> Void)?
     @TaskLocal static var postDeadlineDrainDuration: TimeInterval?
     @TaskLocal static var outputLimitBytes: Int?
 }
@@ -869,7 +870,9 @@ public struct TTYCommandRunner {
 
             if stoppedEarly {
                 let settle = max(0, min(options.settleAfterStop, deadline.timeIntervalSinceNow))
-                if settle > 0 {
+                if let settleForTesting = TTYCommandRunnerTestingOverrides.earlyStopSettle {
+                    try settleForTesting(process)
+                } else if settle > 0 {
                     let settleDeadline = Date().addingTimeInterval(settle)
                     while Date() < settleDeadline {
                         try checkCancellation()
@@ -1101,6 +1104,13 @@ extension TTYCommandRunner {
 
     static func withIsolatedActiveProcessRegistryForTesting<T>(_ operation: () throws -> T) rethrows -> T {
         try TTYCommandRunnerActiveProcessRegistry.withIsolatedStateForTesting(operation)
+    }
+
+    static func withEarlyStopSettleOverrideForTesting<T>(
+        _ settle: @escaping @Sendable (SpawnedProcessGroup) throws -> Void,
+        operation: () throws -> T) rethrows -> T
+    {
+        try TTYCommandRunnerTestingOverrides.$earlyStopSettle.withValue(settle, operation: operation)
     }
 
     static func withPostDeadlineDrainDurationOverrideForTesting<T>(

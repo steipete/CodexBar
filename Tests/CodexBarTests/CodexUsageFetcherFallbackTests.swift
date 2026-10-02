@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import CodexBarCore
 
-@Suite(.serialized)
+@Suite(.serialized, .timeLimit(.minutes(1)), RPCFixtureDeadlineControl())
 struct CodexUsageFetcherFallbackTests {
     @Test
     func `missing CLI binary reports install guidance instead of not running`() async throws {
@@ -110,7 +110,7 @@ struct CodexUsageFetcherFallbackTests {
         let stubCLIPath = try self.makePlanOnlyStubCodexCLI()
         defer { try? FileManager.default.removeItem(atPath: stubCLIPath) }
 
-        let fetcher = self.makeStubUsageFetcher(stubCLIPath)
+        let fetcher = self.makeStubUsageFetcher(stubCLIPath, useDefaultArguments: true)
         let snapshot = try await fetcher.loadLatestUsage()
 
         #expect(snapshot.primary == nil)
@@ -179,10 +179,12 @@ struct CodexUsageFetcherFallbackTests {
             try? FileManager.default.removeItem(atPath: requestPath)
         }
 
-        let fetcher = self.makeStubUsageFetcher(stubCLIPath, requestTimeoutSeconds: 5)
+        let fetcher = self.makeStubUsageFetcher(stubCLIPath, requestTimeoutSeconds: 0.01)
 
         do {
-            _ = try await fetcher.loadLatestUsage()
+            _ = try await self.withHungRequestDeadline(requestPath: requestPath) {
+                try await fetcher.loadLatestUsage()
+            }
             Issue.record("Expected hung Codex RPC usage request to time out")
         } catch let error as RPCWireError {
             guard case let .timeout(method) = error else {
@@ -206,11 +208,13 @@ struct CodexUsageFetcherFallbackTests {
             try? FileManager.default.removeItem(atPath: requestPath)
         }
 
-        let fetcher = self.makeStubUsageFetcher(stubCLIPath, requestTimeoutSeconds: 5)
+        let fetcher = self.makeStubUsageFetcher(stubCLIPath, requestTimeoutSeconds: 0.01)
 
         for attempt in 1...2 {
             do {
-                _ = try await fetcher.loadLatestCredits()
+                _ = try await self.withHungRequestDeadline(requestPath: requestPath, attempt: attempt) {
+                    try await fetcher.loadLatestCredits()
+                }
                 Issue.record("Expected hung Codex RPC credits request \(attempt) to time out")
             } catch let error as RPCWireError {
                 guard case let .timeout(method) = error else {
@@ -237,8 +241,8 @@ struct CodexUsageFetcherFallbackTests {
         }
         let stdin = RPCChildProcessInput()
         let process = Process()
-        process.executableURL = URL(fileURLWithPath: stubCLIPath)
-        process.arguments = ["app-server"]
+        process.executableURL = URL(fileURLWithPath: "/bin/sh")
+        process.arguments = [stubCLIPath, "app-server"]
         process.environment = ["CODEXBAR_TEST_RPC_REQUEST_PATH": requestPath]
         process.standardInput = stdin.pipe
         process.standardOutput = FileHandle.nullDevice
@@ -338,78 +342,57 @@ struct CodexUsageFetcherFallbackTests {
     }
     """
 
+    private func withHungRequestDeadline<Value: Sendable>(
+        requestPath: String,
+        attempt: Int = 1,
+        operation: @Sendable () async throws -> Value) async throws -> Value
+    {
+        let deadline: @Sendable (TimeInterval) async throws -> Void = { seconds in
+            let expected = String(repeating: "account/rateLimits/read\n", count: attempt)
+            while (try? String(contentsOfFile: requestPath, encoding: .utf8)) != expected {
+                try await Task.sleep(for: .milliseconds(20))
+            }
+            // Exercise the real timer only after the child acknowledges the deliberately unanswered request.
+            try await Task.sleep(for: .seconds(seconds))
+        }
+        return try await RPCRequestTimeout.$sleep.withValue(deadline) {
+            try await operation()
+        }
+    }
+
     private func makeStubUsageFetcher(
         _ stubCLIPath: String,
-        requestTimeoutSeconds: TimeInterval = 30) -> UsageFetcher
+        requestTimeoutSeconds: TimeInterval = 30,
+        useDefaultArguments: Bool = false) -> UsageFetcher
     {
-        UsageFetcher(
-            environment: [
-                "PATH": "/usr/bin:/bin",
-                "CODEX_CLI_PATH": stubCLIPath,
-                "CODEXBAR_TEST_RPC_REQUEST_PATH": stubCLIPath + ".requests",
-            ],
+        let environment = [
+            "PATH": "/usr/bin:/bin",
+            "CODEX_CLI_PATH": stubCLIPath,
+            "CODEXBAR_TEST_RPC_REQUEST_PATH": stubCLIPath + ".requests",
+        ]
+        let resolve: CodexExecutableResolver = { _, _ in
+            CodexExecutableResolution(executable: useDefaultArguments ? stubCLIPath : "/bin/sh", loginPATH: [])
+        }
+        if useDefaultArguments {
+            // This case must exercise the fetcher's defaults, without supplying its own argument list.
+            return UsageFetcher(
+                environment: environment,
+                initializeTimeoutSeconds: 20,
+                requestTimeoutSeconds: requestTimeoutSeconds,
+                codexExecutableResolver: resolve)
+        }
+        return UsageFetcher(
+            environment: environment,
             initializeTimeoutSeconds: 20.0,
             requestTimeoutSeconds: requestTimeoutSeconds,
-            // Absolute-interpreter fixtures must not capture the user's real login-shell PATH.
-            codexExecutableResolver: { _, _ in
-                CodexExecutableResolution(executable: stubCLIPath, loginPATH: [])
-            })
+            codexArguments: [stubCLIPath, "-s", "read-only", "-a", "never", "app-server"],
+            codexExecutableResolver: resolve)
     }
 
     private func makeDecodeMismatchStubCodexCLI(
-        message: String = Self.decodeMismatchBodyMessage)
-        throws -> String
+        message: String = Self.decodeMismatchBodyMessage) throws -> String
     {
-        let script = """
-        #!/usr/bin/python3 -S
-        import json
-        import sys
-
-        args = sys.argv[1:]
-        if "app-server" in args:
-            for line in sys.stdin:
-                if not line.strip():
-                    continue
-                message = json.loads(line)
-                method = message.get("method")
-                if method == "initialized":
-                    continue
-
-                identifier = message.get("id")
-                if method == "initialize":
-                    payload = {"id": identifier, "result": {}}
-                elif method == "account/rateLimits/read":
-                    payload = {
-                        "id": identifier,
-                        "error": {
-                            "message": '''\(message)'''
-                        }
-                    }
-                elif method == "account/read":
-                    payload = {
-                        "id": identifier,
-                        "result": {
-                            "account": {
-                                "type": "chatgpt",
-                                "email": "stub@example.com",
-                                "planType": "prolite"
-                            },
-                            "requiresOpenaiAuth": False
-                        }
-                    }
-                else:
-                    payload = {"id": identifier, "result": {}}
-
-                print(json.dumps(payload), flush=True)
-        else:
-            sys.stderr.write("unexpected non app-server Codex invocation\\n")
-            sys.exit(92)
-        """
-        let url = FileManager.default.temporaryDirectory
-            .appendingPathComponent("codex-fallback-stub-\(UUID().uuidString)", isDirectory: false)
-        try Data(script.utf8).write(to: url)
-        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: url.path)
-        return url.path
+        try self.makeStubCodexCLI(rateLimitsResponse: ["error": ["message": message]], accountPlan: "prolite")
     }
 
     private func makePlanOnlyStubCodexCLI(
@@ -418,131 +401,60 @@ struct CodexUsageFetcherFallbackTests {
         accountPlan: String = "pro",
         includeWindows: Bool = false) throws -> String
     {
-        let creditsPayload = includeCredits
-            ? [
-                ",",
-                "                                \"credits\": {",
-                "                                    \"hasCredits\": True,",
-                "                                    \"unlimited\": False,",
-                "                                    \"balance\": \"21\"",
-                "                                }",
-            ].joined(separator: "\n")
-            : ""
-        let script = """
-        #!/usr/bin/python3 -S
-        import json
-        import sys
-
-        args = sys.argv[1:]
-        expected_prefix = ["-s", "read-only", "-a", "never", "app-server"]
-        if args[:5] != expected_prefix:
-            sys.stderr.write(f"unexpected Codex arguments: {args!r}\\n")
-            sys.exit(64)
-
-        if "app-server" in args:
-            for line in sys.stdin:
-                if not line.strip():
-                    continue
-                message = json.loads(line)
-                method = message.get("method")
-                if method == "initialized":
-                    continue
-
-                identifier = message.get("id")
-                if method == "initialize":
-                    payload = {"id": identifier, "result": {}}
-                elif method == "account/rateLimits/read":
-                    payload = {
-                        "id": identifier,
-                        "result": {
-                            "rateLimits": {
-                                "planType": \(usagePlan.map { "\"\($0)\"" } ?? "None")
-                                \(creditsPayload)
-                                \(includeWindows ? ",\"primary\": {\"usedPercent\":12,\"windowDurationMins\":300}" : "")
-                            }
-                        }
-                    }
-                elif method == "account/read":
-                    payload = {
-                        "id": identifier,
-                        "result": {
-                            "account": {
-                                "type": "chatgpt",
-                                "email": "stub@example.com",
-                                "planType": "\(accountPlan)"
-                            },
-                            "requiresOpenaiAuth": False
-                        }
-                    }
-                else:
-                    payload = {"id": identifier, "result": {}}
-
-                print(json.dumps(payload), flush=True)
-        else:
-            sys.stderr.write("unexpected non app-server Codex invocation\\n")
-            sys.exit(92)
-        """
-        let url = FileManager.default.temporaryDirectory
-            .appendingPathComponent("codex-plan-only-stub-\(UUID().uuidString)", isDirectory: false)
-        try Data(script.utf8).write(to: url)
-        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: url.path)
-        return url.path
+        var limits: [String: Any] = ["planType": usagePlan.map { $0 as Any } ?? NSNull()]
+        if includeCredits {
+            limits["credits"] = ["hasCredits": true, "unlimited": false, "balance": "21"]
+        }
+        if includeWindows {
+            limits["primary"] = ["usedPercent": 12, "windowDurationMins": 300]
+        }
+        return try self.makeStubCodexCLI(
+            rateLimitsResponse: ["result": ["rateLimits": limits]], accountPlan: accountPlan)
     }
 
     private func makeCreditsOnlyStubCodexCLI() throws -> String {
+        try self.makeStubCodexCLI(rateLimitsResponse: ["result": ["rateLimits": [
+            "credits": ["hasCredits": true, "unlimited": false, "balance": "21"],
+        ]]], accountPlan: "pro")
+    }
+
+    private func makeStubCodexCLI(rateLimitsResponse: [String: Any], accountPlan: String) throws -> String {
+        func shellJSON(_ value: [String: Any]) throws -> String {
+            let data = try JSONSerialization.data(withJSONObject: value, options: [.sortedKeys])
+            let json = try #require(String(data: data, encoding: .utf8))
+            // Drop the opening brace so the shell can prepend the request's actual ID.
+            return json.dropFirst()
+                .replacingOccurrences(of: "'", with: "'\"'\"'")
+        }
+        let limits = try shellJSON(rateLimitsResponse)
+        let account = try shellJSON(["result": [
+            "account": ["type": "chatgpt", "email": "stub@example.com", "planType": accountPlan],
+            "requiresOpenaiAuth": false,
+        ]])
         let script = """
-        #!/usr/bin/python3 -S
-        import json
-        import sys
-
-        args = sys.argv[1:]
-        if "app-server" in args:
-            for line in sys.stdin:
-                if not line.strip():
-                    continue
-                message = json.loads(line)
-                method = message.get("method")
-                if method == "initialized":
-                    continue
-
-                identifier = message.get("id")
-                if method == "initialize":
-                    payload = {"id": identifier, "result": {}}
-                elif method == "account/rateLimits/read":
-                    payload = {
-                        "id": identifier,
-                        "result": {
-                            "rateLimits": {
-                                "credits": {
-                                    "hasCredits": True,
-                                    "unlimited": False,
-                                    "balance": "21"
-                                }
-                            }
-                        }
-                    }
-                elif method == "account/read":
-                    payload = {
-                        "id": identifier,
-                        "result": {
-                            "account": {
-                                "type": "chatgpt",
-                                "email": "stub@example.com",
-                                "planType": "pro"
-                            },
-                            "requiresOpenaiAuth": False
-                        }
-                    }
-                else:
-                    payload = {"id": identifier, "result": {}}
-
-                print(json.dumps(payload), flush=True)
-        else:
-            sys.stderr.write("unexpected non app-server Codex invocation\\n")
-            sys.exit(92)
+        #!/bin/sh
+        if [ "$#" != 5 ] || [ "$1 $2 $3 $4 $5" != '-s read-only -a never app-server' ]; then
+          printf '%s\\n' 'unexpected Codex arguments' >&2
+          exit 64
+        fi
+        while IFS= read -r line; do
+          identifier=${line#*'"id"'}
+          identifier=${identifier#*:}
+          identifier=${identifier#"${identifier%%[![:space:]]*}"}
+          identifier=${identifier%%[!0-9]*}
+          case "$line" in
+            *'"initialized"'*) ;;
+            *'"initialize"'*) printf '{"id":%s,"result":{}}\\n' "$identifier" ;;
+            *'"account/rateLimits/read"'*|*'"account\\/rateLimits\\/read"'*)
+              printf '{"id":%s,%s\\n' "$identifier" '\(limits)' ;;
+            *'"account/read"'*|*'"account\\/read"'*)
+              printf '{"id":%s,%s\\n' "$identifier" '\(account)' ;;
+            *) printf '%s\\n' 'unexpected RPC method' >&2; exit 65 ;;
+          esac
+        done
         """
         let url = FileManager.default.temporaryDirectory
-            .appendingPathComponent("codex-credits-only-stub-\(UUID().uuidString)", isDirectory: false)
+            .appendingPathComponent("codex-fallback-stub-\(UUID().uuidString)")
         try Data(script.utf8).write(to: url)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: url.path)
         return url.path
@@ -580,5 +492,27 @@ struct CodexUsageFetcherFallbackTests {
         try Data(script.utf8).write(to: url)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: url.path)
         return url.path
+    }
+}
+
+/// Functional fixtures finish through RPC replies; timeout cases explicitly advance their own deadline.
+private struct RPCFixtureDeadlineControl: SuiteTrait, TestTrait, TestScoping {
+    var isRecursive: Bool {
+        true
+    }
+
+    func provideScope(
+        for test: Test,
+        testCase: Test.Case?,
+        performing function: @Sendable () async throws -> Void) async throws
+    {
+        let suspended: @Sendable (TimeInterval) async throws -> Void = { _ in
+            let pending = AsyncStream<Void> { _ in }
+            for await _ in pending {}
+            try Task.checkCancellation()
+        }
+        try await RPCRequestTimeout.$sleep.withValue(suspended) {
+            try await function()
+        }
     }
 }

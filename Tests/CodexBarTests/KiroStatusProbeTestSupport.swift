@@ -259,23 +259,6 @@ enum KiroProcessTestSupport {
     }
 }
 
-final class KiroTestInstantMarker: @unchecked Sendable {
-    private let lock = NSLock()
-    private var instant: ContinuousClock.Instant?
-
-    func mark() {
-        self.lock.withLock {
-            if self.instant == nil {
-                self.instant = ContinuousClock().now
-            }
-        }
-    }
-
-    func value() -> ContinuousClock.Instant? {
-        self.lock.withLock { self.instant }
-    }
-}
-
 final class KiroTestCompletionMarker: @unchecked Sendable {
     private let lock = NSLock()
     private var completed = false
