@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import CodexBarCore
 
-@Suite(.serialized)
+@Suite(.serialized, CostUsageClaudeCacheFixtures())
 struct CostUsageClaudeReportContextTests {
     @Test(arguments: [false, true], [false, true])
     func `app refresh repairs a narrow legacy memo projected from a wide cache`(

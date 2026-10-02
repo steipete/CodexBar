@@ -5,7 +5,7 @@ import FoundationNetworking
 import Testing
 @testable import CodexBarCore
 
-@Suite(.serialized)
+@Suite(.serialized, CostUsageClaudeCacheFixtures())
 struct CostUsageClaudeKimiAliasTests {
     private static let aliases = ["k3[1m]", "kimi-coding/k3[1m]", "kimi-for-coding/k3[1m]"]
 
