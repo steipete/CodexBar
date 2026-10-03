@@ -100,6 +100,8 @@
 "Average (\\(metadata.sessionLabel) + \\(metadata.weeklyLabel))" = "Genomsnitt (\\(metadata.sessionLabel) + \\(metadata.weeklyLabel))";
 "Avoid Keychain prompts" = "Undvik frågor från Nyckelring";
 "Balance" = "Saldo";
+"Cloud credits" = "Molnkrediter";
+"Expired" = "Upphört";
 "Battery Saver" = "Batterisparläge";
 "Bordered" = "Med ram";
 "Build" = "Bygge";

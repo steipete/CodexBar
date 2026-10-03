@@ -76,6 +76,16 @@ extension UsageMenuCardView.Model.ProviderCostSection {
         self.percentStyle == .used ? L("Extra usage spent") : self.percentStyle.accessibilityLabel
     }
 
+    static func inlineBalance(title: String, value: String, showsInProviderDetails: Bool = true) -> Self {
+        Self(
+            title: title,
+            percentUsed: nil,
+            spendLine: value,
+            percentLine: nil,
+            presentation: .inlineValue,
+            showsInProviderDetails: showsInProviderDetails)
+    }
+
     init(
         title: String,
         percentUsed: Double?,
@@ -546,12 +556,9 @@ extension UsageMenuCardView.Model {
             if cost.limit <= 0 {
                 guard let balance = cost.balance else { return nil }
                 let value = formatCost(balance)
-                return ProviderCostSection(
+                return .inlineBalance(
                     title: L("Credits"),
-                    percentUsed: nil,
-                    spendLine: value,
-                    percentLine: nil,
-                    presentation: .inlineValue,
+                    value: value,
                     showsInProviderDetails: false)
             }
 
@@ -631,18 +638,36 @@ extension UsageMenuCardView.Model {
             personalSpendLine: personalSpendLine)
     }
 
+    /// Provider-specific by design: Claude cloud credits share the inline balance style of prepaid credits.
+    static func cloudCreditsSection(input: Input) -> ProviderCostSection? {
+        guard input.provider == .claude,
+              input.showOptionalCreditsAndExtraUsage,
+              let details = input.snapshot?.details,
+              let status = ClaudeCloudCreditsSnapshot.detailStatus(in: details, now: input.now)
+        else { return nil }
+        let value = switch status {
+        case let .available(remainingDollars):
+            UsageFormatter.convertedCostString(
+                remainingDollars,
+                preferredCurrency: input.preferredCurrencyCode,
+                providerCurrency: "USD")
+        case .expired:
+            L("Expired")
+        case .unavailable:
+            L("Unavailable")
+        }
+        return .inlineBalance(title: L(ClaudeCloudCreditsSnapshot.detailTitle), value: value)
+    }
+
     private static func creditsUsageSection(
         cost: ProviderCostSnapshot,
         percentStyle: PercentStyle) -> ProviderCostSection?
     {
         if cost.limit <= 0 {
             guard let balance = cost.balance else { return nil }
-            return ProviderCostSection(
+            return .inlineBalance(
                 title: L("Extra usage"),
-                percentUsed: nil,
-                spendLine: "\(L("Balance")): \(UsageFormatter.creditsNumberString(from: balance))",
-                percentLine: nil,
-                presentation: .inlineValue,
+                value: "\(L("Balance")): \(UsageFormatter.creditsNumberString(from: balance))",
                 showsInProviderDetails: false)
         }
 

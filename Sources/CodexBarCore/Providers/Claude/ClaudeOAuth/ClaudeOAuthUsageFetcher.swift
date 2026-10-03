@@ -266,7 +266,7 @@ struct OAuthUsageResponse: Decodable {
     let sevenDaySonnet: OAuthUsageWindow?
     let sevenDayRoutines: OAuthUsageWindow?
     let sevenDayRoutinesSourceKey: String?
-    let iguanaNecktie: OAuthUsageWindow?
+    let cloudCredits: ClaudeCloudCreditsSnapshot?
     let extraUsage: OAuthExtraUsage?
     /// Newer shape (superseding the flat `seven_day_*` fields above for scoped weekly
     /// windows): a flat list of limit entries, each optionally naming the model it scopes
@@ -291,7 +291,7 @@ struct OAuthUsageResponse: Decodable {
         ])
         self.sevenDayRoutines = routines.window
         self.sevenDayRoutinesSourceKey = routines.sourceKey
-        self.iguanaNecktie = Self.decodeWindow(in: container, keys: ["iguana_necktie"])
+        self.cloudCredits = Self.decodeValue(in: container, keys: ["iguana_necktie"])
         self.extraUsage = Self.decodeValue(in: container, keys: ["extra_usage"])
         self.limits = Self.decodeValue(in: container, keys: ["limits"])
     }

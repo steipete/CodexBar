@@ -440,6 +440,7 @@ struct ProviderMetricsInlineView: View {
         let hasInfoRows: Bool
         let hasTokenUsage: Bool
         let hasResetCredits: Bool
+        let hasCloudCredits: Bool
         let hasProviderDetails: Bool
 
         init(model: UsageMenuCardView.Model, infoRows: [InfoRow]) {
@@ -449,6 +450,7 @@ struct ProviderMetricsInlineView: View {
             self.hasInfoRows = !infoRows.isEmpty
             self.hasTokenUsage = model.tokenUsage != nil
             self.hasResetCredits = model.limitResetCredits != nil
+            self.hasCloudCredits = model.cloudCredits != nil
             self.hasProviderDetails = !model.providerDetails.isEmpty
         }
 
@@ -459,6 +461,7 @@ struct ProviderMetricsInlineView: View {
                 !self.hasInfoRows &&
                 !self.hasTokenUsage &&
                 !self.hasResetCredits &&
+                !self.hasCloudCredits &&
                 !self.hasProviderDetails
         }
     }
@@ -511,6 +514,10 @@ struct ProviderMetricsInlineView: View {
 
             if let resetCredits = self.model.limitResetCredits {
                 ProviderLimitResetCreditsInlineRow(presentation: resetCredits)
+            }
+
+            if let cloudCredits = self.model.cloudCredits {
+                ProviderMetricInlineTextRow(title: cloudCredits.title, value: cloudCredits.spendLine)
             }
 
             if let providerCost = self.model.providerCost, providerCost.showsInProviderDetails {

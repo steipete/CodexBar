@@ -100,6 +100,8 @@
 "Average (\\(metadata.sessionLabel) + \\(metadata.weeklyLabel))" = "평균 (\\(metadata.sessionLabel) + \\(metadata.weeklyLabel))";
 "Avoid Keychain prompts" = "키체인 프롬프트 방지";
 "Balance" = "잔액";
+"Cloud credits" = "클라우드 크레딧";
+"Expired" = "만료됨";
 "Battery Saver" = "배터리 절약";
 "Bordered" = "테두리 있음";
 "Build" = "빌드";

@@ -2,6 +2,10 @@
 
 ## 0.71.2 — Unreleased
 
+### Added
+
+- Claude: show promotional cloud-session credits separately from prepaid credits in menus, settings, and CLI output, including exhausted, expired, and unavailable states (#4194, #4214). Thanks @dstier-git!
+
 ## 0.71.1 — 2026-10-03
 
 ### Highlights

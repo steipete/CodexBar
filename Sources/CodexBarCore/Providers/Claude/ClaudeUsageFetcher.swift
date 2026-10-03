@@ -19,6 +19,7 @@ public struct ClaudeUsageSnapshot: Sendable {
     public let extraRateWindows: [NamedRateWindow]
     public let providerCost: ProviderCostSnapshot?
     public let resetCredits: ClaudeRateLimitResetCreditsSnapshot?
+    public let cloudCredits: ClaudeCloudCreditsSnapshot?
     public let updatedAt: Date
     public let accountEmail: String?
     public let accountOrganization: String?
@@ -47,6 +48,7 @@ public struct ClaudeUsageSnapshot: Sendable {
         extraRateWindows: [NamedRateWindow] = [],
         providerCost: ProviderCostSnapshot? = nil,
         resetCredits: ClaudeRateLimitResetCreditsSnapshot? = nil,
+        cloudCredits: ClaudeCloudCreditsSnapshot? = nil,
         updatedAt: Date,
         accountEmail: String?,
         accountOrganization: String?,
@@ -67,6 +69,7 @@ public struct ClaudeUsageSnapshot: Sendable {
         self.extraRateWindows = extraRateWindows
         self.providerCost = providerCost
         self.resetCredits = resetCredits
+        self.cloudCredits = cloudCredits
         self.updatedAt = updatedAt
         self.accountEmail = accountEmail
         self.accountOrganization = accountOrganization
@@ -1056,6 +1059,7 @@ extension ClaudeUsageFetcher {
                     opus: nil,
                     extraRateWindows: Self.oauthExtraRateWindows(from: usage),
                     providerCost: providerCost,
+                    cloudCredits: usage.cloudCredits,
                     updatedAt: Date(),
                     accountEmail: nil,
                     accountOrganization: nil,
@@ -1083,6 +1087,7 @@ extension ClaudeUsageFetcher {
             opus: modelSpecific,
             extraRateWindows: extraRateWindows,
             providerCost: providerCost,
+            cloudCredits: usage.cloudCredits,
             updatedAt: Date(),
             accountEmail: nil,
             accountOrganization: nil,
@@ -1257,6 +1262,7 @@ extension ClaudeUsageFetcher {
             extraRateWindows: webData.extraRateWindows,
             providerCost: webData.extraUsageCost,
             resetCredits: webData.resetCredits,
+            cloudCredits: webData.cloudCredits,
             updatedAt: Date(),
             accountEmail: webData.accountEmail,
             accountOrganization: webData.accountOrganization,

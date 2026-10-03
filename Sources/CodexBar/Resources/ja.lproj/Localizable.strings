@@ -100,6 +100,8 @@
 "Average (\\(metadata.sessionLabel) + \\(metadata.weeklyLabel))" = "平均 (\\(metadata.sessionLabel) + \\(metadata.weeklyLabel))";
 "Avoid Keychain prompts" = "キーチェーンのプロンプトを回避";
 "Balance" = "残高";
+"Cloud credits" = "クラウドクレジット";
+"Expired" = "期限切れ";
 "Battery Saver" = "バッテリーセーバー";
 "Bordered" = "枠線あり";
 "Build" = "ビルド";

@@ -193,6 +193,7 @@ public enum ClaudeWebAPIFetcher {
         public let extraRateWindows: [NamedRateWindow]
         public fileprivate(set) var extraUsageCost: ProviderCostSnapshot?
         public let resetCredits: ClaudeRateLimitResetCreditsSnapshot?
+        public let cloudCredits: ClaudeCloudCreditsSnapshot?
         public fileprivate(set) var accountOrganization: String?
         public fileprivate(set) var accountOrganizationID: String?
         public fileprivate(set) var accountEmail: String?
@@ -217,7 +218,8 @@ public enum ClaudeWebAPIFetcher {
             accountEmail: String?,
             loginMethod: String?,
             hasLiveSessionWindow: Bool = true,
-            resetCredits: ClaudeRateLimitResetCreditsSnapshot? = nil)
+            resetCredits: ClaudeRateLimitResetCreditsSnapshot? = nil,
+            cloudCredits: ClaudeCloudCreditsSnapshot? = nil)
         {
             self.sessionPercentUsed = sessionPercentUsed
             self.sessionResetsAt = sessionResetsAt
@@ -232,6 +234,7 @@ public enum ClaudeWebAPIFetcher {
             self.loginMethod = loginMethod
             self.hasLiveSessionWindow = hasLiveSessionWindow
             self.resetCredits = resetCredits
+            self.cloudCredits = cloudCredits
         }
     }
 
@@ -746,7 +749,8 @@ extension ClaudeWebAPIFetcher {
             accountEmail: nil,
             loginMethod: nil,
             hasLiveSessionWindow: hasLiveSessionWindow,
-            resetCredits: resetCredits)
+            resetCredits: resetCredits,
+            cloudCredits: ClaudeCloudCreditsSnapshot.parse(json["iguana_necktie"]))
     }
 
     /// Anything unreadable in the `cedar_ember` block yields no inventory and leaves the usage windows intact.

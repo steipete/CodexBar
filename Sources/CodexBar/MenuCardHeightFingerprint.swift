@@ -24,6 +24,7 @@ extension UsageMenuCardView.Model {
             MenuCardHeightFingerprint.field("creditsHint", self.creditsHintText),
             MenuCardHeightFingerprint.field("creditsCopy", self.creditsHintCopyText),
             "limitResetCredits=\(self.limitResetCredits?.heightFingerprint ?? "")",
+            "cloudCredits=\(self.cloudCredits?.heightFingerprint ?? "")",
             "metrics=\(MenuCardHeightFingerprint.join(self.metrics.map(\.heightFingerprint)))",
             "notes=\(notesFingerprint)",
             "providerDetails=\(self.providerDetails.heightFingerprint)",

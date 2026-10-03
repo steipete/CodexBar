@@ -80,6 +80,8 @@
 "Average (\\(metadata.sessionLabel) + \\(metadata.weeklyLabel))" = "Mitjana (\\(metadata.sessionLabel) + \\(metadata.weeklyLabel))";
 "Avoid Keychain prompts" = "Evita les sol·licituds del Clauer";
 "Balance" = "Saldo";
+"Cloud credits" = "Crèdits al núvol";
+"Expired" = "Caducat";
 "Battery Saver" = "Estalvi de bateria";
 "Bordered" = "Amb vora";
 "Build" = "Compilació";

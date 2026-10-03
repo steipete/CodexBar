@@ -104,6 +104,8 @@
 "Average (\\(metadata.sessionLabel) + \\(metadata.weeklyLabel))" = "平均（\\(metadata.sessionLabel) + \\(metadata.weeklyLabel)）";
 "Avoid Keychain prompts" = "避免钥匙串提示";
 "Balance" = "余额";
+"Cloud credits" = "云端额度";
+"Expired" = "已过期";
 "Battery Saver" = "省电模式";
 "Bordered" = "带边框";
 "Build" = "构建";

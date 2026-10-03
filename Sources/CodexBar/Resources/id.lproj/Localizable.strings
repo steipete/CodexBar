@@ -80,6 +80,8 @@
 "Average (\\(metadata.sessionLabel) + \\(metadata.weeklyLabel))" = "Rata-rata (\\(metadata.sessionLabel) + \\(metadata.weeklyLabel))";
 "Avoid Keychain prompts" = "Hindari permintaan Keychain";
 "Balance" = "Saldo";
+"Cloud credits" = "Kredit cloud";
+"Expired" = "Kedaluwarsa";
 "Battery Saver" = "Penghemat Baterai";
 "Bordered" = "Berbingkai";
 "Build" = "Build";

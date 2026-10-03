@@ -39,6 +39,10 @@ extension UsageMenuCardView.Model {
                 return try? ProviderDetailSection(title: section.title, rows: rows, chart: section.chart)
             }
         }
+        // Provider-specific by design: Claude draws cloud credits as its own balance row beside prepaid credits.
+        if input.provider == .claude {
+            details.removeAll { $0.title == ClaudeCloudCreditsSnapshot.detailTitle }
+        }
         let pairs = details.flatMap { rawSection in
             let localized = input.provider == .sub2api
                 ? Self.sub2APILocalizedDetails([rawSection]) : [rawSection]

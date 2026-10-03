@@ -80,6 +80,8 @@
 "Average (\\(metadata.sessionLabel) + \\(metadata.weeklyLabel))" = "Media (\\(metadata.sessionLabel) + \\(metadata.weeklyLabel))";
 "Avoid Keychain prompts" = "Evita i prompt del portachiavi";
 "Balance" = "Saldo";
+"Cloud credits" = "Crediti cloud";
+"Expired" = "Scaduto";
 "Battery Saver" = "Risparmio batteria";
 "Bordered" = "Con bordo";
 "Build" = "Build";

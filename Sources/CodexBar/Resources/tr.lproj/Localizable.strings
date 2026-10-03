@@ -80,6 +80,8 @@
 "Average (\\(metadata.sessionLabel) + \\(metadata.weeklyLabel))" = "Ortalama (\\(metadata.sessionLabel) + \\(metadata.weeklyLabel))";
 "Avoid Keychain prompts" = "Anahtar Zinciri istemlerini atla";
 "Balance" = "Bakiye";
+"Cloud credits" = "Bulut kredileri";
+"Expired" = "Süresi doldu";
 "Battery Saver" = "Pil tasarrufu";
 "Bordered" = "Kenarlıklı";
 "Build" = "Derleme";

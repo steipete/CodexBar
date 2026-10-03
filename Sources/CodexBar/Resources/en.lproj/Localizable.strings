@@ -56,6 +56,8 @@
 "Average (\\(metadata.sessionLabel) + \\(metadata.weeklyLabel))" = "Average (\\(metadata.sessionLabel) + \\(metadata.weeklyLabel))";
 "Avoid Keychain prompts" = "Avoid Keychain prompts";
 "Balance" = "Balance";
+"Cloud credits" = "Cloud credits";
+"Expired" = "Expired";
 "Battery Saver" = "Battery Saver";
 "Bordered" = "Bordered";
 "Build" = "Build";

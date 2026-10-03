@@ -348,6 +348,7 @@ extension UsageMenuCardView.Model {
             self.openAIAPIUsage == nil &&
             self.inlineUsageDashboard == nil &&
             self.limitResetCredits == nil &&
+            self.cloudCredits == nil &&
             self.creditsRemaining == nil &&
             self.providerCost == nil &&
             self.tokenUsage == nil &&
@@ -361,7 +362,17 @@ extension UsageMenuCardView.Model {
             self.openAIAPIUsage != nil ||
             self.inlineUsageDashboard != nil ||
             self.limitResetCredits != nil ||
+            self.cloudCredits != nil ||
             self.placeholder != nil
+    }
+
+    /// The cloud-credit row only needs a divider when another usage row is drawn before it.
+    var hasUsageContentAboveCloudCredits: Bool {
+        !self.metrics.isEmpty ||
+            !self.usageNotes.isEmpty ||
+            !self.providerDetails.isEmpty ||
+            self.inlineUsageDashboard != nil ||
+            self.limitResetCredits != nil
     }
 
     func showsOverviewSupplementalContent(compact: Bool) -> Bool {
@@ -376,6 +387,7 @@ extension UsageMenuCardView.Model {
             self.providerDetails.isEmpty &&
             self.openAIAPIUsage == nil &&
             self.limitResetCredits == nil &&
+            self.cloudCredits == nil &&
             self.placeholder == nil
     }
 
@@ -383,6 +395,7 @@ extension UsageMenuCardView.Model {
         !self.metrics.isEmpty ||
             self.creditsText != nil ||
             self.limitResetCredits != nil ||
+            self.cloudCredits != nil ||
             self.providerCost != nil ||
             self.tokenUsage != nil
     }
@@ -421,6 +434,7 @@ extension UsageMenuCardView.Model {
                   candidateRemaining: candidate.creditsRemaining),
               self.creditsHintText == candidate.creditsHintText,
               Self.hasCompatibleLimitResetCreditsLayout(self.limitResetCredits, candidate.limitResetCredits),
+              Self.hasCompatibleProviderCostLayout(self.cloudCredits, candidate.cloudCredits),
               self.placeholder == candidate.placeholder,
               Self.hasCompatibleDashboardLayout(self.inlineUsageDashboard, candidate.inlineUsageDashboard),
               Self.hasCompatibleProviderCostLayout(self.providerCost, candidate.providerCost),

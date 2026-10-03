@@ -88,6 +88,13 @@ extension UsageMenuCardView.Model {
                 return ProviderUsageItemDescriptor(id: .detailSection(rawTitle), title: title)
             })
 
+        // Provider-specific by design: Claude cloud credits keep their detail-section ID outside the generic list.
+        if let cloudCredits = self.cloudCredits {
+            descriptors.append(ProviderUsageItemDescriptor(
+                id: .detailSection(ClaudeCloudCreditsSnapshot.detailTitle),
+                title: cloudCredits.title))
+        }
+
         var seen = Set<ProviderUsageItemID>()
         return descriptors.filter { seen.insert($0.id).inserted }
     }
@@ -131,6 +138,9 @@ extension UsageMenuCardView.Model {
             projected.limitResetCredits = nil
         }
         let hiddenTitles = Set(hiddenItemIDs.compactMap(\.detailSectionTitle))
+        if hiddenTitles.contains(ClaudeCloudCreditsSnapshot.detailTitle) {
+            projected.cloudCredits = nil
+        }
         if !hiddenTitles.isEmpty {
             let kept = self.providerDetails.enumerated().compactMap { index, section
                 -> (section: ProviderDetailSection, rawTitle: String?)? in

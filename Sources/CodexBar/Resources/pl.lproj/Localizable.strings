@@ -80,6 +80,8 @@
 "Average (\\(metadata.sessionLabel) + \\(metadata.weeklyLabel))" = "Średnia (\\(metadata.sessionLabel) + \\(metadata.weeklyLabel))";
 "Avoid Keychain prompts" = "Unikaj monitów pęku kluczy";
 "Balance" = "Saldo";
+"Cloud credits" = "Kredyty w chmurze";
+"Expired" = "Wygasło";
 "Battery Saver" = "Oszczędzanie baterii";
 "Bordered" = "Z obramowaniem";
 "Build" = "Wersja kompilacji";
