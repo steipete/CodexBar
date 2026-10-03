@@ -2,6 +2,10 @@
 
 ## 0.71.2 — Unreleased
 
+### Added
+
+- Antigravity: opt in to additional Gemini profile homes in provider settings or config.json to combine local token/cost history without double-counting copied conversations (#4177). Thanks @keeuu!
+
 ## 0.71.1 — 2026-10-03
 
 ### Highlights

@@ -3111,10 +3111,10 @@ struct ProviderArchitectureGatekeeperTests {
         AllowedProviderConstruct(
             path: "Sources/CodexBar/UsageStore+TokenCost.swift",
             anchor: "return provider == .codex && self.codexCostCatchUpActivity?.phase == .indexing",
-            expectedProviderIDs: ["claude", "codex", "vertexai"],
-            expectedReferenceCount: 4,
-            expectedReferenceFingerprint: ["codex@0", "vertexai@4", "claude@5", "codex@7"],
-            reason: "This exact app-runtime bridge coordinates provider-owned state through the shared controller."),
+            expectedProviderIDs: ["antigravity", "claude", "codex", "vertexai"],
+            expectedReferenceCount: 5,
+            expectedReferenceFingerprint: ["codex@0", "antigravity@5", "vertexai@10", "claude@11", "codex@13"],
+            reason: "History scopes include Antigravity's explicit homes, Vertex's Claude fallback, and Codex ownership."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/UsageStore+TokenCost.swift",
             anchor: "guard provider == .cursor else {",

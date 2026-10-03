@@ -2,6 +2,13 @@ import CodexBarCore
 import Foundation
 
 extension SettingsStore {
+    var antigravityAdditionalProfileHomes: [String] {
+        get { self.configSnapshot.providerConfig(for: .antigravity)?.antigravityAdditionalProfileHomes ?? [] }
+        set {
+            self.updateProviderConfig(provider: .antigravity) { $0.antigravityAdditionalProfileHomes = newValue }
+        }
+    }
+
     var antigravityPrioritizeExhaustedQuotas: Bool {
         get {
             self.configSnapshot.providerConfig(for: .antigravity)?.antigravityPrioritizeExhaustedQuotas ?? false
