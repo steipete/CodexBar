@@ -87,6 +87,8 @@ actor CostUsageStore {
         parserHash: CodexParserHash.value)
     static let cacheGeneration = "sqlite:\(CostUsageStore.schemaVersion)"
     static let compatiblePredecessorParserHashes: Set<String> = [
+        "c61aebb9cf043a72", // Revision 6 ledger caches reparse through the shared ownership router.
+        "4a4c4ef34ce6f037", // Request-ledger accounting uses bounded native parser-revision migration.
         "04a6361469a4ff77", // Settled orphan scheduling preserves rows, replay buffers, and checkpoints.
         "98de5f52231e524e", // 0.68.0 rows and checkpoints survive sparse priority-day reconciliation.
         "9972dad7f7aeff21", // Direct-fork baseline corrections use bounded parser-revision migration.

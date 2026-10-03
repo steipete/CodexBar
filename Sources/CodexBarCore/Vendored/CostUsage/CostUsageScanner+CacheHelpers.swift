@@ -225,6 +225,7 @@ extension CostUsageScanner {
         codexScanComplete: Bool? = nil,
         codexJSONLResumeState: CostUsageJsonl.ResumeState? = nil,
         codexForkAccountingState: CodexForkAccountingState? = nil,
+        codexRequestLedgerState: CodexRequestLedgerState? = nil,
         codexBufferedSubagentLines: [CodexBufferedFastLine]? = nil,
         codexBufferedUnresolvedForkLines: [CodexBufferedFastLine]? = nil) -> CostUsageFileUsage
     {
@@ -267,6 +268,7 @@ extension CostUsageScanner {
             codexScanComplete: codexScanComplete,
             codexJSONLResumeState: codexJSONLResumeState,
             codexForkAccountingState: codexForkAccountingState,
+            codexRequestLedgerState: codexRequestLedgerState,
             codexBufferedSubagentLines: codexBufferedSubagentLines,
             codexBufferedUnresolvedForkLines: codexBufferedUnresolvedForkLines)
     }
@@ -490,68 +492,9 @@ extension CostUsageScanner {
             && usage.parsedBytes == usage.size
             && usage.codexScanTargetSize == usage.size
             && usage.codexJSONLResumeState == nil
+            && usage.codexRequestLedgerState == nil
             && !usage.hasBufferedCodexSubagentLines
             && !usage.hasBufferedCodexUnresolvedForkLines
-    }
-
-    static func codexUsageRowKey(
-        sessionId: String?,
-        fileIdentity: String? = nil,
-        row: CodexUsageRow) -> String
-    {
-        [
-            sessionId.map { "session:\($0)" } ?? "file:\(fileIdentity ?? "")",
-            row.turnID ?? "",
-            row.eventIndex.map(String.init) ?? "",
-            row.day,
-            row.model,
-            String(row.input),
-            String(row.cached),
-            String(row.output),
-        ].joined(separator: "\u{1F}")
-    }
-
-    static func uniqueCodexRows(
-        rows: [CodexUsageRow],
-        sessionId: String?,
-        fileIdentity: String,
-        state: inout CodexScanState) -> [CodexUsageRow]
-    {
-        var unique: [CodexUsageRow] = []
-        var acceptedKeys = Set<String>()
-        for row in rows {
-            let key = Self.codexCrossFileRowKey(sessionId: sessionId, fileIdentity: fileIdentity, row: row)
-            if !state.seenCodexUsageRowKeys.contains(key) {
-                unique.append(row)
-                acceptedKeys.insert(key)
-            }
-        }
-        state.seenCodexUsageRowKeys.formUnion(acceptedKeys)
-        return unique
-    }
-
-    static func rememberCodexRows(
-        _ rows: [CodexUsageRow],
-        sessionId: String?,
-        fileIdentity: String,
-        state: inout CodexScanState)
-    {
-        for row in rows {
-            state.seenCodexUsageRowKeys.insert(self.codexCrossFileRowKey(
-                sessionId: sessionId,
-                fileIdentity: fileIdentity,
-                row: row))
-        }
-    }
-
-    private static func codexCrossFileRowKey(
-        sessionId: String?,
-        fileIdentity: String,
-        row: CodexUsageRow) -> String
-    {
-        // Page-local event indices restart; timestamps distinguish new requests from archived copies.
-        self.codexUsageRowKey(sessionId: sessionId, fileIdentity: fileIdentity, row: row)
-            + "\u{1F}" + (row.timestampUnixMs.map(String.init) ?? "")
     }
 
     static func codexFileDays(rows: [CodexUsageRow]) -> [String: [String: [Int]]] {
@@ -906,6 +849,7 @@ extension CostUsageScanner {
             return false
         }
         let initialCountedTotals = cached.lastCountedTotals ?? cached.lastTotals
+        let hasLedgerUsage = cached.codexRequestLedgerState?.responseIDs.isEmpty == false
         let initialRawTotalsBaseline = cached.lastRawTotalsBaseline ?? cached.lastTotals
         let initialHasDivergentTotals = cached.hasDivergentTotals ?? (cached.lastTotals == nil)
         let initialAccumulatorState = CostUsageCodexTokenAccumulatorState(
@@ -927,10 +871,10 @@ extension CostUsageScanner {
                 || isBufferedForkResume
                 || (isFrozenTargetTail
                     && cached.forkedFromId == nil
-                    && initialCountedTotals != nil
+                    && (initialCountedTotals != nil || hasLedgerUsage)
                     && !hasIncompleteInterleaveState)
                 || (input.metadata.size > cached.size
-                    && initialCountedTotals != nil
+                    && (initialCountedTotals != nil || hasLedgerUsage)
                     && cached.forkedFromId == nil
                     && !hasIncompleteInterleaveState))
         guard canIncremental, let nextUsageRowIndex = cached.codexNextUsageRowIndex else { return false }
@@ -945,6 +889,7 @@ extension CostUsageScanner {
             range: context.range,
             startOffset: startOffset,
             initialModel: cached.lastModel,
+            initialSessionID: cached.sessionId,
             initialTotals: initialCountedTotals,
             initialRawTotalsBaseline: initialRawTotalsBaseline,
             initialRawTotalsWatermark: cached.lastRawTotalsWatermark,
@@ -957,6 +902,8 @@ extension CostUsageScanner {
             initialBufferedUnresolvedForkLines: cached.codexBufferedUnresolvedForkLines,
             initialJSONLResumeState: cached.codexJSONLResumeState,
             initialForkAccountingState: resumesResolvedFork ? cached.codexForkAccountingState : nil,
+            initialRequestLedgerState: cached.codexRequestLedgerState,
+            initialRequestLedgerRows: cached.codexRows ?? [],
             scanTargetSize: resumableTargetSize ?? input.metadata.size,
             maxBytesToRead: maxBytesToRead,
             shouldStopReading: context.scanBudget.map { budget in
@@ -986,7 +933,9 @@ extension CostUsageScanner {
             context.resources.projectPathResolver.canonicalProjectPath(for: $0)
         } ?? cached.canonicalProjectPath ?? context.resources.projectPathResolver.canonicalProjectPath(for: projectPath)
         let sessionAlreadyContributed = sessionId.map { state.contributingSessionIds.contains($0) } ?? false
-        let cachedRows = cached.codexRows ?? []
+        let cachedRows = (cached.codexRows ?? []).filter {
+            $0.eventIndex.map { !delta.replacedLegacyRowIndices.contains($0) } ?? true
+        }
         let retainedCachedRows: [CodexUsageRow]
         if sessionAlreadyContributed {
             retainedCachedRows = Self.uniqueCodexRows(
@@ -1021,7 +970,7 @@ extension CostUsageScanner {
             priorityTurns: context.resources.priorityTurns)
         context.workRecorder?.record(processed: uniqueRows.count, repriced: classifiedUniqueRows.count)
 
-        let migratedCached = sessionAlreadyContributed
+        let migratedCached = sessionAlreadyContributed || !delta.replacedLegacyRowIndices.isEmpty
             ? Self.codexFileUsageByFilteringRows(migrated, rows: retainedCachedRows, context: context)
             : migrated
         if sessionAlreadyContributed, migratedCached.days.isEmpty, uniqueRows.isEmpty {
@@ -1030,7 +979,7 @@ extension CostUsageScanner {
         }
         let uniqueDays = Self.codexFileDays(rows: uniqueRows)
 
-        if sessionAlreadyContributed {
+        if sessionAlreadyContributed || !delta.replacedLegacyRowIndices.isEmpty {
             Self.applyFileDays(cache: &cache, fileDays: cached.days, sign: -1)
             Self.applyFileDays(cache: &cache, fileDays: migratedCached.days, sign: 1)
         }
@@ -1113,6 +1062,7 @@ extension CostUsageScanner {
             codexScanComplete: delta.parsedBytes >= delta.scanTargetSize && delta.jsonlResumeState == nil,
             codexJSONLResumeState: delta.jsonlResumeState,
             codexForkAccountingState: delta.forkAccountingState,
+            codexRequestLedgerState: delta.requestLedgerState,
             codexBufferedSubagentLines: delta.bufferedSubagentLines,
             codexBufferedUnresolvedForkLines: delta.bufferedUnresolvedForkLines)
             .refreshingCodexWorkspaceUsageFingerprint()
@@ -1271,6 +1221,7 @@ extension CostUsageScanner {
             codexScanComplete: parsed.parsedBytes >= parsed.scanTargetSize && parsed.jsonlResumeState == nil,
             codexJSONLResumeState: parsed.jsonlResumeState,
             codexForkAccountingState: parsed.forkAccountingState,
+            codexRequestLedgerState: parsed.requestLedgerState,
             codexBufferedSubagentLines: parsed.bufferedSubagentLines,
             codexBufferedUnresolvedForkLines: parsed.bufferedUnresolvedForkLines)
             .refreshingCodexWorkspaceUsageFingerprint()

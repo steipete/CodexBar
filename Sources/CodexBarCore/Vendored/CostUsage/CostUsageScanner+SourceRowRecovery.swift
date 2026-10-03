@@ -290,7 +290,9 @@ extension CostUsageScanner {
                 knownCostNanos: row.knownCostNanos,
                 unpricedTokens: overflow ? Int.max : max(1, tokens),
                 pricingModel: row.pricingModel,
-                pricingMode: row.pricingMode)
+                pricingMode: row.pricingMode,
+                responseID: row.responseID,
+                requestMirrorKeys: row.requestMirrorKeys)
         }
         return Self.codexRowsWithPricingMetadata(
             classified,
