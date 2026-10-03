@@ -1033,6 +1033,8 @@ extension ClaudeUsageFetcher {
                 resetDescription: resetDescription)
         }
 
+        let updatedAt = Date()
+        let resetCredits = usage.resetStatus?.snapshot(updatedAt: updatedAt)
         let loginMethod = ClaudePlan.oauthLoginMethod(
             subscriptionType: credentials.subscriptionType,
             rateLimitTier: credentials.rateLimitTier)
@@ -1056,7 +1058,8 @@ extension ClaudeUsageFetcher {
                     opus: nil,
                     extraRateWindows: Self.oauthExtraRateWindows(from: usage),
                     providerCost: providerCost,
-                    updatedAt: Date(),
+                    resetCredits: resetCredits,
+                    updatedAt: updatedAt,
                     accountEmail: nil,
                     accountOrganization: nil,
                     loginMethod: loginMethod,
@@ -1083,7 +1086,8 @@ extension ClaudeUsageFetcher {
             opus: modelSpecific,
             extraRateWindows: extraRateWindows,
             providerCost: providerCost,
-            updatedAt: Date(),
+            resetCredits: resetCredits,
+            updatedAt: updatedAt,
             accountEmail: nil,
             accountOrganization: nil,
             loginMethod: loginMethod,

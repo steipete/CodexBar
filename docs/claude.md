@@ -151,12 +151,14 @@ the cookie import.
 - Requires `user:profile` scope (CLI tokens with only `user:inference` cannot call usage).
 - Missing-scope errors require a Claude Code sign-in token with usage access. `claude setup-token` produces a token for model requests and is not a usage-scope recovery step ([Claude Code authentication](https://code.claude.com/docs/en/authentication#generate-a-long-lived-token)). Remove any configured OAuth token override before switching Claude Source to Web/CLI.
 - Endpoints:
-  - `GET https://api.anthropic.com/api/oauth/usage`
+  - `GET https://api.anthropic.com/api/oauth/usage?cedar_ember=1` → usage and saved reset inventory.
+    HTTP 400/403 retries once without the optional query and with the legacy request identity; spending is never skipped.
   - `GET https://api.anthropic.com/api/oauth/profile` → account identity used to verify that optional Web enrichment
     belongs to the same Claude account.
 - Headers:
   - `Authorization: Bearer <access_token>`
   - `anthropic-beta: oauth-2025-04-20`
+  - Reset inventory uses `claude-cli/<detected-version> (external, cli)`; eligibility remains server-controlled.
 - Mapping:
   - `five_hour` → session window.
   - `seven_day` → weekly window; also becomes the primary fallback when `five_hour` is absent or has no utilization.
@@ -244,7 +246,7 @@ the cookie import.
   cached cookie and prior quota snapshot, identifies the challenge, and links to Settings. Select OAuth for live
   quota windows on that network (the web-only Usage credits balance is unavailable), or try a different network.
   Explicit Web mode remains terminal and never reads OAuth credentials as a fallback.
-- Limit Reset Credits ("Reset for free" in Claude Settings > Usage), Web source only:
+- Limit Reset Credits ("Reset for free" in Claude Settings > Usage), Web and OAuth sources:
   - These are saved resets a user can redeem, separate from the session and weekly reset timestamps already
     supplied by Web, OAuth, and CLI. Existing cookie settings and source selection govern all Web access; this
     feature does not enable cookies, broaden browser discovery, or initiate Web enrichment.
@@ -260,8 +262,8 @@ the cookie import.
     `codexbar serve`: a `Limit Reset Credits` row in `usage.details` (`N available`, next expiry).
   - Live-only: grant IDs are never decoded, the usage request skips the URL cache, and cached or synced snapshots do
     not restore the inventory. A reset used on claude.ai disappears at the next successful refresh.
-  - Source precedence stays unchanged: credits appear only when Web supplies the primary usage snapshot. OAuth
-    and CLI do not report saved reset credits, and optional Web enrichment never adds Web credits to either source,
+  - Source precedence stays unchanged: credits appear only from the source supplying the primary usage snapshot. CLI
+    does not report saved reset credits, and optional Web enrichment never adds Web credits to another source,
     even when the account matches. The menu replaces the generic details row with one shared reset-credit section.
     CodexBar never redeems a reset; use Claude on the web or Claude Desktop.
 

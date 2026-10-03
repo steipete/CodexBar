@@ -1,7 +1,7 @@
 import Foundation
 
 /// Claude usage-limit resets ("Reset for free" in Claude Settings > Usage), read from the `cedar_ember`
-/// block of the Claude Web usage response.
+/// block of the Claude Web or OAuth usage response.
 ///
 /// Display-safe, live-only inventory. Grant identifiers are redemption handles; they are never decoded, so
 /// they never enter a UsageSnapshot, its persisted JSON, or CLI output. The usage request skips the URL cache,
@@ -72,8 +72,22 @@ struct ClaudeLimitResetStatusResponse: Decodable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         self.eligible = try container.decode(Bool.self, forKey: .eligible)
-        let grants = try? container.decodeIfPresent([LossyGrant].self, forKey: .grants)
-        self.grants = grants?.compactMap(\.grant) ?? []
+        var records = try container.nestedUnkeyedContainer(forKey: .grants)
+        var grants: [ClaudeLimitResetGrantResponse] = []
+        var count = 0
+        while !records.isAtEnd {
+            guard count < Self.maximumGrantRecords else {
+                throw DecodingError.dataCorruptedError(
+                    forKey: .grants,
+                    in: container,
+                    debugDescription: "Too many reset grants")
+            }
+            count += 1
+            if let grant = try records.decode(LossyGrant.self).grant {
+                grants.append(grant)
+            }
+        }
+        self.grants = grants
     }
 
     /// `usable_now` is not consulted: a saved reset counts even while Claude gates redemption. A grant that has

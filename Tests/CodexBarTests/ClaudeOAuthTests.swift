@@ -749,8 +749,8 @@ struct ClaudeOAuthTests {
     func `oauth usage user agent uses claude code version`() {
         #expect(
             ClaudeOAuthUsageFetcher._userAgentForTesting(versionString: "2.1.70 (Claude Code)")
-                == "claude-code/2.1.70")
-        #expect(ClaudeOAuthUsageFetcher._userAgentForTesting(versionString: nil) == "claude-code/2.1.0")
+                == "claude-cli/2.1.70 (external, cli)")
+        #expect(ClaudeOAuthUsageFetcher._userAgentForTesting(versionString: nil) == "claude-cli/2.1.0 (external, cli)")
     }
 
     @Test
@@ -763,7 +763,7 @@ struct ClaudeOAuthTests {
                 return "2.1.70 (Claude Code)"
             })
 
-        #expect(fallback == "claude-code/2.1.0")
+        #expect(fallback == "claude-cli/2.1.0 (external, cli)")
         #expect(detectionCount == 0)
 
         let detected = ClaudeOAuthUsageFetcher._userAgentForTesting(
@@ -773,7 +773,7 @@ struct ClaudeOAuthTests {
                 return "2.1.70 (Claude Code)"
             })
 
-        #expect(detected == "claude-code/2.1.70")
+        #expect(detected == "claude-cli/2.1.70 (external, cli)")
         #expect(detectionCount == 1)
     }
 

@@ -175,7 +175,7 @@ final class ProviderVersionDetectorTests: XCTestCase {
             }
         }
 
-        XCTAssertEqual(userAgent, "claude-code/2.1.0")
+        XCTAssertEqual(userAgent, "claude-cli/2.1.0 (external, cli)")
         XCTAssertEqual(state.callCount, 0)
     }
 
