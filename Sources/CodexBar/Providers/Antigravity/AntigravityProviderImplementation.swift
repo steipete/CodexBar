@@ -15,6 +15,7 @@ struct AntigravityProviderImplementation: ProviderImplementation {
 
     @MainActor
     func observeSettings(_ settings: SettingsStore) {
+        _ = settings.antigravityAdditionalProfileHomes
         _ = settings.antigravityUsageDataSource
         _ = settings.antigravityPrioritizeExhaustedQuotas
         _ = settings.tokenAccountsData(for: .antigravity)
@@ -72,6 +73,16 @@ struct AntigravityProviderImplementation: ProviderImplementation {
                     return label == "auto" ? nil : label
                 }),
         ]
+    }
+
+    @MainActor
+    func settingsDirectoryLists(context: ProviderSettingsContext) -> [ProviderSettingsDirectoryListDescriptor] {
+        [ProviderSettingsDirectoryListDescriptor(
+            id: "antigravity-profile-homes",
+            title: "Additional Gemini profile homes",
+            subtitle: "Optional. Select each profile's .gemini folder to combine local token and cost history. " +
+                "The primary home is always included. Does not change sign-in or quotas.",
+            binding: context.binding(\.antigravityAdditionalProfileHomes))]
     }
 
     @MainActor

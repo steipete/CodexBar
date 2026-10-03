@@ -42,6 +42,10 @@ protocol ProviderImplementation: Sendable {
     @MainActor
     func settingsFields(context: ProviderSettingsContext) -> [ProviderSettingsFieldDescriptor]
 
+    /// Optional explicit filesystem roots rendered with a shared directory picker.
+    @MainActor
+    func settingsDirectoryLists(context: ProviderSettingsContext) -> [ProviderSettingsDirectoryListDescriptor]
+
     /// Optional provider-specific settings action rows to render in the Providers pane.
     @MainActor
     func settingsActions(context: ProviderSettingsContext) -> [ProviderSettingsActionsDescriptor]
@@ -152,6 +156,11 @@ extension ProviderImplementation {
 
     @MainActor
     func settingsFields(context _: ProviderSettingsContext) -> [ProviderSettingsFieldDescriptor] {
+        []
+    }
+
+    @MainActor
+    func settingsDirectoryLists(context _: ProviderSettingsContext) -> [ProviderSettingsDirectoryListDescriptor] {
         []
     }
 

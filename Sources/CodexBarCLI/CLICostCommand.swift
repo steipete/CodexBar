@@ -103,6 +103,8 @@ extension CodexBarCLI {
                 // cookie-authenticated dashboard API via the shared session resolution.
                 let snapshot = try await fetcher.loadTokenSnapshot(
                     provider: provider,
+                    antigravityAdditionalProfileHomes:
+                    config.providerConfig(for: provider.instanceID)?.antigravityAdditionalProfileHomes ?? [],
                     now: now,
                     forceRefresh: forceRefresh,
                     historyDays: historyDays,

@@ -123,6 +123,8 @@ struct DashboardSnapshotProducer: Sendable {
                     do {
                         let snapshot = try await costFetcher.loadTokenSnapshot(
                             provider: provider,
+                            antigravityAdditionalProfileHomes:
+                            config.providerConfig(for: provider.instanceID)?.antigravityAdditionalProfileHomes ?? [],
                             forceRefresh: false,
                             cursorCookieHeaderOverride: cursorCookieHeaderOverride,
                             refreshPricingInBackground: context.costRefreshesPricingInBackground,

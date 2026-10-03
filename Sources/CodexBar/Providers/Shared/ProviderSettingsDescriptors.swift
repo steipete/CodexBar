@@ -164,6 +164,15 @@ struct ProviderSettingsFieldDescriptor: Identifiable {
     let isVisible: (() -> Bool)?
 }
 
+/// Shared opt-in directory list; provider implementations supply data, not custom views.
+@MainActor
+struct ProviderSettingsDirectoryListDescriptor: Identifiable {
+    let id: String
+    let title: String
+    let subtitle: String
+    let binding: Binding<[String]>
+}
+
 /// Shared action row descriptor rendered in the Providers settings pane.
 @MainActor
 struct ProviderSettingsActionsDescriptor: Identifiable {

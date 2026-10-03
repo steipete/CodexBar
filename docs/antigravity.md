@@ -375,7 +375,35 @@ recorded breakdown names. See [model pricing](model-pricing.md) for the supporte
 
 Local history reads only the existing recognized roots: `~/.gemini/antigravity-cli/conversations/*.db`,
 `~/.gemini/antigravity/*.db`, and `~/.gemini/antigravity/conversations/*.db`. `GEMINI_CLI_HOME` replaces
-`~/.gemini`. When SQLite discovery completes without any databases, the reader can use
+`~/.gemini` as the primary home. **Settings → Providers → Antigravity → Additional Gemini profile homes**
+lets you opt in to other homes with a folder picker and remove them individually. Select each profile's
+Gemini directory (usually its `.gemini` directory), not its parent HOME or its `conversations` directory.
+The CLI reads the same `antigravityAdditionalProfileHomes` array from the Antigravity provider entry in
+`~/.codexbar/config.json` (or `CODEXBAR_CONFIG`):
+
+```json
+{
+  "version": 1,
+  "providers": [{
+    "id": "antigravity",
+    "enabled": true,
+    "antigravityAdditionalProfileHomes": ["/path/to/profile/home/.gemini"]
+  }]
+}
+```
+
+Use absolute paths or `~/…` relative to the refresh environment's HOME. An empty or omitted list keeps
+single-home behavior. Each selected home contributes the same three recognized directories; CodexBar never
+discovers additional homes from running processes or by traversing unrelated directories. Duplicate paths
+(including symlink aliases) are scanned once. Copied databases retaining their conversation filename are
+deduplicated by conversation and row/request identity; distinct conversations remain separate. Conflicting
+copies remain unpublishable rather than choosing an arbitrary token count. Empty and relative entries are ignored.
+Missing homes contribute no history. Unreadable roots or roots that are files retain the existing partial-history
+handling. The same scan budgets
+apply across all homes. Changing the home set invalidates menu and dashboard history caches.
+
+These homes affect local token/cost history only, not login, quota queries, or account attribution.
+When SQLite discovery across all selected homes completes without any databases, the reader can use
 `~/.config/tokscale/antigravity-cache/sessions/*.jsonl`; `TOKSCALE_CONFIG_DIR` replaces `~/.config/tokscale`.
 Both overrides and `HOME` come from the same refresh environment. Declared roots and session files may be symlinks;
 discovery still visits only the immediate entries of the recognized directories. This is machine-local token history,

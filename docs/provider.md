@@ -263,6 +263,10 @@ implementation, icon, settings-section, or widget registrations by provider ID. 
 remain deliberate literal exceptions because AppIntents requires statically extractable declarations.
 
 ## UI notes (Providers settings)
+Providers with opt-in filesystem roots return `ProviderSettingsDirectoryListDescriptor` values from
+`settingsDirectoryLists(context:)`. The shared row owns the directory picker and add/remove controls;
+providers retain responsibility for path interpretation and scan scope.
+
 Current: checkboxes per provider.
 
 Preferred direction: table/list rows (like a “sessions” table):

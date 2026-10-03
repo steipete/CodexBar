@@ -17,6 +17,28 @@ public enum AntigravityOfflineStore {
         return home.appendingPathComponent(".gemini", isDirectory: true)
     }
 
+    /// Explicit Gemini homes only; no process inspection or recursive profile discovery.
+    public static func geminiHomeDirectories(
+        home: URL,
+        env: [String: String],
+        additionalProfileHomes: [String]) -> [URL]
+    {
+        let primary = self.geminiHomeDirectory(home: home, env: env)
+        guard !additionalProfileHomes.isEmpty else { return [primary] }
+        let additional = additionalProfileHomes.compactMap { raw -> URL? in
+            let path = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !path.contains("\0") else { return nil }
+            if path == "~" { return home }
+            if path.hasPrefix("~/") { return home.appendingPathComponent(String(path.dropFirst(2))) }
+            guard path.hasPrefix("/") else { return nil }
+            return URL(fileURLWithPath: path, isDirectory: true)
+        }
+        var seen = Set<String>()
+        return ([primary] + additional).filter {
+            seen.insert($0.standardizedFileURL.resolvingSymlinksInPath().path).inserted
+        }
+    }
+
     public static func conversationsDirectory(home: URL, env: [String: String] = [:]) -> URL {
         self.geminiHomeDirectory(home: home, env: env)
             .appendingPathComponent("antigravity-cli", isDirectory: true)
