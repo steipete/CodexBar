@@ -7,6 +7,34 @@ import Testing
 @MainActor
 struct CodexAccountPromotionServiceTests {
     @Test
+    func `external auth change during preservation prevents swap`() async throws {
+        let container = try CodexAccountPromotionTestContainer(
+            suiteName: "CodexAccountPromotionServiceTests-external-change")
+        defer { container.tearDown() }
+        let target = try container.createManagedAccount(
+            persistedEmail: "target@example.com", authAccountID: "acct-target")
+        try container.persistAccounts([target])
+        let externalData = try container.writeLiveOAuthAuthFile(
+            email: "external@example.com", accountID: "acct-external")
+        let originalData = try container.writeLiveOAuthAuthFile(
+            email: "original@example.com", accountID: "acct-original")
+        let liveAuthURL = container.liveHomeURL.appendingPathComponent("auth.json")
+        let store = RecordingManagedCodexAccountStore(base: container.fileStore, onStore: { _ in
+            try externalData.write(to: liveAuthURL, options: .atomic)
+        })
+        let swapper = RecordingCodexLiveAuthSwapper()
+
+        await #expect(throws: CodexAccountPromotionError.liveAuthChangedDuringPromotion) {
+            try await container.makeService(store: store, liveAuthSwapper: swapper)
+                .promoteManagedAccount(id: target.id)
+        }
+        #expect(swapper.swapCallCount == 0)
+        #expect(try container.liveAuthData() == externalData)
+        let preserved = try #require(container.loadAccounts().accounts.first { $0.email == "original@example.com" })
+        #expect(try container.managedAuthData(for: preserved) == originalData)
+    }
+
+    @Test
     func `happy path promotion swaps target auth into live home`() async throws {
         let container = try CodexAccountPromotionTestContainer(
             suiteName: "CodexAccountPromotionServiceTests-happy-path")

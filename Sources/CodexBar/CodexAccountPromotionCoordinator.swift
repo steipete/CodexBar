@@ -1,3 +1,4 @@
+import CodexBarCore
 import Foundation
 import Observation
 
@@ -98,7 +99,7 @@ final class CodexAccountPromotionCoordinator {
                 L("CodexBar could not save the current system account before switching.")
             case .managedStoreCommitFailed:
                 L("CodexBar could not update managed account storage.")
-            case .liveAuthSwapFailed:
+            case .liveAuthSwapFailed, .liveAuthChangedDuringPromotion:
                 L("CodexBar could not replace the live Codex auth on this Mac.")
             }
 

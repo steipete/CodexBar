@@ -29,6 +29,8 @@ extension CodexBarCLI {
             print(Self.cardsHelp(version: version))
         case "usage":
             print(Self.usageHelp(version: version))
+        case "codex-accounts":
+            print(Self.codexAccountsHelp(version: version))
         case "cost":
             print(Self.costHelp(version: version))
         case "sessions", "focus":

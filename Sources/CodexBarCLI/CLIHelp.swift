@@ -2,6 +2,22 @@ import CodexBarCore
 import Foundation
 
 extension CodexBarCLI {
+    static func codexAccountsHelp(version: String) -> String {
+        """
+        CodexBar \(version)
+
+        Usage:
+          codexbar codex-accounts list [--json] [--pretty]
+          codexbar codex-accounts promote <exact-uuid-or-email> [--json] [--pretty]
+
+        Description:
+          macOS only. List CodexBar managed accounts without credential contents.
+          Promote explicitly replaces system Codex authentication after preserving its account.
+          Ambiguous emails require an exact UUID. Concurrent account changes fail without overwriting.
+          Existing Codex processes may retain their current account; restart them to use the promoted account.
+        """
+    }
+
     static func pluginsHelp(version: String) -> String {
         """
         CodexBar \(version)
@@ -479,6 +495,7 @@ extension CodexBarCLI {
                        [--period month-to-date|all] [--days <days>] [--group-by project|session]
           codexbar sessions [--json|--json-v2] [--pretty]
           codexbar sessions focus <id>
+          codexbar codex-accounts <list|promote> [--json] [--pretty]
           codexbar dashboard [--pretty] [--timeout <seconds>] [--output <path>]
           codexbar serve [--host <host>] [--port <port>] [--refresh-interval <seconds>]
                        [--request-timeout <seconds>]

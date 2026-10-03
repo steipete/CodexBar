@@ -1,34 +1,33 @@
-import CodexBarCore
 import Foundation
 
-enum CodexDisplacedLivePreservationNoneReason: Equatable {
+package enum CodexDisplacedLivePreservationNoneReason: Equatable {
     case liveMissing
     case targetMatchesLiveAuthIdentity
 }
 
-enum CodexDisplacedLivePreservationRejectReason: Equatable {
+package enum CodexDisplacedLivePreservationRejectReason: Equatable {
     case liveUnreadable
     case liveAPIKeyOnlyUnsupported
     case liveIdentityMissingForPreservation
     case conflictingReadableManagedHome
 }
 
-enum CodexDisplacedLivePreservationImportReason: Equatable {
+package enum CodexDisplacedLivePreservationImportReason: Equatable {
     case noExistingManagedDestination
 }
 
-enum CodexDisplacedLivePreservationRefreshReason: Equatable {
+package enum CodexDisplacedLivePreservationRefreshReason: Equatable {
     case readableHomeIdentityMatch
     case readableHomeIdentityMatchUsingPersistedEmailFallback
 }
 
-enum CodexDisplacedLivePreservationRepairReason: Equatable {
+package enum CodexDisplacedLivePreservationRepairReason: Equatable {
     case persistedProviderMatchWithMissingHome
     case persistedProviderMatchWithUnreadableHome
     case persistedLegacyEmailMatch
 }
 
-enum CodexDisplacedLivePreservationPlan {
+package enum CodexDisplacedLivePreservationPlan {
     case none(reason: CodexDisplacedLivePreservationNoneReason)
     case reject(reason: CodexDisplacedLivePreservationRejectReason)
     case importNew(reason: CodexDisplacedLivePreservationImportReason)
@@ -40,8 +39,8 @@ enum CodexDisplacedLivePreservationPlan {
         reason: CodexDisplacedLivePreservationRepairReason)
 }
 
-struct CodexDisplacedLivePreservationPlanner {
-    func makePlan(context: PreparedPromotionContext) -> CodexDisplacedLivePreservationPlan {
+package struct CodexDisplacedLivePreservationPlanner {
+    package func makePlan(context: PreparedPromotionContext) -> CodexDisplacedLivePreservationPlan {
         switch context.live.homeState {
         case .missing:
             return .none(reason: .liveMissing)

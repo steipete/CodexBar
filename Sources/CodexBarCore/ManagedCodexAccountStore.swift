@@ -5,9 +5,16 @@ public enum FileManagedCodexAccountStoreError: Error, Equatable, Sendable {
 }
 
 public protocol ManagedCodexAccountStoring: Sendable {
+    var lockURL: URL? { get }
     func loadAccounts() throws -> ManagedCodexAccountSet
     func storeAccounts(_ accounts: ManagedCodexAccountSet) throws
     func ensureFileExists() throws -> URL
+}
+
+extension ManagedCodexAccountStoring {
+    public var lockURL: URL? {
+        nil
+    }
 }
 
 public struct FileManagedCodexAccountStore: ManagedCodexAccountStoring, @unchecked Sendable {
@@ -38,7 +45,17 @@ public struct FileManagedCodexAccountStore: ManagedCodexAccountStoring, @uncheck
         return self.migrateLegacyAccounts(accounts)
     }
 
+    public var lockURL: URL? {
+        self.fileURL.appendingPathExtension("lock")
+    }
+
     public func storeAccounts(_ accounts: ManagedCodexAccountSet) throws {
+        try ManagedCodexAccountLock.withLock(at: self.lockURL) {
+            try self.storeAccountsLocked(accounts)
+        }
+    }
+
+    private func storeAccountsLocked(_ accounts: ManagedCodexAccountSet) throws {
         let normalizedAccounts = ManagedCodexAccountSet(
             version: Self.currentVersion,
             accounts: accounts.accounts)
@@ -56,9 +73,12 @@ public struct FileManagedCodexAccountStore: ManagedCodexAccountStoring, @uncheck
     }
 
     public func ensureFileExists() throws -> URL {
-        if self.fileManager.fileExists(atPath: self.fileURL.path) { return self.fileURL }
-        try self.storeAccounts(Self.emptyAccountSet())
-        return self.fileURL
+        try ManagedCodexAccountLock.withLock(at: self.lockURL) {
+            if !self.fileManager.fileExists(atPath: self.fileURL.path) {
+                try self.storeAccounts(Self.emptyAccountSet())
+            }
+            return self.fileURL
+        }
     }
 
     private static func emptyAccountSet() -> ManagedCodexAccountSet {

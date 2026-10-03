@@ -1,33 +1,32 @@
-import CodexBarCore
 import Foundation
 
-struct PreparedIdentity: Equatable {
-    let email: String?
-    let identity: CodexIdentity
-    let providerAccountID: String?
-    let workspaceLabel: String?
-    let workspaceAccountID: String?
+package struct PreparedIdentity: Equatable {
+    package let email: String?
+    package let identity: CodexIdentity
+    package let providerAccountID: String?
+    package let workspaceLabel: String?
+    package let workspaceAccountID: String?
 }
 
-struct PreparedAuthMaterial {
-    let homeURL: URL
-    let rawData: Data
-    let credentials: CodexOAuthCredentials
-    let authIdentity: PreparedIdentity
+package struct PreparedAuthMaterial {
+    package let homeURL: URL
+    package let rawData: Data
+    package let credentials: CodexOAuthCredentials
+    package let authIdentity: PreparedIdentity
 }
 
-enum PreparedManagedHomeState {
+package enum PreparedManagedHomeState {
     case readable(PreparedAuthMaterial)
     case missing(homeURL: URL)
     case unreadable(homeURL: URL)
 }
 
-struct PreparedStoredManagedAccount {
-    let persisted: ManagedCodexAccount
-    let persistedIdentity: PreparedIdentity
-    let homeState: PreparedManagedHomeState
+package struct PreparedStoredManagedAccount {
+    package let persisted: ManagedCodexAccount
+    package let persistedIdentity: PreparedIdentity
+    package let homeState: PreparedManagedHomeState
 
-    var authIdentity: PreparedIdentity? {
+    package var authIdentity: PreparedIdentity? {
         switch self.homeState {
         case let .readable(authMaterial):
             authMaterial.authIdentity
@@ -36,7 +35,7 @@ struct PreparedStoredManagedAccount {
         }
     }
 
-    var remoteIdentity: PreparedIdentity {
+    package var remoteIdentity: PreparedIdentity {
         guard let workspaceAccountID = self.persisted.effectiveWorkspaceAccountID else {
             return self.authIdentity ?? self.persistedIdentity
         }
@@ -48,7 +47,7 @@ struct PreparedStoredManagedAccount {
             workspaceAccountID: workspaceAccountID)
     }
 
-    var selectedWorkspaceDiffersFromAuthDefault: Bool {
+    package var selectedWorkspaceDiffersFromAuthDefault: Bool {
         guard let selectedWorkspaceAccountID = self.persisted.effectiveWorkspaceAccountID,
               let authIdentity = self.authIdentity
         else {
@@ -59,17 +58,17 @@ struct PreparedStoredManagedAccount {
     }
 }
 
-enum PreparedLiveHomeState {
+package enum PreparedLiveHomeState {
     case missing(homeURL: URL)
     case unreadable(homeURL: URL)
     case apiKeyOnly(PreparedAuthMaterial)
     case readable(PreparedAuthMaterial)
 }
 
-struct PreparedLiveAccount {
-    let homeState: PreparedLiveHomeState
+package struct PreparedLiveAccount {
+    package let homeState: PreparedLiveHomeState
 
-    var homeURL: URL {
+    package var homeURL: URL {
         switch self.homeState {
         case let .missing(homeURL), let .unreadable(homeURL):
             homeURL
@@ -78,7 +77,7 @@ struct PreparedLiveAccount {
         }
     }
 
-    var authIdentity: PreparedIdentity? {
+    package var authIdentity: PreparedIdentity? {
         switch self.homeState {
         case let .apiKeyOnly(authMaterial), let .readable(authMaterial):
             authMaterial.authIdentity
@@ -88,23 +87,23 @@ struct PreparedLiveAccount {
     }
 }
 
-struct PreparedPromotionContext {
-    let snapshot: CodexAccountReconciliationSnapshot
-    let storedManagedAccounts: [PreparedStoredManagedAccount]
-    let target: PreparedStoredManagedAccount
-    let live: PreparedLiveAccount
+package struct PreparedPromotionContext {
+    package let snapshot: CodexAccountReconciliationSnapshot
+    package let storedManagedAccounts: [PreparedStoredManagedAccount]
+    package let target: PreparedStoredManagedAccount
+    package let live: PreparedLiveAccount
 }
 
 @MainActor
-struct PreparedPromotionContextBuilder {
-    let store: any ManagedCodexAccountStoring
-    let workspaceResolver: any ManagedCodexWorkspaceResolving
-    let snapshotLoader: any CodexAccountReconciliationSnapshotLoading
-    let authMaterialReader: any CodexAuthMaterialReading
+package struct PreparedPromotionContextBuilder {
+    package let store: any ManagedCodexAccountStoring
+    package let workspaceResolver: any ManagedCodexWorkspaceResolving
+    package let snapshotLoader: any CodexAccountReconciliationSnapshotLoading
+    package let authMaterialReader: any CodexAuthMaterialReading
     @ProcessEnvironment private(set) var baseEnvironment: [String: String]
-    let fileManager: FileManager
+    package let fileManager: FileManager
 
-    func build(targetID: UUID) async throws -> PreparedPromotionContext {
+    package func build(targetID: UUID) async throws -> PreparedPromotionContext {
         let snapshot = self.snapshotLoader.loadSnapshot()
         let managedAccounts = try self.store.loadAccounts()
         var preparedAccounts: [PreparedStoredManagedAccount] = []
@@ -216,7 +215,7 @@ struct PreparedPromotionContextBuilder {
             workspaceAccountID: providerAccountID)
     }
 
-    static func runtimeAccount(from rawData: Data) throws -> CodexAuthBackedAccount {
+    package static func runtimeAccount(from rawData: Data) throws -> CodexAuthBackedAccount {
         guard let json = try JSONSerialization.jsonObject(with: rawData) as? [String: Any] else {
             throw CodexOAuthCredentialsError.decodeFailed("Invalid JSON")
         }

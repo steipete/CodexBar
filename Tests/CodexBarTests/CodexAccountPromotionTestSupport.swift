@@ -408,6 +408,10 @@ private struct TestPromotionCodexFetchStrategy: ProviderFetchStrategy {
 
 final class RecordingManagedCodexAccountStore: ManagedCodexAccountStoring, @unchecked Sendable {
     let base: any ManagedCodexAccountStoring
+    var lockURL: URL? {
+        self.base.lockURL
+    }
+
     var storedSnapshots: [ManagedCodexAccountSet] = []
     var onStore: (@Sendable (ManagedCodexAccountSet) throws -> Void)?
 

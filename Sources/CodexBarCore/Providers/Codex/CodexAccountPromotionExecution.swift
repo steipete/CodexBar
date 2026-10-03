@@ -1,19 +1,18 @@
-import CodexBarCore
 import Foundation
 
 private struct CodexPreparedImportedAccount {
-    let account: ManagedCodexAccount
-    let homeURL: URL
+    package let account: ManagedCodexAccount
+    package let homeURL: URL
 }
 
 @MainActor
-struct CodexDisplacedLivePreservationExecutor {
+package struct CodexDisplacedLivePreservationExecutor {
     private let store: any ManagedCodexAccountStoring
     private let homeFactory: any ManagedCodexHomeProducing
     private let authMaterialReader: any CodexAuthMaterialReading
     private let fileManager: FileManager
 
-    init(
+    package init(
         store: any ManagedCodexAccountStoring,
         homeFactory: any ManagedCodexHomeProducing,
         authMaterialReader: any CodexAuthMaterialReading = DefaultCodexAuthMaterialReader(),
@@ -25,7 +24,7 @@ struct CodexDisplacedLivePreservationExecutor {
         self.fileManager = fileManager
     }
 
-    func execute(
+    package func execute(
         plan: CodexDisplacedLivePreservationPlan,
         context: PreparedPromotionContext) throws
         -> CodexAccountPromotionResult.DisplacedLiveDisposition

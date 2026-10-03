@@ -399,3 +399,20 @@ non-zero only when it cannot produce a valid snapshot document.
 - OpenAI web requires a signed-in `chatgpt.com` session in a supported browser or a manual cookie header. No passwords are stored; CodexBar reuses cookies.
 - Safari cookie import may require granting CodexBar Full Disk Access (System Settings → Privacy & Security → Full Disk Access).
 - The `openaiDashboard` JSON field is normally sourced from the app’s cached dashboard snapshot; `--source auto|web` refreshes it live via WebKit using a per-account cookie store.
+
+## Managed Codex accounts (macOS)
+
+`codexbar codex-accounts list --json` lists managed account UUIDs, emails, and whether each readable
+saved identity matches the current system authentication. It never emits tokens or private home paths.
+
+`codexbar codex-accounts promote <uuid-or-email>` explicitly promotes one managed account to system
+authentication. Use the exact UUID when several accounts share an email. Promotion preserves the
+current live credentials in their managed account (or imports that account) before publishing the
+target's authentication through the private atomic writer. Missing, unreadable, conflicting, or
+workspace-mismatched state fails without replacing live authentication. Participating app/CLI
+account-store writers share a process lock and report contention rather than overwriting each other.
+A changed live auth file detected before replacement requires retrying the operation.
+
+This command does not add accounts, sign in, rotate accounts automatically, change the app's display
+selection, or restart existing Codex processes. Already-running processes may retain their old identity.
+External Codex clients do not participate in CodexBar's process lock.
