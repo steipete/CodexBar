@@ -654,3 +654,18 @@ defaults delete com.steipete.codexbar debugMainThreadHangWatchdog
 - Parallel provider fetches
 - First failure can be suppressed when prior data exists
 - WidgetKit snapshot for macOS widgets
+
+### Optional local macOS direct test groups
+
+`make test` remains serial by default. Invoke
+`./Scripts/test.sh --direct-workers 4` to request up to eight isolated group workers locally.
+SwiftPM still builds and discovers the complete inventory. Before launch, the adapter enumerates
+both XCTest and Swift Testing using the selected Xcode toolchain helpers and requires an exact
+inventory match. Unsupported toolchains, alternate Swift commands, Linux, and hosted CI retain
+the serial SwiftPM path. No CI workflow changes are included.
+
+Each group has a fresh process and temporary `CFFIXED_USER_HOME`, with the existing credential
+and session-file isolation, Keychain suppression, timeout, retry, and descendant cleanup.
+Test output is buffered per group. A direct runtime failure after execution begins fails the run;
+it does not silently rerun the suite through a different runtime. This opt-in adapter depends on
+SwiftPM's toolchain helper contract and needs compatibility validation when updating Xcode.
