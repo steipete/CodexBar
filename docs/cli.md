@@ -288,11 +288,19 @@ codexbar config validate --format json --pretty
 codexbar config dump --pretty
 printf '%s' "$OPENAI_ADMIN_KEY" | codexbar config set-api-key --provider openai --stdin
 codexbar config enable --provider grok
+codexbar config set-source --provider claude --source cli
+codexbar config set-source --provider claude --source auto
 codexbar cache clear --cookies
 codexbar cache clear --cookies --provider claude
 codexbar cache clear --all --format json --pretty
 codexbar cookie refresh --provider opencodego --allow-keychain-prompt
 ```
+
+`config set-source` writes the provider's `source` in the resolved config file, using the same
+store as Settings. It accepts the provider names and aliases used by `config enable`, and rejects
+sources not offered by that provider's fetch plan. `--source auto` removes the override. Provider
+enablement, credentials, and other config fields are preserved. JSON output includes `provider`,
+`displayName`, `enabled`, `source`, and `configPath`; `source` reports `auto` after clearing an override.
 
 ### Sample output (text)
 ```

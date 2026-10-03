@@ -19,6 +19,8 @@ extension CodexBarCLI {
             self.runConfigSetProviderEnabled(values, enabled: true)
         case ["config", "disable"]:
             self.runConfigSetProviderEnabled(values, enabled: false)
+        case ["config", "set-source"]:
+            self.runConfigSetSource(values)
         case ["config", "set-api-key"]:
             self.runConfigSetAPIKey(values)
         default:
