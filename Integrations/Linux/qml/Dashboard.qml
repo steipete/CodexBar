@@ -43,7 +43,7 @@ ApplicationWindow {
         TabBar {
             Layout.fillWidth: true
             currentIndex: window.selectedTab
-            TabButton { text: "Usage"; onClicked: { window.selectedTab = 0; desktop.showWindow("usage"); } }
+            TabButton { text: "Usage"; onClicked: { window.selectedTab = 0; desktop.showWindow("dashboard"); } }
             TabButton { text: "Spending"; onClicked: { window.selectedTab = 1; desktop.showWindow("spending"); } }
         }
         Label {

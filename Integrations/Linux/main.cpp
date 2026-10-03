@@ -1,12 +1,14 @@
 #include "DesktopController.h"
 
 #include <QApplication>
+#include <QColor>
 #include <QCommandLineParser>
 #include <QDir>
 #include <QElapsedTimer>
 #include <QFile>
 #include <QFileInfo>
 #include <QIcon>
+#include <QImage>
 #include <QJsonDocument>
 #include <QLocalSocket>
 #include <QLockFile>
@@ -15,12 +17,40 @@
 #include <QRegularExpression>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
+#include <QQuickImageProvider>
 #include <QQuickStyle>
 #include <QStandardPaths>
+#include <QSvgRenderer>
 #include <QSystemTrayIcon>
 #include <cstdio>
 #include <memory>
 #include <unistd.h>
+
+// The shared provider SVGs are white template assets on macOS. Tint them using the
+// active Qt palette so they stay legible in both light and dark Linux appearances.
+class ProviderIconProvider final : public QQuickImageProvider {
+public:
+    ProviderIconProvider() : QQuickImageProvider(QQuickImageProvider::Image) {}
+
+    QImage requestImage(const QString &id, QSize *size, const QSize &requestedSize) override {
+        const auto provider = id.section('?', 0, 0);
+        if (!QRegularExpression("^[a-z0-9-]{1,80}$").match(provider).hasMatch()) return {};
+        QFile icon(":/logos/" + provider + ".svg");
+        if (!icon.open(QIODevice::ReadOnly)) return {};
+        QSvgRenderer svg(icon.readAll());
+        if (!svg.isValid()) return {};
+        const auto color = QColor("#" + id.section("color=", 1, 1).section('&', 0, 0));
+        const auto dimensions = requestedSize.isValid() ? requestedSize : QSize(36, 36);
+        QImage image(dimensions, QImage::Format_ARGB32_Premultiplied);
+        image.fill(Qt::transparent);
+        QPainter painter(&image);
+        svg.render(&painter);
+        painter.setCompositionMode(QPainter::CompositionMode_SourceIn);
+        painter.fillRect(image.rect(), color.isValid() ? color : QColor(Qt::black));
+        if (size) *size = dimensions;
+        return image;
+    }
+};
 
 static QByteArray request(const QString &socketPath, const QJsonObject &message) {
     QLocalSocket socket;
@@ -49,14 +79,14 @@ int main(int argc, char **argv) {
     QCommandLineParser parser;
     parser.setApplicationDescription("CodexBar desktop for Linux · Qt windows and optional tray");
     parser.addHelpOption(); parser.addVersionOption();
-    for (const auto &name : {"snapshot", "refresh", "settings", "spending", "usage", "quit", "background", "no-tray"})
+    for (const auto &name : {"snapshot", "refresh", "settings", "spending", "dashboard", "usage", "quick-view", "quit", "background", "no-tray"})
         parser.addOption(QCommandLineOption(name, QString("%1 the running desktop app").arg(name)));
     parser.addOption(QCommandLineOption("autostart", "Set login startup: enable, disable, status", "action"));
     parser.addOption(QCommandLineOption("configure", "Update desktop settings through local IPC", "json"));
     parser.addOption(QCommandLineOption("cli", "CodexBar CLI executable for a new instance", "path"));
     parser.process(*application);
     QString command = "usage";
-    for (const auto &name : {"background", "usage", "settings", "spending", "refresh", "snapshot", "quit", "configure", "autostart"})
+    for (const auto &name : {"background", "usage", "quick-view", "settings", "spending", "dashboard", "refresh", "snapshot", "quit", "configure", "autostart"})
         if (parser.isSet(name)) command = name;
     const bool clientOnly = QStringList{"snapshot", "refresh", "quit", "configure", "autostart"}.contains(command);
     const bool noTray = parser.isSet("no-tray");
@@ -139,20 +169,23 @@ int main(int argc, char **argv) {
     QObject::connect(&controller, &DesktopController::settingsChanged, &app, updateTheme);
     themeTimer.start(10000); updateTheme();
     QQmlApplicationEngine engine;
+    engine.addImageProvider("provider-icon", new ProviderIconProvider);
     QObject::connect(&engine, &QQmlApplicationEngine::quit, &app, &QCoreApplication::quit);
     engine.rootContext()->setContextProperty("desktop", &controller);
     engine.load(QUrl("qrc:/qml/Main.qml"));
     if (engine.rootObjects().isEmpty()) return 1;
     QSystemTrayIcon tray(QIcon(":/icon.svg"));
     QMenu menu;
-    menu.addAction("Usage & Spend…", &controller, [&controller] { controller.showWindow("usage"); });
+    menu.addAction("Quick View", &controller, [&controller] { controller.showWindow("quick-view"); });
+    menu.addAction("Usage & Spend…", &controller, [&controller] { controller.showWindow("dashboard"); });
     menu.addAction("Settings…", &controller, [&controller] { controller.showWindow("settings"); });
     menu.addSeparator();
     menu.addAction("Refresh", &controller, [&controller] { controller.refresh(); controller.refreshCosts(); });
     menu.addAction("Quit CodexBar", &app, &QCoreApplication::quit);
     tray.setContextMenu(&menu);
     QObject::connect(&tray, &QSystemTrayIcon::activated, &controller, [&controller](QSystemTrayIcon::ActivationReason reason) {
-        if (reason == QSystemTrayIcon::Trigger || reason == QSystemTrayIcon::DoubleClick) controller.showWindow("usage");
+        if (reason == QSystemTrayIcon::Trigger || reason == QSystemTrayIcon::DoubleClick)
+            controller.showWindow(controller.settings().value("compactQuickView").toBool() ? "quick-view" : "usage");
     });
     auto updateTray = [&] {
         tray.setVisible(!noTray && controller.settings().value("showTray").toBool());
