@@ -224,7 +224,7 @@ private struct UserPluginMenuCardView: View {
                         Image(systemName: "arrow.clockwise")
                     }
                     .buttonStyle(.plain)
-                    .help("Refresh")
+                    .help(L("Refresh"))
                 }
             }
             if let snapshot {
@@ -250,7 +250,7 @@ private struct UserPluginMenuCardView: View {
             } else if let error {
                 Text(error).font(.caption).foregroundStyle(.red).textSelection(.enabled)
             } else {
-                Text("No usage fetched yet").font(.caption).foregroundStyle(.secondary)
+                Text(L("No usage fetched yet")).font(.caption).foregroundStyle(.secondary)
             }
         }
         .padding(.horizontal, UsageMenuCardLayout.horizontalPadding)

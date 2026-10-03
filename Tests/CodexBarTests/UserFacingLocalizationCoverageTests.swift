@@ -65,6 +65,30 @@ struct UserFacingLocalizationCoverageTests {
             "Sources/CodexBar/PreferencesSpendDashboardPane.swift": [
                 "Text(\"Partial estimate\")",
             ],
+            "Sources/CodexBar/PreferencesMenuPane.swift": [
+                "title: \"Stay Awake\",",
+            ],
+            "Sources/CodexBar/PreferencesTransferSection.swift": [
+                "Text(\"Portable Preferences\")",
+                "Button(\"Export…\")",
+                "Button(\"Import…\")",
+                "Text(\"Shortcuts\")",
+            ],
+            "Sources/CodexBar/ShareStatsCardView.swift": [
+                "Text(\"LOCAL SNAPSHOT\")",
+                "Label(\"LOCAL · AGGREGATE ONLY\"",
+            ],
+            "Sources/CodexBarWidget/WidgetTiles.swift": [
+                "String(describing: Text(reset, style: .relative))",
+            ],
+            "Sources/CodexBar/PreferencesNotificationsPane.swift": [
+                "\"Credential expiry\"",
+                "\"Notify once when a provider account needs you to sign in again.\"",
+            ],
+            "Sources/CodexBar/UsageStore+CredentialNotifications.swift": [
+                " needs sign-in\"",
+                "\"Open CodexBar to review the account error and sign in again.\"",
+            ],
             "Sources/CodexBar/SpendDashboardProviderBreakdown.swift": [
                 "Text(\"Model breakdown unavailable\")",
                 "Text(\"Partial model breakdown\")",
@@ -119,6 +143,38 @@ struct UserFacingLocalizationCoverageTests {
         #expect(
             violations.isEmpty,
             "Raw user-facing localization markers remain:\n\(violations.joined(separator: "\n"))")
+    }
+
+    @Test
+    func `credential expiry settings and alerts follow the selected language`() {
+        let translations = [
+            (
+                "en",
+                "Credential expiry",
+                "Notify once when a provider account needs you to sign in again.",
+                "Codex needs sign-in",
+                "Open CodexBar to review the account error and sign in again."),
+            (
+                "zh-Hans",
+                "登录凭据过期",
+                "当服务商账户需要重新登录时，发送一次通知。",
+                "Codex 需要重新登录",
+                "打开 CodexBar 查看账户错误并重新登录。"),
+            (
+                "zh-Hant",
+                "登入憑證過期",
+                "當服務商帳戶需要重新登入時，傳送一次通知。",
+                "Codex 需要重新登入",
+                "開啟 CodexBar 查看帳戶錯誤並重新登入。"),
+        ]
+        for (language, title, subtitle, alertTitle, alertBody) in translations {
+            CodexBarLocalizationOverride.$appLanguage.withValue(language) {
+                #expect(L("credential_expiry_notifications_title") == title)
+                #expect(L("credential_expiry_notifications_subtitle") == subtitle)
+                #expect(L("credential_expiry_notification_title", "Codex") == alertTitle)
+                #expect(L("credential_expiry_notification_body") == alertBody)
+            }
+        }
     }
 
     @Test

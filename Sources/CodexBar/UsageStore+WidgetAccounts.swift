@@ -35,7 +35,7 @@ extension UsageStore {
                 return self.widgetAccountEntry(
                     provider: provider,
                     id: "claude/swap:\(account.id.opaqueID):\(owner)",
-                    label: "Account \(account.id.opaqueID)",
+                    label: L("Account %@", account.id.opaqueID),
                     snapshot: account.snapshot,
                     now: now)
             }

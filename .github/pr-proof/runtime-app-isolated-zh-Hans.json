@@ -1,0 +1,13 @@
+{
+  "bundle": "CodexBar.app",
+  "event": "app-started",
+  "language": "zh-Hans",
+  "loginItemStatusAfter": "3",
+  "loginItemStatusBefore": "3",
+  "settingsStartupMode": "isolated",
+  "settingsSubtitle": "当服务商账户需要重新登录时，发送一次通知。",
+  "settingsTitle": "登录凭据过期",
+  "taskLocalOverride": "false",
+  "bundleIdentifier": "com.steipete.codexbar.debug",
+  "sourceCommit": "abc1bee04"
+}

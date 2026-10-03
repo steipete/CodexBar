@@ -585,7 +585,7 @@ extension UsageMenuCardView.Model {
         if style == .clawRouter, cost.limit <= 0 {
             let spend = formatCost(cost.used)
             return ProviderCostSection(
-                title: "ClawRouter spend",
+                title: L("ClawRouter spend"),
                 percentUsed: nil,
                 spendLine: "\(L("This month")): \(spend)",
                 percentLine: nil)

@@ -80,8 +80,10 @@ extension UsageStore {
             #endif
             AppNotifications.shared.post(
                 idPrefix: "credential-expired-\(provider.rawValue)",
-                title: "\(ProviderDescriptorRegistry.descriptor(for: provider).metadata.displayName) needs sign-in",
-                body: "Open CodexBar to review the account error and sign in again.",
+                title: L(
+                    "credential_expiry_notification_title",
+                    ProviderDescriptorRegistry.descriptor(for: provider).metadata.displayName),
+                body: L("credential_expiry_notification_body"),
                 identifier: identifier,
                 isCurrent: { [weak self] in
                     guard let self else { return false }

@@ -9,8 +9,8 @@ struct NotificationsPane: View {
             Section {
                 Toggle(isOn: self.$settings.credentialExpiryNotificationsEnabled) {
                     SettingsRowLabel(
-                        "Credential expiry",
-                        subtitle: "Notify once when a provider account needs you to sign in again.")
+                        L("credential_expiry_notifications_title"),
+                        subtitle: L("credential_expiry_notifications_subtitle"))
                 }
 
                 Toggle(isOn: self.$settings.sessionQuotaNotificationsEnabled) {

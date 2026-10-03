@@ -122,6 +122,7 @@ check_shell_scripts() {
 check_app_locales() {
   node "${ROOT_DIR}/Scripts/check-app-locales.mjs" --test
   node "${ROOT_DIR}/Scripts/check-app-locales.mjs"
+  node "${ROOT_DIR}/Scripts/sync-widget-locales.mjs" --check
 }
 
 check_site_locales() {

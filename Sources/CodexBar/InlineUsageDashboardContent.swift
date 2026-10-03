@@ -386,7 +386,7 @@ extension UsageMenuCardView.Model {
         if input.provider == .cursor, let meteredCostUSD = snapshot.meteredCostUSD {
             kpis.insert(
                 .init(
-                    title: "Cursor-metered",
+                    title: L("Cursor-metered"),
                     value: convertedString(meteredCostUSD),
                     emphasis: true),
                 at: 0)

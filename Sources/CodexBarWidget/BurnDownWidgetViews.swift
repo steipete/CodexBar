@@ -35,10 +35,10 @@ struct BurnDownWidgetView: View {
 struct BurnDownEmptyState: View {
     var body: some View {
         VStack(spacing: 6) {
-            Text("Open CodexBar")
+            Text(W("Open CodexBar"))
                 .font(.body)
                 .fontWeight(.semibold)
-            Text("Usage data will appear once the app refreshes.")
+            Text(W("Usage data will appear once the app refreshes."))
                 .font(.caption)
                 .multilineTextAlignment(.center)
                 .opacity(0.55)
@@ -97,8 +97,8 @@ private struct BurnDownLayout: View {
         // (◆ full / ■ spent) with no pace number — the margin is meaningless once the
         // budget is full or gone.
         let showBadgeNumber = !geom.depleted && !geom.fresh
-        let statusWord: String = geom.depleted ? "spent" : geom.fresh ? "full"
-            : geom.status == .ahead ? "conserving" : geom.status == .behind ? "over pace" : "on pace"
+        let statusWord: String = geom.depleted ? W("spent") : geom.fresh ? W("full")
+            : geom.status == .ahead ? W("conserving") : geom.status == .behind ? W("over pace") : W("on pace")
         let arrow: String = geom.depleted ? "■" : geom.fresh ? "◆"
             : geom.status == .ahead ? "▲" : geom.status == .behind ? "▼" : "●"
 
@@ -156,10 +156,10 @@ private struct BurnDownLayout: View {
                     VStack(spacing: 5) {
                         BurnResetStatRow(resetAt: effectiveResetAt, theme: theme)
                         BurnStatRow(
-                            label: geom.depleted ? "Ran out" : runsDryBefore ? "Runs out in" : "Runs out",
+                            label: geom.depleted ? W("Ran out") : runsDryBefore ? W("Runs out in") : W("Runs out"),
                             value: geom
-                                .depleted ? "budget spent" : runsDryBefore ? "~\(burnFmtDuration(outInMins))" :
-                                "after reset",
+                                .depleted ? W("budget spent") : runsDryBefore ? "~\(burnFmtDuration(outInMins))" :
+                                W("after reset"),
                             theme: theme,
                             danger: geom.depleted || runsDryBefore)
                     }
@@ -177,7 +177,7 @@ private struct BurnDownLayout: View {
                         Text("%")
                             .font(.system(size: 19, weight: .medium))
                             .foregroundStyle(theme.sub)
-                        Text("left")
+                        Text(W("left"))
                             .font(.system(size: 11))
                             .foregroundStyle(theme.sub)
                     }
@@ -223,7 +223,7 @@ private struct BurnStatRow: View {
 
     var body: some View {
         HStack(alignment: .firstTextBaseline) {
-            Text(self.label)
+            Text(W(self.label))
                 .font(.system(size: 11.5))
                 .foregroundStyle(self.theme.sub)
             Spacer()
@@ -242,7 +242,7 @@ private struct BurnResetStatRow: View {
 
     var body: some View {
         HStack(alignment: .firstTextBaseline) {
-            Text("Resets in")
+            Text(W("Resets in"))
                 .font(.system(size: 11.5))
                 .foregroundStyle(self.theme.sub)
             Spacer()
@@ -293,7 +293,7 @@ private struct BurnAxisRow: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
 
                 if showNow {
-                    Text("now")
+                    Text(W("now"))
                         .font(.system(size: 9.5, weight: .semibold))
                         .foregroundStyle(self.theme.text)
                         .position(x: nowX, y: geo.size.height / 2)
@@ -690,13 +690,13 @@ struct BurnGeom {
 // MARK: - Helpers
 
 func burnWindowLabel(_ windowMinutes: Int?) -> String {
-    guard let mins = windowMinutes else { return "Usage limit" }
+    guard let mins = windowMinutes else { return W("Usage limit") }
     if mins < 60 {
-        return "\(mins)-minute limit"
+        return W("%@-minute limit", String(describing: mins))
     }
-    if mins % 1440 == 0 { return "\(mins / 1440)-day limit" }
-    if mins % 60 == 0 { return "\(mins / 60)-hour limit" }
-    return "\(mins)-minute limit"
+    if mins % 1440 == 0 { return W("%@-day limit", String(describing: mins / 1440)) }
+    if mins % 60 == 0 { return W("%@-hour limit", String(describing: mins / 60)) }
+    return W("%@-minute limit", String(describing: mins))
 }
 
 func burnEffectiveResetDate(
@@ -722,9 +722,9 @@ func burnAxisDateRange(
 
 func burnCompactWindowLabel(_ windowMinutes: Int?, fallback: String) -> String {
     guard let minutes = windowMinutes else { return fallback }
-    if minutes > 1440, minutes % 1440 == 0 { return "\(minutes / 1440)D" }
-    if minutes % 60 == 0 { return "\(minutes / 60)H" }
-    return "\(minutes)M"
+    if minutes > 1440, minutes % 1440 == 0 { return W("%@D", String(describing: minutes / 1440)) }
+    if minutes % 60 == 0 { return W("%@H", String(describing: minutes / 60)) }
+    return W("%@M", String(describing: minutes))
 }
 
 func burnFmtDuration(_ minutes: Double) -> String {
@@ -732,14 +732,14 @@ func burnFmtDuration(_ minutes: Double) -> String {
     if minutes >= 1440 {
         let d = Int(minutes / 1440)
         let h = Int(minutes / 60) % 24
-        return "\(d)d \(h)h"
+        return W("%@d %@h", String(describing: d), String(describing: h))
     }
     let h = Int(minutes / 60)
     let m = Int(minutes) % 60
     if h <= 0 {
-        return "\(max(1, m))m"
+        return W("%@m", String(describing: max(1, m)))
     }
-    return "\(h)h \(String(format: "%02d", m))m"
+    return W("%@h %@m", String(describing: h), String(describing: String(format: "%02d", m)))
 }
 
 func burnAxisLabel(_ date: Date, isDailyWindow: Bool) -> String {

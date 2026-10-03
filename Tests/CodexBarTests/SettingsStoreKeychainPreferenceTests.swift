@@ -6,6 +6,34 @@ import Testing
 @Suite(.serialized)
 @MainActor
 struct SettingsStoreKeychainPreferenceTests {
+    @Test(arguments: [SettingsStoreStartupBehavior.automatic, .isolated])
+    func `isolated settings skip login registration plugin discovery and app group migration`(
+        behavior: SettingsStoreStartupBehavior) throws
+    {
+        var calls: [String] = []
+        let services = SettingsStoreStartupServices(
+            refreshUserPlugins: { calls.append("plugins") },
+            initializeAppGroup: { calls.append("app-group") },
+            updateLoginItem: { calls.append("login:\($0)") })
+        let defaults = InMemoryUserDefaults(values: ["launchAtLogin": false])
+        try self.withSettingsStore(defaults: defaults, startupBehavior: behavior, startupServices: services) { store in
+            let initialCalls = behavior == .automatic ? ["plugins", "app-group", "login:false"] : []
+            #expect(calls == initialCalls)
+            store.launchAtLogin = true
+            #expect(store.launchAtLogin)
+            #expect(defaults.bool(forKey: "launchAtLogin"))
+            store.launchAtLogin = false
+            #expect(!store.launchAtLogin)
+            #expect(!defaults.bool(forKey: "launchAtLogin"))
+            let expectedCalls = behavior == .automatic ? initialCalls + ["login:true", "login:false"] : []
+            #expect(calls == expectedCalls)
+            #expect(defaults.object(forKey: AppGroupSupport.migrationVersionKey) == nil)
+            if behavior == .isolated {
+                #expect(defaults.object(forKey: "codexbar.legacySecretsMigrationCompleted") == nil)
+            }
+        }
+    }
+
     @Test(arguments: [nil, false, true] as [Bool?], [nil, false, true] as [Bool?])
     func `local keychain preference wins and shared defaults fill only an absent value`(
         localValue: Bool?, sharedValue: Bool?)
@@ -156,6 +184,8 @@ struct SettingsStoreKeychainPreferenceTests {
         keychainAccessPolicy: SettingsStoreKeychainAccessPolicy = SettingsStoreKeychainAccessPolicy(
             setDisabled: { _ in },
             isExplicitlyDisabled: { false }),
+        startupBehavior: SettingsStoreStartupBehavior = .automatic,
+        startupServices: SettingsStoreStartupServices = .live,
         operation: (SettingsStore) throws -> Void) throws
     {
         // Fail before constructing settings if the caller deliberately opted into live user state.
@@ -197,6 +227,8 @@ struct SettingsStoreKeychainPreferenceTests {
             antigravityOAuthCredentialsStore: AntigravityOAuthCredentialsStore(
                 fileURL: root.appendingPathComponent("antigravity.json")),
             keychainAccessPolicy: keychainAccessPolicy,
+            startupBehavior: startupBehavior,
+            startupServices: startupServices,
             performInitialProviderDetection: false)
         defer { store.configFileWatcher?.stop() }
         try operation(store)

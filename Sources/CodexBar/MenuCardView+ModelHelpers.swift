@@ -226,7 +226,7 @@ extension UsageMenuCardView.Model {
         else {
             return PersonalInfoRedactor.redactEmails(in: detail, isEnabled: true)
         }
-        return PersonalInfoRedactor.redactEmails(in: "Team\(detail[separator.lowerBound...])", isEnabled: true)
+        return PersonalInfoRedactor.redactEmails(in: "\(L("Team"))\(detail[separator.lowerBound...])", isEnabled: true)
     }
 
     static func blockingQuotaMetrics(_ metrics: [Metric], input: Input, snapshot: UsageSnapshot) -> [Metric] {

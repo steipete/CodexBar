@@ -1658,3 +1658,25 @@ extension StatusItemBalanceDisplayTests {
         #expect(rendered.attributedTitle.string.hasSuffix("25%"))
     }
 }
+
+extension StatusItemBalanceDisplayTests {
+    @Test(arguments: AppLanguage.allCases.filter { $0 != .system })
+    func `kiro overage menu text is localized in every supported language`(language: AppLanguage) {
+        let settings = self.makeSettings(
+            suiteName: "StatusItemBalanceDisplayTests-kiro-overage-localized-\(language.rawValue)",
+            provider: .kiro)
+        settings.kiroMenuBarDisplayMode = .overageCostWhenExhausted
+        let (store, controller) = self.makeStoreAndController(settings: settings)
+        defer { controller.releaseStatusItemsForTesting() }
+        let snapshot = Self.exhaustedKiroSnapshot()
+
+        store._setSnapshotForTesting(snapshot, provider: .kiro)
+        store._setErrorForTesting(nil, provider: .kiro)
+
+        CodexBarLocalizationOverride.$appLanguage.withValue(language.rawValue) {
+            let displayText = controller.menuBarDisplayText(for: .kiro, snapshot: snapshot)
+            #expect(displayText == L("%@ over", "$1.61"))
+            if language != .english { #expect(displayText != "$1.61 over") }
+        }
+    }
+}

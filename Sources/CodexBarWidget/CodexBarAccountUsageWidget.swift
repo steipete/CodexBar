@@ -14,8 +14,8 @@ struct CodexBarAccountUsageWidget: Widget {
         { entry in
             CodexBarAccountUsageWidgetView(entry: entry)
         }
-        .configurationDisplayName("CodexBar Account Usage")
-        .description("Usage limits and reset countdowns for one saved account.")
+        .configurationDisplayName(Text(W("CodexBar Account Usage")))
+        .description(Text(W("Usage limits and reset countdowns for one saved account.")))
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
     }
 }
@@ -74,7 +74,7 @@ struct CodexBarAccountTimelineProvider: AppIntentTimelineProvider {
             snapshot: WidgetSnapshot(
                 entries: [],
                 // Provider-specific by design: this preview account and its provider belong to the same fixture.
-                accounts: [.init(id: "preview", provider: .codex, label: "Personal", usage: usage)],
+                accounts: [.init(id: "preview", provider: .codex, label: W("Personal"), usage: usage)],
                 enabledProviders: [.codex],
                 generatedAt: now),
             provider: .codex,
@@ -142,9 +142,10 @@ struct CodexBarAccountUsageWidgetView: View {
     var body: some View {
         if self.entry.accountID == nil {
             self.notice(
-                title: "Choose an account",
-                message: "Enable account widgets in CodexBar → Settings → Menu → Widgets. "
-                    + "Then edit this widget to choose an account.")
+                title: W("Choose an account"),
+                message: W(
+                    "Enable account widgets in CodexBar → Settings → Menu → Widgets. "
+                        + "Then edit this widget to choose an account."))
         } else if let usage = self.entry.usageEntry.snapshot.entries.first(where: {
             $0.provider == self.entry.usageEntry.provider.instanceID
         }) {
@@ -167,8 +168,8 @@ struct CodexBarAccountUsageWidgetView: View {
             .environment(\.widgetUsageShowsUsed, self.entry.usageEntry.snapshot.usageBarsShowUsed)
         } else {
             self.notice(
-                title: "Account unavailable",
-                message: "Open CodexBar to refresh, or edit this widget to choose another account.")
+                title: W("Account unavailable"),
+                message: W("Open CodexBar to refresh, or edit this widget to choose another account."))
         }
     }
 

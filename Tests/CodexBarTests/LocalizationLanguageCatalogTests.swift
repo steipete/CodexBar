@@ -611,49 +611,106 @@ struct LocalizationLanguageCatalogTests {
         #expect(italian["metric_mistral_payg"] == "A consumo")
         #expect(italian["metric_mistral_monthly_plan"] == "Piano mensile")
 
+        // Brands, protocol examples, pure format strings and accepted Italian cognates.
         let intentionallyUnchanged: Set = [
-            "Account",
-            "Build",
-            "Chrome",
-            "Cookie: ...",
-            "Cookie: …",
-            "Deployment",
-            "Email",
-            "Endpoint",
-            "File",
-            "Gemini Flash",
-            "GitHub",
-            "Google OAuth",
-            "No",
-            "Oasis-Token",
-            "Password",
-            "Plugins",
-            "Provider",
-            "Token",
             "%@ %@",
             "%@: %@",
+            "%@h",
+            "00000000-0000-0000-0000-000000000000",
+            "AKIA...",
+            "API URL",
+            "Amp CLI",
+            "Bailian CLI",
+            "Base",
+            "Bearer eyJ...",
+            "Bonus",
+            "Chrome",
+            "Cookie: ...",
+            "Cookie: llama_dev_sess=...",
+            "Cookie: …",
+            "Cursor",
+            "Flash",
+            "Flash Lite",
+            "Gateway URL",
+            "Gemini Flash",
+            "GitHub",
+            "GitHub cookies",
+            "Google OAuth",
+            "Grok CLI",
+            "Helmcode Cloud",
+            "Input",
+            "LLMMAN_API_KEY",
+            "NaN Builders",
+            "No",
+            "Oasis-Token",
+            "Oasis-Token=…",
+            "OpenCodex",
+            "Output",
+            "Pro",
+            "SuperGrok OAuth",
+            "Token",
+            "Zed cookie",
+            "ZeroGPU",
+            "__raycast_session=…; csrf_token=…",
+            "antigravity-cli-usage",
+            "antigravity-cli-version",
             "byte_unit_byte",
             "byte_unit_gigabyte",
             "byte_unit_kilobyte",
             "byte_unit_megabyte",
+            "cb_...",
+            "cpk-...",
+            "curl 'https://ai.zoom.us/ai-computer/api/v1/credits/status' -H 'authorization: ...'",
+            "default",
+            "dg_...",
+            "fk-...",
+            "fw_...",
+            "github.com",
+            "gpt-4o-mini",
+            "gsk_...",
             "hooks_executable_placeholder",
-            "hooks_provider",
             "hooks_threshold_placeholder",
+            "https://api.aixy-gateway.com",
+            "https://bifrost.example.com",
+            "https://litellm.example.com",
+            "https://openrouter.ai/api/v1",
+            "https://proxy.example.com",
+            "https://resource.openai.azure.com",
+            "https://sub2api.example.com",
+            "kilo_...",
             "language_arabic",
             "language_galician",
             "language_italian",
             "language_persian",
             "language_russian",
             "language_thai",
-            "link_email",
             "link_github",
-            "menu_bar_layout_sample_account",
-            "menu_bar_layout_token_account",
+            "ollama-...",
+            "org/example-org",
             "ory_session_…=…; csrftoken=…",
+            "proj_...",
+            "project-slug",
             "section_privacy",
+            "session_id=…",
             "session_quota_estimate_value_format",
-            "tab_menu",
-            "OpenCodex",
+            "sessionid=…; csrftoken=…",
+            "sgamp_...",
+            "sk-...",
+            "sk-admin-...",
+            "sk-ant-admin...",
+            "sk-or-v1-...",
+            "sk-…",
+            "us-east-1",
+            "user@example.com",
+            "v0_...",
+            "wk-...",
+            "wrk_…",
+            "x0mh0x",
+            "xai-...",
+            "xi-...",
+            "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+            "~/.local/bin/cswap",
+            "~/Library/Application Support/JetBrains/IntelliJIdea2024.3",
         ]
         let unchanged = Set(english.keys.filter { italian[$0] == english[$0] })
         #expect(unchanged == intentionallyUnchanged)
@@ -782,5 +839,56 @@ struct LocalizationLanguageCatalogTests {
         defaults.removePersistentDomain(forName: suiteName)
         defer { defaults.removePersistentDomain(forName: suiteName) }
         body(defaults, suiteName)
+    }
+}
+
+extension LocalizationLanguageCatalogTests {
+    @Test
+    func `credential expiry settings and alerts are translated in every language`() throws {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent()
+        let resources = root.appendingPathComponent("Sources/CodexBar/Resources")
+        let catalogs = try FileManager.default.contentsOfDirectory(at: resources, includingPropertiesForKeys: nil)
+            .filter { $0.pathExtension == "lproj" }
+        let english = try #require(NSDictionary(
+            contentsOf: resources.appendingPathComponent("en.lproj/Localizable.strings")) as? [String: String])
+        let keys = [
+            "credential_expiry_notifications_title",
+            "credential_expiry_notifications_subtitle",
+            "credential_expiry_notification_title",
+            "credential_expiry_notification_body",
+        ]
+        for url in catalogs {
+            let catalog = try #require(NSDictionary(contentsOf: url.appendingPathComponent("Localizable.strings"))
+                as? [String: String])
+            for key in keys {
+                let value = try #require(catalog[key], "Missing \(key) in \(url.lastPathComponent)")
+                #expect(!value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                if url.lastPathComponent != "en.lproj" {
+                    #expect(value != english[key], "Untranslated \(key) in \(url.lastPathComponent)")
+                }
+            }
+            let alertTitle = try #require(catalog["credential_expiry_notification_title"])
+            #expect(alertTitle.components(separatedBy: "%@").count == 2)
+            #expect(alertTitle.count(where: { $0 == "%" }) == 1)
+        }
+    }
+
+    @Test
+    func `settings sharing and sync prose do not fall back to English in supported languages`() {
+        let keys = [
+            "Usage data will appear once the app refreshes.",
+            "No synced Macs yet.",
+            "Sync settings and providers across your Macs via iCloud",
+            "Hide native Codex when OpenCodex is present",
+            "No model-level history in this local snapshot",
+        ]
+        for language in AppLanguage.allCases where language != .system && language != .english {
+            CodexBarLocalizationOverride.$appLanguage.withValue(language.rawValue) {
+                for key in keys {
+                    #expect(L(key) != key, "Untranslated \(language.rawValue): \(key)")
+                }
+            }
+        }
     }
 }

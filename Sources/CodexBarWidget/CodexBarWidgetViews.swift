@@ -27,7 +27,7 @@ struct CodexBarUsageWidgetView: View {
                         size: WidgetTileSize(family: self.family))
                 }
             } else {
-                WidgetEmptyState(message: "Usage data will appear once the app refreshes.")
+                WidgetEmptyState(message: W("Usage data will appear once the app refreshes."))
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -46,7 +46,7 @@ struct CodexBarHistoryWidgetView: View {
             if let providerEntry {
                 HistoryView(entry: providerEntry, isLarge: self.family == .systemLarge)
             } else {
-                WidgetEmptyState(message: "Usage history will appear after a refresh.")
+                WidgetEmptyState(message: W("Usage history will appear after a refresh."))
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -63,7 +63,7 @@ struct CodexBarCompactWidgetView: View {
             if let providerEntry {
                 CompactMetricView(entry: providerEntry, metric: self.entry.metric)
             } else {
-                WidgetEmptyState(message: "Usage data will appear once the app refreshes.")
+                WidgetEmptyState(message: W("Usage data will appear once the app refreshes."))
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -94,7 +94,7 @@ struct CodexBarSwitcherWidgetView: View {
                         selected: self.entry.provider,
                         updatedAt: Date(),
                         size: size)
-                    WidgetEmptyState(message: "Usage data appears after a refresh.")
+                    WidgetEmptyState(message: W("Usage data appears after a refresh."))
                 }
             }
         }
@@ -145,14 +145,14 @@ enum CompactMetricFormatter {
             if let cost = WidgetBalanceFormatter.extraUsageCost(for: entry) {
                 return CompactMetricDisplay(
                     value: WidgetFormat.currency(cost.used, code: cost.currencyCode),
-                    label: "Extra usage balance",
+                    label: W("Extra usage balance"),
                     detail: nil)
             }
             if let balance = WidgetBalanceFormatter.providerBalance(for: entry) {
                 return CompactMetricDisplay(value: balance.value, label: balance.title, detail: nil)
             }
             let value = entry.creditsRemaining.map(WidgetFormat.credits) ?? "—"
-            return CompactMetricDisplay(value: value, label: "Credits left", detail: nil)
+            return CompactMetricDisplay(value: value, label: W("Credits left"), detail: nil)
         case .todayCost:
             let value = entry.tokenUsage.map { token in
                 token.sessionCostUSD.map { WidgetFormat.currency($0, code: token.currencyCode) } ?? "—"
@@ -160,7 +160,7 @@ enum CompactMetricFormatter {
             let detail = entry.tokenUsage?.sessionTokens.map(WidgetFormat.tokenCount)
             let label = entry.tokenUsage.map {
                 Self.costMetricLabel($0.sessionLabel, provider: entry.provider)
-            } ?? "Today cost"
+            } ?? W("Today cost")
             return CompactMetricDisplay(value: value, label: label, detail: detail)
         case .last30DaysCost:
             let value = entry.tokenUsage.map { token in
@@ -169,7 +169,7 @@ enum CompactMetricFormatter {
             let detail = entry.tokenUsage?.last30DaysTokens.map(WidgetFormat.tokenCount)
             let label = entry.tokenUsage.map {
                 Self.costMetricLabel($0.last30DaysLabel, provider: entry.provider)
-            } ?? "30d cost"
+            } ?? W("30d cost")
             return CompactMetricDisplay(value: value, label: label, detail: detail)
         }
     }
@@ -181,16 +181,31 @@ enum CompactMetricFormatter {
         let name = entry.provider.firstPartyProvider
             .flatMap { ProviderDefaults.metadata[$0]?.displayName }
             ?? entry.provider.rawValue.capitalized
-        return "Not reported by \(name)"
+        return W("Not reported by %@", String(describing: name))
     }
 
     static func costMetricLabel(_ label: String, provider: ProviderInstanceID) -> String {
         // Provider-specific by design: old Codex widget timelines lack the API-estimate billing disclaimer.
-        guard provider == .codex else { return "\(label) cost" }
-        // Existing widget timelines may predate the estimate labels. Do not leave a bare
-        // dollar value until the app next republishes it.
-        guard !label.contains("API est.") else { return label }
-        return "\(label) API est. · not billed"
+        guard provider == .codex else { return W("%@ cost", self.localizedPeriod(label)) }
+        // Snapshots written by older app versions contain the English estimate suffix.
+        // Keep its meaning while translating the period and billing disclaimer together.
+        let suffix = " API est. · not billed"
+        if label.hasSuffix(suffix) {
+            return W("%@ API est. · not billed", self.localizedPeriod(String(label.dropLast(suffix.count))))
+        }
+        let shortSuffix = " API est."
+        if label.hasSuffix(shortSuffix) {
+            return W("%@ %@", self.localizedPeriod(String(label.dropLast(shortSuffix.count))), W("API est."))
+        }
+        guard !label.contains(W("API est.")) else { return label }
+        return W("%@ API est. · not billed", self.localizedPeriod(label))
+    }
+
+    private static func localizedPeriod(_ label: String) -> String {
+        if label.hasSuffix("d"), let days = Int(label.dropLast()) {
+            return W("%dd", days)
+        }
+        return W(label)
     }
 }
 
@@ -250,7 +265,7 @@ private struct ProviderPagerControls: View {
             ProviderPageButton(provider: self.pager.next, symbol: "chevron.right", size: self.size)
         }
         .accessibilityElement(children: .contain)
-        .accessibilityLabel(Text("Provider \(self.pager.positionText)"))
+        .accessibilityLabel(Text(W("Provider %@", String(describing: self.pager.positionText))))
     }
 }
 
@@ -291,7 +306,7 @@ private struct ProviderPageButton: View {
 enum ProviderPageButtonLabel {
     static func text(for provider: UsageProvider) -> String {
         let name = ProviderDefaults.metadata[provider]?.displayName ?? provider.rawValue.capitalized
-        return "Switch to \(name)"
+        return W("Switch to %@", String(describing: name))
     }
 }
 
@@ -620,16 +635,18 @@ struct UsageHistoryChart: View {
 
 enum UsageHistoryChartCopy {
     static func title(dayCount: Int) -> String {
-        dayCount > 0 ? "Last \(dayCount) days" : "Daily usage"
+        dayCount > 0 ? W("Last %d days", dayCount) : W("Daily usage")
     }
 
     static func peak(maximum: Double, isCostMode: Bool, currencyCode: String?) -> String? {
         guard maximum > 0 else { return nil }
         if isCostMode, let currencyCode {
-            return "Peak \(UsageFormatter.compactCurrencyString(maximum, currencyCode: currencyCode))"
+            return W(
+                "Peak %@",
+                String(describing: UsageFormatter.compactCurrencyString(maximum, currencyCode: currencyCode)))
         }
         guard !isCostMode else { return nil }
-        return "Peak \(UsageFormatter.tokenCountString(Int(maximum)))"
+        return W("Peak %@", String(describing: UsageFormatter.tokenCountString(Int(maximum))))
     }
 
     static func range(points: [WidgetSnapshot.DailyUsagePoint]) -> (start: String, end: String)? {
@@ -688,7 +705,7 @@ enum WidgetBalanceFormatter {
         guard let cost = self.extraUsageCost(for: entry) else { return nil }
         return WidgetBalanceLine(
             title: "Extra usage",
-            value: "Balance: \(WidgetFormat.currency(cost.used, code: cost.currencyCode))")
+            value: W("%@: %@", W("Balance"), WidgetFormat.currency(cost.used, code: cost.currencyCode)))
     }
 }
 
@@ -740,7 +757,7 @@ enum WidgetFormat {
 
     private static let dayLabelFormatter: DateFormatter = {
         let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US")
+        formatter.locale = .current
         formatter.timeZone = TimeZone(secondsFromGMT: 0)
         formatter.setLocalizedDateFormatFromTemplate("MMMd")
         return formatter
@@ -760,8 +777,8 @@ enum WidgetFormat {
         entryUpdatedAt: Date) -> Text
     {
         guard let summary, summary.isStale(comparedTo: entryUpdatedAt), let updatedAt = summary.updatedAt else {
-            return Text(base)
+            return Text(W(base))
         }
-        return Text("\(base) · \(Text(updatedAt, style: .relative))")
+        return Text("\(W(base)) · \(Text(updatedAt, style: .relative))")
     }
 }

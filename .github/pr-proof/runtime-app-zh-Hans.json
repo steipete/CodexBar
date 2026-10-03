@@ -1,0 +1,10 @@
+{
+  "bundle": "CodexBar Localization Proof.app",
+  "event": "app-started",
+  "language": "zh-Hans",
+  "settingsSubtitle": "当服务商账户需要重新登录时，发送一次通知。",
+  "settingsTitle": "登录凭据过期",
+  "taskLocalOverride": "false",
+  "bundleIdentifier": "com.steipete.codexbar.localizationproof.debug",
+  "sourceCommit": "3515b3914"
+}

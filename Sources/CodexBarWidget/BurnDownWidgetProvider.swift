@@ -337,13 +337,14 @@ struct BurnDownState {
     func title(for selection: BurnWindowChoice) -> String {
         let metadata = self.entry.provider.firstPartyProvider.flatMap { ProviderDefaults.metadata[$0] }
         switch selection {
-        case .session: return "Session"
-        case .weekly: return "Weekly"
+        case .session: return W("Session")
+        case .weekly: return W("Weekly")
         case .primary, .secondary, .tertiary:
-            return self.entry.usageRows?.first { $0.id == selection.rawValue }?.title
+            let title = self.entry.usageRows?.first { $0.id == selection.rawValue }?.title
                 ?? (selection == .primary ? metadata?.sessionLabel
                     : selection == .secondary ? metadata?.weeklyLabel : metadata?.opusLabel)
                 ?? "Usage"
+            return W(title)
         }
     }
 

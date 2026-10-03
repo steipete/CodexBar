@@ -1,0 +1,59 @@
+{
+  "sourceCommit": "abc1bee04",
+  "appBundleIdentifier": "com.steipete.codexbar.debug",
+  "event": "isolated-proof-startup-state-comparison",
+  "defaults": [
+    {
+      "domain": "com.steipete.codexbar",
+      "keys": [
+        "launchAtLogin",
+        "appGroupMigrationVersion",
+        "debugDisableKeychainAccess",
+        "widgetSelectedProvider"
+      ],
+      "unchanged": true
+    },
+    {
+      "domain": "com.steipete.codexbar.debug",
+      "keys": [
+        "launchAtLogin",
+        "appGroupMigrationVersion",
+        "debugDisableKeychainAccess",
+        "widgetSelectedProvider"
+      ],
+      "unchanged": true
+    },
+    {
+      "domain": "Y5PE65HELJ.com.steipete.codexbar.debug",
+      "keys": [
+        "launchAtLogin",
+        "appGroupMigrationVersion",
+        "debugDisableKeychainAccess",
+        "widgetSelectedProvider"
+      ],
+      "unchanged": true
+    },
+    {
+      "domain": "group.com.steipete.codexbar.debug",
+      "keys": [
+        "launchAtLogin",
+        "appGroupMigrationVersion",
+        "debugDisableKeychainAccess",
+        "widgetSelectedProvider"
+      ],
+      "unchanged": true
+    }
+  ],
+  "snapshots": [
+    {
+      "label": "current-debug",
+      "existedBefore": false,
+      "unchanged": true
+    },
+    {
+      "label": "legacy-debug",
+      "existedBefore": false,
+      "unchanged": true
+    }
+  ]
+}

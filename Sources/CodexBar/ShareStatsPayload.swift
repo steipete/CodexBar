@@ -84,7 +84,7 @@ struct ShareStatsPayload: Sendable, Equatable {
     }
 
     var modelRankingDetail: String {
-        self.hasPartialModels ? "PARTIAL" : "BY USAGE"
+        self.hasPartialModels ? L("PARTIAL") : L("BY USAGE")
     }
 
     var hasShareableData: Bool {
@@ -373,7 +373,7 @@ enum ShareStatsPayloadFactory {
 
 enum ShareStatsFormatting {
     static func subscriptionSummary(count: Int) -> String {
-        count == 1 ? "1 subscription" : "\(count) subscriptions"
+        count == 1 ? L("1 subscription") : L("%d subscriptions", count)
     }
 
     static func compactCount(_ value: Int) -> String {
@@ -404,7 +404,7 @@ enum ShareStatsFormatting {
         let formatter = DateFormatter()
         formatter.calendar = calendar
         formatter.timeZone = calendar.timeZone
-        formatter.locale = .current
+        formatter.locale = codexBarLocalizedLocale()
         formatter.setLocalizedDateFormatFromTemplate("MMM d, yyyy")
         return formatter.string(from: date)
     }
@@ -415,14 +415,14 @@ enum ShareStatsFormatting {
 
     static func periodHeadline(_ payload: ShareStatsPayload) -> String {
         self.isAllTime(payload)
-            ? "My AI subscriptions · all time"
-            : "My AI subscriptions · last \(payload.days) days"
+            ? L("My AI subscriptions · all time")
+            : L("My AI subscriptions · last %d days", payload.days)
     }
 
     static func coverageFraction(covered: Int, payload: ShareStatsPayload) -> String {
         self.isAllTime(payload)
-            ? "\(covered)/all"
-            : "\(covered)/\(payload.days) days"
+            ? L("%d/all", covered)
+            : L("%d/%d days", covered, payload.days)
     }
 
     static func text(_ payload: ShareStatsPayload) -> String {
@@ -431,26 +431,26 @@ enum ShareStatsFormatting {
             let count = self.compactCount(tokens)
             lines.append(
                 payload.hasPartialTokens
-                    ? "~\(count) tracked tokens (partial)"
-                    : "\(count) tracked tokens")
+                    ? L("~%@ tracked tokens (partial)", count)
+                    : L("%@ tracked tokens", count))
         }
         lines.append(contentsOf: payload.currencies.map { currency in
             let spend = currency.estimatedCost.map { value in
-                let amount = "\(self.currency(value, code: currency.currencyCode)) estimated"
-                return currency.isPartial ? "\(amount) (partial)" : amount
-            } ?? "Spend unavailable"
+                let amount = L("%@ estimated", self.currency(value, code: currency.currencyCode))
+                return currency.isPartial ? L("%@ (partial)", amount) : amount
+            } ?? L("Spend unavailable")
             let coverage = self.coverageFraction(covered: currency.coveredDayCount, payload: payload)
-            return "\(currency.currencyCode): \(spend) · coverage \(coverage)"
+            return L("%@: %@ · coverage %@", currency.currencyCode, spend, coverage)
         })
         lines.append(contentsOf: payload.providers.map { provider in
             var metrics: [String] = []
             if let tokens = provider.totalTokens {
-                metrics.append("\(self.compactCount(tokens)) tokens")
+                metrics.append(L("%@ tokens", self.compactCount(tokens)))
             }
             if let cost = provider.estimatedCost {
-                metrics.append("~\(self.currency(cost, code: provider.currencyCode)) est")
+                metrics.append(L("~%@ est", self.currency(cost, code: provider.currencyCode)))
             } else {
-                metrics.append("Spend unavailable")
+                metrics.append(L("Spend unavailable"))
             }
             if provider.estimatedCost != nil, provider.coveredDayCount < payload.days {
                 metrics.append(self.coverageFraction(covered: provider.coveredDayCount, payload: payload))
@@ -459,19 +459,19 @@ enum ShareStatsFormatting {
             return "\(provider.providerName)\(subscription): \(metrics.joined(separator: " · "))"
         })
         if !payload.topModels.isEmpty {
-            lines.append(payload.hasPartialModels ? "Top models (partial):" : "Top models:")
+            lines.append(payload.hasPartialModels ? L("Top models (partial):") : L("Top models:"))
             lines.append(contentsOf: payload.topModels.prefix(5).map { model in
                 var metrics: [String] = []
                 if let tokens = model.totalTokens {
-                    metrics.append("\(self.compactCount(tokens)) tokens")
+                    metrics.append(L("%@ tokens", self.compactCount(tokens)))
                 }
                 if let cost = model.estimatedCost {
-                    metrics.append("~\(self.currency(cost, code: model.currencyCode)) est")
+                    metrics.append(L("~%@ est", self.currency(cost, code: model.currencyCode)))
                 }
                 return "\(model.modelName) (\(model.providerName)): \(metrics.joined(separator: " · "))"
             })
         }
-        lines.append("Generated locally by CodexBar · Data through \(self.dataThrough(payload))")
+        lines.append(L("Generated locally by CodexBar · Data through %@", self.dataThrough(payload)))
         return lines.joined(separator: "\n")
     }
 }

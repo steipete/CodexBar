@@ -75,6 +75,36 @@ function blankKeys(catalog, referenceKeys) {
   return referenceKeys.filter((key) => Object.hasOwn(catalog, key) && !catalog[key]?.trim());
 }
 
+function literalSwiftKeys(source, marker) {
+  const keys = [];
+  const literal = String.raw`"(?:[^"\\]|\\.)*"`;
+  const expressions = new RegExp(`${marker}\\s*(${literal}(?:\\s*\\+\\s*${literal})*)`, "g");
+  for (const match of source.matchAll(expressions)) {
+    if (match[1].includes("\\(")) continue;
+    try {
+      const parts = match[1].match(new RegExp(literal, "g"));
+      keys.push(
+        parts
+          .map((part) =>
+            JSON.parse(part.replace(/\\u\{([\da-f]+)\}/gi, (_, hex) => String.fromCodePoint(Number.parseInt(hex, 16)))),
+          )
+          .join(""),
+      );
+    } catch {
+      // Swift raw/interpolated strings are checked at their presentation seams.
+    }
+  }
+  return keys;
+}
+
+function swiftFiles(directory) {
+  return fs.readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const file = path.join(directory, entry.name);
+    if (entry.isDirectory()) return swiftFiles(file);
+    return entry.name.endsWith(".swift") && !/(?:Testing|NativeProof)/.test(entry.name) ? [file] : [];
+  });
+}
+
 function swiftInterpolationTokens(value) {
   const tokens = [];
   for (let index = 0; index < value.length - 1; index += 1) {
@@ -95,6 +125,13 @@ function swiftInterpolationTokens(value) {
 }
 
 if (isTest) {
+  assertEqual(literalSwiftKeys('L("first " + "second")', String.raw`\bL\(`), ["first second"], "concatenated keys");
+  assertEqual(literalSwiftKeys(String.raw`L("value \\(name)")`, String.raw`\bL\(`), [], "dynamic keys");
+  assertEqual(
+    literalSwiftKeys('title: "API key", subtitle: "Help"', String.raw`\b(?:title|subtitle):`),
+    ["API key", "Help"],
+    "provider descriptors",
+  );
   assertEqual(tokenSignature("%1$@ · %2$d"), tokenSignature("%2$d · %1$@"), "positional reorder");
   assertNotEqual(tokenSignature("%1$@ · %2$d"), tokenSignature("%1$d · %2$@"), "positional type swap");
   assertEqual(tokenSignature("%.0f%% used"), tokenSignature("%.0f%% verbraucht"), "escaped percent");
@@ -128,6 +165,54 @@ if (isTest) {
 
 let hasErrors = false;
 let checkedCount = 0;
+
+const pluralFile = path.join(resources, "en.lproj/Localizable.stringsdict");
+const pluralKeys = Object.keys(
+  JSON.parse(execFileSync("plutil", ["-convert", "json", "-o", "-", pluralFile], { encoding: "utf8" })),
+);
+const knownKeys = new Set([...englishKeys, ...pluralKeys]);
+const widgetKeys = new Set(
+  JSON.parse(fs.readFileSync(path.join(repoRoot, "Scripts/widget-localization-keys.json"), "utf8")),
+);
+for (const directory of ["Sources/CodexBar", "Sources/CodexBarWidget", "Sources/CodexBarCore/Providers"]) {
+  for (const file of swiftFiles(path.join(repoRoot, directory))) {
+    const source = fs.readFileSync(file, "utf8");
+    const keys = literalSwiftKeys(source, String.raw`\b(?:L|W)\(`);
+    if (directory !== "Sources/CodexBarCore/Providers") {
+      const rawUI = literalSwiftKeys(
+        source,
+        String.raw`(?:\b(?:Text|Button|Toggle|Label|SettingsRowLabel|TextField|SecureField)\(|\.(?:help|accessibilityLabel|alert)\()`,
+      );
+      for (const key of rawUI) {
+        if (key !== "CodexBar" && /[A-Za-z]/.test(key)) {
+          console.error(`${path.relative(repoRoot, file)}: unlocalized UI literal ${JSON.stringify(key)}`);
+          hasErrors = true;
+        }
+      }
+    }
+    if (directory === "Sources/CodexBarWidget") {
+      for (const key of literalSwiftKeys(source, String.raw`\bW\(`)) {
+        if (key && !widgetKeys.has(key)) {
+          console.error(`${path.relative(repoRoot, file)}: missing widget resource key ${JSON.stringify(key)}`);
+          hasErrors = true;
+        }
+      }
+    }
+    if (file.includes(`${path.sep}Providers${path.sep}`)) {
+      const isCore = file.includes(`${path.sep}CodexBarCore${path.sep}`);
+      const marker =
+        !isCore || file.endsWith("Descriptor.swift")
+          ? String.raw`\b(?:title|subtitle|placeholder|sessionLabel|weeklyLabel|opusLabel|creditsHint|noDataMessage):`
+          : String.raw`\btitle:`;
+      keys.push(...literalSwiftKeys(source, marker));
+    }
+    for (const key of new Set(keys)) {
+      if (!key || knownKeys.has(key)) continue;
+      console.error(`${path.relative(repoRoot, file)}: missing English catalog key ${JSON.stringify(key)}`);
+      hasErrors = true;
+    }
+  }
+}
 
 for (const completeLocale of completeLocales) {
   const dirPath = path.join(resources, `${completeLocale}.lproj`);

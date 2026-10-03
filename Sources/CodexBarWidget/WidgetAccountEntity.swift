@@ -13,7 +13,7 @@ struct WidgetAccountEntity: AppEntity {
     }
 
     func displayLabel(in snapshot: WidgetSnapshot?) -> String {
-        snapshot?.account(id: self.id)?.label ?? "Unavailable account"
+        snapshot?.account(id: self.id)?.label ?? W("Unavailable account")
     }
 }
 

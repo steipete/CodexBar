@@ -43,6 +43,15 @@ struct WidgetAccentProofRenderTests {
             let png = try #require(bitmap.representation(using: .png, properties: [:]))
             let name = scheme == .dark ? "cursor-usage-dark.png" : "cursor-usage-light.png"
             try png.write(to: output.appendingPathComponent(name))
+            for language in ["zh-Hans", "de", "ar"] {
+                try WidgetLocalizationOverride.$language.withValue(language) {
+                    let localized = ImageRenderer(content: view.environment(\.locale, Locale(identifier: language)))
+                    localized.scale = 2
+                    let bitmap = try NSBitmapImageRep(cgImage: #require(localized.cgImage))
+                    let data = try #require(bitmap.representation(using: .png, properties: [:]))
+                    try data.write(to: output.appendingPathComponent("\(language)-\(name)"))
+                }
+            }
         }
     }
 }

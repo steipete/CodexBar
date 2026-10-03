@@ -1,0 +1,9 @@
+{
+  "body": "打开 CodexBar 查看账户错误并重新登录。",
+  "bundle": "CodexBar Localization Proof.app",
+  "event": "macOS-delivered-credential-notification",
+  "language": "zh-Hans",
+  "title": "Codex 需要重新登录",
+  "bundleIdentifier": "com.steipete.codexbar.localizationproof.debug",
+  "sourceCommit": "3515b3914"
+}
