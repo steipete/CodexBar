@@ -56,8 +56,10 @@ function rows(text, showIdentity) {
             var safeLabel = typeof suppliedLabel === "string" ? displayText(suppliedLabel, false).trim() : "";
             var label = (copy && displayText(copy.title, false).trim()) ||
                 cadenceLabel(window.windowMinutes) || safeLabel || ["Session", "Weekly", "Additional"][index];
-            windows.push({key: copy ? "extra:" + copy.id : key, label: label, remaining: left,
-                resetsAt: window.resetsAt || "", pace: entry.pace && entry.pace[key] ? String(entry.pace[key].summary || "") : ""});
+            var pace = entry.pace && entry.pace[key] ? entry.pace[key] : null;
+            windows.push({key: copy ? "extra:" + copy.id : key, label: label, minutes: number(window.windowMinutes),
+                remaining: left, resetsAt: window.resetsAt || "", pace: pace ? String(pace.summary || "") : "",
+                paceDelta: pace ? number(pace.deltaPercent) : null});
         });
         // Extras come last: a consumer resolving a cadence by first match must still find the
         // provider's general window rather than a lane scoped to one model.
@@ -68,8 +70,9 @@ function rows(text, showIdentity) {
             // so a provider-supplied title is redacted whatever the display preference says.
             var label = displayText(extra.title, false).trim() ||
                 cadenceLabel(scopedWindow.windowMinutes) || "Additional";
-            windows.push({key: "extra:" + extra.id, label: label,
-                remaining: remaining(scopedWindow), resetsAt: scopedWindow.resetsAt || "", pace: ""});
+            windows.push({key: "extra:" + extra.id, label: label, minutes: number(scopedWindow.windowMinutes),
+                remaining: remaining(scopedWindow), resetsAt: scopedWindow.resetsAt || "", pace: "",
+                paceDelta: null, scoped: true});
         });
         return {
             provider: entry.provider,
@@ -160,13 +163,164 @@ function costs(text, today) {
     });
 }
 
-// Share the same compact labels and display limit between text and logo adapters.
-function barSegments(entries, mode) {
-    return entries.slice(0, 2).map(function(entry) {
-        return {provider: entry.provider,
-            tag: entry.provider === "codex" ? "CX" : entry.provider === "claude" ? "CL" : entry.provider,
-            text: entry.windows.length ? quotaValue(entry.windows[0].remaining, mode) + "%" : "—"};
+// Lane detection mirrors Core's ProviderUsagePresentation.standardSemanticWindows, so the bar
+// follows the cadence a provider reports rather than a provider name or a slot position.
+function tightest(windows) {
+    return windows.slice().sort(function(a, b) { return a.remaining - b.remaining; })[0] || null;
+}
+
+function laneOfCadence(windows, matches) {
+    // A provider can mark a set of extras as the summary of a cadence rather than caps beneath it:
+    // Antigravity emits one per model family, ids carrying a quota-summary segment, and rows()
+    // files the copied family under the pool's own key. Resolve across that whole set, or a
+    // tighter family hides behind the one the provider copied. Percentages cannot stand in for
+    // the marker: Claude's general weekly can coincide with one of its per-model caps.
+    var summarised = windows.filter(function(item) {
+        return matches(item) && item.key.indexOf("quota-summary") !== -1;
     });
+    if (summarised.length) return tightest(summarised);
+    var general = windows.filter(function(item) { return !item.scoped && matches(item); });
+    if (general.length) return tightest(general);
+    // A provider can publish only per-model lanes of a cadence and no general window; Antigravity
+    // reports no general weekly at all. Core derives the lane as the most constrained of those.
+    return tightest(windows.filter(function(item) { return item.scoped && matches(item); }));
+}
+
+function sessionWindow(windows) {
+    return laneOfCadence(windows, function(item) { return item.minutes >= 60 && item.minutes <= 720; });
+}
+
+function weeklyWindow(windows) {
+    return laneOfCadence(windows, function(item) { return item.minutes === 10080; });
+}
+
+// Compact cadence label: 10080 -> "7D", 300 -> "5H". A billing cycle is a real cadence and rarely
+// a whole number of days, so name it in days rather than reporting 684H.
+function laneLabel(minutes) {
+    if (!minutes || minutes <= 0) return "";
+    if (minutes >= 1440) return Math.round(minutes / 1440) + "D";
+    if (minutes % 60 === 0) return (minutes / 60) + "H";
+    return minutes + "M";
+}
+
+// Mirrors MenuBarDisplayText.paceText: positive is a deficit, negative a reserve. An unavailable
+// pace stays unavailable; it is never reported as being on pace.
+function paceDeltaText(delta) {
+    if (number(delta) === null) return "";
+    var value = Math.round(Math.abs(delta));
+    return value === 0 ? "0%" : (delta >= 0 ? "+" : "-") + value + "%";
+}
+
+// The tightest general window of each cadence the caller has not already represented, shortest
+// cadence first so the bar reads from most to least immediate.
+function otherCadences(windows, shown) {
+    var covered = shown.filter(Boolean);
+    var best = {}, order = [], claimed = {};
+    windows.forEach(function(item) { if (!item.scoped && item.minutes) claimed[item.minutes] = true; });
+    var fallback = promotedFallback(windows);
+    windows.forEach(function(item) {
+        // An extra window is not always a sub-cap. Kimi delivers a subscription-only account's
+        // whole quota this way, so let one stand in for a cadence no positional window claims.
+        if (item.scoped && item !== fallback && (!item.minutes || claimed[item.minutes])) return;
+        var key = item.minutes ? String(item.minutes) : "named:" + item.label;
+        if (covered.some(function(seen) { return seen === item || (item.minutes && seen.minutes === item.minutes); })) return;
+        // Same duration does not make two windows the same quota: Cursor bills its total, its
+        // Auto/Composer usage and its API usage over one cycle, and lists its own quota first.
+        if (best[key]) return;
+        order.push(key);
+        best[key] = item;
+    });
+    return order.sort(function(a, b) {
+        var left = parseInt(a, 10), right = parseInt(b, 10);
+        if (isNaN(left) && isNaN(right)) return order.indexOf(a) - order.indexOf(b);
+        if (isNaN(left)) return 1;
+        if (isNaN(right)) return -1;
+        return left - right;
+    }).map(function(key) { return best[key]; });
+}
+
+// Antigravity marks a compact fallback extra as its quota when neither model family has a pool
+// to copy. Only that marked window stands in for the provider, so an image model at 1% cannot
+// displace the text model, and once promoted it counts as the provider's own quota.
+function promotedFallback(windows) {
+    if (windows.some(function(item) { return !item.scoped; })) return null;
+    return tightest(windows.filter(function(item) {
+        return item.scoped && !item.minutes && item.key.indexOf("compact-fallback") !== -1;
+    }));
+}
+
+function tightestGeneral(windows) {
+    var fallback = promotedFallback(windows);
+    return tightest(windows.filter(function(item) { return !item.scoped || item === fallback; }));
+}
+
+// Providers whose API labels a limit as one model's own budget. Such a cap shows even when it
+// matches a lane; other extras, such as Antigravity's family pools, often repeat one.
+var modelCaps = {claude: "extra:claude-weekly-scoped-", codex: "extra:codex-"};
+
+// A cap scoped to one model earns bar space only while it binds harder than the general lane of
+// its own cadence; Antigravity's per-model lanes report no cadence at all, so they are held to
+// the provider's tightest general lane instead.
+function bindingScope(item, session, weekly, windows) {
+    var general = item.minutes === 10080 ? weekly
+        : item.minutes >= 60 && item.minutes <= 720 ? session
+        : null;
+    // A cadence the bar derived from this very cap cannot be the lane it has to out-bind; hold it
+    // to the provider's own quota instead, which includes a promoted compact fallback.
+    if (!general || general === item) general = tightestGeneral(windows);
+    return !general || item.remaining < general.remaining;
+}
+
+// One provider's bar text. Without `detail` this is the single leading percentage the adapter has
+// always drawn, so an upgrade changes nothing until the preference is switched on.
+function laneSegments(entry, mode, options) {
+    var settings = options || {};
+    var windows = entry.windows || [];
+    var session = sessionWindow(windows);
+    var weekly = weeklyWindow(windows);
+    var segments = [], rendered = [];
+    if (!settings.detail) {
+        if (windows.length) {
+            segments.push(quotaValue(windows[0].remaining, mode) + "%");
+            rendered = [windows[0]];
+        }
+    } else {
+        if (session) segments.push(laneLabel(session.minutes) + " " + quotaValue(session.remaining, mode) + "%");
+        if (weekly) segments.push(laneLabel(weekly.minutes) + " " + quotaValue(weekly.remaining, mode) + "%");
+        // A provider's own quota can use neither cadence: Cursor bills on a monthly cycle beside a
+        // weekly allowance, so every cadence it reports itself gets a lane.
+        var extra = otherCadences(windows, [session, weekly]);
+        extra.forEach(function(item) {
+            segments.push((laneLabel(item.minutes) || item.label) + " " + quotaValue(item.remaining, mode) + "%");
+        });
+        rendered = [session, weekly].concat(extra);
+    }
+    // A scoped cap is named by the provider, not by its cadence, because it usually shares one
+    // with the general lane beside it. The bar drops the qualifier the provider appends.
+    windows.forEach(function(item) {
+        if (!settings.scopedCaps || !item.scoped || rendered.indexOf(item) !== -1) return;
+        var prefix = modelCaps[entry.provider];
+        if (!(prefix && item.key.indexOf(prefix) === 0) && !bindingScope(item, session, weekly, windows)) return;
+        segments.push(item.label.replace(/\s+only$/i, "") + " " + quotaValue(item.remaining, mode) + "%");
+    });
+    // Pace belongs to the weekly window, not to whichever lane is most constrained, and it stays
+    // last so the quota lanes read together. An unavailable pace gets no segment at all.
+    if (settings.detail && settings.pace !== false && weekly && paceDeltaText(weekly.paceDelta))
+        segments.push(paceDeltaText(weekly.paceDelta));
+    return segments;
+}
+
+// Share the same labels and display limit between text and logo adapters. `maxProviders` is
+// display only: the providers it hides are still polled, listed in the popup and notified about.
+function barSegments(entries, mode, options) {
+    var limit = number((options || {}).maxProviders);
+    if (limit === null) limit = 2;
+    return (limit > 0 ? entries.slice(0, limit) : entries).map(function(entry) {
+            var segments = laneSegments(entry, mode, options);
+            return {provider: entry.provider,
+                tag: entry.provider === "codex" ? "CX" : entry.provider === "claude" ? "CL" : entry.provider,
+                text: segments.length ? segments.join(" · ") : "—"};
+        });
 }
 
 function summary(entries, mode) {

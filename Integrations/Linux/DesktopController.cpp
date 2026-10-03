@@ -72,11 +72,12 @@ bool DesktopController::validate(QVariantMap &values) {
     if (values.value("executable").toString().trimmed().isEmpty()) {
         m_configError = "Specify the CodexBar CLI executable."; return false;
     }
-    for (const auto &key : {"refreshSeconds", "accountIndex", "notifyThreshold"}) {
+    for (const auto &key : {"refreshSeconds", "accountIndex", "notifyThreshold", "barProviders"}) {
         bool ok = false;
         const int number = values.value(key).toInt(&ok);
         const int min = QString(key) == "refreshSeconds" ? 60 : QString(key) == "notifyThreshold" ? 1 : 0;
-        const int max = QString(key) == "refreshSeconds" ? 3600 : QString(key) == "notifyThreshold" ? 99 : 999;
+        const int max = QString(key) == "refreshSeconds" ? 3600 : QString(key) == "notifyThreshold" ? 99
+            : QString(key) == "barProviders" ? 80 : 999;
         if (!ok || number < min || number > max) { m_configError = QString("Invalid %1.").arg(key); return false; }
         values[key] = number;
     }
@@ -98,7 +99,7 @@ bool DesktopController::validate(QVariantMap &values) {
         !QStringList{"meters", "icon"}.contains(values.value("trayStyle").toString())) {
         m_configError = "Unsupported display preference."; return false;
     }
-    for (const auto &key : {"allAccounts", "showIdentity", "showCosts", "showStatus", "notifications", "showTray", "refreshOnOpen", "showPace", "warningColors", "followOmarchyTheme"})
+    for (const auto &key : {"allAccounts", "showIdentity", "showCosts", "showStatus", "notifications", "showTray", "refreshOnOpen", "showPace", "showBarDetail", "showScopedCaps", "warningColors", "followOmarchyTheme"})
         values[key] = values.value(key).toBool();
     return true;
 }
@@ -108,6 +109,7 @@ void DesktopController::loadSettings(const QString &cliOverride) {
         {"refreshSeconds", 300}, {"accountIndex", 0}, {"notifyThreshold", 10}, {"allAccounts", false},
         {"showIdentity", false}, {"showCosts", true}, {"showStatus", true}, {"notifications", false}, {"showTray", true}, {"refreshOnOpen", false}, {"providerOrder", QStringList{}},
         {"quotaDisplay", "remaining"}, {"resetDisplay", "countdown"}, {"showPace", true},
+        {"showBarDetail", false}, {"showScopedCaps", false}, {"barProviders", 2},
         {"warningColors", true}, {"trayStyle", "meters"}, {"followOmarchyTheme", false}};
     m_configPath = QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation) + "/codexbar/linux.json";
     QFile file(m_configPath);
@@ -296,7 +298,15 @@ void DesktopController::updateLabels() {
     const auto rows = m_engine.toScriptValue(m_entries);
     const auto mode = m_settings.value("quotaDisplay").toString();
     m_summary = call(m_usageModel, "summary", {rows, mode}).toString();
-    m_barEntries = QJsonArray::fromVariantList(call(m_usageModel, "barSegments", {rows, mode}).toVariant().toList());
+    // The bar keeps its single leading percentage until these are switched on, so an upgrade
+    // changes nothing; the limit is display only and never stops a provider being polled.
+    auto options = m_engine.newObject();
+    options.setProperty("detail", m_settings.value("showBarDetail").toBool());
+    options.setProperty("pace", m_settings.value("showPace").toBool());
+    options.setProperty("scopedCaps", m_settings.value("showScopedCaps").toBool());
+    options.setProperty("maxProviders", m_settings.value("barProviders").toInt());
+    m_barEntries = QJsonArray::fromVariantList(
+        call(m_usageModel, "barSegments", {rows, mode, options}).toVariant().toList());
 }
 
 QJsonObject DesktopController::snapshot() const {
