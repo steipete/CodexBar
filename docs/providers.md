@@ -566,6 +566,8 @@ ClinePass usage is fetched by the bundled TypeScript plugin on macOS and Linux; 
 JavaScriptCore is the macOS rollback engine. The committed `.js` is generated from `clinepass.ts`.
 - API key from `~/.codexbar/config.json`, `CLINE_API_KEY`, or `CLINEPASS_API_KEY`.
 - Reads 5-hour, weekly, and monthly usage limits from `GET https://api.cline.bot/api/v1/users/me/plan/usage-limits`.
+- Adds the same account's pay-as-you-go credit balance as a best-effort detail row (`GET /users/me`, then
+  `GET /users/{id}/balance`); balance failures keep the subscription windows.
 - ClinePass subscription limits are distinct from Cline pay-as-you-go balance and usage.
 - Status: none yet.
 - Details: `docs/clinepass.md`.

@@ -9,6 +9,14 @@ type ClinePassPayload = {
   data?: unknown;
 };
 
+type ClineAccount = {
+  id?: unknown;
+};
+
+type ClineBalance = {
+  balance?: unknown;
+};
+
 defineProvider({
   id: "clinepass",
   name: "ClinePass",
@@ -26,6 +34,7 @@ defineProvider({
         timeoutSeconds: 15,
       });
     } catch (error) {
+      if ((error as CodexBarHTTPError).transportClass === "cancelled") throw error;
       throw ctx.fail.networkFailure(`ClinePass network error: ${(error as Error)?.message || String(error)}`);
     }
     if (response.status === 401 || response.status === 403) {
@@ -117,6 +126,98 @@ defineProvider({
       secondary: windows.weekly,
       tertiary: windows.monthly,
       identity: { loginMethod: ctx.settings.get("CLINE_AUTH_SOURCE") === "oauth" ? "Browser" : "API key" },
+      details: await payAsYouGoBalance(ctx),
     };
   },
 });
+
+async function clineGet(ctx: CodexBarPluginContext, url: string, label: string): Promise<string> {
+  let response;
+  try {
+    response = await ctx.http.get(url, { timeoutSeconds: 15 });
+  } catch (error) {
+    if ((error as CodexBarHTTPError).transportClass === "cancelled") throw error;
+    throw ctx.fail.networkFailure(`Cline ${label} network error: ${(error as Error)?.message || String(error)}`);
+  }
+  if (response.status === 401 || response.status === 403) {
+    throw ctx.fail.authenticationExpired(
+      "Cline credentials were rejected. Check your API key or run `cline auth` to refresh your browser session.",
+    );
+  }
+  if (response.status === 429) {
+    throw ctx.fail.rateLimited(`Cline ${label} requests are rate limited.`);
+  }
+  if (response.status >= 500) {
+    throw ctx.fail.providerUnavailable(`Cline API error: HTTP ${response.status}`);
+  }
+  if (response.status !== 200) {
+    throw ctx.fail.apiFailure(`Cline API error: HTTP ${response.status}`);
+  }
+  return response.bodyText;
+}
+
+// Cline's account service unwraps `{success, data}` when success is a boolean
+// and returns the parsed object directly otherwise; accept either shape.
+function unwrapClineData(bodyText: string, ctx: CodexBarPluginContext, label: string): unknown {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(bodyText);
+  } catch (error) {
+    void error;
+    throw ctx.fail.parseFailure(`Failed to parse Cline ${label} response: response was not valid JSON`);
+  }
+  if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+    const success = (parsed as ClinePassPayload).success;
+    if (typeof success === "boolean") {
+      if (!success) {
+        throw ctx.fail.parseFailure(`Failed to parse Cline ${label} response: Response success was false.`);
+      }
+      return (parsed as ClinePassPayload).data;
+    }
+  }
+  return parsed;
+}
+
+// Best-effort pay-as-you-go balance for the same Cline account. Never fails the
+// subscription windows above; cancellation still propagates.
+async function payAsYouGoBalance(ctx: CodexBarPluginContext): Promise<CodexBarDetailSection[] | undefined> {
+  try {
+    const me = unwrapClineData(
+      await clineGet(ctx, "https://api.cline.bot/api/v1/users/me", "account"),
+      ctx,
+      "account",
+    ) as ClineAccount;
+    if (!me || typeof me !== "object" || Array.isArray(me) || typeof me.id !== "string" || !me.id.trim()) {
+      throw ctx.fail.parseFailure("Failed to parse Cline account response: data.id must be a non-empty string");
+    }
+    const userId = me.id.trim();
+    const raw = unwrapClineData(
+      await clineGet(
+        ctx,
+        `https://api.cline.bot/api/v1/users/${encodeURIComponent(userId)}/balance`,
+        "balance",
+      ),
+      ctx,
+      "balance",
+    ) as ClineBalance;
+    if (
+      !raw ||
+      typeof raw !== "object" ||
+      Array.isArray(raw) ||
+      typeof raw.balance !== "number" ||
+      !Number.isFinite(raw.balance)
+    ) {
+      throw ctx.fail.parseFailure("Failed to parse Cline balance response: data.balance must be a number");
+    }
+    // Balances are reported in cents (Cline displays balance / 100).
+    return [
+      {
+        title: "Cline credits",
+        rows: [{ label: "Available balance", value: ctx.format.usd(raw.balance / 100) }],
+      },
+    ];
+  } catch (error) {
+    if ((error as CodexBarHTTPError).transportClass === "cancelled") throw error;
+    return undefined;
+  }
+}

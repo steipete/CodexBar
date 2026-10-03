@@ -38,7 +38,13 @@ is used upstream for ClinePass. The reader ignores refresh tokens and unrelated 
 The plugin sends a bearer-authenticated `GET https://api.cline.bot/api/v1/users/me/plan/usage-limits` request.
 Reported `five_hour`, `weekly`, and `monthly` limits map to the primary, secondary, and tertiary windows.
 Each window uses the returned `percentUsed` and optional `resetsAt`; absent windows remain unavailable.
-This endpoint does not provide pay-as-you-go balances or local cost history.
+This endpoint does not provide local cost history.
+
+The same plugin then adds the pay-as-you-go credit balance as a best-effort `Cline credits` detail row:
+`GET /api/v1/users/me` resolves the account id, and `GET /api/v1/users/{id}/balance` returns the balance in
+cents, displayed as dollars. Both enveloped (`{success, data}`) and direct payloads are accepted, matching
+Cline's account service. If the balance lookup fails, the subscription windows are still returned without the
+row; cancellation still propagates instead of being reported as a network failure.
 
 ```bash
 codexbar usage --provider clinepass --source api --format json --pretty

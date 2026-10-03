@@ -99,7 +99,19 @@ struct ClinePassPluginTests {
     @Test(arguments: BundledPluginTestSupport.engines)
     func `request uses bearer auth and production deadline`(engine: ProviderPluginEngineKind) async throws {
         let transport = ProviderHTTPTransportHandler { request in
-            #expect(request.url?.absoluteString == "https://api.cline.bot/api/v1/users/me/plan/usage-limits")
+            let url = request.url?.absoluteString ?? ""
+            if url.hasSuffix("/api/v1/users/me") {
+                #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer test-key")
+                return try Self.response(
+                    request,
+                    body: #"{"success":true,"data":{"id":"user-1","email":"user@example.com"}}"#)
+            }
+            if url.contains("/balance") {
+                return try Self.response(
+                    request,
+                    body: #"{"success":true,"data":{"balance":1234,"userId":"user-1"}}"#)
+            }
+            #expect(url == "https://api.cline.bot/api/v1/users/me/plan/usage-limits")
             #expect(request.httpMethod == "GET")
             #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer test-key")
             #expect(request.value(forHTTPHeaderField: "Accept") == "application/json")
@@ -114,6 +126,66 @@ struct ClinePassPluginTests {
         #expect(snapshot.primary == nil)
         #expect(snapshot.secondary?.usedPercent == 40)
         #expect(snapshot.tertiary == nil)
+        // 1234 cents of pay-as-you-go credit surfaces as a detail row.
+        let rows = snapshot.details?.first?.rows ?? []
+        #expect(rows.count == 1)
+        #expect(rows.first?.label == "Available balance")
+        #expect(rows.first?.value.contains("12.34") == true)
+    }
+
+    @Test(arguments: BundledPluginTestSupport.engines)
+    func `direct account and balance payloads are accepted`(engine: ProviderPluginEngineKind) async throws {
+        let runtime = try BundledPluginTestSupport.runtime(
+            "clinepass",
+            engine: engine,
+            transport: ProviderHTTPTransportHandler { request in
+                let url = request.url?.absoluteString ?? ""
+                if url.hasSuffix("/api/v1/users/me") {
+                    return try Self.response(request, body: #"{"id":"user-7","email":"direct@example.com"}"#)
+                }
+                if url.contains("/balance") {
+                    return try Self.response(request, body: #"{"balance":250,"userId":"user-7"}"#)
+                }
+                return try Self.response(
+                    request,
+                    body: #"{"data":{"limits":[{"type":"weekly","percentUsed":40}]},"success":true}"#)
+            })
+
+        let snapshot = try await runtime.fetchUsage(secrets: ["CLINE_API_KEY": "test-key"])
+        #expect(snapshot.secondary?.usedPercent == 40)
+        #expect(snapshot.details?.first?.title == "Cline credits")
+        #expect(snapshot.details?.first?.rows.first?.value.contains("2.50") == true)
+    }
+
+    @Test(arguments: BundledPluginTestSupport.engines)
+    func `balance failure keeps quota windows`(engine: ProviderPluginEngineKind) async throws {
+        let runtime = try BundledPluginTestSupport.runtime(
+            "clinepass",
+            engine: engine,
+            transport: ProviderHTTPTransportHandler { request in
+                let url = request.url?.absoluteString ?? ""
+                if url.hasSuffix("/api/v1/users/me") || url.contains("/balance") {
+                    return try Self.response(request, body: "{}", status: 500)
+                }
+                return try Self.response(
+                    request,
+                    body: #"{"data":{"limits":[{"type":"weekly","percentUsed":40}]},"success":true}"#)
+            })
+
+        let snapshot = try await runtime.fetchUsage(secrets: ["CLINE_API_KEY": "test-key"])
+        #expect(snapshot.secondary?.usedPercent == 40)
+        #expect(snapshot.details == nil)
+    }
+
+    @Test(arguments: BundledPluginTestSupport.engines)
+    func `transport cancellation remains cancellation`(engine: ProviderPluginEngineKind) async throws {
+        let runtime = try BundledPluginTestSupport.runtime(
+            "clinepass",
+            engine: engine,
+            transport: ProviderHTTPTransportHandler { _ in throw URLError(.cancelled) })
+        await #expect(throws: CancellationError.self) {
+            try await runtime.fetchUsage(secrets: ["CLINE_API_KEY": "test-key"])
+        }
     }
 
     @Test(arguments: [
