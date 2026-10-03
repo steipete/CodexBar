@@ -289,7 +289,12 @@ extension SettingsStore {
         guard !self.configLoading else { return }
         let previousSave = self.configPersistTask
         previousSave?.cancel()
-        if Self.isRunningTests {
+        #if DEBUG
+        let persistSynchronously = Self.isRunningTests && !self._test_configPersistenceUsesDebounce
+        #else
+        let persistSynchronously = Self.isRunningTests
+        #endif
+        if persistSynchronously {
             do {
                 let data = try self.configStore.encodedData(for: self.config)
                 try ConfigFileWatcher.withAppWrite(data, watcher: self.configFileWatcher) {
@@ -303,6 +308,10 @@ extension SettingsStore {
         let store = self.configStore
         let watcher = self.configFileWatcher
         self.configPersistTask = Task { @MainActor in
+            defer {
+                // A replacement cancels its predecessor before installing its own task.
+                if !Task.isCancelled { self.configPersistTask = nil }
+            }
             await previousSave?.value
             do {
                 try await Task.sleep(nanoseconds: 350_000_000)
@@ -318,7 +327,7 @@ extension SettingsStore {
                 CodexBarLog.logger(LogCategories.configStore).error("Failed to encode config: \(error)")
                 return
             }
-            let error: (any Error)? = await Task.detached(priority: .utility) {
+            let write = Task.detached(priority: .utility) { () -> (any Error)? in
                 do {
                     try ConfigFileWatcher.withAppWrite(data, watcher: watcher) {
                         try store.saveEncodedData(data)
@@ -327,10 +336,43 @@ extension SettingsStore {
                 } catch {
                     return error
                 }
-            }.value
+            }
+            self.configPersistWriteTask = write
+            let error = await write.value
+            if self.configPersistWriteTask == write { self.configPersistWriteTask = nil }
             if let error {
                 CodexBarLog.logger(LogCategories.configStore).error("Failed to persist config: \(error)")
             }
         }
+    }
+
+    func persistPendingConfigForTermination() -> Task<Void, Never>? {
+        guard let pending = self.configPersistTask else { return nil }
+        pending.cancel()
+        let store = self.configStore
+        let watcher = self.configFileWatcher
+        let activeWrite = self.configPersistWriteTask
+        let data: Data?
+        do {
+            data = try store.encodedData(for: self.config)
+        } catch {
+            CodexBarLog.logger(LogCategories.configStore).error("Failed to encode config: \(error)")
+            data = nil
+        }
+        // Termination can run a modal loop inside the main queue. Drain the physical write,
+        // not its MainActor wrapper, before publishing the latest snapshot off the main actor.
+        let save = Task.detached(priority: .utility) {
+            _ = await activeWrite?.value
+            guard let data else { return }
+            do {
+                try ConfigFileWatcher.withAppWrite(data, watcher: watcher) {
+                    try store.saveEncodedData(data)
+                }
+            } catch {
+                CodexBarLog.logger(LogCategories.configStore).error("Failed to persist config: \(error)")
+            }
+        }
+        self.configPersistTask = save
+        return save
     }
 }
