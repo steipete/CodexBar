@@ -30,6 +30,7 @@ struct CLIProviderSelectionTests {
             "|xkiro|",
             "|museai|",
             "|lithosai|",
+            "|workbuddy|",
             "|both|",
             "|all]",
         ]

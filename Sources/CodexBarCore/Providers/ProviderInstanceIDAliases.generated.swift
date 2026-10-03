@@ -92,6 +92,7 @@ extension ProviderInstanceID {
     public static let xkiro = UsageProvider.xkiro.instanceID
     public static let museai = UsageProvider.museai.instanceID
     public static let lithosai = UsageProvider.lithosai.instanceID
+    public static let workbuddy = UsageProvider.workbuddy.instanceID
 }
 
 // swiftformat:enable sortDeclarations

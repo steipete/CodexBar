@@ -8,7 +8,7 @@ read_when:
 
 # Providers
 
-CodexBar currently registers 89 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
+CodexBar currently registers 90 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
 OpenCode vs OpenCode Go, because the auth source and quota shape differ.
 
 ## Fetch strategies (current)
@@ -159,6 +159,7 @@ complete when the available scan window covers fewer days.
 | Provider | Source |
 |---|---|
 | [LithosAI](lithosai.md) | Chrome or manual console cookies for prepaid USD balance and optional UTC spend. |
+| [WorkBuddy](workbuddy.md) | Chrome or manual www.workbuddy.cn cookies for the monthly credits allowance, plan name, and cycle reset. |
 
 <!-- End generated provider additions -->
 

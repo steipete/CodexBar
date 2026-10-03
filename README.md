@@ -10,7 +10,7 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-6e5aff?style=flat-square)](LICENSE)
 [![Site](https://img.shields.io/badge/site-codexbar.app-16d3b4?style=flat-square)](https://codexbar.app)
 
-<a href="https://codexbar.app"><img src="docs/social.png?v=e81ba42c1afdfbb9" alt="CodexBar — every AI coding limit in your menu bar. 89 providers." width="100%" /></a>
+<a href="https://codexbar.app"><img src="docs/social.png?v=2b93911652c1d0e3" alt="CodexBar — every AI coding limit in your menu bar. 90 providers." width="100%" /></a>
 
 Tiny macOS 14+ menu bar app that keeps **AI coding-provider limits visible** and shows when each window resets. See the [supported providers](#providers) below. One status item per provider, or Merge Icons mode with a provider switcher. No Dock icon, minimal UI, dynamic bar icons.
 
@@ -184,6 +184,7 @@ See [CLI configuration](docs/cli-configuration.md) for the full flow.
 
 <!-- Generated provider additions: Scripts/regenerate-provider-docs.mjs -->
 - [LithosAI](docs/lithosai.md) — Chrome or manual console cookies for prepaid USD balance and optional UTC spend.
+- [WorkBuddy](docs/workbuddy.md) — Chrome or manual www.workbuddy.cn cookies for the monthly credits allowance, plan name, and cycle reset.
 <!-- End generated provider additions -->
 
 ## Icon & Screenshot

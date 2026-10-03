@@ -80,7 +80,7 @@ struct PluginCookieProviderSpecTests {
     }
 
     private static let providers: [UsageProvider] = [
-        .helmcode, .hyper, .manus, .perplexity, .qoder, .raycast, .sakana, .t3chat, .lithosai,
+        .helmcode, .hyper, .manus, .perplexity, .qoder, .raycast, .sakana, .t3chat, .lithosai, .workbuddy,
     ]
 
     @Test

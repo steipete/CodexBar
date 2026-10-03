@@ -2,6 +2,10 @@
 
 ## 0.71.2 — Unreleased
 
+### Added
+
+- WorkBuddy: show the monthly credits allowance, plan name, and cycle reset from the www.workbuddy.cn billing API using Chrome or manual session cookies (#4226, #4227). Thanks @sudoHG!
+
 ## 0.71.1 — 2026-10-03
 
 ### Highlights

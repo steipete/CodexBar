@@ -156,8 +156,9 @@ struct ProviderArchitectureGatekeeperTests {
             Self.hash(descriptor.branding.burnDownWidgetColor, into: &burnDownFingerprint)
         }
 
-        #expect(widgetFingerprint == 3_878_775_502_287_979_115)
-        #expect(burnDownFingerprint == 7_180_157_240_092_109_793)
+        // WorkBuddy extends the existing widget palette.
+        #expect(widgetFingerprint == 2_840_091_373_576_283_663)
+        #expect(burnDownFingerprint == 15_211_090_808_401_890_944)
     }
 
     @Test
@@ -201,7 +202,7 @@ struct ProviderArchitectureGatekeeperTests {
         #expect(Set(descriptors.filter(\.metadata.usesDetailBackedWindow).map(\.id)) == [
             .perplexity,
             .warp, .kilo, .mistral, .deepseek, .deepinfra, .qoder, .chutes, .longcat, .litellm, .bifrost, .manus,
-            .mimo, .neuralwatt, .abacus, .v0, .llmman, .aixy, .raycast,
+            .mimo, .neuralwatt, .abacus, .v0, .llmman, .aixy, .raycast, .workbuddy,
         ])
         // Antigravity charts calendar days for the same reason Codex does: a day with no local row
         // is still a real day in the window.
