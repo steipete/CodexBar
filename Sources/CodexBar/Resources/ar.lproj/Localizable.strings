@@ -1634,6 +1634,11 @@
 "account_widgets_title" = "تحديث الحسابات للأدوات";
 "account_widgets_description" = "اختر حسابًا في كل أداة Account Usage. يتم تحديث ما يصل إلى ستة حسابات لكل مزوّد.";
 
+/* Spend time zone */
+"Statistics time zone" = "المنطقة الزمنية للإحصاءات";
+"Use Mac's current time zone" = "استخدام المنطقة الزمنية الحالية للـ Mac";
+"Daily usage uses a fixed time zone. Changing it may move usage to a different day." = "يُحسب الاستخدام اليومي وفق منطقة زمنية ثابتة. قد يؤدي تغييرها إلى نقل الاستخدام إلى يوم مختلف.";
+
 /* Antigravity local cost estimates */
 "antigravity_cost_estimate_hint" = "الاستخدام المحلي × أسعار واجهة البرمجة العامة · ليست رسوم أو أرصدة Antigravity";
 "antigravity_quota_window_note" = "تكلفة النافذة تشمل كل النماذج · النافذة المعروضة هي الفئة الأكثر تقييدًا";

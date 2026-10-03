@@ -169,6 +169,7 @@ struct SpendDashboardPane: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 self.header
+                SpendTimeZoneControls(settings: self.settings)
                 self.refreshStatus
                 self.codexCostCatchUpPanel
                 self.content

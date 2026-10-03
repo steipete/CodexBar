@@ -1634,6 +1634,11 @@
 "account_widgets_title" = "อัปเดตบัญชีสำหรับวิดเจ็ต";
 "account_widgets_description" = "เลือกบัญชีในวิดเจ็ต Account Usage แต่ละรายการ อัปเดตได้สูงสุดหกบัญชีต่อผู้ให้บริการ";
 
+/* Spend time zone */
+"Statistics time zone" = "เขตเวลาสำหรับสถิติ";
+"Use Mac's current time zone" = "ใช้เขตเวลาปัจจุบันของ Mac";
+"Daily usage uses a fixed time zone. Changing it may move usage to a different day." = "การใช้งานรายวันจะจัดกลุ่มตามเขตเวลาที่กำหนดไว้ การเปลี่ยนเขตเวลาอาจย้ายการใช้งานไปอยู่ในวันอื่น";
+
 /* Antigravity local cost estimates */
 "antigravity_cost_estimate_hint" = "การใช้งานในเครื่อง × ราคา API สาธารณะ · ไม่ใช่ค่าบริการหรือเครดิตของ Antigravity";
 "antigravity_quota_window_note" = "ค่าใช้จ่ายของหน้าต่างครอบคลุมทุกโมเดล · หน้าต่างที่แสดงคือกลุ่มที่จำกัดมากที่สุด";

@@ -1599,6 +1599,11 @@
 "account_widgets_title" = "위젯의 계정을 최신 상태로 유지";
 "account_widgets_description" = "각 Account Usage 위젯에서 계정을 선택하세요. 제공업체당 최대 6개 계정을 새로 고칩니다.";
 
+/* Spend time zone */
+"Statistics time zone" = "통계 시간대";
+"Use Mac's current time zone" = "Mac의 현재 시간대 사용";
+"Daily usage uses a fixed time zone. Changing it may move usage to a different day." = "일별 사용량은 고정된 시간대로 집계됩니다. 시간대를 변경하면 일부 사용량이 다른 날짜로 이동할 수 있습니다.";
+
 /* Antigravity local cost estimates */
 "antigravity_cost_estimate_hint" = "로컬 사용량 × 공개 API 가격 · Antigravity 청구나 크레딧이 아닙니다";
 "antigravity_quota_window_note" = "창 비용은 모든 모델을 포함합니다 · 표시된 창은 가장 제한적인 제품군입니다";

@@ -1633,6 +1633,11 @@
 "account_widgets_title" = "Perbarui akun untuk widget";
 "account_widgets_description" = "Pilih akun di setiap widget Account Usage. Memperbarui hingga enam akun per penyedia.";
 
+/* Spend time zone */
+"Statistics time zone" = "Zona waktu statistik";
+"Use Mac's current time zone" = "Gunakan zona waktu Mac saat ini";
+"Daily usage uses a fixed time zone. Changing it may move usage to a different day." = "Penggunaan harian dikelompokkan dalam zona waktu tetap. Mengubahnya dapat memindahkan penggunaan ke hari yang berbeda.";
+
 /* Antigravity local cost estimates */
 "antigravity_cost_estimate_hint" = "Penggunaan lokal × harga API publik · bukan tagihan atau kredit Antigravity";
 "antigravity_quota_window_note" = "Biaya jendela mencakup semua model · jendela yang ditampilkan adalah keluarga paling terbatas";

@@ -2,6 +2,10 @@
 
 ## 0.71.1 — Unreleased
 
+### Added
+
+- Usage & Spend: choose the statistics time zone or use the Mac's current time zone without editing hidden preferences. Existing pinned time zones remain unchanged until explicitly selected (#4185).
+
 ### Fixed
 
 - Status: prevent older status requests from replacing newer incidents, emitting false recovery hooks, or scheduling redundant retries (#4175). Thanks @Shenrui-Ma!

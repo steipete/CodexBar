@@ -1634,6 +1634,11 @@
 "account_widgets_title" = "حساب‌ها را برای ویجت‌ها به‌روز نگه دارید";
 "account_widgets_description" = "در هر ویجت Account Usage یک حساب انتخاب کنید. حداکثر شش حساب برای هر ارائه‌دهنده به‌روز می‌شود.";
 
+/* Spend time zone */
+"Statistics time zone" = "منطقه زمانی آمار";
+"Use Mac's current time zone" = "استفاده از منطقه زمانی فعلی مک";
+"Daily usage uses a fixed time zone. Changing it may move usage to a different day." = "مصرف روزانه بر اساس یک منطقه زمانی ثابت محاسبه می‌شود. تغییر آن ممکن است مصرف را به روز دیگری منتقل کند.";
+
 /* Antigravity local cost estimates */
 "antigravity_cost_estimate_hint" = "مصرف محلی × قیمت‌های عمومی API · هزینه یا اعتبار Antigravity نیست";
 "antigravity_quota_window_note" = "هزینهٔ بازه همهٔ مدل‌ها را دربر می‌گیرد · بازهٔ نمایش‌داده‌شده محدودترین خانواده است";

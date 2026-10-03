@@ -457,6 +457,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self.scheduleSettingsApplicationMenuValidation(
             missingItemRetriesRemaining: Self.settingsMenuReadinessRetryCount,
             fallbackVerificationRetriesRemaining: Self.settingsMenuFallbackVerificationRetryCount)
+        #if DEBUG
+        // Open the real Settings window for an isolated, opt-in native interaction proof.
+        if TestProcessSafety.isRunning,
+           CommandLine.arguments.contains("--spend-time-zone-proof"),
+           ProcessInfo.processInfo.environment["CFFIXED_USER_HOME"] != nil
+        {
+            self.openSettings(pane: .usageSpend)
+        }
+        #endif
         self.cloudSyncCoordinator?.start()
         Task { @MainActor [weak self] in
             await Task.yield()

@@ -1631,6 +1631,11 @@
 "account_widgets_title" = "Cập nhật tài khoản cho tiện ích";
 "account_widgets_description" = "Chọn một tài khoản trong mỗi tiện ích Account Usage. Làm mới tối đa sáu tài khoản cho mỗi nhà cung cấp.";
 
+/* Spend time zone */
+"Statistics time zone" = "Múi giờ thống kê";
+"Use Mac's current time zone" = "Dùng múi giờ hiện tại của Mac";
+"Daily usage uses a fixed time zone. Changing it may move usage to a different day." = "Mức sử dụng hằng ngày được nhóm theo một múi giờ cố định. Thay đổi múi giờ có thể chuyển mức sử dụng sang ngày khác.";
+
 /* Antigravity local cost estimates */
 "antigravity_cost_estimate_hint" = "Mức dùng cục bộ × giá API công khai · không phải phí hay tín dụng Antigravity";
 "antigravity_quota_window_note" = "Chi phí cửa sổ bao gồm mọi mô hình · cửa sổ hiển thị là nhóm bị giới hạn nhất";

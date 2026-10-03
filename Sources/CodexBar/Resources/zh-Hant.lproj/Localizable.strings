@@ -1661,6 +1661,11 @@
 "account_widgets_title" = "為小工具保持帳戶更新";
 "account_widgets_description" = "在每個 Account Usage 小工具中選擇一個帳戶。每個供應商最多重新整理六個帳戶。";
 
+/* Spend time zone */
+"Statistics time zone" = "統計時區";
+"Use Mac's current time zone" = "使用電腦目前時區";
+"Daily usage uses a fixed time zone. Changing it may move usage to a different day." = "每日用量按固定時區統計。更改時區後，部分用量可能會歸入不同的日期。";
+
 /* Antigravity local cost estimates */
 "antigravity_cost_estimate_hint" = "本機用量 × 公開 API 價格 · 並非 Antigravity 帳單或額度";
 "antigravity_quota_window_note" = "視窗費用涵蓋所有模型 · 所示視窗為最受限的模型系列";

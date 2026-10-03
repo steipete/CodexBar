@@ -1629,6 +1629,11 @@
 "account_widgets_title" = "Håll konton uppdaterade för widgetar";
 "account_widgets_description" = "Välj ett konto i varje Account Usage-widget. Uppdaterar upp till sex konton per leverantör.";
 
+/* Spend time zone */
+"Statistics time zone" = "Tidszon för statistik";
+"Use Mac's current time zone" = "Använd Macens aktuella tidszon";
+"Daily usage uses a fixed time zone. Changing it may move usage to a different day." = "Daglig användning grupperas i en fast tidszon. Om den ändras kan användning flyttas till en annan dag.";
+
 /* Antigravity local cost estimates */
 "antigravity_cost_estimate_hint" = "Lokal användning × publika API-priser · inte Antigravity-avgifter eller krediter";
 "antigravity_quota_window_note" = "Fönsterkostnaden omfattar alla modeller · fönstret som visas är den mest begränsade familjen";

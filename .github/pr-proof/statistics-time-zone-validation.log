@@ -1,0 +1,33 @@
+Rebased statistics time zone validation
+Application/test source commit: 7916c6e7d9eb1ca82971af64bab8f92cb089f692
+Base main: 8a954aa5f4010d2426fbebb171547b83eb02e7eb
+Later commits add proof assets and this validation receipt only.
+
+make check
+Exit status: 0
+Done linting! Found 0 violations, 0 serious in 2745 files.
+
+CODEXBAR_SIGNING=adhoc ./Scripts/package_app.sh debug
+Exit status: 0
+Fresh debug bundle created; deep/strict ad-hoc signature verification passed.
+
+make test
+Exit status: 0
+SwiftPM products used an external scratch directory. The ignored .build/debug link points to the current products so the development resource resolver reads the rebased resource bundle.
+The standard Scripts/test_environment.sh isolation remained active.
+
+Swift test timing summary:
+- Shard: none
+- Group size: 12
+- Discovered selections: 1522
+- Selected selections: 1522
+- Selected groups: 138
+- First-pass successful groups: 138
+- First-pass failed groups: 0
+- Full-group retries: 0
+- Recovered groups: 0
+- Timed out groups: 0
+- Isolated selection retries: 0
+- Discovery seconds: 3.7
+- Execution seconds: 1328.4
+- Total seconds: 1332.2

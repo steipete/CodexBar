@@ -1645,6 +1645,11 @@
 "account_widgets_title" = "为小组件保持账户更新";
 "account_widgets_description" = "在每个 Account Usage 小组件中选择一个账户。每个服务商最多刷新六个账户。";
 
+/* Spend time zone */
+"Statistics time zone" = "统计时区";
+"Use Mac's current time zone" = "使用电脑当前时区";
+"Daily usage uses a fixed time zone. Changing it may move usage to a different day." = "每日用量按固定时区统计。更改时区后，部分用量可能会归入不同的日期。";
+
 /* Antigravity local cost estimates */
 "antigravity_cost_estimate_hint" = "本地用量 × 公开 API 价格 · 并非 Antigravity 账单或额度";
 "antigravity_quota_window_note" = "窗口费用涵盖所有模型 · 所示窗口为最受限的模型系列";

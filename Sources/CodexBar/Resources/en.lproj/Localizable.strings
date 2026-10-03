@@ -1634,6 +1634,11 @@
 "account_widgets_title" = "Keep accounts updated for widgets";
 "account_widgets_description" = "Choose an account in each Account Usage widget. Refreshes up to six accounts per provider.";
 
+/* Spend time zone */
+"Statistics time zone" = "Statistics time zone";
+"Use Mac's current time zone" = "Use Mac's current time zone";
+"Daily usage uses a fixed time zone. Changing it may move usage to a different day." = "Daily usage uses a fixed time zone. Changing it may move usage to a different day.";
+
 /* Antigravity local cost estimates */
 "antigravity_cost_estimate_hint" = "Local usage × public API prices · not Antigravity charges or credits";
 "antigravity_quota_window_note" = "Window cost covers all models · window shown is the most constrained family";

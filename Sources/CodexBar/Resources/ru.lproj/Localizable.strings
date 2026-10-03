@@ -1631,6 +1631,11 @@
 "account_widgets_title" = "Обновлять данные аккаунтов для виджетов";
 "account_widgets_description" = "Выберите аккаунт в каждом виджете Account Usage. Обновляет до шести аккаунтов для каждого провайдера.";
 
+/* Spend time zone */
+"Statistics time zone" = "Часовой пояс статистики";
+"Use Mac's current time zone" = "Использовать текущий часовой пояс Mac";
+"Daily usage uses a fixed time zone. Changing it may move usage to a different day." = "Использование за день рассчитывается в фиксированном часовом поясе. Его изменение может перенести часть использования на другой день.";
+
 /* Antigravity local cost estimates */
 "antigravity_cost_estimate_hint" = "Локальное использование × публичные цены API · это не счета и не кредиты Antigravity";
 "antigravity_quota_window_note" = "Стоимость окна включает все модели · показано окно самого ограниченного семейства";

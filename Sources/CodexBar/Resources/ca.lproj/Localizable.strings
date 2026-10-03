@@ -1632,6 +1632,11 @@
 "account_widgets_title" = "Mantén els comptes actualitzats per als ginys";
 "account_widgets_description" = "Tria un compte a cada giny Account Usage. Actualitza fins a sis comptes per proveïdor.";
 
+/* Spend time zone */
+"Statistics time zone" = "Zona horària de les estadístiques";
+"Use Mac's current time zone" = "Utilitza la zona horària actual del Mac";
+"Daily usage uses a fixed time zone. Changing it may move usage to a different day." = "L’ús diari es calcula en una zona horària fixa. Si la canvies, part de l’ús pot passar a un altre dia.";
+
 /* Antigravity local cost estimates */
 "antigravity_cost_estimate_hint" = "Ús local × preus públics de l'API · no són càrrecs ni crèdits d'Antigravity";
 "antigravity_quota_window_note" = "El cost de la finestra inclou tots els models · la finestra mostrada és la família més limitada";

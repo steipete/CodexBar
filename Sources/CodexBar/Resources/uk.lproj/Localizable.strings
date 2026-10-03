@@ -1630,6 +1630,11 @@
 "account_widgets_title" = "Оновлювати дані облікових записів для віджетів";
 "account_widgets_description" = "Виберіть обліковий запис у кожному віджеті Account Usage. Оновлює до шести облікових записів для кожного постачальника.";
 
+/* Spend time zone */
+"Statistics time zone" = "Часовий пояс статистики";
+"Use Mac's current time zone" = "Використати поточний часовий пояс Mac";
+"Daily usage uses a fixed time zone. Changing it may move usage to a different day." = "Використання за день обчислюється у фіксованому часовому поясі. Його зміна може перенести частину використання на інший день.";
+
 /* Antigravity local cost estimates */
 "antigravity_cost_estimate_hint" = "Локальне використання × публічні ціни API · це не рахунки та не кредити Antigravity";
 "antigravity_quota_window_note" = "Вартість вікна охоплює всі моделі · показано вікно найбільш обмеженої родини";

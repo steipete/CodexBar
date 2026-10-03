@@ -1629,6 +1629,11 @@
 "account_widgets_title" = "Accounts voor widgets actueel houden";
 "account_widgets_description" = "Kies een account in elke Account Usage-widget. Werkt maximaal zes accounts per aanbieder bij.";
 
+/* Spend time zone */
+"Statistics time zone" = "Tijdzone voor statistieken";
+"Use Mac's current time zone" = "Huidige tijdzone van de Mac gebruiken";
+"Daily usage uses a fixed time zone. Changing it may move usage to a different day." = "Dagelijks gebruik wordt ingedeeld volgens een vaste tijdzone. Een wijziging kan gebruik naar een andere dag verschuiven.";
+
 /* Antigravity local cost estimates */
 "antigravity_cost_estimate_hint" = "Lokaal gebruik × publieke API-prijzen · geen Antigravity-kosten of -tegoeden";
 "antigravity_quota_window_note" = "Vensterkosten omvatten alle modellen · getoond venster is de meest beperkte familie";

@@ -1,0 +1,59 @@
+Native Settings interaction receipt
+Source commit: 7916c6e7d9eb1ca82971af64bab8f92cb089f692
+Application: CodexBar Time Zone Proof (fresh debug bundle, 0.71.1 / 163)
+Proof bundle ID: com.example.codexbar.timezoneproof
+Recorded: 2026-10-03T01:08:42.478Z
+Input: synthetic local Codex session only; no account credentials
+Fixture event: 2026-10-02T01:00:00Z, 1000000 input + 100000 output tokens
+Interaction: native menu option clicks, current-zone button click, Command-W, Command-comma, Command-Q, two cold relaunches
+
+Initial America/Detroit
+51 pop up button Description: Statistics time zone, Help: America/Detroit, ID: spend-time-zone-picker
+52 button Description: Use Mac's current time zone, Help: America/Detroit, ID: spend-use-current-time-zone
+55 text Estimated spend $3.15 Tracked tokens 1.1M Subscriptions 1
+68 unknown Description: Codex, Oct 1, Details: $3.15
+72 unknown Friday, October 2, 2026, Providers: Codex, Tracked tokens: 0, Requests: —, Estimated spend: $0.00
+73 unknown Thursday, October 1, 2026, Providers: Codex, Tracked tokens: 1.1M, Requests: —, Estimated spend: $3.15
+
+Picker click: Asia/Shanghai
+51 pop up button Description: Statistics time zone, Help: Asia/Shanghai, ID: spend-time-zone-picker
+52 button Description: Use Mac's current time zone, Help: America/Detroit, ID: spend-use-current-time-zone
+55 text Estimated spend $3.15 Tracked tokens 1.1M Subscriptions 1
+68 unknown Description: Codex, Oct 2, Details: $3.15
+72 unknown Saturday, October 3, 2026, Providers: Codex, Tracked tokens: 0, Requests: —, Estimated spend: $0.00
+73 unknown Friday, October 2, 2026, Providers: Codex, Tracked tokens: 1.1M, Requests: —, Estimated spend: $3.15
+74 unknown Thursday, October 1, 2026, Providers: Codex, Tracked tokens: 0, Requests: —, Estimated spend: $0.00
+
+Close Settings and reopen with Command-comma
+51 pop up button Description: Statistics time zone, Help: Asia/Shanghai, ID: spend-time-zone-picker
+52 button Description: Use Mac's current time zone, Help: America/Detroit, ID: spend-use-current-time-zone
+55 text Estimated spend $3.15 Tracked tokens 1.1M Subscriptions 1
+68 unknown Description: Codex, Oct 2, Details: $3.15
+72 unknown Saturday, October 3, 2026, Providers: Codex, Tracked tokens: 0, Requests: —, Estimated spend: $0.00
+73 unknown Friday, October 2, 2026, Providers: Codex, Tracked tokens: 1.1M, Requests: —, Estimated spend: $3.15
+74 unknown Thursday, October 1, 2026, Providers: Codex, Tracked tokens: 0, Requests: —, Estimated spend: $0.00
+
+Quit and relaunch: Shanghai stays pinned while Mac remains Detroit
+51 pop up button Description: Statistics time zone, Help: Asia/Shanghai, ID: spend-time-zone-picker
+52 button Description: Use Mac's current time zone, Help: America/Detroit, ID: spend-use-current-time-zone
+55 text Estimated spend $3.15 Tracked tokens 1.1M Subscriptions 1
+68 unknown Description: Codex, Oct 2, Details: $3.15
+72 unknown Saturday, October 3, 2026, Providers: Codex, Tracked tokens: 0, Requests: —, Estimated spend: $0.00
+73 unknown Friday, October 2, 2026, Providers: Codex, Tracked tokens: 1.1M, Requests: —, Estimated spend: $3.15
+74 unknown Thursday, October 1, 2026, Providers: Codex, Tracked tokens: 0, Requests: —, Estimated spend: $0.00
+
+Click Use Mac's current time zone
+51 pop up button Description: Statistics time zone, Help: America/Detroit, ID: spend-time-zone-picker
+52 button Description: Use Mac's current time zone, Help: America/Detroit, ID: spend-use-current-time-zone
+55 text Estimated spend $3.15 Tracked tokens 1.1M Subscriptions 1
+68 unknown Description: Codex, Oct 1, Details: $3.15
+72 unknown Friday, October 2, 2026, Providers: Codex, Tracked tokens: 0, Requests: —, Estimated spend: $0.00
+73 unknown Thursday, October 1, 2026, Providers: Codex, Tracked tokens: 1.1M, Requests: —, Estimated spend: $3.15
+
+Quit and relaunch after the button: Detroit persists
+51 pop up button Description: Statistics time zone, Help: America/Detroit, ID: spend-time-zone-picker
+52 button Description: Use Mac's current time zone, Help: America/Detroit, ID: spend-use-current-time-zone
+55 text Estimated spend $3.15 Tracked tokens 1.1M Subscriptions 1
+68 unknown Description: Codex, Oct 1, Details: $3.15
+72 unknown Friday, October 2, 2026, Providers: Codex, Tracked tokens: 0, Requests: —, Estimated spend: $0.00
+73 unknown Thursday, October 1, 2026, Providers: Codex, Tracked tokens: 1.1M, Requests: —, Estimated spend: $3.15

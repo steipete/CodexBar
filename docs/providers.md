@@ -23,6 +23,9 @@ See [CLI configuration](cli-configuration.md) for `XDG_CONFIG_HOME` and `CODEXBA
 
 ## Usage & Spend settings
 
+The Statistics time zone picker changes the saved reporting zone. Use Mac's current time zone pins the Mac's
+current zone once; later system timezone changes do not override the saved selection.
+
 Settings → Usage & Spend is a local estimated-cost history page, not a billing receipt and not the menu-bar quota
 card. Range choices are 7 / 30 / 90 days and All (the scan window is 365 days). Amounts are list-price equivalents
 unless a source also reports plan-metered spend, in which case both columns appear. Day buckets use a pinned IANA

@@ -1632,6 +1632,11 @@
 "account_widgets_title" = "Araç takımları için hesapları güncel tut";
 "account_widgets_description" = "Her Account Usage araç takımında bir hesap seçin. Sağlayıcı başına en fazla altı hesabı yeniler.";
 
+/* Spend time zone */
+"Statistics time zone" = "İstatistik saat dilimi";
+"Use Mac's current time zone" = "Mac’in geçerli saat dilimini kullan";
+"Daily usage uses a fixed time zone. Changing it may move usage to a different day." = "Günlük kullanım sabit bir saat diliminde gruplandırılır. Bu ayarı değiştirmek kullanımı farklı bir güne taşıyabilir.";
+
 /* Antigravity local cost estimates */
 "antigravity_cost_estimate_hint" = "Yerel kullanım × herkese açık API fiyatları · Antigravity ücretleri veya kredileri değildir";
 "antigravity_quota_window_note" = "Pencere maliyeti tüm modelleri kapsar · gösterilen pencere en kısıtlı ailedir";
