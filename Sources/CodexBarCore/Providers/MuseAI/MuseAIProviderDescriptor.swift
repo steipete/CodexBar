@@ -17,8 +17,6 @@ public enum MuseAIProviderDescriptor {
             menuCard: ProviderMenuCardPresentation(showsPrimaryBalanceDescription: true)),
         webSource: .init(
             settingsSection: .init(MuseAIProviderSettingsKey.self, cookieSettings: CookieProviderSettings.self),
-            browserCookieOrder: BrowserCookieImportSupport.chromeOnly(
-                reason: "Muse (muse.ai) imports only Chrome to avoid unrelated browser prompts."),
             browserSupportExemption: { _, _, settings in settings?.museai?.cookieSource == .manual },
             resolveValues: { $0.settings?.museai?.cookieSource == .off ? nil : .init() },
             field: .init(
@@ -29,7 +27,7 @@ public enum MuseAIProviderDescriptor {
             picker: .init(
                 id: "museai-cookie-source",
                 allowsOff: true,
-                auto: .localized("Automatic imports Chrome cookies from muse.ai."),
+                auto: .localized("Automatic imports browser cookies."),
                 manual: .localized("Paste a Cookie header captured from %@.", argument: "muse.ai"),
                 off: .localized("%@ cookies are disabled.", argument: "Muse (muse.ai)")),
             detailLine: "Browser cookies",

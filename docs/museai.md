@@ -10,12 +10,11 @@ read_when:
 [Muse](https://muse.ai) is Meta's personal agent. Its Free, Power, and Maximum plans share one weekly token allowance.
 This is separate from [Muse Code](muse.md), which reads the `muse` CLI login.
 
-Sign in at `muse.ai` in Chrome for **Automatic** import, or choose **Manual** and paste a Cookie header.
-Automatic import reads Chrome only to avoid unrelated browser prompts. **Off** disables cookie access.
-The Cookie source description and missing-session message name the browsers supported by this provider's automatic
-policy. A browser being Chromium-based, or appearing in SweetCookieKit's catalog for another provider, does not add it
-to Muse's Chrome-only policy. For Aside, Opera, or other browsers, choose **Manual** and paste a Cookie header from a
-signed-in `muse.ai` request.
+Sign in at `muse.ai` in a supported browser for **Automatic** import, or choose **Manual** and paste a Cookie header.
+Automatic import follows SweetCookieKit's default browser order, including Aside, Opera, and Opera Neon as of 0.5.5.
+The Cookie source description and missing-session message list the supported browsers directly from that catalog.
+Existing profile and Keychain access checks still apply. **Off** disables cookie access. For browsers outside the
+catalog, choose **Manual** and paste a Cookie header from a signed-in `muse.ai` request.
 On Linux, use a manual Cookie header; no browser integration or Muse Code CLI login is needed. CodexBar shows the weekly
 percentage, reset time, plan, tokens left (paid plans), renewal date, and any additional (top-up) tokens.
 
