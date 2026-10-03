@@ -338,6 +338,10 @@ public struct ProviderDiagnosticFetchAttempt: Codable, Sendable {
         if desc.contains("endpoint override") {
             return "configuration"
         }
+        // The notice ends with "token history remain available", which the auth keywords below would match.
+        if ClaudeStatusProbe.isSubscriptionQuotaUnavailableDescription(desc) {
+            return "configuration"
+        }
         if desc.contains("network") || desc.contains("timeout") || desc.contains("connection") {
             return "network"
         }
