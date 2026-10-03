@@ -36,6 +36,20 @@ struct CursorAccountSwitchBrowserScanTests {
         #expect(unknown == nil)
         #expect(unverifiedArcChannel == nil)
         #expect(ambiguousYandexChannel == nil)
+        #expect(CursorStatusProbe.interactiveBrowser(bundleIdentifier: nil) == nil)
+        #expect(CursorStatusProbe.interactiveBrowser(bundleIdentifier: "") == nil)
+        #expect(CursorStatusProbe.interactiveBrowser(bundleIdentifier: " \n\t") == nil)
+    }
+
+    @Test(arguments: [
+        ("at.studio.AsideBrowser", Browser.aside),
+        ("com.operasoftware.Opera", .opera),
+        ("com.operasoftware.OperaNeon", .operaNeon),
+    ])
+    func `new catalog browsers use their verified application identifiers`(fixture: (String, Browser)) {
+        let (identifier, browser) = fixture
+        #expect(CursorStatusProbe.interactiveBrowser(bundleIdentifier: identifier) == browser)
+        #expect(CursorStatusProbe.interactiveBrowser(bundleIdentifier: " \(identifier.uppercased())\n") == browser)
     }
 
     @Test

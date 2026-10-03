@@ -22,9 +22,7 @@ struct MuseAIProviderTests {
         let descriptor = MuseAIProviderDescriptor.descriptor
         #expect(descriptor.metadata.displayName == "Muse (muse.ai)")
         #expect(descriptor.metadata.dashboardURL == "https://muse.ai/?settings_tab=general")
-        #if os(macOS)
-        #expect(descriptor.metadata.browserCookieOrder == [.chrome])
-        #endif
+        #expect(descriptor.metadata.browserCookieOrder == nil)
         #expect(MuseProviderDescriptor.descriptor.metadata.displayName == "Muse Code")
     }
 }

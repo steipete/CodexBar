@@ -24,8 +24,8 @@ extension CursorStatusProbe {
     }
 
     static func interactiveBrowser(bundleIdentifier: String?) -> Browser? {
-        guard let bundleIdentifier = normalizedBundleIdentifier(bundleIdentifier) else { return nil }
-        return Self.interactiveBrowserByBundleIdentifier[bundleIdentifier]
+        let normalized = bundleIdentifier?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return normalized.flatMap { Self.interactiveBrowserByBundleIdentifier[$0] }
     }
 
     /// Bind the launched app to the exact SweetCookieKit store CodexBar will read. Display names
@@ -35,6 +35,7 @@ extension CursorStatusProbe {
     static let interactiveBrowserByBundleIdentifier: [String: Browser] = [
         "ai.perplexity.comet": .comet,
         "app.zen-browser.zen": .zen,
+        "at.studio.asidebrowser": .aside,
         "com.apple.safari": .safari,
         "com.brave.browser": .brave,
         "com.brave.browser.beta": .braveBeta,
@@ -46,6 +47,8 @@ extension CursorStatusProbe {
         "com.microsoft.edgemac.beta": .edgeBeta,
         "com.microsoft.edgemac.canary": .edgeCanary,
         "com.openai.atlas": .chatgptAtlas,
+        "com.operasoftware.opera": .opera,
+        "com.operasoftware.operaneon": .operaNeon,
         "com.vivaldi.vivaldi": .vivaldi,
         "company.thebrowser.browser": .arc,
         "company.thebrowser.dia": .dia,
@@ -56,12 +59,5 @@ extension CursorStatusProbe {
         "org.mozilla.firefoxdeveloperedition": .firefoxDeveloperEdition,
         "org.mozilla.nightly": .firefoxNightly,
     ]
-
-    private static func normalizedBundleIdentifier(_ value: String?) -> String? {
-        guard let value = value?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else {
-            return nil
-        }
-        return value.lowercased()
-    }
 }
 #endif

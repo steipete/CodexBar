@@ -21,6 +21,11 @@ struct ProviderPluginCookieResultTests {
         });
         """, engine: engine)
         let order = ProviderDefaults.metadata[provider]?.browserCookieOrder ?? Browser.defaultImportOrder
+        if provider != .opencode {
+            for name in ["Aside", "Opera", "Opera Neon"] {
+                #expect(order.map(\.displayName).contains(name))
+            }
+        }
         let usage = try await runtime.fetchUsage(settings: ["EXPECTED_BROWSERS": order.map(\.displayName)
                 .joined(separator: ", ")])
         #expect(usage.primary?.usedPercent == 0)
