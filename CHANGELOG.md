@@ -2,6 +2,10 @@
 
 ## 0.71.2 — Unreleased
 
+### Fixed
+
+- Muse Code: keep the selected dev.meta.ai browser team quota working when the session's `/api/auth/me` email is blank, by matching the session user to the login email in the team member list (#4228).
+
 ## 0.71.1 — 2026-10-03
 
 ### Highlights
