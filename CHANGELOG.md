@@ -6,6 +6,7 @@
 
 - Cost history: reduce memory use when Pi contributes no additional exact-time usage.
 - Claude: reduce temporary memory use when rebuilding cost history with duplicate transcript entries.
+- Claude: reduce memory use while loading and saving cached cost history.
 
 ## 0.72.0 — 2026-10-04
 
