@@ -34,9 +34,13 @@ login still needs the app's OAuth client or the explicit client environment over
 expose the generated token (1.1.28, 1.2.0, and 1.2.1 answer the same request with `200`). When the selected
 executable reports 1.2.2 or later, CodexBar still spends its bounded warm-reuse check but does not spawn a
 managed session or wait for its readiness deadline. Unknown versions keep the managed spawn.
+On macOS, CodexBar does not start a new `agy` while the network path is down, or while a wake has not yet
+produced a path update. An `agy` that is already listening on localhost can still be reused.
 
 For `agy` 1.2.2 and later, a failed legacy HTTPS fetch can fall back to
-`agy -p /usage --output-format json`. CodexBar checks that the same executable reports version 1.1.11
+`agy -p /usage --output-format json`. On macOS that print command is also skipped while the path is down
+or a wake has not yet produced a path update, before a scoped run writes its temporary token file.
+CodexBar checks that the same executable reports version 1.1.11
 or later before using print mode; [Google introduced non-interactive usage reports in 1.1.11](https://antigravity.google/changelog).
 It requires a successful `usage` command report with known,
 enabled quota buckets, bounds the command to 90 seconds and its output to 1 MiB, and terminates the command

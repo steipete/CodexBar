@@ -467,6 +467,138 @@ struct AntigravityWarmAgyReuseTests {
         #expect(spawnCallCount.value == 1)
     }
 
+    @Test
+    func `unreachable network returns a warm localhost snapshot without spawning`() async throws {
+        let fixture = try Self.makeLaunchFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.directory) }
+        let spawnCount = AntigravityWarmLockedCounter()
+        let gateCount = AntigravityWarmLockedCounter()
+        let strategy = AntigravityCLIHTTPSFetchStrategy()
+        let process = Self.cliProcessInfo(pid: 9901, binaryPath: fixture.binary.path)
+
+        let result = try await strategy.fetch(
+            AntigravityCLIHTTPSFetchStrategyTests().makeFetchContext(sourceMode: .cli, env: fixture.environment),
+            warmDependencies: makeAntigravityWarmDependencies(
+                processInfos: { _ in [process] },
+                listeningPorts: { _, _ in [56789] },
+                fetchSnapshot: { _, _ in Self.usableSnapshot(email: "warm@example.com") }),
+            spawnFetch: { _, _, _, _ in
+                spawnCount.increment()
+                Issue.record("A warm localhost agy must not spawn")
+                throw AntigravityStatusProbeError.notRunning
+            },
+            newAgyLaunchAllowed: {
+                gateCount.increment()
+                throw URLError(.notConnectedToInternet)
+            })
+
+        #expect(result.usage.identity?.accountEmail == "warm@example.com")
+        #expect(spawnCount.value == 0)
+        #expect(gateCount.value == 0)
+        #expect(!FileManager.default.fileExists(atPath: fixture.marker.path))
+    }
+
+    @Test
+    func `unstarted launch gate allows immediately`() async throws {
+        let gate = AntigravityAgyLaunchGate(
+            initialReadingTimeout: .seconds(30),
+            wakeSettleTimeout: .seconds(30))
+        gate.noteWake(at: Date())
+        gate.notePath(.unsatisfied, observedAt: Date())
+        try await gate.allowNewLaunch()
+    }
+
+    @Test
+    func `satisfied path still launches agy`() async throws {
+        let fixture = try Self.makeLaunchFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.directory) }
+        let gate = AntigravityAgyLaunchGate()
+        gate.markStarted()
+        gate.notePath(.satisfied, observedAt: Date())
+        let spawnCount = AntigravityWarmLockedCounter()
+        _ = try await Self.runLaunch(gate: gate, spawnCount: spawnCount, environment: fixture.environment)
+        #expect(spawnCount.value == 1)
+    }
+
+    @Test
+    func `post wake satisfied update launches agy`() async throws {
+        let fixture = try Self.makeLaunchFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.directory) }
+        let wake = Date()
+        let gate = AntigravityAgyLaunchGate(wakeSettleTimeout: .seconds(30))
+        gate.markStarted()
+        gate.notePath(.satisfied, observedAt: wake.addingTimeInterval(-1))
+        gate.noteWake(at: wake)
+        let spawnCount = AntigravityWarmLockedCounter()
+        let task = Task {
+            try await Self.runLaunch(gate: gate, spawnCount: spawnCount, environment: fixture.environment)
+        }
+        await gate.waitUntilParked()
+        gate.notePath(.satisfied, observedAt: wake.addingTimeInterval(1))
+        _ = try await task.value
+        #expect(spawnCount.value == 1)
+    }
+
+    @Test(arguments: [AntigravityNetworkPathStatus.unsatisfied, .requiresConnection])
+    func `post wake offline update skips the launch`(status: AntigravityNetworkPathStatus) async throws {
+        let fixture = try Self.makeLaunchFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.directory) }
+        let wake = Date()
+        let gate = AntigravityAgyLaunchGate(wakeSettleTimeout: .seconds(30))
+        gate.markStarted()
+        gate.notePath(.satisfied, observedAt: wake.addingTimeInterval(-1))
+        gate.noteWake(at: wake)
+        let spawnCount = AntigravityWarmLockedCounter()
+        let task = Task {
+            try await Self.runLaunch(gate: gate, spawnCount: spawnCount, environment: fixture.environment)
+        }
+        await gate.waitUntilParked()
+        gate.notePath(status, observedAt: wake.addingTimeInterval(1))
+        await #expect(throws: URLError(.notConnectedToInternet)) { try await task.value }
+        #expect(spawnCount.value == 0)
+        #expect(!FileManager.default.fileExists(atPath: fixture.marker.path))
+    }
+
+    @Test
+    func `unsettled wake without a path update skips one launch`() async throws {
+        let fixture = try Self.makeLaunchFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.directory) }
+        let wake = Date()
+        let gate = AntigravityAgyLaunchGate(wakeSettleTimeout: .zero)
+        gate.markStarted()
+        gate.notePath(.satisfied, observedAt: wake.addingTimeInterval(-1))
+        gate.noteWake(at: wake)
+        let spawnCount = AntigravityWarmLockedCounter()
+
+        await #expect(throws: URLError(.notConnectedToInternet)) {
+            try await Self.runLaunch(gate: gate, spawnCount: spawnCount, environment: fixture.environment)
+        }
+        #expect(spawnCount.value == 0)
+        #expect(!FileManager.default.fileExists(atPath: fixture.marker.path))
+
+        gate.notePath(.satisfied, observedAt: wake.addingTimeInterval(1))
+        _ = try await Self.runLaunch(gate: gate, spawnCount: spawnCount, environment: fixture.environment)
+        #expect(spawnCount.value == 1)
+    }
+
+    @Test
+    func `cancellation during the wake wait does not spawn`() async throws {
+        let fixture = try Self.makeLaunchFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.directory) }
+        let gate = AntigravityAgyLaunchGate(wakeSettleTimeout: .seconds(30))
+        gate.markStarted()
+        gate.noteWake(at: Date())
+        let spawnCount = AntigravityWarmLockedCounter()
+        let task = Task {
+            try await Self.runLaunch(gate: gate, spawnCount: spawnCount, environment: fixture.environment)
+        }
+        await gate.waitUntilParked()
+        task.cancel()
+        await #expect(throws: CancellationError.self) { try await task.value }
+        #expect(spawnCount.value == 0)
+        #expect(!FileManager.default.fileExists(atPath: fixture.marker.path))
+    }
+
     // MARK: - Fixtures
 
     private static func cliProcessInfo(
@@ -494,6 +626,72 @@ struct AntigravityWarmAgyReuseTests {
             accountEmail: email,
             accountPlan: "Pro",
             source: .local)
+    }
+
+    private static func runLaunch(
+        gate: AntigravityAgyLaunchGate,
+        spawnCount: AntigravityWarmLockedCounter,
+        environment: [String: String]) async throws -> ProviderFetchResult
+    {
+        let strategy = AntigravityCLIHTTPSFetchStrategy()
+        return try await strategy.fetch(
+            AntigravityCLIHTTPSFetchStrategyTests().makeFetchContext(sourceMode: .cli, env: environment),
+            warmDependencies: self.noWarmDependencies(),
+            spawnFetch: { _, _, _, _ in
+                spawnCount.increment()
+                return strategy.makeResult(
+                    usage: self.usableUsage(email: "spawned@example.com"),
+                    sourceLabel: AntigravityCLIHTTPSFetchStrategy.sourceLabel)
+            },
+            newAgyLaunchAllowed: { try await gate.allowNewLaunch() })
+    }
+
+    private static func noWarmDependencies() -> AntigravityCLIHTTPSFetchStrategy.WarmAgyDependencies {
+        makeAntigravityWarmDependencies(
+            processInfos: { _ in [] },
+            listeningPorts: { _, _ in
+                Issue.record("Empty discovery must not inspect ports")
+                return []
+            },
+            fetchSnapshot: { _, _ in
+                Issue.record("Empty discovery must not fetch a server")
+                throw AntigravityStatusProbeError.notRunning
+            })
+    }
+
+    private struct LaunchFixture {
+        let directory: URL
+        let binary: URL
+        let environment: [String: String]
+        let marker: URL
+    }
+
+    private static func makeLaunchFixture() throws -> LaunchFixture {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codexbar-agy-launch-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let binary = directory.appendingPathComponent("agy")
+        let marker = directory.appendingPathComponent("invoked")
+        let script = """
+        #!/bin/sh
+        echo invoked > '\(marker.path)'
+        if [ "${1:-}" = --version ]; then
+          echo 1.2.1
+          exit 0
+        fi
+        exit 9
+        """
+        try script.write(to: binary, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: binary.path)
+        return LaunchFixture(
+            directory: directory,
+            binary: binary,
+            environment: [
+                "HOME": directory.path,
+                "PATH": "/usr/bin:/bin",
+                "ANTIGRAVITY_CLI_PATH": binary.path,
+            ],
+            marker: marker)
     }
 
     private static func usableUsage(email: String) -> UsageSnapshot {

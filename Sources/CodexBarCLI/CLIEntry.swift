@@ -27,6 +27,9 @@ enum CodexBarCLI {
             Musl.exit(CodexBarCoreResourceSmoke.run())
             #endif
         }
+        #if os(macOS)
+        AntigravityAgyLaunchGate.start()
+        #endif
         self.configureLinuxTimeZoneIfNeeded()
 
         let rawArgv = Array(CommandLine.arguments.dropFirst())

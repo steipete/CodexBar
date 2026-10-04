@@ -475,6 +475,50 @@ extension AntigravityCLIHTTPSFetchStrategyTests {
         #expect(!FileManager.default.fileExists(atPath: fixture.directory.appendingPathComponent("invoked").path))
     }
 
+    @Test
+    func `unreachable network skips spawn and both print commands`() async throws {
+        let markerDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codexbar-agy-offline-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: markerDirectory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: markerDirectory) }
+        let marker = markerDirectory.appendingPathComponent("invoked").path
+        let fixture = try Self.printExecutable("echo invoked > '\(marker)'; exit 9", version: nil)
+        defer { try? FileManager.default.removeItem(at: fixture.directory) }
+        let spawnCount = AntigravityLaunchCallCounter()
+        let strategy = AntigravityCLIHTTPSFetchStrategy()
+        let deny: @Sendable () async throws -> Void = { throw URLError(.notConnectedToInternet) }
+
+        await #expect(throws: URLError(.notConnectedToInternet)) {
+            try await strategy.fetch(
+                self.makeFetchContext(sourceMode: .auto, env: fixture.environment),
+                warmDependencies: Self.noWarmSession(),
+                spawnFetch: { _, _, _, _ in
+                    spawnCount.increment()
+                    throw AntigravityStatusProbeError.notRunning
+                },
+                newAgyLaunchAllowed: deny)
+        }
+
+        var scopedEnvironment = fixture.environment
+        scopedEnvironment.merge(self.accountEnv(email: "scoped@example.com")) { _, new in new }
+        await #expect(throws: URLError(.notConnectedToInternet)) {
+            try await strategy.fetch(
+                self.makeFetchContext(
+                    sourceMode: .auto,
+                    selectedTokenAccountID: UUID(),
+                    env: scopedEnvironment),
+                warmDependencies: Self.noWarmSession(),
+                spawnFetch: { _, _, _, _ in
+                    spawnCount.increment()
+                    throw AntigravityStatusProbeError.notRunning
+                },
+                newAgyLaunchAllowed: deny)
+        }
+
+        #expect(spawnCount.value == 0)
+        #expect(!FileManager.default.fileExists(atPath: marker))
+    }
+
     private static func noWarmSession() -> AntigravityCLIHTTPSFetchStrategy.WarmAgyDependencies {
         makeAntigravityWarmDependencies(
             processInfos: { _ in [] },
@@ -526,5 +570,22 @@ extension AntigravityCLIHTTPSFetchStrategyTests {
             "command": ["name": command, "data": ["groups": [["name": "Gemini Models", "buckets": [bucket]]]]],
         ]
         return try #require(String(data: JSONSerialization.data(withJSONObject: report), encoding: .utf8))
+    }
+}
+
+private final class AntigravityLaunchCallCounter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var count = 0
+
+    func increment() {
+        self.lock.lock()
+        self.count += 1
+        self.lock.unlock()
+    }
+
+    var value: Int {
+        self.lock.lock()
+        defer { self.lock.unlock() }
+        return self.count
     }
 }

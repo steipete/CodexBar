@@ -249,11 +249,15 @@ extension AntigravityCLIHTTPSFetchStrategy {
         environment: [String: String],
         timeout: TimeInterval = 90,
         dataLoader: (@Sendable (URLRequest) async throws -> (Data, URLResponse))? = nil,
-        credentialsUpdateHandler: (@Sendable (AntigravityOAuthCredentials) async throws -> Void)? = nil)
+        credentialsUpdateHandler: (@Sendable (AntigravityOAuthCredentials) async throws -> Void)? = nil,
+        newAgyLaunchAllowed: @escaping @Sendable () async throws -> Void = {
+            try await AntigravityAgyLaunchGate.authorize()
+        })
         async throws
         -> ProviderFetchResult
     {
         try Task.checkCancellation()
+        try await newAgyLaunchAllowed()
         guard let value = environment[AntigravityOAuthCredentialsStore.environmentCredentialsKey],
               let credentials = AntigravityOAuthCredentialsStore.credentials(fromTokenAccountValue: value),
               let expectedAccountEmail = credentials.resolvedAccountEmail
@@ -269,7 +273,11 @@ extension AntigravityCLIHTTPSFetchStrategy {
             from: environment, home: staged.home)
 
         let parsed = try await Self.runPrintUsage(
-            binary: binary, environment: scopedEnvironment, directory: staged.home, timeout: timeout)
+            binary: binary,
+            environment: scopedEnvironment,
+            directory: staged.home,
+            timeout: timeout,
+            newAgyLaunchAllowed: newAgyLaunchAllowed)
         if let reportedEmail = AntigravityScopedAgyStaging.normalizedEmail(parsed.accountEmail),
            reportedEmail != AntigravityScopedAgyStaging.normalizedEmail(expectedAccountEmail)
         {

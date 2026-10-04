@@ -34,6 +34,7 @@ enum CodexBarEntryPoint {
         guard CodexBarLaunchMode.resolve(arguments: CommandLine.arguments) == .application else {
             return
         }
+        AntigravityAgyLaunchGate.start()
         TerminalLauncher().cleanUpAbandonedConfigs()
         CodexBarApp.main()
     }

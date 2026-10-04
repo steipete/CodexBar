@@ -516,7 +516,10 @@ struct AntigravityCLIHTTPSFetchStrategy: ProviderFetchStrategy {
     func fetch(
         _ context: ProviderFetchContext,
         warmDependencies: WarmAgyDependencies,
-        spawnFetch: @Sendable (String, TimeInterval?, Bool, String?) async throws -> ProviderFetchResult)
+        spawnFetch: @Sendable (String, TimeInterval?, Bool, String?) async throws -> ProviderFetchResult,
+        newAgyLaunchAllowed: @escaping @Sendable () async throws -> Void = {
+            try await AntigravityAgyLaunchGate.authorize()
+        })
         async throws -> ProviderFetchResult
     {
         guard let binary = BinaryLocator.resolveAntigravityBinary(env: context.env) else {
@@ -542,7 +545,8 @@ struct AntigravityCLIHTTPSFetchStrategy: ProviderFetchStrategy {
                     }
                     let token = try AntigravityOAuthCredentialsStore.tokenAccountValue(for: credentials)
                     await updater(.antigravity, accountID, token)
-                })
+                },
+                newAgyLaunchAllowed: newAgyLaunchAllowed)
         }
         #else
         let scopedReportFetch: (@Sendable () async throws -> ProviderFetchResult)? = nil
@@ -557,13 +561,19 @@ struct AntigravityCLIHTTPSFetchStrategy: ProviderFetchStrategy {
                     expectedAccountEmail: expectedAccountEmail,
                     warmDependencies: warmDependencies,
                     spawnFetch: { binary, idleWindow, resetAfterFetch in
+                        try await newAgyLaunchAllowed()
                         let version = try await Self.agyVersion(binary: binary, environment: context.env)
                         return try await Self.fetchBySpawningIfReachable(version: version) {
                             try await spawnFetch(binary, idleWindow, resetAfterFetch, expectedAccountEmail)
                         }
                     })
             },
-            reportFetch: { try await self.fetchPrintUsage(binary: binary, environment: context.env) },
+            reportFetch: {
+                try await self.fetchPrintUsage(
+                    binary: binary,
+                    environment: context.env,
+                    newAgyLaunchAllowed: newAgyLaunchAllowed)
+            },
             scopedReportFetch: scopedReportFetch)
     }
 
@@ -604,7 +614,10 @@ struct AntigravityCLIHTTPSFetchStrategy: ProviderFetchStrategy {
     func fetchPrintUsage(
         binary: String,
         environment: [String: String],
-        timeout: TimeInterval = 90) async throws -> ProviderFetchResult
+        timeout: TimeInterval = 90,
+        newAgyLaunchAllowed: @escaping @Sendable () async throws -> Void = {
+            try await AntigravityAgyLaunchGate.authorize()
+        }) async throws -> ProviderFetchResult
     {
         let environment = Self.childEnvironment(environment)
         let directory = FileManager.default.temporaryDirectory
@@ -613,7 +626,11 @@ struct AntigravityCLIHTTPSFetchStrategy: ProviderFetchStrategy {
             at: directory, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
         defer { try? FileManager.default.removeItem(at: directory) }
         let snapshot = try await Self.runPrintUsage(
-            binary: binary, environment: environment, directory: directory, timeout: timeout)
+            binary: binary,
+            environment: environment,
+            directory: directory,
+            timeout: timeout,
+            newAgyLaunchAllowed: newAgyLaunchAllowed)
         return try self.makeResult(usage: snapshot.toUsageSnapshot(), sourceLabel: Self.sourceLabel)
     }
 
@@ -621,9 +638,13 @@ struct AntigravityCLIHTTPSFetchStrategy: ProviderFetchStrategy {
         binary: String,
         environment: [String: String],
         directory: URL,
-        timeout: TimeInterval) async throws -> AntigravityStatusSnapshot
+        timeout: TimeInterval,
+        newAgyLaunchAllowed: @escaping @Sendable () async throws -> Void = {
+            try await AntigravityAgyLaunchGate.authorize()
+        }) async throws -> AntigravityStatusSnapshot
     {
         try Task.checkCancellation()
+        try await newAgyLaunchAllowed()
         func run(
             _ arguments: [String],
             timeout: TimeInterval,
