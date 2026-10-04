@@ -465,7 +465,9 @@ enum CostUsageClaudeCacheIO {
             #if DEBUG
             CostUsageScanner.recordClaudeScanWork(.cacheDecode)
             #endif
-            guard let decoded = try? JSONDecoder().decode(CostUsageClaudeCache.self, from: data) else {
+            let decoder = JSONDecoder()
+            decoder.userInfo[ClaudeRowStringPool.key] = ClaudeRowStringPool()
+            guard let decoded = try? decoder.decode(CostUsageClaudeCache.self, from: data) else {
                 return CostUsageClaudeCache()
             }
             cache = decoded

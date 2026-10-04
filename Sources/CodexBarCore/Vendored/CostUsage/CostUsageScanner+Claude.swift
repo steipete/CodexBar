@@ -138,22 +138,14 @@ extension CostUsageScanner {
         checkCancellation: CancellationCheck? = nil) throws -> ClaudeParseResult
     {
         func toInt(_ v: Any?) -> Int {
-            if let n = v as? NSNumber {
-                return n.intValue
-            }
-            return 0
+            (v as? NSNumber)?.intValue ?? 0
         }
 
         func toBool(_ value: Any?) -> Bool {
-            if let bool = value as? Bool {
-                return bool
-            }
-            if let number = value as? NSNumber {
-                return number.boolValue
-            }
-            return false
+            (value as? Bool) ?? (value as? NSNumber)?.boolValue ?? false
         }
 
+        let rowStrings = ClaudeRowStringPool()
         let pathRole = Self.claudePathRole(fileURL: fileURL)
         var keyedRows: [ClaudeRowKey: ClaudeUsageRow] = [:]
         var unkeyedRows: [ClaudeUsageRow] = []
@@ -250,8 +242,8 @@ extension CostUsageScanner {
                         let normalizedModel = pricingResolver.normalize(model)
                         let row = ClaudeUsageRow(
                             dayKey: dayKey,
-                            model: normalizedModel,
-                            sessionId: sessionId,
+                            model: rowStrings.intern(normalizedModel),
+                            sessionId: sessionId.map(rowStrings.intern),
                             messageId: messageId,
                             requestId: requestId,
                             timestampUnixMs: Int64((timestamp.timeIntervalSince1970 * 1000).rounded()),
