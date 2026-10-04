@@ -299,6 +299,32 @@ struct CLICookieRefreshTests {
     }
 
     @Test
+    func `classified provider rejection is not reported as a missing cookie`() {
+        let privateMarker = "opaque-test-marker"
+
+        KeychainAccessGate.withTaskOverrideForTesting(false) {
+            let rejected = CodexBarCLI.cookieRefreshFailure(
+                provider: .opencode,
+                error: ProviderFetchClassifiedError(kind: .authenticationExpired, message: privateMarker))
+            let missing = CodexBarCLI.cookieRefreshFailure(
+                provider: .opencode,
+                error: ProviderFetchClassifiedError(kind: .missingCredential, message: privateMarker))
+            let cookieAccess = CodexBarCLI.cookieRefreshFailure(
+                provider: .opencode,
+                error: ProviderFetchClassifiedError(kind: .permissionDenied, message: privateMarker))
+
+            #expect(rejected.status == .failed)
+            #expect(!rejected.message.contains("No browser session cookie was refreshed"))
+            #expect(rejected.message.contains("rejected the browser session"))
+            #expect(!rejected.message.contains(privateMarker))
+            #expect(!missing.message.contains("rejected the browser session"))
+            #expect(!missing.message.contains(privateMarker))
+            #expect(!cookieAccess.message.contains("rejected the browser session"))
+            #expect(!cookieAccess.message.contains(privateMarker))
+        }
+    }
+
+    @Test
     func `keychain failure reuses actionable denial hint`() {
         BrowserCookieAccessGate.resetForTesting()
         defer { BrowserCookieAccessGate.resetForTesting() }

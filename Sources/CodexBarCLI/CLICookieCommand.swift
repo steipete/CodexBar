@@ -136,8 +136,13 @@ extension CodexBarCLI {
         return results
     }
 
-    static func cookieRefreshFailure(provider: UsageProvider, error _: any Error) -> CookieRefreshResult {
+    static func cookieRefreshFailure(provider: UsageProvider, error: any Error) -> CookieRefreshResult {
         let descriptor = ProviderDescriptorRegistry.descriptor(for: provider)
+        if let classified = error as? ProviderFetchClassifiedError,
+           let message = Self.classifiedCookieRefreshFailureHint(classified.kind)
+        {
+            return CookieRefreshResult(provider: descriptor.cli.name, status: .failed, message: message)
+        }
         let promptCapableBrowsers = (descriptor.metadata.browserCookieOrder ?? [])
             .filter { BrowserCookieAccessGate.requiresKeychainPromptAcknowledgement(for: [$0]) }
         if let browser = promptCapableBrowsers.first, KeychainAccessGate.isDisabled {
@@ -170,6 +175,23 @@ extension CodexBarCLI {
             }
             return "\(result.provider): \(marker) \(result.message)"
         }.joined(separator: "\n")
+    }
+
+    /// Classified provider failures map to fixed hints; their messages may carry provider text and stay hidden.
+    /// Missing credentials and permission failures, including browser cookie access, keep the Keychain-aware hints.
+    private static func classifiedCookieRefreshFailureHint(_ kind: ProviderFetchClassifiedError.Kind) -> String? {
+        switch kind {
+        case .missingCredential, .permissionDenied:
+            nil
+        case .authenticationExpired:
+            "The provider rejected the browser session. Sign in again in a configured browser and retry."
+        case .rateLimited:
+            "The provider rate-limited the refresh request. Retry later."
+        case .providerUnavailable, .networkFailure:
+            "The provider could not be reached. Retry later."
+        case .parseFailure, .apiFailure:
+            "The provider returned an unexpected response; no browser cookie was refreshed."
+        }
     }
 
     private static let keychainPromptAcknowledgementHint =
