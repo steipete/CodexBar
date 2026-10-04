@@ -1178,13 +1178,11 @@ extension CostUsageDailyReport {
             for entry in report.hourly {
                 let hour = calendar.dateInterval(of: .hour, for: entry.hour)?.start ?? entry.hour
                 reportHours.insert(hour)
-                var accumulator = buckets[hour] ?? CostUsageTemporalTotals()
-                accumulator.add(
+                buckets[hour, default: CostUsageTemporalTotals()].add(
                     totalTokens: entry.totalTokens,
                     costUSD: entry.costUSD,
                     tokensAreComplete: entry.tokensAreComplete,
                     costIsComplete: entry.costIsComplete)
-                buckets[hour] = accumulator
             }
 
             // An exact-only source still contributes to the merged chart hour. This is a true
@@ -1195,23 +1193,19 @@ extension CostUsageDailyReport {
                 let hour = calendar.dateInterval(of: .hour, for: entry.timestamp)?.start
                     ?? entry.timestamp
                 guard !reportHours.contains(hour) else { continue }
-                var accumulator = exactByHour[hour] ?? CostUsageTemporalTotals()
-                accumulator.add(
+                exactByHour[hour, default: CostUsageTemporalTotals()].add(
                     totalTokens: entry.totalTokens,
                     costUSD: entry.costUSD,
                     tokensAreComplete: entry.tokensAreComplete,
                     costIsComplete: entry.costIsComplete)
-                exactByHour[hour] = accumulator
             }
             for (hour, exact) in exactByHour {
                 let entry = exact.timedEntry(timestamp: hour)
-                var accumulator = buckets[hour] ?? CostUsageTemporalTotals()
-                accumulator.add(
+                buckets[hour, default: CostUsageTemporalTotals()].add(
                     totalTokens: entry.totalTokens,
                     costUSD: entry.costUSD,
                     tokensAreComplete: entry.tokensAreComplete,
                     costIsComplete: entry.costIsComplete)
-                buckets[hour] = accumulator
             }
         }
         return buckets.keys.sorted().map { hour in
@@ -1222,18 +1216,28 @@ extension CostUsageDailyReport {
     private static func mergedQuotaSlices(
         from reports: [CostUsageDailyReport]) -> [CostUsageTimedEntry]
     {
-        let hasQuotaSlices = reports.contains { !$0.quotaSlices.isEmpty }
-        guard hasQuotaSlices else { return [] }
+        let contributors = reports.filter { !$0.quotaSlices.isEmpty }
+        guard let slices = contributors.first?.quotaSlices else { return [] }
+        if contributors.count == 1 {
+            var previousTimestamp = -Double.infinity
+            let isNormalized = slices.allSatisfy { entry in
+                let timestamp = entry.timestamp.timeIntervalSinceReferenceDate
+                defer { previousTimestamp = timestamp }
+                // Single-entry accumulation preserves nils and completeness, but changes invalid values and -0.
+                return timestamp.isFinite && timestamp > previousTimestamp
+                    && entry.totalTokens.map { $0 >= 0 } != false
+                    && entry.costUSD.map { $0.isFinite && $0.sign == .plus } != false
+            }
+            if isNormalized { return slices }
+        }
         var buckets: [Date: CostUsageTemporalTotals] = [:]
         for report in reports {
             for entry in report.quotaSlices {
-                var accumulator = buckets[entry.timestamp] ?? CostUsageTemporalTotals()
-                accumulator.add(
+                buckets[entry.timestamp, default: CostUsageTemporalTotals()].add(
                     totalTokens: entry.totalTokens,
                     costUSD: entry.costUSD,
                     tokensAreComplete: entry.tokensAreComplete,
                     costIsComplete: entry.costIsComplete)
-                buckets[entry.timestamp] = accumulator
             }
         }
         return buckets.keys.sorted().map { timestamp in
@@ -1251,9 +1255,7 @@ extension CostUsageDailyReport {
                 let rawDate = entry.date.trimmingCharacters(in: .whitespacesAndNewlines)
                 let dayKey = CostUsageTokenSnapshot.localDayKey(for: rawDate, calendar: calendar)
                     ?? rawDate
-                var accumulator = dayAccumulators[dayKey] ?? EntryAccumulator()
-                accumulator.add(entry)
-                dayAccumulators[dayKey] = accumulator
+                dayAccumulators[dayKey, default: EntryAccumulator()].add(entry)
             }
         }
 
