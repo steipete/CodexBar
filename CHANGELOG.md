@@ -2,6 +2,10 @@
 
 ## 0.72.1 — Unreleased
 
+### Fixed
+
+- Cost history: reduce memory use when Pi contributes no additional exact-time usage.
+
 ## 0.72.0 — 2026-10-04
 
 ### Highlights
