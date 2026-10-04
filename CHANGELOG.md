@@ -2,6 +2,10 @@
 
 ## 0.72.1 — Unreleased
 
+### Fixed
+
+- Cost: reduce memory use when loading and saving cached Claude and Vertex history.
+
 ## 0.72.0 — 2026-10-04
 
 ### Highlights
