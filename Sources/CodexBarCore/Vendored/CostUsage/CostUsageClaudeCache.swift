@@ -452,6 +452,8 @@ enum CostUsageClaudeCacheIO {
     }
 
     #if DEBUG
+    @TaskLocal static var readForTesting: (@Sendable (URL, Data.ReadingOptions) -> Data?)?
+
     static func withIsolatedCachesForTesting(operation: @Sendable () async throws -> Void) async throws {
         try await ArtifactMemo.$shared.withValue(ArtifactMemo()) {
             try await CostUsageClaudeReportMemo.$shared.withValue(CostUsageClaudeReportMemo()) {
@@ -499,7 +501,8 @@ enum CostUsageClaudeCacheIO {
         if let stamp, let memoized = ArtifactMemo.shared.entries.object(forKey: key), memoized.stamp == stamp {
             cache = memoized.cache
         } else {
-            guard let data = self.read(at: url) else { return CostUsageClaudeCache() }
+            // Replacement uses rename; the decoded cache owns its values, not the mapped old inode.
+            guard let data = self.read(at: url, options: .mappedIfSafe) else { return CostUsageClaudeCache() }
             #if DEBUG
             CostUsageScanner.recordClaudeScanWork(.cacheDecode)
             #endif
@@ -559,42 +562,55 @@ enum CostUsageClaudeCacheIO {
         let encoder = JSONEncoder()
         // Stable fingerprints preserve stamps when a rescan rebuilds byte-identical content with a new UUID.
         encoder.outputFormatting = [.sortedKeys]
-        let data: Data? = if let cache = value as? CostUsageClaudeCache {
-            try? CostUsageClaudeFragments.shared.encode(cache, at: key, encoder: encoder)
-        } else {
-            try? encoder.encode(value)
-        }
-        guard let data else { return nil }
-        try checkCancellation?()
-        let digest = SHA256.hash(data: data)
-        if let identity, identity.digest == digest, CostUsageClaudeFileStamp.read(at: url) == identity.stamp {
-            ArtifactMemo.shared.remember(at: key, stamp: identity.stamp, digest: digest, contentID: contentID)
-            return identity.stamp
-        }
         let directory = url.deletingLastPathComponent()
-        try? FileManager.default.createDirectory(
-            at: directory,
-            withIntermediateDirectories: true)
+        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let temporaryURL = directory.appendingPathComponent(".claude-cache-\(UUID().uuidString).tmp")
         defer { try? FileManager.default.removeItem(at: temporaryURL) }
-        guard (try? data.write(to: temporaryURL)) != nil,
-              let stamp = CostUsageClaudeFileStamp.read(at: temporaryURL),
-              rename(temporaryURL.path, url.path) == 0
-        else {
-            return nil
+        guard let output = fopen(temporaryURL.path, "wb") else { return nil }
+        defer { fclose(output) }
+        var hasher = SHA256()
+        func append(_ data: Data?) throws {
+            guard let data else {
+                rewind(output)
+                guard ftruncate(fileno(output), 0) == 0 else { throw CocoaError(.fileWriteUnknown) }
+                hasher = SHA256()
+                return
+            }
+            guard data.withUnsafeBytes({ fwrite($0.baseAddress, 1, $0.count, output) }) == data.count else {
+                throw CocoaError(.fileWriteUnknown)
+            }
+            hasher.update(data: data)
         }
-        ArtifactMemo.shared.remember(at: key, stamp: stamp, digest: digest, contentID: contentID)
-        #if DEBUG
-        CostUsageScanner.recordClaudeScanWork(.artifactWrite)
-        #endif
-        return stamp
+        func commit() throws -> CostUsageClaudeFileStamp? {
+            try checkCancellation?()
+            guard fflush(output) == 0 else { return nil }
+            let digest = hasher.finalize()
+            if let identity, identity.digest == digest, CostUsageClaudeFileStamp.read(at: url) == identity.stamp {
+                ArtifactMemo.shared.remember(at: key, stamp: identity.stamp, digest: digest, contentID: contentID)
+                return identity.stamp
+            }
+            guard let stamp = CostUsageClaudeFileStamp.read(at: temporaryURL),
+                  rename(temporaryURL.path, url.path) == 0 else { return nil }
+            ArtifactMemo.shared.remember(at: key, stamp: stamp, digest: digest, contentID: contentID)
+            #if DEBUG
+            CostUsageScanner.recordClaudeScanWork(.artifactWrite)
+            #endif
+            return stamp
+        }
+        if let cache = value as? CostUsageClaudeCache {
+            return try CostUsageClaudeFragments.shared.write(
+                cache, at: key, encoder: encoder, output: append, commit: commit)
+        }
+        guard let data = try? encoder.encode(value), (try? append(data)) != nil else { return nil }
+        return try commit()
     }
 
-    fileprivate static func read(at url: URL) -> Data? {
+    fileprivate static func read(at url: URL, options: Data.ReadingOptions = []) -> Data? {
         #if DEBUG
         CostUsageScanner.recordClaudeScanWork(.artifactRead)
+        if let readForTesting { return readForTesting(url, options) }
         #endif
-        return try? Data(contentsOf: url)
+        return try? Data(contentsOf: url, options: options)
     }
 
     fileprivate static func remember(
