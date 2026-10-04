@@ -250,9 +250,7 @@ extension AntigravityCLIHTTPSFetchStrategy {
         timeout: TimeInterval = 90,
         dataLoader: (@Sendable (URLRequest) async throws -> (Data, URLResponse))? = nil,
         credentialsUpdateHandler: (@Sendable (AntigravityOAuthCredentials) async throws -> Void)? = nil,
-        newAgyLaunchAllowed: @escaping @Sendable () async throws -> Void = {
-            try await AntigravityAgyLaunchGate.authorize()
-        })
+        newAgyLaunchAllowed: @escaping @Sendable () async throws -> Void = AntigravityAgyLaunchGate.authorize)
         async throws
         -> ProviderFetchResult
     {

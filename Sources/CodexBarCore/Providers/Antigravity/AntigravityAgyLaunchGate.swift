@@ -29,12 +29,9 @@ public final class AntigravityAgyLaunchGate: @unchecked Sendable {
     private let initialReadingTimeout: Duration
     private let wakeSettleTimeout: Duration
     private var waits: [TrackedWait] = []
-    private var isParked = false
-    private var parkedEntryWaiters: [CheckedContinuation<Void, Never>] = []
 
     #if os(macOS) && canImport(Network)
     private var pathMonitor: NWPathMonitor?
-    private var pathMonitorQueue: DispatchQueue?
     private nonisolated(unsafe) var wakeObserver: NSObjectProtocol?
     #endif
 
@@ -52,6 +49,7 @@ public final class AntigravityAgyLaunchGate: @unchecked Sendable {
         #endif
     }
 
+    @Sendable
     static func authorize() async throws {
         try await self.shared.allowNewLaunch()
     }
@@ -86,16 +84,25 @@ public final class AntigravityAgyLaunchGate: @unchecked Sendable {
         self.lock.unlock()
     }
 
-    func waitUntilParked() async {
-        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
-            self.lock.lock()
-            if self.isParked {
-                self.lock.unlock()
-                continuation.resume()
-                return
-            }
-            self.parkedEntryWaiters.append(continuation)
-            self.lock.unlock()
+    @discardableResult
+    func waitUntilParked(maxYields: Int = .max) async -> Bool {
+        var yields = 0
+        while !self.hasParkedWait() {
+            if yields >= maxYields { return false }
+            yields += 1
+            await Task.yield()
+        }
+        return true
+    }
+
+    /// Tests finish a parked wait as a timeout without sleeping the production bound.
+    func timeOutParkedWait() {
+        let pending: [AntigravityAgyLaunchWait]
+        self.lock.lock()
+        pending = self.waits.map(\.wait)
+        self.lock.unlock()
+        for wait in pending {
+            self.complete(wait, .success(false))
         }
     }
 
@@ -117,7 +124,12 @@ public final class AntigravityAgyLaunchGate: @unchecked Sendable {
                 case .skip:
                     throw URLError(.notConnectedToInternet)
                 case let .wait(_, stillAfter):
-                    // No post-wake update must not trust a stale satisfied path.
+                    // A wake that arrived during this wait needs its own settle window.
+                    // Timing out must leave wakeUnsettledAt set: clearing it would let a
+                    // later print fallback trust the pre-wake satisfied reading.
+                    if stillAfter != after {
+                        continue
+                    }
                     if stillAfter != nil {
                         throw URLError(.notConnectedToInternet)
                     }
@@ -144,7 +156,6 @@ public final class AntigravityAgyLaunchGate: @unchecked Sendable {
         }
         self.lock.lock()
         self.pathMonitor = monitor
-        self.pathMonitorQueue = queue
         self.lock.unlock()
         monitor.start(queue: queue)
         self.installWakeObserver()
@@ -212,7 +223,6 @@ public final class AntigravityAgyLaunchGate: @unchecked Sendable {
             self.complete(wait, .success(true))
             return
         }
-        var entryWaiters: [CheckedContinuation<Void, Never>] = []
         self.lock.lock()
         if self.hasUpdateUnlocked(after: after) {
             self.lock.unlock()
@@ -220,22 +230,15 @@ public final class AntigravityAgyLaunchGate: @unchecked Sendable {
             return
         }
         self.waits.append(TrackedWait(wait: wait, after: after))
-        self.isParked = true
-        entryWaiters = self.parkedEntryWaiters
-        self.parkedEntryWaiters.removeAll()
         self.lock.unlock()
         if self.hasUpdate(after: after) {
             self.complete(wait, .success(true))
-        }
-        for entry in entryWaiters {
-            entry.resume()
         }
     }
 
     private func complete(_ wait: AntigravityAgyLaunchWait, _ result: Result<Bool, Error>) {
         self.lock.lock()
         self.waits.removeAll { $0.wait === wait }
-        self.isParked = !self.waits.isEmpty
         self.lock.unlock()
         guard let continuation = wait.finish(result) else { return }
         switch result {
@@ -244,6 +247,13 @@ public final class AntigravityAgyLaunchGate: @unchecked Sendable {
         case let .failure(error):
             continuation.resume(throwing: error)
         }
+    }
+
+    private func hasParkedWait() -> Bool {
+        self.lock.lock()
+        let parked = !self.waits.isEmpty
+        self.lock.unlock()
+        return parked
     }
 
     private func hasUpdate(after: Date?) -> Bool {

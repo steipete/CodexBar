@@ -517,9 +517,7 @@ struct AntigravityCLIHTTPSFetchStrategy: ProviderFetchStrategy {
         _ context: ProviderFetchContext,
         warmDependencies: WarmAgyDependencies,
         spawnFetch: @Sendable (String, TimeInterval?, Bool, String?) async throws -> ProviderFetchResult,
-        newAgyLaunchAllowed: @escaping @Sendable () async throws -> Void = {
-            try await AntigravityAgyLaunchGate.authorize()
-        })
+        newAgyLaunchAllowed: @escaping @Sendable () async throws -> Void = AntigravityAgyLaunchGate.authorize)
         async throws -> ProviderFetchResult
     {
         guard let binary = BinaryLocator.resolveAntigravityBinary(env: context.env) else {
@@ -615,9 +613,8 @@ struct AntigravityCLIHTTPSFetchStrategy: ProviderFetchStrategy {
         binary: String,
         environment: [String: String],
         timeout: TimeInterval = 90,
-        newAgyLaunchAllowed: @escaping @Sendable () async throws -> Void = {
-            try await AntigravityAgyLaunchGate.authorize()
-        }) async throws -> ProviderFetchResult
+        newAgyLaunchAllowed: @escaping @Sendable () async throws -> Void = AntigravityAgyLaunchGate.authorize)
+        async throws -> ProviderFetchResult
     {
         let environment = Self.childEnvironment(environment)
         let directory = FileManager.default.temporaryDirectory
@@ -639,9 +636,8 @@ struct AntigravityCLIHTTPSFetchStrategy: ProviderFetchStrategy {
         environment: [String: String],
         directory: URL,
         timeout: TimeInterval,
-        newAgyLaunchAllowed: @escaping @Sendable () async throws -> Void = {
-            try await AntigravityAgyLaunchGate.authorize()
-        }) async throws -> AntigravityStatusSnapshot
+        newAgyLaunchAllowed: @escaping @Sendable () async throws -> Void = AntigravityAgyLaunchGate.authorize)
+        async throws -> AntigravityStatusSnapshot
     {
         try Task.checkCancellation()
         try await newAgyLaunchAllowed()

@@ -573,12 +573,38 @@ struct AntigravityWarmAgyReuseTests {
         await #expect(throws: URLError(.notConnectedToInternet)) {
             try await Self.runLaunch(gate: gate, spawnCount: spawnCount, environment: fixture.environment)
         }
+        // The timed-out wake stays unsettled, so the print fallback cannot trust the stale reading.
+        await #expect(throws: URLError(.notConnectedToInternet)) {
+            try await Self.runLaunch(gate: gate, spawnCount: spawnCount, environment: fixture.environment)
+        }
         #expect(spawnCount.value == 0)
         #expect(!FileManager.default.fileExists(atPath: fixture.marker.path))
 
         gate.notePath(.satisfied, observedAt: wake.addingTimeInterval(1))
         _ = try await Self.runLaunch(gate: gate, spawnCount: spawnCount, environment: fixture.environment)
         #expect(spawnCount.value == 1)
+    }
+
+    @Test
+    func `wake during the initial reading wait gets its own settle window`() async throws {
+        let gate = AntigravityAgyLaunchGate(
+            initialReadingTimeout: .seconds(30),
+            wakeSettleTimeout: .seconds(30))
+        gate.markStarted()
+        let task = Task { try await gate.allowNewLaunch() }
+        await gate.waitUntilParked()
+        let wake = Date()
+        gate.noteWake(at: wake)
+        gate.timeOutParkedWait()
+        let settled = await gate.waitUntilParked(maxYields: 100_000)
+        #expect(settled)
+        guard settled else {
+            task.cancel()
+            _ = try? await task.value
+            return
+        }
+        gate.notePath(.satisfied, observedAt: wake.addingTimeInterval(1))
+        try await task.value
     }
 
     @Test
