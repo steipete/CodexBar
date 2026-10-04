@@ -2,13 +2,10 @@
 
 ## 0.72.1 — Unreleased
 
-### Fixed
+### Changed
 
-- Cost history: reduce memory use when Pi contributes no additional exact-time usage.
-- Claude: reduce temporary memory use when rebuilding cost history with duplicate transcript entries.
-- Claude: reduce memory use while loading and saving cached cost history.
-- Cost: reduce memory use when loading and saving cached Claude and Vertex history.
-- Reduce memory use for cached Claude cost history.
+- Costs: use substantially less memory with large Claude and Vertex histories; cached cost history no longer keeps a second encoded copy in memory, cache files load from mapped reads and save as streams, and repeated session IDs and model names share storage.
+- Costs: reduce temporary memory while rebuilding Claude cost reports, reloading the report cache, and merging Pi usage that adds no exact-time entries.
 
 ## 0.72.0 — 2026-10-04
 
