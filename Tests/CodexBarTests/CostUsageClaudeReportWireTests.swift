@@ -177,13 +177,18 @@ struct CostUsageClaudeReportWireTests {
             try FileManager.default.createDirectory(at: self.root, withIntermediateDirectories: true)
             self.cacheURL = self.root.appendingPathComponent("claude-v6.json")
             self.memoURL = CostUsageClaudeReportMemo.reportMemoFileURL(cacheFileURL: self.cacheURL)
-            let slices = (0..<count).map { index in
-                CostUsageTimedEntry(
-                    timestamp: Date(timeIntervalSince1970: 1_780_000_000 + Double(index) / 1000),
-                    totalTokens: index % 3 == 0 ? nil : index,
-                    costUSD: index % 5 == 0 ? nil : Double(index) / 100,
+            var slices: [CostUsageTimedEntry] = []
+            slices.reserveCapacity(count)
+            for index in 0..<count {
+                let seconds = 1_780_000_000.0 + Double(index) / 1000.0
+                let tokens: Int? = index % 3 == 0 ? nil : index
+                let cost: Double? = index % 5 == 0 ? nil : Double(index) / 100.0
+                slices.append(CostUsageTimedEntry(
+                    timestamp: Date(timeIntervalSince1970: seconds),
+                    totalTokens: tokens,
+                    costUSD: cost,
                     tokensAreComplete: index % 7 != 0,
-                    costIsComplete: index % 11 != 0)
+                    costIsComplete: index % 11 != 0))
             }
             let hourly = [CostUsageHourlyEntry(
                 hour: Date(timeIntervalSince1970: 1_780_000_000), totalTokens: 7, costUSD: nil)]
