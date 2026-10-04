@@ -77,6 +77,7 @@ final class CostUsageClaudeReportMemo: @unchecked Sendable {
 
     #if DEBUG
     @TaskLocal static var shared = CostUsageClaudeReportMemo()
+    @TaskLocal static var observeWireEntriesForTesting: (@Sendable (Int) -> Void)?
     #else
     static let shared = CostUsageClaudeReportMemo()
     #endif
@@ -91,8 +92,41 @@ final class CostUsageClaudeReportMemo: @unchecked Sendable {
         var reportKey: CostUsageClaudeReportMemoKey
         var report: CostUsageDailyReport
         var hourly: [CostUsageCodexPreviousReport.HourlyEntry]?
-        var quotaSlices: [CostUsageCodexPreviousReport.QuotaSlice]?
+        var quotaSlices: QuotaSlices?
         var hasWindowScopedRows: Bool?
+    }
+
+    private struct QuotaSlices: Codable {
+        let values: [CostUsageTimedEntry]
+
+        init(values: [CostUsageTimedEntry]) {
+            self.values = values
+        }
+
+        init(from decoder: Decoder) throws {
+            var container = try decoder.unkeyedContainer()
+            var values: [CostUsageTimedEntry] = []
+            values.reserveCapacity(container.count ?? 0)
+            while !container.isAtEnd {
+                let wire = try container.decode(CostUsageCodexPreviousReport.QuotaSlice.self)
+                #if DEBUG
+                CostUsageClaudeReportMemo.observeWireEntriesForTesting?(1)
+                #endif
+                values.append(wire.timedValue)
+            }
+            self.values = values
+        }
+
+        func encode(to encoder: Encoder) throws {
+            var container = encoder.unkeyedContainer()
+            for value in self.values {
+                let wire = CostUsageCodexPreviousReport.QuotaSlice(value)
+                #if DEBUG
+                CostUsageClaudeReportMemo.observeWireEntriesForTesting?(1)
+                #endif
+                try container.encode(wire)
+            }
+        }
     }
 
     private let lock = NSLock()
@@ -158,7 +192,11 @@ final class CostUsageClaudeReportMemo: @unchecked Sendable {
     private static func loadPersisted(canonicalCachePath: String) -> Entry? {
         let url = Self.reportMemoFileURL(cacheFileURL: URL(fileURLWithPath: canonicalCachePath))
         let stamp = CostUsageClaudeFileStamp.read(at: url)
-        guard let data = CostUsageClaudeCacheIO.read(at: url),
+        #if DEBUG
+        CostUsageScanner.recordClaudeScanWork(.artifactRead)
+        #endif
+        // Writers replace by rename; the mapped inode stays immutable and is released after decoding/hashing.
+        guard let data = try? Data(contentsOf: url, options: .mappedIfSafe),
               let envelope = try? JSONDecoder().decode(PersistedEnvelope.self, from: data),
               envelope.version == Self.persistedVersion,
               envelope.reportSemanticsVersion == Self.reportSemanticsVersion,
@@ -172,7 +210,7 @@ final class CostUsageClaudeReportMemo: @unchecked Sendable {
                 data: envelope.report.data,
                 summary: envelope.report.summary,
                 hourly: (envelope.hourly ?? []).map(\.hourlyValue),
-                quotaSlices: (envelope.quotaSlices ?? []).map(\.timedValue)),
+                quotaSlices: envelope.quotaSlices?.values ?? []),
             hasWindowScopedRows: envelope.hasWindowScopedRows == true)
     }
 
@@ -190,7 +228,7 @@ final class CostUsageClaudeReportMemo: @unchecked Sendable {
             reportKey: entry.reportKey,
             report: entry.report,
             hourly: entry.report.hourly.map(CostUsageCodexPreviousReport.HourlyEntry.init),
-            quotaSlices: entry.report.quotaSlices.map(CostUsageCodexPreviousReport.QuotaSlice.init),
+            quotaSlices: QuotaSlices(values: entry.report.quotaSlices),
             hasWindowScopedRows: entry.hasWindowScopedRows)
         _ = try? CostUsageClaudeCacheIO.write(envelope, to: url)
     }
