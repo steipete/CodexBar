@@ -8,6 +8,7 @@
 - Claude: reduce temporary memory use when rebuilding cost history with duplicate transcript entries.
 - Claude: reduce memory use while loading and saving cached cost history.
 - Cost: reduce memory use when loading and saving cached Claude and Vertex history.
+- Reduce memory use for cached Claude cost history.
 
 ## 0.72.0 — 2026-10-04
 
