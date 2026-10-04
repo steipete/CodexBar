@@ -2,6 +2,10 @@
 
 ## 0.72.1 — Unreleased
 
+### Fixed
+
+- Claude: reduce temporary memory use when rebuilding cost history with duplicate transcript entries.
+
 ## 0.72.0 — 2026-10-04
 
 ### Highlights
