@@ -353,32 +353,48 @@ extension CostUsageScanner {
         return lhs.path < rhs.path
     }
 
+    private typealias ClaudeRowReference = (file: Int, row: Int)
+
+    #if DEBUG
+    static var claudeWinnerPayloadStride: Int {
+        MemoryLayout<ClaudeRowReference>.stride
+    }
+    #endif
+
     static func reconciledClaudeRows(cache: CostUsageCache) -> [ClaudeUsageRow] {
         #if DEBUG
         recordClaudeScanWork(.reconcile)
         #endif
         var rows: [ClaudeUsageRow] = []
-        var winners: [ClaudeRowKey: (path: String, row: ClaudeUsageRow)] = [:]
+        var winners: [ClaudeRowKey: ClaudeRowReference] = [:]
+        // These immutable array references keep winner indexes stable without copying their row buffers.
+        let files: [(path: String, rows: [ClaudeUsageRow])] = cache.files.keys.sorted().compactMap { path in
+            guard let fileRows = cache.files[path]?.claudeRows else { return nil }
+            return (path, fileRows)
+        }
 
-        for path in cache.files.keys.sorted() {
-            guard let fileRows = cache.files[path]?.claudeRows else { continue }
-            for row in fileRows {
+        for (fileIndex, file) in files.enumerated() {
+            for (rowIndex, row) in file.rows.enumerated() {
                 guard let canonicalKey = Self.claudeCanonicalRowKey(row) else {
                     rows.append(row)
                     continue
                 }
-                let candidate = (path: path, row: row)
-                if let existing = winners[canonicalKey] {
-                    if Self.claudeRowWins(lhs: candidate, rhs: existing) {
-                        winners[canonicalKey] = candidate
-                    }
-                } else {
-                    winners[canonicalKey] = candidate
+                if let existing = winners[canonicalKey],
+                   !Self.claudeRowWins(
+                       lhs: (path: file.path, row: row),
+                       rhs: (path: files[existing.file].path, row: files[existing.file].rows[existing.row]))
+                {
+                    continue
                 }
+                winners[canonicalKey] = (fileIndex, rowIndex)
             }
         }
 
-        rows.append(contentsOf: winners.keys.sorted().compactMap { winners[$0]?.row })
+        rows.reserveCapacity(rows.count + winners.count)
+        for key in winners.keys.sorted() {
+            guard let winner = winners[key] else { continue }
+            rows.append(files[winner.file].rows[winner.row])
+        }
         return rows
     }
 
