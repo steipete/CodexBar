@@ -154,6 +154,25 @@ use the affected row's **Reauthenticate** action or ordinary `codex login` scope
 and intended workspace. A future CLI renewal command needs staged login and identity/workspace
 validation before committing; `promote` is not a renewal workaround. See [CLI details](cli.md#managed-codex-accounts-macos).
 
+### In-process managed credential resolution
+
+`ManagedCodexAccountCredentialResolver` resolves an explicit managed-account UUID using a metadata-only store
+and a trusted managed-home root. It reads the selected native OAuth file, checks its owner and native default
+workspace against the saved account, and revalidates the registry binding and original home before returning
+an access-only credential. Organization membership alone does not establish the native default workspace.
+Promotion retains its existing email precedence; credential release requires unambiguous owner claims.
+
+The fresh-only policy requires a known expiry beyond the larger caller or authority minimum plus clock skew.
+Defaults are a 60-second authority minimum and 30 seconds of skew; minimum-validity requests above one day
+are unsupported. Missing expiry requires renewal rather than relying on file dates or `last_refresh`.
+The result exposes the bearer through `withAccessToken` and includes `expiresAt`; diagnostics are redacted.
+Typed failures distinguish renewal, temporary unavailability, missing accounts, and unsupported requests.
+
+This is a core API with no CLI, HTTP, or IPC credential-export endpoint. It does not choose an active account,
+fall back to another account, start login, refresh credentials, cache tokens, or write credentials or registry data.
+Validation checks local consistency rather than JWT signatures or upstream acceptance. Filesystem revalidation
+is observational, not an atomic transaction against hostile same-user mutation; secure-memory zeroization is not claimed.
+
 ### Local account discovery
 
 `codexbar serve` exposes saved managed Codex accounts through `GET /accounts` and
