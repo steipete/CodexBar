@@ -273,6 +273,10 @@ final class SettingsStore {
     var configRevision: Int = 0
     var providerDetailSettingsRevision: Int = 0
     var backgroundWorkSettingsRevision: Int = 0
+    /// Dedicated observation seam for the notch controller. Reading `defaultsState` through a
+    /// computed setting tracks the entire value-type defaults struct, so every unrelated setting
+    /// mutation would otherwise look like an activation change.
+    var notchActivationRevision: UInt = 0
     var costUsageSettingsRevision: UInt64 = 0
     var providerOrder: [ProviderInstanceID] = []
     var providerEnablement: [ProviderInstanceID: Bool] = [:]
@@ -502,6 +506,25 @@ extension SettingsStore {
             userDefaults: userDefaults,
             hadPreviousInstallationState: hadPreviousInstallationState)
         let adaptiveActivityScanConsent = Self.loadAdaptiveActivityScanConsent(userDefaults: userDefaults)
+        let notchUsageSummaryEnabled = userDefaults.object(forKey: "notchUsageSummaryEnabled") as? Bool ?? false
+        let notchHiddenProviderIDsRaw = userDefaults.stringArray(forKey: "notchHiddenProviders") ?? []
+        let notchItemOrderRaw = userDefaults.stringArray(forKey: "notchItemOrder") ?? []
+        let notchColumnCount = SettingsStore.clampedNotchColumnCount(
+            userDefaults.object(forKey: "notchColumnCount") as? Int ?? 1)
+        let notchMatchesRowHeights = userDefaults.object(forKey: "notchMatchesRowHeights") as? Bool ?? true
+        let notchProvidersMaxHeight = SettingsStore.clampedNotchSectionHeight(
+            userDefaults.object(forKey: "notchProvidersMaxHeight") as? Double
+                ?? SettingsStore.notchDefaultProvidersHeight,
+            fallback: SettingsStore.notchDefaultProvidersHeight)
+        let notchSessionsMaxHeight = SettingsStore.clampedNotchSectionHeight(
+            userDefaults.object(forKey: "notchSessionsMaxHeight") as? Double
+                ?? SettingsStore.notchDefaultSessionsHeight,
+            fallback: SettingsStore.notchDefaultSessionsHeight)
+        let notchShowsAgentSessions = userDefaults.object(forKey: "notchShowsAgentSessions") as? Bool ?? false
+        let notchSessionsPlacementRaw = userDefaults.string(forKey: "notchSessionsPlacement")
+            ?? NotchSessionsPlacement.below.rawValue
+        let notchHotkeyModeRaw = userDefaults.string(forKey: "notchHotkeyMode")
+            ?? NotchHotkeyMode.toggle.rawValue
         let debugDisableKeychainAccess = Self.loadDebugDisableKeychainAccess(userDefaults: userDefaults)
         let debugLogLevelRaw = userDefaults.string(forKey: "debugLogLevel") ?? CodexBarLog.Level.verbose.rawValue
         if Self.isRunningTests, userDefaults.string(forKey: "debugLogLevel") == nil {
@@ -546,6 +569,16 @@ extension SettingsStore {
             adaptiveActivityScanConsent: adaptiveActivityScanConsent,
             refreshAllProvidersOnMenuOpen: userDefaults.object(
                 forKey: "refreshAllProvidersOnMenuOpen") as? Bool ?? false,
+            notchUsageSummaryEnabled: notchUsageSummaryEnabled,
+            notchHiddenProviderIDsRaw: notchHiddenProviderIDsRaw,
+            notchItemOrderRaw: notchItemOrderRaw,
+            notchColumnCount: notchColumnCount,
+            notchMatchesRowHeights: notchMatchesRowHeights,
+            notchProvidersMaxHeight: notchProvidersMaxHeight,
+            notchSessionsMaxHeight: notchSessionsMaxHeight,
+            notchShowsAgentSessions: notchShowsAgentSessions,
+            notchSessionsPlacementRaw: notchSessionsPlacementRaw,
+            notchHotkeyModeRaw: notchHotkeyModeRaw,
             launchAtLogin: userDefaults.object(forKey: "launchAtLogin") as? Bool ?? false,
             debugMenuEnabled: userDefaults.object(forKey: "debugMenuEnabled") as? Bool ?? false,
             debugDisableKeychainAccess: debugDisableKeychainAccess,
