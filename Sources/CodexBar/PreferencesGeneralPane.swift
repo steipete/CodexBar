@@ -176,7 +176,7 @@ struct GeneralPane: View {
 
             Section {
                 LabeledContent(L("open_menu_shortcut_title")) {
-                    OpenMenuShortcutRecorder()
+                    SettingsShortcutRecorder()
                 }
             } header: {
                 Text(L("section_keyboard_shortcut"))
