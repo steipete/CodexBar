@@ -538,14 +538,17 @@ The check names each drifted package and prints this repair command before packa
 resolved file when automatic resolution is disabled.
 
 The `lint-build-test` check in `.github/workflows/ci.yml` keeps its existing name and requires successful lint,
-change detection, and the full `build-linux-cli` glibc matrix (x86_64 and ARM64 build, tests, and smoke checks).
-Glibc Linux has no path or draft skip: failure, cancellation, skipped, empty, missing, or unknown matrix results
-fail verification. macOS tests and the musl build may skip only when their path gates allow it; required macOS
+change detection, and the full `build-linux-cli` glibc matrix (x86_64 and ARM64 build, tests, and smoke checks)
+when the shared macOS/Linux path gate requires it. Both platforms use the same docs/site allowlist; source,
+test, widget, and workflow paths always require builds, including Markdown resources and fixtures. Linux has
+no draft deferral. Only `required=true / result=success` or `required=false / result=skipped` passes; failure,
+cancellation, missing or unknown values, and unexpected skips or executions fail verification.
+The musl build retains its separate path gate; required macOS
 tests deferred for a draft still leave the aggregate incomplete. Whole-workflow cancellation retains the existing
 `always() && !cancelled()` condition, so the verifier does not run in that case.
 
-`Scripts/test_ci_path_gate.sh` checks these result combinations and the workflow's Linux dependency and eighth
-verifier argument. `CodexBarLinuxTests` includes the portable `AntigravityLocalhostSessionLifetimeTests` suite on
+`Scripts/test_ci_path_gate.sh` checks these result combinations, shared path decisions, and the workflow's Linux
+dependency, condition, and verifier arguments. `CodexBarLinuxTests` includes the portable `AntigravityLocalhostSessionLifetimeTests` suite on
 both macOS and Linux. It checks session reuse and concurrent synthetic loopback failures without credentials;
 this coverage does not establish or fix the cause of Linux dispatch crashes.
 

@@ -41,6 +41,9 @@ classify_path() {
   path_count=$((path_count + 1))
 
   case "$path" in
+    Sources/*|Tests/*|WidgetExtension/*|.github/workflows/*)
+      require_macos_tests "$path" "changes source, tests, or workflows"
+      ;;
     AGENTS.md|CLAUDE.md|docs/configuration.md)
       require_macos_tests "$path" "changes contributor or runtime configuration contracts"
       ;;
@@ -89,13 +92,18 @@ do
 done < "$changed_paths_file"
 
 if [[ "$invalid_row" == true ]]; then
-  printf 'Invalid git name-status row; refusing to skip macOS tests.\n' >&2
+  printf 'Invalid git name-status row; refusing to skip Swift builds or tests.\n' >&2
   exit 2
 fi
 
 if [[ "$path_count" -eq 0 ]]; then
   require_macos_tests '<empty diff>' 'no changed paths were reported'
 fi
+
+# The glibc CLI matrix uses the same conservative docs/site allowlist, but draft
+# status only defers macOS tests. Linux builds remain required for source changes.
+linux_cli_build="$macos_tests"
+linux_cli_build_reason="${macos_tests_reason:-docs/site-only changes covered by portable checks}"
 
 if [[ "$macos_tests" == true && "$draft_pull_request" == true ]]; then
   macos_tests_deferred=true
@@ -107,10 +115,14 @@ else
 fi
 
 if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
-  printf 'macos-tests=%s\n' "$macos_tests" >> "$GITHUB_OUTPUT"
-  printf 'macos-tests-deferred=%s\n' "$macos_tests_deferred" >> "$GITHUB_OUTPUT"
-  printf 'macos-tests-reason=%s\n' "$summary_reason" >> "$GITHUB_OUTPUT"
-  printf 'changed-path-count=%s\n' "$path_count" >> "$GITHUB_OUTPUT"
+  {
+    printf 'macos-tests=%s\n' "$macos_tests"
+    printf 'macos-tests-deferred=%s\n' "$macos_tests_deferred"
+    printf 'macos-tests-reason=%s\n' "$summary_reason"
+    printf 'linux-cli-build=%s\n' "$linux_cli_build"
+    printf 'linux-cli-build-reason=%s\n' "$linux_cli_build_reason"
+    printf 'changed-path-count=%s\n' "$path_count"
+  } >> "$GITHUB_OUTPUT"
 fi
 
 if [[ "$macos_tests_deferred" == true ]]; then
@@ -119,4 +131,10 @@ elif [[ "$macos_tests" == true ]]; then
   printf 'macOS Swift tests required for this change set: %s.\n' "$macos_tests_reason"
 else
   printf 'Skipping macOS Swift tests: %s.\n' "$summary_reason"
+fi
+
+if [[ "$linux_cli_build" == true ]]; then
+  printf 'Linux glibc CLI matrix required for this change set: %s.\n' "$linux_cli_build_reason"
+else
+  printf 'Skipping Linux glibc CLI matrix: %s.\n' "$linux_cli_build_reason"
 fi

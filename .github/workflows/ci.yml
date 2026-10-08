@@ -23,6 +23,8 @@ jobs:
       macos-tests: ${{ steps.macos-tests.outputs.macos-tests }}
       macos-tests-deferred: ${{ steps.macos-tests.outputs.macos-tests-deferred }}
       macos-tests-reason: ${{ steps.macos-tests.outputs.macos-tests-reason }}
+      linux-cli-build: ${{ steps.macos-tests.outputs.linux-cli-build }}
+      linux-cli-build-reason: ${{ steps.macos-tests.outputs.linux-cli-build-reason }}
       changed-path-count: ${{ steps.macos-tests.outputs.changed-path-count }}
       linux-musl-build: ${{ steps.linux-musl-build.outputs.linux-musl-build }}
       linux-musl-build-reason: ${{ steps.linux-musl-build.outputs.linux-musl-build-reason }}
@@ -31,7 +33,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Detect macOS test impact
+      - name: Detect Swift build and test impact
         id: macos-tests
         shell: bash
         env:
@@ -49,7 +51,7 @@ jobs:
           if [[ -z "$base_sha" || "$base_sha" =~ ^0+$ ]]; then
             git ls-files | awk '{ print "A\t" $0 }' > "$changed_paths"
           elif ! git cat-file -e "${base_sha}^{commit}" 2>/dev/null; then
-            echo "Base commit ${base_sha} is unavailable; running macOS tests conservatively."
+            echo "Base commit ${base_sha} is unavailable; running Swift builds and tests conservatively."
             git ls-files | awk '{ print "A\t" $0 }' > "$changed_paths"
           else
             git diff --name-status "$base_sha" "$GITHUB_SHA" > "$changed_paths"
@@ -70,6 +72,8 @@ jobs:
         env:
           MACOS_TESTS: ${{ steps.macos-tests.outputs.macos-tests }}
           MACOS_TESTS_REASON: ${{ steps.macos-tests.outputs.macos-tests-reason }}
+          LINUX_CLI_BUILD: ${{ steps.macos-tests.outputs.linux-cli-build }}
+          LINUX_CLI_BUILD_REASON: ${{ steps.macos-tests.outputs.linux-cli-build-reason }}
           CHANGED_PATH_COUNT: ${{ steps.macos-tests.outputs.changed-path-count }}
           LINUX_MUSL_BUILD: ${{ steps.linux-musl-build.outputs.linux-musl-build }}
           LINUX_MUSL_BUILD_REASON: ${{ steps.linux-musl-build.outputs.linux-musl-build-reason }}
@@ -77,6 +81,8 @@ jobs:
           set -euo pipefail
           reason="${MACOS_TESTS_REASON:-<unset>}"
           reason="${reason//|/\\|}"
+          linux_reason="${LINUX_CLI_BUILD_REASON:-<unset>}"
+          linux_reason="${linux_reason//|/\\|}"
           musl_reason="${LINUX_MUSL_BUILD_REASON:-<unset>}"
           musl_reason="${musl_reason//|/\\|}"
           {
@@ -85,6 +91,8 @@ jobs:
             printf '| --- | --- |\n'
             printf '| macOS Swift tests required | `%s` |\n' "${MACOS_TESTS:-<unset>}"
             printf '| macOS reason | %s |\n' "$reason"
+            printf '| Linux glibc CLI matrix required | `%s` |\n' "${LINUX_CLI_BUILD:-<unset>}"
+            printf '| Linux glibc reason | %s |\n' "$linux_reason"
             printf '| Linux musl build required | `%s` |\n' "${LINUX_MUSL_BUILD:-<unset>}"
             printf '| Linux musl reason | %s |\n' "$musl_reason"
             printf '| Changed path entries | `%s` |\n' "${CHANGED_PATH_COUNT:-<unset>}"
@@ -266,7 +274,8 @@ jobs:
             "${{ needs.changes.outputs.linux-musl-build }}" \
             "${{ needs.build-linux-musl-cli.result }}" \
             "${{ needs.build-linux-cli.result }}" \
-            "${{ needs.swift-build-macos-compatibility.result }}"
+            "${{ needs.swift-build-macos-compatibility.result }}" \
+            "${{ needs.changes.outputs.linux-cli-build }}"
 
       - name: Summarize aggregate CI gate
         if: ${{ always() }}
@@ -283,10 +292,14 @@ jobs:
           LINUX_MUSL_BUILD_REASON: ${{ needs.changes.outputs.linux-musl-build-reason }}
           LINUX_MUSL_RESULT: ${{ needs.build-linux-musl-cli.result }}
           LINUX_RESULT: ${{ needs.build-linux-cli.result }}
+          LINUX_CLI_BUILD: ${{ needs.changes.outputs.linux-cli-build }}
+          LINUX_CLI_BUILD_REASON: ${{ needs.changes.outputs.linux-cli-build-reason }}
         run: |
           set -euo pipefail
           reason="${MACOS_TESTS_REASON:-<unset>}"
           reason="${reason//|/\\|}"
+          linux_reason="${LINUX_CLI_BUILD_REASON:-<unset>}"
+          linux_reason="${linux_reason//|/\\|}"
           musl_reason="${LINUX_MUSL_BUILD_REASON:-<unset>}"
           musl_reason="${musl_reason//|/\\|}"
           {
@@ -303,6 +316,8 @@ jobs:
             printf '| Linux musl build required | `%s` |\n' "${LINUX_MUSL_BUILD:-<unset>}"
             printf '| Linux musl gate reason | %s |\n' "$musl_reason"
             printf '| build-linux-musl-cli result | `%s` |\n' "$LINUX_MUSL_RESULT"
+            printf '| Linux glibc CLI matrix required | `%s` |\n' "${LINUX_CLI_BUILD:-<unset>}"
+            printf '| Linux glibc gate reason | %s |\n' "$linux_reason"
             printf '| build-linux-cli matrix result | `%s` |\n' "$LINUX_RESULT"
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -481,6 +496,8 @@ jobs:
           --triple "$SWIFT_STATIC_LINUX_SDK_TRIPLE"
 
   build-linux-cli:
+    needs: changes
+    if: ${{ needs.changes.outputs.linux-cli-build == 'true' }}
     timeout-minutes: 20
     strategy:
       fail-fast: false
