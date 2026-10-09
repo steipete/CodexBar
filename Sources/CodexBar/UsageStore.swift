@@ -71,7 +71,7 @@ extension UsageStore {
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 self.observeSettingsChanges()
-                self.invalidateProviderAvailabilityCache()
+                self.providerAvailabilityCache.removeAll(keepingCapacity: true)
                 self.probeLogs = [:]
                 guard self.startupBehavior.automaticallyStartsBackgroundWork else { return }
                 self.retireDisabledCredentialNotifications()
@@ -98,16 +98,11 @@ extension UsageStore {
         return self.openAIDashboard
     }
 
-    /// Returns the login method (plan type) for the specified provider, if available.
-    private func loginMethod(for provider: UsageProvider) -> String? {
-        self.snapshots[provider.instanceID]?.loginMethod(for: provider)
-    }
-
     /// Returns true if the Claude account appears to be a subscription (Max, Pro, Ultra, Team).
     /// Returns false for API users or when plan cannot be determined.
     func isClaudeSubscription() -> Bool {
         // Provider-specific by design: Claude subscription plans choose its consumer dashboard account action.
-        Self.isSubscriptionPlan(self.loginMethod(for: .claude))
+        Self.isSubscriptionPlan(self.claudeSnapshot?.loginMethod(for: .claude))
     }
 
     /// Determines if a login method string indicates a Claude subscription plan.
@@ -117,12 +112,7 @@ extension UsageStore {
     }
 
     var preferredSnapshot: UsageSnapshot? {
-        for provider in self.enabledProviders() {
-            if let snap = self.snapshots[provider] {
-                return snap
-            }
-        }
-        return nil
+        self.enabledProviders().lazy.compactMap { self.snapshots[$0] }.first
     }
 }
 
@@ -391,13 +381,14 @@ final class UsageStore {
     @ObservationIgnored var codexCostCatchUpPassIsRunning = false
     @ObservationIgnored var codexCostCatchUpRestartRequested = false
     @ObservationIgnored var spendDashboardCodexCostCatchUpTask: Task<Void, Never>?
-    @ObservationIgnored var spendDashboardCodexCostCatchUpToken: UUID?
-    @ObservationIgnored var spendDashboardCodexCostCatchUpScopeSignature: String?
+    @ObservationIgnored var spendDashboardCodexCostCatchUpContext: SpendDashboardCodexCostCatchUpContext?
     @ObservationIgnored var spendDashboardCodexCostCatchUpMode: CodexCostCatchUpMode = .automatic
     @ObservationIgnored var spendDashboardCodexCostCatchUpStopRequested = false
     @ObservationIgnored var spendDashboardCodexCostCatchUpPassIsRunning = false
     @ObservationIgnored var spendDashboardCodexCostCatchUpRestartRequested = false
-    @ObservationIgnored var spendDashboardCodexCostCatchUpPausedContext: SpendDashboardCodexCostCatchUpContext?
+    @ObservationIgnored var spendDashboardCodexCostCatchUpIsWaiting = false
+    @ObservationIgnored var spendDashboardCodexCostCatchUpCompletionCheckTask: Task<Void, Never>?
+    @ObservationIgnored var spendDashboardCodexCostCompletionCheckRevision: UInt64 = 0
     @ObservationIgnored var forcedRefreshEnrichmentTask: Task<Void, Never>?
     @ObservationIgnored var forcedRefreshEnrichmentToken: UUID?
     @ObservationIgnored var pendingForcedRefreshEnrichmentTask: Task<Void, Never>?
@@ -589,7 +580,7 @@ final class UsageStore {
                 for: self.freshCodexVisibleAccountsForSnapshotHydration())
         }
         self.logStartupState()
-        self.bindSettings()
+        self.observeSettingsChanges()
         self.pathDebugInfo = PathDebugSnapshot(
             codexBinary: nil,
             claudeBinary: nil,
@@ -676,32 +667,23 @@ final class UsageStore {
     }
 
     func sourceLabel(for provider: UsageProvider) -> String {
-        var label = self.lastSourceLabels[provider.instanceID] ?? ""
-        if label.isEmpty {
-            let descriptor = ProviderDescriptorRegistry.descriptor(for: provider)
-            let modes = descriptor.fetchPlan.sourceModes
-            if modes.count == 1, let mode = modes.first {
-                label = mode.rawValue
-            } else {
-                let context = ProviderSourceLabelContext(
-                    provider: provider,
-                    settings: self.settings,
-                    store: self,
-                    descriptor: descriptor)
-                label = ProviderCatalog.implementation(for: provider)?
-                    .defaultSourceLabel(context: context)
-                    ?? "auto"
-            }
-        }
-
+        let descriptor = ProviderDescriptorRegistry.descriptor(for: provider)
         let context = ProviderSourceLabelContext(
             provider: provider,
             settings: self.settings,
             store: self,
-            descriptor: ProviderDescriptorRegistry.descriptor(for: provider))
-        return ProviderCatalog.implementation(for: provider)?
-            .decorateSourceLabel(context: context, baseLabel: label)
-            ?? label
+            descriptor: descriptor)
+        let implementation = ProviderCatalog.implementation(for: provider)
+        var label = self.lastSourceLabels[provider.instanceID] ?? ""
+        if label.isEmpty {
+            let modes = descriptor.fetchPlan.sourceModes
+            if modes.count == 1, let mode = modes.first {
+                label = mode.rawValue
+            } else {
+                label = implementation?.defaultSourceLabel(context: context) ?? "auto"
+            }
+        }
+        return implementation?.decorateSourceLabel(context: context, baseLabel: label) ?? label
     }
 
     func fetchAttempts(for provider: UsageProvider) -> [ProviderFetchAttempt] {
@@ -733,15 +715,10 @@ final class UsageStore {
         let enabled = self.settings.isProviderEnabledCached(
             provider: provider,
             metadataByProvider: self.providerMetadata)
-        guard enabled else { return false }
-        return self.isProviderAvailable(provider)
+        return enabled && self.isProviderAvailable(provider)
     }
 
-    func isProviderAvailable(_ provider: UsageProvider) -> Bool {
-        self.isProviderAvailable(provider, now: Date())
-    }
-
-    func isProviderAvailable(_ provider: UsageProvider, now: Date) -> Bool {
+    func isProviderAvailable(_ provider: UsageProvider, now: Date = Date()) -> Bool {
         guard provider != .codex else { return true }
 
         let configRevision = self.settings.configRevision
@@ -771,10 +748,6 @@ final class UsageStore {
             configRevision: configRevision,
             expiresAt: now.addingTimeInterval(self.providerAvailabilityCacheTTL))
         return available
-    }
-
-    private func invalidateProviderAvailabilityCache() {
-        self.providerAvailabilityCache.removeAll(keepingCapacity: true)
     }
 
     #if DEBUG
@@ -924,10 +897,6 @@ final class UsageStore {
     }
 
     // MARK: - Private
-
-    private func bindSettings() {
-        self.observeSettingsChanges()
-    }
 
     #if DEBUG
     @ObservationIgnored private(set) var refreshTimerSleepOverrideForTesting: Duration?

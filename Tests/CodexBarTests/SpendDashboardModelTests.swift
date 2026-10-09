@@ -1225,7 +1225,8 @@ extension SpendDashboardModelTests {
             calendar: calendar,
             selectedDay: calendar.startOfDay(for: now))
         #expect(selected.groups[0].hourlyPoints.count == 2)
-        #expect(selected.groups[0].hourlyChartDomain?.lowerBound == calendar.startOfDay(for: now))
+        let chart = SpendTrendChartModel(group: selected.groups[0], section: .hourly, day: nil)
+        #expect(chart.domain.lowerBound == calendar.startOfDay(for: now))
         #expect(combined.groups[0].timeZone == calendar.timeZone)
     }
 }

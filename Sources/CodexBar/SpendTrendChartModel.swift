@@ -246,9 +246,7 @@ struct SpendTrendChartModel {
     }
 
     static func hourlyDays(_ group: SpendDashboardModel.CurrencyGroup) -> [Date] {
-        Set(group.hourlyPoints.filter {
-            $0.hour >= group.chartDomain.lowerBound && $0.hour < group.chartDomain.upperBound
-        }.map { group.calendar.startOfDay(for: $0.hour) }).sorted()
+        group.hourlyDays
     }
 
     static func focusedDay(_ day: Date?, group: SpendDashboardModel.CurrencyGroup) -> Date? {

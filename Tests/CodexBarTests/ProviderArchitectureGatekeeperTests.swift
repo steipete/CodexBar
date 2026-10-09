@@ -2962,7 +2962,7 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact app-runtime bridge coordinates provider-owned state through the shared controller."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/UsageStore+SpendDashboardCodexCostCatchUp.swift",
-            anchor: "self.settings.providerConfigRevision(for: .codex) == context.providerConfigRevision",
+            anchor: "&& self.settings.providerConfigRevision(for: .codex) == context.providerConfigRevision",
             expectedProviderIDs: ["codex"],
             expectedReferenceCount: 1,
             expectedReferenceFingerprint: ["codex@0"],

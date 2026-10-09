@@ -3,7 +3,12 @@ import Foundation
 /// Replays the cursor and erase operations used by Claude's usage/status panels, without terminal history.
 struct ClaudeCLIScreen {
     static let columns = 160
-    static let rows = 50
+    // Claude's /usage panel (2.1.270 to 2.1.294 at least) puts session stats above the quota rows and an insights
+    // list below them, about 100 rows for a heavy user. In the default inline renderer, rows that scroll past the top
+    // are out of reach of the diff redraws and missing from the replayed screen, "Current session" first, so keep
+    // the PTY well taller than the panel.
+    static let rows = 200
+    private static let maxParameter = max(Self.columns, Self.rows)
     private static let blank = Array(repeating: Character(" "), count: Self.columns)
     private var lines = Array(repeating: Self.blank, count: Self.rows)
     private var row = 0
@@ -84,7 +89,7 @@ struct ClaudeCLIScreen {
         guard parameters.allSatisfy({ $0.isASCII && ($0.isNumber || $0 == ";") }) else { return false }
         // Limit parameter count and magnitude before arithmetic or indexing, even for overflowing decimal input.
         let values = parameters.split(separator: ";", maxSplits: 2, omittingEmptySubsequences: false).prefix(2)
-            .map { $0.isEmpty ? 0 : min(Int($0) ?? Self.columns, Self.columns) }
+            .map { $0.isEmpty ? 0 : min(Int($0) ?? Self.maxParameter, Self.maxParameter) }
         let mode = values.first ?? 0
         let amount = max(1, mode)
         guard !"KJ".contains(command) || (0...2).contains(mode) else { return false }

@@ -102,4 +102,21 @@ struct ClaudeCLIScreenTests {
         let rows = (0...ClaudeCLIScreen.rows).map(String.init)
         #expect(ClaudeCLIScreen.render(rows.joined(separator: "\r\n")) == rows.dropFirst().joined(separator: "\n"))
     }
+
+    @Test(arguments: ["200C", "200G", "200;200H", "200;200f"])
+    func `tall screen cursor moves still clamp to the last column`(movement: String) {
+        let frame = "top\u{1b}[200B\u{1b}[\(movement)X"
+        let lines = ClaudeCLIScreen.render(frame).components(separatedBy: "\n")
+        #expect(lines.count == 200)
+        #expect(lines.first == "top")
+        #expect(lines.last == String(repeating: " ", count: ClaudeCLIScreen.columns - 1) + "X")
+    }
+
+    @Test
+    func `erase below the old column bound removes the entire quota`() {
+        let frame = "\u{1b}[180;1HCurrent session\n7% used\u{1b}[200;1Hfooter"
+            + "\u{1b}[180;1H\u{1b}[J"
+        #expect(ClaudeCLIScreen.render(frame).isEmpty)
+        #expect(throws: ClaudeStatusProbeError.self) { try ClaudeStatusProbe.parse(text: frame) }
+    }
 }

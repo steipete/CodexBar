@@ -443,6 +443,8 @@ Model-scoped weekly-window proof (synthetic data, no real accounts or credential
 
 ## CLI PTY (fallback)
 - Runs `claude` in a PTY session (`ClaudeCLISession`).
+- The PTY and replay screen share a 160-column, 200-row viewport so tall inline `/usage` panels retain their session,
+  weekly, and model-specific quotas alongside session statistics and usage insights. Erased content remains discarded.
 - The bundled watchdog is discovered only in the running executable's resolved app bundle; launching through a CLI symlink preserves that association.
 - Default behavior: exit after each probe; Debug → "Keep CLI sessions alive" keeps it running between probes.
 - Both PTY probes and the non-PTY `/usage` fallback pass `--settings '{"remoteControlAtStartup":false,"disableAllHooks":true}'` to disable Remote Control startup and user hooks for the probe process. This process-local override leaves the user's saved settings unchanged; Claude's managed-settings policy still applies.

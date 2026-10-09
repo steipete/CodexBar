@@ -669,17 +669,32 @@ group executes. Local runs with missing helpers, unsupported toolchains, or Linu
 SwiftPM path with a diagnostic. On CI, requesting direct workers requires a verified direct runtime:
 capability failures also fail the job instead of falling back to serial execution.
 
-Hosted macOS CI explicitly uses two serial SwiftPM shards, retaining the 75-minute test step and
-90-minute job limits. This avoids a third cold build while direct execution on Xcode 26.6 remains
-unverified after a helper SIGTRAP. A five-minute, nonblocking direct smoke test runs one group on
-shard zero after the complete serial shard passes; it is diagnostic evidence, not coverage or
-throughput proof. Both modes print ordered selection groups and timing summaries.
+Hosted macOS CI runs the complete inventory with two direct workers on one macOS 26 / Xcode 26.6
+runner, retaining the 75-minute test step and 90-minute job limits. All groups are required:
+discovery, admission, helper crashes, unrecovered timeouts and test failures fail the job. Group size remains
+eight with a 120-second suite timeout and no retries for ordinary test failures. Timed-out groups retain
+the existing isolated-selection retry policy; each retry has its own deadline. Three independent
+hosted complete-inventory runs validated this mode before enabling it. The separate macOS 15 /
+Xcode 26.3 job still builds the app, CLI and tests for compatibility; it does not run a full suite.
+Both serial and direct modes print ordered selection groups and timing summaries.
+
+Each macOS job restores a compiled SwiftPM cache bound to its toolchain, SDK, architecture,
+package state and build scripts/options. The helper verifies tracked input contents and permissions
+before restoring unchanged file timestamps. Changed contents invalidate preserved or backdated
+timestamps; added/deleted package paths or changed package symlink targets require clean products.
+Missing, invalid or unverifiable metadata also cleans products before rebuilding. Symlink payloads
+are checked without following them; reuse requires each package link to name a regular tracked file
+in both snapshots, whose contents are verified separately. External, untracked, chained and directory
+targets, including noncanonical paths that could conceal a symlink ancestor, require clean products
+without reading or modifying the target. Only successful main jobs with a clean tracked tree
+save new snapshots, and cleanup keeps one snapshot per lane. The first main run seeds the cache;
+a cache miss or a changed input graph still requires a cold build.
 
 The adapter includes both public and private platform framework search paths and disables Swift
 Testing during XCTest discovery, matching SwiftPM's launcher. Probe failures print the helper,
 exit status or signal, and redacted stdout/stderr. On CI, signal failures also wait up to five
 seconds for fresh helper crash reports in the original and temporary homes. The workflow collects
-fresh test crash reports again after failures, including nonblocking smoke failures. Credential
+fresh test crash reports again after failures in the required full test job. Credential
 values and local home identities are redacted; unrelated process reports are excluded.
 
 Each group has a fresh process and temporary `HOME` and `CFFIXED_USER_HOME`, with the existing credential

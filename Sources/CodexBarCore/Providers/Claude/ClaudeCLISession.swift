@@ -452,14 +452,7 @@ actor ClaudeCLISession {
     }
 
     static func launchEnvironment(baseEnv: [String: String] = ProcessInfo.processInfo.environment) -> [String: String] {
-        var env = self.scrubbedClaudeEnvironment(from: TTYCommandRunner.enrichedEnvironment(baseEnv: baseEnv))
-        // Passive status and auth probes must not mutate or update the user's Claude CLI installation.
-        env["DISABLE_AUTOUPDATER"] = "1"
-        return env
-    }
-
-    private static func scrubbedClaudeEnvironment(from base: [String: String]) -> [String: String] {
-        var env = base
+        var env = TTYCommandRunner.enrichedEnvironment(baseEnv: baseEnv)
         let explicitKeys: [String] = [
             ClaudeOAuthCredentialsStore.environmentTokenKey,
             ClaudeOAuthCredentialsStore.environmentScopesKey,
@@ -470,6 +463,8 @@ actor ClaudeCLISession {
         for key in env.keys where key.hasPrefix("ANTHROPIC_") {
             env.removeValue(forKey: key)
         }
+        // Passive status and auth probes must not mutate or update the user's Claude CLI installation.
+        env["DISABLE_AUTOUPDATER"] = "1"
         return env
     }
 
