@@ -4,6 +4,7 @@
 
 ### Added
 
+- Providers: add Tavily credit usage, Exa selected-key monthly spend, Linkup prepaid USD balances, and TinyApi available credits through bundled plugins (#4346, #4347, #4348, #4351). Thanks @spencer-shadley!
 - Linux: add an opt-in compact Quick View with provider tabs and cached spending warnings, keeping the full Usage & Spend window as the default (#3973). Thanks @stackingrockss!
 - Localization: complete app and widget translations in all 23 supported languages, including credential alerts, share cards, and provider settings, with widgets following the system language (#4223). Thanks @DGPisces and @Yuxin-Qiao!
 - Integrations: link Starbridge's community-maintained Android and web quota display (#4371). Thanks @T0mSIlver!

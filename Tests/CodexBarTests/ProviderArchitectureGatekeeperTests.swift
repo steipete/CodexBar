@@ -156,9 +156,9 @@ struct ProviderArchitectureGatekeeperTests {
             Self.hash(descriptor.branding.burnDownWidgetColor, into: &burnDownFingerprint)
         }
 
-        // X API extends the palette without changing existing provider colors.
-        #expect(widgetFingerprint == 7_318_583_779_471_121_882)
-        #expect(burnDownFingerprint == 8_800_572_749_065_936_795)
+        // Tavily, Linkup, TinyApi, and Exa extend the palette without changing existing provider colors.
+        #expect(widgetFingerprint == 17_829_790_852_321_692_708)
+        #expect(burnDownFingerprint == 4_485_017_692_476_063_161)
     }
 
     @Test
@@ -197,7 +197,7 @@ struct ProviderArchitectureGatekeeperTests {
     func `small provider capabilities preserve legacy registries`() {
         let descriptors = ProviderDescriptorRegistry.all
         #expect(Set(descriptors.filter(\.metadata.balanceOnly).map(\.id)) == [
-            .deepseek, .deepinfra, .moonshot, .poe, .hyper, .atlascloud, .vercel, .lithosai, .xapi,
+            .deepseek, .deepinfra, .moonshot, .poe, .hyper, .atlascloud, .vercel, .lithosai, .xapi, .linkup, .tinyapi,
         ])
         #expect(Set(descriptors.filter(\.metadata.usesDetailBackedWindow).map(\.id)) == [
             .perplexity,

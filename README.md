@@ -10,7 +10,7 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-6e5aff?style=flat-square)](LICENSE)
 [![Site](https://img.shields.io/badge/site-codexbar.app-16d3b4?style=flat-square)](https://codexbar.app)
 
-<a href="https://codexbar.app"><img src="docs/social.png?v=82fb5aa4eda4b681" alt="CodexBar — every AI coding limit in your menu bar. 92 providers." width="100%" /></a>
+<a href="https://codexbar.app"><img src="docs/social.png?v=f14e08343f42bf69" alt="CodexBar — every AI coding limit in your menu bar. 96 providers." width="100%" /></a>
 
 Tiny macOS 14+ menu bar app that keeps **AI coding-provider limits visible** and shows when each window resets. See the [supported providers](#providers) below. One status item per provider, or Merge Icons mode with a provider switcher. No Dock icon, minimal UI, dynamic bar icons.
 
@@ -187,6 +187,10 @@ See [CLI configuration](docs/cli-configuration.md) for the full flow.
 - [X API](docs/xapi.md) — Chrome or manual console.x.com cookies for prepaid and free credits, including negative balances.
 - [LithosAI](docs/lithosai.md) — Chrome or manual console cookies for prepaid USD balance and optional UTC spend.
 - [WorkBuddy](docs/workbuddy.md) — Chrome or manual www.workbuddy.cn cookies for the monthly credits allowance, plan name, and cycle reset.
+- [Tavily](docs/tavily.md) — API key for account-plan, per-key, and pay-as-you-go credit totals.
+- [Linkup](docs/linkup.md) — API key for the current prepaid USD credit balance.
+- [TinyApi](docs/tinyapi.md) — Chrome or manual session cookies for aggregate available credits.
+- [Exa](docs/exa.md) — Team Management service key plus an explicit API key ID for month-to-date USD spend.
 <!-- End generated provider additions -->
 
 ## Icon & Screenshot

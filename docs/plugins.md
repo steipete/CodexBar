@@ -570,3 +570,11 @@ Providers without stable account identity can set `history: .unavailable` and `b
 on the spec. Langdock uses these capabilities and does not backfill missing reset dates from prior sessions.
 Providers with both widget capabilities disabled are omitted from widget files. Selected-profile usage is never
 exported as a cloud account snapshot: its ownership can only be verified on the importing device.
+
+## Search and research credit providers
+
+[Tavily](tavily.md) reads account-plan, API-key, and pay-as-you-go credits through the public usage API;
+[Linkup](linkup.md) reads its prepaid USD balance. Both use explicit API keys and the shared `PluginProviderSpec`.
+[Exa](exa.md) reads selected-key monthly spend using a support-enabled Team Management service key and API key ID.
+[TinyApi](tinyapi.md) reads aggregate available credits through its website session and the shared cookie host.
+These plugins omit undocumented reset dates, credit-bucket splits, and live request-rate headroom.

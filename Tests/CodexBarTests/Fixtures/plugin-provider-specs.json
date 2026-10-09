@@ -530,5 +530,61 @@
     "strategies": ["zed.local"],
     "supportsTokenCost": false,
     "workspaceOrder": null
+  },
+  {
+    "availability": [true, true, true],
+    "cliResolution": {"TAVILY": ["tavily"]},
+    "enterpriseHost": false,
+    "environmentAvailability": [[true, false], [true, true], [true, true], [true, true]],
+    "fields": ["secure"],
+    "id": "tavily",
+    "projectToken": "",
+    "projections": {"TAVILY_API_KEY": "fixture-key"},
+    "sourceModes": ["api", "auto"],
+    "strategies": ["tavily.js"],
+    "supportsTokenCost": false,
+    "workspaceOrder": null
+  },
+  {
+    "availability": [true, true, true],
+    "cliResolution": {"LINKUP": ["linkup"]},
+    "enterpriseHost": false,
+    "environmentAvailability": [[true, false], [true, true], [true, true], [true, true]],
+    "fields": ["secure"],
+    "id": "linkup",
+    "projectToken": "",
+    "projections": {"LINKUP_API_KEY": "fixture-key"},
+    "sourceModes": ["api", "auto"],
+    "strategies": ["linkup.js"],
+    "supportsTokenCost": false,
+    "workspaceOrder": null
+  },
+  {
+    "availability": [true, true, true],
+    "cliResolution": {"TINYAPI": ["tinyapi"]},
+    "enterpriseHost": false,
+    "environmentAvailability": [[true, true], [true, true], [true, true], [true, true]],
+    "fields": ["secure"],
+    "id": "tinyapi",
+    "projectToken": "",
+    "projections": {},
+    "sourceModes": ["auto", "web"],
+    "strategies": ["tinyapi.js"],
+    "supportsTokenCost": false,
+    "workspaceOrder": null
+  },
+  {
+    "availability": [true, true, true],
+    "cliResolution": {"EXA": ["exa"]},
+    "enterpriseHost": false,
+    "environmentAvailability": [[true, false], [true, true], [true, true], [true, true]],
+    "fields": ["secure", "plain"],
+    "id": "exa",
+    "projectToken": "",
+    "projections": {"EXA_API_KEY_ID": "fixture-project", "EXA_SERVICE_KEY": "fixture-key"},
+    "sourceModes": ["api", "auto"],
+    "strategies": ["exa.js"],
+    "supportsTokenCost": false,
+    "workspaceOrder": null
   }
 ]

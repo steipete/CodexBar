@@ -6,7 +6,7 @@
     <title>CodexBar — every AI coding limit, in your menu bar</title>
     <meta
       name="description"
-      content="A tiny macOS menu bar app that tracks AI coding-provider usage windows, credits, costs, and resets across 92 providers — Codex, OpenAI, Claude, Cursor, Gemini, Copilot, LiteLLM, Helmcode, v0, TypeSafe, and more."
+      content="A tiny macOS menu bar app that tracks AI coding-provider usage windows, credits, costs, and resets across 96 providers — Codex, OpenAI, Claude, Cursor, Gemini, Copilot, LiteLLM, Helmcode, v0, TypeSafe, and more."
     />
     <meta name="theme-color" content="#0a0a0c" />
     <link rel="canonical" href="https://codexbar.app/" />
@@ -37,14 +37,14 @@
     <meta property="og:title" content="CodexBar" />
     <meta
       property="og:description"
-      content="Track usage windows, credits, and resets across 92 AI coding providers from your macOS menu bar."
+      content="Track usage windows, credits, and resets across 96 AI coding providers from your macOS menu bar."
     />
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://codexbar.app/" />
-    <meta property="og:image" content="https://codexbar.app/social.png?v=82fb5aa4eda4b681" />
+    <meta property="og:image" content="https://codexbar.app/social.png?v=f14e08343f42bf69" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
-    <meta name="twitter:image" content="https://codexbar.app/social.png?v=82fb5aa4eda4b681" />
+    <meta name="twitter:image" content="https://codexbar.app/social.png?v=f14e08343f42bf69" />
     <meta name="twitter:card" content="summary_large_image" />
     <link rel="icon" type="image/png" href="./icon.png?v=2" />
     <link rel="apple-touch-icon" href="./icon.png?v=2" />
@@ -293,7 +293,7 @@
         <div class="section-inner">
         <header class="relative z-10 grid gap-5 tablet:grid-cols-[1fr_0.86fr] tablet:items-center">
           <h2 class="provider-reveal max-w-3xl text-balance text-[clamp(2.4rem,4.4vw,5rem)] font-semibold leading-[0.98] tracking-[-0.07em] text-zinc-100">
-            <span data-i18n-rich="providers.title">92 providers,{mobileBreak}one menu bar</span>
+            <span data-i18n-rich="providers.title">96 providers,{mobileBreak}one menu bar</span>
           </h2>
           <p class="provider-reveal max-w-2xl text-[clamp(1rem,1.35vw,1.28rem)] leading-[1.45] tracking-[-0.035em] text-zinc-400" style="--reveal-delay: 70ms">
             <span data-i18n="providers.description">Track usage windows, balances, and spend where each provider exposes them — including Helmcode, v0, and TypeSafe.</span>
@@ -394,6 +394,10 @@
           <li class="provider-card" data-provider="xapi"><a class="provider-card-link" href="https://github.com/steipete/CodexBar/blob/main/docs/xapi.md"><span class="provider-logo" style="--brand:#71767B;--icon:url('./logos/xapi.svg')"><img src="./logos/xapi.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>X API</strong><span data-i18n="auth.cookies">Cookies</span></p></a></li>
           <li class="provider-card" data-provider="lithosai"><a class="provider-card-link" href="https://github.com/steipete/CodexBar/blob/main/docs/lithosai.md"><span class="provider-logo" style="--brand:#6B7280;--icon:url('./logos/lithosai.svg')"><img src="./logos/lithosai.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>LithosAI</strong><span data-i18n="auth.cookies">Cookies</span></p></a></li>
           <li class="provider-card" data-provider="workbuddy"><a class="provider-card-link" href="https://github.com/steipete/CodexBar/blob/main/docs/workbuddy.md"><span class="provider-logo" style="--brand:#0DC8A6;--icon:url('./logos/workbuddy.svg')"><img src="./logos/workbuddy.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>WorkBuddy</strong><span data-i18n="auth.cookies">Cookies</span></p></a></li>
+          <li class="provider-card" data-provider="tavily"><a class="provider-card-link" href="https://github.com/steipete/CodexBar/blob/main/docs/tavily.md"><span class="provider-logo" style="--brand:#78B0A1;--icon:url('./logos/tavily.svg')"><img src="./logos/tavily.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>Tavily</strong><span data-i18n="auth.apiKey">API key</span></p></a></li>
+          <li class="provider-card" data-provider="linkup"><a class="provider-card-link" href="https://github.com/steipete/CodexBar/blob/main/docs/linkup.md"><span class="provider-logo" style="--brand:#202020;--icon:url('./logos/linkup.svg')"><img src="./logos/linkup.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>Linkup</strong><span data-i18n="auth.apiKey">API key</span></p></a></li>
+          <li class="provider-card" data-provider="tinyapi"><a class="provider-card-link" href="https://github.com/steipete/CodexBar/blob/main/docs/tinyapi.md"><span class="provider-logo" style="--brand:#F97316;--icon:url('./logos/tinyapi.svg')"><img src="./logos/tinyapi.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>TinyApi</strong><span data-i18n="auth.cookies">Cookies</span></p></a></li>
+          <li class="provider-card" data-provider="exa"><a class="provider-card-link" href="https://github.com/steipete/CodexBar/blob/main/docs/exa.md"><span class="provider-logo" style="--brand:#0143D9;--icon:url('./logos/exa.svg')"><img src="./logos/exa.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>Exa</strong><span data-i18n="auth.apiKey">API key</span></p></a></li>
 <!-- End generated provider additions -->
           <li class="provider-card"><a class="provider-card-link" href="https://github.com/steipete/CodexBar/blob/main/docs/provider.md"><span class="provider-logo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.84 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 .84.18 2 2 0 0 0 .84-.18l8.58-3.9a1 1 0 0 0 0-1.831z"/><path d="M16 17h6"/><path d="M19 14v6"/><path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 .825.178"/><path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.66 0l2.116-.962"/></svg></span><p><strong data-i18n="providers.yourProvider">Your provider</strong><span class="provider-authoring"><span data-i18n="providers.authoringGuide">Authoring guide</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></svg></span></p></a></li>
         </ul>

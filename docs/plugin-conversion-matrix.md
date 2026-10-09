@@ -17,8 +17,8 @@ script. Settings-derived origins include the private-network HTTP policy for LLM
 
 `converted` means the bundled conversion is present behind `CODEXBAR_JS_PROVIDERS=1`. `cut-over` means the script is
 authoritative on its supported engines; each row states whether a Linux native core remains. Totals count only the
-69 audit rows below, excluding the separately listed plugin-first additions. The registry now contains 92 providers:
-69 audit rows, 14 additional plugin-first rows, and 9 providers not yet classified in this matrix (CodeRabbit,
+69 audit rows below, excluding the separately listed plugin-first additions. The registry now contains 96 providers:
+69 audit rows, 18 additional plugin-first rows, and 9 providers not yet classified in this matrix (CodeRabbit,
 Hugging Face, IBM Bob, Muse, Nous, Pi, Replicate, TypeSafe, and v0).
 
 `needs-cookie-import` now means **additional cookie/session capability**, not absence of cookie import. The current
@@ -57,9 +57,9 @@ Abacus, Muse, LongCat, Replicate, and TypeSafe unchanged.
 | `needs-pty/webview/native` | 8 |
 | `needs-host-extension` | 4 |
 | **Audit total** | **69** |
-| Additional plugin-first providers | 14 |
+| Additional plugin-first providers | 18 |
 | Registered providers not yet classified here | 9 |
-| **Registry total** | **92** |
+| **Registry total** | **96** |
 
 ## Matrix
 
@@ -157,5 +157,9 @@ Abacus, Muse, LongCat, Replicate, and TypeSafe unchanged.
 | xapi | `cut-over` | QuickJS + JavaScriptCore | Same-session account discovery and dollar balances through host-owned cookies and CSRF header echo on both engines. |
 | lithosai | `cut-over` | QuickJS + JavaScriptCore | Opaque session cookies with same-origin host CSRF echo; active-organization balance and optional spend on both engines. |
 | workbuddy | `cut-over` | QuickJS + JavaScriptCore | Host-owned website session cookies with the matching Chrome User-Agent; billing summary plus optional package listings for the cycle reset on both engines. |
+| tavily | `cut-over` | QuickJS + JavaScriptCore | Account-plan and API-key credits through the public usage API. |
+| linkup | `cut-over` | QuickJS + JavaScriptCore | Bearer-authenticated credit balance on both engines; no inferred allowance, usage, or reset. |
+| tinyapi | `cut-over` | QuickJS + JavaScriptCore | Console credit balance on both engines; no inferred monthly allowance, pool split, or reset. |
+| exa | `cut-over` | QuickJS + JavaScriptCore | Selected-key billing on both engines; no inferred team balance, allowance, or reset. |
 
 <!-- End generated provider additions -->

@@ -21,6 +21,7 @@ struct PluginProviderSpecTests {
         .aixy, .bifrost, .deepgram, .llmproxy, .litellm, .sub2api, .llmman,
         .helmcode, .hyper, .manus, .perplexity, .qoder, .raycast, .sakana, .t3chat, .museai,
         .huggingface, .nous, .fireworks, .xai, .venice, .zed,
+        .tavily, .linkup, .tinyapi, .exa,
     ]
 
     private static let isolatedEnvironment = [
