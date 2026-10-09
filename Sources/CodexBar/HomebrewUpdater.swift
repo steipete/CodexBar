@@ -3,20 +3,39 @@ import CodexBarCore
 import Foundation
 import Sparkle
 
-enum HomebrewCaskVersion {
-    static let caskSourceURL = URL(
-        string: "https://raw.githubusercontent.com/steipete/homebrew-tap/main/Casks/codexbar.rb")!
+enum HomebrewCask: String, Sendable {
+    case official = "homebrew/cask"
+    case tap = "steipete/tap"
 
-    static func parse(caskSource: String) -> String? {
-        for line in caskSource.split(whereSeparator: \.isNewline) {
-            let trimmed = line.trimmingCharacters(in: .whitespaces)
-            guard trimmed.hasPrefix("version ") else { continue }
-            let parts = trimmed.split(separator: "\"", omittingEmptySubsequences: false)
-            guard parts.count >= 3 else { continue }
-            let version = parts[1].trimmingCharacters(in: .whitespaces)
-            return version.isEmpty ? nil : version
+    static func installed(prefix: URL?) throws -> Self {
+        guard let prefix else { throw HomebrewUpdateError.brewNotFound }
+        let receipt = prefix.appendingPathComponent("Caskroom/codexbar/.metadata/INSTALL_RECEIPT.json")
+        guard let data = try? Data(contentsOf: receipt),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let source = json["source"] as? [String: Any],
+              let tap = source["tap"] as? String,
+              let cask = Self(rawValue: tap) else { throw HomebrewUpdateError.invalidCaskResponse }
+        return cask
+    }
+
+    var qualifiedName: String {
+        "\(self.rawValue)/codexbar"
+    }
+
+    var sourceURL: URL {
+        let path = switch self {
+        case .official: "Homebrew/homebrew-cask/master/Casks/c/codexbar.rb"
+        case .tap: "steipete/homebrew-tap/main/Casks/codexbar.rb"
         }
-        return nil
+        return URL(string: "https://raw.githubusercontent.com/\(path)")!
+    }
+}
+
+enum HomebrewCaskVersion {
+    static func parse(caskSource: String) -> String? {
+        guard let match = caskSource.firstMatch(of: /(?m)^\h*version \h*"([^"\r\n]*)"/) else { return nil }
+        let version = match.1.trimmingCharacters(in: .whitespaces)
+        return version.isEmpty ? nil : version
     }
 
     static func isNewer(_ candidate: String, than installed: String) -> Bool {
@@ -38,7 +57,7 @@ enum HomebrewUpdateError: LocalizedError, Equatable {
     var errorDescription: String? {
         switch self {
         case .invalidCaskResponse:
-            "Could not read the latest version from the Homebrew tap."
+            "Could not read the Homebrew install receipt or latest cask version."
         case .brewNotFound:
             "Could not find a unique Homebrew installation managing this app."
         case let .versionUnchanged(version):
@@ -71,16 +90,20 @@ final class HomebrewUpdaterController: UpdaterProviding {
         var fetchCaskSource: @Sendable () async throws -> String
         var runUpgrade: @Sendable () async throws -> Void
         var relaunch: @MainActor () -> Void
+        var cask: @Sendable () throws -> HomebrewCask
     }
 
     private static let checkInterval: Duration = .seconds(24 * 60 * 60)
     private static let log = CodexBarLog.logger(LogCategories.app)
 
     let isAvailable = false
-    let manualUpdateCommand: ManualUpdateCommand? = .homebrew
     let updateStatus = UpdateStatus()
     var automaticallyDownloadsUpdates = false
     private(set) var phase: Phase = .idle
+
+    var manualUpdateCommand: String? {
+        try? "brew upgrade --cask \(self.dependencies.cask().qualifiedName)"
+    }
 
     var unavailableReason: String? {
         L("Managed by Homebrew")
@@ -208,10 +231,13 @@ final class HomebrewUpdaterController: UpdaterProviding {
 extension HomebrewUpdaterController.Dependencies {
     static var live: Self {
         let bundleURL = Bundle.main.bundleURL
+        let cask: @Sendable () throws -> HomebrewCask = {
+            try HomebrewCask.installed(prefix: InstallOrigin.homebrewPrefix(appBundleURL: bundleURL))
+        }
         return Self(
             installedVersion: { Self.bundleShortVersion(at: bundleURL) ?? AppVersion.shortVersion },
             fetchCaskSource: {
-                var request = URLRequest(url: HomebrewCaskVersion.caskSourceURL, timeoutInterval: 20)
+                var request = try URLRequest(url: cask().sourceURL, timeoutInterval: 20)
                 request.cachePolicy = .reloadIgnoringLocalCacheData
                 let (data, response) = try await URLSession.shared.data(for: request)
                 guard (response as? HTTPURLResponse)?.statusCode == 200,
@@ -224,7 +250,8 @@ extension HomebrewUpdaterController.Dependencies {
             runUpgrade: {
                 _ = try await Self.upgrade(appBundleURL: bundleURL)
             },
-            relaunch: { Self.relaunch(bundleURL: bundleURL) })
+            relaunch: { Self.relaunch(bundleURL: bundleURL) },
+            cask: cask)
     }
 
     static func upgrade(
@@ -234,6 +261,7 @@ extension HomebrewUpdaterController.Dependencies {
         guard let prefix = InstallOrigin.homebrewPrefix(appBundleURL: appBundleURL, caskroomURLs: caskroomURLs) else {
             throw HomebrewUpdateError.brewNotFound
         }
+        let cask = try HomebrewCask.installed(prefix: prefix)
         let brew = prefix.appendingPathComponent("bin/brew").path
         guard FileManager.default.isExecutableFile(atPath: brew) else { throw HomebrewUpdateError.brewNotFound }
         let environment = Self.brewEnvironment(brewPath: brew)
@@ -241,7 +269,7 @@ extension HomebrewUpdaterController.Dependencies {
             binary: brew, arguments: ["update"], environment: environment, label: "homebrew-update")
         return try await SubprocessRunner.runToCompletion(
             binary: brew,
-            arguments: ["upgrade", "--cask", "steipete/tap/codexbar"],
+            arguments: ["upgrade", "--cask", cask.qualifiedName],
             environment: environment,
             label: "homebrew-upgrade")
     }

@@ -162,6 +162,8 @@
 "Could not start codex login" = "Không thể bắt đầu đăng nhập codex";
 "Could not switch system account" = "Không thể không chuyển đổi tài khoản hệ thống";
 "Credits" = "Tín dụng";
+"Top-up credits" = "Tín dụng nạp thêm";
+"Remaining" = "Còn lại";
 "Individual credits" = "Tín dụng cá nhân";
 "Workspace" = "Không gian làm việc";
 "Credits history" = "Lịch sử tín dụng";

@@ -85,8 +85,12 @@ enum JetBrainsQuotaLogReader {
         guard values.count == numericFields.count, values.allSatisfy({ $0.isFinite && $0 >= 0 }), values[3] > 0 else {
             return nil
         }
+        // The optional topUpQuota group appends current, maximum, available after the tariff values.
+        let topUp = values.count == 8
+            ? JetBrainsTopUpQuota(maximum: values[6], available: values[7])
+            : nil
         return (record.timestamp, JetBrainsQuotaInfo(
-            type: "Available", used: values[2], maximum: values[3], available: values[4], until: until))
+            type: "Available", used: values[2], maximum: values[3], available: values[4], until: until, topUp: topUp))
     }
 
     static func parseRefillLine(_ line: String) -> JetBrainsRefillInfo? {

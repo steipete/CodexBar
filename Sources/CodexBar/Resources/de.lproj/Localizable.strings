@@ -162,6 +162,8 @@
 "Could not start codex login" = "Die Codex-Anmeldung konnte nicht gestartet werden";
 "Could not switch system account" = "Das Systemkonto konnte nicht gewechselt werden";
 "Credits" = "Credits";
+"Top-up credits" = "Aufgeladene Credits";
+"Remaining" = "Übrig";
 "Credits history" = "Credits-Geschichte";
 "Cursor login failed" = "Die Cursor-Anmeldung ist fehlgeschlagen";
 "Custom" = "Benutzerdefiniert";

@@ -163,6 +163,8 @@
 "Could not start codex login" = "Не удалось запустить вход в Codex";
 "Could not switch system account" = "Не удалось переключить системный аккаунт";
 "Credits" = "Кредиты";
+"Top-up credits" = "Дополнительные кредиты";
+"Remaining" = "Осталось";
 "Individual credits" = "Индивидуальные кредиты";
 "Workspace" = "Рабочая область";
 "Credits history" = "История кредитов";

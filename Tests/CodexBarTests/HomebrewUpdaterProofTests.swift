@@ -15,7 +15,8 @@ final class HomebrewUpdaterProofTests: XCTestCase {
                 installedVersion: { "0.65.0" },
                 fetchCaskSource: { "version \"0.66.0\"" },
                 runUpgrade: {},
-                relaunch: {}),
+                relaunch: {},
+                cask: { .tap }),
             startScheduledChecks: false)
         await updater.performCheck()
         let directory = URL(fileURLWithPath: path)
@@ -23,7 +24,7 @@ final class HomebrewUpdaterProofTests: XCTestCase {
         try CodexBarLocalizationOverride.$appLanguage.withValue("en") {
             for width in [530.0, 320.0] {
                 try self.render(
-                    AboutUpdatesUnavailableView(reason: L("Managed by Homebrew"), command: .homebrew),
+                    AboutUpdatesUnavailableView(reason: L("Managed by Homebrew"), command: updater.manualUpdateCommand),
                     width: width,
                     to: directory.appendingPathComponent("before-\(Int(width)).png"))
                 try self.render(
