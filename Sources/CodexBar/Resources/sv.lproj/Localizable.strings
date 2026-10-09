@@ -2436,3 +2436,23 @@
 "show_most_used_provider_subtitle" = "Menyraden visar automatiskt leverantören som ligger närmast sin gräns.";
 
 "show_most_used_provider_title" = "Visa mest använda leverantör";
+
+/* Account provider usage and credentials */
+"Monthly AI tokens" = "Månatliga AI-token";
+"Aerostack cost history is not available." = "Kostnadshistorik för Aerostack är inte tillgänglig.";
+"Account JWT" = "JWT för kontot";
+"Saved in CodexBar's local config file. Replace when expired; CodexBar does not refresh it." = "Sparad i CodexBar:s lokala konfigurationsfil. Ersätt den när den löper ut; CodexBar förnyar den inte.";
+"Account JWT, not an Agent Endpoint key" = "JWT för kontot, inte en Agent Endpoint-nyckel";
+"Input tokens" = "Indatatoken";
+"Output tokens" = "Utdatatoken";
+"Cosmic AI cost history is not available." = "Kostnadshistorik för Cosmic AI är inte tillgänglig.";
+"Personal Access Token" = "Personlig åtkomsttoken";
+"Saved in CodexBar's local config file. Reads project usage only; bucket keys are not supported." = "Sparad i CodexBar:s lokala konfigurationsfil. Läser bara projektets användning; bucket-nycklar stöds inte.";
+"cos_…" = "cos_…";
+"Required. Usage covers this project only. Or set COSMIC_PROJECT_ID." = "Krävs. Användningen gäller endast detta projekt. Eller ställ in COSMIC_PROJECT_ID.";
+"Sail Research cost history is not available." = "Kostnadshistorik för Sail Research är inte tillgänglig.";
+"Sail Research API key" = "API-nyckel för Sail Research";
+"Saved in CodexBar's local config file. Or set SAIL_API_KEY." = "Sparad i CodexBar:s lokala konfigurationsfil. Eller ställ in SAIL_API_KEY.";
+"Sofya cost history is not available." = "Kostnadshistorik för Sofya är inte tillgänglig.";
+"Sofya API key" = "API-nyckel för Sofya";
+"Saved in CodexBar's local config file. Or set SOFYA_API_KEY." = "Sparad i CodexBar:s lokala konfigurationsfil. Eller ställ in SOFYA_API_KEY.";

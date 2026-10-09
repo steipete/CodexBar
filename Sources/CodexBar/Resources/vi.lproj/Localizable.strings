@@ -2438,3 +2438,23 @@
 "show_most_used_provider_subtitle" = "thanh menu được sử dụng nhiều nhất tự động hiển thị Nhà cung cấp gần nhất với giới hạn tốc độ của nó.";
 
 "show_most_used_provider_title" = "Hiển thị Nhà cung cấp";
+
+/* Account provider settings */
+"Monthly AI tokens" = "Token AI hằng tháng";
+"Aerostack cost history is not available." = "Không có lịch sử chi phí của Aerostack.";
+"Account JWT" = "JWT tài khoản";
+"Saved in CodexBar's local config file. Replace when expired; CodexBar does not refresh it." = "Được lưu trong tệp cấu hình cục bộ của CodexBar. Thay thế khi hết hạn; CodexBar không tự gia hạn.";
+"Account JWT, not an Agent Endpoint key" = "JWT tài khoản, không phải khóa Agent Endpoint";
+"Input tokens" = "Token đầu vào";
+"Output tokens" = "Token đầu ra";
+"Cosmic AI cost history is not available." = "Không có lịch sử chi phí của Cosmic AI.";
+"Personal Access Token" = "Token truy cập cá nhân";
+"Saved in CodexBar's local config file. Reads project usage only; bucket keys are not supported." = "Được lưu trong tệp cấu hình cục bộ của CodexBar. Chỉ đọc mức sử dụng của dự án; không hỗ trợ khóa bucket.";
+"cos_…" = "cos_…";
+"Required. Usage covers this project only. Or set COSMIC_PROJECT_ID." = "Bắt buộc. Mức sử dụng chỉ bao gồm dự án này. Hoặc đặt COSMIC_PROJECT_ID.";
+"Sail Research cost history is not available." = "Không có lịch sử chi phí của Sail Research.";
+"Sail Research API key" = "Khóa API Sail Research";
+"Saved in CodexBar's local config file. Or set SAIL_API_KEY." = "Được lưu trong tệp cấu hình cục bộ của CodexBar. Hoặc đặt SAIL_API_KEY.";
+"Sofya cost history is not available." = "Không có lịch sử chi phí của Sofya.";
+"Sofya API key" = "Khóa API Sofya";
+"Saved in CodexBar's local config file. Or set SOFYA_API_KEY." = "Được lưu trong tệp cấu hình cục bộ của CodexBar. Hoặc đặt SOFYA_API_KEY.";

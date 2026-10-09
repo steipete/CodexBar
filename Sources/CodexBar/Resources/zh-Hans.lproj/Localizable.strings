@@ -2430,3 +2430,23 @@
 "show_most_used_provider_subtitle" = "菜单栏会自动显示最接近速率限制的提供商。";
 
 "show_most_used_provider_title" = "显示用量最高的提供商";
+
+/* Account provider settings */
+"Monthly AI tokens" = "每月 AI token";
+"Aerostack cost history is not available." = "无法获取 Aerostack 费用历史。";
+"Account JWT" = "账户 JWT";
+"Saved in CodexBar's local config file. Replace when expired; CodexBar does not refresh it." = "保存在 CodexBar 的本地配置文件中。过期后请更换；CodexBar 不会自动刷新。";
+"Account JWT, not an Agent Endpoint key" = "账户 JWT，而非 Agent Endpoint 密钥";
+"Input tokens" = "输入 token";
+"Output tokens" = "输出 token";
+"Cosmic AI cost history is not available." = "无法获取 Cosmic AI 费用历史。";
+"Personal Access Token" = "个人访问令牌";
+"Saved in CodexBar's local config file. Reads project usage only; bucket keys are not supported." = "保存在 CodexBar 的本地配置文件中。仅读取项目用量；不支持存储桶密钥。";
+"cos_…" = "cos_…";
+"Required. Usage covers this project only. Or set COSMIC_PROJECT_ID." = "必填。用量仅涵盖此项目。也可设置 COSMIC_PROJECT_ID。";
+"Sail Research cost history is not available." = "无法获取 Sail Research 费用历史。";
+"Sail Research API key" = "Sail Research API 密钥";
+"Saved in CodexBar's local config file. Or set SAIL_API_KEY." = "保存在 CodexBar 的本地配置文件中。也可设置 SAIL_API_KEY。";
+"Sofya cost history is not available." = "无法获取 Sofya 费用历史。";
+"Sofya API key" = "Sofya API 密钥";
+"Saved in CodexBar's local config file. Or set SOFYA_API_KEY." = "保存在 CodexBar 的本地配置文件中。也可设置 SOFYA_API_KEY。";

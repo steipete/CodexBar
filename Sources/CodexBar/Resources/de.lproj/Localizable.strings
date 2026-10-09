@@ -2435,3 +2435,23 @@
 "merged_icon_source_frontmost_app" = "Anbieter-App im Vordergrund";
 /* Provider menu bar color */
 "Color by provider" = "Nach Anbieter einfärben";
+
+/* Account provider usage and credentials */
+"Monthly AI tokens" = "Monatliche KI-Tokens";
+"Aerostack cost history is not available." = "Der Kostenverlauf von Aerostack ist nicht verfügbar.";
+"Account JWT" = "Konto-JWT";
+"Saved in CodexBar's local config file. Replace when expired; CodexBar does not refresh it." = "Gespeichert in der lokalen Konfigurationsdatei von CodexBar. Nach Ablauf ersetzen; CodexBar erneuert das Token nicht.";
+"Account JWT, not an Agent Endpoint key" = "Konto-JWT, kein Agent Endpoint-Schlüssel";
+"Input tokens" = "Eingabe-Tokens";
+"Output tokens" = "Ausgabe-Tokens";
+"Cosmic AI cost history is not available." = "Der Kostenverlauf von Cosmic AI ist nicht verfügbar.";
+"Personal Access Token" = "Persönliches Zugriffstoken";
+"Saved in CodexBar's local config file. Reads project usage only; bucket keys are not supported." = "Gespeichert in der lokalen Konfigurationsdatei von CodexBar. Liest nur die Projektnutzung; Bucket-Schlüssel werden nicht unterstützt.";
+"cos_…" = "cos_…";
+"Required. Usage covers this project only. Or set COSMIC_PROJECT_ID." = "Erforderlich. Die Nutzung bezieht sich nur auf dieses Projekt. Alternativ COSMIC_PROJECT_ID setzen.";
+"Sail Research cost history is not available." = "Der Kostenverlauf von Sail Research ist nicht verfügbar.";
+"Sail Research API key" = "API-Schlüssel für Sail Research";
+"Saved in CodexBar's local config file. Or set SAIL_API_KEY." = "Gespeichert in der lokalen Konfigurationsdatei von CodexBar. Oder setzen Sie SAIL_API_KEY.";
+"Sofya cost history is not available." = "Der Kostenverlauf von Sofya ist nicht verfügbar.";
+"Sofya API key" = "API-Schlüssel für Sofya";
+"Saved in CodexBar's local config file. Or set SOFYA_API_KEY." = "Gespeichert in der lokalen Konfigurationsdatei von CodexBar. Oder setzen Sie SOFYA_API_KEY.";

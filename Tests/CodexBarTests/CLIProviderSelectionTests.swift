@@ -31,6 +31,10 @@ struct CLIProviderSelectionTests {
             "|museai|",
             "|lithosai|",
             "|workbuddy|",
+            "|cosmic|",
+            "|aerostack|",
+            "|sailresearch|",
+            "|sofya|",
             "|both|",
             "|all]",
         ]

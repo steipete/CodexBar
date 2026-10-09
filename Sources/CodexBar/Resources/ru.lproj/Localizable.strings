@@ -2438,3 +2438,23 @@
 "show_most_used_provider_subtitle" = "В строке меню автоматически отображается провайдер, ближайший к лимиту.";
 
 "show_most_used_provider_title" = "Показывать провайдера с наибольшим использованием";
+
+/* Account provider settings */
+"Monthly AI tokens" = "Токены ИИ за месяц";
+"Aerostack cost history is not available." = "История затрат Aerostack недоступна.";
+"Account JWT" = "JWT учётной записи";
+"Saved in CodexBar's local config file. Replace when expired; CodexBar does not refresh it." = "Сохраняется в локальном файле конфигурации CodexBar. Замените по истечении срока действия; CodexBar не обновляет его.";
+"Account JWT, not an Agent Endpoint key" = "JWT учётной записи, а не ключ Agent Endpoint";
+"Input tokens" = "Входные токены";
+"Output tokens" = "Выходные токены";
+"Cosmic AI cost history is not available." = "История затрат Cosmic AI недоступна.";
+"Personal Access Token" = "Персональный токен доступа";
+"Saved in CodexBar's local config file. Reads project usage only; bucket keys are not supported." = "Сохраняется в локальном файле конфигурации CodexBar. Читает только данные об использовании проекта; ключи бакетов не поддерживаются.";
+"cos_…" = "cos_…";
+"Required. Usage covers this project only. Or set COSMIC_PROJECT_ID." = "Обязательно. Данные об использовании относятся только к этому проекту. Или задайте COSMIC_PROJECT_ID.";
+"Sail Research cost history is not available." = "История затрат Sail Research недоступна.";
+"Sail Research API key" = "API-ключ Sail Research";
+"Saved in CodexBar's local config file. Or set SAIL_API_KEY." = "Сохраняется в локальном файле конфигурации CodexBar. Или задайте SAIL_API_KEY.";
+"Sofya cost history is not available." = "История затрат Sofya недоступна.";
+"Sofya API key" = "API-ключ Sofya";
+"Saved in CodexBar's local config file. Or set SOFYA_API_KEY." = "Сохраняется в локальном файле конфигурации CodexBar. Или задайте SOFYA_API_KEY.";

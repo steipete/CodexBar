@@ -2415,3 +2415,23 @@
 "show_most_used_provider_subtitle" = "選單列會自動顯示最接近用量上限的提供者。";
 
 "show_most_used_provider_title" = "顯示使用量最高的提供者";
+
+/* Account provider settings */
+"Monthly AI tokens" = "每月 AI token";
+"Aerostack cost history is not available." = "無法取得 Aerostack 費用歷史。";
+"Account JWT" = "帳戶 JWT";
+"Saved in CodexBar's local config file. Replace when expired; CodexBar does not refresh it." = "儲存在 CodexBar 的本機設定檔中。到期後請更換；CodexBar 不會自動更新。";
+"Account JWT, not an Agent Endpoint key" = "帳戶 JWT，而非 Agent Endpoint 金鑰";
+"Input tokens" = "輸入 token";
+"Output tokens" = "輸出 token";
+"Cosmic AI cost history is not available." = "無法取得 Cosmic AI 費用歷史。";
+"Personal Access Token" = "個人存取權杖";
+"Saved in CodexBar's local config file. Reads project usage only; bucket keys are not supported." = "儲存在 CodexBar 的本機設定檔中。僅讀取專案用量；不支援儲存桶金鑰。";
+"cos_…" = "cos_…";
+"Required. Usage covers this project only. Or set COSMIC_PROJECT_ID." = "必填。用量僅涵蓋此專案。也可設定 COSMIC_PROJECT_ID。";
+"Sail Research cost history is not available." = "無法取得 Sail Research 費用歷史。";
+"Sail Research API key" = "Sail Research API 金鑰";
+"Saved in CodexBar's local config file. Or set SAIL_API_KEY." = "儲存在 CodexBar 的本機設定檔中。也可設定 SAIL_API_KEY。";
+"Sofya cost history is not available." = "無法取得 Sofya 費用歷史。";
+"Sofya API key" = "Sofya API 金鑰";
+"Saved in CodexBar's local config file. Or set SOFYA_API_KEY." = "儲存在 CodexBar 的本機設定檔中。也可設定 SOFYA_API_KEY。";

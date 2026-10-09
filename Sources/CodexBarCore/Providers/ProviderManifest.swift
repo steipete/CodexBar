@@ -97,5 +97,9 @@ public enum ProviderManifest {
         MuseAIProviderDescriptor.descriptor,
         LithosAIProviderDescriptor.descriptor,
         WorkBuddyProviderDescriptor.descriptor,
+        CosmicProviderDescriptor.descriptor,
+        AerostackProviderDescriptor.descriptor,
+        SailResearchProviderDescriptor.descriptor,
+        SofyaProviderDescriptor.descriptor,
     ]
 }

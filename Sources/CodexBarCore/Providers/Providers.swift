@@ -111,6 +111,10 @@ public enum UsageProvider: String, CaseIterable, Sendable, Codable {
     case museai
     case lithosai
     case workbuddy
+    case cosmic
+    case aerostack
+    case sailresearch
+    case sofya
 }
 
 // swiftformat:enable sortDeclarations

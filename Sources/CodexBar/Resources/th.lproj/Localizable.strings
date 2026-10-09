@@ -2441,3 +2441,23 @@
 "show_most_used_provider_subtitle" = "แถบเมนูจะแสดงผู้ให้บริการที่ใกล้เคียงกับขีดจํากัดอัตรามากที่สุดโดยอัตโนมัติ";
 
 "show_most_used_provider_title" = "แสดงผู้ให้บริการที่ใช้บ่อยที่สุด";
+
+/* Account provider settings */
+"Monthly AI tokens" = "โทเค็น AI รายเดือน";
+"Aerostack cost history is not available." = "ไม่มีประวัติค่าใช้จ่ายของ Aerostack";
+"Account JWT" = "JWT ของบัญชี";
+"Saved in CodexBar's local config file. Replace when expired; CodexBar does not refresh it." = "บันทึกในไฟล์กำหนดค่าในเครื่องของ CodexBar โปรดเปลี่ยนเมื่อหมดอายุ CodexBar จะไม่ต่ออายุให้";
+"Account JWT, not an Agent Endpoint key" = "JWT ของบัญชี ไม่ใช่คีย์ Agent Endpoint";
+"Input tokens" = "โทเค็นอินพุต";
+"Output tokens" = "โทเค็นเอาต์พุต";
+"Cosmic AI cost history is not available." = "ไม่มีประวัติค่าใช้จ่ายของ Cosmic AI";
+"Personal Access Token" = "โทเค็นการเข้าถึงส่วนบุคคล";
+"Saved in CodexBar's local config file. Reads project usage only; bucket keys are not supported." = "บันทึกในไฟล์กำหนดค่าในเครื่องของ CodexBar อ่านเฉพาะการใช้งานโครงการ ไม่รองรับคีย์บักเก็ต";
+"cos_…" = "cos_…";
+"Required. Usage covers this project only. Or set COSMIC_PROJECT_ID." = "จำเป็นต้องระบุ การใช้งานครอบคลุมเฉพาะโครงการนี้ หรือตั้งค่า COSMIC_PROJECT_ID";
+"Sail Research cost history is not available." = "ไม่มีประวัติค่าใช้จ่ายของ Sail Research";
+"Sail Research API key" = "คีย์ API ของ Sail Research";
+"Saved in CodexBar's local config file. Or set SAIL_API_KEY." = "บันทึกในไฟล์กำหนดค่าในเครื่องของ CodexBar หรือตั้งค่า SAIL_API_KEY";
+"Sofya cost history is not available." = "ไม่มีประวัติค่าใช้จ่ายของ Sofya";
+"Sofya API key" = "คีย์ API ของ Sofya";
+"Saved in CodexBar's local config file. Or set SOFYA_API_KEY." = "บันทึกในไฟล์กำหนดค่าในเครื่องของ CodexBar หรือตั้งค่า SOFYA_API_KEY";

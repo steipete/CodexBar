@@ -775,6 +775,7 @@ struct LocalizationLanguageCatalogTests {
             "byte_unit_kilobyte",
             "byte_unit_megabyte",
             "cb_...",
+            "cos_…",
             "cpk-...",
             "curl 'https://ai.zoom.us/ai-computer/api/v1/credits/status' -H 'authorization: ...'",
             "default",

@@ -97,5 +97,9 @@ enum ProviderImplementationManifest {
         PluginCookieProviderImplementation(spec: MuseAIProviderDescriptor.spec),
         PluginCookieProviderImplementation(spec: LithosAIProviderDescriptor.spec),
         PluginCookieProviderImplementation(spec: WorkBuddyProviderDescriptor.spec),
+        PluginAPIKeyProviderImplementation(spec: CosmicProviderDescriptor.spec),
+        PluginAPIKeyProviderImplementation(spec: AerostackProviderDescriptor.spec),
+        PluginAPIKeyProviderImplementation(spec: SailResearchProviderDescriptor.spec),
+        PluginAPIKeyProviderImplementation(spec: SofyaProviderDescriptor.spec),
     ]
 }

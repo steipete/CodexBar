@@ -4,6 +4,7 @@
 
 ### Added
 
+- Providers: add Cosmic AI project token quotas, Aerostack monthly AI-token usage, Sail Research credit balance and spend, and Sofya plan/purchased credits through bundled plugins, with unsupported resets and quotas left unavailable (#4354, #4355, #4357, #4358). Thanks @spencer-shadley!
 - Linux: add an opt-in compact Quick View with provider tabs and cached spending warnings, keeping the full Usage & Spend window as the default (#3973). Thanks @stackingrockss!
 - Localization: complete app and widget translations in all 23 supported languages, including credential alerts, share cards, and provider settings, with widgets following the system language (#4223). Thanks @DGPisces and @Yuxin-Qiao!
 - Integrations: link Starbridge's community-maintained Android and web quota display (#4371). Thanks @T0mSIlver!

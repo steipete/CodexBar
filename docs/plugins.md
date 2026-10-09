@@ -80,6 +80,11 @@ honor pinned-account fallback, and enforce their existing redirect policies.
 
 ## Minimal plugin
 
+[Cosmic AI](cosmic.md), [Aerostack](aerostack.md), [Sail Research](sailresearch.md), and [Sofya](sofya.md)
+use the shared API credential spec and fixed-origin GET requests on both engines. Cosmic adds an explicit Project ID
+through the spec's workspace field. Their scripts preserve each API's account scope, separate credit pools, and
+reported periods; missing quotas and reset dates remain unavailable.
+
 ```js
 defineProvider({
   id: "acme-usage",

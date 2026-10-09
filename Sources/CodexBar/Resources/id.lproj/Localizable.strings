@@ -2440,3 +2440,23 @@
 "show_most_used_provider_subtitle" = "Menu bar otomatis menampilkan penyedia yang paling dekat batas penggunaannya.";
 
 "show_most_used_provider_title" = "Tampilkan penyedia paling sering digunakan";
+
+/* Account provider settings */
+"Monthly AI tokens" = "Token AI bulanan";
+"Aerostack cost history is not available." = "Riwayat biaya Aerostack tidak tersedia.";
+"Account JWT" = "JWT akun";
+"Saved in CodexBar's local config file. Replace when expired; CodexBar does not refresh it." = "Disimpan dalam file konfigurasi lokal CodexBar. Ganti saat kedaluwarsa; CodexBar tidak memperbaruinya.";
+"Account JWT, not an Agent Endpoint key" = "JWT akun, bukan kunci Agent Endpoint";
+"Input tokens" = "Token input";
+"Output tokens" = "Token output";
+"Cosmic AI cost history is not available." = "Riwayat biaya Cosmic AI tidak tersedia.";
+"Personal Access Token" = "Token akses pribadi";
+"Saved in CodexBar's local config file. Reads project usage only; bucket keys are not supported." = "Disimpan dalam file konfigurasi lokal CodexBar. Hanya membaca penggunaan proyek; kunci bucket tidak didukung.";
+"cos_…" = "cos_…";
+"Required. Usage covers this project only. Or set COSMIC_PROJECT_ID." = "Wajib diisi. Penggunaan hanya mencakup proyek ini. Atau atur COSMIC_PROJECT_ID.";
+"Sail Research cost history is not available." = "Riwayat biaya Sail Research tidak tersedia.";
+"Sail Research API key" = "Kunci API Sail Research";
+"Saved in CodexBar's local config file. Or set SAIL_API_KEY." = "Disimpan dalam file konfigurasi lokal CodexBar. Atau atur SAIL_API_KEY.";
+"Sofya cost history is not available." = "Riwayat biaya Sofya tidak tersedia.";
+"Sofya API key" = "Kunci API Sofya";
+"Saved in CodexBar's local config file. Or set SOFYA_API_KEY." = "Disimpan dalam file konfigurasi lokal CodexBar. Atau atur SOFYA_API_KEY.";

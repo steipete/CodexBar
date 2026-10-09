@@ -2405,3 +2405,23 @@
 "show_most_used_provider_subtitle" = "메뉴 막대에 사용 한도에 가장 가까운 공급자를 자동으로 표시합니다.";
 
 "show_most_used_provider_title" = "가장 많이 사용한 공급자 표시";
+
+/* Account provider settings */
+"Monthly AI tokens" = "월간 AI 토큰";
+"Aerostack cost history is not available." = "Aerostack 비용 내역을 확인할 수 없습니다.";
+"Account JWT" = "계정 JWT";
+"Saved in CodexBar's local config file. Replace when expired; CodexBar does not refresh it." = "CodexBar의 로컬 구성 파일에 저장됩니다. 만료되면 교체하세요. CodexBar는 이를 갱신하지 않습니다.";
+"Account JWT, not an Agent Endpoint key" = "Agent Endpoint 키가 아닌 계정 JWT";
+"Input tokens" = "입력 토큰";
+"Output tokens" = "출력 토큰";
+"Cosmic AI cost history is not available." = "Cosmic AI 비용 내역을 확인할 수 없습니다.";
+"Personal Access Token" = "개인 액세스 토큰";
+"Saved in CodexBar's local config file. Reads project usage only; bucket keys are not supported." = "CodexBar의 로컬 구성 파일에 저장됩니다. 프로젝트 사용량만 읽으며 버킷 키는 지원하지 않습니다.";
+"cos_…" = "cos_…";
+"Required. Usage covers this project only. Or set COSMIC_PROJECT_ID." = "필수 항목입니다. 이 프로젝트의 사용량만 포함합니다. 또는 COSMIC_PROJECT_ID를 설정하세요.";
+"Sail Research cost history is not available." = "Sail Research 비용 내역을 확인할 수 없습니다.";
+"Sail Research API key" = "Sail Research API 키";
+"Saved in CodexBar's local config file. Or set SAIL_API_KEY." = "CodexBar의 로컬 구성 파일에 저장됩니다. 또는 SAIL_API_KEY를 설정하세요.";
+"Sofya cost history is not available." = "Sofya 비용 내역을 확인할 수 없습니다.";
+"Sofya API key" = "Sofya API 키";
+"Saved in CodexBar's local config file. Or set SOFYA_API_KEY." = "CodexBar의 로컬 구성 파일에 저장됩니다. 또는 SOFYA_API_KEY를 설정하세요.";

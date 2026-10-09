@@ -8,7 +8,7 @@ read_when:
 
 # Providers
 
-CodexBar currently registers 92 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
+CodexBar currently registers 96 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
 OpenCode vs OpenCode Go, because the auth source and quota shape differ.
 
 ## Fetch strategies (current)
@@ -168,6 +168,10 @@ complete when the available scan window covers fewer days.
 | [X API](xapi.md) | Chrome or manual console.x.com cookies for prepaid and free credits, including negative balances. |
 | [LithosAI](lithosai.md) | Chrome or manual console cookies for prepaid USD balance and optional UTC spend. |
 | [WorkBuddy](workbuddy.md) | Chrome or manual www.workbuddy.cn cookies for the monthly credits allowance, plan name, and cycle reset. |
+| [Cosmic AI](cosmic.md) | Explicit Personal Access Token and Project ID for separate project AI input/output counters and allowances. |
+| [Aerostack](aerostack.md) | Explicit account JWT for monthly AI tokens used and the observed account allowance. |
+| [Sail Research](sailresearch.md) | API key for organization credit balance and combined inference/Sailbox spend. |
+| [Sofya](sofya.md) | API key for separate account plan and purchased credit balances, eligibility, and the reported monthly reset. |
 
 <!-- End generated provider additions -->
 
