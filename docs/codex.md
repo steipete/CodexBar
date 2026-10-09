@@ -568,6 +568,11 @@ day; billing keeps its existing request dates and range totals. No timing appear
 Whole-turn output includes reasoning, tools, and waits; first model token can precede visible answer text.
 See the [metric contract and synthetic verification](spend-turn-performance-validation.md).
 
+The collapsed **Tool activity** section reads native operations only when expanded. It separates recorded
+durations, nonzero exits, tool errors and unknown outcomes, with All / Needs review / Slow filters and
+on-demand input/result previews. Hide personal information masks previews and disables detail reads.
+See the [tool activity contract and limits](spend-tool-activity.md). Billing totals and exports are unchanged.
+
 Projects are grouped by account source and full directory identity, so equal folder names stay separate and
 renaming a project does not split its totals. Project and session rows use saved names from the selected Codex
 home's project metadata, matching each original rollout directory to the longest root on directory boundaries.

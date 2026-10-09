@@ -26,6 +26,7 @@ struct CostUsageCoverageCompatibilityTests {
     }
 
     @Test(arguments: [
+        "0d8f9504f8e63d0f",
         "c0f8e9be04d824c2",
         "89c0662767e633ea",
         "e1088fb29c221187",

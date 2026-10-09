@@ -833,6 +833,8 @@ struct LocalizationLanguageCatalogTests {
             "spend_performance_rate",
             "spend_performance_rate_range",
             "spend_performance_seconds",
+            "spend_tools_coverage",
+            "spend_tools_milliseconds",
         ]
         let unchanged = Set(english.keys.filter { italian[$0] == english[$0] })
         #expect(unchanged == intentionallyUnchanged)

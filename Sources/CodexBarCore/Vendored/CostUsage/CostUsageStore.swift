@@ -122,6 +122,9 @@ actor CostUsageStore {
         parserHash: CodexParserHash.value)
     static let cacheGeneration = "sqlite:\(CostUsageStore.schemaVersion)"
     static let compatiblePredecessorParserHashes: Set<String> = [
+        "379b799bb4b91683", // Current main before tool inspection; stored rows and checkpoints are unchanged.
+        "7ce21041b7a36242", // Prior tool inspection stores survive upstream process cleanup.
+        "0d8f9504f8e63d0f", // On-demand tool inspection leaves current-main rows and checkpoints unchanged.
         "c0f8e9be04d824c2", // Revision 11 billing survives stricter completion timing validation.
         "89c0662767e633ea", // Current main row-string sharing survives bounded timing backfill.
         "e1088fb29c221187", // Revision 11 timing survives value-preserving row-string sharing.

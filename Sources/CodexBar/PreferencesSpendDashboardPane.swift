@@ -1073,6 +1073,14 @@ struct SpendSessionRows: View {
                     if let performance = row.turnPerformance {
                         SpendSessionPerformanceView(summary: performance)
                     }
+                    if let source = row.toolActivitySource {
+                        SpendSessionToolActivityView(
+                            source: source,
+                            lastActivity: row.lastActivity,
+                            range: spendToolActivityRange(group: self.group),
+                            timeZone: self.group.timeZone,
+                            hidePersonalInfo: self.hidePersonalInfo)
+                    }
                 }
                 .padding(.vertical, 12)
             }

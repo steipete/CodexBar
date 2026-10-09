@@ -955,6 +955,9 @@ extension CostUsageStoreTests {
 
 extension CostUsageStoreTests {
     @Test(arguments: [
+        "379b799bb4b91683", // Current main before on-demand tool inspection.
+        "7ce21041b7a36242", // Prior tool inspection build before upstream process cleanup.
+        "0d8f9504f8e63d0f", // Current main before on-demand tool inspection.
         "c0f8e9be04d824c2", // Timing before supplied start timestamps were validated.
         "89c0662767e633ea", // Upstream row-string sharing before timing.
         "e1088fb29c221187", // Timing before value-preserving row-string sharing.
@@ -1009,6 +1012,9 @@ extension CostUsageStoreTests {
         let fixture = try StoreFixture()
         defer { fixture.remove() }
         #expect(CostUsageStore.compatiblePredecessorParserHashes == [
+            "379b799bb4b91683",
+            "7ce21041b7a36242",
+            "0d8f9504f8e63d0f",
             "c0f8e9be04d824c2",
             "89c0662767e633ea",
             "e1088fb29c221187",

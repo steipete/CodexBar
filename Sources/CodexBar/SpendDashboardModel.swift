@@ -343,6 +343,7 @@ struct SpendDashboardModel: Equatable, Sendable {
         let totalCost: Double?
         let modelName: String?
         var turnPerformance: CostUsageTurnPerformanceSummary?
+        var toolActivitySource: SessionToolActivitySource?
     }
 
     struct HourlyPoint: Identifiable, Equatable, Sendable {
@@ -1498,7 +1499,10 @@ struct SpendDashboardModel: Equatable, Sendable {
                     totalTokens: session.totalTokens,
                     totalCost: session.costUSD.map { $0 * summary.costMultiplier },
                     modelName: modelName,
-                    turnPerformance: CostUsageTurnPerformanceSummary(samples: performanceSamples))
+                    turnPerformance: CostUsageTurnPerformanceSummary(samples: performanceSamples),
+                    // Provider-specific by design: Only native Codex logs supply owned item_completed tool records.
+                    toolActivitySource: summary.input.provider == .codex && summary.input.sourceKind == .native
+                        ? session.toolActivitySource : nil)
             }
         }
         .sorted(by: Self.sessionOrder)

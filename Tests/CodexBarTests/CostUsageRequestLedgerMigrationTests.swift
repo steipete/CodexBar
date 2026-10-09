@@ -4,6 +4,56 @@ import Testing
 
 @Suite(.serialized)
 struct CostUsageRequestLedgerMigrationTests {
+    @Test(arguments: ["379b799bb4b91683", "7ce21041b7a36242", "0d8f9504f8e63d0f", "7ff985e81e281a11"])
+    func `tool inspection upgrade retains saved pricing history and checkpoints`(parserHash: String) async throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let day = try env.makeLocalNoon(year: 2026, month: 9, day: 10)
+        let file = try env.writeCodexSessionFile(
+            day: day,
+            filename: "tool-upgrade.jsonl",
+            contents: Self.offsetLedgerLines(day: day, env: env, scenario: (ledgerFirst: true, offsetMs: 400)))
+        _ = Self.report(day: day, options: Self.options(env: env))
+        var cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        var usage = try #require(cache.files[file.path])
+        usage.codexRows = usage.codexRows?.map { row in
+            var row = row
+            row.pricingMode = "priority"
+            return row
+        }
+        let savedRows = try #require(usage.codexRows)
+        #expect(!savedRows.isEmpty)
+        cache.files[file.path] = usage
+        let upgradeRoot = env.root.appendingPathComponent("upgrade-cache")
+        let predecessor = CostUsageStore(
+            cacheRoot: upgradeRoot,
+            schemaVersion: CostUsageStore.combinedSchemaVersion(
+                base: CostUsageStore.baseSchemaVersion, parserHash: parserHash),
+            parserHash: parserHash)
+        #expect(!predecessor.syncSaveCodexCache(
+            cache,
+            calendar: .current,
+            requestedScanWindow: (sinceKey: "2026-09-10", untilKey: "2026-09-10")).catchUpRequired)
+        let before = await predecessor.readSnapshot()
+        let inode = try #require(FileManager.default.attributesOfItem(
+            atPath: predecessor.databaseURL.path)[.systemFileNumber] as? NSNumber)
+        // History and saved pricing must survive even when the original log is no longer available.
+        try FileManager.default.removeItem(at: file)
+        for _ in 0..<2 {
+            let current = CostUsageStore(cacheRoot: upgradeRoot)
+            #expect(await current.readSnapshot() == before)
+            #expect(await current.rebuildCount == 0)
+            #expect(await current.configuration()?.userVersion == Int(CostUsageStore.schemaVersion))
+            let adopted = current.syncLoadCodexCache(calendar: .current)
+            #expect(adopted.files[file.path]?.codexRows == savedRows)
+            #expect(adopted.files[file.path]?.codexRequestLedgerState == usage.codexRequestLedgerState)
+            #expect(adopted.files[file.path]?.parsedBytes == usage.parsedBytes)
+            #expect(adopted.files[file.path]?.codexScanComplete == usage.codexScanComplete)
+            #expect(try FileManager.default.attributesOfItem(
+                atPath: current.databaseURL.path)[.systemFileNumber] as? NSNumber == inode)
+        }
+    }
+
     @Test(arguments: [5, 6, 7, 8], [false, true])
     func `bounded ledger upgrades retain prior pricing across reopen and append`(
         revision: Int,

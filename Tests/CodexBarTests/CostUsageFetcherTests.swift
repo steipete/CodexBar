@@ -1131,6 +1131,7 @@ extension CostUsageFetcherTests {
         #expect(first.requestCount == nil)
         #expect(first.modelBreakdowns.map(\.modelName) == ["gpt-5.4"])
         #expect(first.costUSD != nil)
+        #expect(first.toolActivitySource == SessionToolActivitySource(fileURL: firstURL, sessionID: "first-session"))
 
         let cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
         let range = CostUsageScanner.CostUsageDayRange(since: day, until: day)

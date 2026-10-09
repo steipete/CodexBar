@@ -2432,6 +2432,48 @@
 "show_most_used_provider_subtitle" = "菜单栏会自动显示最接近速率限制的提供商。";
 
 "show_most_used_provider_title" = "显示用量最高的提供商";
+
+/* Tool activity */
+"spend_tools_title" = "工具活动";
+"spend_tools_loading" = "正在读取本地操作…";
+"spend_tools_unavailable" = "无法读取此日志，可刷新重试。";
+"spend_tools_scope" = "此本地日志中的原生操作 · 按图表所选完成日期筛选";
+"spend_tools_operations" = "操作次数";
+"spend_tools_attention" = "需留意";
+"spend_tools_timed" = "有耗时记录";
+"spend_tools_coverage" = "%@ / %@";
+"spend_tools_partial" = "记录不完整：部分记录尚未写完、无法解析或超出读取上限。";
+"spend_tools_longest" = "最长执行耗时";
+"spend_tools_filter" = "筛选操作";
+"spend_tools_filter_all" = "全部";
+"spend_tools_filter_attention" = "需留意";
+"spend_tools_filter_slow" = "较慢（≥10 秒）";
+"spend_tools_empty" = "所选日期没有已记录的原生工具操作。";
+"spend_tools_no_matches" = "没有符合筛选条件的操作。";
+"spend_tools_more" = "显示更多操作";
+"spend_tools_hidden" = "关闭“隐藏个人信息”后可查看命令和结果详情。";
+"spend_tools_changed" = "日志已变化或无法读取，请刷新工具活动后再查看详情。";
+"spend_tools_input" = "命令 / 参数";
+"spend_tools_output" = "结果";
+"spend_tools_no_details" = "此操作没有记录输入或结果。";
+"spend_tools_truncated" = "仅显示预览 · 较大的输入或输出已截短";
+"spend_tools_interval" = "记录间隔";
+"spend_tools_kind_command" = "命令执行";
+"spend_tools_kind_mcp" = "MCP 工具";
+"spend_tools_kind_dynamic" = "动态工具";
+"spend_tools_kind_fileChange" = "文件修改";
+"spend_tools_kind_webSearch" = "网页搜索";
+"spend_tools_kind_image" = "图像操作";
+"spend_tools_kind_extensionItem" = "扩展操作";
+"spend_tools_exit" = "退出码 %@";
+"spend_tools_outcome_completed" = "已完成";
+"spend_tools_outcome_nonzeroExit" = "非零退出码";
+"spend_tools_outcome_toolError" = "工具错误";
+"spend_tools_outcome_declined" = "已拒绝";
+"spend_tools_outcome_unknown" = "未记录结果状态";
+"spend_tools_help" = "统计原生操作，不重复计算模型调度调用。非零退出码不代表任务失败。优先使用工具原生耗时，起止记录间隔会另行标注。并行操作的耗时不会相加为任务总耗时。";
+"spend_tools_raw_preview" = "原始记录预览";
+"spend_tools_milliseconds" = "%@ 毫秒";
 "Credit balance" = "额度余额";
 "Monthly credits used" = "本月已用额度";
 

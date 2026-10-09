@@ -2443,6 +2443,48 @@
 "show_most_used_provider_subtitle" = "La barra menu mostra automaticamente il provider più vicino al limite.";
 
 "show_most_used_provider_title" = "Mostra provider più usato";
+
+/* Tool activity */
+"spend_tools_title" = "Attività degli strumenti";
+"spend_tools_loading" = "Lettura delle operazioni locali…";
+"spend_tools_unavailable" = "Impossibile leggere questo registro. Aggiorna per riprovare.";
+"spend_tools_scope" = "Operazioni native in questo registro locale · la data di completamento segue il filtro del grafico";
+"spend_tools_operations" = "Operazioni";
+"spend_tools_attention" = "Da verificare";
+"spend_tools_timed" = "Durata disponibile";
+"spend_tools_coverage" = "%@ / %@";
+"spend_tools_partial" = "Copertura parziale: alcune voci sono incomplete, non supportate o oltre il limite di scansione.";
+"spend_tools_longest" = "Esecuzione più lunga";
+"spend_tools_filter" = "Filtra operazioni";
+"spend_tools_filter_all" = "Tutte";
+"spend_tools_filter_attention" = "Da verificare";
+"spend_tools_filter_slow" = "Lente (≥10 s)";
+"spend_tools_empty" = "Nessuna operazione nativa degli strumenti registrata per queste date.";
+"spend_tools_no_matches" = "Nessuna operazione corrisponde a questo filtro.";
+"spend_tools_more" = "Mostra altre operazioni";
+"spend_tools_hidden" = "Disattiva Nascondi informazioni personali per esaminare i dettagli del comando e del risultato.";
+"spend_tools_changed" = "Il registro è cambiato o non è disponibile. Aggiorna l’attività degli strumenti prima di esaminare i dettagli.";
+"spend_tools_input" = "Comando / argomenti";
+"spend_tools_output" = "Risultato";
+"spend_tools_no_details" = "Questa operazione non ha dati di input o risultati registrati.";
+"spend_tools_truncated" = "Solo anteprima · input o output di grandi dimensioni sono stati abbreviati";
+"spend_tools_interval" = "Intervallo registrato";
+"spend_tools_kind_command" = "Comando";
+"spend_tools_kind_mcp" = "Strumento MCP";
+"spend_tools_kind_dynamic" = "Strumento dinamico";
+"spend_tools_kind_fileChange" = "Modifica file";
+"spend_tools_kind_webSearch" = "Ricerca sul web";
+"spend_tools_kind_image" = "Operazione su immagine";
+"spend_tools_kind_extensionItem" = "Operazione di estensione";
+"spend_tools_exit" = "Codice di uscita %@";
+"spend_tools_outcome_completed" = "Completata";
+"spend_tools_outcome_nonzeroExit" = "Codice di uscita diverso da zero";
+"spend_tools_outcome_toolError" = "Errore dello strumento";
+"spend_tools_outcome_declined" = "Rifiutata";
+"spend_tools_outcome_unknown" = "Esito non registrato";
+"spend_tools_help" = "Conta le operazioni native, non le chiamate di orchestrazione del modello. Un codice di uscita diverso da zero non significa che l’attività sia fallita. Si preferisce la durata nativa; gli intervalli registrati sono indicati esplicitamente. Le durate delle operazioni parallele non vengono sommate alla durata dell’attività.";
+"spend_tools_raw_preview" = "Anteprima della voce originale";
+"spend_tools_milliseconds" = "%@ ms";
 "Credit balance" = "Saldo crediti";
 "Monthly credits used" = "Crediti utilizzati questo mese";
 
