@@ -2503,3 +2503,6 @@
 "Sofya cost history is not available." = "Sofya のコスト履歴は利用できません。";
 "Sofya API key" = "Sofya API キー";
 "Saved in CodexBar's local config file. Or set SOFYA_API_KEY." = "CodexBar のローカル設定ファイルに保存されます。または、SOFYA_API_KEY を設定してください。";
+"Pace sign" = "ペースの符号";
+"Ahead of pace is +" = "ペース超過を + で表示";
+"Reserve is +" = "余裕を + で表示";

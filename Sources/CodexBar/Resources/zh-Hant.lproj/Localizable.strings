@@ -2481,3 +2481,6 @@
 "Sofya cost history is not available." = "無法取得 Sofya 費用歷史。";
 "Sofya API key" = "Sofya API 金鑰";
 "Saved in CodexBar's local config file. Or set SOFYA_API_KEY." = "儲存在 CodexBar 的本機設定檔中。也可設定 SOFYA_API_KEY。";
+"Pace sign" = "使用節奏符號";
+"Ahead of pace is +" = "超出節奏為 +";
+"Reserve is +" = "餘量為 +";

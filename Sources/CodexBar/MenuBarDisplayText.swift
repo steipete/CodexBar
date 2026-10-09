@@ -41,13 +41,13 @@ enum MenuBarDisplayText {
         return UsageFormatter.percentString(percent)
     }
 
-    static func paceText(pace: UsagePace?) -> String? {
+    static func paceText(pace: UsagePace?, reservePositive: Bool = false) -> String? {
         guard let pace else { return nil }
         let deltaValue = Int(abs(pace.deltaPercent).rounded())
         if deltaValue == 0 {
             return "0%"
         }
-        let sign = pace.deltaPercent >= 0 ? "+" : "-"
+        let sign = (pace.deltaPercent >= 0) != reservePositive ? "+" : "-"
         return "\(sign)\(deltaValue)%"
     }
 
@@ -114,6 +114,7 @@ enum MenuBarDisplayText {
         mode: MenuBarDisplayMode,
         percentWindow: RateWindow?,
         pace: UsagePace? = nil,
+        paceReservePositive: Bool = false,
         showUsed: Bool,
         resetTimeDisplayStyle: ResetTimeDisplayStyle = .countdown,
         showsResetTimeWhenExhausted: Bool = false,
@@ -143,12 +144,12 @@ enum MenuBarDisplayText {
         case .pace:
             // Pace can be temporarily unavailable near a reset or when a provider omits window metadata.
             // Keep the selected quota visible instead of collapsing the status item to an icon-only state.
-            return self.paceText(pace: pace)
+            return self.paceText(pace: pace, reservePositive: paceReservePositive)
                 ?? self.percentText(window: percentWindow, showUsed: showUsed)
         case .both:
             guard let percent = percentText(window: percentWindow, showUsed: showUsed) else { return nil }
             // Fall back to percent-only when pace is unavailable (e.g. Copilot)
-            guard let paceText = Self.paceText(pace: pace) else { return percent }
+            guard let paceText = Self.paceText(pace: pace, reservePositive: paceReservePositive) else { return percent }
             return "\(percent) · \(paceText)"
         case .resetTime:
             guard let percentWindow else { return nil }

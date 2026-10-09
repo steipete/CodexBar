@@ -2506,3 +2506,6 @@
 "Sofya cost history is not available." = "Riwayat biaya Sofya tidak tersedia.";
 "Sofya API key" = "Kunci API Sofya";
 "Saved in CodexBar's local config file. Or set SOFYA_API_KEY." = "Disimpan dalam file konfigurasi lokal CodexBar. Atau atur SOFYA_API_KEY.";
+"Pace sign" = "Tanda laju penggunaan";
+"Ahead of pace is +" = "Di atas laju adalah +";
+"Reserve is +" = "Cadangan adalah +";

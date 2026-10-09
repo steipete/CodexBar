@@ -2506,3 +2506,6 @@
 "Sofya cost history is not available." = "Sofya maliyet geçmişi mevcut değil.";
 "Sofya API key" = "Sofya API anahtarı";
 "Saved in CodexBar's local config file. Or set SOFYA_API_KEY." = "CodexBar'ın yerel yapılandırma dosyasına kaydedilir. Veya SOFYA_API_KEY değerini ayarlayın.";
+"Pace sign" = "Kullanım hızı işareti";
+"Ahead of pace is +" = "Hızın üzerinde kullanım +";
+"Reserve is +" = "Rezerv +";

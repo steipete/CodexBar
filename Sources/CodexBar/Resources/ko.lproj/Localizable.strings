@@ -2471,3 +2471,6 @@
 "Sofya cost history is not available." = "Sofya 비용 내역을 확인할 수 없습니다.";
 "Sofya API key" = "Sofya API 키";
 "Saved in CodexBar's local config file. Or set SOFYA_API_KEY." = "CodexBar의 로컬 구성 파일에 저장됩니다. 또는 SOFYA_API_KEY를 설정하세요.";
+"Pace sign" = "사용 속도 부호";
+"Ahead of pace is +" = "기준 속도 초과는 +";
+"Reserve is +" = "여유분은 +";

@@ -2507,3 +2507,6 @@
 "Sofya cost history is not available." = "Sofya cost history is not available.";
 "Sofya API key" = "Sofya API key";
 "Saved in CodexBar's local config file. Or set SOFYA_API_KEY." = "Saved in CodexBar's local config file. Or set SOFYA_API_KEY.";
+"Pace sign" = "Pace sign";
+"Ahead of pace is +" = "Ahead of pace is +";
+"Reserve is +" = "Reserve is +";

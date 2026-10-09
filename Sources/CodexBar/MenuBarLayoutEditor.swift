@@ -1065,7 +1065,7 @@ struct MenuBarLayoutPreview: View {
                 cost30dUSD: cost?.last30DaysCostUSD.flatMap(toUSD)))
     }
 
-    private func representativeData(provider: UsageProvider) -> MenuBarLayoutRenderData {
+    func representativeData(provider: UsageProvider) -> MenuBarLayoutRenderData {
         let now = Date()
         let session = RateWindow(
             usedPercent: 37,
@@ -1085,7 +1085,9 @@ struct MenuBarLayoutPreview: View {
         // Sample pace comes straight from the pure calculation rather than the store, so the palette
         // preview stays deterministic before any snapshot has been fetched.
         let samplePace = { (window: RateWindow) -> String? in
-            MenuBarDisplayText.paceText(pace: UsagePace.weekly(window: window, now: now))
+            MenuBarDisplayText.paceText(
+                pace: UsagePace.weekly(window: window, now: now),
+                reservePositive: self.settings.menuBarPaceReservePositive)
         }
         let samplePaceDelta = { (window: RateWindow) -> Double? in
             UsagePace.weekly(window: window, now: now)?.deltaPercent.rounded()

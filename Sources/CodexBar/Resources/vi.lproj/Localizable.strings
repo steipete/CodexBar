@@ -2504,3 +2504,6 @@
 "Sofya cost history is not available." = "Không có lịch sử chi phí của Sofya.";
 "Sofya API key" = "Khóa API Sofya";
 "Saved in CodexBar's local config file. Or set SOFYA_API_KEY." = "Được lưu trong tệp cấu hình cục bộ của CodexBar. Hoặc đặt SOFYA_API_KEY.";
+"Pace sign" = "Dấu nhịp sử dụng";
+"Ahead of pace is +" = "Vượt nhịp là +";
+"Reserve is +" = "Dự trữ là +";

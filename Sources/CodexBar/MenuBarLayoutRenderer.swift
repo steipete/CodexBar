@@ -29,7 +29,7 @@ struct MenuBarLayoutRenderWindow: Hashable {
 /// they mirror (`MenuBarDisplayText.paceText` rounds to whole percentage points): an unrounded value
 /// drifts on every clock tick and would defeat `MenuBarLayoutTitleCache`, which keys on this struct.
 struct MenuBarLayoutRenderMetrics: Hashable {
-    /// Signed pace delta in whole percentage points, matching the rendered `+11%` / `-8%` text.
+    /// Usage-ahead delta in whole percentage points, independent of the display sign preference.
     let sessionPaceDelta: Double?
     let weeklyPaceDelta: Double?
     let automaticPaceDelta: Double?

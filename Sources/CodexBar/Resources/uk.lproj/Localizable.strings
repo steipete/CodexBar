@@ -2503,3 +2503,6 @@
 "Sofya cost history is not available." = "Історія витрат Sofya недоступна.";
 "Sofya API key" = "Ключ API Sofya";
 "Saved in CodexBar's local config file. Or set SOFYA_API_KEY." = "Зберігається в локальному конфігураційному файлі CodexBar. Або задайте SOFYA_API_KEY.";
+"Pace sign" = "Знак темпу витрат";
+"Ahead of pace is +" = "Випередження темпу — +";
+"Reserve is +" = "Запас — +";
