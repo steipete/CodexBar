@@ -31,7 +31,8 @@ enum HomebrewUpdateAppProof {
                     }
                 },
                 runUpgrade: { throw HomebrewUpdateError.brewNotFound },
-                relaunch: {}),
+                relaunch: {},
+                cask: { .tap }),
             notifier: HomebrewUpdateNotifier(dependencies: .live))
     }
 
@@ -127,7 +128,8 @@ enum HomebrewUpdateAppProof {
         func applicationWillFinishLaunching(_ notification: Notification) {
             self.production.applicationWillFinishLaunching(notification)
             HomebrewUpdateAppProof.record("production_will_finish", [
-                "production_notification_delegate": UNUserNotificationCenter.current().delegate === AppNotifications.shared,
+                "production_notification_delegate": UNUserNotificationCenter.current().delegate === AppNotifications
+                    .shared,
             ])
         }
 

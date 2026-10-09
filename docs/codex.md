@@ -104,6 +104,8 @@ Usage source picker:
 - Settings → Providers → Codex shows each visible account's saved usage when multiple OAuth accounts are available.
   Opening the pane reads the retained snapshots without starting a refresh. Each row keeps its own usage age and
   error, including accounts not fetched yet, and distinguishes **CodexBar follows** from **System**.
+  The first failed refresh after managed credentials rotate shows its authentication error. Another rotation
+  discards the previous credentials' error, even when the saved account metadata has not changed.
   **Hide personal information** uses the same numbered account and workspace labels as the account switcher.
   Authorized OpenAI Code review usage remains on the followed account's row; sibling rows never inherit it,
   and same-email ambiguity keeps the existing display-only dashboard policy.
@@ -135,10 +137,14 @@ emails require the UUID. The app and CLI share the same preservation and workspa
 live credentials are saved before an owner-only atomic replacement, and detected changes to either
 auth file abort the replacement. A nonblocking process lock serializes participating account writers
 and is released automatically after a crash. External Codex processes do not share that lock.
-Preservation also checks legacy email-only destinations and rechecks saved authentication before
-replacing or deleting a managed destination. Read failures or conflicting credentials abort the promotion.
+Preservation checks every selectable repair destination—provider-keyed or legacy email-only—and
+rechecks saved authentication before replacing or deleting a managed destination. Read failures or
+conflicting credentials abort the promotion.
 Refreshed copies are read back before their fingerprints are committed, and every preserved copy is checked
 again immediately before the live replacement. External writers can still race after the final read.
+
+Saved-account removal and import repair retain an old managed home while another saved record references
+the same path. Cleanup still requires the managed-home safety checks and releases the home after its last reference.
 
 CLI promotion reads local files only and never requests Keychain access or starts login. It leaves
 the app's display selection and running Codex processes alone; `CODEX_HOME` selects the live destination.
@@ -147,6 +153,25 @@ It does not renew expired credentials or enable unscoped fallback for managed wo
 use the affected row's **Reauthenticate** action or ordinary `codex login` scoped to that managed home
 and intended workspace. A future CLI renewal command needs staged login and identity/workspace
 validation before committing; `promote` is not a renewal workaround. See [CLI details](cli.md#managed-codex-accounts-macos).
+
+### In-process managed credential resolution
+
+`ManagedCodexAccountCredentialResolver` resolves an explicit managed-account UUID using a metadata-only store
+and a trusted managed-home root. It reads the selected native OAuth file, checks its owner and native default
+workspace against the saved account, and revalidates the registry binding and original home before returning
+an access-only credential. Organization membership alone does not establish the native default workspace.
+Promotion retains its existing email precedence; credential release requires unambiguous owner claims.
+
+The fresh-only policy requires a known expiry beyond the larger caller or authority minimum plus clock skew.
+Defaults are a 60-second authority minimum and 30 seconds of skew; minimum-validity requests above one day
+are unsupported. Missing expiry requires renewal rather than relying on file dates or `last_refresh`.
+The result exposes the bearer through `withAccessToken` and includes `expiresAt`; diagnostics are redacted.
+Typed failures distinguish renewal, temporary unavailability, missing accounts, and unsupported requests.
+
+This is a core API with no CLI, HTTP, or IPC credential-export endpoint. It does not choose an active account,
+fall back to another account, start login, refresh credentials, cache tokens, or write credentials or registry data.
+Validation checks local consistency rather than JWT signatures or upstream acceptance. Filesystem revalidation
+is observational, not an atomic transaction against hostile same-user mutation; secure-memory zeroization is not claimed.
 
 ### Local account discovery
 

@@ -162,6 +162,8 @@
 "Could not start codex login" = "codex login을 시작할 수 없음";
 "Could not switch system account" = "시스템 계정을 전환할 수 없음";
 "Credits" = "크레딧";
+"Top-up credits" = "충전 크레딧";
+"Remaining" = "남음";
 "Individual credits" = "개인 크레딧";
 "Workspace" = "작업 공간";
 "Credits history" = "크레딧 내역";

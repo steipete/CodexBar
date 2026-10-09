@@ -10,13 +10,10 @@ final class GrokRPCClient: @unchecked Sendable {
 
     private let process = Process()
     private let stdin = RPCChildProcessInput()
-    private let stdoutPipe = Pipe()
-    private let stderrPipe = Pipe()
+    private let output = RPCChildProcessOutput()
     private let initializeTimeoutSeconds: TimeInterval
     private let requestTimeoutSeconds: TimeInterval
     private var nextID: Int = 1
-    private let stdoutLineStream: AsyncStream<Data>
-    private let stdoutLineContinuation: AsyncStream<Data>.Continuation
 
     init(
         executable: String = "grok",
@@ -27,12 +24,6 @@ final class GrokRPCClient: @unchecked Sendable {
     {
         self.initializeTimeoutSeconds = initializeTimeoutSeconds
         self.requestTimeoutSeconds = requestTimeoutSeconds
-        var stdoutContinuation: AsyncStream<Data>.Continuation!
-        self.stdoutLineStream = AsyncStream<Data> { continuation in
-            stdoutContinuation = continuation
-        }
-        self.stdoutLineContinuation = stdoutContinuation
-
         let resolvedExec = BinaryLocator.resolveGrokBinary(env: environment)
             ?? TTYCommandRunner.which(executable)
 
@@ -48,8 +39,8 @@ final class GrokRPCClient: @unchecked Sendable {
         self.process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
         self.process.arguments = [resolvedExec] + arguments
         self.process.standardInput = self.stdin.pipe
-        self.process.standardOutput = self.stdoutPipe
-        self.process.standardError = self.stderrPipe
+        self.process.standardOutput = self.output.stdout
+        self.process.standardError = self.output.stderr
 
         do {
             try self.process.run()
@@ -59,46 +50,12 @@ final class GrokRPCClient: @unchecked Sendable {
             throw GrokRPCError.startFailed(error.localizedDescription)
         }
 
-        let stdoutHandle = self.stdoutPipe.fileHandleForReading
-        let stdoutLineContinuation = self.stdoutLineContinuation
-        let stdoutBuffer = BoundedLineBuffer()
-        let process = self.process
-        let stdin = self.stdin
-        stdoutHandle.readabilityHandler = { handle in
-            let data = handle.availableData
-            if data.isEmpty {
-                handle.readabilityHandler = nil
-                stdoutLineContinuation.finish()
-                return
-            }
-            let result = stdoutBuffer.appendAndDrainLines(data)
-            if result.didExceedLimit {
-                Self.log.warning("Grok RPC line exceeded memory limit; terminating process")
-                handle.readabilityHandler = nil
-                DispatchQueue.global(qos: .userInitiated).async {
-                    RPCChildProcessTeardown.terminate(process: process, stdin: stdin)
-                }
-                stdoutLineContinuation.finish()
-                return
-            }
-            for lineData in result.lines {
-                stdoutLineContinuation.yield(lineData)
-            }
-        }
-
-        let stderrHandle = self.stderrPipe.fileHandleForReading
-        stderrHandle.readabilityHandler = { handle in
-            let data = handle.availableData
-            if data.isEmpty {
-                handle.readabilityHandler = nil
-                return
-            }
-            guard let text = String(data: data, encoding: .utf8), !text.isEmpty else { return }
-            for line in text.split(whereSeparator: \.isNewline) {
-                #if !os(Linux)
-                fputs("[grok stderr] \(line)\n", stderr)
-                #endif
-            }
+        self.output.start(process: self.process, stdin: self.stdin) {
+            Self.log.warning("Grok RPC line exceeded memory limit; terminating process")
+        } onStderr: { line in
+            #if !os(Linux)
+            fputs("[grok stderr] \(line)\n", stderr)
+            #endif
         }
     }
 
@@ -213,7 +170,7 @@ final class GrokRPCClient: @unchecked Sendable {
     }
 
     private func readNextMessage() async throws -> [String: Any] {
-        for await lineData in self.stdoutLineStream {
+        for await lineData in self.output.lines {
             if lineData.isEmpty { continue }
             if let preview = String(data: lineData.prefix(300), encoding: .utf8) {
                 Self.log.debug("grok rpc <- \(preview)")

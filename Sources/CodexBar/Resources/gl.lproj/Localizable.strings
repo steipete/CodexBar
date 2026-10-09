@@ -143,6 +143,8 @@
 "Could not start codex login" = "Non se puido iniciar codex login";
 "Could not switch system account" = "Non se puido cambiar a conta do sistema";
 "Credits" = "Créditos";
+"Top-up credits" = "Créditos de recarga";
+"Remaining" = "Restante";
 "Individual credits" = "Créditos individuais";
 "Workspace" = "Espazo de traballo";
 "Credits history" = "Historial de créditos";

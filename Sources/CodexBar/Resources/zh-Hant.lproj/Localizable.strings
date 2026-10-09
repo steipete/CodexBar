@@ -165,6 +165,8 @@
 "Could not start codex login" = "無法啟動 codex login";
 "Could not switch system account" = "無法切換系統帳號";
 "Credits" = "額度";
+"Top-up credits" = "加購額度";
+"Remaining" = "剩餘";
 "Individual credits" = "個人額度";
 "Workspace" = "工作區";
 "Credits history" = "額度歷史";

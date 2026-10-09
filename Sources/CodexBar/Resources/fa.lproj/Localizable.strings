@@ -145,6 +145,8 @@
 "Could not start codex login" = "ورود به کدکس فعال نشد";
 "Could not switch system account" = "نتوانستم حساب سیستم را تغییر دهم";
 "Credits" = "اعتبارات";
+"Top-up credits" = "اعتبارات شارژ اضافی";
+"Remaining" = "باقی‌مانده";
 "Individual credits" = "اعتبارات فردی";
 "Workspace" = "فضای کاری";
 "Credits history" = "تاریخچه اعتبارها";

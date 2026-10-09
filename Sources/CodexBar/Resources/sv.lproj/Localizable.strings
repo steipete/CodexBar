@@ -162,6 +162,8 @@
 "Could not start codex login" = "Kunde inte starta codex login";
 "Could not switch system account" = "Kunde inte byta systemkonto";
 "Credits" = "Krediter";
+"Top-up credits" = "Påfyllda krediter";
+"Remaining" = "Kvar";
 "Individual credits" = "Individuella krediter";
 "Workspace" = "Arbetsyta";
 "Credits history" = "Kredithistorik";

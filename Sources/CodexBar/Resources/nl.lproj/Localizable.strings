@@ -162,6 +162,8 @@
 "Could not start codex login" = "Kan codex-aanmelding niet starten";
 "Could not switch system account" = "Kan van systeemaccount niet wisselen";
 "Credits" = "Kredieten";
+"Top-up credits" = "Opwaardeerkredieten";
+"Remaining" = "Resterend";
 "Individual credits" = "Individuele kredieten";
 "Workspace" = "Werkruimte";
 "Credits history" = "Creditgeschiedenis";

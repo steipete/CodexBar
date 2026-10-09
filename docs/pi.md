@@ -23,6 +23,8 @@ Root canonicalization preserves an explicit directory marker even when the sessi
 
 Running Pi/OMP processes also contribute their environment, profile, `--session-dir`, and project settings. Relative paths resolve against that process's working directory. A missing working directory cannot turn an unresolved relative selector into a successful empty scan. Retained roots from explicit command-line or settings selectors survive process exit; settings are revalidated before reuse. Removing a setting from an accessible project drops its former root, while an inaccessible project or broken settings symlink preserves the previous scoped report and its original age.
 
+Live processes with an unreadable environment and no explicit command-line session/profile selector are skipped during cost-root discovery. A single summary diagnostic records the skipped count per discovery pass without logging arguments, paths, or environment values. Default/configured roots and other readable processes still contribute history, including on the first scan. This is best-effort discovery: a custom root visible only in an unreadable process environment cannot be discovered. Explicit selectors that cannot resolve still keep history incomplete; an absolute `--session-dir` remains usable without an environment or working directory.
+
 Assistant turns are bucketed by their own timestamp in the selected cost time zone. Matching entry IDs within the same session count once across overlapping roots. Distinct turns remain separate. The scanner retains per-message prices and token classes rather than repricing a daily aggregate.
 
 ## Count each source once

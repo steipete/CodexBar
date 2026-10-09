@@ -145,6 +145,8 @@
 "Could not start codex login" = "ไม่สามารถเริ่มการเข้าสู่ระบบ codex";
 "Could not switch system account" = "ไม่สามารถสลับบัญชีระบบได้";
 "Credits" = "เครดิต";
+"Top-up credits" = "เครดิตที่ซื้อเพิ่ม";
+"Remaining" = "คงเหลือ";
 "Individual credits" = "หน่วยกิตส่วนบุคคล";
 "Workspace" = "พื้นที่ทํางาน";
 "Credits history" = "ประวัติเครดิต";

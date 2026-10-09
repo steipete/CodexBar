@@ -32,8 +32,7 @@ enum InstallOrigin {
         }
 
         let fileManager = FileManager.default
-        var isDirectory: ObjCBool = false
-        guard fileManager.fileExists(atPath: resolved.path, isDirectory: &isDirectory), isDirectory.boolValue else {
+        guard (try? resolved.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true else {
             return prefixes
         }
 

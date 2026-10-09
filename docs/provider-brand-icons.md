@@ -46,6 +46,9 @@ the property of their owners. Colors are not sampled from screenshots or chosen 
 | Muse Code / Meta | [Official developer site asset](https://dev.meta.ai/logo/meta-logo-with-text.svg) | Removed wordmark paths; retained the Meta symbol and gradients. Adjusted square viewBox for padding. |
 | Bedrock | [AWS architecture icon library](https://aws.amazon.com/architecture/icons/), `Icon-package_07312026`, `Arch_Amazon-Bedrock_64.svg` | Preserved the official colored background and white glyph; expanded viewBox for transparent padding. |
 | Vertex AI | [Google Cloud icon library](https://cloud.google.com/icons), `core-products-icons.zip`, `VertexAI-512-color.svg` | Unmodified vector artwork, including the original transparent padding. |
+| Pi (monochrome) | [Official favicon](https://pi.dev/favicon.svg), verified 2026-10-08 | Preserved the three block paths and `560×560` viewBox; replaced the website's light/dark CSS fills with `currentColor` for adaptive template rendering. The app, website logo, and embedded CLI dashboard share the same geometry. |
+
+Pi uses its product mark through the adaptive template fallback, including brand requests. The upstream README links the colored [website logo](https://pi.dev/logo-auto.svg), but that hosted asset is outside the MIT-licensed source tree and its redistribution terms were not established. No curated colored Pi asset is bundled.
 
 When adding another brand, verify artwork against a primary source and document the transformation
 here before enabling original rendering. Do not infer a brand color from provider progress-bar colors.

@@ -332,6 +332,7 @@ actor CodexCLISession {
                 }
             }
             TTYCommandRunner.unregisterActiveProcessForAppShutdown(pid: proc.processIdentifier)
+            ProcessExitRelease.afterExit(proc)
         }
 
         self.process = nil

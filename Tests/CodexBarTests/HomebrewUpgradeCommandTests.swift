@@ -5,9 +5,9 @@ import Testing
 
 @MainActor
 struct HomebrewUpgradeCommandTests {
-    @Test
-    func `upgrade uses the owning prefix and fixed noninteractive arguments`() async throws {
-        let fixture = try Fixture()
+    @Test(arguments: ["homebrew/cask", "steipete/tap"])
+    func `upgrade uses the owning prefix and fixed noninteractive arguments`(tap: String) async throws {
+        let fixture = try Fixture(tap: tap)
         defer { fixture.remove() }
         try fixture.writeBrew("""
         #!/bin/sh
@@ -22,7 +22,7 @@ struct HomebrewUpgradeCommandTests {
         let result = try await HomebrewUpdaterController.Dependencies.upgrade(
             appBundleURL: fixture.app, caskroomURLs: fixture.caskrooms)
         #expect(result.stdout.split(separator: "\n").map(String.init) == [
-            "upgrade", "--cask", "steipete/tap/codexbar", "1", "1", "1",
+            "upgrade", "--cask", "\(tap)/codexbar", "1", "1", "1",
         ])
     }
 
@@ -82,13 +82,67 @@ struct HomebrewUpgradeCommandTests {
         }
     }
 
+    @Test(arguments: ["homebrew/cask", "steipete/tap"])
+    func `active receipt selects the matching feed and ignores nested historical receipts`(tap: String) throws {
+        let fixture = try Fixture(tap: tap)
+        defer { fixture.remove() }
+        let backup = fixture.receiptURL.deletingLastPathComponent()
+            .appendingPathComponent("99.0.0/newer-backup/INSTALL_RECEIPT.json")
+        try FileManager.default.createDirectory(
+            at: backup.deletingLastPathComponent(),
+            withIntermediateDirectories: true)
+        try #"{"source":{"tap":"unrelated/tap"}}"#.write(to: backup, atomically: true, encoding: .utf8)
+        let prefix = InstallOrigin.homebrewPrefix(appBundleURL: fixture.app, caskroomURLs: fixture.caskrooms)
+        let cask = try HomebrewCask.installed(prefix: prefix)
+        #expect(cask.rawValue == tap)
+        #expect(cask.qualifiedName == "\(tap)/codexbar")
+        let expected = tap == "homebrew/cask"
+            ? "https://raw.githubusercontent.com/Homebrew/homebrew-cask/master/Casks/c/codexbar.rb"
+            : "https://raw.githubusercontent.com/steipete/homebrew-tap/main/Casks/codexbar.rb"
+        #expect(cask.sourceURL.absoluteString == expected)
+    }
+
+    @Test(arguments: [
+        "invalid",
+        "{}",
+        #"{"source":null}"#,
+        #"{"source":{"tap":""}}"#,
+        #"{"source":{"tap":"unrelated/tap"}}"#,
+    ])
+    func `invalid or unsupported receipts cannot start brew`(receipt: String) async throws {
+        let fixture = try Fixture()
+        defer { fixture.remove() }
+        try receipt.write(to: fixture.receiptURL, atomically: true, encoding: .utf8)
+        try fixture.writeBrew("#!/bin/sh\nprintf 'must not run' >&2\nexit 99\n")
+        #expect(throws: HomebrewUpdateError.invalidCaskResponse) {
+            try HomebrewCask.installed(prefix: fixture.owner)
+        }
+        await #expect(throws: HomebrewUpdateError.invalidCaskResponse) {
+            try await HomebrewUpdaterController.Dependencies.upgrade(
+                appBundleURL: fixture.app, caskroomURLs: fixture.caskrooms)
+        }
+    }
+
+    @Test
+    func `missing receipt or owner never defaults to another tap`() throws {
+        let fixture = try Fixture()
+        defer { fixture.remove() }
+        try FileManager.default.removeItem(at: fixture.receiptURL)
+        #expect(throws: HomebrewUpdateError.invalidCaskResponse) {
+            try HomebrewCask.installed(prefix: fixture.owner)
+        }
+        #expect(throws: HomebrewUpdateError.brewNotFound) {
+            try HomebrewCask.installed(prefix: nil)
+        }
+    }
+
     private struct Fixture {
         let root: URL
         let app: URL
         let owner: URL
         let caskrooms: [URL]
 
-        init() throws {
+        init(tap: String = "steipete/tap") throws {
             let manager = FileManager.default
             self.root = manager.temporaryDirectory.appendingPathComponent(UUID().uuidString)
             self.app = self.root.appendingPathComponent("Applications/CodexBar.app")
@@ -106,6 +160,14 @@ struct HomebrewUpgradeCommandTests {
             let artifact = self.caskrooms[1].appendingPathComponent("codexbar/0.65.0/CodexBar.app")
             try manager.createDirectory(at: artifact.deletingLastPathComponent(), withIntermediateDirectories: true)
             try manager.createSymbolicLink(at: artifact, withDestinationURL: self.app)
+            let metadata = self.caskrooms[1].appendingPathComponent("codexbar/.metadata")
+            try manager.createDirectory(at: metadata, withIntermediateDirectories: true)
+            let receipt = try JSONSerialization.data(withJSONObject: ["source": ["tap": tap, "version": "0.65.0"]])
+            try receipt.write(to: metadata.appendingPathComponent("INSTALL_RECEIPT.json"))
+        }
+
+        var receiptURL: URL {
+            self.caskrooms[1].appendingPathComponent("codexbar/.metadata/INSTALL_RECEIPT.json")
         }
 
         func writeBrew(_ script: String) throws {

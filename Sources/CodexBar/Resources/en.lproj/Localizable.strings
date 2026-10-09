@@ -121,6 +121,8 @@
 "Could not start codex login" = "Could not start codex login";
 "Could not switch system account" = "Could not switch system account";
 "Credits" = "Credits";
+"Top-up credits" = "Top-up credits";
+"Remaining" = "Remaining";
 "Individual credits" = "Individual credits";
 "Projects" = "Projects";
 "Session %@" = "Session %@";

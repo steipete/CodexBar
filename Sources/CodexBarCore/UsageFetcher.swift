@@ -927,10 +927,7 @@ private final class CodexRPCClient: @unchecked Sendable {
     private static let log = CodexBarLog.logger(LogCategories.provider(.codex, scope: "rpc"))
     private let process = Process()
     private let stdin = RPCChildProcessInput()
-    private let stdoutPipe = Pipe()
-    private let stderrPipe = Pipe()
-    private let stdoutLineStream: AsyncStream<Data>
-    private let stdoutLineContinuation: AsyncStream<Data>.Continuation
+    private let output = RPCChildProcessOutput()
     private var nextID = 1
     private let initializeTimeoutSeconds: TimeInterval
     private let requestTimeoutSeconds: TimeInterval
@@ -945,12 +942,6 @@ private final class CodexRPCClient: @unchecked Sendable {
     {
         self.initializeTimeoutSeconds = initializeTimeoutSeconds
         self.requestTimeoutSeconds = requestTimeoutSeconds
-        var stdoutContinuation: AsyncStream<Data>.Continuation!
-        self.stdoutLineStream = AsyncStream<Data> { continuation in
-            stdoutContinuation = continuation
-        }
-        self.stdoutLineContinuation = stdoutContinuation
-
         let resolution = resolveExecutable(environment, executable)
 
         guard let resolution else {
@@ -969,8 +960,8 @@ private final class CodexRPCClient: @unchecked Sendable {
         self.process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
         self.process.arguments = [resolvedExec] + arguments
         self.process.standardInput = self.stdin.pipe
-        self.process.standardOutput = self.stdoutPipe
-        self.process.standardError = self.stderrPipe
+        self.process.standardOutput = self.output.stdout
+        self.process.standardError = self.output.stderr
 
         if let message = CodexCLILaunchGate.shared.backgroundSkipMessage(binary: resolvedExec) {
             Self.log.warning("Codex RPC launch skipped after recent launch failure", metadata: ["binary": resolvedExec])
@@ -987,48 +978,10 @@ private final class CodexRPCClient: @unchecked Sendable {
             throw RPCWireError.startFailed(throttled ?? message)
         }
 
-        let stdoutHandle = self.stdoutPipe.fileHandleForReading
-        let stdoutLineContinuation = self.stdoutLineContinuation
-        let stdoutBuffer = BoundedLineBuffer()
-        let process = self.process
-        let stdin = self.stdin
-        stdoutHandle.readabilityHandler = { handle in
-            let data = handle.availableData
-            if data.isEmpty {
-                handle.readabilityHandler = nil
-                stdoutLineContinuation.finish()
-                return
-            }
-
-            let result = stdoutBuffer.appendAndDrainLines(data)
-            if result.didExceedLimit {
-                Self.log.warning("Codex RPC line exceeded memory limit; terminating process")
-                handle.readabilityHandler = nil
-                DispatchQueue.global(qos: .userInitiated).async {
-                    RPCChildProcessTeardown.terminate(process: process, stdin: stdin)
-                }
-                stdoutLineContinuation.finish()
-                return
-            }
-
-            for lineData in result.lines {
-                stdoutLineContinuation.yield(lineData)
-            }
-        }
-
-        let stderrHandle = self.stderrPipe.fileHandleForReading
-        stderrHandle.readabilityHandler = { handle in
-            let data = handle.availableData
-            // When the child closes stderr, availableData returns empty and will keep re-firing; clear the handler
-            // to avoid a busy read loop on the file-descriptor monitoring queue.
-            if data.isEmpty {
-                handle.readabilityHandler = nil
-                return
-            }
-            guard let text = String(data: data, encoding: .utf8), !text.isEmpty else { return }
-            for line in text.split(whereSeparator: \.isNewline) {
-                Self.log.debug("[codex stderr] \(line)")
-            }
+        self.output.start(process: self.process, stdin: self.stdin) {
+            Self.log.warning("Codex RPC line exceeded memory limit; terminating process")
+        } onStderr: { line in
+            Self.log.debug("[codex stderr] \(line)")
         }
     }
 
@@ -1131,7 +1084,7 @@ private final class CodexRPCClient: @unchecked Sendable {
     }
 
     private func readNextMessage() async throws -> [String: Any] {
-        for await lineData in self.stdoutLineStream {
+        for await lineData in self.output.lines {
             if lineData.isEmpty {
                 continue
             }

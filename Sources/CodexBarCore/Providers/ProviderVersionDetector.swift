@@ -308,6 +308,7 @@ public enum ProviderVersionDetector {
             outputCapture.stop()
             return nil
         }
+        defer { ProcessExitRelease.afterExit(proc) }
 
         let didExit = exitSemaphore.wait(timeout: .now() + timeout) == .success
         if !didExit, !Self.forceExit(proc, exitSemaphore: exitSemaphore) {

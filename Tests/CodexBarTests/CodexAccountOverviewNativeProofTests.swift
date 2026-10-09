@@ -81,6 +81,20 @@ extension CodexAccountScopedRefreshTests {
         }
     }
 
+    func writeRotatedAuthOverviewProof(_ overview: ProviderAccountUsageOverview, phase: String) throws {
+        guard let path = ProcessInfo.processInfo.environment["CODEXBAR_ACCOUNT_OVERVIEW_PROOF_DIR"] else { return }
+        let output = URL(fileURLWithPath: path, isDirectory: true)
+        try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
+        let content = Form {
+            Text("Synthetic Codex accounts — credential rotation").font(.headline)
+            ProviderAccountUsageOverviewView(provider: .codex, overview: overview, isEnabled: true)
+        }
+        .formStyle(.grouped)
+        .frame(width: 860, height: 780)
+        .environment(\.colorScheme, .light)
+        try self.writeOverviewProof(content, to: output.appendingPathComponent("\(phase).png"))
+    }
+
     private func writeOverviewProof(_ content: some View, to url: URL) throws {
         let hosting = NSHostingView(rootView: content)
         hosting.appearance = NSAppearance(named: .aqua)

@@ -145,6 +145,50 @@ extension CodexAccountScopedRefreshTests {
         }
     }
 
+    @Test
+    func `overview shows first refresh failure after managed credentials rotate`() async throws {
+        try await self.withSelectedAccountRetentionFixture(sameEmail: false) { store, _, accounts in
+            let sibling = accounts[1]
+            let metadata = try FileManagedCodexAccountStore(
+                fileURL: #require(store.settings._test_managedCodexAccountStoreURL)).loadAccountMetadata()
+            let profile = try #require(metadata.accounts.first { $0.id == sibling.storedAccountID })
+            let authURL = CodexAuthFingerprint.authFileURL(homePath: profile.managedHomePath)
+            let originalAuth = try Data(contentsOf: authURL)
+            var rotatedAuth = originalAuth
+            rotatedAuth.append(0x0A)
+            try rotatedAuth.write(to: authURL)
+            store.codexAccountSnapshots.removeAll { $0.id == sibling.id }
+            let source = store.settings.codexActiveSource
+            self.installContextualCodexProvider(on: store, sourceLabel: "oauth", kind: .oauth) { _ in
+                throw CodexOAuthFetchError.unauthorized
+            }
+
+            await store.refreshCodexAccountsForSettings([sibling.id])
+            await store.widgetSnapshotPersistTask?.value
+
+            let failure = try #require(store.codexAccountSnapshots.first { $0.id == sibling.id })
+            #expect(failure.error != nil)
+            #expect(failure.snapshot == nil)
+            #expect(failure.account.authFingerprint != sibling.authFingerprint)
+            var overview = try #require(store.codexAccountUsageOverview(onRefresh: { _ in }))
+            var row = try #require(overview.rows.first { $0.id == sibling.id })
+            try self.writeRotatedAuthOverviewProof(overview, phase: "failed-refresh")
+            #expect(row.error == CodexUIErrorMapper.userFacingMessage(failure.error))
+            #expect(row.model.metrics.isEmpty)
+            #expect(overview.rows.first { $0.id == accounts[0].id }?.error == nil)
+            #expect(store.settings.codexActiveSource == source)
+
+            // Once credentials change again, the failure no longer belongs to their current owner.
+            try originalAuth.write(to: authURL)
+            store.settings.invalidateCodexAccountReconciliationSnapshotCache()
+            overview = try #require(store.codexAccountUsageOverview(onRefresh: { _ in }))
+            row = try #require(overview.rows.first { $0.id == sibling.id })
+            try self.writeRotatedAuthOverviewProof(overview, phase: "rotated-again")
+            #expect(row.error == nil)
+            #expect(row.model.metrics.isEmpty)
+        }
+    }
+
     private func installOverviewProvider(
         on store: UsageStore,
         accounts: [CodexVisibleAccount],

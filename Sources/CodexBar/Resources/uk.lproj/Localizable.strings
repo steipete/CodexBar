@@ -162,6 +162,8 @@
 "Could not start codex login" = "Не вдалося розпочати вхід до Codex";
 "Could not switch system account" = "Не вдалося змінити обліковий запис системи";
 "Credits" = "Кредити";
+"Top-up credits" = "Додаткові кредити";
+"Remaining" = "Залишилося";
 "Individual credits" = "Особисті кредити";
 "Workspace" = "Робоча область";
 "Credits history" = "Кредитна історія";
