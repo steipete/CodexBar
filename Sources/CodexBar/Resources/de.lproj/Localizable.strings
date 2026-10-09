@@ -2437,6 +2437,8 @@
 "merged_icon_source_frontmost_app" = "Anbieter-App im Vordergrund";
 /* Provider menu bar color */
 "Color by provider" = "Nach Anbieter einfärben";
+"Credit balance" = "Credit-Guthaben";
+"Monthly credits used" = "Diesen Monat verbrauchte Credits";
 
 /* Account provider usage and credentials */
 "Monthly AI tokens" = "Monatliche KI-Tokens";

@@ -2443,6 +2443,8 @@
 "show_most_used_provider_subtitle" = "شريط القوائم يعرض تلقائيا مزود الخدمة الأقرب إلى حد السعر.";
 
 "show_most_used_provider_title" = "عرض المزود الأكثر استخداما";
+"Credit balance" = "رصيد الاعتمادات";
+"Monthly credits used" = "الاعتمادات المستخدمة هذا الشهر";
 
 /* Account provider settings */
 "Monthly AI tokens" = "رموز الذكاء الاصطناعي الشهرية";

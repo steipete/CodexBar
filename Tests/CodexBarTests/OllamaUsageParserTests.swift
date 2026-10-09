@@ -419,4 +419,35 @@ struct OllamaUsageParserTests {
         #expect(usage.secondary == nil)
         #expect(usage.identity?.loginMethod == "free")
     }
+
+    @Test
+    func `parses current credit usage page without inventing a quota percentage`() {
+        let html = """
+        <section>
+          <div>
+            <h2>Usage credits<span>pro</span></h2>
+            <span>$18.25</span>
+            <p>Refills to $30 in 3 weeks.</p>
+          </div>
+          <div>
+            <span>Monthly credits used</span>
+            <span>$4.50</span>
+          </div>
+        </section>
+        """
+
+        let result = OllamaUsageParser.parseClassified(html: html)
+        guard case let .success(snapshot) = result else {
+            Issue.record("Expected current credit-based usage page to produce a details snapshot")
+            return
+        }
+
+        let usage = snapshot.toUsageSnapshot()
+        #expect(usage.primary == nil)
+        #expect(usage.identity?.loginMethod == "pro")
+        let rows = usage.details.flatMap(\.rows)
+        #expect(rows.contains { $0.label == "Credit balance" && $0.value == "$18.25" })
+        #expect(rows.contains { $0.label == "Monthly credits used" && $0.value == "$4.50" })
+        #expect(rows.contains { $0.label == "Next refill" && $0.value == "to $30 in 3 weeks." })
+    }
 }

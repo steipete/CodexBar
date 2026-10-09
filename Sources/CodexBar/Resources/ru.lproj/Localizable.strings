@@ -2440,6 +2440,8 @@
 "show_most_used_provider_subtitle" = "В строке меню автоматически отображается провайдер, ближайший к лимиту.";
 
 "show_most_used_provider_title" = "Показывать провайдера с наибольшим использованием";
+"Credit balance" = "Баланс кредитов";
+"Monthly credits used" = "Кредиты, использованные за месяц";
 
 /* Account provider settings */
 "Monthly AI tokens" = "Токены ИИ за месяц";

@@ -2438,6 +2438,8 @@
 "show_most_used_provider_subtitle" = "La barre de menu affiche automatiquement le fournisseur le plus proche de sa limite de débit.";
 
 "show_most_used_provider_title" = "Afficher le fournisseur le plus utilisé";
+"Credit balance" = "Solde de crédits";
+"Monthly credits used" = "Crédits utilisés ce mois-ci";
 
 /* Account provider usage and credentials */
 "Monthly AI tokens" = "Jetons IA mensuels";

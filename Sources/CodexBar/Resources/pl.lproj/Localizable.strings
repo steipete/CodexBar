@@ -2442,6 +2442,8 @@
 "show_most_used_provider_subtitle" = "Pasek menu automatycznie pokazuje dostawcę najbliżej limitu.";
 
 "show_most_used_provider_title" = "Pokaż najczęściej używanego dostawcę";
+"Credit balance" = "Saldo kredytów";
+"Monthly credits used" = "Kredyty wykorzystane w tym miesiącu";
 
 /* Account provider usage and credentials */
 "Monthly AI tokens" = "Miesięczne tokeny AI";

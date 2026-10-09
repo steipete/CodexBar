@@ -8,7 +8,7 @@ read_when:
 
 # Providers
 
-CodexBar currently registers 96 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
+CodexBar currently registers 100 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
 OpenCode vs OpenCode Go, because the auth source and quota shape differ.
 
 ## Fetch strategies (current)
@@ -115,7 +115,7 @@ complete when the available scan window covers fewer days.
 | [Atlas Cloud](atlascloud.md) | Standard API key → account-wide available USD balance (`api`). |
 | [Vercel AI Gateway](vercel.md) | AI Gateway API key → team-wide USD balance and lifetime spend (`api`). |
 | Windsurf | Web session bundle from browser localStorage (`web`) → local SQLite cache (`local`). |
-| Ollama | API key verifies Cloud API access (`api`); browser cookies expose Cloud quota windows (`web`). |
+| Ollama | API key verifies Cloud API access (`api`); browser cookies expose current credit balance/details or legacy quota windows (`web`). |
 | [llmman](llmman.md) | Local `llmman serve` node report, optional API key → bundled plugin for loaded-model memory and store summary (`api`). |
 | [xKiro](xkiro.md) | API key → bundled plugin for account-wide daily free tokens and the midnight UTC reset (`api`). |
 | Synthetic | API key from config/env → quota API (`api`). |
@@ -168,6 +168,10 @@ complete when the available scan window covers fewer days.
 | [X API](xapi.md) | Chrome or manual console.x.com cookies for prepaid and free credits, including negative balances. |
 | [LithosAI](lithosai.md) | Chrome or manual console cookies for prepaid USD balance and optional UTC spend. |
 | [WorkBuddy](workbuddy.md) | Chrome or manual www.workbuddy.cn cookies for the monthly credits allowance, plan name, and cycle reset. |
+| [Tavily](tavily.md) | API key for account-plan, per-key, and pay-as-you-go credit totals. |
+| [Linkup](linkup.md) | API key for the current prepaid USD credit balance. |
+| [TinyApi](tinyapi.md) | Chrome or manual session cookies for aggregate available credits. |
+| [Exa](exa.md) | Team Management service key plus an explicit API key ID for month-to-date USD spend. |
 | [Cosmic AI](cosmic.md) | Explicit Personal Access Token and Project ID for separate project AI input/output counters and allowances. |
 | [Aerostack](aerostack.md) | Explicit account JWT for monthly AI tokens used and the observed account allowance. |
 | [Sail Research](sailresearch.md) | API key for organization credit balance and combined inference/Sailbox spend. |
@@ -448,8 +452,8 @@ provider-specific cookie validation, endpoints, login detection, and error trans
 - Details: `docs/zoommate.md`.
 
 ## Ollama
-- Web settings page (`https://ollama.com/settings`) via browser cookies.
-- Parses Cloud Usage plan badge, session/weekly usage, and reset timestamps.
+- Authenticated settings page (`https://ollama.com/settings`) via browser cookies.
+- Current credit-wallet page: shows balance, monthly credits used, and refill target as details without inventing a quota percentage; older pages still support Included/Cloud Usage, session, and weekly meters.
 - Status: none yet.
 - Details: `docs/ollama.md`.
 

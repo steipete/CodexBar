@@ -247,7 +247,7 @@ private struct BurnResetStatRow: View {
                 .foregroundStyle(self.theme.sub)
             Spacer()
             if let resetAt {
-                Text(resetAt, style: .relative)
+                WidgetDateText.offset(resetAt)
                     .font(.system(size: 12.5, weight: .semibold))
                     .foregroundStyle(self.theme.text)
                     .monospacedDigit()
