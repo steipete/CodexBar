@@ -41,8 +41,10 @@ package enum RPCChildProcessTeardown {
     /// then escalates SIGTERM -> bounded wait -> SIGKILL across the child's process tree via
     /// `SubprocessRunner.terminateProcess`, so children that ignore SIGTERM cannot leak
     /// (#2789). Foundation reaps the child once it exits, so no explicit waitpid is needed here.
+    /// The stdout/stderr pipes are owned by the `Process`, so it is released after exit to close them on Linux.
     package static func terminate(process: Process, stdin: RPCChildProcessInput) {
         stdin.close()
         SubprocessRunner.terminateProcess(process, processGroup: nil)
+        ProcessExitRelease.afterExit(process)
     }
 }

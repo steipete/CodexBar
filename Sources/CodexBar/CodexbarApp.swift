@@ -154,26 +154,9 @@ protocol UpdaterProviding: AnyObject {
     var automaticallyDownloadsUpdates: Bool { get set }
     var isAvailable: Bool { get }
     var unavailableReason: String? { get }
-    var manualUpdateCommand: ManualUpdateCommand? { get }
     var updateStatus: UpdateStatus { get }
     func checkForUpdates(_ sender: Any?)
     func installUpdate()
-}
-
-extension UpdaterProviding {
-    var manualUpdateCommand: ManualUpdateCommand? {
-        nil
-    }
-}
-
-enum ManualUpdateCommand: Sendable {
-    case homebrew
-
-    var command: String {
-        switch self {
-        case .homebrew: "brew upgrade --cask steipete/tap/codexbar"
-        }
-    }
 }
 
 /// No-op updater used for debug builds and non-bundled runs to suppress Sparkle dialogs.
@@ -182,12 +165,10 @@ final class DisabledUpdaterController: UpdaterProviding {
     var automaticallyDownloadsUpdates: Bool = false
     let isAvailable: Bool = false
     let unavailableReason: String?
-    let manualUpdateCommand: ManualUpdateCommand?
     let updateStatus = UpdateStatus()
 
-    init(unavailableReason: String? = nil, manualUpdateCommand: ManualUpdateCommand? = nil) {
+    init(unavailableReason: String? = nil) {
         self.unavailableReason = unavailableReason
-        self.manualUpdateCommand = manualUpdateCommand
     }
 
     func checkForUpdates(_ sender: Any?) {}
@@ -197,17 +178,10 @@ final class DisabledUpdaterController: UpdaterProviding {
 @MainActor
 @Observable
 final class UpdateStatus {
-    static let disabled = UpdateStatus()
-    var isUpdateReady: Bool
+    var isUpdateReady = false
     /// A newer version that can be installed on demand, for updaters that do not stage downloads.
     var availableVersion: String?
-    var isInstalling: Bool
-
-    init(isUpdateReady: Bool = false, availableVersion: String? = nil, isInstalling: Bool = false) {
-        self.isUpdateReady = isUpdateReady
-        self.availableVersion = availableVersion
-        self.isInstalling = isInstalling
-    }
+    var isInstalling = false
 }
 
 #if canImport(Sparkle) && ENABLE_SPARKLE

@@ -1124,6 +1124,7 @@ enum CostUsageScanner {
             } catch {
                 return nil
             }
+            defer { ProcessExitRelease.afterExit(process) }
             outputCapture.start()
             errorCapture.start()
 

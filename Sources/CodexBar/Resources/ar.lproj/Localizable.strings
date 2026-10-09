@@ -145,6 +145,8 @@
 "Could not start codex login" = "لم أتمكن من بدء تسجيل الدخول إلى الكودكس";
 "Could not switch system account" = "لم أتمكن من تغيير حساب النظام";
 "Credits" = "الاعتمادات";
+"Top-up credits" = "الاعتمادات الإضافية المشتراة";
+"Remaining" = "المتبقي";
 "Individual credits" = "الاعتمادات الفردية";
 "Workspace" = "مساحة العمل";
 "Credits history" = "تاريخ الاعتمادات";

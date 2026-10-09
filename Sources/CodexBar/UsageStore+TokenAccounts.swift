@@ -322,20 +322,11 @@ extension UsageStore {
             currentProjection.visibleAccounts.first { $0.id == id }
         }
         let currentSelectionSource = currentActiveAccount?.selectionSource
-        if currentProjection.activeVisibleAccountID == originalVisibleAccountID,
-           currentSelectionSource == originalSelectionSource
-        {
-            guard let originalAccount else { return true }
-            guard let currentActiveAccount else { return false }
-            return Self.codexVisibleAccountMatchesCurrentProjection(
-                originalAccount,
-                account: currentActiveAccount)
+        guard currentSelectionSource == originalSelectionSource else { return false }
+        guard let originalAccount else {
+            return currentProjection.activeVisibleAccountID == originalVisibleAccountID
         }
-        guard let originalAccount, let currentActiveAccount,
-              currentSelectionSource == originalSelectionSource
-        else {
-            return false
-        }
+        guard let currentActiveAccount else { return false }
         return Self.codexVisibleAccountMatchesCurrentProjection(
             originalAccount, account: currentActiveAccount)
     }
@@ -346,6 +337,12 @@ extension UsageStore {
         // Auth files can change while account fetches are in flight, so account refreshes bypass the
         // short-lived reconciliation cache used for normal menu rendering and stale-result guards.
         self.settings.invalidateCodexAccountReconciliationSnapshotCache()
+        return self.codexVisibleAccountProjectionWithCurrentManagedAuth(requireLiveManagedAuthFor: accountIDs)
+    }
+
+    func codexVisibleAccountProjectionWithCurrentManagedAuth(
+        requireLiveManagedAuthFor accountIDs: Set<UUID> = []) -> CodexVisibleAccountProjection
+    {
         let snapshot = self.settings.codexAccountReconciliationSnapshot
         return Self.codexVisibleAccountProjectionWithFreshManagedAuthFingerprints(
             CodexVisibleAccountProjection.make(from: snapshot),

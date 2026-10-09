@@ -40,6 +40,7 @@ public enum JetBrainsProviderDescriptor {
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "JetBrains AI cost summary is not supported." }),
+            presentation: ProviderUsagePresentation(menuBarBalanceDetailLabels: ["Remaining"]),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .cli],
                 pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [JetBrainsStatusFetchStrategy()] })),

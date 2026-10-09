@@ -6,17 +6,20 @@ import XCTest
 @MainActor
 final class AboutUpdateCommandTests: XCTestCase {
     func test_homebrewButtonCopiesOnlyCommandThroughDeferredWriter() throws {
-        let updater = DisabledUpdaterController(
-            unavailableReason: L("Managed by Homebrew"),
-            manualUpdateCommand: .homebrew)
+        for command in ["brew upgrade --cask homebrew/cask/codexbar", "brew upgrade --cask steipete/tap/codexbar"] {
+            try self.assertCopy(command: command)
+        }
+    }
+
+    private func assertCopy(command: String) throws {
         let probe = AboutCopyTriggerProbe()
         defer {
             probe.press = nil
             probe.pendingWrite = nil
         }
         let row = try AboutUpdatesUnavailableView(
-            reason: XCTUnwrap(updater.unavailableReason),
-            command: updater.manualUpdateCommand,
+            reason: L("Managed by Homebrew"),
+            command: command,
             copyAction: { text, completion in
                 MenuPasteboardCopy.perform(
                     text,
@@ -33,7 +36,7 @@ final class AboutUpdateCommandTests: XCTestCase {
             let write = try XCTUnwrap(probe.pendingWrite)
             probe.pendingWrite = nil
             write()
-            XCTAssertEqual(probe.writes, ["brew upgrade --cask steipete/tap/codexbar"])
+            XCTAssertEqual(probe.writes, [command])
         }
     }
 
@@ -43,7 +46,6 @@ final class AboutUpdateCommandTests: XCTestCase {
         defer { probe.press = nil }
         let row = try AboutUpdatesUnavailableView(
             reason: XCTUnwrap(updater.unavailableReason),
-            command: updater.manualUpdateCommand,
             copyAction: { text, completion in
                 probe.writes.append(text)
                 completion(true)

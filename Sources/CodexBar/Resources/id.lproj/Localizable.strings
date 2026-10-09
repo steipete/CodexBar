@@ -145,6 +145,8 @@
 "Could not start codex login" = "Tidak dapat memulai codex login";
 "Could not switch system account" = "Tidak dapat beralih akun sistem";
 "Credits" = "Kredit";
+"Top-up credits" = "Kredit isi ulang";
+"Remaining" = "Tersisa";
 "Individual credits" = "Kredit individual";
 "Workspace" = "Ruang kerja";
 "Credits history" = "Riwayat kredit";

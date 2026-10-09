@@ -7,6 +7,36 @@ import Testing
 struct MenuBarLayoutProviderBalanceTests {
     private let now = Date(timeIntervalSince1970: 1_752_768_000)
 
+    @Test
+    func `JetBrains top-up balance renders beside the unchanged monthly percentage`() throws {
+        let snapshot = try JetBrainsTopUpIntegrationTests.xml().toUsageSnapshot()
+        let data = self.data(provider: .jetbrains, snapshot: snapshot)
+        let output = self.render(
+            layout: MenuBarLayout(lines: [[.balance, .separatorDot, .percent(window: .automatic)]]), data: data)
+        if let path = ProcessInfo.processInfo.environment["CODEXBAR_JETBRAINS_BALANCE_PROOF"] {
+            let image = NSImage(size: NSSize(width: 420, height: 90))
+            image.lockFocus()
+            NSColor.white.setFill()
+            NSRect(x: 0, y: 0, width: 420, height: 90).fill()
+            ("JetBrains · Balance + monthly % used · synthetic" as NSString).draw(
+                at: NSPoint(x: 16, y: 60),
+                withAttributes: [.font: NSFont.systemFont(ofSize: 13), .foregroundColor: NSColor.black])
+            let title = NSMutableAttributedString(attributedString: output.attributedTitle)
+            title.addAttribute(
+                .foregroundColor,
+                value: NSColor.black,
+                range: NSRange(location: 0, length: title.length))
+            title.draw(at: NSPoint(x: 16, y: 24))
+            image.unlockFocus()
+            let tiff = try #require(image.tiffRepresentation)
+            let bitmap = try #require(NSBitmapImageRep(data: tiff))
+            try #require(bitmap.representation(using: .png, properties: [:])).write(to: URL(fileURLWithPath: path))
+        }
+        #expect(data.balance == "54.90 credits")
+        #expect(data.automaticText == nil)
+        #expect(output.attributedTitle.string == "54.90 credits\u{2009}·\u{2009}7%")
+    }
+
     @Test(arguments: BundledPluginTestSupport.engines)
     func `Nous reported credits reach balance and automatic tokens`(engine: ProviderPluginEngineKind) async throws {
         let snapshot = try await NousPluginTests.fetch(Self.nousCreditsAccount, engine: engine)
@@ -198,7 +228,7 @@ struct MenuBarLayoutProviderBalanceTests {
         #expect(MenuBarLayoutBalanceResolver.balance(provider: provider, snapshot: snapshot) == nil)
     }
 
-    @Test(arguments: [UsageProvider.nous, .openrouter, .atlascloud, .vercel, .devpass])
+    @Test(arguments: [UsageProvider.nous, .openrouter, .atlascloud, .vercel, .devpass, .jetbrains])
     func `declared balance rows do not borrow identity text or another provider`(provider: UsageProvider) throws {
         let snapshot = UsageSnapshot(
             primary: nil,

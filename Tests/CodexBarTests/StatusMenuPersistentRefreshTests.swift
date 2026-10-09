@@ -40,7 +40,11 @@ private final class UpdateReadyUpdater: UpdaterProviding {
     var automaticallyDownloadsUpdates = false
     let isAvailable = true
     let unavailableReason: String? = nil
-    let updateStatus = UpdateStatus(isUpdateReady: true)
+    let updateStatus = UpdateStatus()
+
+    init() {
+        self.updateStatus.isUpdateReady = true
+    }
 
     func checkForUpdates(_: Any?) {}
     func installUpdate() {}

@@ -34,7 +34,10 @@ struct HomebrewUpdaterControllerTests {
         var notificationIsCurrent: (@MainActor () -> Bool)?
         var notificationCompletion: (@MainActor (Bool) -> Void)?
 
-        func makeController(savedAutoCheck: Bool = false) -> HomebrewUpdaterController {
+        func makeController(
+            savedAutoCheck: Bool = false,
+            cask: HomebrewCask = .tap) -> HomebrewUpdaterController
+        {
             HomebrewUpdaterController(
                 savedAutoCheck: savedAutoCheck,
                 dependencies: HomebrewUpdaterController.Dependencies(
@@ -52,7 +55,8 @@ struct HomebrewUpdaterControllerTests {
                         if let error = self.upgradeError { throw error }
                         if let version = self.versionAfterUpgrade { self.installedVersion = version }
                     },
-                    relaunch: { self.relaunchCount += 1 }),
+                    relaunch: { self.relaunchCount += 1 },
+                    cask: { cask }),
                 notifier: HomebrewUpdateNotifier(dependencies: .init(
                     lastSubmittedVersion: { self.submittedVersion },
                     saveSubmittedVersion: { self.submittedVersion = $0 },
@@ -145,6 +149,42 @@ struct HomebrewUpdaterControllerTests {
         #expect(HomebrewCaskVersion.parse(caskSource: Self.caskSource) == "0.66.0")
         #expect(HomebrewCaskVersion.parse(caskSource: "cask \"codexbar\" do\nend") == nil)
         #expect(HomebrewCaskVersion.parse(caskSource: "  version \"\"") == nil)
+    }
+
+    @Test
+    func `version parsing preserves whitespace and ignores unrelated declarations`() {
+        #expect(HomebrewCaskVersion.parse(caskSource: "# version \"99.0.0\"\n  version \" 0.66.0 \"\r\n") == "0.66.0")
+        #expect(HomebrewCaskVersion.parse(caskSource: "\tversion  \"0.66.0-beta.1\"") == "0.66.0-beta.1")
+        #expect(HomebrewCaskVersion.parse(caskSource: "version \t\"0.66.0\"") == "0.66.0")
+        #expect(HomebrewCaskVersion.parse(caskSource: "version :latest") == nil)
+        #expect(HomebrewCaskVersion.parse(caskSource: "version \"   \"") == nil)
+        #expect(HomebrewCaskVersion.parse(caskSource: "version \"unterminated") == nil)
+    }
+
+    @Test(arguments: [HomebrewCask.official, .tap])
+    func `recovery command follows the selected cask`(cask: HomebrewCask) {
+        let controller = Fixture().makeController(cask: cask)
+        let expected = cask == .official
+            ? "brew upgrade --cask homebrew/cask/codexbar"
+            : "brew upgrade --cask steipete/tap/codexbar"
+        #expect(controller.manualUpdateCommand == expected)
+    }
+
+    @Test
+    func `unknown cask ownership fails without inventing a recovery target`() async {
+        let controller = HomebrewUpdaterController(
+            savedAutoCheck: false,
+            dependencies: .init(
+                installedVersion: { "0.65.0" },
+                fetchCaskSource: { throw HomebrewUpdateError.invalidCaskResponse },
+                runUpgrade: {},
+                relaunch: {},
+                cask: { throw HomebrewUpdateError.invalidCaskResponse }),
+            startScheduledChecks: false)
+        await controller.performCheck()
+        #expect(controller.manualUpdateCommand == nil)
+        #expect(controller.updateStatus.availableVersion == nil)
+        #expect(controller.phase == .failed(HomebrewUpdateError.invalidCaskResponse.localizedDescription))
     }
 
     @Test

@@ -103,6 +103,21 @@ struct JetBrainsQuotaLogReaderTests {
         #expect(entry.refillInfo?.next == ISO8601DateParser.parse("2026-10-11T17:00:30.231Z"))
         #expect(entry.refillInfo?.amount == 1_000_000)
         #expect(entry.refillInfo?.duration == "30d")
+        #expect(entry.quotaInfo.topUp == JetBrainsTopUpQuota(maximum: 5_489_986.397, available: 5_489_986.397))
+        #expect(abs((entry.quotaInfo.topUp?.availableCredits ?? 0) - 54.89986397) < 0.0001)
+    }
+
+    @Test
+    func `quota state without top-up group has no top-up credits`() throws {
+        let line =
+            "2026-10-05 15:27:49,811 [   8326]   INFO - #c.i.m.l.c.q.QuotaManager2Impl - New quota state is: "
+                + "Available(current=346495.294, maximum=1000000, until=2028-09-22T21:00:00Z, "
+                + "tariffQuota=QuotaDetails(current=346495.294, maximum=1000000, available=653504.706))"
+
+        let entry = try #require(JetBrainsQuotaLogReader.latestEntry(inLogContent: line))
+
+        #expect(entry.quotaInfo.available == 653_504.706)
+        #expect(entry.quotaInfo.topUp == nil)
     }
 
     @Test

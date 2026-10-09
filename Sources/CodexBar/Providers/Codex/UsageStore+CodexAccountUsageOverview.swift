@@ -7,7 +7,8 @@ extension UsageStore {
     {
         // PAT has one ambient owner and cannot be attributed to the visible OAuth accounts.
         guard !self.shouldUseAmbientCodexPATForUsage() else { return nil }
-        let projection = self.settings.codexVisibleAccountProjection
+        // Refresh failures belong to the current auth file, which can outlive its saved metadata fingerprint.
+        let projection = self.codexVisibleAccountProjectionWithCurrentManagedAuth()
         let accounts = projection.visibleAccounts
         guard accounts.count > 1 else { return nil }
         let labels = CodexAccountSwitcherLabeling.labels(
