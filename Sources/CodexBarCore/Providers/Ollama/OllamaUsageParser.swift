@@ -4,8 +4,7 @@ enum OllamaUsageParser {
     // Current settings use monthly credits; retain legacy usage labels for older pages.
     private static let monthlyUsageLabels = ["Monthly usage", "Free usage"]
     private static let legacyPrimaryUsageLabels = ["Session usage", "Hourly usage"]
-    private static let primaryUsageLabels = monthlyUsageLabels + legacyPrimaryUsageLabels
-    private static let usageLabels = primaryUsageLabels + ["Weekly usage"]
+    private static let usageLabels = monthlyUsageLabels + legacyPrimaryUsageLabels + ["Weekly usage"]
 
     enum ParseFailure: Equatable {
         case notLoggedIn
@@ -31,11 +30,12 @@ enum OllamaUsageParser {
     static func parseClassified(html: String, now: Date = Date()) -> ClassifiedParseResult {
         let plan = self.parsePlanName(html)
         let email = self.parseAccountEmail(html)
+        let details = self.parseCreditDetails(html)
         let monthly = self.parseUsageBlock(labels: self.monthlyUsageLabels, html: html)
         let session = self.parseUsageBlock(labels: Self.legacyPrimaryUsageLabels, html: html)
         let weekly = self.parseUsageBlock(label: "Weekly usage", html: html)
 
-        if monthly == nil, session == nil, weekly == nil {
+        if monthly == nil, session == nil, weekly == nil, details.isEmpty {
             if self.looksSignedOut(html) {
                 return .failure(.notLoggedIn)
             }
@@ -52,6 +52,7 @@ enum OllamaUsageParser {
             sessionResetsAt: session?.resetsAt,
             weeklyResetsAt: weekly?.resetsAt,
             sessionWindowMinutes: session?.windowMinutes,
+            details: details,
             updatedAt: now))
     }
 
@@ -67,6 +68,7 @@ enum OllamaUsageParser {
         let patterns = [
             #"Included usage\s*</span>\s*<span[^>]*>([^<]+)</span"#,
             #"Cloud Usage\s*</span>\s*<span[^>]*>([^<]+)</span>"#,
+            #"<h[1-6][^>]*>\s*Usage credits\s*<span[^>]*>\s*([^<]+)</span"#,
         ]
         for pattern in patterns {
             guard let raw = self.firstCapture(in: html, pattern: pattern, options: [.dotMatchesLineSeparators])
@@ -77,6 +79,32 @@ enum OllamaUsageParser {
             }
         }
         return nil
+    }
+
+    /// Wallet fields use complete elements, so missing values cannot borrow adjacent spending or prose.
+    private static func parseCreditDetails(_ html: String) -> [ProviderDetailSection] {
+        let page = html.replacingOccurrences(
+            of: #"(?is)<(script|style)\b[^>]*>.*?</\1\s*>"#, with: "", options: .regularExpression)
+            .replacingOccurrences(of: "&nbsp;", with: " ")
+        let heading = #"<h[1-6][^>]*>\s*Usage credits(?:\s*<span[^>]*>[^<]*</span\s*>)?\s*</h[1-6]\s*>"#
+        guard let wallet = self.firstCapture(
+            in: page,
+            pattern: heading + #"(.*?)(?=</section\s*>|<h[1-6]\b|$)"#,
+            options: [.caseInsensitive, .dotMatchesLineSeparators]) else { return [] }
+        let amount = #"(\$(?:[0-9]{1,3}(?:,[0-9]{3})+|[0-9]+)(?:\.[0-9]+)?)"#
+        let fields = [
+            ("Credit balance", #"^\s*(?:<div[^>]*>\s*)*<span[^>]*>\s*\#(amount)\s*</span\s*>"#),
+            (
+                "Monthly credits used",
+                #"<span[^>]*>\s*Monthly credits used\s*</span\s*>\s*<span[^>]*>\s*\#(amount)\s*</span\s*>"#),
+            ("Next refill", #"<p[^>]*>\s*Refills\s+(to\s+\#(amount)\s+in\s+[^<]{1,160}?)\s*</p\s*>"#),
+        ]
+        let rows = fields.compactMap { label, pattern in
+            self.firstCapture(in: wallet, pattern: pattern, options: [.caseInsensitive])
+                .map { ProviderDetailSection.makeRow(label: label, value: $0) }
+        }
+        guard rows.contains(where: { $0.label != "Next refill" }) else { return [] }
+        return [ProviderDetailSection.makeSection(title: "Credits", rows: rows)]
     }
 
     private static func parseAccountEmail(_ html: String) -> String? {
@@ -178,13 +206,6 @@ enum OllamaUsageParser {
         options: NSRegularExpression.Options) -> String?
     {
         guard let regex = try? NSRegularExpression(pattern: pattern, options: options) else { return nil }
-        return Self.performMatch(regex: regex, text: text)
-    }
-
-    private static func performMatch(
-        regex: NSRegularExpression,
-        text: String) -> String?
-    {
         let range = NSRange(text.startIndex..<text.endIndex, in: text)
         guard let match = regex.firstMatch(in: text, options: [], range: range), match.numberOfRanges > 1,
               let captureRange = Range(match.range(at: 1), in: text)

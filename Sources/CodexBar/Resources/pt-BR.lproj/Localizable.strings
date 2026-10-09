@@ -2439,3 +2439,5 @@
 "show_most_used_provider_subtitle" = "A barra de menus mostra automaticamente o provedor mais próximo do limite de taxa.";
 
 "show_most_used_provider_title" = "Mostrar provedor mais usado";
+"Credit balance" = "Saldo de créditos";
+"Monthly credits used" = "Créditos usados neste mês";

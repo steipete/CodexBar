@@ -2438,3 +2438,5 @@
 "show_most_used_provider_subtitle" = "Menyraden visar automatiskt leverantören som ligger närmast sin gräns.";
 
 "show_most_used_provider_title" = "Visa mest använda leverantör";
+"Credit balance" = "Kreditsaldo";
+"Monthly credits used" = "Krediter använda denna månad";

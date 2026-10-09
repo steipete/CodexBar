@@ -221,7 +221,7 @@ private struct CombinedBurnRow: View {
                         .font(.system(size: 9))
                         .foregroundStyle(self.theme.sub.opacity(0.85))
                     if let effectiveResetDate {
-                        Text(effectiveResetDate, style: .relative)
+                        WidgetDateText.offset(effectiveResetDate)
                             .font(.system(size: 9.5, weight: .medium))
                             .foregroundStyle(self.theme.text)
                             .monospacedDigit()

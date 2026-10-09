@@ -2432,3 +2432,5 @@
 "show_most_used_provider_subtitle" = "菜单栏会自动显示最接近速率限制的提供商。";
 
 "show_most_used_provider_title" = "显示用量最高的提供商";
+"Credit balance" = "额度余额";
+"Monthly credits used" = "本月已用额度";

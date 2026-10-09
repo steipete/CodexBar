@@ -8,12 +8,13 @@ read_when:
 
 # Ollama Provider
 
-The Ollama provider can verify Ollama Cloud API-key access and scrape the **Plan & Billing** page to extract monthly
-included-credit utilization. Older pages with session/hourly and weekly quota windows remain supported.
+The Ollama provider verifies Cloud API-key access and reads usage-related data from the authenticated settings page. Current Usage settings can expose a **credit balance**, **monthly credits used**, and a **refill target**, but not a quota percentage; CodexBar shows those as details instead of inventing a quota bar. Older settings pages that report monthly included-usage, session/hourly, or weekly meters remain supported.
 
 ## Features
 
-- **Plan badge**: Reads the plan tier (Free/Pro/Max) from the Included usage or legacy Cloud Usage header.
+- **Current credit page**: Shows the available Usage credits balance, monthly credits used, and next refill target as provider details. These are wallet/spend figures, not a quota percentage.
+- **Balance layouts**: The reported credit balance supplies the Balance element and automatic text when no quota meter is available. Monthly spending and refill targets never substitute for a missing balance.
+- **Plan badge**: Reads the plan tier (Free/Pro/Max) from the Usage credits, Included usage, or legacy Cloud Usage header.
 - **Monthly usage**: Converts the reported included dollar credits (for example, `$7.50 of $60 used`) to utilization
   (`12.5%`). Free plans label the same included-credit meter **Free usage**; both labels map to the primary
   **Monthly** quota bar. This is not a token-cost or spend estimate.
@@ -48,6 +49,7 @@ Keychain access is disabled in Advanced settings. CodexBar does not switch cooki
   search, then fetches `https://ollama.com/api/tags` for the model catalog. The catalog endpoint is public and cannot
   verify a key by itself.
 - Cookie mode fetches `https://ollama.com/settings` using browser cookies.
+- Credit-wallet fields are matched by complete elements within their wallet section. Details coexist with any reported quota meters; no percentage is inferred when Ollama does not provide a meter. Refill text ends at its own element, even when it has no final period.
 - Temporary network failures during API-key validation or catalog fetching retain the prior API identity snapshot
   and its original timestamp. Localized errors use the same startup retry policy; rejected API keys still invalidate
   prior data. API-key mode does not supply Cloud Usage quota windows.

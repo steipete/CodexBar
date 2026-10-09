@@ -2443,3 +2443,5 @@
 "show_most_used_provider_subtitle" = "La barra menu mostra automaticamente il provider più vicino al limite.";
 
 "show_most_used_provider_title" = "Mostra provider più usato";
+"Credit balance" = "Saldo crediti";
+"Monthly credits used" = "Crediti utilizzati questo mese";

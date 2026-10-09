@@ -332,6 +332,7 @@ struct HeroBlock: View {
     /// under the headline.
     var spreads: Bool = false
     var compact: Bool = false
+    var inlineQuotaTitle: String?
 
     var isUnavailable: Bool {
         self.value == WidgetFormat.unavailable
@@ -346,7 +347,31 @@ struct HeroBlock: View {
         VStack(alignment: .leading, spacing: 2) {
             // A missing figure is drawn small and muted: at headline size the em-dash placeholder
             // reads as a heavy black bar, which looks like a broken tile rather than "no data".
-            if self.compact {
+            if let title = self.inlineQuotaTitle {
+                ViewThatFits(in: .horizontal) {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text(title)
+                            .font(.headline)
+                            .foregroundStyle(self.unavailableAwareColor)
+                            .fixedSize()
+                        Spacer(minLength: 4)
+                        self.detail?
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.trailing)
+                            // Native live date text needs a finite proposal for ViewThatFits in WidgetKit.
+                            .frame(width: 120, alignment: .trailing)
+                    }
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(title)
+                            .font(.headline)
+                            .foregroundStyle(self.unavailableAwareColor)
+                            .lineLimit(2)
+                            .minimumScaleFactor(0.75)
+                        self.detail?.font(.caption2).foregroundStyle(.secondary)
+                    }
+                }
+            } else if self.compact {
                 HStack(alignment: .center, spacing: 5) {
                     self.valueText
                     self.caption?
@@ -366,7 +391,7 @@ struct HeroBlock: View {
                         .minimumScaleFactor(0.75)
                 }
             }
-            if let detail = self.detail {
+            if self.inlineQuotaTitle == nil, let detail = self.detail {
                 detail
                     .font(.caption2)
                     .foregroundStyle(.secondary)
@@ -481,11 +506,40 @@ struct FreshnessLabel: View {
     var body: some View {
         // WidgetKit advances native date text between reloads; a formatted TimelineView string can freeze.
         // fixedSize on live date text can erase the rest of the tile.
-        Text(self.updatedAt, style: .relative)
+        WidgetDateText.offset(self.updatedAt)
             .font(.caption2)
             .foregroundStyle(WidgetFreshness
                 .isStale(self.updatedAt) ? AnyShapeStyle(Color.orange) : AnyShapeStyle(.secondary))
             .lineLimit(1)
+    }
+}
+
+enum WidgetDateText {
+    static func offset(_ date: Date) -> Text {
+        if #available(macOS 15, *) {
+            return Text(.currentDate, format: self.ageFormat(date))
+        }
+        return Text(date, style: .relative)
+    }
+
+    @available(macOS 15, *)
+    static func ageFormat(_ date: Date) -> SystemFormatStyle.DateOffset {
+        .init(to: date, allowedFields: [.day, .hour, .minute], maxFieldCount: 2, sign: .never)
+    }
+
+    static func reset(_ date: Date) -> Text {
+        if #available(macOS 15, *) {
+            // System date references update visually in the out-of-process WidgetKit host.
+            return Text(
+                "Resets \(Text(.currentDate, format: self.resetFormat(date)))",
+                bundle: WidgetLocalization.currentBundle)
+        }
+        return Text("Resets in \(Text(date, style: .relative))", bundle: WidgetLocalization.currentBundle)
+    }
+
+    @available(macOS 15, *)
+    static func resetFormat(_ date: Date) -> SystemFormatStyle.DateReference {
+        .init(to: date, allowedFields: [.day, .hour, .minute], maxFieldCount: 2, thresholdField: .minute)
     }
 }
 

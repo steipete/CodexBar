@@ -200,6 +200,9 @@ struct UsageTile<Header: View>: View {
             let displayed = WidgetUsageDisplay.percent(
                 fromRemaining: lane.remainingPercent,
                 showUsed: self.showsUsed)
+            let title = WidgetLaneCopy.caption(
+                title: W("%@ %@", W(lane.title), WidgetFormat.percent(displayed)),
+                showUsed: self.showsUsed)
             HeroBlock(
                 value: WidgetFormat.percent(displayed),
                 caption: Text(WidgetLaneCopy.caption(title: lane.title, showUsed: self.showsUsed)),
@@ -209,7 +212,8 @@ struct UsageTile<Header: View>: View {
                 color: color,
                 numberSize: self.size.heroNumberSize,
                 spreads: spreads,
-                compact: self.size == .small)
+                compact: self.size == .small,
+                inlineQuotaTitle: title)
         } else if let fallback {
             HeroBlock(
                 value: fallback.value,
@@ -225,7 +229,7 @@ struct UsageTile<Header: View>: View {
 
     private func resetText(_ lane: WidgetTileLane) -> Text? {
         switch WidgetLaneCopy.reset(resetsAt: lane.resetsAt, resetDescription: lane.resetDescription) {
-        case let .date(reset): Text("Reset: \(Text(reset, style: .relative))", bundle: WidgetLocalization.currentBundle)
+        case let .date(reset): WidgetDateText.reset(reset)
         case let .text(value): Text(value)
         case nil: nil
         }

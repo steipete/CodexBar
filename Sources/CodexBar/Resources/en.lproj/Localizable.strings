@@ -2443,3 +2443,5 @@
 "show_most_used_provider_subtitle" = "Menu bar auto-shows the provider closest to its rate limit.";
 
 "show_most_used_provider_title" = "Show most-used provider";
+"Credit balance" = "Credit balance";
+"Monthly credits used" = "Monthly credits used";

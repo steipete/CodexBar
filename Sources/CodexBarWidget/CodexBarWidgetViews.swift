@@ -779,6 +779,6 @@ enum WidgetFormat {
         guard let summary, summary.isStale(comparedTo: entryUpdatedAt), let updatedAt = summary.updatedAt else {
             return Text(W(base))
         }
-        return Text("\(W(base)) · \(Text(updatedAt, style: .relative))")
+        return Text("\(W(base)) · \(WidgetDateText.offset(updatedAt))")
     }
 }

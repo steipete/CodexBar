@@ -2443,3 +2443,5 @@
 "show_most_used_provider_subtitle" = "La barra de menús mostra automàticament el proveïdor més a prop del seu límit.";
 
 "show_most_used_provider_title" = "Mostreu el proveïdor més utilitzat";
+"Credit balance" = "Saldo de crèdits";
+"Monthly credits used" = "Crèdits utilitzats aquest mes";

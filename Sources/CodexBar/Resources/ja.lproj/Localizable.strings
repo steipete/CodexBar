@@ -2439,3 +2439,5 @@
 "show_most_used_provider_subtitle" = "レート制限に最も近いプロバイダをメニューバーに自動表示します。";
 
 "show_most_used_provider_title" = "最も使用中のプロバイダを表示";
+"Credit balance" = "クレジット残高";
+"Monthly credits used" = "今月使用したクレジット";

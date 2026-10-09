@@ -2417,3 +2417,5 @@
 "show_most_used_provider_subtitle" = "選單列會自動顯示最接近用量上限的提供者。";
 
 "show_most_used_provider_title" = "顯示使用量最高的提供者";
+"Credit balance" = "額度餘額";
+"Monthly credits used" = "本月已用額度";

@@ -115,7 +115,7 @@ complete when the available scan window covers fewer days.
 | [Atlas Cloud](atlascloud.md) | Standard API key → account-wide available USD balance (`api`). |
 | [Vercel AI Gateway](vercel.md) | AI Gateway API key → team-wide USD balance and lifetime spend (`api`). |
 | Windsurf | Web session bundle from browser localStorage (`web`) → local SQLite cache (`local`). |
-| Ollama | API key verifies Cloud API access (`api`); browser cookies expose Cloud quota windows (`web`). |
+| Ollama | API key verifies Cloud API access (`api`); browser cookies expose current credit balance/details or legacy quota windows (`web`). |
 | [llmman](llmman.md) | Local `llmman serve` node report, optional API key → bundled plugin for loaded-model memory and store summary (`api`). |
 | [xKiro](xkiro.md) | API key → bundled plugin for account-wide daily free tokens and the midnight UTC reset (`api`). |
 | Synthetic | API key from config/env → quota API (`api`). |
@@ -448,8 +448,8 @@ provider-specific cookie validation, endpoints, login detection, and error trans
 - Details: `docs/zoommate.md`.
 
 ## Ollama
-- Web settings page (`https://ollama.com/settings`) via browser cookies.
-- Parses Cloud Usage plan badge, session/weekly usage, and reset timestamps.
+- Authenticated settings page (`https://ollama.com/settings`) via browser cookies.
+- Current credit-wallet page: shows balance, monthly credits used, and refill target as details without inventing a quota percentage; older pages still support Included/Cloud Usage, session, and weekly meters.
 - Status: none yet.
 - Details: `docs/ollama.md`.
 

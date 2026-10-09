@@ -2407,3 +2407,5 @@
 "show_most_used_provider_subtitle" = "메뉴 막대에 사용 한도에 가장 가까운 공급자를 자동으로 표시합니다.";
 
 "show_most_used_provider_title" = "가장 많이 사용한 공급자 표시";
+"Credit balance" = "크레딧 잔액";
+"Monthly credits used" = "이번 달 사용한 크레딧";

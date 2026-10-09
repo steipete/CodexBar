@@ -90,11 +90,45 @@ struct ProviderIconResourcesTests {
         #expect(!svg.contains("<text"))
         #expect(!svg.contains("<circle"))
         #expect(svg.contains("fill=\"currentColor\""))
+        #expect(svg.contains("viewBox=\"0 0 560 560\""))
+        for path in [
+            "M420 280H280V140H0V0H420V280Z",
+            "M560 560H420V280H560V560Z",
+            "M140 560H0V140H140V280H280V420H140V560Z",
+        ] {
+            #expect(svg.contains("d=\"\(path)\""))
+        }
+        let website = try String(contentsOf: root.appending(path: "docs/logos/pi.svg"), encoding: .utf8)
+        #expect(website == svg)
+        let cli = try String(
+            contentsOf: root.appending(path: "Sources/CodexBarCLI/CLIServeProviderIcons.swift"), encoding: .utf8)
+        #expect(cli.contains("\"ProviderIcon-pi\": \"\(Data(svg.utf8).base64EncodedString())\""))
 
         ProviderBrandIcon.resetCacheForTesting()
         defer { ProviderBrandIcon.resetCacheForTesting() }
         let image = try #require(ProviderBrandIcon.image(for: .pi))
         #expect(image.isTemplate)
+
+        if let proofPath = ProcessInfo.processInfo.environment["CODEXBAR_PI_ICON_PROOF"] {
+            let proof = NSImage(size: NSSize(width: 256, height: 128), flipped: false) { _ in
+                for (index, background) in [NSColor.white, .black].enumerated() {
+                    let tile = NSRect(x: index * 128, y: 0, width: 128, height: 128)
+                    background.setFill()
+                    tile.fill()
+                    let glyph = NSImage(size: tile.size, flipped: false) { rect in
+                        image.draw(in: rect.insetBy(dx: 24, dy: 24))
+                        (index == 0 ? NSColor.black : .white).setFill()
+                        rect.fill(using: .sourceAtop)
+                        return true
+                    }
+                    glyph.draw(in: tile)
+                }
+                return true
+            }
+            let data = try #require(proof.tiffRepresentation)
+            let bitmap = try #require(NSBitmapImageRep(data: data))
+            try #require(bitmap.representation(using: .png, properties: [:])).write(to: URL(filePath: proofPath))
+        }
 
         let bitmap = try #require(NSBitmapImageRep(
             bitmapDataPlanes: nil,

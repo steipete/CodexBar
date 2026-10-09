@@ -2437,3 +2437,5 @@
 "show_most_used_provider_subtitle" = "La barra de menús muestra automáticamente el proveedor más cercano a su límite.";
 
 "show_most_used_provider_title" = "Mostrar el proveedor más usado";
+"Credit balance" = "Saldo de créditos";
+"Monthly credits used" = "Créditos usados este mes";
