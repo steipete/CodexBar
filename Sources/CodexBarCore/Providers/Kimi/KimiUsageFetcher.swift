@@ -17,6 +17,25 @@ public struct KimiUsageFetcher: Sendable {
         now: Date = Date(),
         transport: any ProviderHTTPTransport = ProviderHTTPClient.shared) async throws -> KimiUsageSnapshot
     {
+        try await self.fetchCodeAPIUsage(
+            apiKey: apiKey,
+            region: region,
+            baseURL: baseURL,
+            identityHeaders: identityHeaders,
+            webCredential: webAuthToken.map { KimiWebCredential(token: $0) },
+            now: now,
+            transport: transport)
+    }
+
+    static func fetchCodeAPIUsage(
+        apiKey: String,
+        region: KimiRegion = .china,
+        baseURL: URL? = nil,
+        identityHeaders: [String: String] = [:],
+        webCredential: KimiWebCredential?,
+        now: Date = Date(),
+        transport: any ProviderHTTPTransport = ProviderHTTPClient.shared) async throws -> KimiUsageSnapshot
+    {
         guard !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw KimiAPIError.missingAPIKey
         }
@@ -45,13 +64,26 @@ public struct KimiUsageFetcher: Sendable {
         }
 
         let snapshot = try self.parseCodeAPIUsage(from: data, now: now)
-        guard let webAuthToken else { return snapshot }
+        guard let webCredential else { return snapshot }
         return try await self.enrichCodeAPIUsage(
             snapshot,
-            webAuthToken: webAuthToken,
+            webAuthToken: webCredential.token,
             region: region,
             now: now,
-            transport: transport)
+            transport: webCredential.transport(transport, region: region))
+    }
+
+    static func fetchUsage(
+        credential: KimiWebCredential,
+        region: KimiRegion,
+        now: Date = Date(),
+        transport: any ProviderHTTPTransport = ProviderHTTPClient.shared) async throws -> KimiUsageSnapshot
+    {
+        try await self.fetchUsage(
+            authToken: credential.token,
+            region: region,
+            now: now,
+            transport: credential.transport(transport, region: region))
     }
 
     public static func fetchUsage(

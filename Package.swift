@@ -199,7 +199,10 @@ let package = Package(
             // A real SwiftPM test graph without app/widget targets or asset catalogs (actool).
             // Existing production sources and tests are compiled in place, without copied modules.
             targets = targets.filter { ["CQuickJS", "CSQLite3", "CodexBarCore", "CodexBarCLI"].contains($0.name) }
-            let portable = ["KimiDesktopSessionDiscoveryTests.swift", "KimiMonthlyUsageLinuxTests.swift"]
+            let portable = [
+                "KimiDesktopSessionDiscoveryTests.swift", "KimiDesktopDispatchTests.swift",
+                "KimiMonthlyUsageLinuxTests.swift",
+            ]
             let native = ["KimiDesktopNativeCandidateTests.swift", "KimiLocalStorageTests.swift"]
             let settings: [SwiftSetting] = [
                 .enableUpcomingFeature("StrictConcurrency"),

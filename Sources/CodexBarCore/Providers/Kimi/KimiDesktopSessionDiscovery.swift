@@ -44,6 +44,18 @@ struct KimiDesktopSessionDiscovery: Sendable {
         return Self.accessToken(rawValue: value, now: now)
     }
 
+    func credential(
+        settings: KimiProviderSettings,
+        homeDirectory: URL,
+        now: @escaping @Sendable () -> Date = { Date() }) -> KimiWebCredential?
+    {
+        guard let token = self.accessToken(settings: settings, homeDirectory: homeDirectory, now: now())
+        else { return nil }
+        return KimiWebCredential(desktopToken: token) {
+            self.accessToken(settings: settings, homeDirectory: homeDirectory, now: now()) == token
+        }
+    }
+
     private static func physicalHome(_ directory: URL) -> URL? {
         guard directory.isFileURL, directory.path.hasPrefix("/"),
               let physical = realpath(directory.path, nil) else { return nil }

@@ -42,6 +42,22 @@ ABA sequences cannot all be excluded. Synthetic Linux race tests and independent
 previous check/read symlink flaw; Darwin compilation and real Desktop lifecycle behavior remain
 unverified. Existing best-effort callers are unchanged.
 
+Desktop credentials now retain a bounded revalidation callback through Web, Code API and CLI
+consumption. Before each Desktop-authenticated request is handed to the underlying transport,
+the callback repeats strict discovery and claim checks and requires the same token. A missing,
+replaced, expired or redirected session rejects that request. Concurrent requests share sticky
+invalidation, so a failure already observed by this credential cannot be revived by restoring its
+old value. A Desktop lifecycle error does not initiate browser/environment fallback. Code API
+requests use their independent Code credential; a rejected optional membership request cannot
+discard an already successful Code quota response. Ordinary and non-Desktop sources retain their
+existing behavior.
+
+The check is immediately before transport delegation, not atomic with socket I/O or server
+authentication. A change after that check can still allow a previously checked request to be handed to transport, or leave an already submitted request in flight; it cannot be
+recalled. Local deletion does not establish server revocation, and structural JWT checks do not
+verify signatures. Revalidation adds bounded-profile reads per request and can fail closed during
+concurrent writes; the mutex serializes these checks within one acquired credential only.
+
 The policy accepts only a bounded Latin-1-marked bare JWT with an access type, exact `kimi.com`
 audience, finite future numeric expiry and valid optional not-before date. It rejects wrappers,
 refresh tokens, `alg=none`, malformed data and lookalike audiences. These checks do not verify a

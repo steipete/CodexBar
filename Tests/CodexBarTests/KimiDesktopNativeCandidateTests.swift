@@ -5,8 +5,8 @@ import Testing
 @testable import CodexBarCore
 
 struct KimiDesktopNativeCandidateTests {
-    @Test(arguments: ["default-temp", "physical-home", "linked-storage"])
-    func `native factory reads current session and respects logout`(kind: String) throws {
+    @Test(arguments: ["default-temp", "physical-home", "linked-storage", "redirected-after-read"])
+    func `native factory reads current session and respects logout`(kind: String) async throws {
         var home = FileManager.default.temporaryDirectory
             .appendingPathComponent("kimi-native-fixture-\(UUID())")
         try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
@@ -42,12 +42,39 @@ struct KimiDesktopNativeCandidateTests {
             "eyJhbGciOiJIUzI1NiJ9.eyJ0eXAiOiJhY2Nlc3MiLCJhdWQiOiJraW1pLmNvbSIsImV4cCI6MTgwMDA" +
             "wMzYwMH0.fixture-signature"
         #expect(session == (kind == "linked-storage" ? nil : expected))
+        let credential = KimiDesktopSessionDiscovery.candidate.credential(
+            settings: settings, homeDirectory: home, now: { now })
+        #expect(credential?.token == session)
         let deletion =
             try #require(
                 Data(base64Encoded: "EvobJDEAAQIAAAAAAAAAAQAAAAAjX2h0dHBzOi8vd3d3LmtpbWkuY29tAAFhY2Nlc3NfdG9rZW4="))
         try (current + deletion).write(to: walURL)
+        if kind == "redirected-after-read" {
+            // Keep the original token at the target: rejection must come from the redirected path.
+            try current.write(to: walURL)
+            let target = home.appendingPathComponent("redirected-synthetic-storage")
+            try FileManager.default.moveItem(at: directory, to: target)
+            try FileManager.default.createSymbolicLink(at: directory, withDestinationURL: target)
+        }
         #expect(KimiDesktopSessionDiscovery.candidate.accessToken(
             settings: settings, homeDirectory: home, now: now) == nil)
+        if let credential {
+            var request = URLRequest(url: KimiRegion.china.webBaseURL.appendingPathComponent(
+                "apiv2/kimi.gateway.membership.v2.MembershipService/GetSubscriptionStats"))
+            request.setValue("Bearer \(credential.token)", forHTTPHeaderField: "Authorization")
+            request.setValue("kimi-auth=\(credential.token)", forHTTPHeaderField: "Cookie")
+            do {
+                _ = try await credential.transport(ForbiddenDesktopTransport(), region: .china).data(for: request)
+                Issue.record("Changed profile must reject before dispatch")
+            } catch is KimiDesktopSessionChanged {}
+        }
+    }
+}
+
+private struct ForbiddenDesktopTransport: ProviderHTTPTransport {
+    func data(for _: URLRequest) async throws -> (Data, URLResponse) {
+        Issue.record("Deleted or redirected Desktop session reached network dispatch")
+        throw KimiDesktopSessionChanged()
     }
 }
 #endif
