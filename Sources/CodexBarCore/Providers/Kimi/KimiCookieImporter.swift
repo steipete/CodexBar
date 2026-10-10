@@ -5,7 +5,17 @@ import SweetCookieKit
 
 public enum KimiCookieImporter {
     public static func desktopAuthToken(region: KimiRegion = .china) -> String? {
-        KimiDesktopAuthToken.load(region: region)
+        #if CODEXBAR_KIMI_DESKTOP_CANDIDATE
+        return KimiDesktopSessionDiscovery.resolveNativeCandidate(region: region) {
+            KimiDesktopSessionDiscovery.candidate.accessToken(
+                settings: .init(cookieSource: .auto, manualCookieHeader: nil, region: region),
+                homeDirectory: FileManager.default.homeDirectoryForCurrentUser)
+        } legacyCookie: {
+            KimiDesktopAuthToken.load(region: region)
+        }
+        #else
+        return KimiDesktopAuthToken.load(region: region)
+        #endif
     }
 
     private static let log = CodexBarLog.logger(LogCategories.provider(.kimi, scope: "cookie"))

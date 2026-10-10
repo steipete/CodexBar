@@ -2,12 +2,21 @@
 import Foundation
 import PackageDescription
 
-let sweetCookieKitPath = "../SweetCookieKit"
+// Explicit two-repository development build; never silently use the released reader for this candidate.
+let kimiDesktopCandidatePath = ProcessInfo.processInfo.environment["CODEXBAR_KIMI_DESKTOP_CANDIDATE_PATH"]
+let kimiCoreTestsOnly = ProcessInfo.processInfo.environment["CODEXBAR_KIMI_CORE_TESTS"] == "1"
+let sweetCookieKitPath = kimiDesktopCandidatePath ?? "../SweetCookieKit"
 let useLocalSweetCookieKit =
-    ProcessInfo.processInfo.environment["CODEXBAR_USE_LOCAL_SWEETCOOKIEKIT"] == "1"
+    kimiDesktopCandidatePath != nil || ProcessInfo.processInfo.environment["CODEXBAR_USE_LOCAL_SWEETCOOKIEKIT"] == "1"
+if kimiDesktopCandidatePath != nil {
+    precondition(
+        FileManager.default.fileExists(atPath: sweetCookieKitPath + "/Package.swift"),
+        "Kimi Desktop candidate requires the patched SweetCookieKit checkout")
+}
+
 let sweetCookieKitDependency: Package.Dependency =
     useLocalSweetCookieKit && FileManager.default.fileExists(atPath: sweetCookieKitPath)
-    ? .package(path: sweetCookieKitPath)
+    ? .package(name: "SweetCookieKit", path: sweetCookieKitPath)
     : .package(url: "https://github.com/steipete/SweetCookieKit", from: "0.5.5")
 
 let sqlite3LibDir = ProcessInfo.processInfo.environment["CODEXBAR_SQLITE3_LIB_DIR"]?
@@ -16,6 +25,12 @@ let sqlite3LinkerSettings: [LinkerSetting] = if let sqlite3LibDir, !sqlite3LibDi
     [.unsafeFlags(["-L\(sqlite3LibDir)"], .when(platforms: [.linux]))]
 } else {
     []
+}
+
+func kimiTestExclusions(path: String, sources: [String]) -> [String] {
+    let directory = URL(fileURLWithPath: #filePath).deletingLastPathComponent().appendingPathComponent(path)
+    return ((try? FileManager.default.contentsOfDirectory(atPath: directory.path)) ?? [])
+        .filter { !sources.contains($0) }
 }
 
 let package = Package(
@@ -31,6 +46,10 @@ let package = Package(
             // Offline adaptive-refresh replay harness. Keep the supporting library package-internal.
             .executable(name: "AdaptiveReplayCLI", targets: ["AdaptiveReplayCLI"]),
         ]
+
+        if kimiCoreTestsOnly {
+            return products.filter { ["CodexBarCore", "CodexBarCLI"].contains($0.name) }
+        }
 
         #if os(macOS)
         products.append(contentsOf: [
@@ -86,7 +105,7 @@ let package = Package(
                 ],
                 swiftSettings: [
                     .enableUpcomingFeature("StrictConcurrency"),
-                ],
+                ] + (kimiDesktopCandidatePath == nil ? [] : [.define("CODEXBAR_KIMI_DESKTOP_CANDIDATE")]),
                 linkerSettings: sqlite3LinkerSettings + [
                     .linkedFramework("JavaScriptCore", .when(platforms: [.macOS])),
                 ]),
@@ -176,6 +195,34 @@ let package = Package(
                 ]),
         ]
 
+        if kimiCoreTestsOnly {
+            // A real SwiftPM test graph without app/widget targets or asset catalogs (actool).
+            // Existing production sources and tests are compiled in place, without copied modules.
+            targets = targets.filter { ["CQuickJS", "CSQLite3", "CodexBarCore", "CodexBarCLI"].contains($0.name) }
+            let portable = ["KimiDesktopSessionDiscoveryTests.swift", "KimiMonthlyUsageLinuxTests.swift"]
+            let native = ["KimiDesktopNativeCandidateTests.swift", "KimiLocalStorageTests.swift"]
+            let settings: [SwiftSetting] = [
+                .enableUpcomingFeature("StrictConcurrency"),
+                .define("CODEXBAR_KIMI_CORE_TESTS"),
+            ] +
+                (kimiDesktopCandidatePath == nil ? [] : [.define("CODEXBAR_KIMI_DESKTOP_CANDIDATE")])
+            targets.append(.testTarget(
+                name: "CodexBarKimiPortableTests",
+                dependencies: ["CodexBarCore", "CodexBarCLI"],
+                path: "TestsLinux",
+                exclude: kimiTestExclusions(path: "TestsLinux", sources: portable),
+                sources: portable,
+                swiftSettings: settings))
+            targets.append(.testTarget(
+                name: "CodexBarKimiNativeTests",
+                dependencies: ["CodexBarCore", .product(name: "SweetCookieKit", package: "SweetCookieKit")],
+                path: "Tests/CodexBarTests",
+                exclude: kimiTestExclusions(path: "Tests/CodexBarTests", sources: native),
+                sources: native,
+                swiftSettings: settings))
+            return targets
+        }
+
         #if os(macOS)
         targets.append(contentsOf: [
             .executableTarget(
@@ -244,7 +291,7 @@ let package = Package(
             swiftSettings: [
                 .enableUpcomingFeature("StrictConcurrency"),
                 .enableExperimentalFeature("SwiftTesting"),
-            ],
+            ] + (kimiDesktopCandidatePath == nil ? [] : [.define("CODEXBAR_KIMI_DESKTOP_CANDIDATE")]),
             linkerSettings: [
                 // XCTest's executable is three directories below its sibling framework products.
                 .unsafeFlags(["-Xlinker", "-rpath", "-Xlinker", "@loader_path/../../.."]),
