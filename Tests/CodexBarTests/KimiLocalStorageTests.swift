@@ -65,6 +65,8 @@ struct KimiLocalStorageTests {
             region: .international, localStorage: api, now: Self.now.addingTimeInterval(3600)).isEmpty)
     }
 
+    #if CODEXBAR_KIMI_DESKTOP_CANDIDATE
+    /// Sequence/tombstone ordering requires the paired reader; ordinary builds still pin 0.5.5.
     @Test(arguments: ["replacement", "sign-in", "sign-out"], [KimiRegion.china, .international])
     func `imports only the current LevelDB session through the browser adapter`(
         operation: String, region: KimiRegion) throws
@@ -103,6 +105,8 @@ struct KimiLocalStorageTests {
         #expect(KimiCookieImporter.localStorageTokens(
             region: otherRegion, localStorage: api, now: Self.now).isEmpty)
     }
+
+    #endif
 
     private static func writeLog(
         origin: String,
