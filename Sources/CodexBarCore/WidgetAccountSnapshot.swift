@@ -38,6 +38,7 @@ extension WidgetSnapshot {
         return WidgetSnapshot(
             entries: entries,
             accounts: self.accounts,
+            accountOverflowCounts: self.accountOverflowCounts,
             enabledProviders: self.enabledProviders,
             usageBarsShowUsed: self.usageBarsShowUsed,
             generatedAt: self.generatedAt)

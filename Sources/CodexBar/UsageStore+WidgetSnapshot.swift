@@ -224,6 +224,7 @@ extension UsageStore {
         return WidgetSnapshot(
             entries: entries,
             accounts: self.makeWidgetAccountEntries(now: now),
+            accountOverflowCounts: self.widgetAccountOverflowCounts(),
             enabledProviders: enabledProviders,
             usageBarsShowUsed: self.settings.usageBarsShowUsed,
             generatedAt: now)

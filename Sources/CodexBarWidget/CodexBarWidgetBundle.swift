@@ -11,6 +11,7 @@ struct CodexBarWidgetBundle: WidgetBundle {
         CodexBarBurnDownWidget()
         CodexBarCombinedBurnDownWidget()
         CodexBarAccountUsageWidget()
+        CodexBarAccountsWidget()
     }
 }
 

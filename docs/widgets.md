@@ -36,6 +36,7 @@ Persistence must finish before requesting a timeline reload. Tests opt in with a
 - **CodexBar Switcher** (`CodexBarSwitcherWidget`): static provider switcher widget, small/medium/large.
 - **CodexBar Usage** (`CodexBarUsageWidget`): configurable provider usage widget, small/medium/large.
 - **CodexBar Account Usage** (`CodexBarAccountUsageWidget`): pins one saved account’s quota windows, small/medium/large.
+- **CodexBar Accounts** (`CodexBarAccountsWidget`): quota-only overview for one provider, medium/large.
 - **CodexBar History** (`CodexBarHistoryWidget`): configurable usage-history chart, medium/large.
 - **CodexBar Metric** (`CodexBarCompactWidget`): credits/today-cost/Cost widget, small only. **Cost** follows the app's [reporting period](cost-reporting-periods.md), including month-to-date and all available history; the period label travels with the snapshot.
 - **CodexBar Burn Down** (`CodexBarBurnDownWidget`): configurable quota burn-down chart, medium only.
@@ -56,6 +57,24 @@ Codex pins combine managed account UUIDs with verified owners or normalized sour
 Selected accounts never fall back to another account or provider. Transient failures retain that account's last-good quota at its original age; authentication failures and owner changes cannot borrow prior data. Disabling account refresh removes choices and data from the shared snapshot while provider-only widgets keep working.
 
 Account snapshots contain quota windows only: provider-level cost, credits, and history may have different owners. Usage, History, Metric, Switcher, and Burn Down remain provider-only.
+
+### Multi-account overview
+
+Enable **Keep accounts updated for widgets**, add **CodexBar Accounts**, and choose its **Provider**.
+Medium shows up to four account rows; large supports up to eight. Published accounts are sorted by their
+most constrained general quota's remaining percentage, lowest first, using the same quota selection as
+Account Usage. Ties keep snapshot order, and unavailable accounts follow measured accounts. The
+used/remaining display preference does not change the ordering. The header's age reflects the oldest
+displayed account measurement, including retained last-good readings.
+
+The existing snapshot writer still publishes at most six accounts per provider. It adds only an anonymous
+count for accounts beyond that cap, without fetching them or publishing their identities. A single
+**+N more** row combines those omitted accounts with published rows beyond the widget's size limit.
+Consequently, large currently displays at most six populated rows even though its layout supports eight.
+The overview uses current snapshot labels, including **Hide personal info** ordinals, and preserves the
+existing account ownership and refresh opt-in rules. It has no paging, combined history, credits, or costs.
+Existing single-account pins and provider widgets keep their configurations. Older snapshots without
+the optional `accountOverflowCounts` field remain readable and cannot report accounts outside their saved set.
 
 ### Upgrade and rollback compatibility
 

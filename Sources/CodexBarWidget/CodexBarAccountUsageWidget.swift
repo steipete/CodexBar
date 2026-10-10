@@ -125,6 +125,7 @@ struct CodexBarAccountTimelineProvider: AppIntentTimelineProvider {
             WidgetSnapshot(
                 entries: [],
                 accounts: snapshot.accounts,
+                accountOverflowCounts: snapshot.accountOverflowCounts,
                 enabledProviders: snapshot.enabledProviders,
                 usageBarsShowUsed: snapshot.usageBarsShowUsed,
                 generatedAt: snapshot.generatedAt)
@@ -191,5 +192,126 @@ struct CodexBarAccountUsageWidgetView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .containerBackground(.fill.tertiary, for: .widget)
+    }
+}
+
+struct CodexBarAccountsWidget: Widget {
+    var body: some WidgetConfiguration {
+        AppIntentConfiguration(
+            kind: "CodexBarAccountsWidget",
+            intent: ProviderSelectionIntent.self,
+            provider: CodexBarTimelineProvider())
+        { entry in
+            CodexBarAccountsWidgetView(entry: entry)
+        }
+        .configurationDisplayName(Text(W("%@ %@", "CodexBar", W("Accounts"))))
+        .description(Text(W("Account Usage")))
+        .supportedFamilies([.systemMedium, .systemLarge])
+    }
+}
+
+struct WidgetAccountsOverview {
+    struct Row: Identifiable {
+        let account: WidgetSnapshot.AccountEntry
+        let quota: WidgetTileLane?
+
+        var id: String {
+            self.account.id
+        }
+    }
+
+    let rows: [Row]
+    let overflowCount: Int
+
+    static func make(entry: CodexBarWidgetEntry, family: WidgetFamily) -> Self {
+        let snapshot = entry.snapshot
+        let provider = entry.provider.instanceID
+        guard snapshot.enabledProviders.contains(provider) else { return Self(rows: [], overflowCount: 0) }
+        let accounts = snapshot.accounts.filter {
+            snapshot.account(id: $0.id, provider: provider) != nil
+                && ($0.usage == nil || $0.usage?.provider == provider)
+        }
+        let ordered = accounts.map { account in
+            let lanes = account.usage.map { WidgetTileLane.lanes(for: $0) } ?? []
+            let quota = WidgetTilePlan.make(
+                lanes: lanes.filter { $0.remainingPercent?.isFinite != false }, maxSecondaryLanes: 0).hero
+            return Row(account: account, quota: quota)
+        }.sorted { ($0.quota?.remainingPercent ?? .infinity) < ($1.quota?.remainingPercent ?? .infinity) }
+        let rows = Array(ordered.prefix(family == .systemLarge ? 8 : 4))
+        return Self(
+            rows: rows,
+            overflowCount: ordered.count - rows.count + max(0, snapshot.accountOverflowCounts[provider.rawValue] ?? 0))
+    }
+}
+
+struct CodexBarAccountsWidgetView: View {
+    @Environment(\.widgetFamily) private var family
+    let entry: CodexBarWidgetEntry
+
+    var body: some View {
+        AccountsOverviewTile(entry: self.entry, family: self.family)
+            .containerBackground(.fill.tertiary, for: .widget)
+    }
+}
+
+struct AccountsOverviewTile: View {
+    let entry: CodexBarWidgetEntry
+    let family: WidgetFamily
+
+    var body: some View {
+        let overview = WidgetAccountsOverview.make(entry: self.entry, family: self.family)
+        VStack(alignment: .leading, spacing: self.family == .systemLarge ? 8 : 4) {
+            TileHeader(
+                provider: self.entry.provider.instanceID,
+                updatedAt: overview.rows.compactMap { $0.account.usage?.updatedAt }.min()
+                    ?? self.entry.snapshot.generatedAt,
+                size: .medium)
+            if overview.rows.isEmpty {
+                WidgetEmptyState(message: W("Open CodexBar"))
+            }
+            ForEach(overview.rows) { row in
+                self.accountRow(row)
+            }
+            if overview.overflowCount > 0 {
+                Text(W("+%@ more", String(overview.overflowCount)))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    private func accountRow(_ row: WidgetAccountsOverview.Row) -> some View {
+        let remaining = row.quota?.remainingPercent
+        let showsUsed = self.entry.snapshot.usageBarsShowUsed
+        let displayed = WidgetUsageDisplay.percent(fromRemaining: remaining, showUsed: showsUsed)
+        return VStack(alignment: .leading, spacing: 3) {
+            HStack(spacing: 6) {
+                // The writer owns privacy labels; never recover identity from the saved intent or provider entry.
+                Text(row.account.label)
+                    .font(.caption.weight(.medium))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                Spacer(minLength: 0)
+                if let quota = row.quota, remaining != nil {
+                    Text(W("%@ %@", W(quota.title), W(
+                        showsUsed ? "%@ used" : "%@ left",
+                        WidgetFormat.percent(displayed))))
+                        .font(.caption2.weight(.semibold))
+                        .monospacedDigit()
+                        .foregroundStyle(QuotaSeverity.isLow(remaining: remaining) ? Color.red : Color.primary)
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
+                } else {
+                    Text(W("Account unavailable"))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            if self.family == .systemLarge, remaining != nil {
+                QuotaBar(percent: displayed, color: WidgetColors.color(for: self.entry.provider.instanceID), height: 3)
+            }
+        }
     }
 }
