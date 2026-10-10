@@ -39,7 +39,7 @@ struct ProviderIconResourcesTests {
         #expect(first.isTemplate)
     }
 
-    @Test(arguments: [UsageProvider.ollama, .llmman])
+    @Test(arguments: [UsageProvider.ollama, .llmman, .replicate])
     func `provider icons use template rendering`(provider: UsageProvider) throws {
         ProviderBrandIcon.resetCacheForTesting()
         defer { ProviderBrandIcon.resetCacheForTesting() }
@@ -77,6 +77,28 @@ struct ProviderIconResourcesTests {
         }
         #expect(visiblePixels > 40)
         #expect(visiblePixels < 240)
+    }
+
+    @Test
+    func `replicate uses the official glyph across app website and serve`() throws {
+        let root = try Self.repoRoot()
+        let svg = try String(
+            contentsOf: root.appending(path: "Sources/CodexBar/Resources/ProviderIcon-replicate.svg"),
+            encoding: .utf8)
+        #expect(svg.contains("fill=\"currentColor\""))
+        #expect(svg.contains("viewBox=\"-125 -125 1250 1250\""))
+        for points in [
+            "1000,427.6 1000,540.6 603.4,540.6 603.4,1000 477,1000 477,427.6",
+            "1000,213.8 1000,327 364.8,327 364.8,1000 238.4,1000 238.4,213.8",
+            "1000,0 1000,113.2 126.4,113.2 126.4,1000 0,1000 0,0",
+        ] {
+            #expect(svg.contains("points=\"\(points)\""))
+        }
+        let website = try String(contentsOf: root.appending(path: "docs/logos/replicate.svg"), encoding: .utf8)
+        #expect(website == svg)
+        let cli = try String(
+            contentsOf: root.appending(path: "Sources/CodexBarCLI/CLIServeProviderIcons.swift"), encoding: .utf8)
+        #expect(cli.contains("\"ProviderIcon-replicate\": \"\(Data(svg.utf8).base64EncodedString())\""))
     }
 
     @Test
