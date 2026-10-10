@@ -447,6 +447,10 @@
 "section_combined_icon" = "Icona combinada";
 "section_animation" = "Animación";
 "section_content" = "Contido";
+"menu_highlight_section" = "Resaltado do menú";
+"menu_highlight_custom" = "Usar resaltado personalizado";
+"menu_highlight_color" = "Cor";
+"menu_highlight_opacity" = "Opacidade";
 "section_agent_sessions" = "Sesións de axentes";
 "language_title" = "Idioma";
 "language_subtitle" = "Cambia o idioma da interface. Cómpre reiniciar a aplicación para que se aplique por completo.";

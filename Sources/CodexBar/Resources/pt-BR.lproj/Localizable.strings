@@ -466,6 +466,10 @@
 "section_combined_icon" = "Ícone combinado";
 "section_animation" = "Animação";
 "section_content" = "Conteúdo";
+"menu_highlight_section" = "Realce do menu";
+"menu_highlight_custom" = "Usar realce personalizado";
+"menu_highlight_color" = "Cor";
+"menu_highlight_opacity" = "Opacidade";
 "section_agent_sessions" = "Sessões de agentes";
 "language_title" = "Idioma";
 "language_subtitle" = "Altera o idioma de exibição. Requer reiniciar o app para ter efeito completo.";

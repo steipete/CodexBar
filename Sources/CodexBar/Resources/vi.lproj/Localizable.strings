@@ -466,6 +466,10 @@
 "section_combined_icon" = "Biểu tượng kết hợp";
 "section_animation" = "Hoạt ảnh";
 "section_content" = "Nội dung";
+"menu_highlight_section" = "Tô sáng menu";
+"menu_highlight_custom" = "Dùng màu tô sáng tùy chỉnh";
+"menu_highlight_color" = "Màu";
+"menu_highlight_opacity" = "Độ mờ";
 "section_agent_sessions" = "Phiên tác nhân";
 "language_title" = "Ngôn ngữ";
 "language_subtitle" = "Thay đổi ngôn ngữ hiển thị. Yêu cầu khởi động lại ứng dụng để có hiệu lực đầy đủ.";

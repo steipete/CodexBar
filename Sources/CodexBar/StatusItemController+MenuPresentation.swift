@@ -171,7 +171,7 @@ final class MenuRowContainerView: NSView, MenuCardHighlighting, MenuCardMeasurin
     // Forced vibrancy makes white GPU-tinted content disappear on macOS 15.
     private let hosting: NSHostingView<MenuCardSectionContainerView<AnyView>>
     private var measuredSize: NSSize?
-    private var selectionView: NSVisualEffectView?
+    private var selectionView: NSView?
     private var tintFilter: CIFilter?
     private(set) var allowsMenuHighlight: Bool
     private var onClick: (() -> Void)?
@@ -429,6 +429,10 @@ final class MenuRowContainerView: NSView, MenuCardHighlighting, MenuCardMeasurin
     func setHighlighted(_ highlighted: Bool) {
         guard self.isRowHighlighted != highlighted else { return }
         self.isRowHighlighted = highlighted
+        if self.rowPayload.usesGPUSelection {
+            _ = self.ensureSelectionView()
+            self.refreshTintFilter()
+        }
         self.applyHighlight(animated: true)
     }
 
@@ -467,16 +471,15 @@ final class MenuRowContainerView: NSView, MenuCardHighlighting, MenuCardMeasurin
         layer?.opacity = targetOpacity
     }
 
-    private func ensureSelectionView() -> NSVisualEffectView {
-        if let selectionView {
+    private func ensureSelectionView() -> NSView {
+        if let selectionView,
+           (selectionView is NSVisualEffectView) == (MenuHighlightStyle.customAppearance() == nil)
+        {
+            MenuHighlightStyle.updateSelectionView(selectionView)
             return selectionView
         }
-        let selectionView = NSVisualEffectView()
-        selectionView.material = .selection
-        selectionView.blendingMode = .withinWindow
-        selectionView.state = .active
-        selectionView.isEmphasized = true
-        selectionView.wantsLayer = true
+        self.selectionView?.removeFromSuperview()
+        let selectionView = MenuHighlightStyle.makeSelectionView()
         selectionView.layer?.masksToBounds = true
         selectionView.layer?.opacity = 0
         selectionView.autoresizingMask = [.width, .height]
@@ -497,7 +500,7 @@ final class MenuRowContainerView: NSView, MenuCardHighlighting, MenuCardMeasurin
         guard let filter = CIFilter(name: "CIColorMatrix") else { return nil }
         var tint: NSColor = .white
         appearance.performAsCurrentDrawingAppearance {
-            tint = NSColor.selectedMenuItemTextColor.usingColorSpace(.deviceRGB) ?? .white
+            tint = MenuHighlightStyle.selectionTextColor.usingColorSpace(.deviceRGB) ?? .white
         }
         filter.setValue(CIVector(x: 0, y: 0, z: 0, w: 0), forKey: "inputRVector")
         filter.setValue(CIVector(x: 0, y: 0, z: 0, w: 0), forKey: "inputGVector")
@@ -545,7 +548,7 @@ final class PersistentRefreshMenuView: NSView, MenuCardHighlighting {
     private static let titleShortcutGap: CGFloat = 8
     private static let shortcutReferenceText = "⌘ R"
 
-    private let selectionView = NSVisualEffectView()
+    private var selectionView: NSView = MenuHighlightStyle.makeSelectionView()
     private let iconView = NSImageView()
     private let titleField: NSTextField
     private let shortcutField: NSTextField?
@@ -621,6 +624,7 @@ final class PersistentRefreshMenuView: NSView, MenuCardHighlighting {
     func setHighlighted(_ highlighted: Bool) {
         guard self.isRowHighlighted != highlighted else { return }
         self.isRowHighlighted = highlighted
+        self.refreshSelectionView()
         self.selectionView.isHidden = !highlighted
         self.updateColors()
     }
@@ -683,14 +687,21 @@ final class PersistentRefreshMenuView: NSView, MenuCardHighlighting {
     }
 
     private func setupSelectionView() {
-        self.selectionView.material = .selection
-        self.selectionView.blendingMode = .withinWindow
-        self.selectionView.state = .active
-        self.selectionView.isEmphasized = true
         self.selectionView.isHidden = true
-        self.selectionView.wantsLayer = true
         self.selectionView.layer?.masksToBounds = true
         self.addSubview(self.selectionView)
+    }
+
+    private func refreshSelectionView() {
+        if (self.selectionView is NSVisualEffectView) == (MenuHighlightStyle.customAppearance() == nil) {
+            MenuHighlightStyle.updateSelectionView(self.selectionView)
+            return
+        }
+        self.selectionView.removeFromSuperview()
+        self.selectionView = MenuHighlightStyle.makeSelectionView()
+        self.selectionView.layer?.masksToBounds = true
+        self.addSubview(self.selectionView, positioned: .below, relativeTo: self.titleField)
+        self.needsLayout = true
     }
 
     private func setupIconView(systemImageName: String?) {
@@ -752,9 +763,9 @@ final class PersistentRefreshMenuView: NSView, MenuCardHighlighting {
         }
 
         if self.isRowHighlighted {
-            self.titleField.textColor = .selectedMenuItemTextColor
-            self.shortcutField?.textColor = .selectedMenuItemTextColor
-            self.iconView.contentTintColor = .selectedMenuItemTextColor
+            self.titleField.textColor = MenuHighlightStyle.selectionTextColor
+            self.shortcutField?.textColor = MenuHighlightStyle.selectionTextColor
+            self.iconView.contentTintColor = MenuHighlightStyle.selectionTextColor
             return
         }
 

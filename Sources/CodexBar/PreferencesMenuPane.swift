@@ -1,3 +1,4 @@
+import AppKit
 import CodexBarCore
 import SwiftUI
 
@@ -5,6 +6,9 @@ import SwiftUI
 struct MenuPane: View {
     @Bindable var settings: SettingsStore
     @Bindable var store: UsageStore
+    @AppStorage("customMenuHighlightEnabled") private var customHighlightEnabled = false
+    @AppStorage("customMenuHighlightColor") private var customHighlightColor = MenuHighlightStyle.defaultColor.hexString
+    @AppStorage("customMenuHighlightOpacity") private var customHighlightOpacity = MenuHighlightStyle.defaultOpacity
 
     var body: some View {
         Form {
@@ -94,6 +98,25 @@ struct MenuPane: View {
                 Text(L("section_content"))
             }
 
+            Section(L("menu_highlight_section")) {
+                Toggle(L("menu_highlight_custom"), isOn: self.$customHighlightEnabled)
+                ColorPicker(
+                    L("menu_highlight_color"),
+                    selection: self.highlightColorBinding,
+                    supportsOpacity: false)
+                    .disabled(!self.customHighlightEnabled)
+                LabeledContent(L("menu_highlight_opacity")) {
+                    HStack {
+                        Slider(value: self.$customHighlightOpacity, in: 0...1)
+                            .frame(width: 180)
+                        Text(self.customHighlightOpacity, format: .percent.precision(.fractionLength(0)))
+                            .monospacedDigit()
+                            .frame(width: 42, alignment: .trailing)
+                    }
+                }
+                .disabled(!self.customHighlightEnabled)
+            }
+
             Section(L("section_widgets")) {
                 Toggle(isOn: self.$settings.accountWidgetsEnabled) {
                     SettingsRowLabel(
@@ -116,6 +139,21 @@ struct MenuPane: View {
         .toggleStyle(.switch)
         .scrollContentBackground(.hidden)
         .background(FocusResigningBackground())
+    }
+
+    private var highlightColorBinding: Binding<Color> {
+        Binding(
+            get: {
+                let color = ProviderColor(hexString: self.customHighlightColor) ?? MenuHighlightStyle.defaultColor
+                return Color(red: color.red, green: color.green, blue: color.blue)
+            },
+            set: { color in
+                guard let srgb = NSColor(color).usingColorSpace(.sRGB) else { return }
+                self.customHighlightColor = ProviderColor(
+                    red: Double(srgb.redComponent),
+                    green: Double(srgb.greenComponent),
+                    blue: Double(srgb.blueComponent)).hexString
+            })
     }
 }
 

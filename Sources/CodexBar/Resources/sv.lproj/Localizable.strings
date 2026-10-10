@@ -467,6 +467,10 @@
 "section_combined_icon" = "Kombinerad ikon";
 "section_animation" = "Animering";
 "section_content" = "Innehåll";
+"menu_highlight_section" = "Menymarkering";
+"menu_highlight_custom" = "Använd anpassad markering";
+"menu_highlight_color" = "Färg";
+"menu_highlight_opacity" = "Opacitet";
 "section_agent_sessions" = "Agentsessioner";
 "language_title" = "Språk";
 "language_subtitle" = "Byt visningsspråk. Appen behöver startas om för att ändringen ska slå igenom helt.";

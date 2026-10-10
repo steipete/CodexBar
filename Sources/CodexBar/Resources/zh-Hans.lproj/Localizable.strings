@@ -477,6 +477,10 @@
 "section_combined_icon" = "合并图标";
 "section_animation" = "动画";
 "section_content" = "内容";
+"menu_highlight_section" = "菜单高亮";
+"menu_highlight_custom" = "使用自定义高亮";
+"menu_highlight_color" = "颜色";
+"menu_highlight_opacity" = "不透明度";
 "section_agent_sessions" = "智能体会话";
 "language_title" = "语言";
 "language_subtitle" = "更改显示语言。需要重启应用才能完全生效。";

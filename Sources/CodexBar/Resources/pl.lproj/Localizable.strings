@@ -452,6 +452,10 @@
 "section_combined_icon" = "Połączona ikona";
 "section_animation" = "Animacja";
 "section_content" = "Zawartość";
+"menu_highlight_section" = "Podświetlenie menu";
+"menu_highlight_custom" = "Użyj własnego podświetlenia";
+"menu_highlight_color" = "Kolor";
+"menu_highlight_opacity" = "Krycie";
 "section_agent_sessions" = "Sesje agentów";
 "language_title" = "Język";
 "language_subtitle" = "Zmień język interfejsu. Aby zmiana zaczęła w pełni obowiązywać, uruchom aplikację ponownie.";

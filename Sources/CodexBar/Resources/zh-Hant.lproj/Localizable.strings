@@ -474,6 +474,10 @@
 "section_combined_icon" = "合併圖示";
 "section_animation" = "動畫";
 "section_content" = "內容";
+"menu_highlight_section" = "選單高亮";
+"menu_highlight_custom" = "使用自訂高亮";
+"menu_highlight_color" = "顏色";
+"menu_highlight_opacity" = "不透明度";
 "section_agent_sessions" = "Agent 工作階段";
 "language_title" = "語言";
 "language_subtitle" = "更改顯示語言。需要重新啟動 App 才會完全生效。";

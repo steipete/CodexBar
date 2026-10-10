@@ -466,6 +466,10 @@
 "section_combined_icon" = "Gecombineerd pictogram";
 "section_animation" = "Animatie";
 "section_content" = "Inhoud";
+"menu_highlight_section" = "Menumarkering";
+"menu_highlight_custom" = "Aangepaste markering gebruiken";
+"menu_highlight_color" = "Kleur";
+"menu_highlight_opacity" = "Dekking";
 "section_agent_sessions" = "Agentsessies";
 "language_title" = "Taal";
 "language_subtitle" = "Wijzig de weergavetaal. Vereist een herstart van de app om volledig effect te krijgen.";

@@ -466,6 +466,10 @@
 "section_combined_icon" = "統合アイコン";
 "section_animation" = "アニメーション";
 "section_content" = "メニューの内容";
+"menu_highlight_section" = "メニューのハイライト";
+"menu_highlight_custom" = "カスタムハイライトを使用";
+"menu_highlight_color" = "色";
+"menu_highlight_opacity" = "不透明度";
 "section_agent_sessions" = "エージェントセッション";
 "language_title" = "言語";
 "language_subtitle" = "表示言語を変更します。完全に反映するにはアプリの再起動が必要です。";

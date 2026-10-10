@@ -450,6 +450,10 @@
 "section_combined_icon" = "Birleşik simge";
 "section_animation" = "Animasyon";
 "section_content" = "İçerik";
+"menu_highlight_section" = "Menü vurgusu";
+"menu_highlight_custom" = "Özel vurgu kullan";
+"menu_highlight_color" = "Renk";
+"menu_highlight_opacity" = "Opaklık";
 "section_agent_sessions" = "Ajan oturumları";
 "language_title" = "Dil";
 "language_subtitle" = "Görüntüleme dilini değiştirin. Tam olarak geçerli olması için uygulamanın yeniden başlatılması gerekir.";

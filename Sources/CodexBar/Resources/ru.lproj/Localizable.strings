@@ -469,6 +469,10 @@
 "section_combined_icon" = "Объединённый значок";
 "section_animation" = "Анимация";
 "section_content" = "Содержимое";
+"menu_highlight_section" = "Подсветка меню";
+"menu_highlight_custom" = "Использовать свою подсветку";
+"menu_highlight_color" = "Цвет";
+"menu_highlight_opacity" = "Непрозрачность";
 "section_agent_sessions" = "Сеансы агентов";
 "language_title" = "Язык";
 "language_subtitle" = "Изменяет язык интерфейса. Для полного применения нужен перезапуск приложения.";

@@ -455,6 +455,10 @@
 "section_combined_icon" = "Icona combinada";
 "section_animation" = "Animació";
 "section_content" = "Contingut";
+"menu_highlight_section" = "Ressaltat del menú";
+"menu_highlight_custom" = "Utilitza un ressaltat personalitzat";
+"menu_highlight_color" = "Color";
+"menu_highlight_opacity" = "Opacitat";
 "section_agent_sessions" = "Sessions d'agents";
 "language_title" = "Idioma";
 "language_subtitle" = "Canvia l'idioma de la interfície. Cal reiniciar l'app perquè s'apliqui completament.";

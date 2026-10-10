@@ -433,6 +433,10 @@
 "section_combined_icon" = "Combined icon";
 "section_animation" = "Animation";
 "section_content" = "Content";
+"menu_highlight_section" = "Menu highlight";
+"menu_highlight_custom" = "Use custom highlight";
+"menu_highlight_color" = "Color";
+"menu_highlight_opacity" = "Opacity";
 "section_agent_sessions" = "Agent sessions";
 "language_title" = "Language";
 "language_subtitle" = "Change the display language. Requires app restart to take full effect.";

@@ -464,6 +464,10 @@
 "section_combined_icon" = "Kombiniertes Symbol";
 "section_animation" = "Animation";
 "section_content" = "Inhalt";
+"menu_highlight_section" = "Menümarkierung";
+"menu_highlight_custom" = "Benutzerdefinierte Markierung verwenden";
+"menu_highlight_color" = "Farbe";
+"menu_highlight_opacity" = "Deckkraft";
 "section_agent_sessions" = "Agenten-Sitzungen";
 "language_title" = "Sprache";
 "language_subtitle" = "Anzeigesprache wechseln. Ein App-Neustart wird empfohlen.";

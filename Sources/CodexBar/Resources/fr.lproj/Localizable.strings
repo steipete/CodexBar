@@ -466,6 +466,10 @@
 "section_combined_icon" = "Icône combinée";
 "section_animation" = "Animations";
 "section_content" = "Contenu";
+"menu_highlight_section" = "Surbrillance du menu";
+"menu_highlight_custom" = "Utiliser une surbrillance personnalisée";
+"menu_highlight_color" = "Couleur";
+"menu_highlight_opacity" = "Opacité";
 "section_agent_sessions" = "Sessions d’agents";
 "language_title" = "Langue";
 "language_subtitle" = "Change la langue d'affichage. Nécessite de redémarrer l'app pour une prise en compte complète.";

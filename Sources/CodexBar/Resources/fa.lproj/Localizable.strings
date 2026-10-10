@@ -452,6 +452,10 @@
 "section_combined_icon" = "آیکون ترکیبی";
 "section_animation" = "پویانمایی";
 "section_content" = "محتوا";
+"menu_highlight_section" = "برجسته‌سازی منو";
+"menu_highlight_custom" = "استفاده از برجسته‌سازی سفارشی";
+"menu_highlight_color" = "رنگ";
+"menu_highlight_opacity" = "میزان تیرگی";
 "section_agent_sessions" = "جلسات عامل‌ها";
 "language_title" = "زبان";
 "language_subtitle" = "زبان نمایش را تغییر دهید. برای اجرایی شدن کامل برنامه نیاز به ریستارت دارد.";

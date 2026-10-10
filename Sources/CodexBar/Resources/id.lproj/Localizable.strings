@@ -452,6 +452,10 @@
 "section_combined_icon" = "Ikon gabungan";
 "section_animation" = "Animasi";
 "section_content" = "Konten";
+"menu_highlight_section" = "Sorotan menu";
+"menu_highlight_custom" = "Gunakan sorotan kustom";
+"menu_highlight_color" = "Warna";
+"menu_highlight_opacity" = "Opasitas";
 "section_agent_sessions" = "Sesi agen";
 "language_title" = "Bahasa";
 "language_subtitle" = "Ubah bahasa tampilan. Memerlukan restart aplikasi agar berlaku penuh.";

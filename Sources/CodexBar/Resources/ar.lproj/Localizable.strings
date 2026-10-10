@@ -452,6 +452,10 @@
 "section_combined_icon" = "الأيقونة المدمجة";
 "section_animation" = "الحركة";
 "section_content" = "المحتوى";
+"menu_highlight_section" = "تمييز القائمة";
+"menu_highlight_custom" = "استخدام تمييز مخصص";
+"menu_highlight_color" = "اللون";
+"menu_highlight_opacity" = "الشفافية";
 "section_agent_sessions" = "جلسات الوكلاء";
 "language_title" = "اللغة";
 "language_subtitle" = "غير لغة العرض. يتطلب إعادة تشغيل التطبيق ليكون مفعوله بالكامل.";

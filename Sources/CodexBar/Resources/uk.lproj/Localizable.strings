@@ -466,6 +466,10 @@
 "section_combined_icon" = "Об’єднаний значок";
 "section_animation" = "Анімація";
 "section_content" = "Вміст";
+"menu_highlight_section" = "Підсвічування меню";
+"menu_highlight_custom" = "Використовувати власне підсвічування";
+"menu_highlight_color" = "Колір";
+"menu_highlight_opacity" = "Непрозорість";
 "section_agent_sessions" = "Сеанси агентів";
 "language_title" = "Мова";
 "language_subtitle" = "Змінює мову інтерфейсу. Для повного застосування потрібно перезапустити застосунок.";

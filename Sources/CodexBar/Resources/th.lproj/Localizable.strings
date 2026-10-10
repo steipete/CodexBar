@@ -452,6 +452,10 @@
 "section_combined_icon" = "ไอคอนรวม";
 "section_animation" = "ภาพเคลื่อนไหว";
 "section_content" = "เนื้อหา";
+"menu_highlight_section" = "การไฮไลต์เมนู";
+"menu_highlight_custom" = "ใช้สีไฮไลต์ที่กำหนดเอง";
+"menu_highlight_color" = "สี";
+"menu_highlight_opacity" = "ความทึบ";
 "section_agent_sessions" = "เซสชันเอเจนต์";
 "language_title" = "ภาษา";
 "language_subtitle" = "เปลี่ยนภาษาที่แสดง ต้องรีสตาร์ทแอปเพื่อให้มีผลเต็มที่";
