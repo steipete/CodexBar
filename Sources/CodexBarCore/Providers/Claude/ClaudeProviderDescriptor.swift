@@ -232,9 +232,19 @@ public enum ClaudeProviderDescriptor {
                     costSummaryTitles: ["Usage summary", "Cost items"])),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .api, .web, .cli, .oauth],
-                pipeline: ProviderFetchPipeline(resolveStrategies: self.resolveStrategies)),
+                pipeline: self.pipeline),
             cli: self.cli,
             nativeAppBundleIdentifiers: ["com.anthropic.claudefordesktop"])
+    }
+
+    private static let pipeline = ProviderFetchPipeline(
+        resolveStrategies: ClaudeProviderDescriptor.resolveStrategies,
+        resolveFallbackError: ClaudeProviderDescriptor.resolveFallbackError)
+
+    private static func resolveFallbackError(_ previous: Error?, _ current: Error) -> Error {
+        if ClaudeOAuthFetchError.isCancellation(current) { return current }
+        if let previous, case ClaudeOAuthCredentialsError.credentialsChanged = previous { return previous }
+        return current
     }
 
     private static func menuBarWindow(
@@ -594,6 +604,8 @@ struct ClaudeOAuthFetchStrategy: ProviderFetchStrategy {
             return false
         } catch ClaudeOAuthCredentialsError.notFound {
             return true
+        } catch ClaudeOAuthCredentialsError.credentialsChanged {
+            return true
         } catch {
             // A malformed, unreadable, or otherwise unusable direct credential remains an explicit
             // OAuth error. Do not hide it by silently switching credential authorities.
@@ -642,12 +654,8 @@ struct ClaudeOAuthFetchStrategy: ProviderFetchStrategy {
             case .codexbar:
                 let refreshToken = nonInteractiveRecord.credentials.refreshToken?
                     .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-                if sourceMode == .auto {
-                    return !refreshToken.isEmpty
-                }
-                return true
+                return !refreshToken.isEmpty
             case .claudeCLI:
-                guard sourceMode == .auto else { return true }
                 guard claudeCLIAvailable else { return false }
                 guard ProviderInteractionContext.current == .background else { return true }
                 // An expired Claude CLI credential requires the delegated Claude CLI refresh path.
@@ -660,7 +668,7 @@ struct ClaudeOAuthFetchStrategy: ProviderFetchStrategy {
                 }
                 return !Self.hasMcpOAuthOnlyClaudeKeychainPayload(environment: environment)
             case .environment:
-                return sourceMode != .auto
+                return false
             }
         }
 
@@ -744,7 +752,7 @@ struct ClaudeOAuthFetchStrategy: ProviderFetchStrategy {
            let credentialsError = error as? ClaudeOAuthCredentialsError
         {
             switch credentialsError {
-            case .notFound, .refreshDelegatedToClaudeCLI:
+            case .notFound, .credentialsChanged, .refreshDelegatedToClaudeCLI:
                 return true
             default:
                 break

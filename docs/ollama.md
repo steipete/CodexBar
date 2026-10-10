@@ -8,7 +8,7 @@ read_when:
 
 # Ollama Provider
 
-The Ollama provider verifies Cloud API-key access and reads usage-related data from the authenticated settings page. Current Usage settings can expose a **credit balance**, **monthly credits used**, and a **refill target**, but not a quota percentage; CodexBar shows those as details instead of inventing a quota bar. Older settings pages that report monthly included-usage, session/hourly, or weekly meters remain supported.
+The Ollama provider reads included usage and purchased credits through an API key or usage-related data from the authenticated settings page. Current Usage settings can expose a **credit balance**, **monthly credits used**, and a **refill target**, but not a quota percentage; CodexBar shows those as details instead of inventing a quota bar. Older settings pages that report monthly included-usage, session/hourly, or weekly meters remain supported.
 
 ## Features
 
@@ -20,16 +20,15 @@ The Ollama provider verifies Cloud API-key access and reads usage-related data f
   **Monthly** quota bar. This is not a token-cost or spend estimate.
 - **Legacy usage**: Retains session/hourly and weekly percentage parsing for older settings pages.
 - **Reset timestamps**: Uses the `data-time` attribute on the “Resets in …” elements.
-- **API key auth**: Verifies direct `https://ollama.com/api` access with `OLLAMA_API_KEY` or a configured key.
-- **Browser cookie auth**: Required for Cloud Usage quota windows because Ollama does not expose those limits through
-  the documented API.
+- **API key auth**: Reads `https://ollama.com/api/balance` with `OLLAMA_API_KEY` or a configured key. Included usage is the primary **Monthly** bar; purchased credits appear as **Credit balance** in the same **Credits** section used by browser cookies.
+- **Browser cookie auth**: Reads the settings page without an API key, including older session/hourly and weekly meters.
 
 ## Setup
 
 1. Open **Settings → Providers**.
 2. Enable **Ollama**.
-3. For API-key mode, paste an API key from `https://ollama.com/settings/keys` or set `OLLAMA_API_KEY`.
-4. For quota bars, leave **Cookie source** on **Auto** (recommended, imports Chrome cookies by default).
+3. For API-key mode, select **API key** as the usage source and paste an API key from `https://ollama.com/settings/keys` or set `OLLAMA_API_KEY`.
+4. For browser-cookie mode, leave **Cookie source** on **Auto**, or paste a manual header below.
 
 Ollama API keys currently do not expire, but they can be revoked from the key settings page.
 
@@ -45,14 +44,15 @@ Keychain access is disabled in Advanced settings. CodexBar does not switch cooki
 
 ## How it works
 
-- API-key mode first probes the authenticated `https://ollama.com/api/web_search` endpoint without performing a
-  search, then fetches `https://ollama.com/api/tags` for the model catalog. The catalog endpoint is public and cannot
-  verify a key by itself.
+- API-key mode uses the bundled `ollama-api.ts` plugin to send one bearer-authenticated GET to `https://ollama.com/api/balance`. It no longer probes search or fetches the public model catalog during refresh.
+- The API's `included.allowance_usd - included.balance_usd` supplies **Monthly credits used** and the primary utilization percentage. `included.period.until` supplies its reset. The monthly classification and calendar pace match the cookie path; the shared window model does not store `period.from` as a separate start date.
+- `purchased.balance_usd` supplies **Credit balance**, including Balance layouts. It is never added to the included allowance. Both numeric and decimal-string amounts are supported; absent purchased credits stay absent. Purchased-only accounts get balance details without a quota bar, and a zero allowance does not create a percentage.
+- HTTP 401 and 403 invalidate the API key. Malformed balances fail parsing without exposing the response body; missing reset timestamps remain unavailable.
 - Cookie mode fetches `https://ollama.com/settings` using browser cookies.
 - Credit-wallet fields are matched by complete elements within their wallet section. Details coexist with any reported quota meters; no percentage is inferred when Ollama does not provide a meter. Refill text ends at its own element, even when it has no final period.
-- Temporary network failures during API-key validation or catalog fetching retain the prior API identity snapshot
+- Temporary network failures during API balance fetching retain the prior API snapshot
   and its original timestamp. Localized errors use the same startup retry policy; rejected API keys still invalidate
-  prior data. API-key mode does not supply Cloud Usage quota windows.
+  prior data.
 - Cookie discovery recognizes the current WorkOS AuthKit `wos-session` cookie alongside legacy Ollama and NextAuth
   session names.
 - Redirects from settings to `/signin` or the WorkOS AuthKit authorization page are treated as expired sessions, so

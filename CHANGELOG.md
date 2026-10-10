@@ -5,6 +5,7 @@
 ### Added
 
 - Widgets: add a quota-only Accounts overview with four rows on medium, eight on large, lowest remaining quota first, and a single overflow count including accounts beyond the snapshot cap (Fixes #3144). Thanks @nicosuave for the request and @aledeul for #3938!
+- Ollama: read `/api/balance` in API-key mode to show included monthly usage, its reset, and purchased credit balances without browser cookies (#4399). Thanks @patiencing for the report!
 
 - Cursor: read cursor-agent logins on Linux when desktop authentication is unavailable or rejected, preserving existing session choices and read-only credential access (#4397). Thanks @T0mSIlver!
 
@@ -35,6 +36,7 @@
 
 ### Fixed
 
+- Claude: replace stale missing-credential errors after an external login with credential-change timing and explicit Refresh guidance, without reading Keychain secrets in the background (#3395). Thanks @PoroGramr!
 - Claude: reduce history-cache writes on clone-capable macOS volumes while preserving atomic replacement, report contents, and full-write fallback (#4396). Thanks @Chipagosfinest!
 - Claude: retain session, weekly, and model-specific quotas when tall inline CLI usage panels exceed the former 50-row terminal (#4392). Thanks @T0mSIlver!
 - Overview: let coarse mouse wheels scroll menus that exceed the visible height while keeping row navigation for fitted menus (#4398). Thanks @Chipagosfinest!
