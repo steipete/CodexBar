@@ -2,6 +2,10 @@
 
 ## 0.74.1 — Unreleased
 
+### Fixed
+
+- Replicate: use the official provider glyph across the app, website, and HTTP dashboard; refresh the dashboard’s bundled provider icons (#4411). Thanks @giuseppebisemi!
+
 ## 0.74.0 — 2026-10-10
 
 ### Highlights
