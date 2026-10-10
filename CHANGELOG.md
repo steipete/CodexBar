@@ -4,7 +4,7 @@
 
 ### Fixed
 
-- Menu bar: stop the blank Settings placeholder window from appearing on launch (regression in 0.74.0) (#4407, #4408). Thanks @tcurdt, @ChuJiannn11 and @kcharlan!
+- Menu bar: stop the blank Settings placeholder window from appearing on launch (regression in 0.74.0) (#4415). Thanks @tcurdt, @ChuJiannn11 and @kcharlan!
 
 ## 0.74.0 — 2026-10-10
 
