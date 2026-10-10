@@ -43,6 +43,7 @@ Uses Xcode’s `ictool` + transparent padding + iconset → Icon.icns.
 ```
 What it does:
 - `swift build -c release --arch arm64` and `swift build -c release --arch x86_64`
+- Explicitly links against the selected macOS SDK and checks every app/CLI/watchdog slice's `LC_BUILD_VERSION` before staging, preserving macOS 14 support without selecting legacy native UI metrics.
 - Packages `CodexBar.app` with Info.plist and Icon.icns
 - Embeds Sparkle.framework, Updater, Autoupdate, XPCs
 - Codesigns **everything** with runtime + timestamp (deep) and adds rpath
