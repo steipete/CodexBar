@@ -2,6 +2,10 @@
 
 ## 0.74.1 — Unreleased
 
+### Added
+
+- xAI: show an optional live remaining credit estimate from the current invoice preview alongside the posted prepaid balance (#4406). Thanks @lilbreadxiaomianbao!
+
 ### Fixed
 
 - Packaging: preserve the selected macOS SDK in app and helper binaries so newer macOS versions use current native UI metrics, while retaining macOS 14 support (#4403). Thanks @Yuxin-Qiao!
