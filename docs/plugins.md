@@ -543,6 +543,8 @@ Bundled scripts own requests, error classification, and snapshot mapping; Swift 
 
 ## Native adapters with declarative registration
 
+Ollama's API-key strategy runs `ollama-api.ts` on both engines: a fixed-origin bearer GET reads the included allowance, reset, and purchased balance into the existing Monthly and Credits presentation. Cookie import and HTML parsing remain native. The public legacy catalog fetcher remains available for CodexBarCore API compatibility but is no longer used by provider refreshes.
+
 Hugging Face, Nous, Fireworks, xAI, Venice, and Zed also declare `PluginProviderSpec` values. Hugging Face keeps its
 serialized, retained script runtime and CLI-token reader. Nous keeps Hermes credential validation and diagnostics;
 Fireworks keeps account-slug projection and its typed result-persistence policy. xAI shares the API-key and workspace
