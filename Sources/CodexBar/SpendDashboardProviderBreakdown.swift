@@ -30,23 +30,6 @@ struct SpendProviderBreakdown: Identifiable, Equatable {
 
 private let spendProviderModelDisplayLimit = 6
 
-private func spendDashboardProviderTokenSum(_ values: [Int]) -> Int? {
-    guard !values.isEmpty else { return nil }
-    var total = 0
-    for value in values {
-        let result = total.addingReportingOverflow(value)
-        guard !result.overflow else { return nil }
-        total = result.partialValue
-    }
-    return total
-}
-
-private func spendDashboardProviderCostSum(_ values: [Double]) -> Double? {
-    guard !values.isEmpty else { return nil }
-    let total = values.reduce(0, +)
-    return total.isFinite ? total : nil
-}
-
 func spendDashboardProviderBreakdowns(
     _ group: SpendDashboardModel.CurrencyGroup) -> [SpendProviderBreakdown]
 {
@@ -56,8 +39,8 @@ func spendDashboardProviderBreakdowns(
         let models = group.models.filter { $0.provider == provider }
         let costs = subscriptions.compactMap(\.totalCost)
         let tokens = subscriptions.compactMap(\.totalTokens)
-        let totalCost = spendDashboardProviderCostSum(costs)
-        let totalTokens = spendDashboardProviderTokenSum(tokens)
+        let totalCost = SpendDashboardModel.safeCostSum(costs)
+        let totalTokens = tokens.isEmpty ? nil : CheckedSum.integers(tokens)
         let incompleteRequestCount = CostUsageIncompleteRequests.sum(subscriptions.map(\.incompleteRequestCount))
         return SpendProviderBreakdown(
             provider: provider,
