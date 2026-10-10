@@ -46,6 +46,9 @@ private struct SpendPerformanceMetricStrip: View {
                         Text(metric.value)
                             .font(.system(.body, design: .rounded, weight: .semibold))
                             .foregroundStyle(.primary)
+                        if let note = metric.note {
+                            Text(note).font(.caption2).foregroundStyle(.secondary)
+                        }
                     }
                     .fixedSize()
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -55,10 +58,15 @@ private struct SpendPerformanceMetricStrip: View {
             }
             VStack(spacing: 6) {
                 ForEach(self.metrics) { metric in
-                    HStack(alignment: .firstTextBaseline) {
-                        Text(metric.label).foregroundStyle(.secondary)
-                        Spacer(minLength: 12)
-                        Text(metric.value).fontWeight(.semibold).foregroundStyle(.primary)
+                    VStack(alignment: .leading, spacing: 3) {
+                        HStack(alignment: .firstTextBaseline) {
+                            Text(metric.label).foregroundStyle(.secondary)
+                            Spacer(minLength: 12)
+                            Text(metric.value).fontWeight(.semibold).foregroundStyle(.primary)
+                        }
+                        if let note = metric.note {
+                            Text(note).font(.caption2).foregroundStyle(.secondary)
+                        }
                     }
                     .font(.caption)
                     .help(metric.help ?? "")
@@ -193,15 +201,17 @@ private struct SpendPerformanceModelComparison: View {
 }
 
 func spendSessionPerformanceMetrics(_ summary: CostUsageTurnPerformanceSummary) -> [SpendPerformanceMetric] {
-    [
+    let firstTokenCoverage = L(
+        "First-token samples: %@ / %@",
+        codexBarLocalizedInteger(summary.firstTokenSampleCount),
+        codexBarLocalizedInteger(summary.sampleCount))
+    return [
         SpendPerformanceMetric(
             id: "first-token",
             label: L("spend_performance_first_token"),
             value: spendPerformanceSeconds(summary.medianFirstTokenMilliseconds),
-            help: L(
-                "First-token samples: %@ / %@",
-                codexBarLocalizedInteger(summary.firstTokenSampleCount),
-                codexBarLocalizedInteger(summary.sampleCount)) + "\n" +
+            note: firstTokenCoverage,
+            help: firstTokenCoverage + "\n" +
                 L("Model first token may be reasoning, before visible answer text.")),
         SpendPerformanceMetric(
             id: "output",
@@ -211,6 +221,17 @@ func spendSessionPerformanceMetrics(_ summary: CostUsageTurnPerformanceSummary) 
             id: "duration",
             label: L("spend_performance_duration"),
             value: spendPerformanceSeconds(summary.medianDurationMilliseconds)),
+        SpendPerformanceMetric(
+            id: "cached-input",
+            label: L("spend_performance_cached_input"),
+            value: summary.details.cachedInputFraction.map {
+                L("spend_performance_percent", spendPerformanceNumber($0 * 100))
+            } ?? "—",
+            note: L(
+                "spend_performance_coverage",
+                codexBarLocalizedInteger(summary.details.cacheSampleCount),
+                codexBarLocalizedInteger(summary.sampleCount)),
+            help: L("spend_performance_cache_help")),
     ]
 }
 
@@ -241,16 +262,6 @@ func spendSessionPerformanceDetailMetrics(_ summary: CostUsageTurnPerformanceSum
             } ?? "—",
             note: details.outputRateLowerQuartile == nil ? L("Speed range needs 4 completed turns.") : nil,
             help: L("spend_performance_speed_range_help")),
-        SpendPerformanceMetric(
-            id: "cached-input",
-            label: L("spend_performance_cached_input"),
-            value: details.cachedInputFraction.map { L("spend_performance_percent", spendPerformanceNumber($0 * 100)) }
-                ?? "—",
-            note: L(
-                "spend_performance_coverage",
-                codexBarLocalizedInteger(details.cacheSampleCount),
-                codexBarLocalizedInteger(summary.sampleCount)),
-            help: L("spend_performance_cache_help")),
     ]
 }
 
