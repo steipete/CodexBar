@@ -93,7 +93,8 @@ struct XAIProviderTests {
             "2027-01-13", "2027-01-14", "2027-01-15",
         ])
         #expect(snapshot.dataConfidence == .exact)
-        #expect(XAICostUsageMapping.tokenSnapshot(from: snapshot, historyDays: 30)?.historyCoverageIsEstablished == true)
+        #expect(XAICostUsageMapping.tokenSnapshot(from: snapshot, historyDays: 30)?
+            .historyCoverageIsEstablished == true)
     }
 
     @Test(arguments: BundledPluginTestSupport.engines, [
