@@ -23,16 +23,6 @@ struct KimiDesktopSessionDiscovery: Sendable {
         self.readCurrentValue = readCurrentValue
     }
 
-    static func resolveNativeCandidate(
-        region: KimiRegion,
-        currentSession: () -> String?,
-        legacyCookie: () -> String?) -> String?
-    {
-        // Never recover a historical China Desktop cookie after logout or an incomplete strict read.
-        // International retains its existing cookie path; it gets no new Local Storage access.
-        region == .china ? currentSession() : legacyCookie()
-    }
-
     func accessToken(settings: KimiProviderSettings, homeDirectory: URL, now: Date = Date()) -> String? {
         // International Desktop has not been observed. Manual/Off must not even inspect the profile.
         guard settings.cookieSource == .auto, settings.region == .china, !Task.isCancelled else { return nil }

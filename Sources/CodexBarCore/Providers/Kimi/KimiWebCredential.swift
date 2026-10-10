@@ -28,7 +28,8 @@ struct KimiWebCredential: Sendable {
 /// Distinct from server invalidToken: do not rediscover/fallback after an observed Desktop lifecycle change.
 struct KimiDesktopSessionChanged: LocalizedError {
     var errorDescription: String? {
-        "Kimi Desktop session changed before the request was sent."
+        "Kimi Desktop session changed before the request was sent. " +
+            "Confirm the intended account is signed in to Kimi Desktop, then refresh CodexBar."
     }
 }
 

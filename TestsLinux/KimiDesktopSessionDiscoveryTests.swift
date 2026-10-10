@@ -18,28 +18,6 @@ struct KimiDesktopSessionDiscoveryTests {
         return URL(fileURLWithPath: String(cString: path), isDirectory: true)
     }()
 
-    @Test(arguments: [true, false])
-    func `native candidate never revives a China Desktop cookie`(hasSession: Bool) {
-        let token = KimiDesktopSessionDiscovery.resolveNativeCandidate(region: .china) {
-            hasSession ? "current-session" : nil
-        } legacyCookie: {
-            Issue.record("Strict nil must not fall back to a historical Desktop cookie")
-            return "old-cookie"
-        }
-        #expect(token == (hasSession ? "current-session" : nil))
-    }
-
-    @Test
-    func `native candidate preserves International cookie path without Local Storage`() {
-        let token = KimiDesktopSessionDiscovery.resolveNativeCandidate(region: .international) {
-            Issue.record("International must not inspect new Desktop Local Storage")
-            return "unexpected"
-        } legacyCookie: {
-            "existing-international-cookie"
-        }
-        #expect(token == "existing-international-cookie")
-    }
-
     @Test(arguments: [ProviderCookieSource.manual, .off], KimiRegion.allCases)
     func `Manual and Off never inspect Desktop storage`(source: ProviderCookieSource, region: KimiRegion) {
         let discovery = KimiDesktopSessionDiscovery { _, _ in
