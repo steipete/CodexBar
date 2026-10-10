@@ -11,7 +11,7 @@ if [[ "$(uname -s)" != Darwin ]]; then
     exit 2
 fi
 dependency_path="$(cd "$1" && pwd -P)"
-expected_revision=3ac0966ed4dba4fd26da9c49cd32d9c358d19515
+expected_revision=4fecf1158b2a64045ad3d85e11aab3d8b6d73e7d
 if [[ "$(git -C "$dependency_path" rev-parse HEAD)" != "$expected_revision" ||
       -n "$(git -C "$dependency_path" status --porcelain)" ]]; then
     echo "Expected clean SweetCookieKit candidate $expected_revision" >&2

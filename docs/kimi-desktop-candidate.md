@@ -60,7 +60,7 @@ SweetCookieKit #24 at `29e7af6bb71f1b624380ab556330e8be8f7ddd65` provides sequen
 selection, manifest live-file selection and tombstones through the existing best-effort public API.
 It does **not** contain this candidate's `readCurrentValue(forRawKey:in:)`, mandatory complete reads,
 checksum checks, or descriptor-anchored `O_NOFOLLOW` implementation. Those remain in the separate
-six-file shared-reader proposal ending at `3ac0966ed4dba4fd26da9c49cd32d9c358d19515`.
+six-file [shared-reader PR #25](https://github.com/steipete/SweetCookieKit/pull/25) ending at `4fecf1158b2a64045ad3d85e11aab3d8b6d73e7d`.
 Pinning #24 alone cannot compile the paired candidate's strict factory. Maintainers need that
 additional reader change (or an equivalent upstream API) before ordinary-build activation.
 The pin itself is intentionally left to maintainers. The paired checkout's Ego Lite scope overlay
@@ -84,7 +84,7 @@ monthly CLI/parser regression cases. Keychain and session isolation flags remain
 graph and requires full Xcode/`actool`; the script never installs tools.
 
 The verification script requires the independently reviewable SweetCookieKit branch at
-`3ac0966ed4dba4fd26da9c49cd32d9c358d19515`, without the historical paired build's browser-scope
+`4fecf1158b2a64045ad3d85e11aab3d8b6d73e7d`, without the historical paired build's browser-scope
 preservation overlay. The older paired revision `3166b1cba5f77dce2e1fde575c05789e1f7a3ff9`
 has identical strict reader and tests but is retained only as earlier evidence. Do not submit
 its unrelated overlay as part of the reader fix. The dependency's browser catalog remains
