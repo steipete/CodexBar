@@ -100,6 +100,7 @@ struct XAIProviderTests {
     @Test(arguments: BundledPluginTestSupport.engines, [
         ("13364", "$141.17"),
         ("0", "$274.81"),
+        ("-100", "$275.81"),
         ("30000", "$-25.19"),
     ])
     func `live estimate subtracts documented invoice cents without replacing posted balance`(

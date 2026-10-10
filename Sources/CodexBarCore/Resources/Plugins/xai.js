@@ -43,7 +43,7 @@ defineProvider({
         preview.status >= 200 &&
         preview.status < 300 &&
         typeof cents === "string" &&
-        /^\d+$/.test(cents) &&
+        /^-?\d+$/.test(cents) &&
         Number.isSafeInteger(Number(cents))
       ) {
         liveRemaining = balance - Number(cents) / 100;

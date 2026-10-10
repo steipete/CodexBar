@@ -67,7 +67,7 @@ The optional **Live remaining (est.)** row subtracts the invoice preview's `core
 posted balance, converting its string USD cents to dollars. xAI documents this field as the total amount after VAT in
 the [invoice-preview REST reference](https://docs.x.ai/developers/rest-api-reference/management/billing#preview-postpaid-invoice-of-the-month).
 This is an estimate from two separate billing reads, not a replacement for the posted ledger or a guarantee of an
-exact Console match during billing updates. Only a valid, nonnegative integer cent amount produces the row; explicit
+exact Console match during billing updates. Only a valid signed integer cent amount produces the row; explicit
 zero is valid, and a negative remaining result is retained. Missing or malformed preview data never becomes zero spend.
 
 ## Display
