@@ -1,23 +1,6 @@
-<svg fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+<svg fill="currentColor" viewBox="-125 -125 1250 1250" xmlns="http://www.w3.org/2000/svg">
   <title>Replicate</title>
-  <g>
-    <rect x="3" y="1" width="3" height="3"/>
-    <rect x="6" y="1" width="3" height="3"/>
-    <rect x="9" y="1" width="3" height="3"/>
-    <rect x="12" y="1" width="3" height="3"/>
-    <rect x="3" y="4" width="3" height="3"/>
-    <rect x="15" y="4" width="3" height="3"/>
-    <rect x="3" y="7" width="3" height="3"/>
-    <rect x="15" y="7" width="3" height="3"/>
-    <rect x="3" y="10" width="3" height="3"/>
-    <rect x="6" y="10" width="3" height="3"/>
-    <rect x="9" y="10" width="3" height="3"/>
-    <rect x="12" y="10" width="3" height="3"/>
-    <rect x="3" y="13" width="3" height="3"/>
-    <rect x="9" y="13" width="3" height="3"/>
-    <rect x="3" y="16" width="3" height="3"/>
-    <rect x="12" y="16" width="3" height="3"/>
-    <rect x="3" y="19" width="3" height="3"/>
-    <rect x="15" y="19" width="3" height="3"/>
-  </g>
+  <polygon points="1000,427.6 1000,540.6 603.4,540.6 603.4,1000 477,1000 477,427.6"/>
+  <polygon points="1000,213.8 1000,327 364.8,327 364.8,1000 238.4,1000 238.4,213.8"/>
+  <polygon points="1000,0 1000,113.2 126.4,113.2 126.4,1000 0,1000 0,0"/>
 </svg>
