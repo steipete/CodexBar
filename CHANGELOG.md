@@ -2,6 +2,10 @@
 
 ## 0.74.1 — Unreleased
 
+### Fixed
+
+- Packaging: preserve the selected macOS SDK in app and helper binaries so newer macOS versions use current native UI metrics, while retaining macOS 14 support (#4403). Thanks @Yuxin-Qiao!
+
 ## 0.74.0 — 2026-10-10
 
 ### Highlights
