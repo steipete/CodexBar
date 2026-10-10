@@ -35,10 +35,10 @@ enum MenuBarDisplayText {
         return balance.map(String.init)
     }
 
-    static func percentText(window: RateWindow?, showUsed: Bool) -> String? {
+    static func percentText(window: RateWindow?, showUsed: Bool, estimated: Bool = false) -> String? {
         guard let window else { return nil }
         let percent = showUsed ? window.usedPercent : window.remainingPercent
-        return UsageFormatter.percentString(percent)
+        return "\(estimated ? "~" : "")\(UsageFormatter.percentString(percent))"
     }
 
     static func paceText(pace: UsagePace?, reservePositive: Bool = false) -> String? {
@@ -116,6 +116,7 @@ enum MenuBarDisplayText {
         pace: UsagePace? = nil,
         paceReservePositive: Bool = false,
         showUsed: Bool,
+        estimated: Bool = false,
         resetTimeDisplayStyle: ResetTimeDisplayStyle = .countdown,
         showsResetTimeWhenExhausted: Bool = false,
         now: Date = .init()) -> String?
@@ -136,25 +137,26 @@ enum MenuBarDisplayText {
             // Smart mode cannot replace an exhausted percentage unless the reset is concrete, future,
             // and schedulable. Preserve the quota signal in pace/both modes too; a pace from another
             // combined lane must not hide that this displayed lane is already exhausted.
-            return self.percentText(window: percentWindow, showUsed: showUsed)
+            return self.percentText(window: percentWindow, showUsed: showUsed, estimated: estimated)
         }
         switch mode {
         case .percent:
-            return self.percentText(window: percentWindow, showUsed: showUsed)
+            return self.percentText(window: percentWindow, showUsed: showUsed, estimated: estimated)
         case .pace:
             // Pace can be temporarily unavailable near a reset or when a provider omits window metadata.
             // Keep the selected quota visible instead of collapsing the status item to an icon-only state.
             return self.paceText(pace: pace, reservePositive: paceReservePositive)
-                ?? self.percentText(window: percentWindow, showUsed: showUsed)
+                ?? self.percentText(window: percentWindow, showUsed: showUsed, estimated: estimated)
         case .both:
-            guard let percent = percentText(window: percentWindow, showUsed: showUsed) else { return nil }
+            guard let percent = percentText(window: percentWindow, showUsed: showUsed, estimated: estimated)
+            else { return nil }
             // Fall back to percent-only when pace is unavailable (e.g. Copilot)
             guard let paceText = Self.paceText(pace: pace, reservePositive: paceReservePositive) else { return percent }
             return "\(percent) · \(paceText)"
         case .resetTime:
             guard let percentWindow else { return nil }
             return self.resetTimeText(window: percentWindow, style: resetTimeDisplayStyle, now: now)
-                ?? self.percentText(window: percentWindow, showUsed: showUsed)
+                ?? self.percentText(window: percentWindow, showUsed: showUsed, estimated: estimated)
         }
     }
 

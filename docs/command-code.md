@@ -41,6 +41,10 @@ On Linux, browser import is unavailable. Set `cookieSource` to `manual` and
 provide the Command Code `Cookie` header in `cookieHeader`; both `auto` and
 `web` CLI source modes then use the billing API.
 
+The current Go plan (`individual-go-v1`) includes $10 in monthly credits for a
+$1/month subscription plus processing fees, as listed on the [public pricing page](https://commandcode.ai/pricing).
+The legacy `individual-go` allowance remains $10.
+
 The credits response reports the monthly grant size (`monthlyCreditsGranted`),
 and CodexBar sizes the monthly row from it. The optional subscription lookup
 supplies the plan name and the billing-period end, and sizes the grant only
@@ -65,7 +69,9 @@ billing endpoint.
   always comes from the fresh credits response. After a failed lookup with no
   kept plan, the row keeps its usage but has no reset time; with no grant size at
   all, the row is unavailable rather than shown as untouched. The rolling rows stay
-  available either way. The app also preserves an already-proven depleted monthly
+  available either way. Unknown subscription IDs display their raw plan label and the API-reported
+  grant/remaining balance; they never hide usage behind a catalog error. Without a reported grant,
+  an unknown plan has no monthly percentage. The app also preserves an already-proven depleted monthly
   row while enrichment is unavailable and fresh credits still show depletion.
 - Widgets do not expose Command Code in the provider picker yet.
 

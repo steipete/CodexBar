@@ -340,22 +340,37 @@ struct CommandCodeUsageFetcherTests {
     }
 
     @Test
-    func `successful unknown active subscription still fails explicitly`() async {
-        await CommandCodeUsageFetcher.withIsolatedPlanCacheForTesting {
-            let unknownPlanJSON = Self.subscriptionJSON.replacingOccurrences(
-                of: #""planId":"individual-go""#,
-                with: #""planId":"individual-future""#)
+    func `unknown subscription preserves API usage and its plan label`() async throws {
+        try await CommandCodeUsageFetcher.withIsolatedPlanCacheForTesting {
             let transport = ProviderHTTPTransportStub { request in
                 let path = try #require(request.url?.path)
-                let body = path.hasSuffix("/credits") ? Self.creditsJSON : unknownPlanJSON
+                let body = path.hasSuffix("/credits")
+                    ? #"""
+                    {"credits":{"monthlyCredits":8,"monthlyCreditsGranted":20},
+                    "windowLimits":{"fiveHour":{"used":1,"cap":4}}}
+                    """#
+                    : #"{"success":true,"data":{"status":"active","planId":"individual-future"}}"#
                 return try Self.response(request: request, statusCode: 200, body: body)
             }
+            let snapshot = try await CommandCodeUsageFetcher.fetchUsage(
+                cookieHeader: "session=synthetic", session: transport)
+            #expect(snapshot.toUsageSnapshot().primary?.usedPercent == 25)
+            #expect(snapshot.monthlyCreditsRemaining == 8)
+            #expect(snapshot.monthlyCreditsUsed == 12)
+            #expect(snapshot.toUsageSnapshot().tertiary?.usedPercent == 60)
+            #expect(snapshot.toUsageSnapshot().identity?.loginMethod == "individual-future · $12.00 of $20.00")
 
-            await #expect(throws: CommandCodeUsageError.unknownPlan("individual-future")) {
-                try await CommandCodeUsageFetcher.fetchUsage(
-                    cookieHeader: "session=valid",
-                    session: transport)
+            let unsizedTransport = ProviderHTTPTransportStub { request in
+                let path = try #require(request.url?.path)
+                let body = path.hasSuffix("/credits") ? Self.creditsJSON
+                    : #"{"success":true,"data":{"status":"active","planId":"individual-future"}}"#
+                return try Self.response(request: request, statusCode: 200, body: body)
             }
+            let unsized = try await CommandCodeUsageFetcher.fetchUsage(
+                cookieHeader: "session=synthetic", session: unsizedTransport)
+            #expect(unsized.monthlyCreditsTotal == nil)
+            #expect(unsized.toUsageSnapshot().tertiary == nil)
+            #expect(unsized.toUsageSnapshot().identity?.loginMethod == "individual-future · $8.78 remaining")
         }
     }
 
@@ -408,15 +423,16 @@ struct CommandCodeUsageFetcherTests {
         #expect(snapshot.toUsageSnapshot().tertiary == nil)
     }
 
-    @Test
-    func `active pro-v1 subscription resolves to the eighty dollar plan`() async throws {
+    @Test(arguments: ["individual-pro-v1", "individual-go-v1"])
+    func `versioned subscriptions resolve to their published grants`(planID: String) async throws {
+        let expectedGrant = planID == "individual-pro-v1" ? 80.0 : 10.0
         try await CommandCodeUsageFetcher.withIsolatedPlanCacheForTesting {
-            let proV1JSON = Self.subscriptionJSON.replacingOccurrences(
+            let versionedJSON = Self.subscriptionJSON.replacingOccurrences(
                 of: #""planId":"individual-go""#,
-                with: #""planId":"individual-pro-v1""#)
+                with: "\"planId\":\"\(planID)\"")
             let transport = ProviderHTTPTransportStub { request in
                 let path = try #require(request.url?.path)
-                let body = path.hasSuffix("/credits") ? Self.creditsJSON : proV1JSON
+                let body = path.hasSuffix("/credits") ? Self.creditsJSON : versionedJSON
                 return try Self.response(request: request, statusCode: 200, body: body)
             }
 
@@ -425,17 +441,24 @@ struct CommandCodeUsageFetcherTests {
                 session: transport)
 
             let plan = try #require(snapshot.plan)
-            #expect(plan.id == "individual-pro-v1")
-            #expect(plan.monthlyCreditsUSD == 80)
-            #expect(snapshot.monthlyCreditsTotal == 80)
-            #expect(abs((snapshot.monthlyCreditsUsed ?? -1) - 71.2216) < 0.0001)
+            #expect(plan.id == planID)
+            #expect(plan.monthlyCreditsUSD == expectedGrant)
+            #expect(snapshot.monthlyCreditsTotal == expectedGrant)
+            #expect(abs((snapshot.monthlyCreditsUsed ?? -1) - (expectedGrant - 8.7784)) < 0.0001)
             #expect(snapshot.subscriptionEnrichmentUnavailable == false)
         }
     }
 
     @Test
+    func `credit labels retain their currency precision`() {
+        #expect(CommandCodeUsageSnapshot.formatUSD(8.7784) == "$8.78")
+        #expect(CommandCodeUsageSnapshot.formatUSD(150.75) == "$151")
+    }
+
+    @Test
     func `plan catalog covers known plans`() {
         #expect(CommandCodePlanCatalog.plan(forID: "individual-go")?.monthlyCreditsUSD == 10)
+        #expect(CommandCodePlanCatalog.plan(forID: "individual-go-v1")?.monthlyCreditsUSD == 10)
         #expect(CommandCodePlanCatalog.plan(forID: "individual-goat")?.monthlyCreditsUSD == 70)
         #expect(CommandCodePlanCatalog.plan(forID: "individual-pro")?.monthlyCreditsUSD == 30)
         #expect(CommandCodePlanCatalog.plan(forID: "individual-pro-v1")?.monthlyCreditsUSD == 80)

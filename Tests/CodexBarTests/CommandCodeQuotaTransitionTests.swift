@@ -7,7 +7,7 @@ import Testing
 struct CommandCodeQuotaTransitionTests {
     @Test
     func `display keeps prior monthly window only during subscription enrichment failure`() throws {
-        let plan = try #require(CommandCodePlanCatalog.plans.first { $0.monthlyCreditsUSD > 0 })
+        let plan = try #require(CommandCodePlanCatalog.plans.first { ($0.monthlyCreditsUSD ?? 0) > 0 })
         let availableWithPlan = self.snapshot(remaining: 6, plan: plan)
         let missingSubscription = self.snapshot(
             remaining: 0,
@@ -50,7 +50,7 @@ struct CommandCodeQuotaTransitionTests {
 
     @Test
     func `subscription enrichment failure preserves rolling windows`() throws {
-        let plan = try #require(CommandCodePlanCatalog.plans.first { $0.monthlyCreditsUSD > 0 })
+        let plan = try #require(CommandCodePlanCatalog.plans.first { ($0.monthlyCreditsUSD ?? 0) > 0 })
         let rolling = RateWindow(
             usedPercent: 25,
             windowMinutes: 5 * 60,
@@ -78,7 +78,7 @@ struct CommandCodeQuotaTransitionTests {
         settings.sessionQuotaNotificationsEnabled = true
         let notifier = NotifierSpy()
         let store = self.makeStore(settings: settings, notifier: notifier)
-        let plan = try #require(CommandCodePlanCatalog.plans.first { $0.monthlyCreditsUSD > 0 })
+        let plan = try #require(CommandCodePlanCatalog.plans.first { ($0.monthlyCreditsUSD ?? 0) > 0 })
         let availableWithPlan = self.snapshot(
             remaining: 6,
             plan: plan,
@@ -122,7 +122,7 @@ struct CommandCodeQuotaTransitionTests {
         settings.quotaWarningThresholds = [50]
         let notifier = NotifierSpy()
         let store = self.makeStore(settings: settings, notifier: notifier)
-        let plan = try #require(CommandCodePlanCatalog.plans.first { $0.monthlyCreditsUSD > 0 })
+        let plan = try #require(CommandCodePlanCatalog.plans.first { ($0.monthlyCreditsUSD ?? 0) > 0 })
 
         let availableWithPlan = self.snapshot(
             remaining: 6,

@@ -208,13 +208,12 @@ struct CommandCodePlanCacheTests {
                 credits: Self.freshCreditsJSON,
                 subscription: Self.activeSubscriptionJSON)
 
-            await #expect(throws: CommandCodeUsageError.self) {
-                _ = try await Self.fetch(
-                    credits: Self.freshCreditsJSON,
-                    subscription: Self.unknownPlanJSON)
-            }
+            let unknown = try await Self.fetch(
+                credits: Self.freshCreditsJSON,
+                subscription: Self.unknownPlanJSON)
+            #expect(unknown.toUsageSnapshot().identity?.loginMethod?.hasPrefix("individual-unreleased") == true)
 
-            // The rejected answer proves the remembered grant is superseded.
+            // The unknown plan proves the remembered grant is superseded.
             let afterRename = try await Self.fetch(
                 credits: Self.spentCreditsJSON,
                 subscription: nil)

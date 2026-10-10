@@ -55,6 +55,7 @@ struct MenuBarLayoutRenderMetrics: Hashable {
 
 struct MenuBarLayoutRenderData: Hashable {
     let provider: UsageProvider
+    var quotaIsEstimated = false
     let iconKey: String
     let providerName: String?
     let accountLabel: String?
@@ -782,6 +783,7 @@ final class MenuBarLayoutRenderer {
             window: window,
             rateWindow: rateWindow,
             automaticText: data.automaticText,
+            estimated: data.quotaIsEstimated,
             showUsed: options.showUsed)
         let prefix: String
         let accessibilityPrefix = Self.windowAccessibilityLabel(window, data: data)
@@ -860,6 +862,7 @@ final class MenuBarLayoutRenderer {
             window: .automatic,
             rateWindow: rateWindow,
             automaticText: nil,
+            estimated: data.quotaIsEstimated,
             showUsed: showUsed)
         let label = data.laneLabels.label(for: lane)
         let accessibility = resolvedValue.isAvailable
@@ -880,6 +883,7 @@ final class MenuBarLayoutRenderer {
             window: .automatic,
             rateWindow: data.extraWindow(id)?.window,
             automaticText: nil,
+            estimated: data.quotaIsEstimated,
             showUsed: showUsed)
         let accessibility = resolvedValue.isAvailable
             ? L("%@ %@", title, resolvedValue.text)
@@ -892,6 +896,7 @@ final class MenuBarLayoutRenderer {
         window: PercentWindow,
         rateWindow: MenuBarLayoutRenderWindow?,
         automaticText: String?,
+        estimated: Bool,
         showUsed: Bool)
         -> (text: String, isAvailable: Bool)
     {
@@ -901,7 +906,7 @@ final class MenuBarLayoutRenderer {
         }
         if let rateWindow {
             let percent = showUsed ? rateWindow.usedPercent : rateWindow.remainingPercent
-            return (UsageFormatter.percentString(percent), true)
+            return ("\(estimated ? "~" : "")\(UsageFormatter.percentString(percent))", true)
         }
         return (Self.missingValue, false)
     }

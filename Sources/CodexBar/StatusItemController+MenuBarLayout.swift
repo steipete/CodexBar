@@ -224,6 +224,7 @@ extension StatusItemController {
 
         return MenuBarLayoutRenderData(
             provider: provider,
+            quotaIsEstimated: snapshot?.dataConfidence == .estimated,
             iconKey: "\(provider.rawValue):\(warningFlash ? "warning" : "normal")",
             providerName: providerName,
             accountLabel: accountLabel,
