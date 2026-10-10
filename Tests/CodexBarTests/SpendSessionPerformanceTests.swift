@@ -123,11 +123,13 @@ struct SpendSessionPerformanceTests {
         let summary = try #require(CostUsageTurnPerformanceSummary(samples: [sample]))
         CodexBarLocalizationOverride.$appLanguage.withValue("en") {
             let metrics = spendSessionPerformanceMetrics(summary)
-            #expect(metrics.map(\.value) == ["—", "2.0 tok/s", "10.0 s"])
+            #expect(metrics.map(\.value) == ["—", "2.0 tok/s", "10.0 s", "—"])
+            #expect(metrics[0].note == "First-token samples: 0 / 1")
+            #expect(metrics[3].note == "0 / 1 turns with cache data")
         }
         CodexBarLocalizationOverride.$appLanguage.withValue("zh-Hans") {
             let metrics = spendSessionPerformanceMetrics(summary)
-            #expect(metrics.map(\.value) == ["—", "2.0 tok/s", "10.0 秒"])
+            #expect(metrics.map(\.value) == ["—", "2.0 tok/s", "10.0 秒", "—"])
         }
     }
 
@@ -146,10 +148,35 @@ struct SpendSessionPerformanceTests {
             #expect(metrics[0].note != nil)
             #expect(metrics[1].value == "—")
             #expect(metrics[1].note != nil)
-            #expect(metrics[3].value == "80.0%")
+            let cachedInput = spendSessionPerformanceMetrics(summary).first { $0.id == "cached-input" }
+            #expect(cachedInput?.value == "80.0%")
+            #expect(cachedInput?.note == "1 / 1 turns with cache data")
             #expect(summary.firstTokenSampleCount == 0)
             #expect(summary.sampleCount == 1)
             #expect(summary.details.cacheSampleCount == 1)
+        }
+    }
+
+    @Test
+    func `primary observations distinguish measured zero cache reuse from missing records`() throws {
+        let measured = try #require(CostUsageTurnPerformanceSample(
+            completedAt: Date(),
+            outputTokens: 300,
+            durationMilliseconds: 1000,
+            firstTokenMilliseconds: 100,
+            inputTokens: 1000,
+            cachedInputTokens: 0))
+        let unrecorded = try #require(CostUsageTurnPerformanceSample(
+            completedAt: Date(),
+            outputTokens: 200,
+            durationMilliseconds: 2000))
+        let summary = try #require(CostUsageTurnPerformanceSummary(samples: [measured, unrecorded]))
+        CodexBarLocalizationOverride.$appLanguage.withValue("en") {
+            let metrics = spendSessionPerformanceMetrics(summary)
+            #expect(metrics.map(\.value) == ["0.1 s", "166.7 tok/s", "1.5 s", "0.0%"])
+            #expect(metrics[0].note == "First-token samples: 1 / 2")
+            #expect(metrics.first(where: { $0.id == "cached-input" })?.note == "1 / 2 turns with cache data")
+            #expect(!spendSessionPerformanceDetailMetrics(summary).contains { $0.id == "cached-input" })
         }
     }
 
