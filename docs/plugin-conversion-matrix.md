@@ -94,7 +94,7 @@ Abacus, Muse, LongCat, Replicate, and TypeSafe unchanged.
 | moonshot | `cut-over` | Yes | Both engines use the bundled TypeScript plugin for regional bearer GET and identity-only balances, preserving USD/CNY rounding and negative zero. Swift resolves region-bound credentials; the native fetcher is deleted. |
 | amp | `needs-files/subprocess/oauth-broker` | No | CLI subprocess and browser-cookie strategies plus workspace credit details are outside this host. |
 | t3chat | `cut-over` | Yes | Both engines preserve the 60-second default web timeout (bounded to 90 seconds), safe captured cURL headers, JSONL parsing, and base/overage windows. The native fetcher and parser are deleted. |
-| ollama | `needs-cookie-import` | No | HTML parsing and API-key arbitration fit scripts, but automatic auth tries multiple browser-session candidates and preserves browser access diagnostics. |
+| ollama | `needs-cookie-import` | API only | `ollama-api.ts` reads included and purchased balances. Native cookie import/HTML parsing retains browser-session candidate arbitration and access diagnostics. |
 | synthetic | `cut-over` | Yes | Cut over on both engines: fixed-origin bearer GET with generic windows, cost, dates, and identity; the native fetch twin is deleted. |
 | warp | `needs-pty/webview/native` | No | Legacy classification pending a separate parity audit: GraphQL JSON POST is now supported, so the former GET-only rationale no longer establishes a blocker. |
 | openrouter | `cut-over` | Yes | Cut over on JavaScriptCore: endpoint and client-header overrides plus one-second best-effort key enrichment match native behavior; the native fetch core is Linux-only. |

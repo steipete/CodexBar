@@ -307,6 +307,8 @@ struct ProviderSettingsDescriptorTests {
         let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-ollama-refresh")
         let context = fixture.settingsContext(provider: .ollama)
         let pickers = OllamaProviderImplementation().settingsPickers(context: context)
+        let usageSource = try #require(pickers.first { $0.id == "ollama-usage-source" })
+        #expect(usageSource.subtitle.isEmpty)
         let picker = try #require(pickers.first { $0.id == "ollama-cookie-source" })
         let action = try #require(picker.trailingActions.first)
 
