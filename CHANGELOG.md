@@ -141,6 +141,10 @@
 - JetBrains AI: show monthly credit usage accurately when top-up credits exist, keep partial quota data on a consistent balance, and replace misleading version detection with the local source label (#4287). Thanks @taihua!
 - JetBrains AI: refresh stale quota from the selected IDE's bounded `idea.log` tail, preserving XML fallback when log records are incomplete or unsupported (#4288). Thanks @taihua!
 
+### Fixed
+
+- iCloud Sync: enable production push notifications for timely cross-Mac updates and reject release profiles missing the required capability (#4132). Thanks @h3x89!
+
 ## 0.72.0 — 2026-10-04
 
 ### Highlights

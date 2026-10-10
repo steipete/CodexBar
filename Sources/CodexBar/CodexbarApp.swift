@@ -524,6 +524,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self.terminateActiveProcessesForAppShutdown()
     }
 
+    func application(_ application: NSApplication, didReceiveRemoteNotification userInfo: [String: Any]) {
+        self.cloudSyncCoordinator?.didReceiveRemoteNotification(userInfo)
+    }
+
     func applicationDidBecomeActive(_ notification: Notification) {
         self.cloudSyncCoordinator?.applicationDidBecomeActive()
     }
