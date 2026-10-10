@@ -231,12 +231,17 @@ struct WidgetAccountsOverview {
             snapshot.account(id: $0.id, provider: provider) != nil
                 && ($0.usage == nil || $0.usage?.provider == provider)
         }
-        let ordered = accounts.map { account in
+        let candidates: [Row] = accounts.map { account in
             let lanes = account.usage.map { WidgetTileLane.lanes(for: $0) } ?? []
             let quota = WidgetTilePlan.make(
                 lanes: lanes.filter { $0.remainingPercent?.isFinite != false }, maxSecondaryLanes: 0).hero
             return Row(account: account, quota: quota)
-        }.sorted { ($0.quota?.remainingPercent ?? .infinity) < ($1.quota?.remainingPercent ?? .infinity) }
+        }
+        let ordered = candidates.sorted {
+            let left = $0.quota?.remainingPercent ?? Double.infinity
+            let right = $1.quota?.remainingPercent ?? Double.infinity
+            return left < right
+        }
         let rows = Array(ordered.prefix(family == .systemLarge ? 8 : 4))
         return Self(
             rows: rows,
