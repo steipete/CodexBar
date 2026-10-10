@@ -33,6 +33,7 @@ struct SettingsDefaultsState {
     var usageBarsShowUsed: Bool
     var resetTimesShowAbsolute: Bool
     var providerChangelogLinksEnabled: Bool
+    var highlightMenuCardsOnHover: Bool
     var menuBarShowsBrandIconWithPercent: Bool
     var menuBarHidesCritters: Bool
     var menuBarColorPace: Bool

@@ -656,6 +656,7 @@
 "workday_tick_appearance_subtle" = "ملایم";
 "workday_tick_appearance_high_contrast" = "کنتراست بالا";
 "show_provider_changelog_links_title" = "لینک های تغییرات ارائه دهنده را نمایش دهید";
+"highlight_menu_cards_on_hover_title" = "برجسته‌کردن کارت‌های منو هنگام قرارگیری نشانگر";
 "show_provider_changelog_links_subtitle" = "لینک های یادداشت های انتشار برای ارائه دهندگان پشتیبانی شده با پشتیبانی CLI به منو اضافه می شود.";
 "show_credits_extra_usage_title" = "نمایش اعتبارها + استفاده اضافی";
 "show_credits_extra_usage_subtitle" = "اعتبارها و استفادهٔ اضافی را برای ارائه‌دهندگان پشتیبانی‌شده نمایش دهید.";

@@ -650,6 +650,7 @@
 "workday_tick_appearance_subtle" = "Subtiel";
 "workday_tick_appearance_high_contrast" = "Hoog contrast";
 "show_provider_changelog_links_title" = "Toon provider changelog-links";
+"highlight_menu_cards_on_hover_title" = "Menukaarten markeren bij aanwijzen";
 "show_provider_changelog_links_subtitle" = "Voegt koppelingen naar release-opmerkingen voor ondersteunde CLI-ondersteunde providers toe aan het menu.";
 "show_credits_extra_usage_title" = "Toon credits + extra gebruik";
 "show_credits_extra_usage_subtitle" = "Toon tegoeden en extra gebruik voor ondersteunde providers.";

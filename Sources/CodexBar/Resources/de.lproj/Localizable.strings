@@ -650,6 +650,7 @@
 "workday_tick_appearance_subtle" = "Dezent";
 "workday_tick_appearance_high_contrast" = "Hoher Kontrast";
 "show_provider_changelog_links_title" = "Links zum Änderungsprotokoll des Anbieters anzeigen";
+"highlight_menu_cards_on_hover_title" = "Menükarten beim Darüberfahren hervorheben";
 "show_provider_changelog_links_subtitle" = "Fügt dem Menü Versionshinweise-Links für unterstützte CLI-gestützte Anbieter hinzu.";
 "show_credits_extra_usage_title" = "Credits + zusätzliche Nutzung anzeigen";
 "show_credits_extra_usage_subtitle" = "Zeigt Guthaben und zusätzliche Nutzung für unterstützte Anbieter.";

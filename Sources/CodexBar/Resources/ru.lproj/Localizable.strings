@@ -651,6 +651,7 @@
 "workday_tick_appearance_subtle" = "Ненавязчивые";
 "workday_tick_appearance_high_contrast" = "Высокий контраст";
 "show_provider_changelog_links_title" = "Показывать ссылки на журналы изменений провайдеров";
+"highlight_menu_cards_on_hover_title" = "Подсвечивать карточки меню при наведении";
 "show_provider_changelog_links_subtitle" = "Добавляет в меню ссылки на заметки к релизам для поддерживаемых CLI-провайдеров.";
 "show_credits_extra_usage_title" = "Показывать кредиты и доп. использование";
 "show_credits_extra_usage_subtitle" = "Показывать кредиты и дополнительное использование для поддерживаемых провайдеров.";

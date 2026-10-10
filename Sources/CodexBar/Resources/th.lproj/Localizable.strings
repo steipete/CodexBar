@@ -656,6 +656,7 @@
 "workday_tick_appearance_subtle" = "ละเอียดอ่อน";
 "workday_tick_appearance_high_contrast" = "คอนทราสต์สูง";
 "show_provider_changelog_links_title" = "แสดงลิงก์บันทึกการเปลี่ยนแปลงของผู้ให้บริการ";
+"highlight_menu_cards_on_hover_title" = "ไฮไลต์การ์ดเมนูเมื่อวางเมาส์เหนือ";
 "show_provider_changelog_links_subtitle" = "เพิ่มลิงก์บันทึกประจํารุ่นสําหรับผู้ให้บริการที่ได้รับการสนับสนุน CLI ในเมนู";
 "show_credits_extra_usage_title" = "แสดงเครดิต + การใช้งานเพิ่มเติม";
 "show_credits_extra_usage_subtitle" = "แสดงเครดิตและการใช้งานเพิ่มเติมสำหรับผู้ให้บริการที่รองรับ";

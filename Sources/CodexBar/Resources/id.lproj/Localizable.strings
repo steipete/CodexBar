@@ -658,6 +658,7 @@
 "workday_tick_appearance_subtle" = "Samar";
 "workday_tick_appearance_high_contrast" = "Kontras tinggi";
 "show_provider_changelog_links_title" = "Tampilkan tautan changelog penyedia";
+"highlight_menu_cards_on_hover_title" = "Sorot kartu menu saat kursor diarahkan";
 "show_provider_changelog_links_subtitle" = "Menambahkan tautan catatan rilis untuk penyedia berbasis CLI yang didukung ke menu.";
 "show_credits_extra_usage_title" = "Tampilkan kredit + penggunaan ekstra";
 "show_credits_extra_usage_subtitle" = "Tampilkan kredit dan penggunaan tambahan untuk penyedia yang didukung.";

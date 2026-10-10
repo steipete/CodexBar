@@ -952,6 +952,50 @@ extension StatusMenuTests {
     }
 
     @Test
+    func `disabled menu hover highlight preserves card colors in both render paths`() {
+        StatusItemController.setMenuRefreshEnabledForTesting(false)
+        let previousRendering = StatusItemController.menuCardRenderingEnabled
+        StatusItemController.menuCardRenderingEnabled = true
+        defer { StatusItemController.menuCardRenderingEnabled = previousRendering }
+
+        let settings = testSettingsStore(
+            suiteName: "MenuHoverHighlightDisabled",
+            prepareDefaults: { $0.set(false, forKey: "highlightMenuCardsOnHover") })
+        settings.statusChecksEnabled = false
+        settings.providerDetectionCompleted = true
+        let controller = self.makeRecyclingController(settings: settings)
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let menu = NSMenu()
+        let overview = controller.makeMenuCardItem(
+            Text("Codex weekly left"),
+            id: "overview-codex",
+            width: 300,
+            submenu: NSMenu(),
+            usesGPUSelection: true,
+            onClick: {})
+        let provider = controller.makeMenuCardItem(
+            Text("Codex"), id: "provider-codex", width: 300, onClick: {})
+        menu.addItem(overview)
+        menu.addItem(provider)
+        guard let overviewView = overview.view as? MenuRowContainerView,
+              let providerView = provider.view as? MenuRowContainerView
+        else {
+            Issue.record("expected menu card views")
+            return
+        }
+
+        controller.menu(menu, willHighlight: overview)
+        #expect(overviewView.isHighlightedForTesting)
+        #expect(overviewView.gpuSelectionOpacityForTesting == 0)
+        #expect(!overviewView.hasSelectedTextTintForTesting)
+
+        controller.menu(menu, willHighlight: provider)
+        #expect(providerView.isHighlightedForTesting)
+        #expect(!providerView.swiftUIHighlightStateIsHighlightedForTesting)
+    }
+
+    @Test
     func `overview and provider rows swap payloads without detaching their containers`() {
         StatusItemController.setMenuRefreshEnabledForTesting(false)
         let previousRendering = StatusItemController.menuCardRenderingEnabled

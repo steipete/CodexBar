@@ -79,6 +79,7 @@ extension StatusItemController {
                 payload: payload,
                 refreshMonitor: self.menuCardRefreshMonitor)
         }
+        hosting.setHoverHighlightEnabled(self.settings.highlightMenuCardsOnHover)
         let height = self.cachedMenuCardHeight(
             for: id,
             scope: heightCacheScope ?? id,

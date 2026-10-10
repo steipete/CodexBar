@@ -647,6 +647,7 @@
 "workday_tick_appearance_subtle" = "Sutis";
 "workday_tick_appearance_high_contrast" = "Alto contraste";
 "show_provider_changelog_links_title" = "Mostrar links de changelog dos provedores";
+"highlight_menu_cards_on_hover_title" = "Destacar cartões do menu ao passar o cursor";
 "show_provider_changelog_links_subtitle" = "Adiciona links de notas de versão para provedores baseados em CLI compatíveis no menu.";
 "show_credits_extra_usage_title" = "Mostrar créditos + uso extra";
 "show_credits_extra_usage_subtitle" = "Mostra créditos e uso extra para provedores compatíveis.";

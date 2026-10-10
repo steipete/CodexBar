@@ -177,6 +177,7 @@ final class MenuRowContainerView: NSView, MenuCardHighlighting, MenuCardMeasurin
     private var onClick: (() -> Void)?
     private var containsInteractiveControls: Bool
     private var isRowHighlighted = false
+    private var hoverHighlightEnabled = true
     private var isPressed = false
     private var isForwardingHostedControlPress = false
     private(set) var rowPayload: MenuCardRowPayload
@@ -256,7 +257,8 @@ final class MenuRowContainerView: NSView, MenuCardHighlighting, MenuCardMeasurin
         self.onClick = payload.onClick
         self.isPressed = false
         self.isForwardingHostedControlPress = false
-        self.highlightState.isHighlighted = !payload.usesGPUSelection && self.isRowHighlighted
+        self.highlightState.isHighlighted = !payload.usesGPUSelection
+            && self.hoverHighlightEnabled && self.isRowHighlighted
         self.hosting.rootView = Self.makeRootView(
             payload: payload,
             highlightState: self.highlightState,
@@ -432,6 +434,12 @@ final class MenuRowContainerView: NSView, MenuCardHighlighting, MenuCardMeasurin
         self.applyHighlight(animated: true)
     }
 
+    func setHoverHighlightEnabled(_ enabled: Bool) {
+        guard self.hoverHighlightEnabled != enabled else { return }
+        self.hoverHighlightEnabled = enabled
+        self.applyHighlight(animated: false)
+    }
+
     private func configureSelectionMode(animated: Bool) {
         if self.rowPayload.usesGPUSelection {
             _ = self.ensureSelectionView()
@@ -447,18 +455,19 @@ final class MenuRowContainerView: NSView, MenuCardHighlighting, MenuCardMeasurin
     }
 
     private func applyHighlight(animated: Bool) {
+        let visuallyHighlighted = self.hoverHighlightEnabled && self.isRowHighlighted
         guard self.rowPayload.usesGPUSelection else {
-            self.highlightState.isHighlighted = self.isRowHighlighted
+            self.highlightState.isHighlighted = visuallyHighlighted
             return
         }
 
         self.highlightState.isHighlighted = false
-        self.hosting.layer?.filters = self.isRowHighlighted ? self.tintFilter.map { [$0] } ?? [] : []
+        self.hosting.layer?.filters = visuallyHighlighted ? self.tintFilter.map { [$0] } ?? [] : []
         let layer = self.ensureSelectionView().layer
-        let targetOpacity: Float = self.isRowHighlighted ? 1 : 0
+        let targetOpacity: Float = visuallyHighlighted ? 1 : 0
         if animated {
             let fade = CABasicAnimation(keyPath: "opacity")
-            fade.fromValue = layer?.presentation()?.opacity ?? (self.isRowHighlighted ? 0 : 1)
+            fade.fromValue = layer?.presentation()?.opacity ?? (visuallyHighlighted ? 0 : 1)
             fade.toValue = targetOpacity
             fade.duration = Self.selectionFadeDuration
             fade.timingFunction = CAMediaTimingFunction(name: .easeOut)
@@ -488,7 +497,7 @@ final class MenuRowContainerView: NSView, MenuCardHighlighting, MenuCardMeasurin
     private func refreshTintFilter() {
         guard self.rowPayload.usesGPUSelection else { return }
         self.tintFilter = Self.makeSelectedTextTintFilter(appearance: self.effectiveAppearance)
-        if self.isRowHighlighted {
+        if self.hoverHighlightEnabled, self.isRowHighlighted {
             self.hosting.layer?.filters = self.tintFilter.map { [$0] } ?? []
         }
     }
@@ -550,6 +559,7 @@ final class PersistentRefreshMenuView: NSView, MenuCardHighlighting {
     private let titleField: NSTextField
     private let shortcutField: NSTextField?
     private var isRowHighlighted = false
+    private let hoverHighlightEnabled: Bool
     private var isRowEnabled = true
     private var rowHeight = PersistentRefreshRowMetrics.defaults.rowHeight
     private var onClick: (() -> Void)?
@@ -566,10 +576,12 @@ final class PersistentRefreshMenuView: NSView, MenuCardHighlighting {
         title: String,
         systemImageName: String?,
         shortcutText: String?,
+        hoverHighlightEnabled: Bool = true,
         onClick: (() -> Void)? = nil)
     {
         self.titleField = NSTextField(labelWithString: title)
         self.shortcutField = shortcutText.map(NSTextField.init(labelWithString:))
+        self.hoverHighlightEnabled = hoverHighlightEnabled
         self.onClick = onClick
         super.init(frame: .zero)
         self.setupSelectionView()
@@ -621,7 +633,7 @@ final class PersistentRefreshMenuView: NSView, MenuCardHighlighting {
     func setHighlighted(_ highlighted: Bool) {
         guard self.isRowHighlighted != highlighted else { return }
         self.isRowHighlighted = highlighted
-        self.selectionView.isHidden = !highlighted
+        self.selectionView.isHidden = !highlighted || !self.hoverHighlightEnabled
         self.updateColors()
     }
 
@@ -751,7 +763,7 @@ final class PersistentRefreshMenuView: NSView, MenuCardHighlighting {
             return
         }
 
-        if self.isRowHighlighted {
+        if self.hoverHighlightEnabled, self.isRowHighlighted {
             self.titleField.textColor = .selectedMenuItemTextColor
             self.shortcutField?.textColor = .selectedMenuItemTextColor
             self.iconView.contentTintColor = .selectedMenuItemTextColor
@@ -834,6 +846,14 @@ extension MenuRowContainerView {
 
     var hasGPUSelectionLayerForTesting: Bool {
         self.selectionView != nil
+    }
+
+    var gpuSelectionOpacityForTesting: Float? {
+        self.selectionView?.layer?.opacity
+    }
+
+    var hasSelectedTextTintForTesting: Bool {
+        self.hosting.layer?.filters?.isEmpty == false
     }
 }
 #endif
