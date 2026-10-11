@@ -130,7 +130,7 @@ struct CostUsageCachedTokenDetailTests {
         let expectedMix = CostUsageTokenMix(
             inputTokens: 160, outputTokens: 16, cacheReadTokens: 40, reasoningTokens: 7)
         #expect(group.tokenMix == expectedMix)
-        #expect(group.displayedModels.first?.tokenMix == expectedMix)
+        #expect(group.models.first?.tokenMix == expectedMix)
 
         let stable = try await Self.fetch(
             now: nowB.addingTimeInterval(120), forceRefresh: forceRefresh, options: options)

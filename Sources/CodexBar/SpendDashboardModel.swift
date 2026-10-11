@@ -279,8 +279,6 @@ struct SpendDashboardModel: Equatable, Sendable {
         let meteredCost: Double?
         let sessions: [SessionRow]
         let projects: [ProjectRow]
-        let overflowModelCount: Int
-        let displayedModels: [ModelRow]
         let selectedDay: Date?
         let hourlyPoints: [HourlyPoint]
         private let hourlyDaysMemo = SpendHourlyDaysMemo()
@@ -321,7 +319,6 @@ struct SpendDashboardModel: Equatable, Sendable {
             provenance: CostProvenance = .unknown,
             meteredCost: Double? = nil,
             sessions: [SessionRow] = [],
-            overflowModelCount: Int = 0,
             selectedDay: Date? = nil,
             hourlyPoints: [HourlyPoint] = [],
             timeZone: TimeZone = .current)
@@ -343,14 +340,10 @@ struct SpendDashboardModel: Equatable, Sendable {
             self.meteredCost = meteredCost
             self.sessions = sessions
             self.projects = projects
-            self.overflowModelCount = overflowModelCount
-            self.displayedModels = Array(models.prefix(Self.modelRowDisplayLimit))
             self.selectedDay = selectedDay
             self.hourlyPoints = hourlyPoints
             self.timeZone = timeZone
         }
-
-        static let modelRowDisplayLimit = 8
     }
 
     struct SessionRow: Identifiable, Equatable, Sendable {
@@ -391,7 +384,6 @@ struct SpendDashboardModel: Equatable, Sendable {
     let selectedDay: Date?
 
     static let tokenActivityDayCount = 365
-    static let modelRowDisplayLimit = 8
 
     init(
         requestedDays: Int,
@@ -464,7 +456,6 @@ struct SpendDashboardModel: Equatable, Sendable {
                     currencyCode: currencyCode,
                     inputs: inputs,
                     days: days,
-                    now: now,
                     calendar: calculationCalendar,
                     bounds: bounds,
                     selectedDay: selectedDay.map { calculationCalendar.startOfDay(for: $0) })
@@ -580,12 +571,10 @@ struct SpendDashboardModel: Equatable, Sendable {
         currencyCode: String,
         inputs: [ClassifiedInput],
         days: Int,
-        now: Date,
         calendar: Calendar,
-        bounds: ClosedRange<Date>? = nil,
+        bounds: ClosedRange<Date>,
         selectedDay: Date?) -> CurrencyGroup
     {
-        let bounds = bounds ?? Self.bounds(days: days, now: now, calendar: calendar)
         let summaries = inputs.map { classified in
             Self.inputSummary(
                 input: classified.input,
@@ -664,7 +653,6 @@ struct SpendDashboardModel: Equatable, Sendable {
         case (false, true): .listPriceEstimate
         case (false, false): .unknown
         }
-        let overflowCount = max(0, modelSummary.rows.count - CurrencyGroup.modelRowDisplayLimit)
         let hourlyPoints = Self.hourlyPoints(
             summaries: summaries,
             selectedDay: selectedDay,
@@ -692,7 +680,6 @@ struct SpendDashboardModel: Equatable, Sendable {
                 bounds: bounds,
                 calendar: calendar,
                 selectedDay: selectedDay),
-            overflowModelCount: overflowCount,
             selectedDay: selectedDay,
             hourlyPoints: hourlyPoints,
             timeZone: calendar.timeZone)

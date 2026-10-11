@@ -280,7 +280,6 @@ struct SpendDashboardModelTests {
         #expect(group.models.map(\.provider) == [.claude])
         #expect(group.models.map(\.modelName) == ["test-model"])
         #expect(group.models.map(\.totalCost) == [4])
-        #expect(spendDashboardModelHistoryPresentation(group) == .partial)
         CodexBarLocalizationOverride.$appLanguage.withValue("en") {
             #expect(spendDashboardGroupTokenText(group).hasPrefix("~"))
             #expect(spendDashboardHistoryCaption(group, requestedDays: 7).contains("Partial estimate"))
@@ -306,7 +305,6 @@ struct SpendDashboardModelTests {
         #expect(group.totalTokens == nil)
         #expect(group.modelHistoryCompleteness == .incomplete)
         #expect(group.models.isEmpty)
-        #expect(spendDashboardModelHistoryPresentation(group) == .unavailable)
     }
 
     @Test
@@ -706,7 +704,6 @@ struct SpendDashboardModelTests {
         #expect(group.providers.first?.totalCost == nil)
         #expect(group.models.map(\.modelName) == ["test-model"])
         #expect(group.models.map(\.totalCost) == [nil])
-        #expect(spendDashboardModelHistoryPresentation(group) == .partial)
     }
 
     @Test(CodexCredentialFixtures())
@@ -814,7 +811,6 @@ extension SpendDashboardModelTests {
         #expect(group.modelHistoryCompleteness == .incomplete)
         #expect(group.models.map(\.modelName) == ["gpt-5.2-codex"])
         #expect(group.models.map(\.totalCost) == [2])
-        #expect(spendDashboardModelHistoryPresentation(group) == .partial)
     }
 
     @Test
@@ -842,7 +838,6 @@ extension SpendDashboardModelTests {
         #expect(group.modelHistoryCompleteness == .incomplete)
         #expect(group.models.first(where: { $0.modelName == "example-priced-codex-model" })?.totalCost == 2)
         #expect(group.models.first(where: { $0.modelName == "codex-auto-review" })?.totalCost == nil)
-        #expect(spendDashboardModelHistoryPresentation(group) == .partial)
     }
 
     @Test
@@ -868,7 +863,6 @@ extension SpendDashboardModelTests {
         #expect(group.totalCost == 2)
         #expect(group.modelHistoryCompleteness == .incomplete)
         #expect(group.models.isEmpty)
-        #expect(spendDashboardModelHistoryPresentation(group) == .unavailable)
     }
 
     @Test
@@ -913,7 +907,6 @@ extension SpendDashboardModelTests {
         #expect(group.totalTokens == 20)
         #expect(group.modelHistoryCompleteness == .incomplete)
         #expect(group.models.isEmpty)
-        #expect(spendDashboardModelHistoryPresentation(group) == .unavailable)
     }
 
     @Test
@@ -949,21 +942,18 @@ extension SpendDashboardModelTests {
         #expect(unpricedGroup.totalCost == nil)
         #expect(unpricedGroup.modelHistoryCompleteness == .incomplete)
         #expect(unpricedGroup.models.isEmpty)
-        #expect(spendDashboardModelHistoryPresentation(unpricedGroup) == .unavailable)
 
         let emptyGroup = try #require(empty.groups.first)
         #expect(emptyGroup.totalCost == 0)
         #expect(emptyGroup.totalTokens == 0)
         #expect(emptyGroup.modelHistoryCompleteness == .complete)
         #expect(emptyGroup.models.isEmpty)
-        #expect(spendDashboardModelHistoryPresentation(emptyGroup) == .empty)
 
         let knownZeroGroup = try #require(knownZero.groups.first)
         #expect(knownZeroGroup.totalCost == 0)
         #expect(knownZeroGroup.totalTokens == 0)
         #expect(knownZeroGroup.modelHistoryCompleteness == .complete)
         #expect(knownZeroGroup.models.isEmpty)
-        #expect(spendDashboardModelHistoryPresentation(knownZeroGroup) == .empty)
     }
 
     @Test
@@ -1021,7 +1011,7 @@ extension SpendDashboardModelTests {
         #expect(group.tokenMix.outputTokens == 2)
         #expect(group.tokenMix.cacheReadTokens == nil)
         #expect(group.tokenMix.reasoningTokens == 3)
-        #expect(group.displayedModels.count == 1)
+        #expect(group.models.count == 1)
         #expect(group.sessions.count == 1)
         #expect(group.provenance == .listPriceEstimate)
     }

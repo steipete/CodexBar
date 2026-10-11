@@ -114,22 +114,6 @@ func codexCostCatchUpProgressText(_ activity: CodexCostCatchUpActivity) -> Strin
     return L("Loading…")
 }
 
-enum SpendDashboardModelHistoryPresentation: Equatable {
-    case unavailable
-    case empty
-    case partial
-    case complete
-}
-
-func spendDashboardModelHistoryPresentation(
-    _ group: SpendDashboardModel.CurrencyGroup) -> SpendDashboardModelHistoryPresentation
-{
-    if group.models.isEmpty {
-        return group.modelHistoryCompleteness == .incomplete ? .unavailable : .empty
-    }
-    return group.modelHistoryCompleteness == .incomplete ? .partial : .complete
-}
-
 @MainActor
 struct SpendDashboardPane: View {
     @Bindable var settings: SettingsStore
@@ -1356,10 +1340,6 @@ private func spendDashboardIncludesLocalHistory(_ group: SpendDashboardModel.Cur
 
 func spendDashboardProviderCountTitle(_ group: SpendDashboardModel.CurrencyGroup) -> String {
     spendDashboardIncludesLocalHistory(group) ? L("Sources") : L("Subscriptions")
-}
-
-func spendDashboardProviderPanelTitle(_ group: SpendDashboardModel.CurrencyGroup) -> String {
-    spendDashboardIncludesLocalHistory(group) ? L("By source") : L("By subscription")
 }
 
 func spendDashboardPartialSourceCoverageText(_ group: SpendDashboardModel.CurrencyGroup) -> String {

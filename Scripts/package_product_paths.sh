@@ -4,6 +4,9 @@ codexbar_swiftpm_bin_path() {
   local conf="$1"
   shift
   local command=(swift build --show-bin-path -c "$conf")
+  if [[ -n "${CODEXBAR_MACOS_SDK_PATH:-}" ]]; then
+    command+=(--sdk "$CODEXBAR_MACOS_SDK_PATH")
+  fi
   local arch
   for arch in "$@"; do
     command+=(--arch "$arch")
