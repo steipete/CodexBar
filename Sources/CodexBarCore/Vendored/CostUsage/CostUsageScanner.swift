@@ -2100,6 +2100,7 @@ enum CostUsageScanner {
     struct ClaudeParseResult {
         let rows: [ClaudeUsageRow]
         let parsedBytes: Int64
+        var rejectedUsageLineCount: Int = 0
     }
 
     enum ClaudePathRole: String, Codable, Equatable {
@@ -2455,7 +2456,7 @@ enum CostUsageScanner {
         return out.isEmpty ? nil : out
     }
 
-    private static func validatedPriorityTurns(
+    static func validatedPriorityTurns(
         cache: CostUsageCache,
         calendar: Calendar) -> [String: CodexPriorityTurnMetadata]
     {

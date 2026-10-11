@@ -2505,3 +2505,21 @@
 "Pace sign" = "Signe du rythme";
 "Ahead of pace is +" = "Au-dessus du rythme : +";
 "Reserve is +" = "Réserve : +";
+
+/* Experimental cross-host usage; English fallback pending translation outside French. */
+"Coverage is incomplete. Missing histories or uncertain records can leave usage out of this subtotal." = "La couverture est incomplète. Une partie de l’utilisation peut manquer dans ce sous-total en raison d’historiques absents ou d’enregistrements incertains.";
+"Cross-host usage — Experimental" = "Utilisation sur plusieurs machines — Expérimental";
+"Duplicates removed: %d · Conflicts excluded: %d" = "Doublons supprimés : %d · Conflits exclus : %d";
+"Fetch report" = "Récupérer le rapport";
+"Incomplete requests excluded: %d" = "Requêtes incomplètes exclues : %d";
+"Last 30 days — deduplicated" = "30 derniers jours — doublons supprimés";
+"Last 30 days — recorded subtotal" = "30 derniers jours — sous-total enregistré";
+"Legacy record identities cannot establish that all cross-host overlaps were removed." = "Les identités des anciens enregistrements ne permettent pas de garantir que tous les doublons entre machines ont été supprimés.";
+"Missing or conflicting prices: %d" = "Tarifs manquants ou contradictoires : %d";
+"Native histories on this Mac and one SSH host. Runs only when requested; conversation text stays on each machine." = "Historiques natifs sur ce Mac et un serveur SSH. Collecte uniquement à votre demande ; le texte des conversations reste sur chaque machine.";
+"Reading usage histories…" = "Lecture des historiques d’utilisation…";
+"Recorded cost or API-price estimate — not a billing receipt." = "Coût enregistré ou estimation au tarif API — ce n’est pas une facture.";
+"SSH host alias" = "Alias du serveur SSH";
+"Unidentified records excluded: %d · Legacy identities: %d" = "Enregistrements non identifiés exclus : %d · Identités anciennes : %d";
+"Usage history unavailable" = "Historique d’utilisation indisponible";
+"Source diagnostics" = "Diagnostic de la source";

@@ -134,6 +134,7 @@ struct SpendDashboardPane: View {
                 SpendTimeZoneControls(settings: self.settings)
                 self.refreshStatus
                 self.codexCostCatchUpPanel
+                CrossHostUsagePanel(calendar: self.configuration.bucketCalendar)
                 self.content
                 self.dataControls
             }

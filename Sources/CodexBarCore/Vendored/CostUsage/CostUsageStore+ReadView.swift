@@ -150,6 +150,25 @@ struct CostUsageStoreReadView: Sendable {
         CostUsageScanner.buildCodexReportFromCache(cache: self.cache, range: range, modelsDevCacheRoot: cacheRoot)
     }
 
+    /// Projects owned native usage rows only; parser state and conversation metadata remain private.
+    func codexUsageLedger(
+        range: CostUsageScanner.CostUsageDayRange,
+        historyDays: Int,
+        now: Date,
+        cacheRoot: URL?,
+        rootsFingerprint: [String: Int64]) -> UsageLedger
+    {
+        UsageLedgerLoader.codexLedger(
+            cache: self.cache,
+            range: range,
+            historyDays: historyDays,
+            now: now,
+            source: (
+                cacheRoot: cacheRoot,
+                coverageIsEstablished: self.historyCoverageIsEstablished(
+                    range: range, rootsFingerprint: rootsFingerprint)))
+    }
+
     func reports(
         range: CostUsageScanner.CostUsageDayRange,
         cacheRoot: URL?,

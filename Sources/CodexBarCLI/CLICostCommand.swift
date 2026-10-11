@@ -6,7 +6,7 @@ extension CodexBarCLI {
     private static let costSupportedProviders = Set(
         ProviderDescriptorRegistry.all.filter(\.cli.supportsCostCommand).map(\.id))
 
-    static func runCost(_ values: ParsedValues) async {
+    static func runStandardCost(_ values: ParsedValues) async {
         let output = CLIOutputPreferences.from(values: values)
         let config = CodexBarCLI.loadConfig(output: output)
         let selection = CodexBarCLI.decodeProvider(from: values, config: config)
@@ -970,6 +970,18 @@ struct CostOptions: CommanderParsable {
 
     @Flag(name: .long("summary-only"), help: "Versioned native Codex JSON totals without account or session details")
     var summaryOnly: Bool = false
+
+    @Flag(name: .long("ledger-only"), help: "Experimental: export hashed native usage records as JSON")
+    var ledgerOnly: Bool = false
+
+    @Option(name: .long("combine-remote"), help: "Experimental: deduplicate native usage with one SSH host")
+    var combineRemote: String?
+
+    @Option(name: .long("ledger-time-zone"), help: "Reporting timezone for an isolated usage ledger scan")
+    var ledgerTimeZone: String?
+
+    @Option(name: .long("ledger-end"), help: "Inclusive ledger window end as Unix milliseconds")
+    var ledgerEnd: Int64?
 }
 
 struct CostPayload: Encodable, Sendable {

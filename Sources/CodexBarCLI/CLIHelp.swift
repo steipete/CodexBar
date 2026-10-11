@@ -137,6 +137,8 @@ extension CodexBarCLI {
                        [--no-color] [--pretty] [--refresh] [--breakdown] [--provider-native-only]
                        [--period month-to-date|all] [--days <days>] [--group-by project|session]
                        [--remote <ssh-host> | --summary-only]
+                       [--combine-remote <ssh-host> | --ledger-only]
+                       [--ledger-time-zone <IANA-zone>] [--ledger-end <Unix-milliseconds>]
 
         Description:
           Print local token cost usage from Claude/Codex native logs plus supported pi and OMP sessions.
@@ -148,6 +150,12 @@ extension CodexBarCLI {
           Experimental: use --provider-native-only to exclude pi and OMP session mirrors.
           Use --provider codex --remote <host> for separate local and SSH-host summaries.
           --summary-only emits versioned Codex JSON totals without account or session details.
+          Experimental: --provider codex|claude --combine-remote <host> unions hashed native usage records.
+          --ledger-only --format json exports the native record ledger for this machine.
+          Ledger modes accept --days 1...365 (default 30), exclude pi/OMP, and require the experimental CLI
+          on the SSH host. They do not accept --period, --group-by, --breakdown, --remote or --summary-only.
+          Both machines use one reporting window; --ledger-time-zone and --ledger-end fix its boundaries.
+          Ambiguous records are withheld and incomplete coverage is labelled as a recorded subtotal.
 
         Examples:
           codexbar cost
@@ -157,6 +165,9 @@ extension CodexBarCLI {
           codexbar cost --provider antigravity --format json
           codexbar cost --provider muse --format json
           codexbar cost --provider codex --remote build-host --format json
+          codexbar cost --provider codex --combine-remote build-host --format json
+          codexbar cost --provider claude --combine-remote build-host
+          codexbar cost --provider claude --ledger-only --format json --days 30
         """
     }
 
