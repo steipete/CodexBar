@@ -8,8 +8,11 @@ read_when:
 # Native Codex turn performance
 
 Usage & Spend retains its cost-ranked session header and adds timing only when
-validated native Codex samples exist. The three values are weighted whole-turn
-output, median model-first-token latency, and median completed-turn duration.
+validated native Codex samples exist. The primary strip shows weighted whole-turn
+output, median model-first-token latency, median completed-turn duration, and
+cached-input reuse. First-token and cache sample counts appear beside their
+measurements; missing cache records show unavailable, while measured zero reuse
+shows 0.0%.
 The initially collapsed **Performance details** disclosure shows the timed-turn
 count. First model token may be reasoning, before visible answer text. Output
 already includes reasoning tokens; elapsed time includes tools and waits. These

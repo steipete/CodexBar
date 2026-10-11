@@ -1,4 +1,6 @@
+import AppKit
 import Foundation
+import SwiftUI
 import Testing
 @testable import CodexBar
 @testable import CodexBarCLI
@@ -41,8 +43,8 @@ struct XAIProviderTests {
         }
     }
 
-    @Test
-    func `balance and usage requests match the native golden`() async throws {
+    @Test(arguments: BundledPluginTestSupport.engines)
+    func `balance preview and usage requests retain posted credit`(engine: ProviderPluginEngineKind) async throws {
         let now = Date(timeIntervalSince1970: 1_800_000_000)
         let transport = ProviderHTTPTransportStub { request in
             let url = try #require(request.url)
@@ -57,6 +59,9 @@ struct XAIProviderTests {
             case "/v1/billing/teams/team-1234/prepaid/balance":
                 #expect(request.httpMethod == "GET")
                 return Self.response(url: url, body: Self.balanceFixture)
+            case "/v1/billing/teams/team-1234/postpaid/invoice/preview":
+                #expect(request.httpMethod == "GET")
+                return Self.response(url: url, body: #"{"coreInvoice":{"amountAfterVat":"350"}}"#)
             case "/v1/billing/teams/team-1234/usage":
                 #expect(request.httpMethod == "POST")
                 let body = try #require(request.httpBody)
@@ -74,18 +79,81 @@ struct XAIProviderTests {
             }
         }
 
-        let snapshot = try await Self.runtime(transport: transport).fetchUsage(
+        let snapshot = try await Self.runtime(transport: transport, engine: engine).fetchUsage(
             settings: ["XAI_TEAM_ID": "team-1234"],
             secrets: ["XAI_MANAGEMENT_API_KEY": "fixture-management-key"],
             now: now)
 
-        #expect(await transport.requests().count == 2)
+        #expect(await transport.requests().compactMap { $0.url?.lastPathComponent } == ["balance", "preview", "usage"])
         #expect(snapshot.providerCost?.used == 10)
+        #expect(snapshot.details.first?.rows.prefix(2).map(\.label) == ["Prepaid balance", "Live remaining (est.)"])
+        #expect(snapshot.detailRow(label: "Live remaining (est.)")?.value == "$6.50")
         #expect(snapshot.detailRow(label: "Last 30 days")?.value == "$1.76")
         #expect(snapshot.details.first?.chart?.points.map(\.label) == [
             "2027-01-13", "2027-01-14", "2027-01-15",
         ])
         #expect(snapshot.dataConfidence == .exact)
+        #expect(XAICostUsageMapping.tokenSnapshot(from: snapshot, historyDays: 30)?
+            .historyCoverageIsEstablished == true)
+    }
+
+    @Test(arguments: BundledPluginTestSupport.engines, [
+        ("13364", "$141.17"),
+        ("0", "$274.81"),
+        ("-100", "$275.81"),
+        ("30000", "$-25.19"),
+    ])
+    func `live estimate subtracts documented invoice cents without replacing posted balance`(
+        engine: ProviderPluginEngineKind, invoice: (String, String)) async throws
+    {
+        let snapshot = try await Self.fetch(
+            balanceBody: #"{"total":{"val":"-27481"}}"#,
+            previewBody: #"{"coreInvoice":{"amountAfterVat":"\#(invoice.0)","totalWithCorr":{"val":"999"}}}"#,
+            engine: engine)
+        #expect(snapshot.providerCost?.used == 274.81)
+        #expect(snapshot.detailRow(label: "Prepaid balance")?.value == "$274.81")
+        #expect(snapshot.detailRow(label: "Live remaining (est.)")?.value == invoice.1)
+        #expect(snapshot.dataConfidence == .exact)
+    }
+
+    @Test(arguments: BundledPluginTestSupport.engines, [
+        (403, #"{"coreInvoice":{"amountAfterVat":"350"}}"#),
+        (404, #"{"coreInvoice":{"amountAfterVat":"350"}}"#),
+        (200, ""),
+        (200, #"{}"#),
+        (200, #"{"coreInvoice":{"amountAfterVat":null}}"#),
+        (200, #"{"coreInvoice":{"amountAfterVat":""}}"#),
+        (200, #"{"coreInvoice":{"amountAfterVat":"n/a"}}"#),
+        (200, #"{"coreInvoice":{"amountAfterVat":"9007199254740993"}}"#),
+    ])
+    func `unavailable invoice preview omits only the estimate`(
+        engine: ProviderPluginEngineKind, response: (Int, String)) async throws
+    {
+        let snapshot = try await Self.fetch(previewBody: response.1, previewStatus: response.0, engine: engine)
+        #expect(snapshot.providerCost?.used == 10)
+        #expect(snapshot.detailRow(label: "Live remaining (est.)") == nil)
+        #expect(snapshot.details.first?.chart?.points.count == 3)
+        #expect(snapshot.dataConfidence == .exact)
+    }
+
+    @Test(arguments: BundledPluginTestSupport.engines)
+    func `invoice preview transport failure preserves posted credit and history`(
+        engine: ProviderPluginEngineKind) async throws
+    {
+        let transport = ProviderHTTPTransportStub { request in
+            let url = try #require(request.url)
+            if url.path.hasSuffix("/preview") { throw URLError(.timedOut) }
+            return Self.response(
+                url: url,
+                body: url.path.hasSuffix("/balance")
+                    ? Self.balanceFixture : Self.usageFixture)
+        }
+        let snapshot = try await Self.runtime(transport: transport, engine: engine).fetchUsage(
+            settings: ["XAI_TEAM_ID": "team-1234"],
+            secrets: ["XAI_MANAGEMENT_API_KEY": "fixture-management-key"])
+        #expect(snapshot.providerCost?.used == 10)
+        #expect(snapshot.detailRow(label: "Live remaining (est.)") == nil)
+        #expect(snapshot.details.first?.chart?.points.count == 3)
     }
 
     @Test(arguments: [
@@ -168,14 +236,15 @@ struct XAIProviderTests {
         #expect(XAICostUsageMapping.tokenSnapshot(from: snapshot, historyDays: 30) == nil)
     }
 
-    @Test @MainActor
-    func `descriptor registry menu card and CLI retain xAI presentation`() async throws {
+    @Test(arguments: [false, true]) @MainActor
+    func `descriptor registry menu card and CLI retain xAI presentation`(hasPreview: Bool) async throws {
         let descriptor = ProviderDescriptorRegistry.descriptor(for: .xai)
         #expect(descriptor.metadata.displayName == "xAI")
         #expect(descriptor.fetchPlan.sourceModes == [.auto, .api])
         #expect(try #require(ProviderCatalog.implementation(for: .xai)) is PluginAPIKeyProviderImplementation)
 
-        let snapshot = try await Self.fetch()
+        let snapshot = try await Self.fetch(previewBody: hasPreview
+            ? #"{"coreInvoice":{"amountAfterVat":"350"}}"# : "{}")
         let model = UsageMenuCardView.Model.make(.init(
             provider: .xai,
             metadata: descriptor.metadata,
@@ -191,10 +260,12 @@ struct XAIProviderTests {
             usageBarsShowUsed: true,
             resetTimeDisplayStyle: .countdown,
             tokenCostUsageEnabled: false,
+            costSummaryInlineEnabled: true,
             showOptionalCreditsAndExtraUsage: true,
             hidePersonalInfo: false,
             now: Date(timeIntervalSince1970: 1_800_000_000)))
         #expect(model.providerCost?.spendLine == "Balance: $10.00")
+        #expect(model.providerDetails.flatMap(\.rows).contains { $0.label == "Live remaining (est.)" } == hasPreview)
 
         let text = CLIRenderer.renderText(
             provider: .xai,
@@ -206,8 +277,22 @@ struct XAIProviderTests {
                 useColor: false,
                 resetStyle: .countdown))
         #expect(text.contains("Prepaid balance: $10.00"))
+        #expect(text.contains("Live remaining (est.): $6.50") == hasPreview)
         #expect(text.contains("Plan: Management API"))
         #expect(!text.contains("Cost:"))
+
+        if let directory = ProcessInfo.processInfo.environment["CODEXBAR_XAI_PROOF_DIR"] {
+            let hosting = NSHostingView(rootView: UsageMenuCardView(model: model, width: 360)
+                .padding(16)
+                .frame(width: 392)
+                .environment(\.locale, Locale(identifier: "en_US_POSIX"))
+                .background(Color(nsColor: .windowBackgroundColor))
+                .preferredColorScheme(.light))
+            hosting.appearance = NSAppearance(named: .aqua)
+            let png = try #require(MenuLayoutScreenshotRenderTests.pngDataWithWindow(hosting: hosting))
+            try png.write(to: URL(fileURLWithPath: directory)
+                .appendingPathComponent(hasPreview ? "xai-after.png" : "xai-before.png"))
+        }
     }
 
     @Test
@@ -228,24 +313,33 @@ struct XAIProviderTests {
     private static func fetch(
         balanceBody: String = balanceFixture,
         balanceStatus: Int = 200,
+        previewBody: String = "{}",
+        previewStatus: Int = 200,
         usageBody: String = usageFixture,
-        usageStatus: Int = 200) async throws -> UsageSnapshot
+        usageStatus: Int = 200,
+        engine: ProviderPluginEngineKind = .quickJS) async throws -> UsageSnapshot
     {
         let transport = ProviderHTTPTransportStub { request in
             let url = try #require(request.url)
             if url.path.hasSuffix("/prepaid/balance") {
                 return Self.response(url: url, body: balanceBody, statusCode: balanceStatus)
             }
+            if url.path.hasSuffix("/postpaid/invoice/preview") {
+                return Self.response(url: url, body: previewBody, statusCode: previewStatus)
+            }
             return Self.response(url: url, body: usageBody, statusCode: usageStatus)
         }
-        return try await Self.runtime(transport: transport).fetchUsage(
+        return try await Self.runtime(transport: transport, engine: engine).fetchUsage(
             settings: ["XAI_TEAM_ID": "team-1234"],
             secrets: ["XAI_MANAGEMENT_API_KEY": "fixture-management-key"],
             now: Date(timeIntervalSince1970: 1_800_000_000))
     }
 
-    private static func runtime(transport: any ProviderHTTPTransport) throws -> ProviderPluginRuntime {
-        try ProviderPluginRuntime(bundledPlugin: "xai", transport: transport)
+    private static func runtime(
+        transport: any ProviderHTTPTransport,
+        engine: ProviderPluginEngineKind = .quickJS) throws -> ProviderPluginRuntime
+    {
+        try BundledPluginTestSupport.runtime("xai", engine: engine, transport: transport)
     }
 
     private static func context(environment: [String: String]) -> ProviderFetchContext {

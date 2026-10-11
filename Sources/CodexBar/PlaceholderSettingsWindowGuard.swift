@@ -94,7 +94,10 @@ final class PlaceholderSettingsWindowGuard {
     }
 
     @objc private func windowStateDidChange(_: Notification) {
-        self.sweep()
+        // AppKit posts notifications inside makeKeyAndOrderFront; finish ordering before closing.
+        DispatchQueue.main.async { [weak self] in
+            self?.sweep()
+        }
     }
 
     deinit {
