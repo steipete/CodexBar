@@ -2,6 +2,10 @@
 
 ## 0.74.2 — Unreleased
 
+### Fixed
+
+- JetBrains AI: read current quota from the newer AI Assistant `JbaiQuota` log records and, after the Air migration disables AI Assistant, from Junie's quota updates, instead of falling back to weeks-old XML (#4457). Thanks @taihua!
+
 ## 0.74.1 — 2026-10-11
 
 ### Added
