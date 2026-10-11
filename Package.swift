@@ -170,6 +170,7 @@ let package = Package(
                     .target(name: "CSQLite3", condition: .when(platforms: [.linux])),
                 ],
                 path: "TestsLinux",
+                resources: [.copy("Fixtures")],
                 swiftSettings: [
                     .enableUpcomingFeature("StrictConcurrency"),
                     .enableExperimentalFeature("SwiftTesting"),

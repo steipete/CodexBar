@@ -2506,3 +2506,21 @@
 "Pace sign" = "Знак темпу витрат";
 "Ahead of pace is +" = "Випередження темпу — +";
 "Reserve is +" = "Запас — +";
+
+/* Experimental cross-host usage; English fallback pending translation outside French. */
+"Coverage is incomplete. Missing histories or uncertain records can leave usage out of this subtotal." = "Coverage is incomplete. Missing histories or uncertain records can leave usage out of this subtotal.";
+"Cross-host usage — Experimental" = "Cross-host usage — Experimental";
+"Duplicates removed: %d · Conflicts excluded: %d" = "Duplicates removed: %d · Conflicts excluded: %d";
+"Fetch report" = "Fetch report";
+"Incomplete requests excluded: %d" = "Incomplete requests excluded: %d";
+"Last 30 days — deduplicated" = "Last 30 days — deduplicated";
+"Last 30 days — recorded subtotal" = "Last 30 days — recorded subtotal";
+"Legacy record identities cannot establish that all cross-host overlaps were removed." = "Legacy record identities cannot establish that all cross-host overlaps were removed.";
+"Missing or conflicting prices: %d" = "Missing or conflicting prices: %d";
+"Native histories on this Mac and one SSH host. Runs only when requested; conversation text stays on each machine." = "Native histories on this Mac and one SSH host. Runs only when requested; conversation text stays on each machine.";
+"Reading usage histories…" = "Reading usage histories…";
+"Recorded cost or API-price estimate — not a billing receipt." = "Recorded cost or API-price estimate — not a billing receipt.";
+"SSH host alias" = "SSH host alias";
+"Unidentified records excluded: %d · Legacy identities: %d" = "Unidentified records excluded: %d · Legacy identities: %d";
+"Usage history unavailable" = "Usage history unavailable";
+"Source diagnostics" = "Source diagnostics";
