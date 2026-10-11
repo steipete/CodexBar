@@ -50,6 +50,9 @@ struct DashboardProviderPayload: Encodable {
     let identity: DashboardIdentityPayload?
     let windows: [DashboardWindowPayload]
     let credits: DashboardCreditsPayload?
+    /// Available limit-reset credit inventory (`N available`, next expiry). Additive schema-v1
+    /// extension: the key appears only when the provider reports the inventory.
+    let limitResetCredits: ProviderResetCreditsPayload?
     let cost: DashboardCostPayload?
     let display: DashboardDisplayPayload
     let error: ProviderErrorPayload?
@@ -70,6 +73,7 @@ struct DashboardProviderPayload: Encodable {
         identity: DashboardIdentityPayload?,
         windows: [DashboardWindowPayload],
         credits: DashboardCreditsPayload?,
+        limitResetCredits: ProviderResetCreditsPayload? = nil,
         cost: DashboardCostPayload?,
         display: DashboardDisplayPayload,
         error: ProviderErrorPayload?,
@@ -86,6 +90,7 @@ struct DashboardProviderPayload: Encodable {
         self.identity = identity
         self.windows = windows
         self.credits = credits
+        self.limitResetCredits = limitResetCredits
         self.cost = cost
         self.display = display
         self.error = error
@@ -104,6 +109,7 @@ struct DashboardProviderPayload: Encodable {
         case identity
         case windows
         case credits
+        case limitResetCredits
         case cost
         case display
         case error
@@ -124,6 +130,7 @@ struct DashboardProviderPayload: Encodable {
         try container.encode(self.identity, forKey: .identity)
         try container.encode(self.windows, forKey: .windows)
         try container.encode(self.credits, forKey: .credits)
+        try container.encodeIfPresent(self.limitResetCredits, forKey: .limitResetCredits)
         try container.encode(self.cost, forKey: .cost)
         try container.encode(self.error, forKey: .error)
         try container.encode(self.updatedAt, forKey: .updatedAt)

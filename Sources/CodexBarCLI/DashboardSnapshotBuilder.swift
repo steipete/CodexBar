@@ -157,6 +157,7 @@ enum DashboardSnapshotBuilder {
             identity: self.makeIdentity(provider: provider, usage: payload.usage, mode: identityMode),
             windows: self.makeWindows(provider: provider, metadata: metadata, usage: payload.usage),
             credits: self.makeCredits(payload.credits),
+            limitResetCredits: payload.resetCredits,
             cost: cost != nil
                 ? self.makeCost(cost, referenceDate: generatedAt)
                 : self.makeReportedCost(payload.usage?.costUsage),

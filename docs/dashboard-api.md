@@ -271,6 +271,10 @@ The snapshot is a stable display contract, not a raw dump of provider internals.
         "remaining": 112.4,
         "unit": "credits"
       },
+      "limitResetCredits": {
+        "available": 3,
+        "nextExpiresAt": "2026-07-23T12:00:00Z"
+      },
       "cost": {
         "todayUSD": 1.04,
         "last30DaysUSD": 18.22
@@ -392,6 +396,13 @@ A managed Codex entry in redacted mode (other account fields use the same shapes
   `usage.providerCost.balance` with `currencyCode: "USD"`, not by this dashboard projection. It is separate from
   the included quota: zero is a known balance, absence is unknown, and balance-only `used`/`limit` values of zero
   do not establish spend or a budget. See [Grok](grok.md#purchased-credits-in-cli-json).
+- `providers[].limitResetCredits`: Codex limit-reset credit inventory when the usage snapshot carries one —
+  `available` counts still-redeemable credits and `nextExpiresAt` is the soonest expiry among them (`null` when
+  none expire). This is a
+  monetary-credit sibling of `providers[].credits`, not the same balance: limit-reset credits are vouchers that a
+  redeeming client can spend to reset the rate-limit window, and CodexBar only reports them, never redeems them.
+  The key appears only when the inventory is reported, so payloads without it keep their previous shape. This is an
+  additive schema-v1 extension, projected from the same source as `resetCredits` in `codexbar usage --json`.
 - `providers[].cost`: Local cost data when available, otherwise a provider's reported 30-day USD history.
   Reported history preserves its aggregate, including a known zero, and leaves `todayUSD` null because its day
   boundaries may differ from the host's local calendar. OpenRouter Activity covers completed UTC days; it must

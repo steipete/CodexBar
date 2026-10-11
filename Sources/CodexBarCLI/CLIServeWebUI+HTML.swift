@@ -1017,6 +1017,9 @@ extension CLIServeWebUI {
             const unit = provider.credits.unit ? ` ${provider.credits.unit}` : "";
             metrics.append(metric("Remaining", `${amount(provider.credits.remaining)}${unit}`));
           }
+          if (provider.limitResetCredits?.available > 0) {
+            metrics.append(metric("Limit Reset Credits", `${provider.limitResetCredits.available} available`));
+          }
           appendCostSummary(card, provider, metrics);
           return card;
         }
