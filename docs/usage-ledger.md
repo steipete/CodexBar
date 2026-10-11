@@ -20,6 +20,8 @@ host or reporting timezone clears the result. Cancellation and leaving the view 
 a late completion cannot publish over a newer request. Reports are retained only in memory. There is no
 periodic SSH discovery or collection, and the existing local dashboard totals are unchanged.
 
+Debug builds accept `--usage-ledger-preview` to open this settings pane at launch for native UI review.
+
 The remote machine must have this experimental CLI installed as `codexbar` on its login-shell PATH.
 The macOS app-bundle helper is a fallback when no PATH executable exists. Finding an older executable
 that lacks `--ledger-only` is a source failure; it does not trigger another scan or a fallback total.

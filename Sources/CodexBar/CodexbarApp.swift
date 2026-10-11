@@ -451,6 +451,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self.installDebugMemoryPressureObserverIfNeeded()
         #endif
         self.ensureStatusController()
+        #if DEBUG
+        if CommandLine.arguments.contains("--usage-ledger-preview") {
+            self.openSettings(pane: .usageSpend)
+        }
+        #endif
         self.observeSettingsApplicationMenuLanguage()
         self.scheduleSettingsApplicationMenuValidation(
             missingItemRetriesRemaining: Self.settingsMenuReadinessRetryCount,
