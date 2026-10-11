@@ -979,7 +979,8 @@ struct MenuBarLayoutPreview: View {
         let costToday = MenuBarLayoutCostResolver.todayCostUSD(snapshot: cost, now: now)
         let balanceAmounts = MenuBarLayoutBalanceResolver.balanceAmountsUSD(
             provider: provider,
-            snapshot: snapshot)
+            snapshot: snapshot,
+            showsOptionalCredits: self.settings.showOptionalCreditsAndExtraUsage)
         let codexCredits = self.store.codexConsumerProjectionIfNeeded(
             for: provider,
             surface: .menuBar,
@@ -1014,7 +1015,8 @@ struct MenuBarLayoutPreview: View {
             automaticText: StatusItemController.menuBarLayoutAutomaticText(
                 provider: provider,
                 snapshot: snapshot,
-                automatic: automaticRenderWindow),
+                automatic: automaticRenderWindow,
+                showsOptionalCredits: self.settings.showOptionalCreditsAndExtraUsage),
             sessionPace: self.store.menuBarLayoutPaceText(
                 provider: provider,
                 window: session,
@@ -1035,7 +1037,8 @@ struct MenuBarLayoutPreview: View {
             balance: MenuBarLayoutBalanceResolver.balance(
                 provider: provider,
                 snapshot: snapshot,
-                codexCredits: codexCredits),
+                codexCredits: codexCredits,
+                showsOptionalCredits: self.settings.showOptionalCreditsAndExtraUsage),
             costToday: costToday.map {
                 UsageFormatter.currencyString($0, currencyCode: cost?.currencyCode ?? "USD")
             },

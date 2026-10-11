@@ -228,6 +228,82 @@ struct MenuBarLayoutProviderBalanceTests {
         #expect(MenuBarLayoutBalanceResolver.balance(provider: provider, snapshot: snapshot) == nil)
     }
 
+    @Test
+    func `declared prepaid balance reaches the balance token without a provider case`() throws {
+        // Claude's /prepaid/credits response, in minor units, parsed by the real web fetcher.
+        let prepaid = try #require(ClaudeWebAPIFetcher._parsePrepaidCreditsForTesting(
+            Data(#"{"amount":7665,"currency":"usd"}"#.utf8)))
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 25, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            secondary: nil,
+            providerCost: prepaid,
+            updatedAt: self.now)
+        let data = self.data(provider: .claude, snapshot: snapshot)
+        #expect(data.balance == "$76.65")
+        #expect(data.automaticText == nil)
+        #expect(self.render(layout: MenuBarLayout(lines: [[.balance]]), data: data).attributedTitle.string == "$76.65")
+        let combined = self.render(
+            layout: MenuBarLayout(lines: [[.percent(window: .automatic), .balance]]),
+            data: data).attributedTitle.string
+        #expect(combined.contains("25%"))
+        #expect(combined.contains("$76.65"))
+        #expect(MenuBarLayoutBalanceResolver.balanceAmountsUSD(provider: .claude, snapshot: snapshot).remaining
+            == 76.65)
+
+        let otherProvider = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            providerCost: snapshot.providerCost,
+            updatedAt: self.now,
+            identity: ProviderIdentitySnapshot(
+                providerID: UsageProvider.codex.instanceID,
+                accountEmail: nil,
+                accountOrganization: nil,
+                loginMethod: nil))
+        #expect(MenuBarLayoutBalanceResolver.balance(provider: .claude, snapshot: otherProvider) == nil)
+
+        let withoutBalance = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            providerCost: ProviderCostSnapshot(used: 12, limit: 50, currencyCode: "USD", updatedAt: self.now),
+            updatedAt: self.now)
+        #expect(MenuBarLayoutBalanceResolver.balance(provider: .claude, snapshot: withoutBalance) == nil)
+    }
+
+    @Test
+    func `prepaid balance merged into a lowercase spend currency still feeds conditionals`() {
+        // The spend-limit response keeps its own currency casing when the prepaid balance merges into it.
+        let snapshot = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            providerCost: ProviderCostSnapshot(
+                used: 12,
+                limit: 50,
+                currencyCode: "usd",
+                balance: 76.65,
+                updatedAt: self.now),
+            updatedAt: self.now)
+        #expect(MenuBarLayoutBalanceResolver.balanceAmountsUSD(provider: .claude, snapshot: snapshot).remaining
+            == 76.65)
+    }
+
+    @Test(arguments: [UsageProvider.grok, .opencode, .codex])
+    func `undeclared providers keep their prepaid cost balance out of the balance token`(provider: UsageProvider) {
+        let snapshot = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            providerCost: ProviderCostSnapshot(
+                used: 0,
+                limit: 0,
+                currencyCode: "USD",
+                balance: 76.65,
+                updatedAt: self.now),
+            updatedAt: self.now)
+        #expect(MenuBarLayoutBalanceResolver.balance(provider: provider, snapshot: snapshot) == nil)
+        #expect(MenuBarLayoutBalanceResolver.balanceAmountsUSD(provider: provider, snapshot: snapshot).remaining
+            == nil)
+    }
+
     @Test(arguments: [UsageProvider.nous, .openrouter, .atlascloud, .vercel, .devpass, .jetbrains])
     func `declared balance rows do not borrow identity text or another provider`(provider: UsageProvider) throws {
         let snapshot = UsageSnapshot(

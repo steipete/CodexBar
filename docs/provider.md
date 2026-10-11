@@ -111,6 +111,10 @@ UI and settings should become descriptor-driven:
 For detail-backed balances, set `presentation.menuBarBalanceDetailLabels` to the provider's ordered row labels.
 The shared menu bar resolver uses the first reported row for Balance elements and, when no quota window exists,
 automatic text. Keep real percentage windows intact; do not fabricate a quota for a credits-only account.
+Providers that store a remaining prepaid amount in `ProviderCostSnapshot.balance` set
+`presentation.menuBarBalanceUsesPrepaidCost`. The shared resolver formats it in the snapshot currency for Balance
+elements and passes USD amounts to Balance remaining conditionals. Legacy menu bar text never shows it, so the
+balance sits beside subscription quotas rather than replacing them.
 
 ## Fetch strategies
 

@@ -204,6 +204,7 @@ public enum ClaudeProviderDescriptor {
                 },
                 iconDecorations: [.notches],
                 reservesMissingSecondaryIconLane: true,
+                menuBarBalanceUsesPrepaidCost: true,
                 automaticSelectionPrioritizesExhaustedWindow: false,
                 menuBarWindowResolver: self.menuBarWindow,
                 planUtilizationSeriesResolver: { snapshot in
