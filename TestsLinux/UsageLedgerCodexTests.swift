@@ -209,13 +209,16 @@ struct UsageLedgerCodexTests {
                 pricingCacheRoot: fixture.options.cacheRoot)
             let id = UsageLedgerRecord.digest(["codex", "request", "synthetic-session", "response-one"])
             if field == "private_model", !sameFile {
-                // A copied row with an unknown route is excluded by native subscription attribution.
-                // Its conflict hash must still quarantine the matching clean remote request below.
-                #expect(ledger.records.isEmpty)
+                // Native dedup selects by file metadata; an unknown-route winner is excluded.
+                // Either representative outcome must quarantine the clean remote request below.
+                #expect(ledger.records.count <= 1)
             } else {
                 #expect(ledger.records.count == 1)
-                #expect(ledger.records.first?.sessionID != nil)
             }
+            let sessionID = UsageLedgerRecord.digest(["codex", "session", "synthetic-session"])
+            #expect(ledger.records.allSatisfy {
+                $0.id == id && $0.sessionID == sessionID && $0.identity == .request
+            })
             #expect(ledger.conflictingRecordIDs == [id])
             #expect(!ledger.coverageIsEstablished)
             let clean = Self.project(rows: [Self.row(response: "response-one")])
