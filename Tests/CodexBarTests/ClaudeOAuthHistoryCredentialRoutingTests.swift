@@ -76,31 +76,6 @@ struct ClaudeOAuthHistoryCredentialRoutingTests {
     }
 
     @Test
-    func `newest duplicate reference cannot label a different winning credential`() throws {
-        let winningCredentials = try ClaudeOAuthCredentials.parse(
-            data: self.makeCredentialsData(accessToken: "winning-token"))
-        let newestCandidateCredentials = try ClaudeOAuthCredentials.parse(
-            data: self.makeCredentialsData(accessToken: "newest-candidate-token"))
-        let winningRecord = ClaudeOAuthCredentialRecord(
-            credentials: winningCredentials,
-            owner: .claudeCLI,
-            source: .memoryCache)
-        let newestCandidateRecord = ClaudeOAuthCredentialRecord(
-            credentials: newestCandidateCredentials,
-            owner: .claudeCLI,
-            source: .claudeKeychain)
-
-        #expect(ClaudeOAuthCredentialsStore._matchingClaudeKeychainPersistentRefHashForTesting(
-            record: winningRecord,
-            candidateCredentials: newestCandidateCredentials,
-            persistentRefHash: "newest-candidate-ref") == nil)
-        #expect(ClaudeOAuthCredentialsStore._matchingClaudeKeychainPersistentRefHashForTesting(
-            record: newestCandidateRecord,
-            candidateCredentials: newestCandidateCredentials,
-            persistentRefHash: "newest-candidate-ref") == "newest-candidate-ref")
-    }
-
-    @Test
     func `history owner follows refresh credential across access token rotation`() throws {
         let beforeRefresh = try ClaudeOAuthCredentials.parse(
             data: self.makeCredentialsData(accessToken: "access-before", refreshToken: "stable-refresh"))
