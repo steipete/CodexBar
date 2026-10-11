@@ -140,7 +140,9 @@ extension CostUsageStore {
                 from: snapshot,
                 recorder: recorder,
                 retryPresence: retryPresence,
-                decodedUsageRows: usageRows?.rowsByPath)
+                decodedUsageRows: usageRows?.rowsByPath,
+                // Only scanner reconciliation and report turn performance read the request ledger.
+                includesRequestLedgerState: purpose == .report)
             let persistence = CodexPersistenceState(snapshot: snapshot, rowCounts: usageRows?.rowCounts)
             // Activity is a superset of status and becomes the one bounded warm read state.
             // Detailed reports keep their larger event history transient.
@@ -482,6 +484,7 @@ extension CostUsageStore {
         tokenSnapshotsLoaded: Bool = true,
         unloadedTokenSnapshotPathRecorder: ((String) -> Void)? = nil,
         decodedUsageRows: [String: [CostUsageScanner.CodexUsageRow]]? = nil,
+        includesRequestLedgerState: Bool = true,
         makeDecoder: () -> JSONDecoder = JSONDecoder.init) -> CostUsageCache
     {
         recorder?.recordCacheConversion()
@@ -614,7 +617,7 @@ extension CostUsageStore {
                     try? decoder.decode(CostUsageJsonl.ResumeState.self, from: $0)
                 },
                 codexForkAccountingState: details.forkAccountingState,
-                codexRequestLedgerState: details.requestLedgerState,
+                codexRequestLedgerState: includesRequestLedgerState ? details.requestLedgerState : nil,
                 codexBufferedSubagentLines: Self.bufferedLines(buffers, kind: .subagent, decoder: decoder),
                 codexBufferedUnresolvedForkLines: Self.bufferedLines(buffers, kind: .unresolvedFork, decoder: decoder),
                 codexReadRetryBufferPresence: retryPresence.map { $0[file.path] ?? .init() },

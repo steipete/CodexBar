@@ -12,6 +12,7 @@
 
 ### Fixed
 
+- Usage & Spend: stop Codex status and activity read caches from retaining the per-file request ledger they never use, cutting resident memory on large histories while reports keep native turn performance (#4421). Thanks @Edenspiekermann-Chris!
 - Menu bar: stop the blank Settings placeholder window from appearing on launch (regression in 0.74.0) (#4415). Thanks @tcurdt, @ChuJiannn11 and @kcharlan!
 - Packaging: preserve the selected macOS SDK in app and helper binaries so newer macOS versions use current native UI metrics, while retaining macOS 14 support (#4403). Thanks @Yuxin-Qiao!
 
