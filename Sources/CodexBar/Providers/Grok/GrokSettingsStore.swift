@@ -2,6 +2,19 @@ import CodexBarCore
 import Foundation
 
 extension SettingsStore {
+    var grokBotUsageEnabled: Bool {
+        get { self.configSnapshot.providerConfig(for: .grok)?.grokBotUsageEnabled ?? false }
+        set {
+            self.updateProviderConfig(provider: .grok) { $0.grokBotUsageEnabled = newValue }
+        }
+    }
+
+    /// An opt-out hides cached Bot readings immediately, including saved-account snapshots.
+    func grokBotUsageFilteredSnapshot(_ snapshot: UsageSnapshot?, provider: ProviderInstanceID) -> UsageSnapshot? {
+        guard provider == .grok, !self.grokBotUsageEnabled, let snapshot else { return snapshot }
+        return GrokBotUsageEnrichment.removingBotUsage(from: snapshot)
+    }
+
     var grokUsageDataSource: ProviderSourceMode {
         get { self.configSnapshot.providerConfig(for: .grok)?.source ?? .auto }
         set {
@@ -36,8 +49,18 @@ extension SettingsStore {
             configuredSource: self.grokCookieSource,
             configuredHeader: self.grokCookieHeader,
             selectedAccountToken: account?.token)
+        // Provider-specific by design: Bot usage keeps the linked Cursor account's source policy.
+        let cursorCookies: ProviderSettingsSnapshot.CookieProviderSettings = self.resolvedCookieSettings(
+            provider: .cursor, tokenOverride: nil)
+        let configuredCursorSource = self.configSnapshot.providerConfig(for: .cursor)?.cookieSource ?? .auto
+        let botCookieSource: ProviderCookieSource? = self.debugDisableKeychainAccess
+            && configuredCursorSource == .auto
+            && CookieHeaderNormalizer.normalize(cursorCookies.manualCookieHeader) == nil ? .auto : nil
         return GrokProviderSettings(
             cookieSource: resolved.cookieSource,
-            manualCookieHeader: resolved.manualCookieHeader)
+            manualCookieHeader: resolved.manualCookieHeader,
+            grokBotUsageEnabled: self.grokBotUsageEnabled,
+            grokBotSourceMode: self.configSnapshot.providerConfig(for: .cursor)?.source ?? .auto,
+            grokBotCursorCookieSource: botCookieSource)
     }
 }

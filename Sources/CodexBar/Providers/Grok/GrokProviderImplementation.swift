@@ -10,6 +10,7 @@ struct GrokProviderImplementation: ProviderImplementation {
         _ = settings.grokUsageDataSource
         _ = settings.grokCookieSource
         _ = settings.grokCookieHeader
+        _ = settings.grokBotUsageEnabled
     }
 
     @MainActor
@@ -32,6 +33,27 @@ struct GrokProviderImplementation: ProviderImplementation {
         -> ProviderSettingsSnapshotContribution?
     {
         .grok(context.settings.grokSettingsSnapshot(tokenOverride: context.tokenOverride))
+    }
+
+    @MainActor
+    func settingsToggles(context: ProviderSettingsContext) -> [ProviderSettingsToggleDescriptor] {
+        [ProviderSettingsToggleDescriptor(
+            id: "grok-bot-usage",
+            title: "Track Grok Bot usage",
+            subtitle: "Show Grok Bot's separate weekly allowance here using the account configured under Cursor. " +
+                "Works with linked SuperGrok access, even when Cursor tracking is off.",
+            binding: context.binding(\.grokBotUsageEnabled),
+            statusText: nil,
+            actions: [],
+            isVisible: nil,
+            onChange: { enabled in
+                if !enabled, let snapshot = context.store.snapshots[.grok] {
+                    context.store.snapshots[.grok] = GrokBotUsageEnrichment.removingBotUsage(from: snapshot)
+                }
+                await context.store.refreshProvider(.grok)
+            },
+            onAppDidBecomeActive: nil,
+            onAppearWhenEnabled: nil)]
     }
 
     @MainActor

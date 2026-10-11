@@ -145,8 +145,8 @@ struct MenuBarLayoutRendererTests {
         #expect(output.accessibilityLabel == "Total 10%, Grok Bot unavailable")
     }
 
-    @Test
-    func `Grok Bot respects remaining mode provider ownership and cache refresh`() {
+    @Test(arguments: [UsageProvider.cursor, .grok])
+    func `Grok Bot respects remaining mode provider ownership and cache refresh`(provider: UsageProvider) {
         let renderer = MenuBarLayoutRenderer()
         let layout = MenuBarLayout(lines: [[.lanePercent(lane: .primary)], [.extraPercent(id: "cursor-grok-bot")]])
         for used in [42.0, 43.0] {
@@ -156,7 +156,7 @@ struct MenuBarLayoutRendererTests {
                 window: RateWindow(usedPercent: used, windowMinutes: nil, resetsAt: nil, resetDescription: nil)))
             let output = renderer.render(
                 layout: layout,
-                data: self.data(provider: .cursor, extraRateWindows: [extra]),
+                data: self.data(provider: provider, extraRateWindows: [extra]),
                 icon: nil,
                 options: self.options(showUsed: false))
             #expect(output.attributedTitle.string == "90%\nGrok Bot \(Int(100 - used))%")
@@ -168,12 +168,12 @@ struct MenuBarLayoutRendererTests {
             #expect(other.attributedTitle.string == "10%")
         }
         let missing = renderer.render(
-            layout: layout, data: self.data(provider: .cursor), icon: nil, options: self.options())
+            layout: layout, data: self.data(provider: provider), icon: nil, options: self.options())
         #expect(missing.attributedTitle.string == "10%\nGrok Bot –")
     }
 
-    @Test(arguments: [0.0, 42.0])
-    func `extra unknown readings stay distinct from a real zero`(used: Double) {
+    @Test(arguments: [0.0, 42.0], [UsageProvider.cursor, .grok])
+    func `extra unknown readings stay distinct from a real zero`(used: Double, provider: UsageProvider) {
         let renderer = MenuBarLayoutRenderer()
         let layout = MenuBarLayout(lines: [[.extraPercent(id: "cursor-grok-bot")]])
         for known in [false, true] {
@@ -184,7 +184,7 @@ struct MenuBarLayoutRendererTests {
                 usageKnown: known))
             let rendered = renderer.render(
                 layout: layout,
-                data: self.data(provider: .cursor, extraRateWindows: [extra]),
+                data: self.data(provider: provider, extraRateWindows: [extra]),
                 icon: nil,
                 options: self.options())
             #expect(rendered.attributedTitle.string == (known ? "Grok Bot \(Int(used))%" : "Grok Bot –"))

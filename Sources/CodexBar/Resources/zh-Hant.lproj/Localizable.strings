@@ -2484,3 +2484,5 @@
 "Pace sign" = "使用節奏符號";
 "Ahead of pace is +" = "超出節奏為 +";
 "Reserve is +" = "餘量為 +";
+"Track Grok Bot usage" = "追蹤 Grok Bot 用量";
+"Show Grok Bot's separate weekly allowance here using the account configured under Cursor. Works with linked SuperGrok access, even when Cursor tracking is off." = "使用 Cursor 下設定的帳戶，在此顯示 Grok Bot 的獨立每週額度。支援已連結的 SuperGrok 存取權限，即使關閉 Cursor 用量追蹤也可使用。";

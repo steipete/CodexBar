@@ -22,6 +22,30 @@ The grok.com billing gRPC-web endpoint remains a best-effort fallback.
 - Token accounts classify at fetch time: bearer → OAuth, `Cookie:` / `name=value` → cookies, `xai-` management keys rejected.
 - Selecting a SuperGrok token account remaps Auto to OAuth or Web so it cannot hit an empty `.oauth` pipeline.
 
+## Grok Bot tracking
+
+**Providers → Grok → Track Grok Bot usage** is off by default. Enable it to show Grok Bot's
+independent weekly allowance and reset countdown on the Grok card. In Icon and Percent mode,
+choose **Menu bar metric → Grok Bot** to use that allowance for Grok's menu bar percentage.
+
+Grok Bot is metered on the linked Cursor account, including access granted by SuperGrok.
+The option reuses the account and cookie settings configured under Cursor; the Cursor provider
+does not need to be enabled. Cursor Cookie source Off and empty Manual cookies prevent automatic
+account fallback. Configure or sign in to that linked account under Cursor before enabling tracking.
+When Keychain access is disabled, Automatic can still use Cursor's local app session without enabling
+Keychain access. Explicit Off and empty Manual sources remain disabled. Failed lookups retain a safe
+diagnostic explaining an expired session, timeout, unreadable allowance, or HTTP failure.
+This does not link subscriptions, move usage, combine allowances, or copy Cursor identity/plan data
+into Grok's account row.
+
+Only the Bot usage endpoint is fetched. Normal Grok billing remains authoritative for the existing
+subscription bars, balance, identity, and reset credits. A failed optional Bot lookup shows an
+unavailable Bot row without failing successful Grok billing; an unavailable reading is never 0%.
+If Grok billing is unavailable but Bot usage works, the card can show the Bot allowance alone.
+Disabling the option stops Bot lookups and removes its row. CLI configuration uses
+`"grokBotUsageEnabled": true` on the `grok` provider entry, with the independent `cursor` entry
+supplying the Bot account. The Bot lookup has a six-second overall wait budget.
+
 ## Data sources + fallback order
 
 1) **`~/.grok/auth.json` (primary identity source)**

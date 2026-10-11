@@ -4,6 +4,33 @@ import Testing
 @testable import CodexBarCore
 
 struct TokenAccountCLISelectionTests {
+    @Test(arguments: [ProviderCookieSource.auto, .manual, .off])
+    func `Grok Bot CLI keeps Cursor account selection independent and respects its cookie policy`(
+        cursorSource: ProviderCookieSource) throws
+    {
+        var grok = ProviderConfig(id: .grok, cookieHeader: "sso=grok-fixture", cookieSource: .manual)
+        grok.grokBotUsageEnabled = true
+        let cursorAccount = Self.account(token: "WorkosCursorSessionToken=cursor-account-fixture")
+        let cursor = ProviderConfig(
+            id: .cursor,
+            source: .web,
+            cookieHeader: "WorkosCursorSessionToken=cursor-manual-fixture",
+            cookieSource: cursorSource,
+            tokenAccounts: ProviderTokenAccountData(version: 1, accounts: [cursorAccount], activeIndex: 0))
+        let context = try TokenAccountCLIContext(
+            selection: TokenAccountCLISelection(label: "Grok account only", index: nil, allAccounts: false),
+            config: CodexBarConfig(providers: [grok, cursor]),
+            verbose: false,
+            baseEnvironment: [:])
+        let snapshot = try #require(context.settingsSnapshot(for: .grok, account: nil))
+        #expect(snapshot.grok?.grokBotUsageEnabled == true)
+        #expect(snapshot.grok?.grokBotSourceMode == .web)
+        #expect(snapshot.grok?.manualCookieHeader == "sso=grok-fixture")
+        #expect(snapshot.cursor?.cookieSource == cursorSource)
+        #expect(snapshot.cursor?.manualCookieHeader == (cursorSource == .manual
+                ? "WorkosCursorSessionToken=cursor-account-fixture" : "WorkosCursorSessionToken=cursor-manual-fixture"))
+    }
+
     @Test
     func `usage and cards share provider selection constraints`() {
         let all = TokenAccountCLISelection(label: nil, index: nil, allAccounts: true)

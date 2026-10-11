@@ -2474,3 +2474,5 @@
 "Pace sign" = "사용 속도 부호";
 "Ahead of pace is +" = "기준 속도 초과는 +";
 "Reserve is +" = "여유분은 +";
+"Track Grok Bot usage" = "Grok Bot 사용량 추적";
+"Show Grok Bot's separate weekly allowance here using the account configured under Cursor. Works with linked SuperGrok access, even when Cursor tracking is off." = "Cursor에서 설정한 계정으로 Grok Bot의 별도 주간 한도를 여기에 표시합니다. Cursor 추적이 꺼져 있어도 연결된 SuperGrok 이용 권한으로 작동합니다.";

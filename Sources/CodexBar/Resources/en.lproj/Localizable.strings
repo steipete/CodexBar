@@ -1912,6 +1912,8 @@
 "Previous provider" = "Previous provider";
 "Primary quota" = "Primary quota";
 "Prioritize exhausted quotas" = "Prioritize exhausted quotas";
+"Track Grok Bot usage" = "Track Grok Bot usage";
+"Show Grok Bot's separate weekly allowance here using the account configured under Cursor. Works with linked SuperGrok access, even when Cursor tracking is off." = "Show Grok Bot's separate weekly allowance here using the account configured under Cursor. Works with linked SuperGrok access, even when Cursor tracking is off.";
 "Profile name" = "Profile name";
 "Provider %@" = "Provider %@";
 "Provider + Metric" = "Provider + Metric";

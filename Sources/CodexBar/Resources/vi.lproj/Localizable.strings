@@ -2507,3 +2507,5 @@
 "Pace sign" = "Dấu nhịp sử dụng";
 "Ahead of pace is +" = "Vượt nhịp là +";
 "Reserve is +" = "Dự trữ là +";
+"Track Grok Bot usage" = "Theo dõi mức sử dụng Grok Bot";
+"Show Grok Bot's separate weekly allowance here using the account configured under Cursor. Works with linked SuperGrok access, even when Cursor tracking is off." = "Hiển thị hạn mức tuần riêng của Grok Bot tại đây bằng tài khoản được cấu hình trong Cursor. Hoạt động với quyền truy cập SuperGrok đã liên kết, ngay cả khi tắt theo dõi Cursor.";

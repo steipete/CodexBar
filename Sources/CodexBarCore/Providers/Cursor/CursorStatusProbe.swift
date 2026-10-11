@@ -878,6 +878,23 @@ public struct CursorStatusProbe: Sendable {
         }
     }
 
+    /// Fetch only the Grok Bot allowance using Cursor's existing selected-account session rules.
+    public func fetchGrokBotUsage(
+        cookieHeaderOverride: String? = nil,
+        allowAppAuthFallback: Bool = true,
+        logger: ((String) -> Void)? = nil) async throws -> CursorSandUsageStatus
+    {
+        try await self.resolveSession(
+            cookieHeaderOverride: cookieHeaderOverride,
+            allowAppAuthFallback: allowAppAuthFallback,
+            logger: logger)
+        { cookieHeader, _ in
+            try await self.fetchSandUsage(
+                cookieHeader: cookieHeader,
+                deadline: Date().addingTimeInterval(self.timeout)).0
+        }
+    }
+
     #if os(macOS)
     /// Fetch Cursor token-cost data using the same hardened session resolution as status.
     public func fetchCostReport(
@@ -1584,6 +1601,14 @@ public struct CursorStatusProbe: Sendable {
     public func fetchBrowserLoginCandidates(
         browserApplicationURL _: URL,
         timeout _: TimeInterval = 120) async throws -> [BrowserLoginResult]
+    {
+        throw CursorStatusProbeError.notSupported
+    }
+
+    public func fetchGrokBotUsage(
+        cookieHeaderOverride _: String? = nil,
+        allowAppAuthFallback _: Bool = true,
+        logger _: ((String) -> Void)? = nil) async throws -> CursorSandUsageStatus
     {
         throw CursorStatusProbeError.notSupported
     }

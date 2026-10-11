@@ -2507,3 +2507,5 @@
 "Pace sign" = "Знак темпа расхода";
 "Ahead of pace is +" = "Опережение темпа — +";
 "Reserve is +" = "Запас — +";
+"Track Grok Bot usage" = "Отслеживать использование Grok Bot";
+"Show Grok Bot's separate weekly allowance here using the account configured under Cursor. Works with linked SuperGrok access, even when Cursor tracking is off." = "Показывает здесь отдельный недельный лимит Grok Bot для аккаунта, настроенного в Cursor. Работает с привязанным доступом SuperGrok, даже если отслеживание Cursor отключено.";

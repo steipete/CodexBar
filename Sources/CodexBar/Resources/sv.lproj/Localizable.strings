@@ -2505,3 +2505,5 @@
 "Pace sign" = "Tecken för förbrukningstakt";
 "Ahead of pace is +" = "Över förbrukningstakten är +";
 "Reserve is +" = "Reserv är +";
+"Track Grok Bot usage" = "Spåra Grok Bot-användning";
+"Show Grok Bot's separate weekly allowance here using the account configured under Cursor. Works with linked SuperGrok access, even when Cursor tracking is off." = "Visar Grok Bots separata veckokvot här med kontot som konfigurerats under Cursor. Fungerar med länkat SuperGrok-tillträde även när spårning av Cursor är avstängd.";

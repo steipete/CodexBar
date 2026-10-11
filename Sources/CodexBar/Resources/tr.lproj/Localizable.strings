@@ -2509,3 +2509,5 @@
 "Pace sign" = "Kullanım hızı işareti";
 "Ahead of pace is +" = "Hızın üzerinde kullanım +";
 "Reserve is +" = "Rezerv +";
+"Track Grok Bot usage" = "Grok Bot kullanımını izle";
+"Show Grok Bot's separate weekly allowance here using the account configured under Cursor. Works with linked SuperGrok access, even when Cursor tracking is off." = "Cursor altında yapılandırılan hesapla Grok Bot'un ayrı haftalık kotasını burada gösterir. Cursor takibi kapalı olsa bile bağlı SuperGrok erişimiyle çalışır.";

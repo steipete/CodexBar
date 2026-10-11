@@ -2510,3 +2510,5 @@
 "Pace sign" = "إشارة وتيرة الاستخدام";
 "Ahead of pace is +" = "تجاوز الوتيرة هو +";
 "Reserve is +" = "الاحتياطي هو +";
+"Track Grok Bot usage" = "تتبّع استخدام Grok Bot";
+"Show Grok Bot's separate weekly allowance here using the account configured under Cursor. Works with linked SuperGrok access, even when Cursor tracking is off." = "اعرض هنا الحصة الأسبوعية المنفصلة لـ Grok Bot باستخدام الحساب المُعدّ في Cursor. يعمل مع وصول SuperGrok المرتبط، حتى عند إيقاف تتبّع Cursor.";

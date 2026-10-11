@@ -2505,3 +2505,5 @@
 "Pace sign" = "Teken van gebruikstempo";
 "Ahead of pace is +" = "Boven het tempo is +";
 "Reserve is +" = "Reserve krijgt +";
+"Track Grok Bot usage" = "Grok Bot-gebruik bijhouden";
+"Show Grok Bot's separate weekly allowance here using the account configured under Cursor. Works with linked SuperGrok access, even when Cursor tracking is off." = "Toont hier het afzonderlijke weekquotum van Grok Bot via het account dat bij Cursor is ingesteld. Werkt met gekoppelde SuperGrok-toegang, ook als het bijhouden van Cursor is uitgeschakeld.";

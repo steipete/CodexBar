@@ -212,8 +212,12 @@ public struct ProviderFetchResult: Sendable {
 
     /// Returns a copy carrying `diagnostic`, preserving every other field.
     public func withDiagnostic(_ diagnostic: String) -> ProviderFetchResult {
+        self.replacing(usage: self.usage, diagnostic: diagnostic)
+    }
+
+    package func replacing(usage: UsageSnapshot, diagnostic: String? = nil) -> ProviderFetchResult {
         ProviderFetchResult(
-            usage: self.usage,
+            usage: usage,
             credits: self.credits,
             dashboard: self.dashboard,
             sourceLabel: self.sourceLabel,
@@ -222,7 +226,7 @@ public struct ProviderFetchResult: Sendable {
             supplementalUsageTask: self.supplementalUsageTask,
             codexResetCreditsAttempted: self.codexResetCreditsAttempted,
             codexMonthlyLimitEnrichmentFailed: self.codexMonthlyLimitEnrichmentFailed,
-            diagnostic: diagnostic,
+            diagnostic: diagnostic ?? self.diagnostic,
             claudeOAuthKeychainPersistentRefHash: self.claudeOAuthKeychainPersistentRefHash,
             claudeOAuthHistoryOwnerIdentifier: self.claudeOAuthHistoryOwnerIdentifier,
             claudeOAuthCredentialOwner: self.claudeOAuthCredentialOwner,
