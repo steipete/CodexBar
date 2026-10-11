@@ -51,20 +51,24 @@ struct CrossHostUsagePanel: View {
     }
 
     private var controls: some View {
-        HStack {
+        VStack(alignment: .leading, spacing: 10) {
             Picker(L("Provider"), selection: self.$provider) {
                 Text(verbatim: "Codex").tag(UsageProvider.codex)
                 Text(verbatim: "Claude Code").tag(UsageProvider.claude)
             }
-            .frame(maxWidth: 180)
+            .frame(width: 260, alignment: .leading)
             .disabled(self.operation != nil)
-            TextField(L("SSH host alias"), text: self.$host)
-                .textFieldStyle(.roundedBorder)
-                .disabled(self.operation != nil)
-                .accessibilityIdentifier("cross-host-usage-host")
-            Button(L("Fetch report")) { self.fetch() }
-                .disabled(self.operation != nil || self.host.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                .accessibilityIdentifier("cross-host-usage-fetch")
+            HStack {
+                TextField(L("SSH host alias"), text: self.$host)
+                    .textFieldStyle(.roundedBorder)
+                    .disabled(self.operation != nil)
+                    .accessibilityIdentifier("cross-host-usage-host")
+                Button(L("Fetch report")) { self.fetch() }
+                    .fixedSize()
+                    .disabled(self.operation != nil || self.host.trimmingCharacters(in: .whitespacesAndNewlines)
+                        .isEmpty)
+                    .accessibilityIdentifier("cross-host-usage-fetch")
+            }
         }
     }
 
