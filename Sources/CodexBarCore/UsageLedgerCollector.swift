@@ -32,6 +32,7 @@ public struct RemoteUsageLedgerFetcher: Sendable {
         try RemoteCodexCostFetcher.validateHost(host)
         let zone = calendar.timeZone.identifier
         let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789/_+-")
+        // Provider-specific by design: SSH invokes the bounded native Codex or Claude ledger protocol only.
         guard ["codex", "claude"].contains(provider), (1...365).contains(historyDays),
               zone.unicodeScalars.allSatisfy(allowed.contains), TimeZone(identifier: zone) != nil,
               now.timeIntervalSince1970.isFinite, (0...253_402_300_799).contains(now.timeIntervalSince1970)
@@ -56,6 +57,8 @@ public struct RemoteUsageLedgerFetcher: Sendable {
         calendar: Calendar,
         environment: [String: String] = ProcessInfo.processInfo.environment) async throws -> UsageLedger
     {
+        let now = UsageLedgerLoader.canonicalDate(now)
+        // Provider-specific by design: Remote protocol names are defined only for Codex and Claude exporters.
         let name = provider == .codex ? "codex" : provider == .claude ? "claude" : "unsupported"
         let arguments = try Self.arguments(
             host: host, provider: name, historyDays: historyDays, now: now, calendar: calendar)
@@ -88,7 +91,9 @@ public enum UsageLedgerCollector {
         calendar: Calendar = .current,
         now: Date = Date()) async throws -> CombinedUsageLedgerReport
     {
+        let now = UsageLedgerLoader.canonicalDate(now)
         try RemoteCodexCostFetcher.validateHost(host)
+        // Provider-specific by design: Combined histories are restricted to the two native transcript formats.
         guard provider == .codex || provider == .claude else {
             throw UsageLedgerError.invalid("Only native Codex and Claude history is supported.")
         }

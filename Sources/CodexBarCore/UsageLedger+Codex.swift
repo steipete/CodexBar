@@ -7,6 +7,7 @@ extension UsageLedgerLoader {
         now: Date = Date(),
         calendar: Calendar = .current) async throws -> UsageLedger
     {
+        let now = Self.canonicalDate(now)
         let cacheRoot = FileManager.default.temporaryDirectory
             .appendingPathComponent("codexbar-ledger-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: cacheRoot, withIntermediateDirectories: true)
@@ -24,8 +25,10 @@ extension UsageLedgerLoader {
     static func loadCodex(
         historyDays: Int,
         now: Date,
-        options: CostUsageScanner.Options) async throws -> UsageLedger
+        options: CostUsageScanner.Options,
+        pricingCacheRoot: URL? = nil) async throws -> UsageLedger
     {
+        let now = Self.canonicalDate(now)
         guard (1...365).contains(historyDays) else {
             throw UsageLedgerError.invalid("History must be between 1 and 365 days.")
         }
@@ -34,25 +37,38 @@ extension UsageLedgerLoader {
             options.refreshMinIntervalSeconds = 0
             let since = CostReportingPeriod.rolling(days: historyDays)
                 .bounds(now: now, calendar: options.calendar).lowerBound
-            _ = try CostUsageScanner.loadDailyReportCancellable(
-                provider: .codex,
-                since: since,
-                until: now,
-                now: now,
-                options: options,
-                checkCancellation: checkCancellation)
+            let observations = CodexLedgerRequestObserver(since: since, until: now)
+            // Provider-specific by design: This adapter reads owned native Codex rollouts before replay suppression.
+            _ = try CostUsageScanner.$codexLedgerRequestObserver.withValue(observations) {
+                try CostUsageScanner.loadDailyReportCancellable(
+                    provider: .codex,
+                    since: since,
+                    until: now,
+                    now: now,
+                    options: options,
+                    checkCancellation: checkCancellation)
+            }
             try checkCancellation()
             let roots = CostUsageScanner.codexSessionsRoots(options: options)
             let view = CostUsageStoreAccess.readView(
                 cacheRoot: options.cacheRoot,
                 calendar: options.calendar,
                 purpose: .report).scoped(to: roots)
-            return view.codexUsageLedger(
+            // The disposable scan database must not replace the installed, read-only pricing catalog.
+            var ledger = view.codexUsageLedger(
                 range: .init(since: since, until: now, calendar: options.calendar),
                 historyDays: historyDays,
                 now: now,
-                cacheRoot: options.cacheRoot,
+                cacheRoot: pricingCacheRoot,
                 rootsFingerprint: CostUsageScanner.codexRootsFingerprint(options: options))
+            let conflicts = observations.conflictingRecordIDs
+            if !conflicts.isEmpty {
+                ledger.conflictingRecordIDs = conflicts
+                ledger.coverageIsEstablished = false
+                ledger.warnings
+                    .append("Conflicting native Codex request observations were withheld from combined usage.")
+            }
+            return ledger
         }
     }
 
@@ -92,6 +108,7 @@ extension UsageLedgerLoader {
                 }
                 let identity: UsageLedgerIdentity
                 let components: [String]
+                // Provider-specific by design: Codex request and legacy identities retain rollout-session provenance.
                 if let session = usage.sessionId, let response = row.responseID {
                     identity = .request
                     components = ["codex", "request", session, response]
@@ -129,6 +146,8 @@ extension UsageLedgerLoader {
                 let exportedModel = Self.codexLedgerModel(row.model)
                 let exportedPricingModel = Self.codexLedgerModel(pricingModel)
                 redactedModel = redactedModel || exportedModel != row.model || exportedPricingModel != pricingModel
+                // Provider-specific by design: Codex session digests must not collide with Claude transcript
+                // namespaces.
                 records.append(UsageLedgerRecord(
                     id: UsageLedgerRecord.digest(components),
                     sessionID: usage.sessionId.map { UsageLedgerRecord.digest(["codex", "session", $0]) },
@@ -181,6 +200,7 @@ extension UsageLedgerLoader {
         if !coverage {
             warnings.append("Native Codex history coverage is incomplete; exported usage is partial.")
         }
+        // Provider-specific by design: This adapter exports the native Codex rollout schema only.
         var ledger = UsageLedger(
             provider: "codex",
             updatedAt: Date(),

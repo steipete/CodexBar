@@ -4242,6 +4242,24 @@ enum CostUsageScanner {
             let responseID = record.responseID
             let timestamp = record.timestamp
             let turnID = record.turnID ?? currentTurnID ?? requestLedger.activeTurnID
+            let model = record.model
+                ?? turnID.flatMap { requestLedger.turnModels[$0] }
+                ?? (turnID == currentTurnID || turnID == requestLedger.activeTurnID
+                    ? Self.codexModelEvidence(currentModel) : nil)
+                ?? CostUsagePricing.codexUnattributedModel
+            Self.codexLedgerRequestObserver?.observe(
+                sessionID: sessionId,
+                row: CodexUsageRow(
+                    day: day,
+                    model: model,
+                    turnID: turnID,
+                    eventIndex: nil,
+                    timestampUnixMs: unixMilliseconds(from: timestamp),
+                    input: usage.input,
+                    cached: usage.cached,
+                    output: usage.output,
+                    reasoning: usage.reasoning,
+                    responseID: responseID))
             var keys = [
                 mirrorKey(turnID: turnID, usage: usage, total: record.threadTotal, timestamp: timestamp),
                 mirrorKey(turnID: turnID, usage: usage, total: nil, timestamp: timestamp),
@@ -4330,11 +4348,6 @@ enum CostUsageScanner {
                 performance.reportedOutputTokens = record.turnTotal?.output
                 requestLedger.turnPerformance?[turnID] = performance
             }
-            let model = record.model
-                ?? turnID.flatMap { requestLedger.turnModels[$0] }
-                ?? (turnID == currentTurnID || turnID == requestLedger.activeTurnID
-                    ? Self.codexModelEvidence(currentModel) : nil)
-                ?? CostUsagePricing.codexUnattributedModel
             requestLedger.countedUsage = Self.codexAddTotals(base, usage)
             appendUsage(
                 usage,

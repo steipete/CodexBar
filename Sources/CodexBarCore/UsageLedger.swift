@@ -83,6 +83,8 @@ public struct UsageLedger: Codable, Sendable {
     public var coverageIsEstablished: Bool
     public var records: [UsageLedgerRecord]
     public var incompleteRequestCount: Int
+    /// Native contradictions detected before copy selection; hashes remain withheld across all sources.
+    public var conflictingRecordIDs: [String]?
     public var warnings: [String]
 
     public init(
@@ -93,6 +95,7 @@ public struct UsageLedger: Codable, Sendable {
         coverageIsEstablished: Bool,
         records: [UsageLedgerRecord],
         incompleteRequestCount: Int = 0,
+        conflictingRecordIDs: [String]? = nil,
         warnings: [String] = [])
     {
         self.provider = provider
@@ -107,22 +110,30 @@ public struct UsageLedger: Codable, Sendable {
         self.coverageIsEstablished = coverageIsEstablished
         self.records = records
         self.incompleteRequestCount = incompleteRequestCount
+        self.conflictingRecordIDs = conflictingRecordIDs
         self.warnings = warnings
     }
 }
 
 public enum UsageLedgerLoader {
+    /// The wire interval and both calendar boundaries derive from one integer-millisecond instant.
+    static func canonicalDate(_ date: Date) -> Date {
+        Date(timeIntervalSince1970: (date.timeIntervalSince1970 * 1000).rounded() / 1000)
+    }
+
     /// Reads native local history only; never probes provider credentials or transfers transcripts.
     public static func load(
         provider: UsageProvider, historyDays: Int, now: Date = Date(), calendar: Calendar = .current)
         async throws -> UsageLedger
     {
+        let now = Self.canonicalDate(now)
         guard (1...365).contains(historyDays), now.timeIntervalSince1970.isFinite,
               (0...253_402_300_799).contains(now.timeIntervalSince1970),
               let start = calendar.date(
                   byAdding: .day, value: 1 - historyDays, to: calendar.startOfDay(for: now)),
               start.timeIntervalSince1970 >= 0
         else { throw UsageLedgerError.invalid("Invalid ledger history window.") }
+        // Provider-specific by design: Native Codex rollouts and Claude transcripts require separate parsers.
         var ledger = switch provider {
         case .codex: try await self.loadCodex(historyDays: historyDays, now: now, calendar: calendar)
         case .claude: try await self.loadClaude(historyDays: historyDays, now: now, calendar: calendar)

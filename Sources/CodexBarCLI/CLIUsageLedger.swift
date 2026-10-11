@@ -24,6 +24,7 @@ extension CodexBarCLI {
         let ledgerOnly = values.flags.contains("ledgerOnly")
         let host = values.options["combineRemote"]?.last
         let providerName = values.options["provider"]?.last
+        // Provider-specific by design: The numeric protocol supports only native Codex and Claude histories.
         guard let providerName, ["codex", "claude"].contains(providerName),
               !(ledgerOnly && host != nil), !ledgerOnly || output.format == .json,
               values.options["provider"]?.count == 1, (values.options["combineRemote"]?.count ?? 0) <= 1,
@@ -50,6 +51,7 @@ extension CodexBarCLI {
         }
         let now = end.map { Date(timeIntervalSince1970: Double($0) / 1000) } ?? Date()
         let calendar = CostUsageBucketTimeZone.calendar(identifier: zone)
+        // Provider-specific by design: Validated protocol names dispatch to the two native-history exporters.
         let provider: UsageProvider = providerName == "codex" ? .codex : .claude
         let cancellation = CodexHostCostCancellation()
         let monitor = CLITerminationSignalMonitor { signal in cancellation.request(signal: signal) }

@@ -26,14 +26,17 @@ enum CodexBarEntryPoint {
         if CodexBarCoreResourceSmoke.isRequested() {
             exit(CodexBarCoreResourceSmoke.run())
         }
+        guard CodexBarLaunchMode.resolve(arguments: CommandLine.arguments) == .application else {
+            return
+        }
         #if DEBUG
+        if UsageLedgerNativePreview.runIfRequested() {
+            return
+        }
         if MenuBarLayoutNativeProof.runIfRequested() {
             return
         }
         #endif
-        guard CodexBarLaunchMode.resolve(arguments: CommandLine.arguments) == .application else {
-            return
-        }
         TerminalLauncher().cleanUpAbandonedConfigs()
         CodexBarApp.main()
     }
@@ -451,11 +454,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self.installDebugMemoryPressureObserverIfNeeded()
         #endif
         self.ensureStatusController()
-        #if DEBUG
-        if CommandLine.arguments.contains("--usage-ledger-preview") {
-            self.openSettings(pane: .usageSpend)
-        }
-        #endif
         self.observeSettingsApplicationMenuLanguage()
         self.scheduleSettingsApplicationMenuValidation(
             missingItemRetriesRemaining: Self.settingsMenuReadinessRetryCount,

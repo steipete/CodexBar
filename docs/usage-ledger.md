@@ -20,7 +20,9 @@ host or reporting timezone clears the result. Cancellation and leaving the view 
 a late completion cannot publish over a newer request. Reports are retained only in memory. There is no
 periodic SSH discovery or collection, and the existing local dashboard totals are unchanged.
 
-Debug builds accept `--usage-ledger-preview` to open this settings pane at launch for native UI review.
+Debug builds accept `--usage-ledger-preview` or `CODEXBAR_USAGE_LEDGER_PREVIEW=1` to open the real panel
+in a standalone trial window before normal app startup. This preview uses the current calendar and
+does not initialize settings, provider refreshes, or the ordinary dashboard's shared caches.
 
 ![Manual experimental panel before collecting any private usage](screenshots/usage-ledger-preview.jpg)
 
@@ -56,6 +58,7 @@ The schema version is **1**. A ledger contains:
 | `windowStartUnixMs`, `windowEndUnixMs` | Inclusive integer-millisecond interval |
 | `coverageIsEstablished` | Whether the source can establish coverage for that interval |
 | `incompleteRequestCount`, `warnings` | Explicit source limitations |
+| `conflictingRecordIDs` (optional) | Hashed identities contradicted within a native source before copy selection |
 | `records` | Native usage records; no daily total is invented into a request |
 
 Each record carries a SHA-256 identity hash, an optional hashed session identity, an identity-evidence
@@ -83,6 +86,12 @@ conflicting identity is excluded and the result is partial. Different price/prov
 retain unique token accounting but make the combined dollar amount unavailable. Unknown prices do the
 same; a partial known-price sum is not presented as the total price.
 
+Native exporters detect disagreements before selecting same-host copies. Codex observes owned request
+records before replay suppression; Claude compares completed, already-normalized per-file responses.
+Legitimate cumulative streaming updates remain normalized by the native reader. Conflict hashes are
+carried independently of numeric rows, so redaction or an overflowing row cannot revive that identity
+through a clean observation on the other host. Detection uses the exact requested timestamp window.
+
 Legacy event identities are weaker evidence. The result reports their count and cannot establish full
 cross-host coverage while they remain. When a session has different request/legacy representations
 and no proven alias, its ambiguous legacy rows are withheld even if both representations came from
@@ -100,6 +109,11 @@ Costs preserve authoritative dollar values recorded by the native reader where a
 use that reader's API-price estimate, including cache/priority metadata. Prices can differ between
 machines with different catalogs or custom overlays. These amounts do not establish subscription spend
 or the provider's invoiced charge.
+
+The disposable Codex scan database is separate from its pricing input: exports read the installed
+models.dev catalog through the native resolver without copying, refreshing or modifying it. Existing
+stable cost databases adopt the exact compatible v0.74.0/main parser fingerprint while retaining saved
+reports, billing rows, pricing and checkpoints.
 
 ## Experiment and review scope
 

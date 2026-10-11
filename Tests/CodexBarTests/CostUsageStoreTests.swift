@@ -955,6 +955,7 @@ extension CostUsageStoreTests {
 
 extension CostUsageStoreTests {
     @Test(arguments: [
+        "f406dae284de4a55", // Actual 0.74.0 and PR-base fingerprint; source-less history must survive the upgrade.
         "379b799bb4b91683", // Current main before on-demand tool inspection.
         "7ce21041b7a36242", // Prior tool inspection build before upstream process cleanup.
         "0d8f9504f8e63d0f", // Current main before on-demand tool inspection.
@@ -1012,6 +1013,7 @@ extension CostUsageStoreTests {
         let fixture = try StoreFixture()
         defer { fixture.remove() }
         #expect(CostUsageStore.compatiblePredecessorParserHashes == [
+            "f406dae284de4a55",
             "379b799bb4b91683",
             "7ce21041b7a36242",
             "0d8f9504f8e63d0f",
@@ -1099,7 +1101,20 @@ extension CostUsageStoreTests {
         file.scanState.isComplete = false
         file.scanState.resumePayload = try JSONEncoder().encode(resume)
         let token = Self.snapshot(path: file.path, eventIndex: 0)
-        let usageRow = CostUsageStoreUsageRow(path: file.path, rowIndex: 0, payload: Data([8, 9, 10]))
+        let billingRow = CostUsageScanner.CodexUsageRow(
+            day: "2026-08-01",
+            model: "gpt-5.6-sol",
+            turnID: "saved-turn",
+            eventIndex: 0,
+            timestampUnixMs: token.timestampUnixMs,
+            input: 10,
+            cached: 2,
+            output: 3,
+            knownCostNanos: 1000,
+            pricingModel: "gpt-5.6-sol",
+            pricingMode: "priority")
+        let usageRow = try CostUsageStoreUsageRow(
+            path: file.path, rowIndex: 0, payload: JSONEncoder().encode(billingRow))
         let aggregate = Self.aggregate(day: "2026-08-01", model: "gpt-5.6-sol", scale: 1)
         let lineage = Self.lineage(path: file.path)
         let line = Self.bufferedLine(path: file.path, kind: .subagent, index: 0)
@@ -1138,6 +1153,11 @@ extension CostUsageStoreTests {
             expected.metadata.previousReportPayload = nil
         }
         #expect(after == expected)
+        #expect(after.metadata.pricingKey == metadata.pricingKey)
+        #expect(after.metadata.previousReportPayload == expected.metadata.previousReportPayload)
+        #expect(after.dayAggregates.first?.authoritativeCostNanos == aggregate.authoritativeCostNanos)
+        let adoptedRow = try #require(after.usageRows.first)
+        #expect(try JSONDecoder().decode(CostUsageScanner.CodexUsageRow.self, from: adoptedRow.payload) == billingRow)
         #expect(await current.rebuildCount == 0)
         #expect(await current.configuration()?.userVersion == Int(CostUsageStore.schemaVersion))
         let connection = try SQLiteTestConnection(url: fixture.databaseURL, readOnly: true)

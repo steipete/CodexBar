@@ -37,6 +37,7 @@ extension UsageLedger {
     /// Reject incompatible windows, overflows and malformed remote data before accounting.
     public func validate(provider: String, historyDays: Int) throws {
         let dateLimit: Int64 = 253_402_300_799_000
+        // Provider-specific by design: Schema one defines native Codex and Claude token accounting only.
         guard self.schemaVersion == 1, ["codex", "claude"].contains(provider), self.provider == provider,
               (1...365).contains(historyDays), self.historyDays == historyDays,
               TimeZone(identifier: self.bucketTimeZone) != nil,
@@ -44,7 +45,11 @@ extension UsageLedger {
               (0...Double(dateLimit) / 1000).contains(self.updatedAt.timeIntervalSince1970),
               self.windowStartUnixMs >= 0, self.windowEndUnixMs >= self.windowStartUnixMs,
               self.windowEndUnixMs <= dateLimit, self.records.count <= Self.maximumRecords,
-              self.incompleteRequestCount >= 0, self.warnings.count <= 20,
+              self.incompleteRequestCount >= 0,
+              (self.conflictingRecordIDs?.count ?? 0) <= Self.maximumRecords,
+              (self.conflictingRecordIDs ?? []).allSatisfy(Self.isDigest),
+              Set(self.conflictingRecordIDs ?? []).count == (self.conflictingRecordIDs?.count ?? 0),
+              self.warnings.count <= 20,
               self.warnings.allSatisfy({ $0.utf8.count <= 512 })
         else { throw UsageLedgerError.invalid("Invalid or unsupported usage ledger.") }
         for row in self.records {
@@ -65,6 +70,8 @@ extension UsageLedger {
                   row.costUSD.map({ $0.isFinite && $0 >= 0 }) ?? true,
                   row.identity != .legacyEvent || row.sessionID != nil
             else { throw UsageLedgerError.invalid("Invalid usage ledger record.") }
+            // Provider-specific by design: Codex input includes cached tokens; Claude counts cache categories
+            // separately.
             let components = provider == "codex"
                 ? [row.inputTokens, row.outputTokens]
                 : [row.inputTokens, row.outputTokens, row.cacheReadTokens, row.cacheWriteTokens]
@@ -98,6 +105,7 @@ public enum UsageLedgerMerger {
     public static func merge(
         reports: [UsageLedgerHostReport], provider: String, historyDays: Int) throws -> CombinedUsageLedgerReport
     {
+        // Provider-specific by design: Only Codex and Claude native exports satisfy this merger token contract.
         guard ["codex", "claude"].contains(provider), (1...365).contains(historyDays) else {
             throw UsageLedgerError.invalid("Invalid usage ledger request.")
         }
@@ -113,10 +121,13 @@ public enum UsageLedgerMerger {
         }
         // A legacy counter and a request ledger can represent the same response differently.
         // Without a proven alias, withhold that session's legacy rows instead of counting both.
+        var conflicts = Set(ledgers.flatMap { $0.conflictingRecordIDs ?? [] })
         var requestSessions = Set<String>()
+        var observedConflictIDs = Set<String>()
         var requestWithoutSession = false
         for ledger in ledgers {
-            for row in ledger.records where row.identity == .request {
+            for row in ledger.records where row.identity == .request || conflicts.contains(row.id) {
+                if conflicts.contains(row.id) { observedConflictIDs.insert(row.id) }
                 if let session = row.sessionID {
                     requestSessions.insert(session)
                 } else {
@@ -124,8 +135,10 @@ public enum UsageLedgerMerger {
                 }
             }
         }
+        // A rejected numeric row can leave a conflict hash without surviving session provenance.
+        // Its legacy representation cannot safely be distinguished from another source's rows.
+        if !conflicts.isSubset(of: observedConflictIDs) { requestWithoutSession = true }
         var unique: [String: UsageLedgerRecord] = [:]
-        var conflicts = Set<String>()
         var priceConflicts = Set<String>()
         var duplicates = 0
         var unidentified = 0

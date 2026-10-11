@@ -5,6 +5,87 @@ import Testing
 struct UsageLedgerMergeTests {
     static let now = Date(timeIntervalSince1970: 1_788_177_600)
 
+    @Test(arguments: ["codex", "claude"])
+    func `captured native Mac and real SSH fixture exports combine through the production merger`(provider: String)
+        throws
+    {
+        let fixture = try #require(Bundle.module.url(
+            forResource: "native-ssh-proof", withExtension: "json", subdirectory: "Fixtures/UsageLedger"))
+        let envelope = try #require(JSONSerialization.jsonObject(with: Data(contentsOf: fixture)) as? [String: Any])
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let captures = try decoder.decode(
+            [String: [String: UsageLedger]].self,
+            from: JSONSerialization.data(withJSONObject: #require(envelope["providers"])))
+        let sources = try #require(captures[provider])
+        let local = try #require(sources["local"])
+        let remote = try #require(sources["ssh"])
+        #expect(local.records.count == 1)
+        #expect(remote.records.count == 2)
+        let result = try UsageLedgerMerger.merge(
+            reports: [.init(host: "fixture-mac", ledger: local), .init(host: "fixture-ssh", ledger: remote)],
+            provider: provider, historyDays: 1)
+        #expect(result.combined.totalTokens == 220)
+        #expect(result.combined.duplicateCount == 1)
+        #expect(result.combined.conflictCount == 0)
+        #expect(result.combined.coverageIsEstablished)
+    }
+
+    @Test
+    func `native conflict metadata withholds a matching clean remote record even without a numeric local row`() throws {
+        let row = Self.record("native-conflict")
+        var local = Self.ledger([])
+        local.conflictingRecordIDs = [row.id]
+        let result = try Self.combine([local, Self.ledger([row])])
+        #expect(result.combined.totalTokens == 0)
+        #expect(result.combined.conflictCount == 1)
+        #expect(result.combined.costUSD == nil)
+        #expect(!result.combined.coverageIsEstablished)
+    }
+
+    @Test
+    func `conflict hashes without surviving session provenance withhold ambiguous legacy representations`() throws {
+        var local = Self.ledger([])
+        local.conflictingRecordIDs = [UsageLedgerRecord.digest(["overflowing-native-request"])]
+        var legacy = Self.record("possible-legacy-copy")
+        legacy.identity = .legacyEvent
+        let result = try Self.combine([local, Self.ledger([legacy])])
+        #expect(result.combined.totalTokens == 0)
+        #expect(result.combined.conflictCount == 1)
+        #expect(result.combined.unidentifiedCount == 1)
+        #expect(result.combined.legacyIdentityCount == 0)
+        #expect(!result.combined.coverageIsEstablished)
+    }
+
+    @Test
+    func `contradicted request provenance still quarantines legacy copies when its model is redacted`() throws {
+        var request = Self.record("redacted-conflict")
+        request.identity = .unidentified
+        var legacy = Self.record("legacy-copy")
+        legacy.identity = .legacyEvent
+        legacy.sessionID = request.sessionID
+        var local = Self.ledger([request])
+        local.conflictingRecordIDs = [request.id]
+        let result = try Self.combine([local, Self.ledger([legacy])])
+        #expect(result.combined.totalTokens == 0)
+        #expect(result.combined.conflictCount == 1)
+        #expect(result.combined.legacyIdentityCount == 0)
+        #expect(!result.combined.coverageIsEstablished)
+    }
+
+    @Test
+    func `optional native conflict hashes decode old exports and reject malformed or repeated metadata`() throws {
+        let ledger = Self.ledger([Self.record("valid")])
+        let decoded = try JSONDecoder().decode(UsageLedger.self, from: JSONEncoder().encode(ledger))
+        #expect(decoded.conflictingRecordIDs == nil)
+        try decoded.validate(provider: "codex", historyDays: 1)
+        var invalid = ledger
+        invalid.conflictingRecordIDs = ["raw-private-request-id"]
+        #expect(throws: UsageLedgerError.self) { try invalid.validate(provider: "codex", historyDays: 1) }
+        invalid.conflictingRecordIDs = [ledger.records[0].id, ledger.records[0].id]
+        #expect(throws: UsageLedgerError.self) { try invalid.validate(provider: "codex", historyDays: 1) }
+    }
+
     @Test
     func `copied requests count once while continuation and equal sized distinct requests count separately`() throws {
         let copied = Self.record("copied")

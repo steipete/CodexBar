@@ -28,6 +28,7 @@ extension UsageLedgerLoader {
         guard (1...365).contains(historyDays) else {
             throw UsageLedgerError.invalid("History days must be between 1 and 365.")
         }
+        let now = Self.canonicalDate(now)
         let calendar = CostUsageScanner.CostUsageDayRange.localGregorianCalendar(matching: calendar)
         let today = calendar.startOfDay(for: now)
         guard let since = calendar.date(byAdding: .day, value: 1 - historyDays, to: today) else {
@@ -36,6 +37,11 @@ extension UsageLedgerLoader {
         let range = CostUsageScanner.CostUsageDayRange(since: since, until: now, calendar: calendar)
         let scanned = try CostUsageScanner.claudeLedgerRows(
             range: range, options: options, now: now, checkCancellation: checkCancellation)
+        // Preserve conflict identity before overflow filtering or private-model redaction can erase its evidence.
+        let conflictingRecordIDs = Set(scanned.conflictingRows.enumerated().compactMap { index, row in
+            let identity = Self.claudeLedgerIdentity(row, index: index)
+            return identity.kind == .unidentified ? nil : identity.id
+        }).sorted()
         var records: [UsageLedgerRecord] = []
         var incompleteCount = 0
         var overflowCount = 0
@@ -55,32 +61,15 @@ extension UsageLedgerLoader {
                 overflowCount += 1
                 continue
             }
-            let identity: UsageLedgerIdentity
-            let components: [String]
-            if let message = row.messageId, let request = row.requestId,
-               !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-               !request.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            {
-                identity = .request
-                components = ["claude", "request", message, request]
-            } else if row.requestId == nil, let message = row.messageId, let session = row.sessionId,
-                      !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-                      !session.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            {
-                identity = .legacyEvent
-                components = ["claude", "session-message", session, message]
-            } else {
-                // Anonymous identifiers distinguish local records only; the merger excludes them globally.
-                identity = .unidentified
-                components = ["claude", "unidentified", String(index)]
-            }
+            let identity = Self.claudeLedgerIdentity(row, index: index)
             let isPriced = row.costPriced ?? (row.costNanos > 0)
             let model = Self.claudeLedgerModel(row.model)
             redactedModel = redactedModel || model != row.model
+            // Provider-specific by design: Claude session hashes must use a namespace distinct from Codex rollouts.
             records.append(UsageLedgerRecord(
-                id: UsageLedgerRecord.digest(components),
+                id: identity.id,
                 sessionID: row.sessionId.map { UsageLedgerRecord.digest(["claude", "session", $0]) },
-                identity: identity,
+                identity: identity.kind,
                 timestampUnixMs: timestamp,
                 model: model,
                 inputTokens: row.input,
@@ -110,6 +99,11 @@ extension UsageLedgerLoader {
         if overflowCount > 0 {
             warnings.append("\(overflowCount) responses have unavailable timestamps or overflowing token totals.")
         }
+        if !scanned.conflictingRows.isEmpty {
+            warnings.append(
+                "\(scanned.conflictingRows.count / 2) native response identities have contradictory completed copies; "
+                    + "observations are retained for conflict quarantine.")
+        }
         if redactedModel {
             warnings.append("Non-identifier model metadata was redacted from the numeric export.")
         }
@@ -120,19 +114,49 @@ extension UsageLedgerLoader {
             warnings.append("Some Claude records lack stable identity and cannot be deduplicated across hosts.")
         }
         try checkCancellation?()
+        // Provider-specific by design: This adapter exports the native Claude transcript schema only.
         var ledger = UsageLedger(
             provider: UsageProvider.claude.rawValue,
             updatedAt: Date(),
             historyDays: historyDays,
             bucketTimeZone: calendar.timeZone.identifier,
             coverageIsEstablished: scanned.incompleteSourceCount == 0 && overflowCount == 0
-                && scanned.rejectedUsageLineCount == 0,
+                && scanned.rejectedUsageLineCount == 0 && scanned.conflictingRows.isEmpty,
             records: records,
             incompleteRequestCount: incompleteCount,
             warnings: warnings)
         ledger.windowStartUnixMs = Int64(since.timeIntervalSince1970 * 1000)
-        ledger.windowEndUnixMs = Int64(now.timeIntervalSince1970 * 1000)
+        ledger.windowEndUnixMs = Int64((now.timeIntervalSince1970 * 1000).rounded())
+        ledger.conflictingRecordIDs = conflictingRecordIDs.isEmpty ? nil : conflictingRecordIDs
         return ledger
+    }
+
+    /// Model and token payloads do not influence identity; contradictions therefore keep the same digest.
+    private static func claudeLedgerIdentity(
+        _ row: CostUsageScanner.ClaudeUsageRow,
+        index: Int) -> (id: String, kind: UsageLedgerIdentity)
+    {
+        let kind: UsageLedgerIdentity
+        let components: [String]
+        // Provider-specific by design: Claude request and session-message identities use distinct protocol namespaces.
+        if let message = row.messageId, let request = row.requestId,
+           !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+           !request.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        {
+            kind = .request
+            components = ["claude", "request", message, request]
+        } else if row.requestId == nil, let message = row.messageId, let session = row.sessionId,
+                  !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                  !session.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        {
+            kind = .legacyEvent
+            components = ["claude", "session-message", session, message]
+        } else {
+            // Anonymous identifiers distinguish local records only; the merger excludes them globally.
+            kind = .unidentified
+            components = ["claude", "unidentified", String(index)]
+        }
+        return (UsageLedgerRecord.digest(components), kind)
     }
 
     /// Transcript-controlled strings must be identifiers, never arbitrary paths or conversation text.

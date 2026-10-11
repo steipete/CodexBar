@@ -5,6 +5,7 @@ import SwiftUI
 @MainActor
 struct CrossHostUsagePanel: View {
     let calendar: Calendar
+    // Provider-specific by design: The manual native-history experiment defaults to Codex rollouts.
     @State private var provider: UsageProvider = .codex
     @State private var host = ""
     @State private var report: CombinedUsageLedgerReport?
@@ -52,6 +53,7 @@ struct CrossHostUsagePanel: View {
 
     private var controls: some View {
         VStack(alignment: .leading, spacing: 10) {
+            // Provider-specific by design: Only Codex rollouts and Claude transcripts have ledger exporters.
             Picker(L("Provider"), selection: self.$provider) {
                 Text(verbatim: "Codex").tag(UsageProvider.codex)
                 Text(verbatim: "Claude Code").tag(UsageProvider.claude)

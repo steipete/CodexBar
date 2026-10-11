@@ -136,6 +136,7 @@ extension CostUsageScanner {
         startOffset: Int64 = 0,
         pricingResolver: CostUsagePricing.ClaudeResolver,
         diagnoseRejectedUsage: Bool = false,
+        timestampWindowUnixMs: ClosedRange<Int64>? = nil,
         checkCancellation: CancellationCheck? = nil) throws -> ClaudeParseResult
     {
         func toInt(_ v: Any?) -> Int {
@@ -210,11 +211,13 @@ extension CostUsageScanner {
                             return
                         }
                         let timestamp = parsedTimestamp.date
+                        let timestampUnixMs = Int64((timestamp.timeIntervalSince1970 * 1000).rounded())
                         let dayKey = parsedTimestamp.dayKey
                         guard CostUsageDayRange.isInRange(
                             dayKey: dayKey,
                             since: range.scanSinceKey,
-                            until: range.scanUntilKey)
+                            until: range.scanUntilKey),
+                            timestampWindowUnixMs.map({ $0.contains(timestampUnixMs) }) ?? true
                         else { return }
 
                         guard let message, let model = message["model"] as? String,
@@ -228,7 +231,9 @@ extension CostUsageScanner {
                         let cacheCreate = max(0, toInt(usage["cache_creation_input_tokens"]))
                         let cacheRead = max(0, toInt(usage["cache_read_input_tokens"]))
                         let output = max(0, toInt(usage["output_tokens"]))
-                        if input == 0, cacheCreate == 0, cacheRead == 0, output == 0 {
+                        if input == 0, cacheCreate == 0, cacheRead == 0, output == 0,
+                           timestampWindowUnixMs == nil
+                        {
                             return
                         }
                         let cacheCreate1h = Self.claudeOneHourCacheCreationTokens(
@@ -266,7 +271,7 @@ extension CostUsageScanner {
                             sessionId: sessionId.map(rowStrings.intern),
                             messageId: messageId,
                             requestId: requestId,
-                            timestampUnixMs: Int64((timestamp.timeIntervalSince1970 * 1000).rounded()),
+                            timestampUnixMs: timestampUnixMs,
                             isSidechain: toBool(obj["isSidechain"]),
                             pathRole: pathRole,
                             input: input,
@@ -736,7 +741,9 @@ extension CostUsageScanner {
         options: Options,
         now: Date,
         checkCancellation: CancellationCheck? = nil)
-        throws -> (rows: [ClaudeUsageRow], incompleteSourceCount: Int, rejectedUsageLineCount: Int)
+        throws -> (
+            rows: [ClaudeUsageRow], conflictingRows: [ClaudeUsageRow],
+            incompleteSourceCount: Int, rejectedUsageLineCount: Int)
     {
         let inventory = try Self.inventoryClaudeRoots(
             Self.defaultClaudeProjectsRoots(options: options),
@@ -745,6 +752,11 @@ extension CostUsageScanner {
         var cache = CostUsageCache()
         var incompleteSourceCount = inventory.incompleteSourceCount
         var rejectedUsageLineCount = 0
+        let windowEndUnixMs = Int64((now.timeIntervalSince1970 * 1000).rounded())
+        guard let since = CostUsageLocalDay.date(fromKey: range.sinceKey, calendar: range.calendar), since <= now else {
+            throw UsageLedgerError.invalid("Unable to establish the requested history window.")
+        }
+        let timestampWindowUnixMs = Int64(since.timeIntervalSince1970 * 1000)...windowEndUnixMs
         for path in inventory.files.keys.sorted() {
             try checkCancellation?()
             guard let source = inventory.files[path] else { continue }
@@ -754,6 +766,7 @@ extension CostUsageScanner {
                 providerFilter: .excludeVertexAI,
                 pricingResolver: pricing,
                 diagnoseRejectedUsage: true,
+                timestampWindowUnixMs: timestampWindowUnixMs,
                 checkCancellation: checkCancellation)
             rejectedUsageLineCount += parsed.rejectedUsageLineCount
             if parsed.parsedBytes < source.stamp.size {
@@ -766,7 +779,48 @@ extension CostUsageScanner {
                 claudeRows: parsed.rows)
         }
         try checkCancellation?()
-        return (Self.reconciledClaudeRows(cache: cache), incompleteSourceCount, rejectedUsageLineCount)
+        let observations = try Self.claudeLedgerObservations(cache: cache, checkCancellation: checkCancellation)
+        return (observations.rows, observations.conflictingRows, incompleteSourceCount, rejectedUsageLineCount)
+    }
+
+    /// Each file has already normalized cumulative chunks. Preserve contradictory completed copies for quarantine.
+    private static func claudeLedgerObservations(
+        cache: CostUsageCache,
+        checkCancellation: CancellationCheck?) throws -> (rows: [ClaudeUsageRow], conflictingRows: [ClaudeUsageRow])
+    {
+        var firstRows: [ClaudeRowKey: ClaudeUsageRow] = [:]
+        var conflicts: [ClaudeRowKey: (ClaudeUsageRow, ClaudeUsageRow)] = [:]
+        for path in cache.files.keys.sorted() {
+            for row in cache.files[path]?.claudeRows ?? [] {
+                try checkCancellation?()
+                guard row.isIncomplete != true, let key = Self.claudeCanonicalRowKey(row),
+                      conflicts[key] == nil
+                else { continue }
+                guard let first = firstRows[key] else {
+                    firstRows[key] = row
+                    continue
+                }
+                if !Self.claudeLedgerUsageMatches(first, row) {
+                    conflicts[key] = (first, row)
+                }
+            }
+        }
+        var rows = Self.reconciledClaudeRows(cache: cache)
+        rows.removeAll { row in
+            Self.claudeCanonicalRowKey(row).map { conflicts[$0] != nil } == true
+        }
+        let conflictingRows = conflicts.keys.sorted().flatMap { key -> [ClaudeUsageRow] in
+            guard let pair = conflicts[key] else { return [] }
+            return [pair.0, pair.1]
+        }
+        rows.append(contentsOf: conflictingRows)
+        return (rows, conflictingRows)
+    }
+
+    private static func claudeLedgerUsageMatches(_ lhs: ClaudeUsageRow, _ rhs: ClaudeUsageRow) -> Bool {
+        lhs.model == rhs.model && lhs.input == rhs.input && lhs.output == rhs.output
+            && lhs.cacheRead == rhs.cacheRead && lhs.cacheCreate == rhs.cacheCreate
+            && (lhs.cacheCreate1h ?? 0) == (rhs.cacheCreate1h ?? 0)
     }
 
     static func loadClaudeDaily(

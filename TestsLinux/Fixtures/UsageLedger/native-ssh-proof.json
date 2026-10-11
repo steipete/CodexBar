@@ -1,0 +1,174 @@
+{
+  "window_end_ms": 1791648000000,
+  "transport": "real SSH to Ubuntu x86_64",
+  "providers": {
+    "codex": {
+      "local": {
+        "bucketTimeZone": "GMT",
+        "windowStartUnixMs": 1791590400000,
+        "updatedAt": "2026-10-11T02:07:53Z",
+        "schemaVersion": 1,
+        "incompleteRequestCount": 0,
+        "warnings": [],
+        "records": [
+          {
+            "timestampUnixMs": 1791633600000,
+            "reasoningTokens": 0,
+            "id": "fa1c64404cd4fe6bcc3f9095e4574fad6c181da7f9f9e1aeefca7bc4eba183f8",
+            "outputTokens": 10,
+            "model": "gpt-5",
+            "totalTokens": 110,
+            "cacheReadTokens": 20,
+            "costProvenance": "listPriceEstimate",
+            "pricingModel": "gpt-5",
+            "pricingMode": "standard",
+            "costUSD": 0.0002025,
+            "cacheWrite1hTokens": 0,
+            "identity": "request",
+            "cacheWriteTokens": 0,
+            "inputTokens": 100,
+            "sessionID": "e5da2e06e6e0540d29298dfba974145532531241736d29e55069a5d93bb5c6ae"
+          }
+        ],
+        "historyDays": 1,
+        "provider": "codex",
+        "coverageIsEstablished": true,
+        "windowEndUnixMs": 1791648000000
+      },
+      "ssh": {
+        "updatedAt": "2026-10-11T02:07:56Z",
+        "records": [
+          {
+            "outputTokens": 10,
+            "model": "gpt-5",
+            "totalTokens": 110,
+            "cacheWrite1hTokens": 0,
+            "sessionID": "e5da2e06e6e0540d29298dfba974145532531241736d29e55069a5d93bb5c6ae",
+            "id": "fa1c64404cd4fe6bcc3f9095e4574fad6c181da7f9f9e1aeefca7bc4eba183f8",
+            "reasoningTokens": 0,
+            "costProvenance": "listPriceEstimate",
+            "inputTokens": 100,
+            "identity": "request",
+            "timestampUnixMs": 1791633600000,
+            "cacheWriteTokens": 0,
+            "costUSD": 0.0002025,
+            "pricingMode": "standard",
+            "cacheReadTokens": 20,
+            "pricingModel": "gpt-5"
+          },
+          {
+            "outputTokens": 10,
+            "model": "gpt-5",
+            "totalTokens": 110,
+            "cacheWrite1hTokens": 0,
+            "sessionID": "d0ba9cd2f69c14d6d540ba7bf9cb65d32705c6ad2b918c3cb6634027a33ff0cc",
+            "id": "d80756372d202a01d78754a61fb7b0f34754c2c537a92bf03e06b33ac02c197a",
+            "reasoningTokens": 0,
+            "costProvenance": "listPriceEstimate",
+            "inputTokens": 100,
+            "identity": "request",
+            "timestampUnixMs": 1791633600000,
+            "cacheWriteTokens": 0,
+            "costUSD": 0.0002025,
+            "pricingMode": "standard",
+            "cacheReadTokens": 20,
+            "pricingModel": "gpt-5"
+          }
+        ],
+        "incompleteRequestCount": 0,
+        "warnings": [],
+        "coverageIsEstablished": true,
+        "historyDays": 1,
+        "windowEndUnixMs": 1791648000000,
+        "windowStartUnixMs": 1791590400000,
+        "bucketTimeZone": "GMT",
+        "provider": "codex",
+        "schemaVersion": 1
+      }
+    },
+    "claude": {
+      "local": {
+        "updatedAt": "2026-10-11T02:07:56Z",
+        "bucketTimeZone": "GMT",
+        "records": [
+          {
+            "cacheWrite1hTokens": 0,
+            "cacheWriteTokens": 0,
+            "cacheReadTokens": 0,
+            "costUSD": 0.00045,
+            "model": "claude-sonnet-4-20250514",
+            "outputTokens": 10,
+            "id": "22914cb8d621be92c31d6c6ca4b34604e63693525835d6c8b06f217feb441405",
+            "pricingModel": "claude-sonnet-4-20250514",
+            "totalTokens": 110,
+            "sessionID": "7620b252ccb1853feb451bd603350738569c864a6b605d7524d95886f65c3e00",
+            "inputTokens": 100,
+            "costProvenance": "listPriceEstimate",
+            "timestampUnixMs": 1791633600000,
+            "identity": "request"
+          }
+        ],
+        "schemaVersion": 1,
+        "windowStartUnixMs": 1791590400000,
+        "coverageIsEstablished": true,
+        "provider": "claude",
+        "warnings": [
+          "Native Claude histories only; Pi/OMP histories are excluded.",
+          "Native parsing skips malformed or oversized lines and records without required usage metadata."
+        ],
+        "historyDays": 1,
+        "incompleteRequestCount": 0,
+        "windowEndUnixMs": 1791648000000
+      },
+      "ssh": {
+        "coverageIsEstablished": true,
+        "records": [
+          {
+            "id": "22914cb8d621be92c31d6c6ca4b34604e63693525835d6c8b06f217feb441405",
+            "inputTokens": 100,
+            "timestampUnixMs": 1791633600000,
+            "sessionID": "7620b252ccb1853feb451bd603350738569c864a6b605d7524d95886f65c3e00",
+            "outputTokens": 10,
+            "pricingModel": "claude-sonnet-4-20250514",
+            "costUSD": 0.00045,
+            "identity": "request",
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0,
+            "cacheWrite1hTokens": 0,
+            "totalTokens": 110,
+            "model": "claude-sonnet-4-20250514",
+            "costProvenance": "listPriceEstimate"
+          },
+          {
+            "id": "8ddd57519fa1ede3bab6e17ec231d7b93479fb141726f87730b851eb25d36690",
+            "inputTokens": 100,
+            "timestampUnixMs": 1791633600000,
+            "sessionID": "f45df01d9889564bc5491f8a2e5c82bee3d79e3d218572e60e243b9bdd412d5f",
+            "outputTokens": 10,
+            "pricingModel": "claude-sonnet-4-20250514",
+            "costUSD": 0.00045,
+            "identity": "request",
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": 0,
+            "cacheWrite1hTokens": 0,
+            "totalTokens": 110,
+            "model": "claude-sonnet-4-20250514",
+            "costProvenance": "listPriceEstimate"
+          }
+        ],
+        "provider": "claude",
+        "incompleteRequestCount": 0,
+        "historyDays": 1,
+        "updatedAt": "2026-10-11T02:07:58Z",
+        "warnings": [
+          "Native Claude histories only; Pi/OMP histories are excluded.",
+          "Native parsing skips malformed or oversized lines and records without required usage metadata."
+        ],
+        "schemaVersion": 1,
+        "windowEndUnixMs": 1791648000000,
+        "windowStartUnixMs": 1791590400000,
+        "bucketTimeZone": "GMT"
+      }
+    }
+  }
+}
