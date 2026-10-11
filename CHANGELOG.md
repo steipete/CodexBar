@@ -2,6 +2,10 @@
 
 ## 0.74.1 — Unreleased
 
+### Added
+
+- Menu: add a default-on “Highlight menu cards on hover” toggle to preserve card colors when disabled, while keeping keyboard selection visible (#4414). Thanks @cynicalight!
+
 ### Changed
 
 - Usage & Spend: show cached-input reuse and first-token/cache sample coverage in the session performance strip, keeping missing cache records distinct from measured zero reuse (#4413). Thanks @Yuxin-Qiao!

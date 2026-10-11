@@ -82,11 +82,12 @@ extension StatusItemController {
         }
         guard let target = self.overviewScrollTargetItem(in: menu, step: step) else { return }
         let menuID = ObjectIdentifier(menu)
-        guard self.highlightedMenuItems[menuID] !== target else { return }
+        let changesRow = self.highlightedMenuItems[menuID] !== target
 
         // Advance local state immediately so a capped multi-step flick can target successive rows
         // before AppKit drains the synthetic mouse-move events.
-        self.menu(menu, willHighlight: target)
+        self.menu(menu, willHighlight: target, eventType: .scrollWheel)
+        guard changesRow else { return }
 
         guard let view = target.view,
               let window = view.window

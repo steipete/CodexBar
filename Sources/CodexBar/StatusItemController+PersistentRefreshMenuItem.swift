@@ -12,7 +12,6 @@ extension StatusItemController {
             title: title,
             systemImageName: nil,
             shortcutText: shortcutText,
-            hoverHighlightEnabled: self.settings.highlightMenuCardsOnHover,
             onClick: { [weak self, weak menu] in
                 guard let self, let menu else { return }
                 if let menu = menu as? StatusItemMenu {

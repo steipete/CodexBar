@@ -159,6 +159,7 @@ extension StatusItemController {
     }
 
     func clearMenuHighlight(_ key: ObjectIdentifier) {
+        self.keyboardHighlightedMenus.remove(key)
         if let highlightedView = self.highlightedMenuItems.removeValue(forKey: key)?.view {
             (highlightedView as? MenuCardHighlighting)?.setHighlighted(false)
         }

@@ -1320,3 +1320,80 @@ extension MenuLayoutScreenshotRenderTests {
         return representation.representation(using: .png, properties: [:])
     }
 }
+
+extension MenuLayoutScreenshotRenderTests {
+    func test_renderMenuHoverHighlightProof() throws {
+        guard let path = ProcessInfo.processInfo.environment["CODEXBAR_HOVER_PROOF_DIR"] else {
+            throw XCTSkip("Set CODEXBAR_HOVER_PROOF_DIR to render synthetic menu card hover states.")
+        }
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 22,
+                windowMinutes: 300,
+                resetsAt: Self.now.addingTimeInterval(7200),
+                resetDescription: nil),
+            secondary: RateWindow(
+                usedPercent: 38,
+                windowMinutes: 10080,
+                resetsAt: Self.now.addingTimeInterval(86400 * 3),
+                resetDescription: nil),
+            updatedAt: Self.now,
+            identity: ProviderIdentitySnapshot(
+                providerID: .codex, accountEmail: nil, accountOrganization: nil, loginMethod: "Pro"))
+        let projection = CodexConsumerProjection.make(surface: .liveCard, context: .init(
+            snapshot: snapshot,
+            rawUsageError: nil,
+            liveCredits: nil,
+            rawCreditsError: nil,
+            liveDashboard: nil,
+            rawDashboardError: nil,
+            dashboardAttachmentAuthorized: false,
+            dashboardRequiresLogin: false,
+            now: Self.now))
+        let model = try UsageMenuCardView.Model.make(.init(
+            provider: .codex,
+            metadata: XCTUnwrap(ProviderDefaults.metadata[.codex]),
+            snapshot: snapshot,
+            codexProjection: projection,
+            credits: nil,
+            creditsError: nil,
+            dashboardError: nil,
+            tokenSnapshot: nil,
+            tokenError: nil,
+            account: AccountInfo(email: nil, plan: nil),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: false,
+            showOptionalCreditsAndExtraUsage: false,
+            hidePersonalInfo: true,
+            paceVisible: false,
+            usesLiveSubtitle: false,
+            now: Self.now))
+        XCTAssertEqual(model.metrics.map(\.title), ["Session", "Weekly"])
+        let directory = URL(fileURLWithPath: path, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        for highlighted in [true, false] {
+            let state = MenuCardHighlightState()
+            state.isHighlighted = highlighted
+            let card = MenuCardSectionContainerView(
+                highlightState: state,
+                showsSubmenuIndicator: true,
+                submenuIndicatorAlignment: .topTrailing,
+                submenuIndicatorTopPadding: 8,
+                refreshMonitor: nil)
+            {
+                UsageMenuCardView(model: model, width: Self.width)
+            }
+            let hosting = NSHostingView(rootView: AnyView(card
+                    .environment(\.locale, Locale(identifier: "en_US_POSIX"))
+                    .environment(\.colorScheme, .light)
+                    .environment(\.displayScale, 2)
+                    .background(Color(nsColor: .windowBackgroundColor))))
+            hosting.appearance = NSAppearance(named: .aqua)
+            let png = try XCTUnwrap(Self.pngData(hosting: hosting))
+            try png.write(to: directory.appendingPathComponent("hover-\(highlighted ? "on" : "off").png"))
+        }
+    }
+}

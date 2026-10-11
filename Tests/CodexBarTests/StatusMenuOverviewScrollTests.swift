@@ -485,6 +485,23 @@ struct StatusMenuOverviewScrollTests {
     }
 
     @Test
+    func `wheel at an overview boundary clears keyboard only highlighting`() throws {
+        let controller = try self.makeController(suiteName: #function, renderCards: true)
+        defer { controller.releaseStatusItemsForTesting() }
+        controller.settings.highlightMenuCardsOnHover = false
+        let menu = NSMenu()
+        let item = controller.makeMenuCardItem(
+            Text("Codex"), id: "overviewRow-codex", width: 200, usesGPUSelection: true, onClick: {})
+        menu.addItem(item)
+        let row = try #require(item.view as? MenuRowContainerView)
+        controller.menu(menu, willHighlight: item, eventType: .keyDown)
+        #expect(row.isHighlightedForTesting)
+        #expect(controller.handleOverviewScrollWheel(self.makeScrollEvent(deltaY: 1, precise: false), menu: menu))
+        #expect(controller.highlightedMenuItems[ObjectIdentifier(menu)] === item)
+        #expect(!row.isHighlightedForTesting)
+    }
+
+    @Test
     func `custom provider highlight skips disabled sections without revealing a detached row`() throws {
         let controller = try self.makeController(suiteName: "OverviewScroll-CustomRows", renderCards: true)
         defer { controller.releaseStatusItemsForTesting() }
