@@ -1,5 +1,5 @@
 ---
-summary: "xAI provider: Management API key + team ID setup, prepaid balance, and daily platform spend."
+summary: "xAI provider: Management API key + team ID setup, posted and estimated live credit, and daily platform spend."
 read_when:
   - Configuring xAI platform usage
   - Debugging xAI Management API requests
@@ -47,10 +47,11 @@ printf '%s' "$XAI_MANAGEMENT_API_KEY" | codexbar config set-api-key --provider x
 CodexBar requests:
 
 - `GET https://management-api.x.ai/v1/billing/teams/{team_id}/prepaid/balance`
+- `GET https://management-api.x.ai/v1/billing/teams/{team_id}/postpaid/invoice/preview` as best-effort live credit enrichment.
 - `POST https://management-api.x.ai/v1/billing/teams/{team_id}/usage` with a daily, USD-summed analytics query for the
   last 30 days (UTC), as best-effort history enrichment.
 
-Both requests use `Authorization: Bearer <management key>`. CodexBar does not read browser cookies, console sessions,
+All requests use the same team ID and `Authorization: Bearer <management key>`. CodexBar does not read browser cookies, console sessions,
 or inference traffic for this provider.
 
 The balance endpoint reports an inverted ledger in string USD cents — a $10 top-up appears as `"-1000"` — so the
@@ -62,9 +63,19 @@ close (ledger entries are keyed by billing period), so mid-cycle the ledger bala
 live remaining credit by the current cycle's not-yet-posted spend. Live verification on a real account confirmed this:
 posted balance ≈ live remaining + current-cycle spend.
 
+The optional **Live remaining (est.)** row subtracts the invoice preview's `coreInvoice.amountAfterVat` from the
+posted balance, converting its string USD cents to dollars. xAI documents this field as the total amount after VAT in
+the [invoice-preview REST reference](https://docs.x.ai/developers/rest-api-reference/management/billing#preview-postpaid-invoice-of-the-month).
+This is an estimate from two separate billing reads, not a replacement for the posted ledger or a guarantee of an
+exact Console match during billing updates. Only a valid signed integer cent amount produces the row; explicit
+zero is valid, and a negative remaining result is retained. Missing or malformed preview data never becomes zero spend.
+
 ## Display
 
-The menu card shows the prepaid balance in US dollars. The inline dashboard shows the last 30 days of daily platform
+The menu card keeps the posted prepaid balance as its primary number, with **Live remaining (est.)** as the second
+billing-summary row when inline billing details are enabled and the preview is available. The estimate is labeled on
+its own row; snapshot confidence continues to describe the posted balance and usage history. The inline dashboard
+shows the last 30 days of daily platform
 spend with today/30-day totals. When xAI reports its analytics cardinality cap (`limitReached`), the history is labeled
 "Last 30 days (partial)" and the snapshot is marked estimated instead of exact. Prepaid money is not a quota, so no
 session or weekly meters are synthesized.
@@ -84,6 +95,7 @@ codexbar --provider xai
   Keys and has the billing read ACLs; inference keys never work.
 - A `404` usually means the team ID is wrong or the key belongs to a different team.
 - A usage-history failure does not suppress an otherwise valid balance; the card keeps the balance and drops the chart.
+- An invoice-preview failure, including `403`, `404`, or an empty response, hides only the live estimate; posted credit and usage history remain available.
 - Organization-scoped management keys must still supply the explicit team ID to bill against.
 
 ## Sources

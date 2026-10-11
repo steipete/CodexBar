@@ -76,22 +76,6 @@ public enum CommandCodeUsageFetcher {
             transport: transport,
             subscriptionGrace: subscriptionGrace)
 
-        let plan: CommandCodePlanCatalog.Plan? = subscription.flatMap { sub in
-            CommandCodePlanCatalog.plan(forID: sub.planID)
-        }
-
-        // If we got an active subscription with an unrecognised plan ID, surface that
-        // explicitly rather than silently dropping the totals row.
-        if let sub = subscription, sub.status.lowercased() == "active", plan == nil {
-            Self.log.error("Unknown CommandCode planId: \(sub.planID)")
-            // That answer also proves any remembered plan is superseded, so a later timed-out
-            // refresh must not keep sizing the lane from it.
-            await self.planCache.clear(
-                fingerprint: CookieHeaderCache.credentialFingerprint(cookieHeader),
-                now: now)
-            throw CommandCodeUsageError.unknownPlan(sub.planID)
-        }
-
         let resolved = await self.resolveSubscription(
             subscription: subscription,
             enrichmentUnavailable: subscriptionEnrichmentUnavailable,
@@ -131,10 +115,12 @@ public enum CommandCodeUsageFetcher {
             guard let subscription,
                   let plan = CommandCodePlanCatalog.plan(forID: subscription.planID)
             else {
-                // The lookup succeeded and reported no subscription: the free tier owns this account
-                // until a later refresh says otherwise.
+                // A free tier or unknown plan must supersede the remembered allowance.
                 await self.planCache.clear(fingerprint: fingerprint, now: now)
-                return (nil, subscription?.currentPeriodEnd, subscription?.status)
+                let unknown = subscription.map {
+                    CommandCodePlanCatalog.Plan(id: $0.planID, displayName: $0.planID, monthlyCreditsUSD: nil)
+                }
+                return (unknown, subscription?.currentPeriodEnd, subscription?.status)
             }
             await self.planCache.store(
                 plan: plan,

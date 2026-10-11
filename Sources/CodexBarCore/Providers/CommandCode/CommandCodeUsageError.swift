@@ -6,7 +6,6 @@ public enum CommandCodeUsageError: LocalizedError, Sendable, Equatable {
     case networkError(String)
     case apiError(Int)
     case parseFailed(String)
-    case unknownPlan(String)
 
     public var errorDescription: String? {
         switch self {
@@ -20,8 +19,6 @@ public enum CommandCodeUsageError: LocalizedError, Sendable, Equatable {
             "Command Code API returned status \(status)."
         case let .parseFailed(message):
             "Could not parse Command Code response: \(message)"
-        case let .unknownPlan(planID):
-            "Unknown Command Code plan: \(planID). Add it to CommandCodePlanCatalog."
         }
     }
 

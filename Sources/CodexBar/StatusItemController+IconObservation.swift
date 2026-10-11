@@ -87,6 +87,7 @@ extension StatusItemController {
             "anim=\(self.shouldAnimate(provider: provider) ? "1" : "0")",
             "refreshing=\(self.store.refreshingProviders.contains(provider.instanceID) ? "1" : "0")",
             "text=\(displayText ?? "nil")",
+            "estimated=\(snapshot?.dataConfidence == .estimated)",
             "layoutCost=\(layoutCostSignature ?? "nil")",
             "layoutAccount=\(layoutAccountSignature ?? "nil")",
             "layoutPace=\(layoutPaceSignature ?? "nil")",

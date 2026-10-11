@@ -997,6 +997,7 @@ struct MenuBarLayoutPreview: View {
         let automaticRenderWindow = MenuBarLayoutRenderWindow(automatic)
         return MenuBarLayoutRenderData(
             provider: provider,
+            quotaIsEstimated: snapshot.dataConfidence == .estimated,
             iconKey: provider.rawValue,
             providerName: L(self.store.metadata(for: provider).displayName),
             accountLabel: self.settings.hidePersonalInfo ? nil : snapshot.accountEmail(for: provider),

@@ -133,15 +133,6 @@ public struct ClaudeOAuthCredentials: Sendable {
         let scopes: [String]?
         let rateLimitTier: String?
         let subscriptionType: String?
-
-        enum CodingKeys: String, CodingKey {
-            case accessToken
-            case refreshToken
-            case expiresAt
-            case scopes
-            case rateLimitTier
-            case subscriptionType
-        }
     }
 }
 
