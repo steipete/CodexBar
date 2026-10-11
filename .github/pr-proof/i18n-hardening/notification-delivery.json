@@ -1,9 +1,0 @@
-{
-  "body": "打开 CodexBar 查看账户错误并重新登录。",
-  "bundle": "CodexBarI18nProof.app",
-  "event": "macOS-delivered-credential-notification",
-  "language": "zh-Hans",
-  "title": "Codex 需要重新登录",
-  "sourceHead": "551e9dd0a",
-  "anonymized": true
-}
