@@ -298,6 +298,11 @@ extension SettingsStore {
         set { self.setDefault(\.providerChangelogLinksEnabled, newValue, key: "providerChangelogLinksEnabled") }
     }
 
+    var highlightMenuCardsOnHover: Bool {
+        get { self.defaultsState.highlightMenuCardsOnHover }
+        set { self.setDefault(\.highlightMenuCardsOnHover, newValue, key: "highlightMenuCardsOnHover") }
+    }
+
     var menuBarShowsBrandIconWithPercent: Bool {
         get { self.defaultsState.menuBarShowsBrandIconWithPercent }
         set { self.setDefault(\.menuBarShowsBrandIconWithPercent, newValue, key: "menuBarShowsBrandIconWithPercent") }

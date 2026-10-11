@@ -6,6 +6,18 @@ import Testing
 @MainActor
 struct SettingsPersistenceContractTests {
     @Test
+    func `menu hover highlighting defaults on and persists both choices`() {
+        let defaults = InMemoryUserDefaults()
+        let settings = testSettingsStore(suiteName: #function, userDefaults: defaults)
+        #expect(settings.highlightMenuCardsOnHover)
+        settings.highlightMenuCardsOnHover = false
+        let reloaded = testSettingsStore(suiteName: #function, userDefaults: defaults)
+        #expect(!reloaded.highlightMenuCardsOnHover)
+        reloaded.highlightMenuCardsOnHover = true
+        #expect(testSettingsStore(suiteName: #function, userDefaults: defaults).highlightMenuCardsOnHover)
+    }
+
+    @Test
     func `optional and raw preferences round trip without boxed nil values`() {
         let defaults = InMemoryUserDefaults()
         let settings = testSettingsStore(suiteName: #function, userDefaults: defaults)

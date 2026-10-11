@@ -952,6 +952,84 @@ extension StatusMenuTests {
     }
 
     @Test
+    func `disabled hover preserves card and refresh colors`() throws {
+        StatusItemController.setMenuRefreshEnabledForTesting(false)
+        let previousRendering = StatusItemController.menuCardRenderingEnabled
+        StatusItemController.menuCardRenderingEnabled = true
+        defer { StatusItemController.menuCardRenderingEnabled = previousRendering }
+        let settings = testSettingsStore(
+            suiteName: #function,
+            prepareDefaults: { $0.set(false, forKey: "highlightMenuCardsOnHover") })
+        settings.statusChecksEnabled = false
+        settings.providerDetectionCompleted = true
+        let controller = self.makeRecyclingController(settings: settings)
+        defer { controller.releaseStatusItemsForTesting() }
+        let menu = NSMenu()
+        var clicks = 0
+        let overview = controller.makeMenuCardItem(
+            Text("Codex weekly left"),
+            id: "overview-codex",
+            width: 300,
+            submenu: NSMenu(),
+            usesGPUSelection: true,
+            onClick: { clicks += 1 })
+        let provider = controller.makeMenuCardItem(
+            Text("Codex"), id: "provider-codex", width: 300, onClick: { clicks += 1 })
+        let refresh = controller.makePersistentRefreshItem(title: "Refresh", menu: menu, width: 300)
+        for item in [overview, provider, refresh] {
+            menu.addItem(item)
+        }
+        let overviewView = try #require(overview.view as? MenuRowContainerView)
+        let providerView = try #require(provider.view as? MenuRowContainerView)
+        let selection = try #require(overviewView.subviews.compactMap { $0 as? NSVisualEffectView }.first)
+        let refreshSelection = try #require(refresh.view?.subviews.compactMap { $0 as? NSVisualEffectView }.first)
+
+        controller.menu(menu, willHighlight: overview)
+        #expect(controller.highlightedMenuItems[ObjectIdentifier(menu)] === overview)
+        #expect(selection.layer?.opacity == 0)
+        #expect(overviewView.subviews.last?.layer?.filters?.isEmpty != false)
+        #expect(overview.submenu != nil)
+        #expect(overviewView._test_simulateRuntimeClick())
+        controller.menu(menu, willHighlight: provider)
+        #expect(!providerView.highlightState.isHighlighted)
+        #expect(providerView._test_simulateRuntimeClick())
+        #expect(clicks == 2)
+        controller.menu(menu, willHighlight: refresh)
+        #expect(refreshSelection.isHidden)
+
+        controller.menu(menu, willHighlight: refresh, eventType: .keyDown)
+        #expect(!refreshSelection.isHidden)
+        controller.menu(menu, willHighlight: overview, eventType: .keyDown)
+        #expect(selection.layer?.opacity == 1)
+        controller.menu(menu, willHighlight: provider, eventType: .keyDown)
+        #expect(providerView.highlightState.isHighlighted)
+        controller.menu(menu, willHighlight: provider, eventType: .mouseMoved)
+        #expect(!providerView.highlightState.isHighlighted)
+
+        let shapes = controller.menuContentShapes(in: menu, fromIndex: 0)
+        let scratch = NSMenu()
+        scratch.addItem(controller.makeMenuCardItem(
+            Text("Updated overview"),
+            id: "overview-codex",
+            width: 300,
+            submenu: NSMenu(),
+            usesGPUSelection: true,
+            onClick: {}))
+        scratch.addItem(controller.makeMenuCardItem(
+            Text("Updated Codex"), id: "provider-codex", width: 300, onClick: {}))
+        scratch.addItem(controller.makePersistentRefreshItem(title: "Refresh", menu: menu, width: 300))
+        controller.reconcileMenuContent(menu, fromIndex: 0, shapes: shapes, with: scratch)
+        let updatedView = try #require(menu.items[1].view as? MenuRowContainerView)
+        #expect(controller.highlightedMenuItems[ObjectIdentifier(menu)] === menu.items[1])
+        #expect(!updatedView.highlightState.isHighlighted)
+        controller.menu(menu, willHighlight: menu.items[1], eventType: .keyDown)
+        #expect(updatedView.highlightState.isHighlighted)
+        settings.highlightMenuCardsOnHover = true
+        controller.menu(menu, willHighlight: menu.items[1], eventType: .mouseMoved)
+        #expect(updatedView.highlightState.isHighlighted)
+    }
+
+    @Test
     func `overview and provider rows swap payloads without detaching their containers`() {
         StatusItemController.setMenuRefreshEnabledForTesting(false)
         let previousRendering = StatusItemController.menuCardRenderingEnabled

@@ -637,6 +637,7 @@
 "workday_tick_appearance_subtle" = "Subtle";
 "workday_tick_appearance_high_contrast" = "High contrast";
 "show_provider_changelog_links_title" = "Show provider changelog links";
+"highlight_menu_cards_on_hover_title" = "Highlight menu cards on hover";
 "show_provider_changelog_links_subtitle" = "Adds release-notes links for supported CLI-backed providers to the menu.";
 "show_credits_extra_usage_title" = "Show credits & extra usage";
 "show_credits_extra_usage_subtitle" = "Show credits and extra usage for supported providers.";

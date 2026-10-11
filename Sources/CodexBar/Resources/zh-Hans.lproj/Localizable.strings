@@ -620,6 +620,7 @@
 "show_pace_title" = "显示用量节奏";
 "show_pace_subtitle" = "在用量条上显示领先或落后的标记线和预测文本。";
 "show_provider_changelog_links_title" = "显示提供商变更日志链接";
+"highlight_menu_cards_on_hover_title" = "鼠标悬停时高亮菜单卡片";
 "show_provider_changelog_links_subtitle" = "在菜单中为支持的 CLI 提供商添加发布说明链接。";
 "show_credits_extra_usage_title" = "显示额度 + 额外用量";
 "show_credits_extra_usage_subtitle" = "显示受支持提供商的额度和额外用量。";

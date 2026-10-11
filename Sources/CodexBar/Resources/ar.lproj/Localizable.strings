@@ -656,6 +656,7 @@
 "workday_tick_appearance_subtle" = "خفيفة";
 "workday_tick_appearance_high_contrast" = "تباين عالٍ";
 "show_provider_changelog_links_title" = "اعرض روابط سجل التغييرات لمزود الخدمة";
+"highlight_menu_cards_on_hover_title" = "تمييز بطاقات القائمة عند تمرير المؤشر";
 "show_provider_changelog_links_subtitle" = "يضيف روابط ملاحظات الإصدار لمزودي الخدمة المدعومين بدعم CLI إلى القائمة.";
 "show_credits_extra_usage_title" = "اعتمادات العرض + الاستخدام الإضافي";
 "show_credits_extra_usage_subtitle" = "عرض الأرصدة والاستخدام الإضافي لموفري الخدمات المدعومين.";

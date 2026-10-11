@@ -633,6 +633,7 @@
 "workday_tick_appearance_subtle" = "Subtils";
 "workday_tick_appearance_high_contrast" = "Alt contrast";
 "show_provider_changelog_links_title" = "Mostreu els enllaços al registre de canvis del proveïdor";
+"highlight_menu_cards_on_hover_title" = "Ressalta les targetes del menú en passar-hi el cursor";
 "show_provider_changelog_links_subtitle" = "Afegiu al menú enllaços a les notes de versió dels proveïdors compatibles basats en CLI.";
 "show_credits_extra_usage_title" = "Mostreu crèdits + ús addicional";
 "show_credits_extra_usage_subtitle" = "Mostra els crèdits i l'ús addicional dels proveïdors compatibles.";

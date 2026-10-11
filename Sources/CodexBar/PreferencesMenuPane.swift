@@ -65,6 +65,7 @@ struct MenuPane: View {
 
             Section {
                 Toggle(L("show_provider_changelog_links_title"), isOn: self.$settings.providerChangelogLinksEnabled)
+                Toggle(L("highlight_menu_cards_on_hover_title"), isOn: self.$settings.highlightMenuCardsOnHover)
 
                 SettingsMenuPicker(
                     selection: self.$settings.mergedOverviewLayout,

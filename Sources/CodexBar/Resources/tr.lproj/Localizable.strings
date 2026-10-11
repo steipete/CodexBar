@@ -656,6 +656,7 @@
 "workday_tick_appearance_subtle" = "Hafif";
 "workday_tick_appearance_high_contrast" = "Yüksek kontrast";
 "show_provider_changelog_links_title" = "Sağlayıcı değişiklik günlüğü bağlantılarını göster";
+"highlight_menu_cards_on_hover_title" = "Üzerine gelindiğinde menü kartlarını vurgula";
 "show_provider_changelog_links_subtitle" = "CLI kullanan desteklenen sağlayıcıların menüsüne sürüm notları bağlantıları ekler.";
 "show_credits_extra_usage_title" = "Krediler + ek kullanımı göster";
 "show_credits_extra_usage_subtitle" = "Desteklenen sağlayıcılar için kredileri ve ek kullanımı göster.";

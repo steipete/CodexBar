@@ -637,6 +637,7 @@
 "workday_tick_appearance_subtle" = "Sutiles";
 "workday_tick_appearance_high_contrast" = "Contraste alto";
 "show_provider_changelog_links_title" = "Mostrar enlaces al registro de cambios del proveedor";
+"highlight_menu_cards_on_hover_title" = "Resaltar las tarjetas del menú al pasar el cursor";
 "show_provider_changelog_links_subtitle" = "Añade al menú enlaces a las notas de versión de los proveedores compatibles basados en CLI.";
 "show_credits_extra_usage_title" = "Mostrar créditos + uso adicional";
 "show_credits_extra_usage_subtitle" = "Muestra créditos y uso adicional para los proveedores compatibles.";

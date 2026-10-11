@@ -649,6 +649,7 @@
 "workday_tick_appearance_subtle" = "柔和";
 "workday_tick_appearance_high_contrast" = "高對比度";
 "show_provider_changelog_links_title" = "顯示提供者版本資訊連結";
+"highlight_menu_cards_on_hover_title" = "滑鼠停留時反白選單卡片";
 "show_provider_changelog_links_subtitle" = "在選單中為支援的 CLI 提供者新增發行說明連結。";
 "show_credits_extra_usage_title" = "顯示額度 + 額外使用量";
 "show_credits_extra_usage_subtitle" = "顯示支援的供應商的額度和額外用量。";

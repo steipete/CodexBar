@@ -90,6 +90,7 @@ extension StatusItemController {
         self.manualRefreshViewportRestoreState.stopAllMovementTracking()
         self.openMenus.removeAll(keepingCapacity: false)
         self.highlightedMenuItems.removeAll(keepingCapacity: false)
+        self.keyboardHighlightedMenus.removeAll(keepingCapacity: false)
         self.nativeHighlightDeferredMenuRebuilds.removeAll(keepingCapacity: false)
         self.pendingMenuBaselineResyncs.removeAll(keepingCapacity: false)
         self.menuCardHeightCache.removeAll(keepingCapacity: false)

@@ -647,6 +647,7 @@
 "workday_tick_appearance_subtle" = "控えめ";
 "workday_tick_appearance_high_contrast" = "高コントラスト";
 "show_provider_changelog_links_title" = "プロバイダの変更履歴リンクを表示";
+"highlight_menu_cards_on_hover_title" = "ホバー時にメニューカードをハイライト";
 "show_provider_changelog_links_subtitle" = "対応する CLI ベースのプロバイダのリリースノートへのリンクをメニューに追加します。";
 "show_credits_extra_usage_title" = "クレジットと追加使用量を表示";
 "show_credits_extra_usage_subtitle" = "対応プロバイダーのクレジットと追加使用量を表示します。";

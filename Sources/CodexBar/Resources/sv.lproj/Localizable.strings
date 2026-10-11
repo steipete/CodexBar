@@ -649,6 +649,7 @@
 "workday_tick_appearance_subtle" = "Diskreta";
 "workday_tick_appearance_high_contrast" = "Hög kontrast";
 "show_provider_changelog_links_title" = "Visa länkar till leverantörers ändringsloggar";
+"highlight_menu_cards_on_hover_title" = "Markera menykort vid hovring";
 "show_provider_changelog_links_subtitle" = "Lägger till länkar till utgåvekommentarer för stödda CLI-baserade leverantörer i menyn.";
 "show_credits_extra_usage_title" = "Visa krediter och extra användning";
 "show_credits_extra_usage_subtitle" = "Visa krediter och extra användning för leverantörer som stöds.";

@@ -650,6 +650,7 @@
 "workday_tick_appearance_subtle" = "Ненав’язливі";
 "workday_tick_appearance_high_contrast" = "Високий контраст";
 "show_provider_changelog_links_title" = "Показати посилання журналу змін провайдера";
+"highlight_menu_cards_on_hover_title" = "Підсвічувати картки меню при наведенні";
 "show_provider_changelog_links_subtitle" = "Додає в меню посилання на примітки до випуску для підтримуваних постачальників, що підтримують CLI.";
 "show_credits_extra_usage_title" = "Показати кредити + додаткове використання";
 "show_credits_extra_usage_subtitle" = "Показувати кредити та додаткове використання для підтримуваних постачальників.";
