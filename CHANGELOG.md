@@ -5,6 +5,7 @@
 ### Added
 
 - xAI: show an optional live remaining credit estimate from the current invoice preview alongside the posted prepaid balance (#4406). Thanks @lilbreadxiaomianbao!
+- Grok: optionally track Grok Bot's separate allowance using the linked Cursor account, including local app sessions when Keychain access is disabled. Failed Bot lookups show a safe diagnostic while preserving Grok subscription usage.
 
 ### Changed
 

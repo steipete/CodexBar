@@ -9,6 +9,52 @@ import XCTest
 /// No app launch, account configuration, provider request, or credential access is involved.
 @MainActor
 final class GrokPaceScreenshotRenderTests: XCTestCase {
+    func test_renderBotTracking() throws {
+        guard let path = ProcessInfo.processInfo.environment["CODEXBAR_GROK_BOT_PROOF_DIR"] else {
+            throw XCTSkip("Set CODEXBAR_GROK_BOT_PROOF_DIR for synthetic Grok Bot settings proof")
+        }
+        let directory = URL(fileURLWithPath: path, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let fixture = try ProviderSettingsDescriptorTests().makeSettingsFixture(suite: "grok-bot-proof")
+        defer { fixture.settings.configFileWatcher?.stop() }
+        fixture.settings.grokBotUsageEnabled = true
+        let toggle = try XCTUnwrap(GrokProviderImplementation()
+            .settingsToggles(context: fixture.settingsContext(provider: .grok)).first)
+        let now = Date(timeIntervalSince1970: 1_900_000_000)
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 23,
+                windowMinutes: 10080,
+                resetsAt: now.addingTimeInterval(3 * 86400),
+                resetDescription: nil),
+            secondary: nil,
+            extraRateWindows: [NamedRateWindow(
+                id: CursorSandUsageStatus.extraWindowID,
+                title: CursorSandUsageStatus.extraWindowTitle,
+                window: RateWindow(
+                    usedPercent: 42,
+                    windowMinutes: 10080,
+                    resetsAt: now.addingTimeInterval(4 * 86400),
+                    resetDescription: nil))],
+            updatedAt: now)
+        let model = try Self.model(snapshot: snapshot, now: now)
+        XCTAssertEqual(model.metrics.map(\.title), ["Weekly", "Grok Bot"])
+        let view = VStack(alignment: .leading, spacing: 18) {
+            Text("Grok · Synthetic settings and usage").font(.headline)
+            ProviderSettingsToggleRowView(toggle: toggle)
+            UsageMenuCardView(model: model, width: 360)
+        }
+        .padding(22)
+        .frame(width: 660)
+        .environment(\.locale, Locale(identifier: "en_US_POSIX"))
+        .environment(\.colorScheme, .light)
+        .background(Color(nsColor: .windowBackgroundColor))
+        let hosting = NSHostingView(rootView: view)
+        hosting.appearance = NSAppearance(named: .aqua)
+        try XCTUnwrap(MenuLayoutScreenshotRenderTests.pngDataWithWindow(hosting: hosting))
+            .write(to: directory.appendingPathComponent("grok-bot-tracking.png"))
+    }
+
     func test_renderProductUsage() throws {
         guard let path = ProcessInfo.processInfo.environment["CODEXBAR_GROK_PRODUCT_PROOF_DIR"] else {
             throw XCTSkip("Set CODEXBAR_GROK_PRODUCT_PROOF_DIR for synthetic product usage proof")

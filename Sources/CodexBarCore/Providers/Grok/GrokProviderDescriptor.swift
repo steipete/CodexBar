@@ -36,6 +36,9 @@ public enum GrokProviderDescriptor {
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
             id: .grok,
+            menuBarMetrics: ProviderMenuBarMetricCapabilities(
+                supported: [.automatic, .primary, .secondary],
+                namedExtras: [CursorSandUsageStatus.extraWindowID: CursorSandUsageStatus.extraWindowTitle]),
             settingsSection: .init(
                 GrokProviderSettingsKey.self,
                 cookieSettings: { settings in
@@ -51,7 +54,8 @@ public enum GrokProviderDescriptor {
                         selectedAccountToken: context.account?.token)
                     return GrokProviderSettings(
                         cookieSource: resolved.cookieSource,
-                        manualCookieHeader: resolved.manualCookieHeader)
+                        manualCookieHeader: resolved.manualCookieHeader,
+                        grokBotUsageEnabled: context.config?.grokBotUsageEnabled ?? false)
                 }),
             credentials: self.credentials,
             metadata: ProviderMetadata(
@@ -110,6 +114,9 @@ public enum GrokProviderDescriptor {
                         tertiary: metadata.opusLabel ?? "Sonnet",
                         showsTertiary: metadata.supportsOpus)
                 },
+                extraRateWindowSelector: { snapshot in
+                    (snapshot.extraRateWindows ?? []).filter { $0.id == CursorSandUsageStatus.extraWindowID }
+                },
                 iconDecorations: [.grok]),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .cli, .oauth, .web],
@@ -123,7 +130,7 @@ public enum GrokProviderDescriptor {
     private static func resolveStrategies(context: ProviderFetchContext) async
         -> [any ProviderFetchStrategy]
     {
-        switch context.sourceMode {
+        let strategies: [any ProviderFetchStrategy] = switch context.sourceMode {
         case .auto:
             [
                 GrokCLIFetchStrategy(),
@@ -140,6 +147,10 @@ public enum GrokProviderDescriptor {
         case .api:
             []
         }
+        guard context.settings?.grok?.grokBotUsageEnabled == true, context.sourceMode != .api else {
+            return strategies
+        }
+        return strategies.map { GrokBotUsageEnrichment(base: $0) } + [GrokBotUsageEnrichment()]
     }
 
     /// Returns a contextual label for Grok's primary usage bar ("Weekly" or "Monthly").

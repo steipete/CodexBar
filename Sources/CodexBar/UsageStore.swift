@@ -652,7 +652,7 @@ final class UsageStore {
     }
 
     func snapshot(for instanceID: ProviderInstanceID) -> UsageSnapshot? {
-        self.profileScopedSnapshot(for: instanceID)
+        self.settings.grokBotUsageFilteredSnapshot(self.profileScopedSnapshot(for: instanceID), provider: instanceID)
     }
 
     /// The snapshot the menu-bar indicator should render for a provider instance.

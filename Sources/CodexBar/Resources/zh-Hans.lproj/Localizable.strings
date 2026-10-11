@@ -2499,3 +2499,5 @@
 "Pace sign" = "使用节奏符号";
 "Ahead of pace is +" = "超出节奏为 +";
 "Reserve is +" = "余量为 +";
+"Track Grok Bot usage" = "跟踪 Grok Bot 用量";
+"Show Grok Bot's separate weekly allowance here using the account configured under Cursor. Works with linked SuperGrok access, even when Cursor tracking is off." = "使用 Cursor 下配置的账户，在此显示 Grok Bot 的独立每周额度。支持已关联的 SuperGrok 访问权限，即使关闭 Cursor 用量跟踪也可使用。";

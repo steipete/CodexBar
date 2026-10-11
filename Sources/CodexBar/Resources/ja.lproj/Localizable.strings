@@ -2506,3 +2506,5 @@
 "Pace sign" = "ペースの符号";
 "Ahead of pace is +" = "ペース超過を + で表示";
 "Reserve is +" = "余裕を + で表示";
+"Track Grok Bot usage" = "Grok Bot の使用状況を追跡";
+"Show Grok Bot's separate weekly allowance here using the account configured under Cursor. Works with linked SuperGrok access, even when Cursor tracking is off." = "Cursor で設定したアカウントを使い、Grok Bot の独立した週間利用枠をここに表示します。Cursor の追跡がオフでも、連携した SuperGrok のアクセスで利用できます。";

@@ -2510,3 +2510,5 @@
 "Pace sign" = "เครื่องหมายอัตราการใช้งาน";
 "Ahead of pace is +" = "ใช้เร็วกว่าที่ควรเป็นคือ +";
 "Reserve is +" = "โควตาสำรองคือ +";
+"Track Grok Bot usage" = "ติดตามการใช้งาน Grok Bot";
+"Show Grok Bot's separate weekly allowance here using the account configured under Cursor. Works with linked SuperGrok access, even when Cursor tracking is off." = "แสดงโควตารายสัปดาห์แยกของ Grok Bot ที่นี่โดยใช้บัญชีที่ตั้งค่าไว้ใน Cursor ใช้งานได้กับสิทธิ์ SuperGrok ที่เชื่อมไว้ แม้ปิดการติดตาม Cursor";

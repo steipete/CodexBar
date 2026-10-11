@@ -2505,3 +2505,5 @@
 "Pace sign" = "Signo do ritmo";
 "Ahead of pace is +" = "Por riba do ritmo é +";
 "Reserve is +" = "A reserva é +";
+"Track Grok Bot usage" = "Rexistrar o uso de Grok Bot";
+"Show Grok Bot's separate weekly allowance here using the account configured under Cursor. Works with linked SuperGrok access, even when Cursor tracking is off." = "Amosa aquí a cota semanal independente de Grok Bot coa conta configurada en Cursor. Funciona co acceso de SuperGrok vinculado, mesmo co seguimento de Cursor desactivado.";

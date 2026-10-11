@@ -146,7 +146,32 @@ struct TokenAccountCLIContext {
             .settingsSection
             .credentialContribution(context: ProviderCredentialSettingsContext(config: config, account: account))
         else { return nil }
-        return ProviderSettingsSnapshot(contributions: [contribution])
+        var contributions = [contribution]
+        // Provider-specific by design: Grok Bot retains Cursor's independent credential selection.
+        if provider == .grok, config?.grokBotUsageEnabled == true {
+            let cursorConfig = self.providerConfig(for: .cursor)
+            let accounts = self.accountsByProvider[.cursor]
+            let cookieSource = ProviderCredentialSettingsContext(config: cursorConfig, account: nil)
+                .cookieSettings(for: .cursor).cookieSource
+            let cursorAccount = cookieSource == .manual ? accounts.flatMap { data in
+                data.accounts.isEmpty ? nil : data.accounts[data.clampedActiveIndex()]
+            } : nil
+            if let cursor = CursorProviderDescriptor.descriptor.settingsSection.credentialContribution(
+                context: ProviderCredentialSettingsContext(config: cursorConfig, account: cursorAccount))
+            {
+                contributions.append(cursor)
+            }
+            let grok = ProviderSettingsSnapshot(contributions: contributions).grok
+            if let grok {
+                // Provider-specific by design: enrich Grok settings without changing its credentials.
+                contributions[0] = .grok(GrokProviderSettings(
+                    cookieSource: grok.cookieSource,
+                    manualCookieHeader: grok.manualCookieHeader,
+                    grokBotUsageEnabled: true,
+                    grokBotSourceMode: cursorConfig?.source ?? .auto))
+            }
+        }
+        return ProviderSettingsSnapshot(contributions: contributions)
     }
 
     private func makeCodexSettingsSnapshot(

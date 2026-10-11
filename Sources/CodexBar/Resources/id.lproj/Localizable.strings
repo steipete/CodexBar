@@ -2509,3 +2509,5 @@
 "Pace sign" = "Tanda laju penggunaan";
 "Ahead of pace is +" = "Di atas laju adalah +";
 "Reserve is +" = "Cadangan adalah +";
+"Track Grok Bot usage" = "Lacak penggunaan Grok Bot";
+"Show Grok Bot's separate weekly allowance here using the account configured under Cursor. Works with linked SuperGrok access, even when Cursor tracking is off." = "Tampilkan kuota mingguan terpisah Grok Bot di sini dengan akun yang dikonfigurasi di Cursor. Berfungsi dengan akses SuperGrok tertaut, meskipun pelacakan Cursor dinonaktifkan.";
