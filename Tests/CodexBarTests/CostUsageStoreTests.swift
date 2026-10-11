@@ -1120,7 +1120,7 @@ extension CostUsageStoreTests {
         #expect(resumed.resumeState == nil)
     }
 
-    private static let expectedCompatiblePredecessorParserHashes = [
+    private static let expectedCompatiblePredecessorParserHashes: Set<String> = [
         "f406dae284de4a55",
         "379b799bb4b91683",
         "7ce21041b7a36242",
