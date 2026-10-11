@@ -175,6 +175,7 @@ struct UsageLedgerCodexTests {
         "output_tokens",
         "reasoning_output_tokens",
         "model",
+        "private_model",
         "zero",
     ])
     func `native copied and replayed contradictions remain globally withheld`(field: String) async throws {
@@ -185,6 +186,8 @@ struct UsageLedgerCodexTests {
             var conflicting = Self.nativeRequest()
             var payload = try #require(conflicting["payload"] as? [String: Any])
             if field == "model" {
+                payload["model"] = "gpt-5.4"
+            } else if field == "private_model" {
                 payload["model"] = "/private/model-metadata"
             } else {
                 var usage = try #require(payload["usage"] as? [String: Int])
@@ -205,8 +208,14 @@ struct UsageLedgerCodexTests {
                 options: fixture.options,
                 pricingCacheRoot: fixture.options.cacheRoot)
             let id = UsageLedgerRecord.digest(["codex", "request", "synthetic-session", "response-one"])
-            #expect(ledger.records.count == 1)
-            #expect(ledger.records.first?.sessionID != nil)
+            if field == "private_model", !sameFile {
+                // A copied row with an unknown route is excluded by native subscription attribution.
+                // Its conflict hash must still quarantine the matching clean remote request below.
+                #expect(ledger.records.isEmpty)
+            } else {
+                #expect(ledger.records.count == 1)
+                #expect(ledger.records.first?.sessionID != nil)
+            }
             #expect(ledger.conflictingRecordIDs == [id])
             #expect(!ledger.coverageIsEstablished)
             let clean = Self.project(rows: [Self.row(response: "response-one")])
