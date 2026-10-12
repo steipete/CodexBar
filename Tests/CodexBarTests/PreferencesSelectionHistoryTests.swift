@@ -49,6 +49,47 @@ struct PreferencesSelectionHistoryTests {
         #expect(!selection.canGoBack)
     }
 
+    @Test
+    func `removed panes cannot be restored with back or forward`() throws {
+        let selection = try Self.makeSelection()
+        selection.pane = .debug
+        selection.pane = .advanced
+        selection.goBack()
+        #expect(selection.pane == .debug)
+
+        selection.pane = .general
+        selection.removeFromHistory { $0 == .debug }
+
+        #expect(!selection.backStack.contains(.debug))
+        #expect(!selection.forwardStack.contains(.debug))
+        selection.goBack()
+        #expect(selection.pane != .debug)
+    }
+
+    @Test
+    func `removing history entries collapses repeats and the current pane`() throws {
+        let selection = try Self.makeSelection()
+        selection.pane = .debug
+        selection.pane = .general
+        selection.pane = .debug
+        selection.pane = .advanced
+        #expect(selection.backStack == [.general, .debug, .general, .debug])
+
+        selection.removeFromHistory { $0 == .debug }
+        #expect(selection.backStack == [.general])
+
+        selection.pane = .general
+        selection.pane = .debug
+        selection.pane = .advanced
+        selection.goBack()
+        selection.goBack()
+        #expect(selection.pane == .general)
+        #expect(selection.forwardStack == [.advanced, .debug])
+
+        selection.removeFromHistory { $0 == .debug }
+        #expect(selection.forwardStack == [.advanced])
+    }
+
     private static func makeSelection() throws -> PreferencesSelection {
         let suiteName = "PreferencesSelectionHistoryTests-\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suiteName))

@@ -234,9 +234,11 @@ struct PreferencesView: View {
     }
 
     private func ensureValidSelection() {
-        if !self.settings.debugMenuEnabled, self.selection.pane == .debug {
+        guard !self.settings.debugMenuEnabled else { return }
+        if self.selection.pane == .debug {
             self.selection.pane = .general
         }
+        self.selection.removeFromHistory { $0 == .debug }
     }
 }
 

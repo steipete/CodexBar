@@ -96,6 +96,28 @@ final class PreferencesSelection {
         self.pane = pane
     }
 
+    /// Drops panes that are no longer reachable so Back/Forward cannot restore them.
+    func removeFromHistory(where shouldRemove: (SettingsPane) -> Bool) {
+        self.backStack = Self.pruned(self.backStack, removing: shouldRemove, current: self.pane)
+        self.forwardStack = Self.pruned(self.forwardStack, removing: shouldRemove, current: self.pane)
+    }
+
+    /// Also collapses the repeats a removal can leave behind, which would otherwise make Back/Forward a no-op.
+    private static func pruned(
+        _ stack: [SettingsPane],
+        removing shouldRemove: (SettingsPane) -> Bool,
+        current: SettingsPane) -> [SettingsPane]
+    {
+        var result: [SettingsPane] = []
+        for pane in stack where !shouldRemove(pane) && pane != result.last {
+            result.append(pane)
+        }
+        while result.last == current {
+            result.removeLast()
+        }
+        return result
+    }
+
     init(userDefaults: UserDefaults = .standard) {
         self.userDefaults = userDefaults
         let token = userDefaults.string(forKey: Self.paneDefaultsKey) ?? ""
