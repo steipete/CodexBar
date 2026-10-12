@@ -7,8 +7,8 @@ struct DashboardLimitResetCreditsTests {
     @Test
     func `dashboard provider projects codex limit reset credits with next expiry`() throws {
         let now = Date()
-        let expiresSoon = now.addingTimeInterval(3_600)
-        let expiresLater = now.addingTimeInterval(7_200)
+        let expiresSoon = now.addingTimeInterval(3600)
+        let expiresLater = now.addingTimeInterval(7200)
         let usage = UsageSnapshot(
             primary: .init(usedPercent: 10, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
             secondary: nil,
