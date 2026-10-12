@@ -1,0 +1,91 @@
+[
+  {
+    "name": "Commander",
+    "authors": [
+      "Peter Steinberger"
+    ],
+    "url": "https://github.com/steipete/Commander",
+    "license": "MIT"
+  },
+  {
+    "name": "KeyboardShortcuts",
+    "authors": [
+      "Sindre Sorhus"
+    ],
+    "url": "https://github.com/sindresorhus/KeyboardShortcuts",
+    "license": "MIT"
+  },
+  {
+    "name": "QuickJS",
+    "authors": [
+      "Fabrice Bellard",
+      "Charlie Gordon",
+      "Ben Noordhuis",
+      "Saúl Ibarra Corretgé"
+    ],
+    "url": "https://bellard.org/quickjs/",
+    "license": "MIT"
+  },
+  {
+    "name": "Sparkle",
+    "authors": [
+      "Andy Matuschak",
+      "Elgato Systems GmbH",
+      "Kornel Lesiński",
+      "Mayur Pawashe",
+      "C.W. Betts",
+      "Petroules Corporation",
+      "Big Nerd Ranch"
+    ],
+    "url": "https://github.com/sparkle-project/Sparkle",
+    "license": "MIT"
+  },
+  {
+    "name": "Sucrase",
+    "authors": [
+      "Various contributors"
+    ],
+    "url": "https://github.com/alangpierce/sucrase",
+    "license": "MIT"
+  },
+  {
+    "name": "SweetCookieKit",
+    "authors": [
+      "Peter Steinberger"
+    ],
+    "url": "https://github.com/steipete/SweetCookieKit",
+    "license": "MIT"
+  },
+  {
+    "name": "swift-asn1",
+    "authors": [
+      "The SwiftASN1 Project"
+    ],
+    "url": "https://github.com/apple/swift-asn1",
+    "license": "Apache-2.0"
+  },
+  {
+    "name": "swift-crypto",
+    "authors": [
+      "The SwiftCrypto Project"
+    ],
+    "url": "https://github.com/apple/swift-crypto",
+    "license": "Apache-2.0"
+  },
+  {
+    "name": "swift-log",
+    "authors": [
+      "The SwiftLog Project"
+    ],
+    "url": "https://github.com/apple/swift-log",
+    "license": "Apache-2.0"
+  },
+  {
+    "name": "Vortex",
+    "authors": [
+      "Paul Hudson"
+    ],
+    "url": "https://github.com/zats/Vortex",
+    "license": "MIT"
+  }
+]

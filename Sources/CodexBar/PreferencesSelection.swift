@@ -63,9 +63,16 @@ final class PreferencesSelection {
         }
     }
 
+    /// Bumped when the About sidebar row is clicked, so a pushed About subpage pops back to the root.
+    private(set) var aboutRootRequests = 0
+
     init(userDefaults: UserDefaults = .standard) {
         self.userDefaults = userDefaults
         let token = userDefaults.string(forKey: Self.paneDefaultsKey) ?? ""
         self.pane = SettingsPane(persistenceToken: token) ?? .general
+    }
+
+    func requestAboutRoot() {
+        self.aboutRootRequests += 1
     }
 }

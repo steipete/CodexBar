@@ -716,6 +716,12 @@
 "link_website" = "Веб-сайт";
 "link_twitter" = "Twitter";
 "link_email" = "Електронна пошта";
+"link_acknowledgements" = "Подяки";
+"acknowledgements_footer" = "CodexBar створено з використанням цих проєктів з відкритим кодом.";
+"acknowledgements_others" = "ще %d";
+"acknowledgements_author" = "Автор";
+"acknowledgements_authors" = "Автори";
+"acknowledgements_license" = "Ліцензія";
 "check_updates_auto" = "Автоматично перевіряти наявність оновлень";
 "update_channel" = "Оновити канал";
 "check_for_updates" = "Перевірити наявність оновлень…";

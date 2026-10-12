@@ -712,6 +712,12 @@
 "link_website" = "網站";
 "link_twitter" = "Twitter";
 "link_email" = "電子郵件";
+"link_acknowledgements" = "致謝";
+"acknowledgements_footer" = "CodexBar 使用了以下開放原始碼專案構建。";
+"acknowledgements_others" = "其他 %d 人";
+"acknowledgements_author" = "作者";
+"acknowledgements_authors" = "作者";
+"acknowledgements_license" = "授權條款";
 "check_updates_auto" = "自動檢查更新";
 "update_channel" = "更新頻道";
 "check_for_updates" = "檢查更新…";

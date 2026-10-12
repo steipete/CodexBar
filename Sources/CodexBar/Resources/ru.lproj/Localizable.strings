@@ -717,6 +717,12 @@
 "link_website" = "Сайт";
 "link_twitter" = "Twitter";
 "link_email" = "электронная почта";
+"link_acknowledgements" = "Благодарности";
+"acknowledgements_footer" = "CodexBar создан с использованием этих проектов с открытым исходным кодом.";
+"acknowledgements_others" = "ещё %d";
+"acknowledgements_author" = "Автор";
+"acknowledgements_authors" = "Авторы";
+"acknowledgements_license" = "Лицензия";
 "check_updates_auto" = "Автоматическая проверка обновлений";
 "update_channel" = "Канал обновлений";
 "check_for_updates" = "Проверить наличие обновлений…";

@@ -722,6 +722,12 @@
 "link_website" = "الموقع الإلكتروني";
 "link_twitter" = "تويتر";
 "link_email" = "البريد الإلكتروني";
+"link_acknowledgements" = "شكر وتقدير";
+"acknowledgements_footer" = "تم بناء CodexBar باستخدام هذه المشاريع مفتوحة المصدر.";
+"acknowledgements_others" = "%d آخرين";
+"acknowledgements_author" = "المؤلف";
+"acknowledgements_authors" = "المؤلفون";
+"acknowledgements_license" = "الترخيص";
 "check_updates_auto" = "تحقق تلقائيا من التحديثات";
 "update_channel" = "قناة التحديث";
 "check_for_updates" = "تحقق من التحديثات...";

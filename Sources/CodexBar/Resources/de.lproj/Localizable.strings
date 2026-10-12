@@ -716,6 +716,12 @@
 "link_website" = "Webseite";
 "link_twitter" = "Twitter";
 "link_email" = "E-Mail";
+"link_acknowledgements" = "Danksagungen";
+"acknowledgements_footer" = "CodexBar basiert auf diesen Open-Source-Projekten.";
+"acknowledgements_others" = "%d weitere";
+"acknowledgements_author" = "Autor";
+"acknowledgements_authors" = "Autoren";
+"acknowledgements_license" = "Lizenz";
 "check_updates_auto" = "Suchen Sie automatisch nach Updates";
 "update_channel" = "Kanal aktualisieren";
 "check_for_updates" = "Nach Updates suchen…";
