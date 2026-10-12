@@ -2509,3 +2509,12 @@
 "Reserve is +" = "余裕を + で表示";
 "Back" = "戻る";
 "Forward" = "進む";
+
+/* fal provider credentials */
+"Key with billing read access (BILLING or READONLY preset). Or set FAL_KEY." = "請求の読み取り権限を持つキー（BILLING または READONLY プリセット）。または FAL_KEY を設定します。";
+
+/* FLORA provider credentials */
+"Needs billing permission on the workspace. Or set FLORA_API_KEY." = "ワークスペースの請求権限が必要です。または FLORA_API_KEY を設定します。";
+"Required. The ws_… ID of the workspace the key can bill. Or set FLORA_WORKSPACE_ID." = "必須。キーが請求できるワークスペースの ws_… ID。または FLORA_WORKSPACE_ID を設定します。";
+"ak_…" = "ak_…";
+"ws_…" = "ws_…";

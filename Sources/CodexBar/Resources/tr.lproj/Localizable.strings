@@ -2512,3 +2512,12 @@
 "Reserve is +" = "Rezerv +";
 "Back" = "Geri";
 "Forward" = "İleri";
+
+/* fal provider credentials */
+"Key with billing read access (BILLING or READONLY preset). Or set FAL_KEY." = "Faturalama okuma erişimi olan anahtar (BILLING veya READONLY ön ayarı). Ya da FAL_KEY değerini ayarlayın.";
+
+/* FLORA provider credentials */
+"Needs billing permission on the workspace. Or set FLORA_API_KEY." = "Çalışma alanında faturalama izni gerekir. Ya da FLORA_API_KEY değerini ayarlayın.";
+"Required. The ws_… ID of the workspace the key can bill. Or set FLORA_WORKSPACE_ID." = "Zorunlu. Anahtarın faturalayabildiği çalışma alanının ws_… kimliği. Ya da FLORA_WORKSPACE_ID değerini ayarlayın.";
+"ak_…" = "ak_…";
+"ws_…" = "ws_…";

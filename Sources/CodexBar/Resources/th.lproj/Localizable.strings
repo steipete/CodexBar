@@ -2513,3 +2513,12 @@
 "Reserve is +" = "โควตาสำรองคือ +";
 "Back" = "ย้อนกลับ";
 "Forward" = "ไปข้างหน้า";
+
+/* fal provider credentials */
+"Key with billing read access (BILLING or READONLY preset). Or set FAL_KEY." = "คีย์ที่มีสิทธิ์อ่านข้อมูลการเรียกเก็บเงิน (พรีเซ็ต BILLING หรือ READONLY) หรือตั้งค่า FAL_KEY";
+
+/* FLORA provider credentials */
+"Needs billing permission on the workspace. Or set FLORA_API_KEY." = "ต้องมีสิทธิ์การเรียกเก็บเงินในเวิร์กสเปซ หรือตั้งค่า FLORA_API_KEY";
+"Required. The ws_… ID of the workspace the key can bill. Or set FLORA_WORKSPACE_ID." = "จำเป็น ID ws_… ของเวิร์กสเปซที่คีย์เรียกเก็บเงินได้ หรือตั้งค่า FLORA_WORKSPACE_ID";
+"ak_…" = "ak_…";
+"ws_…" = "ws_…";

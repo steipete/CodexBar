@@ -92,6 +92,23 @@ sources and setup guide. The [provider ID list](provider-ids.md) is generated fr
   - `--provider codex --format json --summary-only` emits a one-element, versioned summary array with no account identity, project paths, model rows, or session content. Schema version 1 retains `updatedAt`, `bucketTimeZone`, `historyDays`, `currencyCode`, `historyCoverageIsEstablished`, and separate `today`/`history` totals with optional `totalTokens`/`costUSD`, incomplete-request counts, coverage categories, and provenance. Missing totals remain unavailable.
   - Host reports always scan native Codex history only. `--days` and `--refresh` apply on both hosts; each host retains its own calendar and pricing. Both modes reject `--group-by` and `--breakdown`; `--remote` and `--summary-only` cannot be combined. Ordinary `cost` output remains compatible.
   - Remote capture is bounded to 16 KiB per stream during execution, with a 60-second client process timeout. Unsupported versions, invalid totals, overflow, and unexpected output fail closed. Remote failure retains a successful local row and exits nonzero; JSON remains one document. Ctrl-C and termination signals cancel collection and await local SSH subprocess cleanup. The remote scanner follows its SSH server's disconnect behavior and may finish after the client exits.
+- `codexbar cost --provider codex --identified-only --format json --days 30` exports an experimental,
+  versioned native request ledger. Add `--remote build-host` to return source reports and an
+  **identified-request subtotal** from this machine and one SSH host. Both hosts need a CLI supporting
+  this option. `--identified-end <Unix milliseconds>` pins the inclusive end; the start is UTC midnight
+  `days - 1` days earlier. Saved periods and time zones do not change this window.
+  - Only owned native `token_usage_record` events with session/thread and response IDs contribute.
+    Legacy token-count events and unidentified usage are excluded; this subtotal is not complete account usage.
+  - Identical copies count once. Contradictory copies of an identity are excluded throughout that merge,
+    including after a later matching copy. Identities are length-framed SHA-256 hashes; exported rows contain
+    timestamps and token categories, without conversation text, model names, paths or raw session IDs.
+  - Combined prices are explicitly unavailable (`costUSD: null`). This stage does not estimate dollars.
+    Collection uses the existing one-shot SSH safeguards, with no persistent ledger. Exports are limited to
+    50,000 records and conflict IDs and 32 MiB; exceeding a limit rejects the source rather than truncating usage.
+    An unavailable source retains successful source data, marks the result partial, and exits nonzero.
+    Readable empty history is available; damaged or disappearing files mark the available data partial.
+  - Requires explicit `--provider codex` and JSON. Do not combine with `--summary-only`,
+    `--period`, `--group-by` or `--breakdown`; the existing separate-host summary command is unchanged.
 - `codexbar cards` prints a one-shot usage snapshot as a responsive terminal card grid.
   - Reuses the same provider, source, account, credits, and status flags as `codexbar usage`.
   - Account lines and plan badges are included in the card grid by default.

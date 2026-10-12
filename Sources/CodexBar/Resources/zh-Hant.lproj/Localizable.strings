@@ -2487,3 +2487,12 @@
 "Reserve is +" = "餘量為 +";
 "Back" = "返回";
 "Forward" = "前進";
+
+/* fal provider credentials */
+"Key with billing read access (BILLING or READONLY preset). Or set FAL_KEY." = "具有帳單讀取權限的金鑰（BILLING 或 READONLY 預設）。或設定 FAL_KEY。";
+
+/* FLORA provider credentials */
+"Needs billing permission on the workspace. Or set FLORA_API_KEY." = "需要工作區的帳單權限。或設定 FLORA_API_KEY。";
+"Required. The ws_… ID of the workspace the key can bill. Or set FLORA_WORKSPACE_ID." = "必填。金鑰可計費的工作區 ws_… ID。或設定 FLORA_WORKSPACE_ID。";
+"ak_…" = "ak_…";
+"ws_…" = "ws_…";

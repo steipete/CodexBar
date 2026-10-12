@@ -10,7 +10,7 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-6e5aff?style=flat-square)](LICENSE)
 [![Site](https://img.shields.io/badge/site-codexbar.app-16d3b4?style=flat-square)](https://codexbar.app)
 
-<a href="https://codexbar.app"><img src="docs/social.png?v=2da5e6df9ee2b2ef" alt="CodexBar — every AI coding limit in your menu bar. 100 providers." width="100%" /></a>
+<a href="https://codexbar.app"><img src="docs/social.png?v=174e6a860e838285" alt="CodexBar — every AI coding limit in your menu bar. 102 providers." width="100%" /></a>
 
 Tiny macOS 14+ menu bar app that keeps **AI coding-provider limits visible** and shows when each window resets. See the [supported providers](#providers) below. One status item per provider, or Merge Icons mode with a provider switcher. No Dock icon, minimal UI, dynamic bar icons.
 
@@ -195,6 +195,8 @@ See [CLI configuration](docs/cli-configuration.md) for the full flow.
 - [Aerostack](docs/aerostack.md) — Explicit account JWT for monthly AI tokens used and the observed account allowance.
 - [Sail Research](docs/sailresearch.md) — API key for organization credit balance and combined inference/Sailbox spend.
 - [Sofya](docs/sofya.md) — API key for separate account plan and purchased credit balances, eligibility, and the reported monthly reset.
+- [fal](docs/fal.md) — API key with billing read access for the current account credit balance.
+- [FLORA](docs/flora.md) — API key with billing permission plus a workspace ID for the available USD balance and month-to-date spend.
 <!-- End generated provider additions -->
 
 ## Icon & Screenshot

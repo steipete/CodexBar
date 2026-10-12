@@ -358,6 +358,12 @@ For a manual comparison with another development machine, run `codexbar cost --p
 Both hosts scan their own native Codex logs once and return separate summaries, retaining their own day boundaries,
 pricing provenance, missing values, and incomplete-request counts. Only bounded totals cross SSH. A remote error keeps
 the local result and returns a nonzero exit code. See [CLI host reporting](cli.md) for the versioned summary contract.
+
+For copied or resumed histories, `cost --provider codex --identified-only --format json --remote <ssh-host>`
+reports an **identified-request subtotal** over one UTC window. Strong native session/response identities are
+deduplicated; conflicting identities and legacy/unidentified usage are excluded and reported. Combined prices are
+unavailable (`costUSD: null`). This opt-in CLI mode does not change ordinary cost reports or account quota.
+
 - Menu source selection:
   - By default, a selected managed account keeps its own `CODEX_HOME` session history.
   - **Local session cost estimates** is a Codex-only opt-in that instead scans this Mac's ambient `$CODEX_HOME`

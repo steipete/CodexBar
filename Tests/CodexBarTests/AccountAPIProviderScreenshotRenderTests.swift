@@ -16,8 +16,15 @@ final class AccountAPIProviderScreenshotRenderTests: XCTestCase {
         let aerostack = try await AerostackPluginTests.fetch(AerostackPluginTests.fixture, engine: .quickJS)
         let sail = try await SailResearchPluginTests.fetch(engine: .quickJS)
         let sofya = try await SofyaPluginTests.fetch(engine: .quickJS)
+        let fal = try await FalPluginTests.fetch(engine: .quickJS)
+        let flora = try await FloraPluginTests.fetch(engine: .quickJS)
         for (provider, snapshot) in [
-            (UsageProvider.cosmic, cosmic), (.aerostack, aerostack), (.sailresearch, sail), (.sofya, sofya),
+            (UsageProvider.cosmic, cosmic),
+            (.aerostack, aerostack),
+            (.sailresearch, sail),
+            (.sofya, sofya),
+            (.fal, fal),
+            (.flora, flora),
         ] {
             let model = try UsageMenuCardView.Model.make(.init(
                 provider: provider,

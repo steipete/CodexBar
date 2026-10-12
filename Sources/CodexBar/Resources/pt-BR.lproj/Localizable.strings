@@ -2509,3 +2509,12 @@
 "Reserve is +" = "A reserva é +";
 "Back" = "Voltar";
 "Forward" = "Avançar";
+
+/* fal provider credentials */
+"Key with billing read access (BILLING or READONLY preset). Or set FAL_KEY." = "Chave com acesso de leitura ao faturamento (predefinição BILLING ou READONLY). Ou defina FAL_KEY.";
+
+/* FLORA provider credentials */
+"Needs billing permission on the workspace. Or set FLORA_API_KEY." = "Requer permissão de faturamento no espaço de trabalho. Ou defina FLORA_API_KEY.";
+"Required. The ws_… ID of the workspace the key can bill. Or set FLORA_WORKSPACE_ID." = "Obrigatório. O ID ws_… do espaço de trabalho que a chave pode faturar. Ou defina FLORA_WORKSPACE_ID.";
+"ak_…" = "ak_…";
+"ws_…" = "ws_…";

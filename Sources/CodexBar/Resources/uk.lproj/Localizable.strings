@@ -2509,3 +2509,12 @@
 "Reserve is +" = "Запас — +";
 "Back" = "Назад";
 "Forward" = "Вперед";
+
+/* fal provider credentials */
+"Key with billing read access (BILLING or READONLY preset). Or set FAL_KEY." = "Ключ із доступом на читання білінгу (пресет BILLING або READONLY). Або задайте FAL_KEY.";
+
+/* FLORA provider credentials */
+"Needs billing permission on the workspace. Or set FLORA_API_KEY." = "Потрібен дозвіл на білінг у робочому просторі. Або задайте FLORA_API_KEY.";
+"Required. The ws_… ID of the workspace the key can bill. Or set FLORA_WORKSPACE_ID." = "Обов’язково. ID ws_… робочого простору, до білінгу якого має доступ ключ. Або задайте FLORA_WORKSPACE_ID.";
+"ak_…" = "ak_…";
+"ws_…" = "ws_…";

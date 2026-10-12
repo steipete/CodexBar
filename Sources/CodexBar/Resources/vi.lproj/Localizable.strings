@@ -2510,3 +2510,12 @@
 "Reserve is +" = "Dự trữ là +";
 "Back" = "Quay lại";
 "Forward" = "Tiếp";
+
+/* fal provider credentials */
+"Key with billing read access (BILLING or READONLY preset). Or set FAL_KEY." = "Khóa có quyền đọc thanh toán (cài đặt sẵn BILLING hoặc READONLY). Hoặc đặt FAL_KEY.";
+
+/* FLORA provider credentials */
+"Needs billing permission on the workspace. Or set FLORA_API_KEY." = "Cần quyền thanh toán trên không gian làm việc. Hoặc đặt FLORA_API_KEY.";
+"Required. The ws_… ID of the workspace the key can bill. Or set FLORA_WORKSPACE_ID." = "Bắt buộc. ID ws_… của không gian làm việc mà khóa có thể thanh toán. Hoặc đặt FLORA_WORKSPACE_ID.";
+"ak_…" = "ak_…";
+"ws_…" = "ws_…";

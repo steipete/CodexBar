@@ -2508,3 +2508,12 @@
 "Reserve is +" = "Reserve krijgt +";
 "Back" = "Terug";
 "Forward" = "Vooruit";
+
+/* fal provider credentials */
+"Key with billing read access (BILLING or READONLY preset). Or set FAL_KEY." = "Sleutel met leestoegang tot facturering (preset BILLING of READONLY). Of stel FAL_KEY in.";
+
+/* FLORA provider credentials */
+"Needs billing permission on the workspace. Or set FLORA_API_KEY." = "Vereist factureringsrechten voor de workspace. Of stel FLORA_API_KEY in.";
+"Required. The ws_… ID of the workspace the key can bill. Or set FLORA_WORKSPACE_ID." = "Verplicht. De ws_…-ID van de workspace die de sleutel mag factureren. Of stel FLORA_WORKSPACE_ID in.";
+"ak_…" = "ak_…";
+"ws_…" = "ws_…";
