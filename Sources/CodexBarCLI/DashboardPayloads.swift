@@ -52,7 +52,7 @@ struct DashboardProviderPayload: Encodable {
     let credits: DashboardCreditsPayload?
     /// Available limit-reset credit inventory (`N available`, next expiry). Additive schema-v1
     /// extension: the key appears only when the provider reports the inventory.
-    let limitResetCredits: ProviderResetCreditsPayload?
+    let limitResetCredits: DashboardLimitResetCreditsPayload?
     let cost: DashboardCostPayload?
     let display: DashboardDisplayPayload
     let error: ProviderErrorPayload?
@@ -73,7 +73,7 @@ struct DashboardProviderPayload: Encodable {
         identity: DashboardIdentityPayload?,
         windows: [DashboardWindowPayload],
         credits: DashboardCreditsPayload?,
-        limitResetCredits: ProviderResetCreditsPayload? = nil,
+        limitResetCredits: DashboardLimitResetCreditsPayload? = nil,
         cost: DashboardCostPayload?,
         display: DashboardDisplayPayload,
         error: ProviderErrorPayload?,
@@ -262,6 +262,30 @@ struct DashboardWindowPayload: Encodable {
 struct DashboardCreditsPayload: Encodable {
     let remaining: Double
     let unit: String
+}
+
+/// Dashboard-v1 projection of the limit-reset credit inventory. Unlike the shared usage payload,
+/// the optional date is encoded explicitly: the documented contract promises `nextExpiresAt: null`
+/// for non-expiring inventories, and a synthesized `Encodable` would omit the key instead.
+struct DashboardLimitResetCreditsPayload: Encodable {
+    let available: Int
+    let nextExpiresAt: Date?
+
+    init(_ payload: ProviderResetCreditsPayload) {
+        self.available = payload.available
+        self.nextExpiresAt = payload.nextExpiresAt
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case available
+        case nextExpiresAt
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(self.available, forKey: .available)
+        try container.encode(self.nextExpiresAt, forKey: .nextExpiresAt)
+    }
 }
 
 struct DashboardCostPayload: Encodable {

@@ -40,6 +40,35 @@ struct DashboardLimitResetCreditsTests {
     }
 
     @Test
+    func `dashboard provider encodes null next expiry for non-expiring inventories`() throws {
+        let now = Date()
+        let usage = UsageSnapshot(
+            primary: .init(usedPercent: 10, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            secondary: nil,
+            tertiary: nil,
+            codexResetCredits: CodexRateLimitResetCreditsSnapshot(
+                credits: [self.availableResetCredit(id: "no-expiry", expiresAt: nil)],
+                availableCount: 1,
+                updatedAt: now),
+            updatedAt: now)
+        let snapshot = DashboardSnapshotBuilder.makeSnapshot(
+            usagePayloads: [self.codexPayload(usage: usage)],
+            costPayloads: [],
+            config: CodexBarConfig(providers: [ProviderConfig(id: .codex, enabled: true)]),
+            identityMode: .full,
+            generatedAt: now,
+            refreshInterval: 0,
+            codexBarVersion: nil)
+
+        let object = try self.jsonObject(snapshot)
+        let provider = try #require((object["providers"] as? [[String: Any]])?.first)
+        let limitResetCredits = try #require(provider["limitResetCredits"] as? [String: Any])
+
+        #expect(limitResetCredits["available"] as? Int == 1)
+        #expect(limitResetCredits["nextExpiresAt"] is NSNull)
+    }
+
+    @Test
     func `dashboard provider omits limit reset credits when the usage snapshot has none`() throws {
         let now = Date()
         let usage = UsageSnapshot(
