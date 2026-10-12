@@ -1012,6 +1012,13 @@ extension CLIServeWebUI {
             card.append(node("p", "error-message", provider.accountsError));
           }
 
+          appendProviderSummary(card, provider);
+          return card;
+        }
+
+        // Balance and cost metrics shared with the grouped multi-account summary card,
+        // which is built directly and never passes through renderProvider.
+        function appendProviderSummary(card, provider) {
           const metrics = node("div", "metrics");
           if (provider.credits?.remaining !== null && provider.credits?.remaining !== undefined) {
             const unit = provider.credits.unit ? ` ${provider.credits.unit}` : "";
@@ -1021,7 +1028,6 @@ extension CLIServeWebUI {
             metrics.append(metric("Limit Reset Credits", `${provider.limitResetCredits.available} available`));
           }
           appendCostSummary(card, provider, metrics);
-          return card;
         }
 
         function appendCostSummary(card, provider, metrics = node("div", "metrics")) {
@@ -1099,7 +1105,7 @@ extension CLIServeWebUI {
               const summary = node("article", "card");
               summary.style.setProperty("--accent", accentColor(provider.display?.accentColor));
               summary.append(node("h3", "provider-name", `${provider.name || provider.id} local spend`));
-              appendCostSummary(summary, provider);
+              appendProviderSummary(summary, provider);
               if (summary.childElementCount > 1) cards.push(summary);
               const group = renderGroup(`${provider.name || provider.id} accounts`, cards);
               if (provider.error) group.append(node("p", "error-message",
