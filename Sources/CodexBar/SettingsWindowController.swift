@@ -90,7 +90,9 @@ final class SettingsWindowController: NSWindowController {
             window.contentViewController = hostingController
             window.title = selection.pane.title
             window.titlebarAppearsTransparent = true
-            window.titleVisibility = .visible
+            window.titleVisibility = .hidden
+            window.toolbar = SettingsWindowToolbar.make()
+            window.toolbarStyle = .unified
             window.titlebarSeparatorStyle = .none
             window.isReleasedWhenClosed = false
             SettingsWindowSizing.enforceMinimumSize(window)

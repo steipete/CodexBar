@@ -139,6 +139,8 @@ struct SpendDashboardPane: View {
             }
             .padding(24)
         }
+        // The pane header already shows "Usage & Spend".
+        .settingsToolbarTitleHidden()
         .background(FocusResigningBackground())
         .onAppear {
             self.isVisible = true

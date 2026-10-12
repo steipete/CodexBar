@@ -9,25 +9,58 @@ struct SettingsSidebarView: View {
     @Bindable var store: UsageStore
     @Binding var selection: SettingsPane
     @State private var searchText = ""
+    /// Keeps the selected row in the accent color instead of the unfocused grey.
+    @FocusState private var isListFocused: Bool
+
+    private static let searchBarTopPadding: CGFloat = 4
+    private static let searchBarBottomPadding: CGFloat = 8
+
+    private static var searchRowHeight: CGFloat {
+        self.searchBarTopPadding + SettingsSidebarSortToggle.diameter + self.searchBarBottomPadding
+    }
 
     var body: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 6) {
-                SettingsSidebarSearchField(searchText: self.$searchText)
-                SettingsSidebarSortToggle(isOn: self.$settings.providersSortedAlphabetically)
-            }
-            .padding(.horizontal, 8)
-            .padding(.top, 16)
-            .padding(.bottom, 8)
-
+        ZStack(alignment: .top) {
             List(selection: self.selectionBinding) {
                 self.appPanesSection
                 self.providersSection
             }
             .listStyle(.sidebar)
             .scrollContentBackground(.hidden)
+            .focused(self.$isListFocused)
+            .safeAreaInset(edge: .top, spacing: 0) {
+                Color.clear.frame(height: Self.searchRowHeight)
+            }
+            .modifier(SettingsSidebarScrollEdgeEffect())
+            .padding(.horizontal, 8)
+
+            // A background, so `ignoresSafeArea` stretches the band up through the titlebar instead of shifting it.
+            Color.clear
+                .frame(height: Self.searchBarTopPadding + SettingsSidebarSortToggle.diameter)
+                .background {
+                    SettingsSidebarScrollGlass(fadeHeight: SettingsSidebarSortToggle.diameter / 2)
+                        .ignoresSafeArea(edges: .top)
+                }
+                .allowsHitTesting(false)
+
+            SettingsSidebarGlassContainer {
+                HStack(spacing: 6) {
+                    SettingsSidebarSearchField(searchText: self.$searchText)
+                    SettingsSidebarSortToggle(isOn: self.$settings.providersSortedAlphabetically)
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.top, Self.searchBarTopPadding)
         }
-        .padding(.horizontal, 8)
+        .onAppear {
+            // Defer past AppKit's initial first responder, which is the search field.
+            DispatchQueue.main.async {
+                self.isListFocused = true
+            }
+        }
+        .onChange(of: self.selection) { _, _ in
+            self.isListFocused = true
+        }
     }
 
     private var appPanesSection: some View {
@@ -249,8 +282,9 @@ private struct SettingsSidebarSearchField: View {
     @Binding var searchText: String
 
     var body: some View {
-        HStack(spacing: 5) {
+        HStack(spacing: 6) {
             Image(systemName: "magnifyingglass")
+                .font(.system(size: 14, weight: .medium))
                 .foregroundStyle(.secondary)
                 .accessibilityHidden(true)
 
@@ -268,19 +302,107 @@ private struct SettingsSidebarSearchField: View {
                 .buttonStyle(.plain)
             }
         }
-        .font(.callout)
-        .padding(.horizontal, 7)
-        .padding(.vertical, 4)
-        .background(
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .fill(Color(nsColor: .textBackgroundColor).opacity(0.6)))
-        .overlay(
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .stroke(Color(nsColor: .separatorColor).opacity(0.6), lineWidth: 1))
+        .font(.body)
+        .padding(.horizontal, 10)
+        .frame(height: 28)
+        .modifier(SettingsSidebarSearchFieldBackground())
+    }
+}
+
+private struct SettingsSidebarGlassContainer<Content: View>: View {
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        if #available(macOS 26.0, *) {
+            GlassEffectContainer(spacing: 0) {
+                self.content
+            }
+        } else {
+            self.content
+        }
+    }
+}
+
+/// The system edge effect draws an opaque box over the sidebar material; `SettingsSidebarScrollGlass` replaces it.
+private struct SettingsSidebarScrollEdgeEffect: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(macOS 26.0, *) {
+            content.scrollEdgeEffectHidden(true, for: .top)
+        } else {
+            content
+        }
+    }
+}
+
+/// Blurs rows scrolled under the search row while keeping the sidebar's color. The glass is oversized so its edge
+/// highlights fall outside the mask, which fades it out over the bottom `fadeHeight` points.
+private struct SettingsSidebarScrollGlass: View {
+    let fadeHeight: CGFloat
+    private static let edgeOverhang: CGFloat = 40
+
+    var body: some View {
+        Color.clear
+            .overlay {
+                self.glass
+                    .padding(.horizontal, -Self.edgeOverhang)
+                    .padding(.top, -Self.edgeOverhang)
+            }
+            .mask {
+                VStack(spacing: 0) {
+                    Color.black
+                    LinearGradient(colors: [.black, .clear], startPoint: .top, endPoint: .bottom)
+                        .frame(height: self.fadeHeight)
+                }
+            }
+    }
+
+    @ViewBuilder
+    private var glass: some View {
+        if #available(macOS 26.0, *) {
+            Color.clear.glassEffect(.regular, in: Rectangle())
+        } else {
+            Rectangle().fill(.regularMaterial)
+        }
+    }
+}
+
+private struct SettingsSidebarSortToggleBackground: ViewModifier {
+    let isOn: Bool
+
+    func body(content: Content) -> some View {
+        if #available(macOS 26.0, *) {
+            if self.isOn {
+                // A glass tint washes out to grey in dark mode.
+                content
+                    .background(Circle().fill(Color.accentColor))
+                    .overlay(Circle().strokeBorder(Color.white.opacity(0.25), lineWidth: 0.5))
+            } else {
+                content.glassEffect(.regular, in: Circle())
+            }
+        } else {
+            content
+                .background(Circle().fill(self.isOn ? Color.accentColor : Color.primary.opacity(0.08)))
+                .overlay(Circle().strokeBorder(Color.primary.opacity(0.1), lineWidth: 0.5))
+        }
+    }
+}
+
+private struct SettingsSidebarSearchFieldBackground: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(macOS 26.0, *) {
+            content.glassEffect(.regular.tint(Color(nsColor: .controlBackgroundColor).opacity(0.4)), in: .capsule)
+        } else {
+            content
+                .background(Capsule().fill(Color.primary.opacity(0.08)))
+                .overlay(Capsule().strokeBorder(Color.primary.opacity(0.1), lineWidth: 0.5))
+        }
     }
 }
 
 private struct SettingsSidebarSortToggle: View {
+    /// Matches the search field height.
+    static let diameter: CGFloat = 28
+
     @Binding var isOn: Bool
 
     var body: some View {
@@ -288,10 +410,11 @@ private struct SettingsSidebarSortToggle: View {
             self.isOn.toggle()
         } label: {
             Image(systemName: "arrow.up.arrow.down")
-                .font(.callout)
-                .foregroundStyle(self.isOn ? Color.accentColor : Color.secondary)
-                .frame(width: 24, height: 24)
-                .contentShape(Rectangle())
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(self.isOn ? Color.white : Color.secondary)
+                .frame(width: Self.diameter, height: Self.diameter)
+                .modifier(SettingsSidebarSortToggleBackground(isOn: self.isOn))
+                .contentShape(Circle())
         }
         .buttonStyle(.plain)
         .help(self.isOn

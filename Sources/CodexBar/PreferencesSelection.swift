@@ -60,7 +60,40 @@ final class PreferencesSelection {
     var pane: SettingsPane {
         didSet {
             self.userDefaults.set(self.pane.persistenceToken, forKey: Self.paneDefaultsKey)
+            guard !self.isTraversingHistory, oldValue != self.pane else { return }
+            self.backStack.append(oldValue)
+            self.forwardStack.removeAll()
         }
+    }
+
+    private(set) var backStack: [SettingsPane] = []
+    private(set) var forwardStack: [SettingsPane] = []
+    @ObservationIgnored private var isTraversingHistory = false
+
+    var canGoBack: Bool {
+        !self.backStack.isEmpty
+    }
+
+    var canGoForward: Bool {
+        !self.forwardStack.isEmpty
+    }
+
+    func goBack() {
+        guard let previous = self.backStack.popLast() else { return }
+        self.forwardStack.append(self.pane)
+        self.traverseHistory(to: previous)
+    }
+
+    func goForward() {
+        guard let next = self.forwardStack.popLast() else { return }
+        self.backStack.append(self.pane)
+        self.traverseHistory(to: next)
+    }
+
+    private func traverseHistory(to pane: SettingsPane) {
+        self.isTraversingHistory = true
+        defer { self.isTraversingHistory = false }
+        self.pane = pane
     }
 
     init(userDefaults: UserDefaults = .standard) {

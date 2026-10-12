@@ -263,6 +263,8 @@ struct ProviderDetailView<SupplementaryContent: View>: View {
         }
         .formStyle(.grouped)
         .scrollContentBackground(.hidden)
+        // `ProviderDetailHeaderRow` already shows the provider name.
+        .settingsToolbarTitleHidden()
     }
 }
 
