@@ -1017,10 +1017,11 @@ extension CLIServeWebUI {
         }
 
         // Balance and cost metrics shared with the grouped multi-account summary card,
-        // which is built directly and never passes through renderProvider.
-        function appendProviderSummary(card, provider) {
+        // which is built directly and never passes through renderProvider. Grouped
+        // summaries keep ambient credits out: one account's balance is not a group total.
+        function appendProviderSummary(card, provider, includeCredits = true) {
           const metrics = node("div", "metrics");
-          if (provider.credits?.remaining !== null && provider.credits?.remaining !== undefined) {
+          if (includeCredits && provider.credits?.remaining !== null && provider.credits?.remaining !== undefined) {
             const unit = provider.credits.unit ? ` ${provider.credits.unit}` : "";
             metrics.append(metric("Remaining", `${amount(provider.credits.remaining)}${unit}`));
           }
@@ -1105,7 +1106,7 @@ extension CLIServeWebUI {
               const summary = node("article", "card");
               summary.style.setProperty("--accent", accentColor(provider.display?.accentColor));
               summary.append(node("h3", "provider-name", `${provider.name || provider.id} local spend`));
-              appendProviderSummary(summary, provider);
+              appendProviderSummary(summary, provider, false);
               if (summary.childElementCount > 1) cards.push(summary);
               const group = renderGroup(`${provider.name || provider.id} accounts`, cards);
               if (provider.error) group.append(node("p", "error-message",
