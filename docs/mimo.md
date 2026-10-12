@@ -27,7 +27,7 @@ counts remain details rather than appearing as a reset clock. This does not chan
 2. Enable **Xiaomi MiMo**
 3. Leave **Cookie source** on **Auto** (recommended)
 
-CodexBar imports cookies from these browsers in order: **Safari**, **Chrome** / **Chrome Beta** / **Chrome Canary**, **Firefox**, and **Microsoft Edge**. Switch to **Manual** and paste a `Cookie:` header if your active MiMo session lives in Arc, Brave, or another browser profile CodexBar does not auto-detect.
+CodexBar imports cookies from these browsers in order: **Safari**, **Chrome** / **Chrome Beta** / **Chrome Canary**, **Firefox** / **Firefox Beta** / **Firefox Developer Edition** / **Firefox Nightly**, and **Microsoft Edge**. Switch to **Manual** and paste a `Cookie:` header if your active MiMo session lives in Arc, Brave, or another browser profile CodexBar does not auto-detect.
 
 Safari cookie import may require granting CodexBar Full Disk Access in **System Settings → Privacy & Security**.
 
@@ -50,13 +50,13 @@ Safari cookie import may require granting CodexBar Full Disk Access in **System 
 
 - Token cost, status polling, and debug log output are not supported yet
 - Widgets do not support Xiaomi MiMo yet
-- Auto import covers Safari, Chrome variants, Firefox, and Edge only; other browsers use **Manual** mode
+- Auto import covers Safari, Chrome variants, Firefox variants, and Edge only; other browsers use **Manual** mode
 
 ## Troubleshooting
 
 ### “No Xiaomi MiMo browser session found”
 
-Log in at `https://platform.xiaomimimo.com/#/console/balance` in Safari, Chrome, Firefox, or Edge, then refresh CodexBar. If your session lives in another browser, switch the MiMo provider to **Cookie source → Manual** and paste the `Cookie:` header instead.
+Log in at `https://platform.xiaomimimo.com/#/console/balance` in Safari, Chrome, Firefox or its release channels, or Edge, then refresh CodexBar. If your session lives in another browser, switch the MiMo provider to **Cookie source → Manual** and paste the `Cookie:` header instead.
 
 ### “Xiaomi MiMo requires the api-platform_serviceToken and userId cookies”
 

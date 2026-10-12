@@ -81,7 +81,17 @@ struct BrowserCookieOrderStatusStringTests {
     @Test
     func `mimo cookie import order supports safari firefox and edge`() {
         let order = ProviderDefaults.metadata[.mimo]?.browserCookieOrder ?? Browser.defaultImportOrder
-        #expect(order == [.safari, .chrome, .chromeBeta, .chromeCanary, .firefox, .edge])
+        #expect(order == [
+            .safari,
+            .chrome,
+            .chromeBeta,
+            .chromeCanary,
+            .firefox,
+            .firefoxBeta,
+            .firefoxDeveloperEdition,
+            .firefoxNightly,
+            .edge,
+        ])
         #expect(order.first == .safari)
         #expect(order.contains(.firefox))
         #expect(order.contains(.edge))
@@ -96,7 +106,7 @@ struct BrowserCookieOrderStatusStringTests {
     @Test
     func `mistral cookie import order supports chrome firefox and safari`() {
         let order = ProviderDefaults.metadata[.mistral]?.browserCookieOrder ?? Browser.defaultImportOrder
-        #expect(order == [.chrome, .firefox, .safari])
+        #expect(order == [.chrome, .firefox, .firefoxBeta, .firefoxDeveloperEdition, .firefoxNightly, .safari])
         #expect(order.first == .chrome)
         #expect(order.contains(.firefox))
         #expect(!order.contains(.edge))
@@ -110,10 +120,25 @@ struct BrowserCookieOrderStatusStringTests {
     func `longcat cookie import order supports chrome and firefox`() {
         let metadataOrder = ProviderDefaults.metadata[.longcat]?.browserCookieOrder
 
-        #expect(metadataOrder == [.chrome, .firefox])
+        #expect(metadataOrder == [.chrome, .firefox, .firefoxBeta, .firefoxDeveloperEdition, .firefoxNightly])
         #expect(metadataOrder?.first == .chrome)
         #expect(metadataOrder?.contains(.firefox) == true)
         #expect(metadataOrder?.contains(.safari) == false)
+    }
+
+    @Test
+    func `orders listing firefox also include its release channels`() {
+        // Channel-owned profiles share `Firefox/Profiles` but only import through their own
+        // `Browser` case, so an order that stops at `.firefox` can never reach them.
+        let family: Set<Browser> = [.firefox, .firefoxBeta, .firefoxDeveloperEdition, .firefoxNightly]
+        let violators = ProviderDefaults.metadata.compactMap { provider, metadata -> UsageProvider? in
+            guard let order = metadata.browserCookieOrder, order.contains(where: family.contains) else { return nil }
+            return family.isSubset(of: Set(order)) ? nil : provider
+        }
+        #expect(violators.isEmpty, "orders missing Firefox release channels: \(violators)")
+        #expect(
+            family.isSubset(of: Set(factoryFallbackCookieBrowsers)),
+            "Factory fallback browser list must cover Firefox release channels")
     }
     #endif
 }

@@ -18,7 +18,7 @@ public enum MuseProviderDescriptor {
     /// Chrome needs a no-UI Safe Storage grant and Firefox needs none; Safari's store can require Full Disk Access.
     private static var browserCookieOrder: BrowserCookieImportOrder? {
         #if os(macOS)
-        [.chrome, .firefox]
+        [.chrome, .firefox, .firefoxBeta, .firefoxDeveloperEdition, .firefoxNightly]
         #else
         nil
         #endif

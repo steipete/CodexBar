@@ -517,7 +517,7 @@ provider-specific cookie validation, endpoints, login detection, and error trans
 
 ## Mistral
 - Session cookie (`ory_session_*`) from browser auto-import or manual `Cookie:` header.
-- Cookie import order: Chrome → Firefox → Safari. Chrome first preserves the original behavior for existing users; Firefox (including Developer Edition) is detected automatically; Safari follows for Full Disk Access users. Other Chromium forks use Manual mode. Automatic import reads only unexpired cookies from the documented Mistral domains.
+- Cookie import order: Chrome → Firefox → Safari. Chrome first preserves the original behavior for existing users; Firefox (including Beta, Developer Edition, and Nightly) is detected automatically; Safari follows for Full Disk Access users. Other Chromium forks use Manual mode. Automatic import reads only unexpired cookies from the documented Mistral domains.
 - CSRF token (`csrftoken` cookie) sent as `X-CSRFTOKEN` for billing and fallback Vibe requests.
 - Domains: `admin.mistral.ai` for API billing, included subscription allowances, and credit balance, and `console.mistral.ai` for fallback Vibe usage. Console requests forward only `csrftoken` and `ory_session_*`; all other admin cookies stay origin-bound.
 - Reads monthly usage and pricing from the billing usage endpoint, included API/Vibe allowances from the subscription page, and credit balance from the billing credits endpoint.

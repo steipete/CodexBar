@@ -32,6 +32,9 @@ public enum AlibabaTokenPlanProviderDescriptor {
             .edge,
             .arc,
             .firefox,
+            .firefoxBeta,
+            .firefoxDeveloperEdition,
+            .firefoxNightly,
             .safari,
         ]
         #else

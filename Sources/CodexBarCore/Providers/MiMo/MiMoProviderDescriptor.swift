@@ -7,7 +7,17 @@ public enum MiMoProviderDescriptor {
     /// Safari first, the existing Chrome family, then Firefox/Edge; other Chromium forks remain manual-only.
     private static var browserCookieOrder: BrowserCookieImportOrder? {
         #if os(macOS)
-        [.safari, .chrome, .chromeBeta, .chromeCanary, .firefox, .edge]
+        [
+            .safari,
+            .chrome,
+            .chromeBeta,
+            .chromeCanary,
+            .firefox,
+            .firefoxBeta,
+            .firefoxDeveloperEdition,
+            .firefoxNightly,
+            .edge,
+        ]
         #else
         nil
         #endif

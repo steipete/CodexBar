@@ -10,7 +10,7 @@ public enum LongCatProviderDescriptor {
     /// Preserve Chrome-first behavior, then check Firefox without adding another Keychain prompt.
     private static var browserCookieOrder: BrowserCookieImportOrder? {
         #if os(macOS)
-        [.chrome, .firefox]
+        [.chrome, .firefox, .firefoxBeta, .firefoxDeveloperEdition, .firefoxNightly]
         #else
         nil
         #endif

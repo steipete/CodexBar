@@ -1,6 +1,10 @@
 import Foundation
 import Testing
 @testable import CodexBarCore
+#if os(macOS)
+import SQLite3
+import SweetCookieKit
+#endif
 
 @Suite(.serialized)
 struct FactoryStatusProbeFetchTests {
@@ -683,6 +687,87 @@ struct FactoryStatusProbeFetchTests {
         ])
     }
 
+    #if os(macOS)
+    /// A channel-owned Firefox profile rejected under `.firefox` must not abort the loop before
+    /// the channel-specific sources run.
+    @Test
+    func `browser cookie fallback continues past unmatched firefox channel store`() async throws {
+        KeychainCacheStore.setTestStoreForTesting(true)
+        defer { KeychainCacheStore.setTestStoreForTesting(false) }
+
+        let home = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codexbar-deved-home-\(UUID().uuidString)", isDirectory: true)
+        let appResources = home
+            .appendingPathComponent(
+                "Applications/Firefox Developer Edition.app/Contents/Resources",
+                isDirectory: true)
+        let profileDir = home
+            .appendingPathComponent(
+                "Library/Application Support/Firefox/Profiles/xyz.dev-edition-default",
+                isDirectory: true)
+        try FileManager.default.createDirectory(at: appResources, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: profileDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: home) }
+
+        try "[App]\nRemotingName=firefox-dev\n".write(
+            to: appResources.appendingPathComponent("application.ini"),
+            atomically: true,
+            encoding: .utf8)
+        try """
+        [Compatibility]
+        LastVersion=1
+        LastOSABI=Darwin_aarch64-gcc3
+        LastPlatformDir=\(appResources.path)
+        LastAppDir=\(appResources.path)/browser
+
+        """.write(
+            to: profileDir.appendingPathComponent("compatibility.ini"),
+            atomically: true,
+            encoding: .utf8)
+        try writeGeckoCookies(
+            at: profileDir.appendingPathComponent("cookies.sqlite"),
+            host: "app.factory.ai",
+            name: "session",
+            value: "gecko-channel-session")
+
+        let previousClient = FactoryCookieImporter.cookieClient
+        FactoryCookieImporter.cookieClient = BrowserCookieClient(
+            configuration: BrowserCookieClient.Configuration(homeDirectories: [home]))
+        defer { FactoryCookieImporter.cookieClient = previousClient }
+
+        let previousSafariRoot = FactoryLocalStorageImporter.safariWebsiteDataRoot
+        FactoryLocalStorageImporter.safariWebsiteDataRoot = home
+            .appendingPathComponent(
+                "Library/Containers/com.apple.Safari/Data/Library/WebKit/WebsiteData/Default",
+                isDirectory: true)
+        defer { FactoryLocalStorageImporter.safariWebsiteDataRoot = previousSafariRoot }
+
+        let sessionFile = try await Self.isolateFactorySessionStore()
+        defer { try? FileManager.default.removeItem(at: sessionFile) }
+        await FactorySessionStore.shared.clearSession()
+        defer { CookieHeaderCache.clear(provider: .factory) }
+
+        var logLines: [String] = []
+        let probe = FactoryStatusProbe(
+            timeout: 1.0,
+            browserDetection: BrowserDetection(homeDirectory: home.path, cacheTTL: 0),
+            transport: ChannelFallbackStubTransport())
+
+        let snapshot = try await probe.fetch(logger: { logLines.append($0) })
+
+        #expect(snapshot.userId == "user-1")
+        let firefoxFailure = logLines.firstIndex(where: { $0.contains("Firefox cookie import failed") })
+        let channelHit = logLines.firstIndex(where: {
+            $0.contains("Using cookies from Firefox Developer Edition")
+        })
+        #expect(firefoxFailure != nil && channelHit != nil)
+        if let firefoxFailure, let channelHit {
+            #expect(firefoxFailure < channelHit)
+        }
+        await FactorySessionStore.shared.clearSession()
+    }
+    #endif
+
     private static func makeResponse(
         url: URL,
         body: String,
@@ -806,3 +891,58 @@ private struct FactoryStubTransport: ProviderHTTPTransport {
         return (data, response)
     }
 }
+
+#if os(macOS)
+private func writeGeckoCookies(
+    at url: URL,
+    host: String,
+    name: String,
+    value: String) throws
+{
+    var db: OpaquePointer?
+    guard sqlite3_open(url.path, &db) == SQLITE_OK else {
+        throw URLError(.cannotCreateFile)
+    }
+    defer { sqlite3_close(db) }
+    let statements = [
+        """
+        CREATE TABLE moz_cookies (
+            host TEXT, name TEXT, path TEXT, value TEXT,
+            expiry INTEGER, isSecure INTEGER, isHttpOnly INTEGER
+        )
+        """,
+        "INSERT INTO moz_cookies VALUES ('\(host)', '\(name)', '/', '\(value)', 1893456000, 1, 1)",
+    ]
+    for sql in statements {
+        guard sqlite3_exec(db, sql, nil, nil, nil) == SQLITE_OK else {
+            throw URLError(.cannotCreateFile)
+        }
+    }
+}
+
+private struct ChannelFallbackStubTransport: ProviderHTTPTransport {
+    func data(for request: URLRequest) async throws -> (Data, URLResponse) {
+        guard let url = request.url else { throw URLError(.badURL) }
+        let body = switch (url.host, url.path) {
+        case (_, "/api/app/auth/me"):
+            """
+            {"organization": {"id": "org_1", "name": "Acme", "subscription": {
+              "factoryTier": "team",
+              "orbSubscription": {"plan": {"name": "Team", "id": "plan_1"}, "status": "active"}}}}
+            """
+        case ("api.factory.ai", "/api/organization/subscription/usage"):
+            """
+            {"usage": {"standard": {"userTokens": 100, "totalAllowance": 1000}}, "userId": "user-1"}
+            """
+        default:
+            "{}"
+        }
+        let response = HTTPURLResponse(
+            url: url,
+            statusCode: url.path == "/api/billing/limits" ? 404 : 200,
+            httpVersion: "HTTP/1.1",
+            headerFields: ["Content-Type": "application/json"])!
+        return (Data(body.utf8), response)
+    }
+}
+#endif

@@ -29,8 +29,8 @@ Fetch attempts run in this exact order:
 5) **Local storage WorkOS tokens** (Safari + Chrome/Chromium/Arc leveldb).
 6) **Browser cookies (Safari only)** for Factory domains.
 7) **WorkOS cookies (Safari)** to mint tokens.
-8) **Browser cookies (Chrome, Firefox)** for Factory domains.
-9) **WorkOS cookies (Chrome, Firefox)** to mint tokens.
+8) **Browser cookies (Chrome, Firefox incl. Beta/Developer Edition/Nightly)** for Factory domains.
+9) **WorkOS cookies (Chrome, Firefox incl. Beta/Developer Edition/Nightly)** to mint tokens.
 
 If a step succeeds, we cache cookies/tokens back into the session store.
 

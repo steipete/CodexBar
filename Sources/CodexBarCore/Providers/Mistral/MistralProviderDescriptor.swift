@@ -14,7 +14,7 @@ public enum MistralProviderDescriptor {
     /// Preserve Chrome-first behavior, then Firefox and Safari; other Chromium forks remain manual-only.
     private static var browserCookieOrder: BrowserCookieImportOrder? {
         #if os(macOS)
-        [.chrome, .firefox, .safari]
+        [.chrome, .firefox, .firefoxBeta, .firefoxDeveloperEdition, .firefoxNightly, .safari]
         #else
         nil
         #endif

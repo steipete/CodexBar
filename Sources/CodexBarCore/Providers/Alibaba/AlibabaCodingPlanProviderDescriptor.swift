@@ -23,6 +23,9 @@ public enum AlibabaCodingPlanProviderDescriptor {
             .edge,
             .arc,
             .firefox,
+            .firefoxBeta,
+            .firefoxDeveloperEdition,
+            .firefoxNightly,
             .safari,
         ]
         #else

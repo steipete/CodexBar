@@ -30,6 +30,9 @@ public enum AugmentProviderDescriptor {
             .dia,
             .arcBeta,
             .firefox,
+            .firefoxBeta,
+            .firefoxDeveloperEdition,
+            .firefoxNightly,
         ]
         #else
         let browserOrder: BrowserCookieImportOrder? = nil
