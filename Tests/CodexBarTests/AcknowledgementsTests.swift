@@ -134,6 +134,17 @@ struct AcknowledgementsTests {
         #expect(Self.acknowledgement(authors: ["Ada"]).authorSummary(locale: english) == "Ada")
     }
 
+    @Test
+    func `author summary follows the selected app language`() {
+        let names = ["Ada", "Ben", "Cy", "Dee", "Eve", "Fay", "Gus"]
+
+        CodexBarLocalizationOverride.$appLanguage.withValue("fr") {
+            let summary = Self.acknowledgement(authors: names).authorSummary()
+            #expect(summary.hasPrefix("Ada, Ben et "), "\(summary)")
+            #expect(summary.hasSuffix("5 autres"), "\(summary)")
+        }
+    }
+
     private static func acknowledgement(authors: [String]) -> Acknowledgement {
         Acknowledgement(name: "Example", authors: authors, url: "https://example.com", license: "MIT", text: "")
     }

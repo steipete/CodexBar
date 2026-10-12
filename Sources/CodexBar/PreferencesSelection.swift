@@ -63,7 +63,8 @@ final class PreferencesSelection {
         }
     }
 
-    /// Bumped when the About sidebar row is clicked, so a pushed About subpage pops back to the root.
+    /// Bumped on every explicit About open (sidebar click, menu command, update notification) so a pushed
+    /// About subpage pops back to the root, even in a Settings window that was closed and reopened.
     private(set) var aboutRootRequests = 0
 
     init(userDefaults: UserDefaults = .standard) {

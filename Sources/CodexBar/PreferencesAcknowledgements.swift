@@ -23,9 +23,10 @@ struct Acknowledgement: Equatable, Identifiable {
     }
 
     /// Up to two authors, then "and N others"; a lone extra author is named rather than counted.
-    func authorSummary(locale: Locale = .current) -> String {
+    /// Formats with the app's selected language so the joined list and "others" text never mix languages.
+    func authorSummary(locale: Locale = codexBarLocalizedResourceLocale()) -> String {
         let shown = self.authors.count > 3
-            ? Array(self.authors.prefix(2)) + [String(format: L("acknowledgements_others"), self.authors.count - 2)]
+            ? Array(self.authors.prefix(2)) + [L("acknowledgements_others", self.authors.count - 2)]
             : self.authors
         let formatter = ListFormatter()
         formatter.locale = locale
