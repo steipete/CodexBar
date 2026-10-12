@@ -1194,6 +1194,7 @@ extension CLIServeWebUI {
               identity: null,
               windows: [],
               credits: null,
+              limitResetCredits: null,
               cost: null,
               accounts: null,
               error: { message: progressiveErrorMessage(error) }
