@@ -29,6 +29,9 @@ counts remain details rather than appearing as a reset clock. This does not chan
 
 CodexBar imports cookies from these browsers in order: **Safari**, **Chrome** / **Chrome Beta** / **Chrome Canary**, **Firefox**, and **Microsoft Edge**. Switch to **Manual** and paste a `Cookie:` header if your active MiMo session lives in Arc, Brave, or another browser profile CodexBar does not auto-detect.
 
+Automatic refresh validates each browser's sessions before reading the next browser. A working session stops
+traversal; missing or rejected sessions continue in the order above.
+
 Safari cookie import may require granting CodexBar Full Disk Access in **System Settings → Privacy & Security**.
 
 ### Manual cookie import (optional)

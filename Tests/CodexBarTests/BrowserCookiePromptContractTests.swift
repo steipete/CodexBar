@@ -73,7 +73,7 @@ struct BrowserCookiePromptContractTests {
             try KeychainAccessPreflight.withCheckGenericPasswordOverrideForTesting { _, _ in preflight } operation: {
                 try BrowserCookieAccessGate.withExplicitRetry {
                     try ProviderInteractionContext.$current.withValue(interaction) {
-                        _ = try MiMoCookieImporter.importSessions(
+                        _ = try Array(MiMoCookieImporter.importSessions(
                             browserDetection: detection,
                             loadRecords: { browser, _, _ in
                                 guard browser.usesKeychainForCookieDecryption,
@@ -106,7 +106,7 @@ struct BrowserCookiePromptContractTests {
                                 }
                                 return []
                             },
-                            loadStores: { _ in [] })
+                            loadStores: { _ in [] }))
                     }
                 }
             }

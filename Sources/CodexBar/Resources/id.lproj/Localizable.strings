@@ -1451,7 +1451,7 @@
 "menu_bar_layout_token_reset_at" = "Reset pukul";
 "menu_bar_layout_token_runs_out" = "Habis";
 "menu_bar_layout_token_cost_today" = "Biaya hari ini";
-"menu_bar_layout_token_cost_30d" = "Biaya 30 hari";
+"menu_bar_layout_token_cost_window" = "Biaya (Jendela riwayat)";
 "menu_bar_layout_token_space" = "Spasi";
 "menu_bar_layout_token_line_break" = "Pemisah baris";
 "menu_bar_layout_token_separator_accessibility" = "Titik pemisah";
@@ -1469,7 +1469,6 @@
 "Reset time unavailable" = "Reset pukul: Tidak tersedia";
 "Run-out estimate unavailable" = "Habis: Tidak tersedia";
 "Cost today unavailable" = "Biaya hari ini: Tidak tersedia";
-"30-day cost unavailable" = "Biaya 30 hari: Tidak tersedia";
 "Resets" = "Reset";
 "codex_workspaces_title" = "Ruang Kerja";
 "codex_workspaces_estimated_local_logs" = "Diperkirakan dari log Codex lokal";
@@ -2519,3 +2518,12 @@
 "Required. The ws_… ID of the workspace the key can bill. Or set FLORA_WORKSPACE_ID." = "Wajib. ID ws_… workspace yang dapat ditagih oleh kunci. Atau atur FLORA_WORKSPACE_ID.";
 "ak_…" = "ak_…";
 "ws_…" = "ws_…";
+
+"Provider order updated" = "Urutan penyedia diperbarui";
+"Undo" = "Urungkan";
+"Clear filters" = "Hapus filter";
+"Change provider order" = "Ubah urutan penyedia";
+"Provider sorting" = "Pengurutan penyedia";
+"Only enabled providers" = "Hanya penyedia aktif";
+"Restore default order" = "Pulihkan urutan bawaan";
+"Also restores the provider order in the menu bar. Can be undone." = "Juga memulihkan urutan penyedia di bar menu. Dapat diurungkan.";

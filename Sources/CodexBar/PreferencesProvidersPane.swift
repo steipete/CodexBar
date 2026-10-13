@@ -155,18 +155,27 @@ struct ProvidersPane: View {
         query: String,
         displayName: (UsageProvider) -> String) -> [UsageProvider]
     {
-        let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedQuery.isEmpty else { return providers }
-
+        let words = query.split(whereSeparator: \.isWhitespace).map(String.init)
+        guard !words.isEmpty else { return providers }
         return providers.filter { provider in
-            displayName(provider).localizedCaseInsensitiveContains(trimmedQuery)
-                || provider.rawValue.localizedCaseInsensitiveContains(trimmedQuery)
+            let descriptor = ProviderDescriptorRegistry.descriptor(for: provider)
+            let fields = [
+                displayName(provider),
+                descriptor.metadata.shortDisplayName,
+                provider.rawValue,
+                descriptor.cli.name,
+            ] + descriptor.cli.aliases
+            return words.allSatisfy { word in
+                fields.contains { $0.range(of: word, options: [.caseInsensitive, .diacriticInsensitive]) != nil }
+            }
         }
     }
 
     func moveProviders(fromOffsets: IndexSet, toOffset: Int) {
-        guard !self.settings.providersSortedAlphabetically else { return }
-        self.settings.moveProvider(fromOffsets: fromOffsets, toOffset: toOffset)
+        self.settings.moveVisibleProviders(
+            self.settings.orderedFirstPartyProviders().map(\.instanceID),
+            fromOffsets: fromOffsets,
+            toOffset: toOffset)
     }
 
     private func triggerRefresh(for provider: UsageProvider) {

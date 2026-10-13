@@ -45,10 +45,6 @@ extension MiniMaxUsageParser {
         return lower == "general" || lower.contains("minimax-m") || lower.hasPrefix("m2.")
     }
 
-    static func shouldRenderWeeklyWindow(for modelName: String) -> Bool {
-        self.isTextGenerationModelName(modelName)
-    }
-
     static func formatMiniMaxDateTimeRange(startTime: Date?, endTime: Date?) -> String? {
         guard let startTime, let endTime else { return nil }
         let formatter = DateFormatter()

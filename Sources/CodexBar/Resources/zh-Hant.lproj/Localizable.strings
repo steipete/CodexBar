@@ -1478,7 +1478,7 @@
 "menu_bar_layout_token_reset_at" = "重設時間";
 "menu_bar_layout_token_runs_out" = "預計用盡";
 "menu_bar_layout_token_cost_today" = "今日費用";
-"menu_bar_layout_token_cost_30d" = "30 天費用";
+"menu_bar_layout_token_cost_window" = "費用（歷史時段）";
 "menu_bar_layout_token_space" = "空格";
 "menu_bar_layout_token_line_break" = "換行";
 "menu_bar_layout_token_separator_accessibility" = "分隔點";
@@ -1496,7 +1496,6 @@
 "Reset time unavailable" = "重設時間: 無法使用";
 "Run-out estimate unavailable" = "預計用盡: 無法使用";
 "Cost today unavailable" = "今日費用: 無法使用";
-"30-day cost unavailable" = "30 天費用: 無法使用";
 "Resets" = "重設";
 "codex_workspaces_cost_unavailable" = "無法取得費用";
 "codex_workspaces_elevated_usage" = "使用量偏高";
@@ -2494,3 +2493,12 @@
 "Required. The ws_… ID of the workspace the key can bill. Or set FLORA_WORKSPACE_ID." = "必填。金鑰可計費的工作區 ws_… ID。或設定 FLORA_WORKSPACE_ID。";
 "ak_…" = "ak_…";
 "ws_…" = "ws_…";
+
+"Provider order updated" = "供應商順序已更新";
+"Undo" = "復原";
+"Clear filters" = "清除篩選";
+"Change provider order" = "更改供應商順序";
+"Provider sorting" = "供應商排序";
+"Only enabled providers" = "只顯示已啟用";
+"Restore default order" = "恢復預設順序";
+"Also restores the provider order in the menu bar. Can be undone." = "同時恢復選單列中的供應商順序。可以復原。";

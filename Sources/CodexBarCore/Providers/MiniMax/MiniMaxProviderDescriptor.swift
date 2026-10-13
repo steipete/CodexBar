@@ -269,14 +269,8 @@ struct MiniMaxCodingPlanFetchStrategy: ProviderFetchStrategy {
             throw MiniMaxSettingsError.missingCookie
         }
 
-        let sessions = (try? MiniMaxCookieImporter.importSessions(
-            browserDetection: context.browserDetection)) ?? []
-        guard !sessions.isEmpty else {
-            if let lastError {
-                throw lastError
-            }
-            throw MiniMaxSettingsError.missingCookie
-        }
+        let sessions = (try? MiniMaxCookieImporter.sessionCandidates(
+            browserDetection: context.browserDetection)) ?? AnySequence([])
 
         for session in sessions {
             switch await Self.attemptFetch(

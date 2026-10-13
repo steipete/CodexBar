@@ -305,7 +305,7 @@ extension UsageStore {
         let codexLimitResetOwnerKey = codexPreparation?.limitResetOwnerKey
 
         if !spec.isEnabled(), !allowDisabled {
-            await self.clearDisabledProviderRefreshState(provider)
+            self.clearProviderRuntimeState(provider)
             return nil
         }
 
@@ -362,7 +362,6 @@ extension UsageStore {
         self.diagnostics[provider.instanceID] = nil
         let claudeAuthStateBeforeFetch = claudeActiveAccountIdentitySourceEligible
             ? await Self.captureClaudeRefreshAuthState(
-                invalidateCredentialsFile: true,
                 environment: fetchContext.env)
             : nil
         let priorTokenAccountSnapshot = self.tokenAccountSnapshot(provider: provider, account: tokenAccount)
@@ -939,14 +938,9 @@ extension UsageStore {
         self.codexAccountUsageSnapshotStore?.store(currentSnapshots)
     }
 
-    private func clearDisabledProviderRefreshState(_ provider: UsageProvider) async {
-        self.clearProviderRuntimeState(provider)
-    }
-
     private struct ClaudeRefreshAuthState {
         let fingerprintToken: String
         let credentialsFileChanged: Bool
-        let keychainFingerprintChanged: Bool
         let keychainPersistentRefHash: String?
         let activeAccountUuid: String?
         let activeAccountIdentity: String?
@@ -966,7 +960,6 @@ extension UsageStore {
         changedDuringFetch: Bool) -> Bool
     {
         beforeFetch?.credentialsFileChanged == true ||
-            beforeFetch?.keychainFingerprintChanged == true ||
             changedDuringFetch
     }
 
@@ -1128,14 +1121,12 @@ extension UsageStore {
     }
 
     private nonisolated static func captureClaudeRefreshAuthState(
-        invalidateCredentialsFile: Bool,
         environment: [String: String]) async -> ClaudeRefreshAuthState
     {
         await withTaskGroup(of: ClaudeRefreshAuthState.self, returning: ClaudeRefreshAuthState.self) { group in
             group.addTask {
-                let credentialsFileChanged = invalidateCredentialsFile
-                    ? ClaudeOAuthCredentialsStore.invalidateCacheIfCredentialsFileChanged(environment: environment)
-                    : false
+                let credentialsFileChanged = ClaudeOAuthCredentialsStore
+                    .invalidateCacheIfCredentialsFileChanged(environment: environment)
                 let fingerprintBefore = ClaudeOAuthCredentialsStore
                     .currentCredentialsFileFingerprintWithoutPromptForAuthGate(environment: environment) ?? "none"
                 let activeAccountUuid = Self.activeClaudeAccountUuid(environment: environment)
@@ -1148,7 +1139,6 @@ extension UsageStore {
                 return ClaudeRefreshAuthState(
                     fingerprintToken: fingerprintAfter,
                     credentialsFileChanged: credentialsFileChanged,
-                    keychainFingerprintChanged: false,
                     keychainPersistentRefHash: nil,
                     activeAccountUuid: activeAccountUuid,
                     activeAccountIdentity: activeAccountIdentity,
@@ -1227,7 +1217,6 @@ extension UsageStore {
             beforeFetch: ClaudeRefreshAuthState(
                 fingerprintToken: beforeFetchFingerprintToken,
                 credentialsFileChanged: false,
-                keychainFingerprintChanged: false,
                 keychainPersistentRefHash: beforeFetchPersistentRefHash,
                 activeAccountUuid: nil,
                 activeAccountIdentity: nil,
@@ -1247,7 +1236,6 @@ extension UsageStore {
             beforeFetch: ClaudeRefreshAuthState(
                 fingerprintToken: "before",
                 credentialsFileChanged: false,
-                keychainFingerprintChanged: false,
                 keychainPersistentRefHash: "before-ref",
                 activeAccountUuid: nil,
                 activeAccountIdentity: identityBeforeFetch,

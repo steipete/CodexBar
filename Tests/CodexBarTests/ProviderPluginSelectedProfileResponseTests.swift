@@ -43,7 +43,9 @@ struct ProviderPluginSelectedProfileResponseTests {
             domains: runtime.manifest.cookieDomains,
             settings: settings,
             batches: { _, _ in nil },
-            jarImporter: { [.init(header: "", source: "Fixture", origin: "", records: [record])] },
+            jarImporter: { batch in
+                batch == 0 ? [.init(header: "", source: "Fixture", origin: "", records: [record])] : nil
+            },
             policy: runtime.manifest.cookiePolicy,
             profileReader: { _ in [record] })
         let result = try await runtime.fetchResult(cookies: broker)

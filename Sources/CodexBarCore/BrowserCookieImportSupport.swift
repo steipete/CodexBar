@@ -28,22 +28,32 @@ public enum BrowserCookieImportSupport {
     }
 
     static func collectSessions<Session>(
-        from browsers: [Browser],
-        missingError: (any Error)?,
-        logger: (String) -> Void,
-        load: (Browser) throws -> [Session]) throws -> [Session]
+        from browsers: some Sequence<Browser>,
+        missingError: @autoclosure () -> (any Error)?,
+        logger: @escaping (String) -> Void,
+        load: @escaping (Browser) throws -> [Session]) throws -> AnySequence<Session>
     {
-        var sessions: [Session] = []
-        for browser in browsers {
-            do {
-                try sessions.append(contentsOf: load(browser))
-            } catch {
-                BrowserCookieAccessGate.recordIfNeeded(error)
-                logger("\(browser.displayName) cookie import failed: \(error.localizedDescription)")
+        var browsers = browsers.makeIterator()
+        var pending = [Session]().makeIterator()
+        let sessions = AnyIterator<Session> {
+            while true {
+                if let session = pending.next() { return session }
+                guard let browser = browsers.next() else { return nil }
+                do {
+                    pending = try load(browser).makeIterator()
+                } catch {
+                    BrowserCookieAccessGate.recordIfNeeded(error)
+                    logger("\(browser.displayName) cookie import failed: \(error.localizedDescription)")
+                }
             }
         }
-        if sessions.isEmpty, let missingError { throw missingError }
-        return sessions
+        var first = sessions.next()
+        if first == nil, let error = missingError() { throw error }
+        // A single-pass sequence: later browsers are read only after the caller rejects earlier sessions.
+        return AnySequence(AnyIterator {
+            defer { first = nil }
+            return first ?? sessions.next()
+        })
     }
 
     static func loadProfiles(

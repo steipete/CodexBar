@@ -51,10 +51,7 @@ struct CookieImporterOverrideIsolationTests {
     }
 
     @Test
-    func `perplexity overrides bypass the shared import cache`() async throws {
-        PerplexityCookieImporter.invalidateImportSessionCache()
-        defer { PerplexityCookieImporter.invalidateImportSessionCache() }
-
+    func `perplexity overrides stay scoped to each task`() async throws {
         let first = try await PerplexityCookieImporter.withImportSessionsOverrideForTesting { _, _ in
             [PerplexityCookieImporter.SessionInfo(cookies: [], sourceLabel: "first")]
         } operation: {

@@ -66,6 +66,12 @@ diagnose classification, validation, and missing-credential messaging; a missing
 credential behavior. Typed settings-section registrations optionally expose cookie settings and a CLI credential
 contribution, so the app, CLI, and plugin cookie broker consume the same provider-owned settings shape.
 
+Automatic cookie traversal reads one browser at a time in the provider's existing order. Fetchers validate
+its candidate sessions before requesting another browser; missing or rejected sessions retain fallback.
+The plugin broker applies the same rule to both header and cookie-jar imports, while explicit browser/profile
+selections remain isolated. Public exhaustive import APIs retain their array return types; live fetches consume
+lazy candidates instead.
+
 ### Provider architecture gatekeeper threat model
 
 `ProviderArchitectureGatekeeperTests` is a drift tripwire against honest architecture mistakes by future contributors

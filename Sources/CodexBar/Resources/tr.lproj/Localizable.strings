@@ -1449,7 +1449,7 @@
 "menu_bar_layout_token_reset_at" = "Sıfırlama saati";
 "menu_bar_layout_token_runs_out" = "Biter";
 "menu_bar_layout_token_cost_today" = "Bugünkü maliyet";
-"menu_bar_layout_token_cost_30d" = "30 günlük maliyet";
+"menu_bar_layout_token_cost_window" = "Maliyet (Geçmiş penceresi)";
 "menu_bar_layout_token_space" = "Boşluk";
 "menu_bar_layout_token_line_break" = "Satır sonu";
 "menu_bar_layout_token_separator_accessibility" = "Ayırıcı nokta";
@@ -1467,7 +1467,6 @@
 "Reset time unavailable" = "Sıfırlama saati: kullanılamıyor";
 "Run-out estimate unavailable" = "Biter: kullanılamıyor";
 "Cost today unavailable" = "Bugünkü maliyet: kullanılamıyor";
-"30-day cost unavailable" = "30 günlük maliyet: kullanılamıyor";
 "Resets" = "Sıfırlamalar";
 "codex_workspaces_title" = "Çalışma Alanları";
 "codex_workspaces_estimated_local_logs" = "Yerel Codex günlüklerinden tahmin edildi";
@@ -2519,3 +2518,12 @@
 "Required. The ws_… ID of the workspace the key can bill. Or set FLORA_WORKSPACE_ID." = "Zorunlu. Anahtarın faturalayabildiği çalışma alanının ws_… kimliği. Ya da FLORA_WORKSPACE_ID değerini ayarlayın.";
 "ak_…" = "ak_…";
 "ws_…" = "ws_…";
+
+"Provider order updated" = "Sağlayıcı sırası güncellendi";
+"Undo" = "Geri al";
+"Clear filters" = "Filtreleri temizle";
+"Change provider order" = "Sağlayıcı sırasını değiştir";
+"Provider sorting" = "Sağlayıcı sıralaması";
+"Only enabled providers" = "Yalnızca etkin sağlayıcılar";
+"Restore default order" = "Varsayılan sırayı geri yükle";
+"Also restores the provider order in the menu bar. Can be undone." = "Menü çubuğundaki sağlayıcı sırasını da geri yükler. Geri alınabilir.";

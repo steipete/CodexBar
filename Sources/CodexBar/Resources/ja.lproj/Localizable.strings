@@ -1448,7 +1448,7 @@
 "menu_bar_layout_token_reset_at" = "リセット時刻";
 "menu_bar_layout_token_runs_out" = "使い切り";
 "menu_bar_layout_token_cost_today" = "今日のコスト";
-"menu_bar_layout_token_cost_30d" = "30日間のコスト";
+"menu_bar_layout_token_cost_window" = "コスト（履歴期間）";
 "menu_bar_layout_token_space" = "空白";
 "menu_bar_layout_token_line_break" = "改行";
 "menu_bar_layout_token_separator_accessibility" = "区切り点";
@@ -1466,7 +1466,6 @@
 "Reset time unavailable" = "リセット時刻: 利用不可";
 "Run-out estimate unavailable" = "使い切り: 利用不可";
 "Cost today unavailable" = "今日のコスト: 利用不可";
-"30-day cost unavailable" = "30日間のコスト: 利用不可";
 "Resets" = "リセット";
 "codex_workspaces_cost_unavailable" = "コストを利用できません";
 "codex_workspaces_elevated_usage" = "使用量がやや多い";
@@ -2516,3 +2515,12 @@
 "Required. The ws_… ID of the workspace the key can bill. Or set FLORA_WORKSPACE_ID." = "必須。キーが請求できるワークスペースの ws_… ID。または FLORA_WORKSPACE_ID を設定します。";
 "ak_…" = "ak_…";
 "ws_…" = "ws_…";
+
+"Provider order updated" = "プロバイダーの順序を更新しました";
+"Undo" = "取り消す";
+"Clear filters" = "フィルターを解除";
+"Change provider order" = "プロバイダーの順序を変更";
+"Provider sorting" = "プロバイダーの並べ替え";
+"Only enabled providers" = "有効なプロバイダーのみ";
+"Restore default order" = "既定の順序に戻す";
+"Also restores the provider order in the menu bar. Can be undone." = "メニューバーのプロバイダー順序も戻します。取り消し可能です。";

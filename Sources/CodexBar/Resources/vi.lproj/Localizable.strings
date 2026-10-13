@@ -1448,7 +1448,7 @@
 "menu_bar_layout_token_reset_at" = "Đặt lại lúc";
 "menu_bar_layout_token_runs_out" = "Sắp hết";
 "menu_bar_layout_token_cost_today" = "Chi phí hôm nay";
-"menu_bar_layout_token_cost_30d" = "Chi phí 30 ngày";
+"menu_bar_layout_token_cost_window" = "Chi phí (Cửa sổ lịch sử)";
 "menu_bar_layout_token_space" = "Khoảng trắng";
 "menu_bar_layout_token_line_break" = "Ngắt dòng";
 "menu_bar_layout_token_separator_accessibility" = "Dấu chấm phân cách";
@@ -1466,7 +1466,6 @@
 "Reset time unavailable" = "Đặt lại lúc: Không có sẵn";
 "Run-out estimate unavailable" = "Sắp hết: Không có sẵn";
 "Cost today unavailable" = "Chi phí hôm nay: Không có sẵn";
-"30-day cost unavailable" = "Chi phí 30 ngày: Không có sẵn";
 "Resets" = "Lần đặt lại";
 "codex_workspaces_cost_unavailable" = "Không có dữ liệu chi phí";
 "codex_workspaces_elevated_usage" = "Mức sử dụng tăng";
@@ -2517,3 +2516,12 @@
 "Required. The ws_… ID of the workspace the key can bill. Or set FLORA_WORKSPACE_ID." = "Bắt buộc. ID ws_… của không gian làm việc mà khóa có thể thanh toán. Hoặc đặt FLORA_WORKSPACE_ID.";
 "ak_…" = "ak_…";
 "ws_…" = "ws_…";
+
+"Provider order updated" = "Đã cập nhật thứ tự nhà cung cấp";
+"Undo" = "Hoàn tác";
+"Clear filters" = "Xóa bộ lọc";
+"Change provider order" = "Đổi thứ tự nhà cung cấp";
+"Provider sorting" = "Sắp xếp nhà cung cấp";
+"Only enabled providers" = "Chỉ nhà cung cấp đã bật";
+"Restore default order" = "Khôi phục thứ tự mặc định";
+"Also restores the provider order in the menu bar. Can be undone." = "Cũng khôi phục thứ tự nhà cung cấp trên thanh menu. Có thể hoàn tác.";

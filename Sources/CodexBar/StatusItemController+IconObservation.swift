@@ -139,7 +139,7 @@ extension StatusItemController {
         let tokens = resolution.layout.flattenedTokens(conditionals: self.settings.menuBarLayoutConditionals)
         let metrics = self.referencedConditionalMetrics(resolution: resolution)
         let showsToday = tokens.contains(.costToday) || metrics.contains(.costToday)
-        let showsLast30Days = tokens.contains(.cost30d) || metrics.contains(.cost30d)
+        let showsLast30Days = tokens.contains(.costWindow) || metrics.contains(.costWindow)
         guard showsToday || showsLast30Days else { return nil }
 
         let costs = self.menuBarLayoutCosts(provider: provider)
@@ -149,7 +149,7 @@ extension StatusItemController {
             // Predicates compare the unrounded amounts, and two token-cost updates can cross a
             // threshold while both format to the same cent, so a conditional also signs the numbers.
             "todayUSD=\(metrics.contains(.costToday) ? Self.exactSignatureValue(costs.todayUSD) : "unused")",
-            "last30DaysUSD=\(metrics.contains(.cost30d) ? Self.exactSignatureValue(costs.last30DaysUSD) : "unused")",
+            "last30DaysUSD=\(metrics.contains(.costWindow) ? Self.exactSignatureValue(costs.last30DaysUSD) : "unused")",
         ].joined(separator: ",")
     }
 

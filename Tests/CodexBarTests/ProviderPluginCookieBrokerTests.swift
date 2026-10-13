@@ -7,6 +7,26 @@ struct ProviderPluginCookieBrokerTests {
     private let domains: Set<String> = ["cloud.example.test", "community.example.test"]
 
     @Test
+    func `suppressed browsers leave an empty batch instead of ending traversal`() throws {
+        let detection = BrowserDetection(
+            homeDirectory: "/synthetic-cookie-home",
+            cacheTTL: 0,
+            now: { Date(timeIntervalSince1970: 0) },
+            fileExists: { _ in false },
+            directoryContents: { _ in nil },
+            applicationURLs: { _ in [] },
+            profileAccessIssue: { _ in nil })
+        try BrowserCookieAccessGate.withShouldAttemptOverrideForTesting(false) {
+            let headers = try ProviderPluginCookieBroker.importCookieHeaders(
+                provider: .mimo, domain: "platform.xiaomimimo.com", browserDetection: detection, batch: 1)
+            let jars = try ProviderPluginCookieBroker.importCookieJars(
+                provider: .mimo, domains: ["platform.xiaomimimo.com"], browserDetection: detection, batch: 1)
+            #expect(headers?.isEmpty == true)
+            #expect(jars?.isEmpty == true)
+        }
+    }
+
+    @Test
     func `denied batches retain later sessions and do not replace API failures`() throws {
         try self.isolated {
             let broker = ProviderPluginCookieBroker(
@@ -320,6 +340,32 @@ struct ProviderPluginCookieBrokerTests {
         }
     }
 
+    @Test
+    func `jar imports advance one browser only after rejection`() throws {
+        try self.isolated {
+            let batches = BatchCalls()
+            let domain = "apps.abacus.ai"
+            let broker = ProviderPluginCookieBroker(
+                provider: .abacus,
+                domains: [domain],
+                settings: .init(cookieSource: .auto, manualCookieHeader: nil),
+                batches: { _, _ in nil },
+                jarImporter: { batch in
+                    batches.append(batch)
+                    return batch < 2 ? [.init(header: "", source: "Browser \(batch)", origin: "")] : nil
+                })
+            let first = try #require(try broker.nextSession(domain: domain))
+            #expect(first.source == "Browser 0")
+            #expect(batches.values == [0])
+            broker.rejectCookie(domain: domain, id: first.id)
+            #expect(try broker.nextSession(domain: domain)?.source == "Browser 1")
+            #expect(batches.values == [0, 1])
+            #expect(try broker.nextSession(domain: domain) == nil)
+            #expect(try broker.nextSession(domain: domain) == nil)
+            #expect(batches.values == [0, 1, 2])
+        }
+    }
+
     private final class BatchCalls: @unchecked Sendable {
         private let lock = NSLock()
         private var storage: [Int] = []
@@ -352,7 +398,11 @@ struct ProviderPluginCookieBrokerTests {
                 domains: ["longcat.chat"],
                 settings: .init(cookieSource: .auto, manualCookieHeader: nil),
                 batches: { _, _ in Issue.record("Legacy importer must not run"); return nil },
-                jarImporter: { [.init(header: "", source: "Synthetic import", origin: "", records: [])] })
+                jarImporter: { batch in batch == 0 ? [.init(
+                    header: "",
+                    source: "Synthetic import",
+                    origin: "",
+                    records: [])] : nil })
             #expect(try broker.nextSession(domain: "longcat.chat", cachedOnly: true) == nil)
             let session = try #require(try broker.nextSession(domain: "longcat.chat"))
             #expect(session.source == "Synthetic import")

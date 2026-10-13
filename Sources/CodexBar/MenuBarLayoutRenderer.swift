@@ -752,10 +752,10 @@ final class MenuBarLayoutRenderer {
                 data.costToday,
                 unavailableLabel: L("Cost today unavailable"),
                 attributes: style.attributes)
-        case .cost30d:
+        case .costWindow:
             return self.optionalTextToken(
                 data.cost30d,
-                unavailableLabel: L("30-day cost unavailable"),
+                unavailableLabel: L("%@ unavailable", L("menu_bar_layout_token_cost_window")),
                 attributes: style.attributes)
         case .separatorDot:
             return self.textToken("·", accessibilityText: nil, attributes: style.attributes)
@@ -1186,7 +1186,7 @@ extension MenuBarLayoutConditional {
             ? data.metrics.balanceUsedUSD
             : data.metrics.balanceRemainingUSD
         case .costToday: data.metrics.costTodayUSD
-        case .cost30d: data.metrics.cost30dUSD
+        case .costWindow: data.metrics.cost30dUSD
         }
     }
 

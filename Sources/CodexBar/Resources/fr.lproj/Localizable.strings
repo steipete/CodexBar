@@ -1447,7 +1447,7 @@
 "menu_bar_layout_token_reset_at" = "Réinitialisation à";
 "menu_bar_layout_token_runs_out" = "Épuisé";
 "menu_bar_layout_token_cost_today" = "Coût aujourd’hui";
-"menu_bar_layout_token_cost_30d" = "Coût sur 30 j";
+"menu_bar_layout_token_cost_window" = "Coût (Fenêtre d'historique)";
 "menu_bar_layout_token_space" = "Espace";
 "menu_bar_layout_token_line_break" = "Saut de ligne";
 "menu_bar_layout_token_separator_accessibility" = "Point séparateur";
@@ -1465,7 +1465,6 @@
 "Reset time unavailable" = "Réinitialisation à: Indisponible";
 "Run-out estimate unavailable" = "Épuisé: Indisponible";
 "Cost today unavailable" = "Coût aujourd’hui: Indisponible";
-"30-day cost unavailable" = "Coût sur 30 j: Indisponible";
 "Resets" = "Réinitialisations";
 "codex_workspaces_cost_unavailable" = "Coût indisponible";
 "codex_workspaces_elevated_usage" = "Utilisation supérieure";
@@ -2515,3 +2514,12 @@
 "Required. The ws_… ID of the workspace the key can bill. Or set FLORA_WORKSPACE_ID." = "Obligatoire. L’ID ws_… de l’espace de travail que la clé peut facturer. Ou définissez FLORA_WORKSPACE_ID.";
 "ak_…" = "ak_…";
 "ws_…" = "ws_…";
+
+"Provider order updated" = "Ordre des fournisseurs mis à jour";
+"Undo" = "Annuler";
+"Clear filters" = "Effacer les filtres";
+"Change provider order" = "Modifier l’ordre des fournisseurs";
+"Provider sorting" = "Tri des fournisseurs";
+"Only enabled providers" = "Fournisseurs activés uniquement";
+"Restore default order" = "Rétablir l’ordre par défaut";
+"Also restores the provider order in the menu bar. Can be undone." = "Rétablit aussi l’ordre des fournisseurs dans la barre des menus. Cette action peut être annulée.";
