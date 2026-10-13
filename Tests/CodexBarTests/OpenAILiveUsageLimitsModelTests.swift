@@ -9,7 +9,7 @@ import Testing
 @MainActor
 struct OpenAILiveUsageLimitsModelTests {
     @Test
-    func `settings limits binding follows the selected credential without inheritance`() throws {
+    func `rebuilt settings limits bindings use the selected credential without inheritance`() throws {
         let settings = testSettingsStore(suiteName: #function, userDefaults: InMemoryUserDefaults())
         settings.statusChecksEnabled = false
         settings.refreshFrequency = .manual
@@ -18,7 +18,7 @@ struct OpenAILiveUsageLimitsModelTests {
             browserDetection: BrowserDetection(cacheTTL: 0),
             settings: settings)
         let context = self.context(settings: settings, store: store)
-        let binding = context.modelRateLimitsBinding()
+        var binding = context.modelRateLimitsBinding(scope: settings.modelRateLimitScope(for: .openai))
         let provider: [ProviderModelRateLimit] = [.init(model: "gpt-5", tokensPerMinute: 100)]
         let a: [ProviderModelRateLimit] = [.init(model: "gpt-5", tokensPerMinute: 200)]
         let b: [ProviderModelRateLimit] = [.init(model: "gpt-5", tokensPerMinute: 300)]
@@ -29,16 +29,19 @@ struct OpenAILiveUsageLimitsModelTests {
         #expect(OpenAIAPIProviderImplementation().settingsModelLimits(context: context).first?.scopeText == nil)
         settings.addTokenAccount(provider: .openai, label: "A", token: "synthetic-a")
         let accountA = try #require(settings.selectedTokenAccount(for: .openai))
+        binding = context.modelRateLimitsBinding(scope: settings.modelRateLimitScope(for: .openai))
         #expect(binding.wrappedValue.isEmpty)
         binding.wrappedValue = a
         settings.addTokenAccount(provider: .openai, label: "B", token: "synthetic-b")
         let accountB = try #require(settings.selectedTokenAccount(for: .openai))
+        binding = context.modelRateLimitsBinding(scope: settings.modelRateLimitScope(for: .openai))
         #expect(binding.wrappedValue.isEmpty)
         binding.wrappedValue = b
         #expect(settings.modelRateLimitScope(for: .openai) == .tokenAccount(accountB.id))
         #expect(OpenAIAPIProviderImplementation().settingsModelLimits(context: context).first?.scopeText ==
             L("Applies to the selected token account “%@”. Each account keeps its own limits.", "B"))
         settings.setActiveTokenAccountIndex(0, for: .openai)
+        binding = context.modelRateLimitsBinding(scope: settings.modelRateLimitScope(for: .openai))
         #expect(settings.modelRateLimitScope(for: .openai) == .tokenAccount(accountA.id))
         #expect(binding.wrappedValue == a)
         let edited: [ProviderModelRateLimit] = [.init(model: " gpt-5 ", tokensPerMinute: 400, requestsPerMinute: 0)]
@@ -56,12 +59,60 @@ struct OpenAILiveUsageLimitsModelTests {
         #expect(settings.providerConfig(for: .openai)?.modelRateLimits == provider)
         #expect(settings.providerConfig(for: .openai)?.modelRateLimits(for: .tokenAccount(accountB.id)) == b)
         settings.setActiveTokenAccountIndex(1, for: .openai)
+        binding = context.modelRateLimitsBinding(scope: settings.modelRateLimitScope(for: .openai))
         #expect(binding.wrappedValue == b)
         settings.removeTokenAccount(provider: .openai, accountID: accountA.id)
         settings.removeTokenAccount(provider: .openai, accountID: accountB.id)
+        binding = context.modelRateLimitsBinding(scope: settings.modelRateLimitScope(for: .openai))
         #expect(binding.wrappedValue == provider)
         binding.wrappedValue = []
         #expect(settings.providerConfig(for: .openai)?.modelRateLimits?.isEmpty != false)
+    }
+
+    @Test
+    func `settings limit descriptors keep their captured credential after selection changes`() throws {
+        let settings = testSettingsStore(suiteName: #function, userDefaults: InMemoryUserDefaults())
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings)
+        let context = self.context(settings: settings, store: store)
+        let implementation = OpenAIAPIProviderImplementation()
+        let provider: [ProviderModelRateLimit] = [.init(model: "gpt-5", tokensPerMinute: 100)]
+        let saved: [ProviderModelRateLimit] = [.init(model: "gpt-5", tokensPerMinute: 200)]
+        settings.addTokenAccount(provider: .openai, label: "A", token: "synthetic-a")
+        let accountA = try #require(settings.selectedTokenAccount(for: .openai))
+        settings.addTokenAccount(provider: .openai, label: "B", token: "synthetic-b")
+        let accountB = try #require(settings.selectedTokenAccount(for: .openai))
+        settings.updateProviderConfig(provider: .openai, affectsBackgroundWork: false) {
+            $0.setModelRateLimits(provider, for: .provider)
+            $0.setModelRateLimits(saved, for: .tokenAccount(accountA.id))
+            $0.setModelRateLimits(saved, for: .tokenAccount(accountB.id))
+        }
+        settings.setActiveTokenAccountIndex(0, for: .openai)
+        let descriptorA = try #require(implementation.settingsModelLimits(context: context).first)
+        #expect(descriptorA.scope == .tokenAccount(accountA.id))
+        #expect(descriptorA.binding.wrappedValue == saved)
+        settings.setActiveTokenAccountIndex(1, for: .openai)
+        #expect(descriptorA.binding.wrappedValue == saved)
+        let editedA: [ProviderModelRateLimit] = [.init(model: "gpt-5", tokensPerMinute: 300)]
+        descriptorA.binding.wrappedValue = editedA
+        #expect(descriptorA.binding.wrappedValue == editedA)
+        #expect(settings.providerConfig(for: .openai)?.modelRateLimits(for: .tokenAccount(accountA.id)) == editedA)
+        #expect(settings.providerConfig(for: .openai)?.modelRateLimits(for: .tokenAccount(accountB.id)) == saved)
+        #expect(settings.providerConfig(for: .openai)?.modelRateLimits == provider)
+        let descriptorB = try #require(implementation.settingsModelLimits(context: context).first)
+        #expect(descriptorB.scope == .tokenAccount(accountB.id))
+        #expect(descriptorB.binding.wrappedValue == saved)
+        let editedB: [ProviderModelRateLimit] = [.init(model: "gpt-5", tokensPerMinute: 400)]
+        descriptorB.binding.wrappedValue = editedB
+        #expect(descriptorB.binding.wrappedValue == editedB)
+        #expect(descriptorA.binding.wrappedValue == editedA)
+        #expect(settings.providerConfig(for: .openai)?.modelRateLimits(for: .tokenAccount(accountA.id)) == editedA)
+        #expect(settings.providerConfig(for: .openai)?.modelRateLimits(for: .tokenAccount(accountB.id)) == editedB)
+        #expect(settings.providerConfig(for: .openai)?.modelRateLimits == provider)
     }
 
     @Test

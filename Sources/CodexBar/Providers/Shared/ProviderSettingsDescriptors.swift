@@ -46,17 +46,16 @@ struct ProviderSettingsContext {
         self.settings.providerConfigBinding(provider: self.provider, field: field)
     }
 
-    func modelRateLimitsBinding() -> Binding<[ProviderModelRateLimit]> {
+    func modelRateLimitsBinding(scope: ProviderModelRateLimitScope) -> Binding<[ProviderModelRateLimit]> {
         Binding(
             get: {
-                self.settings.providerConfig(for: self.provider)?.modelRateLimits(
-                    for: self.settings.modelRateLimitScope(for: self.provider)) ?? []
+                self.settings.providerConfig(for: self.provider)?.modelRateLimits(for: scope) ?? []
             },
             set: { limits in
                 self.settings.updateProviderConfig(provider: self.provider, affectsBackgroundWork: false) {
                     $0.setModelRateLimits(
                         ProviderModelRateLimit.validated(limits),
-                        for: self.settings.modelRateLimitScope(for: self.provider))
+                        for: scope)
                 }
             })
     }
@@ -197,6 +196,7 @@ struct ProviderSettingsModelLimitsDescriptor: Identifiable {
     let binding: Binding<[ProviderModelRateLimit]>
     let actions: [ProviderSettingsActionDescriptor]
     var scopeText: String?
+    var scope: ProviderModelRateLimitScope?
 }
 
 /// Shared action row descriptor rendered in the Providers settings pane.

@@ -100,15 +100,20 @@ extension UsageStore {
             ?? (isLive && isSettings ? self.userFacingError(for: provider) : presentation?.message)
         // Settings keeps its error preview intact; menu cards have a dedicated secondary stale-usage line.
         let lastKnownUsageCapturedAt = isSettings ? nil : presentation?.lastKnownUsageCapturedAt
+        let throughputScope: ProviderModelRateLimitScope? = isLive
+            ? self.settings.modelRateLimitScope(for: provider)
+            : account?.tokenAccountID.map { .tokenAccount($0) }
         return UsageMenuCardView.Model.Input(
             provider: provider,
             throughputPresentation: snapshot?.throughput.flatMap {
-                ProviderCatalog.implementation(for: provider)?.throughputPresentation(
+                var presentation = ProviderCatalog.implementation(for: provider)?.throughputPresentation(
                     snapshot: $0,
                     settings: self.settings,
-                    limitScope: isLive
-                        ? self.settings.modelRateLimitScope(for: provider)
-                        : account?.tokenAccountID.map { .tokenAccount($0) })
+                    limitScope: throughputScope)
+                if !isLive, throughputScope != self.settings.modelRateLimitScope(for: provider) {
+                    presentation?.action = nil
+                }
+                return presentation
             },
             metadata: metadata,
             snapshot: snapshot,

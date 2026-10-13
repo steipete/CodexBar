@@ -37,13 +37,21 @@ struct MenuCardThroughputTests {
         store.snapshots[.openai] = snapshot
         let live = store.menuCardModel(for: .openai)
         #expect(abs((live.throughput?.presentation?.limitPercent ?? 0) - 242.5) < 0.001)
+        #expect(live.throughput?.presentation?.action == .openOpenAILiveUsage)
+        let selected = store.menuCardModel(
+            for: .openai, context: .account(.init(snapshot: snapshot, tokenAccountID: a.id)))
+        #expect(abs((selected.throughput?.presentation?.limitPercent ?? 0) - 242.5) < 0.001)
+        #expect(selected.throughput?.presentation?.action == .openOpenAILiveUsage)
         let stacked = store.menuCardModel(
             for: .openai, context: .account(.init(snapshot: snapshot, tokenAccountID: b.id)))
         #expect(abs((stacked.throughput?.presentation?.limitPercent ?? 0) - 121.25) < 0.001)
+        #expect(stacked.throughput?.presentation?.action == nil)
+        #expect(stacked.throughput?.presentation?.limitLine != nil)
         let unknown = store.menuCardModel(for: .openai, context: .account(.init(snapshot: snapshot)))
         #expect(unknown.throughput?.presentation?.limitLine == nil)
         #expect(unknown.throughput?.presentation?.limitPercent == nil)
-        #expect(unknown.throughput?.presentation?.action == .openOpenAILiveUsage)
+        #expect(unknown.throughput?.presentation?.action == nil)
+        #expect(unknown.throughput?.snapshot == snapshot.throughput)
         let throughput = try #require(snapshot.throughput)
         let nilScope = OpenAIAPIProviderImplementation().throughputPresentation(
             snapshot: throughput, settings: settings, limitScope: nil)
@@ -52,6 +60,17 @@ struct MenuCardThroughputTests {
         settings.setActiveTokenAccountIndex(1, for: .openai)
         let switched = store.menuCardModel(for: .openai)
         #expect(abs((switched.throughput?.presentation?.limitPercent ?? 0) - 121.25) < 0.001)
+        #expect(switched.throughput?.presentation?.action == .openOpenAILiveUsage)
+        let switchedA = store.menuCardModel(
+            for: .openai, context: .account(.init(snapshot: snapshot, tokenAccountID: a.id)))
+        #expect(switchedA.throughput?.presentation?.action == nil)
+        #expect(abs((switchedA.throughput?.presentation?.limitPercent ?? 0) - 242.5) < 0.001)
+        let switchedB = store.menuCardModel(
+            for: .openai, context: .account(.init(snapshot: snapshot, tokenAccountID: b.id)))
+        #expect(switchedB.throughput?.presentation?.action == .openOpenAILiveUsage)
+        #expect(abs((switchedB.throughput?.presentation?.limitPercent ?? 0) - 121.25) < 0.001)
+        #expect(store.menuCardModel(for: .openai, context: .account(.init(snapshot: snapshot)))
+            .throughput?.presentation?.action == nil)
     }
 
     @Test

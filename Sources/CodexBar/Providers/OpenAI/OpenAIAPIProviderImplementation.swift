@@ -125,6 +125,7 @@ struct OpenAIAPIProviderImplementation: ProviderImplementation {
 
     @MainActor
     func settingsModelLimits(context: ProviderSettingsContext) -> [ProviderSettingsModelLimitsDescriptor] {
+        let scope = context.settings.modelRateLimitScope(for: self.id)
         let scopeText: String? = if context.settings.tokenAccounts(for: self.id).isEmpty {
             nil
         } else if let account = context.settings.effectiveSelectedTokenAccount(for: self.id) {
@@ -137,12 +138,13 @@ struct OpenAIAPIProviderImplementation: ProviderImplementation {
             title: "Organization rate limits",
             subtitle: "OpenAI's API doesn't expose organization rate limits. Copy them from your organization's " +
                 "Limits page. Model IDs match dated snapshots (gpt-5 covers gpt-5-2025-…).",
-            binding: context.modelRateLimitsBinding(),
+            binding: context.modelRateLimitsBinding(scope: scope),
             actions: [.openURL(
                 id: "openai-open-limits",
                 title: "Open organization Limits",
                 url: URL(string: "https://platform.openai.com/settings/organization/limits"))],
-            scopeText: scopeText)]
+            scopeText: scopeText,
+            scope: scope)]
     }
 
     @MainActor

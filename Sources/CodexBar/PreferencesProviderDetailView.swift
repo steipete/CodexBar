@@ -8,6 +8,11 @@ enum ProviderMetricInlinePresentation: Equatable {
 
 @MainActor
 struct ProviderDetailView<SupplementaryContent: View>: View {
+    private struct ModelLimitsIdentity: Hashable {
+        let id: String
+        let scope: ProviderModelRateLimitScope?
+    }
+
     let provider: UsageProvider
     @Bindable var store: UsageStore
     @Binding var isEnabled: Bool
@@ -244,6 +249,7 @@ struct ProviderDetailView<SupplementaryContent: View>: View {
 
             ForEach(self.settingsModelLimits) { descriptor in
                 ProviderSettingsModelLimitsRowView(descriptor: descriptor)
+                    .id(ModelLimitsIdentity(id: descriptor.id, scope: descriptor.scope))
             }
 
             if let organizations = self.settingsOrganizations {
