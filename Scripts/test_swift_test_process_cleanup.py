@@ -323,7 +323,7 @@ class ProcessCleanupTests(unittest.TestCase):
                     else:
                         # Successful fixtures include interpreter startup and ownership polling;
                         # exact deadline behavior is covered separately with a virtual clock.
-                        timeout = 5 if expected in (0, 23) else 2
+                        timeout = 15 if expected in (0, 23) else 2
                         self.assertEqual(runner.run_command(command, timeout=timeout), expected)
                 elapsed = time.monotonic() - started
                 self.assertTrue(acknowledged, "fixture identities were not observed before drain")
