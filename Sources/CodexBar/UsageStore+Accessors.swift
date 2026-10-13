@@ -149,24 +149,32 @@ extension UsageStore {
     }
 
     func userFacingError(for provider: UsageProvider) -> String? {
+        guard let presentation = self.userFacingErrorPresentation(for: provider) else { return nil }
+        guard let capturedAt = presentation.lastKnownUsageCapturedAt else { return presentation.message }
+        return presentation.message + " " + LastKnownUsagePresentation.message(capturedAt: capturedAt)
+    }
+
+    func userFacingErrorPresentation(
+        for provider: UsageProvider) -> (message: String, lastKnownUsageCapturedAt: Date?)?
+    {
         if let raw = self.errors[provider.instanceID] {
             switch provider {
             case .codex:
-                return CodexUIErrorMapper.userFacingMessage(raw)
+                return CodexUIErrorMapper.userFacingMessage(raw).map { ($0, nil) }
             case .claude:
                 return ClaudeUIErrorMapper.userFacingMessage(
                     raw,
-                    staleSnapshotUpdatedAt: self.snapshots[provider.instanceID]?.updatedAt)
+                    staleSnapshotUpdatedAt: nil).map { ($0, self.snapshots[provider.instanceID]?.updatedAt) }
             case .ollama:
-                return OllamaUIErrorMapper.userFacingMessage(raw)
+                return OllamaUIErrorMapper.userFacingMessage(raw).map { ($0, nil) }
             default:
-                return raw
+                return (raw, nil)
             }
         }
         if let diagnostic = self.diagnostics[provider.instanceID] {
-            return diagnostic
+            return (diagnostic, nil)
         }
-        return self.unavailableMessage(for: provider)
+        return self.unavailableMessage(for: provider).map { ($0, nil) }
     }
 
     func unavailableMessage(for provider: UsageProvider) -> String? {

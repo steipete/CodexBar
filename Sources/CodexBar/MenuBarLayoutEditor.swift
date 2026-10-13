@@ -53,6 +53,10 @@ enum MenuBarLayoutPaletteTokens {
             + MenuBarLayoutNamedExtra.availableTokens(provider: provider, snapshot: snapshot) + [
                 .percent(window: .automatic),
                 .usageBar,
+                .progressBar(window: .session),
+                .progressBar(window: .weekly),
+                .progressBar(window: .scopedWeekly),
+                .progressBar(window: .automatic),
                 .pace(window: .session),
                 .pace(window: .weekly),
                 .pace(window: .automatic),
@@ -79,6 +83,10 @@ enum MenuBarLayoutPaletteTokens {
         .percent(window: .scopedWeekly),
         .percent(window: .automatic),
         .usageBar,
+        .progressBar(window: .session),
+        .progressBar(window: .weekly),
+        .progressBar(window: .scopedWeekly),
+        .progressBar(window: .automatic),
         .pace(window: .session),
         .pace(window: .weekly),
         .pace(window: .automatic),
@@ -1059,6 +1067,7 @@ extension MenuBarLayoutPreset {
         case .iconOnly: L("menu_bar_layout_preset_icon_only")
         case .percentAndReset: L("menu_bar_layout_preset_percent_reset")
         case .compactStacked: L("menu_bar_layout_preset_compact_stacked")
+        case .barsStacked: L("menu_bar_layout_preset_bars_stacked")
         case .custom: L("menu_bar_layout_preset_custom")
         }
     }
@@ -1099,7 +1108,8 @@ extension MenuBarLayoutToken {
     private func providerEditorLabel(provider: UsageProvider?) -> String? {
         let window: PercentWindow? = switch self {
         case let .percent(window), let .pace(window),
-             let .windowResetCountdown(window), let .windowResetAbsolute(window): window
+             let .windowResetCountdown(window), let .windowResetAbsolute(window),
+             let .progressBar(window): window
         default: nil
         }
         guard let localizedLabel = window?.providerLabel(provider: provider) else { return nil }
@@ -1110,6 +1120,8 @@ extension MenuBarLayoutToken {
             L("%@: %@", localizedLabel, L("menu_bar_layout_token_resets_in"))
         case .windowResetAbsolute:
             L("%@: %@", localizedLabel, L("menu_bar_layout_token_reset_at"))
+        case .progressBar:
+            L("%@ %@", localizedLabel, L("menu_bar_layout_token_bar"))
         default: nil
         }
     }
@@ -1130,6 +1142,8 @@ extension MenuBarLayoutToken {
         case .pace(window: .scopedWeekly): L("menu_bar_layout_token_weekly_pace")
         case .pace(window: .automatic): L("menu_bar_layout_token_auto_pace")
         case .usageBar: L("menu_bar_layout_token_bar")
+        case let .progressBar(window):
+            L("%@ %@", Self.resetWindowLabel(window), L("menu_bar_layout_token_bar"))
         case .resetCountdown: L("menu_bar_layout_token_resets_in")
         case .resetAbsolute: L("menu_bar_layout_token_reset_at")
         case let .windowResetCountdown(window):
@@ -1182,7 +1196,7 @@ extension MenuBarLayoutToken {
         case .accountLabel: "person.crop.circle"
         case .percent, .lanePercent, .extraPercent: "percent"
         case .pace: "speedometer"
-        case .usageBar: "chart.bar.fill"
+        case .usageBar, .progressBar: "chart.bar.fill"
         case .resetCountdown, .windowResetCountdown: "timer"
         case .resetAbsolute, .windowResetAbsolute: "clock"
         case .runsOut, .runsOutCompact: "hourglass.bottomhalf.filled"

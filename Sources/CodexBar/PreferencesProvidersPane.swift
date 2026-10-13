@@ -53,7 +53,8 @@ struct ProvidersPane: View {
     }
 
     var body: some View {
-        let unfilteredModel = self.unfilteredMenuCardModel(for: self.provider)
+        let unfilteredModel = UsageMenuCardView.Model.make(self.store.menuCardInput(
+            for: self.provider, context: .settings))
         // Provider-specific by design: only Codex has managed OAuth account snapshots for this shared settings view.
         let overview = self.provider == .codex ? self.store.codexAccountUsageOverview { accountIDs in
             Task { @MainActor in
@@ -62,7 +63,9 @@ struct ProvidersPane: View {
                 }
             }
         } : nil
-        let usageItems = ((overview?.usageItems ?? []) + unfilteredModel.usageItemDescriptors(
+        let visibilityModel = UsageMenuCardView.Model.make(self.store.menuCardInput(
+            for: self.provider, context: .settings, optionalUsageOverride: true))
+        let usageItems = ((overview?.usageItems ?? []) + visibilityModel.usageItemDescriptors(
             includingHidden: self.settings.hiddenUsageItemIDs(for: self.provider),
             hidePersonalInfo: self.settings.hidePersonalInfo))
             .reduce(into: [ProviderUsageItemDescriptor]()) { items, item in
@@ -551,10 +554,6 @@ struct ProvidersPane: View {
             runLoginFlow: {
                 await self.runProviderLoginFlow(provider)
             })
-    }
-
-    private func unfilteredMenuCardModel(for provider: UsageProvider) -> UsageMenuCardView.Model {
-        UsageMenuCardView.Model.make(self.store.menuCardInput(for: provider, context: .settings))
     }
 
     func openAIWebDiagnostic(for provider: UsageProvider) -> String? {

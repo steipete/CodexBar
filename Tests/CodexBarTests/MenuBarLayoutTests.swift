@@ -26,6 +26,8 @@ struct MenuBarLayoutTests {
                 .pace(window: .weekly),
                 .pace(window: .automatic),
                 .usageBar,
+                .progressBar(window: .session), .progressBar(window: .weekly),
+                .progressBar(window: .scopedWeekly), .progressBar(window: .automatic),
             ],
             [
                 .resetCountdown,

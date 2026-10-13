@@ -6,6 +6,7 @@ extension ProviderConfig {
         var copy = self
         copy.accentColor = nil
         copy.hiddenUsageItemIDs = nil
+        copy.claudeResetCreditsVisibilityMigrated = nil
         return copy
     }
 }

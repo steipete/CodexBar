@@ -1414,6 +1414,7 @@
 "menu_bar_layout_preset_icon_only" = "الأيقونة فقط";
 "menu_bar_layout_preset_percent_reset" = "النسبة وإعادة الضبط";
 "menu_bar_layout_preset_compact_stacked" = "مكدّس مضغوط";
+"menu_bar_layout_preset_bars_stacked" = "أشرطة التقدم المكدسة";
 "menu_bar_layout_preset_custom" = "العرف";
 "menu_bar_layout_live_preview" = "معاينة مباشرة";
 "menu_bar_layout_default_preview" = "معاينة التخطيط الافتراضي";
@@ -1553,6 +1554,7 @@
 "5-hour usage" = "الاستخدام خلال 5 ساعات";
 "7-day usage" = "الاستخدام خلال 7 أيام";
 "Total usage" = "إجمالي الاستخدام";
+"claude_oauth_keychain_access_disabled" = "الوصول إلى Keychain معطّل، لذا لا يستطيع CodexBar قراءة معلومات تسجيل الدخول إلى Claude.";
 "claude_oauth_keychain_access_revoked" = "تم إلغاء وصول CodexBar إلى سلسلة مفاتيح Claude بسبب تدوير الرمز المميز في Claude Code. انقر على «تحديث» لمنح الوصول مجددًا، أو بدّل مصدر استخدام Claude إلى CLI/Web.";
 "claude_showing_last_known_usage" = "يتم عرض آخر بيانات استخدام معروفة، تم التقاطها %@.";
 "claude_limited_usage_detail" = "تفاصيل الاستخدام محدودة";
@@ -2519,6 +2521,10 @@
 "Required. The ws_… ID of the workspace the key can bill. Or set FLORA_WORKSPACE_ID." = "مطلوب. معرّف ws_… لمساحة العمل التي يمكن للمفتاح فوترتها. أو اضبط FLORA_WORKSPACE_ID.";
 "ak_…" = "ak_…";
 "ws_…" = "ws_…";
+
+"Plan renewal / expiry" = "تجديد الخطة / انتهاؤها";
+
+"Hidden by the global optional credits, spending & billing setting." = "مخفي بواسطة الإعداد العام للأرصدة الاختيارية والإنفاق والفوترة.";
 
 "Provider order updated" = "تم تحديث ترتيب المزوّدين";
 "Undo" = "تراجع";

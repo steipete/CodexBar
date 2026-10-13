@@ -1411,6 +1411,7 @@
 "menu_bar_layout_preset_icon_only" = "Somente ícone";
 "menu_bar_layout_preset_percent_reset" = "Percentual e redefinição";
 "menu_bar_layout_preset_compact_stacked" = "Empilhado compacto";
+"menu_bar_layout_preset_bars_stacked" = "Barras de progresso empilhadas";
 "menu_bar_layout_preset_custom" = "Personalizado";
 "menu_bar_layout_live_preview" = "Prévia ao vivo";
 "menu_bar_layout_default_preview" = "Prévia do layout padrão";
@@ -1550,6 +1551,7 @@
 "5-hour usage" = "Uso de 5 horas";
 "7-day usage" = "Uso de 7 dias";
 "Total usage" = "Uso total";
+"claude_oauth_keychain_access_disabled" = "O acesso ao Keychain está desativado, então o CodexBar não pode ler os dados de login do Claude.";
 "claude_oauth_keychain_access_revoked" = "O acesso às Chaves do Claude foi revogado pela rotação do token do Claude Code. Clique em Atualizar para conceder o acesso novamente ou altere a fonte de uso do Claude para CLI/Web.";
 "claude_showing_last_known_usage" = "Exibindo o último uso conhecido, capturado %@.";
 "claude_limited_usage_detail" = "Detalhes de uso limitados";
@@ -2515,6 +2517,10 @@
 "Required. The ws_… ID of the workspace the key can bill. Or set FLORA_WORKSPACE_ID." = "Obrigatório. O ID ws_… do espaço de trabalho que a chave pode faturar. Ou defina FLORA_WORKSPACE_ID.";
 "ak_…" = "ak_…";
 "ws_…" = "ws_…";
+
+"Plan renewal / expiry" = "Renovação / expiração do plano";
+
+"Hidden by the global optional credits, spending & billing setting." = "Oculto pela configuração global de créditos opcionais, gastos e faturamento.";
 
 "Provider order updated" = "Ordem dos provedores atualizada";
 "Undo" = "Desfazer";

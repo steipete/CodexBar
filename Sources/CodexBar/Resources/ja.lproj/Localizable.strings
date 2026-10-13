@@ -1411,6 +1411,7 @@
 "menu_bar_layout_preset_icon_only" = "アイコンのみ";
 "menu_bar_layout_preset_percent_reset" = "割合とリセット";
 "menu_bar_layout_preset_compact_stacked" = "コンパクトな2段表示";
+"menu_bar_layout_preset_bars_stacked" = "進度バーのスタック";
 "menu_bar_layout_preset_custom" = "カスタム";
 "menu_bar_layout_live_preview" = "ライブプレビュー";
 "menu_bar_layout_default_preview" = "デフォルトレイアウトのプレビュー";
@@ -1550,6 +1551,7 @@
 "5-hour usage" = "5時間の使用量";
 "7-day usage" = "7日間の使用量";
 "Total usage" = "合計使用量";
+"claude_oauth_keychain_access_disabled" = "Keychain へのアクセスが無効になっているため、CodexBar は Claude のサインイン情報を読み取れません。";
 "claude_oauth_keychain_access_revoked" = "Claude Code のトークン更新により、Claude キーチェーンへのアクセスが取り消されました。「更新」をクリックしてアクセスを再許可するか、Claude の使用量の取得元を CLI/Web に切り替えてください。";
 "claude_showing_last_known_usage" = "最後に取得した既知の使用量を表示しています（取得: %@）。";
 "claude_limited_usage_detail" = "使用量の詳細情報は限られています";
@@ -2515,6 +2517,10 @@
 "Required. The ws_… ID of the workspace the key can bill. Or set FLORA_WORKSPACE_ID." = "必須。キーが請求できるワークスペースの ws_… ID。または FLORA_WORKSPACE_ID を設定します。";
 "ak_…" = "ak_…";
 "ws_…" = "ws_…";
+
+"Plan renewal / expiry" = "プランの更新 / 有効期限";
+
+"Hidden by the global optional credits, spending & billing setting." = "オプションのクレジット、支出、請求情報の全体設定により非表示になっています。";
 
 "Provider order updated" = "プロバイダーの順序を更新しました";
 "Undo" = "取り消す";

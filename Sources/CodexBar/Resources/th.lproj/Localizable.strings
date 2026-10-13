@@ -1414,6 +1414,7 @@
 "menu_bar_layout_preset_icon_only" = "ไอคอนเท่านั้น";
 "menu_bar_layout_preset_percent_reset" = "เปอร์เซ็นต์และรีเซ็ต";
 "menu_bar_layout_preset_compact_stacked" = "ซ้อนแบบกะทัดรัด";
+"menu_bar_layout_preset_bars_stacked" = "แถบความคืบหน้าแบบซ้อน";
 "menu_bar_layout_preset_custom" = "กําหนดเอง";
 "menu_bar_layout_live_preview" = "ตัวอย่างสด";
 "menu_bar_layout_default_preview" = "ตัวอย่างเค้าโครงเริ่มต้น";
@@ -1553,6 +1554,7 @@
 "5-hour usage" = "การใช้งาน 5 ชั่วโมง";
 "7-day usage" = "การใช้งาน 7 วัน";
 "Total usage" = "การใช้งานทั้งหมด";
+"claude_oauth_keychain_access_disabled" = "การเข้าถึง Keychain ถูกปิดใช้งาน จึงทำให้ CodexBar ไม่สามารถอ่านข้อมูลการลงชื่อเข้าใช้ Claude ได้";
 "claude_oauth_keychain_access_revoked" = "สิทธิ์เข้าถึงพวงกุญแจ Claude ถูกเพิกถอนจากการหมุนเวียนโทเค็นของ Claude Code คลิกรีเฟรชเพื่อให้สิทธิ์อีกครั้ง หรือเปลี่ยนแหล่งที่มาการใช้งาน Claude เป็น CLI/Web";
 "claude_showing_last_known_usage" = "กำลังแสดงการใช้งานล่าสุดที่ทราบ ซึ่งบันทึกเมื่อ %@";
 "claude_limited_usage_detail" = "รายละเอียดการใช้งานมีจำกัด";
@@ -2519,6 +2521,10 @@
 "Required. The ws_… ID of the workspace the key can bill. Or set FLORA_WORKSPACE_ID." = "จำเป็น ID ws_… ของเวิร์กสเปซที่คีย์เรียกเก็บเงินได้ หรือตั้งค่า FLORA_WORKSPACE_ID";
 "ak_…" = "ak_…";
 "ws_…" = "ws_…";
+
+"Plan renewal / expiry" = "การต่ออายุ / วันหมดอายุแพ็กเกจ";
+
+"Hidden by the global optional credits, spending & billing setting." = "ซ่อนโดยการตั้งค่าส่วนกลางสำหรับเครดิตเสริม ค่าใช้จ่าย และข้อมูลการเรียกเก็บเงิน";
 
 "Provider order updated" = "อัปเดตลำดับผู้ให้บริการแล้ว";
 "Undo" = "เลิกทำ";

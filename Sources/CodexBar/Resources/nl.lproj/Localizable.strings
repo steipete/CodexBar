@@ -1410,6 +1410,7 @@
 "menu_bar_layout_preset_icon_only" = "Alleen pictogram";
 "menu_bar_layout_preset_percent_reset" = "Percentage en reset";
 "menu_bar_layout_preset_compact_stacked" = "Compact gestapeld";
+"menu_bar_layout_preset_bars_stacked" = "Voortgangsbalken gestapeld";
 "menu_bar_layout_preset_custom" = "Aangepast";
 "menu_bar_layout_live_preview" = "Livevoorvertoning";
 "menu_bar_layout_default_preview" = "Voorbeeld van standaardindeling";
@@ -1549,6 +1550,7 @@
 "5-hour usage" = "5-uursgebruik";
 "7-day usage" = "7-dagengebruik";
 "Total usage" = "Totaal gebruik";
+"claude_oauth_keychain_access_disabled" = "Toegang tot Keychain is uitgeschakeld, waardoor CodexBar de aanmeldgegevens van Claude niet kan lezen.";
 "claude_oauth_keychain_access_revoked" = "De toegang tot de Claude-sleutelhanger is ingetrokken door de tokenrotatie van Claude Code. Klik op Vernieuwen om opnieuw toegang te verlenen of zet de Claude-gebruiksbron op CLI/Web.";
 "claude_showing_last_known_usage" = "De laatst bekende gebruiksgegevens worden weergegeven (vastgelegd: %@).";
 "claude_limited_usage_detail" = "Beperkte gebruiksdetails";
@@ -2514,6 +2516,10 @@
 "Required. The ws_… ID of the workspace the key can bill. Or set FLORA_WORKSPACE_ID." = "Verplicht. De ws_…-ID van de workspace die de sleutel mag factureren. Of stel FLORA_WORKSPACE_ID in.";
 "ak_…" = "ak_…";
 "ws_…" = "ws_…";
+
+"Plan renewal / expiry" = "Verlenging / vervaldatum van abonnement";
+
+"Hidden by the global optional credits, spending & billing setting." = "Verborgen door de algemene instelling voor optionele tegoeden, uitgaven en factureringsgegevens.";
 
 "Provider order updated" = "Volgorde van aanbieders bijgewerkt";
 "Undo" = "Ongedaan maken";

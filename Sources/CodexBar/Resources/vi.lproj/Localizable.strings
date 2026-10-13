@@ -1411,6 +1411,7 @@
 "menu_bar_layout_preset_icon_only" = "Chỉ biểu tượng";
 "menu_bar_layout_preset_percent_reset" = "Phần trăm và đặt lại";
 "menu_bar_layout_preset_compact_stacked" = "Xếp chồng gọn";
+"menu_bar_layout_preset_bars_stacked" = "Thanh tiến độ xếp chồng";
 "menu_bar_layout_preset_custom" = "Tùy chỉnh";
 "menu_bar_layout_live_preview" = "Xem trước trực tiếp";
 "menu_bar_layout_default_preview" = "Xem trước bố cục mặc định";
@@ -1550,6 +1551,7 @@
 "5-hour usage" = "Mức sử dụng 5 giờ";
 "7-day usage" = "Mức sử dụng 7 ngày";
 "Total usage" = "Tổng mức sử dụng";
+"claude_oauth_keychain_access_disabled" = "Quyền truy cập Keychain bị tắt nên CodexBar không thể đọc thông tin đăng nhập Claude.";
 "claude_oauth_keychain_access_revoked" = "Quyền truy cập Chuỗi khóa Claude đã bị thu hồi do Claude Code xoay vòng mã thông báo. Nhấp vào Làm mới để cấp lại quyền truy cập hoặc chuyển nguồn sử dụng Claude sang CLI/Web.";
 "claude_showing_last_known_usage" = "Đang hiển thị mức sử dụng đã biết gần nhất, được ghi nhận %@.";
 "claude_limited_usage_detail" = "Thông tin sử dụng ít chi tiết";
@@ -2516,6 +2518,10 @@
 "Required. The ws_… ID of the workspace the key can bill. Or set FLORA_WORKSPACE_ID." = "Bắt buộc. ID ws_… của không gian làm việc mà khóa có thể thanh toán. Hoặc đặt FLORA_WORKSPACE_ID.";
 "ak_…" = "ak_…";
 "ws_…" = "ws_…";
+
+"Plan renewal / expiry" = "Gia hạn / hết hạn gói";
+
+"Hidden by the global optional credits, spending & billing setting." = "Bị ẩn bởi cài đặt chung cho tín dụng tùy chọn, chi tiêu và thanh toán.";
 
 "Provider order updated" = "Đã cập nhật thứ tự nhà cung cấp";
 "Undo" = "Hoàn tác";

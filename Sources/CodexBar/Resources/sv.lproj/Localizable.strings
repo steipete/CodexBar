@@ -1409,6 +1409,7 @@
 "menu_bar_layout_preset_icon_only" = "Endast ikon";
 "menu_bar_layout_preset_percent_reset" = "Procent och återställning";
 "menu_bar_layout_preset_compact_stacked" = "Kompakt staplad";
+"menu_bar_layout_preset_bars_stacked" = "Framstegsmarkörer staplade";
 "menu_bar_layout_preset_custom" = "Anpassat";
 "menu_bar_layout_live_preview" = "Liveförhandsvisning";
 "menu_bar_layout_default_preview" = "Förhandsvisning av standardlayout";
@@ -1548,6 +1549,7 @@
 "5-hour usage" = "5-timmarsanvändning";
 "7-day usage" = "7-dagarsanvändning";
 "Total usage" = "Total användning";
+"claude_oauth_keychain_access_disabled" = "Åtkomst till Keychain är inaktiverad, så CodexBar kan inte läsa Claudes inloggningsuppgifter.";
 "claude_oauth_keychain_access_revoked" = "Åtkomsten till Claudes nyckelring återkallades när Claude Code roterade token. Klicka på Uppdatera för att ge åtkomst igen, eller byt Claudes användningskälla till CLI/Web.";
 "claude_showing_last_known_usage" = "Visar senast kända användning, registrerad %@.";
 "claude_limited_usage_detail" = "Begränsade användningsdetaljer";
@@ -2514,6 +2516,10 @@
 "Required. The ws_… ID of the workspace the key can bill. Or set FLORA_WORKSPACE_ID." = "Obligatoriskt. ws_…-ID för arbetsytan som nyckeln kan fakturera. Eller ange FLORA_WORKSPACE_ID.";
 "ak_…" = "ak_…";
 "ws_…" = "ws_…";
+
+"Plan renewal / expiry" = "Planförnyelse / utgångsdatum";
+
+"Hidden by the global optional credits, spending & billing setting." = "Dolt av den globala inställningen för valfria krediter, utgifter och faktureringsuppgifter.";
 
 "Provider order updated" = "Leverantörsordningen uppdaterad";
 "Undo" = "Ångra";

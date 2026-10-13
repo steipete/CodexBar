@@ -42,6 +42,8 @@ public struct ProviderIntentPayload: Codable, Sendable {
     public var accentColor: String?
     /// Three-state like accentColor: nil means an older sender, [] clears all hidden items.
     public var hiddenUsageItemIDs: [String]?
+    /// Monotonic upgrade marker; older senders omit it and cannot undo the receiving Mac's migration.
+    public var claudeResetCreditsVisibilityMigrated: Bool?
     public var kiloKnownOrganizations: [KiloOrganization]?
     public var kiloEnabledOrganizationIDs: [String]?
     public var deepseekProfileID: String?
@@ -63,6 +65,7 @@ public struct ProviderIntentPayload: Codable, Sendable {
         self.accentColor = config.accentColor ?? ""
         // Preserve the three states: nil predates the preference, [] explicitly shows every item.
         self.hiddenUsageItemIDs = config.hiddenUsageItemIDs
+        self.claudeResetCreditsVisibilityMigrated = config.claudeResetCreditsVisibilityMigrated
         self.kiloKnownOrganizations = config.kiloKnownOrganizations
         self.kiloEnabledOrganizationIDs = config.kiloEnabledOrganizationIDs
         self.deepseekProfileID = config.deepseekProfileID
@@ -100,6 +103,9 @@ public struct ProviderIntentPayload: Codable, Sendable {
         // Older clients omit the field. Keep the local selection rather than erase it.
         if let hiddenUsageItemIDs = self.hiddenUsageItemIDs {
             result.hiddenUsageItemIDs = hiddenUsageItemIDs
+        }
+        if self.claudeResetCreditsVisibilityMigrated == true {
+            result.claudeResetCreditsVisibilityMigrated = true
         }
         result.kiloKnownOrganizations = self.kiloKnownOrganizations
         result.kiloEnabledOrganizationIDs = self.kiloEnabledOrganizationIDs

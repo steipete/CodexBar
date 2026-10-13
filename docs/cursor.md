@@ -173,10 +173,12 @@ If Auto fetches usage with a cookie that the app still cannot confirm for the cu
 In Icon and Percent mode, choose **Providers → Cursor → Menu bar metric → Grok Bot** to replace the
 ordinary percentage in Cursor's layout. This saves a Cursor-only override. The layout editor also offers
 **Grok Bot %** in the usage palette when an allowance is available, for layouts with multiple percentages.
-Both paths show the allowance's own label, for example `Grok Bot 42%`, and follow the used/remaining
-preference. A saved selection displays `Grok Bot –` when the reading is missing or unknown; a real zero
-displays `Grok Bot 0%` in used mode. Auto % continues to use Cursor's standard windows. Balance tokens
-remain independent, and the dropdown keeps its existing reset countdown and paid-weekly pace display.
+Both paths show the allowance's short tag, for example `GB 42%`, and follow the used/remaining
+preference. A saved selection displays `GB –` when the reading is missing or unknown; a real zero
+displays `GB 0%` in used mode. Lane percentages are tagged `T` (Total), `C` (Cursor), and `TP` (Third Party);
+menus and VoiceOver keep the full names. Auto % keeps its existing selection among Cursor's allowances,
+including Grok Bot. Balance tokens remain independent, and the dropdown keeps its existing reset countdown
+and paid-weekly pace display.
 
 Named-extra selections are stored in V4 layout keys. A V3 projection omits them while preserving explicit
 reset-window selections for 0.60.x; V2/V1 projections remain available for older releases. An unchanged

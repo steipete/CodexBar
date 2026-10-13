@@ -1416,6 +1416,7 @@
 "menu_bar_layout_preset_icon_only" = "仅图标";
 "menu_bar_layout_preset_percent_reset" = "百分比与重置";
 "menu_bar_layout_preset_compact_stacked" = "紧凑堆叠";
+"menu_bar_layout_preset_bars_stacked" = "进度条堆叠";
 "menu_bar_layout_preset_custom" = "自定义";
 "menu_bar_layout_live_preview" = "实时预览";
 "menu_bar_layout_default_preview" = "默认布局预览";
@@ -1555,6 +1556,7 @@
 "5-hour usage" = "5 小时用量";
 "7-day usage" = "7 天用量";
 "Total usage" = "总用量";
+"claude_oauth_keychain_access_disabled" = "Keychain 访问已禁用，因此 CodexBar 无法读取 Claude 的登录信息。";
 "claude_oauth_keychain_access_revoked" = "Claude Code 轮换令牌后撤销了对 Claude 钥匙串的访问权限。点击“刷新”以重新授权，或将 Claude 用量来源切换为 CLI/Web。";
 "claude_showing_last_known_usage" = "正在显示 %@ 采集的最后已知用量。";
 "claude_limited_usage_detail" = "用量详情有限";
@@ -2508,6 +2510,10 @@
 "Required. The ws_… ID of the workspace the key can bill. Or set FLORA_WORKSPACE_ID." = "必填。密钥可计费的工作区的 ws_… ID。或设置 FLORA_WORKSPACE_ID。";
 "ak_…" = "ak_…";
 "ws_…" = "ws_…";
+
+"Plan renewal / expiry" = "套餐续订 / 到期";
+
+"Hidden by the global optional credits, spending & billing setting." = "已被可选额度、支出和账单详情的全局设置隐藏。";
 
 "Provider order updated" = "供应商顺序已更新";
 "Undo" = "撤销";

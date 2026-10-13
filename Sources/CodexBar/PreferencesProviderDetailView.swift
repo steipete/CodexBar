@@ -284,7 +284,14 @@ struct ProviderUsageItemVisibilitySettingsView: View {
                                 itemID: item.id,
                                 for: self.provider)
                         })) {
-                    Text(item.title)
+                    VStack(alignment: .leading) {
+                        Text(item.title)
+                        if item.requiresOptionalUsage, !self.settings.showOptionalCreditsAndExtraUsage {
+                            Text(L("Hidden by the global optional credits, spending & billing setting."))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
                 }
                 .toggleStyle(.checkbox)
             }

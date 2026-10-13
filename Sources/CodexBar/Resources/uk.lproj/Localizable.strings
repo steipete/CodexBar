@@ -1410,6 +1410,7 @@
 "menu_bar_layout_preset_icon_only" = "Лише значок";
 "menu_bar_layout_preset_percent_reset" = "Відсоток і скидання";
 "menu_bar_layout_preset_compact_stacked" = "Компактно у два рядки";
+"menu_bar_layout_preset_bars_stacked" = "Індикатори прогресу штабелем";
 "menu_bar_layout_preset_custom" = "Користувацький";
 "menu_bar_layout_live_preview" = "Попередній перегляд";
 "menu_bar_layout_default_preview" = "Перегляд типового макета";
@@ -1549,6 +1550,7 @@
 "5-hour usage" = "Використання за 5 годин";
 "7-day usage" = "Використання за 7 днів";
 "Total usage" = "Загальне використання";
+"claude_oauth_keychain_access_disabled" = "Доступ до Keychain вимкнено, тому CodexBar не може прочитати дані входу в Claude.";
 "claude_oauth_keychain_access_revoked" = "Доступ до В’язки ключів Claude було відкликано через ротацію токена в Claude Code. Натисніть «Оновити», щоб повторно надати доступ, або перемкніть джерело використання Claude на CLI/Web.";
 "claude_showing_last_known_usage" = "Показано останні відомі дані про використання (отримано %@).";
 "claude_limited_usage_detail" = "Обмежена деталізація використання";
@@ -2515,6 +2517,10 @@
 "Required. The ws_… ID of the workspace the key can bill. Or set FLORA_WORKSPACE_ID." = "Обов’язково. ID ws_… робочого простору, до білінгу якого має доступ ключ. Або задайте FLORA_WORKSPACE_ID.";
 "ak_…" = "ak_…";
 "ws_…" = "ws_…";
+
+"Plan renewal / expiry" = "Поновлення / завершення плану";
+
+"Hidden by the global optional credits, spending & billing setting." = "Приховано глобальним налаштуванням додаткових кредитів, витрат і оплати.";
 
 "Provider order updated" = "Порядок провайдерів оновлено";
 "Undo" = "Скасувати";

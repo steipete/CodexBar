@@ -326,6 +326,10 @@ Switching from **Icon & percent** back to **Meters** or **Critters** redraws the
 
 Custom two-line layouts show a single leading provider icon at full size beside both text rows. Merged-provider rows, multiple icons, icon-only rows, high-contrast mode, and provider-colored layouts retain inline icons.
 
+The layout editor's **Usage** palette includes graphical bars for session, weekly, scoped weekly, and automatic windows. **Progress bars stacked** places session and weekly bars on separate rows with their reset countdowns. Bars follow the used/remaining display preference and keep balance-only automatic values as text. The compact three-character **Usage bar** remains available.
+
+Older app versions show matching percentages in place of graphical bars. Returning to the newer version restores the bars when the older layout was unchanged; edits made in the older version take precedence.
+
 **Surprise me** is disabled while brand icons are selected, and static brand layouts do not run the blink timer.
 Your animation preference is kept for switching back to critters. If a brand image is unavailable and the legacy
 layout falls back to a critter, that visible critter can still animate; stored layouts remain static.

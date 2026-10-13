@@ -36,15 +36,13 @@ read_when:
 
 ## Swift Toolchain Compatibility
 
-The package supports Swift 6.2, including Xcode 26.3 on macOS 15. CI's
-`swift-build-macos-compatibility` job builds the app, CLI, and all test targets
-with that Xcode version using `swift build --build-tests`, without running them.
-It uses the existing macOS path gate, including every Swift change, and runs on
-draft PRs too. The aggregate `lint-build-test` gate requires a successful build
-when applicable; docs-only changes may skip it. Runtime tests remain on newer Xcode.
+CI builds and tests with Xcode 27 only, on GitHub's `xcode-27` image. Older
+toolchains (the former Xcode 26.3 / macOS 15 compatibility build) are no longer
+verified; the package manifest still declares Swift tools 6.2, but builds with
+older Xcode releases are best effort.
 
 Keep large initializer and `#expect` expressions simple: bind intermediate values
-to explicitly typed locals when the Swift 6.2 type checker struggles. Use
+to explicitly typed locals when the type checker struggles. Use
 `ProviderColor(hex:)` for provider colors instead of arithmetic inside spec initializers.
 
 ## Keychain Prompts (Development)
@@ -669,13 +667,12 @@ group executes. Local runs with missing helpers, unsupported toolchains, or Linu
 SwiftPM path with a diagnostic. On CI, requesting direct workers requires a verified direct runtime:
 capability failures also fail the job instead of falling back to serial execution.
 
-Hosted macOS CI runs the complete inventory with two direct workers on one macOS 26 / Xcode 26.6
+Hosted macOS CI runs the complete inventory with two direct workers on one `xcode-27` (Xcode 27)
 runner, retaining the 75-minute test step and 90-minute job limits. All groups are required:
 discovery, admission, helper crashes, unrecovered timeouts and test failures fail the job. Group size remains
 eight with a 120-second suite timeout and no retries for ordinary test failures. Timed-out groups retain
 the existing isolated-selection retry policy; each retry has its own deadline. Three independent
-hosted complete-inventory runs validated this mode before enabling it. The separate macOS 15 /
-Xcode 26.3 job still builds the app, CLI and tests for compatibility; it does not run a full suite.
+hosted complete-inventory runs validated this mode before enabling it.
 Both serial and direct modes print ordered selection groups and timing summaries.
 
 Each macOS job restores a compiled SwiftPM cache bound to its toolchain, SDK, architecture,
@@ -687,7 +684,7 @@ are checked without following them; reuse requires each package link to name a r
 in both snapshots, whose contents are verified separately. External, untracked, chained and directory
 targets, including noncanonical paths that could conceal a symlink ancestor, require clean products
 without reading or modifying the target. Only successful main jobs with a clean tracked tree
-save new snapshots, and cleanup keeps one snapshot per lane. The first main run seeds the cache;
+save new snapshots, and cleanup keeps one snapshot per active lane and deletes retired lanes. The first main run seeds the cache;
 a cache miss or a changed input graph still requires a cold build.
 
 The adapter includes both public and private platform framework search paths and disables Swift

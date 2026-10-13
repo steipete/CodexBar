@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Keep one completed compiled-input cache per macOS lane on main."""
+"""Keep one completed compiled-input cache per active macOS lane on main; drop retired lanes."""
 
 import argparse
 from datetime import datetime
@@ -7,7 +7,12 @@ import json
 import re
 import subprocess
 
-KEY = re.compile(r"swiftpm-compiled-v1-(macos(?:26|15)-arm64)-[a-f0-9]{64}-[a-f0-9]{40}")
+# Must match ci_swiftpm_cache.LANES; retired lanes are never restored again, so none of their snapshots are kept.
+ACTIVE_LANES = ("xcode27-arm64",)
+RETIRED_LANES = ("macos26-arm64", "macos15-arm64")
+KEY = re.compile(
+    r"swiftpm-compiled-v1-(" + "|".join(map(re.escape, ACTIVE_LANES + RETIRED_LANES)) + r")-[a-f0-9]{64}-[a-f0-9]{40}"
+)
 
 
 def obsolete_caches(entries):
@@ -27,7 +32,11 @@ def obsolete_caches(entries):
         lanes.setdefault(match[1], []).append((created, entry["id"]))
     # Only the new, fully specified namespace is eligible; legacy and PR caches
     # cannot be selected even if their names partially resemble a compiled key.
-    return sorted(identifier for values in lanes.values() for _, identifier in sorted(values, reverse=True)[1:])
+    obsolete = []
+    for lane, values in lanes.items():
+        keep = 0 if lane in RETIRED_LANES else 1
+        obsolete.extend(identifier for _, identifier in sorted(values, reverse=True)[keep:])
+    return sorted(obsolete)
 
 
 def main():

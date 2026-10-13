@@ -7,7 +7,9 @@ import Vision
 
 @MainActor
 struct WidgetHeadlineLocalizationTests {
-    @Test(arguments: [false, true])
+    @Test(
+        .enabled(if: VisionTextRecognition.isAvailable, "Vision text recognition is unavailable on this host"),
+        arguments: [false, true])
     func `inline quota title keeps its localized name percentage and direction`(hasSecondaryLane: Bool) throws {
         try WidgetLocalizationOverride.$language.withValue("de") {
             let entry = WidgetSnapshot.ProviderEntry(

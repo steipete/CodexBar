@@ -29,7 +29,8 @@ private enum CompactAccountResetFixtures {
         weekly: RateWindow? = nil,
         monthly: RateWindow? = nil,
         extras: [NamedRateWindow] = [],
-        error: String? = nil) throws -> AccountMenuLayoutPlanner.CompactRow
+        error: String? = nil,
+        usesLastKnownUsage: Bool = false) throws -> AccountMenuLayoutPlanner.CompactRow
     {
         let snapshot = UsageSnapshot(
             primary: primary,
@@ -52,6 +53,7 @@ private enum CompactAccountResetFixtures {
                 displayLabel: "account-\(index)@example.com",
                 isActive: index == 0,
                 canActivate: index != 0,
+                usesLastKnownUsage: index == 1 && usesLastKnownUsage,
                 snapshot: accountSnapshot,
                 error: accountError,
                 sourceLabel: "fixture")
@@ -81,6 +83,20 @@ private enum CompactAccountResetFixtures {
 @MainActor
 struct MenuCardCompactAccountRowTests {
     private typealias Fixture = CompactAccountResetFixtures
+
+    @Test
+    func `compact Claude account surfaces stale usage exactly once`() throws {
+        try CodexBarLocalizationOverride.$appLanguage.withValue("en") {
+            let row = try Fixture.row(
+                provider: .claude,
+                primary: Fixture.window(25),
+                error: "Synthetic account failure",
+                usesLastKnownUsage: true)
+            let model = Fixture.model(row)
+            #expect(model.detailLines.filter { $0.contains("Showing last-known usage") }.count == 1)
+            #expect(model.accessibilityText.components(separatedBy: "Showing last-known usage").count == 2)
+        }
+    }
 
     @Test(arguments: [UsageProvider.deepseek, .kilo, .mimo, .neuralwatt, .mistral, .warp, .abacus])
     func `balance descriptions never become reset claims`(provider: UsageProvider) throws {

@@ -1414,6 +1414,7 @@
 "menu_bar_layout_preset_icon_only" = "فقط نماد";
 "menu_bar_layout_preset_percent_reset" = "درصد و بازنشانی";
 "menu_bar_layout_preset_compact_stacked" = "پشتهٔ فشرده";
+"menu_bar_layout_preset_bars_stacked" = "نوارهای پیشرفت انباشته";
 "menu_bar_layout_preset_custom" = "عرف";
 "menu_bar_layout_live_preview" = "پیش‌نمایش زنده";
 "menu_bar_layout_default_preview" = "پیش‌نمایش چیدمان پیش‌فرض";
@@ -1553,6 +1554,7 @@
 "5-hour usage" = "مصرف ۵ ساعته";
 "7-day usage" = "مصرف ۷ روزه";
 "Total usage" = "مصرف کل";
+"claude_oauth_keychain_access_disabled" = "دسترسی به Keychain غیرفعال است، بنابراین CodexBar نمی‌تواند اطلاعات ورود به Claude را بخواند.";
 "claude_oauth_keychain_access_revoked" = "دسترسی به Keychain کلود با چرخش توکن Claude Code لغو شد. برای اعطای مجدد دسترسی روی «تازه‌سازی» کلیک کنید، یا منبع استفاده Claude را به CLI/Web تغییر دهید.";
 "claude_showing_last_known_usage" = "آخرین میزان استفاده شناخته‌شده که در %@ ثبت شده نمایش داده می‌شود.";
 "claude_limited_usage_detail" = "جزئیات استفاده محدود است";
@@ -2519,6 +2521,10 @@
 "Required. The ws_… ID of the workspace the key can bill. Or set FLORA_WORKSPACE_ID." = "الزامی. شناسه ws_… فضای کاری که کلید می‌تواند صورت‌حساب آن را ببیند. یا FLORA_WORKSPACE_ID را تنظیم کنید.";
 "ak_…" = "ak_…";
 "ws_…" = "ws_…";
+
+"Plan renewal / expiry" = "تمدید / انقضای طرح";
+
+"Hidden by the global optional credits, spending & billing setting." = "با تنظیم عمومی اعتبارهای اختیاری، هزینه‌ها و صورتحساب پنهان شده است.";
 
 "Provider order updated" = "ترتیب ارائه‌دهندگان به‌روزرسانی شد";
 "Undo" = "واگرد";

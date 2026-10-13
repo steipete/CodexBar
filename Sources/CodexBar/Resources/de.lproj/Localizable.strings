@@ -1413,6 +1413,7 @@
 "menu_bar_layout_preset_icon_only" = "Nur Symbol";
 "menu_bar_layout_preset_percent_reset" = "Prozent und Zurücksetzung";
 "menu_bar_layout_preset_compact_stacked" = "Kompakt gestapelt";
+"menu_bar_layout_preset_bars_stacked" = "Fortschrittsbalken gestapelt";
 "menu_bar_layout_preset_custom" = "Benutzerdefiniert";
 "menu_bar_layout_live_preview" = "Live-Vorschau";
 "menu_bar_layout_default_preview" = "Vorschau des Standardlayouts";
@@ -1552,6 +1553,7 @@
 "5-hour usage" = "5-Stunden-Nutzung";
 "7-day usage" = "7-Tage-Nutzung";
 "Total usage" = "Gesamtnutzung";
+"claude_oauth_keychain_access_disabled" = "Der Keychain-Zugriff ist deaktiviert, daher kann CodexBar die Anmeldedaten von Claude nicht lesen.";
 "claude_oauth_keychain_access_revoked" = "Der Zugriff auf den Claude-Schlüsselbund wurde durch die Token-Rotation von Claude Code widerrufen. Klicken Sie auf „Aktualisieren“, um den Zugriff erneut zu gewähren, oder stellen Sie die Claude-Nutzungsquelle auf CLI/Web um.";
 "claude_showing_last_known_usage" = "Letzte bekannte Nutzung wird angezeigt (erfasst: %@).";
 "claude_limited_usage_detail" = "Eingeschränkte Nutzungsdetails";
@@ -2513,6 +2515,10 @@
 "Required. The ws_… ID of the workspace the key can bill. Or set FLORA_WORKSPACE_ID." = "Erforderlich. Die ws_…-ID des Workspace, den der Schlüssel abrechnen darf. Oder FLORA_WORKSPACE_ID setzen.";
 "ak_…" = "ak_…";
 "ws_…" = "ws_…";
+
+"Plan renewal / expiry" = "Planverlängerung / Ablauf";
+
+"Hidden by the global optional credits, spending & billing setting." = "Durch die globale Einstellung für optionale Guthaben, Ausgaben und Abrechnungsdetails ausgeblendet.";
 
 "Provider order updated" = "Anbieterreihenfolge aktualisiert";
 "Undo" = "Rückgängig";

@@ -1380,6 +1380,7 @@
 "menu_bar_layout_preset_icon_only" = "아이콘만";
 "menu_bar_layout_preset_percent_reset" = "백분율 + 재설정";
 "menu_bar_layout_preset_compact_stacked" = "압축 스택";
+"menu_bar_layout_preset_bars_stacked" = "진행률 막대 겹침";
 "menu_bar_layout_preset_custom" = "사용자 설정";
 "menu_bar_layout_live_preview" = "실시간 미리보기";
 "menu_bar_layout_default_preview" = "기본 레이아웃 미리보기";
@@ -1519,6 +1520,7 @@
 "5-hour usage" = "5시간 사용량";
 "7-day usage" = "7일 사용량";
 "Total usage" = "총 사용량";
+"claude_oauth_keychain_access_disabled" = "Keychain 접근이 비활성화되어 CodexBar가 Claude 로그인 정보를 읽을 수 없습니다.";
 "claude_oauth_keychain_access_revoked" = "Claude Code의 토큰 교체로 Claude 키체인 접근 권한이 취소되었습니다. 새로 고침을 클릭해 접근 권한을 다시 부여하거나 Claude 사용량 소스를 CLI/Web으로 전환하세요.";
 "claude_showing_last_known_usage" = "마지막으로 확인된 사용량을 표시 중입니다(캡처: %@).";
 "claude_limited_usage_detail" = "사용량 세부 정보가 제한적입니다";
@@ -2483,6 +2485,10 @@
 "Required. The ws_… ID of the workspace the key can bill. Or set FLORA_WORKSPACE_ID." = "필수. 키가 결제할 수 있는 워크스페이스의 ws_… ID. 또는 FLORA_WORKSPACE_ID를 설정하세요.";
 "ak_…" = "ak_…";
 "ws_…" = "ws_…";
+
+"Plan renewal / expiry" = "요금제 갱신 / 만료";
+
+"Hidden by the global optional credits, spending & billing setting." = "선택적 크레딧, 지출 및 결제 정보의 전체 설정에 따라 숨겨져 있습니다.";
 
 "Provider order updated" = "공급자 순서가 변경되었습니다";
 "Undo" = "실행 취소";

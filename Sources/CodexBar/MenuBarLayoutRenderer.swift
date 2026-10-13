@@ -541,6 +541,7 @@ final class MenuBarLayoutRenderer {
         guard let balance = data.automaticText, data.automatic?.resetsAt == nil,
               data.automatic?.resetDescription == balance,
               lines.joined().contains(.percent(window: .automatic))
+              || lines.joined().contains(.progressBar(window: .automatic))
         else { return }
         let separators: Set<MenuBarLayoutToken> = [.separatorDot, .space]
         lines = lines.map { line in
@@ -660,6 +661,14 @@ final class MenuBarLayoutRenderer {
         {
             return rendered
         }
+        if let rendered = self.renderUsageMeterItem(
+            item,
+            data: data,
+            style: style,
+            options: options)
+        {
+            return rendered
+        }
 
         switch item {
         case .icon:
@@ -703,20 +712,6 @@ final class MenuBarLayoutRenderer {
                 unavailableLabel: L("%@ unavailable", accessibilityPrefix),
                 accessibilityPrefix: accessibilityPrefix,
                 attributes: attributes)
-        case .usageBar:
-            guard let window = data.automatic else {
-                return self.textToken(
-                    self.missingValue,
-                    accessibilityText: L("Usage bar unavailable"),
-                    attributes: style.attributes)
-            }
-            let displayedPercent = options.showUsed ? window.usedPercent : window.remainingPercent
-            let filled = Int((displayedPercent.clamped(to: 0...100) / 100 * 3).rounded())
-            let value = String(repeating: "▮", count: filled) + String(repeating: "▯", count: 3 - filled)
-            return self.textToken(
-                value,
-                accessibilityText: L("Usage bar, %d of 3 filled", filled),
-                attributes: style.attributes)
         case .resetCountdown, .resetAbsolute:
             let text = MenuBarLayoutResetText(window: data.automatic, provider: data.provider, now: options.now)
             return self.resetToken(
@@ -771,6 +766,43 @@ final class MenuBarLayoutRenderer {
                 attributes: style.attributes)
         case .providerName, .accountLabel, .lanePercent, .extraPercent:
             preconditionFailure("Provider text tokens should render before the main switch")
+        case .usageBar, .progressBar:
+            preconditionFailure("Usage meter tokens should render before the main switch")
+        }
+    }
+
+    /// Character `usageBar` and graphical `progressBar` meters. Split out of
+    /// `renderItem` so that switch keeps a manageable branch count.
+    private static func renderUsageMeterItem(
+        _ item: MenuBarLayoutToken,
+        data: MenuBarLayoutRenderData,
+        style: TokenStyle,
+        options: MenuBarLayoutRenderOptions)
+        -> (value: NSAttributedString, accessibilityText: String?)?
+    {
+        switch item {
+        case .usageBar:
+            guard let window = data.automatic else {
+                return self.textToken(
+                    self.missingValue,
+                    accessibilityText: L("Usage bar unavailable"),
+                    attributes: style.attributes)
+            }
+            let displayedPercent = options.showUsed ? window.usedPercent : window.remainingPercent
+            let filled = Int((displayedPercent.clamped(to: 0...100) / 100 * 3).rounded())
+            let value = String(repeating: "▮", count: filled) + String(repeating: "▯", count: 3 - filled)
+            return self.textToken(
+                value,
+                accessibilityText: L("Usage bar, %d of 3 filled", filled),
+                attributes: style.attributes)
+        case let .progressBar(window):
+            return self.progressBarToken(
+                window,
+                data: data,
+                style: style,
+                options: options)
+        default:
+            return nil
         }
     }
 
@@ -788,20 +820,8 @@ final class MenuBarLayoutRenderer {
             automaticText: data.automaticText,
             estimated: data.quotaIsEstimated,
             showUsed: options.showUsed)
-        let prefix: String
+        let prefix = self.windowPrefix(window, data: data)
         let accessibilityPrefix = Self.windowAccessibilityLabel(window, data: data)
-        switch window {
-        case .session:
-            prefix = self.primaryLabel(data: data).flatMap(\.first).map { String($0).uppercased() }
-                ?? Self.sessionPrefix(rateWindow)
-        case .weekly:
-            let secondaryLabel = Self.secondaryLabel(data: data)
-            prefix = secondaryLabel.flatMap(\.first).map { String($0).uppercased() } ?? "W"
-        case .scopedWeekly:
-            prefix = data.scopedWeeklyTitle.map { String($0.prefix(1)).uppercased() } ?? "F"
-        case .automatic:
-            prefix = ""
-        }
         let display = prefix.isEmpty ? resolvedValue.text : "\(prefix) \(resolvedValue.text)"
         let accessibility = resolvedValue.isAvailable
             ? L("%@ %@", accessibilityPrefix, resolvedValue.text)
@@ -809,8 +829,34 @@ final class MenuBarLayoutRenderer {
         return self.textToken(display, accessibilityText: accessibility, attributes: style.attributes)
     }
 
-    private static func windowAccessibilityLabel(_ window: PercentWindow, data: MenuBarLayoutRenderData) -> String {
+    private static func windowPrefix(_ window: PercentWindow, data: MenuBarLayoutRenderData) -> String {
+        let rateWindow = self.window(window, data: data)
+        let prefix: String
+        let taggedPrefix = Self.taggedSemanticLane(window, provider: data.provider)
+            .flatMap { Self.laneShortLabel($0, provider: data.provider) }
         switch window {
+        case .session:
+            prefix = taggedPrefix
+                ?? self.primaryLabel(data: data).flatMap(\.first).map { String($0).uppercased() }
+                ?? Self.sessionPrefix(rateWindow)
+        case .weekly:
+            let secondaryLabel = Self.secondaryLabel(data: data)
+            prefix = taggedPrefix
+                ?? secondaryLabel.flatMap(\.first).map { String($0).uppercased() } ?? "W"
+        case .scopedWeekly:
+            prefix = data.scopedWeeklyTitle.map { String($0.prefix(1)).uppercased() } ?? "F"
+        case .automatic:
+            prefix = ""
+        }
+        return prefix
+    }
+
+    /// A tagged lane announces its own title, so a monthly lane is never read out as "Weekly".
+    private static func windowAccessibilityLabel(_ window: PercentWindow, data: MenuBarLayoutRenderData) -> String {
+        if let lane = self.taggedSemanticLane(window, provider: data.provider) {
+            return data.laneLabels.label(for: lane)
+        }
+        return switch window {
         case .session: self.primaryLabel(data: data) ?? L("Session")
         case .weekly: self.secondaryLabel(data: data) ?? L("Weekly")
         case .scopedWeekly: data.scopedWeeklyTitle ?? L("Scoped weekly")
@@ -871,7 +917,9 @@ final class MenuBarLayoutRenderer {
         let accessibility = resolvedValue.isAvailable
             ? L("%@ %@", label, resolvedValue.text)
             : L("%@ unavailable", label)
-        return self.textToken(resolvedValue.text, accessibilityText: accessibility, attributes: attributes)
+        let display = Self.laneShortLabel(lane, provider: data.provider)
+            .map { "\($0) \(resolvedValue.text)" } ?? resolvedValue.text
+        return self.textToken(display, accessibilityText: accessibility, attributes: attributes)
     }
 
     private static func extraPercentToken(
@@ -891,8 +939,12 @@ final class MenuBarLayoutRenderer {
         let accessibility = resolvedValue.isAvailable
             ? L("%@ %@", title, resolvedValue.text)
             : L("%@ unavailable", title)
+        let shortLabel = ProviderDescriptorRegistry.descriptor(for: data.provider)
+            .menuBarMetrics.namedExtraShortLabels[id]
         return self.textToken(
-            L("%@ %@", title, resolvedValue.text), accessibilityText: accessibility, attributes: attributes)
+            L("%@ %@", shortLabel ?? title, resolvedValue.text),
+            accessibilityText: accessibility,
+            attributes: attributes)
     }
 
     private static func percentValue(
@@ -1126,6 +1178,160 @@ final class MenuBarLayoutRenderer {
             return size == .small ? 8 : 9
         }
         return size == .small ? 14 : 18
+    }
+}
+
+extension MenuBarLayoutRenderer {
+    /// Provider-declared menu bar tag for a lane; nil keeps the lane's percentage bare.
+    private static func laneShortLabel(_ lane: MenuBarLayoutLane, provider: UsageProvider) -> String? {
+        let labels = ProviderDescriptorRegistry.descriptor(for: provider).menuBarMetrics.laneShortLabels
+        return switch lane {
+        case .primary: labels[.primary]
+        case .secondary: labels[.secondary]
+        case .tertiary: labels[.tertiary]
+        }
+    }
+
+    /// The tagged lane backing a session/weekly percentage, so a provider with explicit lane tags never falls
+    /// back to colliding first-letter prefixes; nil when the window maps to no tagged lane.
+    private static func taggedSemanticLane(_ window: PercentWindow, provider: UsageProvider) -> MenuBarLayoutLane? {
+        let presentation = ProviderDescriptorRegistry.descriptor(for: provider).presentation
+        let primaryWindow = PercentWindow.forSemanticWindow(presentation.primarySemanticWindow)
+        let lane: MenuBarLayoutLane? = if window == primaryWindow {
+            .primary
+        } else if window == PercentWindow.forSemanticWindow(presentation.secondarySemanticWindow) {
+            .secondary
+        } else {
+            nil
+        }
+        guard let lane, self.laneShortLabel(lane, provider: provider) != nil else { return nil }
+        return lane
+    }
+}
+
+extension MenuBarLayoutRenderer {
+    /// Graphical progress bar for one semantic window, embedded as an `NSTextAttachment` so the
+    /// status-item title keeps surrounding countdown text in the same line. The bar is a pre-tinted
+    /// bitmap (AppKit does not template-tint attachments), so it is cached by fill/style like the
+    /// rest of the title via `MenuBarLayoutTitleCache`.
+    private static func progressBarToken(
+        _ window: PercentWindow,
+        data: MenuBarLayoutRenderData,
+        style: TokenStyle,
+        options: MenuBarLayoutRenderOptions)
+        -> (value: NSAttributedString, accessibilityText: String?)
+    {
+        let accessibilityPrefix = self.windowAccessibilityLabel(window, data: data)
+        // Balance-backed automatic lanes (DeepSeek, DeepInfra, …) override the automatic percent with
+        // text because the quota percent is meaningless. Never turn that override into a fake bar.
+        if window == .automatic, let automaticText = data.automaticText {
+            return self.textToken(
+                automaticText,
+                accessibilityText: L("%@ %@", accessibilityPrefix, automaticText),
+                attributes: style.attributes)
+        }
+        guard let rateWindow = self.window(window, data: data) else {
+            return self.textToken(
+                self.missingValue,
+                accessibilityText: L("%@ unavailable", accessibilityPrefix),
+                attributes: style.attributes)
+        }
+        let percent = options.showUsed ? rateWindow.usedPercent : rateWindow.remainingPercent
+        let clamped = percent.clamped(to: 0...100)
+        let barSize = self.progressBarSize(size: options.size, font: style.font)
+        let image = self.progressBarImage(
+            fillPercent: clamped,
+            size: barSize,
+            tint: style.foregroundColor,
+            stale: options.isStale)
+        let attachment = NSTextAttachment()
+        attachment.image = image
+        attachment.bounds = NSRect(
+            x: 0,
+            y: self.attachmentYOrigin(height: barSize.height, style: style),
+            width: barSize.width,
+            height: barSize.height)
+
+        // Keep the window label ("5h" / "W") beside the bar so stacked rows stay unambiguous.
+        let prefix = self.windowPrefix(window, data: data)
+
+        let result = NSMutableAttributedString()
+        if !prefix.isEmpty {
+            let label = NSAttributedString(string: "\(prefix) ", attributes: style.attributes)
+            result.append(label)
+        }
+        result.append(self.attachmentText(attachment, style: style))
+
+        let percentText = self.percentValue(
+            window: window,
+            rateWindow: rateWindow,
+            automaticText: nil,
+            estimated: data.quotaIsEstimated,
+            showUsed: options.showUsed).text
+        let accessibility = L("%@ %@", accessibilityPrefix, percentText)
+        return (result, accessibility)
+    }
+
+    private static func progressBarSize(size: MenuBarLayoutSize, font: NSFont) -> NSSize {
+        let height = max(5, (font.capHeight * 0.55).rounded())
+        let width: CGFloat = if font.pointSize <= 9 {
+            32
+        } else if size == .small {
+            36
+        } else {
+            44
+        }
+        return NSSize(width: width, height: height)
+    }
+
+    private static func progressBarImage(
+        fillPercent: Double,
+        size: NSSize,
+        tint: NSColor,
+        stale: Bool)
+        -> NSImage
+    {
+        // Graphical counterpart to the persisted three-segment character usageBar.
+        let alpha: CGFloat = stale ? 0.55 : 1.0
+        let segmentCount = 5
+        let gap: CGFloat = 2
+        let corner = min(size.height, 3) / 2
+        return NSImage(size: size, flipped: false) { rect in
+            let segmentWidth = max(2, (rect.width - gap * CGFloat(segmentCount - 1)) / CGFloat(segmentCount))
+            let filled = Int((fillPercent.clamped(to: 0...100) / 100 * Double(segmentCount)).rounded())
+            for index in 0..<segmentCount {
+                let x = CGFloat(index) * (segmentWidth + gap)
+                let box = NSRect(x: x, y: 0, width: segmentWidth, height: rect.height)
+                let path = NSBezierPath(roundedRect: box, xRadius: corner, yRadius: corner)
+                if index < filled {
+                    tint.withAlphaComponent(alpha).setFill()
+                    path.fill()
+                } else {
+                    tint.withAlphaComponent(0.45 * alpha).setStroke()
+                    path.lineWidth = 1
+                    path.stroke()
+                }
+            }
+            return true
+        }
+    }
+
+    /// Attachment runs drop `baselineOffset` so the glyph shift is not applied twice. The same
+    /// shift is re-applied through `bounds.origin.y`, which is what AppKit actually uses to place
+    /// `NSTextAttachment` images — without it the meter sits on the unshifted baseline and looks
+    /// vertically off-center from the surrounding text (especially stacked rows at -3pt).
+    private static func attachmentText(_ attachment: NSTextAttachment, style: TokenStyle) -> NSAttributedString {
+        let value = NSMutableAttributedString(attachment: attachment)
+        value.addAttributes(style.attributes, range: NSRange(location: 0, length: value.length))
+        value.removeAttribute(.baselineOffset, range: NSRange(location: 0, length: value.length))
+        return value
+    }
+
+    /// Centers a meter of `height` on the text cap band, then follows the run's `baselineOffset`
+    /// (stacked/single-line base plus the user's vertical adjustment).
+    private static func attachmentYOrigin(height: CGFloat, style: TokenStyle) -> CGFloat {
+        let shift = (style.attributes[.baselineOffset] as? NSNumber)?.doubleValue ?? 0
+        return ((style.font.capHeight - height) / 2).rounded() + CGFloat(shift)
     }
 }
 

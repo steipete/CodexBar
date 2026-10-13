@@ -57,6 +57,15 @@ struct ClaudeMenuCardCostTests {
         #expect(section.showsInProviderDetails == false)
     }
 
+    @MainActor
+    @Test
+    func `claude balance only credits follow the extra usage visibility choice`() throws {
+        let model = try Self.makeModel(cost: Self.cost(used: 0, limit: 0, balance: 100), showUsed: true)
+        #expect(model.usageItemDescriptors.contains { $0.id == .claudeExtraUsage && $0.title == "Credits" })
+        let hidden = model.applyingUsageItemVisibility(hiddenItemIDs: [.claudeExtraUsage])
+        #expect(hidden.providerCost == nil)
+    }
+
     @Test(arguments: [0.0, -1.0], [false, true])
     func `claude extra usage without a positive cap or balance stays absent`(limit: Double, showUsed: Bool) throws {
         let model = try Self.makeModel(cost: Self.cost(used: 25, limit: limit), showUsed: showUsed)
