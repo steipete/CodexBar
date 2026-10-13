@@ -2602,7 +2602,8 @@
 "Latest tokens per minute (OpenAI Admin API)" = "Token per menit terbaru (OpenAI Admin API)";
 "Fetches 1-minute usage each refresh for the menu card chart and the menu bar Tokens/min token." = "Mengambil penggunaan per menit setiap penyegaran untuk grafik kartu menu dan elemen Token/menit di bilah menu.";
 "Live Usage…" = "Penggunaan langsung…";
-"% of limit counts all input, including cached input, plus output, as OpenAI's rate limiter does. The limiter also reserves max_tokens up front, so short bursts can still hit limits." = "% batas menghitung semua masukan, termasuk masukan dalam cache, + keluaran, seperti pembatas laju OpenAI. Pembatas juga mencadangkan max_tokens di awal, sehingga lonjakan singkat masih dapat mencapai batas.";
+"Batch API %@ · not counted in %% of limit" = "Batch API %@ · tidak dihitung dalam %% batas";
+"% of limit counts all input, including cached input, plus output, as OpenAI's rate limiter does, and excludes Batch API traffic, which has separate limits. The limiter also reserves max_tokens up front, so short bursts can still hit limits." = "% batas menghitung semua input, termasuk input dalam cache, ditambah output, seperti pembatas laju OpenAI, dan mengecualikan trafik Batch API yang memiliki batas terpisah. Pembatas juga mencadangkan max_tokens di awal, sehingga lonjakan singkat tetap dapat mencapai batas.";
 
 "Tokens / min graph" = "Grafik token / menit";
 "Last hour of tokens per minute (OpenAI Admin API)" = "Token per menit selama satu jam terakhir (OpenAI Admin API)";

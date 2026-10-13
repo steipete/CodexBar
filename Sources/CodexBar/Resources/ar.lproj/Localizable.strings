@@ -2605,7 +2605,8 @@
 "Latest tokens per minute (OpenAI Admin API)" = "أحدث عدد رموز في الدقيقة (OpenAI Admin API)";
 "Fetches 1-minute usage each refresh for the menu card chart and the menu bar Tokens/min token." = "يجلب الاستخدام بالدقيقة عند كل تحديث لرسم بطاقة القائمة وعنصر الرموز/دقيقة في شريط القوائم.";
 "Live Usage…" = "الاستخدام المباشر…";
-"% of limit counts all input, including cached input, plus output, as OpenAI's rate limiter does. The limiter also reserves max_tokens up front, so short bursts can still hit limits." = "تحتسب نسبة الحد كل الإدخال، بما في ذلك الإدخال المخزن مؤقتًا، + الإخراج، كما يفعل محدد معدل OpenAI. يحجز المحدد أيضًا max_tokens مسبقًا، لذا قد تصل الاندفاعات القصيرة إلى الحدود.";
+"Batch API %@ · not counted in %% of limit" = "Batch API %@ · لا يُحتسب ضمن %% من الحد";
+"% of limit counts all input, including cached input, plus output, as OpenAI's rate limiter does, and excludes Batch API traffic, which has separate limits. The limiter also reserves max_tokens up front, so short bursts can still hit limits." = "تحتسب نسبة % من الحد جميع رموز الإدخال، بما فيها الإدخال المخزّن مؤقتًا، إضافةً إلى الإخراج، كما يفعل محدد المعدّل في OpenAI، وتستثني حركة Batch API التي لها حدود منفصلة. يحجز المحدد أيضًا max_tokens مسبقًا، لذا قد تؤدي دفعات قصيرة إلى بلوغ الحدود.";
 
 "Tokens / min graph" = "رسم الرموز / دقيقة";
 "Last hour of tokens per minute (OpenAI Admin API)" = "الرموز في الدقيقة خلال الساعة الماضية (OpenAI Admin API)";

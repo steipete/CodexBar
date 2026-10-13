@@ -2598,7 +2598,8 @@
 "Latest tokens per minute (OpenAI Admin API)" = "Laatste tokens per minuut (OpenAI Admin API)";
 "Fetches 1-minute usage each refresh for the menu card chart and the menu bar Tokens/min token." = "Haalt bij elke vernieuwing het minuutverbruik op voor de grafiek in de menukaart en het element Tokens/min in de menubalk.";
 "Live Usage…" = "Livegebruik…";
-"% of limit counts all input, including cached input, plus output, as OpenAI's rate limiter does. The limiter also reserves max_tokens up front, so short bursts can still hit limits." = "% van de limiet telt alle invoer, inclusief invoer uit de cache, + uitvoer, zoals de rate limiter van OpenAI. De begrenzer reserveert ook vooraf max_tokens, dus korte pieken kunnen de limieten nog steeds bereiken.";
+"Batch API %@ · not counted in %% of limit" = "Batch API %@ · telt niet mee in %% van limiet";
+"% of limit counts all input, including cached input, plus output, as OpenAI's rate limiter does, and excludes Batch API traffic, which has separate limits. The limiter also reserves max_tokens up front, so short bursts can still hit limits." = "% van limiet telt alle invoer, inclusief gecachte invoer, plus uitvoer, zoals de snelheidsbegrenzer van OpenAI, en sluit Batch API-verkeer uit, waarvoor aparte limieten gelden. De begrenzer reserveert ook vooraf max_tokens, waardoor korte pieken nog steeds de limieten kunnen bereiken.";
 
 "Tokens / min graph" = "Tokens / min-grafiek";
 "Last hour of tokens per minute (OpenAI Admin API)" = "Tokens per minuut in het afgelopen uur (OpenAI Admin API)";

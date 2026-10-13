@@ -2604,7 +2604,8 @@
 "Latest tokens per minute (OpenAI Admin API)" = "Son dakika başına token sayısı (OpenAI Admin API)";
 "Fetches 1-minute usage each refresh for the menu card chart and the menu bar Tokens/min token." = "Her yenilemede menü kartı grafiği ve menü çubuğundaki Token/dk öğesi için dakikalık kullanımı getirir.";
 "Live Usage…" = "Canlı kullanım…";
-"% of limit counts all input, including cached input, plus output, as OpenAI's rate limiter does. The limiter also reserves max_tokens up front, so short bursts can still hit limits." = "Sınır yüzdesi, OpenAI’ın hız sınırlayıcısı gibi önbellekli girdi dahil tüm girdiyi + çıktıyı sayar. Sınırlayıcı ayrıca max_tokens değerini önceden ayırır, bu nedenle kısa patlamalar yine de sınırlara ulaşabilir.";
+"Batch API %@ · not counted in %% of limit" = "Batch API %@ · limitin %% değerine dahil edilmez";
+"% of limit counts all input, including cached input, plus output, as OpenAI's rate limiter does, and excludes Batch API traffic, which has separate limits. The limiter also reserves max_tokens up front, so short bursts can still hit limits." = "Limitin % değeri, OpenAI hız sınırlayıcısı gibi önbelleğe alınmış girdiler dahil tüm girdileri ve çıktıları sayar; ayrı limitleri olan Batch API trafiğini hariç tutar. Sınırlayıcı ayrıca max_tokens değerini önceden ayırır, bu nedenle kısa süreli artışlar yine de limitlere ulaşabilir.";
 
 "Tokens / min graph" = "Token / dk grafiği";
 "Last hour of tokens per minute (OpenAI Admin API)" = "Son saatte dakika başına token (OpenAI Admin API)";

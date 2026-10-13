@@ -12,16 +12,28 @@ public struct OpenAILiveUsageSnapshot: Sendable, Equatable {
         public let cachedInputTokens: Int
         public let outputTokens: Int
         public let requests: Int
+        public let batchTokens: Int
+        public let batchRequests: Int
         public var totalTokens: Int {
             self.inputTokens + self.outputTokens
         }
 
-        public init(name: String, inputTokens: Int, cachedInputTokens: Int, outputTokens: Int, requests: Int) {
+        public init(
+            name: String,
+            inputTokens: Int,
+            cachedInputTokens: Int,
+            outputTokens: Int,
+            requests: Int,
+            batchTokens: Int = 0,
+            batchRequests: Int = 0)
+        {
             self.name = name
             self.inputTokens = inputTokens
             self.cachedInputTokens = cachedInputTokens
             self.outputTokens = outputTokens
             self.requests = requests
+            self.batchTokens = batchTokens
+            self.batchRequests = batchRequests
         }
     }
 
@@ -44,9 +56,15 @@ public struct OpenAILiveUsageSnapshot: Sendable, Equatable {
         public let requests: Int
         public let isInProgress: Bool
         public let isPending: Bool
-        /// OpenAI's rate limiter counts cached input toward TPM, so utilization uses every billed token.
+        public let batchTokens: Int
+        public let batchRequests: Int
+        /// Cached input counts toward TPM. Batch API traffic has its own rate-limit pool and is excluded.
         public var limitCountedTokens: Int {
-            self.totalTokens
+            self.totalTokens - self.batchTokens
+        }
+
+        public var limitCountedRequests: Int {
+            self.requests - self.batchRequests
         }
     }
 
@@ -69,6 +87,8 @@ public struct OpenAILiveUsageSnapshot: Sendable, Equatable {
         public let cachedInputTokens: Int
         public let outputTokens: Int
         public let requests: Int
+        /// Batch API share of `totalTokens`; it has a separate rate-limit pool.
+        public let batchTokens: Int
     }
 
     public struct ModelRow: Sendable, Equatable {
@@ -149,7 +169,9 @@ public struct OpenAILiveUsageSnapshot: Sendable, Equatable {
                 outputTokens: output,
                 requests: models.reduce(0) { $0 + $1.requests },
                 isInProgress: minute.start.addingTimeInterval(60) > self.fetchedAt,
-                isPending: frontier.map { minute.start > $0 } ?? true)
+                isPending: frontier.map { minute.start > $0 } ?? true,
+                batchTokens: models.reduce(0) { $0 + $1.batchTokens },
+                batchRequests: models.reduce(0) { $0 + $1.batchRequests })
         }
     }
 
@@ -198,7 +220,8 @@ public struct OpenAILiveUsageSnapshot: Sendable, Equatable {
             inputTokens: points.reduce(0) { $0 + $1.uncachedInputTokens + $1.cachedInputTokens },
             cachedInputTokens: points.reduce(0) { $0 + $1.cachedInputTokens },
             outputTokens: points.reduce(0) { $0 + $1.outputTokens },
-            requests: points.reduce(0) { $0 + $1.requests })
+            requests: points.reduce(0) { $0 + $1.requests },
+            batchTokens: points.reduce(0) { $0 + $1.batchTokens })
     }
 
     public var modelRows: [ModelRow] {

@@ -23,11 +23,21 @@ enum OpenAILiveUsageBuilder {
             }
             let minute = Int(seconds) / 60 * 60
             for model in bucket.models {
-                guard [model.inputTokens, model.cachedInputTokens, model.outputTokens, model.requests]
-                    .allSatisfy({ $0 >= 0 }), model.cachedInputTokens <= model.inputTokens
+                guard [
+                    model.inputTokens,
+                    model.cachedInputTokens,
+                    model.outputTokens,
+                    model.requests,
+                    model.batchTokens,
+                    model.batchRequests,
+                ]
+                    .allSatisfy({ $0 >= 0 }), model.cachedInputTokens <= model.inputTokens,
+                    model.batchRequests <= model.requests
                 else { throw OpenAILiveUsageError.parseFailure }
+                let totalTokens = try self.add(model.inputTokens, model.outputTokens)
+                guard model.batchTokens <= totalTokens else { throw OpenAILiveUsageError.parseFailure }
                 guard minute >= first, minute <= current else { continue }
-                tokens = try self.add(tokens, self.add(model.inputTokens, model.outputTokens))
+                tokens = try self.add(tokens, totalTokens)
                 requests = try self.add(requests, model.requests)
                 let prior = grid[minute]?[model.name]
                 grid[
@@ -38,7 +48,9 @@ enum OpenAILiveUsageBuilder {
                     inputTokens: self.add(prior?.inputTokens ?? 0, model.inputTokens),
                     cachedInputTokens: self.add(prior?.cachedInputTokens ?? 0, model.cachedInputTokens),
                     outputTokens: self.add(prior?.outputTokens ?? 0, model.outputTokens),
-                    requests: self.add(prior?.requests ?? 0, model.requests))
+                    requests: self.add(prior?.requests ?? 0, model.requests),
+                    batchTokens: self.add(prior?.batchTokens ?? 0, model.batchTokens),
+                    batchRequests: self.add(prior?.batchRequests ?? 0, model.batchRequests))
             }
         }
         return OpenAILiveUsageSnapshot(

@@ -58,8 +58,8 @@ that endpoint is not project-filtered. The legacy `OPENAI_API_KEY` environment p
 
 ## Menu display
 
-- Admin API data renders a **Tokens / min · last hour** chart above the daily spend dashboard, with the latest reported minute, peak, and (when configured) the busiest model’s manual org-limit utilization. Pending minutes are shaded. Click **Live Usage…** to open the detailed window.
-- **Settings → Providers → OpenAI → Tokens per minute** is on by default. Each refresh adds one `bucket_width=1m`, `group_by=model`, `limit=60` completion-usage request, with the same project scope. Disable it to omit the chart and minute request (`OPENAI_LIVE_MINUTES=0`; enabled is `60`). A failed minute request leaves the daily data usable.
+- Admin API data renders a **Tokens / min · last hour** chart above the daily spend dashboard, with the latest reported minute, peak, and (when configured) the highest manual org-limit utilization among the top models. Pending minutes are shaded. Click **Live Usage…** to open the detailed window.
+- **Settings → Providers → OpenAI → Tokens per minute** is on by default. Each refresh adds one `bucket_width=1m`, `group_by=model`, `group_by=batch`, `limit=60` completion-usage request, with the same project scope. Disable it to omit the chart and minute request (`OPENAI_LIVE_MINUTES=0`; enabled is `60`). A failed minute request leaves the daily data usable.
 - The menu bar layout editor offers an optional **Tokens / min** value such as `49M/min`; default layouts are unchanged.
 - Daily Admin API data renders inline Today/7d/configured-window KPIs plus a compact spend chart.
 - The inline usage card opens a hosted chart submenu with daily spend, token, and request trends plus selected-day detail.
@@ -73,9 +73,11 @@ that endpoint is not project-filtered. The legacy `OPENAI_API_KEY` environment p
 Choose **Live Usage** in the OpenAI provider menu to open a separate, on-demand window. It defaults to **All models**;
 choose a specific model in the picker or table to inspect its throughput. The filter is not saved across app launches.
 The 15-minute, 1-hour (default), and 6-hour ranges show tokens per minute, recent and peak throughput, token totals,
-and request counts. Cached input is a subset of input tokens; total tokens are input plus output.
+and request counts. Batch API traffic is included in charts, totals, and tooltips, but excluded from TPM/RPM
+**% of limit** because it has a [separate rate-limit pool](https://developers.openai.com/api/docs/guides/batch#rate-limits).
+Cached input is a subset of input tokens; total tokens are input plus output.
 
-The window reads `GET /v1/organization/usage/completions` with `bucket_width=1m` and `group_by=model`, following
+The window reads `GET /v1/organization/usage/completions` with `bucket_width=1m`, `group_by=model`, and `group_by=batch`, following
 pagination and filling missing minutes on a regular grid. This covers completions/responses usage only; embeddings, images,
 and separate audio endpoints are not included. It requires an organization Admin API key (`sk-admin-…`), even when
 the daily card can fall back to a legacy balance. Credentials and optional `project_ids` scoping use the same settings
@@ -124,7 +126,7 @@ last attempt is older than 5 minutes. Permission, rate-limit, and network failur
 backoff untouched; a secondary message exposes the error on hover. Manual limits and the last successful project
 caps remain usable. Credentials follow the same Admin-key resolution as live usage.
 
-**% of limit** counts all input, including cached input, plus output: OpenAI's prompt-caching guide states that cached input tokens still count toward TPM limits. The limiter also reserves `max_tokens` up front, so short bursts can still hit limits. Charts and throughput totals continue to include cached input; a filtered chart stacks uncached input, output, and cached input, and its limit line compares against the full stack.
+**% of limit** counts all input, including cached input, plus output: OpenAI's prompt-caching guide states that cached input tokens still count toward TPM limits. Batch API traffic is excluded because it has separate rate limits. The limiter also reserves `max_tokens` up front, so short bursts can still hit limits. Charts and throughput totals continue to include cached input; a filtered chart stacks uncached input, output, and cached input, and its limit line compares against the full stack.
 Some model families share one limit; utilization here is per model and does not aggregate shared families.
 
 ## Notes

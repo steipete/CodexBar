@@ -79,18 +79,20 @@ struct OpenAIAPIProviderImplementation: ProviderImplementation {
         var result = ProviderThroughputPresentation(action: .openOpenAILiveUsage)
         // Project-scoped usage is only a slice of the org-wide traffic that org limits apply to. Use the
         // snapshot's own scope: a cached snapshot can outlive a project setting change.
-        if snapshot.projectID == nil,
-           let model = snapshot.models.first,
-           let limit = OpenAIOrgLimitResolver(
-               manual: manual,
-               projectCaps: nil).resolve(model.name)
-        {
+        guard snapshot.projectID == nil else { return result }
+        let resolver = OpenAIOrgLimitResolver(manual: manual, projectCaps: nil)
+        var highestPercent: Double?
+        for model in snapshot.models {
+            guard let limit = resolver.resolve(model.name) else { continue }
             let percent = Double(model.peakLimitCountedTokens) / Double(limit.tokensPerMinute) * 100
+            // Keep the earlier, busier model when utilization ties.
+            guard highestPercent.map({ percent > $0 }) ?? true else { continue }
+            highestPercent = percent
             result.limitPercent = percent
             result.limitLine = L(
                 "%@ · peak %@ · %@ of org limit",
                 model.name,
-                ProviderThroughputSection.count(model.peakTPM),
+                ProviderThroughputSection.count(model.peakLimitCountedTokens),
                 percent.formatted(.number.precision(.fractionLength(0))) + "%")
         }
         return result

@@ -52,20 +52,34 @@ extension OpenAIAPIProviderDescriptor {
                 models: models.map { model in
                     try Mapper.object(
                         model,
-                        allowed: ["name", "inputTokens", "cachedInputTokens", "outputTokens", "requests"],
+                        allowed: [
+                            "name", "inputTokens", "cachedInputTokens", "outputTokens", "requests",
+                            "batchTokens", "batchRequests",
+                        ],
                         path: "live model")
                     return try .init(
                         name: Self.cardName(model),
                         inputTokens: Self.cardInteger(model, "inputTokens"),
                         cachedInputTokens: Self.cardInteger(model, "cachedInputTokens"),
                         outputTokens: Self.cardInteger(model, "outputTokens"),
-                        requests: Self.cardInteger(model, "requests"))
+                        requests: Self.cardInteger(model, "requests"),
+                        batchTokens: Self.cardOptionalLiveInteger(model, "batchTokens"),
+                        batchRequests: Self.cardOptionalLiveInteger(model, "batchRequests"))
                 })
         }
-        return try OpenAILiveUsageBuilder.build(
-            buckets: buckets,
-            windowMinutes: window,
-            fetchedAt: Date(timeIntervalSince1970: Double(fetchedAt)),
-            projectID: projectID)
+        do {
+            return try OpenAILiveUsageBuilder.build(
+                buckets: buckets,
+                windowMinutes: window,
+                fetchedAt: Date(timeIntervalSince1970: Double(fetchedAt)),
+                projectID: projectID)
+        } catch {
+            throw ProviderPluginError.invalidSnapshot("invalid live model totals")
+        }
+    }
+
+    private static func cardOptionalLiveInteger(_ model: any ProviderPluginValue, _ key: String) throws -> Int {
+        guard let value = model.property(key), !value.isUndefined else { return 0 }
+        return try Self.cardInteger(model, key)
     }
 }

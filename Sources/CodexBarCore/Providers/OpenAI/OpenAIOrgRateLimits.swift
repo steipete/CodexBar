@@ -84,7 +84,7 @@ extension OpenAILiveUsageSnapshot {
         let tpmLimit = Double(limit.tokensPerMinute)
         let latestTokens: Int = latest?.limitCountedTokens ?? 0
         let peakTokens: Int = reported.map(\.limitCountedTokens).max() ?? 0
-        let peakRequests: Int = reported.map(\.requests).max() ?? 0
+        let peakRequests: Int = reported.map(\.limitCountedRequests).max() ?? 0
         var peakRPMPercent: Double?
         if let rpm = limit.requestsPerMinute, rpm > 0 {
             peakRPMPercent = Double(peakRequests) / Double(rpm) * 100

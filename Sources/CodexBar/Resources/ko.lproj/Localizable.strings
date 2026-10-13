@@ -2569,7 +2569,8 @@
 "Latest tokens per minute (OpenAI Admin API)" = "최근 분당 토큰 수 (OpenAI Admin API)";
 "Fetches 1-minute usage each refresh for the menu card chart and the menu bar Tokens/min token." = "새로 고칠 때마다 분 단위 사용량을 가져와 메뉴 카드 차트와 메뉴 막대의 토큰/분 요소에 표시합니다.";
 "Live Usage…" = "실시간 사용량…";
-"% of limit counts all input, including cached input, plus output, as OpenAI's rate limiter does. The limiter also reserves max_tokens up front, so short bursts can still hit limits." = "한도 비율은 OpenAI 속도 제한기와 마찬가지로 캐시된 입력을 포함한 모든 입력 + 출력을 기준으로 계산합니다. 제한기는 max_tokens도 미리 예약하므로 짧은 급증에도 한도에 도달할 수 있습니다.";
+"Batch API %@ · not counted in %% of limit" = "Batch API %@ · 한도 대비 %%에 포함되지 않음";
+"% of limit counts all input, including cached input, plus output, as OpenAI's rate limiter does, and excludes Batch API traffic, which has separate limits. The limiter also reserves max_tokens up front, so short bursts can still hit limits." = "한도 대비 %는 OpenAI의 속도 제한과 동일하게 캐시된 입력을 포함한 모든 입력과 출력을 계산하며, 별도의 한도가 있는 Batch API 트래픽은 제외합니다. 제한기는 max_tokens도 미리 예약하므로 짧은 급증으로도 한도에 도달할 수 있습니다.";
 
 "Tokens / min graph" = "토큰 / 분 그래프";
 "Last hour of tokens per minute (OpenAI Admin API)" = "지난 1시간의 분당 토큰 수 (OpenAI Admin API)";

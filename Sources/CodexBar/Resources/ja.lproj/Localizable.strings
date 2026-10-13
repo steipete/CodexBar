@@ -2601,7 +2601,8 @@
 "Latest tokens per minute (OpenAI Admin API)" = "最新の1分あたりのトークン数（OpenAI Admin API）";
 "Fetches 1-minute usage each refresh for the menu card chart and the menu bar Tokens/min token." = "更新のたびに1分単位の使用量を取得し、メニューカードのグラフとメニューバーのトークン/分要素に表示します。";
 "Live Usage…" = "ライブ使用量…";
-"% of limit counts all input, including cached input, plus output, as OpenAI's rate limiter does. The limiter also reserves max_tokens up front, so short bursts can still hit limits." = "上限に対する割合は、OpenAIのレートリミッターと同様に、キャッシュ済みを含むすべての入力＋出力で計算します。リミッターはmax_tokensも事前に予約するため、短いバーストでも上限に達することがあります。";
+"Batch API %@ · not counted in %% of limit" = "Batch API %@ · 上限に対する割合（%%）には含まれません";
+"% of limit counts all input, including cached input, plus output, as OpenAI's rate limiter does, and excludes Batch API traffic, which has separate limits. The limiter also reserves max_tokens up front, so short bursts can still hit limits." = "上限に対する割合（%）は、OpenAI のレート制限と同様に、キャッシュ済みの入力を含むすべての入力と出力を数えます。別の制限がある Batch API のトラフィックは除外します。レート制限では max_tokens も事前に確保されるため、短いバーストでも上限に達することがあります。";
 
 "Tokens / min graph" = "トークン / 分のグラフ";
 "Last hour of tokens per minute (OpenAI Admin API)" = "過去1時間の1分あたりのトークン数（OpenAI Admin API）";

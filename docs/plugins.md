@@ -369,7 +369,10 @@ Card payloads are descriptor-owned, never arbitrary Swift decoding. OpenAI's `ca
 cost, token, request, model, and line-item history for the existing native chart. It rejects unknown fields, bounds the
 history to 366 buckets and 10,000 breakdown entries, and validates finite numbers, safe integer counts, names, and dates.
 An optional `live` object contains `windowMinutes: 60`, Unix-second `startTime` and `fetchedAt`, and `buckets`
-with `startTime` and `models` (`name`, `inputTokens`, `cachedInputTokens`, `outputTokens`, `requests`). Both QuickJS
+with `startTime` and `models` (`name`, `inputTokens`, `cachedInputTokens`, `outputTokens`, `requests`, optional `batchTokens` and
+`batchRequests`). The batch fields default to 0 when missing, must be nonnegative integers, and must not exceed
+`inputTokens + outputTokens` and `requests`, respectively. Batch API subsets are excluded only from rate-limit
+utilization; charts and totals include all traffic. Both QuickJS
 and JavaScriptCore validate this payload. It accepts at most 60 buckets and 200 models per bucket, sharing the
 10,000-entry budget with daily breakdowns. Invalid live data drops only throughput; daily data remains valid.
 The Swift window fetcher and plugin adapter share the same zero-filled minute grid and reporting frontier.

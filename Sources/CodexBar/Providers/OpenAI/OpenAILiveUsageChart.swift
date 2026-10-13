@@ -219,6 +219,11 @@ struct OpenAILiveUsageChart: View {
                     OpenAILiveUsageView.count(point.uncachedInputTokens),
                     OpenAILiveUsageView.count(point.cachedInputTokens),
                     OpenAILiveUsageView.count(point.outputTokens)))
+                if point.batchTokens > 0 {
+                    Text(L(
+                        "Batch API %@ · not counted in %% of limit",
+                        OpenAILiveUsageView.count(point.batchTokens)))
+                }
                 if self.filter == .allModels {
                     ForEach(
                         self.snapshot.minutes.first(where: { $0.start == point.start })?.models ?? [],

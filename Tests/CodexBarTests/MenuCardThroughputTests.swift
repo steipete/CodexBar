@@ -44,6 +44,54 @@ struct MenuCardThroughputTests {
     }
 
     @Test
+    func `limit line selects highest limited utilization and uses its standard peak`() {
+        let models: [ProviderThroughputSnapshot.Model] = [
+            .init(
+                name: "model-unlimited",
+                latestTPM: 2000,
+                peakTPM: 2000,
+                totalTokens: 2000,
+                peakLimitCountedTokens: 2000),
+            .init(
+                name: "model-batch-heavy",
+                latestTPM: 1000,
+                peakTPM: 1000,
+                totalTokens: 1000,
+                peakLimitCountedTokens: 10),
+            .init(
+                name: "model-fixture",
+                latestTPM: 200,
+                peakTPM: 300,
+                totalTokens: 300,
+                peakLimitCountedTokens: 180),
+            .init(
+                name: "model-tied",
+                latestTPM: 100,
+                peakTPM: 100,
+                totalTokens: 100,
+                peakLimitCountedTokens: 90),
+        ]
+        let snapshot = ProviderThroughputSnapshot(
+            minutes: [],
+            frontier: nil,
+            latestTokensPerMinute: nil,
+            peakTokensPerMinute: 2000,
+            peakAt: nil,
+            fiveMinuteAverageTokensPerMinute: 0,
+            models: models,
+            windowMinutes: 60,
+            fetchedAt: OpenAIThroughputTests.now,
+            projectID: nil)
+        let result = OpenAIAPIProviderImplementation.throughputPresentation(snapshot: snapshot, manual: [
+            .init(model: "model-batch-heavy", tokensPerMinute: 100),
+            .init(model: "model-fixture", tokensPerMinute: 200),
+            .init(model: "model-tied", tokensPerMinute: 100),
+        ])
+        #expect(result.limitPercent == 90)
+        #expect(result.limitLine == L("%@ · peak %@ · %@ of org limit", "model-fixture", "180", "90%"))
+    }
+
+    @Test
     func `project scoped snapshots never report org limit utilization`() throws {
         let manual = [ProviderModelRateLimit(model: OpenAIThroughputTests.model, tokensPerMinute: 40_000_000)]
         func presentation(projectID: String?) throws -> ProviderThroughputPresentation {

@@ -137,7 +137,9 @@ struct OpenAILiveUsageView: View {
                     "Input %@ · cached %@ · output %@",
                     Self.count(summary.inputTokens),
                     Self.count(summary.cachedInputTokens),
-                    Self.count(summary.outputTokens)))
+                    Self.count(summary.outputTokens)),
+                batchDetail: summary.batchTokens > 0 ?
+                    L("Batch API %@ · not counted in %% of limit", Self.count(summary.batchTokens)) : nil)
             self.metric(L("Requests in window"), value: summary.requests, detail: "")
             // Org limits don't apply to a project's slice of traffic; the footer names the project.
             if snapshot.projectID == nil, case let .model(name) = self.model.filter {
@@ -154,11 +156,17 @@ struct OpenAILiveUsageView: View {
         }
     }
 
-    private func metric(_ title: String, value: Int, detail: String, percent: Double? = nil) -> some View {
+    private func metric(
+        _ title: String, value: Int, detail: String, percent: Double? = nil, batchDetail: String? = nil) -> some View
+    {
         VStack(alignment: .leading, spacing: 4) {
             Text(title).font(.caption).foregroundStyle(.secondary)
             Text(Self.count(value)).font(.title2).monospacedDigit()
             Text(detail).font(.caption2).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            if let batchDetail {
+                Text(batchDetail).font(.caption2).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             if let percent {
                 Text(L("%@ of limit", Self.percent(percent)))
                     .font(.caption2).foregroundStyle(Self.utilizationColor(percent))
@@ -223,7 +231,8 @@ struct OpenAILiveUsageView: View {
             if let error = self.model.limitsError {
                 Text(L("Project caps unavailable")).help(error)
             }
-            Text(L("% of limit counts all input, including cached input, plus output, as OpenAI's rate limiter does. " +
+            Text(L("% of limit counts all input, including cached input, plus output, as OpenAI's rate limiter does, " +
+                    "and excludes Batch API traffic, which has separate limits. " +
                     "The limiter also reserves max_tokens up front, so short bursts can still hit limits."))
         }
         .font(.caption)

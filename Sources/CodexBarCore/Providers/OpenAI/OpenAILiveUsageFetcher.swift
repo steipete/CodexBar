@@ -110,6 +110,7 @@ public struct OpenAILiveUsageFetcher: Sendable {
             URLQueryItem(name: "end_time", value: String(end)),
             URLQueryItem(name: "bucket_width", value: "1m"),
             URLQueryItem(name: "group_by", value: "model"),
+            URLQueryItem(name: "group_by", value: "batch"),
             URLQueryItem(name: "limit", value: String(limit)),
         ]
         if let projectID = credential.projectID {
@@ -151,6 +152,7 @@ private struct Bucket: Decodable {
 
 private struct Result: Decodable {
     let model: String?
+    let batch: Bool?
     let input: Int
     let cached: Int
     let output: Int
@@ -159,13 +161,14 @@ private struct Result: Decodable {
     let outputAudio: Int
 
     enum CodingKeys: String, CodingKey {
-        case model, input = "input_tokens", cached = "input_cached_tokens", output = "output_tokens"
+        case model, batch, input = "input_tokens", cached = "input_cached_tokens", output = "output_tokens"
         case requests = "num_model_requests", inputAudio = "input_audio_tokens", outputAudio = "output_audio_tokens"
     }
 
     init(from decoder: any Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
         self.model = try values.decodeIfPresent(String.self, forKey: .model)
+        self.batch = try values.decodeIfPresent(Bool.self, forKey: .batch)
         self.input = try values.decodeIfPresent(Int.self, forKey: .input) ?? 0
         self.cached = try values.decodeIfPresent(Int.self, forKey: .cached) ?? 0
         self.output = try values.decodeIfPresent(Int.self, forKey: .output) ?? 0
@@ -175,6 +178,8 @@ private struct Result: Decodable {
     }
 
     func validate() throws {
+        let (total, overflow) = self.input.addingReportingOverflow(self.output)
+        guard !overflow, total <= 9_007_199_254_740_991 else { throw OpenAILiveUsageError.parseFailure }
         guard [self.input, self.cached, self.output, self.requests, self.inputAudio, self.outputAudio]
             .allSatisfy({ $0 >= 0 }), self.cached <= self.input
         else { throw OpenAILiveUsageError.parseFailure }
@@ -188,7 +193,9 @@ private struct Result: Decodable {
             inputTokens: self.input,
             cachedInputTokens: self.cached,
             outputTokens: self.output,
-            requests: self.requests)
+            requests: self.requests,
+            batchTokens: self.batch == true ? self.input + self.output : 0,
+            batchRequests: self.batch == true ? self.requests : 0)
     }
 }
 

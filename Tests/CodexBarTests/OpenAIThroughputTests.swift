@@ -51,9 +51,12 @@ struct OpenAIThroughputTests {
         let query = try #require(URLComponents(
             url: url,
             resolvingAgainstBaseURL: false))
-        let values = Dictionary(uniqueKeysWithValues: (query.queryItems ?? []).map { ($0.name, $0.value ?? "") })
+        let items = query.queryItems ?? []
+        #expect(items.filter { $0.name == "group_by" }.map(\.value) == ["model", "batch"])
+        let values = Dictionary(uniqueKeysWithValues: items.filter { $0.name != "group_by" }
+            .map { ($0.name, $0.value ?? "") })
         #expect(values == [
-            "start_time": "116460", "end_time": "120025", "bucket_width": "1m", "group_by": "model",
+            "start_time": "116460", "end_time": "120025", "bucket_width": "1m",
             "limit": "60", "project_ids": "proj_fixture & scope",
         ])
         let throughput = try #require(result.usage.throughput)
@@ -134,6 +137,9 @@ struct OpenAIThroughputTests {
         for (field, value) in [
             ("inputTokens", -1.0), ("outputTokens", 1.5), ("requests", 9_007_199_254_740_992.0),
             ("cachedInputTokens", 200.0),
+            ("batchTokens", 103.0), ("batchRequests", 2.0),
+            ("batchTokens", -1.0), ("batchRequests", -1.0),
+            ("batchTokens", 1.5), ("batchRequests", 0.5),
         ] {
             var model: [String: Any] = [
                 "name": Self.model,
@@ -146,6 +152,15 @@ struct OpenAIThroughputTests {
             var payload = Self.livePayload
             payload["buckets"] = [["startTime": 119_820, "models": [model]]]
             invalid.append(payload)
+        }
+        for field in ["batchTokens", "batchRequests"] {
+            for value in ["1", NSNull(), true] as [Any] {
+                var model = Self.cardModel
+                model[field] = value
+                var payload = Self.livePayload
+                payload["buckets"] = [["startTime": 119_820, "models": [model]]]
+                invalid.append(payload)
+            }
         }
         var tooMany = Self.livePayload
         tooMany["buckets"] = [["startTime": 119_820, "models": Array(
@@ -160,12 +175,142 @@ struct OpenAIThroughputTests {
         }
         invalid.append(globalCap)
         for live in invalid {
+            #expect(throws: ProviderPluginError.self) {
+                try OpenAIAPIProviderDescriptor.mapLiveUsage(
+                    JSONProviderPluginValue(live), projectID: nil, maximumEntries: 10000)
+            }
             let result = try await Self.mappedLive(
                 Self.liveSource(live),
                 engine: engine)
             #expect(result.throughput == nil)
             #expect(result.openAIAPIUsage != nil)
         }
+    }
+
+    @Test(arguments: Self.engines)
+    func `batch rows merge identically across plugin and Swift fetches`(engine: ProviderPluginEngineKind) async throws {
+        let body = #"""
+        {"data":[{"start_time":119820,"end_time":119880,"results":[
+          {"model":" model-fixture ","batch":true,"input_tokens":100,"input_cached_tokens":60,
+           "output_tokens":20,"num_model_requests":3,"input_audio_tokens":40,"output_audio_tokens":10},
+          {"model":"model-fixture","batch":false,"input_tokens":200,"input_cached_tokens":150,
+           "output_tokens":30,"num_model_requests":2},
+          {"model":"model-second","batch":null,"input_tokens":40,"num_model_requests":1}
+        ]}],"has_more":false}
+        """#
+        let transport = Transport(liveBody: body)
+        let result = try await Self.runtime(transport: transport, engine: engine).fetchResult(
+            settings: ["OPENAI_HISTORY_DAYS": "1"], secrets: ["OPENAI_API_KEY": "synthetic-admin-key"], now: Self.now)
+        let swift = try await OpenAILiveUsageFetcher(transport: Transport(liveBody: body)).fetch(
+            environment: ["OPENAI_ADMIN_KEY": "synthetic-admin-key"], now: Self.now)
+        #expect(result.usage.throughput == swift.throughput)
+        #expect(result.usage.throughput?.models.first?.peakTPM == 350)
+        #expect(result.usage.throughput?.models.first?.peakLimitCountedTokens == 230)
+        let payload: [String: Any] = [
+            "windowMinutes": 60, "startTime": 116_460, "fetchedAt": 120_025,
+            "buckets": [["startTime": 119_820, "models": [
+                [
+                    "name": "model-fixture",
+                    "inputTokens": 300,
+                    "cachedInputTokens": 210,
+                    "outputTokens": 50,
+                    "requests": 5,
+                    "batchTokens": 120,
+                    "batchRequests": 3,
+                ],
+                [
+                    "name": "model-second",
+                    "inputTokens": 40,
+                    "cachedInputTokens": 0,
+                    "outputTokens": 0,
+                    "requests": 1,
+                    "batchTokens": 0,
+                    "batchRequests": 0,
+                ],
+            ]]],
+        ]
+        let mapped = try OpenAIAPIProviderDescriptor.mapLiveUsage(
+            JSONProviderPluginValue(payload), projectID: nil, maximumEntries: 10000)
+        #expect(mapped.minutes == swift.minutes)
+        let pluginMapped = try await Self.mappedLive(Self.liveSource(payload), engine: engine)
+        #expect(pluginMapped.throughput == swift.throughput)
+        let requests = await transport.requests
+        let liveURL = try #require(requests.last?.url)
+        let items = try #require(URLComponents(
+            url: liveURL,
+            resolvingAgainstBaseURL: false)?.queryItems)
+        #expect(items.filter { $0.name == "group_by" }.map(\.value) == ["model", "batch"])
+        #expect(requests.prefix(2).compactMap { $0.url?.absoluteString } == [
+            "https://api.openai.com/v1/organization/costs?" +
+                "start_time=86400&end_time=172800&bucket_width=1d&limit=1&group_by=line_item",
+            "https://api.openai.com/v1/organization/usage/completions?" +
+                "start_time=86400&end_time=172800&bucket_width=1d&limit=1&group_by=model",
+        ])
+        for request in requests.prefix(2) {
+            let dailyURL = try #require(request.url)
+            let items = try #require(URLComponents(
+                url: dailyURL,
+                resolvingAgainstBaseURL: false)?.queryItems)
+            #expect(items.filter { $0.name == "group_by" }.count == 1)
+            #expect(items.first { $0.name == "bucket_width" }?.value == "1d")
+        }
+    }
+
+    @Test(arguments: Self.engines)
+    func `invalid batch types discard only live throughput`(engine: ProviderPluginEngineKind) async throws {
+        for batch in ["\"yes\"", "1", "[]", "{}"] {
+            let body = """
+            {"data":[{"start_time":119820,"end_time":119880,"results":[
+              {"model":"model-fixture","batch":\(batch),"input_tokens":10}
+            ]}],"has_more":false}
+            """
+            let result = try await Self.runtime(transport: Transport(liveBody: body), engine: engine).fetchResult(
+                settings: ["OPENAI_HISTORY_DAYS": "1"],
+                secrets: ["OPENAI_API_KEY": "synthetic-admin-key"],
+                now: Self.now)
+            #expect(result.usage.throughput == nil)
+            #expect(result.usage.openAIAPIUsage != nil)
+        }
+    }
+
+    @Test(arguments: Self.engines)
+    func `live model bounds count merged entries`(engine: ProviderPluginEngineKind) async throws {
+        for count in [200, 201] {
+            let rows: [[String: Any]] = (0..<count).flatMap { index in
+                [true, false].map { batch in
+                    ["model": "model-fixture-\(index)", "batch": batch, "input_tokens": 10] as [String: Any]
+                }
+            }
+            // 201 unique models fit the raw cap but exceed the emitted cap.
+            let raw = count == 200 ? rows : rows.enumerated().filter { $0.offset.isMultiple(of: 2) }.map(\.element)
+            let data = try JSONSerialization.data(withJSONObject: ["data": [
+                ["start_time": 119_820, "end_time": 119_880, "results": raw],
+            ], "has_more": false])
+            let body = try #require(String(data: data, encoding: .utf8))
+            let result = try await Self.runtime(
+                transport: Transport(liveBody: body),
+                engine: engine).fetchResult(
+                settings: ["OPENAI_HISTORY_DAYS": "1"],
+                secrets: ["OPENAI_API_KEY": "synthetic-admin-key"],
+                now: Self.now)
+            if count == 200 {
+                #expect(result.usage.throughput?.peakTokensPerMinute == 4000)
+            } else {
+                #expect(result.usage.throughput == nil)
+            }
+            #expect(result.usage.openAIAPIUsage != nil)
+        }
+    }
+
+    @Test
+    func `older card payloads default batch subsets to zero`() throws {
+        let snapshot = try OpenAIAPIProviderDescriptor.mapLiveUsage(
+            JSONProviderPluginValue(Self.livePayload), projectID: nil, maximumEntries: 10000)
+        #expect(snapshot.minutes.flatMap(\.models).allSatisfy { $0.batchTokens == 0 && $0.batchRequests == 0 })
+        #expect(snapshot.series(for: .allModels).allSatisfy {
+            $0.limitCountedTokens == $0.totalTokens && $0.limitCountedRequests == $0.requests
+        })
+        #expect(snapshot.summary(for: .allModels).batchTokens == 0)
     }
 
     @Test

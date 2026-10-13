@@ -143,6 +143,9 @@ interface CodexBarFetchResult {
             cachedInputTokens: number;
             outputTokens: number;
             requests: number;
+            /** Batch API subsets of inputTokens + outputTokens / requests, excluded from rate-limit utilization. */
+            batchTokens?: number;
+            batchRequests?: number;
           }>;
         }>;
       };

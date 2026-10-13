@@ -24,10 +24,15 @@ struct OpenAILiveUsageTests {
             let items = try #require(URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems)
             var expected = [
                 "start_time": "119160", "end_time": "120025", "bucket_width": "1m",
-                "group_by": "model", "limit": "15", "project_ids": "proj_&test",
+                "limit": "15", "project_ids": "proj_&test",
             ]
             if index == 1 { expected["page"] = "next & page" }
-            #expect(Dictionary(uniqueKeysWithValues: items.map { ($0.name, $0.value ?? "") }) == expected)
+            #expect(items.filter { $0.name == "group_by" }.map(\.value) == ["model", "batch"])
+            #expect(Array(items.prefix(6).map(\.name)) == [
+                "start_time", "end_time", "bucket_width", "group_by", "group_by", "limit",
+            ])
+            #expect(Dictionary(uniqueKeysWithValues: items.filter { $0.name != "group_by" }
+                    .map { ($0.name, $0.value ?? "") }) == expected)
             #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer test-admin-key")
             #expect(request.timeoutInterval == 20)
         }
@@ -271,6 +276,140 @@ struct OpenAILiveUsageTests {
         #expect(snapshot.summary(for: .model("model-b")).fiveMinuteAverageTPM == 30)
         let limits = OpenAIOrgLimitResolver(manual: [.init(model: "model-b", tokensPerMinute: 300)], projectCaps: nil)
         #expect(snapshot.utilization(for: .model("model-b"), limits: limits)?.latestTPMPercent == 50)
+    }
+
+    @Test(arguments: ["true", "false", "null", "missing"])
+    func `batch decoding preserves audio totals and standard defaults`(batch: String) async throws {
+        let batchField = batch == "missing" ? "" : "\"batch\":\(batch),"
+        let body = Self.page("""
+        {"start_time":119940,"results":[{\(batchField)"model":"model-fixture",
+        "input_tokens":100,"input_cached_tokens":60,"output_tokens":20,"num_model_requests":3,
+        "input_audio_tokens":40,"output_audio_tokens":10}]}
+        """)
+        let snapshot = try await OpenAILiveUsageFetcher(transport: Transport(pages: [body])).fetch(
+            environment: Self.environment, windowMinutes: 15, now: Self.now)
+        let point = try #require(snapshot.series(for: .allModels).first { $0.totalTokens > 0 })
+        #expect(point.totalTokens == 120)
+        #expect(point.batchTokens == (batch == "true" ? 120 : 0))
+        #expect(point.batchRequests == (batch == "true" ? 3 : 0))
+        #expect(point.limitCountedTokens == (batch == "true" ? 0 : 120))
+        #expect(point.limitCountedRequests == (batch == "true" ? 0 : 3))
+    }
+
+    @Test(arguments: ["\"yes\"", "1", "[]", "{}"])
+    func `non boolean batch values are parse failures`(batch: String) async {
+        let body = Self.page("{\"start_time\":119940,\"results\":[{\"batch\":\(batch)}]}")
+        await #expect(throws: OpenAILiveUsageError.parseFailure) {
+            try await OpenAILiveUsageFetcher(transport: Transport(pages: [body])).fetch(
+                environment: Self.environment, now: Self.now)
+        }
+    }
+
+    @Test(arguments: [9_007_199_254_740_991, Int.max])
+    func `token sums above the safe integer range fail before batch projection`(input: Int) async {
+        let body = Self.page("""
+        {"start_time":119940,"results":[{"batch":true,"input_tokens":\(input),"output_tokens":1}]}
+        """)
+        await #expect(throws: OpenAILiveUsageError.parseFailure) {
+            try await OpenAILiveUsageFetcher(transport: Transport(pages: [body])).fetch(
+                environment: Self.environment, now: Self.now)
+        }
+    }
+
+    @Test
+    func `batch traffic stays in totals while utilization uses standard peaks`() throws {
+        func row(_ input: Int, _ cached: Int, _ output: Int, _ requests: Int, batch: Bool)
+            -> OpenAILiveUsageSnapshot.ModelUsage
+        {
+            .init(
+                name: "model-fixture",
+                inputTokens: input,
+                cachedInputTokens: cached,
+                outputTokens: output,
+                requests: requests,
+                batchTokens: batch ? input + output : 0,
+                batchRequests: batch ? requests : 0)
+        }
+        let snapshot = try OpenAILiveUsageBuilder.build(
+            buckets: [
+                .init(start: Date(timeIntervalSince1970: 119_880), models: [
+                    row(900, 800, 100, 90, batch: true), row(80, 70, 20, 2, batch: false),
+                ]),
+                .init(start: Date(timeIntervalSince1970: 119_940), models: [
+                    row(40, 30, 10, 5, batch: true), row(160, 150, 40, 4, batch: false),
+                    .init(
+                        name: "model-second",
+                        inputTokens: 90,
+                        cachedInputTokens: 0,
+                        outputTokens: 0,
+                        requests: 1),
+                ]),
+            ],
+            windowMinutes: 15,
+            fetchedAt: Self.now,
+            projectID: nil)
+        let points = snapshot.series(for: .model("model-fixture")).suffix(3)
+        #expect(points.map(\.totalTokens) == [1100, 250, 0])
+        #expect(points.map(\.batchTokens) == [1000, 50, 0])
+        #expect(points.map(\.batchRequests) == [90, 5, 0])
+        #expect(points.map(\.limitCountedTokens) == [100, 200, 0])
+        #expect(points.map(\.limitCountedRequests) == [2, 4, 0])
+        #expect(snapshot.minutes[12].models.count == 1)
+        #expect(snapshot.modelNames == ["model-fixture", "model-second"])
+        #expect(snapshot.reportingFrontier == Date(timeIntervalSince1970: 119_940))
+        let summary = snapshot.summary(for: .model("model-fixture"))
+        #expect(summary.totalTokens == 1350)
+        #expect(summary.batchTokens == 1050)
+        #expect(summary.inputTokens == 1180)
+        #expect(summary.cachedInputTokens == 1050)
+        #expect(summary.outputTokens == 170)
+        #expect(summary.requests == 101)
+        #expect(summary.latestTPM == 250)
+        #expect(summary.peakTPM == 1100)
+        #expect(summary.peakMinuteStart == Date(timeIntervalSince1970: 119_880))
+        #expect(snapshot.summary(for: .allModels).totalTokens == 1440)
+        #expect(snapshot.summary(for: .allModels).batchTokens == 1050)
+        #expect(snapshot.stackedByModel().reduce(0) { $0 + $1.tokens } == 1440)
+        #expect(snapshot.modelRows.first?.totalTokens == 1350)
+        #expect(snapshot.modelRows.first?.requests == 101)
+        let limits = OpenAIOrgLimitResolver(manual: [
+            .init(model: "model-fixture", tokensPerMinute: 400, requestsPerMinute: 8),
+            .init(model: "model-second", tokensPerMinute: 100),
+        ], projectCaps: nil)
+        let utilization = try #require(snapshot.utilization(for: .model("model-fixture"), limits: limits))
+        #expect(utilization.latestTPMPercent == 50)
+        #expect(utilization.peakTPMPercent == 50)
+        #expect(utilization.peakRPMPercent == 50)
+        #expect(snapshot.modelRows(limits: limits).first?.peakTPMPercent == 50)
+        #expect(snapshot.modelRows(limits: limits).first?.latestTPMPercent == 50)
+        #expect(snapshot.highestUtilization(limits: limits)?.name == "model-second")
+        #expect(snapshot.highestUtilization(limits: limits)?.peakTPMPercent == 90)
+        #expect(snapshot.throughput.minutes.suffix(3).map(\.totalTokens) == [1100, 340, 0])
+        #expect(snapshot.throughput.minutes.suffix(3).map(\.requests) == [92, 10, 0])
+        #expect(snapshot.throughput.models.first?.peakTPM == 1100)
+        #expect(snapshot.throughput.models.first?.peakLimitCountedTokens == 200)
+    }
+
+    @Test(arguments: [(-1, 0), (0, -1), (121, 0), (0, 4)])
+    func `builder rejects invalid batch subsets`(tokens: Int, requests: Int) {
+        #expect(throws: OpenAILiveUsageError.parseFailure) {
+            try OpenAILiveUsageBuilder.build(
+                buckets: [
+                    .init(start: Self.now.addingTimeInterval(-85), models: [
+                        .init(
+                            name: "model-fixture",
+                            inputTokens: 100,
+                            cachedInputTokens: 60,
+                            outputTokens: 20,
+                            requests: 3,
+                            batchTokens: tokens,
+                            batchRequests: requests),
+                    ]),
+                ],
+                windowMinutes: 15,
+                fetchedAt: Self.now,
+                projectID: nil)
+        }
     }
 
     private static func frontierSnapshot(activeMinutes: [Int: (String, Int)]) -> OpenAILiveUsageSnapshot {

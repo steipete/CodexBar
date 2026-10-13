@@ -2602,7 +2602,8 @@
 "Latest tokens per minute (OpenAI Admin API)" = "Số token mỗi phút mới nhất (OpenAI Admin API)";
 "Fetches 1-minute usage each refresh for the menu card chart and the menu bar Tokens/min token." = "Lấy mức sử dụng từng phút mỗi lần làm mới cho biểu đồ thẻ menu và mục Token/phút trên thanh menu.";
 "Live Usage…" = "Mức sử dụng trực tiếp…";
-"% of limit counts all input, including cached input, plus output, as OpenAI's rate limiter does. The limiter also reserves max_tokens up front, so short bursts can still hit limits." = "% giới hạn tính toàn bộ đầu vào, kể cả đầu vào lưu đệm, + đầu ra, giống bộ giới hạn tốc độ của OpenAI. Bộ giới hạn cũng giữ trước max_tokens, nên các đợt tăng ngắn vẫn có thể chạm giới hạn.";
+"Batch API %@ · not counted in %% of limit" = "Batch API %@ · không tính vào %% giới hạn";
+"% of limit counts all input, including cached input, plus output, as OpenAI's rate limiter does, and excludes Batch API traffic, which has separate limits. The limiter also reserves max_tokens up front, so short bursts can still hit limits." = "% giới hạn tính toàn bộ đầu vào, kể cả đầu vào được lưu trong bộ nhớ đệm, cộng với đầu ra, giống bộ giới hạn tốc độ của OpenAI, và loại trừ lưu lượng Batch API vì có giới hạn riêng. Bộ giới hạn cũng dành trước max_tokens, nên các đợt tăng ngắn vẫn có thể chạm giới hạn.";
 
 "Tokens / min graph" = "Biểu đồ token / phút";
 "Last hour of tokens per minute (OpenAI Admin API)" = "Token mỗi phút trong giờ qua (OpenAI Admin API)";

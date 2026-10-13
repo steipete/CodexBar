@@ -2603,7 +2603,8 @@
 "Latest tokens per minute (OpenAI Admin API)" = "Últims tokens per minut (API d’administració d’OpenAI)";
 "Fetches 1-minute usage each refresh for the menu card chart and the menu bar Tokens/min token." = "Obté l’ús per minut a cada actualització per al gràfic de la targeta del menú i l’element Tokens/min de la barra de menús.";
 "Live Usage…" = "Ús en directe…";
-"% of limit counts all input, including cached input, plus output, as OpenAI's rate limiter does. The limiter also reserves max_tokens up front, so short bursts can still hit limits." = "El % del límit compta tota l’entrada, inclosa l’entrada en memòria cau, + la sortida, com fa el limitador de velocitat d’OpenAI. El limitador també reserva max_tokens per endavant, de manera que les ràfegues curtes encara poden arribar als límits.";
+"Batch API %@ · not counted in %% of limit" = "Batch API %@ · no es compta al %% del límit";
+"% of limit counts all input, including cached input, plus output, as OpenAI's rate limiter does, and excludes Batch API traffic, which has separate limits. The limiter also reserves max_tokens up front, so short bursts can still hit limits." = "El % del límit compta tota l'entrada, inclosa la desada a la memòria cau, més la sortida, com fa el limitador de taxa d'OpenAI, i exclou el trànsit de Batch API, que té límits separats. El limitador també reserva max_tokens per endavant, de manera que les ràfegues curtes encara poden arribar als límits.";
 
 "Tokens / min graph" = "Gràfic de tokens / min";
 "Last hour of tokens per minute (OpenAI Admin API)" = "Tokens per minut de l’última hora (OpenAI Admin API)";

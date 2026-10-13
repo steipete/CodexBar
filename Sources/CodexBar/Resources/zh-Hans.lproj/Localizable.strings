@@ -2593,7 +2593,8 @@
 "Latest tokens per minute (OpenAI Admin API)" = "最新每分钟令牌数（OpenAI Admin API）";
 "Fetches 1-minute usage each refresh for the menu card chart and the menu bar Tokens/min token." = "每次刷新时获取分钟级使用量，用于菜单卡片图表和菜单栏的“令牌/分钟”元素。";
 "Live Usage…" = "实时使用量…";
-"% of limit counts all input, including cached input, plus output, as OpenAI's rate limiter does. The limiter also reserves max_tokens up front, so short bursts can still hit limits." = "限额百分比按全部输入（含缓存输入）+ 输出计算，与 OpenAI 的限流器一致。限流器还会预先预留 max_tokens，因此短时突发仍可能触及限额。";
+"Batch API %@ · not counted in %% of limit" = "Batch API %@ · 不计入限额百分比（%%）";
+"% of limit counts all input, including cached input, plus output, as OpenAI's rate limiter does, and excludes Batch API traffic, which has separate limits. The limiter also reserves max_tokens up front, so short bursts can still hit limits." = "限额百分比（%）与 OpenAI 的速率限制器一样，计算所有输入（包括缓存输入）加上输出，并排除具有独立限额的 Batch API 流量。限制器还会预先保留 max_tokens，因此短时突发仍可能触及限额。";
 
 "Tokens / min graph" = "Token / 分钟图表";
 "Last hour of tokens per minute (OpenAI Admin API)" = "过去一小时的每分钟 Token 数（OpenAI Admin API）";

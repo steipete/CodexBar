@@ -54,7 +54,7 @@ defineProvider({
         `end_time=${range.end}`,
         `bucket_width=${range.width || "1d"}`,
         `limit=${range.limit}`,
-        `group_by=${encodeURIComponent(groupBy)}`,
+        ...(Array.isArray(groupBy) ? groupBy : [groupBy]).map((value) => `group_by=${encodeURIComponent(value)}`),
       ];
       if (projectID) query.push(`project_ids=${encodeURIComponent(projectID)}`);
       if (page) query.push(`page=${encodeURIComponent(page)}`);
@@ -128,7 +128,7 @@ defineProvider({
           queryURL(
             "/v1/organization/usage/completions",
             { start: startTime, end: fetchedAt, limit: 60, width: "1m" },
-            "model",
+            ["model", "batch"],
             null,
           ),
           { timeoutSeconds: 20 },
@@ -158,13 +158,13 @@ defineProvider({
             !Number.isSafeInteger(raw.end_time) ||
             raw.end_time <= raw.start_time ||
             !Array.isArray(raw.results) ||
-            raw.results.length > 200
+            raw.results.length > 400
           )
             throw new Error("Invalid live bucket");
-          entries += raw.results.length;
-          if (entries > 10000) throw new Error("Too many live models");
-          const models = raw.results.map((item) => {
+          const merged = new Map();
+          for (const item of raw.results) {
             if (!item || typeof item !== "object" || Array.isArray(item)) throw new Error("Invalid live model");
+            if (item.batch != null && typeof item.batch !== "boolean") throw new Error("Invalid live batch");
             // input_tokens/output_tokens already aggregate text, audio, and image; audio fields are breakdowns.
             const inputTokens = integer(item.input_tokens, "input_tokens", true) || 0;
             const cachedInputTokens = integer(item.input_cached_tokens, "input_cached_tokens", true) || 0;
@@ -177,9 +177,36 @@ defineProvider({
             totalRequests += requests;
             if (!Number.isSafeInteger(totalTokens) || !Number.isSafeInteger(totalRequests))
               throw new Error("Unsafe live totals");
-            return { name: name(item.model, "unknown"), inputTokens, cachedInputTokens, outputTokens, requests };
-          });
-          return { startTime: raw.start_time, models };
+            const modelName = name(item.model, "unknown");
+            const row = {
+              name: modelName,
+              inputTokens,
+              cachedInputTokens,
+              outputTokens,
+              requests,
+              batchTokens: item.batch === true ? inputTokens + outputTokens : 0,
+              batchRequests: item.batch === true ? requests : 0,
+            };
+            const prior = merged.get(modelName);
+            if (prior) {
+              for (const key of [
+                "inputTokens",
+                "cachedInputTokens",
+                "outputTokens",
+                "requests",
+                "batchTokens",
+                "batchRequests",
+              ]) {
+                row[key] += prior[key];
+                if (!Number.isSafeInteger(row[key])) throw new Error("Unsafe live model totals");
+              }
+            }
+            merged.set(modelName, row);
+          }
+          if (merged.size > 200) throw new Error("Too many live models in bucket");
+          entries += merged.size;
+          if (entries > 10000) throw new Error("Too many live models");
+          return { startTime: raw.start_time, models: Array.from(merged.values()) };
         });
         return { windowMinutes: 60, startTime, fetchedAt, buckets };
       } catch (error) {

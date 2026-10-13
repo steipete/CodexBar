@@ -53,6 +53,72 @@ struct OpenAILiveUsageLimitsModelTests {
     }
 
     @Test
+    func `limit rule uses plotted totals even when most traffic is batch`() {
+        let now = Date(timeIntervalSince1970: 120_025)
+        let snapshot = OpenAILiveUsageSnapshot(
+            minutes: [
+                .init(start: Date(timeIntervalSince1970: 119_940), models: [
+                    .init(
+                        name: "model-fixture",
+                        inputTokens: 100,
+                        cachedInputTokens: 60,
+                        outputTokens: 0,
+                        requests: 10,
+                        batchTokens: 90,
+                        batchRequests: 9),
+                ]),
+            ],
+            windowMinutes: 15,
+            fetchedAt: now,
+            projectID: nil)
+        let points = snapshot.series(for: .allModels)
+        #expect(points.first?.limitCountedTokens == 10)
+        #expect(OpenAILiveUsageLimitsPolicy.showsRule(limit: 150, points: points))
+        #expect(!OpenAILiveUsageLimitsPolicy.showsRule(limit: 151, points: points))
+    }
+
+    @Test
+    func `batch caption renders a literal percent in every locale`() {
+        for language in [
+            "ar",
+            "ca",
+            "de",
+            "en",
+            "es",
+            "fa",
+            "fr",
+            "gl",
+            "id",
+            "it",
+            "ja",
+            "ko",
+            "nl",
+            "pl",
+            "pt-BR",
+            "ru",
+            "sv",
+            "th",
+            "tr",
+            "uk",
+            "vi",
+            "zh-Hans",
+            "zh-Hant",
+        ] {
+            CodexBarLocalizationOverride.$appLanguage.withValue(language) {
+                let text = L("Batch API %@ · not counted in %% of limit", "123")
+                #expect(text.contains("Batch API"))
+                #expect(text.contains("123"))
+                #expect(text.contains("%"))
+                #expect(!text.contains("%%"))
+                #expect(!text.contains("%@"))
+                if language == "en" {
+                    #expect(text == "Batch API 123 · not counted in % of limit")
+                }
+            }
+        }
+    }
+
+    @Test
     func `limits failures preserve usage polling and cached manual limits`() async {
         let source = Source()
         var now = Date()

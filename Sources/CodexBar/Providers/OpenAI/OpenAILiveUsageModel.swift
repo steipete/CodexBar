@@ -23,9 +23,9 @@ enum OpenAILiveUsageLimitsPolicy {
         limit > 0 && Double(limit) <= 1.5 * Double(peak)
     }
 
-    /// Pending minutes are not plotted, so they must not pull the limit rule into the chart's scale.
+    /// The chart plots all traffic; only non-pending totals determine whether the rule fits its scale.
     static func showsRule(limit: Int, points: [OpenAILiveUsageSnapshot.Point]) -> Bool {
-        self.showsRule(limit: limit, peak: points.filter { !$0.isPending }.map(\.limitCountedTokens).max() ?? 0)
+        self.showsRule(limit: limit, peak: points.filter { !$0.isPending }.map(\.totalTokens).max() ?? 0)
     }
 }
 
