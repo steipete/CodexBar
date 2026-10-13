@@ -12,6 +12,8 @@ enum JetBrainsQuotaLogReader {
     private static let refillMarker = "QuotaManager2Impl - New quota refill state is: "
     /// After the AI Assistant → Air migration the IDE stops logging quota state; Junie relays it as JSON instead.
     private static let junieQuotaMarker = "AiaActivationTransmitter - Received message from junie: quota_update:"
+    /// Once Air disables AI Assistant, its quota manager keeps logging this error between Junie's updates.
+    private static let disabledAssistantState = "Error(exception=com.intellij.ml.llm.core.AIAssistantForbiddenException"
     static let tailByteCount: UInt64 = 4 * 1024 * 1024
 
     static func logFilePath(
@@ -52,6 +54,8 @@ enum JetBrainsQuotaLogReader {
         var refill: JetBrainsRefillInfo?
         var foundRefill = false
         for line in content.split(whereSeparator: \.isNewline).reversed() {
+            // A disabled assistant says nothing about the account; other errors still invalidate the log below.
+            if line.contains(self.quotaMarker + self.disabledAssistantState) { continue }
             let isLegacyQuota = line.contains(self.quotaMarker)
             if isLegacyQuota || line.contains(self.junieQuotaMarker) {
                 // Unsupported latest states invalidate the log; never resurrect an older account's quota.

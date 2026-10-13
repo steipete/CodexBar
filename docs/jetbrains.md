@@ -38,6 +38,9 @@ JetBrains AI is a local-only provider. We read quota information from the IDE's 
      AI Assistant → Air migration (observed in PhpStorm 2026.2, refill state `AIAssistantForbiddenException ...
      (AirMigration)`), only the Junie record keeps updating. Its `tariffQuota` maps to monthly used/maximum/available
      and `until` (epoch ms) to the expiry; the license/quota IDs are not decoded. Junie records carry no refill state
+   - After the migration, AI Assistant keeps logging `New quota state is: Error(exception=...AIAssistantForbiddenException...)`
+     between Junie's updates. Only that disabled-assistant error is skipped; any other error or unknown latest state
+     still invalidates older log quota
    - Accepts only complete `Available` monthly quota records with finite, nonnegative numbers. A malformed,
      truncated, unknown, or changed latest quota state falls back to XML rather than reusing older log quota
    - With an XML source selected, only that IDE installation's log is eligible. Other IDEs may use different

@@ -42,6 +42,11 @@ struct JetBrainsQuotaLogReaderTests {
             + "Known(refill=JbaiQuotaRefill(tariff=JbaiQuotaTariff(amount=1000000, period=30d), "
             + "next=2026-11-10T17:00:32.124Z, last=2026-10-11T17:00:32.124Z))"
 
+    private static let airMigrationQuotaLine =
+        "2026-10-12 04:51:43,486 [ 335233]   INFO - #c.i.m.l.c.q.QuotaManager2Impl - New quota state is: "
+            + "Error(exception=com.intellij.ml.llm.core.AIAssistantForbiddenException: Usage of AI Assistant is "
+            + "prohibited by machine-wide settings (AirMigration))"
+
     private static func localDate(_ text: String) -> Date {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
@@ -326,5 +331,28 @@ struct JetBrainsQuotaLogReaderTests {
     func `malformed latest JbaiQuota state does not resurrect older quota`() {
         let malformed = Self.jbaiQuotaLine.replacingOccurrences(of: "tariffQuota=Details(", with: "tariffQuota=Other(")
         #expect(JetBrainsQuotaLogReader.latestEntry(inLogContent: Self.latestQuotaLine + "\n" + malformed) == nil)
+    }
+
+    @Test
+    func `disabled AI Assistant errors do not hide newer Junie quota`() throws {
+        let log = [
+            Self.latestQuotaLine,
+            Self.junieQuotaLine,
+            Self.airMigrationQuotaLine,
+            Self.airMigrationRefillLine,
+            Self.airMigrationQuotaLine,
+        ].joined(separator: "\n")
+        let entry = try #require(JetBrainsQuotaLogReader.latestEntry(inLogContent: log))
+        #expect(entry.timestamp == Self.localDate("2026-10-12 04:47:16,090"))
+        #expect(entry.quotaInfo.used == 16966.18)
+        #expect(entry.refillInfo == nil)
+    }
+
+    @Test
+    func `other latest quota errors still invalidate older quota`() {
+        let networkError = Self.airMigrationQuotaLine.replacingOccurrences(
+            of: "com.intellij.ml.llm.core.AIAssistantForbiddenException", with: "java.net.SocketTimeoutException")
+        let log = [Self.junieQuotaLine, networkError].joined(separator: "\n")
+        #expect(JetBrainsQuotaLogReader.latestEntry(inLogContent: log) == nil)
     }
 }
