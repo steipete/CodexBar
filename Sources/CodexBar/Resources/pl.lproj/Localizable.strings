@@ -2616,3 +2616,5 @@
 "Chart" = "Wykres";
 
 "Daily spend · %@" = "Dzienne wydatki · %@";
+"Applies to the selected token account “%@”. Each account keeps its own limits." = "Dotyczy wybranego konta tokena „%@”. Każde konto zachowuje własne limity.";
+"Applies to the OpenAI API key, not to token accounts." = "Dotyczy klucza API OpenAI, a nie kont tokenów.";

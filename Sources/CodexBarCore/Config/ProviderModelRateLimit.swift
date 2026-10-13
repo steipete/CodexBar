@@ -24,6 +24,40 @@ public struct ProviderModelRateLimit: Codable, Sendable, Equatable {
     }
 }
 
+/// The credential whose organization a manual rate-limit list describes.
+public enum ProviderModelRateLimitScope: Hashable, Sendable {
+    case provider
+    case tokenAccount(UUID)
+}
+
+extension ProviderConfig {
+    public func modelRateLimits(for scope: ProviderModelRateLimitScope) -> [ProviderModelRateLimit] {
+        switch scope {
+        case .provider: self.modelRateLimits ?? []
+        case let .tokenAccount(id):
+            self.tokenAccounts?.accounts.first(where: { $0.id == id })?.modelRateLimits ?? []
+        }
+    }
+
+    public mutating func setModelRateLimits(
+        _ limits: [ProviderModelRateLimit],
+        for scope: ProviderModelRateLimitScope)
+    {
+        let validated = ProviderModelRateLimit.validated(limits)
+        switch scope {
+        case .provider:
+            self.modelRateLimits = validated
+        case let .tokenAccount(id):
+            guard let data = self.tokenAccounts,
+                  let index = data.accounts.firstIndex(where: { $0.id == id }) else { return }
+            var accounts = data.accounts
+            accounts[index] = accounts[index].withModelRateLimits(validated)
+            self.tokenAccounts = ProviderTokenAccountData(
+                version: data.version, accounts: accounts, activeIndex: data.activeIndex)
+        }
+    }
+}
+
 public enum ProviderRateLimitNumber {
     /// Accepts grouped integers and decimal k/M suffixes, but never rounds fractional counts.
     public static func parse(_ text: String) -> Int? {

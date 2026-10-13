@@ -2612,3 +2612,5 @@
 "Chart" = "Graphique";
 
 "Daily spend · %@" = "Dépenses quotidiennes · %@";
+"Applies to the selected token account “%@”. Each account keeps its own limits." = "S’applique au compte de jeton sélectionné « %@ ». Chaque compte conserve ses propres limites.";
+"Applies to the OpenAI API key, not to token accounts." = "S’applique à la clé API OpenAI, pas aux comptes de jeton.";

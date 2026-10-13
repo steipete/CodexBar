@@ -46,7 +46,9 @@ final class OpenAILiveUsageModel {
 
     private(set) var projectCaps: OpenAIOrgRateLimits?
     private(set) var limitsError: String?
-    @ObservationIgnored private let manualLimits: @MainActor () -> [ProviderModelRateLimit]
+    private(set) var displayedLimitScope: ProviderModelRateLimitScope?
+    @ObservationIgnored private let limitScope: @MainActor () -> ProviderModelRateLimitScope
+    @ObservationIgnored private let manualLimits: @MainActor (ProviderModelRateLimitScope) -> [ProviderModelRateLimit]
     @ObservationIgnored private let fetchLimits: FetchLimits
     @ObservationIgnored private let now: @MainActor () -> Date
     @ObservationIgnored private var limitsTask: Task<Void, Never>?
@@ -57,7 +59,9 @@ final class OpenAILiveUsageModel {
     @ObservationIgnored private var usageScope: OpenAILiveUsageScope??
 
     var limits: OpenAIOrgLimitResolver {
-        OpenAIOrgLimitResolver(manual: self.manualLimits(), projectCaps: self.projectCaps)
+        OpenAIOrgLimitResolver(
+            manual: self.manualLimits(self.displayedLimitScope ?? self.limitScope()),
+            projectCaps: self.projectCaps)
     }
 
     private(set) var snapshot: OpenAILiveUsageSnapshot?
@@ -78,7 +82,8 @@ final class OpenAILiveUsageModel {
 
     init(
         environment: @escaping @MainActor () -> [String: String],
-        manualLimits: @escaping @MainActor () -> [ProviderModelRateLimit] = { [] },
+        limitScope: @escaping @MainActor () -> ProviderModelRateLimitScope = { .provider },
+        manualLimits: @escaping @MainActor (ProviderModelRateLimitScope) -> [ProviderModelRateLimit] = { _ in [] },
         now: @escaping @MainActor () -> Date = { Date() },
         fetchLimits: @escaping FetchLimits = { try await OpenAIOrgRateLimitsFetcher().fetch(environment: $0) },
         fetch: @escaping Fetch = { environment, minutes in
@@ -86,6 +91,7 @@ final class OpenAILiveUsageModel {
         })
     {
         self.environment = environment
+        self.limitScope = limitScope
         self.manualLimits = manualLimits
         self.now = now
         self.fetchLimits = fetchLimits
@@ -114,9 +120,11 @@ final class OpenAILiveUsageModel {
 
     func refresh(manual: Bool = true) {
         guard self.isActive else { return }
-        self.refreshLimits(manual: manual)
         let environment = self.environment()
-        self.resetIfScopeChanged(environment)
+        let limitScope = self.limitScope()
+        self.resetIfScopeChanged(environment, limitScope: limitScope)
+        self.displayedLimitScope = limitScope
+        self.refreshLimits(environment: environment, manual: manual)
         self.pollingTask?.cancel()
         self.pollingTask = nil
         self.nextRefreshAt = nil
@@ -166,10 +174,14 @@ final class OpenAILiveUsageModel {
 
     /// A different account, key, or project is a different data scope: drop the previous organization's usage and
     /// model filter, and invalidate any in-flight fetch so its result cannot land in the new scope.
-    private func resetIfScopeChanged(_ environment: [String: String]) {
+    private func resetIfScopeChanged(
+        _ environment: [String: String],
+        limitScope: ProviderModelRateLimitScope)
+    {
         let scope = OpenAILiveUsageScope(environment: environment)
         defer { self.usageScope = .some(scope) }
-        guard let previous = self.usageScope, previous != scope else { return }
+        guard let previous = self.usageScope,
+              previous != scope || self.displayedLimitScope != limitScope else { return }
         self.generation += 1
         self.snapshot = nil
         self.lastUpdated = nil
@@ -188,8 +200,7 @@ final class OpenAILiveUsageModel {
         await self.limitsTask?.value
     }
 
-    private func refreshLimits(manual: Bool) {
-        let environment = self.environment()
+    private func refreshLimits(environment: [String: String], manual: Bool) {
         let scope = OpenAILiveUsageScope(environment: environment)
         if self.limitsScope != .some(scope) {
             self.limitsTask?.cancel()

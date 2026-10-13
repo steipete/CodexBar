@@ -31,8 +31,10 @@ final class OpenAILiveUsageWindowController: NSWindowController, NSWindowDelegat
                 provider: .openai,
                 settings: settings,
                 tokenOverride: nil)
-        }, manualLimits: {
-            settings.providerConfig(for: .openai)?.modelRateLimits ?? []
+        }, limitScope: {
+            settings.modelRateLimitScope(for: .openai)
+        }, manualLimits: { scope in
+            settings.providerConfig(for: .openai)?.modelRateLimits(for: scope) ?? []
         })
         self.model = model
         let size = NSSize(width: 880, height: 640)

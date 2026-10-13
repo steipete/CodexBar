@@ -31,7 +31,10 @@ protocol ProviderImplementation: Sendable {
     func detectVersion(context: ProviderVersionContext) async -> String?
 
     @MainActor
-    func throughputPresentation(snapshot: ProviderThroughputSnapshot, settings: SettingsStore)
+    func throughputPresentation(
+        snapshot: ProviderThroughputSnapshot,
+        settings: SettingsStore,
+        limitScope: ProviderModelRateLimitScope?)
         -> ProviderThroughputPresentation?
 
     func makeRuntime() -> (any ProviderRuntime)?
@@ -153,7 +156,10 @@ extension ProviderImplementation {
     }
 
     @MainActor
-    func throughputPresentation(snapshot _: ProviderThroughputSnapshot, settings _: SettingsStore)
+    func throughputPresentation(
+        snapshot _: ProviderThroughputSnapshot,
+        settings _: SettingsStore,
+        limitScope _: ProviderModelRateLimitScope?)
     -> ProviderThroughputPresentation? { nil }
 
     func makeRuntime() -> (any ProviderRuntime)? {

@@ -2581,3 +2581,5 @@
 "Chart" = "차트";
 
 "Daily spend · %@" = "일일 지출 · %@";
+"Applies to the selected token account “%@”. Each account keeps its own limits." = "선택한 토큰 계정 “%@”에 적용됩니다. 각 계정은 자체 한도를 유지합니다.";
+"Applies to the OpenAI API key, not to token accounts." = "토큰 계정이 아닌 OpenAI API 키에 적용됩니다.";

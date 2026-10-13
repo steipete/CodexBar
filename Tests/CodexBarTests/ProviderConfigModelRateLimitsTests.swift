@@ -5,6 +5,144 @@ import Testing
 
 struct ProviderConfigModelRateLimitsTests {
     @Test
+    func `legacy provider-level limits decode as the provider key's limits`() throws {
+        let id = try #require(UUID(uuidString: "00000000-0000-0000-0000-000000000001"))
+        let config = try JSONDecoder().decode(ProviderConfig.self, from: Data(#"""
+        {"id":"openai","modelRateLimits":[{"model":"gpt-5","tokensPerMinute":100}],
+         "tokenAccounts":{"version":1,"activeIndex":0,"accounts":[{
+           "id":"00000000-0000-0000-0000-000000000001","label":"Legacy","token":"synthetic","addedAt":0
+         }]}}
+        """#.utf8))
+        #expect(config.modelRateLimits(for: .provider) == [.init(model: "gpt-5", tokensPerMinute: 100)])
+        #expect(config.modelRateLimits(for: .tokenAccount(id)).isEmpty)
+        #expect(config.tokenAccounts?.accounts.first?.modelRateLimits == nil)
+        #expect(config.modelRateLimits(for: .tokenAccount(UUID())).isEmpty)
+    }
+
+    @Test
+    func `account limits validate at construction and decoding and encode inside the account`() throws {
+        let rows: [ProviderModelRateLimit] = [
+            .init(model: " ", tokensPerMinute: 1),
+            .init(model: "zero", tokensPerMinute: 0),
+            .init(model: "negative", tokensPerMinute: -1),
+            .init(model: " gpt-5 ", tokensPerMinute: 100, requestsPerMinute: 10),
+            .init(model: "gpt-5", tokensPerMinute: 200, requestsPerMinute: 0),
+            .init(model: "gpt-4o", tokensPerMinute: 300, requestsPerMinute: -1),
+        ]
+        let expected: [ProviderModelRateLimit] = [
+            .init(model: "gpt-5", tokensPerMinute: 200), .init(model: "gpt-4o", tokensPerMinute: 300),
+        ]
+        let account = self.account(limits: rows)
+        #expect(account.modelRateLimits == expected)
+        let config = ProviderConfig(
+            id: .openai, tokenAccounts: .init(version: 1, accounts: [account], activeIndex: 0))
+        let data = try JSONEncoder().encode(config)
+        let decoded = try JSONDecoder().decode(ProviderConfig.self, from: data)
+        #expect(decoded.modelRateLimits(for: .tokenAccount(account.id)) == expected)
+        let json = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        #expect(json["modelRateLimits"] == nil)
+        let accounts = try #require(json["tokenAccounts"] as? [String: Any])
+        let encoded = try #require((accounts["accounts"] as? [[String: Any]])?.first)
+        #expect((encoded["modelRateLimits"] as? [[String: Any]])?.count == 2)
+        // Feed unvalidated rows directly to the decoder, bypassing the validating initializer.
+        var raw = encoded
+        raw["modelRateLimits"] = try JSONSerialization.jsonObject(with: JSONEncoder().encode(rows))
+        let fromRaw = try JSONDecoder().decode(
+            ProviderTokenAccount.self, from: JSONSerialization.data(withJSONObject: raw))
+        #expect(fromRaw.modelRateLimits == expected)
+        let normalized = CodexBarConfig(providers: [decoded]).normalized()
+        #expect(normalized.providerConfig(for: .openai)?.modelRateLimits(for: .tokenAccount(account.id)) == expected)
+        #expect(CodexBarConfigValidator.validate(normalized).isEmpty)
+        #expect(account.sanitizedForDump().modelRateLimits == expected)
+        #expect(account.sanitizedForDump().token == "[REDACTED]")
+        let copyJSON = try #require(JSONSerialization.jsonObject(
+            with: JSONEncoder().encode(account.withModelRateLimits(nil))) as? [String: Any])
+        var identityJSON = encoded
+        identityJSON.removeValue(forKey: "modelRateLimits")
+        #expect(NSDictionary(dictionary: copyJSON) == NSDictionary(dictionary: identityJSON))
+        for rows: [ProviderModelRateLimit]? in [nil, [], [.init(model: "bad", tokensPerMinute: 0)]] {
+            let empty = account.withModelRateLimits(rows)
+            #expect(empty.modelRateLimits == nil)
+            let encoded = try JSONEncoder().encode(empty)
+            #expect(try !#require(String(bytes: encoded, encoding: .utf8)).contains("modelRateLimits"))
+        }
+    }
+
+    @Test
+    func `setting scoped limits preserves other credentials and fetch identity`() throws {
+        let a = self.account(limits: [.init(model: "gpt-5", tokensPerMinute: 200)])
+        let b = self.account(limits: [.init(model: "gpt-5", tokensPerMinute: 300)])
+        var config = ProviderConfig(
+            id: .openai,
+            tokenAccounts: .init(version: 7, accounts: [a, b], activeIndex: 1),
+            modelRateLimits: [.init(model: "gpt-5", tokensPerMinute: 100)])
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        let identity = try encoder.encode(config.fetchIdentityConfig)
+        let updated: [ProviderModelRateLimit] = [.init(model: " gpt-5 ", tokensPerMinute: 400)]
+        let expected = ProviderModelRateLimit.validated(updated)
+        config.setModelRateLimits(updated, for: .tokenAccount(a.id))
+        #expect(config.modelRateLimits(for: .tokenAccount(a.id)) == expected)
+        #expect(config.modelRateLimits(for: .tokenAccount(b.id)) == b.modelRateLimits)
+        #expect(config.modelRateLimits(for: .provider) == [.init(model: "gpt-5", tokensPerMinute: 100)])
+        #expect(config.tokenAccounts?.version == 7)
+        #expect(config.tokenAccounts?.activeIndex == 1)
+        #expect(try encoder.encode(config.fetchIdentityConfig) == identity)
+        config.setModelRateLimits(updated, for: .provider)
+        #expect(config.modelRateLimits(for: .provider) == expected)
+        #expect(config.modelRateLimits(for: .tokenAccount(a.id)) == expected)
+        #expect(config.modelRateLimits(for: .tokenAccount(b.id)) == b.modelRateLimits)
+        let beforeMissing = try encoder.encode(config)
+        config.setModelRateLimits([], for: .tokenAccount(UUID()))
+        #expect(try encoder.encode(config) == beforeMissing)
+        config.setModelRateLimits([], for: .tokenAccount(a.id))
+        #expect(config.tokenAccounts?.accounts.first?.modelRateLimits == nil)
+        #expect(config.modelRateLimits(for: .provider) == expected)
+        #expect(config.modelRateLimits(for: .tokenAccount(b.id)) == b.modelRateLimits)
+        #expect(try encoder.encode(config.fetchIdentityConfig) == identity)
+    }
+
+    @Test
+    func `sync preserves provider and account limits and older intent keeps local provider limits`() throws {
+        let account = self.account(limits: [.init(model: "gpt-5", tokensPerMinute: 200)])
+        let config = ProviderConfig(
+            id: .openai,
+            tokenAccounts: .init(version: 1, accounts: [account], activeIndex: 0),
+            modelRateLimits: [.init(model: "gpt-5", tokensPerMinute: 100)])
+        let payload = try CanonicalSyncJSON.decode(
+            ProviderIntentPayload.self, from: CanonicalSyncJSON.string(ProviderIntentPayload(config: config)))
+        let secrets = try ProviderIntentPayload.secretFields(for: config, includeSecrets: true)
+        #expect(secrets["tokenAccounts"]?.contains("modelRateLimits") == true)
+        #expect(try ProviderIntentPayload.secretFields(for: config, includeSecrets: false).isEmpty)
+        let applied = try payload.applying(
+            to: ProviderConfig(id: .openai), secretFields: secrets, canEnable: { _, _ in false })
+        #expect(applied.modelRateLimits(for: .provider) == config.modelRateLimits)
+        #expect(applied.modelRateLimits(for: .tokenAccount(account.id)) == account.modelRateLimits)
+        #expect(try CanonicalSyncJSON.string(applied.tokenAccounts) == CanonicalSyncJSON.string(config.tokenAccounts))
+        let older = try CanonicalSyncJSON.decode(
+            ProviderIntentPayload.self, from: #"{"schemaVersion":1,"provider":"openai"}"#)
+        #expect(older.modelRateLimits == nil)
+        let retained = try older.applying(to: config, secretFields: [:], canEnable: { _, _ in false })
+        #expect(retained.modelRateLimits(for: .provider) == config.modelRateLimits)
+        #expect(retained.modelRateLimits(for: .tokenAccount(account.id)) == account.modelRateLimits)
+    }
+
+    private func account(limits: [ProviderModelRateLimit]) -> ProviderTokenAccount {
+        ProviderTokenAccount(
+            id: UUID(),
+            label: "Synthetic",
+            token: "synthetic",
+            addedAt: 1,
+            lastUsed: 2,
+            externalIdentifier: "synthetic-id",
+            usageScope: "synthetic-scope",
+            organizationID: "synthetic-org",
+            workspaceID: "synthetic-workspace",
+            seatCreditEntitlement: "100",
+            modelRateLimits: limits)
+    }
+
+    @Test
     func `model rate limits round trip and empty values are omitted`() throws {
         let config = ProviderConfig(id: .openai, modelRateLimits: [
             .init(model: "gpt-5", tokensPerMinute: 40_000_000, requestsPerMinute: 15000),

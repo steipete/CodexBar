@@ -77,7 +77,12 @@ struct ProviderSettingsModelLimitsRowView: View {
         } header: {
             Text(L(self.descriptor.title))
         } footer: {
-            SettingsSectionFooter(L(self.descriptor.subtitle))
+            VStack(alignment: .leading, spacing: 4) {
+                SettingsSectionFooter(L(self.descriptor.subtitle))
+                if let scopeText = self.descriptor.scopeText {
+                    SettingsSectionFooter(scopeText)
+                }
+            }
         }
         .onChange(of: self.rows) { _, rows in
             // Keep edits local until every row is valid, preserving the last saved limits while typing.

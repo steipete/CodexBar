@@ -63,12 +63,13 @@ struct OpenAIAPIProviderImplementation: ProviderImplementation {
     @MainActor
     func throughputPresentation(
         snapshot: ProviderThroughputSnapshot,
-        settings: SettingsStore)
+        settings: SettingsStore,
+        limitScope: ProviderModelRateLimitScope?)
         -> ProviderThroughputPresentation?
     {
         Self.throughputPresentation(
             snapshot: snapshot,
-            manual: settings.providerConfig(for: self.id)?.modelRateLimits ?? [])
+            manual: limitScope.flatMap { settings.providerConfig(for: self.id)?.modelRateLimits(for: $0) } ?? [])
     }
 
     static func throughputPresentation(
@@ -124,7 +125,14 @@ struct OpenAIAPIProviderImplementation: ProviderImplementation {
 
     @MainActor
     func settingsModelLimits(context: ProviderSettingsContext) -> [ProviderSettingsModelLimitsDescriptor] {
-        [.init(
+        let scopeText: String? = if context.settings.tokenAccounts(for: self.id).isEmpty {
+            nil
+        } else if let account = context.settings.effectiveSelectedTokenAccount(for: self.id) {
+            L("Applies to the selected token account “%@”. Each account keeps its own limits.", account.label)
+        } else {
+            L("Applies to the OpenAI API key, not to token accounts.")
+        }
+        return [.init(
             id: "openai-org-limits",
             title: "Organization rate limits",
             subtitle: "OpenAI's API doesn't expose organization rate limits. Copy them from your organization's " +
@@ -133,7 +141,8 @@ struct OpenAIAPIProviderImplementation: ProviderImplementation {
             actions: [.openURL(
                 id: "openai-open-limits",
                 title: "Open organization Limits",
-                url: URL(string: "https://platform.openai.com/settings/organization/limits"))])]
+                url: URL(string: "https://platform.openai.com/settings/organization/limits"))],
+            scopeText: scopeText)]
     }
 
     @MainActor

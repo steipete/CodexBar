@@ -34,7 +34,9 @@ printf '%s' "$OPENAI_ADMIN_KEY" | codexbar config set-api-key --provider openai 
 
 Settings → Providers → OpenAI writes the same `~/.codexbar/config.json` field. `OPENAI_ADMIN_KEY` is preferred over
 `OPENAI_API_KEY` because it unlocks organization costs and usage; a normal API key only supports the legacy balance
-fallback.
+fallback. Selected token accounts take precedence over both environment keys and the configured key. Each
+credential keeps its own manual organization rate limits; Settings edits the selected account's list and identifies
+that account, or edits the provider key's list when no token account is selected.
 
 Project service-account keys are project-scoped credentials for API workloads. They are not organization Admin API
 keys, so they cannot read the organization usage and cost endpoints used by CodexBar. Configure an organization Admin
@@ -95,6 +97,15 @@ project scope, or the whole organization when no project is configured.
 
 ### Organization rate-limit headroom
 
+Manual organization limits belong to the credential whose organization they describe. Provider-level
+`modelRateLimits` describes the provider key (configured `apiKey` or environment key); each token account stores
+its own `tokenAccounts.accounts[].modelRateLimits`, with no inheritance from the provider key or other accounts.
+Settings edits the selected account's list and says which credential it applies to. Switching accounts switches
+the limits used by Settings and the live menu card; stacked token-account cards use their own account's limits.
+Cards whose credential is unknown, such as snapshots from other Macs, show no organization-limit utilization.
+The Live Usage window retains the displayed account's limits until the next refresh switches both data and limits.
+Edits to that displayed credential's limits update the open window immediately without refetching usage.
+
 The Live Usage window compares each model's latest reported minute and peak tokens per minute (TPM), plus peak
 requests per minute (RPM), with **manual organization limits from Settings only**. The single-model view shows
 utilization and a dashed chart line when a manual limit is near the plotted range; otherwise it labels the limit
@@ -133,3 +144,5 @@ Some model families share one limit; utilization here is per model and does not 
 
 - Costs are the source of truth for financial totals. Token usage and cost buckets can differ slightly from dashboard billing reconciliation.
 - Admin API keys are organization-scoped and cannot be used for normal model inference.
+- Manual organization limits are per credential. Enter limits separately for the provider key and each token account;
+  project-scoped usage still suppresses organization-limit utilization.

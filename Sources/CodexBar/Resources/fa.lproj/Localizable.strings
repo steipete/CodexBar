@@ -2617,3 +2617,5 @@
 "Chart" = "نمودار";
 
 "Daily spend · %@" = "هزینهٔ روزانه · %@";
+"Applies to the selected token account “%@”. Each account keeps its own limits." = "برای حساب توکن انتخاب‌شده «%@» اعمال می‌شود. هر حساب محدودیت‌های خودش را نگه می‌دارد.";
+"Applies to the OpenAI API key, not to token accounts." = "برای کلید API ‏OpenAI اعمال می‌شود، نه حساب‌های توکن.";

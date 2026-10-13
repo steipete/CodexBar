@@ -2614,3 +2614,5 @@
 "Chart" = "Biểu đồ";
 
 "Daily spend · %@" = "Chi tiêu hằng ngày · %@";
+"Applies to the selected token account “%@”. Each account keeps its own limits." = "Áp dụng cho tài khoản token đã chọn “%@”. Mỗi tài khoản giữ giới hạn riêng.";
+"Applies to the OpenAI API key, not to token accounts." = "Áp dụng cho khóa API OpenAI, không áp dụng cho các tài khoản token.";

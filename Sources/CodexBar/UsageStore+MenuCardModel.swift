@@ -19,6 +19,7 @@ enum UsageMenuCardContext {
         var subtitle: String?
         var sourceLabel: String?
         var credits: CreditsSnapshot?
+        var tokenAccountID: UUID?
     }
 
     var account: Account? {
@@ -104,7 +105,10 @@ extension UsageStore {
             throughputPresentation: snapshot?.throughput.flatMap {
                 ProviderCatalog.implementation(for: provider)?.throughputPresentation(
                     snapshot: $0,
-                    settings: self.settings)
+                    settings: self.settings,
+                    limitScope: isLive
+                        ? self.settings.modelRateLimitScope(for: provider)
+                        : account?.tokenAccountID.map { .tokenAccount($0) })
             },
             metadata: metadata,
             snapshot: snapshot,

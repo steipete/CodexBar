@@ -94,7 +94,8 @@ extension StatusItemController {
                 info: AccountInfo(email: label.isEmpty ? nil : label, plan: nil),
                 historySelection: self.store.planUtilizationHistorySelection(
                     for: provider,
-                    account: accountSnapshot.account))))
+                    account: accountSnapshot.account),
+                tokenAccountID: accountSnapshot.account.id)))
     }
 
     func codexAccountMenuDisplay(for provider: UsageProvider) -> CodexAccountMenuDisplay? {

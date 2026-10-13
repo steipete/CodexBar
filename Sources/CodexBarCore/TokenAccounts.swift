@@ -22,6 +22,9 @@ public struct ProviderTokenAccount: Codable, Identifiable, Sendable {
     /// use this as the per-seat monthly credit entitlement; GitHub publishes no such entitlement.
     public let seatCreditEntitlement: String?
 
+    /// Manual organization limits for this credential, with no provider-level inheritance.
+    public let modelRateLimits: [ProviderModelRateLimit]?
+
     enum CodingKeys: String, CodingKey {
         case id
         case label
@@ -33,6 +36,7 @@ public struct ProviderTokenAccount: Codable, Identifiable, Sendable {
         case organizationID = "organizationId"
         case workspaceID
         case seatCreditEntitlement
+        case modelRateLimits
     }
 
     public init(
@@ -45,7 +49,8 @@ public struct ProviderTokenAccount: Codable, Identifiable, Sendable {
         usageScope: String? = nil,
         organizationID: String? = nil,
         workspaceID: String? = nil,
-        seatCreditEntitlement: String? = nil)
+        seatCreditEntitlement: String? = nil,
+        modelRateLimits: [ProviderModelRateLimit]? = nil)
     {
         self.id = id
         self.label = label
@@ -57,6 +62,39 @@ public struct ProviderTokenAccount: Codable, Identifiable, Sendable {
         self.organizationID = organizationID
         self.workspaceID = workspaceID
         self.seatCreditEntitlement = seatCreditEntitlement
+        let validated = ProviderModelRateLimit.validated(modelRateLimits ?? [])
+        self.modelRateLimits = validated.isEmpty ? nil : validated
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        try self.init(
+            id: container.decode(UUID.self, forKey: .id),
+            label: container.decode(String.self, forKey: .label),
+            token: container.decode(String.self, forKey: .token),
+            addedAt: container.decode(TimeInterval.self, forKey: .addedAt),
+            lastUsed: container.decodeIfPresent(TimeInterval.self, forKey: .lastUsed),
+            externalIdentifier: container.decodeIfPresent(String.self, forKey: .externalIdentifier),
+            usageScope: container.decodeIfPresent(String.self, forKey: .usageScope),
+            organizationID: container.decodeIfPresent(String.self, forKey: .organizationID),
+            workspaceID: container.decodeIfPresent(String.self, forKey: .workspaceID),
+            seatCreditEntitlement: container.decodeIfPresent(String.self, forKey: .seatCreditEntitlement),
+            modelRateLimits: container.decodeIfPresent([ProviderModelRateLimit].self, forKey: .modelRateLimits))
+    }
+
+    public func withModelRateLimits(_ limits: [ProviderModelRateLimit]?) -> ProviderTokenAccount {
+        ProviderTokenAccount(
+            id: self.id,
+            label: self.label,
+            token: self.token,
+            addedAt: self.addedAt,
+            lastUsed: self.lastUsed,
+            externalIdentifier: self.externalIdentifier,
+            usageScope: self.usageScope,
+            organizationID: self.organizationID,
+            workspaceID: self.workspaceID,
+            seatCreditEntitlement: self.seatCreditEntitlement,
+            modelRateLimits: limits)
     }
 
     public var displayName: String {
@@ -95,7 +133,8 @@ public struct ProviderTokenAccount: Codable, Identifiable, Sendable {
             usageScope: self.usageScope,
             organizationID: self.organizationID,
             workspaceID: self.workspaceID,
-            seatCreditEntitlement: self.seatCreditEntitlement)
+            seatCreditEntitlement: self.seatCreditEntitlement,
+            modelRateLimits: self.modelRateLimits)
     }
 }
 

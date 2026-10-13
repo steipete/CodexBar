@@ -9,6 +9,154 @@ import Testing
 @MainActor
 struct OpenAILiveUsageLimitsModelTests {
     @Test
+    func `settings limits binding follows the selected credential without inheritance`() throws {
+        let settings = testSettingsStore(suiteName: #function, userDefaults: InMemoryUserDefaults())
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings)
+        let context = self.context(settings: settings, store: store)
+        let binding = context.modelRateLimitsBinding()
+        let provider: [ProviderModelRateLimit] = [.init(model: "gpt-5", tokensPerMinute: 100)]
+        let a: [ProviderModelRateLimit] = [.init(model: "gpt-5", tokensPerMinute: 200)]
+        let b: [ProviderModelRateLimit] = [.init(model: "gpt-5", tokensPerMinute: 300)]
+        #expect(settings.modelRateLimitScope(for: .openai) == .provider)
+        binding.wrappedValue = provider
+        #expect(binding.wrappedValue == provider)
+        #expect(settings.providerConfig(for: .openai)?.modelRateLimits == provider)
+        #expect(OpenAIAPIProviderImplementation().settingsModelLimits(context: context).first?.scopeText == nil)
+        settings.addTokenAccount(provider: .openai, label: "A", token: "synthetic-a")
+        let accountA = try #require(settings.selectedTokenAccount(for: .openai))
+        #expect(binding.wrappedValue.isEmpty)
+        binding.wrappedValue = a
+        settings.addTokenAccount(provider: .openai, label: "B", token: "synthetic-b")
+        let accountB = try #require(settings.selectedTokenAccount(for: .openai))
+        #expect(binding.wrappedValue.isEmpty)
+        binding.wrappedValue = b
+        #expect(settings.modelRateLimitScope(for: .openai) == .tokenAccount(accountB.id))
+        #expect(OpenAIAPIProviderImplementation().settingsModelLimits(context: context).first?.scopeText ==
+            L("Applies to the selected token account “%@”. Each account keeps its own limits.", "B"))
+        settings.setActiveTokenAccountIndex(0, for: .openai)
+        #expect(settings.modelRateLimitScope(for: .openai) == .tokenAccount(accountA.id))
+        #expect(binding.wrappedValue == a)
+        let edited: [ProviderModelRateLimit] = [.init(model: " gpt-5 ", tokensPerMinute: 400, requestsPerMinute: 0)]
+        binding.wrappedValue = edited
+        #expect(binding.wrappedValue == ProviderModelRateLimit.validated(edited))
+        #expect(settings.providerConfig(for: .openai)?.modelRateLimits == provider)
+        #expect(settings.providerConfig(for: .openai)?.modelRateLimits(for: .tokenAccount(accountB.id)) == b)
+        settings.updateTokenAccount(provider: .openai, accountID: accountA.id, label: "Renamed A")
+        #expect(binding.wrappedValue == ProviderModelRateLimit.validated(edited))
+        settings.setActiveTokenAccountIndex(1, for: .openai)
+        #expect(binding.wrappedValue == b)
+        settings.removeTokenAccount(provider: .openai, accountID: accountA.id)
+        settings.removeTokenAccount(provider: .openai, accountID: accountB.id)
+        #expect(binding.wrappedValue == provider)
+        binding.wrappedValue = []
+        #expect(settings.providerConfig(for: .openai)?.modelRateLimits?.isEmpty != false)
+    }
+
+    @Test
+    func `displayed limits stay with the captured account until refresh and observe edits`() async throws {
+        let settings = testSettingsStore(suiteName: #function, userDefaults: InMemoryUserDefaults())
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.addTokenAccount(provider: .openai, label: "A", token: "synthetic-a")
+        let a = try #require(settings.selectedTokenAccount(for: .openai))
+        settings.addTokenAccount(provider: .openai, label: "B", token: "synthetic-b")
+        let b = try #require(settings.selectedTokenAccount(for: .openai))
+        settings.updateProviderConfig(provider: .openai, affectsBackgroundWork: false) {
+            $0.setModelRateLimits([.init(model: "gpt-5", tokensPerMinute: 200)], for: .tokenAccount(a.id))
+            $0.setModelRateLimits([.init(model: "gpt-5", tokensPerMinute: 300)], for: .tokenAccount(b.id))
+        }
+        settings.setActiveTokenAccountIndex(0, for: .openai)
+        let model = OpenAILiveUsageModel(
+            environment: {
+                ProviderRegistry.makeEnvironment(base: [:], provider: .openai, settings: settings, tokenOverride: nil)
+            },
+            limitScope: { settings.modelRateLimitScope(for: .openai) },
+            manualLimits: { scope in settings.providerConfig(for: .openai)?.modelRateLimits(for: scope) ?? [] },
+            fetchLimits: { _ in .init(byModel: [:], projectsSampled: 0, truncated: false, fetchedAt: Date()) },
+            fetch: { _, minutes in .init(minutes: [], windowMinutes: minutes, fetchedAt: Date(), projectID: nil) })
+        model.start()
+        defer { model.stop() }
+        await model.waitForRefresh()
+        await model.waitForLimitsRefresh()
+        #expect(model.displayedLimitScope == .tokenAccount(a.id))
+        #expect(model.limits.resolve("gpt-5")?.tokensPerMinute == 200)
+        let snapshot = model.snapshot
+        settings.setActiveTokenAccountIndex(1, for: .openai)
+        #expect(model.snapshot?.fetchedAt == snapshot?.fetchedAt)
+        #expect(model.displayedLimitScope == .tokenAccount(a.id))
+        #expect(model.limits.resolve("gpt-5")?.tokensPerMinute == 200)
+        let changed = LockIsolated(false)
+        withObservationTracking {
+            _ = model.limits
+        } onChange: {
+            changed.setValue(true)
+        }
+        settings.updateProviderConfig(provider: .openai, affectsBackgroundWork: false) {
+            $0.setModelRateLimits([.init(model: "gpt-5", tokensPerMinute: 250)], for: .tokenAccount(a.id))
+        }
+        #expect(changed.value)
+        #expect(model.limits.resolve("gpt-5")?.tokensPerMinute == 250)
+        model.refresh()
+        await model.waitForRefresh()
+        await model.waitForLimitsRefresh()
+        #expect(model.snapshot != nil)
+        #expect(model.displayedLimitScope == .tokenAccount(b.id))
+        #expect(model.limits.resolve("gpt-5")?.tokensPerMinute == 300)
+    }
+
+    @Test
+    func `account limits do not change snapshot cache keys and selected tokens own the environment`() throws {
+        let settings = testSettingsStore(suiteName: #function, userDefaults: InMemoryUserDefaults())
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.updateProviderConfig(provider: .openai) {
+            $0.apiKey = "synthetic-config"
+            $0.workspaceID = "proj_synthetic"
+        }
+        settings.addTokenAccount(provider: .openai, label: "A", token: "synthetic-selected")
+        let account = try #require(settings.selectedTokenAccount(for: .openai))
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings)
+        let key = store.tokenAccountSnapshotCacheKey(provider: .openai, account: account)
+        let edited = account.withModelRateLimits([.init(model: "gpt-5", tokensPerMinute: 100)])
+        settings.updateProviderConfig(provider: .openai, affectsBackgroundWork: false) {
+            $0.setModelRateLimits(edited.modelRateLimits ?? [], for: .tokenAccount(account.id))
+        }
+        #expect(store.tokenAccountSnapshotCacheKey(provider: .openai, account: edited) == key)
+        let environment = ProviderRegistry.makeEnvironment(
+            base: [
+                "OPENAI_ADMIN_KEY": "synthetic-env-admin",
+                "OPENAI_API_KEY": "synthetic-env-api",
+                "OPENAI_PROJECT_ID": "proj_environment",
+            ],
+            provider: .openai,
+            settings: settings,
+            tokenOverride: nil)
+        #expect(OpenAIAPISettingsReader.apiKey(environment: environment) == account.token)
+        #expect(OpenAIAPISettingsReader.adminAPIKey(environment: environment) == account.token)
+        #expect(environment["OPENAI_PROJECT_ID"] == nil)
+    }
+
+    private func context(settings: SettingsStore, store: UsageStore) -> ProviderSettingsContext {
+        ProviderSettingsContext(
+            provider: .openai,
+            settings: settings,
+            store: store,
+            statusText: { _ in nil },
+            setStatusText: { _, _ in },
+            lastAppActiveRunAt: { _ in nil },
+            setLastAppActiveRunAt: { _, _ in },
+            requestConfirmation: { _ in })
+    }
+
+    @Test
     func `limits cadence distinguishes polling manual refresh and first open`() {
         let now = Date()
         #expect(OpenAILiveUsageLimitsPolicy.shouldFetch(lastAttempt: nil, now: now, manual: false))
@@ -124,7 +272,7 @@ struct OpenAILiveUsageLimitsModelTests {
         var now = Date()
         let model = OpenAILiveUsageModel(
             environment: { [:] },
-            manualLimits: { [.init(model: "gpt-5", tokensPerMinute: 100)] },
+            manualLimits: { _ in [.init(model: "gpt-5", tokensPerMinute: 100)] },
             now: { now },
             fetchLimits: { _ in try await source.fetch() },
             fetch: { _, minutes in .init(minutes: [], windowMinutes: minutes, fetchedAt: Date(), projectID: nil) })
@@ -173,7 +321,7 @@ struct OpenAILiveUsageLimitsModelTests {
         #expect(descriptor.title == "Organization rate limits")
         #expect(descriptor.actions.count == 1)
         #expect(descriptor.binding.wrappedValue.isEmpty)
-        let model = OpenAILiveUsageModel(environment: { [:] }, manualLimits: {
+        let model = OpenAILiveUsageModel(environment: { [:] }, manualLimits: { _ in
             settings.providerConfig(for: .openai)?.modelRateLimits ?? []
         })
         #expect(model.limits.resolve("gpt-5") == nil)
@@ -234,7 +382,7 @@ struct OpenAILiveUsageLimitsModelTests {
         let manual = [ProviderModelRateLimit(model: "gpt-5", tokensPerMinute: 80_000_000, requestsPerMinute: 100)]
         let model = OpenAILiveUsageModel(
             environment: { [:] },
-            manualLimits: { manual },
+            manualLimits: { _ in manual },
             fetchLimits: { _ in .init(
                 byModel: [
                     "gpt-4o": .init(tokensPerMinute: 40_000_000, requestsPerMinute: 200),

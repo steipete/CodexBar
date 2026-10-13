@@ -2605,3 +2605,5 @@
 "Chart" = "图表";
 
 "Daily spend · %@" = "每日支出 · %@";
+"Applies to the selected token account “%@”. Each account keeps its own limits." = "适用于所选令牌账户“%@”。每个账户保留各自的限制。";
+"Applies to the OpenAI API key, not to token accounts." = "适用于 OpenAI API 密钥，不适用于令牌账户。";

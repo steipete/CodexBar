@@ -8,6 +8,53 @@ import Testing
 @MainActor
 struct MenuCardThroughputTests {
     @Test
+    func `live and stacked cards use their own credential limits and unknown owners omit utilization`() async throws {
+        let snapshot = try await OpenAIThroughputTests.mappedLive(
+            OpenAIThroughputTests.liveSource(OpenAIThroughputTests.livePayload), engine: .quickJS)
+        let settings = testSettingsStore(suiteName: #function, userDefaults: InMemoryUserDefaults())
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.addTokenAccount(provider: .openai, label: "A", token: "synthetic-a")
+        let a = try #require(settings.selectedTokenAccount(for: .openai))
+        settings.addTokenAccount(provider: .openai, label: "B", token: "synthetic-b")
+        let b = try #require(settings.selectedTokenAccount(for: .openai))
+        settings.updateProviderConfig(provider: .openai, affectsBackgroundWork: false) {
+            $0.setModelRateLimits(
+                [.init(model: OpenAIThroughputTests.model, tokensPerMinute: 10_000_000)],
+                for: .provider)
+            $0.setModelRateLimits(
+                [.init(model: OpenAIThroughputTests.model, tokensPerMinute: 40_000_000)],
+                for: .tokenAccount(a.id))
+            $0.setModelRateLimits(
+                [.init(model: OpenAIThroughputTests.model, tokensPerMinute: 80_000_000)],
+                for: .tokenAccount(b.id))
+        }
+        settings.setActiveTokenAccountIndex(0, for: .openai)
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings)
+        store.snapshots[.openai] = snapshot
+        let live = store.menuCardModel(for: .openai)
+        #expect(abs((live.throughput?.presentation?.limitPercent ?? 0) - 242.5) < 0.001)
+        let stacked = store.menuCardModel(
+            for: .openai, context: .account(.init(snapshot: snapshot, tokenAccountID: b.id)))
+        #expect(abs((stacked.throughput?.presentation?.limitPercent ?? 0) - 121.25) < 0.001)
+        let unknown = store.menuCardModel(for: .openai, context: .account(.init(snapshot: snapshot)))
+        #expect(unknown.throughput?.presentation?.limitLine == nil)
+        #expect(unknown.throughput?.presentation?.limitPercent == nil)
+        #expect(unknown.throughput?.presentation?.action == .openOpenAILiveUsage)
+        let throughput = try #require(snapshot.throughput)
+        let nilScope = OpenAIAPIProviderImplementation().throughputPresentation(
+            snapshot: throughput, settings: settings, limitScope: nil)
+        #expect(nilScope?.limitLine == nil)
+        #expect(nilScope?.action == .openOpenAILiveUsage)
+        settings.setActiveTokenAccountIndex(1, for: .openai)
+        let switched = store.menuCardModel(for: .openai)
+        #expect(abs((switched.throughput?.presentation?.limitPercent ?? 0) - 121.25) < 0.001)
+    }
+
+    @Test
     func `throughput section and manual org limit are optional and height sensitive`() async throws {
         let snapshot = try await OpenAIThroughputTests.mappedLive(
             OpenAIThroughputTests.liveSource(OpenAIThroughputTests.livePayload),

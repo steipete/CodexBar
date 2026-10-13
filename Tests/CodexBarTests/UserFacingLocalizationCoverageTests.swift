@@ -5,6 +5,36 @@ import Testing
 
 struct UserFacingLocalizationCoverageTests {
     @Test
+    func `OpenAI credential scope captions are translated and preserve the account label`() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("Sources/CodexBar/Resources")
+        let accountKey = "Applies to the selected token account “%@”. Each account keeps its own limits."
+        let providerKey = "Applies to the OpenAI API key, not to token accounts."
+        let languages = try FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: nil)
+            .filter { $0.pathExtension == "lproj" }
+        #expect(languages.count == 23)
+        for language in languages {
+            let identifier = language.deletingPathExtension().lastPathComponent
+            let source = try String(contentsOf: language.appendingPathComponent("Localizable.strings"), encoding: .utf8)
+            #expect(source.contains("\"\(accountKey)\" ="))
+            #expect(source.contains("\"\(providerKey)\" ="))
+            CodexBarLocalizationOverride.$appLanguage.withValue(identifier) {
+                let account = L(accountKey, "Synthetic Account")
+                let provider = L(providerKey)
+                #expect(account.contains("Synthetic Account"))
+                #expect(!account.contains("%@"))
+                if identifier != "en" {
+                    #expect(account != accountKey.replacingOccurrences(of: "%@", with: "Synthetic Account"))
+                    #expect(provider != providerKey)
+                }
+            }
+        }
+    }
+
+    @Test
     func `selected user-facing UI surfaces avoid raw English literals`() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()

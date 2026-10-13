@@ -2617,3 +2617,5 @@
 "Chart" = "الرسم البياني";
 
 "Daily spend · %@" = "الإنفاق اليومي · %@";
+"Applies to the selected token account “%@”. Each account keeps its own limits." = "تنطبق على حساب الرمز المحدد «%@». يحتفظ كل حساب بحدوده الخاصة.";
+"Applies to the OpenAI API key, not to token accounts." = "تنطبق على مفتاح OpenAI API، وليس على حسابات الرموز.";

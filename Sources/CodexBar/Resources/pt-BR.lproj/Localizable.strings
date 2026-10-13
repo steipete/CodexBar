@@ -2613,3 +2613,5 @@
 "Chart" = "Gráfico";
 
 "Daily spend · %@" = "Gasto diário · %@";
+"Applies to the selected token account “%@”. Each account keeps its own limits." = "Aplica-se à conta de token selecionada “%@”. Cada conta mantém seus próprios limites.";
+"Applies to the OpenAI API key, not to token accounts." = "Aplica-se à chave de API da OpenAI, não às contas de token.";

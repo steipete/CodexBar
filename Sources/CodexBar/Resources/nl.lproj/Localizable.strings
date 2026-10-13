@@ -2610,3 +2610,5 @@
 "Chart" = "Grafiek";
 
 "Daily spend · %@" = "Dagelijkse uitgaven · %@";
+"Applies to the selected token account “%@”. Each account keeps its own limits." = "Geldt voor het geselecteerde tokenaccount ‘%@’. Elk account behoudt zijn eigen limieten.";
+"Applies to the OpenAI API key, not to token accounts." = "Geldt voor de OpenAI API-sleutel, niet voor tokenaccounts.";
