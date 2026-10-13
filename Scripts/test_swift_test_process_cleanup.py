@@ -1134,7 +1134,7 @@ class AnchorSemanticsTests(unittest.TestCase):
             process = subprocess.Popen([sys.executable, __file__, "--fixture", "success", directory],
                                        start_new_session=True)
             try:
-                wait_until(lambda: (root / "ready").exists())
+                wait_until(lambda: (root / "ready").exists(), timeout=10)
                 self.assertIsNone(runner.unreaped_exit_code(process))
                 identity = runner.test_process(process.pid)
                 self.assertIsNotNone(identity)

@@ -2530,6 +2530,9 @@
 "Only enabled providers" = "Лише активні провайдери";
 "Restore default order" = "Відновити типовий порядок";
 "Also restores the provider order in the menu bar. Can be undone." = "Також відновлює порядок провайдерів у рядку меню. Дію можна скасувати.";
+
+"Auto uses an API key when configured, otherwise browser cookies." = "Auto uses an API key when configured, otherwise browser cookies.";
+"Stored in the CodexBar config file. You can also set COMMAND_CODE_API_KEY." = "Stored in the CodexBar config file. You can also set COMMAND_CODE_API_KEY.";
 /* OpenAI organization rate limits and live usage */
 "%@ tokens · %@ requests" = "%@ токенів · %@ запитів";
 "15m" = "15 хв";

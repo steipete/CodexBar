@@ -2508,6 +2508,9 @@
 "Only enabled providers" = "只顯示已啟用";
 "Restore default order" = "恢復預設順序";
 "Also restores the provider order in the menu bar. Can be undone." = "同時恢復選單列中的供應商順序。可以復原。";
+
+"Auto uses an API key when configured, otherwise browser cookies." = "Auto uses an API key when configured, otherwise browser cookies.";
+"Stored in the CodexBar config file. You can also set COMMAND_CODE_API_KEY." = "Stored in the CodexBar config file. You can also set COMMAND_CODE_API_KEY.";
 /* OpenAI organization rate limits and live usage */
 "%@ tokens · %@ requests" = "%@ token · %@ 請求";
 "15m" = "15分鐘";

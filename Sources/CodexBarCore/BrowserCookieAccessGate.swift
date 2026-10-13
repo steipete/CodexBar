@@ -45,7 +45,7 @@ public enum BrowserCookieAccessGate {
     private static let cooldownInterval: TimeInterval = 60 * 60 * 6
     private static let log = CodexBarLog.logger(LogCategories.browserCookieGate)
     @TaskLocal private static var explicitRetryScope: ExplicitRetryScope?
-    @TaskLocal private static var accessFailureObserver: (@Sendable (Browser) -> Void)?
+    @TaskLocal private static var accessFailureObserver: (@Sendable (Browser, Bool) -> Void)?
     @TaskLocal private static var deniedBrowsersForTesting: [Browser]?
     #if DEBUG
     @TaskLocal private static var shouldAttemptOverrideForTesting: Bool?
@@ -80,14 +80,14 @@ public enum BrowserCookieAccessGate {
     }
 
     static func withAccessFailureObserver<T>(
-        _ observer: @escaping @Sendable (Browser) -> Void,
+        _ observer: @escaping @Sendable (Browser, Bool) -> Void,
         operation: () throws -> T) rethrows -> T
     {
         try self.$accessFailureObserver.withValue(observer, operation: operation)
     }
 
-    static func recordAccessFailure(for browser: Browser) {
-        self.accessFailureObserver?(browser)
+    static func recordAccessFailure(for browser: Browser, profileDenied: Bool = false) {
+        self.accessFailureObserver?(browser, profileDenied)
     }
 
     private static func shouldAttemptWithPolicy(_ browser: Browser, now: Date) -> Bool {
@@ -381,21 +381,8 @@ extension BrowserCookieClient {
         in browser: Browser,
         logger: ((String) -> Void)? = nil) throws -> [BrowserCookieStoreRecords]
     {
-        guard BrowserCookieAccessGate.cookieStoreAccessDecision(
-            homeDirectories: self.configuration.homeDirectories) == .allowed
-        else {
-            throw BrowserCookieStoreAccessSuppressedError()
-        }
-        guard BrowserCookieAccessGate.shouldAttempt(browser) else { return [] }
-        do {
-            let records = try BrowserCookieAccessGate.withRecordReadInteractionPolicy {
-                try self.records(matching: query, in: browser, logger: logger)
-            }
-            BrowserCookieAccessGate.recordAllowed(for: browser)
-            return records
-        } catch {
-            BrowserCookieAccessGate.recordIfNeeded(error)
-            throw error
+        try self.readCookieRecords(for: browser) {
+            try self.records(matching: query, in: browser, logger: logger)
         }
     }
 
@@ -406,17 +393,23 @@ extension BrowserCookieClient {
         in store: BrowserCookieStore,
         logger: ((String) -> Void)? = nil) throws -> [BrowserCookieRecord]
     {
+        try self.readCookieRecords(for: store.browser) {
+            try self.records(matching: query, in: store, logger: logger)
+        }
+    }
+
+    private func readCookieRecords<Record>(
+        for browser: Browser,
+        operation: () throws -> [Record]) throws -> [Record]
+    {
         guard BrowserCookieAccessGate.cookieStoreAccessDecision(
             homeDirectories: self.configuration.homeDirectories) == .allowed
         else {
             throw BrowserCookieStoreAccessSuppressedError()
         }
-        let browser = store.browser
         guard BrowserCookieAccessGate.shouldAttempt(browser) else { return [] }
         do {
-            let records = try BrowserCookieAccessGate.withRecordReadInteractionPolicy {
-                try self.records(matching: query, in: store, logger: logger)
-            }
+            let records = try BrowserCookieAccessGate.withRecordReadInteractionPolicy(operation)
             BrowserCookieAccessGate.recordAllowed(for: browser)
             return records
         } catch {

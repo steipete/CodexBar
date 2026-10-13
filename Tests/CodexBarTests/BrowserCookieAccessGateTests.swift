@@ -37,7 +37,8 @@ struct BrowserCookieAccessGateTests {
     @Test
     func `the gate reports suppression without changing its access decision`() {
         let failures = LockIsolated<[Browser]>([])
-        BrowserCookieAccessGate.withAccessFailureObserver { browser in
+        BrowserCookieAccessGate.withAccessFailureObserver { browser, profileDenied in
+            #expect(!profileDenied)
             failures.setValue(failures.value + [browser])
         } operation: {
             BrowserCookieAccessGate.withShouldAttemptOverrideForTesting(false) {

@@ -133,7 +133,7 @@ complete when the available scan window covers fewer days.
 | Moonshot | API key from config/env → balance endpoint (`api`). |
 | Codebuff | API token from config/env or `codebuff login` credentials → usage API (`api`). |
 | Venice | Auto/API: API key from config/env → DIEM/USD balance (`api`). Explicit Web: Chrome or manual cookies → subscription credit details (`web`). |
-| Command Code | Web billing API via Command Code session cookies (`web`). |
+| Command Code | Billing API via API key when configured, otherwise session cookies (`auto`); explicit `api`/`web` pins the source. |
 | ClinePass | API key from config/env or labeled API-key accounts, then the existing `cline auth` session file → 5-hour, weekly, and monthly subscription usage limits (`api`). |
 | Qoder | Browser or manual cookies → big model credit usage (`web`). |
 | StepFun | Username/password login or manual Oasis token (`web`). |
@@ -568,8 +568,9 @@ provider-specific cookie validation, endpoints, login detection, and error trans
 - Details: `docs/codebuff.md`.
 
 ## Command Code
-- Browser session cookies from automatic import or manual `Cookie:` header.
-- Linux CLI supports configured manual cookies; automatic browser import remains macOS-only.
+- Auto uses `COMMAND_CODE_API_KEY` or config `apiKey` when set, otherwise browser session cookies from automatic import or a manual `Cookie:` header.
+- Explicit API or web mode pins that source on macOS and Linux.
+- Linux CLI also supports configured manual cookies; automatic browser import remains macOS-only.
 - Reads 5-hour and weekly rolling limits plus monthly USD credits and billing-cycle usage from `api.commandcode.ai`.
 - Automatic import looks for better-auth session cookies from `commandcode.ai` / `www.commandcode.ai`.
 - Debug builds support `COMMANDCODE_API_URL` for synthetic loopback tests; release builds use the official billing endpoint.

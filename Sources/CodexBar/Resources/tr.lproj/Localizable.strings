@@ -2533,6 +2533,9 @@
 "Only enabled providers" = "Yalnızca etkin sağlayıcılar";
 "Restore default order" = "Varsayılan sırayı geri yükle";
 "Also restores the provider order in the menu bar. Can be undone." = "Menü çubuğundaki sağlayıcı sırasını da geri yükler. Geri alınabilir.";
+
+"Auto uses an API key when configured, otherwise browser cookies." = "Auto uses an API key when configured, otherwise browser cookies.";
+"Stored in the CodexBar config file. You can also set COMMAND_CODE_API_KEY." = "Stored in the CodexBar config file. You can also set COMMAND_CODE_API_KEY.";
 /* OpenAI organization rate limits and live usage */
 "%@ tokens · %@ requests" = "%@ token · %@ istek";
 "15m" = "15 dk";

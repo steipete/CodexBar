@@ -28,7 +28,13 @@ extension [Browser] {
                 #endif
                 return false
             }
-            return detection.isCookieSourceAvailable(browser) && BrowserCookieAccessGate.shouldAttempt(browser)
+            let available = detection.isCookieSourceAvailable(browser)
+            #if os(macOS)
+            if !available, detection.cookieSourceProfileAccessIssue(browser) == .accessDenied {
+                BrowserCookieAccessGate.recordAccessFailure(for: browser, profileDenied: true)
+            }
+            #endif
+            return available && BrowserCookieAccessGate.shouldAttempt(browser)
         }
     }
 

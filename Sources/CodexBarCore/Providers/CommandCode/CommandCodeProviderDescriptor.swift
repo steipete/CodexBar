@@ -2,6 +2,9 @@ import Foundation
 
 public enum CommandCodeProviderDescriptor {
     public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
+    private static let credentials = ProviderCredentialAdapter.apiKey(
+        environmentKey: CommandCodeSettingsReader.apiKeyEnvironmentKey,
+        resolve: CommandCodeSettingsReader.apiKey)
 
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
@@ -9,6 +12,7 @@ public enum CommandCodeProviderDescriptor {
             settingsSection: .init(
                 CommandCodeProviderSettingsKey.self,
                 cookieSettings: CommandCodeProviderSettings.self),
+            credentials: self.credentials,
             metadata: ProviderMetadata(
                 id: .commandcode,
                 displayName: "Command Code",
@@ -47,15 +51,39 @@ public enum CommandCodeProviderDescriptor {
             presentation: ProviderUsagePresentation(
                 primaryBindingQuotaLanes: [.secondary]),
             fetchPlan: ProviderFetchPlan(
-                sourceModes: [.auto, .web],
-                pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [CommandCodeWebFetchStrategy()] })),
+                sourceModes: [.auto, .api, .web],
+                pipeline: ProviderFetchPipeline(resolveStrategies: self.resolveStrategies)),
             cli: ProviderCLIConfig(
                 name: "commandcode",
                 aliases: ["command-code"],
                 versionDetector: nil,
-                browserSupportExemption: { _, _, settings in
-                    settings?.commandcode?.cookieSource == .manual
+                browserSupportExemption: { sourceMode, environment, settings in
+                    settings?.commandcode?.cookieSource == .manual ||
+                        ((sourceMode == .auto || sourceMode == .api) &&
+                            environment.flatMap(CommandCodeSettingsReader.apiKey) != nil)
                 }))
+    }
+
+    private static func resolveStrategies(context: ProviderFetchContext) async -> [any ProviderFetchStrategy] {
+        let api = APITokenFetchStrategy(
+            id: "commandcode.api",
+            reportsMissingCredentials: context.sourceMode == .api,
+            resolveToken: CommandCodeSettingsReader.apiKey,
+            missingCredentialsError: { CommandCodeUsageError.missingAPIKey },
+            loadUsage: { apiKey, _ in
+                try await CommandCodeUsageFetcher.fetchUsage(apiKey: apiKey).toUsageSnapshot()
+            })
+        return switch context.sourceMode {
+        case .auto:
+            if CommandCodeSettingsReader.apiKey(environment: context.env) != nil {
+                [api]
+            } else {
+                [CommandCodeWebFetchStrategy()]
+            }
+        case .api: [api]
+        case .web: [CommandCodeWebFetchStrategy()]
+        case .cli, .oauth: []
+        }
     }
 }
 

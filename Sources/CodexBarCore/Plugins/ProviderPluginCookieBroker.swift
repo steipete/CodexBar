@@ -231,14 +231,13 @@ final class ProviderPluginCookieBroker: @unchecked Sendable {
         guard let classified = error as? ProviderFetchClassifiedError,
               classified.kind == .missingCredential || classified.kind == .authenticationExpired
         else { return error }
-        if let failure = self.accessFailureLock.withLock({ self.cookieAccessFailure }) { return failure }
-        return error
+        return self.accessFailureLock.withLock { self.cookieAccessFailure as Error? } ?? error
     }
 
     private func importCandidates<Candidate>(_ operation: () throws -> [Candidate]?) throws -> [Candidate]? {
         #if os(macOS)
         return try BrowserCookieAccessGate.withAccessFailureObserver {
-            self.recordAccessFailure(for: $0)
+            self.recordAccessFailure(for: $0, profileDenied: $1)
         } operation: {
             do {
                 return try operation()
@@ -254,14 +253,18 @@ final class ProviderPluginCookieBroker: @unchecked Sendable {
     }
 
     #if os(macOS)
-    private func recordAccessFailure(for browser: Browser) {
+    private func recordAccessFailure(for browser: Browser, profileDenied: Bool) {
         let permission = browser.usesKeychainForCookieDecryption ? "Keychain permission" : "browser permission"
         self.accessFailureLock.withLock {
-            self.cookieAccessFailure = ProviderFetchClassifiedError(
-                kind: .permissionDenied,
-                message: "\(browser.displayName) cookie access needs \(permission) — "
-                    + "use Refresh beside Cookie source or Refresh in the provider menu to allow it, "
-                    + "or paste a Cookie header in Manual mode.")
+            // An actual decryption denial takes precedence over a skipped profile.
+            guard !profileDenied || self.cookieAccessFailure == nil else { return }
+            let message = profileDenied
+                ? "Cannot read \(browser.displayName)'s profile. In System Settings → Privacy & Security → "
+                + "Files & Folders, turn on \(browser.displayName) under CodexBar, then refresh."
+                : "\(browser.displayName) cookie access needs \(permission) — "
+                + "use Refresh beside Cookie source or Refresh in the provider menu to allow it, "
+                + "or paste a Cookie header in Manual mode."
+            self.cookieAccessFailure = ProviderFetchClassifiedError(kind: .permissionDenied, message: message)
         }
     }
     #endif
@@ -416,21 +419,13 @@ final class ProviderPluginCookieBroker: @unchecked Sendable {
     {
         #if os(macOS)
         let query = Self.cookieQuery(domain: domain)
-        let client = BrowserCookieClient()
-        let browsers = BrowserCookieImportSupport.importOrder(for: provider)
-        guard browsers.indices.contains(batch) else { return nil }
-        return try Array(BrowserCookieImportSupport.collectSessions(
-            from: [browsers[batch]].lazyCookieImportCandidates(using: browserDetection),
-            missingError: nil,
-            logger: { _ in },
-            load: { browser in
-                try client.codexBarRecords(matching: query, in: browser).compactMap { source in
-                    let cookies = Self.cookiesForRequest(
-                        BrowserCookieClient.makeHTTPCookies(source.records, origin: query.origin), domain: domain)
-                    let rawHeader = cookies.map { "\($0.name)=\($0.value)" }.joined(separator: "; ")
-                    return CookieHeaderNormalizer.normalize(rawHeader).map { ($0, source.label) }
-                }
-            }))
+        return try Self.importRecords(
+            provider: provider, query: query, browserDetection: browserDetection, batch: batch)?.compactMap { source in
+            let cookies = Self.cookiesForRequest(
+                BrowserCookieClient.makeHTTPCookies(source.records, origin: query.origin), domain: domain)
+            let rawHeader = cookies.map { "\($0.name)=\($0.value)" }.joined(separator: "; ")
+            return CookieHeaderNormalizer.normalize(rawHeader).map { ($0, source.label) }
+        }
         #else
         return nil
         #endif
@@ -441,29 +436,36 @@ final class ProviderPluginCookieBroker: @unchecked Sendable {
         -> [ProviderPluginCookieSession]?
     {
         #if os(macOS)
-        let client = BrowserCookieClient()
         let query = BrowserCookieQuery(domains: domains.sorted(), domainMatch: .exact)
-        let browsers = BrowserCookieImportSupport.importOrder(for: provider)
-        guard browsers.indices.contains(batch) else { return nil }
-        return try Array(BrowserCookieImportSupport.collectSessions(
-            from: [browsers[batch]].lazyCookieImportCandidates(using: browserDetection),
-            missingError: nil,
-            logger: { _ in },
-            load: { browser in
-                let sources = try client.codexBarRecords(matching: query, in: browser)
-                return BrowserCookieProfiles.merge(sources).map { profile in
-                    ProviderPluginCookieSession(
-                        header: "", source: profile.label, origin: "", records: profile.records
-                            .filter { domains.contains(Self.normalizedDomain($0.domain)) }
-                            .map(ProviderPluginCookieRecord.init))
-                }
-            }))
+        let records = try Self.importRecords(
+            provider: provider, query: query, browserDetection: browserDetection, batch: batch)
+        return records.map { sources in
+            BrowserCookieProfiles.merge(sources).map { profile in
+                ProviderPluginCookieSession(
+                    header: "", source: profile.label, origin: "", records: profile.records
+                        .filter { domains.contains(Self.normalizedDomain($0.domain)) }
+                        .map(ProviderPluginCookieRecord.init))
+            }
+        }
         #else
         return nil
         #endif
     }
 
     #if os(macOS)
+    private static func importRecords(
+        provider: UsageProvider?, query: BrowserCookieQuery, browserDetection: BrowserDetection, batch: Int) throws
+        -> [BrowserCookieStoreRecords]?
+    {
+        let browsers = BrowserCookieImportSupport.importOrder(for: provider)
+        guard browsers.indices.contains(batch) else { return nil }
+        return try Array(BrowserCookieImportSupport.collectSessions(
+            from: [browsers[batch]].lazyCookieImportCandidates(using: browserDetection),
+            missingError: nil,
+            logger: { _ in },
+            load: { try BrowserCookieClient().codexBarRecords(matching: query, in: $0) }))
+    }
+
     static func cookiesForRequest(_ cookies: [HTTPCookie], domain: String) -> [HTTPCookie] {
         var chosen: [String: HTTPCookie] = [:]
         var order: [String] = []

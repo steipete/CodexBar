@@ -1,5 +1,5 @@
 ---
-summary: "Command Code provider notes: cookie authentication and usage-window parsing."
+summary: "Command Code provider notes: API key and cookie authentication, usage-window parsing."
 read_when:
   - Debugging Command Code cookie import or usage parsing
   - Updating Command Code billing or credit display
@@ -13,15 +13,28 @@ to your other AI coding providers.
 
 ## Data source
 
-- `https://api.commandcode.ai` billing endpoints, authenticated with the
-  signed-in Command Code web session.
+- `https://api.commandcode.ai` billing endpoints: `/alpha/billing/*` with a
+  Command Code API key (the routes the `cmd` CLI uses), or `/internal/billing/*`
+  with the signed-in Command Code web session.
 - The provider reads 5-hour and weekly rolling limits alongside monthly credit
   usage, plan allowance, remaining credits, and billing-cycle reset timing when
   the account data is available.
 
 ## Authentication
 
-Command Code support uses browser cookies or a manually pasted cookie header.
+Command Code support uses an API key, browser cookies, or a manually pasted cookie header.
+Usage source `Auto` uses a configured API key first and otherwise uses browser cookies.
+Select `API key` or `Browser cookies` to pin that source. A rejected key reports an error rather than switching accounts.
+
+### API key
+
+Leave Usage source on **Auto** or select **API key**, then paste a `user_...` key into Settings -> Providers -> Command Code -> API key (stored as `apiKey`
+in the [CodexBar config file](configuration.md#location)), or set `COMMAND_CODE_API_KEY`. `cmd login` stores the key in
+`~/.commandcode/auth.json`, which CodexBar does not read. This path works on Linux without a cookie.
+For the CLI, configure `apiKey` or set `COMMAND_CODE_API_KEY` and run `codexbar usage --provider commandcode --json`.
+Use `--source api` to require a key or `--source web` to use cookies explicitly.
+
+### Cookies
 
 1. Sign in to `https://commandcode.ai` in a supported browser.
 2. Open Settings -> Providers -> Command Code.
@@ -37,9 +50,9 @@ one authenticates, so stale cookies in an earlier browser do not mask a later
 active session. If automatic import cannot find a session, use the manual cookie
 field.
 
-On Linux, browser import is unavailable. Set `cookieSource` to `manual` and
-provide the Command Code `Cookie` header in `cookieHeader`; both `auto` and
-`web` CLI source modes then use the billing API.
+For cookie authentication on Linux, set `cookieSource` to `manual` and provide the
+Command Code `Cookie` header in `cookieHeader`. Auto uses it when no API key is configured;
+choose `web` to use cookies even when a key is present. Automatic browser import is macOS-only.
 
 The current Go plan (`individual-go-v1`) includes $10 in monthly credits for a
 $1/month subscription plus processing fees, as listed on the [public pricing page](https://commandcode.ai/pricing).

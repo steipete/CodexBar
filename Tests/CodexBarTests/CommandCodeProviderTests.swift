@@ -21,6 +21,28 @@ struct CommandCodeProviderTests {
     }
 
     @Test
+    func `explicit API source selects the configured key without cookie discovery`() async throws {
+        let detection = BrowserDetection(cacheTTL: 0)
+        let context = ProviderFetchContext(
+            runtime: .cli,
+            sourceMode: .api,
+            includeCredits: true,
+            webTimeout: 1,
+            webDebugDumpHTML: false,
+            verbose: false,
+            env: ["COMMAND_CODE_API_KEY": "fixture-command-key"],
+            settings: nil,
+            fetcher: UsageFetcher(),
+            claudeFetcher: ClaudeUsageFetcher(browserDetection: detection),
+            browserDetection: detection)
+        let strategies = await CommandCodeProviderDescriptor.descriptor.fetchPlan.pipeline.resolveStrategies(context)
+        #expect(strategies.map(\.id) == ["commandcode.api"])
+        let strategy = try #require(strategies.first)
+        #expect(strategy.kind == .apiToken)
+        #expect(await strategy.isAvailable(context))
+    }
+
+    @Test
     func `descriptor metadata is correct`() {
         let descriptor = ProviderDescriptorRegistry.descriptor(for: .commandcode)
 
@@ -34,7 +56,26 @@ struct CommandCodeProviderTests {
         #expect(descriptor.metadata.weeklyLabel == "Weekly")
         #expect(descriptor.metadata.opusLabel == "Monthly")
         #expect(descriptor.metadata.supportsOpus)
-        #expect(descriptor.fetchPlan.sourceModes == [.auto, .web])
+        #expect(descriptor.fetchPlan.sourceModes == [.auto, .api, .web])
+    }
+
+    @Test(arguments: [false, true])
+    func `automatic source prefers a configured key and otherwise uses cookies`(hasKey: Bool) async {
+        let detection = BrowserDetection(cacheTTL: 0)
+        let context = ProviderFetchContext(
+            runtime: .cli,
+            sourceMode: .auto,
+            includeCredits: true,
+            webTimeout: 1,
+            webDebugDumpHTML: false,
+            verbose: false,
+            env: hasKey ? ["COMMAND_CODE_API_KEY": "fixture-command-key"] : [:],
+            settings: nil,
+            fetcher: UsageFetcher(),
+            claudeFetcher: ClaudeUsageFetcher(browserDetection: detection),
+            browserDetection: detection)
+        let strategies = await CommandCodeProviderDescriptor.descriptor.fetchPlan.pipeline.resolveStrategies(context)
+        #expect(strategies.map(\.id) == [hasKey ? "commandcode.api" : "commandcode.web"])
     }
 
     @Test

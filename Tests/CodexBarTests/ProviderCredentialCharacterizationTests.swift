@@ -54,6 +54,7 @@ struct ProviderCredentialCharacterizationTests {
             .init(provider: .warp, environmentKey: "WARP_API_KEY"),
             .init(provider: .codebuff, environmentKey: "CODEBUFF_API_KEY"),
             .init(provider: .doubao, environmentKey: "ARK_API_KEY"),
+            .init(provider: .commandcode, environmentKey: "COMMAND_CODE_API_KEY"),
         ]
 
         for fixture in fixtures {

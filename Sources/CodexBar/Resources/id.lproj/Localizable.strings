@@ -2533,6 +2533,9 @@
 "Only enabled providers" = "Hanya penyedia aktif";
 "Restore default order" = "Pulihkan urutan bawaan";
 "Also restores the provider order in the menu bar. Can be undone." = "Juga memulihkan urutan penyedia di bar menu. Dapat diurungkan.";
+
+"Auto uses an API key when configured, otherwise browser cookies." = "Auto uses an API key when configured, otherwise browser cookies.";
+"Stored in the CodexBar config file. You can also set COMMAND_CODE_API_KEY." = "Stored in the CodexBar config file. You can also set COMMAND_CODE_API_KEY.";
 /* OpenAI organization rate limits and live usage */
 "%@ tokens · %@ requests" = "%@ token · %@ permintaan";
 "15m" = "15 mnt";

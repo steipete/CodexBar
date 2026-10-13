@@ -7,6 +7,111 @@ struct ProviderPluginCookieBrokerTests {
     private let domains: Set<String> = ["cloud.example.test", "community.example.test"]
 
     @Test
+    func `denied synthetic profile reports Files and Folders instead of sign in`() throws {
+        try self.isolated {
+            let detection = BrowserDetection(
+                homeDirectory: "/synthetic-cookie-home",
+                cacheTTL: 0,
+                now: Date.init,
+                fileExists: { $0 == "/Applications/Google Chrome.app" },
+                directoryContents: { _ in nil },
+                applicationURLs: { _ in [] },
+                profileAccessIssue: { _ in .accessDenied })
+            let context = ProviderFetchContext(
+                runtime: .app,
+                sourceMode: .web,
+                includeCredits: false,
+                webTimeout: 1,
+                webDebugDumpHTML: false,
+                verbose: false,
+                env: [:],
+                settings: nil,
+                fetcher: UsageFetcher(),
+                claudeFetcher: ClaudeUsageFetcher(browserDetection: detection),
+                browserDetection: detection)
+            let broker = ProviderPluginCookieBroker(provider: .xapi, domains: ["console.x.com"], context: context)
+            let session = try KeychainAccessGate.withTaskOverrideForTesting(false) {
+                try broker.nextSession(domain: "console.x.com")
+            }
+            #expect(session == nil)
+            let missing = ProviderFetchClassifiedError(kind: .missingCredential, message: "Synthetic sign in")
+            let failure = try #require(broker.preferredFailure(over: missing) as? ProviderFetchClassifiedError)
+            #expect(failure.kind == .permissionDenied)
+            #expect(failure.message.contains("Files & Folders"))
+            #expect(failure.message.contains(Browser.chrome.displayName))
+            let apiError = ProviderFetchClassifiedError(kind: .apiFailure, message: "Synthetic API error")
+            #expect((broker.preferredFailure(over: apiError) as? ProviderFetchClassifiedError)?.kind == .apiFailure)
+        }
+    }
+
+    @Test
+    func `policy blocked jar imports do not report profile permissions`() throws {
+        try self.isolated {
+            let runtime = try BundledPluginTestSupport.runtime(
+                "longcat", engine: .quickJS, transport: ProviderHTTPTransportStub { _ in
+                    Issue.record("No network request is expected")
+                    throw URLError(.unsupportedURL)
+                })
+            let detection = BrowserDetection(
+                homeDirectory: "/synthetic-cookie-home",
+                cacheTTL: 0,
+                now: Date.init,
+                fileExists: { _ in Issue.record("Policy must block discovery"); return false },
+                directoryContents: { _ in Issue.record("Policy must block discovery"); return nil },
+                applicationURLs: { _ in [] },
+                profileAccessIssue: { _ in Issue.record("Policy must block profile probes"); return .accessDenied })
+            for mode in [ProviderRuntime.cli, .app] {
+                let context = ProviderFetchContext(
+                    runtime: mode,
+                    sourceMode: .web,
+                    includeCredits: false,
+                    webTimeout: 1,
+                    webDebugDumpHTML: false,
+                    verbose: false,
+                    env: [:],
+                    settings: nil,
+                    fetcher: UsageFetcher(),
+                    claudeFetcher: ClaudeUsageFetcher(browserDetection: detection),
+                    browserDetection: detection)
+                try ProviderInteractionContext.$current.withValue(.background) {
+                    let broker = ProviderPluginCookieBroker(
+                        provider: .longcat,
+                        domains: runtime.manifest.cookieDomains,
+                        context: context,
+                        policy: runtime.manifest.cookiePolicy)
+                    let session = try broker.nextSession(domain: "longcat.chat")
+                    #expect(session == nil)
+                    let missing = ProviderFetchClassifiedError(kind: .missingCredential, message: "Synthetic sign in")
+                    #expect((broker.preferredFailure(over: missing) as? ProviderFetchClassifiedError)?.kind
+                        == .missingCredential)
+                }
+            }
+        }
+    }
+
+    @Test
+    func `decryption denial keeps precedence over skipped profiles`() throws {
+        try self.isolated {
+            let broker = ProviderPluginCookieBroker(
+                provider: .manus,
+                domains: self.domains,
+                settings: .init(cookieSource: .auto, manualCookieHeader: nil),
+                batches: { _, _ in
+                    BrowserCookieAccessGate.recordAccessFailure(for: .chrome)
+                    BrowserCookieAccessGate.recordAccessFailure(for: .brave, profileDenied: true)
+                    return nil
+                })
+            let session = try broker.nextSession(domain: "cloud.example.test")
+            #expect(session == nil)
+            let missing = ProviderFetchClassifiedError(kind: .missingCredential, message: "Synthetic sign in")
+            let failure = try #require(broker.preferredFailure(over: missing) as? ProviderFetchClassifiedError)
+            #expect(failure.kind == .permissionDenied)
+            #expect(failure.message.hasPrefix(Browser.chrome.displayName))
+            #expect(failure.message.contains("Keychain permission"))
+        }
+    }
+
+    @Test
     func `suppressed browsers leave an empty batch instead of ending traversal`() throws {
         let detection = BrowserDetection(
             homeDirectory: "/synthetic-cookie-home",

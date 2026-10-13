@@ -2534,6 +2534,9 @@
 "Only enabled providers" = "Només proveïdors actius";
 "Restore default order" = "Restablir l’ordre per defecte";
 "Also restores the provider order in the menu bar. Can be undone." = "També restableix l’ordre dels proveïdors a la barra de menús. Es pot desfer.";
+
+"Auto uses an API key when configured, otherwise browser cookies." = "Auto uses an API key when configured, otherwise browser cookies.";
+"Stored in the CodexBar config file. You can also set COMMAND_CODE_API_KEY." = "Stored in the CodexBar config file. You can also set COMMAND_CODE_API_KEY.";
 /* OpenAI organization rate limits and live usage */
 "%@ tokens · %@ requests" = "%@ tokens · %@ sol·licituds";
 "15m" = "15 min";

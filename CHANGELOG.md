@@ -4,6 +4,8 @@
 
 ### Added
 
+- Command Code: use a configured API key for billing usage on macOS and Linux, with browser cookies when no key is set and explicit source selection (#4462, #4460). Thanks @Shrub24!
+
 - Menu bar: add graphical progress-bar tokens for selected usage windows and a stacked-bars preset, with readable layouts when returning to older app versions (#4436). Thanks @happut!
 - Settings: filter the provider list to enabled services, search CLI aliases, and restore the default order with Undo (#4440). Thanks @Yuxin-Qiao!
 - OpenAI: add a Live Usage window with per-minute token throughput from the Admin Usage API, showing all models by default with a per-model filter; handles reporting delays with timestamped latest usage and pending minutes, and shows manual organization rate-limit headroom from Settings with project caps as context. Includes a shared, hover-inspectable last-hour inline menu chart with subtle pending placeholders and a fixed-height Live · Spend switch that remembers each provider instance’s choice locally, an optional Tokens/min menu bar token, and a draggable Tokens/min graph; limit utilization counts all input, including cached tokens, plus output, and excludes Batch API traffic, which has separate rate limits.
@@ -25,6 +27,9 @@
 
 ### Fixed
 
+- Browser cookie imports: explain denied Files & Folders access instead of asking users who are already signed in to sign in again (#4482). Thanks @marklights54-byte!
+- Devin: use the official transparent hexagonal mark in the app, website, and CLI dashboard (#4458). Thanks @codertesla!
+- JetBrains AI: read current quota from newer JbaiQuota and Junie log records while preserving same-IDE freshness and XML fallback (#4457). Thanks @taihua!
 - Agent sessions: preserve macOS CLI sessions and their provider/source labels when prompts mention application paths (#4474). Thanks @Shenrui-Ma!
 
 - OpenAI: stop counting audio tokens twice in Admin API token totals; `input_tokens`/`output_tokens` already include audio.
