@@ -990,7 +990,7 @@ private final class CodexRPCClient: @unchecked Sendable {
             method: "initialize",
             params: ["clientInfo": ["name": clientName, "version": clientVersion]],
             timeout: self.initializeTimeoutSeconds)
-        try self.sendNotification(method: "initialized")
+        try self.sendPayload(["method": "initialized", "params": [:]])
     }
 
     func fetchAccount() async throws -> RPCAccountResponse {
@@ -1021,7 +1021,7 @@ private final class CodexRPCClient: @unchecked Sendable {
     {
         let id = self.nextID
         self.nextID += 1
-        try self.sendRequest(id: id, method: method, params: params)
+        try self.sendPayload(["id": id, "method": method, "params": params ?? [:]])
 
         let resolvedTimeout = timeout ?? self.requestTimeoutSeconds
         let wrapped = try await RPCRequestTimeout.run(
@@ -1060,17 +1060,6 @@ private final class CodexRPCClient: @unchecked Sendable {
         DispatchQueue.global(qos: .userInitiated).async {
             RPCChildProcessTeardown.terminate(process: process, stdin: stdin)
         }
-    }
-
-    private func sendNotification(method: String, params: [String: Any]? = nil) throws {
-        let paramsValue: Any = params ?? [:]
-        try self.sendPayload(["method": method, "params": paramsValue])
-    }
-
-    private func sendRequest(id: Int, method: String, params: [String: Any]?) throws {
-        let paramsValue: Any = params ?? [:]
-        let payload: [String: Any] = ["id": id, "method": method, "params": paramsValue]
-        try self.sendPayload(payload)
     }
 
     private func sendPayload(_ payload: [String: Any]) throws {

@@ -105,9 +105,11 @@ usage is a separate [OpenAI provider](openai.md), not Codex subscription quota.
   override scopes the request, because local history is device-wide.
 - The local monthly window is an estimate anchored at the earliest local row and can drift from the real billing
   cycle. The local strategy prefers API-reported rolling/weekly/monthly percentages and reset timestamps. When no API
-  key is configured, a cached or manual session cookie can still overlay the legacy web values (plus Zen balance).
-  Both paths keep local daily cost history and never trigger a fresh browser import. When no authoritative overlay is
-  available, the menu and text CLI label the quota as estimated, and JSON includes `dataConfidence: "estimated"`.
+  key is configured, a cached, manual, or automatically discovered session can overlay Console quotas (plus Zen
+  balance). Discovery uses the provider's default browser order and shared access gate; background Chromium reads
+  require existing prompt-free Safe Storage access. Cookie source Off disables discovery. Both overlay paths keep
+  local daily cost history. When no authoritative overlay is available, the menu and text CLI label the quota as
+  estimated, and JSON includes `dataConfidence: "estimated"`.
   Estimated quota keeps its percentages and reset dates but does not show pace, reserve, or run-out advice in the
   menu, menu-bar layouts, or CLI; device-local costs cannot establish account-wide consumption or the billing cycle.
 - OpenCode Go Monthly usage can be selected in the menu-bar percentage picker and layout palette before the first

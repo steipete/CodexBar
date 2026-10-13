@@ -1447,7 +1447,7 @@
 "menu_bar_layout_token_reset_at" = "Reinicio ás";
 "menu_bar_layout_token_runs_out" = "Esgótase";
 "menu_bar_layout_token_cost_today" = "Custo de hoxe";
-"menu_bar_layout_token_cost_30d" = "Custo de 30 días";
+"menu_bar_layout_token_cost_window" = "Custo (Xanela do historial)";
 "menu_bar_layout_token_space" = "Espazo";
 "menu_bar_layout_token_line_break" = "Salto de liña";
 "menu_bar_layout_token_separator_accessibility" = "Punto separador";
@@ -1465,7 +1465,6 @@
 "Reset time unavailable" = "Reinicio ás: Non dispoñible";
 "Run-out estimate unavailable" = "Esgótase: Non dispoñible";
 "Cost today unavailable" = "Custo de hoxe: Non dispoñible";
-"30-day cost unavailable" = "Custo de 30 días: Non dispoñible";
 "Resets" = "Reinicios";
 "codex_workspaces_title" = "Espazos de traballo";
 "codex_workspaces_estimated_local_logs" = "Estimado a partir dos rexistros locais de Codex";
@@ -2506,3 +2505,21 @@
 "Pace sign" = "Signo do ritmo";
 "Ahead of pace is +" = "Por riba do ritmo é +";
 "Reserve is +" = "A reserva é +";
+
+/* fal provider credentials */
+"Key with billing read access (BILLING or READONLY preset). Or set FAL_KEY." = "Chave con acceso de lectura á facturación (predefinición BILLING ou READONLY). Ou define FAL_KEY.";
+
+/* FLORA provider credentials */
+"Needs billing permission on the workspace. Or set FLORA_API_KEY." = "Precisa permiso de facturación no espazo de traballo. Ou define FLORA_API_KEY.";
+"Required. The ws_… ID of the workspace the key can bill. Or set FLORA_WORKSPACE_ID." = "Obrigatorio. O ID ws_… do espazo de traballo que a chave pode facturar. Ou define FLORA_WORKSPACE_ID.";
+"ak_…" = "ak_…";
+"ws_…" = "ws_…";
+
+"Provider order updated" = "Orde dos provedores actualizada";
+"Undo" = "Desfacer";
+"Clear filters" = "Borrar filtros";
+"Change provider order" = "Cambiar a orde dos provedores";
+"Provider sorting" = "Ordenación dos provedores";
+"Only enabled providers" = "Só provedores activos";
+"Restore default order" = "Restaurar a orde predeterminada";
+"Also restores the provider order in the menu bar. Can be undone." = "Tamén restaura a orde dos provedores na barra de menús. Pódese desfacer.";

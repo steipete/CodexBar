@@ -53,6 +53,7 @@ extension CostUsageScanner {
     static func addCodexHourly(
         rows: [CodexUsageRow],
         pricing: CodexReportDayPricingContext,
+        allowIncluded: Bool,
         calendar: Calendar,
         into buckets: inout TemporalBuckets)
     {
@@ -60,6 +61,7 @@ extension CostUsageScanner {
             guard let timestamp = self.date(fromUnixMs: row.timestampUnixMs) else { continue }
             let group = CodexDayModelKey(day: row.day, model: row.model)
             let hasUnpricedTokens = (row.unpricedTokens ?? 0) > 0
+                || (row.isIncludedInPlan == true && !allowIncluded)
             let hasStablePricing = !hasUnpricedTokens
                 && !pricing.modeOwnershipMismatchGroups.contains(group)
                 && (row.eventIndex != nil || (row.input == 0 && row.output == 0))

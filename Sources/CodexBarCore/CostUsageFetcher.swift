@@ -1586,13 +1586,10 @@ public struct CostUsageFetcher: Sendable {
         codexHomePath: String?,
         overrideScannerOptions: CostUsageScanner.Options?) -> CostUsageScanner.Options
     {
-        var options = overrideScannerOptions ?? CostUsageScanner.Options()
-        if let codexHomePath = codexHomePath?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !codexHomePath.isEmpty
-        {
-            options.codexSessionsRoot = URL(fileURLWithPath: codexHomePath, isDirectory: true)
-                .appendingPathComponent("sessions", isDirectory: true)
-        }
+        let options = Self.resolvedScannerOptions(
+            overrideScannerOptions,
+            provider: .codex, // Provider-specific by design: local history belongs to the selected Codex home.
+            codexHomePath: codexHomePath)
         return CodexLocalDataScope.resolve(options: options).applying(to: options)
     }
 
@@ -1947,19 +1944,7 @@ public struct CostUsageFetcher: Sendable {
     {
         let summaries = CostUsageDailyReport.modelCostSummaries(from: entries)
         guard !summaries.isEmpty else { return nil }
-        return summaries.sorted { lhs, rhs in
-            let lhsCost = lhs.costUSD ?? -1
-            let rhsCost = rhs.costUSD ?? -1
-            if lhsCost != rhsCost {
-                return lhsCost > rhsCost
-            }
-            let lhsTokens = lhs.totalTokens ?? -1
-            let rhsTokens = rhs.totalTokens ?? -1
-            if lhsTokens != rhsTokens {
-                return lhsTokens > rhsTokens
-            }
-            return lhs.modelName > rhs.modelName
-        }
+        return CostUsageDailyReport.sortedModelBreakdowns(summaries)
     }
 }
 

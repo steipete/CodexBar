@@ -120,12 +120,14 @@ struct NotionPluginTests {
                     domains: runtime.manifest.cookieDomains,
                     settings: .init(cookieSource: .auto),
                     batches: { _, _ in Issue.record("Notion must import opaque cookie jars"); return nil },
-                    jarImporter: {
-                        try BrowserCookieImportSupport.collectSessions(
-                            from: BrowserCookieImportSupport.importOrder(for: .notion),
+                    jarImporter: { batch in
+                        let browsers = BrowserCookieImportSupport.importOrder(for: .notion)
+                        guard browsers.indices.contains(batch) else { return nil }
+                        return try Array(BrowserCookieImportSupport.collectSessions(
+                            from: [browsers[batch]],
                             missingError: nil,
                             logger: { _ in },
-                            load: { browser in
+                            load: { browser -> [ProviderPluginCookieSession] in
                                 visited.append(browser.rawValue)
                                 guard browser == .edge else { return [] }
                                 let cookie = try #require(HTTPCookie(properties: [
@@ -135,7 +137,7 @@ struct NotionPluginTests {
                                 return [.init(
                                     header: "", source: "Microsoft Edge Profile 2", origin: "",
                                     records: [ProviderPluginCookieRecord(cookie: cookie)])]
-                            })
+                            }))
                     },
                     policy: runtime.manifest.cookiePolicy,
                     sessionFileURL: directory.appendingPathComponent("notion-session.json"))

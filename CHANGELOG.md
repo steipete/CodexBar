@@ -2,9 +2,36 @@
 
 ## 0.74.2 — Unreleased
 
+### Added
+
+- Settings: filter the provider list to enabled services, search CLI aliases, and restore the default order with Undo (#4440). Thanks @Yuxin-Qiao!
+- Kimi: discover the current China Desktop session from Local Storage for web usage and monthly membership enrichment, with session checks before each request (#4416, #3536). Thanks @OttoPrua!
+- Providers: add fal account credit balances through its billing API, with explicit guidance for missing billing permissions (#4438). Thanks @giuseppebisemi!
+- Providers: add FLORA workspace balances, member limits, and available month-to-date spending through a bundled billing plugin (#4439). Thanks @giuseppebisemi!
+
+- Codex CLI: add opt-in identified-request subtotals across local and SSH histories, deduplicating strong request identities and preserving partial results without estimating combined prices (#4447, refs #3036). Thanks @jkobject!
+
+### Changed
+
+- Browser Local Storage imports pick the current record by LevelDB sequence, so a sign-out followed by a sign-in no longer hides the new session.
+- Browser imports: recognize Ego Lite through the shared catalog; Cursor account login continues to require a verified application identifier.
+- Menu bar: the Cost 30d layout item is now named Cost (History window), since it already shows the selected History window's total; saved layouts and conditional rules are unchanged (#4448). Thanks @benjschiller!
+
 ### Fixed
 
-- JetBrains AI: read current quota from the newer AI Assistant `JbaiQuota` log records and, after the Air migration disables AI Assistant, from Junie's quota updates, instead of falling back to weeks-old XML (#4457). Thanks @taihua!
+- JetBrains AI: read current quota from newer JbaiQuota and Junie log records while preserving same-IDE freshness and XML fallback (#4457). Thanks @taihua!
+
+- Menu bar: show a single leading provider icon at full size beside two text rows while preserving inline icons for merged providers and tinted layouts (#4454). Thanks @deinspanjer!
+
+- OpenCode Go: cache unchanged local history scans with bounded memory and discover permitted browser sessions in Auto before falling back to marked estimates (#4410, #4445). Thanks @JackHo12 and @djbclark!
+
+- Codex costs: price ChatGPT-created Auto-review requests from October 6 at $0 so they no longer make otherwise complete costs appear as a lower bound; keep their tokens in totals and honor explicit custom prices (#4452, #4453). Thanks @gabrielrojasc!
+- TypeSafe: discover console sessions in the shared browser order while preserving manual cookies and CLI cookie refresh (#4442). Thanks @lg!
+- Charm Hyper: read browser-session balances from the signed-in dashboard while keeping API keys on the credits endpoint and preserving cookie-refresh validation (#4435). Thanks @dnicolson!
+- Menu bar: restore meters and critters immediately when switching back from Icon & percent, without waiting for usage to change (#4450). Thanks @benjschiller!
+- Browser cookie imports raise at most one Keychain prompt per manual refresh, respect a denied prompt for its cooldown, and never prompt from settings-triggered refreshes (#4443).
+- Browser cookie imports stop at the first browser with a working session instead of reading every browser (#4443).
+- Chromium cookie imports no longer ask for a browser's Safe Storage key when that browser has no cookies for the provider's site, avoiding needless Keychain prompts (SweetCookieKit 0.5.7, #4443).
 
 ## 0.74.1 — 2026-10-11
 
@@ -20,6 +47,7 @@
 
 ### Fixed
 
+- Antigravity: stop `agy` usage refreshes from opening browser sign-in when saved authentication cannot refresh silently, while preserving background quota recovery (#4441, #4451, #4446). Thanks @deven367, @davisonio, and @Yuxin-Qiao!
 - Usage & Spend: stop Codex status and activity read caches from retaining per-file request ledgers, reducing memory on large histories while preserving report turn performance (#4421, #4424). Thanks @harjothkhara and @Edenspiekermann-Chris!
 - Command Code: support Go v1’s $10 monthly grant and preserve API usage and the plan label for unknown subscriptions (#4405). Thanks @dalisoft!
 - OpenCode Go: mark estimated menu-bar percentages with `~` and clarify that local cost ratios do not establish account quota (#4410). Thanks @djbclark!

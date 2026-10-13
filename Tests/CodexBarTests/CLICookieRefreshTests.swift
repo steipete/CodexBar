@@ -1,6 +1,9 @@
 import Commander
 import Foundation
 import Testing
+#if os(macOS)
+import SweetCookieKit
+#endif
 @testable import CodexBarCLI
 @testable import CodexBarCore
 
@@ -28,6 +31,16 @@ struct CLICookieRefreshTests {
         #expect(targets.contains(where: { $0.id == .opencode }))
         #expect(targets.allSatisfy { $0.metadata.browserCookieOrder != nil })
         #expect(targets.allSatisfy { $0.fetchPlan.sourceModes.contains(.web) })
+    }
+
+    @Test
+    func `catalog order providers remain cookie refresh targets`() throws {
+        let all = try CodexBarCLI.cookieRefreshTargets(rawProvider: nil, refreshAll: true)
+        let typesafe = try CodexBarCLI.cookieRefreshTargets(rawProvider: "typesafe", refreshAll: false)
+
+        #expect(all.contains(where: { $0.id == .typesafe }))
+        #expect(typesafe.map(\.id) == [.typesafe])
+        #expect(typesafe.first?.metadata.browserCookieOrder == ProviderBrowserCookieDefaults.defaultImportOrder)
     }
 
     @Test
@@ -332,6 +345,31 @@ struct CLICookieRefreshTests {
     }
 
     @Test
+    func `acknowledged cookie refresh shares one interactive read across providers`() async {
+        BrowserCookieAccessGate.resetForTesting()
+        defer { BrowserCookieAccessGate.resetForTesting() }
+        var interactiveReads = 0
+        await KeychainAccessGate.withTaskOverrideForTesting(false) {
+            await KeychainAccessPreflight.withCheckGenericPasswordOverrideForTesting { _, _ in .allowed } operation: {
+                let results = await CodexBarCLI.performCookieRefreshes(
+                    targets: [UsageProvider.opencode, .mimo].map { ProviderDescriptorRegistry.descriptor(for: $0) },
+                    allowKeychainPrompt: true)
+                { descriptor in
+                    _ = try? BrowserCookieAccessGate.withRecordReadInteractionPolicy {
+                        if BrowserCookieKeychainAccessGate.isUserInteractionDisallowed {
+                            throw BrowserCookieError.accessDenied(browser: .chrome, details: "Synthetic")
+                        }
+                        interactiveReads += 1
+                    }
+                    return CookieRefreshResult(provider: descriptor.cli.name, status: .refreshed, message: "Synthetic")
+                }
+                #expect(results.count == 2)
+            }
+        }
+        #expect(interactiveReads == 1)
+    }
+
+    @Test
     func `classified cookie failures retain safe category hints`() throws {
         BrowserCookieAccessGate.resetForTesting()
         defer { BrowserCookieAccessGate.resetForTesting() }
@@ -436,7 +474,7 @@ struct CLICookieRefreshTests {
         let service = "com.steipete.codexbar.tests.header-import.\(UUID().uuidString)"
         let domain = "cookies.example.test"
         let broker = ProviderInteractionContext.$current.withValue(.userInitiated) {
-            BrowserCookieAccessGate.withExplicitRetry {
+            BrowserCookieAccessGate.withExplicitRetry(bypassingCooldown: true) {
                 ProviderPluginCookieBroker(
                     provider: .raycast,
                     domains: [domain],

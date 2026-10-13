@@ -73,7 +73,10 @@ extension StatusItemController {
         let wasCached = button.image === (rendered.statusImage ?? rendered.leadingIcon)
             && button.imagePosition == expectedImagePosition
             && button.attributedTitle.isEqual(to: expectedTitle)
-        self.setButtonLayoutContent(rendered, for: button, statusItem: statusItem)
+        // Stored layouts replace the image outside the legacy render-signature cache.
+        self.lastAppliedMergedIconRenderSignature = nil
+        self.lastAppliedProviderIconRenderSignatures[provider.instanceID] = nil
+        statusItem.length = Self.applyMenuBarLayoutContent(rendered, for: button, gap: self.settings.menuBarLayoutGap)
         return wasCached
     }
 
@@ -118,6 +121,7 @@ extension StatusItemController {
             topProviderName: L(self.store.metadata(for: top).displayName),
             bottomProviderName: L(self.store.metadata(for: bottom).displayName))
         let wasCached = button.image == nil && button.attributedTitle.isEqual(to: rendered.attributedTitle)
+        self.lastAppliedMergedIconRenderSignature = nil
         self.statusItem.length = Self.applyMenuBarLayoutContent(
             rendered,
             for: button,
@@ -274,14 +278,6 @@ extension StatusItemController {
         return PercentWindow.allCases.filter(selections.contains).compactMap {
             windows.resetWindow($0, snapshot: snapshot)?.resetsAt
         }
-    }
-
-    private func setButtonLayoutContent(
-        _ rendered: MenuBarLayoutRenderedTitle,
-        for button: NSStatusBarButton,
-        statusItem: NSStatusItem)
-    {
-        statusItem.length = Self.applyMenuBarLayoutContent(rendered, for: button, gap: self.settings.menuBarLayoutGap)
     }
 
     static func applyMenuBarLayoutContent(

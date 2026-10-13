@@ -119,6 +119,8 @@ The Linux CLI uses `FileManager`’s Application Support directory (XDG data hom
 
 Values are USD per million tokens. For native Codex session scans, resolution order is **overlay > models.dev > builtin**. Changing the file invalidates the Codex pricing fingerprint so the next native Codex scan reloads rates.
 
+[Free Codex Auto-review requests](codex.md#cost-usage-local-log-scan) use **overlay > Auto-review waiver ($0) > models.dev > builtin**. A `codex-auto-review` or `openai/codex-auto-review` entry prices them at that rate. Without one, they cost $0, and models.dev and bundled rates never apply.
+
 The overlay applies to native Codex/OpenAI-compatible pricing and OpenCodex estimates. OpenCodex checks
 the recorded provider/model identity before its provider catalog; its caller-supplied snapshot overlay
 takes precedence over the app-level overlay. Bare model keys remain global overrides with the documented

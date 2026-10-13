@@ -323,7 +323,7 @@ struct CostUsageCodexRetryBufferPresence: Codable, Equatable, Sendable {
 
 struct CostUsageFileUsage: Codable, Equatable {
     /// Increment for native parser corrections; older or absent revisions use bounded reparsing.
-    static let currentCodexParserRevision = 12
+    static let currentCodexParserRevision = 13
 
     var mtimeUnixMs: Int64
     var size: Int64
@@ -409,10 +409,12 @@ struct CostUsageCodexSessionMetadata: Codable, Equatable {
     var title: String?
     var startedAtUnixMs: Int64?
     var latestActivityUnixMs: Int64?
+    /// Whether the leaf `session_meta` named a ChatGPT creator account. `nil` means not yet parsed.
+    var hasCreatorAccount: Bool?
 
     var isEmpty: Bool {
         self.sessionId == nil && self.forkedFromId == nil && self.cwd == nil && self.title == nil
-            && self.startedAtUnixMs == nil && self.latestActivityUnixMs == nil
+            && self.startedAtUnixMs == nil && self.latestActivityUnixMs == nil && self.hasCreatorAccount == nil
     }
 
     func merging(_ newer: CostUsageCodexSessionMetadata) -> CostUsageCodexSessionMetadata {
@@ -421,26 +423,9 @@ struct CostUsageCodexSessionMetadata: Codable, Equatable {
             forkedFromId: newer.forkedFromId ?? self.forkedFromId,
             cwd: newer.cwd ?? self.cwd,
             title: newer.title ?? self.title,
-            startedAtUnixMs: Self.earlier(self.startedAtUnixMs, newer.startedAtUnixMs),
-            latestActivityUnixMs: Self.later(self.latestActivityUnixMs, newer.latestActivityUnixMs))
-    }
-
-    private static func earlier(_ lhs: Int64?, _ rhs: Int64?) -> Int64? {
-        switch (lhs, rhs) {
-        case let (lhs?, rhs?): min(lhs, rhs)
-        case let (lhs?, nil): lhs
-        case let (nil, rhs?): rhs
-        case (nil, nil): nil
-        }
-    }
-
-    private static func later(_ lhs: Int64?, _ rhs: Int64?) -> Int64? {
-        switch (lhs, rhs) {
-        case let (lhs?, rhs?): max(lhs, rhs)
-        case let (lhs?, nil): lhs
-        case let (nil, rhs?): rhs
-        case (nil, nil): nil
-        }
+            startedAtUnixMs: [self.startedAtUnixMs, newer.startedAtUnixMs].compactMap(\.self).min(),
+            latestActivityUnixMs: [self.latestActivityUnixMs, newer.latestActivityUnixMs].compactMap(\.self).max(),
+            hasCreatorAccount: newer.hasCreatorAccount ?? self.hasCreatorAccount)
     }
 }
 
@@ -449,13 +434,6 @@ struct CostUsageCodexTotals: Codable, Equatable {
     var cached: Int
     var output: Int
     var reasoning: Int?
-
-    init(input: Int, cached: Int, output: Int, reasoning: Int? = nil) {
-        self.input = input
-        self.cached = cached
-        self.output = output
-        self.reasoning = reasoning
-    }
 }
 
 struct CostUsageCodexTokenSnapshot: Codable, Equatable {

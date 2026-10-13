@@ -1450,7 +1450,7 @@
 "menu_bar_layout_token_reset_at" = "Zurücksetzung um";
 "menu_bar_layout_token_runs_out" = "Reicht bis";
 "menu_bar_layout_token_cost_today" = "Kosten heute";
-"menu_bar_layout_token_cost_30d" = "Kosten 30 Tage";
+"menu_bar_layout_token_cost_window" = "Kosten (Verlaufsfenster)";
 "menu_bar_layout_token_space" = "Leerraum";
 "menu_bar_layout_token_line_break" = "Zeilenumbruch";
 "menu_bar_layout_token_separator_accessibility" = "Trennpunkt";
@@ -1468,7 +1468,6 @@
 "Reset time unavailable" = "Zurücksetzung um: Nicht verfügbar";
 "Run-out estimate unavailable" = "Reicht bis: Nicht verfügbar";
 "Cost today unavailable" = "Kosten heute: Nicht verfügbar";
-"30-day cost unavailable" = "Kosten 30 Tage: Nicht verfügbar";
 "Resets" = "Zurücksetzungen";
 "codex_workspaces_cost_unavailable" = "Kosten nicht verfügbar";
 "codex_workspaces_elevated_usage" = "Erhöhte Nutzung";
@@ -2505,3 +2504,21 @@
 "Pace sign" = "Vorzeichen des Nutzungstempos";
 "Ahead of pace is +" = "Über dem Solltempo ist +";
 "Reserve is +" = "Reserve ist +";
+
+/* fal provider credentials */
+"Key with billing read access (BILLING or READONLY preset). Or set FAL_KEY." = "Schlüssel mit Lesezugriff auf die Abrechnung (Vorlage BILLING oder READONLY). Oder FAL_KEY setzen.";
+
+/* FLORA provider credentials */
+"Needs billing permission on the workspace. Or set FLORA_API_KEY." = "Benötigt Abrechnungsberechtigung für den Workspace. Oder FLORA_API_KEY setzen.";
+"Required. The ws_… ID of the workspace the key can bill. Or set FLORA_WORKSPACE_ID." = "Erforderlich. Die ws_…-ID des Workspace, den der Schlüssel abrechnen darf. Oder FLORA_WORKSPACE_ID setzen.";
+"ak_…" = "ak_…";
+"ws_…" = "ws_…";
+
+"Provider order updated" = "Anbieterreihenfolge aktualisiert";
+"Undo" = "Rückgängig";
+"Clear filters" = "Filter löschen";
+"Change provider order" = "Anbieterreihenfolge ändern";
+"Provider sorting" = "Anbietersortierung";
+"Only enabled providers" = "Nur aktivierte Anbieter";
+"Restore default order" = "Standardreihenfolge wiederherstellen";
+"Also restores the provider order in the menu bar. Can be undone." = "Stellt auch die Anbieterreihenfolge in der Menüleiste wieder her. Kann rückgängig gemacht werden.";

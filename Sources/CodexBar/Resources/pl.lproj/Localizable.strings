@@ -1451,7 +1451,7 @@
 "menu_bar_layout_token_reset_at" = "Reset o";
 "menu_bar_layout_token_runs_out" = "Wyczerpie się";
 "menu_bar_layout_token_cost_today" = "Koszt dzisiaj";
-"menu_bar_layout_token_cost_30d" = "Koszt 30 dni";
+"menu_bar_layout_token_cost_window" = "Koszt (Zakres historii)";
 "menu_bar_layout_token_space" = "Odstęp";
 "menu_bar_layout_token_line_break" = "Podział wiersza";
 "menu_bar_layout_token_separator_accessibility" = "Kropka oddzielająca";
@@ -1469,7 +1469,6 @@
 "Reset time unavailable" = "Reset o: Niedostępne";
 "Run-out estimate unavailable" = "Wyczerpie się: Niedostępne";
 "Cost today unavailable" = "Koszt dzisiaj: Niedostępne";
-"30-day cost unavailable" = "Koszt 30 dni: Niedostępne";
 "Resets" = "Resety";
 "codex_workspaces_title" = "Obszary robocze";
 "codex_workspaces_estimated_local_logs" = "Oszacowano na podstawie lokalnych dzienników Codex";
@@ -2510,3 +2509,21 @@
 "Pace sign" = "Znak tempa zużycia";
 "Ahead of pace is +" = "Powyżej tempa to +";
 "Reserve is +" = "Rezerwa to +";
+
+/* fal provider credentials */
+"Key with billing read access (BILLING or READONLY preset). Or set FAL_KEY." = "Klucz z dostępem do odczytu rozliczeń (preset BILLING lub READONLY). Lub ustaw FAL_KEY.";
+
+/* FLORA provider credentials */
+"Needs billing permission on the workspace. Or set FLORA_API_KEY." = "Wymaga uprawnień do rozliczeń w obszarze roboczym. Lub ustaw FLORA_API_KEY.";
+"Required. The ws_… ID of the workspace the key can bill. Or set FLORA_WORKSPACE_ID." = "Wymagane. Identyfikator ws_… obszaru roboczego, który klucz może rozliczać. Lub ustaw FLORA_WORKSPACE_ID.";
+"ak_…" = "ak_…";
+"ws_…" = "ws_…";
+
+"Provider order updated" = "Zaktualizowano kolejność dostawców";
+"Undo" = "Cofnij";
+"Clear filters" = "Wyczyść filtry";
+"Change provider order" = "Zmień kolejność dostawców";
+"Provider sorting" = "Sortowanie dostawców";
+"Only enabled providers" = "Tylko aktywni dostawcy";
+"Restore default order" = "Przywróć domyślną kolejność";
+"Also restores the provider order in the menu bar. Can be undone." = "Przywraca również kolejność dostawców na pasku menu. Można cofnąć.";

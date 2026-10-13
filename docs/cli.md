@@ -92,6 +92,23 @@ sources and setup guide. The [provider ID list](provider-ids.md) is generated fr
   - `--provider codex --format json --summary-only` emits a one-element, versioned summary array with no account identity, project paths, model rows, or session content. Schema version 1 retains `updatedAt`, `bucketTimeZone`, `historyDays`, `currencyCode`, `historyCoverageIsEstablished`, and separate `today`/`history` totals with optional `totalTokens`/`costUSD`, incomplete-request counts, coverage categories, and provenance. Missing totals remain unavailable.
   - Host reports always scan native Codex history only. `--days` and `--refresh` apply on both hosts; each host retains its own calendar and pricing. Both modes reject `--group-by` and `--breakdown`; `--remote` and `--summary-only` cannot be combined. Ordinary `cost` output remains compatible.
   - Remote capture is bounded to 16 KiB per stream during execution, with a 60-second client process timeout. Unsupported versions, invalid totals, overflow, and unexpected output fail closed. Remote failure retains a successful local row and exits nonzero; JSON remains one document. Ctrl-C and termination signals cancel collection and await local SSH subprocess cleanup. The remote scanner follows its SSH server's disconnect behavior and may finish after the client exits.
+- `codexbar cost --provider codex --identified-only --format json --days 30` exports an experimental,
+  versioned native request ledger. Add `--remote build-host` to return source reports and an
+  **identified-request subtotal** from this machine and one SSH host. Both hosts need a CLI supporting
+  this option. `--identified-end <Unix milliseconds>` pins the inclusive end; the start is UTC midnight
+  `days - 1` days earlier. Saved periods and time zones do not change this window.
+  - Only owned native `token_usage_record` events with session/thread and response IDs contribute.
+    Legacy token-count events and unidentified usage are excluded; this subtotal is not complete account usage.
+  - Identical copies count once. Contradictory copies of an identity are excluded throughout that merge,
+    including after a later matching copy. Identities are length-framed SHA-256 hashes; exported rows contain
+    timestamps and token categories, without conversation text, model names, paths or raw session IDs.
+  - Combined prices are explicitly unavailable (`costUSD: null`). This stage does not estimate dollars.
+    Collection uses the existing one-shot SSH safeguards, with no persistent ledger. Exports are limited to
+    50,000 records and conflict IDs and 32 MiB; exceeding a limit rejects the source rather than truncating usage.
+    An unavailable source retains successful source data, marks the result partial, and exits nonzero.
+    Readable empty history is available; damaged or disappearing files mark the available data partial.
+  - Requires explicit `--provider codex` and JSON. Do not combine with `--summary-only`,
+    `--period`, `--group-by` or `--breakdown`; the existing separate-host summary command is unchanged.
 - `codexbar cards` prints a one-shot usage snapshot as a responsive terminal card grid.
   - Reuses the same provider, source, account, credits, and status flags as `codexbar usage`.
   - Account lines and plan badges are included in the card grid by default.
@@ -154,7 +171,7 @@ sources and setup guide. The [provider ID list](provider-ids.md) is generated fr
   - Choose exactly one of `--provider <id>` or `--all`; provider support comes from shared browser-cookie metadata rather than a fixed CLI list.
   - Prompt-capable Chromium imports require `--allow-keychain-prompt`. Without it, the command fails before cache mutation with an interactive-retry hint.
   - Selected-profile providers use only their configured browser for that check. Safari needs no Chromium Keychain acknowledgment; a validated nonpersistent refresh succeeds without storing cookies.
-  - A six-hour Keychain-denial cooldown is bypassed only by that explicit acknowledgment flag. Output never includes cookie values.
+  - A six-hour Keychain-denial cooldown also applies to menu and settings Refresh actions; only that explicit acknowledgment flag bypasses it. The command shares one interactive browser read across its selected providers. Output never includes cookie values.
   - Classified provider failures distinguish rejected sessions, permissions, rate limits, outages, network errors, and unreadable responses. Missing credentials retain the browser sign-in hint; disabled or denied Keychain access takes precedence. Hints never echo raw provider error messages.
   - Providers configured for Manual or Off cookie sources are skipped.
 - `codexbar guard --provider <id>` gates automation on one provider's remaining quota.

@@ -363,9 +363,9 @@ struct KimiAPIFetchStrategyTests {
         }
         let strategy = KimiAPIFetchStrategy(
             transport: transport,
-            resolveWebAuthToken: { _ in
+            resolveWebCredential: { _ in
                 Issue.record("Cookie source Off must not resolve desktop or browser sessions")
-                return "unexpected-web-token"
+                return KimiWebCredential(token: "unexpected-web-token")
             })
         let context = makeKimiFetchContext(
             sourceMode: .api,
@@ -411,7 +411,7 @@ struct KimiAPIFetchStrategyTests {
         }
         let strategy = KimiAPIFetchStrategy(
             transport: transport,
-            resolveWebAuthToken: { _ in "desktop-token" })
+            resolveWebCredential: { _ in KimiWebCredential(token: "desktop-token") })
         let context = makeKimiFetchContext(
             sourceMode: .api,
             environment: ["KIMI_CODE_API_KEY": "api-token"],

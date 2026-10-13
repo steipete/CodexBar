@@ -14,11 +14,11 @@ public enum VeniceCookieImporter {
         browserDetection: BrowserDetection = BrowserDetection(),
         logger: ((String) -> Void)? = nil) throws -> [VeniceResolvedSession]
     {
-        try BrowserCookieImportSupport.collectSessions(
-            from: self.cookieImportOrder.cookieImportCandidates(using: browserDetection),
+        try Array(BrowserCookieImportSupport.collectSessions(
+            from: self.cookieImportOrder.lazyCookieImportCandidates(using: browserDetection),
             missingError: VeniceUsageError.missingCredentials,
             logger: { self.emit($0, logger: logger) },
-            load: { try self.importSessions(from: $0, logger: logger) })
+            load: { try self.importSessions(from: $0, logger: logger) }))
     }
 
     public static func importSessions(

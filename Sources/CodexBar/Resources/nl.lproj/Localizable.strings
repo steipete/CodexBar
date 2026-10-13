@@ -1447,7 +1447,7 @@
 "menu_bar_layout_token_reset_at" = "Reset om";
 "menu_bar_layout_token_runs_out" = "Op";
 "menu_bar_layout_token_cost_today" = "Kosten vandaag";
-"menu_bar_layout_token_cost_30d" = "Kosten 30 dagen";
+"menu_bar_layout_token_cost_window" = "Kosten (Geschiedenisvenster)";
 "menu_bar_layout_token_space" = "Spatie";
 "menu_bar_layout_token_line_break" = "Regeleinde";
 "menu_bar_layout_token_separator_accessibility" = "Scheidingspunt";
@@ -1465,7 +1465,6 @@
 "Reset time unavailable" = "Reset om: Niet beschikbaar";
 "Run-out estimate unavailable" = "Op: Niet beschikbaar";
 "Cost today unavailable" = "Kosten vandaag: Niet beschikbaar";
-"30-day cost unavailable" = "Kosten 30 dagen: Niet beschikbaar";
 "Resets" = "Resetten";
 "codex_workspaces_cost_unavailable" = "Kosten niet beschikbaar";
 "codex_workspaces_elevated_usage" = "Verhoogd gebruik";
@@ -2506,3 +2505,21 @@
 "Pace sign" = "Teken van gebruikstempo";
 "Ahead of pace is +" = "Boven het tempo is +";
 "Reserve is +" = "Reserve krijgt +";
+
+/* fal provider credentials */
+"Key with billing read access (BILLING or READONLY preset). Or set FAL_KEY." = "Sleutel met leestoegang tot facturering (preset BILLING of READONLY). Of stel FAL_KEY in.";
+
+/* FLORA provider credentials */
+"Needs billing permission on the workspace. Or set FLORA_API_KEY." = "Vereist factureringsrechten voor de workspace. Of stel FLORA_API_KEY in.";
+"Required. The ws_… ID of the workspace the key can bill. Or set FLORA_WORKSPACE_ID." = "Verplicht. De ws_…-ID van de workspace die de sleutel mag factureren. Of stel FLORA_WORKSPACE_ID in.";
+"ak_…" = "ak_…";
+"ws_…" = "ws_…";
+
+"Provider order updated" = "Volgorde van aanbieders bijgewerkt";
+"Undo" = "Ongedaan maken";
+"Clear filters" = "Filters wissen";
+"Change provider order" = "Volgorde van aanbieders wijzigen";
+"Provider sorting" = "Aanbieders sorteren";
+"Only enabled providers" = "Alleen ingeschakelde aanbieders";
+"Restore default order" = "Standaardvolgorde herstellen";
+"Also restores the provider order in the menu bar. Can be undone." = "Herstelt ook de volgorde van aanbieders in de menubalk. Kan ongedaan worden gemaakt.";

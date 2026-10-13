@@ -1224,7 +1224,7 @@ extension CostUsageDailyReport {
             totalCostUSD: totals.resolvedCostUSD())
     }
 
-    private static func sortedModelBreakdowns(_ breakdowns: [ModelBreakdown]) -> [ModelBreakdown] {
+    static func sortedModelBreakdowns(_ breakdowns: [ModelBreakdown]) -> [ModelBreakdown] {
         breakdowns.sorted { lhs, rhs in
             let lhsCost = lhs.costUSD ?? -1
             let rhsCost = rhs.costUSD ?? -1

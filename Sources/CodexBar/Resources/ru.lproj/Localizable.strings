@@ -1449,7 +1449,7 @@
 "menu_bar_layout_token_reset_at" = "Сброс в";
 "menu_bar_layout_token_runs_out" = "Закончится";
 "menu_bar_layout_token_cost_today" = "Расход сегодня";
-"menu_bar_layout_token_cost_30d" = "Расход за 30 дней";
+"menu_bar_layout_token_cost_window" = "Расход (Окно истории)";
 "menu_bar_layout_token_space" = "Пробел";
 "menu_bar_layout_token_line_break" = "Разрыв строки";
 "menu_bar_layout_token_separator_accessibility" = "Точка-разделитель";
@@ -1467,7 +1467,6 @@
 "Reset time unavailable" = "Сброс в: Недоступно";
 "Run-out estimate unavailable" = "Закончится: Недоступно";
 "Cost today unavailable" = "Расход сегодня: Недоступно";
-"30-day cost unavailable" = "Расход за 30 дней: Недоступно";
 "Resets" = "Сбросы";
 "codex_workspaces_cost_unavailable" = "Стоимость недоступна";
 "codex_workspaces_elevated_usage" = "Повышенное использование";
@@ -2508,3 +2507,21 @@
 "Pace sign" = "Знак темпа расхода";
 "Ahead of pace is +" = "Опережение темпа — +";
 "Reserve is +" = "Запас — +";
+
+/* fal provider credentials */
+"Key with billing read access (BILLING or READONLY preset). Or set FAL_KEY." = "Ключ с доступом на чтение биллинга (пресет BILLING или READONLY). Или задайте FAL_KEY.";
+
+/* FLORA provider credentials */
+"Needs billing permission on the workspace. Or set FLORA_API_KEY." = "Нужно право на биллинг в рабочем пространстве. Или задайте FLORA_API_KEY.";
+"Required. The ws_… ID of the workspace the key can bill. Or set FLORA_WORKSPACE_ID." = "Обязательно. ID ws_… рабочего пространства, к биллингу которого есть доступ у ключа. Или задайте FLORA_WORKSPACE_ID.";
+"ak_…" = "ak_…";
+"ws_…" = "ws_…";
+
+"Provider order updated" = "Порядок провайдеров обновлён";
+"Undo" = "Отменить";
+"Clear filters" = "Сбросить фильтры";
+"Change provider order" = "Изменить порядок провайдеров";
+"Provider sorting" = "Сортировка провайдеров";
+"Only enabled providers" = "Только активные провайдеры";
+"Restore default order" = "Восстановить исходный порядок";
+"Also restores the provider order in the menu bar. Can be undone." = "Также восстанавливает порядок провайдеров в строке меню. Действие можно отменить.";

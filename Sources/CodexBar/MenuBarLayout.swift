@@ -69,7 +69,8 @@ enum MenuBarConditionalMetric: String, CaseIterable, Codable, Hashable, Sendable
     case runsOutIn
     case balance
     case costToday
-    case cost30d
+    /// The raw value is the persisted discriminator from before the rename; saved rules must keep decoding.
+    case costWindow = "cost30d"
 
     var kind: MenuBarConditionalMetricKind {
         switch self {
@@ -80,7 +81,7 @@ enum MenuBarConditionalMetric: String, CaseIterable, Codable, Hashable, Sendable
             .signedPercent
         case .sessionResetsIn, .weeklyResetsIn, .scopedWeeklyResetsIn, .automaticResetsIn, .runsOutIn:
             .hours
-        case .balance, .costToday, .cost30d:
+        case .balance, .costToday, .costWindow:
             .currencyUSD
         }
     }
@@ -320,15 +321,6 @@ struct MenuBarLayoutConditional: Codable, Hashable, Sendable {
         self.normalize()
     }
 
-    func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(self.id, forKey: .id)
-        try container.encode(self.name, forKey: .name)
-        try container.encode(self.clauses, forKey: .clauses)
-        try container.encode(self.thenToken, forKey: .thenToken)
-        try container.encode(self.elseToken, forKey: .elseToken)
-    }
-
     static func makeDefault() -> MenuBarLayoutConditional {
         MenuBarLayoutConditional(
             clauses: [MenuBarConditionalClause(
@@ -503,7 +495,7 @@ enum MenuBarLayoutToken: Codable, Hashable, Sendable {
     case runsOutCompact
     case balance
     case costToday
-    case cost30d
+    case costWindow
     case separatorDot
     case space
     /// Renders nothing; used as a conditional branch value to hide output for the other case.
@@ -511,6 +503,16 @@ enum MenuBarLayoutToken: Codable, Hashable, Sendable {
     /// References a library conditional by UUID. The conditional's content (clauses, branches) lives in
     /// the conditionals library; the layout stores only its identity.
     case conditional(id: UUID)
+
+    /// Synthesized `Codable` keys each case by name; `costWindow` pins the discriminator written before the
+    /// case was renamed, because 0.73.0 discards a persisted layout containing an unknown token.
+    private enum CodingKeys: String, CodingKey {
+        case icon, providerName, accountLabel, percent, lanePercent, extraPercent, pace, usageBar
+        case resetCountdown, resetAbsolute, windowResetCountdown, windowResetAbsolute
+        case runsOut, runsOutCompact, balance, costToday
+        case costWindow = "cost30d"
+        case separatorDot, space, hidden, conditional
+    }
 
     /// The semantic window read by a reset token, including the historical automatic variants.
     var resetWindow: PercentWindow? {
@@ -741,11 +743,6 @@ struct MenuBarLayout: Codable, Hashable, Sendable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         try self.init(lines: container.decode([[MenuBarLayoutToken]].self, forKey: .lines))
-    }
-
-    func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(self.lines, forKey: .lines)
     }
 
     private static func normalizedLines(_ lines: [[MenuBarLayoutToken]]) -> [[MenuBarLayoutToken]] {

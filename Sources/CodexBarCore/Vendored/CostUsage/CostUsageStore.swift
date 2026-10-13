@@ -122,6 +122,8 @@ actor CostUsageStore {
         parserHash: CodexParserHash.value)
     static let cacheGeneration = "sqlite:\(CostUsageStore.schemaVersion)"
     static let compatiblePredecessorParserHashes: Set<String> = [
+        "fc698834d6329beb", // Opt-in request observation defaults to nil; saved rows and cursors are unchanged.
+        "f406dae284de4a55", // Revision 13 reparses rows to record the session creator account for Auto-review.
         "379b799bb4b91683", // Current main before tool inspection; stored rows and checkpoints are unchanged.
         "7ce21041b7a36242", // Prior tool inspection stores survive upstream process cleanup.
         "0d8f9504f8e63d0f", // On-demand tool inspection leaves current-main rows and checkpoints unchanged.

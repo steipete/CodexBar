@@ -1417,7 +1417,7 @@
 "menu_bar_layout_token_reset_at" = "재설정 시각";
 "menu_bar_layout_token_runs_out" = "소진";
 "menu_bar_layout_token_cost_today" = "오늘 비용";
-"menu_bar_layout_token_cost_30d" = "30일 비용";
+"menu_bar_layout_token_cost_window" = "비용 (기록 범위)";
 "menu_bar_layout_token_space" = "공백";
 "menu_bar_layout_token_line_break" = "줄 바꿈";
 "menu_bar_layout_token_separator_accessibility" = "구분점";
@@ -1435,7 +1435,6 @@
 "Reset time unavailable" = "재설정 시각: 사용할 수 없음";
 "Run-out estimate unavailable" = "소진: 사용할 수 없음";
 "Cost today unavailable" = "오늘 비용: 사용할 수 없음";
-"30-day cost unavailable" = "30일 비용: 사용할 수 없음";
 "Resets" = "재설정";
 "codex_workspaces_cost_unavailable" = "비용을 사용할 수 없음";
 "codex_workspaces_elevated_usage" = "증가한 사용량";
@@ -2475,3 +2474,21 @@
 "Pace sign" = "사용 속도 부호";
 "Ahead of pace is +" = "기준 속도 초과는 +";
 "Reserve is +" = "여유분은 +";
+
+/* fal provider credentials */
+"Key with billing read access (BILLING or READONLY preset). Or set FAL_KEY." = "결제 읽기 권한이 있는 키(BILLING 또는 READONLY 프리셋). 또는 FAL_KEY를 설정하세요.";
+
+/* FLORA provider credentials */
+"Needs billing permission on the workspace. Or set FLORA_API_KEY." = "워크스페이스의 결제 권한이 필요합니다. 또는 FLORA_API_KEY를 설정하세요.";
+"Required. The ws_… ID of the workspace the key can bill. Or set FLORA_WORKSPACE_ID." = "필수. 키가 결제할 수 있는 워크스페이스의 ws_… ID. 또는 FLORA_WORKSPACE_ID를 설정하세요.";
+"ak_…" = "ak_…";
+"ws_…" = "ws_…";
+
+"Provider order updated" = "공급자 순서가 변경되었습니다";
+"Undo" = "실행 취소";
+"Clear filters" = "필터 지우기";
+"Change provider order" = "공급자 순서 변경";
+"Provider sorting" = "공급자 정렬";
+"Only enabled providers" = "활성 공급자만 표시";
+"Restore default order" = "기본 순서 복원";
+"Also restores the provider order in the menu bar. Can be undone." = "메뉴 막대의 공급자 순서도 복원합니다. 실행 취소할 수 있습니다.";

@@ -69,9 +69,9 @@ struct KimiCLICredentialLifecycleTests {
         let transport = KimiOrderedCredentialTransport()
         let pipeline = ProviderFetchPipeline { _ in
             [
-                KimiCLICredentialFetchStrategy(transport: transport, resolveWebAuthToken: { _ in nil }),
+                KimiCLICredentialFetchStrategy(transport: transport, resolveWebCredential: { _ in nil }),
                 KimiWebFetchStrategy(fetchUsage: { token, _ in
-                    #expect(token == "synthetic-web")
+                    #expect(token.token == "synthetic-web")
                     return KimiUsageSnapshot(
                         weekly: .init(limit: "100", used: "25", remaining: "75", resetTime: nil),
                         rateLimit: nil,

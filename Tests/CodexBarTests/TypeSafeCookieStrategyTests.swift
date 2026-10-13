@@ -52,7 +52,7 @@ struct TypeSafeCookieStrategyTests {
     }
 
     @Test
-    func `cookie query is exact and Chrome only by default`() {
+    func `cookie query is exact and follows the shared browser order by default`() {
         let now = Date(timeIntervalSince1970: 1_758_240_000)
         let query = TypeSafeCookieImporter.cookieQuery(referenceDate: now)
 
@@ -60,8 +60,9 @@ struct TypeSafeCookieStrategyTests {
         if case .exact = query.domainMatch {} else { Issue.record("expected exact domain matching") }
         #expect(!query.includeExpired)
         #expect(query.referenceDate == now)
-        #expect(TypeSafeCookieImporter.resolvedImportOrder(nil) == [.chrome])
-        #expect(TypeSafeCookieImporter.resolvedImportOrder([]) == [.chrome])
+        #expect(ProviderDefaults.metadata[.typesafe]?.browserCookieOrder == Browser.defaultImportOrder)
+        #expect(TypeSafeCookieImporter.resolvedImportOrder(nil) == Browser.defaultImportOrder)
+        #expect(TypeSafeCookieImporter.resolvedImportOrder([]) == Browser.defaultImportOrder)
         #expect(TypeSafeCookieImporter.resolvedImportOrder([.safari]) == [.safari])
     }
 

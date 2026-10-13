@@ -534,7 +534,7 @@ Bundled scripts own requests, error classification, and snapshot mapping; Swift 
 | [ZenMux](zenmux.md) | Both engines require subscription quotas. Optional USD PAYG enrichment failures preserve quotas except for credential rejection and cancellation. |
 | [Atlas Cloud](atlascloud.md), [Vercel AI Gateway](vercel.md) | Fixed-origin bearer GETs return account/team balances as generic details without quota windows. Scripts classify HTTP failures; the host bounds retries. |
 | [GitKraken AI](gitkraken.md) | First-party bearer GET with optional organization scope returns generic weekly windows/details. |
-| [Charm Hyper](hyper.md) | Declared-domain cookies or a secure API key reach one fixed credits endpoint. TypeScript owns session preference, API fallback, errors, and HC balance parsing. |
+| [Charm Hyper](hyper.md) | Declared-domain cookies read the signed-in Hyper dashboard; a secure API key reaches the fixed credits endpoint. TypeScript owns session preference, API fallback, errors, and HC balance parsing. |
 | [Zed](zed.md) | Swift discovers editor settings and Keychain credentials. Opt-in browser billing uses only the declared `zed.dev` cookie session, never editor credentials. |
 | [Aixy](aixy.md) | TypeScript maps key-scoped usage and budgets; the host validates the configured gateway origin and supplies the API key. |
 | [Qwen Cloud](qwen-cloud.md) | `qwencloud-team.ts` discovers the billing selector and fetches Team credits through form POSTs. Native Qwen cookie selection supplies one opaque dashboard session; Individual remains native as the fallback. |
@@ -592,3 +592,13 @@ exported as a cloud account snapshot: its ownership can only be verified on the 
 [Exa](exa.md) reads selected-key monthly spend using a support-enabled Team Management service key and API key ID.
 [TinyApi](tinyapi.md) reads aggregate available credits through its website session and the shared cookie host.
 These plugins omit undocumented reset dates, credit-bucket splits, and live request-rate headroom.
+
+## Generative media credit providers
+
+[fal](fal.md) reads the account credit balance from the Platform API billing endpoint with a `Key`-scheme API key
+that holds billing read access. A successful response without the credits block is reported as a temporary provider
+outage rather than a parse failure, so the last good balance stays visible.
+
+[FLORA](flora.md) reads one workspace's available USD balance and UTC month-to-date spend with a bearer API key
+that holds billing permission. Its explicit workspace ID also supports keys whose workspace list is empty
+because they lack read permission. Unavailable spend keeps its documented reason instead of becoming zero.

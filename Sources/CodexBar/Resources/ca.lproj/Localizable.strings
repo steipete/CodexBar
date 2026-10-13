@@ -1454,7 +1454,7 @@
 "menu_bar_layout_token_reset_at" = "Reinici a";
 "menu_bar_layout_token_runs_out" = "S'esgota";
 "menu_bar_layout_token_cost_today" = "Cost d'avui";
-"menu_bar_layout_token_cost_30d" = "Cost de 30 dies";
+"menu_bar_layout_token_cost_window" = "Cost (Finestra d'historial)";
 "menu_bar_layout_token_space" = "Espai";
 "menu_bar_layout_token_line_break" = "Salt de línia";
 "menu_bar_layout_token_separator_accessibility" = "Punt separador";
@@ -1472,7 +1472,6 @@
 "Reset time unavailable" = "Reinici a: No disponible";
 "Run-out estimate unavailable" = "S'esgota: No disponible";
 "Cost today unavailable" = "Cost d'avui: No disponible";
-"30-day cost unavailable" = "Cost de 30 dies: No disponible";
 "Resets" = "Reinicis";
 "codex_workspaces_title" = "Espais de treball";
 "codex_workspaces_estimated_local_logs" = "Estimat a partir dels registres locals de Codex";
@@ -2511,3 +2510,21 @@
 "Pace sign" = "Signe del ritme";
 "Ahead of pace is +" = "Per sobre del ritme és +";
 "Reserve is +" = "La reserva és +";
+
+/* fal provider credentials */
+"Key with billing read access (BILLING or READONLY preset). Or set FAL_KEY." = "Clau amb accés de lectura a la facturació (perfil BILLING o READONLY). O defineix FAL_KEY.";
+
+/* FLORA provider credentials */
+"Needs billing permission on the workspace. Or set FLORA_API_KEY." = "Cal permís de facturació a l'espai de treball. O defineix FLORA_API_KEY.";
+"Required. The ws_… ID of the workspace the key can bill. Or set FLORA_WORKSPACE_ID." = "Obligatori. L'ID ws_… de l'espai de treball que la clau pot facturar. O defineix FLORA_WORKSPACE_ID.";
+"ak_…" = "ak_…";
+"ws_…" = "ws_…";
+
+"Provider order updated" = "Ordre dels proveïdors actualitzat";
+"Undo" = "Desfer";
+"Clear filters" = "Esborrar filtres";
+"Change provider order" = "Canviar l’ordre dels proveïdors";
+"Provider sorting" = "Ordenació dels proveïdors";
+"Only enabled providers" = "Només proveïdors actius";
+"Restore default order" = "Restablir l’ordre per defecte";
+"Also restores the provider order in the menu bar. Can be undone." = "També restableix l’ordre dels proveïdors a la barra de menús. Es pot desfer.";

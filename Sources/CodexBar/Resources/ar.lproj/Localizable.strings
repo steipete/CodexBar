@@ -1451,7 +1451,7 @@
 "menu_bar_layout_token_reset_at" = "إعادة الضبط عند";
 "menu_bar_layout_token_runs_out" = "ينفد";
 "menu_bar_layout_token_cost_today" = "تكلفة اليوم";
-"menu_bar_layout_token_cost_30d" = "تكلفة 30 يوماً";
+"menu_bar_layout_token_cost_window" = "تكلفة (نافذة التاريخ)";
 "menu_bar_layout_token_space" = "مسافة";
 "menu_bar_layout_token_line_break" = "فاصل سطر";
 "menu_bar_layout_token_separator_accessibility" = "نقطة فاصلة";
@@ -1469,7 +1469,6 @@
 "Reset time unavailable" = "إعادة الضبط عند: غير متوفر";
 "Run-out estimate unavailable" = "ينفد: غير متوفر";
 "Cost today unavailable" = "تكلفة اليوم: غير متوفر";
-"30-day cost unavailable" = "تكلفة 30 يوماً: غير متوفر";
 "Resets" = "إعادات الضبط";
 "codex_workspaces_estimated_cost_short" = "التكلفة المقدّرة";
 "codex_workspaces_estimated_cost_value" = "مقدّر %@";
@@ -2511,3 +2510,21 @@
 "Pace sign" = "إشارة وتيرة الاستخدام";
 "Ahead of pace is +" = "تجاوز الوتيرة هو +";
 "Reserve is +" = "الاحتياطي هو +";
+
+/* fal provider credentials */
+"Key with billing read access (BILLING or READONLY preset). Or set FAL_KEY." = "مفتاح بصلاحية قراءة الفوترة (الإعداد المسبق BILLING أو READONLY). أو اضبط FAL_KEY.";
+
+/* FLORA provider credentials */
+"Needs billing permission on the workspace. Or set FLORA_API_KEY." = "يتطلب صلاحية الفوترة على مساحة العمل. أو اضبط FLORA_API_KEY.";
+"Required. The ws_… ID of the workspace the key can bill. Or set FLORA_WORKSPACE_ID." = "مطلوب. معرّف ws_… لمساحة العمل التي يمكن للمفتاح فوترتها. أو اضبط FLORA_WORKSPACE_ID.";
+"ak_…" = "ak_…";
+"ws_…" = "ws_…";
+
+"Provider order updated" = "تم تحديث ترتيب المزوّدين";
+"Undo" = "تراجع";
+"Clear filters" = "مسح عوامل التصفية";
+"Change provider order" = "تغيير ترتيب المزوّدين";
+"Provider sorting" = "ترتيب المزوّدين";
+"Only enabled providers" = "المزوّدون المفعّلون فقط";
+"Restore default order" = "استعادة الترتيب الافتراضي";
+"Also restores the provider order in the menu bar. Can be undone." = "يستعيد أيضاً ترتيب المزوّدين في شريط القوائم. يمكن التراجع عن هذا الإجراء.";

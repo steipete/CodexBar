@@ -296,7 +296,7 @@ struct BrowserDetectionTests {
     }
 
     @Test
-    func `keychain interaction suppresses chromium family during cooldown`() {
+    func `interaction metadata does not create a denial cooldown`() {
         BrowserCookieAccessGate.resetForTesting()
         defer { BrowserCookieAccessGate.resetForTesting() }
 
@@ -316,8 +316,8 @@ struct BrowserDetectionTests {
                     preflightCount += 1
                     return .allowed
                 } operation: {
-                    #expect(BrowserCookieAccessGate.shouldAttempt(.chrome, now: start.addingTimeInterval(60)) == false)
-                    #expect(BrowserCookieAccessGate.shouldAttempt(.dia, now: start.addingTimeInterval(60)) == false)
+                    #expect(BrowserCookieAccessGate.shouldAttempt(.chrome, now: start.addingTimeInterval(60)) == true)
+                    #expect(BrowserCookieAccessGate.shouldAttempt(.dia, now: start.addingTimeInterval(60)) == true)
                     #expect(
                         BrowserCookieAccessGate.shouldAttempt(
                             .chrome,
@@ -326,7 +326,7 @@ struct BrowserDetectionTests {
             }
         }
 
-        #expect(preflightCount == 2)
+        #expect(preflightCount == 4)
     }
 
     @Test
@@ -381,17 +381,15 @@ struct BrowserDetectionTests {
     }
 
     @Test
-    func `recorded browser denial permits background recovery and preserves explicit source retry`() {
+    func `recorded browser denial permits background recovery and CLI acknowledged retry`() {
         BrowserCookieAccessGate.resetForTesting()
         defer { BrowserCookieAccessGate.resetForTesting() }
 
-        let start = Date(timeIntervalSince1970: 1500)
+        let start = Date()
         var preflightCount = 0
 
         KeychainAccessGate.withTaskOverrideForTesting(false) {
-            BrowserCookieAccessGate.recordIfNeeded(
-                BrowserCookieError.accessDenied(browser: .arc, details: "denied"),
-                now: start)
+            BrowserCookieAccessGate.recordDenied(for: .arc, now: start)
             KeychainAccessPreflight.withCheckGenericPasswordOverrideForTesting { _, _ in
                 preflightCount += 1
                 return .allowed
@@ -401,12 +399,18 @@ struct BrowserDetectionTests {
                     #expect(BrowserCookieAccessGate.shouldAttempt(.edge, now: start.addingTimeInterval(1)) == true)
                     #expect(BrowserCookieAccessGate.shouldAttempt(.safari, now: start.addingTimeInterval(1)) == true)
                 }
-                BrowserCookieAccessGate.withExplicitRetry {
+                BrowserCookieAccessGate.withExplicitRetry(bypassingCooldown: true) {
                     ProviderInteractionContext.$current.withValue(.userInitiated) {
                         #expect(BrowserCookieAccessGate
-                            .shouldAttempt(.chrome, now: start.addingTimeInterval(2)) == false)
+                            .shouldAttempt(.chrome, now: start.addingTimeInterval(2)) == true)
                         #expect(BrowserCookieAccessGate.shouldAttempt(.arc, now: start.addingTimeInterval(2)) == true)
-                        #expect(BrowserCookieAccessGate.claimExplicitRetryCookieReadIfNeeded(for: .arc))
+                        let read = try? BrowserCookieAccessGate.withRecordReadInteractionPolicy {
+                            if BrowserCookieKeychainAccessGate.isUserInteractionDisallowed {
+                                throw BrowserCookieError.accessDenied(browser: .arc, details: "Synthetic")
+                            }
+                            return true
+                        }
+                        #expect(read == true)
                         BrowserCookieAccessGate.recordAllowed(for: .arc)
                     }
                 }
@@ -416,27 +420,43 @@ struct BrowserDetectionTests {
             }
         }
 
-        #expect(preflightCount == 4)
+        #expect(preflightCount == 3)
     }
 
     @Test
-    func `denied explicit cookie read closes retry scope`() {
+    func `denied acknowledged read keeps later reads noninteractive`() {
         BrowserCookieAccessGate.resetForTesting()
         defer { BrowserCookieAccessGate.resetForTesting() }
 
-        let start = Date(timeIntervalSince1970: 1700)
+        let start = Date()
         BrowserCookieAccessGate.recordDenied(for: .arc, now: start)
 
         KeychainAccessGate.withTaskOverrideForTesting(false) {
-            BrowserCookieAccessGate.withExplicitRetry {
-                ProviderInteractionContext.$current.withValue(.userInitiated) {
-                    #expect(BrowserCookieAccessGate.shouldAttempt(.arc, now: start.addingTimeInterval(1)))
-                    #expect(BrowserCookieAccessGate.claimExplicitRetryCookieReadIfNeeded(for: .arc))
+            KeychainAccessPreflight.withCheckGenericPasswordOverrideForTesting { _, _ in .allowed } operation: {
+                BrowserCookieAccessGate.withExplicitRetry(bypassingCooldown: true) {
+                    ProviderInteractionContext.$current.withValue(.userInitiated) {
+                        #expect(BrowserCookieAccessGate.shouldAttempt(.arc, now: start.addingTimeInterval(1)))
+                        let read = try? BrowserCookieAccessGate.withRecordReadInteractionPolicy {
+                            if BrowserCookieKeychainAccessGate.isUserInteractionDisallowed {
+                                throw BrowserCookieError.accessDenied(browser: .arc, details: "Synthetic")
+                            }
+                            return true
+                        }
+                        #expect(read == true)
 
-                    BrowserCookieAccessGate.recordDenied(for: .arc, now: start.addingTimeInterval(2))
+                        BrowserCookieAccessGate.recordDenied(for: .arc, now: start.addingTimeInterval(2))
 
-                    #expect(BrowserCookieAccessGate.shouldAttempt(.arc, now: start.addingTimeInterval(3)) == false)
-                    #expect(BrowserCookieAccessGate.shouldAttempt(.edge, now: start.addingTimeInterval(3)) == false)
+                        #expect(BrowserCookieAccessGate.shouldAttempt(.arc, now: start.addingTimeInterval(3)))
+                        #expect(BrowserCookieAccessGate.shouldAttempt(.edge, now: start.addingTimeInterval(3)))
+                        #expect(throws: BrowserCookieError.self) {
+                            try BrowserCookieAccessGate.withRecordReadInteractionPolicy {
+                                if BrowserCookieKeychainAccessGate.isUserInteractionDisallowed {
+                                    throw BrowserCookieError.accessDenied(browser: .arc, details: "Synthetic")
+                                }
+                                Issue.record("Unexpected second interactive read")
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -493,7 +513,7 @@ struct BrowserDetectionTests {
     }
 
     @Test
-    func `browser keychain interaction suppresses family and permits scoped explicit retry`() throws {
+    func `browser denial suppresses family including manual retries`() throws {
         BrowserCookieAccessGate.resetForTesting()
         defer { BrowserCookieAccessGate.resetForTesting() }
 
@@ -520,6 +540,7 @@ struct BrowserDetectionTests {
                 ProviderInteractionContext.$current.withValue(.userInitiated) {
                     #expect(BrowserCookieAccessGate.shouldAttempt(.chrome, now: start) == true)
                     #expect(BrowserCookieAccessGate.shouldAttempt(.dia, now: start.addingTimeInterval(1)) == false)
+                    BrowserCookieAccessGate.recordDenied(for: .dia, now: start.addingTimeInterval(1))
                     #expect(BrowserCookieAccessGate.shouldAttempt(.chrome, now: start.addingTimeInterval(60)) == false)
                     #expect(BrowserCookieAccessGate.shouldAttempt(.dia, now: start.addingTimeInterval(60)) == false)
                 }
@@ -527,7 +548,7 @@ struct BrowserDetectionTests {
                     ProviderInteractionContext.$current.withValue(.userInitiated) {
                         #expect(BrowserCookieAccessGate
                             .shouldAttempt(.chrome, now: start.addingTimeInterval(61)) == false)
-                        #expect(BrowserCookieAccessGate.shouldAttempt(.dia, now: start.addingTimeInterval(61)) == true)
+                        #expect(BrowserCookieAccessGate.shouldAttempt(.dia, now: start.addingTimeInterval(61)) == false)
                         #expect(BrowserCookieAccessGate
                             .shouldAttempt(.edge, now: start.addingTimeInterval(61)) == false)
                     }
@@ -535,7 +556,7 @@ struct BrowserDetectionTests {
             }
         }
 
-        #expect(queriedLabels == [firstChromeLabel, firstDiaLabel, firstDiaLabel])
+        #expect(queriedLabels == [firstChromeLabel, firstDiaLabel])
         #expect(queriedLabels.allSatisfy { allowedLabels.contains($0) })
     }
 

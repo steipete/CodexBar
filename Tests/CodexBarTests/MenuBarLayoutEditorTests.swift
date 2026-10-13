@@ -8,6 +8,17 @@ import UniformTypeIdentifiers
 
 struct MenuBarLayoutEditorTests {
     @Test
+    func `saved history cost item uses the history window label`() throws {
+        try CodexBarLocalizationOverride.$appLanguage.withValue("en") {
+            let token = try JSONDecoder().decode(MenuBarLayoutToken.self, from: Data(#"{"cost30d":{}}"#.utf8))
+            let metric = try JSONDecoder().decode(MenuBarConditionalMetric.self, from: Data(#""cost30d""#.utf8))
+            #expect(token.editorLabel(provider: nil) == "Cost (History window)")
+            #expect(token.editorAccessibilityLabel(provider: nil) == "Cost (History window)")
+            #expect(metric.editorLabel(provider: nil) == "Cost (History window)")
+        }
+    }
+
+    @Test
     @MainActor
     func `all scope discloses only enabled saved overrides in provider order including equal layouts`() throws {
         let settings = try Self.overrideSettings()
@@ -93,6 +104,32 @@ struct MenuBarLayoutEditorTests {
     func `time palette lists the compact run out token with a clear label`() {
         #expect(MenuBarLayoutPaletteTokens.time.contains(.runsOutCompact))
         #expect(MenuBarLayoutToken.runsOutCompact.editorLabel(provider: .codex) == "Runs out (compact)")
+    }
+
+    @Test
+    func `cost window token is named after the history window`() {
+        for provider in [nil, UsageProvider.codex] {
+            #expect(MenuBarLayoutToken.costWindow.editorLabel(provider: provider) == "Cost (History window)")
+            #expect(MenuBarLayoutToken.costWindow.editorAccessibilityLabel(provider: provider)
+                == "Cost (History window)")
+        }
+        #expect(MenuBarLayoutToken.costToday.editorLabel(provider: nil) == "Cost today")
+    }
+
+    @Test
+    func `cost window conditional metric is named after the history window`() {
+        #expect(MenuBarConditionalMetric.costWindow.editorLabel(provider: nil) == "Cost (History window)")
+        let conditional = MenuBarLayoutConditional(
+            clauses: [MenuBarConditionalClause(
+                combinator: nil,
+                predicate: MenuBarConditionalPredicate(
+                    metric: .costWindow,
+                    comparison: .greaterThanOrEqual,
+                    threshold: 5))],
+            thenToken: .costWindow,
+            elseToken: .hidden)
+        #expect(conditional.editorSummary(provider: nil)
+            == "If Cost (History window) >= 5 USD then Cost (History window) else Hide")
     }
 
     @Test

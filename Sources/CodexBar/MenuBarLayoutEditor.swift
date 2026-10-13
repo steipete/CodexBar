@@ -85,7 +85,7 @@ enum MenuBarLayoutPaletteTokens {
     ] + Self.time + [
         .balance,
         .costToday,
-        .cost30d,
+        .costWindow,
         .separatorDot,
         .space,
         .hidden,
@@ -328,7 +328,7 @@ struct MenuBarLayoutEditor: View {
             MenuBarLayoutPaletteGroup(
                 id: "money",
                 title: L("menu_bar_layout_group_money"),
-                tokens: [.balance, .costToday, .cost30d],
+                tokens: [.balance, .costToday, .costWindow],
                 includesLineBreak: false),
             MenuBarLayoutPaletteGroup(
                 id: "structure",
@@ -1140,7 +1140,7 @@ extension MenuBarLayoutToken {
         case .runsOutCompact: "\(L("menu_bar_layout_token_runs_out")) (compact)"
         case .balance: L("Balance")
         case .costToday: L("menu_bar_layout_token_cost_today")
-        case .cost30d: L("menu_bar_layout_token_cost_30d")
+        case .costWindow: L("menu_bar_layout_token_cost_window")
         case .separatorDot: "·"
         case .space: L("menu_bar_layout_token_space")
         case .conditional: L("menu_bar_layout_token_conditional")
@@ -1188,7 +1188,7 @@ extension MenuBarLayoutToken {
         case .runsOut, .runsOutCompact: "hourglass.bottomhalf.filled"
         case .balance: "creditcard"
         case .costToday: "dollarsign.circle"
-        case .cost30d: "calendar.badge.clock"
+        case .costWindow: "calendar.badge.clock"
         case .separatorDot: "smallcircle.filled.circle"
         case .space: "space"
         case .conditional: "switch.2"

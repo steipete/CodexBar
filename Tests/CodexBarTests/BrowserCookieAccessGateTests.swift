@@ -51,15 +51,13 @@ struct BrowserCookieAccessGateTests {
     }
 
     @Test
-    func `explicit retry permits only one denied Chromium read and keeps background suppressed`() {
+    func `manual retry respects browser and family denial cooldowns`() {
         BrowserCookieAccessGate.resetForTesting()
         defer { BrowserCookieAccessGate.resetForTesting() }
         BrowserCookieAccessGate.recordDenied(for: .chrome)
         ProviderInteractionContext.$current.withValue(.userInitiated) {
             KeychainAccessGate.withTaskOverrideForTesting(false) {
                 BrowserCookieAccessGate.withExplicitRetry {
-                    #expect(BrowserCookieAccessGate.shouldAttempt(.chrome))
-                    #expect(BrowserCookieAccessGate.claimExplicitRetryCookieReadIfNeeded(for: .chrome))
                     #expect(!BrowserCookieAccessGate.shouldAttempt(.chrome))
                     #expect(!BrowserCookieAccessGate.shouldAttempt(.brave))
                 }
@@ -188,7 +186,7 @@ struct BrowserCookieAccessGateTests {
     }
 
     @Test
-    func `record reads suppress SweetCookieKit interaction only in the background`() {
+    func `record reads start without SweetCookieKit interaction in every context`() {
         let backgroundDisallowed = ProviderInteractionContext.$current.withValue(.background) {
             BrowserCookieAccessGate.withRecordReadInteractionPolicy {
                 BrowserCookieKeychainAccessGate.isUserInteractionDisallowed
@@ -201,7 +199,7 @@ struct BrowserCookieAccessGateTests {
         }
 
         #expect(backgroundDisallowed)
-        #expect(userInitiatedDisallowed == false)
+        #expect(userInitiatedDisallowed)
     }
 
     @Test

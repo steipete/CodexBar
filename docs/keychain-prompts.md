@@ -22,11 +22,16 @@ support report.
 
 ## When CodexBar can prompt
 
-Background CodexBar paths are intended to fail or skip when a Keychain read would require interaction. This includes
-scheduled Chromium imports: CodexBar scopes the actual Safe Storage read as non-interactive, not just the preflight.
-A user-initiated import or acknowledged Claude repair may attempt interactive authorization because the user has
-chosen to continue. Denials temporarily suppress repeated Chromium-family attempts so one browser cannot lead to a
-prompt storm across the others.
+Scheduled and settings-triggered Chromium imports never request Keychain interaction, even when a settings change
+occurs during a manual refresh. Every import first tries the actual Safe Storage read without UI. A manual refresh
+shares one interactive retry across its browser imports and providers; successful no-UI reads do not spend that
+allowance. ACL preflight metadata cannot authorize additional prompts. Automatic cookie imports stop reading
+browsers once a provider accepts a session; missing or rejected sessions advance to the next browser in the
+provider's existing order. Explicit browser/profile selections keep their own scope.
+
+A denied browser prompt suppresses Chromium-family interactive retries for six hours, including repeated Refresh
+clicks in the menu or provider settings. Only `codexbar cookie refresh --allow-keychain-prompt` explicitly overrides
+that cooldown. An acknowledged Claude repair has its own user-action policy.
 
 Scheduled Chromium imports can recover during that denial cooldown when the current no-UI Safe Storage preflight
 explicitly confirms access. Interaction-required, missing, or failed preflights still suppress the import, and the

@@ -1451,7 +1451,7 @@
 "menu_bar_layout_token_reset_at" = "Ripristino alle";
 "menu_bar_layout_token_runs_out" = "Termina";
 "menu_bar_layout_token_cost_today" = "Costo oggi";
-"menu_bar_layout_token_cost_30d" = "Costo 30 gg";
+"menu_bar_layout_token_cost_window" = "Costo (Finestra storica)";
 "menu_bar_layout_token_space" = "Spazio";
 "menu_bar_layout_token_line_break" = "Interruzione di riga";
 "menu_bar_layout_token_separator_accessibility" = "Punto separatore";
@@ -1469,7 +1469,6 @@
 "Reset time unavailable" = "Ripristino alle: Non disponibile";
 "Run-out estimate unavailable" = "Termina: Non disponibile";
 "Cost today unavailable" = "Costo oggi: Non disponibile";
-"30-day cost unavailable" = "Costo 30 gg: Non disponibile";
 "Resets" = "Ripristini";
 "codex_workspaces_title" = "Spazi di lavoro";
 "codex_workspaces_estimated_local_logs" = "Stimato dai registri locali di Codex";
@@ -2511,3 +2510,21 @@
 "Pace sign" = "Segno del ritmo";
 "Ahead of pace is +" = "Oltre il ritmo è +";
 "Reserve is +" = "La riserva è +";
+
+/* fal provider credentials */
+"Key with billing read access (BILLING or READONLY preset). Or set FAL_KEY." = "Chiave con accesso in lettura alla fatturazione (preset BILLING o READONLY). Oppure imposta FAL_KEY.";
+
+/* FLORA provider credentials */
+"Needs billing permission on the workspace. Or set FLORA_API_KEY." = "Richiede il permesso di fatturazione sul workspace. Oppure imposta FLORA_API_KEY.";
+"Required. The ws_… ID of the workspace the key can bill. Or set FLORA_WORKSPACE_ID." = "Obbligatorio. L’ID ws_… del workspace che la chiave può fatturare. Oppure imposta FLORA_WORKSPACE_ID.";
+"ak_…" = "ak_…";
+"ws_…" = "ws_…";
+
+"Provider order updated" = "Ordine dei fornitori aggiornato";
+"Undo" = "Annulla";
+"Clear filters" = "Cancella filtri";
+"Change provider order" = "Modifica l’ordine dei fornitori";
+"Provider sorting" = "Ordinamento dei fornitori";
+"Only enabled providers" = "Solo fornitori attivi";
+"Restore default order" = "Ripristina l’ordine predefinito";
+"Also restores the provider order in the menu bar. Can be undone." = "Ripristina anche l’ordine dei fornitori nella barra dei menu. L’azione può essere annullata.";

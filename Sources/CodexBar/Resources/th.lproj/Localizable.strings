@@ -1451,7 +1451,7 @@
 "menu_bar_layout_token_reset_at" = "รีเซ็ตเวลา";
 "menu_bar_layout_token_runs_out" = "หมด";
 "menu_bar_layout_token_cost_today" = "ค่าใช้จ่ายวันนี้";
-"menu_bar_layout_token_cost_30d" = "ค่าใช้จ่าย 30 วัน";
+"menu_bar_layout_token_cost_window" = "ค่าใช้จ่าย (กรอบเวลาประวัติ)";
 "menu_bar_layout_token_space" = "ช่องว่าง";
 "menu_bar_layout_token_line_break" = "ขึ้นบรรทัดใหม่";
 "menu_bar_layout_token_separator_accessibility" = "จุดคั่น";
@@ -1469,7 +1469,6 @@
 "Reset time unavailable" = "รีเซ็ตเวลา: ไม่พร้อมใช้งาน";
 "Run-out estimate unavailable" = "หมด: ไม่พร้อมใช้งาน";
 "Cost today unavailable" = "ค่าใช้จ่ายวันนี้: ไม่พร้อมใช้งาน";
-"30-day cost unavailable" = "ค่าใช้จ่าย 30 วัน: ไม่พร้อมใช้งาน";
 "Resets" = "การรีเซ็ต";
 "codex_workspaces_estimated_cost_short" = "ค่าใช้จ่ายโดยประมาณ";
 "codex_workspaces_estimated_cost_value" = "ประมาณ %@";
@@ -2511,3 +2510,21 @@
 "Pace sign" = "เครื่องหมายอัตราการใช้งาน";
 "Ahead of pace is +" = "ใช้เร็วกว่าที่ควรเป็นคือ +";
 "Reserve is +" = "โควตาสำรองคือ +";
+
+/* fal provider credentials */
+"Key with billing read access (BILLING or READONLY preset). Or set FAL_KEY." = "คีย์ที่มีสิทธิ์อ่านข้อมูลการเรียกเก็บเงิน (พรีเซ็ต BILLING หรือ READONLY) หรือตั้งค่า FAL_KEY";
+
+/* FLORA provider credentials */
+"Needs billing permission on the workspace. Or set FLORA_API_KEY." = "ต้องมีสิทธิ์การเรียกเก็บเงินในเวิร์กสเปซ หรือตั้งค่า FLORA_API_KEY";
+"Required. The ws_… ID of the workspace the key can bill. Or set FLORA_WORKSPACE_ID." = "จำเป็น ID ws_… ของเวิร์กสเปซที่คีย์เรียกเก็บเงินได้ หรือตั้งค่า FLORA_WORKSPACE_ID";
+"ak_…" = "ak_…";
+"ws_…" = "ws_…";
+
+"Provider order updated" = "อัปเดตลำดับผู้ให้บริการแล้ว";
+"Undo" = "เลิกทำ";
+"Clear filters" = "ล้างตัวกรอง";
+"Change provider order" = "เปลี่ยนลำดับผู้ให้บริการ";
+"Provider sorting" = "การเรียงผู้ให้บริการ";
+"Only enabled providers" = "เฉพาะผู้ให้บริการที่เปิดใช้";
+"Restore default order" = "คืนค่าลำดับเริ่มต้น";
+"Also restores the provider order in the menu bar. Can be undone." = "คืนค่าลำดับผู้ให้บริการในแถบเมนูด้วย สามารถเลิกทำได้";

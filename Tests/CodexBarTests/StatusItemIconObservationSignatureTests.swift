@@ -321,7 +321,7 @@ struct StatusItemIconObservationSignatureTests {
         #expect(controller.storeIconObservationSignature() != baseline)
     }
 
-    @Test(arguments: [MenuBarLayoutToken.costToday, .cost30d])
+    @Test(arguments: [MenuBarLayoutToken.costToday, .costWindow])
     func `custom cost token changes the store icon observation signature`(layoutElement: MenuBarLayoutToken) {
         let (_, store, controller) = self.makeController(
             suiteName: "StatusItemIconObservationSignatureTests-custom-cost-\(layoutElement)",
@@ -341,7 +341,7 @@ struct StatusItemIconObservationSignatureTests {
     func `custom cost layout ignores token fields it does not render`() {
         let (_, store, controller) = self.makeController(
             suiteName: "StatusItemIconObservationSignatureTests-custom-cost-irrelevant",
-            menuBarLayout: MenuBarLayout(lines: [[.cost30d]]))
+            menuBarLayout: MenuBarLayout(lines: [[.costWindow]]))
         defer { controller.releaseStatusItemsForTesting() }
 
         store._setTokenSnapshotForTesting(
@@ -420,7 +420,7 @@ struct StatusItemIconObservationSignatureTests {
     func `token cost publication enters the icon refresh path without a usage change`() async {
         let (_, store, controller) = self.makeController(
             suiteName: "StatusItemIconObservationSignatureTests-custom-cost-title",
-            menuBarLayout: MenuBarLayout(lines: [[.cost30d]]))
+            menuBarLayout: MenuBarLayout(lines: [[.costWindow]]))
         defer { controller.releaseStatusItemsForTesting() }
         controller.updateIcons()
         let baseline = controller.lastObservedStoreIconWorkSignature

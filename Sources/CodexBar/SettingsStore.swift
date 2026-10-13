@@ -275,6 +275,8 @@ final class SettingsStore {
     var backgroundWorkSettingsRevision: Int = 0
     var costUsageSettingsRevision: UInt64 = 0
     var providerOrder: [ProviderInstanceID] = []
+    var providerOrderUndo: ProviderOrderUndo?
+    @ObservationIgnored weak var providerOrderUndoManager: UndoManager?
     var providerEnablement: [ProviderInstanceID: Bool] = [:]
     @ObservationIgnored var providerEnablementRevisions: [ProviderInstanceID: UInt64] = [:]
     @ObservationIgnored var providerConfigRevisions: [ProviderInstanceID: UInt64] = [:]
@@ -677,6 +679,7 @@ extension SettingsStore {
             providerDetectionCompleted: userDefaults.object(forKey: "providerDetectionCompleted") as? Bool ?? false,
             providersSortedAlphabetically: userDefaults.object(
                 forKey: "providersSortedAlphabetically") as? Bool ?? false,
+            providersEnabledOnly: userDefaults.bool(forKey: "providersEnabledOnly"),
             appLanguageRaw: userDefaults.string(forKey: "appLanguage"),
             terminalAppRaw: userDefaults.string(forKey: "terminalApp"),
             agentSessionsEnabled: userDefaults.object(forKey: "agentSessionsEnabled") as? Bool ?? false,
@@ -975,6 +978,9 @@ extension SettingsStore {
     }
 
     func updateProviderState(config: CodexBarConfig) {
+        if let undo = self.providerOrderUndo, config.providers.map(\.id) != undo.after {
+            self.clearProviderOrderUndo()
+        }
         let rawOrder = config.providers.map(\.id.rawValue)
         self.providerOrder = Self.effectiveProviderOrder(raw: rawOrder)
         let metadata = ProviderDescriptorRegistry.metadata

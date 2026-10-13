@@ -1448,7 +1448,7 @@
 "menu_bar_layout_token_reset_at" = "Redefine às";
 "menu_bar_layout_token_runs_out" = "Acaba";
 "menu_bar_layout_token_cost_today" = "Custo hoje";
-"menu_bar_layout_token_cost_30d" = "Custo em 30 dias";
+"menu_bar_layout_token_cost_window" = "Custo (Janela do histórico)";
 "menu_bar_layout_token_space" = "Espaço";
 "menu_bar_layout_token_line_break" = "Quebra de linha";
 "menu_bar_layout_token_separator_accessibility" = "Ponto separador";
@@ -1466,7 +1466,6 @@
 "Reset time unavailable" = "Redefine às: Indisponível";
 "Run-out estimate unavailable" = "Acaba: Indisponível";
 "Cost today unavailable" = "Custo hoje: Indisponível";
-"30-day cost unavailable" = "Custo em 30 dias: Indisponível";
 "Resets" = "Redefinições";
 "codex_workspaces_cost_unavailable" = "Custo indisponível";
 "codex_workspaces_elevated_usage" = "Uso elevado";
@@ -2507,3 +2506,21 @@
 "Pace sign" = "Sinal do ritmo";
 "Ahead of pace is +" = "Acima do ritmo é +";
 "Reserve is +" = "A reserva é +";
+
+/* fal provider credentials */
+"Key with billing read access (BILLING or READONLY preset). Or set FAL_KEY." = "Chave com acesso de leitura ao faturamento (predefinição BILLING ou READONLY). Ou defina FAL_KEY.";
+
+/* FLORA provider credentials */
+"Needs billing permission on the workspace. Or set FLORA_API_KEY." = "Requer permissão de faturamento no espaço de trabalho. Ou defina FLORA_API_KEY.";
+"Required. The ws_… ID of the workspace the key can bill. Or set FLORA_WORKSPACE_ID." = "Obrigatório. O ID ws_… do espaço de trabalho que a chave pode faturar. Ou defina FLORA_WORKSPACE_ID.";
+"ak_…" = "ak_…";
+"ws_…" = "ws_…";
+
+"Provider order updated" = "Ordem dos provedores atualizada";
+"Undo" = "Desfazer";
+"Clear filters" = "Limpar filtros";
+"Change provider order" = "Alterar ordem dos provedores";
+"Provider sorting" = "Ordenação dos provedores";
+"Only enabled providers" = "Somente provedores ativos";
+"Restore default order" = "Restaurar ordem padrão";
+"Also restores the provider order in the menu bar. Can be undone." = "Também restaura a ordem dos provedores na barra de menus. Pode ser desfeito.";

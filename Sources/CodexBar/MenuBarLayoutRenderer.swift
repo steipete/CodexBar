@@ -460,12 +460,15 @@ final class MenuBarLayoutRenderer {
         let result = NSMutableAttributedString()
         var accessibilityLines: [String] = []
 
-        // AppKit positions `button.image` horizontally beside the entire title, so stacked layouts
-        // must keep their icon inline to preserve which row owns it. High-contrast layouts also
-        // keep icon + text together, while single-line layouts surface the icon for native dimming.
+        // A single leading icon can span both text rows. Separate provider rows and layouts with
+        // multiple icons or an icon-only first row keep their icons inline to preserve row ownership.
+        let canSurfaceStackedIcon = !options.forceStackedStyle && renderedLines.count == 2
+            && renderedLines.joined().filter { $0 == .icon }.count == 1
+            && renderedLines[0].contains { $0 != .icon && $0 != .space }
+        // High-contrast layouts keep icon + text together for consistent rendering.
         // Provider-colored layouts keep the icon in attributed title to preserve the custom tint.
         // With a missing icon the token still renders its placeholder inside the title.
-        let leadingIcon: NSImage? = if options.highContrast || isStacked || isTintActive {
+        let leadingIcon: NSImage? = if options.highContrast || (isStacked && !canSurfaceStackedIcon) || isTintActive {
             nil
         } else if renderedLines.first?.first == .icon, icon != nil {
             icon.map { Self.offsetLeadingIcon($0, adjustment: options.verticalAdjustment) }
@@ -749,10 +752,10 @@ final class MenuBarLayoutRenderer {
                 data.costToday,
                 unavailableLabel: L("Cost today unavailable"),
                 attributes: style.attributes)
-        case .cost30d:
+        case .costWindow:
             return self.optionalTextToken(
                 data.cost30d,
-                unavailableLabel: L("30-day cost unavailable"),
+                unavailableLabel: L("%@ unavailable", L("menu_bar_layout_token_cost_window")),
                 attributes: style.attributes)
         case .separatorDot:
             return self.textToken("·", accessibilityText: nil, attributes: style.attributes)
@@ -951,7 +954,7 @@ final class MenuBarLayoutRenderer {
                     height: image.size.height))
             return true
         }
-        offsetImage.isTemplate = true
+        offsetImage.isTemplate = image.isTemplate
         return offsetImage
     }
 
@@ -1183,7 +1186,7 @@ extension MenuBarLayoutConditional {
             ? data.metrics.balanceUsedUSD
             : data.metrics.balanceRemainingUSD
         case .costToday: data.metrics.costTodayUSD
-        case .cost30d: data.metrics.cost30dUSD
+        case .costWindow: data.metrics.cost30dUSD
         }
     }
 

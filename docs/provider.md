@@ -43,10 +43,10 @@ Browser discovery policy belongs to the provider. Use `ChromiumLocalStorageDisco
 catalog-derived Chromium storage discovery; the shared traversal handles localStorage, sessionStorage, and
 origin-filtered IndexedDB. For intentionally Chrome-only cookie imports, use
 `BrowserCookieImportSupport.chromeOnly(reason:)` with the provider's reason for avoiding unrelated browser prompts.
-Copilot budgets, Grok, Helmcode, Qoder, Replicate, TypeSafe, Venice, and ZoomMate retain this restricted
-default. A shared catalog is not permission to widen a provider's documented browser or credential scope.
+Copilot budgets, Grok, Helmcode, Qoder, Replicate, Venice, and ZoomMate retain this restricted default. A shared catalog is not permission to widen a provider's documented browser or credential scope.
 Notion uses Chrome followed by Microsoft Edge, with background imports limited to existing prompt-free access.
-Muse (muse.ai) uses the catalog's default browser order, including Aside, Opera, and Opera Neon with SweetCookieKit 0.5.5.
+Muse (muse.ai) and TypeSafe use the catalog's default browser order, including Aside, Opera, and Opera Neon
+with SweetCookieKit 0.5.5.
 Plugin cookie settings display the provider's catalog-derived supported-browser names and a Manual fallback. Use the
 same `ctx.browser.supportedBrowsers` names in plugin sign-in guidance; never maintain a second browser-name list.
 
@@ -65,6 +65,12 @@ Credential and config behavior follows the descriptor boundary too. Providers wi
 diagnose classification, validation, and missing-credential messaging; a missing adapter means the provider has no
 credential behavior. Typed settings-section registrations optionally expose cookie settings and a CLI credential
 contribution, so the app, CLI, and plugin cookie broker consume the same provider-owned settings shape.
+
+Automatic cookie traversal reads one browser at a time in the provider's existing order. Fetchers validate
+its candidate sessions before requesting another browser; missing or rejected sessions retain fallback.
+The plugin broker applies the same rule to both header and cookie-jar imports, while explicit browser/profile
+selections remain isolated. Public exhaustive import APIs retain their array return types; live fetches consume
+lazy candidates instead.
 
 ### Provider architecture gatekeeper threat model
 

@@ -1447,7 +1447,7 @@
 "menu_bar_layout_token_reset_at" = "Скидання о";
 "menu_bar_layout_token_runs_out" = "Закінчиться";
 "menu_bar_layout_token_cost_today" = "Вартість сьогодні";
-"menu_bar_layout_token_cost_30d" = "Вартість за 30 днів";
+"menu_bar_layout_token_cost_window" = "Вартість (Вікно історії)";
 "menu_bar_layout_token_space" = "Пробіл";
 "menu_bar_layout_token_line_break" = "Розрив рядка";
 "menu_bar_layout_token_separator_accessibility" = "Крапка-роздільник";
@@ -1465,7 +1465,6 @@
 "Reset time unavailable" = "Скидання о: Недоступний";
 "Run-out estimate unavailable" = "Закінчиться: Недоступний";
 "Cost today unavailable" = "Вартість сьогодні: Недоступний";
-"30-day cost unavailable" = "Вартість за 30 днів: Недоступний";
 "Resets" = "Скидання";
 "codex_workspaces_cost_unavailable" = "Вартість недоступна";
 "codex_workspaces_elevated_usage" = "Підвищене використання";
@@ -2507,3 +2506,21 @@
 "Pace sign" = "Знак темпу витрат";
 "Ahead of pace is +" = "Випередження темпу — +";
 "Reserve is +" = "Запас — +";
+
+/* fal provider credentials */
+"Key with billing read access (BILLING or READONLY preset). Or set FAL_KEY." = "Ключ із доступом на читання білінгу (пресет BILLING або READONLY). Або задайте FAL_KEY.";
+
+/* FLORA provider credentials */
+"Needs billing permission on the workspace. Or set FLORA_API_KEY." = "Потрібен дозвіл на білінг у робочому просторі. Або задайте FLORA_API_KEY.";
+"Required. The ws_… ID of the workspace the key can bill. Or set FLORA_WORKSPACE_ID." = "Обов’язково. ID ws_… робочого простору, до білінгу якого має доступ ключ. Або задайте FLORA_WORKSPACE_ID.";
+"ak_…" = "ak_…";
+"ws_…" = "ws_…";
+
+"Provider order updated" = "Порядок провайдерів оновлено";
+"Undo" = "Скасувати";
+"Clear filters" = "Очистити фільтри";
+"Change provider order" = "Змінити порядок провайдерів";
+"Provider sorting" = "Сортування провайдерів";
+"Only enabled providers" = "Лише активні провайдери";
+"Restore default order" = "Відновити типовий порядок";
+"Also restores the provider order in the menu bar. Can be undone." = "Також відновлює порядок провайдерів у рядку меню. Дію можна скасувати.";
