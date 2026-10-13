@@ -34,11 +34,13 @@ public struct OpenAIOrgLimitResolver: Sendable {
     }
 
     public func resolve(_ model: String) -> OpenAIOrgRateLimits.Limit? {
-        let manual = Dictionary(uniqueKeysWithValues: self.manual.map {
-            ($0.model, OpenAIOrgRateLimits.Limit(
-                tokensPerMinute: $0.tokensPerMinute, requestsPerMinute: $0.requestsPerMinute))
-        })
-        return Self.match(model, in: manual)
+        guard let key = self.manualLimitKey(for: model),
+              let entry = self.manual.first(where: { $0.model == key }) else { return nil }
+        return .init(tokensPerMinute: entry.tokensPerMinute, requestsPerMinute: entry.requestsPerMinute)
+    }
+
+    public func manualLimitKey(for model: String) -> String? {
+        Self.matchKey(model, in: self.manual.map(\.model))
     }
 
     public func projectCap(for model: String) -> OpenAIOrgRateLimits.Limit? {
@@ -48,13 +50,16 @@ public struct OpenAIOrgLimitResolver: Sendable {
     private static func match(_ model: String, in limits: [String: OpenAIOrgRateLimits.Limit])
         -> OpenAIOrgRateLimits.Limit?
     {
-        if let exact = limits[model] { return exact }
+        self.matchKey(model, in: Array(limits.keys)).flatMap { limits[$0] }
+    }
+
+    private static func matchKey(_ model: String, in keys: [String]) -> String? {
+        if keys.contains(model) { return model }
         // Only dated snapshots inherit a family limit (gpt-5 covers gpt-5-2025-08-07, gpt-4 covers gpt-4-0613);
         // distinct models such as gpt-5-mini have their own limits.
-        let family = limits.keys.filter { key in
+        return keys.filter { key in
             model.hasPrefix(key + "-") && Self.isSnapshotSuffix(model.dropFirst(key.count + 1))
         }.max { $0.count < $1.count }
-        return family.flatMap { limits[$0] }
     }
 
     private static func isSnapshotSuffix(_ suffix: Substring) -> Bool {
@@ -64,6 +69,7 @@ public struct OpenAIOrgLimitResolver: Sendable {
 
 public struct OpenAIOrgLimitUtilization: Sendable, Equatable {
     public let limit: OpenAIOrgRateLimits.Limit
+    public let pooledModels: [String]
     public let latestTPMPercent: Double
     public let peakTPMPercent: Double
     public let peakRPMPercent: Double?
@@ -76,9 +82,20 @@ extension OpenAILiveUsageSnapshot {
     {
         // Project-scoped usage is only a slice of the org-wide traffic that org limits apply to.
         guard self.projectID == nil else { return nil }
-        guard case let .model(name) = filter, let limit = limits.resolve(name) else { return nil }
-        let points = self.series(for: filter)
-        let latest = points.first { $0.start == self.reportingFrontier }
+        guard case let .model(name) = filter,
+              let key = limits.manualLimitKey(for: name), let limit = limits.resolve(name) else { return nil }
+        let pooledModels = self.modelNames.filter { limits.manualLimitKey(for: $0) == key }
+        let members = Set(pooledModels)
+        let frontier = self.reportingFrontier
+        let points = self.minutes.map { minute in
+            let models = minute.models.filter { members.contains($0.name) }
+            return (
+                start: minute.start,
+                limitCountedTokens: models.reduce(0) { $0 + $1.totalTokens - $1.batchTokens },
+                limitCountedRequests: models.reduce(0) { $0 + $1.requests - $1.batchRequests },
+                isPending: frontier.map { minute.start > $0 } ?? true)
+        }
+        let latest = points.first { $0.start == frontier }
         let reported = points.filter { !$0.isPending }
         // Typed intermediates keep older Swift toolchains from timing out on type-checking.
         let tpmLimit = Double(limit.tokensPerMinute)
@@ -91,6 +108,7 @@ extension OpenAILiveUsageSnapshot {
         }
         return OpenAIOrgLimitUtilization(
             limit: limit,
+            pooledModels: pooledModels,
             latestTPMPercent: Double(latestTokens) / tpmLimit * 100,
             peakTPMPercent: Double(peakTokens) / tpmLimit * 100,
             peakRPMPercent: peakRPMPercent)

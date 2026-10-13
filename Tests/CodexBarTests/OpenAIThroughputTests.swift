@@ -314,7 +314,7 @@ struct OpenAIThroughputTests {
     }
 
     @Test
-    func `top models are bounded and limit utilization includes cached input`() throws {
+    func `all compact models retain aligned limit traffic including pending values`() throws {
         let models = (1...7).map { index in
             OpenAILiveUsageSnapshot.ModelUsage(
                 name: "model-\(index)",
@@ -326,11 +326,27 @@ struct OpenAIThroughputTests {
         let snapshot = try OpenAILiveUsageBuilder.build(
             buckets: [.init(
                 start: Self.now.addingTimeInterval(-85),
-                models: models)],
+                models: models), .init(
+                start: Self.now.addingTimeInterval(-25),
+                models: [.init(
+                    name: "model-1",
+                    inputTokens: 200,
+                    cachedInputTokens: 0,
+                    outputTokens: 0,
+                    requests: 1,
+                    batchTokens: 50)])],
             windowMinutes: 60,
             fetchedAt: Self.now,
             projectID: nil)
-        #expect(snapshot.throughput.models.map(\.name) == ["model-7", "model-6", "model-5", "model-4", "model-3"])
+        let throughput = snapshot.throughput
+        #expect(throughput.models.map(\.name) == (1...7).reversed().map { "model-\($0)" })
+        for model in throughput.models {
+            #expect(model.limitCountedTokensByMinute == snapshot.series(for: .model(model.name))
+                .map(\.limitCountedTokens))
+            #expect(model.limitCountedTokensByMinute?.count == throughput.minutes.count)
+        }
+        #expect(throughput.minutes.last?.isPending == true)
+        #expect(throughput.models.last?.limitCountedTokensByMinute?.last == 150)
         let limits = OpenAIOrgLimitResolver(
             manual: [.init(
                 model: "model-7",
@@ -345,6 +361,64 @@ struct OpenAIThroughputTests {
         #expect(utilization.latestTPMPercent == 177.5)
         #expect(snapshot.highestUtilization(limits: limits)?.peakTPMPercent == 177.5)
         #expect(snapshot.modelRows(limits: limits).first?.peakTPMPercent == 177.5)
+    }
+
+    @Test
+    func `compact snapshots without minute limit series decode unchanged`() throws {
+        let json = #"""
+        {"minutes":[{"start":0,"totalTokens":60,"requests":6,"isPending":false}],
+         "frontier":0,"latestTokensPerMinute":60,"peakTokensPerMinute":60,"peakAt":0,
+         "fiveMinuteAverageTokensPerMinute":60,"models":[
+           {"name":"gpt-5","latestTPM":60,"peakTPM":60,"totalTokens":60,"peakLimitCountedTokens":60}],
+         "windowMinutes":60,"fetchedAt":60}
+        """#
+        let snapshot = try JSONDecoder().decode(ProviderThroughputSnapshot.self, from: Data(json.utf8))
+        #expect(snapshot.models.first?.limitCountedTokensByMinute == nil)
+        #expect(snapshot.models.first?.peakLimitCountedTokens == 60)
+        #expect(snapshot.projectID == nil)
+    }
+
+    @Test(arguments: Self.engines)
+    func `both plugin engines retain all models with aligned standard minute traffic`(
+        engine: ProviderPluginEngineKind) async throws
+    {
+        var payload = Self.livePayload
+        payload["buckets"] = [
+            ["startTime": 119_820, "models": (1...7).map { index in
+                [
+                    "name": "model-\(index)",
+                    "inputTokens": index * 100,
+                    "cachedInputTokens": index * 50,
+                    "outputTokens": 0,
+                    "requests": index,
+                    "batchTokens": index * 10,
+                    "batchRequests": 0,
+                ]
+                    as [String: Any]
+            }],
+            ["startTime": 120_000, "models": [
+                [
+                    "name": "model-1",
+                    "inputTokens": 1000,
+                    "cachedInputTokens": 0,
+                    "outputTokens": 0,
+                    "requests": 1,
+                    "batchTokens": 100,
+                    "batchRequests": 0,
+                ],
+            ]],
+        ]
+        let mapped = try await Self.mappedLive(Self.liveSource(payload), engine: engine)
+        let swift = try OpenAIAPIProviderDescriptor.mapLiveUsage(
+            JSONProviderPluginValue(payload), projectID: nil, maximumEntries: 10000)
+        let throughput = try #require(mapped.throughput)
+        #expect(throughput == swift.throughput)
+        #expect(throughput.models.map(\.name) == (1...7).reversed().map { "model-\($0)" })
+        #expect(throughput.models.allSatisfy { $0.limitCountedTokensByMinute?.count == throughput.minutes.count })
+        #expect(throughput.models.first?.limitCountedTokensByMinute?[56] == 630)
+        #expect(throughput.models.last?.limitCountedTokensByMinute?.last == 900)
+        #expect(throughput.models.last?.peakLimitCountedTokens == 90)
+        #expect(throughput.minutes.last?.isPending == true)
     }
 
     @Test

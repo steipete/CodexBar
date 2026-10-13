@@ -175,6 +175,8 @@ struct OpenAIOrgRateLimitsTests {
             projectCaps: projectCaps)
         #expect(resolver.projectCap(for: "gpt-5-2025-08-07")?.tokensPerMinute == 1000)
         #expect(resolver.resolve("gpt-5-2025-08-07")?.tokensPerMinute == 100)
+        #expect(resolver.manualLimitKey(for: "gpt-5-2025-08-07") == "gpt-5")
+        #expect(resolver.manualLimitKey(for: "gpt-4o") == nil)
         #expect(resolver.resolve("gpt-4o") == nil)
         #expect(resolver.projectCap(for: "gpt-4o")?.tokensPerMinute == 200)
         #expect(resolver.projectCap(for: "gpt-4o-mini-2024-07-18")?.tokensPerMinute == 300)
@@ -185,6 +187,8 @@ struct OpenAIOrgRateLimitsTests {
             .init(model: "gpt-4o-mini-2024-07-18", tokensPerMinute: 4),
         ], projectCaps: nil)
         #expect(manual.resolve("gpt-4o-mini-2024-07-18")?.tokensPerMinute == 4)
+        #expect(manual.manualLimitKey(for: "gpt-4o-mini-2024-07-18") == "gpt-4o-mini-2024-07-18")
+        #expect(manual.manualLimitKey(for: "gpt-4o-mini-2024-08-01") == "gpt-4o-mini")
         #expect(manual.resolve("gpt-4o-mini-next") == nil)
         #expect(manual.resolve("gpt-4-0613")?.tokensPerMinute == 1)
         #expect(OpenAIOrgLimitResolver(manual: [.init(model: "gpt-4", tokensPerMinute: 1)], projectCaps: nil)
@@ -232,6 +236,81 @@ struct OpenAIOrgRateLimitsTests {
         #expect(row.peakTPMPercent == 50)
         #expect(row.latestTPMPercent == 50)
         #expect(snapshot.utilization(for: .model("a"), limits: limits)?.peakRPMPercent == nil)
+    }
+
+    @Test
+    func `shared manual limits pool minute traffic while exact limits remain independent`() throws {
+        let minutes: [OpenAILiveUsageSnapshot.Minute] = [
+            .init(start: Self.now.addingTimeInterval(-150), models: [
+                .init(
+                    name: "gpt-5",
+                    inputTokens: 90,
+                    cachedInputTokens: 50,
+                    outputTokens: 10,
+                    requests: 10,
+                    batchTokens: 40,
+                    batchRequests: 4),
+                .init(
+                    name: "gpt-5-2025-08-07",
+                    inputTokens: 60,
+                    cachedInputTokens: 0,
+                    outputTokens: 0,
+                    requests: 6),
+                .init(
+                    name: "gpt-5-2025-08-08",
+                    inputTokens: 70,
+                    cachedInputTokens: 0,
+                    outputTokens: 0,
+                    requests: 7),
+            ]),
+            .init(start: Self.now.addingTimeInterval(-90), models: [
+                .init(name: "gpt-5", inputTokens: 20, cachedInputTokens: 0, outputTokens: 0, requests: 1),
+                .init(
+                    name: "gpt-5-2025-08-07",
+                    inputTokens: 30,
+                    cachedInputTokens: 0,
+                    outputTokens: 0,
+                    requests: 2),
+            ]),
+            .init(start: Self.now.addingTimeInterval(-30), models: [
+                .init(name: "gpt-5", inputTokens: 1000, cachedInputTokens: 0, outputTokens: 0, requests: 100),
+                .init(
+                    name: "gpt-5-2025-08-07",
+                    inputTokens: 1000,
+                    cachedInputTokens: 0,
+                    outputTokens: 0,
+                    requests: 100),
+            ]),
+        ]
+        let limits = OpenAIOrgLimitResolver(manual: [
+            .init(model: "gpt-5", tokensPerMinute: 100, requestsPerMinute: 10),
+            .init(model: "gpt-5-2025-08-08", tokensPerMinute: 200, requestsPerMinute: 20),
+        ], projectCaps: nil)
+        let snapshot = OpenAILiveUsageSnapshot(
+            minutes: minutes,
+            windowMinutes: 15,
+            fetchedAt: Self.now,
+            projectID: nil)
+        for name in ["gpt-5", "gpt-5-2025-08-07"] {
+            let utilization = try #require(snapshot.utilization(for: .model(name), limits: limits))
+            #expect(utilization.pooledModels == ["gpt-5", "gpt-5-2025-08-07"])
+            #expect(utilization.latestTPMPercent == 50)
+            #expect(utilization.peakTPMPercent == 120)
+            #expect(utilization.peakRPMPercent == 120)
+        }
+        let exact = try #require(snapshot.utilization(for: .model("gpt-5-2025-08-08"), limits: limits))
+        #expect(exact.pooledModels == ["gpt-5-2025-08-08"])
+        #expect(exact.peakTPMPercent == 35)
+        #expect(exact.latestTPMPercent == 0)
+        #expect(exact.peakRPMPercent == 35)
+        #expect(snapshot.highestUtilization(limits: limits)?.peakTPMPercent == 120)
+        #expect(snapshot.modelRows(limits: limits).prefix(2).map(\.peakTPMPercent) == [120, 120])
+        let scoped = OpenAILiveUsageSnapshot(
+            minutes: minutes,
+            windowMinutes: 15,
+            fetchedAt: Self.now,
+            projectID: "proj_fixture")
+        #expect(scoped.utilization(for: .model("gpt-5"), limits: limits) == nil)
     }
 
     @Test

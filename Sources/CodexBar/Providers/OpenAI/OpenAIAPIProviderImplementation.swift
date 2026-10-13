@@ -82,18 +82,35 @@ struct OpenAIAPIProviderImplementation: ProviderImplementation {
         // snapshot's own scope: a cached snapshot can outlive a project setting change.
         guard snapshot.projectID == nil else { return result }
         let resolver = OpenAIOrgLimitResolver(manual: manual, projectCaps: nil)
-        var highestPercent: Double?
+        var keys: [String] = []
+        var groups: [String: [ProviderThroughputSnapshot.Model]] = [:]
         for model in snapshot.models {
-            guard let limit = resolver.resolve(model.name) else { continue }
-            let percent = Double(model.peakLimitCountedTokens) / Double(limit.tokensPerMinute) * 100
-            // Keep the earlier, busier model when utilization ties.
+            guard let key = resolver.manualLimitKey(for: model.name) else { continue }
+            if groups[key] == nil { keys.append(key) }
+            groups[key, default: []].append(model)
+        }
+        var highestPercent: Double?
+        for key in keys {
+            guard let models = groups[key], let first = models.first,
+                  let limit = resolver.resolve(first.name) else { continue }
+            let series = models.compactMap(\.limitCountedTokensByMinute)
+            let peak: Int = if series.count == models.count, series.allSatisfy({ $0.count == snapshot.minutes.count }) {
+                snapshot.minutes.indices.filter { !snapshot.minutes[$0].isPending }.map { index in
+                    series.reduce(0) { $0 + $1[index] }
+                }.max() ?? 0
+            } else {
+                // Older caches lack aligned series, so retain their per-model peak behavior.
+                models.map(\.peakLimitCountedTokens).max() ?? 0
+            }
+            let percent = Double(peak) / Double(limit.tokensPerMinute) * 100
+            // Keep the earlier group in snapshot order when utilization ties.
             guard highestPercent.map({ percent > $0 }) ?? true else { continue }
             highestPercent = percent
             result.limitPercent = percent
             result.limitLine = L(
                 "%@ · peak %@ · %@ of org limit",
-                model.name,
-                ProviderThroughputSection.count(model.peakLimitCountedTokens),
+                models.count > 1 ? key : first.name,
+                ProviderThroughputSection.count(peak),
                 percent.formatted(.number.precision(.fractionLength(0))) + "%")
         }
         return result

@@ -16,15 +16,16 @@ extension OpenAILiveUsageSnapshot {
             peakTokensPerMinute: summary.peakTPM,
             peakAt: summary.peakMinuteStart,
             fiveMinuteAverageTokensPerMinute: summary.fiveMinuteAverageTPM,
-            models: self.modelNames.prefix(5).map { name in
+            models: self.modelNames.map { name in
                 let summary = self.summary(for: .model(name))
+                let points = self.series(for: .model(name))
                 return .init(
                     name: name,
                     latestTPM: summary.latestTPM,
                     peakTPM: summary.peakTPM,
                     totalTokens: summary.totalTokens,
-                    peakLimitCountedTokens: self.series(for: .model(name)).filter { !$0.isPending }
-                        .map(\.limitCountedTokens).max() ?? 0)
+                    peakLimitCountedTokens: points.filter { !$0.isPending }.map(\.limitCountedTokens).max() ?? 0,
+                    limitCountedTokensByMinute: points.map(\.limitCountedTokens))
             },
             windowMinutes: self.windowMinutes,
             fetchedAt: self.fetchedAt,

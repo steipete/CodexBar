@@ -60,7 +60,7 @@ that endpoint is not project-filtered. The legacy `OPENAI_API_KEY` environment p
 
 ## Menu display
 
-- Admin API data renders a **Tokens / min · last hour** chart above the daily spend dashboard, with the latest reported minute, peak, and (when configured) the highest manual org-limit utilization among the top models. Pending minutes are shaded. Click **Live Usage…** to open the detailed window.
+- Admin API data renders a **Tokens / min · last hour** chart above the daily spend dashboard, with the latest reported minute, peak, and (when configured) the highest manual org-limit utilization across all models. Pending minutes are shaded. Click **Live Usage…** to open the detailed window.
 - **Settings → Providers → OpenAI → Tokens per minute** is on by default. Each refresh adds one `bucket_width=1m`, `group_by=model`, `group_by=batch`, `limit=60` completion-usage request, with the same project scope. Disable it to omit the chart and minute request (`OPENAI_LIVE_MINUTES=0`; enabled is `60`). A failed minute request leaves the daily data usable.
 - The menu bar layout editor offers an optional **Tokens / min** value such as `49M/min`; default layouts are unchanged.
 - Daily Admin API data renders inline Today/7d/configured-window KPIs plus a compact spend chart.
@@ -139,7 +139,8 @@ backoff untouched; a secondary message exposes the error on hover. Manual limits
 caps remain usable. Credentials follow the same Admin-key resolution as live usage.
 
 **% of limit** counts all input, including cached input, plus output: OpenAI's prompt-caching guide states that cached input tokens still count toward TPM limits. Batch API traffic is excluded because it has separate rate limits. The limiter also reserves `max_tokens` up front, so short bursts can still hit limits. Charts and throughput totals continue to include cached input; a filtered chart stacks uncached input, output, and cached input, and its limit line compares against the full stack.
-Some model families share one limit; utilization here is per model and does not aggregate shared families.
+Models that resolve to the same configured limit (an alias and its dated snapshots) share it, and utilization
+sums their traffic per minute. Shared pools OpenAI lists across different families are not inferred.
 
 ## Notes
 

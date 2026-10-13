@@ -158,6 +158,114 @@ struct MenuCardThroughputTests {
     }
 
     @Test
+    func `sixth ranked model with a small manual limit drives the line`() throws {
+        let snapshot = try OpenAILiveUsageBuilder.build(
+            buckets: [.init(start: OpenAIThroughputTests.now.addingTimeInterval(-85), models: (1...6).map {
+                .init(
+                    name: "model-\($0)",
+                    inputTokens: $0 * 100,
+                    cachedInputTokens: 0,
+                    outputTokens: 0,
+                    requests: 1)
+            })],
+            windowMinutes: 60,
+            fetchedAt: OpenAIThroughputTests.now,
+            projectID: nil).throughput
+        #expect(snapshot.models.last?.name == "model-1")
+        let result = OpenAIAPIProviderImplementation.throughputPresentation(snapshot: snapshot, manual: [
+            .init(model: "model-6", tokensPerMinute: 1000),
+            .init(model: "model-1", tokensPerMinute: 50),
+        ])
+        #expect(result.limitPercent == 200)
+        #expect(result.limitLine == L("%@ · peak %@ · %@ of org limit", "model-1", "100", "200%"))
+    }
+
+    @Test
+    func `pooled limit line sums simultaneous traffic and keeps earlier groups on ties`() {
+        let snapshot = Self.pooledSnapshot(firstSeries: [60, 40, 1000], secondSeries: [60, 70, 1000])
+        let result = OpenAIAPIProviderImplementation.throughputPresentation(snapshot: snapshot, manual: [
+            .init(model: "gpt-5", tokensPerMinute: 100),
+            .init(model: "gpt-4o", tokensPerMinute: 100),
+        ])
+        // The largest simultaneous sum is 60 + 60, not the separate peaks 60 + 70.
+        #expect(result.limitPercent == 120)
+        #expect(result.limitLine == L("%@ · peak %@ · %@ of org limit", "gpt-5", "120", "120%"))
+        #expect(result.action == .openOpenAILiveUsage)
+        let exact = OpenAIAPIProviderImplementation.throughputPresentation(snapshot: snapshot, manual: [
+            .init(model: "gpt-5", tokensPerMinute: 100),
+            .init(model: "gpt-5-2025-08-07", tokensPerMinute: 50),
+        ])
+        #expect(exact.limitPercent == 140)
+        #expect(exact.limitLine == L("%@ · peak %@ · %@ of org limit", "gpt-5-2025-08-07", "70", "140%"))
+    }
+
+    @Test(arguments: [nil, [60, 70]] as [[Int]?])
+    func `missing or misaligned pooled series fall back to per model peaks`(secondSeries: [Int]?) {
+        let snapshot = Self.pooledSnapshot(firstSeries: [60, 40, 1000], secondSeries: secondSeries)
+        let result = OpenAIAPIProviderImplementation.throughputPresentation(snapshot: snapshot, manual: [
+            .init(model: "gpt-5", tokensPerMinute: 100),
+        ])
+        #expect(result.limitPercent == 70)
+        #expect(result.limitLine == L("%@ · peak %@ · %@ of org limit", "gpt-5", "70", "70%"))
+        let old = Self.pooledSnapshot(firstSeries: nil, secondSeries: nil)
+        #expect(OpenAIAPIProviderImplementation.throughputPresentation(snapshot: old, manual: [
+            .init(model: "gpt-5", tokensPerMinute: 100),
+        ]).limitPercent == 70)
+    }
+
+    private static func pooledSnapshot(firstSeries: [Int]?, secondSeries: [Int]?) -> ProviderThroughputSnapshot {
+        ProviderThroughputSnapshot(
+            minutes: [
+                .init(
+                    start: OpenAIThroughputTests.now.addingTimeInterval(-150),
+                    totalTokens: 240,
+                    requests: 12,
+                    isPending: false),
+                .init(
+                    start: OpenAIThroughputTests.now.addingTimeInterval(-90),
+                    totalTokens: 110,
+                    requests: 11,
+                    isPending: false),
+                .init(
+                    start: OpenAIThroughputTests.now.addingTimeInterval(-30),
+                    totalTokens: 2000,
+                    requests: 200,
+                    isPending: true),
+            ],
+            frontier: OpenAIThroughputTests.now.addingTimeInterval(-90),
+            latestTokensPerMinute: 110,
+            peakTokensPerMinute: 240,
+            peakAt: OpenAIThroughputTests.now.addingTimeInterval(-150),
+            fiveMinuteAverageTokensPerMinute: 175,
+            models: [
+                .init(
+                    name: "gpt-5",
+                    latestTPM: 40,
+                    peakTPM: 60,
+                    totalTokens: 1100,
+                    peakLimitCountedTokens: 60,
+                    limitCountedTokensByMinute: firstSeries),
+                .init(
+                    name: "gpt-5-2025-08-07",
+                    latestTPM: 70,
+                    peakTPM: 70,
+                    totalTokens: 1130,
+                    peakLimitCountedTokens: 70,
+                    limitCountedTokensByMinute: secondSeries),
+                .init(
+                    name: "gpt-4o",
+                    latestTPM: 0,
+                    peakTPM: 120,
+                    totalTokens: 120,
+                    peakLimitCountedTokens: 120,
+                    limitCountedTokensByMinute: [120, 0, 0]),
+            ],
+            windowMinutes: 60,
+            fetchedAt: OpenAIThroughputTests.now,
+            projectID: nil)
+    }
+
+    @Test
     func `project scoped snapshots never report org limit utilization`() throws {
         let manual = [ProviderModelRateLimit(model: OpenAIThroughputTests.model, tokensPerMinute: 40_000_000)]
         func presentation(projectID: String?) throws -> ProviderThroughputPresentation {

@@ -15,6 +15,24 @@ public struct ProviderThroughputSnapshot: Codable, Sendable, Equatable {
         public let peakTPM: Int
         public let totalTokens: Int
         public let peakLimitCountedTokens: Int
+        /// Aligned with snapshot minutes; pending values are retained but excluded from limit utilization.
+        public let limitCountedTokensByMinute: [Int]?
+
+        init(
+            name: String,
+            latestTPM: Int,
+            peakTPM: Int,
+            totalTokens: Int,
+            peakLimitCountedTokens: Int,
+            limitCountedTokensByMinute: [Int]? = nil)
+        {
+            self.name = name
+            self.latestTPM = latestTPM
+            self.peakTPM = peakTPM
+            self.totalTokens = totalTokens
+            self.peakLimitCountedTokens = peakLimitCountedTokens
+            self.limitCountedTokensByMinute = limitCountedTokensByMinute
+        }
     }
 
     public let minutes: [Minute]
