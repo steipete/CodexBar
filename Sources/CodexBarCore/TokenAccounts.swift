@@ -23,6 +23,8 @@ public struct ProviderTokenAccount: Codable, Identifiable, Sendable {
     public let seatCreditEntitlement: String?
 
     /// Manual organization limits for this credential, with no provider-level inheritance.
+    /// Nil means never set or unknown, [] explicitly clears limits, and non-empty lists hold validated rows.
+    /// Preserving these states lets clears sync while older senders cannot erase limits they do not know about.
     public let modelRateLimits: [ProviderModelRateLimit]?
 
     enum CodingKeys: String, CodingKey {
@@ -62,8 +64,7 @@ public struct ProviderTokenAccount: Codable, Identifiable, Sendable {
         self.organizationID = organizationID
         self.workspaceID = workspaceID
         self.seatCreditEntitlement = seatCreditEntitlement
-        let validated = ProviderModelRateLimit.validated(modelRateLimits ?? [])
-        self.modelRateLimits = validated.isEmpty ? nil : validated
+        self.modelRateLimits = modelRateLimits.map(ProviderModelRateLimit.validated)
     }
 
     public init(from decoder: any Decoder) throws {

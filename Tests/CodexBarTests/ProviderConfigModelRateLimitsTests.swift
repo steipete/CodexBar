@@ -62,9 +62,18 @@ struct ProviderConfigModelRateLimitsTests {
         #expect(NSDictionary(dictionary: copyJSON) == NSDictionary(dictionary: identityJSON))
         for rows: [ProviderModelRateLimit]? in [nil, [], [.init(model: "bad", tokensPerMinute: 0)]] {
             let empty = account.withModelRateLimits(rows)
-            #expect(empty.modelRateLimits == nil)
+            #expect(empty.modelRateLimits == rows.map(ProviderModelRateLimit.validated))
             let encoded = try JSONEncoder().encode(empty)
-            #expect(try !#require(String(bytes: encoded, encoding: .utf8)).contains("modelRateLimits"))
+            let json = try #require(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+            if rows == nil {
+                #expect(json["modelRateLimits"] == nil)
+            } else {
+                #expect((json["modelRateLimits"] as? [Any])?.isEmpty == true)
+            }
+            raw["modelRateLimits"] = try rows.map { try JSONSerialization.jsonObject(with: JSONEncoder().encode($0)) }
+            let decoded = try JSONDecoder().decode(
+                ProviderTokenAccount.self, from: JSONSerialization.data(withJSONObject: raw))
+            #expect(decoded.modelRateLimits == empty.modelRateLimits)
         }
     }
 
@@ -96,7 +105,7 @@ struct ProviderConfigModelRateLimitsTests {
         config.setModelRateLimits([], for: .tokenAccount(UUID()))
         #expect(try encoder.encode(config) == beforeMissing)
         config.setModelRateLimits([], for: .tokenAccount(a.id))
-        #expect(config.tokenAccounts?.accounts.first?.modelRateLimits == nil)
+        #expect(config.tokenAccounts?.accounts.first?.modelRateLimits == [])
         #expect(config.modelRateLimits(for: .provider) == expected)
         #expect(config.modelRateLimits(for: .tokenAccount(b.id)) == b.modelRateLimits)
         #expect(try encoder.encode(config.fetchIdentityConfig) == identity)
@@ -125,6 +134,71 @@ struct ProviderConfigModelRateLimitsTests {
         let retained = try older.applying(to: config, secretFields: [:], canEnable: { _, _ in false })
         #expect(retained.modelRateLimits(for: .provider) == config.modelRateLimits)
         #expect(retained.modelRateLimits(for: .tokenAccount(account.id)) == account.modelRateLimits)
+    }
+
+    @Test
+    func `older sync peers cannot erase per-account limits`() throws {
+        let x = self.account(limits: [.init(model: "gpt-5", tokensPerMinute: 200)])
+        let y = self.account(limits: [.init(model: "gpt-4o", tokensPerMinute: 300)])
+        let local = ProviderConfig(
+            id: .openai, tokenAccounts: .init(version: 7, accounts: [x, y], activeIndex: 0))
+        let older = try CanonicalSyncJSON.decode(
+            ProviderIntentPayload.self, from: #"{"schemaVersion":1,"provider":"openai"}"#)
+        let secrets = ["tokenAccounts": """
+        {"version":1,"activeIndex":1,"accounts":[
+          {"id":"\(x.id)","label":"Renamed X","token":"synthetic-x","addedAt":0},
+          {"id":"\(y.id)","label":"Y","token":"synthetic-y","addedAt":0}
+        ]}
+        """]
+        let applied = try older.applying(to: local, secretFields: secrets, canEnable: { _, _ in false })
+        let accounts = try #require(applied.tokenAccounts)
+        #expect(accounts.version == 1)
+        #expect(accounts.activeIndex == 1)
+        #expect(accounts.accounts.map(\.id) == [x.id, y.id])
+        #expect(accounts.accounts[0].label == "Renamed X")
+        #expect(accounts.accounts[0].token == "synthetic-x")
+        #expect(accounts.accounts[0].modelRateLimits == x.modelRateLimits)
+        #expect(accounts.accounts[1].modelRateLimits == y.modelRateLimits)
+
+        var clearedLocal = local
+        clearedLocal.setModelRateLimits([], for: .tokenAccount(y.id))
+        let retainedClear = try older.applying(
+            to: clearedLocal, secretFields: secrets, canEnable: { _, _ in false })
+        #expect(retainedClear.tokenAccounts?.accounts[1].modelRateLimits == [])
+    }
+
+    @Test
+    func `explicitly cleared account limits sync as an empty list`() throws {
+        let x = self.account(limits: [.init(model: "gpt-5", tokensPerMinute: 200)])
+        let y = self.account(limits: [.init(model: "gpt-4o", tokensPerMinute: 300)])
+        let local = ProviderConfig(
+            id: .openai, tokenAccounts: .init(version: 1, accounts: [x, y], activeIndex: 1))
+        let intent = ProviderIntentPayload(config: local)
+        let secrets = ["tokenAccounts": """
+        {"version":1,"activeIndex":0,"accounts":[
+          {"id":"\(x.id)","label":"X","token":"synthetic-x","addedAt":0,"modelRateLimits":[]}
+        ]}
+        """]
+        let cleared = try intent.applying(to: local, secretFields: secrets, canEnable: { _, _ in false })
+        let accounts = try #require(cleared.tokenAccounts)
+        #expect(accounts.accounts.map(\.id) == [x.id])
+        #expect(accounts.activeIndex == 0)
+        #expect(accounts.accounts[0].modelRateLimits == [])
+        #expect(cleared.modelRateLimits(for: .tokenAccount(y.id)).isEmpty)
+        let uploaded = try ProviderIntentPayload.secretFields(for: cleared, includeSecrets: true)
+        let uploadedAccounts = try CanonicalSyncJSON.decode(
+            ProviderTokenAccountData.self, from: #require(uploaded["tokenAccounts"]))
+        #expect(uploadedAccounts.accounts[0].modelRateLimits == [])
+
+        let replacement = ["tokenAccounts": """
+        {"version":1,"activeIndex":0,"accounts":[
+          {"id":"\(x.id)","label":"X","token":"synthetic-x","addedAt":0,
+           "modelRateLimits":[{"model":"gpt-5","tokensPerMinute":400}]}
+        ]}
+        """]
+        let replaced = try intent.applying(to: local, secretFields: replacement, canEnable: { _, _ in false })
+        #expect(replaced.tokenAccounts?.accounts.map(\.id) == [x.id])
+        #expect(replaced.tokenAccounts?.accounts[0].modelRateLimits == [.init(model: "gpt-5", tokensPerMinute: 400)])
     }
 
     private func account(limits: [ProviderModelRateLimit]) -> ProviderTokenAccount {

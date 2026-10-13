@@ -243,8 +243,9 @@ and never paste real cookie values or readable DevTools screenshots into public 
 }
 ```
 
-Each OpenAI token account can store `tokenAccounts.accounts[].modelRateLimits` with the same row validation and
-empty-array omission rules as provider-level `modelRateLimits`. Limits belong only to that account; there is no
+Each OpenAI token account can store `tokenAccounts.accounts[].modelRateLimits`: omitted means not set; `[]` means
+explicitly no limits (kept so clears sync and older CodexBar versions cannot erase limits during sync). Rows use
+the same validation as provider-level `modelRateLimits`. Limits belong only to that account; there is no
 inheritance. Settings edits the selected account's limits, and switching accounts switches the list.
 
 ```json

@@ -127,9 +127,21 @@ public struct ProviderIntentPayload: Codable, Sendable {
             result.cookieHeader = value.isEmpty ? nil : value
         }
         if let value = secretFields[ProviderIntentSecretField.tokenAccounts.rawValue] {
-            result.tokenAccounts = value.isEmpty
-                ? nil
-                : try CanonicalSyncJSON.decode(ProviderTokenAccountData.self, from: value)
+            if value.isEmpty {
+                result.tokenAccounts = nil
+            } else {
+                let incoming = try CanonicalSyncJSON.decode(ProviderTokenAccountData.self, from: value)
+                let accounts = incoming.accounts.map { account in
+                    // Older senders cannot encode per-account limits; nil means unknown, [] is an explicit clear.
+                    guard account.modelRateLimits == nil,
+                          let limits = local.tokenAccounts?.accounts.first(where: { $0.id == account.id })?
+                              .modelRateLimits
+                    else { return account }
+                    return account.withModelRateLimits(limits)
+                }
+                result.tokenAccounts = ProviderTokenAccountData(
+                    version: incoming.version, accounts: accounts, activeIndex: incoming.activeIndex)
+            }
         }
         return result
     }

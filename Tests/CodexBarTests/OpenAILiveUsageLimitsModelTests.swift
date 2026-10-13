@@ -48,6 +48,13 @@ struct OpenAILiveUsageLimitsModelTests {
         #expect(settings.providerConfig(for: .openai)?.modelRateLimits(for: .tokenAccount(accountB.id)) == b)
         settings.updateTokenAccount(provider: .openai, accountID: accountA.id, label: "Renamed A")
         #expect(binding.wrappedValue == ProviderModelRateLimit.validated(edited))
+        binding.wrappedValue = []
+        #expect(binding.wrappedValue.isEmpty)
+        let cleared = try #require(settings.providerConfig(for: .openai)?.tokenAccounts?.accounts
+            .first(where: { $0.id == accountA.id }))
+        #expect(cleared.modelRateLimits == [])
+        #expect(settings.providerConfig(for: .openai)?.modelRateLimits == provider)
+        #expect(settings.providerConfig(for: .openai)?.modelRateLimits(for: .tokenAccount(accountB.id)) == b)
         settings.setActiveTokenAccountIndex(1, for: .openai)
         #expect(binding.wrappedValue == b)
         settings.removeTokenAccount(provider: .openai, accountID: accountA.id)

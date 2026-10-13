@@ -100,6 +100,7 @@ project scope, or the whole organization when no project is configured.
 Manual organization limits belong to the credential whose organization they describe. Provider-level
 `modelRateLimits` describes the provider key (configured `apiKey` or environment key); each token account stores
 its own `tokenAccounts.accounts[].modelRateLimits`, with no inheritance from the provider key or other accounts.
+Sync keeps an account's limits when an older CodexBar version updates token accounts.
 Settings edits the selected account's list and says which credential it applies to. Switching accounts switches
 the limits used by Settings and the live menu card; stacked token-account cards use their own account's limits.
 Cards whose credential is unknown, such as snapshots from other Macs, show no organization-limit utilization.
