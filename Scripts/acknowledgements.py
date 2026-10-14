@@ -94,6 +94,13 @@ def header_notices(files, prefix):
     return result
 
 
+def zstd_entry(root):
+    # Decoder-only zstd v1.5.7 vendored in Sources/CZstd; see its README for provenance.
+    zstd = {str(p.relative_to(root)): p.read_bytes() for p in (root / 'Sources/CZstd').rglob('*') if p.is_file()}
+    return entry('Zstandard', ['Meta Platforms, Inc. and affiliates'], 'https://github.com/facebook/zstd',
+                 'BSD-3-Clause', [source('Sources/CZstd/LICENSE', zstd['Sources/CZstd/LICENSE'])], revision='v1.5.7')
+
+
 def generate(root):
     entries = []
     for identity, (url, revision) in sorted(pins(root).items()):
@@ -115,6 +122,7 @@ def generate(root):
                          'https://github.com/quickjs-ng/quickjs', 'MIT / Unicode-3.0',
                          [source('Sources/CQuickJS/LICENSE', quickjs['Sources/CQuickJS/LICENSE'])]
                          + header_notices(quickjs, 'Sources/CQuickJS/')))
+    entries.append(zstd_entry(root))
     for name, version in NPM.items():
         basename = name.split('/')[-1]
         files = archive_files(download(f'https://registry.npmjs.org/{name}/-/{basename}-{version}.tgz'))
@@ -140,7 +148,7 @@ def check(root, entries):
     if actual != resolved:
         raise ValueError('Acknowledgements do not match root/widget pins; run Scripts/acknowledgements.py --write')
     npm = {item['npm']: item['revision'] for item in entries if 'npm' in item}
-    if npm != NPM or not {'QuickJS', 'BoringSSL', 'XKCP'}.issubset(item['name'] for item in entries):
+    if npm != NPM or not {'QuickJS', 'Zstandard', 'BoringSSL', 'XKCP'}.issubset(item['name'] for item in entries):
         raise ValueError('Vendored dependency acknowledgement is missing')
     for item in entries:
         if not item['sources']:
@@ -149,7 +157,7 @@ def check(root, entries):
             data = notice['text'].encode('utf-8')
             if not data or digest(data) != notice['sha256']:
                 raise ValueError(f'{item["name"]}: notice changed')
-            if item['name'] == 'QuickJS':
+            if item['name'] in ('QuickJS', 'Zstandard'):
                 original = (root / notice['path']).read_bytes()
                 if data not in original:
                     raise ValueError(f'{notice["path"]}: vendored notice drifted')

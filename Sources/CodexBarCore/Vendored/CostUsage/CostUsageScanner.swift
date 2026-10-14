@@ -2160,6 +2160,7 @@ enum CostUsageScanner {
         // Provider-specific by design: Codex JSONL and Claude/Vertex transcripts have distinct parsers and caches.
         switch provider {
         case .codex:
+            try self.syncCodexArchivedRollouts(range: range, options: options, checkCancellation: checkCancellation)
             return try self.loadCodexDaily(
                 range: range,
                 now: now,
@@ -2245,11 +2246,32 @@ enum CostUsageScanner {
     }
 
     static func codexSessionsRoots(options: Options) -> [URL] {
+        let sourceRoots = self.codexSourceSessionsRoots(options: options)
+        return sourceRoots + CodexArchivedRolloutMirror.existingMirrorRoots(
+            for: sourceRoots,
+            cacheRoot: options.cacheRoot)
+    }
+
+    /// Codex-owned roots only. `codexSessionsRoots` adds CodexBar's decoded mirror of `*.jsonl.zst` archives.
+    private static func codexSourceSessionsRoots(options: Options) -> [URL] {
         let root = self.defaultCodexSessionsRoot(options: options)
         if let archived = self.codexArchivedSessionsRoot(sessionsRoot: root) {
             return [root, archived]
         }
         return [root]
+    }
+
+    /// Decodes archived rollouts the scan window can see before roots are listed.
+    private static func syncCodexArchivedRollouts(
+        range: CostUsageDayRange,
+        options: Options,
+        checkCancellation: CancellationCheck?) throws
+    {
+        try CodexArchivedRolloutMirror.sync(
+            sourceRoots: self.codexSourceSessionsRoots(options: options),
+            cacheRoot: options.cacheRoot,
+            modifiedSince: self.parseDayKey(range.scanSinceKey, calendar: range.calendar),
+            checkCancellation: checkCancellation)
     }
 
     private static func codexArchivedSessionsRoot(sessionsRoot: URL) -> URL? {
