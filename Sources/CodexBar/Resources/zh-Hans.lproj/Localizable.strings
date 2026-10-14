@@ -2612,3 +2612,12 @@
 "Daily spend · %@" = "每日支出 · %@";
 "Applies to the selected token account “%@”. Each account keeps its own limits." = "适用于所选令牌账户“%@”。每个账户保留各自的限制。";
 "Applies to the OpenAI API key, not to token accounts." = "适用于 OpenAI API 密钥，不适用于令牌账户。";
+
+/* Homebrew update recovery */
+"Couldn’t check for updates" = "无法检查更新";
+"Couldn’t prepare the update" = "无法准备更新";
+"Couldn’t update CodexBar" = "无法更新 CodexBar";
+"Remove the retired Homebrew source in Terminal, then retry." = "请在终端中移除已停用的 Homebrew 源，然后重试。";
+"Check the details below, then try again." = "请查看下方详情，然后重试。";
+"Copy repair command" = "复制修复命令";
+"Retry" = "重试";

@@ -2,6 +2,10 @@
 
 ## 0.75.1 — Unreleased
 
+### Fixed
+
+- Homebrew updates: continue after a partial refresh only when the owning cask can provide the requested version. Failed updates show a short status, retry action, and expandable diagnostics, with a copyable repair command for the retired cask-versions tap.
+
 ## 0.75.0 — 2026-10-13
 
 ### Highlights

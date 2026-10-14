@@ -2619,3 +2619,12 @@
 "Daily spend · %@" = "Gasto diario · %@";
 "Applies to the selected token account “%@”. Each account keeps its own limits." = "Aplícase á conta de token seleccionada «%@». Cada conta conserva os seus propios límites.";
 "Applies to the OpenAI API key, not to token accounts." = "Aplícase á clave da API de OpenAI, non ás contas de token.";
+
+/* Homebrew update recovery */
+"Couldn’t check for updates" = "Non se puideron buscar actualizacións";
+"Couldn’t prepare the update" = "Non se puido preparar a actualización";
+"Couldn’t update CodexBar" = "Non se puido actualizar CodexBar";
+"Remove the retired Homebrew source in Terminal, then retry." = "Elimina a fonte de Homebrew retirada no Terminal e téntao de novo.";
+"Check the details below, then try again." = "Consulta os detalles de abaixo e téntao de novo.";
+"Copy repair command" = "Copiar a orde de reparación";
+"Retry" = "Tentar de novo";

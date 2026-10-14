@@ -53,6 +53,7 @@ enum HomebrewUpdateError: LocalizedError, Equatable {
     case invalidCaskResponse
     case brewNotFound
     case versionUnchanged(String)
+    case versionUnavailable(available: String, requested: String)
 
     var errorDescription: String? {
         switch self {
@@ -62,6 +63,8 @@ enum HomebrewUpdateError: LocalizedError, Equatable {
             "Could not find a unique Homebrew installation managing this app."
         case let .versionUnchanged(version):
             "Homebrew finished, but CodexBar is still version \(version). The requested update was not installed."
+        case let .versionUnavailable(available, requested):
+            "Homebrew offers CodexBar \(available), but \(requested) was requested. The update was not started."
         }
     }
 }
@@ -88,7 +91,7 @@ final class HomebrewUpdaterController: UpdaterProviding {
     struct Dependencies {
         var installedVersion: () -> String
         var fetchCaskSource: @Sendable () async throws -> String
-        var runUpgrade: @Sendable () async throws -> Void
+        var runUpgrade: @Sendable (_ targetVersion: String) async throws -> Void
         var relaunch: @MainActor () -> Void
         var cask: @Sendable () throws -> HomebrewCask
     }
@@ -100,6 +103,7 @@ final class HomebrewUpdaterController: UpdaterProviding {
     let updateStatus = UpdateStatus()
     var automaticallyDownloadsUpdates = false
     private(set) var phase: Phase = .idle
+    private(set) var failure: HomebrewUpdateFailure?
 
     var manualUpdateCommand: String? {
         try? "brew upgrade --cask \(self.dependencies.cask().qualifiedName)"
@@ -165,10 +169,20 @@ final class HomebrewUpdaterController: UpdaterProviding {
         }
     }
 
+    func retryAfterFailure() {
+        guard case .failed = self.phase else { return }
+        if self.failure?.stage == .checking || self.updateStatus.availableVersion == nil {
+            self.checkForUpdates(nil)
+        } else {
+            self.installUpdate()
+        }
+    }
+
     func performCheck(source: CheckSource = .manual) async {
         guard source == .manual || self.automaticallyChecksForUpdates,
               self.phase != .installing, self.phase != .checking else { return }
         self.phase = .checking
+        self.failure = nil
         do {
             let caskSource = try await self.dependencies.fetchCaskSource()
             guard let latest = HomebrewCaskVersion.parse(caskSource: caskSource) else {
@@ -186,6 +200,7 @@ final class HomebrewUpdaterController: UpdaterProviding {
                 notify: source == .automatic && self.automaticallyChecksForUpdates)
         } catch {
             Self.log.warning("Homebrew update check failed", metadata: ["error": error.localizedDescription])
+            self.failure = HomebrewUpdateFailure(stage: .checking, details: error.localizedDescription)
             self.phase = .failed(error.localizedDescription)
         }
     }
@@ -195,11 +210,12 @@ final class HomebrewUpdaterController: UpdaterProviding {
               let targetVersion = self.updateStatus.availableVersion else { return }
         let startingVersion = self.dependencies.installedVersion()
         self.phase = .installing
+        self.failure = nil
         self.updateStatus.isInstalling = true
         self.notifier?.update(availableVersion: nil, notify: false)
         defer { self.updateStatus.isInstalling = false }
         do {
-            try await self.dependencies.runUpgrade()
+            try await self.dependencies.runUpgrade(targetVersion)
             let installedVersion = self.dependencies.installedVersion()
             guard HomebrewCaskVersion.isNewer(installedVersion, than: startingVersion),
                   !HomebrewCaskVersion.isNewer(targetVersion, than: installedVersion)
@@ -211,6 +227,8 @@ final class HomebrewUpdaterController: UpdaterProviding {
             self.dependencies.relaunch()
         } catch {
             Self.log.error("Homebrew upgrade failed", metadata: ["error": error.localizedDescription])
+            self.failure = error as? HomebrewUpdateFailure
+                ?? HomebrewUpdateFailure(stage: .installing, details: error.localizedDescription)
             self.phase = .failed(error.localizedDescription)
         }
     }
@@ -247,8 +265,8 @@ extension HomebrewUpdaterController.Dependencies {
                 }
                 return source
             },
-            runUpgrade: {
-                _ = try await Self.upgrade(appBundleURL: bundleURL)
+            runUpgrade: { targetVersion in
+                _ = try await Self.upgrade(appBundleURL: bundleURL, targetVersion: targetVersion)
             },
             relaunch: { Self.relaunch(bundleURL: bundleURL) },
             cask: cask)
@@ -256,6 +274,7 @@ extension HomebrewUpdaterController.Dependencies {
 
     static func upgrade(
         appBundleURL: URL,
+        targetVersion: String,
         caskroomURLs: [URL] = InstallOrigin.caskroomURLs) async throws -> SubprocessResult
     {
         guard let prefix = InstallOrigin.homebrewPrefix(appBundleURL: appBundleURL, caskroomURLs: caskroomURLs) else {
@@ -264,14 +283,46 @@ extension HomebrewUpdaterController.Dependencies {
         let cask = try HomebrewCask.installed(prefix: prefix)
         let brew = prefix.appendingPathComponent("bin/brew").path
         guard FileManager.default.isExecutableFile(atPath: brew) else { throw HomebrewUpdateError.brewNotFound }
-        let environment = Self.brewEnvironment(brewPath: brew)
-        _ = try await SubprocessRunner.runToCompletion(
-            binary: brew, arguments: ["update"], environment: environment, label: "homebrew-update")
-        return try await SubprocessRunner.runToCompletion(
-            binary: brew,
-            arguments: ["upgrade", "--cask", cask.qualifiedName],
-            environment: environment,
-            label: "homebrew-upgrade")
+        var environment = Self.brewEnvironment(brewPath: brew)
+        var refreshDiagnostic: String?
+        do {
+            _ = try await SubprocessRunner.runToCompletion(
+                binary: brew, arguments: ["update"], environment: environment, label: "homebrew-update")
+        } catch let error as SubprocessRunnerError {
+            guard case .nonZeroExit = error else {
+                throw HomebrewUpdateFailure(stage: .preparing, details: error.localizedDescription)
+            }
+            refreshDiagnostic = error.localizedDescription
+        }
+        // The explicit refresh has already run. Do not repeat it during verification or installation.
+        environment["HOMEBREW_NO_AUTO_UPDATE"] = "1"
+        if let refreshDiagnostic {
+            do {
+                let info = try await SubprocessRunner.run(
+                    binary: brew,
+                    arguments: ["info", "--json=v2", "--cask", cask.qualifiedName],
+                    environment: environment,
+                    timeout: 30,
+                    maxOutputBytes: 1024 * 1024,
+                    label: "homebrew-upgrade-availability")
+                try HomebrewUpgradeAvailability.verify(
+                    json: info.stdout, cask: cask, targetVersion: targetVersion)
+            } catch {
+                throw HomebrewUpdateFailure(
+                    stage: .preparing,
+                    details: refreshDiagnostic + "\n\nCodexBar availability check:\n" + error.localizedDescription)
+            }
+        }
+        do {
+            return try await SubprocessRunner.runToCompletion(
+                binary: brew,
+                arguments: ["upgrade", "--cask", cask.qualifiedName],
+                environment: environment,
+                label: "homebrew-upgrade")
+        } catch {
+            let details = [refreshDiagnostic, error.localizedDescription].compactMap(\.self).joined(separator: "\n\n")
+            throw HomebrewUpdateFailure(stage: .installing, details: details)
+        }
     }
 
     static func bundleShortVersion(at bundleURL: URL) -> String? {

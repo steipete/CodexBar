@@ -2622,3 +2622,12 @@
 "Daily spend · %@" = "ค่าใช้จ่ายรายวัน · %@";
 "Applies to the selected token account “%@”. Each account keeps its own limits." = "ใช้กับบัญชีโทเคนที่เลือก “%@” แต่ละบัญชีจะเก็บขีดจำกัดของตนเองไว้";
 "Applies to the OpenAI API key, not to token accounts." = "ใช้กับคีย์ API ของ OpenAI ไม่ใช่บัญชีโทเคน";
+
+/* Homebrew update recovery */
+"Couldn’t check for updates" = "ไม่สามารถตรวจสอบการอัปเดตได้";
+"Couldn’t prepare the update" = "ไม่สามารถเตรียมการอัปเดตได้";
+"Couldn’t update CodexBar" = "ไม่สามารถอัปเดต CodexBar ได้";
+"Remove the retired Homebrew source in Terminal, then retry." = "ลบแหล่ง Homebrew ที่เลิกใช้งานแล้วใน Terminal จากนั้นลองอีกครั้ง";
+"Check the details below, then try again." = "ตรวจสอบรายละเอียดด้านล่าง จากนั้นลองอีกครั้ง";
+"Copy repair command" = "คัดลอกคำสั่งซ่อมแซม";
+"Retry" = "ลองอีกครั้ง";

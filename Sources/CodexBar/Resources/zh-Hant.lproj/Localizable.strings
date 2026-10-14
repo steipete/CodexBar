@@ -2598,3 +2598,12 @@
 "Daily spend · %@" = "每日支出 · %@";
 "Applies to the selected token account “%@”. Each account keeps its own limits." = "適用於所選權杖帳戶「%@」。每個帳戶保留各自的限制。";
 "Applies to the OpenAI API key, not to token accounts." = "適用於 OpenAI API 金鑰，不適用於權杖帳戶。";
+
+/* Homebrew update recovery */
+"Couldn’t check for updates" = "無法檢查更新";
+"Couldn’t prepare the update" = "無法準備更新";
+"Couldn’t update CodexBar" = "無法更新 CodexBar";
+"Remove the retired Homebrew source in Terminal, then retry." = "請在終端機中移除已停用的 Homebrew 來源，然後重試。";
+"Check the details below, then try again." = "請查看下方詳細資訊，然後重試。";
+"Copy repair command" = "複製修復指令";
+"Retry" = "重試";

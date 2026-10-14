@@ -2625,3 +2625,12 @@
 "Daily spend · %@" = "Daily spend · %@";
 "Applies to the selected token account “%@”. Each account keeps its own limits." = "Applies to the selected token account “%@”. Each account keeps its own limits.";
 "Applies to the OpenAI API key, not to token accounts." = "Applies to the OpenAI API key, not to token accounts.";
+
+/* Homebrew update recovery */
+"Couldn’t check for updates" = "Couldn’t check for updates";
+"Couldn’t prepare the update" = "Couldn’t prepare the update";
+"Couldn’t update CodexBar" = "Couldn’t update CodexBar";
+"Remove the retired Homebrew source in Terminal, then retry." = "Remove the retired Homebrew source in Terminal, then retry.";
+"Check the details below, then try again." = "Check the details below, then try again.";
+"Copy repair command" = "Copy repair command";
+"Retry" = "Retry";

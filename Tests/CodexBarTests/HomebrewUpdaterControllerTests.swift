@@ -25,6 +25,7 @@ struct HomebrewUpdaterControllerTests {
         var upgradeError: Error?
         var versionAfterUpgrade: String?
         var upgradeCount = 0
+        var requestedVersion: String?
         var upgradeWait: CheckedContinuation<Void, Never>?
         var suspendUpgrade = false
         var relaunchCount = 0
@@ -47,7 +48,8 @@ struct HomebrewUpdaterControllerTests {
                         if let error = self.fetchError { throw error }
                         return self.caskSource
                     },
-                    runUpgrade: { @MainActor in
+                    runUpgrade: { @MainActor targetVersion in
+                        self.requestedVersion = targetVersion
                         self.upgradeCount += 1
                         if self.suspendUpgrade, self.upgradeCount == 1 {
                             await withCheckedContinuation { self.upgradeWait = $0 }
@@ -177,7 +179,7 @@ struct HomebrewUpdaterControllerTests {
             dependencies: .init(
                 installedVersion: { "0.65.0" },
                 fetchCaskSource: { throw HomebrewUpdateError.invalidCaskResponse },
-                runUpgrade: {},
+                runUpgrade: { _ in },
                 relaunch: {},
                 cask: { throw HomebrewUpdateError.invalidCaskResponse }),
             startScheduledChecks: false)
@@ -272,6 +274,7 @@ struct HomebrewUpdaterControllerTests {
 
         #expect(fixture.upgradeCount == 1)
         #expect(fixture.relaunchCount == 1)
+        #expect(fixture.requestedVersion == "0.66.0")
         #expect(controller.updateStatus.availableVersion == nil)
         #expect(controller.updateStatus.isInstalling == false)
     }
@@ -332,6 +335,49 @@ struct HomebrewUpdaterControllerTests {
         let controller = fixture.makeController()
         await controller.performCheck()
         #expect(controller.phase == .failed(HomebrewUpdateError.invalidCaskResponse.localizedDescription))
+    }
+
+    @Test
+    func `retrying an installation failure preserves the target and clears stale diagnostics`() async throws {
+        let fixture = Fixture()
+        let failure = HomebrewUpdateFailure(stage: .preparing, details: "synthetic refresh failure")
+        fixture.upgradeError = failure
+        let controller = fixture.makeController()
+        await controller.performCheck()
+        await controller.performInstall()
+        #expect(controller.failure == failure)
+        #expect(fixture.relaunchCount == 0)
+        fixture.upgradeError = nil
+        fixture.versionAfterUpgrade = "0.66.0"
+        controller.retryAfterFailure()
+        for _ in 0..<100 {
+            if fixture.relaunchCount == 1 { break }
+            try await Task.sleep(for: .milliseconds(5))
+        }
+        #expect(fixture.upgradeCount == 2)
+        #expect(fixture.requestedVersion == "0.66.0")
+        #expect(fixture.relaunchCount == 1)
+        #expect(controller.failure == nil)
+    }
+
+    @Test
+    func `retrying a check failure never starts an install even with a previously offered update`() async throws {
+        let fixture = Fixture()
+        let controller = fixture.makeController()
+        await controller.performCheck()
+        fixture.fetchError = HomebrewUpdateError.invalidCaskResponse
+        await controller.performCheck()
+        #expect(controller.failure?.stage == .checking)
+        fixture.fetchError = nil
+        controller.retryAfterFailure()
+        for _ in 0..<100 {
+            if controller.phase == .available("0.66.0") { break }
+            try await Task.sleep(for: .milliseconds(5))
+        }
+        #expect(fixture.fetchCount == 3)
+        #expect(fixture.upgradeCount == 0)
+        #expect(controller.phase == .available("0.66.0"))
+        #expect(controller.failure == nil)
     }
 
     @Test

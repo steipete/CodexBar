@@ -6,7 +6,11 @@ import XCTest
 @MainActor
 final class AboutUpdateCommandTests: XCTestCase {
     func test_homebrewButtonCopiesOnlyCommandThroughDeferredWriter() throws {
-        for command in ["brew upgrade --cask homebrew/cask/codexbar", "brew upgrade --cask steipete/tap/codexbar"] {
+        for command in [
+            "brew upgrade --cask homebrew/cask/codexbar",
+            "brew upgrade --cask steipete/tap/codexbar",
+            "brew untap homebrew/cask-versions",
+        ] {
             try self.assertCopy(command: command)
         }
     }

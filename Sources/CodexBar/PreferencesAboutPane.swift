@@ -181,9 +181,10 @@ struct AboutHomebrewUpdateStatusView: View {
         case .installing:
             Self.progressRow(L("Updating with Homebrew…"))
         case let .failed(message):
-            AboutUpdatesUnavailableView(
-                reason: L("Managed by Homebrew") + "\n" + message,
-                command: self.updater.manualUpdateCommand)
+            AboutHomebrewUpdateFailureView(
+                failure: self.updater.failure ?? HomebrewUpdateFailure(stage: .installing, details: message),
+                manualUpdateCommand: self.updater.manualUpdateCommand,
+                retry: self.updater.retryAfterFailure)
         }
     }
 
@@ -196,21 +197,64 @@ struct AboutHomebrewUpdateStatusView: View {
 }
 
 @MainActor
+struct AboutHomebrewUpdateFailureView: View {
+    let failure: HomebrewUpdateFailure
+    let manualUpdateCommand: String?
+    let retry: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label(self.failure.summary, systemImage: "exclamationmark.circle")
+                .fontWeight(.medium)
+            if let command = self.failure.repairCommand {
+                AboutUpdatesUnavailableView(
+                    reason: L("Remove the retired Homebrew source in Terminal, then retry."),
+                    command: command,
+                    copyLabel: L("Copy repair command"))
+            } else {
+                AboutUpdatesUnavailableView(
+                    reason: L("Check the details below, then try again."),
+                    command: self.manualUpdateCommand)
+            }
+            Button(L("Retry")) { self.retry() }
+                .accessibilityIdentifier("about-homebrew-retry-update")
+            DisclosureGroup(L("Show details")) {
+                ScrollView {
+                    Text(self.failure.details)
+                        .font(.system(.caption, design: .monospaced))
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .frame(maxHeight: 180)
+                .environment(\.layoutDirection, .leftToRight)
+            }
+            .foregroundStyle(.secondary)
+            Text(L("Managed by Homebrew"))
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+        }
+    }
+}
+
+@MainActor
 struct AboutUpdatesUnavailableView: View {
     typealias CopyAction = @MainActor @Sendable (String, @escaping @MainActor @Sendable (Bool) -> Void) -> Void
 
     let reason: String
     let command: String?
+    let copyLabel: String
     let copyAction: CopyAction
     @State private var didCopy = false
 
     init(
         reason: String,
         command: String? = nil,
+        copyLabel: String = L("Copy update command"),
         copyAction: @escaping CopyAction = Self.copyCommand)
     {
         self.reason = reason
         self.command = command
+        self.copyLabel = copyLabel
         self.copyAction = copyAction
     }
 
@@ -231,13 +275,13 @@ struct AboutUpdatesUnavailableView: View {
                         self.copyAction(command) { self.didCopy = $0 }
                     } label: {
                         Label(
-                            self.didCopy ? L("Copied") : L("Copy update command"),
+                            self.didCopy ? L("Copied") : self.copyLabel,
                             systemImage: self.didCopy ? "checkmark" : "doc.on.doc")
                             .labelStyle(.iconOnly)
                     }
                     .controlSize(.small)
                     .frame(width: 28)
-                    .help(self.didCopy ? L("Copied") : L("Copy update command"))
+                    .help(self.didCopy ? L("Copied") : self.copyLabel)
                     .accessibilityIdentifier("about-copy-update-command")
                 }
                 .environment(\.layoutDirection, .leftToRight)

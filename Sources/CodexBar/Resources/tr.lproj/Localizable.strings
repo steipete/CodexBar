@@ -2623,3 +2623,12 @@
 "Daily spend · %@" = "Günlük harcama · %@";
 "Applies to the selected token account “%@”. Each account keeps its own limits." = "Seçili “%@” token hesabı için geçerlidir. Her hesap kendi sınırlarını korur.";
 "Applies to the OpenAI API key, not to token accounts." = "Token hesapları için değil, OpenAI API anahtarı için geçerlidir.";
+
+/* Homebrew update recovery */
+"Couldn’t check for updates" = "Güncellemeler denetlenemedi";
+"Couldn’t prepare the update" = "Güncelleme hazırlanamadı";
+"Couldn’t update CodexBar" = "CodexBar güncellenemedi";
+"Remove the retired Homebrew source in Terminal, then retry." = "Kullanımdan kaldırılan Homebrew kaynağını Terminal’de kaldırıp yeniden deneyin.";
+"Check the details below, then try again." = "Aşağıdaki ayrıntıları kontrol edip yeniden deneyin.";
+"Copy repair command" = "Onarım komutunu kopyala";
+"Retry" = "Yeniden dene";

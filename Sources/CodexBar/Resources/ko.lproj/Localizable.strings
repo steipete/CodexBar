@@ -2588,3 +2588,12 @@
 "Daily spend · %@" = "일일 지출 · %@";
 "Applies to the selected token account “%@”. Each account keeps its own limits." = "선택한 토큰 계정 “%@”에 적용됩니다. 각 계정은 자체 한도를 유지합니다.";
 "Applies to the OpenAI API key, not to token accounts." = "토큰 계정이 아닌 OpenAI API 키에 적용됩니다.";
+
+/* Homebrew update recovery */
+"Couldn’t check for updates" = "업데이트를 확인할 수 없습니다";
+"Couldn’t prepare the update" = "업데이트를 준비할 수 없습니다";
+"Couldn’t update CodexBar" = "CodexBar를 업데이트할 수 없습니다";
+"Remove the retired Homebrew source in Terminal, then retry." = "터미널에서 폐기된 Homebrew 소스를 제거한 후 다시 시도하세요.";
+"Check the details below, then try again." = "아래 세부 정보를 확인한 후 다시 시도하세요.";
+"Copy repair command" = "복구 명령 복사";
+"Retry" = "다시 시도";

@@ -2620,3 +2620,12 @@
 "Daily spend · %@" = "Щоденні витрати · %@";
 "Applies to the selected token account “%@”. Each account keeps its own limits." = "Застосовується до вибраного облікового запису токена «%@». Кожен обліковий запис зберігає власні ліміти.";
 "Applies to the OpenAI API key, not to token accounts." = "Застосовується до ключа API OpenAI, а не до облікових записів токенів.";
+
+/* Homebrew update recovery */
+"Couldn’t check for updates" = "Не вдалося перевірити оновлення";
+"Couldn’t prepare the update" = "Не вдалося підготувати оновлення";
+"Couldn’t update CodexBar" = "Не вдалося оновити CodexBar";
+"Remove the retired Homebrew source in Terminal, then retry." = "Видаліть закрите джерело Homebrew у Терміналі та повторіть спробу.";
+"Check the details below, then try again." = "Перегляньте подробиці нижче та повторіть спробу.";
+"Copy repair command" = "Копіювати команду виправлення";
+"Retry" = "Повторити";

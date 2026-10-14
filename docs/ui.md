@@ -36,7 +36,7 @@ read_when:
 - Both the application menu and status menu open About in the Settings window. An existing Settings window is reused
   and switches to the About pane.
 - Homebrew-managed installs show an Updates section in About with the automatic-check toggle, Check for Updates, and the owning cask's status: checking, up to date, or "CodexBar x is available" with a prominent "Update to x" button. The menu shows the same "Update to x" action, then "Updating with Homebrew…" while `brew upgrade` runs; the app relaunches after verifying the installed version reached the offered update.
-- If a Homebrew check or update fails, About shows the error and, when the active receipt identifies the cask, a selectable monospaced upgrade command for that cask with a trailing copy control. The control confirms successful copies briefly; copying does not run an update.
+- If a Homebrew check or update fails, About shows a short status, Retry, and expandable, selectable diagnostic output. Retry repeats the failed check or retries the offered update. The retired `homebrew/cask-versions` refresh error offers a copyable `brew untap homebrew/cask-versions` repair command; other failures retain the owning cask’s upgrade command when its receipt is valid. Copying never runs a command or changes taps.
 
 ## Menu bar
 - Provider cards with both live throughput and daily history use a fixed-height Live · Spend chart switch; Live is the default, and the choice is remembered locally per provider instance.
