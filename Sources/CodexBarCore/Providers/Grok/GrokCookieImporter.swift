@@ -34,35 +34,43 @@ public enum GrokCookieImporter {
             return cached
         }
 
-        var sessions: [SessionInfo] = []
-        let candidates = self.cookieImportOrder.cookieImportCandidates(using: browserDetection)
-        for browserSource in candidates {
-            do {
-                let perSource = try self.importSessions(from: browserSource, logger: logger)
-                sessions.append(contentsOf: perSource)
-            } catch {
-                BrowserCookieAccessGate.recordIfNeeded(error)
-                self.emit(
-                    "\(browserSource.displayName) cookie import failed: \(error.localizedDescription)",
-                    logger: logger)
-            }
-        }
-
-        guard !sessions.isEmpty else { throw GrokWebBillingError.missingCredentials }
+        let sessions = try Array(self.sessionCandidates(browserDetection: browserDetection, logger: logger))
         self.storeImportSessions(sessions)
         return sessions
+    }
+
+    static func sessionCandidates(
+        browserDetection: BrowserDetection,
+        logger: ((String) -> Void)? = nil,
+        loadRecords: @escaping (Browser, BrowserCookieQuery, ((String) -> Void)?) throws
+            -> [BrowserCookieStoreRecords] = { try cookieClient.codexBarRecords(matching: $1, in: $0, logger: $2) })
+        throws -> AnySequence<SessionInfo>
+    {
+        try BrowserCookieImportSupport.collectSessions(
+            from: self.cookieImportOrder.lazyCookieImportCandidates(using: browserDetection),
+            missingError: GrokWebBillingError.missingCredentials,
+            logger: { self.emit($0, logger: logger) },
+            load: { try self.sessions(from: $0, logger: logger, loadRecords: loadRecords) })
     }
 
     public static func importSessions(
         from browserSource: Browser,
         logger: ((String) -> Void)? = nil) throws -> [SessionInfo]
     {
+        try self.sessions(from: browserSource, logger: logger) {
+            try self.cookieClient.codexBarRecords(matching: $1, in: $0, logger: $2)
+        }
+    }
+
+    private static func sessions(
+        from browserSource: Browser,
+        logger: ((String) -> Void)?,
+        loadRecords: (Browser, BrowserCookieQuery, ((String) -> Void)?) throws -> [BrowserCookieStoreRecords])
+        throws -> [SessionInfo]
+    {
         let query = BrowserCookieQuery(domains: self.cookieDomains)
         let log: (String) -> Void = { msg in self.emit(msg, logger: logger) }
-        let sources = try Self.cookieClient.codexBarRecords(
-            matching: query,
-            in: browserSource,
-            logger: log)
+        let sources = try loadRecords(browserSource, query, log)
 
         var sessions: [SessionInfo] = []
 
@@ -82,8 +90,8 @@ public enum GrokCookieImporter {
         browserDetection: BrowserDetection = BrowserDetection(),
         logger: ((String) -> Void)? = nil) throws -> SessionInfo
     {
-        let sessions = try self.importSessions(browserDetection: browserDetection, logger: logger)
-        guard let first = sessions.first else { throw GrokWebBillingError.missingCredentials }
+        let sessions = try self.sessionCandidates(browserDetection: browserDetection, logger: logger)
+        guard let first = sessions.first(where: { _ in true }) else { throw GrokWebBillingError.missingCredentials }
         return first
     }
 

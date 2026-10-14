@@ -61,9 +61,9 @@ struct ProviderQuotaFixtureContractTests {
         let snapshot = try #require(ClaudeUsageFetcher.parse(json: data))
 
         #expect(snapshot.loginMethod == "Claude Max")
-        #expect(snapshot.primary.usedPercent == 7)
-        #expect(snapshot.primary.windowMinutes == 300)
-        #expect(snapshot.primary.resetDescription?.contains("Europe/Vienna") == true)
+        #expect(snapshot.primary?.usedPercent == 7)
+        #expect(snapshot.primary?.windowMinutes == 300)
+        #expect(snapshot.primary?.resetDescription?.contains("Europe/Vienna") == true)
         #expect(snapshot.secondary?.usedPercent == 21)
         #expect(snapshot.secondary?.windowMinutes == 10080)
         #expect(snapshot.secondary?.resetDescription?.contains("Europe/Vienna") == true)

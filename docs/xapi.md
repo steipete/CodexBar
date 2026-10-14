@@ -2,7 +2,7 @@
 summary: "X API prepaid dollar balance from the X developer console."
 provider_id: xapi
 provider_name: X API
-provider_source: Chrome or manual console.x.com cookies for prepaid and free credits, including negative balances.
+provider_source: Browser or manual console.x.com cookies for prepaid and free credits, including negative balances.
 plugin_scope: Same-session account discovery and dollar balances through host-owned cookies and CSRF header echo on both engines.
 read_when:
   - Configuring X API balance tracking
@@ -14,7 +14,7 @@ read_when:
 **X API** monitors the prepaid wallet used for X (Twitter) API calls. It is separate from **xAI** inference billing
 and **Grok** subscription quotas. Enable it under Settings → Providers → X API; it is disabled by default.
 
-Sign in to [the X developer console](https://console.x.com) in Chrome and choose Automatic cookies, or paste a
+Sign in to [the X developer console](https://console.x.com) in a supported browser and choose Automatic cookies, or paste a
 Cookie header from a console request into Manual mode. The header needs `auth_token` and `ct0` from the same session.
 Manual cookies also work on Linux with `codexbar usage --provider xapi --source web --json` and the existing provider
 config `cookieSource` / `cookieHeader` fields. An X API bearer token does not replace a website session.
@@ -31,7 +31,7 @@ CLI JSON, and **Balance** layout token. No quota percentage, reset time, or toke
 JSON exposes the amount as `providerCost.balance`; its required `used`/`limit` values stay neutral at zero, without
 inferring spend or a budget. The menu shows one credits section.
 
-Cookie values remain in the host. Imports are limited to Chrome's `x.com` and `console.x.com` cookies, selected for the
+Cookie values remain in the host. Imports follow the shared browser order for `x.com` and `console.x.com` cookies, selected for the
 request URL. The host copies the selected `ct0` cookie into `X-CSRF-Token` for `console.x.com` only. The script cannot
 read cookies or send requests to any other origin. Imported sessions are not persisted by this provider. Off mode makes
 no requests; expired sessions can advance to another automatic profile, while manual mode remains pinned.

@@ -647,8 +647,7 @@ struct CodexManagedOpenAIWebRefreshTests {
 
     @Test
     func `post import retry timeout exceeds normal retry timeout`() {
-        #expect(UsageStore.openAIWebDashboardFetchTimeout(didImportCookies: false) == 25)
-        #expect(UsageStore.openAIWebDashboardFetchTimeout(didImportCookies: true) == 25)
+        #expect(UsageStore.openAIWebDashboardFetchTimeout == 25)
         #expect(UsageStore.openAIWebRetryDashboardFetchTimeout(afterCookieImport: false) == 8)
         #expect(UsageStore.openAIWebRetryDashboardFetchTimeout(afterCookieImport: true) == 25)
     }

@@ -8,6 +8,24 @@ struct ProviderCandidateRetryRunnerTests {
     }
 
     @Test
+    func `lazy candidates stop loading as soon as an attempt succeeds`() async throws {
+        var loaded: [Int] = []
+        let candidates = [1, 2, 3].lazy.map { candidate in
+            loaded.append(candidate)
+            return candidate
+        }
+        let result = try await ProviderCandidateRetryRunner.run(
+            candidates,
+            shouldRetry: { _ in true },
+            attempt: { candidate in
+                if candidate == 1 { throw TestError.retryable(candidate) }
+                return candidate
+            })
+        #expect(result == 2)
+        #expect(loaded == [1, 2])
+    }
+
+    @Test
     func `retries then succeeds`() async throws {
         let candidates = [1, 2, 3]
         var attempted: [Int] = []

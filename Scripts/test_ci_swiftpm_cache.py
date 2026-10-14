@@ -407,21 +407,22 @@ class SwiftPMCacheTests(unittest.TestCase):
         }
         with patch.object(cache.subprocess, "check_output", side_effect=lambda args, **_: versions[args]), \
                 patch.object(cache.platform, "machine", return_value="arm64"):
-            baseline = cache.build_context(self.root, "macos26-arm64")
-            self.assertEqual(baseline, cache.build_context(self.root, "macos26-arm64"))
-            self.assertNotEqual(baseline["context"], cache.build_context(self.root, "macos15-arm64")["context"])
+            baseline = cache.build_context(self.root, "xcode27-arm64")
+            self.assertEqual(baseline, cache.build_context(self.root, "xcode27-arm64"))
+            with self.assertRaises(ValueError):
+                cache.build_context(self.root, "macos15-arm64")
             for arguments, version in list(versions.items()):
                 with self.subTest(arguments=arguments):
                     versions[arguments] = version + "-changed"
-                    self.assertNotEqual(baseline["context"], cache.build_context(self.root, "macos26-arm64")["context"])
+                    self.assertNotEqual(baseline["context"], cache.build_context(self.root, "xcode27-arm64")["context"])
                     versions[arguments] = version
             for name in cache.CONTEXT_INPUTS:
                 with self.subTest(name=name):
                     self.write(name, "changed-context\n")
-                    self.assertNotEqual(baseline["context"], cache.build_context(self.root, "macos26-arm64")["context"])
+                    self.assertNotEqual(baseline["context"], cache.build_context(self.root, "xcode27-arm64")["context"])
                     self.write(name, "context-input\n")
             with patch.object(cache.platform, "machine", return_value="x86_64"):
-                self.assertNotEqual(baseline["context"], cache.build_context(self.root, "macos26-arm64")["context"])
+                self.assertNotEqual(baseline["context"], cache.build_context(self.root, "xcode27-arm64")["context"])
 
 
 if __name__ == "__main__":

@@ -18,7 +18,7 @@ The grok.com billing gRPC-web endpoint remains a best-effort fallback.
 - **Auto**: Grok CLI, then SuperGrok OAuth CLI-proxy, then browser cookies, then bearer gRPC.
 - **Grok CLI**: `grok agent stdio` only.
 - **SuperGrok OAuth**: `~/.grok/auth.json` or a pasted bearer / `GROK_OAUTH_TOKEN`. CLI-proxy credits, then bearer gRPC. No cookies.
-- **Browser cookies**: grok.com Cookie header / Chrome import only. No OAuth bearer.
+- **Browser cookies**: grok.com Cookie header / supported-browser import. No OAuth bearer.
 - Token accounts classify at fetch time: bearer → OAuth, `Cookie:` / `name=value` → cookies, `xai-` management keys rejected.
 - Selecting a SuperGrok token account remaps Auto to OAuth or Web so it cannot hit an empty `.oauth` pipeline.
 
@@ -136,8 +136,7 @@ The grok.com billing gRPC-web endpoint remains a best-effort fallback.
      to CodexBar, so `grok login` is the recommended recovery path.
    - Uses grok.com browser session cookies. Successful cookie usage never inherits
      the auth-file account's identity or settings tier.
-   - CodexBar imports Chrome only by default to avoid unrelated browser
-     Keychain prompts.
+   - CodexBar imports cookies in the shared supported-browser order; the shared access gate bounds Keychain prompts.
    - Ordinary CLI/test runtime does not import browser cookies unless
      `CODEXBAR_ALLOW_BROWSER_COOKIE_IMPORT=1` is set. An explicit
      `codexbar cookie refresh --provider grok` also opts in for that refresh.
@@ -182,8 +181,7 @@ The grok.com billing gRPC-web endpoint remains a best-effort fallback.
   accounts or set `GROK_OAUTH_TOKEN`. Cookie-shaped values and `xai-` management
   keys are rejected. The pasted token uses the same CLI-proxy credits URL.
 - Settings also expose a cookie source (Auto / Manual / Off). Manual accepts a
-  grok.com Cookie header when Chrome Safe Storage is denied. Auto still imports
-  Chrome only.
+  grok.com Cookie header when browser access is unavailable. Auto imports from the shared browser catalog.
 - Credits `subscriptionTier` maps SuperGrok vs SuperGrok Heavy on the plan badge.
   SuperGrok Heavy with no `creditUsagePercent` is unknown usage from that payload,
   not 0%; the grok.com retry above can still supply a percent, including its

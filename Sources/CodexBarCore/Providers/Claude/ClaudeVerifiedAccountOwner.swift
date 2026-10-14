@@ -20,7 +20,6 @@ extension ClaudeUsageSnapshot {
     func withAccountIdentity(_ accountID: String) -> ClaudeUsageSnapshot {
         var snapshot = ClaudeUsageSnapshot(
             primary: self.primary,
-            primaryWindowKind: self.primaryWindowKind,
             secondary: self.secondary,
             opus: self.opus,
             extraRateWindows: self.extraRateWindows,

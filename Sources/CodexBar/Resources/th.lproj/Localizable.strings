@@ -1420,6 +1420,7 @@
 "menu_bar_layout_preset_icon_only" = "ไอคอนเท่านั้น";
 "menu_bar_layout_preset_percent_reset" = "เปอร์เซ็นต์และรีเซ็ต";
 "menu_bar_layout_preset_compact_stacked" = "ซ้อนแบบกะทัดรัด";
+"menu_bar_layout_preset_bars_stacked" = "แถบความคืบหน้าแบบซ้อน";
 "menu_bar_layout_preset_custom" = "กําหนดเอง";
 "menu_bar_layout_live_preview" = "ตัวอย่างสด";
 "menu_bar_layout_default_preview" = "ตัวอย่างเค้าโครงเริ่มต้น";
@@ -1457,7 +1458,7 @@
 "menu_bar_layout_token_reset_at" = "รีเซ็ตเวลา";
 "menu_bar_layout_token_runs_out" = "หมด";
 "menu_bar_layout_token_cost_today" = "ค่าใช้จ่ายวันนี้";
-"menu_bar_layout_token_cost_30d" = "ค่าใช้จ่าย 30 วัน";
+"menu_bar_layout_token_cost_window" = "ค่าใช้จ่าย (กรอบเวลาประวัติ)";
 "menu_bar_layout_token_space" = "ช่องว่าง";
 "menu_bar_layout_token_line_break" = "ขึ้นบรรทัดใหม่";
 "menu_bar_layout_token_separator_accessibility" = "จุดคั่น";
@@ -1475,7 +1476,6 @@
 "Reset time unavailable" = "รีเซ็ตเวลา: ไม่พร้อมใช้งาน";
 "Run-out estimate unavailable" = "หมด: ไม่พร้อมใช้งาน";
 "Cost today unavailable" = "ค่าใช้จ่ายวันนี้: ไม่พร้อมใช้งาน";
-"30-day cost unavailable" = "ค่าใช้จ่าย 30 วัน: ไม่พร้อมใช้งาน";
 "Resets" = "การรีเซ็ต";
 "codex_workspaces_estimated_cost_short" = "ค่าใช้จ่ายโดยประมาณ";
 "codex_workspaces_estimated_cost_value" = "ประมาณ %@";
@@ -1560,6 +1560,7 @@
 "5-hour usage" = "การใช้งาน 5 ชั่วโมง";
 "7-day usage" = "การใช้งาน 7 วัน";
 "Total usage" = "การใช้งานทั้งหมด";
+"claude_oauth_keychain_access_disabled" = "การเข้าถึง Keychain ถูกปิดใช้งาน จึงทำให้ CodexBar ไม่สามารถอ่านข้อมูลการลงชื่อเข้าใช้ Claude ได้";
 "claude_oauth_keychain_access_revoked" = "สิทธิ์เข้าถึงพวงกุญแจ Claude ถูกเพิกถอนจากการหมุนเวียนโทเค็นของ Claude Code คลิกรีเฟรชเพื่อให้สิทธิ์อีกครั้ง หรือเปลี่ยนแหล่งที่มาการใช้งาน Claude เป็น CLI/Web";
 "claude_showing_last_known_usage" = "กำลังแสดงการใช้งานล่าสุดที่ทราบ ซึ่งบันทึกเมื่อ %@";
 "claude_limited_usage_detail" = "รายละเอียดการใช้งานมีจำกัด";
@@ -2517,3 +2518,113 @@
 "Pace sign" = "เครื่องหมายอัตราการใช้งาน";
 "Ahead of pace is +" = "ใช้เร็วกว่าที่ควรเป็นคือ +";
 "Reserve is +" = "โควตาสำรองคือ +";
+
+"cost_reset_inferred_tooltip" = "ประมาณการ: %@ ไม่รายงานวันที่นี้ วงเงินค่าใช้จ่ายรายเดือนจะรีเซ็ตเวลา 00:00 UTC ของวันที่ 1";
+/* fal provider credentials */
+"Key with billing read access (BILLING or READONLY preset). Or set FAL_KEY." = "คีย์ที่มีสิทธิ์อ่านข้อมูลการเรียกเก็บเงิน (พรีเซ็ต BILLING หรือ READONLY) หรือตั้งค่า FAL_KEY";
+
+/* FLORA provider credentials */
+"Needs billing permission on the workspace. Or set FLORA_API_KEY." = "ต้องมีสิทธิ์การเรียกเก็บเงินในเวิร์กสเปซ หรือตั้งค่า FLORA_API_KEY";
+"Required. The ws_… ID of the workspace the key can bill. Or set FLORA_WORKSPACE_ID." = "จำเป็น ID ws_… ของเวิร์กสเปซที่คีย์เรียกเก็บเงินได้ หรือตั้งค่า FLORA_WORKSPACE_ID";
+"ak_…" = "ak_…";
+"ws_…" = "ws_…";
+
+"Plan renewal / expiry" = "การต่ออายุ / วันหมดอายุแพ็กเกจ";
+
+"Hidden by the global optional credits, spending & billing setting." = "ซ่อนโดยการตั้งค่าส่วนกลางสำหรับเครดิตเสริม ค่าใช้จ่าย และข้อมูลการเรียกเก็บเงิน";
+
+"Provider order updated" = "อัปเดตลำดับผู้ให้บริการแล้ว";
+"Undo" = "เลิกทำ";
+"Clear filters" = "ล้างตัวกรอง";
+"Change provider order" = "เปลี่ยนลำดับผู้ให้บริการ";
+"Provider sorting" = "การเรียงผู้ให้บริการ";
+"Only enabled providers" = "เฉพาะผู้ให้บริการที่เปิดใช้";
+"Restore default order" = "คืนค่าลำดับเริ่มต้น";
+"Also restores the provider order in the menu bar. Can be undone." = "คืนค่าลำดับผู้ให้บริการในแถบเมนูด้วย สามารถเลิกทำได้";
+"Local Codex details; excluded from combined totals." = "รายละเอียด Codex ในเครื่อง ไม่รวมอยู่ในยอดรวม";
+
+"Auto uses an API key when configured, otherwise browser cookies." = "Auto uses an API key when configured, otherwise browser cookies.";
+"Stored in the CodexBar config file. You can also set COMMAND_CODE_API_KEY." = "Stored in the CodexBar config file. You can also set COMMAND_CODE_API_KEY.";
+/* OpenAI organization rate limits and live usage */
+"%@ tokens · %@ requests" = "%@ โทเค็น · %@ คำขอ";
+"15m" = "15 นาที";
+"1h" = "1 ชั่วโมง";
+"5-min avg" = "เฉลี่ย 5 นาที";
+"6h" = "6 ชั่วโมง";
+"All models" = "ทุกรุ่น";
+"Input %@ · cached %@ · output %@" = "อินพุต %@ · แคช %@ · เอาต์พุต %@";
+"Live Usage" = "การใช้งานแบบสด";
+"Loading live usage…" = "กำลังโหลดการใช้งานแบบสด…";
+"Minute" = "นาที";
+"Model" = "รุ่น";
+"No API traffic in this window" = "ไม่มีการรับส่งข้อมูล API ในช่วงนี้";
+"Open OpenAI Settings" = "เปิดการตั้งค่า OpenAI";
+"OpenAI Admin Usage API · 1-minute buckets · the newest minute can arrive late" = "OpenAI Admin Usage API · ช่วงละ 1 นาที · ข้อมูลนาทีล่าสุดอาจมาช้า";
+"OpenAI Live Usage" = "การใช้งาน OpenAI แบบสด";
+"Other" = "อื่นๆ";
+"Peak" = "สูงสุด";
+"Peak TPM" = "TPM สูงสุด";
+"Project: %@" = "โครงการ: %@";
+"Range" = "ช่วงเวลา";
+"Rate limited; retrying in %ds" = "ถึงขีดจำกัดอัตราแล้ว ลองใหม่ใน %ds";
+"Requests in window" = "คำขอในช่วงเวลา";
+"Tokens in window" = "โทเค็นในช่วงเวลา";
+"Tokens per minute" = "โทเค็นต่อนาที";
+"Uncached input" = "อินพุตที่ไม่อยู่ในแคช";
+"Uncached input %@ · cached input %@ · output %@" = "อินพุตที่ไม่อยู่ในแคช %@ · อินพุตในแคช %@ · เอาต์พุต %@";
+"Organization rate limits" = "ขีดจำกัดอัตราขององค์กร";
+"Open organization Limits" = "เปิดขีดจำกัดขององค์กร";
+"RPM (optional)" = "RPM (ไม่บังคับ)";
+"Enter a model and positive limits, such as 40M TPM and 15k RPM." = "ป้อนรุ่นและขีดจำกัดที่เป็นบวก เช่น 40M TPM และ 15k RPM";
+"Add model" = "เพิ่มรุ่น";
+"Org TPM limit" = "ขีดจำกัด TPM ขององค์กร";
+"Org limit %@ TPM" = "ขีดจำกัดองค์กร %@ TPM";
+"Org limit %@ TPM (off scale)" = "ขีดจำกัดองค์กร %@ TPM (นอกสเกล)";
+"Limits…" = "ขีดจำกัด…";
+"Highest utilization" = "การใช้งานสูงสุด";
+"%@ of limit" = "%@ ของขีดจำกัด";
+"Limit" = "ขีดจำกัด";
+"Peak RPM: %@ of limit" = "RPM สูงสุด: %@ ของขีดจำกัด";
+"Peak % of limit" = "ค่าสูงสุดเป็น % ของขีดจำกัด";
+
+/* OpenAI live usage errors */
+"Configure an OpenAI organization Admin API key in Settings → Providers → OpenAI." = "ตั้งค่าคีย์ Admin API ขององค์กร OpenAI ในการตั้งค่า → ผู้ให้บริการ → OpenAI";
+"An OpenAI organization Admin API key with usage and project read permissions is required." = "ต้องใช้คีย์ Admin API ขององค์กร OpenAI ที่มีสิทธิ์อ่านการใช้งานและโครงการ";
+"OpenAI API is rate limited." = "API ของ OpenAI ถึงขีดจำกัดอัตราแล้ว";
+"OpenAI API failed (HTTP %d)." = "API ของ OpenAI ล้มเหลว (HTTP %d)";
+"Could not parse the OpenAI API response." = "ไม่สามารถแยกวิเคราะห์คำตอบ API ของ OpenAI ได้";
+"Live usage supports 15-minute, 1-hour, and 6-hour windows." = "การใช้งานแบบสดรองรับช่วง 15 นาที 1 ชั่วโมง และ 6 ชั่วโมง";
+
+/* Live usage reporting and project caps */
+"Latest · %@" = "ล่าสุด · %@";
+"Latest TPM" = "TPM ล่าสุด";
+"reporting…" = "กำลังรอข้อมูล…";
+"Org limit not set" = "ยังไม่ได้ตั้งขีดจำกัดองค์กร";
+"project cap %@" = "เพดานโครงการ %@";
+"Set org limit…" = "ตั้งขีดจำกัดองค์กร…";
+"Org limits come from Settings — OpenAI's API doesn't expose them." = "ขีดจำกัดองค์กรมาจากการตั้งค่า — API ของ OpenAI ไม่ได้เปิดเผยข้อมูลนี้";
+"Project caps are the highest per-project limit across %d active projects; org-wide traffic can exceed them." = "เพดานโครงการคือขีดจำกัดต่อโครงการที่สูงที่สุดจากโครงการที่ใช้งานอยู่ %d โครงการ ปริมาณการใช้งานรวมขององค์กรอาจเกินค่านี้ได้";
+"Project sample capped at 25; higher project caps may exist." = "กลุ่มตัวอย่างจำกัดไว้ที่ 25 โครงการ อาจมีเพดานโครงการที่สูงกว่านี้";
+"Project caps unavailable" = "ไม่สามารถดูเพดานโครงการได้";
+"OpenAI's API doesn't expose organization rate limits. Copy them from your organization's Limits page. Model IDs match dated snapshots (gpt-5 covers gpt-5-2025-…)." = "API ของ OpenAI ไม่ได้เปิดเผยขีดจำกัดอัตราขององค์กร โปรดคัดลอกจากหน้า Limits ขององค์กรคุณ ID โมเดลจะตรงกับรุ่นที่ระบุวันที่ด้วย (gpt-5 ครอบคลุม gpt-5-2025-…)";
+"Tokens / min · last hour" = "โทเค็น / นาที · ชั่วโมงที่ผ่านมา";
+"Latest %@ · Peak %@ at %@" = "ล่าสุด %@ · สูงสุด %@ เวลา %@";
+"%@ · peak %@ · %@ of org limit" = "%@ · สูงสุด %@ · %@ ของขีดจำกัดองค์กร";
+"Tokens / min" = "โทเค็น / นาที";
+"Latest tokens per minute (OpenAI Admin API)" = "จำนวนโทเค็นต่อนาทีล่าสุด (OpenAI Admin API)";
+"Fetches 1-minute usage each refresh for the menu card chart and the menu bar Tokens/min token." = "ดึงข้อมูลการใช้งานรายนาทีทุกครั้งที่รีเฟรชสำหรับแผนภูมิในการ์ดเมนูและรายการโทเค็น/นาทีบนแถบเมนู";
+"Live Usage…" = "การใช้งานแบบสด…";
+"Batch API %@ · not counted in %% of limit" = "Batch API %@ · ไม่นับรวมใน %% ของขีดจำกัด";
+"% of limit counts all input, including cached input, plus output, as OpenAI's rate limiter does, and excludes Batch API traffic, which has separate limits. The limiter also reserves max_tokens up front, so short bursts can still hit limits." = "% ของขีดจำกัดนับอินพุตทั้งหมด รวมถึงอินพุตที่แคชไว้ บวกกับเอาต์พุต เช่นเดียวกับตัวจำกัดอัตราของ OpenAI และไม่รวมทราฟฟิก Batch API ซึ่งมีขีดจำกัดแยกต่างหาก ตัวจำกัดยังสำรอง max_tokens ไว้ล่วงหน้า ดังนั้นการใช้งานที่พุ่งขึ้นช่วงสั้น ๆ ก็อาจถึงขีดจำกัดได้";
+
+"Tokens / min graph" = "กราฟโทเค็น / นาที";
+"Last hour of tokens per minute (OpenAI Admin API)" = "โทเค็นต่อนาทีในชั่วโมงที่ผ่านมา (OpenAI Admin API)";
+"Tokens per minute, latest %@" = "โทเค็นต่อนาที ค่าล่าสุด %@";
+
+"Live" = "สด";
+
+"Chart" = "แผนภูมิ";
+
+"Daily spend · %@" = "ค่าใช้จ่ายรายวัน · %@";
+"Applies to the selected token account “%@”. Each account keeps its own limits." = "ใช้กับบัญชีโทเคนที่เลือก “%@” แต่ละบัญชีจะเก็บขีดจำกัดของตนเองไว้";
+"Applies to the OpenAI API key, not to token accounts." = "ใช้กับคีย์ API ของ OpenAI ไม่ใช่บัญชีโทเคน";

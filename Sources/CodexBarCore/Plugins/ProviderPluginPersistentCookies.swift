@@ -24,7 +24,8 @@ final class ProviderPluginPersistentCookies {
     private let file: ProviderPluginSessionFile?
     private let background: Bool
     private var readCache = false
-    private var candidates: [ProviderPluginCookieSession]?
+    private var candidates: [ProviderPluginCookieSession] = []
+    private var importBatch: Int? = 0
     private var issued: [String: Issued] = [:]
     private var pendingCache: CookieHeaderCache.Entry?
     private var expected: CookieHeaderCache.Entry?
@@ -70,13 +71,18 @@ final class ProviderPluginPersistentCookies {
             }
         }
         guard !cachedOnly else { return nil }
-        if self.candidates == nil { self.candidates = try importer() }
-        while self.candidates?.isEmpty == false {
-            let candidate = self.candidates!.removeFirst()
+        while true {
+            if self.candidates.isEmpty {
+                guard let batch = self.importBatch else { return nil }
+                let candidates = try importer(batch)
+                self.importBatch = candidates == nil ? nil : batch + 1
+                self.candidates = candidates ?? []
+                continue
+            }
+            let candidate = self.candidates.removeFirst()
             guard let selected = self.policy.selected(candidate.records ?? [], domain: domain) else { continue }
             return self.issue(Payload(records: selected), domain: domain, source: candidate.source)
         }
-        return nil
     }
 
     func accept(domain: String, id: String) throws {

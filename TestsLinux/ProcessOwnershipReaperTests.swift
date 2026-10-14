@@ -31,7 +31,8 @@ struct ProcessOwnershipReaperTests {
         try unrelated.run()
         defer {
             if unrelated.isRunning { kill(unrelated.processIdentifier, SIGKILL) }
-            unrelated.waitUntilExit()
+            // Do not spin a Foundation run loop on a cooperative executor during fixture teardown.
+            ProcessExitRelease.afterExit(unrelated)
             try? FileManager.default.removeItem(at: root)
         }
         // The intermediate session leader exits before the probe does. The grandchild has closed

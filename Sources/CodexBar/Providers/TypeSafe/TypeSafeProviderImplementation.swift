@@ -24,7 +24,7 @@ struct TypeSafeProviderImplementation: ProviderImplementation {
             allowsOff: false,
             subtitles: {
                 .init(
-                    auto: "Automatic imports Chrome cookies from typesafe.ai.",
+                    auto: "Automatic imports browser cookies from typesafe.ai.",
                     manual: "Paste a Cookie header captured from the TypeSafe billing page.",
                     off: "TypeSafe cookies are disabled.")
             },

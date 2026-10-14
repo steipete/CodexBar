@@ -70,8 +70,7 @@ public enum GrokProviderDescriptor {
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
                 debugLogUnavailableMessage: "Grok debug log not yet implemented",
-                browserCookieOrder: BrowserCookieImportSupport.chromeOnly(
-                    reason: "Avoid unrelated browser Keychain prompts"),
+                browserCookieOrder: ProviderBrowserCookieDefaults.defaultImportOrder,
                 dashboardURL: "https://grok.com/?_s=usage",
                 changelogURL: "https://x.ai/news",
                 statusPageURL: nil,
@@ -633,7 +632,7 @@ struct GrokWebFetchStrategy: ProviderFetchStrategy {
            Self.canImportBrowserCookies(runtime: context.runtime, env: context.env)
         {
             do {
-                let sessions = try GrokCookieImporter.importSessions(
+                let sessions = try GrokCookieImporter.sessionCandidates(
                     browserDetection: context.browserDetection)
                 let (snapshot, sourceLabel, cookieHeader) = try await Self.fetchFirstValidCookieSession(
                     sessions,
@@ -666,7 +665,7 @@ struct GrokWebFetchStrategy: ProviderFetchStrategy {
 
     #if os(macOS)
     static func fetchFirstValidCookieSession(
-        _ sessions: [GrokCookieImporter.SessionInfo],
+        _ sessions: some Sequence<GrokCookieImporter.SessionInfo>,
         credentials: GrokCredentials? = nil,
         cacheObservation: CookieHeaderCache.ConditionalMutationObservation? = nil,
         fetch: ((String, GrokCredentials?) async throws -> GrokWebBillingSnapshot)? = nil) async throws

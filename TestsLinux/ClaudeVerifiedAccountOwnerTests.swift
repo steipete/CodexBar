@@ -38,7 +38,7 @@ struct ClaudeVerifiedAccountOwnerTests {
         let requested = IdentityCalls()
         let identified = try await self.fetch(includeIdentity: true, calls: requested)
         #expect(await requested.values == ["usage:fixture-access-token", "profile:fixture-access-token"])
-        #expect(identified.primary.usedPercent == 25)
+        #expect(identified.primary?.usedPercent == 25)
         #expect(identified.accountID == ClaudeVerifiedAccountOwner.ownerID(
             accountUUID: "principal-a", email: "owner@example.com", organizationUUID: "org-a"))
         #expect(identified.accountEmail == plain.accountEmail)
@@ -55,7 +55,7 @@ struct ClaudeVerifiedAccountOwnerTests {
     func `profile failure leaves successful quota available without verified ownership`() async throws {
         let calls = IdentityCalls()
         let snapshot = try await self.fetch(includeIdentity: true, calls: calls, profileFails: true)
-        #expect(snapshot.primary.usedPercent == 25)
+        #expect(snapshot.primary?.usedPercent == 25)
         #expect(snapshot.accountID == nil)
         #expect(snapshot.accountEmail == nil)
         #expect(await calls.values == ["usage:fixture-access-token", "profile:fixture-access-token"])

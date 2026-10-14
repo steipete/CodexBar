@@ -13,10 +13,10 @@ reset date. It is disabled by default.
 
 ## Authentication
 
-Automatic mode imports Chrome cookies from `typesafe.ai`, covering both host-only `console.typesafe.ai` cookies and
-cookies scoped to `.typesafe.ai`. The session cookie name is intentionally not assumed. Manual mode accepts the full
-`Cookie:` header captured from `https://console.typesafe.ai/settings/billing`, which also supports sessions held in
-other browsers and Linux.
+Automatic mode imports `typesafe.ai` cookies from every supported browser in the shared catalog order, covering both
+host-only `console.typesafe.ai` cookies and cookies scoped to `.typesafe.ai`. The session cookie name is intentionally
+not assumed. Manual mode accepts the full `Cookie:` header captured from
+`https://console.typesafe.ai/settings/billing`, which also covers Linux.
 Imported cookies must match the console host and `/settings/billing` path; longer matching paths take precedence. Requests use an isolated session without ambient cookies and reject redirects, including redirects on the same host. An inference API key does not replace a console session.
 
 ## Implementation

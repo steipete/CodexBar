@@ -1420,6 +1420,7 @@
 "menu_bar_layout_preset_icon_only" = "Ikon saja";
 "menu_bar_layout_preset_percent_reset" = "Persentase + reset";
 "menu_bar_layout_preset_compact_stacked" = "Tumpukan ringkas";
+"menu_bar_layout_preset_bars_stacked" = "Batang progres bertumpuk";
 "menu_bar_layout_preset_custom" = "Kustom";
 "menu_bar_layout_live_preview" = "Pratinjau langsung";
 "menu_bar_layout_default_preview" = "Pratinjau tata letak default";
@@ -1457,7 +1458,7 @@
 "menu_bar_layout_token_reset_at" = "Reset pukul";
 "menu_bar_layout_token_runs_out" = "Habis";
 "menu_bar_layout_token_cost_today" = "Biaya hari ini";
-"menu_bar_layout_token_cost_30d" = "Biaya 30 hari";
+"menu_bar_layout_token_cost_window" = "Biaya (Jendela riwayat)";
 "menu_bar_layout_token_space" = "Spasi";
 "menu_bar_layout_token_line_break" = "Pemisah baris";
 "menu_bar_layout_token_separator_accessibility" = "Titik pemisah";
@@ -1475,7 +1476,6 @@
 "Reset time unavailable" = "Reset pukul: Tidak tersedia";
 "Run-out estimate unavailable" = "Habis: Tidak tersedia";
 "Cost today unavailable" = "Biaya hari ini: Tidak tersedia";
-"30-day cost unavailable" = "Biaya 30 hari: Tidak tersedia";
 "Resets" = "Reset";
 "codex_workspaces_title" = "Ruang Kerja";
 "codex_workspaces_estimated_local_logs" = "Diperkirakan dari log Codex lokal";
@@ -1560,6 +1560,7 @@
 "5-hour usage" = "Penggunaan 5 jam";
 "7-day usage" = "Penggunaan 7 hari";
 "Total usage" = "Total penggunaan";
+"claude_oauth_keychain_access_disabled" = "Akses Keychain dinonaktifkan, sehingga CodexBar tidak dapat membaca informasi masuk Claude.";
 "claude_oauth_keychain_access_revoked" = "Akses Rantai Kunci Claude dicabut akibat rotasi token Claude Code. Klik Segarkan untuk memberikan akses lagi, atau ubah sumber penggunaan Claude ke CLI/Web.";
 "claude_showing_last_known_usage" = "Menampilkan penggunaan terakhir yang diketahui, diambil %@.";
 "claude_limited_usage_detail" = "Rincian penggunaan terbatas";
@@ -2516,3 +2517,113 @@
 "Pace sign" = "Tanda laju penggunaan";
 "Ahead of pace is +" = "Di atas laju adalah +";
 "Reserve is +" = "Cadangan adalah +";
+
+"cost_reset_inferred_tooltip" = "Diperkirakan: %@ tidak melaporkan tanggal ini. Batas pengeluaran bulanan direset pada pukul 00:00 UTC setiap tanggal 1.";
+/* fal provider credentials */
+"Key with billing read access (BILLING or READONLY preset). Or set FAL_KEY." = "Kunci dengan akses baca penagihan (preset BILLING atau READONLY). Atau atur FAL_KEY.";
+
+/* FLORA provider credentials */
+"Needs billing permission on the workspace. Or set FLORA_API_KEY." = "Memerlukan izin penagihan di workspace. Atau atur FLORA_API_KEY.";
+"Required. The ws_… ID of the workspace the key can bill. Or set FLORA_WORKSPACE_ID." = "Wajib. ID ws_… workspace yang dapat ditagih oleh kunci. Atau atur FLORA_WORKSPACE_ID.";
+"ak_…" = "ak_…";
+"ws_…" = "ws_…";
+
+"Plan renewal / expiry" = "Perpanjangan / kedaluwarsa paket";
+
+"Hidden by the global optional credits, spending & billing setting." = "Disembunyikan oleh pengaturan global kredit opsional, pengeluaran, dan penagihan.";
+
+"Provider order updated" = "Urutan penyedia diperbarui";
+"Undo" = "Urungkan";
+"Clear filters" = "Hapus filter";
+"Change provider order" = "Ubah urutan penyedia";
+"Provider sorting" = "Pengurutan penyedia";
+"Only enabled providers" = "Hanya penyedia aktif";
+"Restore default order" = "Pulihkan urutan bawaan";
+"Also restores the provider order in the menu bar. Can be undone." = "Juga memulihkan urutan penyedia di bar menu. Dapat diurungkan.";
+"Local Codex details; excluded from combined totals." = "Detail Codex lokal; tidak termasuk dalam total gabungan.";
+
+"Auto uses an API key when configured, otherwise browser cookies." = "Auto uses an API key when configured, otherwise browser cookies.";
+"Stored in the CodexBar config file. You can also set COMMAND_CODE_API_KEY." = "Stored in the CodexBar config file. You can also set COMMAND_CODE_API_KEY.";
+/* OpenAI organization rate limits and live usage */
+"%@ tokens · %@ requests" = "%@ token · %@ permintaan";
+"15m" = "15 mnt";
+"1h" = "1 jam";
+"5-min avg" = "Rata-rata 5 mnt";
+"6h" = "6 jam";
+"All models" = "Semua model";
+"Input %@ · cached %@ · output %@" = "Input %@ · dalam cache %@ · output %@";
+"Live Usage" = "Penggunaan Langsung";
+"Loading live usage…" = "Memuat penggunaan langsung…";
+"Minute" = "Menit";
+"Model" = "Model";
+"No API traffic in this window" = "Tidak ada lalu lintas API dalam rentang ini";
+"Open OpenAI Settings" = "Buka Pengaturan OpenAI";
+"OpenAI Admin Usage API · 1-minute buckets · the newest minute can arrive late" = "OpenAI Admin Usage API · interval 1 menit · data menit terbaru dapat terlambat";
+"OpenAI Live Usage" = "Penggunaan Langsung OpenAI";
+"Other" = "Lainnya";
+"Peak" = "Puncak";
+"Peak TPM" = "TPM puncak";
+"Project: %@" = "Proyek: %@";
+"Range" = "Rentang";
+"Rate limited; retrying in %ds" = "Batas laju tercapai; mencoba lagi dalam %ds";
+"Requests in window" = "Permintaan dalam rentang";
+"Tokens in window" = "Token dalam rentang";
+"Tokens per minute" = "Token per menit";
+"Uncached input" = "Input tanpa cache";
+"Uncached input %@ · cached input %@ · output %@" = "Input tanpa cache %@ · input dalam cache %@ · output %@";
+"Organization rate limits" = "Batas laju organisasi";
+"Open organization Limits" = "Buka batas organisasi";
+"RPM (optional)" = "RPM (opsional)";
+"Enter a model and positive limits, such as 40M TPM and 15k RPM." = "Masukkan model dan batas positif, seperti 40M TPM dan 15k RPM.";
+"Add model" = "Tambah model";
+"Org TPM limit" = "Batas TPM organisasi";
+"Org limit %@ TPM" = "Batas organisasi %@ TPM";
+"Org limit %@ TPM (off scale)" = "Batas organisasi %@ TPM (di luar skala)";
+"Limits…" = "Batas…";
+"Highest utilization" = "Pemanfaatan tertinggi";
+"%@ of limit" = "%@ dari batas";
+"Limit" = "Batas";
+"Peak RPM: %@ of limit" = "RPM puncak: %@ dari batas";
+"Peak % of limit" = "Puncak dalam % dari batas";
+
+/* OpenAI live usage errors */
+"Configure an OpenAI organization Admin API key in Settings → Providers → OpenAI." = "Konfigurasikan kunci Admin API organisasi OpenAI di Pengaturan → Penyedia → OpenAI.";
+"An OpenAI organization Admin API key with usage and project read permissions is required." = "Diperlukan kunci Admin API organisasi OpenAI dengan izin membaca penggunaan dan proyek.";
+"OpenAI API is rate limited." = "API OpenAI telah mencapai batas laju.";
+"OpenAI API failed (HTTP %d)." = "API OpenAI gagal (HTTP %d).";
+"Could not parse the OpenAI API response." = "Tidak dapat mengurai respons API OpenAI.";
+"Live usage supports 15-minute, 1-hour, and 6-hour windows." = "Penggunaan langsung mendukung rentang 15 menit, 1 jam, dan 6 jam.";
+
+/* Live usage reporting and project caps */
+"Latest · %@" = "Terbaru · %@";
+"Latest TPM" = "TPM terbaru";
+"reporting…" = "menunggu laporan…";
+"Org limit not set" = "Batas organisasi belum diatur";
+"project cap %@" = "batas proyek %@";
+"Set org limit…" = "Atur batas organisasi…";
+"Org limits come from Settings — OpenAI's API doesn't expose them." = "Batas organisasi berasal dari Pengaturan — API OpenAI tidak menyediakannya.";
+"Project caps are the highest per-project limit across %d active projects; org-wide traffic can exceed them." = "Batas proyek adalah batas per proyek tertinggi dari %d proyek aktif; lalu lintas seluruh organisasi dapat melampauinya.";
+"Project sample capped at 25; higher project caps may exist." = "Sampel dibatasi hingga 25 proyek; mungkin ada batas proyek yang lebih tinggi.";
+"Project caps unavailable" = "Batas proyek tidak tersedia";
+"OpenAI's API doesn't expose organization rate limits. Copy them from your organization's Limits page. Model IDs match dated snapshots (gpt-5 covers gpt-5-2025-…)." = "API OpenAI tidak menyediakan batas laju organisasi. Salin dari halaman Limits organisasi Anda. ID model mencakup versi bertanggal (gpt-5 mencakup gpt-5-2025-…).";
+"Tokens / min · last hour" = "Token / menit · satu jam terakhir";
+"Latest %@ · Peak %@ at %@" = "Terbaru %@ · Puncak %@ pada %@";
+"%@ · peak %@ · %@ of org limit" = "%@ · puncak %@ · %@ dari batas organisasi";
+"Tokens / min" = "Token / menit";
+"Latest tokens per minute (OpenAI Admin API)" = "Token per menit terbaru (OpenAI Admin API)";
+"Fetches 1-minute usage each refresh for the menu card chart and the menu bar Tokens/min token." = "Mengambil penggunaan per menit setiap penyegaran untuk grafik kartu menu dan elemen Token/menit di bilah menu.";
+"Live Usage…" = "Penggunaan langsung…";
+"Batch API %@ · not counted in %% of limit" = "Batch API %@ · tidak dihitung dalam %% batas";
+"% of limit counts all input, including cached input, plus output, as OpenAI's rate limiter does, and excludes Batch API traffic, which has separate limits. The limiter also reserves max_tokens up front, so short bursts can still hit limits." = "% batas menghitung semua input, termasuk input dalam cache, ditambah output, seperti pembatas laju OpenAI, dan mengecualikan trafik Batch API yang memiliki batas terpisah. Pembatas juga mencadangkan max_tokens di awal, sehingga lonjakan singkat tetap dapat mencapai batas.";
+
+"Tokens / min graph" = "Grafik token / menit";
+"Last hour of tokens per minute (OpenAI Admin API)" = "Token per menit selama satu jam terakhir (OpenAI Admin API)";
+"Tokens per minute, latest %@" = "Token per menit, terbaru %@";
+
+"Live" = "Langsung";
+
+"Chart" = "Grafik";
+
+"Daily spend · %@" = "Pengeluaran harian · %@";
+"Applies to the selected token account “%@”. Each account keeps its own limits." = "Berlaku untuk akun token yang dipilih “%@”. Setiap akun menyimpan batasnya sendiri.";
+"Applies to the OpenAI API key, not to token accounts." = "Berlaku untuk kunci API OpenAI, bukan untuk akun token.";

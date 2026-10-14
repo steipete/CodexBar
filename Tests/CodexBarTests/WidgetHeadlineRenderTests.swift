@@ -56,7 +56,10 @@ struct WidgetHeadlineRenderTests {
         }
     }
 
-    @Test(arguments: [WidgetFamily.systemMedium, .systemLarge], [ColorScheme.light, .dark])
+    @Test(
+        .enabled(if: VisionTextRecognition.isAvailable, "Vision text recognition is unavailable on this host"),
+        arguments: [WidgetFamily.systemMedium, .systemLarge],
+        [ColorScheme.light, .dark])
     func `account overview rows and overflow remain readable`(family: WidgetFamily, scheme: ColorScheme) throws {
         try WidgetLocalizationOverride.$language.withValue("en") {
             let size = CGSize(width: 329, height: family == .systemLarge ? 345 : 155)

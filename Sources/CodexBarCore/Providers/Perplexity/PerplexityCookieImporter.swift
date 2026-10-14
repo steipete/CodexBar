@@ -4,8 +4,6 @@ import Foundation
 import SweetCookieKit
 
 public enum PerplexityCookieImporter {
-    private static let importSessionCacheTTL: TimeInterval = 5
-    private static let importSessionCache = ExpiringValueCache<[SessionInfo]>(ttl: importSessionCacheTTL)
     private static let log = CodexBarLog.logger(LogCategories.provider(.perplexity, scope: "cookie"))
     private static let cookieClient = BrowserCookieClient()
     private static let cookieDomains = ["www.perplexity.ai", "perplexity.ai"]
@@ -104,25 +102,26 @@ public enum PerplexityCookieImporter {
         browserDetection: BrowserDetection = BrowserDetection(),
         logger: ((String) -> Void)? = nil) throws -> [SessionInfo]
     {
+        try Array(self.sessionCandidates(browserDetection: browserDetection, logger: logger))
+    }
+
+    private static func sessionCandidates(
+        browserDetection: BrowserDetection,
+        logger: ((String) -> Void)?) throws -> AnySequence<SessionInfo>
+    {
         #if DEBUG
         if let overrideStore = self.taskImportSessionsOverrideStore {
-            return try overrideStore.sessions(browserDetection: browserDetection, logger: logger)
+            return try AnySequence(overrideStore.sessions(browserDetection: browserDetection, logger: logger))
         }
         if let overrideStore = self.taskImportSessionOverrideStore {
-            return try overrideStore.sessions(browserDetection: browserDetection, logger: logger)
+            return try AnySequence(overrideStore.sessions(browserDetection: browserDetection, logger: logger))
         }
         #endif
-        if let cached = self.cachedImportSessions() {
-            return cached
-        }
-
-        let sessions = try BrowserCookieImportSupport.collectSessions(
-            from: self.cookieImportOrder.cookieImportCandidates(using: browserDetection),
+        return try BrowserCookieImportSupport.collectSessions(
+            from: self.cookieImportOrder.lazyCookieImportCandidates(using: browserDetection),
             missingError: PerplexityCookieImportError.noCookies,
             logger: { self.emit($0, logger: logger) },
             load: { try self.importSessions(from: $0, logger: logger) })
-        self.storeImportSessions(sessions)
-        return sessions
     }
 
     public static func importSessions(
@@ -152,8 +151,8 @@ public enum PerplexityCookieImporter {
         browserDetection: BrowserDetection = BrowserDetection(),
         logger: ((String) -> Void)? = nil) throws -> SessionInfo
     {
-        let sessions = try self.importSessions(browserDetection: browserDetection, logger: logger)
-        guard let first = sessions.first else {
+        let sessions = try self.sessionCandidates(browserDetection: browserDetection, logger: logger)
+        guard let first = sessions.first(where: { _ in true }) else {
             throw PerplexityCookieImportError.noCookies
         }
         return first
@@ -171,21 +170,9 @@ public enum PerplexityCookieImporter {
         }
     }
 
-    static func invalidateImportSessionCache() {
-        self.importSessionCache.invalidate()
-    }
-
     private static func emit(_ message: String, logger: ((String) -> Void)?) {
         logger?("[perplexity-cookie] \(message)")
         self.log.debug(message)
-    }
-
-    private static func cachedImportSessions(now: Date = Date()) -> [SessionInfo]? {
-        self.importSessionCache.load(now: now)
-    }
-
-    private static func storeImportSessions(_ sessions: [SessionInfo], now: Date = Date()) {
-        self.importSessionCache.store(sessions, now: now)
     }
 }
 

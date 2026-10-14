@@ -17,7 +17,7 @@ struct ReplicateCookieStrategyTests {
         let log = Log()
         let strategy = ReplicateWebFetchStrategy(
             usageLoader: { cookie in log.append(cookie); return Self.usage() },
-            sessionLoader: { _ in Issue.record("unexpected import"); return [] },
+            sessionLoader: { _ in Issue.record("unexpected import"); return AnySequence([]) },
             cacheLoader: { Issue.record("unexpected cache read"); return .authoritative(nil) },
             cacheClearer: { _ in Issue.record("unexpected cache clear"); return false },
             cacheWriter: { _, _ in Issue.record("unexpected cache write") })
@@ -40,10 +40,10 @@ struct ReplicateCookieStrategyTests {
                 }
                 return Self.usage()
             },
-            sessionLoader: { _ in [
+            sessionLoader: { _ in AnySequence([
                 .init(cookieHeader: "sessionid=expired; csrftoken=optional", sourceLabel: "Chrome A"),
                 .init(cookieHeader: "sessionid=valid", sourceLabel: "Chrome B"),
-            ] },
+            ]) },
             cacheLoader: { .authoritative(cached) },
             cacheClearer: { expected in #expect(expected == cached); return true },
             cacheWriter: { expected, session in
@@ -65,7 +65,7 @@ struct ReplicateCookieStrategyTests {
         let error = ProviderFetchClassifiedError(kind: kind, message: "fixture")
         let strategy = ReplicateWebFetchStrategy(
             usageLoader: { _ in throw error },
-            sessionLoader: { _ in Issue.record("unexpected account fallback"); return [] },
+            sessionLoader: { _ in Issue.record("unexpected account fallback"); return AnySequence([]) },
             cacheLoader: { .authoritative(.init(
                 cookieHeader: "sessionid=cached",
                 storedAt: ReplicatePluginTests.now,
@@ -79,7 +79,7 @@ struct ReplicateCookieStrategyTests {
     func `unreadable cache cannot select another browser account`() async {
         let strategy = ReplicateWebFetchStrategy(
             usageLoader: { _ in Issue.record("unexpected fetch"); return Self.usage() },
-            sessionLoader: { _ in Issue.record("unexpected import"); return [] },
+            sessionLoader: { _ in Issue.record("unexpected import"); return AnySequence([]) },
             cacheLoader: { .keychainTemporarilyUnavailable(legacyEntry: nil) },
             cacheClearer: { _ in Issue.record("unexpected clear"); return false },
             cacheWriter: { _, _ in Issue.record("unexpected write") })
@@ -93,7 +93,7 @@ struct ReplicateCookieStrategyTests {
         let error = ProviderFetchClassifiedError(kind: .authenticationExpired, message: "fixture")
         let strategy = ReplicateWebFetchStrategy(
             usageLoader: { _ in throw error },
-            sessionLoader: { _ in Issue.record("unexpected pinned account fallback"); return [] },
+            sessionLoader: { _ in Issue.record("unexpected pinned account fallback"); return AnySequence([]) },
             cacheLoader: { .authoritative(.init(
                 cookieHeader: "sessionid=pinned",
                 storedAt: ReplicatePluginTests.now,
@@ -117,7 +117,7 @@ struct ReplicateCookieStrategyTests {
                     message: "fixture") }
                 return Self.usage()
             },
-            sessionLoader: { _ in [.init(cookieHeader: "sessionid=new", sourceLabel: "new")] },
+            sessionLoader: { _ in AnySequence([.init(cookieHeader: "sessionid=new", sourceLabel: "new")]) },
             cacheLoader: { .authoritative(cached) },
             cacheClearer: { _ in false },
             cacheWriter: { expected, _ in #expect(expected.entry == cached) })
@@ -128,7 +128,7 @@ struct ReplicateCookieStrategyTests {
     func `cancellation cannot publish a candidate to the cache`() async {
         let strategy = ReplicateWebFetchStrategy(
             usageLoader: { _ in withUnsafeCurrentTask { $0?.cancel() }; return Self.usage() },
-            sessionLoader: { _ in [.init(cookieHeader: "sessionid=fixture", sourceLabel: "Chrome")] },
+            sessionLoader: { _ in AnySequence([.init(cookieHeader: "sessionid=fixture", sourceLabel: "Chrome")]) },
             cacheLoader: { .authoritative(nil) },
             cacheClearer: { _ in Issue.record("unexpected clear"); return false },
             cacheWriter: { _, _ in Issue.record("cancelled cache write") })
@@ -138,8 +138,8 @@ struct ReplicateCookieStrategyTests {
 
     #if os(macOS)
     @Test
-    func `browser import is Chrome only and session cookies do not require CSRF`() throws {
-        #expect(ReplicateCookieImporter.resolvedImportOrder(nil) == [.chrome])
+    func `browser import preserves overrides and session cookies do not require CSRF`() throws {
+        #expect(ReplicateCookieImporter.resolvedImportOrder([.dia]) == [.dia])
         let cookie = try #require(HTTPCookie(properties: [
             .domain: "replicate.com",
             .path: "/",

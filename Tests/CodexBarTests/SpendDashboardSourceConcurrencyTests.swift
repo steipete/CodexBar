@@ -949,7 +949,7 @@ private final class SpendDashboardTestSignal<Value: Sendable> {
         continuation?.resume(with: result)
     }
 
-    func wait(timeout: Duration = .seconds(5), ignoringCancellation: Bool = false) async throws -> Value {
+    func wait(timeout: Duration? = .seconds(5), ignoringCancellation: Bool = false) async throws -> Value {
         try await withTaskCancellationHandler {
             if !ignoringCancellation {
                 try Task.checkCancellation()
@@ -957,10 +957,11 @@ private final class SpendDashboardTestSignal<Value: Sendable> {
             if let result = self.result {
                 return try result.get()
             }
-            let deadline = ContinuousClock.now + timeout
+            let deadline = timeout.map { ContinuousClock.now + $0 }
             return try await withCheckedThrowingContinuation { continuation in
                 precondition(self.continuation == nil)
                 self.continuation = continuation
+                guard let deadline else { return }
                 self.watchdog = Task { @MainActor [weak self] in
                     do { try await Task.sleep(until: deadline, clock: .continuous) } catch { return }
                     self?.resolve(.failure(SpendDashboardWaitError.timedOut))
@@ -1009,6 +1010,13 @@ final class SpendDashboardPendingLoads<Value: Sendable> {
     private var pending: [SpendDashboardTestSignal<Value>] = []
     private(set) var isClosed = false
     private(set) var readinessWaiterCount = 0
+    /// An expired release fails the parked producer, which production treats as a real error.
+    /// Pass nil when the test does unbounded real work before releasing; close() then owns the release.
+    private let releaseTimeout: Duration?
+
+    init(releaseTimeout: Duration? = .seconds(5)) {
+        self.releaseTimeout = releaseTimeout
+    }
 
     var pendingCount: Int {
         self.pending.count
@@ -1025,7 +1033,7 @@ final class SpendDashboardPendingLoads<Value: Sendable> {
         defer { self.pending.removeAll { $0 === signal } }
         do {
             // Stale-owner tests deliberately complete cancelled producers. Only the test owns their release.
-            return try await signal.wait(ignoringCancellation: true)
+            return try await signal.wait(timeout: self.releaseTimeout, ignoringCancellation: true)
         } catch {
             if case SpendDashboardWaitError.timedOut = error {
                 Issue.record("Timed out waiting for the test to release a dashboard load")

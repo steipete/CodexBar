@@ -1,6 +1,5 @@
-import AppKit
+import Foundation
 import SweetCookieKit
-import SwiftUI
 import Testing
 @testable import CodexBar
 @testable import CodexBarCore
@@ -8,67 +7,10 @@ import Testing
 @MainActor
 struct PluginCookieProviderSpecTests {
     @Test
-    func `render synthetic cookie guidance when requested`() async throws {
-        guard let directory = ProcessInfo.processInfo.environment["CODEXBAR_BROWSER_PROOF_DIR"] else { return }
-        let fixture = try ProviderSettingsDescriptorTests().makeSettingsFixture(suite: #function)
-        fixture.settings.debugDisableKeychainAccess = false
-        let implementation = try #require(ProviderCatalog.implementation(for: .museai))
-        let picker = try #require(implementation.settingsPickers(
-            context: fixture.settingsContext(provider: .museai)).first)
-        let before = ProviderSettingsPickerDescriptor(
-            id: picker.id,
-            title: picker.title,
-            subtitle: "Automatic imports Chrome cookies from muse.ai.",
-            binding: picker.binding,
-            options: picker.options,
-            isVisible: nil,
-            onChange: nil)
-        let storage = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        defer { try? FileManager.default.removeItem(at: storage) }
-        let runtime = try ProviderPluginCookieResultTests.missingSessionRuntime(engine: .quickJS, storage: storage)
-        let message: String
-        do {
-            _ = try await runtime.fetchUsage(cookieSessionResolver: { _, _ in nil })
-            Issue.record("Expected missing session")
-            return
-        } catch {
-            message = error.localizedDescription
-        }
-        let output = URL(fileURLWithPath: directory, isDirectory: true)
-        try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
-        for (name, descriptor, error) in [
-            (
-                "before",
-                before,
-                "No muse.ai session found. Sign in at muse.ai in Chrome, or set a manual Cookie header."),
-            ("after", picker, message),
-        ] {
-            let view = NSHostingView(rootView: VStack(alignment: .leading, spacing: 12) {
-                Text("Muse (muse.ai) · synthetic cookie settings").font(.headline).padding(.horizontal, 20)
-                Form {
-                    Section("Connection") { ProviderSettingsPickerRowView(picker: descriptor) }
-                }.formStyle(.grouped).frame(height: 180)
-                Text(error).font(.caption).padding(.horizontal, 20)
-            }.frame(width: 620, height: 330).background(Color(nsColor: .windowBackgroundColor)))
-            view.frame = NSRect(x: 0, y: 0, width: 620, height: 330)
-            let window = NSWindow(contentRect: view.frame, styleMask: [.borderless], backing: .buffered, defer: false)
-            window.appearance = NSAppearance(named: .aqua)
-            window.contentView = view
-            defer { window.contentView = nil }
-            window.layoutIfNeeded()
-            view.layoutSubtreeIfNeeded()
-            let bitmap = try #require(view.bitmapImageRepForCachingDisplay(in: view.bounds))
-            view.cacheDisplay(in: view.bounds, to: bitmap)
-            try #require(bitmap.representation(using: .png, properties: [:]))
-                .write(to: output.appendingPathComponent("cookies-\(name).png"))
-        }
-    }
-
-    @Test
     func `automatic cookie guidance names the provider browser policy and manual alternative`() throws {
         let fixture = try ProviderSettingsDescriptorTests().makeSettingsFixture(suite: #function)
         fixture.settings.debugDisableKeychainAccess = false
-        for provider in [UsageProvider.museai, .raycast, .perplexity] {
+        for provider in [UsageProvider.museai, .raycast, .perplexity, .parallel] {
             let implementation = try #require(ProviderCatalog.implementation(for: provider))
             let picker = try #require(implementation.settingsPickers(
                 context: fixture.settingsContext(provider: provider)).first)

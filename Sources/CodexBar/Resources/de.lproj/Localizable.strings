@@ -1419,6 +1419,7 @@
 "menu_bar_layout_preset_icon_only" = "Nur Symbol";
 "menu_bar_layout_preset_percent_reset" = "Prozent und Zurücksetzung";
 "menu_bar_layout_preset_compact_stacked" = "Kompakt gestapelt";
+"menu_bar_layout_preset_bars_stacked" = "Fortschrittsbalken gestapelt";
 "menu_bar_layout_preset_custom" = "Benutzerdefiniert";
 "menu_bar_layout_live_preview" = "Live-Vorschau";
 "menu_bar_layout_default_preview" = "Vorschau des Standardlayouts";
@@ -1456,7 +1457,7 @@
 "menu_bar_layout_token_reset_at" = "Zurücksetzung um";
 "menu_bar_layout_token_runs_out" = "Reicht bis";
 "menu_bar_layout_token_cost_today" = "Kosten heute";
-"menu_bar_layout_token_cost_30d" = "Kosten 30 Tage";
+"menu_bar_layout_token_cost_window" = "Kosten (Verlaufsfenster)";
 "menu_bar_layout_token_space" = "Leerraum";
 "menu_bar_layout_token_line_break" = "Zeilenumbruch";
 "menu_bar_layout_token_separator_accessibility" = "Trennpunkt";
@@ -1474,7 +1475,6 @@
 "Reset time unavailable" = "Zurücksetzung um: Nicht verfügbar";
 "Run-out estimate unavailable" = "Reicht bis: Nicht verfügbar";
 "Cost today unavailable" = "Kosten heute: Nicht verfügbar";
-"30-day cost unavailable" = "Kosten 30 Tage: Nicht verfügbar";
 "Resets" = "Zurücksetzungen";
 "codex_workspaces_cost_unavailable" = "Kosten nicht verfügbar";
 "codex_workspaces_elevated_usage" = "Erhöhte Nutzung";
@@ -1559,6 +1559,7 @@
 "5-hour usage" = "5-Stunden-Nutzung";
 "7-day usage" = "7-Tage-Nutzung";
 "Total usage" = "Gesamtnutzung";
+"claude_oauth_keychain_access_disabled" = "Der Keychain-Zugriff ist deaktiviert, daher kann CodexBar die Anmeldedaten von Claude nicht lesen.";
 "claude_oauth_keychain_access_revoked" = "Der Zugriff auf den Claude-Schlüsselbund wurde durch die Token-Rotation von Claude Code widerrufen. Klicken Sie auf „Aktualisieren“, um den Zugriff erneut zu gewähren, oder stellen Sie die Claude-Nutzungsquelle auf CLI/Web um.";
 "claude_showing_last_known_usage" = "Letzte bekannte Nutzung wird angezeigt (erfasst: %@).";
 "claude_limited_usage_detail" = "Eingeschränkte Nutzungsdetails";
@@ -2511,3 +2512,115 @@
 "Pace sign" = "Vorzeichen des Nutzungstempos";
 "Ahead of pace is +" = "Über dem Solltempo ist +";
 "Reserve is +" = "Reserve ist +";
+
+"cost_reset_inferred_tooltip" = "Abgeleitet: %@ meldet dieses Datum nicht. Monatliche Ausgabenlimits werden am Ersten um 00:00 UTC zurückgesetzt.";
+/* fal provider credentials */
+"Key with billing read access (BILLING or READONLY preset). Or set FAL_KEY." = "Schlüssel mit Lesezugriff auf die Abrechnung (Vorlage BILLING oder READONLY). Oder FAL_KEY setzen.";
+
+/* FLORA provider credentials */
+"Needs billing permission on the workspace. Or set FLORA_API_KEY." = "Benötigt Abrechnungsberechtigung für den Workspace. Oder FLORA_API_KEY setzen.";
+"Required. The ws_… ID of the workspace the key can bill. Or set FLORA_WORKSPACE_ID." = "Erforderlich. Die ws_…-ID des Workspace, den der Schlüssel abrechnen darf. Oder FLORA_WORKSPACE_ID setzen.";
+"ak_…" = "ak_…";
+"ws_…" = "ws_…";
+
+"Plan renewal / expiry" = "Planverlängerung / Ablauf";
+
+"Hidden by the global optional credits, spending & billing setting." = "Durch die globale Einstellung für optionale Guthaben, Ausgaben und Abrechnungsdetails ausgeblendet.";
+
+"Provider order updated" = "Anbieterreihenfolge aktualisiert";
+"Undo" = "Rückgängig";
+"Clear filters" = "Filter löschen";
+"Change provider order" = "Anbieterreihenfolge ändern";
+"Provider sorting" = "Anbietersortierung";
+"Only enabled providers" = "Nur aktivierte Anbieter";
+"Restore default order" = "Standardreihenfolge wiederherstellen";
+"Also restores the provider order in the menu bar. Can be undone." = "Stellt auch die Anbieterreihenfolge in der Menüleiste wieder her. Kann rückgängig gemacht werden.";
+"Local Codex details; excluded from combined totals." = "Lokale Codex-Details; nicht in den kombinierten Summen enthalten.";
+
+"Auto uses an API key when configured, otherwise browser cookies." = "Auto uses an API key when configured, otherwise browser cookies.";
+"Stored in the CodexBar config file. You can also set COMMAND_CODE_API_KEY." = "Stored in the CodexBar config file. You can also set COMMAND_CODE_API_KEY.";
+/* OpenAI organization rate limits and live usage */
+"%@ tokens · %@ requests" = "%@ Token · %@ Anfragen";
+"15m" = "15 Min.";
+"1h" = "1 Std.";
+"5-min avg" = "5-Min.-Ø";
+"6h" = "6 Std.";
+"All models" = "Alle Modelle";
+"Input %@ · cached %@ · output %@" = "Eingabe %@ · zwischengespeichert %@ · Ausgabe %@";
+"Live Usage" = "Live-Nutzung";
+"Loading live usage…" = "Live-Nutzung wird geladen…";
+"Minute" = "Minute";
+"Model" = "Modell";
+"No API traffic in this window" = "Kein API-Verkehr in diesem Zeitraum";
+"Open OpenAI Settings" = "OpenAI-Einstellungen öffnen";
+"OpenAI Admin Usage API · 1-minute buckets · the newest minute can arrive late" = "OpenAI Admin Usage API · 1-Minuten-Intervalle · die neueste Minute kann verspätet eintreffen";
+"OpenAI Live Usage" = "OpenAI Live-Nutzung";
+"Other" = "Andere";
+"Peak" = "Spitze";
+"Peak TPM" = "Spitzen-TPM";
+"Project: %@" = "Projekt: %@";
+"Range" = "Zeitraum";
+"Rate limited; retrying in %ds" = "Ratenlimit erreicht; neuer Versuch in %ds";
+"Requests in window" = "Anfragen im Zeitraum";
+"Tokens in window" = "Token im Zeitraum";
+"Tokens per minute" = "Token pro Minute";
+"Uncached input" = "Nicht zwischengespeicherte Eingabe";
+"Uncached input %@ · cached input %@ · output %@" = "Nicht zwischengespeicherte Eingabe %@ · zwischengespeicherte Eingabe %@ · Ausgabe %@";
+"Organization rate limits" = "Ratenlimits der Organisation";
+"Open organization Limits" = "Organisationslimits öffnen";
+"RPM (optional)" = "RPM (optional)";
+"Enter a model and positive limits, such as 40M TPM and 15k RPM." = "Modell und positive Limits eingeben, z. B. 40M TPM und 15k RPM.";
+"Add model" = "Modell hinzufügen";
+"Org TPM limit" = "TPM-Limit der Organisation";
+"Org limit %@ TPM" = "Organisationslimit %@ TPM";
+"Org limit %@ TPM (off scale)" = "Organisationslimit %@ TPM (außerhalb der Skala)";
+"Limits…" = "Limits…";
+"Highest utilization" = "Höchste Auslastung";
+"%@ of limit" = "%@ des Limits";
+"Limit" = "Limit";
+"Peak RPM: %@ of limit" = "Spitzen-RPM: %@ des Limits";
+"Peak % of limit" = "Spitze in % des Limits";
+
+/* OpenAI live usage errors */
+"Configure an OpenAI organization Admin API key in Settings → Providers → OpenAI." = "Konfigurieren Sie einen OpenAI Admin API-Schlüssel Ihrer Organisation unter Einstellungen → Anbieter → OpenAI.";
+"An OpenAI organization Admin API key with usage and project read permissions is required." = "Ein OpenAI Admin API-Schlüssel der Organisation mit Leserechten für Nutzung und Projekte ist erforderlich.";
+"OpenAI API is rate limited." = "Die OpenAI API ist ratenbegrenzt.";
+"OpenAI API failed (HTTP %d)." = "OpenAI API fehlgeschlagen (HTTP %d).";
+"Could not parse the OpenAI API response." = "Die OpenAI API-Antwort konnte nicht gelesen werden.";
+"Live usage supports 15-minute, 1-hour, and 6-hour windows." = "Live-Nutzung unterstützt Zeiträume von 15 Minuten, 1 Stunde und 6 Stunden.";
+
+/* Live usage reporting and project caps */
+
+/* Live usage reporting and project caps */
+"Latest · %@" = "Zuletzt · %@";
+"Latest TPM" = "Aktuelle TPM";
+"reporting…" = "Daten ausstehend…";
+"Org limit not set" = "Organisationslimit nicht festgelegt";
+"project cap %@" = "Projektobergrenze %@";
+"Set org limit…" = "Organisationslimit festlegen…";
+"Org limits come from Settings — OpenAI's API doesn't expose them." = "Organisationslimits stammen aus den Einstellungen — die API von OpenAI stellt sie nicht bereit.";
+"Project caps are the highest per-project limit across %d active projects; org-wide traffic can exceed them." = "Projektobergrenzen sind die höchsten Limits pro Projekt aus %d aktiven Projekten; der organisationsweite Datenverkehr kann sie überschreiten.";
+"Project sample capped at 25; higher project caps may exist." = "Die Stichprobe ist auf 25 Projekte begrenzt; höhere Projektobergrenzen können bestehen.";
+"Project caps unavailable" = "Projektobergrenzen nicht verfügbar";
+"OpenAI's API doesn't expose organization rate limits. Copy them from your organization's Limits page. Model IDs match dated snapshots (gpt-5 covers gpt-5-2025-…)." = "Die API von OpenAI stellt keine Organisationslimits bereit. Kopiere sie von der Limits-Seite deiner Organisation. Modell-IDs gelten auch für datierte Versionen (gpt-5 umfasst gpt-5-2025-…).";
+"Tokens / min · last hour" = "Token / Min. · letzte Stunde";
+"Latest %@ · Peak %@ at %@" = "Aktuell %@ · Spitze %@ um %@";
+"%@ · peak %@ · %@ of org limit" = "%@ · Spitze %@ · %@ des Organisationslimits";
+"Tokens / min" = "Token / Min.";
+"Latest tokens per minute (OpenAI Admin API)" = "Aktuelle Token pro Minute (OpenAI Admin API)";
+"Fetches 1-minute usage each refresh for the menu card chart and the menu bar Tokens/min token." = "Ruft bei jeder Aktualisierung die Nutzung pro Minute für das Diagramm in der Menükarte und das Menüleistenelement Token/Min. ab.";
+"Live Usage…" = "Live-Nutzung…";
+"Batch API %@ · not counted in %% of limit" = "Batch API %@ · nicht in %% des Limits enthalten";
+"% of limit counts all input, including cached input, plus output, as OpenAI's rate limiter does, and excludes Batch API traffic, which has separate limits. The limiter also reserves max_tokens up front, so short bursts can still hit limits." = "% des Limits zählt alle Eingabetokens, einschließlich zwischengespeicherter Eingaben, plus Ausgabe, wie der Ratenbegrenzer von OpenAI, und schließt Batch API-Traffic aus, für den separate Limits gelten. Der Begrenzer reserviert außerdem max_tokens im Voraus, sodass kurze Spitzen dennoch die Limits erreichen können.";
+
+"Tokens / min graph" = "Tokens / Min.-Diagramm";
+"Last hour of tokens per minute (OpenAI Admin API)" = "Tokens pro Minute in der letzten Stunde (OpenAI Admin API)";
+"Tokens per minute, latest %@" = "Tokens pro Minute, zuletzt %@";
+
+"Live" = "Live";
+
+"Chart" = "Diagramm";
+
+"Daily spend · %@" = "Tägliche Ausgaben · %@";
+"Applies to the selected token account “%@”. Each account keeps its own limits." = "Gilt für das ausgewählte Token-Konto „%@“. Jedes Konto behält seine eigenen Limits.";
+"Applies to the OpenAI API key, not to token accounts." = "Gilt für den OpenAI-API-Schlüssel, nicht für Token-Konten.";

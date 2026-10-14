@@ -2,7 +2,7 @@
 summary: "TinyApi available credit balance through a signed-in browser session."
 provider_id: tinyapi
 provider_name: TinyApi
-provider_source: Chrome or manual session cookies for aggregate available credits.
+provider_source: Browser or manual session cookies for aggregate available credits.
 plugin_scope: Console credit balance on both engines; no inferred monthly allowance, pool split, or reset.
 read_when:
   - Configuring TinyApi
@@ -17,7 +17,7 @@ TinyApi is an opt-in bundled JavaScript provider. It reads the account's availab
 ## Authentication
 
 Enable **Settings → Providers → TinyApi**, then sign in at [tinyapi.rest](https://tinyapi.rest/dashboard).
-Automatic imports the signed-in session from Chrome. Manual accepts a complete Cookie header copied from a
+Automatic imports the signed-in session in the shared browser order. Manual accepts a complete Cookie header copied from a
 signed-in request to `tinyapi.rest`; this includes the `__Secure-authjs.session-token` cookie, or its numbered
 chunks. The header is sent unchanged to the same origin. Off disables cookie access and requests.
 

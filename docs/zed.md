@@ -14,7 +14,7 @@ Optional browser billing adds token spend, its spending limit, and remaining bud
 ## Data source
 
 **Browser billing (opt-in)** — in Zed provider settings, change **Cookie source** from **Off** to **Auto** to import a
-Chrome session, or **Manual** to paste a Cookie request header. Sign in to `zed.dev` in Chrome first; signing in only
+browser session in the shared browser order, or **Manual** to paste a Cookie request header. Sign in to `zed.dev` in a supported browser first; signing in only
 inside the editor does not create this browser session. CodexBar requests:
 
 ```text

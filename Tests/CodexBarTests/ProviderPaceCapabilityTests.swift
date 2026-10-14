@@ -163,8 +163,8 @@ struct ProviderPaceCapabilityTests {
                 && window.resetDescription == "MCP"
         case .amp:
             return window.windowMinutes != nil && window.resetDescription?.hasPrefix("renews in ") == true
-        case .alibaba, .alibabatokenplan, .commandcode, .doubao, .kiro, .mimo, .notion, .ollama, .opencodego,
-             .stepfun:
+        case .alibaba, .alibabatokenplan, .claude, .commandcode, .doubao, .kiro, .mimo, .notion, .ollama,
+             .opencodego, .stepfun:
             return window.windowMinutes == self.monthlyWindowSentinelMinutes
         default:
             return false
@@ -181,8 +181,8 @@ struct ProviderPaceCapabilityTests {
         case .zai:
             window.windowMinutes == self.monthlyWindowSentinelMinutes
                 && window.resetDescription == "MCP"
-        case .alibaba, .alibabatokenplan, .commandcode, .doubao, .kiro, .mimo, .notion, .ollama, .opencodego,
-             .stepfun:
+        case .alibaba, .alibabatokenplan, .claude, .commandcode, .doubao, .kiro, .mimo, .notion, .ollama,
+             .opencodego, .stepfun:
             window.windowMinutes == self.monthlyWindowSentinelMinutes
         default:
             false

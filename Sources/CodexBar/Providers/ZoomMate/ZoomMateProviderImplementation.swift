@@ -22,7 +22,7 @@ struct ZoomMateProviderImplementation: ProviderImplementation {
                 allowsOff: false,
                 subtitles: {
                     .init(
-                        auto: L("Automatically signs in using your ZoomMate session cookies from Chrome."),
+                        auto: L("Automatic imports browser cookies."),
                         manual: L("Paste a cURL capture from the ZoomMate AI credit usage page."),
                         off: L("Paste a cURL capture from the ZoomMate AI credit usage page."))
                 },

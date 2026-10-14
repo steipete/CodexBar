@@ -7,15 +7,21 @@ enum IconRenderer {
         let reservesMissingSecondaryLane: Bool
         let treatsExhaustedSecondaryAsMissing: Bool
 
-        static func provider(_ provider: UsageProvider) -> Self {
+        static func provider(_ provider: UsageProvider, snapshot: UsageSnapshot? = nil) -> Self {
             let presentation = ProviderDescriptorRegistry.descriptor(for: provider).presentation
+            let windows = snapshot.map { presentation.iconWindows(context: .init(
+                snapshot: $0,
+                secondaryOverrideWindowID: nil,
+                now: $0.updatedAt)) }
+            let projectedSingleWindow = snapshot?.primary?.measured == nil && windows?.primary != nil &&
+                windows?.secondary == nil
             return Self(
-                reservesMissingSecondaryLane: presentation.reservesMissingSecondaryIconLane,
+                reservesMissingSecondaryLane: presentation.reservesMissingSecondaryIconLane && !projectedSingleWindow,
                 treatsExhaustedSecondaryAsMissing: presentation.treatsExhaustedSecondaryIconWindowAsMissing)
         }
 
         static func style(_ style: IconStyle) -> Self {
-            UsageProvider(rawValue: style.rawValue).map(self.provider)
+            UsageProvider(rawValue: style.rawValue).map { self.provider($0) }
                 ?? Self(reservesMissingSecondaryLane: false, treatsExhaustedSecondaryAsMissing: false)
         }
     }

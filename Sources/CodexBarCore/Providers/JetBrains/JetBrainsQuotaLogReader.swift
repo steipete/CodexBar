@@ -10,6 +10,10 @@ enum JetBrainsQuotaLogReader {
 
     private static let quotaMarker = "QuotaManager2Impl - New quota state is: "
     private static let refillMarker = "QuotaManager2Impl - New quota refill state is: "
+    /// After the AI Assistant → Air migration the IDE stops logging quota state; Junie relays it as JSON instead.
+    private static let junieQuotaMarker = "AiaActivationTransmitter - Received message from junie: quota_update:"
+    /// Once Air disables AI Assistant, its quota manager keeps logging this error between Junie's updates.
+    private static let disabledAssistantState = "Error(exception=com.intellij.ml.llm.core.AIAssistantForbiddenException"
     static let tailByteCount: UInt64 = 4 * 1024 * 1024
 
     static func logFilePath(
@@ -50,9 +54,13 @@ enum JetBrainsQuotaLogReader {
         var refill: JetBrainsRefillInfo?
         var foundRefill = false
         for line in content.split(whereSeparator: \.isNewline).reversed() {
-            if line.contains(self.quotaMarker) {
+            // A disabled assistant says nothing about the account; other errors still invalidate the log below.
+            if line.contains(self.quotaMarker + self.disabledAssistantState) { continue }
+            let isLegacyQuota = line.contains(self.quotaMarker)
+            if isLegacyQuota || line.contains(self.junieQuotaMarker) {
                 // Unsupported latest states invalidate the log; never resurrect an older account's quota.
-                guard let parsed = self.parseQuotaLine(String(line)) else {
+                let parsed = isLegacyQuota ? self.parseQuotaLine(String(line)) : self.parseJunieQuotaLine(String(line))
+                guard let parsed else {
                     if quota == nil { return nil }
                     break
                 }
@@ -74,10 +82,20 @@ enum JetBrainsQuotaLogReader {
             + #"tariffQuota=\#(details)(?:, topUpQuota=\#(details))?\)$"#)
     private static let refillRegex = try? NSRegularExpression(pattern:
         #"^Known\(next=([^,)\s]+), tariff=QuotaRefillInfoTariff\(amount=\#(number), duration=([^,)\s]+)\)\)$"#)
+    // AI Assistant 262.x wraps the same fields in `JbaiQuota(...)`; identifiers are matched but never captured.
+    private static let jbaiDetails = #"Details\(current=\#(number), maximum=\#(number), available=\#(number)\)"#
+    private static let jbaiQuotaRegex = try? NSRegularExpression(pattern:
+        #"^Available\(quota=JbaiQuota\(license=[^,()]*, current=\#(number), maximum=\#(number), "#
+            + #"quotaID=JbaiQuotaId\([^()]*\), until=([^,)\s]+), "#
+            + #"tariffQuota=\#(jbaiDetails)(?:, topUpQuota=\#(jbaiDetails))?\)\)$"#)
+    private static let jbaiRefillRegex = try? NSRegularExpression(pattern:
+        #"^Known\(refill=JbaiQuotaRefill\(tariff=JbaiQuotaTariff\(amount=\#(number), period=([^,)\s]+)\), "#
+            + #"next=([^,)\s]+), last=[^,)\s]+\)\)$"#)
 
     static func parseQuotaLine(_ line: String) -> (timestamp: Date, info: JetBrainsQuotaInfo)? {
         guard let record = self.record(in: line, marker: self.quotaMarker),
-              let fields = self.captures(self.quotaRegex, in: record.state),
+              let fields = self.captures(self.quotaRegex, in: record.state)
+              ?? self.captures(self.jbaiQuotaRegex, in: record.state),
               let until = ISO8601DateParser.parse(fields[2])
         else { return nil }
         let numericFields = fields.enumerated().filter { $0.offset != 2 }.map(\.element)
@@ -93,9 +111,63 @@ enum JetBrainsQuotaLogReader {
             type: "Available", used: values[2], maximum: values[3], available: values[4], until: until, topUp: topUp))
     }
 
+    private struct JunieQuotaUpdate: Decodable {
+        struct Amount: Decodable {
+            let value: Double
+
+            enum CodingKeys: String, CodingKey { case amount }
+
+            init(from decoder: Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                if let text = try? container.decode(String.self, forKey: .amount), let value = Double(text) {
+                    self.value = value
+                } else {
+                    self.value = try container.decode(Double.self, forKey: .amount)
+                }
+            }
+        }
+
+        struct Details: Decodable {
+            let current: Amount
+            let maximum: Amount
+            let available: Amount
+        }
+
+        let until: Double
+        let tariffQuota: Details
+        let topUpQuota: Details?
+    }
+
+    static func parseJunieQuotaLine(_ line: String) -> (timestamp: Date, info: JetBrainsQuotaInfo)? {
+        // Only the quota amounts are decoded; the license and other payload fields are never retained.
+        guard let record = self.record(in: line, marker: self.junieQuotaMarker),
+              let update = try? JSONDecoder().decode(JunieQuotaUpdate.self, from: Data(record.state.utf8))
+        else { return nil }
+        let tariff = update.tariffQuota
+        let values = [tariff.current.value, tariff.maximum.value, tariff.available.value, update.until]
+        guard values.allSatisfy({ $0.isFinite && $0 >= 0 }), tariff.maximum.value > 0 else { return nil }
+        return (record.timestamp, JetBrainsQuotaInfo(
+            type: "Available",
+            used: tariff.current.value,
+            maximum: tariff.maximum.value,
+            available: tariff.available.value,
+            until: Date(timeIntervalSince1970: update.until / 1000),
+            topUp: update.topUpQuota.flatMap {
+                JetBrainsTopUpQuota(maximum: $0.maximum.value, available: $0.available.value)
+            }))
+    }
+
     static func parseRefillLine(_ line: String) -> JetBrainsRefillInfo? {
-        guard let record = self.record(in: line, marker: self.refillMarker),
-              let fields = self.captures(self.refillRegex, in: record.state),
+        guard let record = self.record(in: line, marker: self.refillMarker) else { return nil }
+        // Normalize both layouts to (next, amount, duration).
+        let fields: [String]? = if let legacy = self.captures(self.refillRegex, in: record.state) {
+            legacy
+        } else if let jbai = self.captures(self.jbaiRefillRegex, in: record.state), jbai.count == 3 {
+            [jbai[2], jbai[0], jbai[1]]
+        } else {
+            nil
+        }
+        guard let fields,
               let next = ISO8601DateParser.parse(fields[0]),
               let amount = Double(fields[1]), amount.isFinite, amount >= 0
         else { return nil }

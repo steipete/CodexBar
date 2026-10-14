@@ -82,9 +82,9 @@ struct ProviderPluginCookieResultTests {
         """, engine: engine)
         try await ProviderInteractionContext.$current.withValue(.userInitiated) {
             try await BrowserCookieAccessGate.withExplicitRetry {
-                let importJar: ProviderPluginCookieBroker.JarImporter = {
+                let importJar: ProviderPluginCookieBroker.JarImporter = { batch in
                     #expect(ProviderInteractionContext.current == .userInitiated)
-                    return [ProviderPluginCookieSession(header: "", source: "Chrome", origin: "")]
+                    return batch == 0 ? [ProviderPluginCookieSession(header: "", source: "Chrome", origin: "")] : nil
                 }
                 let broker = ProviderPluginCookieBroker(
                     provider: .lithosai,
@@ -110,7 +110,7 @@ struct ProviderPluginCookieResultTests {
     }
 
     @Test(arguments: BundledPluginTestSupport.engines, [
-        UsageProvider.lithosai, .museai, .abacus, .helmcode, .qoder,
+        UsageProvider.lithosai, .museai, .abacus, .helmcode, .qoder, .parallel,
     ])
     func `suppressed plugin imports explain permission recovery instead of missing login`(
         engine: ProviderPluginEngineKind, provider: UsageProvider) async throws
@@ -126,11 +126,14 @@ struct ProviderPluginCookieResultTests {
             directoryContents: { _ in ["Default"] },
             applicationURLs: { _ in [] },
             profileAccessIssue: { _ in nil })
-        let importJar: ProviderPluginCookieBroker.JarImporter = {
+        let importJar: ProviderPluginCookieBroker.JarImporter = { batch in
             try KeychainAccessGate.withTaskOverrideForTesting(false) {
                 try BrowserCookieAccessGate.withShouldAttemptOverrideForTesting(false) {
                     try ProviderPluginCookieBroker.importCookieJars(
-                        provider: provider, domains: runtime.manifest.cookieDomains, browserDetection: detection)
+                        provider: provider,
+                        domains: runtime.manifest.cookieDomains,
+                        browserDetection: detection,
+                        batch: batch)
                 }
             }
         }
@@ -139,15 +142,15 @@ struct ProviderPluginCookieResultTests {
             domains: runtime.manifest.cookieDomains,
             settings: .init(cookieSource: .auto, manualCookieHeader: nil),
             batches: { domain, batch in
-                guard batch == 0 else { return nil }
-                return try KeychainAccessGate.withTaskOverrideForTesting(false) {
+                try KeychainAccessGate.withTaskOverrideForTesting(false) {
                     try BrowserCookieAccessGate.withShouldAttemptOverrideForTesting(false) {
                         if provider == .abacus {
+                            guard batch == 0 else { return nil }
                             return AbacusCookieImporter.importSessions(browserDetection: detection)
                                 .map { ($0.cookieHeader, $0.sourceLabel) }
                         }
                         return try ProviderPluginCookieBroker.importCookieHeaders(
-                            provider: provider, domain: domain, browserDetection: detection)
+                            provider: provider, domain: domain, browserDetection: detection, batch: batch)
                     }
                 }
             },
@@ -201,7 +204,7 @@ struct ProviderPluginCookieResultTests {
         #expect(usage.primary?.usedPercent == 0)
     }
 
-    @Test(arguments: BundledPluginTestSupport.engines, [UsageProvider.museai, .abacus])
+    @Test(arguments: BundledPluginTestSupport.engines, [UsageProvider.museai, .abacus, .parallel])
     func `missing plugin session explains the automatic browser boundary`(
         engine: ProviderPluginEngineKind, provider: UsageProvider) async throws
     {

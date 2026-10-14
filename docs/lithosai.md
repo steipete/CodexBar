@@ -2,7 +2,7 @@
 summary: "LithosAI prepaid balance and console session authentication."
 provider_id: lithosai
 provider_name: LithosAI
-provider_source: Chrome or manual console cookies for prepaid USD balance and optional UTC spend.
+provider_source: Browser or manual console cookies for prepaid USD balance and optional UTC spend.
 plugin_scope: Opaque session cookies with same-origin host CSRF echo; active-organization balance and optional spend on both engines.
 read_when:
   - Configuring LithosAI
@@ -11,11 +11,11 @@ read_when:
 
 # LithosAI
 
-Enable LithosAI in Settings → Providers. Sign in at <https://console.lithosai.cloud> in Chrome and use the
+Enable LithosAI in Settings → Providers. Sign in at <https://console.lithosai.cloud> in a supported browser and use the
 **Refresh** beside **Cookie source** (or the menu's Refresh action) to authorize importing the session.
 An explicit refresh allows one bounded macOS Keychain permission retry; scheduled refreshes never prompt.
-If Chrome access is suppressed or denied, the error points back to Cookie source → Refresh and the Manual fallback.
-Automatic import is Chrome-only and follows the host's browser-access gate. Alternatively choose Manual and paste a Cookie request header containing
+If browser access is suppressed or denied, the error points back to Cookie source → Refresh and the Manual fallback.
+Automatic import follows the shared browser order and access gate. Alternatively choose Manual and paste a Cookie request header containing
 both `__Host-console_session` and `__Host-console_csrf` from the same signed-in console session. Manual cookies
 are stored in the CodexBar config file. Inference API keys cannot read console billing.
 
@@ -40,7 +40,7 @@ Cookie values remain opaque to JavaScript. Both cookies must match the request U
 is added; a validated refresh succeeds without requiring a persistent cookie write. HTTP 401 rejects that session and tries the next profile; 403 reports denied access without evicting it.
 
 CLI: `codexbar usage --provider lithosai --source web --json`. On Linux use a manual cookie header in the config;
-automatic Chrome import is macOS-only. No API key or separate login command is needed.
+automatic browser import is macOS-only. No API key or separate login command is needed.
 
 The undocumented console contract was documented by @apoorvdarshan in
 [#3868](https://github.com/steipete/CodexBar/issues/3868). Their

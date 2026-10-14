@@ -88,9 +88,9 @@ struct VeniceClerkSessionTests {
             usageLoader: { try await VeniceWebUsageFetcher.fetchUsage(cookieHeader: $0, transport: transport) },
             sessionLoader: { _ in
                 #expect(source == .auto)
-                return [VeniceResolvedSession(
+                return AnySequence([VeniceResolvedSession(
                     cookieHeader: "__session=synthetic-session",
-                    sourceLabel: "Chrome fixture")]
+                    sourceLabel: "Chrome fixture")])
             })
         let settings = ProviderSettingsSnapshot.make(venice: VeniceProviderSettings(
             cookieSource: source, manualCookieHeader: "__client_uat=123; __session=synthetic-session"))

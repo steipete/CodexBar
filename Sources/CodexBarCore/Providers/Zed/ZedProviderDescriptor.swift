@@ -4,14 +4,6 @@ import SweetCookieKit
 public enum ZedProviderDescriptor {
     public static let descriptor = Self.spec.makeDescriptor(fetchPlan: Self.fetchPlan())
 
-    private static var browserCookieOrder: BrowserCookieImportOrder? {
-        #if os(macOS)
-        [.chrome]
-        #else
-        nil
-        #endif
-    }
-
     public static let spec = PluginProviderSpec(
         id: .zed,
         displayName: "Zed",
@@ -38,7 +30,7 @@ public enum ZedProviderDescriptor {
                             ?? (context.config?.sanitizedCookieHeader == nil ? .off : .manual),
                         manualCookieHeader: context.config?.sanitizedCookieHeader)
                 }),
-            browserCookieOrder: Self.browserCookieOrder,
+            browserCookieOrder: ProviderBrowserCookieDefaults.defaultImportOrder,
             mode: .sessionOrAPI,
             field: .init(
                 id: "zed-cookie",

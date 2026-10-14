@@ -1380,6 +1380,8 @@ extension StatusMenuTests {
         settings.costUsageEnabled = true
         settings.costSummaryDisplayStyle = .both
         settings.claudeWebExtrasEnabled = true
+        settings.showOptionalCreditsAndExtraUsage = true
+        settings.preferredCurrencyCode = "EUR"
 
         let registry = ProviderRegistry.shared
         if let codexMeta = registry.metadata[.codex] {
@@ -1443,6 +1445,24 @@ extension StatusMenuTests {
         controller.menuWillOpen(menu)
         let ids = menu.items.compactMap { $0.representedObject as? String }
         #expect(ids.contains("menuCardExtraUsage"))
+        let model = controller.menuCardModel(for: .claude)
+        #expect(model?.providerCost?.spendLine == "Monthly: €0.00 / €2,000.00")
+        #expect(model?.metrics.contains { $0.id == "claude-extra-usage" } == false)
+        controller.menuDidClose(menu)
+
+        settings.setUsageItemVisible(false, itemID: .claudeExtraUsage, for: .claude)
+        let hiddenMenu = controller.makeMenu()
+        controller.menuWillOpen(hiddenMenu)
+        #expect(!self.representedIDs(in: hiddenMenu).contains("menuCardExtraUsage"))
+        #expect(controller.menuCardModel(for: .claude)?.providerCost == nil)
+        controller.menuDidClose(hiddenMenu)
+
+        settings.setUsageItemVisible(true, itemID: .claudeExtraUsage, for: .claude)
+        let restoredMenu = controller.makeMenu()
+        controller.menuWillOpen(restoredMenu)
+        #expect(self.representedIDs(in: restoredMenu).contains("menuCardExtraUsage"))
+        #expect(controller.menuCardModel(for: .claude)?.providerCost?.spendLine == "Monthly: €0.00 / €2,000.00")
+        controller.menuDidClose(restoredMenu)
     }
 
     @Test

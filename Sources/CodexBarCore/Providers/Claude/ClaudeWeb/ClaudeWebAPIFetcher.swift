@@ -185,7 +185,7 @@ public enum ClaudeWebAPIFetcher {
 
     /// Claude usage data from the API
     public struct WebUsageData: Sendable {
-        public let sessionPercentUsed: Double
+        public let sessionPercentUsed: Double?
         public let sessionResetsAt: Date?
         public let weeklyPercentUsed: Double?
         public let weeklyResetsAt: Date?
@@ -198,15 +198,8 @@ public enum ClaudeWebAPIFetcher {
         public fileprivate(set) var accountOrganizationID: String?
         public fileprivate(set) var accountEmail: String?
         public fileprivate(set) var loginMethod: String?
-        /// Whether the API reported a `five_hour` session object. When `false` (the API sent
-        /// `five_hour: null`, as enterprise/credit accounts with no live session do), `sessionPercentUsed`
-        /// is the synthesized `0` placeholder rather than a real reading. Distinguishing this from a real
-        /// session that happens to be at `0%` (with or without a reset) lets lane classifiers drop the
-        /// placeholder without hiding a genuine empty session.
-        public let hasLiveSessionWindow: Bool
-
         public init(
-            sessionPercentUsed: Double,
+            sessionPercentUsed: Double?,
             sessionResetsAt: Date?,
             weeklyPercentUsed: Double?,
             weeklyResetsAt: Date?,
@@ -217,7 +210,6 @@ public enum ClaudeWebAPIFetcher {
             accountOrganizationID: String? = nil,
             accountEmail: String?,
             loginMethod: String?,
-            hasLiveSessionWindow: Bool = true,
             resetCredits: ClaudeRateLimitResetCreditsSnapshot? = nil,
             cloudCredits: ClaudeCloudCreditsSnapshot? = nil)
         {
@@ -232,7 +224,6 @@ public enum ClaudeWebAPIFetcher {
             self.accountOrganizationID = accountOrganizationID
             self.accountEmail = accountEmail
             self.loginMethod = loginMethod
-            self.hasLiveSessionWindow = hasLiveSessionWindow
             self.resetCredits = resetCredits
             self.cloudCredits = cloudCredits
         }
@@ -715,12 +706,6 @@ extension ClaudeWebAPIFetcher {
                 sessionResets = ISO8601DateParser.parse(resetsAt)
             }
         }
-        // Enterprise/credit-based accounts return null for five_hour; treat as 0% rather than an error.
-        // Track the object's presence so a real 0% session (with or without a reset) is not mistaken for
-        // the synthesized null-session placeholder downstream.
-        let resolvedSessionPercent = sessionPercent ?? 0.0
-        let hasLiveSessionWindow = fiveHour != nil
-
         // Parse seven_day (weekly) usage
         var weeklyPercent: Double?
         var weeklyResets: Date?
@@ -746,7 +731,7 @@ extension ClaudeWebAPIFetcher {
         let resetCredits = Self.parseResetCredits(from: json["cedar_ember"])
 
         return WebUsageData(
-            sessionPercentUsed: resolvedSessionPercent,
+            sessionPercentUsed: sessionPercent,
             sessionResetsAt: sessionResets,
             weeklyPercentUsed: weeklyPercent,
             weeklyResetsAt: weeklyResets,
@@ -756,7 +741,6 @@ extension ClaudeWebAPIFetcher {
             accountOrganization: nil,
             accountEmail: nil,
             loginMethod: nil,
-            hasLiveSessionWindow: hasLiveSessionWindow,
             resetCredits: resetCredits,
             cloudCredits: ClaudeCloudCreditsSnapshot.parse(json["iguana_necktie"]))
     }

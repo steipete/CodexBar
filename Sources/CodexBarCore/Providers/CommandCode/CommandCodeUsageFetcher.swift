@@ -3,9 +3,28 @@ import Foundation
 import FoundationNetworking
 #endif
 
-/// Fetches live billing data from `api.commandcode.ai` using a better-auth session
-/// cookie scraped from the user's browser.
+/// Fetches live billing data from `api.commandcode.ai` using either a better-auth session
+/// cookie scraped from the user's browser or a Command Code API key.
 public enum CommandCodeUsageFetcher {
+    /// Browser sessions use the web app's `/internal` routes; API keys use the CLI's `/alpha` routes.
+    enum Credential {
+        case cookieHeader(String)
+        case apiKey(String)
+
+        var value: String {
+            switch self {
+            case let .cookieHeader(value), let .apiKey(value): value
+            }
+        }
+
+        var pathPrefix: String {
+            switch self {
+            case .cookieHeader: "/internal"
+            case .apiKey: "/alpha"
+            }
+        }
+    }
+
     private static let log = CodexBarLog.logger(LogCategories.provider(.commandcode, scope: "usage"))
     private static let requestTimeoutSeconds: TimeInterval = 15
     private static let subscriptionGraceSeconds: TimeInterval = 2
@@ -14,8 +33,8 @@ public enum CommandCodeUsageFetcher {
     /// Debug-only loopback endpoint for synthetic transport proof.
     static let apiURLEnvironmentKey = "COMMANDCODE_API_URL"
     #endif
-    private static let creditsPath = "/internal/billing/credits"
-    private static let subscriptionsPath = "/internal/billing/subscriptions"
+    private static let creditsPath = "/billing/credits"
+    private static let subscriptionsPath = "/billing/subscriptions"
     private static let webOrigin = "https://commandcode.ai"
     private static let userAgent =
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) " +
@@ -34,7 +53,19 @@ public enum CommandCodeUsageFetcher {
         now: Date = Date()) async throws -> CommandCodeUsageSnapshot
     {
         try await self.fetchUsage(
-            cookieHeader: cookieHeader,
+            credential: .cookieHeader(cookieHeader),
+            transport: transport,
+            now: now,
+            subscriptionGrace: .seconds(self.subscriptionGraceSeconds))
+    }
+
+    public static func fetchUsage(
+        apiKey: String,
+        session transport: any ProviderHTTPTransport = ProviderHTTPClient.shared,
+        now: Date = Date()) async throws -> CommandCodeUsageSnapshot
+    {
+        try await self.fetchUsage(
+            credential: .apiKey(apiKey),
             transport: transport,
             now: now,
             subscriptionGrace: .seconds(self.subscriptionGraceSeconds))
@@ -47,7 +78,7 @@ public enum CommandCodeUsageFetcher {
         subscriptionGrace: Duration) async throws -> CommandCodeUsageSnapshot
     {
         try await self.fetchUsage(
-            cookieHeader: cookieHeader,
+            credential: .cookieHeader(cookieHeader),
             transport: transport,
             now: now,
             subscriptionGrace: subscriptionGrace)
@@ -66,20 +97,20 @@ public enum CommandCodeUsageFetcher {
     #endif
 
     private static func fetchUsage(
-        cookieHeader: String,
+        credential: Credential,
         transport: any ProviderHTTPTransport,
         now: Date,
         subscriptionGrace: Duration) async throws -> CommandCodeUsageSnapshot
     {
         let (credits, subscription, subscriptionEnrichmentUnavailable) = try await self.fetchPayloads(
-            cookieHeader: cookieHeader,
+            credential: credential,
             transport: transport,
             subscriptionGrace: subscriptionGrace)
 
         let resolved = await self.resolveSubscription(
             subscription: subscription,
             enrichmentUnavailable: subscriptionEnrichmentUnavailable,
-            cookieHeader: cookieHeader,
+            credential: credential,
             now: now)
 
         return CommandCodeUsageSnapshot(
@@ -107,10 +138,10 @@ public enum CommandCodeUsageFetcher {
     private static func resolveSubscription(
         subscription: SubscriptionPayload?,
         enrichmentUnavailable: Bool,
-        cookieHeader: String,
+        credential: Credential,
         now: Date) async -> (plan: CommandCodePlanCatalog.Plan?, periodEnd: Date?, status: String?)
     {
-        let fingerprint = CookieHeaderCache.credentialFingerprint(cookieHeader)
+        let fingerprint = CookieHeaderCache.credentialFingerprint(credential.value)
         guard enrichmentUnavailable else {
             guard let subscription,
                   let plan = CommandCodePlanCatalog.plan(forID: subscription.planID)
@@ -137,17 +168,17 @@ public enum CommandCodeUsageFetcher {
     }
 
     private static func fetchPayloads(
-        cookieHeader: String,
+        credential: Credential,
         transport: any ProviderHTTPTransport,
         subscriptionGrace: Duration) async throws -> (CreditsPayload, SubscriptionPayload?, Bool)
     {
         let subscriptionTask = Task<SubscriptionPayload?, Error> {
-            try await self.fetchSubscription(cookieHeader: cookieHeader, transport: transport)
+            try await self.fetchSubscription(credential: credential, transport: transport)
         }
         let credits: CreditsPayload
         do {
             credits = try await withTaskCancellationHandler {
-                try await self.fetchCredits(cookieHeader: cookieHeader, transport: transport)
+                try await self.fetchCredits(credential: credential, transport: transport)
             } onCancel: {
                 subscriptionTask.cancel()
             }
@@ -198,20 +229,20 @@ public enum CommandCodeUsageFetcher {
     }
 
     private static func fetchCredits(
-        cookieHeader: String,
+        credential: Credential,
         transport: any ProviderHTTPTransport) async throws -> CreditsPayload
     {
-        let url = self.apiBase().appendingPathComponent(self.creditsPath)
-        let data = try await self.send(url: url, cookieHeader: cookieHeader, transport: transport)
+        let url = self.apiBase().appendingPathComponent(credential.pathPrefix + self.creditsPath)
+        let data = try await self.send(url: url, credential: credential, transport: transport)
         return try self.parseCredits(data: data)
     }
 
     private static func fetchSubscription(
-        cookieHeader: String,
+        credential: Credential,
         transport: any ProviderHTTPTransport) async throws -> SubscriptionPayload?
     {
-        let url = self.apiBase().appendingPathComponent(self.subscriptionsPath)
-        let data = try await self.send(url: url, cookieHeader: cookieHeader, transport: transport)
+        let url = self.apiBase().appendingPathComponent(credential.pathPrefix + self.subscriptionsPath)
+        let data = try await self.send(url: url, credential: credential, transport: transport)
         return try self.parseSubscription(data: data)
     }
 
@@ -238,18 +269,24 @@ public enum CommandCodeUsageFetcher {
 
     private static func send(
         url: URL,
-        cookieHeader: String,
+        credential: Credential,
         transport: any ProviderHTTPTransport) async throws -> Data
     {
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.timeoutInterval = self.requestTimeoutSeconds
-        request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
-        request.setValue("application/json, text/plain, */*", forHTTPHeaderField: "Accept")
-        request.setValue("en-US,en;q=0.9", forHTTPHeaderField: "Accept-Language")
-        request.setValue(self.userAgent, forHTTPHeaderField: "User-Agent")
-        request.setValue(self.webOrigin, forHTTPHeaderField: "Origin")
-        request.setValue("\(self.webOrigin)/", forHTTPHeaderField: "Referer")
+        switch credential {
+        case let .cookieHeader(cookieHeader):
+            request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
+            request.setValue("application/json, text/plain, */*", forHTTPHeaderField: "Accept")
+            request.setValue("en-US,en;q=0.9", forHTTPHeaderField: "Accept-Language")
+            request.setValue(self.userAgent, forHTTPHeaderField: "User-Agent")
+            request.setValue(self.webOrigin, forHTTPHeaderField: "Origin")
+            request.setValue("\(self.webOrigin)/", forHTTPHeaderField: "Referer")
+        case let .apiKey(apiKey):
+            request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+            request.setValue("application/json", forHTTPHeaderField: "Accept")
+        }
 
         let response: ProviderHTTPResponse
         do {
@@ -261,11 +298,11 @@ public enum CommandCodeUsageFetcher {
             throw CommandCodeUsageError.networkError(error.localizedDescription)
         }
         if response.statusCode == 401 || response.statusCode == 403 {
+            if case .apiKey = credential { throw CommandCodeUsageError.invalidAPIKey }
             throw CommandCodeUsageError.invalidCredentials
         }
         guard (200..<300).contains(response.statusCode) else {
-            let body = String(data: response.data, encoding: .utf8) ?? ""
-            Self.log.error("CommandCode \(url.path) → \(response.statusCode): \(body)")
+            Self.log.error("CommandCode \(url.path) → \(response.statusCode)")
             throw CommandCodeUsageError.apiError(response.statusCode)
         }
         return response.data

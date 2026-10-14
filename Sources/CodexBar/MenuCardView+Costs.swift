@@ -542,17 +542,17 @@ extension UsageMenuCardView.Model {
             return Self.creditsUsageSection(cost: cost, percentStyle: percentStyle)
         }
 
-        if style == .claude {
-            if isClaudeAdminAPI {
-                let spend = formatCost(cost.used)
-                let periodLabel = Self.localizedPeriodLabel(cost.period ?? "Last 30 days")
-                return ProviderCostSection(
-                    title: L("API spend"),
-                    percentUsed: nil,
-                    spendLine: "\(periodLabel): \(spend)",
-                    percentLine: nil)
-            }
+        if style == .apiSpend || (style == .claude && isClaudeAdminAPI) {
+            let spend = formatCost(cost.used)
+            let periodLabel = Self.localizedPeriodLabel(cost.period ?? "Last 30 days")
+            return ProviderCostSection(
+                title: L("API spend"),
+                percentUsed: nil,
+                spendLine: "\(periodLabel): \(spend)",
+                percentLine: nil)
+        }
 
+        if style == .claude {
             if cost.limit <= 0 {
                 guard let balance = cost.balance else { return nil }
                 let value = formatCost(balance)
@@ -561,32 +561,6 @@ extension UsageMenuCardView.Model {
                     value: value,
                     showsInProviderDetails: false)
             }
-
-            let used = formatCost(cost.used)
-            let limit = formatCost(cost.limit)
-            let percentUsed = Self.clamped((cost.used / cost.limit) * 100)
-            let periodLabel = Self.localizedPeriodLabel(cost.period ?? "This month")
-            let balanceLine = cost.balance.map {
-                "\(L("Balance")): \(formatCost($0))"
-            }
-            return ProviderCostSection(
-                title: L("Extra usage"),
-                percentUsed: percentUsed,
-                spendLine: "\(periodLabel): \(used) / \(limit)",
-                percentLine: String(format: L("%.0f%% used"), min(100, max(0, percentUsed))),
-                balanceLine: balanceLine,
-                showsInProviderDetails: false,
-                percentStyle: percentStyle)
-        }
-
-        if style == .apiSpend {
-            let spend = formatCost(cost.used)
-            let periodLabel = Self.localizedPeriodLabel(cost.period ?? "Last 30 days")
-            return ProviderCostSection(
-                title: L("API spend"),
-                percentUsed: nil,
-                spendLine: "\(periodLabel): \(spend)",
-                percentLine: nil)
         }
 
         if style == .clawRouter, cost.limit <= 0 {
@@ -634,8 +608,10 @@ extension UsageMenuCardView.Model {
             percentUsed: percentUsed,
             spendLine: "\(periodLabel): \(used) / \(limit)",
             percentLine: String(format: L("%.0f%% used"), min(100, max(0, percentUsed))),
-            balanceLine: nil,
-            personalSpendLine: personalSpendLine)
+            balanceLine: style == .claude ? cost.balance.map { "\(L("Balance")): \(formatCost($0))" } : nil,
+            personalSpendLine: personalSpendLine,
+            showsInProviderDetails: style != .claude,
+            percentStyle: style == .claude ? percentStyle : .used)
     }
 
     /// Provider-specific by design: Claude cloud credits share the inline balance style of prepaid credits.

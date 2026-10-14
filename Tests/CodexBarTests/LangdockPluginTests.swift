@@ -43,7 +43,7 @@ struct LangdockPluginTests {
             domains: runtime.manifest.cookieDomains,
             settings: settings,
             batches: { _, _ in Issue.record("Must not import another profile or cached header"); return nil },
-            jarImporter: { Issue.record("Must not enumerate other profiles"); return [] },
+            jarImporter: { _ in Issue.record("Must not enumerate other profiles"); return nil },
             policy: runtime.manifest.cookiePolicy,
             profileReader: reader)
     }

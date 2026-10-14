@@ -25,7 +25,9 @@ support report.
 Scheduled and settings-triggered Chromium imports never request Keychain interaction, even when a settings change
 occurs during a manual refresh. Every import first tries the actual Safe Storage read without UI. A manual refresh
 shares one interactive retry across its browser imports and providers; successful no-UI reads do not spend that
-allowance. ACL preflight metadata cannot authorize additional prompts.
+allowance. ACL preflight metadata cannot authorize additional prompts. Automatic cookie imports stop reading
+browsers once a provider accepts a session; missing or rejected sessions advance to the next browser in the
+provider's existing order. Explicit browser/profile selections keep their own scope.
 
 A denied browser prompt suppresses Chromium-family interactive retries for six hours, including repeated Refresh
 clicks in the menu or provider settings. Only `codexbar cookie refresh --allow-keychain-prompt` explicitly overrides

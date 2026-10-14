@@ -8,7 +8,7 @@ read_when:
 
 # Providers
 
-CodexBar currently registers 100 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
+CodexBar currently registers 103 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
 OpenCode vs OpenCode Go, because the auth source and quota shape differ.
 
 ## Fetch strategies (current)
@@ -99,17 +99,17 @@ complete when the available scan window covers fewer days.
 | JetBrains AI | Local XML quota file (`local`). |
 | Amp | Local `amp usage` CLI, access-token API, then browser-cookie legacy fallback (`cli`, `api`, `web`). |
 | T3 Chat | Web tRPC customer-data endpoint via browser cookies (`web`). |
-| ZoomMate | Chrome cookie auto-import + cookie-to-token minting, or manual cURL capture, for the credits/status API (`web`). |
+| ZoomMate | Supported-browser cookie auto-import + cookie-to-token minting, or manual cURL capture, for the credits/status API (`web`). |
 | Warp | API token (config/env) → GraphQL request limits (`api`). |
 | ElevenLabs | API key from config/env → subscription usage API (`api`). |
 | [Nous Portal](nous.md) | Read-only Hermes login or explicit access token → bundled plugin for monthly credits and top-up balances (`api`). |
 | [Muse Code](muse.md) | Existing CLI device-code login → bundled plugin for reported five-hour and weekly subscription quotas (`oauth`); opt-in `dev.meta.ai` browser-team quota for a user-selected team when the login response omits them (`oauth+web`). |
 | [Muse (muse.ai)](museai.md) | Browser cookies for `muse.ai` or a manual Cookie header → bundled plugin for the muse.ai weekly Free/Power/Maximum allowance (`web`). |
 | [CodeRabbit](coderabbit.md) | One bounded local CLI usage report for review counts and billing state (`cli`); no quota or balance is inferred. |
-| [Replicate](replicate.md) | Native Chrome cookie candidates or a manual header → bundled plugin for monthly spend and optional prepaid credits (`web`). |
-| [TypeSafe](typesafe.md) | Chrome cookies or a manual header → bundled plugin for billing spend and credit balance (`web`). |
+| [Replicate](replicate.md) | Native browser cookie candidates or a manual header → bundled plugin for monthly spend and optional prepaid credits (`web`). |
+| [TypeSafe](typesafe.md) | Browser cookies or a manual header → bundled plugin for billing spend and credit balance (`web`). |
 | [Hugging Face](huggingface.md) | Access token from settings/env/CLI → bundled plugin for Inference Providers charges, optional ZeroGPU quota, and token-scoped identity (`api`). |
-| [Raycast](raycast.md) | Chrome cookies for `www.raycast.com` or a manual Cookie header → bundled plugin for monthly AI credits (`web`). |
+| [Raycast](raycast.md) | Supported-browser cookies for `www.raycast.com` or a manual Cookie header → bundled plugin for monthly AI credits (`web`). |
 | [v0](v0.md) | API key and optional project scope from settings/env → bundled plugin for Platform API billing and rate limits (`api`). |
 | [DevPass](devpass.md) | Regular LLM Gateway API key → bundled plugin for plan credits, premium weekly usage, and all-time key spend (`api`). |
 | [Atlas Cloud](atlascloud.md) | Standard API key → account-wide available USD balance (`api`). |
@@ -128,17 +128,19 @@ complete when the available scan window covers fewer days.
 | Mistral | Console billing, credit balance, and Vibe subscription usage via browser cookies (`web`). |
 | DeepSeek | API key from env or token accounts → balance endpoint (`api`). |
 | [Fireworks](fireworks.md) | API key + account slug → 30-day spend from the billing summary API (`api`). |
-| [Charm Hyper](hyper.md) | Bundled plugin: Chrome/manual session → API key from config or `HYPER_API_KEY` → native HC balance; no inferred quota or reset (`auto`, `web`, `api`). |
+| [Charm Hyper](hyper.md) | Bundled plugin: browser/manual dashboard session → API key from config or `HYPER_API_KEY` → native HC balance; no inferred quota or reset (`auto`, `web`, `api`). |
 | DeepInfra | API key from env or token accounts → billing checklist + monthly usage endpoints (`api`). |
 | Moonshot | API key from config/env → balance endpoint (`api`). |
 | Codebuff | API token from config/env or `codebuff login` credentials → usage API (`api`). |
-| Venice | Auto/API: API key from config/env → DIEM/USD balance (`api`). Explicit Web: Chrome or manual cookies → subscription credit details (`web`). |
+| Venice | Auto/API: API key from config/env → DIEM/USD balance (`api`). Explicit Web: browser or manual cookies → subscription credit details (`web`). |
 | Command Code | Web billing API via Command Code session cookies (`web`). |
+| Venice | Auto/API: API key from config/env → DIEM/USD balance (`api`). Explicit Web: browser or manual cookies → subscription credit details (`web`). |
+| Command Code | Billing API via API key when configured, otherwise session cookies (`auto`); explicit `api`/`web` pins the source. |
 | ClinePass | API key from config/env or labeled API-key accounts, then the existing `cline auth` session file → 5-hour, weekly, and monthly subscription usage limits (`api`). |
 | Qoder | Browser or manual cookies → big model credit usage (`web`). |
 | StepFun | Username/password login or manual Oasis token (`web`). |
 | AWS Bedrock | AWS credentials → Cost Explorer spend/budgets and optional CloudWatch Claude activity (`api`). |
-| Grok | `grok agent stdio` JSON-RPC `x.ai/billing` (`cli`) → grok.com billing gRPC-web via Chrome session cookies (`web`); local `~/.grok/sessions` signals as fallback. |
+| Grok | `grok agent stdio` JSON-RPC `x.ai/billing` (`cli`) → grok.com billing gRPC-web via browser session cookies (`web`); local `~/.grok/sessions` signals as fallback. |
 | Groq | Browser session → console spend and usage (`web`); Enterprise API key → Prometheus metrics fallback (`api`). |
 | LLM Proxy | API key + base URL → `/v1/quota-stats` aggregate proxy usage (`api`). |
 | ClawRouter | API key + optional base URL → `/v1/usage` monthly budget, spend, and routed-provider usage (`api`). |
@@ -152,7 +154,7 @@ complete when the available scan window covers fewer days.
 | Poe | API key → current point balance and best-effort points history (`api`). |
 | Chutes | API key from config/env → subscription usage and quota API (`api`). |
 | Neuralwatt | API key from config/env → `/v1/quota` subscription kWh usage and prepaid balance (`api`). |
-| Helmcode | Chrome or manual dashboard cookies → tenant-scoped model quotas, explicit premium rolling tiers, and Cloud-only prepaid balance (`web`). |
+| Helmcode | Browser or manual dashboard cookies → tenant-scoped model quotas, explicit premium rolling tiers, and Cloud-only prepaid balance (`web`). |
 | [ZenMux](zenmux.md) | Management API key from config/env → five-hour and seven-day quota windows plus PAYG balance (`api`). |
 | ai& | API key from config/env → 30-day organization spend summed from the request logs API (`api`). |
 | xAI | Management key + team ID from config/env → prepaid balance and 30-day daily spend from the Management API (`api`). |
@@ -165,17 +167,20 @@ complete when the available scan window covers fewer days.
 | Provider | Source |
 |---|---|
 | [Langdock](langdock.md) | Selected Edge, Chrome, or Safari profile → personal included session and weekly limits (`web`, macOS). |
-| [X API](xapi.md) | Chrome or manual console.x.com cookies for prepaid and free credits, including negative balances. |
-| [LithosAI](lithosai.md) | Chrome or manual console cookies for prepaid USD balance and optional UTC spend. |
+| [X API](xapi.md) | Browser or manual console.x.com cookies for prepaid and free credits, including negative balances. |
+| [LithosAI](lithosai.md) | Browser or manual console cookies for prepaid USD balance and optional UTC spend. |
 | [WorkBuddy](workbuddy.md) | Chrome or manual www.workbuddy.cn cookies for the monthly credits allowance, plan name, and cycle reset. |
 | [Tavily](tavily.md) | API key for account-plan, per-key, and pay-as-you-go credit totals. |
 | [Linkup](linkup.md) | API key for the current prepaid USD credit balance. |
-| [TinyApi](tinyapi.md) | Chrome or manual session cookies for aggregate available credits. |
+| [TinyApi](tinyapi.md) | Browser or manual session cookies for aggregate available credits. |
 | [Exa](exa.md) | Team Management service key plus an explicit API key ID for month-to-date USD spend. |
 | [Cosmic AI](cosmic.md) | Explicit Personal Access Token and Project ID for separate project AI input/output counters and allowances. |
 | [Aerostack](aerostack.md) | Explicit account JWT for monthly AI tokens used and the observed account allowance. |
 | [Sail Research](sailresearch.md) | API key for organization credit balance and combined inference/Sailbox spend. |
 | [Sofya](sofya.md) | API key for separate account plan and purchased credit balances, eligibility, and the reported monthly reset. |
+| [fal](fal.md) | API key with billing read access for the current account credit balance. |
+| [FLORA](flora.md) | API key with billing permission plus a workspace ID for the available USD balance and month-to-date spend. |
+| [Parallel](parallel.md) | Browser session on platform.parallel.ai for the prepaid credit balance and pending debit. |
 
 <!-- End generated provider additions -->
 
@@ -345,7 +350,7 @@ provider-specific cookie validation, endpoints, login detection, and error trans
 - Web mode resolves `sec_token` through the dashboard (`home.qwencloud.com`), then posts to the current
   individual Token Plan usage, subscription, and quota-configuration APIs on `cs-data.qwencloud.com`.
 - Displays 5-hour and weekly consumed percentages, reset times, active tier, and tier-specific credit limits.
-- Cookie sources: Chrome import (`auto`), manual Cookie header, or `QWEN_CLOUD_COOKIE`.
+- Cookie sources: shared browser order (`auto`), manual Cookie header, or `QWEN_CLOUD_COOKIE`.
 - Default data gateway:
   `https://cs-data.qwencloud.com/data/api.json?action=IntlBroadScopeAspnGateway&product=sfm_bailian`.
 - Host overrides: `QWEN_CLOUD_HOST` or `QWEN_CLOUD_QUOTA_URL` (HTTPS URLs or bare hosts normalized to HTTPS).
@@ -407,7 +412,7 @@ provider-specific cookie validation, endpoints, login detection, and error trans
 - Details: `docs/jetbrains.md`.
 
 ## Zed
-- Optional browser billing reads token spend, limits, and remaining budget from a signed-in `zed.dev` Chrome session or manual Cookie header. Cookie source defaults to Off; browser and editor accounts are never combined.
+- Optional browser billing reads token spend, limits, and remaining budget from a signed-in `zed.dev` browser session or manual Cookie header. Cookie source defaults to Off; browser and editor accounts are never combined.
 - Reads the signed-in Zed editor session from the macOS Keychain (`credentials_url` / `https://zed.dev`).
 - Calls `GET https://cloud.zed.dev/client/users/me` for plan, billing cycle, Edit Predictions quota, and overdue invoice flag.
 - Sign in to the Zed editor first.
@@ -438,7 +443,7 @@ provider-specific cookie validation, endpoints, login detection, and error trans
 ## ZoomMate
 - Credits API endpoint (`https://ai.zoom.us/ai-computer/api/v1/credits/status`) authenticated via a
   bearer token.
-- Auto-imports ZoomMate/Zoom session cookies from Chrome, validates and stores the narrowed cookie
+- Auto-imports ZoomMate/Zoom session cookies in the shared browser order, validates and stores the narrowed cookie
   header in CodexBar's Keychain cache, and exchanges it for a short-lived bearer token through
   ZoomMate's own cookie-to-token bootstrap endpoint. The bearer remains in memory only and is reused
   until it nears expiry. Manual cURL capture is available as an explicit alternative.
@@ -517,7 +522,7 @@ provider-specific cookie validation, endpoints, login detection, and error trans
 
 ## Mistral
 - Session cookie (`ory_session_*`) from browser auto-import or manual `Cookie:` header.
-- Cookie import order: Chrome → Firefox → Safari. Chrome first preserves the original behavior for existing users; Firefox (including Developer Edition) is detected automatically; Safari follows for Full Disk Access users. Other Chromium forks use Manual mode. Automatic import reads only unexpired cookies from the documented Mistral domains.
+- Cookie import follows the shared supported-browser order and access gate. Safari may require Full Disk Access. Automatic import reads only unexpired cookies from the documented Mistral domains.
 - CSRF token (`csrftoken` cookie) sent as `X-CSRFTOKEN` for billing and fallback Vibe requests.
 - Domains: `admin.mistral.ai` for API billing, included subscription allowances, and credit balance, and `console.mistral.ai` for fallback Vibe usage. Console requests forward only `csrftoken` and `ory_session_*`; all other admin cookies stay origin-bound.
 - Reads monthly usage and pricing from the billing usage endpoint, included API/Vibe allowances from the subscription page, and credit balance from the billing credits endpoint.
@@ -553,7 +558,7 @@ provider-specific cookie validation, endpoints, login detection, and error trans
 ## Venice
 - API key via `VENICE_API_KEY` / `VENICE_KEY` env var or Venice token accounts.
 - Auto and API show current DIEM or USD balance; DIEM epoch allocation progress when available.
-- Explicit Web source uses Chrome or manual Venice cookies for subscription credits, cycle spending, bank cap, and refill dates. Cookie Off prevents web requests; API-account identity stays separate from browser credit data.
+- Explicit Web source uses browser or manual Venice cookies for subscription credits, cycle spending, bank cap, and refill dates. Cookie Off prevents web requests; API-account identity stays separate from browser credit data.
 - Status: none yet.
 - Details: `docs/venice.md`.
 
@@ -566,8 +571,9 @@ provider-specific cookie validation, endpoints, login detection, and error trans
 - Details: `docs/codebuff.md`.
 
 ## Command Code
-- Browser session cookies from automatic import or manual `Cookie:` header.
-- Linux CLI supports configured manual cookies; automatic browser import remains macOS-only.
+- Auto uses `COMMAND_CODE_API_KEY` or config `apiKey` when set, otherwise browser session cookies from automatic import or a manual `Cookie:` header.
+- Explicit API or web mode pins that source on macOS and Linux.
+- Linux CLI also supports configured manual cookies; automatic browser import remains macOS-only.
 - Reads 5-hour and weekly rolling limits plus monthly USD credits and billing-cycle usage from `api.commandcode.ai`.
 - Automatic import looks for better-auth session cookies from `commandcode.ai` / `www.commandcode.ai`.
 - Debug builds support `COMMANDCODE_API_URL` for synthetic loopback tests; release builds use the official billing endpoint.
@@ -588,7 +594,7 @@ JavaScriptCore is the macOS rollback engine. The committed `.js` is generated fr
 - Details: `docs/clinepass.md`.
 
 ## Qoder
-- Chrome session cookies from automatic import, or a manual `Cookie:` header/cURL capture on macOS or Linux.
+- Browser session cookies from automatic import, or a manual `Cookie:` header/cURL capture on macOS or Linux.
 - Reads big model credit usage from the Qoder account dashboard on `qoder.com` or `qoder.com.cn`.
 - Shows used and total credits plus the usage percentage; invalid cached sessions retry freshly imported cookies.
 - Status: none yet.
@@ -597,7 +603,7 @@ JavaScriptCore is the macOS rollback engine. The committed `.js` is generated fr
 ## Grok
 - `grok agent stdio` (ACP) JSON-RPC `x.ai/billing` method; requires `grok login` (SuperGrok OAuth/OIDC).
 - Reads cached credentials from `~/.grok/auth.json` for identity (email, team).
-- Falls back to grok.com's billing gRPC-web endpoint via Chrome session cookies when the CLI does not expose billing.
+- Falls back to grok.com's billing gRPC-web endpoint via browser session cookies when the CLI does not expose billing.
 - Ordinary CLI/test runs do not import browser cookies unless `CODEXBAR_ALLOW_BROWSER_COOKIE_IMPORT=1` is set;
   `codexbar cookie refresh --provider grok` opts in for its explicit refresh.
 - Validated sessions are cached in the Keychain cookie cache and reused before any new browser import;
@@ -740,7 +746,7 @@ failures. Authentication failures and invalidated account scopes do not restore 
 
 ## Helmcode
 
-[Helmcode](helmcode.md) reads model quotas from a Chrome dashboard session for Helmcode Cloud or NaN Builders. Cloud is preferred when both tenants are signed in; Manual cookie source uses the selected tenant. Prepaid balance is Cloud-only.
+[Helmcode](helmcode.md) reads model quotas from a browser dashboard session for Helmcode Cloud or NaN Builders. Cloud is preferred when both tenants are signed in; Manual cookie source uses the selected tenant. Prepaid balance is Cloud-only.
 
 ## GitKraken AI
 

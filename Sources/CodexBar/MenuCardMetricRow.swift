@@ -51,6 +51,7 @@ struct MetricRow: View {
                 }
             }
         }
+        .help(self.metric.helpText ?? "")
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(self.metric.cardStyle ? 10 : 0)
         .background(self.metric.cardStyle ? Color.secondary.opacity(self.isHighlighted ? 0.2 : 0.08) : Color.clear)

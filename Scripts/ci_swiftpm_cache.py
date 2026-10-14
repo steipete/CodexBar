@@ -16,7 +16,7 @@ import time
 SCHEMA = 3
 DEFAULT_METADATA = ".build/ci-inputs.json"
 MAX_METADATA_BYTES = 16 * 1024 * 1024
-LANES = ("macos26-arm64", "macos15-arm64")
+LANES = ("xcode27-arm64",)
 CONTEXT_INPUTS = (
     "Package.swift", "Package.resolved", ".github/workflows/ci.yml",
     "Scripts/ci_swiftpm_cache.py", "Scripts/test.sh", "Scripts/test_environment.sh",

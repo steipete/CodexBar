@@ -18,7 +18,7 @@ struct XAPISettingsTests {
         #expect(!descriptor.metadata.burnDownWidgetSelectable)
         #expect(!descriptor.history.supportsPlanUtilization)
         #expect(descriptor.fetchPlan.sourceModes == [.auto, .web])
-        #expect(descriptor.metadata.browserCookieOrder == [.chrome])
+        #expect(descriptor.metadata.browserCookieOrder == ProviderBrowserCookieDefaults.defaultImportOrder)
         #expect(ProviderSelection(argument: "xapi")?.asList == [.xapi])
         let fixture = try ProviderSettingsDescriptorTests().makeSettingsFixture(suite: "XAPISettingsTests")
         let implementation = try #require(ProviderCatalog.implementation(for: .xapi))

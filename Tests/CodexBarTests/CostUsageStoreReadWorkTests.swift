@@ -89,6 +89,7 @@ struct CostUsageStoreReadWorkTests {
             daily: full.daily,
             projects: retainedReport ? [] : full.projects,
             sessions: retainedReport ? [] : full.sessions,
+            detailsAreComplete: full.detailsAreComplete && !retainedReport,
             updatedAt: fixture.now.addingTimeInterval(retainedReport ? -60 : 0))
     }
 
@@ -874,6 +875,7 @@ struct ReadWorkFixture {
     func expectSnapshot(_ result: CostUsageFetcher.CachedCodexTokenSnapshotResult?, details: Bool = false) throws {
         let result = try #require(result)
         #expect(result.snapshot.historyCoverageIsEstablished == !self.incomplete)
+        #expect(result.snapshot.detailsAreComplete == (details && !self.incomplete))
         #expect(result.snapshot.last30DaysTokens == self.rowCount * 13)
         #expect(result.snapshot.sessionTokens == self.rowCount * 13)
         #expect(result.snapshot.daily.count == 1)

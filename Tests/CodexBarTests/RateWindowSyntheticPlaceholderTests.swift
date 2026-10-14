@@ -2,10 +2,7 @@ import Foundation
 import Testing
 @testable import CodexBarCore
 
-/// Coverage for `RateWindow.isSyntheticPlaceholder` — the boundary marker that lets lane classifiers
-/// distinguish Claude web's `five_hour: null` placeholder from a real zero-usage session. Verifies the
-/// marker is set at the web boundary, survives Codable (with backward compatibility), and survives the
-/// reset backfill that previously defeated a shape-only heuristic.
+/// Older cached placeholders remain readable, while current Web responses preserve an absent session.
 struct RateWindowSyntheticPlaceholderTests {
     @Test
     func `synthetic placeholder flag round-trips through Codable`() throws {
@@ -70,7 +67,7 @@ struct RateWindowSyntheticPlaceholderTests {
     }
 
     @Test
-    func `web mapping flags the null five-hour session as a synthetic placeholder`() throws {
+    func `web mapping leaves the null five-hour session absent`() throws {
         let json = """
         {
           "five_hour": null,
@@ -80,10 +77,7 @@ struct RateWindowSyntheticPlaceholderTests {
         let webData = try ClaudeWebAPIFetcher._parseUsageResponseForTesting(Data(json.utf8))
         let primary = ClaudeUsageFetcher.webPrimaryWindow(from: webData)
 
-        #expect(primary.isSyntheticPlaceholder == true)
-        #expect(primary.usedPercent == 0)
-        #expect(primary.windowMinutes == 300)
-        #expect(primary.resetsAt == nil)
+        #expect(primary == nil)
     }
 
     @Test
@@ -97,8 +91,8 @@ struct RateWindowSyntheticPlaceholderTests {
         let webData = try ClaudeWebAPIFetcher._parseUsageResponseForTesting(Data(json.utf8))
         let primary = ClaudeUsageFetcher.webPrimaryWindow(from: webData)
 
-        #expect(primary.isSyntheticPlaceholder == false)
-        #expect(primary.usedPercent == 11)
+        #expect(primary?.isSyntheticPlaceholder == false)
+        #expect(primary?.usedPercent == 11)
     }
 
     @Test
@@ -112,12 +106,11 @@ struct RateWindowSyntheticPlaceholderTests {
         let webData = try ClaudeWebAPIFetcher._parseUsageResponseForTesting(Data(json.utf8))
         #expect(webData.sessionPercentUsed == 45.5)
         #expect(webData.weeklyPercentUsed == 12.25)
-        #expect(webData.hasLiveSessionWindow == true)
 
         let primary = ClaudeUsageFetcher.webPrimaryWindow(from: webData)
-        #expect(primary.isSyntheticPlaceholder == false)
-        #expect(primary.usedPercent == 45.5)
-        #expect(primary.remainingPercent == 54.5)
+        #expect(primary?.isSyntheticPlaceholder == false)
+        #expect(primary?.usedPercent == 45.5)
+        #expect(primary?.remainingPercent == 54.5)
     }
 
     @Test
@@ -134,8 +127,8 @@ struct RateWindowSyntheticPlaceholderTests {
         let webData = try ClaudeWebAPIFetcher._parseUsageResponseForTesting(Data(json.utf8))
         let primary = ClaudeUsageFetcher.webPrimaryWindow(from: webData)
 
-        #expect(primary.isSyntheticPlaceholder == false)
-        #expect(primary.usedPercent == 0)
-        #expect(primary.resetsAt == nil)
+        #expect(primary?.isSyntheticPlaceholder == false)
+        #expect(primary?.usedPercent == 0)
+        #expect(primary?.resetsAt == nil)
     }
 }

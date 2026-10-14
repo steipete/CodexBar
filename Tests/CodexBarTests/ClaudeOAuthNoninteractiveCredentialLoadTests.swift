@@ -50,7 +50,7 @@ struct ClaudeOAuthNoninteractiveCredentialLoadTests {
                                                         if consent, mode != .never {
                                                             let usage = try await fetcher
                                                                 .loadLatestUsage(model: "sonnet")
-                                                            #expect(usage.primary.usedPercent == 7)
+                                                            #expect(usage.primary?.usedPercent == 7)
                                                         } else {
                                                             await #expect(throws: (any Error).self) {
                                                                 try await fetcher.loadLatestUsage(model: "sonnet")

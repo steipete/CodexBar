@@ -1,5 +1,7 @@
+import AppKit
 import CodexBarCore
 import Foundation
+import SwiftUI
 import Testing
 @testable import CodexBar
 
@@ -50,15 +52,40 @@ struct CompactOverviewTests {
         #expect(visible.providerDetails.first?.rows.first?.value == "$12.00")
     }
 
+    @Test(arguments: [UsageProvider.codex, .claude])
+    func `plan dates add a row only in detailed overview when quotas are present`(provider: UsageProvider) throws {
+        var model = try Self.model(provider: provider)
+        model.providerDetails = []
+        model.providerDetailRawTitles = []
+        let withoutDate = model
+        model.subscriptionNotes = ["Renews: Nov 5, 2026"]
+        model.usageNotes = model.subscriptionNotes
+
+        #expect(abs(Self.height(model, layout: .compact) - Self.height(withoutDate, layout: .compact)) < 1)
+        #expect(Self.height(model, layout: .detailed) > Self.height(withoutDate, layout: .detailed) + 10)
+
+        model.metrics = []
+        var withoutQuotasOrDate = model
+        withoutQuotasOrDate.subscriptionNotes = []
+        withoutQuotasOrDate.usageNotes = []
+        #expect(Self.height(model, layout: .compact) > Self.height(withoutQuotasOrDate, layout: .compact) + 10)
+    }
+
+    private static func height(_ model: UsageMenuCardView.Model, layout: MergedOverviewLayout) -> CGFloat {
+        NSHostingController(rootView: OverviewMenuCardRowView(
+            model: model, storageText: nil, width: 340, layout: layout))
+            .sizeThatFits(in: CGSize(width: 340, height: CGFloat.greatestFiniteMagnitude)).height
+    }
+
     private static func settings(_ defaults: InMemoryUserDefaults) -> SettingsStore {
         ProviderUsageItemVisibilityTests.settings(
             defaults: defaults,
             configStore: testConfigStore(suiteName: "CompactOverviewTests-\(UUID().uuidString)"))
     }
 
-    private static func model() throws -> UsageMenuCardView.Model {
+    private static func model(provider: UsageProvider = .zai) throws -> UsageMenuCardView.Model {
         try UsageMenuCardView.Model(
-            provider: .zai,
+            provider: provider,
             providerName: "Example provider",
             email: "",
             subtitleText: "Updated just now",

@@ -72,7 +72,7 @@ struct ClaudeCLITimeoutRetryTests {
         let recorded = await attempts.snapshot()
         #expect(recorded.count == 2)
         #expect(recorded.timeouts == [24, 60])
-        #expect(snapshot.primary.usedPercent == 9)
+        #expect(snapshot.primary?.usedPercent == 9)
         #expect(snapshot.secondary?.usedPercent == 12)
         #expect(snapshot.accountEmail == "cli@example.com")
     }
@@ -151,7 +151,7 @@ struct ClaudeCLITimeoutRetryTests {
         #expect(recorded.count == 2)
         #expect(recorded.timeouts == [12, 60])
         #expect(webRequests.snapshot().isEmpty)
-        #expect(snapshot.primary.usedPercent == 5)
+        #expect(snapshot.primary?.usedPercent == 5)
         #expect(snapshot.secondary?.usedPercent == 7)
         #expect(snapshot.accountEmail == "loading-cli@example.com")
     }
@@ -194,7 +194,7 @@ struct ClaudeCLITimeoutRetryTests {
         let recorded = await attempts.snapshot()
         #expect(recorded.count == 2)
         #expect(recorded.timeouts == [12, 60])
-        #expect(snapshot.primary.usedPercent == 28)
+        #expect(snapshot.primary?.usedPercent == 28)
         #expect(snapshot.secondary?.usedPercent == 36)
         #expect(snapshot.accountEmail == "auto-cli@example.com")
     }
@@ -321,7 +321,7 @@ struct ClaudeCLITimeoutRetryTests {
         let recorded = await attempts.snapshot()
         #expect(recorded.count == 1)
         #expect(recorded.timeouts == [24])
-        #expect(snapshot.primary.usedPercent == 11)
+        #expect(snapshot.primary?.usedPercent == 11)
         #expect(snapshot.secondary?.usedPercent == 17)
         #expect(snapshot.accountEmail == "manual-cli@example.com")
         #expect(ClaudeCLIRateLimitGate.currentBlockedUntil() == nil)

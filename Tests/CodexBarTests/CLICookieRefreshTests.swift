@@ -23,6 +23,16 @@ struct CLICookieRefreshTests {
 
     #if os(macOS)
     @Test
+    func `Muse AI participates in explicit and all provider cookie refresh`() throws {
+        let targets = try CodexBarCLI.cookieRefreshTargets(rawProvider: nil, refreshAll: true)
+        #expect(targets.contains { $0.id == .museai })
+        let explicit = try CodexBarCLI.cookieRefreshTargets(rawProvider: "museai", refreshAll: false)
+        #expect(explicit.map(\.id) == [.museai])
+        #expect(CodexBarCLI.cookieRefreshBrowserOrder(descriptor: explicit[0], config: nil)
+            == ProviderBrowserCookieDefaults.defaultImportOrder)
+    }
+
+    @Test
     func `all provider selection is descriptor driven`() throws {
         let targets = try CodexBarCLI.cookieRefreshTargets(rawProvider: nil, refreshAll: true)
 
@@ -31,6 +41,16 @@ struct CLICookieRefreshTests {
         #expect(targets.contains(where: { $0.id == .opencode }))
         #expect(targets.allSatisfy { $0.metadata.browserCookieOrder != nil })
         #expect(targets.allSatisfy { $0.fetchPlan.sourceModes.contains(.web) })
+    }
+
+    @Test
+    func `catalog order providers remain cookie refresh targets`() throws {
+        let all = try CodexBarCLI.cookieRefreshTargets(rawProvider: nil, refreshAll: true)
+        let typesafe = try CodexBarCLI.cookieRefreshTargets(rawProvider: "typesafe", refreshAll: false)
+
+        #expect(all.contains(where: { $0.id == .typesafe }))
+        #expect(typesafe.map(\.id) == [.typesafe])
+        #expect(typesafe.first?.metadata.browserCookieOrder == ProviderBrowserCookieDefaults.defaultImportOrder)
     }
 
     @Test

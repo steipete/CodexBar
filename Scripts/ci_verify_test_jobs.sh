@@ -10,8 +10,7 @@ macos_tests_deferred="${5:-}"
 linux_musl_build_required="${6:-}"
 linux_musl_build_result="${7:-}"
 linux_build_result="${8-<missing>}"
-macos_compatibility_result="${9-<missing>}"
-linux_build_required="${10-<missing>}"
+linux_build_required="${9-<missing>}"
 
 if [[ "$lint_result" != "success" ]]; then
   printf 'lint job finished with %s\n' "${lint_result:-<empty>}" >&2
@@ -52,20 +51,6 @@ case "${macos_tests_required}:${macos_tests_deferred}:${macos_test_result}" in
     printf 'macOS test gate/result mismatch: required=%s deferred=%s result=%s\n' \
       "${macos_tests_required:-<empty>}" "${macos_tests_deferred:-<empty>}" \
       "${macos_test_result:-<empty>}" >&2
-    exit 1
-    ;;
-esac
-
-case "${macos_tests_required}:${macos_compatibility_result}" in
-  true:success)
-    printf 'Swift 6.2 compatibility build passed.\n'
-    ;;
-  false:skipped)
-    printf 'Swift 6.2 compatibility build skipped by the macOS test gate.\n'
-    ;;
-  *)
-    printf 'Swift 6.2 build gate/result mismatch: required=%s result=%s\n' \
-      "${macos_tests_required:-<empty>}" "${macos_compatibility_result:-<empty>}" >&2
     exit 1
     ;;
 esac

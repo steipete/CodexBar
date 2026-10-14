@@ -1415,6 +1415,7 @@
 "menu_bar_layout_preset_icon_only" = "Endast ikon";
 "menu_bar_layout_preset_percent_reset" = "Procent och återställning";
 "menu_bar_layout_preset_compact_stacked" = "Kompakt staplad";
+"menu_bar_layout_preset_bars_stacked" = "Framstegsmarkörer staplade";
 "menu_bar_layout_preset_custom" = "Anpassat";
 "menu_bar_layout_live_preview" = "Liveförhandsvisning";
 "menu_bar_layout_default_preview" = "Förhandsvisning av standardlayout";
@@ -1452,7 +1453,7 @@
 "menu_bar_layout_token_reset_at" = "Återställs kl.";
 "menu_bar_layout_token_runs_out" = "Tar slut";
 "menu_bar_layout_token_cost_today" = "Kostnad idag";
-"menu_bar_layout_token_cost_30d" = "Kostnad 30 dagar";
+"menu_bar_layout_token_cost_window" = "Kostnad (Historikfönster)";
 "menu_bar_layout_token_space" = "Blanksteg";
 "menu_bar_layout_token_line_break" = "Radbrytning";
 "menu_bar_layout_token_separator_accessibility" = "Avgränsarpunkt";
@@ -1470,7 +1471,6 @@
 "Reset time unavailable" = "Återställs kl.: Inte tillgänglig";
 "Run-out estimate unavailable" = "Tar slut: Inte tillgänglig";
 "Cost today unavailable" = "Kostnad idag: Inte tillgänglig";
-"30-day cost unavailable" = "Kostnad 30 dagar: Inte tillgänglig";
 "Resets" = "Återställningar";
 "codex_workspaces_cost_unavailable" = "Kostnaden är inte tillgänglig";
 "codex_workspaces_elevated_usage" = "Förhöjd användning";
@@ -1555,6 +1555,7 @@
 "5-hour usage" = "5-timmarsanvändning";
 "7-day usage" = "7-dagarsanvändning";
 "Total usage" = "Total användning";
+"claude_oauth_keychain_access_disabled" = "Åtkomst till Keychain är inaktiverad, så CodexBar kan inte läsa Claudes inloggningsuppgifter.";
 "claude_oauth_keychain_access_revoked" = "Åtkomsten till Claudes nyckelring återkallades när Claude Code roterade token. Klicka på Uppdatera för att ge åtkomst igen, eller byt Claudes användningskälla till CLI/Web.";
 "claude_showing_last_known_usage" = "Visar senast kända användning, registrerad %@.";
 "claude_limited_usage_detail" = "Begränsade användningsdetaljer";
@@ -2512,3 +2513,115 @@
 "Pace sign" = "Tecken för förbrukningstakt";
 "Ahead of pace is +" = "Över förbrukningstakten är +";
 "Reserve is +" = "Reserv är +";
+
+"cost_reset_inferred_tooltip" = "Antaget: %@ rapporterar inte detta datum. Månatliga utgiftsgränser återställs den 1:a kl. 00:00 UTC.";
+/* fal provider credentials */
+"Key with billing read access (BILLING or READONLY preset). Or set FAL_KEY." = "Nyckel med läsåtkomst till fakturering (förinställning BILLING eller READONLY). Eller ange FAL_KEY.";
+
+/* FLORA provider credentials */
+"Needs billing permission on the workspace. Or set FLORA_API_KEY." = "Kräver faktureringsbehörighet för arbetsytan. Eller ange FLORA_API_KEY.";
+"Required. The ws_… ID of the workspace the key can bill. Or set FLORA_WORKSPACE_ID." = "Obligatoriskt. ws_…-ID för arbetsytan som nyckeln kan fakturera. Eller ange FLORA_WORKSPACE_ID.";
+"ak_…" = "ak_…";
+"ws_…" = "ws_…";
+
+"Plan renewal / expiry" = "Planförnyelse / utgångsdatum";
+
+"Hidden by the global optional credits, spending & billing setting." = "Dolt av den globala inställningen för valfria krediter, utgifter och faktureringsuppgifter.";
+
+"Provider order updated" = "Leverantörsordningen uppdaterad";
+"Undo" = "Ångra";
+"Clear filters" = "Rensa filter";
+"Change provider order" = "Ändra leverantörsordning";
+"Provider sorting" = "Sortera leverantörer";
+"Only enabled providers" = "Endast aktiverade leverantörer";
+"Restore default order" = "Återställ standardordning";
+"Also restores the provider order in the menu bar. Can be undone." = "Återställer även leverantörsordningen i menyraden. Kan ångras.";
+"Local Codex details; excluded from combined totals." = "Lokala Codex-detaljer; ingår inte i de sammanlagda totalerna.";
+
+"Auto uses an API key when configured, otherwise browser cookies." = "Auto uses an API key when configured, otherwise browser cookies.";
+"Stored in the CodexBar config file. You can also set COMMAND_CODE_API_KEY." = "Stored in the CodexBar config file. You can also set COMMAND_CODE_API_KEY.";
+/* OpenAI organization rate limits and live usage */
+"%@ tokens · %@ requests" = "%@ token · %@ förfrågningar";
+"15m" = "15 min";
+"1h" = "1 h";
+"5-min avg" = "5-minuterssnitt";
+"6h" = "6 h";
+"All models" = "Alla modeller";
+"Input %@ · cached %@ · output %@" = "Indata %@ · cachelagrat %@ · utdata %@";
+"Live Usage" = "Liveanvändning";
+"Loading live usage…" = "Läser in liveanvändning…";
+"Minute" = "Minut";
+"Model" = "Modell";
+"No API traffic in this window" = "Ingen API-trafik under perioden";
+"Open OpenAI Settings" = "Öppna OpenAI-inställningar";
+"OpenAI Admin Usage API · 1-minute buckets · the newest minute can arrive late" = "OpenAI Admin Usage API · intervall på 1 minut · den senaste minuten kan komma sent";
+"OpenAI Live Usage" = "OpenAI-liveanvändning";
+"Other" = "Övriga";
+"Peak" = "Topp";
+"Peak TPM" = "Topp-TPM";
+"Project: %@" = "Projekt: %@";
+"Range" = "Period";
+"Rate limited; retrying in %ds" = "Hastighetsgräns nådd; försöker igen om %ds";
+"Requests in window" = "Förfrågningar under perioden";
+"Tokens in window" = "Token under perioden";
+"Tokens per minute" = "Token per minut";
+"Uncached input" = "Ej cachelagrade indata";
+"Uncached input %@ · cached input %@ · output %@" = "Ej cachelagrade indata %@ · cachelagrade indata %@ · utdata %@";
+"Organization rate limits" = "Organisationens hastighetsgränser";
+"Open organization Limits" = "Öppna organisationens gränser";
+"RPM (optional)" = "RPM (valfritt)";
+"Enter a model and positive limits, such as 40M TPM and 15k RPM." = "Ange en modell och positiva gränser, till exempel 40M TPM och 15k RPM.";
+"Add model" = "Lägg till modell";
+"Org TPM limit" = "Organisationens TPM-gräns";
+"Org limit %@ TPM" = "Organisationsgräns %@ TPM";
+"Org limit %@ TPM (off scale)" = "Organisationsgräns %@ TPM (utanför skalan)";
+"Limits…" = "Gränser…";
+"Highest utilization" = "Högst utnyttjande";
+"%@ of limit" = "%@ av gränsen";
+"Limit" = "Gräns";
+"Peak RPM: %@ of limit" = "Topp-RPM: %@ av gränsen";
+"Peak % of limit" = "Topp i % av gränsen";
+
+/* OpenAI live usage errors */
+"Configure an OpenAI organization Admin API key in Settings → Providers → OpenAI." = "Ange en OpenAI Admin API-nyckel för organisationen under Inställningar → Leverantörer → OpenAI.";
+"An OpenAI organization Admin API key with usage and project read permissions is required." = "En OpenAI Admin API-nyckel för organisationen med läsrättigheter för användning och projekt krävs.";
+"OpenAI API is rate limited." = "OpenAI API har nått hastighetsgränsen.";
+"OpenAI API failed (HTTP %d)." = "OpenAI API misslyckades (HTTP %d).";
+"Could not parse the OpenAI API response." = "Kunde inte tolka svaret från OpenAI API.";
+"Live usage supports 15-minute, 1-hour, and 6-hour windows." = "Liveanvändning stöder perioder på 15 minuter, 1 timme och 6 timmar.";
+
+/* Live usage reporting and project caps */
+
+/* Live usage reporting and project caps */
+"Latest · %@" = "Senaste · %@";
+"Latest TPM" = "Senaste TPM";
+"reporting…" = "inväntar data…";
+"Org limit not set" = "Organisationsgräns saknas";
+"project cap %@" = "projektgräns %@";
+"Set org limit…" = "Ange organisationsgräns…";
+"Org limits come from Settings — OpenAI's API doesn't expose them." = "Organisationsgränser hämtas från Inställningar — OpenAI:s API tillhandahåller dem inte.";
+"Project caps are the highest per-project limit across %d active projects; org-wide traffic can exceed them." = "Projektgränser är de högsta gränserna per projekt bland %d aktiva projekt; organisationens totala trafik kan överskrida dem.";
+"Project sample capped at 25; higher project caps may exist." = "Urvalet är begränsat till 25 projekt; högre projektgränser kan finnas.";
+"Project caps unavailable" = "Projektgränser är inte tillgängliga";
+"OpenAI's API doesn't expose organization rate limits. Copy them from your organization's Limits page. Model IDs match dated snapshots (gpt-5 covers gpt-5-2025-…)." = "OpenAI:s API tillhandahåller inte organisationens hastighetsgränser. Kopiera dem från organisationens Limits-sida. Modell-ID:n matchar daterade versioner (gpt-5 omfattar gpt-5-2025-…).";
+"Tokens / min · last hour" = "Token / min · senaste timmen";
+"Latest %@ · Peak %@ at %@" = "Senaste %@ · Topp %@ kl. %@";
+"%@ · peak %@ · %@ of org limit" = "%@ · topp %@ · %@ av organisationsgränsen";
+"Tokens / min" = "Token / min";
+"Latest tokens per minute (OpenAI Admin API)" = "Senaste token per minut (OpenAI Admin API)";
+"Fetches 1-minute usage each refresh for the menu card chart and the menu bar Tokens/min token." = "Hämtar minutvis användning vid varje uppdatering för diagrammet i menykortet och elementet Token/min i menyraden.";
+"Live Usage…" = "Liveanvändning…";
+"Batch API %@ · not counted in %% of limit" = "Batch API %@ · räknas inte i %% av gränsen";
+"% of limit counts all input, including cached input, plus output, as OpenAI's rate limiter does, and excludes Batch API traffic, which has separate limits. The limiter also reserves max_tokens up front, so short bursts can still hit limits." = "% av gränsen räknar all indata, inklusive cachad indata, plus utdata, precis som OpenAI:s hastighetsbegränsare, och utesluter Batch API-trafik som har separata gränser. Begränsaren reserverar också max_tokens i förväg, så korta toppar kan fortfarande nå gränserna.";
+
+"Tokens / min graph" = "Token / min-diagram";
+"Last hour of tokens per minute (OpenAI Admin API)" = "Token per minut under den senaste timmen (OpenAI Admin API)";
+"Tokens per minute, latest %@" = "Token per minut, senaste värdet %@";
+
+"Live" = "Live";
+
+"Chart" = "Diagram";
+
+"Daily spend · %@" = "Dagliga utgifter · %@";
+"Applies to the selected token account “%@”. Each account keeps its own limits." = "Gäller det valda tokenkontot ”%@”. Varje konto behåller sina egna gränser.";
+"Applies to the OpenAI API key, not to token accounts." = "Gäller OpenAI API-nyckeln, inte tokenkonton.";

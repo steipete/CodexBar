@@ -1,9 +1,5 @@
 import Foundation
 
-#if os(macOS)
-import SweetCookieKit
-#endif
-
 public enum AugmentProviderDescriptor {
     public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
     private static let credentials = ProviderCredentialAdapter(tokenAccountSupport: TokenAccountSupport(
@@ -15,27 +11,7 @@ public enum AugmentProviderDescriptor {
         cookieName: nil))
 
     static func makeDescriptor() -> ProviderDescriptor {
-        #if os(macOS)
-        // Custom browser order that includes Chrome Beta and other variants
-        // to support users running beta/canary versions
-        let browserOrder: BrowserCookieImportOrder = [
-            .safari,
-            .chrome,
-            .chromeBeta, // Added for Chrome Beta support
-            .chromeCanary, // Added for Chrome Canary support
-            .edge,
-            .edgeBeta,
-            .brave,
-            .arc,
-            .dia,
-            .arcBeta,
-            .firefox,
-        ]
-        #else
-        let browserOrder: BrowserCookieImportOrder? = nil
-        #endif
-
-        return ProviderDescriptor(
+        ProviderDescriptor(
             id: .augment,
             settingsSection: .init(AugmentProviderSettingsKey.self, cookieSettings: AugmentProviderSettings.self),
             credentials: self.credentials,
@@ -59,7 +35,7 @@ public enum AugmentProviderDescriptor {
                     "team": "Team", "enterprise": "Enterprise",
                 ],
                 debugPane: ProviderDebugPaneCapabilities(probeLogOrder: 3, errorSimulationOrder: 4),
-                browserCookieOrder: browserOrder,
+                browserCookieOrder: ProviderBrowserCookieDefaults.defaultImportOrder,
                 dashboardURL: "https://app.augmentcode.com/account/subscription",
                 statusPageURL: "https://status.augmentcode.com"),
             branding: ProviderBranding(

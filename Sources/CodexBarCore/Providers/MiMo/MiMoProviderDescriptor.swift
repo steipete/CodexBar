@@ -1,17 +1,7 @@
 import Foundation
-import SweetCookieKit
 
 public enum MiMoProviderDescriptor {
     public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
-
-    /// Safari first, the existing Chrome family, then Firefox/Edge; other Chromium forks remain manual-only.
-    private static var browserCookieOrder: BrowserCookieImportOrder? {
-        #if os(macOS)
-        [.safari, .chrome, .chromeBeta, .chromeCanary, .firefox, .edge]
-        #else
-        nil
-        #endif
-    }
 
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
@@ -35,7 +25,7 @@ public enum MiMoProviderDescriptor {
                 usesAccountFallback: false,
                 debugLogUnavailableMessage: "Xiaomi MiMo debug log not yet implemented",
                 usesDetailBackedWindow: true,
-                browserCookieOrder: self.browserCookieOrder,
+                browserCookieOrder: ProviderBrowserCookieDefaults.defaultImportOrder,
                 dashboardURL: "https://platform.xiaomimimo.com/#/console/balance",
                 statusPageURL: nil),
             branding: ProviderBranding(
@@ -159,14 +149,7 @@ struct MiMoWebFetchStrategy: ProviderFetchStrategy {
             }
         }
 
-        let sessions = try MiMoCookieImporter.importSessions(browserDetection: context.browserDetection)
-        guard !sessions.isEmpty else {
-            if let lastError {
-                throw lastError
-            }
-            throw MiMoSettingsError.missingCookie()
-        }
-
+        let sessions = try MiMoCookieImporter.sessionCandidates(browserDetection: context.browserDetection)
         for session in sessions {
             do {
                 let snapshot = try await MiMoUsageFetcher.fetchUsage(

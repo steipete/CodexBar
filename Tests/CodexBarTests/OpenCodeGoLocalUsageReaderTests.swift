@@ -7,6 +7,152 @@ import Testing
 
 struct OpenCodeGoLocalUsageReaderTests {
     @Test
+    func `database writes and WAL checkpoints invalidate the cached scan`() throws {
+        let env = try Self.makeEnvironment()
+        defer { try? FileManager.default.removeItem(at: env.root) }
+        try Self.createDatabase(at: env.databaseURL)
+        let link = env.root.appendingPathComponent("database-link")
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: env.databaseURL)
+        let reader = OpenCodeGoLocalUsageReader(authURL: env.authURL, databaseURL: link)
+        let scans = LockIsolated(0)
+        let now = Date(timeIntervalSince1970: 1_772_798_400)
+        let observer: @Sendable () -> Void = { scans.setValue(scans.value + 1) }
+        try OpenCodeGoLocalUsageReader.$scanObserverForTesting.withValue(observer) { () throws in
+            try Self.insertMessage(databaseURL: env.databaseURL, createdMs: Self.ms(now) - 1000, cost: 1)
+            #expect(try reader.fetch(now: now).rollingUsagePercent == 8.3)
+            try Self.insertMessage(databaseURL: env.databaseURL, createdMs: Self.ms(now) - 1000, cost: 2)
+            #expect(try reader.fetch(now: now).rollingUsagePercent == 25)
+            #expect(scans.value == 2)
+
+            var db: OpaquePointer?
+            guard sqlite3_open(env.databaseURL.path, &db) == SQLITE_OK else { throw SQLiteTestError.open }
+            defer { sqlite3_close(db) }
+            try Self.exec(db: db, sql: "PRAGMA journal_mode=WAL; PRAGMA wal_autocheckpoint=0;")
+            _ = try reader.fetch(now: now)
+            let beforeWAL = scans.value
+            try Self.exec(db: db, sql: "UPDATE message SET data = json_set(data, '$.cost', 3)")
+            #expect(try reader.fetch(now: now).rollingUsagePercent == 50)
+            #expect(scans.value == beforeWAL + 1)
+            #expect(try reader.fetch(now: now).rollingUsagePercent == 50)
+            #expect(scans.value == beforeWAL + 1)
+
+            let walURL = URL(fileURLWithPath: env.databaseURL.path + "-wal")
+            #expect(try (FileManager.default.attributesOfItem(atPath: walURL.path)[.size] as? Int ?? 0) > 0)
+            try Self.exec(db: db, sql: "PRAGMA wal_checkpoint(TRUNCATE);")
+            #expect(try FileManager.default.attributesOfItem(atPath: walURL.path)[.size] as? Int == 0)
+            #expect(try reader.fetch(now: now).rollingUsagePercent == 50)
+            #expect(scans.value == beforeWAL + 2)
+            #expect(sqlite3_close(db) == SQLITE_OK)
+            db = nil
+            let mainModified = try FileManager.default.attributesOfItem(atPath: env.databaseURL.path)[.modificationDate]
+                as? Date
+            // SQLite may retain empty sidecars after a clean checkpoint and close.
+            for suffix in ["-wal", "-shm"] {
+                let sidecar = URL(fileURLWithPath: env.databaseURL.path + suffix)
+                if FileManager.default.fileExists(atPath: sidecar.path) {
+                    try FileManager.default.removeItem(at: sidecar)
+                }
+            }
+            #expect(try FileManager.default.attributesOfItem(atPath: env.databaseURL.path)[.modificationDate]
+                as? Date == mainModified)
+            #expect(!FileManager.default.fileExists(atPath: walURL.path))
+            #expect(try reader.fetch(now: now).rollingUsagePercent == 50)
+            #expect(scans.value == beforeWAL + 3)
+        }
+    }
+
+    @Test
+    func `a database changed during scanning is not cached`() throws {
+        let env = try Self.makeEnvironment()
+        defer { try? FileManager.default.removeItem(at: env.root) }
+        try Self.createDatabase(at: env.databaseURL)
+        try Self.insertMessage(databaseURL: env.databaseURL, createdMs: Self.ms("2026-03-06T11:00:00.000Z"), cost: 1)
+        let reader = OpenCodeGoLocalUsageReader(authURL: env.authURL, databaseURL: env.databaseURL)
+        let scans = LockIsolated(0)
+        let now = Date(timeIntervalSince1970: 1_772_798_400)
+        let observer: @Sendable () -> Void = {
+            scans.setValue(scans.value + 1)
+            _ = try? Self.insertMessage(databaseURL: env.databaseURL, createdMs: Self.ms(now) - 1000, cost: 1)
+        }
+        try OpenCodeGoLocalUsageReader.$scanObserverForTesting.withValue(observer) { () throws in
+            #expect(try reader.fetch(now: now).rollingUsagePercent == 16.7)
+            #expect(try reader.fetch(now: now).rollingUsagePercent == 25)
+            #expect(scans.value == 2)
+        }
+    }
+
+    @Test
+    func `oversized row payloads are read without being retained`() throws {
+        let env = try Self.makeEnvironment()
+        defer { try? FileManager.default.removeItem(at: env.root) }
+        try Self.createDatabase(at: env.databaseURL)
+        try Self.insertMessage(
+            databaseURL: env.databaseURL,
+            createdMs: Self.ms("2026-03-06T11:00:00.000Z"),
+            cost: 3,
+            model: String(repeating: "x", count: 4 * 1024 * 1024))
+        let reader = OpenCodeGoLocalUsageReader(authURL: env.authURL, databaseURL: env.databaseURL)
+        let scans = LockIsolated(0)
+        let observer: @Sendable () -> Void = { scans.setValue(scans.value + 1) }
+        try OpenCodeGoLocalUsageReader.$scanObserverForTesting.withValue(observer) { () throws in
+            let now = Date(timeIntervalSince1970: 1_772_798_400)
+            #expect(try reader.fetch(now: now).rollingUsagePercent == 25)
+            #expect(try reader.fetch(now: now).rollingUsagePercent == 25)
+            #expect(scans.value == 2)
+        }
+    }
+
+    @Test
+    func `concurrent fetches share one complete database scan`() async throws {
+        let env = try Self.makeEnvironment()
+        defer { try? FileManager.default.removeItem(at: env.root) }
+        try Self.createDatabase(at: env.databaseURL)
+        try Self.insertMessage(databaseURL: env.databaseURL, createdMs: Self.ms("2026-03-06T11:00:00.000Z"), cost: 3)
+        let reader = OpenCodeGoLocalUsageReader(homeDirectory: env.root)
+        let scans = LockIsolated(0)
+        let observer: @Sendable () -> Void = { scans.setValue(scans.value + 1) }
+        try await OpenCodeGoLocalUsageReader.$scanObserverForTesting.withValue(observer) {
+            try await withThrowingTaskGroup(of: Double.self) { group in
+                for _ in 0..<4 {
+                    group
+                        .addTask {
+                            try reader.fetch(now: Date(timeIntervalSince1970: 1_772_798_400)).rollingUsagePercent
+                        }
+                }
+                for try await percent in group {
+                    #expect(percent == 25)
+                }
+            }
+            #expect(try OpenCodeGoLocalUsageReader(homeDirectory: env.root)
+                .fetch(now: Date(timeIntervalSince1970: 1_772_798_400)).rollingUsagePercent == 25)
+        }
+        #expect(scans.value == 1)
+    }
+
+    @Test
+    func `unchanged database skips scanning while usage windows advance`() throws {
+        let env = try Self.makeEnvironment()
+        defer { try? FileManager.default.removeItem(at: env.root) }
+        try Self.createDatabase(at: env.databaseURL)
+        try Self.insertMessage(databaseURL: env.databaseURL, createdMs: Self.ms("2026-03-06T11:00:00.000Z"), cost: 3)
+        let reader = OpenCodeGoLocalUsageReader(authURL: env.authURL, databaseURL: env.databaseURL)
+        let scans = LockIsolated(0)
+        let observer: @Sendable () -> Void = { scans.setValue(scans.value + 1) }
+        try OpenCodeGoLocalUsageReader.$scanObserverForTesting.withValue(observer) { () throws in
+            let now = Date(timeIntervalSince1970: 1_772_798_400)
+            let first = try reader.fetch(now: now)
+            let second = try reader.fetch(now: now.addingTimeInterval(60))
+            #expect(first.rollingUsagePercent == 25)
+            #expect(second.rollingResetInSec == first.rollingResetInSec.map { $0 - 60 })
+            let expired = try reader.fetch(now: now.addingTimeInterval(5 * 3600), historyDays: 1)
+            #expect(expired.rollingUsagePercent == 0)
+            #expect(scans.value == 1)
+        }
+    }
+}
+
+extension OpenCodeGoLocalUsageReaderTests {
+    @Test
     func `reads local OpenCode Go history into usage windows`() throws {
         let env = try Self.makeEnvironment()
         defer { try? FileManager.default.removeItem(at: env.root) }

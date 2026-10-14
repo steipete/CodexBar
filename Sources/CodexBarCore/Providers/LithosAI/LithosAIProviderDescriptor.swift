@@ -19,8 +19,7 @@ public enum LithosAIProviderDescriptor {
             }),
         webSource: .init(
             settingsSection: .init(LithosAIProviderSettingsKey.self, cookieSettings: CookieProviderSettings.self),
-            browserCookieOrder: BrowserCookieImportSupport.chromeOnly(
-                reason: "LithosAI imports only Chrome to avoid unrelated browser prompts."),
+            browserCookieOrder: ProviderBrowserCookieDefaults.defaultImportOrder,
             timeout: .fixed(60),
             browserSupportExemption: { _, _, settings in
                 settings?[LithosAIProviderSettingsKey.self]?.cookieSource == .manual
@@ -37,7 +36,7 @@ public enum LithosAIProviderDescriptor {
             picker: .init(
                 id: "lithosai-cookie-source",
                 allowsOff: true,
-                auto: .literal("Import a signed-in LithosAI console session from Chrome."),
+                auto: .literal("Import a signed-in LithosAI console session from your browser."),
                 manual: .literal("Paste both console cookies from the same session."),
                 off: .literal("LithosAI cookies are disabled."),
                 showsRefreshAction: true),

@@ -21,7 +21,7 @@ JavaScriptCore. The host keeps imported cookies opaque, groups them per browser 
 for each request URL, including same-origin HTTPS redirects. It retains path-scoped duplicate names and honors
 host-only scope, Secure, and expiry. Cross-origin redirects are rejected.
 
-Automatic imports try Chrome before Firefox and run only during a user-initiated app refresh. LongCat does not read or
+Automatic imports follow the shared browser order and run only during a user-initiated app refresh. LongCat does not read or
 write a persistent session cache. Background refreshes and the CLI require a manual/environment cookie. Manual settings
 take precedence over the environment; Off disables environment cookies too. Profiles advance only for missing cookies
 or an invalid session, so network and parse errors do not silently switch accounts.

@@ -7,7 +7,7 @@ read_when:
 # Venice
 
 Auto and API use the configured Venice API key. Select **Web** to read subscription credits from a signed-in
-Venice browser session. Web imports Chrome cookies by default; **Manual** accepts a Venice Cookie header.
+Venice browser session. Web imports cookies in the shared browser order; **Manual** accepts a Venice Cookie header.
 **Off** prevents cookie import and web requests, including when a manual header remains saved.
 
 Saved API accounts remain stored but do not own implicit Web requests. Switching back to Auto or API restores
@@ -33,4 +33,4 @@ These private dashboard fields may change.
 Monthly refill is not a spending limit: banked credits can remain after spending exceeds one refill. Web data
 therefore appears as credit details, without an exhausted quota percentage or an inferred subscription-renewal
 date. Identity from API keys is never attached to browser credit data. Missing or expired sessions ask for sign-in;
-a rejected Chrome profile can fall through to another signed-in profile.
+a rejected browser profile can fall through to another signed-in profile.

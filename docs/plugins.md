@@ -228,6 +228,9 @@ so portable third-party plugins must use the host helpers below instead of ECMA-
   Background imports remain non-interactive. Suppressed or denied access reports permission recovery guidance rather
   than a missing login when all authentication paths fail; valid fallback credentials can still succeed. A successful
   refresh retains each manifest's cookie persistence policy, including nonpersistent sessions.
+  When an admitted discovery attempt cannot read a browser profile, the error names the browser and points to
+  **System Settings → Privacy & Security → Files & Folders → CodexBar**. Enable that browser and refresh.
+  Policy-blocked imports do not probe profiles, and an observed Keychain denial keeps its existing guidance.
 - `ctx.browser.supportedBrowsers` is a comma-separated display list from the provider's configured browser catalog subset (Chrome for user plugins). It describes supported Automatic sources, not installed or searched profiles; it performs no browser or Keychain access. On platforms without browser import it reads `none on this platform`.
 - `await ctx.browser.cookieHeader(domain)` returns a cookie header only with the `browser-cookies` capability and for a
   declared domain. User plugins import from Chrome; bundled providers retain their declared browser order.
@@ -368,6 +371,14 @@ every key. Null, arrays, wrong types, unknown keys, and cross-provider requests 
 Card payloads are descriptor-owned, never arbitrary Swift decoding. OpenAI's `card.openAIAPIUsage` adapter accepts daily
 cost, token, request, model, and line-item history for the existing native chart. It rejects unknown fields, bounds the
 history to 366 buckets and 10,000 breakdown entries, and validates finite numbers, safe integer counts, names, and dates.
+An optional `live` object contains `windowMinutes: 60`, Unix-second `startTime` and `fetchedAt`, and `buckets`
+with `startTime` and `models` (`name`, `inputTokens`, `cachedInputTokens`, `outputTokens`, `requests`, optional `batchTokens` and
+`batchRequests`). The batch fields default to 0 when missing, must be nonnegative integers, and must not exceed
+`inputTokens + outputTokens` and `requests`, respectively. Batch API subsets are excluded only from rate-limit
+utilization; charts and totals include all traffic. Both QuickJS
+and JavaScriptCore validate this payload. It accepts at most 60 buckets and 200 models per bucket, sharing the
+10,000-entry budget with daily breakdowns. Invalid live data drops only throughput; daily data remains valid.
+The Swift window fetcher and plugin adapter share the same zero-filled minute grid and reporting frontier.
 No other provider or user-installed plugin receives that adapter by declaring a card field.
 
 Fireworks alone allows `persist: { ACCOUNT_SLUG: "discovered-slug" }`. The app/CLI writer rechecks ownership, applies the
@@ -534,7 +545,7 @@ Bundled scripts own requests, error classification, and snapshot mapping; Swift 
 | [ZenMux](zenmux.md) | Both engines require subscription quotas. Optional USD PAYG enrichment failures preserve quotas except for credential rejection and cancellation. |
 | [Atlas Cloud](atlascloud.md), [Vercel AI Gateway](vercel.md) | Fixed-origin bearer GETs return account/team balances as generic details without quota windows. Scripts classify HTTP failures; the host bounds retries. |
 | [GitKraken AI](gitkraken.md) | First-party bearer GET with optional organization scope returns generic weekly windows/details. |
-| [Charm Hyper](hyper.md) | Declared-domain cookies or a secure API key reach one fixed credits endpoint. TypeScript owns session preference, API fallback, errors, and HC balance parsing. |
+| [Charm Hyper](hyper.md) | Declared-domain cookies read the signed-in Hyper dashboard; a secure API key reaches the fixed credits endpoint. TypeScript owns session preference, API fallback, errors, and HC balance parsing. |
 | [Zed](zed.md) | Swift discovers editor settings and Keychain credentials. Opt-in browser billing uses only the declared `zed.dev` cookie session, never editor credentials. |
 | [Aixy](aixy.md) | TypeScript maps key-scoped usage and budgets; the host validates the configured gateway origin and supplies the API key. |
 | [Qwen Cloud](qwen-cloud.md) | `qwencloud-team.ts` discovers the billing selector and fetches Team credits through form POSTs. Native Qwen cookie selection supplies one opaque dashboard session; Individual remains native as the fallback. |
@@ -592,3 +603,17 @@ exported as a cloud account snapshot: its ownership can only be verified on the 
 [Exa](exa.md) reads selected-key monthly spend using a support-enabled Team Management service key and API key ID.
 [TinyApi](tinyapi.md) reads aggregate available credits through its website session and the shared cookie host.
 These plugins omit undocumented reset dates, credit-bucket splits, and live request-rate headroom.
+
+## Generative media credit providers
+
+[fal](fal.md) reads the account credit balance from the Platform API billing endpoint with a `Key`-scheme API key
+that holds billing read access. A successful response without the credits block is reported as a temporary provider
+outage rather than a parse failure, so the last good balance stays visible.
+
+[FLORA](flora.md) reads one workspace's available USD balance and UTC month-to-date spend with a bearer API key
+that holds billing permission. Its explicit workspace ID also supports keys whose workspace list is empty
+because they lack read permission. Unavailable spend keeps its documented reason instead of becoming zero.
+
+[Parallel](parallel.md) reads the prepaid credit balance through the shared cookie host with a session-cookie POST
+to the platform dashboard's internal balance endpoint. Parallel API keys cannot read the balance, and its Account API
+needs OAuth, so the provider is web-only. A changed response shape fails parsing instead of reporting zero.

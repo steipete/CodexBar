@@ -17,6 +17,7 @@ extension ProviderConfig {
         case quotaWarnings
         case accentColor
         case hiddenUsageItemIDs
+        case modelRateLimits
         case pluginSettings
         case pluginSecrets
     }
@@ -48,6 +49,9 @@ extension ProviderConfig {
         self.hiddenUsageItemIDs = try container.decodeIfPresent(
             [String].self,
             forKey: .init(CodingKeys.hiddenUsageItemIDs.rawValue))
+        self.modelRateLimits = try container.decodeIfPresent(
+            [ProviderModelRateLimit].self,
+            forKey: .init(CodingKeys.modelRateLimits.rawValue)).map(ProviderModelRateLimit.validated)
         self.pluginSettings = try container.decodeIfPresent(
             [String: String].self,
             forKey: .init(CodingKeys.pluginSettings.rawValue))
@@ -81,6 +85,9 @@ extension ProviderConfig {
         try container.encodeIfPresent(
             self.hiddenUsageItemIDs,
             forKey: .init(CodingKeys.hiddenUsageItemIDs.rawValue))
+        if let limits = self.modelRateLimits, !limits.isEmpty {
+            try container.encode(limits, forKey: .init(CodingKeys.modelRateLimits.rawValue))
+        }
         try container.encodeIfPresent(self.pluginSettings, forKey: .init(CodingKeys.pluginSettings.rawValue))
         try container.encodeIfPresent(self.pluginSecrets, forKey: .init(CodingKeys.pluginSecrets.rawValue))
         for (key, value) in self.extensionValues {
