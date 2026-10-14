@@ -1,15 +1,19 @@
 import AppKit
+import CodexBarCore
 import SwiftUI
 
-/// One third-party component that ships in CodexBar, with its full license and notice text.
-/// Metadata lives in `Resources/Acknowledgements.json`; each license is copied verbatim into
-/// `Resources/Acknowledgements/<name>.txt`.
+/// One third-party component and its generated, verbatim notices.
 struct Acknowledgement: Equatable, Identifiable {
     private struct Entry: Decodable {
+        struct Source: Decodable {
+            let text: String
+        }
+
         let name: String
         let authors: [String]
         let url: String
         let license: String
+        let sources: [Source]
     }
 
     let name: String
@@ -33,22 +37,18 @@ struct Acknowledgement: Equatable, Identifiable {
         return formatter.string(from: shown) ?? shown.joined(separator: ", ")
     }
 
-    static func load(bundle: Bundle = codexBarLocalizationResourceBundle()) -> [Acknowledgement] {
-        guard let url = bundle.url(forResource: "Acknowledgements", withExtension: "json"),
+    static func load(bundle: Bundle? = CodexBarCoreResources.bundle) -> [Acknowledgement] {
+        guard let url = bundle?.url(forResource: "Acknowledgements", withExtension: "json"),
               let data = try? Data(contentsOf: url),
               let entries = try? JSONDecoder().decode([Entry].self, from: data)
         else { return [] }
         return entries.map { entry in
-            // SwiftPM flattens processed resources, so the license may sit at the bundle root.
-            let textURL = bundle.url(forResource: entry.name, withExtension: "txt", subdirectory: "Acknowledgements")
-                ?? bundle.url(forResource: entry.name, withExtension: "txt")
-            let text = textURL.flatMap { try? String(contentsOf: $0, encoding: .utf8) } ?? ""
-            return Acknowledgement(
+            Acknowledgement(
                 name: entry.name,
                 authors: entry.authors,
                 url: entry.url,
                 license: entry.license,
-                text: text.trimmingCharacters(in: .whitespacesAndNewlines))
+                text: entry.sources.map(\.text).joined(separator: "\n\n"))
         }
     }
 }

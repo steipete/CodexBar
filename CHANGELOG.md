@@ -2,6 +2,8 @@
 
 ## 0.75.1 — Unreleased
 
+- About: show bundled open-source acknowledgements and bundle SwiftPM and vendored dependency notices with the app, widget, CLI, and Linux desktop (#4483). Thanks @elijahfriedman!
+
 ## 0.75.0 — 2026-10-13
 
 ### Highlights
