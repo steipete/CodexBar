@@ -56,7 +56,7 @@ struct ProviderSettingsToggleRowView: View {
 }
 
 @MainActor
-private struct ProviderSettingsButtonsView: View {
+struct ProviderSettingsButtonsView: View {
     let actions: [ProviderSettingsActionDescriptor]
     var spacing: CGFloat = 10
 

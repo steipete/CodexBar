@@ -1414,6 +1414,7 @@
 "menu_bar_layout_preset_icon_only" = "فقط نماد";
 "menu_bar_layout_preset_percent_reset" = "درصد و بازنشانی";
 "menu_bar_layout_preset_compact_stacked" = "پشتهٔ فشرده";
+"menu_bar_layout_preset_bars_stacked" = "نوارهای پیشرفت انباشته";
 "menu_bar_layout_preset_custom" = "عرف";
 "menu_bar_layout_live_preview" = "پیش‌نمایش زنده";
 "menu_bar_layout_default_preview" = "پیش‌نمایش چیدمان پیش‌فرض";
@@ -1451,7 +1452,7 @@
 "menu_bar_layout_token_reset_at" = "بازنشانی در ساعت";
 "menu_bar_layout_token_runs_out" = "تمام می‌شود";
 "menu_bar_layout_token_cost_today" = "هزینهٔ امروز";
-"menu_bar_layout_token_cost_30d" = "هزینهٔ ۳۰ روز";
+"menu_bar_layout_token_cost_window" = "هزینه (پنجره تاریخچه)";
 "menu_bar_layout_token_space" = "فاصله";
 "menu_bar_layout_token_line_break" = "شکست خط";
 "menu_bar_layout_token_separator_accessibility" = "نقطهٔ جداکننده";
@@ -1469,7 +1470,6 @@
 "Reset time unavailable" = "بازنشانی در ساعت: در دسترس نیست";
 "Run-out estimate unavailable" = "تمام می‌شود: در دسترس نیست";
 "Cost today unavailable" = "هزینهٔ امروز: در دسترس نیست";
-"30-day cost unavailable" = "هزینهٔ ۳۰ روز: در دسترس نیست";
 "Resets" = "بازنشانی‌ها";
 "codex_workspaces_estimated_cost_short" = "هزینهٔ تخمینی";
 "codex_workspaces_estimated_cost_value" = "تخمینی %@";
@@ -1554,6 +1554,7 @@
 "5-hour usage" = "مصرف ۵ ساعته";
 "7-day usage" = "مصرف ۷ روزه";
 "Total usage" = "مصرف کل";
+"claude_oauth_keychain_access_disabled" = "دسترسی به Keychain غیرفعال است، بنابراین CodexBar نمی‌تواند اطلاعات ورود به Claude را بخواند.";
 "claude_oauth_keychain_access_revoked" = "دسترسی به Keychain کلود با چرخش توکن Claude Code لغو شد. برای اعطای مجدد دسترسی روی «تازه‌سازی» کلیک کنید، یا منبع استفاده Claude را به CLI/Web تغییر دهید.";
 "claude_showing_last_known_usage" = "آخرین میزان استفاده شناخته‌شده که در %@ ثبت شده نمایش داده می‌شود.";
 "claude_limited_usage_detail" = "جزئیات استفاده محدود است";
@@ -2514,6 +2515,7 @@
 "Back" = "بازگشت";
 "Forward" = "جلو";
 
+"cost_reset_inferred_tooltip" = "استنباط‌شده: %@ این تاریخ را گزارش نمی‌کند. سقف هزینه ماهانه ساعت 00:00 UTC روز اول ماه ریست می‌شود.";
 /* fal provider credentials */
 "Key with billing read access (BILLING or READONLY preset). Or set FAL_KEY." = "کلیدی با دسترسی خواندن صورت‌حساب (پیش‌تنظیم BILLING یا READONLY). یا FAL_KEY را تنظیم کنید.";
 
@@ -2522,3 +2524,105 @@
 "Required. The ws_… ID of the workspace the key can bill. Or set FLORA_WORKSPACE_ID." = "الزامی. شناسه ws_… فضای کاری که کلید می‌تواند صورت‌حساب آن را ببیند. یا FLORA_WORKSPACE_ID را تنظیم کنید.";
 "ak_…" = "ak_…";
 "ws_…" = "ws_…";
+
+"Plan renewal / expiry" = "تمدید / انقضای طرح";
+
+"Hidden by the global optional credits, spending & billing setting." = "با تنظیم عمومی اعتبارهای اختیاری، هزینه‌ها و صورتحساب پنهان شده است.";
+
+"Provider order updated" = "ترتیب ارائه‌دهندگان به‌روزرسانی شد";
+"Undo" = "واگرد";
+"Clear filters" = "پاک کردن فیلترها";
+"Change provider order" = "تغییر ترتیب ارائه‌دهندگان";
+"Provider sorting" = "مرتب‌سازی ارائه‌دهندگان";
+"Only enabled providers" = "فقط ارائه‌دهندگان فعال";
+"Restore default order" = "بازیابی ترتیب پیش‌فرض";
+"Also restores the provider order in the menu bar. Can be undone." = "ترتیب ارائه‌دهندگان در نوار منو را نیز بازیابی می‌کند. قابل واگرد است.";
+"Local Codex details; excluded from combined totals." = "جزئیات محلی Codex؛ از مجموع‌های ترکیبی مستثنا شده‌اند.";
+
+"Auto uses an API key when configured, otherwise browser cookies." = "Auto uses an API key when configured, otherwise browser cookies.";
+"Stored in the CodexBar config file. You can also set COMMAND_CODE_API_KEY." = "Stored in the CodexBar config file. You can also set COMMAND_CODE_API_KEY.";
+/* OpenAI organization rate limits and live usage */
+"%@ tokens · %@ requests" = "%@ توکن · %@ درخواست";
+"15m" = "۱۵ دقیقه";
+"1h" = "۱ ساعت";
+"5-min avg" = "میانگین ۵ دقیقه";
+"6h" = "۶ ساعت";
+"All models" = "همهٔ مدل‌ها";
+"Input %@ · cached %@ · output %@" = "ورودی %@ · ذخیره‌شده در نهانگاه %@ · خروجی %@";
+"Live Usage" = "مصرف زنده";
+"Loading live usage…" = "در حال بارگیری مصرف زنده…";
+"Minute" = "دقیقه";
+"Model" = "مدل";
+"No API traffic in this window" = "در این بازه ترافیک API وجود ندارد";
+"Open OpenAI Settings" = "باز کردن تنظیمات OpenAI";
+"OpenAI Admin Usage API · 1-minute buckets · the newest minute can arrive late" = "OpenAI Admin Usage API · بازه‌های یک‌دقیقه‌ای · داده‌های آخرین دقیقه ممکن است دیر برسند";
+"OpenAI Live Usage" = "مصرف زندهٔ OpenAI";
+"Other" = "سایر";
+"Peak" = "اوج";
+"Peak TPM" = "اوج TPM";
+"Project: %@" = "پروژه: %@";
+"Range" = "بازه";
+"Rate limited; retrying in %ds" = "محدودیت نرخ اعمال شد؛ تلاش دوباره پس از %ds";
+"Requests in window" = "درخواست‌ها در بازه";
+"Tokens in window" = "توکن‌ها در بازه";
+"Tokens per minute" = "توکن در دقیقه";
+"Uncached input" = "ورودی ذخیره‌نشده در نهانگاه";
+"Uncached input %@ · cached input %@ · output %@" = "ورودی ذخیره‌نشده در نهانگاه %@ · ورودی نهانگاه %@ · خروجی %@";
+"Organization rate limits" = "محدودیت‌های نرخ سازمان";
+"Open organization Limits" = "باز کردن محدودیت‌های سازمان";
+"RPM (optional)" = "RPM (اختیاری)";
+"Enter a model and positive limits, such as 40M TPM and 15k RPM." = "یک مدل و محدودیت‌های مثبت مانند 40M TPM و 15k RPM وارد کنید.";
+"Add model" = "افزودن مدل";
+"Org TPM limit" = "محدودیت TPM سازمان";
+"Org limit %@ TPM" = "محدودیت سازمان %@ TPM";
+"Org limit %@ TPM (off scale)" = "محدودیت سازمان %@ TPM (خارج از مقیاس)";
+"Limits…" = "محدودیت‌ها…";
+"Highest utilization" = "بیشترین استفاده";
+"%@ of limit" = "%@ از محدودیت";
+"Limit" = "محدودیت";
+"Peak RPM: %@ of limit" = "اوج RPM: ‏%@ از محدودیت";
+"Peak % of limit" = "درصد اوج از محدودیت";
+
+/* OpenAI live usage errors */
+"Configure an OpenAI organization Admin API key in Settings → Providers → OpenAI." = "کلید Admin API سازمان OpenAI را در تنظیمات → ارائه‌دهندگان → OpenAI وارد کنید.";
+"An OpenAI organization Admin API key with usage and project read permissions is required." = "کلید Admin API سازمان OpenAI با مجوز خواندن مصرف و پروژه‌ها لازم است.";
+"OpenAI API is rate limited." = "API ‏OpenAI به محدودیت نرخ رسیده است.";
+"OpenAI API failed (HTTP %d)." = "API ‏OpenAI ناموفق بود (HTTP %d).";
+"Could not parse the OpenAI API response." = "پاسخ API ‏OpenAI قابل تجزیه نیست.";
+"Live usage supports 15-minute, 1-hour, and 6-hour windows." = "مصرف زنده بازه‌های ۱۵ دقیقه، ۱ ساعت و ۶ ساعت را پشتیبانی می‌کند.";
+
+/* Live usage reporting and project caps */
+
+/* Live usage reporting and project caps */
+"Latest · %@" = "تازه‌ترین · %@";
+"Latest TPM" = "تازه‌ترین TPM";
+"reporting…" = "در انتظار داده…";
+"Org limit not set" = "سقف سازمان تنظیم نشده";
+"project cap %@" = "سقف پروژه %@";
+"Set org limit…" = "تنظیم سقف سازمان…";
+"Org limits come from Settings — OpenAI's API doesn't expose them." = "سقف‌های سازمان از تنظیمات می‌آیند — API شرکت OpenAI آن‌ها را ارائه نمی‌کند.";
+"Project caps are the highest per-project limit across %d active projects; org-wide traffic can exceed them." = "سقف‌های پروژه بالاترین سقف‌های هر پروژه در میان %d پروژهٔ فعال هستند؛ ترافیک کل سازمان می‌تواند از آن‌ها فراتر رود.";
+"Project sample capped at 25; higher project caps may exist." = "نمونه به 25 پروژه محدود است؛ ممکن است سقف‌های بالاتری برای پروژه‌ها وجود داشته باشد.";
+"Project caps unavailable" = "سقف‌های پروژه در دسترس نیست";
+"OpenAI's API doesn't expose organization rate limits. Copy them from your organization's Limits page. Model IDs match dated snapshots (gpt-5 covers gpt-5-2025-…)." = "API شرکت OpenAI سقف نرخ سازمان را ارائه نمی‌کند. آن‌ها را از صفحهٔ Limits سازمان خود کپی کنید. شناسه‌های مدل نسخه‌های تاریخ‌دار را هم پوشش می‌دهند (gpt-5 شامل gpt-5-2025-… می‌شود).";
+"Tokens / min · last hour" = "توکن / دقیقه · ساعت گذشته";
+"Latest %@ · Peak %@ at %@" = "آخرین %@ · اوج %@ در %@";
+"%@ · peak %@ · %@ of org limit" = "%@ · اوج %@ · %@ از سقف سازمان";
+"Tokens / min" = "توکن / دقیقه";
+"Latest tokens per minute (OpenAI Admin API)" = "آخرین تعداد توکن در دقیقه (OpenAI Admin API)";
+"Fetches 1-minute usage each refresh for the menu card chart and the menu bar Tokens/min token." = "در هر نوسازی، مصرف دقیقه‌ای را برای نمودار کارت منو و عنصر توکن/دقیقه در نوار منو دریافت می‌کند.";
+"Live Usage…" = "مصرف زنده…";
+"Batch API %@ · not counted in %% of limit" = "Batch API %@ · در %% سقف محاسبه نمی‌شود";
+"% of limit counts all input, including cached input, plus output, as OpenAI's rate limiter does, and excludes Batch API traffic, which has separate limits. The limiter also reserves max_tokens up front, so short bursts can still hit limits." = "% سقف، همهٔ ورودی‌ها، از جمله ورودی ذخیره‌شده در حافظهٔ نهان، به‌علاوهٔ خروجی را مانند محدودکنندهٔ نرخ OpenAI محاسبه می‌کند و ترافیک Batch API را که محدودیت‌های جداگانه دارد کنار می‌گذارد. محدودکننده همچنین max_tokens را از پیش رزرو می‌کند، بنابراین جهش‌های کوتاه همچنان ممکن است به سقف برسند.";
+
+"Tokens / min graph" = "نمودار توکن / دقیقه";
+"Last hour of tokens per minute (OpenAI Admin API)" = "توکن در دقیقه در ساعت گذشته (OpenAI Admin API)";
+"Tokens per minute, latest %@" = "توکن در دقیقه، آخرین مقدار %@";
+
+"Live" = "زنده";
+
+"Chart" = "نمودار";
+
+"Daily spend · %@" = "هزینهٔ روزانه · %@";
+"Applies to the selected token account “%@”. Each account keeps its own limits." = "برای حساب توکن انتخاب‌شده «%@» اعمال می‌شود. هر حساب محدودیت‌های خودش را نگه می‌دارد.";
+"Applies to the OpenAI API key, not to token accounts." = "برای کلید API ‏OpenAI اعمال می‌شود، نه حساب‌های توکن.";

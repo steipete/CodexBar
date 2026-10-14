@@ -1387,7 +1387,7 @@ extension UsageStore {
         if providerBuckets.preferredAccountKey == Self.planUtilizationUnscopedPreferredKey {
             return nil
         }
-        let knownAccountKeys = self.knownPlanUtilizationAccountKeys(providerBuckets: providerBuckets)
+        let knownAccountKeys = providerBuckets.accounts.keys.sorted()
         guard !knownAccountKeys.isEmpty else { return nil }
 
         if let preferredAccountKey = providerBuckets.preferredAccountKey,
@@ -1408,11 +1408,6 @@ extension UsageStore {
             }
             return lhsDate < rhsDate
         }
-    }
-
-    private func knownPlanUtilizationAccountKeys(providerBuckets: PlanUtilizationHistoryBuckets) -> [String] {
-        providerBuckets.accounts.keys
-            .sorted()
     }
 
     private func recoverableCodexOpaquePlanHistoryRawKey(
@@ -1441,8 +1436,7 @@ extension UsageStore {
         }
 
         guard candidates.count == 1,
-              let recoverableRawKey = candidates.first,
-              let targetWeeklyResetAt = ownership.currentWeeklyResetAt
+              let recoverableRawKey = candidates.first
         else {
             return nil
         }

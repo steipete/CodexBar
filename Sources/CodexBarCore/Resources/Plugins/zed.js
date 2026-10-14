@@ -28,7 +28,7 @@ defineProvider({
       if (web) ctx.browser.rejectCookie("zed.dev");
       throw ctx.fail.authenticationExpired(
         web
-          ? "Zed browser session expired. Sign in to zed.dev in Chrome or update the Cookie header."
+          ? "Zed browser session expired. Sign in to zed.dev in a supported browser or update the Cookie header."
           : "Zed credentials are invalid or expired. Sign in to Zed again.",
       );
     }

@@ -53,7 +53,7 @@ struct ProviderSettingsIntegrationTests {
             .abacus, .alibaba, .alibabatokenplan, .amp, .augment, .claude, .codex, .commandcode,
             .copilot, .cursor, .devin, .factory, .grok, .kimi, .longcat, .manus, .mimo, .minimax,
             .mistral, .notion, .ollama, .opencode, .opencodego, .perplexity, .qoder, .qwencloud,
-            .museai, .raycast, .stepfun, .t3chat, .typesafe, .venice, .windsurf, .zoommate,
+            .museai, .parallel, .raycast, .stepfun, .t3chat, .typesafe, .venice, .windsurf, .zoommate,
         ]
         for provider in providers {
             let context = ProviderSettingsContext(
@@ -91,7 +91,7 @@ struct ProviderSettingsIntegrationTests {
         defer { settings.debugDisableKeychainAccess = false }
         let providers: [UsageProvider] = [
             .abacus, .amp, .augment, .commandcode, .cursor, .factory, .kimi, .longcat,
-            .manus, .mimo, .mistral, .museai, .ollama, .perplexity, .qoder, .qwencloud, .raycast, .t3chat,
+            .manus, .mimo, .mistral, .museai, .ollama, .parallel, .perplexity, .qoder, .qwencloud, .raycast, .t3chat,
             .typesafe, .venice, .zoommate,
         ]
         for provider in providers {

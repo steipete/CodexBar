@@ -4,6 +4,47 @@ import Testing
 
 @Suite(.serialized)
 struct ProviderPluginPersistentCookieTests {
+    private final class BatchCalls: @unchecked Sendable {
+        private let lock = NSLock()
+        private var storage: [Int] = []
+        var values: [Int] {
+            self.lock.withLock { self.storage }
+        }
+
+        func append(_ value: Int) { self.lock.withLock { self.storage.append(value) } }
+    }
+
+    @Test
+    func `validated jars keep later browsers unread until the session is rejected`() throws {
+        try self.isolated { fileURL in
+            let batches = BatchCalls()
+            let broker = try ProviderPluginCookieBroker(
+                provider: .notion,
+                domains: [self.domain],
+                settings: .init(cookieSource: .auto, manualCookieHeader: nil),
+                batches: { _, _ in nil },
+                jarImporter: { batch in
+                    batches.append(batch)
+                    guard batch < 2 else { return nil }
+                    return try [.init(header: "", source: "Browser \(batch)", origin: "", records: [
+                        Self.record("token_v2", "fixture-\(batch)", "app.notion.com"),
+                    ])]
+                },
+                policy: self.policy(),
+                sessionFileURL: fileURL)
+            let first = try #require(try broker.nextSession(domain: self.domain))
+            try broker.acceptCookie(domain: self.domain, id: first.id)
+            #expect(batches.values == [0])
+            broker.rejectCookie(domain: self.domain, id: first.id)
+            let second = try #require(try broker.nextSession(domain: self.domain))
+            #expect(try self.header(second) == "token_v2=fixture-1")
+            #expect(batches.values == [0, 1])
+            #expect(try broker.nextSession(domain: self.domain) == nil)
+            #expect(try broker.nextSession(domain: self.domain) == nil)
+            #expect(batches.values == [0, 1, 2])
+        }
+    }
+
     @TaskLocal private static var fileURL: URL?
     private let domain = "app.notion.com"
 
@@ -57,7 +98,11 @@ struct ProviderPluginPersistentCookieTests {
                     domains: ["zoom.us", "ai.zoom.us"],
                     settings: .init(cookieSource: .auto, manualCookieHeader: nil),
                     batches: { _, _ in nil },
-                    jarImporter: { [.init(header: "", source: "Fixture", origin: "", records: records)] },
+                    jarImporter: { batch in batch == 0 ? [.init(
+                        header: "",
+                        source: "Fixture",
+                        origin: "",
+                        records: records)] : nil },
                     policy: policy)
                 return try #require(try broker.nextSession(domain: "ai.zoom.us")).cacheKey
             }
@@ -153,7 +198,7 @@ struct ProviderPluginPersistentCookieTests {
                 domains: ["zoom.us", "ai.zoom.us", "zoommate.zoom.us"],
                 settings: .init(cookieSource: .auto, manualCookieHeader: nil),
                 batches: { _, _ in nil },
-                jarImporter: { [] },
+                jarImporter: { _ in nil },
                 policy: policy)
             let session = try #require(try broker.nextSession(domain: "ai.zoom.us", cachedOnly: true))
             let jar = ProviderPluginCookieJar()
@@ -202,11 +247,11 @@ struct ProviderPluginPersistentCookieTests {
             ],
             settings: .init(cookieSource: .auto, manualCookieHeader: nil),
             batches: { _, _ in nil },
-            jarImporter: { records.map { .init(
+            jarImporter: { batch in batch == 0 ? records.map { .init(
                 header: "",
                 source: "Synthetic profile",
                 origin: "",
-                records: $0) } },
+                records: $0) } : nil },
             policy: self.policy(),
             background: background,
             sessionFileURL: fileURL ?? Self.fileURL)

@@ -17,6 +17,36 @@ struct JetBrainsQuotaLogReaderTests {
         "2026-10-05 15:21:27,386 [2707002]   INFO - #c.i.m.l.c.q.QuotaManager2Impl - New quota refill state is: "
             + "Known(next=2026-10-11T17:00:30.231Z, tariff=QuotaRefillInfoTariff(amount=1000000, duration=30d))"
 
+    private static let junieQuotaLine =
+        "2026-10-12 04:47:16,090 [  67837]   INFO - #c.i.m.l.a.m.AiaActivationTransmitter - "
+            + "Received message from junie: quota_update:{\"license\":\"TESTLICENSE\","
+            + "\"current\":{\"amount\":\"16966.18\"},\"maximum\":{\"amount\":\"6489986.397\"},"
+            + "\"until\":1853269200000,\"quotaID\":{\"quotaId\":\"TESTLICENSE\"},"
+            + "\"tariffQuota\":{\"current\":{\"amount\":\"16966.18\"},\"maximum\":{\"amount\":\"1000000.0\"},"
+            + "\"available\":{\"amount\":\"983033.82\"}},"
+            + "\"topUpQuota\":{\"current\":{\"amount\":\"0.0\"},\"maximum\":{\"amount\":\"5489986.397\"},"
+            + "\"available\":{\"amount\":\"5489986.397\"}}}"
+    private static let airMigrationRefillLine =
+        "2026-10-12 04:51:20,481 [ 312228]   INFO - #c.i.m.l.c.q.QuotaManager2Impl - New quota refill state is: "
+            + "Error(exception=com.intellij.ml.llm.core.AIAssistantForbiddenException: Usage of AI Assistant is "
+            + "prohibited by machine-wide settings (AirMigration))"
+
+    private static let jbaiQuotaLine =
+        "2026-10-12 04:47:42,704 [  28196]   INFO - #c.i.m.l.c.q.QuotaManager2Impl - New quota state is: "
+            + "Available(quota=JbaiQuota(license=TESTLICENSE, current=16966.18, maximum=6489986.397, "
+            + "quotaID=JbaiQuotaId(quotaId=TESTLICENSE, userId=null), until=2028-09-22T21:00:00Z, "
+            + "tariffQuota=Details(current=16966.18, maximum=1000000, available=983033.82), "
+            + "topUpQuota=Details(current=0, maximum=5489986.397, available=5489986.397)))"
+    private static let jbaiRefillLine =
+        "2026-10-12 04:47:51,747 [  37239]   INFO - #c.i.m.l.c.q.QuotaManager2Impl - New quota refill state is: "
+            + "Known(refill=JbaiQuotaRefill(tariff=JbaiQuotaTariff(amount=1000000, period=30d), "
+            + "next=2026-11-10T17:00:32.124Z, last=2026-10-11T17:00:32.124Z))"
+
+    private static let airMigrationQuotaLine =
+        "2026-10-12 04:51:43,486 [ 335233]   INFO - #c.i.m.l.c.q.QuotaManager2Impl - New quota state is: "
+            + "Error(exception=com.intellij.ml.llm.core.AIAssistantForbiddenException: Usage of AI Assistant is "
+            + "prohibited by machine-wide settings (AirMigration))"
+
     private static func localDate(_ text: String) -> Date {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
@@ -240,5 +270,89 @@ struct JetBrainsQuotaLogReaderTests {
             .quotaInfo)
         #expect(JetBrainsStatusProbe.applyingLogEntry(
             entry, to: xml, quotaFileModifiedAt: entry.timestamp).quotaInfo == xml.quotaInfo)
+    }
+
+    @Test
+    func `parses Junie quota update after the Air migration`() throws {
+        let log = [Self.latestQuotaLine, Self.junieQuotaLine, Self.airMigrationRefillLine].joined(separator: "\n")
+        let entry = try #require(JetBrainsQuotaLogReader.latestEntry(inLogContent: log))
+
+        #expect(entry.timestamp == Self.localDate("2026-10-12 04:47:16,090"))
+        #expect(entry.quotaInfo.type == "Available")
+        #expect(entry.quotaInfo.used == 16966.18)
+        #expect(entry.quotaInfo.maximum == 1_000_000)
+        #expect(entry.quotaInfo.available == 983_033.82)
+        #expect(entry.quotaInfo.until == ISO8601DateParser.parse("2028-09-22T21:00:00Z"))
+        #expect(entry.quotaInfo.topUp == JetBrainsTopUpQuota(maximum: 5_489_986.397, available: 5_489_986.397))
+        #expect(entry.refillInfo == nil)
+        #expect(!String(describing: entry).contains("TESTLICENSE"))
+    }
+
+    @Test
+    func `newest quota record wins across legacy and Junie formats`() throws {
+        let legacyLater = Self.latestQuotaLine.replacingOccurrences(
+            of: "2026-10-05 15:27:49,811", with: "2026-10-12 05:00:00,000")
+        let log = [Self.junieQuotaLine, legacyLater].joined(separator: "\n")
+        let entry = try #require(JetBrainsQuotaLogReader.latestEntry(inLogContent: log))
+        #expect(entry.quotaInfo.used == 346_495.294)
+    }
+
+    private static let invalidJuniePayloads = [
+        #"{"tariffQuota":{}}"#,
+        "not json",
+        #"{"until":1,"tariffQuota":{"current":{"amount":"1"},"maximum":{"amount":"0"},"available":{"amount":"0"}}}"#,
+    ]
+
+    @Test(arguments: Self.invalidJuniePayloads)
+    func `invalid latest Junie quota does not resurrect older quota`(payload: String) {
+        let prefix = Self.junieQuotaLine.components(separatedBy: "quota_update:")[0] + "quota_update:"
+        let log = [Self.latestQuotaLine, prefix + payload].joined(separator: "\n")
+        #expect(JetBrainsQuotaLogReader.latestEntry(inLogContent: log) == nil)
+    }
+
+    @Test
+    func `parses JbaiQuota state and refill from newer AI Assistant logs`() throws {
+        let log = [Self.latestQuotaLine, Self.jbaiQuotaLine, Self.jbaiRefillLine].joined(separator: "\n")
+        let entry = try #require(JetBrainsQuotaLogReader.latestEntry(inLogContent: log))
+
+        #expect(entry.timestamp == Self.localDate("2026-10-12 04:47:42,704"))
+        #expect(entry.quotaInfo.used == 16966.18)
+        #expect(entry.quotaInfo.maximum == 1_000_000)
+        #expect(entry.quotaInfo.available == 983_033.82)
+        #expect(entry.quotaInfo.until == ISO8601DateParser.parse("2028-09-22T21:00:00Z"))
+        #expect(entry.refillInfo?.next == ISO8601DateParser.parse("2026-11-10T17:00:32.124Z"))
+        #expect(entry.refillInfo?.amount == 1_000_000)
+        #expect(entry.refillInfo?.duration == "30d")
+        #expect(entry.quotaInfo.topUp == JetBrainsTopUpQuota(maximum: 5_489_986.397, available: 5_489_986.397))
+        #expect(!String(describing: entry).contains("TESTLICENSE"))
+    }
+
+    @Test
+    func `malformed latest JbaiQuota state does not resurrect older quota`() {
+        let malformed = Self.jbaiQuotaLine.replacingOccurrences(of: "tariffQuota=Details(", with: "tariffQuota=Other(")
+        #expect(JetBrainsQuotaLogReader.latestEntry(inLogContent: Self.latestQuotaLine + "\n" + malformed) == nil)
+    }
+
+    @Test
+    func `disabled AI Assistant errors do not hide newer Junie quota`() throws {
+        let log = [
+            Self.latestQuotaLine,
+            Self.junieQuotaLine,
+            Self.airMigrationQuotaLine,
+            Self.airMigrationRefillLine,
+            Self.airMigrationQuotaLine,
+        ].joined(separator: "\n")
+        let entry = try #require(JetBrainsQuotaLogReader.latestEntry(inLogContent: log))
+        #expect(entry.timestamp == Self.localDate("2026-10-12 04:47:16,090"))
+        #expect(entry.quotaInfo.used == 16966.18)
+        #expect(entry.refillInfo == nil)
+    }
+
+    @Test
+    func `other latest quota errors still invalidate older quota`() {
+        let networkError = Self.airMigrationQuotaLine.replacingOccurrences(
+            of: "com.intellij.ml.llm.core.AIAssistantForbiddenException", with: "java.net.SocketTimeoutException")
+        let log = [Self.junieQuotaLine, networkError].joined(separator: "\n")
+        #expect(JetBrainsQuotaLogReader.latestEntry(inLogContent: log) == nil)
     }
 }

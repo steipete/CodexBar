@@ -28,6 +28,10 @@ extension UsageMenuCardView.Model {
             "metrics=\(MenuCardHeightFingerprint.join(self.metrics.map(\.heightFingerprint)))",
             "notes=\(notesFingerprint)",
             "providerDetails=\(self.providerDetails.heightFingerprint)",
+            MenuCardHeightFingerprint.field("throughputSummary", self.throughput?.summaryLine),
+            "throughputAction=\(self.throughput?.presentation?.action != nil)",
+            MenuCardHeightFingerprint.field("throughputLimit", self.throughput?.presentation?.limitLine),
+            "chartSwitch=\(self.showsChartSwitch)",
             "dashboard=\(self.inlineUsageDashboard?.heightFingerprint ?? "")",
             "providerCost=\(self.providerCost?.heightFingerprint ?? "")",
             "tokenUsage=\(self.tokenUsage?.heightFingerprint ?? "")",
@@ -171,6 +175,7 @@ extension InlineUsageDashboardModel {
     fileprivate var heightFingerprint: String {
         MenuCardHeightFingerprint.join([
             MenuCardHeightFingerprint.field("accessibility", self.accessibilityLabel),
+            MenuCardHeightFingerprint.field("chartTitle", self.chartTitle),
             self.valueStyle.heightFingerprint,
             MenuCardHeightFingerprint.join(self.kpis.map(\.heightFingerprint)),
             MenuCardHeightFingerprint.join(self.points.map(\.heightFingerprint)),

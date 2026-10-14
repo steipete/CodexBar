@@ -13,7 +13,7 @@ struct ClaudeWebEnterpriseUsageTests {
         """
         let data = Data(json.utf8)
         let parsed = try ClaudeWebAPIFetcher._parseUsageResponseForTesting(data)
-        #expect(parsed.sessionPercentUsed == 0)
+        #expect(parsed.sessionPercentUsed == nil)
         #expect(parsed.weeklyPercentUsed == 42)
     }
 
@@ -32,7 +32,7 @@ struct ClaudeWebEnterpriseUsageTests {
         let data = Data(json.utf8)
         let parsed = try ClaudeWebAPIFetcher._parseUsageResponseForTesting(data)
 
-        #expect(parsed.sessionPercentUsed == 0)
+        #expect(parsed.sessionPercentUsed == nil)
         #expect(parsed.sessionResetsAt == nil)
         #expect(parsed.weeklyPercentUsed == nil)
         #expect(parsed.extraUsageCost?.used == 41.32)

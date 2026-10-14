@@ -68,7 +68,7 @@ struct ClaudeRateLimitResetCreditsTests {
         for status in [400, 403, 404, 422, 500, 503] {
             let queries = UsageRequestLog()
             let usage = try await Self.fetchWebUsage(cedarEmber: block, optInStatus: status, usageRequests: queries)
-            #expect(usage.primary.usedPercent == 11)
+            #expect(usage.primary?.usedPercent == 11)
             #expect(usage.resetCredits == nil)
             #expect(await queries.values == ["cedar_ember=1", ""])
         }
@@ -169,7 +169,7 @@ struct ClaudeRateLimitResetCreditsTests {
             }
         }
 
-        #expect(snapshot.primary.usedPercent == 7)
+        #expect(snapshot.primary?.usedPercent == 7)
         #expect(snapshot.providerCost != nil)
         #expect(snapshot.resetCredits == nil)
     }
@@ -272,13 +272,13 @@ struct ClaudeRateLimitResetCreditsTests {
     }
 
     @Test
-    func `menu card hides resets when optional credits and extra usage are off`() throws {
+    func `menu card retains resets when optional credits and extra usage are off`() throws {
         let now = Self.wholeSecondNow()
         let model = try Self.model(
             now: now,
             grants: [Self.grant(id: "grant_a", resetsLeft: 1, endsIn: 86400, now: now)],
             showOptionalCreditsAndExtraUsage: false)
-        #expect(model.limitResetCredits == nil)
+        #expect(model.limitResetCredits?.text == "1 available")
         #expect(!model.providerDetails.flatMap(\.rows).contains { $0.label == "Limit Reset Credits" })
     }
 

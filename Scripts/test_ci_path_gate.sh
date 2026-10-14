@@ -241,11 +241,11 @@ if [[ -s "$unterminated_output" ]]; then
 fi
 
 verify="${ROOT_DIR}/Scripts/ci_verify_test_jobs.sh"
-"$verify" success success true success false true success success success true >/dev/null
-"$verify" success success true success false false skipped success success true >/dev/null
-"$verify" success success false skipped false true success success skipped true >/dev/null
-"$verify" success success false skipped false false skipped success skipped true >/dev/null
-"$verify" success success false skipped false false skipped skipped skipped false >/dev/null
+"$verify" success success true success false true success success true >/dev/null
+"$verify" success success true success false false skipped success true >/dev/null
+"$verify" success success false skipped false true success success true >/dev/null
+"$verify" success success false skipped false false skipped success true >/dev/null
+"$verify" success success false skipped false false skipped skipped false >/dev/null
 
 assert_verify_fails() {
   if "$verify" "$@" >/dev/null 2>&1; then
@@ -254,29 +254,22 @@ assert_verify_fails() {
   fi
 }
 
-for compatibility_result in failure cancelled skipped '' unknown; do
-  assert_verify_fails success success true success false false skipped success "$compatibility_result" true
-done
-assert_verify_fails success success true success false false skipped success
-assert_verify_fails success success false skipped false false skipped success success true
-assert_verify_fails success success false skipped false false skipped success failure true
-
-assert_verify_fails success success true skipped false true success success success true
-assert_verify_fails success success true skipped true true success success success true
-assert_verify_fails success success false skipped true true success success skipped true
-assert_verify_fails success success true success true true success success success true
-assert_verify_fails success success false success false true success success skipped true
-assert_verify_fails success success "" skipped false true success success success true
-assert_verify_fails failure success true success false true success success success true
-assert_verify_fails success failure true success false true success success success true
-assert_verify_fails success success true success false true skipped success success true
-assert_verify_fails success success true success false false success success success true
-assert_verify_fails success success true success false "" skipped success success true
+assert_verify_fails success success true skipped false true success success true
+assert_verify_fails success success true skipped true true success success true
+assert_verify_fails success success false skipped true true success success true
+assert_verify_fails success success true success true true success success true
+assert_verify_fails success success false success false true success success true
+assert_verify_fails success success "" skipped false true success success true
+assert_verify_fails failure success true success false true success success true
+assert_verify_fails success failure true success false true success success true
+assert_verify_fails success success true success false true skipped success true
+assert_verify_fails success success true success false false success success true
+assert_verify_fails success success true success false "" skipped success true
 
 # Skipping all build jobs for docs still requires successful lint and path detection.
 for failed_result in failure cancelled; do
-  assert_verify_fails "$failed_result" success false skipped false false skipped skipped skipped false
-  assert_verify_fails success "$failed_result" false skipped false false skipped skipped skipped false
+  assert_verify_fails "$failed_result" success false skipped false false skipped skipped false
+  assert_verify_fails success "$failed_result" false skipped false false skipped skipped false
 done
 
 assert_linux_verify_fails() {
@@ -306,35 +299,35 @@ for macos_required in true false; do
       for linux_result in success failure cancelled skipped '' unknown; do
         case "${linux_required}:${linux_result}" in
           true:success|false:skipped)
-            "$verify" "${valid_args[@]}" "$linux_result" "$macos_result" "$linux_required" >/dev/null
+            "$verify" "${valid_args[@]}" "$linux_result" "$linux_required" >/dev/null
             ;;
           *)
             assert_linux_verify_fails "$linux_required" "${linux_result:-<empty>}" \
-              "${valid_args[@]}" "$linux_result" "$macos_result" "$linux_required"
+              "${valid_args[@]}" "$linux_result" "$linux_required"
             ;;
         esac
       done
     done
     assert_linux_verify_fails '<missing>' '<missing>' "${valid_args[@]}"
-    assert_linux_verify_fails '<missing>' success "${valid_args[@]}" success "$macos_result"
+    assert_linux_verify_fails '<missing>' success "${valid_args[@]}" success
     for invalid_required in '' unknown; do
       assert_linux_verify_fails "${invalid_required:-<empty>}" success \
-        "${valid_args[@]}" success "$macos_result" "$invalid_required"
+        "${valid_args[@]}" success "$invalid_required"
       assert_linux_verify_fails "${invalid_required:-<empty>}" skipped \
-        "${valid_args[@]}" skipped "$macos_result" "$invalid_required"
+        "${valid_args[@]}" skipped "$invalid_required"
     done
 
     for failed_result in failure cancelled; do
       assert_verify_fails "$failed_result" success "$macos_required" "$macos_result" \
-        false "$musl_required" "$musl_result" success "$macos_result" true
+        false "$musl_required" "$musl_result" success true
       assert_verify_fails success "$failed_result" "$macos_required" "$macos_result" \
-        false "$musl_required" "$musl_result" success "$macos_result" true
+        false "$musl_required" "$musl_result" success true
       if [[ "$macos_required" == true ]]; then
-        assert_verify_fails success success true "$failed_result" false "$musl_required" "$musl_result" success success true
+        assert_verify_fails success success true "$failed_result" false "$musl_required" "$musl_result" success true
       fi
       if [[ "$musl_required" == true ]]; then
         assert_verify_fails success success "$macos_required" "$macos_result" false true "$failed_result" \
-          success "$macos_result" true
+          success true
       fi
     done
   done
@@ -355,18 +348,16 @@ body = aggregate.group(1)
 needs = re.search(r"(?m)^    needs:\n((?:      - [^\n]+\n)+)", body)
 if needs is None or "      - build-linux-cli" not in needs.group(1).splitlines():
     sys.exit("lint-build-test must need build-linux-cli")
-if "      - swift-build-macos-compatibility" not in needs.group(1).splitlines():
-    sys.exit("lint-build-test must need swift-build-macos-compatibility")
+if "      - swift-build-macos-compatibility" in needs.group(1).splitlines():
+    sys.exit("lint-build-test must not need the retired Xcode 26 compatibility build")
 command = re.search(r"(?m)^          \./Scripts/ci_verify_test_jobs\.sh(?:[^\n]*\\\n)+[^\n]*", body)
 if command is None:
     sys.exit("missing aggregate verifier command")
 arguments = shlex.split(command.group(0).replace("\\\n", ""))
-if len(arguments) != 11 or arguments[8] != "${{ needs.build-linux-cli.result }}":
+if len(arguments) != 10 or arguments[8] != "${{ needs.build-linux-cli.result }}":
     sys.exit("aggregate verifier argument eight must be needs.build-linux-cli.result")
-if arguments[9] != "${{ needs.swift-build-macos-compatibility.result }}":
-    sys.exit("aggregate verifier argument nine must be needs.swift-build-macos-compatibility.result")
-if arguments[10] != "${{ needs.changes.outputs.linux-cli-build }}":
-    sys.exit("aggregate verifier argument ten must be needs.changes.outputs.linux-cli-build")
+if arguments[9] != "${{ needs.changes.outputs.linux-cli-build }}":
+    sys.exit("aggregate verifier argument nine must be needs.changes.outputs.linux-cli-build")
 
 linux_job = re.search(r"(?ms)^  build-linux-cli:\n(.*?)(?=^  [\w-]+:|\Z)", workflow)
 if linux_job is None:

@@ -222,7 +222,7 @@ struct SettingsWindowAppearanceTests {
     }
 
     @Test
-    func `settings window uses a unified toolbar and draws the pane title in the detail header`() {
+    func `settings toolbar follows OS availability without losing the native title`() {
         let bridge = SettingsWindowAppearanceView()
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 400, height: 300),
@@ -232,9 +232,16 @@ struct SettingsWindowAppearanceTests {
 
         window.contentView = bridge
 
-        #expect(window.toolbar?.identifier == SettingsWindowToolbar.identifier)
-        #expect(window.toolbarStyle == .unified)
-        #expect(window.titleVisibility == .hidden)
+        bridge.refreshWindowAppearance(for: .light, windowTitle: "General")
+        #expect(window.title == "General")
+        if #available(macOS 26.0, *) {
+            #expect(window.toolbar?.identifier == SettingsWindowToolbar.identifier)
+            #expect(window.toolbarStyle == .unified)
+            #expect(window.titleVisibility == .hidden)
+        } else {
+            #expect(window.toolbar == nil)
+            #expect(window.titleVisibility == .visible)
+        }
     }
 
     @Test

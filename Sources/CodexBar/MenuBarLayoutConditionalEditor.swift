@@ -384,7 +384,7 @@ extension MenuBarConditionalMetric {
         case .runsOutIn: L("menu_bar_layout_token_runs_out")
         case .balance: L("Balance")
         case .costToday: L("menu_bar_layout_token_cost_today")
-        case .cost30d: L("menu_bar_layout_token_cost_30d")
+        case .costWindow: L("menu_bar_layout_token_cost_window")
         }
     }
 }

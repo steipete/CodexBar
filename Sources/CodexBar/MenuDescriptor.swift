@@ -46,6 +46,7 @@ struct MenuDescriptor {
         case addAccount = "plus"
         case systemAccount = "person.crop.circle"
         case workspaces = "folder"
+        case liveUsage = "chart.bar.xaxis"
         case switchAccount = "key"
         case openTerminal = "terminal"
         case loginToProvider = "arrow.right.square"
@@ -76,6 +77,7 @@ struct MenuDescriptor {
         case openTerminal(command: String)
         case loginToProvider(url: String)
         case openCodexWorkspaces
+        case openOpenAILiveUsage
         case settings
         case providerSettings(UsageProvider)
         case about
@@ -809,6 +811,7 @@ extension MenuDescriptor.MenuAction {
         case .openTerminal: MenuDescriptor.MenuActionSystemImage.openTerminal.rawValue
         case .loginToProvider: MenuDescriptor.MenuActionSystemImage.loginToProvider.rawValue
         case .openCodexWorkspaces: MenuDescriptor.MenuActionSystemImage.workspaces.rawValue
+        case .openOpenAILiveUsage: MenuDescriptor.MenuActionSystemImage.liveUsage.rawValue
         case .copyError: MenuDescriptor.MenuActionSystemImage.copyError.rawValue
         case .focusAgentSession:
             nil

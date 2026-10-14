@@ -24,15 +24,17 @@ struct ClaudeSwapRichUsageCardTests {
     }
 
     @Test
-    func `source spend reaches the existing cost row without inventing a quota`() async throws {
+    func `source spend reaches the cost section without changing quota windows`() async throws {
         try await ClaudeSwapRichUsageFixture.withFixture { fixture in
             let model = try fixture.model(for: "1")
             let account = try #require(fixture.accounts.first { $0.id.opaqueID == "1" })
             #expect(account.snapshot?.providerCost?.used == 5.25)
             #expect(account.snapshot?.providerCost?.limit == 20)
             #expect(account.snapshot?.providerCost?.currencyCode == "USD")
-            #expect(model.providerCost != nil)
             #expect(model.metrics.map(\.percent) == [26, 42])
+            let cost = try #require(model.providerCost)
+            #expect(cost.percentUsed == 26.25)
+            #expect(cost.spendLine.contains("$5.25 / $20.00"))
             #expect(model.planText == "Active")
             #expect(model.planEmphasis == .active)
         }

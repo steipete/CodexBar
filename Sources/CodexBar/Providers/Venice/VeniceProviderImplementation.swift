@@ -72,7 +72,7 @@ struct VeniceProviderImplementation: ProviderImplementation {
                 allowsOff: true,
                 subtitles: {
                     .init(
-                        auto: "Automatic imports Venice cookies from Chrome.",
+                        auto: "Automatic imports Venice cookies from your browser.",
                         manual: "Paste a Cookie header from venice.ai.",
                         off: "Venice cookies are disabled.")
                 },

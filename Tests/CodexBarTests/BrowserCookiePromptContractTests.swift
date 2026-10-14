@@ -1,3 +1,5 @@
+import CommonCrypto
+import CryptoKit
 import Foundation
 import Security
 import SQLite3
@@ -73,7 +75,7 @@ struct BrowserCookiePromptContractTests {
             try KeychainAccessPreflight.withCheckGenericPasswordOverrideForTesting { _, _ in preflight } operation: {
                 try BrowserCookieAccessGate.withExplicitRetry {
                     try ProviderInteractionContext.$current.withValue(interaction) {
-                        _ = try MiMoCookieImporter.importSessions(
+                        _ = try Array(MiMoCookieImporter.importSessions(
                             browserDetection: detection,
                             loadRecords: { browser, _, _ in
                                 guard browser.usesKeychainForCookieDecryption,
@@ -106,7 +108,7 @@ struct BrowserCookiePromptContractTests {
                                 }
                                 return []
                             },
-                            loadStores: { _ in [] })
+                            loadStores: { _ in [] }))
                     }
                 }
             }
@@ -137,6 +139,324 @@ struct BrowserCookiePromptContractTests {
             } catch let error as ChromeCookieImporter.ImportError {
                 throw BrowserCookieError.mapChromeError(error, browser: browser)
             }
+        }
+    }
+
+    @Test
+    func `unrelated cookie rows never request a Safe Storage key`() throws {
+        let home = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: home) }
+        let database = home.appendingPathComponent("Cookies")
+        var db: OpaquePointer?
+        #expect(sqlite3_open(database.path, &db) == SQLITE_OK)
+        defer { sqlite3_close(db) }
+        #expect(sqlite3_exec(
+            db,
+            "CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT); INSERT INTO meta VALUES ('version', '24'); " +
+                "CREATE TABLE cookies (host_key TEXT, name TEXT, path TEXT, expires_utc INTEGER, " +
+                "is_secure INTEGER, is_httponly INTEGER, value TEXT, encrypted_value BLOB); " +
+                "INSERT INTO cookies VALUES ('unrelated.example', 'session', '/', 0, 1, 1, '', X'763130')",
+            nil,
+            nil,
+            nil) == SQLITE_OK)
+        let store = BrowserCookieStore(
+            browser: .brave,
+            profile: .init(id: home.path, name: "Synthetic"),
+            kind: .network,
+            label: "Synthetic Brave",
+            databaseURL: database)
+        let client = BrowserCookieClient(configuration: .init(homeDirectories: [home]))
+        try self.withFakeKeychain {
+            // If host filtering ever reaches Safe Storage, fail before any real credential read.
+            BrowserCookieKeychainAccessGate.isDisabled = true
+            try KeychainAccessPreflight.withCheckGenericPasswordOverrideForTesting { _, _ in .allowed } operation: {
+                try ProviderInteractionContext.$current.withValue(.background) {
+                    let records = try client.codexBarRecords(
+                        matching: BrowserCookieQuery(domains: ["xiaomimimo.com"], domainMatch: .exact), in: store)
+                    #expect(records.isEmpty)
+                }
+            }
+        }
+    }
+
+    @Test
+    func `every provider browser order keeps background key reads noninteractive`() {
+        let keychain = FakeKeychain()
+        self.withFakeKeychain {
+            KeychainAccessPreflight.withCheckGenericPasswordOverrideForTesting { _, _ in .allowed } operation: {
+                ProviderInteractionContext.$current.withValue(.background) {
+                    BrowserCookieAccessGate.withExplicitRetry {
+                        for descriptor in ProviderDescriptorRegistry.all {
+                            for browser in descriptor.metadata.browserCookieOrder ?? []
+                                where browser.usesKeychainForCookieDecryption
+                            {
+                                #expect(BrowserCookieAccessGate.shouldAttempt(browser))
+                                #expect(throws: BrowserCookieError.self) {
+                                    try Self.readKey(for: browser, keychain: keychain)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        #expect(keychain.interactiveQueries == 0)
+    }
+
+    private final class NativeBrowserFixture: @unchecked Sendable {
+        let home: URL
+        let detection: BrowserDetection
+        let keychain = FakeKeychain(promptFreeBrowser: .chrome)
+        let reads = LockIsolated<[Browser]>([])
+        let validated = LockIsolated<[String]>([])
+        let events = LockIsolated<[String]>([])
+
+        init() throws {
+            let home = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+            self.home = home
+            let key = try ChromeCookieImporter.chromeSafeStorageKey(
+                for: .chrome, passwordLookup: FakeKeychain(promptFreeBrowser: .chrome).lookup)
+            ChromeCookieImporter.resetSafeStorageKeyCacheForTesting()
+            for browser in [Browser.chrome, .brave] {
+                let relative = try #require(browser.chromiumProfileRelativePath)
+                let directory = home.appendingPathComponent("Library/Application Support/\(relative)/Default/Network")
+                try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+                var db: OpaquePointer?
+                #expect(sqlite3_open(directory.appendingPathComponent("Cookies").path, &db) == SQLITE_OK)
+                defer { sqlite3_close(db) }
+                #expect(try sqlite3_exec(
+                    db,
+                    "CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT); " +
+                        "INSERT INTO meta VALUES ('version', '24'); " +
+                        "CREATE TABLE cookies (host_key TEXT, name TEXT, path TEXT, expires_utc INTEGER, " +
+                        "is_secure INTEGER, is_httponly INTEGER, value TEXT, encrypted_value BLOB); " +
+                        [
+                            ("venice.ai", "__session"),
+                            ("grok.com", "sso"),
+                            ("replicate.com", "sessionid"),
+                            ("github.com", "user_session"),
+                            ("admin.mistral.ai", "ory_session_fixture"),
+                        ].map { domain, name in
+                            let encrypted = try Self.encrypt(browser.rawValue, domain: domain, key: key)
+                            return "INSERT INTO cookies VALUES ('\(domain)', '\(name)', '/', 0, 1, 1, " +
+                                "'', X'\(encrypted)');"
+                        }.joined(),
+                    nil,
+                    nil,
+                    nil) == SQLITE_OK)
+            }
+            self.detection = BrowserDetection(
+                homeDirectory: home.path,
+                cacheTTL: 0,
+                now: Date.init,
+                fileExists: { path in
+                    [Browser.chrome, .brave].contains { path == "/Applications/\($0.appBundleName).app" }
+                        || (path.hasPrefix(home.path) && FileManager.default.fileExists(atPath: path))
+                },
+                directoryContents: { try? FileManager.default.contentsOfDirectory(atPath: $0) },
+                applicationURLs: { _ in [] },
+                profileAccessIssue: { _ in nil })
+        }
+
+        deinit { try? FileManager.default.removeItem(at: self.home) }
+
+        func records(_ browser: Browser, _ query: BrowserCookieQuery, _ logger: ((String) -> Void)?) throws
+            -> [BrowserCookieStoreRecords]
+        {
+            let client = BrowserCookieClient(configuration: .init(homeDirectories: [self.home]))
+            // Safari advertises a placeholder store even when this synthetic home has no Safari database.
+            let stores = try client.codexBarStores(for: browser).filter { $0.databaseURL != nil }
+            guard !stores.isEmpty else { return [] }
+            self.reads.setValue(self.reads.value + [browser])
+            self.events.setValue(self.events.value + ["read:\(browser.rawValue)"])
+            return try stores.map { store in
+                let records = try ChromeCookieImporter.loadCookies(
+                    from: store,
+                    matchingDomains: query.domains,
+                    domainMatch: query.domainMatch,
+                    safeStorageKey: { try BrowserCookiePromptContractTests.readKey(for: $0, keychain: self.keychain) })
+                return BrowserCookieStoreRecords(
+                    store: store, records: records.map(BrowserCookieClient.makeBrowserCookieRecord))
+            }
+        }
+
+        private static func encrypt(_ value: String, domain: String, key: Data) throws -> String {
+            let plaintext = Data(SHA256.hash(data: Data(domain.utf8))) + Data(value.utf8)
+            let iv = Data(repeating: 0x20, count: kCCBlockSizeAES128)
+            var output = Data(count: plaintext.count + kCCBlockSizeAES128)
+            let capacity = output.count
+            var written = 0
+            let result = output.withUnsafeMutableBytes { out in
+                plaintext.withUnsafeBytes { input in
+                    key.withUnsafeBytes { key in
+                        iv.withUnsafeBytes { iv in
+                            CCCrypt(
+                                CCOperation(kCCEncrypt),
+                                CCAlgorithm(kCCAlgorithmAES),
+                                CCOptions(kCCOptionPKCS7Padding),
+                                key.baseAddress,
+                                kCCKeySizeAES128,
+                                iv.baseAddress,
+                                input.baseAddress,
+                                plaintext.count,
+                                out.baseAddress,
+                                capacity,
+                                &written)
+                        }
+                    }
+                }
+            }
+            try #require(result == kCCSuccess)
+            return (Data("v10".utf8) + output.prefix(written)).map { String(format: "%02x", $0) }.joined()
+        }
+
+        func accepts(_ header: String, rejectingChrome: Bool) -> Bool {
+            self.validated.setValue(self.validated.value + [header])
+            self.events.setValue(self.events.value + ["validate:\(header)"])
+            return !rejectingChrome || header.contains("brave")
+        }
+    }
+
+    @Test(arguments: [UsageProvider.venice, .grok, .replicate, .copilot, .mistral])
+    func `native loaders leave Brave cold after a valid Chrome session`(provider: UsageProvider) async throws {
+        try await self.auditNativeLoader(provider, rejectingChrome: false)
+    }
+
+    @Test(arguments: [UsageProvider.venice, .grok, .replicate, .copilot, .mistral])
+    func `native loaders reach Brave only after rejecting Chrome`(provider: UsageProvider) async throws {
+        try await self.auditNativeLoader(provider, rejectingChrome: true)
+    }
+
+    private func auditNativeLoader(_ provider: UsageProvider, rejectingChrome: Bool) async throws {
+        BrowserCookieAccessGate.resetForTesting()
+        ChromeCookieImporter.resetSafeStorageKeyCacheForTesting()
+        let wasDisabled = BrowserCookieKeychainAccessGate.isDisabled
+        let promptHandler = BrowserCookieKeychainPromptHandler.handler
+        BrowserCookieKeychainAccessGate.isDisabled = false
+        BrowserCookieKeychainPromptHandler.handler = nil
+        defer {
+            BrowserCookieKeychainAccessGate.isDisabled = wasDisabled
+            BrowserCookieKeychainPromptHandler.handler = promptHandler
+            BrowserCookieAccessGate.resetForTesting()
+            ChromeCookieImporter.resetSafeStorageKeyCacheForTesting()
+        }
+        let fixture = try NativeBrowserFixture()
+        try await KeychainCacheStore.withServiceOverrideForTesting("native-cookie-fixture-\(UUID().uuidString)") {
+            try await KeychainCacheStore.withImplicitTestStoreForTesting {
+                try await CookieHeaderCache.withLegacyBaseURLOverrideForTesting(fixture.home) {
+                    try await KeychainAccessGate.withTaskOverrideForTesting(false) {
+                        try await KeychainAccessPreflight
+                            .withCheckGenericPasswordOverrideForTesting { _, _ in .allowed } operation: {
+                                try await ProviderInteractionContext.$current.withValue(.userInitiated) {
+                                    try await BrowserCookieAccessGate.withExplicitRetry {
+                                        try await Self.fetchNative(
+                                            provider,
+                                            fixture: fixture,
+                                            rejectingChrome: rejectingChrome)
+                                    }
+                                }
+                            }
+                    }
+                }
+            }
+        }
+        #expect(fixture.reads.value == (rejectingChrome ? [.chrome, .brave] : [.chrome]))
+        #expect(fixture.keychain.interactiveQueries == (rejectingChrome ? 1 : 0))
+        #expect(fixture.validated.value.last?.contains(rejectingChrome ? "brave" : "chrome") == true)
+        if rejectingChrome {
+            let validation = try #require(fixture.events.value.firstIndex { $0.hasPrefix("validate:") })
+            let braveRead = try #require(fixture.events.value.firstIndex(of: "read:brave"))
+            #expect(validation < braveRead)
+        }
+    }
+
+    private static func fetchNative(
+        _ provider: UsageProvider,
+        fixture: NativeBrowserFixture,
+        rejectingChrome: Bool) async throws
+    {
+        let usage = UsageSnapshot(primary: nil, secondary: nil, updatedAt: Date())
+        let context = ProviderFetchContext(
+            runtime: .app,
+            sourceMode: .web,
+            includeCredits: false,
+            webTimeout: 10,
+            webDebugDumpHTML: false,
+            verbose: false,
+            env: [:],
+            settings: nil,
+            fetcher: UsageFetcher(environment: [:]),
+            claudeFetcher: ClaudeUsageFetcher(browserDetection: fixture.detection),
+            browserDetection: fixture.detection)
+        switch provider {
+        case .venice:
+            _ = try await VeniceWebFetchStrategy(
+                usageLoader: { header in
+                    guard fixture.accepts(header, rejectingChrome: rejectingChrome) else {
+                        throw VeniceUsageError.invalidCredentials
+                    }
+                    return usage
+                },
+                sessionLoader: { try VeniceCookieImporter.sessionCandidates(
+                    browserDetection: $0, loadRecords: fixture.records) }).fetch(context)
+        case .grok:
+            let candidates = try GrokCookieImporter.sessionCandidates(
+                browserDetection: fixture.detection, loadRecords: fixture.records)
+            _ = try await GrokWebFetchStrategy.fetchFirstValidCookieSession(candidates) { header, _ in
+                guard fixture.accepts(header, rejectingChrome: rejectingChrome) else {
+                    throw GrokWebBillingError.requestFailed(401, "synthetic expired session")
+                }
+                return GrokWebBillingSnapshot(usedPercent: 10, resetsAt: nil)
+            }
+        case .replicate:
+            _ = try await ReplicateWebFetchStrategy(
+                usageLoader: { header in
+                    guard fixture.accepts(header, rejectingChrome: rejectingChrome) else {
+                        throw ProviderFetchClassifiedError(kind: .authenticationExpired, message: "synthetic")
+                    }
+                    return usage
+                },
+                sessionLoader: { detection in
+                    try AnySequence(ReplicateCookieImporter.sessionCandidates(
+                        browserDetection: detection, loadRecords: fixture.records).lazy.map {
+                        ReplicateResolvedSession(cookieHeader: $0.cookieHeader, sourceLabel: $0.sourceLabel)
+                    })
+                },
+                cacheLoader: { .authoritative(nil) },
+                cacheWriter: { _, _ in }).fetch(context)
+        case .copilot, .mistral:
+            let transport = ProviderHTTPTransportHandler { request in
+                let url = try #require(request.url)
+                let isUsage = provider == .copilot ? url.query != nil : url.path == "/api/billing/v2/usage"
+                let accepted = !isUsage || fixture.accepts(
+                    request.value(forHTTPHeaderField: "Cookie") ?? "", rejectingChrome: rejectingChrome)
+                let code = isUsage ? (accepted ? 200 : 401) : 404
+                let body = provider == .copilot ? #"{"budgets":[],"has_next_page":false}"# : """
+                {"completion":{"models":{}},"ocr":{"models":{}},"connectors":{"models":{}},
+                 "libraries_api":{"pages":{"models":{}},"tokens":{"models":{}}},
+                 "fine_tuning":{"training":{},"storage":{}},"audio":{"models":{}},"vibe_usage":0,
+                 "date":"2026-02-01T00:00:00Z","previous_month":"2026-01","next_month":"2026-03",
+                 "start_date":"2026-02-01T00:00:00Z","end_date":"2026-02-28T23:59:59.999Z",
+                 "currency":"USD","currency_symbol":"$","prices":[]}
+                """
+                return try (Data(body.utf8), #require(HTTPURLResponse(
+                    url: url, statusCode: code, httpVersion: nil, headerFields: nil)))
+            }
+            if provider == .copilot {
+                CookieHeaderCache.clear(provider: .copilot)
+                var fetcher = CopilotBudgetWebFetcher(browserDetection: fixture.detection, transport: transport)
+                fetcher.sessionLoader = { try CopilotGitHubCookieImporter.sessionCandidates(
+                    browserDetection: $0, loadRecords: fixture.records) }
+                _ = try await fetcher.fetchBudgetWindows()
+            } else {
+                let candidates = try MistralCookieImporter.sessionCandidates(
+                    browserDetection: fixture.detection, loadRecords: fixture.records)
+                _ = try await MistralWebFetchStrategy.fetchUsageFromSessions(
+                    candidates, timeout: 10, transport: transport)
+            }
+        default:
+            Issue.record("Unexpected native provider")
         }
     }
 

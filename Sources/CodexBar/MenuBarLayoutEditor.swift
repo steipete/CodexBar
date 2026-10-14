@@ -53,6 +53,12 @@ enum MenuBarLayoutPaletteTokens {
             + MenuBarLayoutNamedExtra.availableTokens(provider: provider, snapshot: snapshot) + [
                 .percent(window: .automatic),
                 .usageBar,
+                .progressBar(window: .session),
+                .progressBar(window: .weekly),
+                .progressBar(window: .scopedWeekly),
+                .progressBar(window: .automatic),
+                .tokensPerMinute,
+                .tokensSparkline,
                 .pace(window: .session),
                 .pace(window: .weekly),
                 .pace(window: .automatic),
@@ -79,13 +85,19 @@ enum MenuBarLayoutPaletteTokens {
         .percent(window: .scopedWeekly),
         .percent(window: .automatic),
         .usageBar,
+        .progressBar(window: .session),
+        .progressBar(window: .weekly),
+        .progressBar(window: .scopedWeekly),
+        .progressBar(window: .automatic),
         .pace(window: .session),
         .pace(window: .weekly),
         .pace(window: .automatic),
     ] + Self.time + [
         .balance,
         .costToday,
-        .cost30d,
+        .tokensPerMinute,
+        .tokensSparkline,
+        .costWindow,
         .separatorDot,
         .space,
         .hidden,
@@ -328,7 +340,7 @@ struct MenuBarLayoutEditor: View {
             MenuBarLayoutPaletteGroup(
                 id: "money",
                 title: L("menu_bar_layout_group_money"),
-                tokens: [.balance, .costToday, .cost30d],
+                tokens: [.balance, .costToday, .costWindow],
                 includesLineBreak: false),
             MenuBarLayoutPaletteGroup(
                 id: "structure",
@@ -623,6 +635,10 @@ struct MenuBarLayoutEditor: View {
                         activate: {
                             self.write(MenuBarLayoutEditorMutations.append(token, to: self.layout))
                         })
+                        .help(token == .tokensPerMinute
+                            ? L("Latest tokens per minute (OpenAI Admin API)")
+                            : token == .tokensSparkline
+                            ? L("Last hour of tokens per minute (OpenAI Admin API)") : "")
                 }
                 if group.includesLineBreak {
                     MenuBarLayoutEditorChip(
@@ -996,6 +1012,10 @@ struct MenuBarLayoutPreview: View {
             runsOut: L("Runs out in %@", "1d 16h"),
             // Provider-specific by design: only OpenRouter previews the Balance palette token.
             balance: provider == .openrouter ? "$12.34" : nil,
+            tokensPerMinute: 49_000_000,
+            tokensSparkline: .init(
+                values: [30, 65, 40, 50, 35, 80, 45, 60, 151, 55, 70, 45, 60, 49].map { $0 * 1_000_000 },
+                latest: 49_000_000),
             costToday: "$1.25",
             cost30d: "$20.00",
             metrics: MenuBarLayoutRenderMetrics(
@@ -1004,6 +1024,7 @@ struct MenuBarLayoutPreview: View {
                 automaticPaceDelta: samplePaceDelta(session),
                 // 1d 16h == 40h, matching the sample `runsOut` text above.
                 runsOutMinutes: 2400,
+                // Provider-specific by design: Balance predicates mirror the OpenRouter preview amounts.
                 balanceRemainingUSD: provider == .openrouter ? 12.34 : nil,
                 balanceUsedUSD: provider == .openrouter ? 7.66 : nil,
                 costTodayUSD: 1.25,
@@ -1059,6 +1080,7 @@ extension MenuBarLayoutPreset {
         case .iconOnly: L("menu_bar_layout_preset_icon_only")
         case .percentAndReset: L("menu_bar_layout_preset_percent_reset")
         case .compactStacked: L("menu_bar_layout_preset_compact_stacked")
+        case .barsStacked: L("menu_bar_layout_preset_bars_stacked")
         case .custom: L("menu_bar_layout_preset_custom")
         }
     }
@@ -1099,7 +1121,8 @@ extension MenuBarLayoutToken {
     private func providerEditorLabel(provider: UsageProvider?) -> String? {
         let window: PercentWindow? = switch self {
         case let .percent(window), let .pace(window),
-             let .windowResetCountdown(window), let .windowResetAbsolute(window): window
+             let .windowResetCountdown(window), let .windowResetAbsolute(window),
+             let .progressBar(window): window
         default: nil
         }
         guard let localizedLabel = window?.providerLabel(provider: provider) else { return nil }
@@ -1110,6 +1133,8 @@ extension MenuBarLayoutToken {
             L("%@: %@", localizedLabel, L("menu_bar_layout_token_resets_in"))
         case .windowResetAbsolute:
             L("%@: %@", localizedLabel, L("menu_bar_layout_token_reset_at"))
+        case .progressBar:
+            L("%@ %@", localizedLabel, L("menu_bar_layout_token_bar"))
         default: nil
         }
     }
@@ -1130,6 +1155,8 @@ extension MenuBarLayoutToken {
         case .pace(window: .scopedWeekly): L("menu_bar_layout_token_weekly_pace")
         case .pace(window: .automatic): L("menu_bar_layout_token_auto_pace")
         case .usageBar: L("menu_bar_layout_token_bar")
+        case let .progressBar(window):
+            L("%@ %@", Self.resetWindowLabel(window), L("menu_bar_layout_token_bar"))
         case .resetCountdown: L("menu_bar_layout_token_resets_in")
         case .resetAbsolute: L("menu_bar_layout_token_reset_at")
         case let .windowResetCountdown(window):
@@ -1139,8 +1166,10 @@ extension MenuBarLayoutToken {
         case .runsOut: L("menu_bar_layout_token_runs_out")
         case .runsOutCompact: "\(L("menu_bar_layout_token_runs_out")) (compact)"
         case .balance: L("Balance")
+        case .tokensPerMinute: L("Tokens / min")
+        case .tokensSparkline: L("Tokens / min graph")
         case .costToday: L("menu_bar_layout_token_cost_today")
-        case .cost30d: L("menu_bar_layout_token_cost_30d")
+        case .costWindow: L("menu_bar_layout_token_cost_window")
         case .separatorDot: "·"
         case .space: L("menu_bar_layout_token_space")
         case .conditional: L("menu_bar_layout_token_conditional")
@@ -1182,13 +1211,15 @@ extension MenuBarLayoutToken {
         case .accountLabel: "person.crop.circle"
         case .percent, .lanePercent, .extraPercent: "percent"
         case .pace: "speedometer"
-        case .usageBar: "chart.bar.fill"
+        case .usageBar, .progressBar: "chart.bar.fill"
         case .resetCountdown, .windowResetCountdown: "timer"
         case .resetAbsolute, .windowResetAbsolute: "clock"
         case .runsOut, .runsOutCompact: "hourglass.bottomhalf.filled"
         case .balance: "creditcard"
+        case .tokensPerMinute: "speedometer"
+        case .tokensSparkline: "chart.bar.xaxis"
         case .costToday: "dollarsign.circle"
-        case .cost30d: "calendar.badge.clock"
+        case .costWindow: "calendar.badge.clock"
         case .separatorDot: "smallcircle.filled.circle"
         case .space: "space"
         case .conditional: "switch.2"

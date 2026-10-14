@@ -147,7 +147,7 @@ struct HelmcodePluginTests {
     @Test
     func `descriptor uses the plugin and preserves cookie configuration`() {
         let descriptor = HelmcodeProviderDescriptor.descriptor
-        #expect(descriptor.metadata.browserCookieOrder == [.chrome])
+        #expect(descriptor.metadata.browserCookieOrder == ProviderBrowserCookieDefaults.defaultImportOrder)
         #expect(descriptor.metadata.defaultEnabled == false)
         #expect(descriptor.metadata.widgetSelectable == false)
         #expect(descriptor.fetchPlan.sourceModes == [.auto, .web])

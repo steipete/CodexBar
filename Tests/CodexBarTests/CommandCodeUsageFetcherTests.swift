@@ -115,6 +115,36 @@ struct CommandCodeUsageFetcherTests {
     }
 
     @Test
+    func `api key requests use alpha routes with bearer auth`() async throws {
+        try await CommandCodeUsageFetcher.withIsolatedPlanCacheForTesting {
+            let transport = ProviderHTTPTransportStub { request in
+                let path = try #require(request.url?.path)
+                #expect(path.hasPrefix("/alpha/billing/"))
+                #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer user_test")
+                #expect(request.value(forHTTPHeaderField: "Cookie") == nil)
+                let body = path.hasSuffix("/credits") ? Self.creditsJSON : Self.subscriptionJSON
+                return try Self.response(request: request, statusCode: 200, body: body)
+            }
+
+            let snapshot = try await CommandCodeUsageFetcher.fetchUsage(apiKey: "user_test", session: transport)
+
+            #expect(snapshot.monthlyCreditsRemaining == 8.7784)
+            #expect(snapshot.plan?.id == "individual-go")
+        }
+    }
+
+    @Test
+    func `rejected api key reports invalid api key`() async {
+        let transport = ProviderHTTPTransportStub { request in
+            try Self.response(request: request, statusCode: 401, body: "{}")
+        }
+
+        await #expect(throws: CommandCodeUsageError.invalidAPIKey) {
+            try await CommandCodeUsageFetcher.fetchUsage(apiKey: "user_test", session: transport)
+        }
+    }
+
+    @Test
     func `subscription failure envelope preserves required credits`() async throws {
         try await CommandCodeUsageFetcher.withIsolatedPlanCacheForTesting {
             let transport = ProviderHTTPTransportStub { request in

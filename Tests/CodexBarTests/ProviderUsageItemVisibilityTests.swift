@@ -8,6 +8,70 @@ import Testing
 @MainActor
 struct ProviderUsageItemVisibilityTests {
     @Test
+    func `globally gated quota rows retain their explanation when unavailable`() {
+        for (provider, optionalIDs) in [
+            (UsageProvider.codex, ["codex-spark", "codex-spark-weekly", "codex-extra-quota", "monthly"]),
+            (.claude, ["claude-routines"]),
+        ] {
+            let model = Self.model(provider: provider, metricIDs: ["primary", "secondary"] + optionalIDs)
+            let items = model.usageItemDescriptors
+            #expect(items.filter(\.requiresOptionalUsage).map(\.id) == optionalIDs.map(ProviderUsageItemID.metric))
+            let unavailable = Self.model(provider: provider, metricIDs: ["primary", "secondary"])
+                .usageItemDescriptors(includingHidden: Set(optionalIDs.map(ProviderUsageItemID.metric)))
+            #expect(unavailable.filter(\.requiresOptionalUsage).count == optionalIDs.count)
+            #expect(!ProviderUsageItemID.subscription.requiresOptionalUsage(for: provider))
+        }
+    }
+
+    @Test
+    func `detail row explanations follow provider optional visibility policy`() throws {
+        let model = try Self.model(provider: .deepseek, metricIDs: ["primary"], detailSections: [
+            ProviderDetailSection(title: "Quota details", rows: [.init(label: "Remaining", value: "50")]),
+        ])
+        #expect(model.usageItemDescriptors.filter(\.requiresOptionalUsage).map(\.id) == [
+            .detailSection("Quota details"),
+        ])
+        let unavailable = Self.model(provider: .minimax, metricIDs: ["primary"])
+            .usageItemDescriptors(includingHidden: [.detailSection("Billing history")])
+        #expect(unavailable.last?.requiresOptionalUsage == true)
+        #expect(!ProviderUsageItemID.detailSection("Quota details").requiresOptionalUsage(for: .minimax))
+        #expect(!ProviderUsageItemID.metric("claude-routines").requiresOptionalUsage(for: .codex))
+        #expect(!ProviderUsageItemID.metric("codex-spark").requiresOptionalUsage(for: .claude))
+    }
+
+    @Test
+    func `claude independently selects resets extra usage and subscription without losing quota notes`() {
+        var model = Self.model(provider: .claude, metricIDs: ["primary", "secondary"], showsResetCredits: true)
+        model.providerCost = .init(title: "Extra usage", percentUsed: 10, spendLine: "$1 / $10", percentLine: nil)
+        model.subscriptionNotes = ["Renews: Nov 5, 2026"]
+        model.usageNotes = ["Usage estimate", "Renews: Nov 5, 2026"]
+        let items = model.usageItemDescriptors
+        #expect(items.contains { $0.id == .claudeResetCredits && !$0.requiresOptionalUsage })
+        #expect(items.contains { $0.id == .claudeExtraUsage && $0.requiresOptionalUsage })
+        #expect(items.contains { $0.id == .subscription && !$0.requiresOptionalUsage })
+        #expect(model.quotaSubscriptionNotes == ["Renews: Nov 5, 2026"])
+        #expect(model.supplementalUsageNotes == ["Usage estimate"])
+
+        let hidden = model.applyingUsageItemVisibility(hiddenItemIDs: [.claudeExtraUsage, .subscription])
+        #expect(hidden.providerCost == nil)
+        #expect(hidden.limitResetCredits != nil)
+        #expect(hidden.metrics.count == 2)
+        #expect(hidden.subscriptionNotes.isEmpty)
+        #expect(hidden.usageNotes == ["Usage estimate"])
+        #expect(model.applyingUsageItemVisibility(hiddenItemIDs: [.claudeResetCredits]).limitResetCredits == nil)
+        #expect(model.applyingUsageItemVisibility(hiddenItemIDs: [.codexResetCredits]).limitResetCredits != nil)
+        model.providerCost = .init(title: "API spend", percentUsed: nil, spendLine: "$10", percentLine: nil)
+        #expect(model.applyingUsageItemVisibility(hiddenItemIDs: [.claudeExtraUsage]).providerCost != nil)
+    }
+
+    @Test
+    func `new visibility controls retain recognizable unavailable labels`() {
+        #expect(ProviderUsageItemID.claudeResetCredits.unreportedTitle(for: .claude) == "Limit Reset Credits")
+        #expect(ProviderUsageItemID.claudeExtraUsage.unreportedTitle(for: .claude) == "Extra usage")
+        #expect(ProviderUsageItemID.subscription.unreportedTitle(for: .codex) == "Plan renewal / expiry")
+    }
+
+    @Test
     func `cosmetic edits preserve account caches spend ownership and synced refresh state`() throws {
         let defaults = InMemoryUserDefaults()
         let configStore = testConfigStore(suiteName: "visibility-ownership-\(UUID().uuidString)")
@@ -426,6 +490,116 @@ struct ProviderUsageItemVisibilityTests {
         #expect(reloaded.providerConfig(for: .codex)?.hiddenUsageItemIDs == [])
         #expect(reloaded.providerConfig(for: .claude)?.hiddenUsageItemIDs == [])
         #expect(reloaded.providerConfig(for: .cursor)?.hiddenUsageItemIDs == nil)
+    }
+
+    @Test(arguments: [true, false], [true, false])
+    func `pre split config loads and independent choices persist without losing saved data`(
+        hasHiddenItems: Bool, optionalUsageEnabled: Bool) throws
+    {
+        let configStore = testConfigStore(suiteName: "visibility-upgrade-\(UUID().uuidString)")
+        let hiddenField = hasHiddenItems
+            ? #", "hiddenUsageItemIDs": ["metric:secondary", "future:item"]"# : ""
+        let legacyJSON = """
+        {"version":1,"providers":[
+          {"id":"claude","enabled":true,"source":"web","accentColor":"#123456"\(hiddenField)},
+          {"id":"codex","enabled":false,"hiddenUsageItemIDs":["section:credits"]}
+        ]}
+        """
+        try FileManager.default.createDirectory(
+            at: configStore.fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data(legacyJSON.utf8).write(to: configStore.fileURL)
+        let defaults = InMemoryUserDefaults(values: [
+            "showOptionalCreditsAndExtraUsage": optionalUsageEnabled,
+            "codexbar.legacySecretsMigrationCompleted": true,
+        ])
+        let settings = Self.settings(defaults: defaults, configStore: configStore)
+        defer { settings.configFileWatcher?.stop() }
+        let oldIDs: Set<ProviderUsageItemID> = hasHiddenItems
+            ? [.metric("secondary"), .init(rawValue: "future:item")] : []
+        #expect(settings.showOptionalCreditsAndExtraUsage == optionalUsageEnabled)
+        let migratedIDs = optionalUsageEnabled ? oldIDs : oldIDs.union([.claudeResetCredits])
+        #expect(settings.hiddenUsageItemIDs(for: .claude) == migratedIDs)
+        #expect(settings.providerConfig(for: .claude)?.claudeResetCreditsVisibilityMigrated == true)
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        let originalCodex = try encoder.encode(settings.providerConfig(for: .codex))
+        let fetchRevision = settings.providerConfigRevision(for: .claude)
+        let backgroundRevision = settings.backgroundWorkSettingsRevision
+
+        settings.setUsageItemVisible(false, itemID: .claudeResetCredits, for: .claude)
+        settings.setUsageItemVisible(false, itemID: .subscription, for: .claude)
+        let expected = oldIDs.union([.claudeResetCredits, .subscription])
+        #expect(settings.hiddenUsageItemIDs(for: .claude) == expected)
+        #expect(settings.providerConfigRevision(for: .claude) == fetchRevision)
+        #expect(settings.backgroundWorkSettingsRevision == backgroundRevision)
+        settings.configFileWatcher?.stop()
+
+        let reloaded = Self.settings(defaults: defaults, configStore: configStore)
+        defer { reloaded.configFileWatcher?.stop() }
+        #expect(reloaded.hiddenUsageItemIDs(for: .claude) == expected)
+        #expect(reloaded.showOptionalCreditsAndExtraUsage == optionalUsageEnabled)
+        #expect(reloaded.providerConfig(for: .claude)?.source == .web)
+        #expect(reloaded.providerConfig(for: .claude)?.enabled == true)
+        #expect(reloaded.providerConfig(for: .claude)?.accentColor == "#123456")
+        #expect(try encoder.encode(reloaded.providerConfig(for: .codex)) == originalCodex)
+        reloaded.setUsageItemVisible(true, itemID: .claudeResetCredits, for: .claude)
+        #expect(reloaded.hiddenUsageItemIDs(for: .claude) == oldIDs.union([.subscription]))
+        #expect(try configStore.load()?.providerConfig(for: .claude)?.hiddenUsageItemIDs ==
+            oldIDs.union([.subscription]).map(\.rawValue).sorted())
+        reloaded.configFileWatcher?.stop()
+        defaults.set(false, forKey: "showOptionalCreditsAndExtraUsage")
+        let restarted = Self.settings(defaults: defaults, configStore: configStore)
+        defer { restarted.configFileWatcher?.stop() }
+        #expect(restarted.isUsageItemVisible(.claudeResetCredits, for: .claude))
+        #expect(restarted.hiddenUsageItemIDs(for: .claude) == oldIDs.union([.subscription]))
+        #expect(restarted.providerConfig(for: .claude)?.claudeResetCreditsVisibilityMigrated == true)
+    }
+
+    @Test
+    func `reset migration marker preserves synced choices and does not change fetch ownership`() throws {
+        var sender = ProviderConfig(id: .claude, hiddenUsageItemIDs: ["metric:secondary"])
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        let originalIdentity = try encoder.encode(sender.fetchIdentityConfig)
+        sender.claudeResetCreditsVisibilityMigrated = true
+        #expect(try encoder.encode(sender.fetchIdentityConfig) == originalIdentity)
+        let payload = try JSONDecoder().decode(ProviderIntentPayload.self, from: encoder.encode(
+            ProviderIntentPayload(config: sender)))
+        let received = try payload.applying(
+            to: ProviderConfig(id: .claude),
+            secretFields: [:],
+            canEnable: { _, _ in true })
+        #expect(received.claudeResetCreditsVisibilityMigrated == true)
+        #expect(received.hiddenUsageItemIDs == ["metric:secondary"])
+
+        let oldPayload = try JSONDecoder().decode(ProviderIntentPayload.self, from: Data(
+            #"{"schemaVersion":1,"provider":"claude","hiddenUsageItemIDs":[]}"#.utf8))
+        #expect(oldPayload.claudeResetCreditsVisibilityMigrated == nil)
+        let olderSync = try oldPayload.applying(to: received, secretFields: [:], canEnable: { _, _ in true })
+        #expect(olderSync.claudeResetCreditsVisibilityMigrated == true)
+        #expect(olderSync.hiddenUsageItemIDs == [])
+
+        let defaults = InMemoryUserDefaults(values: ["showOptionalCreditsAndExtraUsage": false])
+        let configStore = testConfigStore(suiteName: "visibility-migration-sync-\(UUID().uuidString)")
+        try configStore.save(CodexBarConfig(providers: [received]))
+        let settings = Self.settings(defaults: defaults, configStore: configStore)
+        defer { settings.configFileWatcher?.stop() }
+        #expect(settings.isUsageItemVisible(.claudeResetCredits, for: .claude))
+        #expect(settings.hiddenUsageItemIDs(for: .claude) == [.metric("secondary")])
+    }
+
+    @Test
+    func `fresh defaults retain independent reset visibility after the global switch is disabled`() {
+        let defaults = InMemoryUserDefaults()
+        let configStore = testConfigStore(suiteName: "visibility-new-install-\(UUID().uuidString)")
+        let settings = Self.settings(defaults: defaults, configStore: configStore)
+        defer { settings.configFileWatcher?.stop() }
+        #expect(settings.isUsageItemVisible(.claudeResetCredits, for: .claude))
+        settings.showOptionalCreditsAndExtraUsage = false
+        let restarted = Self.settings(defaults: defaults, configStore: configStore)
+        defer { restarted.configFileWatcher?.stop() }
+        #expect(restarted.isUsageItemVisible(.claudeResetCredits, for: .claude))
+        #expect(restarted.providerConfig(for: .claude)?.claudeResetCreditsVisibilityMigrated == true)
     }
 
     static func settings(

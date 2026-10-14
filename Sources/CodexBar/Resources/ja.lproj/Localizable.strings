@@ -1411,6 +1411,7 @@
 "menu_bar_layout_preset_icon_only" = "アイコンのみ";
 "menu_bar_layout_preset_percent_reset" = "割合とリセット";
 "menu_bar_layout_preset_compact_stacked" = "コンパクトな2段表示";
+"menu_bar_layout_preset_bars_stacked" = "進度バーのスタック";
 "menu_bar_layout_preset_custom" = "カスタム";
 "menu_bar_layout_live_preview" = "ライブプレビュー";
 "menu_bar_layout_default_preview" = "デフォルトレイアウトのプレビュー";
@@ -1448,7 +1449,7 @@
 "menu_bar_layout_token_reset_at" = "リセット時刻";
 "menu_bar_layout_token_runs_out" = "使い切り";
 "menu_bar_layout_token_cost_today" = "今日のコスト";
-"menu_bar_layout_token_cost_30d" = "30日間のコスト";
+"menu_bar_layout_token_cost_window" = "コスト（履歴期間）";
 "menu_bar_layout_token_space" = "空白";
 "menu_bar_layout_token_line_break" = "改行";
 "menu_bar_layout_token_separator_accessibility" = "区切り点";
@@ -1466,7 +1467,6 @@
 "Reset time unavailable" = "リセット時刻: 利用不可";
 "Run-out estimate unavailable" = "使い切り: 利用不可";
 "Cost today unavailable" = "今日のコスト: 利用不可";
-"30-day cost unavailable" = "30日間のコスト: 利用不可";
 "Resets" = "リセット";
 "codex_workspaces_cost_unavailable" = "コストを利用できません";
 "codex_workspaces_elevated_usage" = "使用量がやや多い";
@@ -1551,6 +1551,7 @@
 "5-hour usage" = "5時間の使用量";
 "7-day usage" = "7日間の使用量";
 "Total usage" = "合計使用量";
+"claude_oauth_keychain_access_disabled" = "Keychain へのアクセスが無効になっているため、CodexBar は Claude のサインイン情報を読み取れません。";
 "claude_oauth_keychain_access_revoked" = "Claude Code のトークン更新により、Claude キーチェーンへのアクセスが取り消されました。「更新」をクリックしてアクセスを再許可するか、Claude の使用量の取得元を CLI/Web に切り替えてください。";
 "claude_showing_last_known_usage" = "最後に取得した既知の使用量を表示しています（取得: %@）。";
 "claude_limited_usage_detail" = "使用量の詳細情報は限られています";
@@ -2510,6 +2511,7 @@
 "Back" = "戻る";
 "Forward" = "進む";
 
+"cost_reset_inferred_tooltip" = "推定: %@ はこの日付を報告しません。月間の支出上限は毎月1日 00:00 UTC にリセットされます。";
 /* fal provider credentials */
 "Key with billing read access (BILLING or READONLY preset). Or set FAL_KEY." = "請求の読み取り権限を持つキー（BILLING または READONLY プリセット）。または FAL_KEY を設定します。";
 
@@ -2518,3 +2520,105 @@
 "Required. The ws_… ID of the workspace the key can bill. Or set FLORA_WORKSPACE_ID." = "必須。キーが請求できるワークスペースの ws_… ID。または FLORA_WORKSPACE_ID を設定します。";
 "ak_…" = "ak_…";
 "ws_…" = "ws_…";
+
+"Plan renewal / expiry" = "プランの更新 / 有効期限";
+
+"Hidden by the global optional credits, spending & billing setting." = "オプションのクレジット、支出、請求情報の全体設定により非表示になっています。";
+
+"Provider order updated" = "プロバイダーの順序を更新しました";
+"Undo" = "取り消す";
+"Clear filters" = "フィルターを解除";
+"Change provider order" = "プロバイダーの順序を変更";
+"Provider sorting" = "プロバイダーの並べ替え";
+"Only enabled providers" = "有効なプロバイダーのみ";
+"Restore default order" = "既定の順序に戻す";
+"Also restores the provider order in the menu bar. Can be undone." = "メニューバーのプロバイダー順序も戻します。取り消し可能です。";
+"Local Codex details; excluded from combined totals." = "ローカルの Codex 詳細。合計には含まれません。";
+
+"Auto uses an API key when configured, otherwise browser cookies." = "Auto uses an API key when configured, otherwise browser cookies.";
+"Stored in the CodexBar config file. You can also set COMMAND_CODE_API_KEY." = "Stored in the CodexBar config file. You can also set COMMAND_CODE_API_KEY.";
+/* OpenAI organization rate limits and live usage */
+"%@ tokens · %@ requests" = "%@ トークン · %@ リクエスト";
+"15m" = "15分";
+"1h" = "1時間";
+"5-min avg" = "5分平均";
+"6h" = "6時間";
+"All models" = "すべてのモデル";
+"Input %@ · cached %@ · output %@" = "入力 %@ · キャッシュ %@ · 出力 %@";
+"Live Usage" = "ライブ使用量";
+"Loading live usage…" = "ライブ使用量を読み込み中…";
+"Minute" = "分";
+"Model" = "モデル";
+"No API traffic in this window" = "この期間にAPIトラフィックはありません";
+"Open OpenAI Settings" = "OpenAI設定を開く";
+"OpenAI Admin Usage API · 1-minute buckets · the newest minute can arrive late" = "OpenAI Admin Usage API · 1分単位 · 最新の分の反映が遅れる場合があります";
+"OpenAI Live Usage" = "OpenAIライブ使用量";
+"Other" = "その他";
+"Peak" = "ピーク";
+"Peak TPM" = "ピークTPM";
+"Project: %@" = "プロジェクト: %@";
+"Range" = "期間";
+"Rate limited; retrying in %ds" = "レート制限中。%ds後に再試行";
+"Requests in window" = "期間内のリクエスト";
+"Tokens in window" = "期間内のトークン";
+"Tokens per minute" = "1分あたりのトークン";
+"Uncached input" = "未キャッシュ入力";
+"Uncached input %@ · cached input %@ · output %@" = "未キャッシュ入力 %@ · キャッシュ入力 %@ · 出力 %@";
+"Organization rate limits" = "組織のレート制限";
+"Open organization Limits" = "組織の制限を開く";
+"RPM (optional)" = "RPM（任意）";
+"Enter a model and positive limits, such as 40M TPM and 15k RPM." = "モデルと正の制限値を入力してください（例: 40M TPM、15k RPM）。";
+"Add model" = "モデルを追加";
+"Org TPM limit" = "組織のTPM制限";
+"Org limit %@ TPM" = "組織の制限 %@ TPM";
+"Org limit %@ TPM (off scale)" = "組織の制限 %@ TPM（スケール外）";
+"Limits…" = "制限…";
+"Highest utilization" = "使用率が最も高いモデル";
+"%@ of limit" = "制限の%@";
+"Limit" = "制限";
+"Peak RPM: %@ of limit" = "ピークRPM: 制限の%@";
+"Peak % of limit" = "制限に対するピーク割合";
+
+/* OpenAI live usage errors */
+"Configure an OpenAI organization Admin API key in Settings → Providers → OpenAI." = "設定 → プロバイダー → OpenAIで組織のOpenAI Admin APIキーを設定してください。";
+"An OpenAI organization Admin API key with usage and project read permissions is required." = "使用量とプロジェクトの読み取り権限を持つ組織のOpenAI Admin APIキーが必要です。";
+"OpenAI API is rate limited." = "OpenAI APIのレート制限に達しました。";
+"OpenAI API failed (HTTP %d)." = "OpenAI APIでエラーが発生しました（HTTP %d）。";
+"Could not parse the OpenAI API response." = "OpenAI APIの応答を解析できませんでした。";
+"Live usage supports 15-minute, 1-hour, and 6-hour windows." = "ライブ使用量は15分、1時間、6時間の期間に対応しています。";
+
+/* Live usage reporting and project caps */
+
+/* Live usage reporting and project caps */
+"Latest · %@" = "最新 · %@";
+"Latest TPM" = "最新のTPM";
+"reporting…" = "報告待ち…";
+"Org limit not set" = "組織の上限が未設定";
+"project cap %@" = "プロジェクト上限 %@";
+"Set org limit…" = "組織の上限を設定…";
+"Org limits come from Settings — OpenAI's API doesn't expose them." = "組織の上限は設定から取得します。OpenAIのAPIでは公開されていません。";
+"Project caps are the highest per-project limit across %d active projects; org-wide traffic can exceed them." = "プロジェクト上限は%d件の有効なプロジェクトにおける上限の最大値です。組織全体のトラフィックはこれを超えることがあります。";
+"Project sample capped at 25; higher project caps may exist." = "取得対象は最大25プロジェクトです。さらに高いプロジェクト上限が存在する可能性があります。";
+"Project caps unavailable" = "プロジェクト上限を取得できません";
+"OpenAI's API doesn't expose organization rate limits. Copy them from your organization's Limits page. Model IDs match dated snapshots (gpt-5 covers gpt-5-2025-…)." = "OpenAIのAPIでは組織のレート上限を公開していません。組織のLimitsページからコピーしてください。モデルIDは日付付きバージョンにも一致します（gpt-5はgpt-5-2025-…を含みます）。";
+"Tokens / min · last hour" = "トークン / 分 · 過去1時間";
+"Latest %@ · Peak %@ at %@" = "最新 %@ · ピーク %@（%@）";
+"%@ · peak %@ · %@ of org limit" = "%@ · ピーク %@ · 組織上限の%@";
+"Tokens / min" = "トークン / 分";
+"Latest tokens per minute (OpenAI Admin API)" = "最新の1分あたりのトークン数（OpenAI Admin API）";
+"Fetches 1-minute usage each refresh for the menu card chart and the menu bar Tokens/min token." = "更新のたびに1分単位の使用量を取得し、メニューカードのグラフとメニューバーのトークン/分要素に表示します。";
+"Live Usage…" = "ライブ使用量…";
+"Batch API %@ · not counted in %% of limit" = "Batch API %@ · 上限に対する割合（%%）には含まれません";
+"% of limit counts all input, including cached input, plus output, as OpenAI's rate limiter does, and excludes Batch API traffic, which has separate limits. The limiter also reserves max_tokens up front, so short bursts can still hit limits." = "上限に対する割合（%）は、OpenAI のレート制限と同様に、キャッシュ済みの入力を含むすべての入力と出力を数えます。別の制限がある Batch API のトラフィックは除外します。レート制限では max_tokens も事前に確保されるため、短いバーストでも上限に達することがあります。";
+
+"Tokens / min graph" = "トークン / 分のグラフ";
+"Last hour of tokens per minute (OpenAI Admin API)" = "過去1時間の1分あたりのトークン数（OpenAI Admin API）";
+"Tokens per minute, latest %@" = "1分あたりのトークン数、最新 %@";
+
+"Live" = "リアルタイム";
+
+"Chart" = "グラフ";
+
+"Daily spend · %@" = "日別の支出 · %@";
+"Applies to the selected token account “%@”. Each account keeps its own limits." = "選択中のトークンアカウント「%@」に適用されます。各アカウントは独自の上限を保持します。";
+"Applies to the OpenAI API key, not to token accounts." = "OpenAI APIキーに適用されます。トークンアカウントには適用されません。";

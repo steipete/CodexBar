@@ -43,7 +43,7 @@ struct VeniceWebUsageFetcherTests {
         let touched = LockIsolated(false)
         let strategy = VeniceWebFetchStrategy(
             usageLoader: { _ in touched.setValue(true); throw VeniceUsageError.invalidCredentials },
-            sessionLoader: { _ in touched.setValue(true); return [] })
+            sessionLoader: { _ in touched.setValue(true); return AnySequence([]) })
         let settings = ProviderSettingsSnapshot.make(venice: VeniceProviderSettings(
             cookieSource: source, manualCookieHeader: "__venice-auth.session-token=synthetic"))
         let task = Task {
@@ -70,7 +70,7 @@ struct VeniceWebUsageFetcherTests {
             usageLoader: { _ in fetched.setValue(true); return snapshot },
             sessionLoader: { _ in
                 imported.setValue(true)
-                return [VeniceResolvedSession(cookieHeader: "synthetic", sourceLabel: "fixture")]
+                return AnySequence([VeniceResolvedSession(cookieHeader: "synthetic", sourceLabel: "fixture")])
             })
         _ = try await strategy.fetch(Self.context(.web))
         #expect(fetched.value && imported.value)
@@ -109,10 +109,10 @@ struct VeniceWebUsageFetcherTests {
                 return snapshot
             },
             sessionLoader: { _ in
-                [
+                AnySequence([
                     VeniceResolvedSession(cookieHeader: "session=revoked", sourceLabel: "Chrome A"),
                     VeniceResolvedSession(cookieHeader: "session=live", sourceLabel: "Chrome B"),
-                ]
+                ])
             })
         let result = try await strategy.fetch(Self.context(.web))
         #expect(result.strategyID == "venice.web")
@@ -170,7 +170,7 @@ struct VeniceWebUsageFetcherTests {
         let strategy = VeniceWebFetchStrategy(
             usageLoader: { _ in snapshot },
             sessionLoader: { _ in
-                [VeniceResolvedSession(cookieHeader: "session=live", sourceLabel: "Brave")]
+                AnySequence([VeniceResolvedSession(cookieHeader: "session=live", sourceLabel: "Brave")])
             })
         let settings = ProviderSettingsSnapshot.make(venice: VeniceProviderSettings(
             cookieSource: .auto,
@@ -363,9 +363,9 @@ struct VeniceWebUsageFetcherTests {
         let strategy = VeniceWebFetchStrategy(
             usageLoader: { _ in snapshot },
             sessionLoader: { _ in
-                [VeniceResolvedSession(
+                AnySequence([VeniceResolvedSession(
                     cookieHeader: "\(VeniceCookieHeader.sessionCookieName)=session-cookie",
-                    sourceLabel: "Chrome Default")]
+                    sourceLabel: "Chrome Default")])
             })
         let result = try await strategy.fetch(Self.context(
             .web,

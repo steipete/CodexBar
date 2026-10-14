@@ -103,7 +103,7 @@ struct NotionPluginTests {
 
     #if os(macOS)
     @Test(arguments: BundledPluginTestSupport.engines)
-    func `automatic import reaches Edge after Chrome and maps its Notion session`(
+    func `automatic import reaches Edge in the shared order and maps its Notion session`(
         engine: ProviderPluginEngineKind) async throws
     {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
@@ -120,12 +120,14 @@ struct NotionPluginTests {
                     domains: runtime.manifest.cookieDomains,
                     settings: .init(cookieSource: .auto),
                     batches: { _, _ in Issue.record("Notion must import opaque cookie jars"); return nil },
-                    jarImporter: {
-                        try BrowserCookieImportSupport.collectSessions(
-                            from: BrowserCookieImportSupport.importOrder(for: .notion),
+                    jarImporter: { batch in
+                        let browsers = BrowserCookieImportSupport.importOrder(for: .notion)
+                        guard browsers.indices.contains(batch) else { return nil }
+                        return try Array(BrowserCookieImportSupport.collectSessions(
+                            from: [browsers[batch]],
                             missingError: nil,
                             logger: { _ in },
-                            load: { browser in
+                            load: { browser -> [ProviderPluginCookieSession] in
                                 visited.append(browser.rawValue)
                                 guard browser == .edge else { return [] }
                                 let cookie = try #require(HTTPCookie(properties: [
@@ -135,7 +137,7 @@ struct NotionPluginTests {
                                 return [.init(
                                     header: "", source: "Microsoft Edge Profile 2", origin: "",
                                     records: [ProviderPluginCookieRecord(cookie: cookie)])]
-                            })
+                            }))
                     },
                     policy: runtime.manifest.cookiePolicy,
                     sessionFileURL: directory.appendingPathComponent("notion-session.json"))
@@ -145,7 +147,7 @@ struct NotionPluginTests {
                     now: Self.now,
                     cookieSessionResolver: { _, _ in session },
                     cookieSessionValidator: { _, id in #expect(id == session.id) })
-                #expect(visited.values == ["chrome", "edge"])
+                #expect(visited.values == ["safari", "chrome", "edge"])
                 #expect(usage.primary?.usedPercent == 25)
                 #expect(usage.primary?.resetsAt == Self.now.addingTimeInterval(3600))
                 #expect(usage.secondary?.usedPercent == 18)
@@ -157,13 +159,15 @@ struct NotionPluginTests {
     @Test
     func `Notion browser order retains the background no prompt gate`() {
         let browsers = BrowserCookieImportSupport.importOrder(for: .notion)
-        #expect(browsers == [.chrome, .edge])
+        #expect(browsers == ProviderBrowserCookieDefaults.defaultImportOrder)
         KeychainAccessGate.withTaskOverrideForTesting(false) {
             ProviderInteractionContext.$current.withValue(.background) {
                 KeychainAccessPreflight.withCheckGenericPasswordOverrideForTesting { _, _ in
                     .interactionRequired
                 } operation: {
-                    #expect(browsers.allSatisfy { !BrowserCookieAccessGate.shouldAttempt($0) })
+                    #expect(browsers.allSatisfy {
+                        BrowserCookieAccessGate.shouldAttempt($0) == !$0.usesKeychainForCookieDecryption
+                    })
                 }
                 KeychainAccessPreflight.withCheckGenericPasswordOverrideForTesting { _, _ in
                     .allowed

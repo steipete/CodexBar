@@ -54,7 +54,7 @@ Usage is `used / limit` for the 5-hour and weekly weighted limits. An idle 5-hou
 
 Setup, in **Settings → Providers → Muse Code**:
 
-1. Set **Cookie source**. It is **Off** by default, so CodexBar reads no browser data until you choose a source. **Automatic** imports the cookie from Chrome or Firefox; **Manual** uses a pasted Cookie header or cURL capture from `dev.meta.ai`.
+1. Set **Cookie source**. It is **Off** by default, so CodexBar reads no browser data until you choose a source. **Automatic** imports the cookie in the shared supported-browser order; **Manual** uses a pasted Cookie header or cURL capture from `dev.meta.ai`.
 2. Refresh Muse Code. When the login omits `subs_usage`, **Browser team** lists the teams the session can see, with their IDs. It starts at **Choose a team…** and never selects the first team automatically. The same list appears in the Muse menu.
 3. Choose the team whose web quota you want to display, then refresh. A saved team that is no longer visible stays marked unavailable; CodexBar never switches to another team for you.
 

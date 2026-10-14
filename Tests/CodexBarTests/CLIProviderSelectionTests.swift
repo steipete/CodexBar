@@ -41,6 +41,7 @@ struct CLIProviderSelectionTests {
             "|sofya|",
             "|fal|",
             "|flora|",
+            "|parallel|",
             "|both|",
             "|all]",
         ]

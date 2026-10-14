@@ -255,7 +255,8 @@ public struct AgentProcessRecord: Equatable, Sendable {
         let firstToken = self.arguments?.first ?? self.command.split(whereSeparator: \ .isWhitespace).first
             .map(String.init) ?? ""
         let firstBasename = AgentProcessPath.basename(firstToken)
-        if firstBasename != "disclaimer", self.command.contains("Application Support/Claude/claude-code/claude") {
+        let executable = self.arguments?.first ?? self.command
+        if firstBasename != "disclaimer", executable.contains("Application Support/Claude/claude-code/claude") {
             return AgentSession.Provider.claude.rawValue
         }
         return firstBasename
@@ -284,20 +285,23 @@ public enum AgentPSOutputParser {
     }
 
     public static func agentProcesses(from records: [AgentProcessRecord]) -> [AgentProcessRecord] {
+        // Prefer argv[0] for bundle checks; prompts may contain app paths. Keep the full command fallback
+        // because an unquoted executable path can contain spaces, such as "Codex Computer Use.app".
         let candidates = records.filter { record in
             let basename = record.executableBasename.lowercased()
             if self.piDialect(for: record) != nil {
                 return !self.isObviousPiFamilyHelper(record.command)
             }
+            let executable = record.arguments?.first ?? record.command
             if basename == AgentSession.Provider.codex.rawValue {
                 let arguments = self.arguments(record)
-                return self.isCodexAgentExecutable(record.command) &&
+                return self.isCodexAgentExecutable(executable) &&
                     !arguments.contains("app-server") &&
                     !arguments.contains("--help") &&
                     !arguments.contains("--version")
             }
             if basename == AgentSession.Provider.claude.rawValue {
-                return self.isClaudeAgentExecutable(record.command) && !self.isObviousClaudeHelper(record.command)
+                return self.isClaudeAgentExecutable(executable) && !self.isObviousClaudeHelper(record.command)
             }
             return basename == "disclaimer" && record.command.contains(AgentSession.Provider.claude.rawValue)
         }
@@ -332,12 +336,9 @@ public enum AgentPSOutputParser {
     }
 
     static func piDialect(arguments: [String]) -> AgentSession.Dialect? {
-        guard let dialect = self.piDialect(
+        self.piDialect(
             executableBasename: AgentProcessPath.basename(arguments.first ?? ""),
             arguments: Array(arguments.dropFirst()))
-        else { return nil }
-        return arguments.joined(separator: " ")
-            .contains("Application Support/Claude/claude-code/claude") ? nil : dialect
     }
 
     static func piDialect(
@@ -359,13 +360,15 @@ public enum AgentPSOutputParser {
 
     public static func source(for record: AgentProcessRecord) -> AgentSession.Source {
         guard self.provider(for: record) == .claude else { return .cli }
-        return record.command.contains("Application Support/Claude/claude-code") ? .desktopApp : .cli
+        let command = record.executableBasename.lowercased() == "disclaimer"
+            ? record.command : record.arguments?.first ?? record.command
+        return command.contains("Application Support/Claude/claude-code") ? .desktopApp : .cli
     }
 
     public static func hasCodexAppServer(in records: [AgentProcessRecord]) -> Bool {
         records.contains { record in
             record.executableBasename.lowercased() == AgentSession.Provider.codex.rawValue &&
-                self.isCodexAgentExecutable(record.command) &&
+                self.isCodexAgentExecutable(record.arguments?.first ?? record.command) &&
                 self.arguments(record).contains("app-server")
         }
     }
@@ -391,18 +394,11 @@ public enum AgentPSOutputParser {
         Array((record.arguments ?? record.command.split(whereSeparator: \ .isWhitespace).map(String.init)).dropFirst())
     }
 
-    private static func arguments(_ command: String) -> [String] {
-        command.split(whereSeparator: \ .isWhitespace).dropFirst().map(String.init)
-    }
-
     private static func normalizedClaudeArguments(_ command: String) -> [String] {
-        let arguments = self.arguments(command)
-        if let index = arguments.firstIndex(where: {
+        let arguments = command.split(whereSeparator: \ .isWhitespace).dropFirst().map(String.init)
+        return arguments.firstIndex(where: {
             AgentProcessPath.basename($0) == AgentSession.Provider.claude.rawValue
-        }) {
-            return Array(arguments.suffix(from: arguments.index(after: index)))
-        }
-        return arguments
+        }).map { Array(arguments.dropFirst($0 + 1)) } ?? arguments
     }
 
     private static func isObviousClaudeHelper(_ command: String) -> Bool {

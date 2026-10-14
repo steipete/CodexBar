@@ -44,6 +44,7 @@ struct CodexBarConfigMigrator {
         self.applyLegacyCookieSources(userDefaults: userDefaults, config: &config, state: &state)
         self.bindLegacyMoonshotAPIKeyRegion(config: &config, state: &state)
         self.applyLegacyUsageVisibility(userDefaults: userDefaults, config: &config, state: &state)
+        self.preserveClaudeResetCreditVisibility(userDefaults: userDefaults, config: &config, state: &state)
 
         let migrationCompleted = userDefaults.bool(forKey: Self.legacyMigrationCompletedKey)
         if !migrationCompleted {
@@ -99,6 +100,23 @@ struct CodexBarConfigMigrator {
         }
 
         return config.normalized()
+    }
+
+    private static func preserveClaudeResetCreditVisibility(
+        userDefaults: UserDefaults,
+        config: inout CodexBarConfig,
+        state: inout MigrationState)
+    {
+        // Provider-specific by design: Claude resets used the global optional gate before independent controls.
+        guard let index = config.providers.firstIndex(where: { $0.id == .claude }),
+              config.providers[index].claudeResetCreditsVisibilityMigrated != true
+        else { return }
+        if userDefaults.object(forKey: "showOptionalCreditsAndExtraUsage") as? Bool == false {
+            let existing = config.providers[index].hiddenUsageItemIDs ?? []
+            config.providers[index].hiddenUsageItemIDs = Set(existing + ["section:claude-reset-credits"]).sorted()
+        }
+        config.providers[index].claudeResetCreditsVisibilityMigrated = true
+        state.didUpdate = true
     }
 
     private static func applyLegacyUsageVisibility(

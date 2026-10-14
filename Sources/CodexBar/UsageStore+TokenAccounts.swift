@@ -1065,7 +1065,7 @@ extension UsageStore {
     {
         guard let guardValue,
               let lastGuard = self.lastCodexUsagePublicationGuard,
-              Self.codexScopedRefreshGuardAllowsResetBackfill(lastGuard, matching: guardValue)
+              Self.codexScopedRefreshGuardsMatchAccount(lastGuard, guardValue)
         else {
             return nil
         }
@@ -1158,13 +1158,6 @@ extension UsageStore {
         }
         guard let accountKey = CodexIdentityResolver.normalizeEmail(account.email) else { return false }
         return guardValue.accountKey == accountKey
-    }
-
-    private nonisolated static func codexScopedRefreshGuardAllowsResetBackfill(
-        _ lastGuard: CodexAccountScopedRefreshGuard,
-        matching expectedGuard: CodexAccountScopedRefreshGuard) -> Bool
-    {
-        self.codexScopedRefreshGuardsMatchAccount(lastGuard, expectedGuard)
     }
 
     nonisolated static func codexScopedRefreshGuard(for account: CodexVisibleAccount)

@@ -83,7 +83,7 @@ defineProvider({
     cached.sort((a, b) => (b.session.cachedAt ?? 0) - (a.session.cachedAt ?? 0));
     async function* candidates() {
       yield* cached;
-      // Qoder's registered browser order is Chrome-only; retain global then China profile order.
+      // Retain global then China profile order across the supported browsers.
       for (const domain of domains) {
         for await (const session of ctx.browser.sessions(domain)) yield { domain, session };
       }

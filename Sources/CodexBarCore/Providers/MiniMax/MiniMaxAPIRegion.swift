@@ -4,11 +4,11 @@ public enum MiniMaxAPIRegion: String, CaseIterable, Sendable {
     case global
     case chinaMainland = "cn"
 
-    private static let codingPlanPath = "user-center/payment/coding-plan"
-    private static let codingPlanQuery = "cycle_type=3"
-    private static let remainsPath = "v1/api/openplatform/coding_plan/remains"
+    static let codingPlanPath = "user-center/payment/coding-plan"
+    static let codingPlanQuery = "cycle_type=3"
+    static let remainsPath = "v1/api/openplatform/coding_plan/remains"
     private static let tokenPlanRemainsPath = "v1/token_plan/remains"
-    private static let billingHistoryPath = "account/amount"
+    static let billingHistoryPath = "account/amount"
 
     public var displayName: String {
         switch self {
@@ -34,6 +34,13 @@ public enum MiniMaxAPIRegion: String, CaseIterable, Sendable {
             "https://api.minimax.io"
         case .chinaMainland:
             "https://api.minimaxi.com"
+        }
+    }
+
+    var webBaseURLString: String {
+        switch self {
+        case .global: "https://www.minimax.io"
+        case .chinaMainland: "https://www.minimaxi.com"
         }
     }
 
@@ -63,10 +70,7 @@ public enum MiniMaxAPIRegion: String, CaseIterable, Sendable {
     }
 
     public var dashboardURL: URL {
-        var components = URLComponents(string: self.baseURLString)!
-        components.path = "/" + Self.codingPlanPath
-        components.query = Self.codingPlanQuery
-        return components.url!
+        self.codingPlanURL
     }
 
     public func billingHistoryURL(page: Int, limit: Int) -> URL {

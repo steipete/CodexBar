@@ -28,8 +28,8 @@ enum MiniMaxSubscriptionMetadataFetcher {
         }
         request.setValue("application/json, text/plain, */*", forHTTPHeaderField: "accept")
         request.setValue("zh-CN,zh;q=0.9", forHTTPHeaderField: "accept-language")
-        request.setValue(self.platformOrigin(region: region).absoluteString, forHTTPHeaderField: "origin")
-        request.setValue(self.platformOrigin(region: region).absoluteString + "/", forHTTPHeaderField: "referer")
+        request.setValue(region.baseURLString, forHTTPHeaderField: "origin")
+        request.setValue(region.baseURLString + "/", forHTTPHeaderField: "referer")
 
         let response = try await transport.response(for: request)
         guard response.statusCode == 200 else {
@@ -63,7 +63,7 @@ enum MiniMaxSubscriptionMetadataFetcher {
             throw ProviderEndpointOverrideError.minimax(rejectedKey)
         }
         let baseURL = MiniMaxSettingsReader.hostOverride(environment: environment)
-            .map { "https://\($0)" } ?? self.defaultWebHost(region: region)
+            .map { "https://\($0)" } ?? region.webBaseURLString
         guard var components = URLComponents(string: baseURL),
               components.host?.isEmpty == false
         else {
@@ -229,20 +229,6 @@ enum MiniMaxSubscriptionMetadataFetcher {
         formatter.timeZone = TimeZone(identifier: "Asia/Shanghai")
         formatter.dateFormat = "MM/dd/yyyy"
         return formatter.date(from: value)
-    }
-
-    private static func defaultWebHost(region: MiniMaxAPIRegion) -> String {
-        switch region {
-        case .global: "https://www.minimax.io"
-        case .chinaMainland: "https://www.minimaxi.com"
-        }
-    }
-
-    private static func platformOrigin(region: MiniMaxAPIRegion) -> URL {
-        switch region {
-        case .global: URL(string: "https://platform.minimax.io")!
-        case .chinaMainland: URL(string: "https://platform.minimaxi.com")!
-        }
     }
 }
 

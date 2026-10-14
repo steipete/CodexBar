@@ -105,6 +105,7 @@ extension ProviderInstanceID {
     public static let sofya = UsageProvider.sofya.instanceID
     public static let fal = UsageProvider.fal.instanceID
     public static let flora = UsageProvider.flora.instanceID
+    public static let parallel = UsageProvider.parallel.instanceID
 }
 
 // swiftformat:enable sortDeclarations

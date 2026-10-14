@@ -12,19 +12,13 @@ private func qwenCloudFixture(_ name: String) throws -> Data {
 
 struct QwenCloudSettingsReaderTests {
     @Test
-    func `missing cookie error mentions both supported browsers and their safe storage`() {
-        // The cookie import now probes Chrome and Brave (per
-        // QwenCloudProviderDescriptor.browserOrder). The recovery message
-        // must name both, otherwise a Brave-only user gets directed at
-        // Chrome and never finds the right path.
+    func `missing cookie error offers supported browsers and manual recovery`() {
         let error = QwenCloudSettingsError.missingCookie()
         let message = error.errorDescription ?? ""
 
-        #expect(message.contains("Chrome"))
-        #expect(message.contains("Brave"))
-        #expect(message.contains("Safe Storage"))
+        #expect(message.contains("supported browser"))
+        #expect(message.contains("Refresh"))
         #expect(message.contains("manual Cookie header"))
-        #expect(message.contains("Keychain Access"))
     }
 
     @Test
@@ -33,8 +27,7 @@ struct QwenCloudSettingsReaderTests {
             details: "Chrome Safe Storage keychain denied")
         let message = error.errorDescription ?? ""
 
-        #expect(message.contains("Chrome"))
-        #expect(message.contains("Brave"))
+        #expect(message.contains("supported browser"))
         #expect(message.contains("Chrome Safe Storage keychain denied"))
     }
 
@@ -43,8 +36,7 @@ struct QwenCloudSettingsReaderTests {
         let error = QwenCloudSettingsError.missingCookie(details: "")
         let message = error.errorDescription ?? ""
 
-        #expect(message.contains("Chrome"))
-        #expect(message.contains("Brave"))
+        #expect(message.contains("supported browser"))
         // No trailing whitespace from an empty details suffix.
         #expect(!message.hasSuffix(" "))
     }
@@ -141,12 +133,7 @@ struct QwenCloudUsageSnapshotTests {
         #expect(metadata.sessionLabel == "5-hour")
         #expect(metadata.weeklyLabel == "Weekly")
         #if os(macOS)
-        let expectedOrder: BrowserCookieImportOrder = [
-            .chrome,
-            .brave,
-        ]
-        #expect(metadata.browserCookieOrder == expectedOrder)
-        #expect(QwenCloudWebFetchStrategy.browserOrder == expectedOrder)
+        #expect(metadata.browserCookieOrder == ProviderBrowserCookieDefaults.defaultImportOrder)
         #else
         #expect(metadata.browserCookieOrder == nil)
         #endif

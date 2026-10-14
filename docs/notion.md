@@ -28,7 +28,7 @@ provider error rather than an empty gauge.
 
 ### Automatic (recommended)
 
-1. Sign in to Notion in Chrome or Microsoft Edge.
+1. Sign in to Notion in a supported browser.
 2. Enable **Notion AI** in **Settings → Providers**.
 
 The bundled Notion plugin runs on both engines. The host imports your browser session cookie automatically and sends
@@ -37,8 +37,7 @@ source domains rank as `app.notion.com`, `www.notion.com`, `notion.com`, `www.no
 The import requires the `token_v2` session cookie; a browser profile that has Notion cookies but no
 `token_v2` is skipped rather than used for a request that would fail with 401.
 
-**Note**: Automatic import visits Chrome profiles before Microsoft Edge profiles. Other browsers remain outside
-Notion's automatic import list. Background refreshes only read Chromium cookies when the no-UI Keychain preflight
+**Note**: Automatic import follows the shared supported-browser order. Background refreshes only read Chromium cookies when the no-UI Keychain preflight
 confirms existing access; they never request a new permission. Use an explicit Refresh to authorize cookie
 decryption when needed, or use Manual mode. An explicit refresh permits at most one browser permission retry.
 

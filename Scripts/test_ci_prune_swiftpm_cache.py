@@ -2,10 +2,11 @@
 
 import unittest
 
-from ci_prune_swiftpm_cache import obsolete_caches
+from ci_prune_swiftpm_cache import ACTIVE_LANES, obsolete_caches
+from ci_swiftpm_cache import LANES
 
 
-def entry(identifier, lane="macos26-arm64", **overrides):
+def entry(identifier, lane="xcode27-arm64", **overrides):
     return {
         "id": identifier, "ref": "refs/heads/main",
         "key": f"swiftpm-compiled-v1-{lane}-{'a' * 64}-{'b' * 40}",
@@ -15,9 +16,16 @@ def entry(identifier, lane="macos26-arm64", **overrides):
 
 class PruneCacheTests(unittest.TestCase):
     def test_keeps_newest_main_snapshot_per_lane_even_after_toolchain_change(self):
-        caches = [entry(1), entry(3), entry(2), entry(4, "macos15-arm64"), entry(5, "macos15-arm64")]
+        caches = [entry(1), entry(3), entry(2)]
         caches[1]["key"] = caches[1]["key"].replace("a" * 64, "c" * 64)
-        self.assertEqual(obsolete_caches(caches), [1, 2, 4])
+        self.assertEqual(obsolete_caches(caches), [1, 2])
+
+    def test_deletes_every_snapshot_from_retired_lanes(self):
+        caches = [entry(1), entry(2, "macos26-arm64"), entry(3, "macos15-arm64"), entry(4, "macos15-arm64")]
+        self.assertEqual(obsolete_caches(caches), [2, 3, 4])
+
+    def test_active_lanes_match_the_cache_builder(self):
+        self.assertEqual(ACTIVE_LANES, LANES)
 
     def test_never_selects_legacy_other_namespace_or_non_main_caches(self):
         untouched = [

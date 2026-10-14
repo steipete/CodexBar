@@ -1441,6 +1441,7 @@
 "menu_bar_layout_preset_icon_only" = "僅圖示";
 "menu_bar_layout_preset_percent_reset" = "百分比與重設";
 "menu_bar_layout_preset_compact_stacked" = "緊湊堆疊";
+"menu_bar_layout_preset_bars_stacked" = "進度條堆疊";
 "menu_bar_layout_preset_custom" = "自訂";
 "menu_bar_layout_live_preview" = "即時預覽";
 "menu_bar_layout_default_preview" = "預設佈局預覽";
@@ -1478,7 +1479,7 @@
 "menu_bar_layout_token_reset_at" = "重設時間";
 "menu_bar_layout_token_runs_out" = "預計用盡";
 "menu_bar_layout_token_cost_today" = "今日費用";
-"menu_bar_layout_token_cost_30d" = "30 天費用";
+"menu_bar_layout_token_cost_window" = "費用（歷史時段）";
 "menu_bar_layout_token_space" = "空格";
 "menu_bar_layout_token_line_break" = "換行";
 "menu_bar_layout_token_separator_accessibility" = "分隔點";
@@ -1496,7 +1497,6 @@
 "Reset time unavailable" = "重設時間: 無法使用";
 "Run-out estimate unavailable" = "預計用盡: 無法使用";
 "Cost today unavailable" = "今日費用: 無法使用";
-"30-day cost unavailable" = "30 天費用: 無法使用";
 "Resets" = "重設";
 "codex_workspaces_cost_unavailable" = "無法取得費用";
 "codex_workspaces_elevated_usage" = "使用量偏高";
@@ -1581,6 +1581,7 @@
 "5-hour usage" = "5 小時用量";
 "7-day usage" = "7 天用量";
 "Total usage" = "總用量";
+"claude_oauth_keychain_access_disabled" = "Keychain 存取已停用，因此 CodexBar 無法讀取 Claude 的登入資訊。";
 "claude_oauth_keychain_access_revoked" = "Claude Code 輪替權杖後撤銷了 Claude 鑰匙圈的存取權。按一下「重新整理」以重新授權，或將 Claude 使用量來源切換為 CLI/Web。";
 "claude_showing_last_known_usage" = "正在顯示於 %@ 擷取的最後已知使用量。";
 "claude_limited_usage_detail" = "使用量詳細資訊有限";
@@ -2488,6 +2489,7 @@
 "Back" = "返回";
 "Forward" = "前進";
 
+"cost_reset_inferred_tooltip" = "推斷：%@ 不提供此日期。每月支出上限會在每月 1 日 00:00 UTC 重置。";
 /* fal provider credentials */
 "Key with billing read access (BILLING or READONLY preset). Or set FAL_KEY." = "具有帳單讀取權限的金鑰（BILLING 或 READONLY 預設）。或設定 FAL_KEY。";
 
@@ -2496,3 +2498,105 @@
 "Required. The ws_… ID of the workspace the key can bill. Or set FLORA_WORKSPACE_ID." = "必填。金鑰可計費的工作區 ws_… ID。或設定 FLORA_WORKSPACE_ID。";
 "ak_…" = "ak_…";
 "ws_…" = "ws_…";
+
+"Plan renewal / expiry" = "方案續訂 / 到期";
+
+"Hidden by the global optional credits, spending & billing setting." = "已被選用額度、支出和帳單詳情的全域設定隱藏。";
+
+"Provider order updated" = "供應商順序已更新";
+"Undo" = "復原";
+"Clear filters" = "清除篩選";
+"Change provider order" = "更改供應商順序";
+"Provider sorting" = "供應商排序";
+"Only enabled providers" = "只顯示已啟用";
+"Restore default order" = "恢復預設順序";
+"Also restores the provider order in the menu bar. Can be undone." = "同時恢復選單列中的供應商順序。可以復原。";
+"Local Codex details; excluded from combined totals." = "本機 Codex 詳細資料；不計入合併總計。";
+
+"Auto uses an API key when configured, otherwise browser cookies." = "Auto uses an API key when configured, otherwise browser cookies.";
+"Stored in the CodexBar config file. You can also set COMMAND_CODE_API_KEY." = "Stored in the CodexBar config file. You can also set COMMAND_CODE_API_KEY.";
+/* OpenAI organization rate limits and live usage */
+"%@ tokens · %@ requests" = "%@ token · %@ 請求";
+"15m" = "15分鐘";
+"1h" = "1小時";
+"5-min avg" = "5分鐘平均";
+"6h" = "6小時";
+"All models" = "所有模型";
+"Input %@ · cached %@ · output %@" = "輸入 %@ · 快取 %@ · 輸出 %@";
+"Live Usage" = "即時用量";
+"Loading live usage…" = "正在載入即時用量…";
+"Minute" = "分鐘";
+"Model" = "模型";
+"No API traffic in this window" = "此時段內沒有 API 流量";
+"Open OpenAI Settings" = "開啟 OpenAI 設定";
+"OpenAI Admin Usage API · 1-minute buckets · the newest minute can arrive late" = "OpenAI Admin Usage API · 1分鐘分桶 · 最新一分鐘的資料可能延遲";
+"OpenAI Live Usage" = "OpenAI 即時用量";
+"Other" = "其他";
+"Peak" = "峰值";
+"Peak TPM" = "峰值 TPM";
+"Project: %@" = "專案：%@";
+"Range" = "時間範圍";
+"Rate limited; retrying in %ds" = "已觸發速率限制；%ds 後重試";
+"Requests in window" = "時段內的請求";
+"Tokens in window" = "時段內的 token";
+"Tokens per minute" = "每分鐘 token";
+"Uncached input" = "未快取輸入";
+"Uncached input %@ · cached input %@ · output %@" = "未快取輸入 %@ · 快取輸入 %@ · 輸出 %@";
+"Organization rate limits" = "組織速率限制";
+"Open organization Limits" = "開啟組織限制";
+"RPM (optional)" = "RPM（選填）";
+"Enter a model and positive limits, such as 40M TPM and 15k RPM." = "請輸入模型與正數限制，例如 40M TPM 和 15k RPM。";
+"Add model" = "新增模型";
+"Org TPM limit" = "組織 TPM 限制";
+"Org limit %@ TPM" = "組織限制 %@ TPM";
+"Org limit %@ TPM (off scale)" = "組織限制 %@ TPM（超出刻度）";
+"Limits…" = "限制…";
+"Highest utilization" = "最高使用率";
+"%@ of limit" = "限制的 %@";
+"Limit" = "限制";
+"Peak RPM: %@ of limit" = "峰值 RPM：限制的 %@";
+"Peak % of limit" = "峰值占限制百分比";
+
+/* OpenAI live usage errors */
+"Configure an OpenAI organization Admin API key in Settings → Providers → OpenAI." = "請在設定 → 提供者 → OpenAI 中設定組織的 OpenAI Admin API 金鑰。";
+"An OpenAI organization Admin API key with usage and project read permissions is required." = "需要具有用量與專案讀取權限的組織 OpenAI Admin API 金鑰。";
+"OpenAI API is rate limited." = "OpenAI API 已觸發速率限制。";
+"OpenAI API failed (HTTP %d)." = "OpenAI API 失敗（HTTP %d）。";
+"Could not parse the OpenAI API response." = "無法解析 OpenAI API 回應。";
+"Live usage supports 15-minute, 1-hour, and 6-hour windows." = "即時用量支援15分鐘、1小時及6小時的時間範圍。";
+
+/* Live usage reporting and project caps */
+
+/* Live usage reporting and project caps */
+"Latest · %@" = "最新 · %@";
+"Latest TPM" = "最新 TPM";
+"reporting…" = "等待回報…";
+"Org limit not set" = "未設定組織限額";
+"project cap %@" = "專案上限 %@";
+"Set org limit…" = "設定組織限額…";
+"Org limits come from Settings — OpenAI's API doesn't expose them." = "組織限額來自設定 — OpenAI 的 API 不提供此資訊。";
+"Project caps are the highest per-project limit across %d active projects; org-wide traffic can exceed them." = "專案上限是 %d 個活躍專案中最高的單一專案限額；組織總流量可能超過此值。";
+"Project sample capped at 25; higher project caps may exist." = "樣本最多包含 25 個專案；可能存在更高的專案上限。";
+"Project caps unavailable" = "專案上限無法取得";
+"OpenAI's API doesn't expose organization rate limits. Copy them from your organization's Limits page. Model IDs match dated snapshots (gpt-5 covers gpt-5-2025-…)." = "OpenAI 的 API 不提供組織速率限額。請從組織的 Limits 頁面複製。模型 ID 也會匹配附日期的版本（gpt-5 包含 gpt-5-2025-…）。";
+"Tokens / min · last hour" = "權杖 / 分鐘 · 最近一小時";
+"Latest %@ · Peak %@ at %@" = "最新 %@ · 峰值 %@，時間 %@";
+"%@ · peak %@ · %@ of org limit" = "%@ · 峰值 %@ · 組織限額的 %@";
+"Tokens / min" = "權杖 / 分鐘";
+"Latest tokens per minute (OpenAI Admin API)" = "最新每分鐘權杖數（OpenAI Admin API）";
+"Fetches 1-minute usage each refresh for the menu card chart and the menu bar Tokens/min token." = "每次重新整理時取得分鐘級使用量，用於選單卡片圖表和選單列的「權杖/分鐘」元素。";
+"Live Usage…" = "即時使用量…";
+"Batch API %@ · not counted in %% of limit" = "Batch API %@ · 不計入限額百分比（%%）";
+"% of limit counts all input, including cached input, plus output, as OpenAI's rate limiter does, and excludes Batch API traffic, which has separate limits. The limiter also reserves max_tokens up front, so short bursts can still hit limits." = "限額百分比（%）與 OpenAI 的速率限制器一樣，計算所有輸入（包括快取輸入）加上輸出，並排除具有獨立限額的 Batch API 流量。限制器還會預先保留 max_tokens，因此短時突發仍可能觸及限額。";
+
+"Tokens / min graph" = "Token / 分鐘圖表";
+"Last hour of tokens per minute (OpenAI Admin API)" = "過去一小時的每分鐘 Token 數（OpenAI Admin API）";
+"Tokens per minute, latest %@" = "每分鐘 Token 數，最新值 %@";
+
+"Live" = "即時";
+
+"Chart" = "圖表";
+
+"Daily spend · %@" = "每日支出 · %@";
+"Applies to the selected token account “%@”. Each account keeps its own limits." = "適用於所選權杖帳戶「%@」。每個帳戶保留各自的限制。";
+"Applies to the OpenAI API key, not to token accounts." = "適用於 OpenAI API 金鑰，不適用於權杖帳戶。";

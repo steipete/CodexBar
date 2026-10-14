@@ -27,7 +27,11 @@ public enum CursorProviderDescriptor {
             menuBarMetrics: ProviderMenuBarMetricCapabilities(
                 supported: [.automatic, .primary, .secondary, .tertiary, .extraUsage],
                 tertiaryRequiresWindow: true,
-                namedExtras: [CursorSandUsageStatus.extraWindowID: CursorSandUsageStatus.extraWindowTitle]),
+                namedExtras: [CursorSandUsageStatus.extraWindowID: CursorSandUsageStatus.extraWindowTitle],
+                // Several Cursor pools fit in the menu bar only with short tags; Total and Third Party
+                // would both derive "T", so the tags are explicit.
+                laneShortLabels: [.primary: "T", .secondary: "C", .tertiary: "TP"],
+                namedExtraShortLabels: [CursorSandUsageStatus.extraWindowID: "GB"]),
             settingsSection: .init(CursorProviderSettingsKey.self, cookieSettings: CursorProviderSettings.self),
             credentials: self.credentials,
             metadata: ProviderMetadata(

@@ -47,8 +47,7 @@ public enum CopilotProviderDescriptor {
                     "enterprise": "Enterprise",
                 ],
                 debugLogUnavailableMessage: "Copilot debug log not yet implemented",
-                browserCookieOrder: BrowserCookieImportSupport.chromeOnly(
-                    reason: "Budget imports must not prompt unrelated browsers"),
+                browserCookieOrder: ProviderBrowserCookieDefaults.defaultImportOrder,
                 dashboardURL: "https://github.com/settings/copilot",
                 statusPageURL: "https://www.githubstatus.com/"),
             branding: ProviderBranding(

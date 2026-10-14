@@ -105,11 +105,11 @@ struct ClaudeOAuthTests {
         let snap = try ClaudeUsageFetcher._mapOAuthUsageForTesting(
             Data(json.utf8),
             rateLimitTier: "claude_pro")
-        #expect(snap.primary.usedPercent == 12.5)
-        #expect(snap.primary.windowMinutes == 300)
+        #expect(snap.primary?.usedPercent == 12.5)
+        #expect(snap.primary?.windowMinutes == 300)
         #expect(snap.secondary?.usedPercent == 30)
         #expect(snap.opus?.usedPercent == 5)
-        #expect(snap.primary.resetsAt != nil)
+        #expect(snap.primary?.resetsAt != nil)
         #expect(snap.loginMethod == "Claude Pro")
         #expect(snap.oauthHistoryOwnerIdentifier?.count == 64)
     }
@@ -359,10 +359,9 @@ struct ClaudeOAuthTests {
             Data(json.utf8),
             subscriptionType: "enterprise")
         #expect(snap.loginMethod == "Claude Enterprise")
-        #expect(snap.primary.usedPercent == 38.15)
-        #expect(snap.primaryWindowKind == .spendLimit)
-        #expect(snap.primary.windowMinutes == nil)
-        #expect(snap.primary.resetDescription == "Spend limit: €7.63 / €20.00")
+        #expect(snap.providerCost?.spendLimitWindow?.usedPercent == 38.15)
+        #expect(snap.primary == nil)
+        #expect(snap.primary?.windowMinutes == nil)
         #expect(snap.secondary == nil)
         #expect(snap.providerCost?.period == "Spend limit")
         #expect(snap.providerCost?.currencyCode == "EUR")
@@ -391,9 +390,8 @@ struct ClaudeOAuthTests {
         """
         let snap = try ClaudeUsageFetcher._mapOAuthUsageForTesting(Data(json.utf8))
         #expect(snap.loginMethod == nil)
-        #expect(snap.primaryWindowKind == .spendLimit)
-        #expect(snap.primary.usedPercent == 38.15)
-        #expect(snap.primary.resetDescription == "Spend limit: €7.63 / €20.00")
+        #expect(snap.primary == nil)
+        #expect(snap.providerCost?.spendLimitWindow?.usedPercent == 38.15)
         #expect(snap.providerCost?.period == "Spend limit")
         #expect(snap.providerCost?.currencyCode == "EUR")
         #expect(snap.providerCost?.limit == 20)
@@ -416,9 +414,8 @@ struct ClaudeOAuthTests {
         let snap = try ClaudeUsageFetcher._mapOAuthUsageForTesting(
             Data(json.utf8),
             subscriptionType: "enterprise")
-        #expect(snap.primaryWindowKind == .spendLimit)
-        #expect(snap.primary.usedPercent == 12.3456)
-        #expect(snap.primary.resetDescription == "Spend limit: $1,234.56 / $10,000.00")
+        #expect(snap.primary == nil)
+        #expect(snap.providerCost?.spendLimitWindow?.usedPercent == 12.3456)
         #expect(snap.providerCost?.period == "Spend limit")
         #expect(snap.providerCost?.limit == 10000)
         #expect(snap.providerCost?.used == 1234.56)

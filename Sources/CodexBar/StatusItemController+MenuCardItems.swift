@@ -58,8 +58,20 @@ extension StatusItemController {
 
         // Content is erased so every row shares one outer AppKit class. Tab switches can replant
         // standard and GPU-selection payloads in place instead of detaching `item.view`.
+        // Every hosted card row gets the action handler, so Overview and account layouts can open details too.
+        let actionTarget = MenuCardActionTarget()
+        let cardAction = ProviderCardAction(perform: { [weak self, actionTarget] action in
+            guard let self else { return }
+            actionTarget.item?.menu?.cancelTracking()
+            let (selector, object) = self.selector(for: action)
+            let sender = NSMenuItem()
+            sender.representedObject = object
+            NSApp.sendAction(selector, to: self, from: sender)
+        })
         let payload = MenuCardRowPayload(
-            content: AnyView(view),
+            content: AnyView(view
+                .environment(\.providerMenuChartSettings, self.settings)
+                .environment(\.providerCardAction, cardAction)),
             showsSubmenuIndicator: submenu != nil,
             submenuIndicatorAlignment: submenuIndicatorAlignment,
             submenuIndicatorTopPadding: submenuIndicatorTopPadding,
@@ -88,11 +100,13 @@ extension StatusItemController {
             self.menuCardHeight(for: hosting, width: width)
         }
         hosting.applyMeasuredSize(width: width, height: height)
-        return self.makeMenuCardNSMenuItem(
+        let item = self.makeMenuCardNSMenuItem(
             hosting: hosting,
             id: id,
             submenu: submenu,
             isEnabled: allowsMenuHighlight || containsInteractiveControls)
+        actionTarget.item = item
+        return item
     }
 
     /// Wraps a measured hosting view in the `NSMenuItem` the menu installs, wiring submenu routing.
@@ -130,4 +144,10 @@ extension StatusItemController {
         let fitted = view.fittingSize
         return max(1, ceil(fitted.height + basePadding + descenderSafety))
     }
+}
+
+/// Resolves the hosting menu when a card action fires, so tracking ends from whichever menu shows the row.
+@MainActor
+final class MenuCardActionTarget {
+    weak var item: NSMenuItem?
 }

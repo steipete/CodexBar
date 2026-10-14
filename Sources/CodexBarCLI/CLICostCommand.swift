@@ -211,8 +211,11 @@ extension CodexBarCLI {
             ? "\(name) API-equivalent estimate (not billed)"
             : "\(name) Cost (API-rate estimate)"
         let header = Self.costHeaderLine(title, useColor: useColor)
+        let historyNotice = snapshot.historyIsFullyScanned ? nil : "Partial local history · recorded token subtotal"
         if groupBy == .project, provider == .codex {
-            return Self.renderProjectCostText(header: header, snapshot: snapshot)
+            return Self.renderProjectCostText(
+                header: [header, historyNotice].compactMap(\.self).joined(separator: "\n"),
+                snapshot: snapshot)
         }
         if groupBy == .session, provider == .codex {
             return Self.renderSessionCostText(header: header, snapshot: snapshot)
@@ -241,7 +244,6 @@ extension CodexBarCLI {
             return "Cursor-metered: \(amount) (\(historyLabel.lowercased()))"
         }
 
-        let hintLine = Self.costEstimateHint(provider: provider)
         var lines: [String?] = [
             header,
             todayLine + (todayIncomplete > 0 ? " · Incomplete" : ""),
@@ -255,9 +257,7 @@ extension CodexBarCLI {
         if unpriced > 0 {
             lines.append("Partial estimate: \(unpriced) recorded request\(unpriced == 1 ? "" : "s") had no price.")
         }
-        if !snapshot.historyIsFullyScanned {
-            lines.append("Partial local history · recorded token subtotal")
-        }
+        lines.append(historyNotice)
         // Provider-specific by design: only Claude local history currently guarantees model attribution.
         if includeBreakdown, provider == .claude, !snapshot.daily.isEmpty {
             lines.append(contentsOf: Self.claudeTokenDetailLines(
@@ -265,7 +265,7 @@ extension CodexBarCLI {
                 calendar: calendar,
                 useColor: useColor))
         }
-        lines.append(hintLine)
+        lines.append(Self.costEstimateHint(provider: provider))
         return lines.compactMap(\.self).joined(separator: "\n")
     }
 

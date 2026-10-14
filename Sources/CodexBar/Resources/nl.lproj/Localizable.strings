@@ -1410,6 +1410,7 @@
 "menu_bar_layout_preset_icon_only" = "Alleen pictogram";
 "menu_bar_layout_preset_percent_reset" = "Percentage en reset";
 "menu_bar_layout_preset_compact_stacked" = "Compact gestapeld";
+"menu_bar_layout_preset_bars_stacked" = "Voortgangsbalken gestapeld";
 "menu_bar_layout_preset_custom" = "Aangepast";
 "menu_bar_layout_live_preview" = "Livevoorvertoning";
 "menu_bar_layout_default_preview" = "Voorbeeld van standaardindeling";
@@ -1447,7 +1448,7 @@
 "menu_bar_layout_token_reset_at" = "Reset om";
 "menu_bar_layout_token_runs_out" = "Op";
 "menu_bar_layout_token_cost_today" = "Kosten vandaag";
-"menu_bar_layout_token_cost_30d" = "Kosten 30 dagen";
+"menu_bar_layout_token_cost_window" = "Kosten (Geschiedenisvenster)";
 "menu_bar_layout_token_space" = "Spatie";
 "menu_bar_layout_token_line_break" = "Regeleinde";
 "menu_bar_layout_token_separator_accessibility" = "Scheidingspunt";
@@ -1465,7 +1466,6 @@
 "Reset time unavailable" = "Reset om: Niet beschikbaar";
 "Run-out estimate unavailable" = "Op: Niet beschikbaar";
 "Cost today unavailable" = "Kosten vandaag: Niet beschikbaar";
-"30-day cost unavailable" = "Kosten 30 dagen: Niet beschikbaar";
 "Resets" = "Resetten";
 "codex_workspaces_cost_unavailable" = "Kosten niet beschikbaar";
 "codex_workspaces_elevated_usage" = "Verhoogd gebruik";
@@ -1550,6 +1550,7 @@
 "5-hour usage" = "5-uursgebruik";
 "7-day usage" = "7-dagengebruik";
 "Total usage" = "Totaal gebruik";
+"claude_oauth_keychain_access_disabled" = "Toegang tot Keychain is uitgeschakeld, waardoor CodexBar de aanmeldgegevens van Claude niet kan lezen.";
 "claude_oauth_keychain_access_revoked" = "De toegang tot de Claude-sleutelhanger is ingetrokken door de tokenrotatie van Claude Code. Klik op Vernieuwen om opnieuw toegang te verlenen of zet de Claude-gebruiksbron op CLI/Web.";
 "claude_showing_last_known_usage" = "De laatst bekende gebruiksgegevens worden weergegeven (vastgelegd: %@).";
 "claude_limited_usage_detail" = "Beperkte gebruiksdetails";
@@ -2509,6 +2510,7 @@
 "Back" = "Terug";
 "Forward" = "Vooruit";
 
+"cost_reset_inferred_tooltip" = "Afgeleid: %@ meldt deze datum niet. Maandelijkse bestedingslimieten worden op de 1e om 00:00 UTC gereset.";
 /* fal provider credentials */
 "Key with billing read access (BILLING or READONLY preset). Or set FAL_KEY." = "Sleutel met leestoegang tot facturering (preset BILLING of READONLY). Of stel FAL_KEY in.";
 
@@ -2517,3 +2519,103 @@
 "Required. The ws_… ID of the workspace the key can bill. Or set FLORA_WORKSPACE_ID." = "Verplicht. De ws_…-ID van de workspace die de sleutel mag factureren. Of stel FLORA_WORKSPACE_ID in.";
 "ak_…" = "ak_…";
 "ws_…" = "ws_…";
+
+"Plan renewal / expiry" = "Verlenging / vervaldatum van abonnement";
+
+"Hidden by the global optional credits, spending & billing setting." = "Verborgen door de algemene instelling voor optionele tegoeden, uitgaven en factureringsgegevens.";
+
+"Provider order updated" = "Volgorde van aanbieders bijgewerkt";
+"Undo" = "Ongedaan maken";
+"Clear filters" = "Filters wissen";
+"Change provider order" = "Volgorde van aanbieders wijzigen";
+"Provider sorting" = "Aanbieders sorteren";
+"Only enabled providers" = "Alleen ingeschakelde aanbieders";
+"Restore default order" = "Standaardvolgorde herstellen";
+"Also restores the provider order in the menu bar. Can be undone." = "Herstelt ook de volgorde van aanbieders in de menubalk. Kan ongedaan worden gemaakt.";
+"Local Codex details; excluded from combined totals." = "Lokale Codex-details; niet opgenomen in de gecombineerde totalen.";
+
+"Auto uses an API key when configured, otherwise browser cookies." = "Auto uses an API key when configured, otherwise browser cookies.";
+"Stored in the CodexBar config file. You can also set COMMAND_CODE_API_KEY." = "Stored in the CodexBar config file. You can also set COMMAND_CODE_API_KEY.";
+/* OpenAI organization rate limits and live usage */
+"%@ tokens · %@ requests" = "%@ tokens · %@ verzoeken";
+"15m" = "15 min";
+"1h" = "1 u";
+"5-min avg" = "Gem. over 5 min";
+"6h" = "6 u";
+"All models" = "Alle modellen";
+"Input %@ · cached %@ · output %@" = "Invoer %@ · gecachet %@ · uitvoer %@";
+"Live Usage" = "Livegebruik";
+"Loading live usage…" = "Livegebruik laden…";
+"Minute" = "Minuut";
+"Model" = "Model";
+"No API traffic in this window" = "Geen API-verkeer in deze periode";
+"Open OpenAI Settings" = "OpenAI-instellingen openen";
+"OpenAI Admin Usage API · 1-minute buckets · the newest minute can arrive late" = "OpenAI Admin Usage API · intervallen van 1 minuut · de nieuwste minuut kan later aankomen";
+"OpenAI Live Usage" = "OpenAI-livegebruik";
+"Other" = "Overige";
+"Peak" = "Piek";
+"Peak TPM" = "Piek-TPM";
+"Project: %@" = "Project: %@";
+"Range" = "Periode";
+"Rate limited; retrying in %ds" = "Snelheidslimiet bereikt; opnieuw over %ds";
+"Requests in window" = "Verzoeken in periode";
+"Tokens in window" = "Tokens in periode";
+"Tokens per minute" = "Tokens per minuut";
+"Uncached input" = "Niet-gecachete invoer";
+"Uncached input %@ · cached input %@ · output %@" = "Niet-gecachete invoer %@ · gecachete invoer %@ · uitvoer %@";
+"Organization rate limits" = "Snelheidslimieten van de organisatie";
+"Open organization Limits" = "Organisatielimieten openen";
+"RPM (optional)" = "RPM (optioneel)";
+"Enter a model and positive limits, such as 40M TPM and 15k RPM." = "Voer een model en positieve limieten in, zoals 40M TPM en 15k RPM.";
+"Add model" = "Model toevoegen";
+"Org TPM limit" = "TPM-limiet organisatie";
+"Org limit %@ TPM" = "Organisatielimiet %@ TPM";
+"Org limit %@ TPM (off scale)" = "Organisatielimiet %@ TPM (buiten schaal)";
+"Limits…" = "Limieten…";
+"Highest utilization" = "Hoogste benutting";
+"%@ of limit" = "%@ van limiet";
+"Limit" = "Limiet";
+"Peak RPM: %@ of limit" = "Piek-RPM: %@ van limiet";
+"Peak % of limit" = "Piek in % van limiet";
+
+/* OpenAI live usage errors */
+"Configure an OpenAI organization Admin API key in Settings → Providers → OpenAI." = "Stel een OpenAI Admin API-sleutel voor de organisatie in via Instellingen → Providers → OpenAI.";
+"An OpenAI organization Admin API key with usage and project read permissions is required." = "Een OpenAI Admin API-sleutel voor de organisatie met leesrechten voor gebruik en projecten is vereist.";
+"OpenAI API is rate limited." = "De OpenAI API heeft de snelheidslimiet bereikt.";
+"OpenAI API failed (HTTP %d)." = "OpenAI API mislukt (HTTP %d).";
+"Could not parse the OpenAI API response." = "Het OpenAI API-antwoord kon niet worden verwerkt.";
+"Live usage supports 15-minute, 1-hour, and 6-hour windows." = "Livegebruik ondersteunt perioden van 15 minuten, 1 uur en 6 uur.";
+
+/* Live usage reporting and project caps */
+"Latest · %@" = "Meest recent · %@";
+"Latest TPM" = "Recentste TPM";
+"reporting…" = "wachten op gegevens…";
+"Org limit not set" = "Organisatielimiet niet ingesteld";
+"project cap %@" = "projectlimiet %@";
+"Set org limit…" = "Organisatielimiet instellen…";
+"Org limits come from Settings — OpenAI's API doesn't expose them." = "Organisatielimieten komen uit Instellingen — de API van OpenAI biedt ze niet aan.";
+"Project caps are the highest per-project limit across %d active projects; org-wide traffic can exceed them." = "Projectlimieten zijn de hoogste limieten per project van %d actieve projecten; organisatiebreed verkeer kan deze overschrijden.";
+"Project sample capped at 25; higher project caps may exist." = "De steekproef is beperkt tot 25 projecten; er kunnen hogere projectlimieten bestaan.";
+"Project caps unavailable" = "Projectlimieten niet beschikbaar";
+"OpenAI's API doesn't expose organization rate limits. Copy them from your organization's Limits page. Model IDs match dated snapshots (gpt-5 covers gpt-5-2025-…)." = "De API van OpenAI biedt geen organisatielimieten aan. Kopieer ze van de Limits-pagina van je organisatie. Model-ID’s gelden ook voor gedateerde versies (gpt-5 omvat gpt-5-2025-…).";
+"Tokens / min · last hour" = "Tokens / min · afgelopen uur";
+"Latest %@ · Peak %@ at %@" = "Laatste %@ · Piek %@ om %@";
+"%@ · peak %@ · %@ of org limit" = "%@ · piek %@ · %@ van organisatielimiet";
+"Tokens / min" = "Tokens / min";
+"Latest tokens per minute (OpenAI Admin API)" = "Laatste tokens per minuut (OpenAI Admin API)";
+"Fetches 1-minute usage each refresh for the menu card chart and the menu bar Tokens/min token." = "Haalt bij elke vernieuwing het minuutverbruik op voor de grafiek in de menukaart en het element Tokens/min in de menubalk.";
+"Live Usage…" = "Livegebruik…";
+"Batch API %@ · not counted in %% of limit" = "Batch API %@ · telt niet mee in %% van limiet";
+"% of limit counts all input, including cached input, plus output, as OpenAI's rate limiter does, and excludes Batch API traffic, which has separate limits. The limiter also reserves max_tokens up front, so short bursts can still hit limits." = "% van limiet telt alle invoer, inclusief gecachte invoer, plus uitvoer, zoals de snelheidsbegrenzer van OpenAI, en sluit Batch API-verkeer uit, waarvoor aparte limieten gelden. De begrenzer reserveert ook vooraf max_tokens, waardoor korte pieken nog steeds de limieten kunnen bereiken.";
+
+"Tokens / min graph" = "Tokens / min-grafiek";
+"Last hour of tokens per minute (OpenAI Admin API)" = "Tokens per minuut in het afgelopen uur (OpenAI Admin API)";
+"Tokens per minute, latest %@" = "Tokens per minuut, laatste waarde %@";
+
+"Live" = "Live";
+
+"Chart" = "Grafiek";
+
+"Daily spend · %@" = "Dagelijkse uitgaven · %@";
+"Applies to the selected token account “%@”. Each account keeps its own limits." = "Geldt voor het geselecteerde tokenaccount ‘%@’. Elk account behoudt zijn eigen limieten.";
+"Applies to the OpenAI API key, not to token accounts." = "Geldt voor de OpenAI API-sleutel, niet voor tokenaccounts.";

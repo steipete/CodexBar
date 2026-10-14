@@ -170,15 +170,14 @@ enum MenuBarMetricWindowResolver {
     }
 
     /// The Claude spend-limit window when the account only exposes an enterprise/extra-usage spend limit
-    /// and has no real session/weekly quota lanes (`primary` nil, a `.spendLimit` window, or an explicitly
-    /// marked placeholder). Lets the automatic and combined metrics surface the spend limit instead of an empty
+    /// and has no real session/weekly quota lanes (`primary` nil or an explicitly marked placeholder). Lets the
+    /// automatic and combined metrics surface the spend limit instead of an empty
     /// or 0% placeholder lane. Returns nil for accounts that expose genuine quota lanes.
     static func claudeSpendLimitWindow(snapshot: UsageSnapshot) -> RateWindow? {
         guard snapshot.primary == nil || snapshot.primary?.isSyntheticPlaceholder == true,
               snapshot.secondary == nil, snapshot.tertiary == nil,
-              snapshot.claudeScopedWeeklyWindow == nil,
-              let cost = snapshot.providerCost, cost.limit > 0
+              snapshot.claudeScopedWeeklyWindow == nil
         else { return nil }
-        return cost.spendLimitWindow
+        return snapshot.claudeMonthlySpendWindow?.window
     }
 }

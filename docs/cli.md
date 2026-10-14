@@ -86,6 +86,7 @@ sources and setup guide. The [provider ID list](provider-ids.md) is generated fr
     remain scoped to OpenRouter, and missing usage or price fields remain unknown rather than zero. See [model pricing](model-pricing.md).
   - `--refresh` ignores cached scans.
   - `--breakdown` adds Claude-only daily and top-model details to text output. Both sections use the same last seven calendar days (or the shorter requested interval); when that interval has no rows, both explicitly label the latest recorded days. Incomplete attribution is marked partial. Ordinary text, other providers, and JSON output are unchanged.
+  - `--group-by project` labels incomplete local history with the same notice as the default text report, including when no project rows are available.
   - `--provider-native-only` is experimental and excludes pi and OMP session mirrors from Claude and Codex history.
   - `--provider codex --remote <ssh-host>` produces one manual report with separate local and remote summaries. Histories are never added together, since sessions can overlap across machines. SSH uses the host's existing trusted configuration and noninteractive authentication, without agent or port forwarding. It requires an already trusted host key and a remote CLI supporting `--summary-only`.
     Each successful text report shows `Snapshot updated:` using that source summary's `updatedAt` as an absolute ISO 8601 timestamp in UTC (`Z`). This is the source snapshot time, not the last usage event, command execution time, or SSH receipt time. Day boundaries retain each host's own timezone.
@@ -205,7 +206,7 @@ sources and setup guide. The [provider ID list](provider-ids.md) is generated fr
       CLI Auto falls back to the installed Claude executable when web credentials are unavailable. This foreground
       command delegates authentication to Claude Code; the app keeps its stricter prompt-free background availability
       gate for scheduled refreshes.
-    - Command Code web: commandcode.ai browser session cookies on macOS, or a configured manual cookie on Linux, for monthly credit usage.
+    - Command Code auto: `COMMAND_CODE_API_KEY`/config `apiKey` when set, otherwise commandcode.ai browser session cookies on macOS or a configured manual cookie on Linux. Explicit `api`/`web` pins that source.
     - OpenCode Go auto: local SQLite cost history on macOS and Linux with API usage-window enrichment when
       `OPENCODE_API_KEY` is configured, plus legacy manual-cookie web fallback.
     - Kilo auto: app.kilo.ai API first, then CLI auth fallback (`~/.local/share/kilo/auth.json`) on missing/unauthorized API credentials.

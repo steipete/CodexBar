@@ -62,7 +62,9 @@ struct OpenAIAPIMenuCardModelTests {
         #expect(model.inlineUsageDashboard?.kpis.last?.title == "Requests")
         #expect(model.inlineUsageDashboard?.kpis.last?.value == "40")
         #expect(model.inlineUsageDashboard?.points.count == 1)
-        #expect(model.inlineUsageDashboard?.detailLines.contains("30d requests: 40 requests") == true)
+        // Requests already appear as a KPI; the dashboard must not repeat them or add a source footer.
+        #expect(model.inlineUsageDashboard?.detailLines.contains { $0.contains("requests") } == false)
+        #expect(model.inlineUsageDashboard?.detailLines.contains { $0.contains("Reported by") } == false)
         #expect(model.providerCost == nil)
         #expect(model.usageNotes.contains { $0.contains("Today: $0.00") })
         #expect(model.usageNotes.contains("Top model: gpt-5.2"))
@@ -161,7 +163,7 @@ struct OpenAIAPIMenuCardModelTests {
         #expect(ProviderDescriptorRegistry.descriptor(for: .openai).tokenCost.supportsTokenCost)
         #expect(model.tokenUsage?.sessionLine == "Today: $0.00 · 0 tokens")
         #expect(model.tokenUsage?.monthLine == "Last 30 days: $12.50 · 1.5K tokens")
-        #expect(model.tokenUsage?.hintLine == "Reported by OpenAI Admin API organization usage.")
+        #expect(model.tokenUsage?.hintLine == nil)
     }
 
     private static func localNoon(year: Int, month: Int, day: Int) throws -> Date {

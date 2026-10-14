@@ -23,8 +23,7 @@ public enum QoderProviderDescriptor {
             menu: ProviderMenuDescriptorPresentation(primaryDescriptionIsDetail: { _ in true })),
         webSource: .init(
             settingsSection: .init(QoderProviderSettingsKey.self, cookieSettings: QoderProviderSettings.self),
-            browserCookieOrder: BrowserCookieImportSupport.chromeOnly(
-                reason: "Preserve documented Chrome import without unrelated Keychain prompts"),
+            browserCookieOrder: ProviderBrowserCookieDefaults.defaultImportOrder,
             browserSupportExemption: { _, _, settings in
                 settings?.qoder?.cookieSource == .manual
             },

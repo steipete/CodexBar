@@ -1,5 +1,4 @@
 import Foundation
-import SweetCookieKit
 
 public enum MistralProviderDescriptor {
     public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
@@ -10,15 +9,6 @@ public enum MistralProviderDescriptor {
         injection: .cookieHeader,
         requiresManualCookieSource: true,
         cookieName: nil))
-
-    /// Preserve Chrome-first behavior, then Firefox and Safari; other Chromium forks remain manual-only.
-    private static var browserCookieOrder: BrowserCookieImportOrder? {
-        #if os(macOS)
-        [.chrome, .firefox, .safari]
-        #else
-        nil
-        #endif
-    }
 
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
@@ -41,7 +31,7 @@ public enum MistralProviderDescriptor {
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
                 usesDetailBackedWindow: true,
-                browserCookieOrder: self.browserCookieOrder,
+                browserCookieOrder: ProviderBrowserCookieDefaults.defaultImportOrder,
                 dashboardURL: "https://admin.mistral.ai/organization/usage",
                 statusPageURL: nil,
                 statusLinkURL: "https://status.mistral.ai"),
@@ -153,9 +143,9 @@ struct MistralWebFetchStrategy: ProviderFetchStrategy {
             } else {
                 Set([session.sourceLabel].compactMap(\.self))
             }
-            let sessions: [MistralCookieImporter.SessionInfo]
+            let sessions: AnySequence<MistralCookieImporter.SessionInfo>
             do {
-                sessions = try MistralCookieImporter.importSessions(
+                sessions = try MistralCookieImporter.sessionCandidates(
                     browserDetection: context.browserDetection,
                     excludingSourceLabels: excludedSourceLabels)
             } catch MistralCookieImportError.noCookies {
@@ -179,7 +169,7 @@ struct MistralWebFetchStrategy: ProviderFetchStrategy {
 
     #if os(macOS)
     static func fetchUsageFromSessions(
-        _ sessions: [MistralCookieImporter.SessionInfo],
+        _ sessions: some Sequence<MistralCookieImporter.SessionInfo>,
         timeout: TimeInterval,
         transport: ProviderHTTPTransport = ProviderHTTPClient.shared) async throws
         -> (usage: UsageSnapshot, session: MistralCookieImporter.SessionInfo)

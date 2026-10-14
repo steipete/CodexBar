@@ -1410,6 +1410,7 @@
 "menu_bar_layout_preset_icon_only" = "Лише значок";
 "menu_bar_layout_preset_percent_reset" = "Відсоток і скидання";
 "menu_bar_layout_preset_compact_stacked" = "Компактно у два рядки";
+"menu_bar_layout_preset_bars_stacked" = "Індикатори прогресу штабелем";
 "menu_bar_layout_preset_custom" = "Користувацький";
 "menu_bar_layout_live_preview" = "Попередній перегляд";
 "menu_bar_layout_default_preview" = "Перегляд типового макета";
@@ -1447,7 +1448,7 @@
 "menu_bar_layout_token_reset_at" = "Скидання о";
 "menu_bar_layout_token_runs_out" = "Закінчиться";
 "menu_bar_layout_token_cost_today" = "Вартість сьогодні";
-"menu_bar_layout_token_cost_30d" = "Вартість за 30 днів";
+"menu_bar_layout_token_cost_window" = "Вартість (Вікно історії)";
 "menu_bar_layout_token_space" = "Пробіл";
 "menu_bar_layout_token_line_break" = "Розрив рядка";
 "menu_bar_layout_token_separator_accessibility" = "Крапка-роздільник";
@@ -1465,7 +1466,6 @@
 "Reset time unavailable" = "Скидання о: Недоступний";
 "Run-out estimate unavailable" = "Закінчиться: Недоступний";
 "Cost today unavailable" = "Вартість сьогодні: Недоступний";
-"30-day cost unavailable" = "Вартість за 30 днів: Недоступний";
 "Resets" = "Скидання";
 "codex_workspaces_cost_unavailable" = "Вартість недоступна";
 "codex_workspaces_elevated_usage" = "Підвищене використання";
@@ -1550,6 +1550,7 @@
 "5-hour usage" = "Використання за 5 годин";
 "7-day usage" = "Використання за 7 днів";
 "Total usage" = "Загальне використання";
+"claude_oauth_keychain_access_disabled" = "Доступ до Keychain вимкнено, тому CodexBar не може прочитати дані входу в Claude.";
 "claude_oauth_keychain_access_revoked" = "Доступ до В’язки ключів Claude було відкликано через ротацію токена в Claude Code. Натисніть «Оновити», щоб повторно надати доступ, або перемкніть джерело використання Claude на CLI/Web.";
 "claude_showing_last_known_usage" = "Показано останні відомі дані про використання (отримано %@).";
 "claude_limited_usage_detail" = "Обмежена деталізація використання";
@@ -2510,6 +2511,7 @@
 "Back" = "Назад";
 "Forward" = "Вперед";
 
+"cost_reset_inferred_tooltip" = "Припущення: %@ не повідомляє цю дату. Місячні ліміти витрат скидаються 1-го числа о 00:00 UTC.";
 /* fal provider credentials */
 "Key with billing read access (BILLING or READONLY preset). Or set FAL_KEY." = "Ключ із доступом на читання білінгу (пресет BILLING або READONLY). Або задайте FAL_KEY.";
 
@@ -2518,3 +2520,105 @@
 "Required. The ws_… ID of the workspace the key can bill. Or set FLORA_WORKSPACE_ID." = "Обов’язково. ID ws_… робочого простору, до білінгу якого має доступ ключ. Або задайте FLORA_WORKSPACE_ID.";
 "ak_…" = "ak_…";
 "ws_…" = "ws_…";
+
+"Plan renewal / expiry" = "Поновлення / завершення плану";
+
+"Hidden by the global optional credits, spending & billing setting." = "Приховано глобальним налаштуванням додаткових кредитів, витрат і оплати.";
+
+"Provider order updated" = "Порядок провайдерів оновлено";
+"Undo" = "Скасувати";
+"Clear filters" = "Очистити фільтри";
+"Change provider order" = "Змінити порядок провайдерів";
+"Provider sorting" = "Сортування провайдерів";
+"Only enabled providers" = "Лише активні провайдери";
+"Restore default order" = "Відновити типовий порядок";
+"Also restores the provider order in the menu bar. Can be undone." = "Також відновлює порядок провайдерів у рядку меню. Дію можна скасувати.";
+"Local Codex details; excluded from combined totals." = "Локальні дані Codex; не враховуються в загальних підсумках.";
+
+"Auto uses an API key when configured, otherwise browser cookies." = "Auto uses an API key when configured, otherwise browser cookies.";
+"Stored in the CodexBar config file. You can also set COMMAND_CODE_API_KEY." = "Stored in the CodexBar config file. You can also set COMMAND_CODE_API_KEY.";
+/* OpenAI organization rate limits and live usage */
+"%@ tokens · %@ requests" = "%@ токенів · %@ запитів";
+"15m" = "15 хв";
+"1h" = "1 год";
+"5-min avg" = "Середнє за 5 хв";
+"6h" = "6 год";
+"All models" = "Усі моделі";
+"Input %@ · cached %@ · output %@" = "Вхід %@ · кеш %@ · вихід %@";
+"Live Usage" = "Використання наживо";
+"Loading live usage…" = "Завантаження використання наживо…";
+"Minute" = "Хвилина";
+"Model" = "Модель";
+"No API traffic in this window" = "У цьому інтервалі немає трафіку API";
+"Open OpenAI Settings" = "Відкрити налаштування OpenAI";
+"OpenAI Admin Usage API · 1-minute buckets · the newest minute can arrive late" = "OpenAI Admin Usage API · інтервали по 1 хвилині · дані останньої хвилини можуть запізнюватися";
+"OpenAI Live Usage" = "Використання OpenAI наживо";
+"Other" = "Інші";
+"Peak" = "Пік";
+"Peak TPM" = "Піковий TPM";
+"Project: %@" = "Проєкт: %@";
+"Range" = "Інтервал";
+"Rate limited; retrying in %ds" = "Досягнуто ліміту частоти; повтор через %ds";
+"Requests in window" = "Запити за інтервал";
+"Tokens in window" = "Токени за інтервал";
+"Tokens per minute" = "Токени за хвилину";
+"Uncached input" = "Вхід без кешу";
+"Uncached input %@ · cached input %@ · output %@" = "Вхід без кешу %@ · вхід із кешу %@ · вихід %@";
+"Organization rate limits" = "Ліміти частоти організації";
+"Open organization Limits" = "Відкрити ліміти організації";
+"RPM (optional)" = "RPM (необов’язково)";
+"Enter a model and positive limits, such as 40M TPM and 15k RPM." = "Вкажіть модель і додатні ліміти, наприклад 40M TPM та 15k RPM.";
+"Add model" = "Додати модель";
+"Org TPM limit" = "Ліміт TPM організації";
+"Org limit %@ TPM" = "Ліміт організації %@ TPM";
+"Org limit %@ TPM (off scale)" = "Ліміт організації %@ TPM (поза шкалою)";
+"Limits…" = "Ліміти…";
+"Highest utilization" = "Найвище використання";
+"%@ of limit" = "%@ від ліміту";
+"Limit" = "Ліміт";
+"Peak RPM: %@ of limit" = "Піковий RPM: %@ від ліміту";
+"Peak % of limit" = "Пік у % від ліміту";
+
+/* OpenAI live usage errors */
+"Configure an OpenAI organization Admin API key in Settings → Providers → OpenAI." = "Налаштуйте ключ Admin API організації OpenAI у Налаштування → Провайдери → OpenAI.";
+"An OpenAI organization Admin API key with usage and project read permissions is required." = "Потрібен ключ Admin API організації OpenAI з правами читання використання та проєктів.";
+"OpenAI API is rate limited." = "Досягнуто ліміту частоти API OpenAI.";
+"OpenAI API failed (HTTP %d)." = "Помилка API OpenAI (HTTP %d).";
+"Could not parse the OpenAI API response." = "Не вдалося розібрати відповідь API OpenAI.";
+"Live usage supports 15-minute, 1-hour, and 6-hour windows." = "Використання наживо підтримує інтервали 15 хвилин, 1 година та 6 годин.";
+
+/* Live usage reporting and project caps */
+
+/* Live usage reporting and project caps */
+"Latest · %@" = "Останні дані · %@";
+"Latest TPM" = "Останні TPM";
+"reporting…" = "очікування даних…";
+"Org limit not set" = "Ліміт організації не задано";
+"project cap %@" = "ліміт проєкту %@";
+"Set org limit…" = "Задати ліміт організації…";
+"Org limits come from Settings — OpenAI's API doesn't expose them." = "Ліміти організації беруться з налаштувань — API OpenAI їх не надає.";
+"Project caps are the highest per-project limit across %d active projects; org-wide traffic can exceed them." = "Ліміти проєктів — найбільші ліміти серед %d активних проєктів; трафік усієї організації може їх перевищувати.";
+"Project sample capped at 25; higher project caps may exist." = "Вибірку обмежено 25 проєктами; можуть існувати вищі ліміти проєктів.";
+"Project caps unavailable" = "Ліміти проєктів недоступні";
+"OpenAI's API doesn't expose organization rate limits. Copy them from your organization's Limits page. Model IDs match dated snapshots (gpt-5 covers gpt-5-2025-…)." = "API OpenAI не надає ліміти організації. Скопіюйте їх зі сторінки Limits вашої організації. Ідентифікатори моделей охоплюють версії з датою (gpt-5 охоплює gpt-5-2025-…).";
+"Tokens / min · last hour" = "Токени / хв · остання година";
+"Latest %@ · Peak %@ at %@" = "Зараз %@ · Пік %@ о %@";
+"%@ · peak %@ · %@ of org limit" = "%@ · пік %@ · %@ ліміту організації";
+"Tokens / min" = "Токени / хв";
+"Latest tokens per minute (OpenAI Admin API)" = "Остання кількість токенів за хвилину (OpenAI Admin API)";
+"Fetches 1-minute usage each refresh for the menu card chart and the menu bar Tokens/min token." = "Під час кожного оновлення завантажує похвилинне використання для графіка в картці меню та елемента «Токени/хв» у рядку меню.";
+"Live Usage…" = "Використання наживо…";
+"Batch API %@ · not counted in %% of limit" = "Batch API %@ · не враховується у %% від ліміту";
+"% of limit counts all input, including cached input, plus output, as OpenAI's rate limiter does, and excludes Batch API traffic, which has separate limits. The limiter also reserves max_tokens up front, so short bursts can still hit limits." = "% від ліміту враховує всі вхідні токени, зокрема кешовані, та вихідні токени, як обмежувач швидкості OpenAI, і виключає трафік Batch API, для якого діють окремі ліміти. Обмежувач також заздалегідь резервує max_tokens, тому навіть короткі сплески можуть досягти лімітів.";
+
+"Tokens / min graph" = "Графік токенів / хв";
+"Last hour of tokens per minute (OpenAI Admin API)" = "Токени за хвилину протягом останньої години (OpenAI Admin API)";
+"Tokens per minute, latest %@" = "Токени за хвилину, останнє значення %@";
+
+"Live" = "Наживо";
+
+"Chart" = "Графік";
+
+"Daily spend · %@" = "Щоденні витрати · %@";
+"Applies to the selected token account “%@”. Each account keeps its own limits." = "Застосовується до вибраного облікового запису токена «%@». Кожен обліковий запис зберігає власні ліміти.";
+"Applies to the OpenAI API key, not to token accounts." = "Застосовується до ключа API OpenAI, а не до облікових записів токенів.";

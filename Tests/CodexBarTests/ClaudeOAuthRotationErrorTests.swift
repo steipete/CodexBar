@@ -49,5 +49,6 @@ struct ClaudeOAuthRotationErrorTests {
             }))
 
         #expect(message.hasPrefix("localized revoked access stale capture "))
+        #expect(message.components(separatedBy: "stale capture").count == 2)
     }
 }

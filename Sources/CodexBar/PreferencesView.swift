@@ -64,7 +64,6 @@ struct PreferencesView: View {
     /// than from a `GeometryReader`: SwiftUI hands the top safe-area inset to the detail scroll view as
     /// a content inset, so a proxy read inside this column returns zero and collapses the cover.
     @State private var detailTitlebarInset: CGFloat = 0
-    @State private var isToolbarTitleHidden = false
 
     /// The persisted width, guarded against out-of-range values (edited defaults,
     /// bounds that shrank in an update) so a bad stored value can't wreck the layout.
@@ -142,16 +141,22 @@ struct PreferencesView: View {
                         .allowsHitTesting(false)
                 }
                 .overlay(alignment: .top) {
-                    SettingsDetailHeader(selection: self.selection, isTitleHidden: self.isToolbarTitleHidden)
-                        .frame(height: self.detailTitlebarInset)
-                        .frame(maxWidth: .infinity)
-                        .ignoresSafeArea(edges: .top)
+                    if #available(macOS 26.0, *) {
+                        SettingsDetailHeader(selection: self.selection)
+                            .frame(height: self.detailTitlebarInset)
+                            .frame(maxWidth: .infinity)
+                            .ignoresSafeArea(edges: .top)
+                    }
+                }
+                .safeAreaInset(edge: .top, spacing: 0) {
+                    if #unavailable(macOS 26.0) {
+                        SettingsHistoryButtons(selection: self.selection)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(8)
+                    }
                 }
                 .overlay(alignment: .leading) {
                     self.sidebarResizeHandle
-                }
-                .onPreferenceChange(SettingsToolbarTitleHiddenKey.self) { isHidden in
-                    self.isToolbarTitleHidden = isHidden
                 }
         }
         .frame(
@@ -415,19 +420,9 @@ final class SettingsWindowAppearanceView: NSView {
         if !window.titlebarAppearsTransparent {
             window.titlebarAppearsTransparent = true
         }
-        // `SettingsDetailHeader` draws the title; the native one stays set for the Window menu.
-        if window.titleVisibility != .hidden {
-            window.titleVisibility = .hidden
-        }
+        SettingsWindowToolbar.configure(window)
         if window.titlebarSeparatorStyle != .none {
             window.titlebarSeparatorStyle = .none
-        }
-        // An empty unified toolbar gives the titlebar System Settings' height.
-        if window.toolbar?.identifier != SettingsWindowToolbar.identifier {
-            window.toolbar = SettingsWindowToolbar.make()
-        }
-        if window.toolbarStyle != .unified {
-            window.toolbarStyle = .unified
         }
         // Full-size content lets the sidebar material extend behind the titlebar so the
         // edge-to-edge sidebar reaches the top of the window; content stays below the
@@ -438,42 +433,51 @@ final class SettingsWindowAppearanceView: NSView {
     }
 }
 
-struct SettingsToolbarTitleHiddenKey: PreferenceKey {
-    static let defaultValue = false
-
-    static func reduce(value: inout Bool, nextValue: () -> Bool) {
-        value = value || nextValue()
-    }
-}
-
-extension View {
-    /// Hides the Settings toolbar title for a pane that already shows its own, such as Usage & Spend.
-    func settingsToolbarTitleHidden(_ isHidden: Bool = true) -> some View {
-        self.preference(key: SettingsToolbarTitleHiddenKey.self, value: isHidden)
-    }
-}
-
 @MainActor
 enum SettingsWindowToolbar {
     static let identifier = NSToolbar.Identifier("com.steipete.codexbar.settings.toolbar")
 
-    static func make() -> NSToolbar {
-        let toolbar = NSToolbar(identifier: self.identifier)
-        toolbar.allowsUserCustomization = false
-        toolbar.displayMode = .iconOnly
-        return toolbar
+    static func configure(_ window: NSWindow) {
+        if #available(macOS 26.0, *) {
+            // Keep the native title set for accessibility and the Window menu.
+            if window.titleVisibility != .hidden {
+                window.titleVisibility = .hidden
+            }
+            if window.toolbar?.identifier != self.identifier {
+                let toolbar = NSToolbar(identifier: self.identifier)
+                toolbar.allowsUserCustomization = false
+                toolbar.displayMode = .iconOnly
+                window.toolbar = toolbar
+            }
+            if window.toolbarStyle != .unified {
+                window.toolbarStyle = .unified
+            }
+        } else {
+            if window.titleVisibility != .visible {
+                window.titleVisibility = .visible
+            }
+            if window.toolbar != nil {
+                window.toolbar = nil
+            }
+        }
     }
 }
 
 @MainActor
-private struct SettingsDetailHeader: View {
+struct SettingsDetailHeader: View {
     @Bindable var selection: PreferencesSelection
-    let isTitleHidden: Bool
+    private var showsTitle: Bool {
+        switch self.selection.pane {
+        case .usageSpend: false
+        case let .provider(instanceID): instanceID.firstPartyProvider == nil
+        default: true
+        }
+    }
 
     var body: some View {
         HStack(spacing: 12) {
             SettingsHistoryButtons(selection: self.selection)
-            if !self.isTitleHidden {
+            if self.showsTitle {
                 Text(self.selection.pane.title)
                     .font(.system(size: 15, weight: .bold))
                     .lineLimit(1)
@@ -487,117 +491,33 @@ private struct SettingsDetailHeader: View {
     }
 }
 
-/// Each segment has its own interactive glass so it responds separately; `glassEffectUnion` merges them into one
-/// capsule.
 @MainActor
-private struct SettingsHistoryButtons: View {
+struct SettingsHistoryButtons: View {
     @Bindable var selection: PreferencesSelection
-    @Namespace private var glassNamespace
-
-    private static let segmentSize: CGFloat = 36
 
     var body: some View {
-        if #available(macOS 26.0, *) {
-            GlassEffectContainer {
-                HStack(spacing: 0) {
-                    self.segment(.back)
-                    self.segment(.forward)
-                }
-                .overlay {
-                    Rectangle()
-                        .fill(Color.primary.opacity(0.5))
-                        .frame(width: 1, height: 20)
-                        .allowsHitTesting(false)
-                }
+        ControlGroup {
+            Button {
+                self.selection.goBack()
+            } label: {
+                Label(L("Back"), systemImage: "chevron.backward")
             }
-        } else {
-            ControlGroup {
-                self.button(.back)
-                self.button(.forward)
+            .disabled(!self.selection.canGoBack)
+            .keyboardShortcut("[", modifiers: .command)
+            .help(L("Back"))
+
+            Button {
+                self.selection.goForward()
+            } label: {
+                Label(L("Forward"), systemImage: "chevron.forward")
             }
-            .controlGroupStyle(.navigation)
-            .labelStyle(.iconOnly)
-            .fixedSize()
+            .disabled(!self.selection.canGoForward)
+            .keyboardShortcut("]", modifiers: .command)
+            .help(L("Forward"))
         }
-    }
-
-    @available(macOS 26.0, *)
-    private func segment(_ direction: Direction) -> some View {
-        Button {
-            self.navigate(direction)
-        } label: {
-            Image(systemName: direction.systemImage)
-                .font(.system(size: 17, weight: .medium))
-                .frame(width: Self.segmentSize, height: Self.segmentSize)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .foregroundStyle(self.isEnabled(direction) ? .primary : .tertiary)
-        .glassEffect(.regular.interactive(self.isEnabled(direction)), in: .capsule)
-        .glassEffectUnion(id: "history", namespace: self.glassNamespace)
-        .modifier(SettingsHistoryCommand(direction: direction, isEnabled: self.isEnabled(direction)))
-    }
-
-    private func button(_ direction: Direction) -> some View {
-        Button {
-            self.navigate(direction)
-        } label: {
-            Label(direction.title, systemImage: direction.systemImage)
-        }
-        .modifier(SettingsHistoryCommand(direction: direction, isEnabled: self.isEnabled(direction)))
-    }
-
-    private func isEnabled(_ direction: Direction) -> Bool {
-        switch direction {
-        case .back: self.selection.canGoBack
-        case .forward: self.selection.canGoForward
-        }
-    }
-
-    private func navigate(_ direction: Direction) {
-        switch direction {
-        case .back: self.selection.goBack()
-        case .forward: self.selection.goForward()
-        }
-    }
-
-    enum Direction {
-        case back
-        case forward
-
-        var title: String {
-            switch self {
-            case .back: L("Back")
-            case .forward: L("Forward")
-            }
-        }
-
-        var systemImage: String {
-            switch self {
-            case .back: "chevron.left"
-            case .forward: "chevron.right"
-            }
-        }
-
-        var shortcut: KeyEquivalent {
-            switch self {
-            case .back: "["
-            case .forward: "]"
-            }
-        }
-    }
-}
-
-private struct SettingsHistoryCommand: ViewModifier {
-    let direction: SettingsHistoryButtons.Direction
-    let isEnabled: Bool
-
-    func body(content: Content) -> some View {
-        content
-            .disabled(!self.isEnabled)
-            .keyboardShortcut(self.direction.shortcut, modifiers: .command)
-            .help(self.direction.title)
-            .accessibilityLabel(self.direction.title)
+        .controlGroupStyle(.navigation)
+        .labelStyle(.iconOnly)
+        .fixedSize()
     }
 }
 

@@ -670,5 +670,19 @@
     "strategies": ["flora.js"],
     "supportsTokenCost": false,
     "workspaceOrder": null
+  },
+  {
+    "availability": [true, true, true],
+    "cliResolution": {"PARALLEL": ["parallel"]},
+    "enterpriseHost": false,
+    "environmentAvailability": [[true, true], [true, true], [true, true], [true, true]],
+    "fields": ["secure"],
+    "id": "parallel",
+    "projectToken": "",
+    "projections": {},
+    "sourceModes": ["auto", "web"],
+    "strategies": ["parallel.js"],
+    "supportsTokenCost": false,
+    "workspaceOrder": null
   }
 ]

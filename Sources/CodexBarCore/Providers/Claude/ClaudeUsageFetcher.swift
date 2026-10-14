@@ -7,13 +7,7 @@ public protocol ClaudeUsageFetching: Sendable {
 }
 
 public struct ClaudeUsageSnapshot: Sendable {
-    public enum PrimaryWindowKind: Equatable, Sendable {
-        case usage
-        case spendLimit
-    }
-
-    public let primary: RateWindow
-    public let primaryWindowKind: PrimaryWindowKind
+    public let primary: RateWindow?
     public let secondary: RateWindow?
     public let opus: RateWindow?
     public let extraRateWindows: [NamedRateWindow]
@@ -21,10 +15,10 @@ public struct ClaudeUsageSnapshot: Sendable {
     public let resetCredits: ClaudeRateLimitResetCreditsSnapshot?
     public let cloudCredits: ClaudeCloudCreditsSnapshot?
     public let updatedAt: Date
-    public let accountEmail: String?
+    public internal(set) var accountEmail: String?
     public let accountOrganization: String?
     /// Verified principal and organization from the same credential that produced this usage.
-    public let accountID: String?
+    public internal(set) var accountID: String?
     public internal(set) var subscriptionMetadata: ClaudeSubscriptionMetadata?
     public let loginMethod: String?
     public let rawText: String?
@@ -42,8 +36,7 @@ public struct ClaudeUsageSnapshot: Sendable {
     public let oauthKeychainCredentialUnavailable: Bool
 
     public init(
-        primary: RateWindow,
-        primaryWindowKind: PrimaryWindowKind = .usage,
+        primary: RateWindow?,
         secondary: RateWindow?,
         opus: RateWindow?,
         extraRateWindows: [NamedRateWindow] = [],
@@ -64,7 +57,6 @@ public struct ClaudeUsageSnapshot: Sendable {
         accountID: String? = nil)
     {
         self.primary = primary
-        self.primaryWindowKind = primaryWindowKind
         self.secondary = secondary
         self.opus = opus
         self.extraRateWindows = extraRateWindows
@@ -755,7 +747,7 @@ extension ClaudeUsageFetcher {
             let email = snap.accountEmail ?? "nil"
             let org = snap.accountOrganization ?? "nil"
             let weekly = snap.secondary?.remainingPercent ?? -1
-            let primary = snap.primary.remainingPercent
+            let primary = snap.primary?.remainingPercent ?? -1
             return """
             session_left=\(primary) weekly_left=\(weekly)
             opus_left=\(opus) email \(email) org \(org)
@@ -886,12 +878,11 @@ extension ClaudeUsageFetcher {
         do {
             let profile = try await Self.fetchOAuthProfile(accessToken: accessToken)
             try Task.checkCancellation()
-            guard let owner = ClaudeVerifiedAccountOwner.ownerID(
+            let owner = ClaudeVerifiedAccountOwner.ownerID(
                 accountUUID: profile.accountUuid,
                 email: profile.emailAddress,
                 organizationUUID: profile.organizationUuid)
-            else { return snapshot }
-            return snapshot.withAccountIdentity(owner)
+            return snapshot.withAccountIdentity(owner, email: profile.emailAddress)
         } catch {
             try Task.checkCancellation()
             if ClaudeOAuthFetchError.isCancellation(error) { throw error }
@@ -989,7 +980,7 @@ extension ClaudeUsageFetcher {
             loginMethod: loginMethod,
             treatAsSpendLimit: treatAsSpendLimit)
 
-        guard let primary = primary ?? Self.oauthSpendLimitWindow(from: providerCost, extraUsage: usage.extraUsage)
+        guard primary != nil || providerCost?.spendLimitWindow != nil
         else {
             throw ClaudeUsageError.parseFailed("missing session data")
         }
@@ -1003,7 +994,6 @@ extension ClaudeUsageFetcher {
         let updatedAt = Date()
         return ClaudeUsageSnapshot(
             primary: primary,
-            primaryWindowKind: treatAsSpendLimit ? .spendLimit : .usage,
             secondary: weekly,
             opus: modelSpecific,
             extraRateWindows: extraRateWindows,
@@ -1040,23 +1030,6 @@ extension ClaudeUsageFetcher {
             period: isSpendLimit ? "Spend limit" : "Monthly cap",
             resetsAt: nil,
             updatedAt: Date())
-    }
-
-    private static func oauthSpendLimitWindow(
-        from providerCost: ProviderCostSnapshot?,
-        extraUsage: OAuthExtraUsage?) -> RateWindow?
-    {
-        guard let providerCost,
-              providerCost.limit > 0
-        else { return nil }
-        let usedPercent = extraUsage?.utilization ?? (providerCost.used / providerCost.limit) * 100
-        let used = UsageFormatter.currencyString(providerCost.used, currencyCode: providerCost.currencyCode)
-        let limit = UsageFormatter.currencyString(providerCost.limit, currencyCode: providerCost.currencyCode)
-        return RateWindow(
-            usedPercent: min(100, max(0, usedPercent)),
-            windowMinutes: nil,
-            resetsAt: providerCost.resetsAt,
-            resetDescription: "\(providerCost.period ?? "Spend limit"): \(used) / \(limit)")
     }
 
     private static func oauthExtraRateWindows(from usage: OAuthUsageResponse) -> [NamedRateWindow] {
@@ -1102,20 +1075,15 @@ extension ClaudeUsageFetcher {
 
     // MARK: - Web API path (uses browser cookies)
 
-    /// The 5-hour session (`primary`) window for a Claude web usage payload.
-    ///
-    /// When `five_hour` is null the web fetcher reports a synthesized 0% session (an account with no live
-    /// session window). Flag that placeholder so lane classifiers — e.g. the combined Session + Weekly
-    /// menu-bar metric — surface the weekly lane instead of a phantom 5h session. The flag keys off the
-    /// reported presence of the session object, so a real session that is merely idle (0% used, possibly
-    /// with no reset) stays unflagged and keeps rendering.
-    static func webPrimaryWindow(from webData: ClaudeWebAPIFetcher.WebUsageData) -> RateWindow {
-        RateWindow(
-            usedPercent: webData.sessionPercentUsed,
-            windowMinutes: 5 * 60,
-            resetsAt: webData.sessionResetsAt,
-            resetDescription: webData.sessionResetsAt.map { Self.formatResetDate($0) },
-            isSyntheticPlaceholder: !webData.hasLiveSessionWindow)
+    /// A missing Web session stays absent rather than becoming a synthetic 0% window.
+    static func webPrimaryWindow(from webData: ClaudeWebAPIFetcher.WebUsageData) -> RateWindow? {
+        webData.sessionPercentUsed.map {
+            RateWindow(
+                usedPercent: $0,
+                windowMinutes: 5 * 60,
+                resetsAt: webData.sessionResetsAt,
+                resetDescription: webData.sessionResetsAt.map { Self.formatResetDate($0) })
+        }
     }
 
     private func loadViaWebAPI() async throws -> ClaudeUsageSnapshot {
@@ -1226,7 +1194,7 @@ extension ClaudeUsageFetcher {
         return try Self.makeSnapshot(from: snap)
     }
 
-    private static func makeSnapshot(
+    static func makeSnapshot(
         from snap: ClaudeStatusSnapshot,
         now: Date = .init()) throws -> ClaudeUsageSnapshot
     {
@@ -1266,7 +1234,9 @@ extension ClaudeUsageFetcher {
             secondary: weekly,
             opus: opus,
             extraRateWindows: snap.extraRateWindows,
-            providerCost: nil,
+            providerCost: ClaudeCLISpendCapParser.parse(ClaudeCLIScreen.render(
+                snap.rawText,
+                preservePlainReports: true)),
             updatedAt: now,
             accountEmail: snap.accountEmail,
             accountOrganization: snap.accountOrganization,
@@ -1325,6 +1295,8 @@ extension ClaudeUsageFetcher {
         switch await race.value(joinGrace: .seconds(self.webExtrasTimeout)) {
         case let .value(candidate):
             try Task.checkCancellation()
+            let snapshot = snapshot.withAccountIdentity(
+                snapshot.accountID, email: candidate.oauthProfile?.emailAddress)
             let webData = candidate.webData
             guard Self.webExtrasAccountMatches(
                 snapshot: snapshot,
@@ -1344,11 +1316,9 @@ extension ClaudeUsageFetcher {
                 primary: snapshot.providerCost,
                 web: webData.extraUsageCost,
                 includeUsageDetails: self.useWebExtras)
-            if mergedProviderCost != snapshot.providerCost || mergedExtraRateWindows != snapshot.extraRateWindows {
-                return snapshot.replacingWebExtras(
-                    extraRateWindows: mergedExtraRateWindows,
-                    providerCost: mergedProviderCost)
-            }
+            return snapshot.replacingWebExtras(
+                extraRateWindows: mergedExtraRateWindows,
+                providerCost: mergedProviderCost)
         case let .failure(error):
             if error is CancellationError ||
                 (error as? URLError)?.code == .cancelled ||
