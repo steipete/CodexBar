@@ -772,6 +772,64 @@ public struct OpenAIDashboardBrowserCookieImporter {
         }
     }
 
+    @MainActor
+    struct PersistentCookieSessionRequest {
+        var candidateLabel: String
+        var cookieCount: Int
+        var targetEmail: String
+        var requireEmailMatch: Bool
+        var mapValidationTimeout: Bool
+    }
+
+    @MainActor
+    struct PersistentCookieSessionActions {
+        var clearExisting: () async throws -> Void
+        var writeCandidate: () async throws -> Void
+        var probeSignedInEmail: () async throws -> String?
+        var evictWebView: () -> Void
+        var removeRejectedCookies: () async -> Void
+    }
+
+    func commitPersistentCookieSession(
+        _ request: PersistentCookieSessionRequest,
+        actions: PersistentCookieSessionActions,
+        logger: (String) -> Void) async throws -> ImportResult
+    {
+        try await actions.clearExisting()
+        try await actions.writeCandidate()
+
+        // Validate against the persistent store (login + email sync).
+        do {
+            let signed = try await actions.probeSignedInEmail()?
+                .trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
+            let matches = signed?.lowercased() == request.targetEmail.lowercased()
+            logger("Persistent session signed in as: \(signed ?? "unknown")")
+            if request.requireEmailMatch, signed != nil, matches == false {
+                let found = signed?.isEmpty == false
+                    ? [FoundAccount(sourceLabel: request.candidateLabel, email: signed!)]
+                    : []
+                throw ImportError.noMatchingAccount(found: found)
+            }
+            return ImportResult(
+                sourceLabel: request.candidateLabel,
+                cookieCount: request.cookieCount,
+                signedInEmail: signed,
+                matchesCodexEmail: request.requireEmailMatch ? matches : false)
+        } catch OpenAIDashboardFetcher.FetchError.loginRequired {
+            actions.evictWebView()
+            await actions.removeRejectedCookies()
+            logger("Selected \(request.candidateLabel) but dashboard still requires login.")
+            throw ImportError.dashboardStillRequiresLogin
+        } catch {
+            actions.evictWebView()
+            let failure = request.mapValidationTimeout ? Self.persistentValidationFailure(error) : error
+            if let importError = failure as? ImportError, case .noMatchingAccount = importError {
+                await actions.removeRejectedCookies()
+            }
+            throw failure
+        }
+    }
+
     private func persist(
         candidate: Candidate,
         targetEmail: String,
@@ -782,38 +840,19 @@ public struct OpenAIDashboardBrowserCookieImporter {
         let persistent = OpenAIDashboardWebsiteDataStore.store(
             forAccountEmail: targetEmail,
             scope: cacheScope)
-        try await self.clearChatGPTCookies(in: persistent, deadline: deadline)
-        try await self.setCookies(candidate.cookies, into: persistent, deadline: deadline)
-
-        // Validate against the persistent store (login + email sync).
-        do {
-            let probe = try await OpenAIDashboardFetcher().probeUsagePage(
-                websiteDataStore: persistent,
-                logger: logger,
-                timeout: Self.remainingTimeout(until: deadline, cappedAt: 20),
-                preserveLoadedPageForReuse: true)
-            let signed = probe.signedInEmail?.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
-            let matches = signed?.lowercased() == targetEmail.lowercased()
-            logger("Persistent session signed in as: \(signed ?? "unknown")")
-            if signed != nil, matches == false {
-                let found = signed?.isEmpty == false
-                    ? [FoundAccount(sourceLabel: candidate.label, email: signed!)]
-                    : []
-                throw ImportError.noMatchingAccount(found: found)
-            }
-            return ImportResult(
-                sourceLabel: candidate.label,
+        return try await self.commitPersistentCookieSession(
+            PersistentCookieSessionRequest(
+                candidateLabel: candidate.label,
                 cookieCount: candidate.cookies.count,
-                signedInEmail: signed,
-                matchesCodexEmail: matches)
-        } catch OpenAIDashboardFetcher.FetchError.loginRequired {
-            OpenAIDashboardWebViewCache.shared.evict(websiteDataStore: persistent)
-            logger("Selected \(candidate.label) but dashboard still requires login.")
-            throw ImportError.dashboardStillRequiresLogin
-        } catch {
-            OpenAIDashboardWebViewCache.shared.evict(websiteDataStore: persistent)
-            throw Self.persistentValidationFailure(error)
-        }
+                targetEmail: targetEmail,
+                requireEmailMatch: true,
+                mapValidationTimeout: true),
+            actions: self.persistentCookieActions(
+                for: persistent,
+                candidate: candidate,
+                deadline: deadline,
+                logger: logger),
+            logger: logger)
     }
 
     private func persistToDefaultStore(
@@ -822,30 +861,48 @@ public struct OpenAIDashboardBrowserCookieImporter {
         logger: @escaping (String) -> Void) async throws -> ImportResult
     {
         let persistent = OpenAIDashboardWebsiteDataStore.store(forAccountEmail: nil)
-        try await self.clearChatGPTCookies(in: persistent, deadline: deadline)
-        try await self.setCookies(candidate.cookies, into: persistent, deadline: deadline)
-
-        do {
-            let probe = try await OpenAIDashboardFetcher().probeUsagePage(
-                websiteDataStore: persistent,
-                logger: logger,
-                timeout: Self.remainingTimeout(until: deadline, cappedAt: 20),
-                preserveLoadedPageForReuse: true)
-            let signed = probe.signedInEmail?.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
-            logger("Persistent session signed in as: \(signed ?? "unknown")")
-            return ImportResult(
-                sourceLabel: candidate.label,
+        return try await self.commitPersistentCookieSession(
+            PersistentCookieSessionRequest(
+                candidateLabel: candidate.label,
                 cookieCount: candidate.cookies.count,
-                signedInEmail: signed,
-                matchesCodexEmail: false)
-        } catch OpenAIDashboardFetcher.FetchError.loginRequired {
-            OpenAIDashboardWebViewCache.shared.evict(websiteDataStore: persistent)
-            logger("Selected \(candidate.label) but dashboard still requires login.")
-            throw ImportError.dashboardStillRequiresLogin
-        } catch {
-            OpenAIDashboardWebViewCache.shared.evict(websiteDataStore: persistent)
-            throw error
-        }
+                targetEmail: "",
+                requireEmailMatch: false,
+                mapValidationTimeout: false),
+            actions: self.persistentCookieActions(
+                for: persistent,
+                candidate: candidate,
+                deadline: deadline,
+                logger: logger),
+            logger: logger)
+    }
+
+    private func persistentCookieActions(
+        for store: WKWebsiteDataStore,
+        candidate: Candidate,
+        deadline: Date?,
+        logger: @escaping (String) -> Void) -> PersistentCookieSessionActions
+    {
+        PersistentCookieSessionActions(
+            clearExisting: {
+                try await self.clearChatGPTCookies(in: store, deadline: deadline)
+            },
+            writeCandidate: {
+                try await self.setCookies(candidate.cookies, into: store, deadline: deadline)
+            },
+            probeSignedInEmail: {
+                let probe = try await OpenAIDashboardFetcher().probeUsagePage(
+                    websiteDataStore: store,
+                    logger: logger,
+                    timeout: Self.remainingTimeout(until: deadline, cappedAt: 20),
+                    preserveLoadedPageForReuse: true)
+                return probe.signedInEmail
+            },
+            evictWebView: {
+                OpenAIDashboardWebViewCache.shared.evict(websiteDataStore: store)
+            },
+            removeRejectedCookies: {
+                try? await self.clearChatGPTCookies(in: store, deadline: deadline)
+            })
     }
 
     // MARK: - Candidates

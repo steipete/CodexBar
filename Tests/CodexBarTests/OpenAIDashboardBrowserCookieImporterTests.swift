@@ -361,4 +361,168 @@ struct OpenAIDashboardBrowserCookieImporterTests {
         #expect(!OpenAIDashboardBrowserCookieImporter.shouldTrustVerifiedSession(
             afterPersistFailure: OpenAIDashboardBrowserCookieImporter.ImportError.dashboardStillRequiresLogin))
     }
+
+    @Test @MainActor
+    func `account mismatch removes the cookies just written for that email`() async {
+        let script = PersistentCookieScript()
+        script.probe = { "other@example.com" }
+
+        do {
+            _ = try await script.commit(targetEmail: "owner@example.com", requireEmailMatch: true, mapTimeout: true)
+            Issue.record("Expected the other account to be rejected")
+        } catch let error as OpenAIDashboardBrowserCookieImporter.ImportError {
+            guard case let .noMatchingAccount(found) = error else {
+                Issue.record("Expected noMatchingAccount, got \(error)")
+                return
+            }
+            #expect(found == [
+                OpenAIDashboardBrowserCookieImporter.FoundAccount(
+                    sourceLabel: "Chrome",
+                    email: "other@example.com"),
+            ])
+        } catch {
+            Issue.record("Expected noMatchingAccount, got \(error)")
+        }
+
+        #expect(script.log.snapshot == ["clear", "write", "probe", "evict", "rollback"])
+    }
+
+    @Test @MainActor
+    func `login failure removes the cookies just written for that email`() async {
+        let script = PersistentCookieScript()
+        script.probe = { throw OpenAIDashboardFetcher.FetchError.loginRequired }
+
+        do {
+            _ = try await script.commit(targetEmail: "owner@example.com", requireEmailMatch: true, mapTimeout: true)
+            Issue.record("Expected login to be rejected")
+        } catch let error as OpenAIDashboardBrowserCookieImporter.ImportError {
+            guard case .dashboardStillRequiresLogin = error else {
+                Issue.record("Expected dashboardStillRequiresLogin, got \(error)")
+                return
+            }
+        } catch {
+            Issue.record("Expected dashboardStillRequiresLogin, got \(error)")
+        }
+
+        #expect(script.log.snapshot == ["clear", "write", "probe", "evict", "rollback"])
+    }
+
+    @Test @MainActor
+    func `timed out persistent validation keeps the cookies just written`() async {
+        let script = PersistentCookieScript()
+        script.probe = { throw URLError(.timedOut) }
+
+        do {
+            _ = try await script.commit(targetEmail: "owner@example.com", requireEmailMatch: true, mapTimeout: true)
+            Issue.record("Expected a timeout")
+        } catch {
+            #expect(OpenAIDashboardBrowserCookieImporter.shouldTrustVerifiedSession(afterPersistFailure: error))
+        }
+
+        #expect(script.log.snapshot == ["clear", "write", "probe", "evict"])
+    }
+
+    @Test @MainActor
+    func `default store keeps cookies when persistent validation times out`() async {
+        let script = PersistentCookieScript()
+        script.probe = { throw URLError(.timedOut) }
+
+        do {
+            _ = try await script.commit(targetEmail: "", requireEmailMatch: false, mapTimeout: false)
+            Issue.record("Expected a timeout")
+        } catch let error as URLError {
+            #expect(error.code == .timedOut)
+            #expect(!OpenAIDashboardBrowserCookieImporter.shouldTrustVerifiedSession(afterPersistFailure: error))
+        } catch {
+            Issue.record("Expected URLError.timedOut, got \(error)")
+        }
+
+        #expect(script.log.snapshot == ["clear", "write", "probe", "evict"])
+    }
+
+    @Test @MainActor
+    func `default store login failure removes the cookies just written`() async {
+        let script = PersistentCookieScript()
+        script.probe = { throw OpenAIDashboardFetcher.FetchError.loginRequired }
+
+        do {
+            _ = try await script.commit(targetEmail: "", requireEmailMatch: false, mapTimeout: false)
+            Issue.record("Expected login to be rejected")
+        } catch let error as OpenAIDashboardBrowserCookieImporter.ImportError {
+            guard case .dashboardStillRequiresLogin = error else {
+                Issue.record("Expected dashboardStillRequiresLogin, got \(error)")
+                return
+            }
+        } catch {
+            Issue.record("Expected dashboardStillRequiresLogin, got \(error)")
+        }
+
+        #expect(script.log.snapshot == ["clear", "write", "probe", "evict", "rollback"])
+    }
+
+    @Test @MainActor
+    func `matching session keeps the cookies it just wrote`() async throws {
+        let script = PersistentCookieScript()
+        script.probe = { "owner@example.com" }
+
+        let result = try await script.commit(
+            targetEmail: "owner@example.com",
+            requireEmailMatch: true,
+            mapTimeout: true)
+
+        #expect(result.signedInEmail == "owner@example.com")
+        #expect(result.matchesCodexEmail)
+        #expect(script.log.snapshot == ["clear", "write", "probe"])
+    }
+
+    @Test @MainActor
+    func `unrelated probe failure keeps the cookies it just wrote`() async {
+        let script = PersistentCookieScript()
+        script.probe = { throw OpenAIDashboardFetcher.FetchError.noDashboardData(body: "fixture") }
+
+        do {
+            _ = try await script.commit(targetEmail: "owner@example.com", requireEmailMatch: true, mapTimeout: true)
+            Issue.record("Expected the probe failure")
+        } catch let error as OpenAIDashboardFetcher.FetchError {
+            guard case .noDashboardData = error else {
+                Issue.record("Expected noDashboardData, got \(error)")
+                return
+            }
+        } catch {
+            Issue.record("Expected noDashboardData, got \(error)")
+        }
+
+        #expect(script.log.snapshot == ["clear", "write", "probe", "evict"])
+    }
+}
+
+@MainActor
+private final class PersistentCookieScript {
+    let log = CookieOperationLog()
+    var probe: @MainActor () async throws -> String? = { "owner@example.com" }
+
+    func commit(
+        targetEmail: String,
+        requireEmailMatch: Bool,
+        mapTimeout: Bool) async throws -> OpenAIDashboardBrowserCookieImporter.ImportResult
+    {
+        let importer = OpenAIDashboardBrowserCookieImporter(browserDetection: BrowserDetection(cacheTTL: 0))
+        return try await importer.commitPersistentCookieSession(
+            OpenAIDashboardBrowserCookieImporter.PersistentCookieSessionRequest(
+                candidateLabel: "Chrome",
+                cookieCount: 2,
+                targetEmail: targetEmail,
+                requireEmailMatch: requireEmailMatch,
+                mapValidationTimeout: mapTimeout),
+            actions: OpenAIDashboardBrowserCookieImporter.PersistentCookieSessionActions(
+                clearExisting: { self.log.append("clear") },
+                writeCandidate: { self.log.append("write") },
+                probeSignedInEmail: {
+                    self.log.append("probe")
+                    return try await self.probe()
+                },
+                evictWebView: { self.log.append("evict") },
+                removeRejectedCookies: { self.log.append("rollback") }),
+            logger: { _ in })
+    }
 }
