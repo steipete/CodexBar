@@ -779,6 +779,7 @@ public struct OpenAIDashboardBrowserCookieImporter {
         var targetEmail: String
         var requireEmailMatch: Bool
         var mapValidationTimeout: Bool
+        var storeKey: String
     }
 
     @MainActor
@@ -791,6 +792,16 @@ public struct OpenAIDashboardBrowserCookieImporter {
     }
 
     func commitPersistentCookieSession(
+        _ request: PersistentCookieSessionRequest,
+        actions: PersistentCookieSessionActions,
+        logger: (String) -> Void) async throws -> ImportResult
+    {
+        try await Self.withPersistentCookieTransaction(key: request.storeKey) {
+            try await self.performPersistentCookieSession(request, actions: actions, logger: logger)
+        }
+    }
+
+    private func performPersistentCookieSession(
         _ request: PersistentCookieSessionRequest,
         actions: PersistentCookieSessionActions,
         logger: (String) -> Void) async throws -> ImportResult
@@ -846,7 +857,10 @@ public struct OpenAIDashboardBrowserCookieImporter {
                 cookieCount: candidate.cookies.count,
                 targetEmail: targetEmail,
                 requireEmailMatch: true,
-                mapValidationTimeout: true),
+                mapValidationTimeout: true,
+                storeKey: OpenAIDashboardWebsiteDataStore.transactionKey(
+                    forAccountEmail: targetEmail,
+                    scope: cacheScope)),
             actions: self.persistentCookieActions(
                 for: persistent,
                 candidate: candidate,
@@ -867,7 +881,8 @@ public struct OpenAIDashboardBrowserCookieImporter {
                 cookieCount: candidate.cookies.count,
                 targetEmail: "",
                 requireEmailMatch: false,
-                mapValidationTimeout: false),
+                mapValidationTimeout: false,
+                storeKey: OpenAIDashboardWebsiteDataStore.transactionKey(forAccountEmail: nil)),
             actions: self.persistentCookieActions(
                 for: persistent,
                 candidate: candidate,
@@ -967,9 +982,14 @@ public struct OpenAIDashboardBrowserCookieImporter {
         logger: (String) -> Void) async throws
     {
         let store = OpenAIDashboardWebsiteDataStore.store(forAccountEmail: accountEmail, scope: cacheScope)
-        try await self.clearChatGPTCookies(in: store, deadline: deadline)
-        try await self.setCookies(candidate.cookies, into: store, deadline: deadline)
-        logger("Persisted cookies for \(accountEmail) (source=\(candidate.label))")
+        let storeKey = OpenAIDashboardWebsiteDataStore.transactionKey(
+            forAccountEmail: accountEmail,
+            scope: cacheScope)
+        try await Self.withPersistentCookieTransaction(key: storeKey) {
+            try await self.clearChatGPTCookies(in: store, deadline: deadline)
+            try await self.setCookies(candidate.cookies, into: store, deadline: deadline)
+            logger("Persisted cookies for \(accountEmail) (source=\(candidate.label))")
+        }
     }
 
     private func clearChatGPTCookies(in store: WKWebsiteDataStore, deadline: Date?) async throws {

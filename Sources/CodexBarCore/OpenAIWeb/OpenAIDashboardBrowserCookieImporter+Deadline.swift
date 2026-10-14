@@ -186,5 +186,47 @@ extension OpenAIDashboardBrowserCookieImporter {
             }
         }
     }
+
+    @MainActor
+    private final class PersistentCookieTransactionGate {
+        private var busy = false
+        private var waiters: [CheckedContinuation<Void, Never>] = []
+
+        func acquire() async {
+            if !self.busy {
+                self.busy = true
+                return
+            }
+            await withCheckedContinuation { continuation in
+                self.waiters.append(continuation)
+            }
+        }
+
+        func release() {
+            guard let next = self.waiters.first else {
+                self.busy = false
+                return
+            }
+            self.waiters.removeFirst()
+            next.resume()
+        }
+    }
+
+    @MainActor private static var persistentCookieTransactionGates: [String: PersistentCookieTransactionGate] = [:]
+
+    /// One clear/write/probe/rollback at a time for a single persistent jar.
+    /// Each WebKit mutation is already serialized. The dashboard probe suspends between them,
+    /// so a second import can write this jar and then lose those cookies if the first import rejects.
+    static func withPersistentCookieTransaction<T>(
+        key: String,
+        operation: () async throws -> T) async throws -> T
+    {
+        let gate = self.persistentCookieTransactionGates[key] ?? PersistentCookieTransactionGate()
+        self.persistentCookieTransactionGates[key] = gate
+        await gate.acquire()
+        defer { gate.release() }
+        try Task.checkCancellation()
+        return try await operation()
+    }
 }
 #endif

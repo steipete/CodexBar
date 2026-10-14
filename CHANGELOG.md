@@ -4,7 +4,7 @@
 
 ### Fixed
 
-- Codex: a browser cookie import that signs into a different OpenAI account, or still needs login, no longer leaves that session in the selected account's web store.
+- Codex: a browser cookie import that signs into a different OpenAI account, or still needs login, no longer leaves that session in the selected account's web store. An older import that is still checking the dashboard cannot clear cookies a newer import wrote for that same account.
 
 ## 0.75.0 — 2026-10-13
 

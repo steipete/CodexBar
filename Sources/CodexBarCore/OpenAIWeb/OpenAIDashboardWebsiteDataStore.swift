@@ -38,6 +38,17 @@ public enum OpenAIDashboardWebsiteDataStore {
         return store
     }
 
+    /// Stable identity for the persistent jar `store(forAccountEmail:scope:)` returns.
+    /// A nil or blank email uses the shared default jar. The key stays the same if the
+    /// cached `WKWebsiteDataStore` instance is dropped and created again.
+    static func transactionKey(
+        forAccountEmail email: String?,
+        scope: CookieHeaderCache.Scope? = nil) -> String
+    {
+        guard let normalized = normalizeEmail(email) else { return "webkit-default" }
+        return "webkit:\(self.storageKey(normalizedEmail: normalized, scope: scope))"
+    }
+
     /// Clears the persistent cookie store for a single account email.
     ///
     /// Note: this does *not* impact other accounts, and is safe to use when the stored session is "stuck"
