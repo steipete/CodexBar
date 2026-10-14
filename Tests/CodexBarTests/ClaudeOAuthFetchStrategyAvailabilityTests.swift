@@ -117,7 +117,7 @@ struct ClaudeOAuthFetchStrategyAvailabilityTests {
             Bool) async throws -> ClaudeOAuthCredentials = { _, _, _ in credentials }
         let fetchUsage: @Sendable (String, Bool) async throws -> OAuthUsageResponse = { _, _ in usageResponse }
         let fetchProfile: @Sendable (String) async throws -> OAuthProfileResponse = { _ in
-            OAuthProfileResponse(emailAddress: "user@example.com", organizationUuid: "org-123")
+            OAuthProfileResponse(emailAddress: "USER@example.com", organizationUuid: "org-123")
         }
 
         let result = try await ClaudeWebHTTPTransport.$overrideForTesting.withValue(transport) {
@@ -134,6 +134,8 @@ struct ClaudeOAuthFetchStrategyAvailabilityTests {
         #expect(result.usage.providerCost?.used == 5)
         #expect(result.usage.providerCost?.limit == 20)
         #expect(result.usage.providerCost?.balance == 100)
+        #expect(result.usage.identity?.accountEmail == "USER@example.com")
+        #expect(result.usage.identity?.widgetAccountOwnerID == nil)
     }
 
     @Test

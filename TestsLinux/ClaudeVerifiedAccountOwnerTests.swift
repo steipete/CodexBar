@@ -41,10 +41,13 @@ struct ClaudeVerifiedAccountOwnerTests {
         #expect(identified.primary?.usedPercent == 25)
         #expect(identified.accountID == ClaudeVerifiedAccountOwner.ownerID(
             accountUUID: "principal-a", email: "owner@example.com", organizationUUID: "org-a"))
-        #expect(identified.accountEmail == plain.accountEmail)
+        #expect(plain.accountEmail == nil)
+        #expect(identified.accountEmail == "owner@example.com")
         let mapped = ClaudeOAuthFetchStrategy._snapshotForTesting(from: identified)
             .withAccountLabel("Work", for: .claude)
-        #expect(mapped.identity?.accountEmail == "Work")
+        #expect(mapped.identity?.accountEmail == "owner@example.com")
+        #expect(ClaudeOAuthFetchStrategy._snapshotForTesting(from: plain)
+            .withAccountLabel("Work", for: .claude).identity?.accountEmail == "Work")
         #expect(mapped.identity?.accountID == nil)
         #expect(mapped.identity?.widgetAccountOwnerID == identified.accountID)
         #expect(identified.replacingWebExtras(extraRateWindows: [], providerCost: nil).accountID == identified

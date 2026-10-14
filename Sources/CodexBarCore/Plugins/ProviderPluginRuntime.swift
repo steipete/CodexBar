@@ -241,13 +241,13 @@ public final class ProviderPluginRuntime: @unchecked Sendable {
         }
         let worker = try self.currentWorker()
         let gate = ProviderPluginCompletionGate<ProviderPluginResult>()
-        let finish: @Sendable (Result<ProviderPluginResult, Error>) -> Void = { [weak worker] result in
-            gate.finish(result.mapError { self.redactedError($0, secrets: sanitizedSecrets.values) }) {
+        let finish: @Sendable (Result<ProviderPluginResult, Error>) -> Void = { [weak self, weak worker] result in
+            gate.finish(result.mapError { Self.redactedError($0, secrets: sanitizedSecrets.values) }) {
                 if case let .failure(error) = result,
                    error is CancellationError || error as? ProviderPluginError == .timedOut, let worker
                 {
                     worker.requestInterrupt()
-                    self.discard(worker)
+                    self?.discard(worker)
                 }
             }
         }
@@ -339,7 +339,7 @@ public final class ProviderPluginRuntime: @unchecked Sendable {
         return .quickJS
     }
 
-    private func redactedError(_ error: Error, secrets: Dictionary<String, String>.Values) -> Error {
+    private static func redactedError(_ error: Error, secrets: Dictionary<String, String>.Values) -> Error {
         if error is CancellationError { return CancellationError() }
         if let error = error as? URLError { return URLError(error.code) }
         var message = error.localizedDescription
@@ -494,19 +494,19 @@ final class JavaScriptCoreProviderPluginEngine: ProviderPluginEngine, @unchecked
         self.responseSizeLimit = responseSizeLimit
         self.enforcesUserResponsePolicy = enforcesUserResponsePolicy
 
+        // The context owns this block; its captured value must not keep the context alive.
         var definition: JSValue?
+        defer { definition = nil }
         let defineProvider: @convention(block) (JSValue) -> Void = { value in
             definition = value
         }
         context.setObject(defineProvider, forKeyedSubscript: "defineProvider" as NSString)
 
-        context.exception = nil
         guard let applyPrelude = context.evaluateScript(preludeSource), context.exception == nil else {
             throw ProviderPluginError.load(Self.exceptionMessage(context) ?? "prelude evaluation failed")
         }
         self.applyPrelude = applyPrelude
 
-        context.exception = nil
         _ = context.evaluateScript(source)
         if let message = Self.exceptionMessage(context) {
             throw ProviderPluginError.load(message)

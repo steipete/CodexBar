@@ -15,10 +15,10 @@ public struct ClaudeUsageSnapshot: Sendable {
     public let resetCredits: ClaudeRateLimitResetCreditsSnapshot?
     public let cloudCredits: ClaudeCloudCreditsSnapshot?
     public let updatedAt: Date
-    public let accountEmail: String?
+    public internal(set) var accountEmail: String?
     public let accountOrganization: String?
     /// Verified principal and organization from the same credential that produced this usage.
-    public let accountID: String?
+    public internal(set) var accountID: String?
     public internal(set) var subscriptionMetadata: ClaudeSubscriptionMetadata?
     public let loginMethod: String?
     public let rawText: String?
@@ -878,12 +878,11 @@ extension ClaudeUsageFetcher {
         do {
             let profile = try await Self.fetchOAuthProfile(accessToken: accessToken)
             try Task.checkCancellation()
-            guard let owner = ClaudeVerifiedAccountOwner.ownerID(
+            let owner = ClaudeVerifiedAccountOwner.ownerID(
                 accountUUID: profile.accountUuid,
                 email: profile.emailAddress,
                 organizationUUID: profile.organizationUuid)
-            else { return snapshot }
-            return snapshot.withAccountIdentity(owner)
+            return snapshot.withAccountIdentity(owner, email: profile.emailAddress)
         } catch {
             try Task.checkCancellation()
             if ClaudeOAuthFetchError.isCancellation(error) { throw error }
@@ -1296,6 +1295,8 @@ extension ClaudeUsageFetcher {
         switch await race.value(joinGrace: .seconds(self.webExtrasTimeout)) {
         case let .value(candidate):
             try Task.checkCancellation()
+            let snapshot = snapshot.withAccountIdentity(
+                snapshot.accountID, email: candidate.oauthProfile?.emailAddress)
             let webData = candidate.webData
             guard Self.webExtrasAccountMatches(
                 snapshot: snapshot,
@@ -1315,11 +1316,9 @@ extension ClaudeUsageFetcher {
                 primary: snapshot.providerCost,
                 web: webData.extraUsageCost,
                 includeUsageDetails: self.useWebExtras)
-            if mergedProviderCost != snapshot.providerCost || mergedExtraRateWindows != snapshot.extraRateWindows {
-                return snapshot.replacingWebExtras(
-                    extraRateWindows: mergedExtraRateWindows,
-                    providerCost: mergedProviderCost)
-            }
+            return snapshot.replacingWebExtras(
+                extraRateWindows: mergedExtraRateWindows,
+                providerCost: mergedProviderCost)
         case let .failure(error):
             if error is CancellationError ||
                 (error as? URLError)?.code == .cancelled ||

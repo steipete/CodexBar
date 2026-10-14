@@ -5,6 +5,8 @@
 ### Fixed
 
 - Codex: a browser cookie import that signs into a different OpenAI account, or still needs login, no longer leaves that session in the selected account's web store. An older import that is still checking the dashboard cannot clear cookies a newer import wrote for that same account.
+- Plugins: release temporary objects between QuickJS refreshes and free retired JavaScriptCore contexts and completed runtimes (#4512, #4486).
+- Claude: retain account emails from existing OAuth profile checks, even when the profile lacks organization details (#4493).
 
 ## 0.75.0 — 2026-10-13
 
