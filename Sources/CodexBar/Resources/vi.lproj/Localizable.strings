@@ -1151,17 +1151,12 @@
 "CodexBar found another managed account that already uses the current system account. Resolve the duplicate account before switching." = "CodexBar đã tìm thấy một tài khoản được quản lý khác đã sử dụng tài khoản hệ thống hiện tại. Giải quyết tài khoản trùng lặp trước khi chuyển đổi.";
 "CodexBar will ask macOS Keychain for “%@” so it can decrypt browser cookies and authenticate your account. Click OK to continue." = "CodexBar sẽ yêu cầu macOS Keychain cho “ %@ ” để nó có thể giải mã cookie của trình duyệt và xác thực tài khoản của bạn. Nhấn OK để tiếp tục.";
 "CodexBar will ask macOS Keychain for the Claude Code OAuth token so it can fetch your Claude usage. Click OK to continue." = "CodexBar sẽ yêu cầu macOS Keychain cung cấp Claude Mã OAuth token để nó có thể tìm nạp Claude Mức sử dụng của bạn. Nhấn OK để tiếp tục.";
-"CodexBar will ask macOS Keychain for your Amp cookie header so it can fetch usage. Click OK to continue." = "CodexBar sẽ yêu cầu macOS Keychain cho tiêu đề cookie Amp của bạn để nó có thể tìm nạp Mức sử dụng . Nhấn OK để tiếp tục.";
-"CodexBar will ask macOS Keychain for your Augment cookie header so it can fetch usage. Click OK to continue." = "CodexBar sẽ yêu cầu macOS Keychain cho tiêu đề cookie Augment của bạn để nó có thể tìm nạp Mức sử dụng . Nhấn OK để tiếp tục.";
+"CodexBar will ask macOS Keychain for your %@ cookie header so it can fetch usage. Click OK to continue." = "CodexBar sẽ yêu cầu macOS Keychain cho tiêu đề cookie %@ của bạn để nó có thể tìm nạp Mức sử dụng . Nhấn OK để tiếp tục.";
 "CodexBar will ask macOS Keychain for your Claude cookie header so it can fetch Claude web usage. Click OK to continue." = "CodexBar sẽ yêu cầu macOS Keychain về tiêu đề cookie Claude của bạn để nó có thể tìm nạp Claude web Mức sử dụng . Nhấn OK để tiếp tục.";
-"CodexBar will ask macOS Keychain for your Cursor cookie header so it can fetch usage. Click OK to continue." = "CodexBar sẽ yêu cầu macOS Keychain cho tiêu đề cookie Con trỏ của bạn để nó có thể tìm nạp Mức sử dụng . Nhấn OK để tiếp tục.";
-"CodexBar will ask macOS Keychain for your Factory cookie header so it can fetch usage. Click OK to continue." = "CodexBar sẽ yêu cầu macOS Keychain cho tiêu đề cookie Factory của bạn để nó có thể tìm nạp Mức sử dụng . Nhấn OK để tiếp tục.";
 "CodexBar will ask macOS Keychain for your GitHub Copilot token so it can fetch usage. Click OK to continue." = "CodexBar sẽ yêu cầu macOS Keychain cho GitHub Copilot token của bạn để nó có thể tìm nạp Mức sử dụng . Nhấn OK để tiếp tục.";
 "CodexBar will ask macOS Keychain for your Kimi auth token so it can fetch usage. Click OK to continue." = "CodexBar sẽ yêu cầu macOS Keychain cho Kimi auth token của bạn để nó có thể tìm nạp Mức sử dụng . Nhấn OK để tiếp tục.";
 "CodexBar will ask macOS Keychain for your MiniMax API token so it can fetch usage. Click OK to continue." = "CodexBar sẽ yêu cầu macOS Keychain cung cấp MiniMax API token của bạn để nó có thể tìm nạp Mức sử dụng . Nhấn OK để tiếp tục.";
-"CodexBar will ask macOS Keychain for your MiniMax cookie header so it can fetch usage. Click OK to continue." = "CodexBar sẽ yêu cầu macOS Keychain cho tiêu đề cookie MiniMax của bạn để nó có thể tìm nạp Mức sử dụng . Nhấn OK để tiếp tục.";
 "CodexBar will ask macOS Keychain for your OpenAI cookie header so it can fetch Codex dashboard extras. Click OK to continue." = "CodexBar sẽ yêu cầu macOS Keychain cho tiêu đề cookie OpenAI của bạn để nó có thể tìm nạp các tính năng bổ sung của trang tổng quan Codex. Nhấn OK để tiếp tục.";
-"CodexBar will ask macOS Keychain for your OpenCode cookie header so it can fetch usage. Click OK to continue." = "CodexBar sẽ yêu cầu macOS Keychain cho tiêu đề cookie OpenCode của bạn để nó có thể tìm nạp Mức sử dụng . Nhấn OK để tiếp tục.";
 "CodexBar will ask macOS Keychain for your Synthetic API key so it can fetch usage. Click OK to continue." = "CodexBar sẽ yêu cầu macOS Keychain cung cấp khóa Tổng hợp API của bạn để nó có thể tìm nạp Mức sử dụng . Nhấn OK để tiếp tục.";
 "CodexBar will ask macOS Keychain for your z.ai API token so it can fetch usage. Click OK to continue." = "CodexBar sẽ yêu cầu macOS Keychain cung cấp z.ai API token của bạn để nó có thể tìm nạp Mức sử dụng . Nhấn OK để tiếp tục.";
 "Could not open Cursor login in your browser." = "Không thể mở đăng nhập Con trỏ trong trình duyệt của bạn.";
@@ -2632,6 +2627,7 @@
 "Daily spend · %@" = "Chi tiêu hằng ngày · %@";
 "Applies to the selected token account “%@”. Each account keeps its own limits." = "Áp dụng cho tài khoản token đã chọn “%@”. Mỗi tài khoản giữ giới hạn riêng.";
 "Applies to the OpenAI API key, not to token accounts." = "Áp dụng cho khóa API OpenAI, không áp dụng cho các tài khoản token.";
+"CodexBar will ask macOS Keychain for the Muse Code login token so it can fetch your Muse Code subscription usage. Click OK to continue." = "CodexBar sẽ yêu cầu macOS Keychain cung cấp token đăng nhập Muse Code để nó có thể tìm nạp mức sử dụng gói đăng ký Muse Code của bạn. Nhấn OK để tiếp tục.";
 /* Claude Platform provider */
 "API credit" = "Tín dụng API";
 "Purchased credit" = "Tín dụng đã mua";

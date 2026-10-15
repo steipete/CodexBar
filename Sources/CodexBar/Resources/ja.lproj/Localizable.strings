@@ -1152,17 +1152,12 @@
 "CodexBar found another managed account that already uses the current system account. Resolve the duplicate account before switching." = "CodexBar は、現在のシステムアカウントをすでに使用している別の管理アカウントを検出しました。切り替える前に重複アカウントを解消してください。";
 "CodexBar will ask macOS Keychain for “%@” so it can decrypt browser cookies and authenticate your account. Click OK to continue." = "CodexBar はブラウザの Cookie を復号してアカウントを認証するために、macOS キーチェーンに「%@」へのアクセスを求めます。続けるには OK をクリックしてください。";
 "CodexBar will ask macOS Keychain for the Claude Code OAuth token so it can fetch your Claude usage. Click OK to continue." = "CodexBar は Claude の使用量を取得するために、macOS キーチェーンに Claude Code の OAuth トークンへのアクセスを求めます。続けるには OK をクリックしてください。";
-"CodexBar will ask macOS Keychain for your Amp cookie header so it can fetch usage. Click OK to continue." = "CodexBar は使用量を取得するために、macOS キーチェーンに Amp の Cookie ヘッダーへのアクセスを求めます。続けるには OK をクリックしてください。";
-"CodexBar will ask macOS Keychain for your Augment cookie header so it can fetch usage. Click OK to continue." = "CodexBar は使用量を取得するために、macOS キーチェーンに Augment の Cookie ヘッダーへのアクセスを求めます。続けるには OK をクリックしてください。";
+"CodexBar will ask macOS Keychain for your %@ cookie header so it can fetch usage. Click OK to continue." = "CodexBar は使用量を取得するために、macOS キーチェーンに %@ の Cookie ヘッダーへのアクセスを求めます。続けるには OK をクリックしてください。";
 "CodexBar will ask macOS Keychain for your Claude cookie header so it can fetch Claude web usage. Click OK to continue." = "CodexBar は Claude ウェブの使用量を取得するために、macOS キーチェーンに Claude の Cookie ヘッダーへのアクセスを求めます。続けるには OK をクリックしてください。";
-"CodexBar will ask macOS Keychain for your Cursor cookie header so it can fetch usage. Click OK to continue." = "CodexBar は使用量を取得するために、macOS キーチェーンに Cursor の Cookie ヘッダーへのアクセスを求めます。続けるには OK をクリックしてください。";
-"CodexBar will ask macOS Keychain for your Factory cookie header so it can fetch usage. Click OK to continue." = "CodexBar は使用量を取得するために、macOS キーチェーンに Factory の Cookie ヘッダーへのアクセスを求めます。続けるには OK をクリックしてください。";
 "CodexBar will ask macOS Keychain for your GitHub Copilot token so it can fetch usage. Click OK to continue." = "CodexBar は使用量を取得するために、macOS キーチェーンに GitHub Copilot のトークンへのアクセスを求めます。続けるには OK をクリックしてください。";
 "CodexBar will ask macOS Keychain for your Kimi auth token so it can fetch usage. Click OK to continue." = "CodexBar は使用量を取得するために、macOS キーチェーンに Kimi の認証トークンへのアクセスを求めます。続けるには OK をクリックしてください。";
 "CodexBar will ask macOS Keychain for your MiniMax API token so it can fetch usage. Click OK to continue." = "CodexBar は使用量を取得するために、macOS キーチェーンに MiniMax の API トークンへのアクセスを求めます。続けるには OK をクリックしてください。";
-"CodexBar will ask macOS Keychain for your MiniMax cookie header so it can fetch usage. Click OK to continue." = "CodexBar は使用量を取得するために、macOS キーチェーンに MiniMax の Cookie ヘッダーへのアクセスを求めます。続けるには OK をクリックしてください。";
 "CodexBar will ask macOS Keychain for your OpenAI cookie header so it can fetch Codex dashboard extras. Click OK to continue." = "CodexBar は Codex ダッシュボードの追加情報を取得するために、macOS キーチェーンに OpenAI の Cookie ヘッダーへのアクセスを求めます。続けるには OK をクリックしてください。";
-"CodexBar will ask macOS Keychain for your OpenCode cookie header so it can fetch usage. Click OK to continue." = "CodexBar は使用量を取得するために、macOS キーチェーンに OpenCode の Cookie ヘッダーへのアクセスを求めます。続けるには OK をクリックしてください。";
 "CodexBar will ask macOS Keychain for your Synthetic API key so it can fetch usage. Click OK to continue." = "CodexBar は使用量を取得するために、macOS キーチェーンに Synthetic の API キーへのアクセスを求めます。続けるには OK をクリックしてください。";
 "CodexBar will ask macOS Keychain for your z.ai API token so it can fetch usage. Click OK to continue." = "CodexBar は使用量を取得するために、macOS キーチェーンに z.ai の API トークンへのアクセスを求めます。続けるには OK をクリックしてください。";
 "Could not open Cursor login in your browser." = "ブラウザで Cursor のログイン画面を開けませんでした。";
@@ -2631,6 +2626,7 @@
 "Daily spend · %@" = "日別の支出 · %@";
 "Applies to the selected token account “%@”. Each account keeps its own limits." = "選択中のトークンアカウント「%@」に適用されます。各アカウントは独自の上限を保持します。";
 "Applies to the OpenAI API key, not to token accounts." = "OpenAI APIキーに適用されます。トークンアカウントには適用されません。";
+"CodexBar will ask macOS Keychain for the Muse Code login token so it can fetch your Muse Code subscription usage. Click OK to continue." = "CodexBar は Muse Code のサブスクリプション使用量を取得するために、macOS キーチェーンに Muse Code のログイン トークンへのアクセスを求めます。続けるには OK をクリックしてください。";
 /* Claude Platform provider */
 "API credit" = "API クレジット";
 "Purchased credit" = "購入済みクレジット";

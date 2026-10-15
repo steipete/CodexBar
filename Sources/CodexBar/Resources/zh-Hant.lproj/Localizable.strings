@@ -1022,17 +1022,12 @@
 "CodexBar found another managed account that already uses the current system account. Resolve the duplicate account before switching." = "CodexBar 發現另一個受管理帳號已使用目前的系統帳號。請先解決重複帳號，再進行切換。";
 "CodexBar will ask macOS Keychain for “%@” so it can decrypt browser cookies and authenticate your account. Click OK to continue." = "CodexBar 將向 macOS 鑰匙圈要求「%@」，以解密瀏覽器 Cookie 並認證你的帳號。按一下「確定」繼續。";
 "CodexBar will ask macOS Keychain for the Claude Code OAuth token so it can fetch your Claude usage. Click OK to continue." = "CodexBar 將向 macOS 鑰匙圈要求 Claude Code OAuth token，以取得你的 Claude 使用量。按一下「確定」繼續。";
-"CodexBar will ask macOS Keychain for your Amp cookie header so it can fetch usage. Click OK to continue." = "CodexBar 將向 macOS 鑰匙圈要求你的 Amp Cookie 標頭，以取得使用量。按一下「確定」繼續。";
-"CodexBar will ask macOS Keychain for your Augment cookie header so it can fetch usage. Click OK to continue." = "CodexBar 將向 macOS 鑰匙圈要求你的 Augment Cookie 標頭，以取得使用量。按一下「確定」繼續。";
+"CodexBar will ask macOS Keychain for your %@ cookie header so it can fetch usage. Click OK to continue." = "CodexBar 將向 macOS 鑰匙圈要求你的 %@ Cookie 標頭，以取得使用量。按一下「確定」繼續。";
 "CodexBar will ask macOS Keychain for your Claude cookie header so it can fetch Claude web usage. Click OK to continue." = "CodexBar 將向 macOS 鑰匙圈要求你的 Claude Cookie 標頭，以取得 Claude 網頁使用量。按一下「確定」繼續。";
-"CodexBar will ask macOS Keychain for your Cursor cookie header so it can fetch usage. Click OK to continue." = "CodexBar 將向 macOS 鑰匙圈要求你的 Cursor Cookie 標頭，以取得使用量。按一下「確定」繼續。";
-"CodexBar will ask macOS Keychain for your Factory cookie header so it can fetch usage. Click OK to continue." = "CodexBar 將向 macOS 鑰匙圈要求你的 Factory Cookie 標頭，以取得使用量。按一下「確定」繼續。";
 "CodexBar will ask macOS Keychain for your GitHub Copilot token so it can fetch usage. Click OK to continue." = "CodexBar 將向 macOS 鑰匙圈要求你的 GitHub Copilot token，以取得使用量。按一下「確定」繼續。";
 "CodexBar will ask macOS Keychain for your Kimi auth token so it can fetch usage. Click OK to continue." = "CodexBar 將向 macOS 鑰匙圈要求你的 Kimi 認證 token，以取得使用量。按一下「確定」繼續。";
 "CodexBar will ask macOS Keychain for your MiniMax API token so it can fetch usage. Click OK to continue." = "CodexBar 將向 macOS 鑰匙圈要求你的 MiniMax API token，以取得使用量。按一下「確定」繼續。";
-"CodexBar will ask macOS Keychain for your MiniMax cookie header so it can fetch usage. Click OK to continue." = "CodexBar 將向 macOS 鑰匙圈要求你的 MiniMax Cookie 標頭，以取得使用量。按一下「確定」繼續。";
 "CodexBar will ask macOS Keychain for your OpenAI cookie header so it can fetch Codex dashboard extras. Click OK to continue." = "CodexBar 將向 macOS 鑰匙圈要求你的 OpenAI Cookie 標頭，以取得 Codex 儀表板額外資料。按一下「確定」繼續。";
-"CodexBar will ask macOS Keychain for your OpenCode cookie header so it can fetch usage. Click OK to continue." = "CodexBar 將向 macOS 鑰匙圈要求你的 OpenCode Cookie 標頭，以取得使用量。按一下「確定」繼續。";
 "CodexBar will ask macOS Keychain for your Synthetic API key so it can fetch usage. Click OK to continue." = "CodexBar 將向 macOS 鑰匙圈要求你的 Synthetic API 金鑰，以取得使用量。按一下「確定」繼續。";
 "CodexBar will ask macOS Keychain for your z.ai API token so it can fetch usage. Click OK to continue." = "CodexBar 將向 macOS 鑰匙圈要求你的 z.ai API token，以取得使用量。按一下「確定」繼續。";
 "Could not open Cursor login in your browser." = "無法在瀏覽器中開啟 Cursor 登入。";
@@ -2609,6 +2604,7 @@
 "Daily spend · %@" = "每日支出 · %@";
 "Applies to the selected token account “%@”. Each account keeps its own limits." = "適用於所選權杖帳戶「%@」。每個帳戶保留各自的限制。";
 "Applies to the OpenAI API key, not to token accounts." = "適用於 OpenAI API 金鑰，不適用於權杖帳戶。";
+"CodexBar will ask macOS Keychain for the Muse Code login token so it can fetch your Muse Code subscription usage. Click OK to continue." = "CodexBar 將向 macOS 鑰匙圈要求 Muse Code 登入 token，以取得你的 Muse Code 訂閱使用量。按一下「確定」繼續。";
 /* Claude Platform provider */
 "API credit" = "API 額度";
 "Purchased credit" = "已購買額度";

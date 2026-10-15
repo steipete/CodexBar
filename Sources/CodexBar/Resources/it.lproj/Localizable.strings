@@ -1174,17 +1174,12 @@
 "CodexBar found another managed account that already uses the current system account. Resolve the duplicate account before switching." = "CodexBar ha trovato un altro account gestito che usa già l'account di sistema corrente. Risolvi il duplicato prima di cambiare.";
 "CodexBar will ask macOS Keychain for “%@” so it can decrypt browser cookies and authenticate your account. Click OK to continue." = "CodexBar chiederà al Portachiavi di macOS “%@” per poter decifrare i cookie del browser e autenticare il tuo account. Fai clic su OK per continuare.";
 "CodexBar will ask macOS Keychain for the Claude Code OAuth token so it can fetch your Claude usage. Click OK to continue." = "CodexBar chiederà al Portachiavi di macOS il token OAuth di Claude Code per recuperare il tuo utilizzo Claude. Fai clic su OK per continuare.";
-"CodexBar will ask macOS Keychain for your Amp cookie header so it can fetch usage. Click OK to continue." = "CodexBar chiederà al Portachiavi di macOS il tuo header Cookie di Amp per recuperare l'utilizzo. Fai clic su OK per continuare.";
-"CodexBar will ask macOS Keychain for your Augment cookie header so it can fetch usage. Click OK to continue." = "CodexBar chiederà al Portachiavi di macOS il tuo header Cookie di Augment per recuperare l'utilizzo. Fai clic su OK per continuare.";
+"CodexBar will ask macOS Keychain for your %@ cookie header so it can fetch usage. Click OK to continue." = "CodexBar chiederà al Portachiavi di macOS il tuo header Cookie di %@ per recuperare l'utilizzo. Fai clic su OK per continuare.";
 "CodexBar will ask macOS Keychain for your Claude cookie header so it can fetch Claude web usage. Click OK to continue." = "CodexBar chiederà al Portachiavi di macOS il tuo header Cookie di Claude per recuperare l'utilizzo web di Claude. Fai clic su OK per continuare.";
-"CodexBar will ask macOS Keychain for your Cursor cookie header so it can fetch usage. Click OK to continue." = "CodexBar chiederà al Portachiavi di macOS il tuo header Cookie di Cursor per recuperare l'utilizzo. Fai clic su OK per continuare.";
-"CodexBar will ask macOS Keychain for your Factory cookie header so it can fetch usage. Click OK to continue." = "CodexBar chiederà al Portachiavi di macOS il tuo header Cookie di Factory per recuperare l'utilizzo. Fai clic su OK per continuare.";
 "CodexBar will ask macOS Keychain for your GitHub Copilot token so it can fetch usage. Click OK to continue." = "CodexBar chiederà al Portachiavi di macOS il tuo token GitHub Copilot per recuperare l'utilizzo. Fai clic su OK per continuare.";
 "CodexBar will ask macOS Keychain for your Kimi auth token so it can fetch usage. Click OK to continue." = "CodexBar chiederà al Portachiavi di macOS il tuo token di autenticazione Kimi per recuperare l'utilizzo. Fai clic su OK per continuare.";
 "CodexBar will ask macOS Keychain for your MiniMax API token so it can fetch usage. Click OK to continue." = "CodexBar chiederà al Portachiavi di macOS il tuo token API MiniMax per recuperare l'utilizzo. Fai clic su OK per continuare.";
-"CodexBar will ask macOS Keychain for your MiniMax cookie header so it can fetch usage. Click OK to continue." = "CodexBar chiederà al Portachiavi di macOS il tuo header Cookie di MiniMax per recuperare l'utilizzo. Fai clic su OK per continuare.";
 "CodexBar will ask macOS Keychain for your OpenAI cookie header so it can fetch Codex dashboard extras. Click OK to continue." = "CodexBar chiederà al Portachiavi di macOS il tuo header Cookie OpenAI per recuperare gli extra della dashboard Codex. Fai clic su OK per continuare.";
-"CodexBar will ask macOS Keychain for your OpenCode cookie header so it can fetch usage. Click OK to continue." = "CodexBar chiederà al Portachiavi di macOS il tuo header Cookie OpenCode per recuperare l'utilizzo. Fai clic su OK per continuare.";
 "CodexBar will ask macOS Keychain for your Synthetic API key so it can fetch usage. Click OK to continue." = "CodexBar chiederà al Portachiavi di macOS la tua chiave API Synthetic per recuperare l'utilizzo. Fai clic su OK per continuare.";
 "CodexBar will ask macOS Keychain for your z.ai API token so it can fetch usage. Click OK to continue." = "CodexBar chiederà al Portachiavi di macOS il tuo token API z.ai per recuperare l'utilizzo. Fai clic su OK per continuare.";
 "Could not open Cursor login in your browser." = "Impossibile aprire l'accesso Cursor nel browser.";
@@ -2635,6 +2630,7 @@
 "Daily spend · %@" = "Spesa giornaliera · %@";
 "Applies to the selected token account “%@”. Each account keeps its own limits." = "Si applica all’account token selezionato «%@». Ogni account mantiene i propri limiti.";
 "Applies to the OpenAI API key, not to token accounts." = "Si applica alla chiave API OpenAI, non agli account token.";
+"CodexBar will ask macOS Keychain for the Muse Code login token so it can fetch your Muse Code subscription usage. Click OK to continue." = "CodexBar chiederà al Portachiavi di macOS il token di accesso di Muse Code per recuperare l'utilizzo del tuo abbonamento Muse Code. Fai clic su OK per continuare.";
 /* Claude Platform provider */
 "API credit" = "Credito API";
 "Purchased credit" = "Credito acquistato";

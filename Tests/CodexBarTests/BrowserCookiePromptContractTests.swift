@@ -483,6 +483,70 @@ struct BrowserCookiePromptContractTests {
     }
 
     @Test
+    func `a Muse denial cannot prolong an expired browser cooldown`() {
+        BrowserCookieAccessGate.withIsolatedStateForTesting {
+            self.withFakeKeychain {
+                let now = Date(timeIntervalSince1970: 1_700_000_000)
+                BrowserCookieAccessGate.recordCredentialDenial(service: MuseCredentials.keychainService, now: now)
+                BrowserCookieAccessGate.recordDenied(for: .chrome, now: now.addingTimeInterval(-7 * 60 * 60))
+                #expect(!BrowserCookieAccessGate.hasActiveDenial(for: .chrome, now: now))
+                ProviderInteractionContext.$current.withValue(.userInitiated) {
+                    BrowserCookieAccessGate.withExplicitRetry {
+                        #expect(BrowserCookieAccessGate.shouldAttempt(.chrome, now: now))
+                        #expect(!BrowserCookieAccessGate.claimCredentialRead(
+                            service: MuseCredentials.keychainService, now: now))
+                    }
+                }
+            }
+        }
+    }
+
+    @Test(arguments: [false, true])
+    func `Muse and browser reads share the manual action allowance`(museFirst: Bool) throws {
+        let keychain = FakeKeychain()
+        let museReads = LockIsolated(0)
+        let read: @Sendable ([String: Any]) -> (OSStatus, Data?) = { query in
+            #expect(query[kSecUseAuthenticationUI as String] == nil)
+            museReads.setValue(museReads.value + 1)
+            return (errSecSuccess, Data(#"{"access_token":"dca:fixture-shared"}"#.utf8))
+        }
+        try BrowserCookieAccessGate.withIsolatedStateForTesting {
+            try self.withFakeKeychain {
+                try KeychainAccessPreflight.withCheckGenericPasswordOverrideForTesting { service, _ in
+                    service == MuseCredentials.keychainService ? .interactionRequired : .allowed
+                } operation: {
+                    try KeychainPromptHandler.withHandlerForTesting { context in
+                        #expect(context.service == MuseCredentials.keychainService)
+                    } operation: {
+                        try MuseCredentials.$keychainReadOverrideForTesting.withValue(read) {
+                            try ProviderInteractionContext.$current.withValue(.userInitiated) {
+                                try BrowserCookieAccessGate.withExplicitRetry {
+                                    let muse = {
+                                        try MuseCredentials.accessToken(
+                                            environment: [:],
+                                            homeDirectory: URL(fileURLWithPath: "/synthetic/muse-budget"))
+                                    }
+                                    if museFirst {
+                                        #expect(try muse() == "dca:fixture-shared")
+                                        #expect(throws: BrowserCookieError.self) {
+                                            try Self.readKey(for: .chrome, keychain: keychain)
+                                        }
+                                    } else {
+                                        _ = try Self.readKey(for: .chrome, keychain: keychain)
+                                        #expect(throws: MuseUsageError.keychainAccessNotGranted) { try muse() }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        #expect(museReads.value == (museFirst ? 1 : 0))
+        #expect(keychain.interactiveQueries == (museFirst ? 0 : 1))
+    }
+
+    @Test
     func `a failed background read does not impose a denial cooldown`() throws {
         let keychain = FakeKeychain()
         try self.withFakeKeychain {

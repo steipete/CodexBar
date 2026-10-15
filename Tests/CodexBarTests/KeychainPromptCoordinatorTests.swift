@@ -65,4 +65,31 @@ struct KeychainPromptCoordinatorTests {
         #expect(model.message.contains("fetch your Claude usage"))
         #expect(model.learnMoreButtonTitle == "Learn More…")
     }
+
+    @Test
+    func `cookie explanations retain each provider and credential purpose`() {
+        let providers: [(KeychainPromptContext.Kind, String)] = [
+            (.cursorCookie, "Cursor"), (.opencodeCookie, "OpenCode"), (.factoryCookie, "Factory"),
+            (.minimaxCookie, "MiniMax"), (.augmentCookie, "Augment"), (.ampCookie, "Amp"),
+        ]
+        for (kind, name) in providers {
+            let model = KeychainPromptCoordinator.alertModel(for: .init(
+                kind: kind, service: "fixture", account: nil))
+            #expect(model.message.contains("your \(name) cookie header so it can fetch usage"))
+        }
+    }
+
+    @Test
+    func `muse alert preserves the requested keychain purpose`() {
+        let context = KeychainPromptContext(
+            kind: .museToken,
+            service: MuseCredentials.keychainService,
+            account: MuseCredentials.keychainAccount)
+
+        let model = KeychainPromptCoordinator.alertModel(for: context)
+
+        #expect(model.message.contains("Muse Code login token"))
+        #expect(model.message.contains("fetch your Muse Code subscription usage"))
+        #expect(model.learnMoreButtonTitle == "Learn More…")
+    }
 }

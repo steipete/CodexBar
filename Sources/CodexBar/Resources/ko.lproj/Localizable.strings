@@ -1121,17 +1121,12 @@
 "CodexBar found another managed account that already uses the current system account. Resolve the duplicate account before switching." = "CodexBar가 현재 시스템 계정을 이미 사용 중인 다른 관리 계정을 발견했습니다. 전환하기 전에 중복된 계정을 해결하세요.";
 "CodexBar will ask macOS Keychain for “%@” so it can decrypt browser cookies and authenticate your account. Click OK to continue." = "CodexBar가 브라우저 쿠키를 복호화하고 계정을 인증할 수 있도록 macOS 키체인에 “%@”을(를) 요청합니다. 계속하려면 확인을 클릭하세요.";
 "CodexBar will ask macOS Keychain for the Claude Code OAuth token so it can fetch your Claude usage. Click OK to continue." = "CodexBar가 Claude 사용량을 가져올 수 있도록 macOS 키체인에 Claude Code OAuth 토큰을 요청합니다. 계속하려면 확인을 클릭하세요.";
-"CodexBar will ask macOS Keychain for your Amp cookie header so it can fetch usage. Click OK to continue." = "CodexBar가 사용량을 가져올 수 있도록 macOS 키체인에 Amp 쿠키 헤더를 요청합니다. 계속하려면 확인을 클릭하세요.";
-"CodexBar will ask macOS Keychain for your Augment cookie header so it can fetch usage. Click OK to continue." = "CodexBar가 사용량을 가져올 수 있도록 macOS 키체인에 Augment 쿠키 헤더를 요청합니다. 계속하려면 확인을 클릭하세요.";
+"CodexBar will ask macOS Keychain for your %@ cookie header so it can fetch usage. Click OK to continue." = "CodexBar가 사용량을 가져올 수 있도록 macOS 키체인에 %@ 쿠키 헤더를 요청합니다. 계속하려면 확인을 클릭하세요.";
 "CodexBar will ask macOS Keychain for your Claude cookie header so it can fetch Claude web usage. Click OK to continue." = "CodexBar가 Claude 웹 사용량을 가져올 수 있도록 macOS 키체인에 Claude 쿠키 헤더를 요청합니다. 계속하려면 확인을 클릭하세요.";
-"CodexBar will ask macOS Keychain for your Cursor cookie header so it can fetch usage. Click OK to continue." = "CodexBar가 사용량을 가져올 수 있도록 macOS 키체인에 Cursor 쿠키 헤더를 요청합니다. 계속하려면 확인을 클릭하세요.";
-"CodexBar will ask macOS Keychain for your Factory cookie header so it can fetch usage. Click OK to continue." = "CodexBar가 사용량을 가져올 수 있도록 macOS 키체인에 Factory 쿠키 헤더를 요청합니다. 계속하려면 확인을 클릭하세요.";
 "CodexBar will ask macOS Keychain for your GitHub Copilot token so it can fetch usage. Click OK to continue." = "CodexBar가 사용량을 가져올 수 있도록 macOS 키체인에 GitHub Copilot 토큰을 요청합니다. 계속하려면 확인을 클릭하세요.";
 "CodexBar will ask macOS Keychain for your Kimi auth token so it can fetch usage. Click OK to continue." = "CodexBar가 사용량을 가져올 수 있도록 macOS 키체인에 Kimi 인증 토큰을 요청합니다. 계속하려면 확인을 클릭하세요.";
 "CodexBar will ask macOS Keychain for your MiniMax API token so it can fetch usage. Click OK to continue." = "CodexBar가 사용량을 가져올 수 있도록 macOS 키체인에 MiniMax API 토큰을 요청합니다. 계속하려면 확인을 클릭하세요.";
-"CodexBar will ask macOS Keychain for your MiniMax cookie header so it can fetch usage. Click OK to continue." = "CodexBar가 사용량을 가져올 수 있도록 macOS 키체인에 MiniMax 쿠키 헤더를 요청합니다. 계속하려면 확인을 클릭하세요.";
 "CodexBar will ask macOS Keychain for your OpenAI cookie header so it can fetch Codex dashboard extras. Click OK to continue." = "CodexBar가 Codex 대시보드 추가 정보를 가져올 수 있도록 macOS 키체인에 OpenAI 쿠키 헤더를 요청합니다. 계속하려면 확인을 클릭하세요.";
-"CodexBar will ask macOS Keychain for your OpenCode cookie header so it can fetch usage. Click OK to continue." = "CodexBar가 사용량을 가져올 수 있도록 macOS 키체인에 OpenCode 쿠키 헤더를 요청합니다. 계속하려면 확인을 클릭하세요.";
 "CodexBar will ask macOS Keychain for your Synthetic API key so it can fetch usage. Click OK to continue." = "CodexBar가 사용량을 가져올 수 있도록 macOS 키체인에 Synthetic API 키를 요청합니다. 계속하려면 확인을 클릭하세요.";
 "CodexBar will ask macOS Keychain for your z.ai API token so it can fetch usage. Click OK to continue." = "CodexBar가 사용량을 가져올 수 있도록 macOS 키체인에 z.ai API 토큰을 요청합니다. 계속하려면 확인을 클릭하세요.";
 "Could not open Cursor login in your browser." = "브라우저에서 Cursor 로그인을 열 수 없습니다.";
@@ -2599,6 +2594,7 @@
 "Daily spend · %@" = "일일 지출 · %@";
 "Applies to the selected token account “%@”. Each account keeps its own limits." = "선택한 토큰 계정 “%@”에 적용됩니다. 각 계정은 자체 한도를 유지합니다.";
 "Applies to the OpenAI API key, not to token accounts." = "토큰 계정이 아닌 OpenAI API 키에 적용됩니다.";
+"CodexBar will ask macOS Keychain for the Muse Code login token so it can fetch your Muse Code subscription usage. Click OK to continue." = "CodexBar가 Muse Code 구독 사용량을 가져올 수 있도록 macOS 키체인에 Muse Code 로그인 토큰을 요청합니다. 계속하려면 확인을 클릭하세요.";
 /* Claude Platform provider */
 "API credit" = "API 크레딧";
 "Purchased credit" = "구매한 크레딧";

@@ -18,8 +18,14 @@ struct BrowserCookieStoreAccessSuppressedError: LocalizedError {
 public enum BrowserCookieAccessGate {
     private struct State {
         var loaded = false
-        var deniedUntilByBrowser: [String: Date] = [:]
+        var deniedUntilBySource: [String: Date] = [:]
         var chromiumFamilyDeniedUntil: Date?
+
+        var latestBrowserDenial: Date? {
+            self.deniedUntilBySource
+                .filter { !$0.key.hasPrefix(BrowserCookieAccessGate.credentialKeyPrefix) }
+                .values.max()
+        }
     }
 
     private final class ExplicitRetryScope: @unchecked Sendable {
@@ -42,6 +48,7 @@ public enum BrowserCookieAccessGate {
     private static let lock = OSAllocatedUnfairLock<State>(initialState: State())
     private static let defaultsKey = "browserCookieAccessDeniedUntil"
     private static let chromiumFamilyDefaultsKey = "__chromiumFamily__"
+    private static let credentialKeyPrefix = "credential:"
     private static let cooldownInterval: TimeInterval = 60 * 60 * 6
     private static let log = CodexBarLog.logger(LogCategories.browserCookieGate)
     @TaskLocal private static var explicitRetryScope: ExplicitRetryScope?
@@ -49,7 +56,15 @@ public enum BrowserCookieAccessGate {
     @TaskLocal private static var deniedBrowsersForTesting: [Browser]?
     #if DEBUG
     @TaskLocal private static var shouldAttemptOverrideForTesting: Bool?
+    @TaskLocal private static var stateForTesting: OSAllocatedUnfairLock<State>?
     #endif
+
+    private static var stateLock: OSAllocatedUnfairLock<State> {
+        #if DEBUG
+        if let stateForTesting { return stateForTesting }
+        #endif
+        return self.lock
+    }
 
     static let allowTestCookieAccessEnvironmentKey = "CODEXBAR_ALLOW_TEST_BROWSER_COOKIE_ACCESS"
 
@@ -104,9 +119,9 @@ public enum BrowserCookieAccessGate {
         if self.deniedBrowsersForTesting?.contains(browser) == true {
             return self.explicitRetryScope != nil
         }
-        let shouldCheckKeychain = self.lock.withLock { state in
+        let shouldCheckKeychain = self.stateLock.withLock { state in
             self.loadIfNeeded(&state)
-            if let blockedUntil = state.deniedUntilByBrowser[browser.rawValue] {
+            if let blockedUntil = state.deniedUntilBySource[browser.rawValue] {
                 if blockedUntil > now {
                     if self.explicitRetryScope?.bypassingCooldown == true { return true }
                     self.log.debug(
@@ -114,7 +129,7 @@ public enum BrowserCookieAccessGate {
                         metadata: ["browser": browser.displayName, "until": "\(blockedUntil.timeIntervalSince1970)"])
                     return false
                 }
-                state.deniedUntilByBrowser.removeValue(forKey: browser.rawValue)
+                state.deniedUntilBySource.removeValue(forKey: browser.rawValue)
                 self.persist(state)
             }
             if let blockedUntil = state.chromiumFamilyDeniedUntil {
@@ -231,6 +246,36 @@ public enum BrowserCookieAccessGate {
         }
     }
 
+    /// CLI-owned credentials share the manual action's allowance with browser Safe Storage reads.
+    static func claimCredentialRead(service: String, now: Date = Date()) -> Bool {
+        guard !KeychainAccessGate.isDisabled,
+              !BrowserCookieKeychainAccessGate.isUserInteractionDisallowed,
+              ProviderInteractionContext.current == .userInitiated,
+              let scope = self.explicitRetryScope
+        else { return false }
+        let deniedUntil = self.stateLock.withLock { state in
+            self.loadIfNeeded(&state)
+            return state.deniedUntilBySource[self.credentialKeyPrefix + service]
+        }
+        return (deniedUntil.map { $0 <= now } ?? true) && scope.claimCookieRead()
+    }
+
+    static func recordCredentialDenial(service: String, now: Date = Date()) {
+        let blockedUntil = now.addingTimeInterval(self.cooldownInterval)
+        self.stateLock.withLock { state in
+            self.loadIfNeeded(&state)
+            state.deniedUntilBySource[self.credentialKeyPrefix + service] = blockedUntil
+            self.persist(state)
+        }
+    }
+
+    #if DEBUG
+    static func withIsolatedStateForTesting<T>(_ operation: () throws -> T) rethrows -> T {
+        try self.$stateForTesting.withValue(
+            self.stateForTesting ?? OSAllocatedUnfairLock(initialState: State(loaded: true)), operation: operation)
+    }
+    #endif
+
     public static func recordIfNeeded(_ error: Error, now: Date = Date(), afterInteractiveRetry: Bool = false) {
         guard let error = error as? BrowserCookieError else { return }
         guard case .accessDenied = error else { return }
@@ -244,9 +289,9 @@ public enum BrowserCookieAccessGate {
     public static func recordDenied(for browser: Browser, now: Date = Date()) {
         guard browser.usesKeychainForCookieDecryption else { return }
         let blockedUntil = now.addingTimeInterval(self.cooldownInterval)
-        self.lock.withLock { state in
+        self.stateLock.withLock { state in
             self.loadIfNeeded(&state)
-            state.deniedUntilByBrowser[browser.rawValue] = blockedUntil
+            state.deniedUntilBySource[browser.rawValue] = blockedUntil
             state.chromiumFamilyDeniedUntil = blockedUntil
             self.persist(state)
         }
@@ -261,12 +306,12 @@ public enum BrowserCookieAccessGate {
 
     public static func hasActiveDenial(for browser: Browser, now: Date = Date()) -> Bool {
         guard browser.usesKeychainForCookieDecryption else { return false }
-        return self.lock.withLock { state in
+        return self.stateLock.withLock { state in
             self.loadIfNeeded(&state)
-            guard let blockedUntil = state.deniedUntilByBrowser[browser.rawValue] else { return false }
+            guard let blockedUntil = state.deniedUntilBySource[browser.rawValue] else { return false }
             guard blockedUntil <= now else { return true }
-            state.deniedUntilByBrowser.removeValue(forKey: browser.rawValue)
-            state.chromiumFamilyDeniedUntil = state.deniedUntilByBrowser.values.max()
+            state.deniedUntilBySource.removeValue(forKey: browser.rawValue)
+            state.chromiumFamilyDeniedUntil = state.latestBrowserDenial
             self.persist(state)
             return false
         }
@@ -277,13 +322,13 @@ public enum BrowserCookieAccessGate {
               ProviderInteractionContext.current == .userInitiated,
               self.explicitRetryScope?.bypassingCooldown == true
         else { return }
-        let clearedCooldown = self.lock.withLock { state in
+        let clearedCooldown = self.stateLock.withLock { state in
             self.loadIfNeeded(&state)
-            guard state.deniedUntilByBrowser[browser.rawValue] != nil,
+            guard state.deniedUntilBySource[browser.rawValue] != nil,
                   state.chromiumFamilyDeniedUntil != nil
             else { return false }
-            state.deniedUntilByBrowser.removeValue(forKey: browser.rawValue)
-            state.chromiumFamilyDeniedUntil = state.deniedUntilByBrowser.values.max()
+            state.deniedUntilBySource.removeValue(forKey: browser.rawValue)
+            state.chromiumFamilyDeniedUntil = state.latestBrowserDenial
             self.persist(state)
             return true
         }
@@ -294,10 +339,13 @@ public enum BrowserCookieAccessGate {
     }
 
     public static func resetForTesting() {
-        self.lock.withLock { state in
+        self.stateLock.withLock { state in
             state.loaded = true
-            state.deniedUntilByBrowser.removeAll()
+            state.deniedUntilBySource.removeAll()
             state.chromiumFamilyDeniedUntil = nil
+            #if DEBUG
+            guard self.stateForTesting == nil else { return }
+            #endif
             UserDefaults.standard.removeObject(forKey: self.defaultsKey)
         }
     }
@@ -349,17 +397,20 @@ public enum BrowserCookieAccessGate {
             return
         }
         state.chromiumFamilyDeniedUntil = raw[self.chromiumFamilyDefaultsKey].map(Date.init(timeIntervalSince1970:))
-        state.deniedUntilByBrowser = raw
+        state.deniedUntilBySource = raw
             .filter { $0.key != self.chromiumFamilyDefaultsKey }
             .mapValues { Date(timeIntervalSince1970: $0) }
         if state.chromiumFamilyDeniedUntil == nil {
             // Existing per-browser cooldowns become family-wide on upgrade.
-            state.chromiumFamilyDeniedUntil = state.deniedUntilByBrowser.values.max()
+            state.chromiumFamilyDeniedUntil = state.latestBrowserDenial
         }
     }
 
     private static func persist(_ state: State) {
-        var raw = state.deniedUntilByBrowser.mapValues { $0.timeIntervalSince1970 }
+        #if DEBUG
+        guard self.stateForTesting == nil else { return }
+        #endif
+        var raw = state.deniedUntilBySource.mapValues { $0.timeIntervalSince1970 }
         raw[self.chromiumFamilyDefaultsKey] = state.chromiumFamilyDeniedUntil?.timeIntervalSince1970
         UserDefaults.standard.set(raw, forKey: self.defaultsKey)
     }

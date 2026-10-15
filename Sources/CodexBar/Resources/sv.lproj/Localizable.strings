@@ -1045,7 +1045,7 @@
 "CodexBar will ask macOS Keychain for “%@” so it can decrypt browser cookies and authenticate your account. Click OK to continue." = "CodexBar kommer att be macOS Nyckelring om ”%@” så att webbläsarcookies kan dekrypteras och ditt konto autentiseras. Klicka på OK för att fortsätta.";
 "StepFun platform account (phone number or email)." = "StepFun-plattformskonto (telefonnummer eller e-post).";
 "Timed out waiting for Cursor login. %@" = "Tidsgränsen nåddes i väntan på Cursor-inloggning. %@";
-"CodexBar will ask macOS Keychain for your Amp cookie header so it can fetch usage. Click OK to continue." = "CodexBar kommer att be macOS Nyckelring om din Amp-cookie-header så att användning kan hämtas. Klicka på OK för att fortsätta.";
+"CodexBar will ask macOS Keychain for your %@ cookie header so it can fetch usage. Click OK to continue." = "CodexBar kommer att be macOS Nyckelring om din %@-cookie-header så att användning kan hämtas. Klicka på OK för att fortsätta.";
 "Stored in ~/.codexbar/config.json." = "Sparas i ~/.codexbar/config.json.";
 "Reported by Mistral billing usage." = "Rapporteras av Mistrals debiteringsanvändning.";
 "Usage remaining" = "Användning kvar";
@@ -1065,7 +1065,6 @@
 "Antigravity login timed out" = "Antigravity-inloggning tog för lång tid";
 "%@ requests" = "%@ förfrågningar";
 "Open StepFun Platform" = "Öppna StepFun-plattformen";
-"CodexBar will ask macOS Keychain for your OpenCode cookie header so it can fetch usage. Click OK to continue." = "CodexBar kommer att be macOS Nyckelring om din OpenCode-cookie-header så att användning kan hämtas. Klicka på OK för att fortsätta.";
 "Endpoint" = "Slutpunkt";
 "Paste the %@ JSON bundle from %@." = "Klistra in %@-JSON-paketet från %@.";
 "Uses username + password to login and obtain an %@ automatically." = "Använder användarnamn och lösenord för att logga in och hämta ett %@ automatiskt.";
@@ -1127,7 +1126,6 @@
 "%d days of usage data across %d services" = "%d dagar med användningsdata för %d tjänster";
 "Stored in ~/.codexbar/config.json. You can also provide KILO_API_KEY or ~/.local/share/kilo/auth.json (kilo.access)." = "Sparas i ~/.codexbar/config.json. Du kan också ange KILO_API_KEY eller ~/.local/share/kilo/auth.json (kilo.access).";
 "Windsurf session JSON bundle" = "Windsurf-sessionspaket i JSON";
-"CodexBar will ask macOS Keychain for your Cursor cookie header so it can fetch usage. Click OK to continue." = "CodexBar kommer att be macOS Nyckelring om din Cursor-cookie-header så att användning kan hämtas. Klicka på OK för att fortsätta.";
 "Drag to reorder" = "Dra för att ändra ordning";
 "Sort providers alphabetically" = "Sortera leverantörer alfabetiskt";
 "Sort providers alphabetically (enabled first)" = "Sortera leverantörer alfabetiskt (aktiverade först)";
@@ -1163,7 +1161,6 @@
 "CodexBar could not find saved auth for that account. Re-authenticate it and try again." = "CodexBar kunde inte hitta sparad autentisering för kontot. Autentisera det igen och försök igen.";
 "Capacity End" = "Kapacitetsslut";
 "Paste the %@ value or a full Cookie header." = "Klistra in %@-värdet eller en fullständig Cookie-header.";
-"CodexBar will ask macOS Keychain for your Factory cookie header so it can fetch usage. Click OK to continue." = "CodexBar kommer att be macOS Nyckelring om din Factory-cookie-header så att användning kan hämtas. Klicka på OK för att fortsätta.";
 "Paste a Cookie header or full cURL capture from %@." = "Klistra in en Cookie-header eller fullständig cURL-fångst från %@.";
 "Paste the Cookie header from a request to admin.mistral.ai. Must contain an ory_session_* cookie." = "Klistra in Cookie-headern från en förfrågan till admin.mistral.ai. Den måste innehålla en ory_session_*-cookie.";
 "Copy error" = "Kopieringsfel";
@@ -1246,7 +1243,6 @@
 "keychain_prompt_learn_more" = "Läs mer…";
 "keychain_prompt_privacy_note" = "Inmatningen av Mac-inloggningslösenordet hanteras av macOS, inte CodexBar. Du kan när som helst inaktivera åtkomst till Nyckelring under Inställningar → Avancerat.";
 "Username" = "Användarnamn";
-"CodexBar will ask macOS Keychain for your MiniMax cookie header so it can fetch usage. Click OK to continue." = "CodexBar kommer att be macOS Nyckelring om din MiniMax-cookie-header så att användning kan hämtas. Klicka på OK för att fortsätta.";
 "30d spend" = "30 d kostnad";
 "API key verified. Cloud quotas need browser cookies. Sign in to Ollama." = "API-nyckeln har verifierats. Cloud-kvoter kräver webbläsarcookies. Logga in på Ollama.";
 "Series" = "Serie";
@@ -1282,7 +1278,6 @@
 "%@ cookies are disabled." = "%@-cookies är inaktiverade.";
 "CodexBar will ask macOS Keychain for your Synthetic API key so it can fetch usage. Click OK to continue." = "CodexBar kommer att be macOS Nyckelring om din Synthetic-API-nyckel så att användning kan hämtas. Klicka på OK för att fortsätta.";
 "CodexBar could not update managed account storage." = "CodexBar kunde inte uppdatera hanterad kontolagring.";
-"CodexBar will ask macOS Keychain for your Augment cookie header so it can fetch usage. Click OK to continue." = "CodexBar kommer att be macOS Nyckelring om din Augment-cookie-header så att användning kan hämtas. Klicka på OK för att fortsätta.";
 "Clear" = "Rensa";
 "No matching providers" = "Inga matchande leverantörer";
 "Search providers" = "Sök leverantörer";
@@ -2630,6 +2625,7 @@
 "Daily spend · %@" = "Dagliga utgifter · %@";
 "Applies to the selected token account “%@”. Each account keeps its own limits." = "Gäller det valda tokenkontot ”%@”. Varje konto behåller sina egna gränser.";
 "Applies to the OpenAI API key, not to token accounts." = "Gäller OpenAI API-nyckeln, inte tokenkonton.";
+"CodexBar will ask macOS Keychain for the Muse Code login token so it can fetch your Muse Code subscription usage. Click OK to continue." = "CodexBar kommer att be macOS Nyckelring om inloggningstoken för Muse Code så att din Muse Code-prenumerationsanvändning kan hämtas. Klicka på OK för att fortsätta.";
 /* Claude Platform provider */
 "API credit" = "API-kredit";
 "Purchased credit" = "Köpt kredit";

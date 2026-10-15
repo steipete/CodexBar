@@ -21,9 +21,19 @@ CodexBar reads the same Keychain item the CLI stores (`ai.meta.dev.credentials` 
 
 Credential precedence: when `providers.meta.access_token` is present inline in the CLI metadata file `~/.config/muse/auth.json`, that token selects the account queried and takes precedence over Keychain. Otherwise CodexBar reads the device-code token from the CLI's Keychain item. An `auth.json` with `"mechanism": "oauth"` but no inline token still counts as a login; the token then comes from Keychain. Override the file path with `MUSE_AUTH_PATH` if needed.
 
-The Keychain item belongs to the Muse CLI, so its access list may not include CodexBar. CodexBar checks that access list without requesting the token. If access would require a prompt or the check cannot complete, refreshes fail promptly without reading the token. This applies to background refreshes, manual app refreshes, and the `codexbar` CLI: CodexBar never prompts Keychain for Muse. Detecting whether a Muse login exists never requests its secret. A Keychain-only item detected as requiring interaction keeps the access diagnostic even when the CLI metadata file is absent.
+The Keychain item belongs to the Muse CLI, so its access list may not include CodexBar. CodexBar checks that access list without requesting the token. Background refreshes and the `codexbar` CLI never prompt: if access would require a prompt or the check cannot complete, they fail promptly without reading the token. Detecting whether a Muse login exists never requests its secret. A Keychain-only item detected as requiring interaction keeps the access diagnostic even when the CLI metadata file is absent.
 
-When a Keychain-only login cannot be read because Keychain access is disabled, the diagnostic names **Disable Keychain access** in **Settings → Advanced**. Inline CLI tokens still work with Keychain access disabled.
+A manual refresh in the app is the one exception. When the access list does not include CodexBar yet, CodexBar first explains the request, then lets macOS ask for the item: choose **Always Allow** and later refreshes read silently. The read shares the manual action’s single interactive Keychain allowance with browser cookie imports. Denying the prompt keeps the grant diagnostic below and suppresses further manual prompts for six hours. Background and settings-triggered refreshes never prompt.
+
+If the card says CodexBar is not allowed to read the credentials (for example after denying the prompt, or for `codexbar` CLI reads), grant access in Keychain Access instead:
+
+1. Open **Keychain Access**, select the **login** keychain, and search for `ai.meta.dev.credentials`.
+2. Open the item, choose **Access Control**, and add `CodexBar.app` from `/Applications` to the allowed applications. Avoid "Allow all applications."
+3. Save with your Keychain password, then refresh Muse Code in CodexBar. For `codexbar` CLI reads, also add `Contents/Helpers/CodexBarCLI` inside the CodexBar app bundle.
+
+A fresh `muse login` can recreate the Keychain item without the grant, so repeat these steps if the message returns after signing in again. If the card instead says the credentials could not be read right now, unlock the login Keychain and refresh.
+
+When CLI metadata points to Keychain and access is disabled, the diagnostic names **Disable Keychain access** in **Settings → Advanced**. Inline CLI tokens still work with Keychain access disabled.
 
 ## Data shown
 

@@ -1155,17 +1155,12 @@
 "CodexBar found another managed account that already uses the current system account. Resolve the duplicate account before switching." = "CodexBar знайшов інший керований обліковий запис, який уже використовує поточний системний обліковий запис. Усуньте дублікат облікового запису перед переходом.";
 "CodexBar will ask macOS Keychain for “%@” so it can decrypt browser cookies and authenticate your account. Click OK to continue." = "CodexBar запитає у macOS Keychain «%@», щоб він міг розшифрувати файли cookie браузера та автентифікувати ваш обліковий запис. Натисніть OK, щоб продовжити.";
 "CodexBar will ask macOS Keychain for the Claude Code OAuth token so it can fetch your Claude usage. Click OK to continue." = "CodexBar запитає у macOS Keychain маркер Claude Code OAuth, щоб отримати дані про використання Claude. Натисніть OK, щоб продовжити.";
-"CodexBar will ask macOS Keychain for your Amp cookie header so it can fetch usage. Click OK to continue." = "CodexBar запитає у macOS Keychain ваш заголовок cookie Amp, щоб отримати інформацію про використання. Натисніть OK, щоб продовжити.";
-"CodexBar will ask macOS Keychain for your Augment cookie header so it can fetch usage. Click OK to continue." = "CodexBar запитає у macOS Keychain ваш заголовок файлу cookie Augment, щоб отримати інформацію про використання. Натисніть OK, щоб продовжити.";
+"CodexBar will ask macOS Keychain for your %@ cookie header so it can fetch usage. Click OK to continue." = "CodexBar запитає у macOS Keychain ваш заголовок cookie %@, щоб отримати інформацію про використання. Натисніть OK, щоб продовжити.";
 "CodexBar will ask macOS Keychain for your Claude cookie header so it can fetch Claude web usage. Click OK to continue." = "CodexBar запитає у macOS Keychain ваш заголовок файлу cookie Claude, щоб отримати інформацію про використання веб-сайту Claude. Натисніть OK, щоб продовжити.";
-"CodexBar will ask macOS Keychain for your Cursor cookie header so it can fetch usage. Click OK to continue." = "CodexBar запитає у macOS Keychain ваш заголовок cookie Cursor, щоб отримати інформацію про використання. Натисніть OK, щоб продовжити.";
-"CodexBar will ask macOS Keychain for your Factory cookie header so it can fetch usage. Click OK to continue." = "CodexBar запитає у macOS Keychain ваш заголовок Factory cookie, щоб отримати дані про використання. Натисніть OK, щоб продовжити.";
 "CodexBar will ask macOS Keychain for your GitHub Copilot token so it can fetch usage. Click OK to continue." = "CodexBar запитає у macOS Keychain ваш маркер GitHub Copilot, щоб отримати інформацію про використання. Натисніть OK, щоб продовжити.";
 "CodexBar will ask macOS Keychain for your Kimi auth token so it can fetch usage. Click OK to continue." = "CodexBar запитає у macOS Keychain ваш токен автентифікації Kimi, щоб отримати інформацію про використання. Натисніть OK, щоб продовжити.";
 "CodexBar will ask macOS Keychain for your MiniMax API token so it can fetch usage. Click OK to continue." = "CodexBar запитає у macOS Keychain ваш токен MiniMax API, щоб отримати інформацію про використання. Натисніть OK, щоб продовжити.";
-"CodexBar will ask macOS Keychain for your MiniMax cookie header so it can fetch usage. Click OK to continue." = "CodexBar запитає у macOS Keychain ваш заголовок cookie MiniMax, щоб отримати інформацію про використання. Натисніть OK, щоб продовжити.";
 "CodexBar will ask macOS Keychain for your OpenAI cookie header so it can fetch Codex dashboard extras. Click OK to continue." = "CodexBar запитає у macOS Keychain ваш заголовок файлів cookie OpenAI, щоб він міг отримати додаткові елементи панелі інструментів Codex. Натисніть OK, щоб продовжити.";
-"CodexBar will ask macOS Keychain for your OpenCode cookie header so it can fetch usage. Click OK to continue." = "CodexBar запитає у macOS Keychain ваш заголовок файлу cookie OpenCode, щоб отримати інформацію про використання. Натисніть OK, щоб продовжити.";
 "CodexBar will ask macOS Keychain for your Synthetic API key so it can fetch usage. Click OK to continue." = "CodexBar запитає у macOS Keychain ваш синтетичний ключ API, щоб отримати дані про використання. Натисніть OK, щоб продовжити.";
 "CodexBar will ask macOS Keychain for your z.ai API token so it can fetch usage. Click OK to continue." = "CodexBar запитає у macOS Keychain ваш токен API z.ai, щоб отримати інформацію про використання. Натисніть OK, щоб продовжити.";
 "Could not open Cursor login in your browser." = "Не вдалося відкрити Cursor login у вашому браузері.";
@@ -2631,6 +2626,7 @@
 "Daily spend · %@" = "Щоденні витрати · %@";
 "Applies to the selected token account “%@”. Each account keeps its own limits." = "Застосовується до вибраного облікового запису токена «%@». Кожен обліковий запис зберігає власні ліміти.";
 "Applies to the OpenAI API key, not to token accounts." = "Застосовується до ключа API OpenAI, а не до облікових записів токенів.";
+"CodexBar will ask macOS Keychain for the Muse Code login token so it can fetch your Muse Code subscription usage. Click OK to continue." = "CodexBar запитає у macOS Keychain маркер входу Muse Code, щоб отримати дані про використання вашої підписки Muse Code. Натисніть OK, щоб продовжити.";
 /* Claude Platform provider */
 "API credit" = "Кредит API";
 "Purchased credit" = "Придбаний кредит";

@@ -4,6 +4,7 @@ public enum MuseUsageError: LocalizedError, Sendable, Equatable {
     case missingCredentials
     case invalidCredentials
     case keychainAccessDisabled
+    case keychainAccessNotGranted
     case keychainUnavailable
     case parseFailed(String)
 
@@ -16,8 +17,13 @@ public enum MuseUsageError: LocalizedError, Sendable, Equatable {
         case .keychainAccessDisabled:
             "Muse Code login is stored in Keychain. Check Disable Keychain access in Settings → Advanced, "
                 + "then refresh."
+        case .keychainAccessNotGranted:
+            "Muse Code credentials are in Keychain, but CodexBar is not allowed to read them. "
+                + "In Keychain Access, open “\(MuseCredentials.keychainService)” → Access Control, "
+                + "add CodexBar (for CLI use, also Contents/Helpers/CodexBarCLI in CodexBar.app), then refresh."
         case .keychainUnavailable:
-            "Muse Code credentials are in Keychain but could not be read without a prompt."
+            "Muse Code credentials could not be read from Keychain right now. "
+                + "If the login Keychain is locked, unlock it, then refresh."
         case let .parseFailed(message):
             "Could not parse Muse Code login: \(message)"
         }

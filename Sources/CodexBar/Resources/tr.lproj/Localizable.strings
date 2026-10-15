@@ -1167,17 +1167,12 @@
 "CodexBar found another managed account that already uses the current system account. Resolve the duplicate account before switching." = "CodexBar, geçerli sistem hesabını zaten kullanan başka bir yönetilen hesap buldu. Geçiş yapmadan önce yinelenen hesabı çözün.";
 "CodexBar will ask macOS Keychain for “%@” so it can decrypt browser cookies and authenticate your account. Click OK to continue." = "CodexBar, tarayıcı çerezlerinin şifresini çözmek ve hesabınızı doğrulamak için macOS Anahtar Zinciri'nden “%@” isteyecek. Devam etmek için Tamam'a tıklayın.";
 "CodexBar will ask macOS Keychain for the Claude Code OAuth token so it can fetch your Claude usage. Click OK to continue." = "CodexBar, Claude kullanımınızı almak için macOS Anahtar Zinciri'nden Claude Code OAuth tokenını isteyecek. Devam etmek için Tamam'a tıklayın.";
-"CodexBar will ask macOS Keychain for your Amp cookie header so it can fetch usage. Click OK to continue." = "CodexBar, kullanımı almak için macOS Anahtar Zinciri'nden Amp çerez başlığınızı isteyecek. Devam etmek için Tamam'a tıklayın.";
-"CodexBar will ask macOS Keychain for your Augment cookie header so it can fetch usage. Click OK to continue." = "CodexBar, kullanımı almak için macOS Anahtar Zinciri'nden Augment çerez başlığınızı isteyecek. Devam etmek için Tamam'a tıklayın.";
+"CodexBar will ask macOS Keychain for your %@ cookie header so it can fetch usage. Click OK to continue." = "CodexBar, kullanımı almak için macOS Anahtar Zinciri'nden %@ çerez başlığınızı isteyecek. Devam etmek için Tamam'a tıklayın.";
 "CodexBar will ask macOS Keychain for your Claude cookie header so it can fetch Claude web usage. Click OK to continue." = "CodexBar, Claude web kullanımını almak için macOS Anahtar Zinciri'nden Claude çerez başlığınızı isteyecek. Devam etmek için Tamam'a tıklayın.";
-"CodexBar will ask macOS Keychain for your Cursor cookie header so it can fetch usage. Click OK to continue." = "CodexBar, kullanımı almak için macOS Anahtar Zinciri'nden Cursor çerez başlığınızı isteyecek. Devam etmek için Tamam'a tıklayın.";
-"CodexBar will ask macOS Keychain for your Factory cookie header so it can fetch usage. Click OK to continue." = "CodexBar, kullanımı almak için macOS Anahtar Zinciri'nden Factory çerez başlığınızı isteyecek. Devam etmek için Tamam'a tıklayın.";
 "CodexBar will ask macOS Keychain for your GitHub Copilot token so it can fetch usage. Click OK to continue." = "CodexBar, kullanımı almak için macOS Anahtar Zinciri'nden GitHub Copilot tokenınızı isteyecek. Devam etmek için Tamam'a tıklayın.";
 "CodexBar will ask macOS Keychain for your Kimi auth token so it can fetch usage. Click OK to continue." = "CodexBar, kullanımı almak için macOS Anahtar Zinciri'nden Kimi kimlik doğrulama tokenınızı isteyecek. Devam etmek için Tamam'a tıklayın.";
 "CodexBar will ask macOS Keychain for your MiniMax API token so it can fetch usage. Click OK to continue." = "CodexBar, kullanımı almak için macOS Anahtar Zinciri'nden MiniMax API tokenınızı isteyecek. Devam etmek için Tamam'a tıklayın.";
-"CodexBar will ask macOS Keychain for your MiniMax cookie header so it can fetch usage. Click OK to continue." = "CodexBar, kullanımı almak için macOS Anahtar Zinciri'nden MiniMax çerez başlığınızı isteyecek. Devam etmek için Tamam'a tıklayın.";
 "CodexBar will ask macOS Keychain for your OpenAI cookie header so it can fetch Codex dashboard extras. Click OK to continue." = "CodexBar, Codex panel eklerini almak için macOS Anahtar Zinciri'nden OpenAI çerez başlığınızı isteyecek. Devam etmek için Tamam'a tıklayın.";
-"CodexBar will ask macOS Keychain for your OpenCode cookie header so it can fetch usage. Click OK to continue." = "CodexBar, kullanımı almak için macOS Anahtar Zinciri'nden OpenCode çerez başlığınızı isteyecek. Devam etmek için Tamam'a tıklayın.";
 "CodexBar will ask macOS Keychain for your Synthetic API key so it can fetch usage. Click OK to continue." = "CodexBar, kullanımı almak için macOS Anahtar Zinciri'nden Synthetic API anahtarınızı isteyecek. Devam etmek için Tamam'a tıklayın.";
 "CodexBar will ask macOS Keychain for your z.ai API token so it can fetch usage. Click OK to continue." = "CodexBar, kullanımı almak için macOS Anahtar Zinciri'nden z.ai API tokenınızı isteyecek. Devam etmek için Tamam'a tıklayın.";
 "Could not open Cursor login in your browser." = "Tarayıcınızda Cursor girişi açılamadı.";
@@ -2634,6 +2629,7 @@
 "Daily spend · %@" = "Günlük harcama · %@";
 "Applies to the selected token account “%@”. Each account keeps its own limits." = "Seçili “%@” token hesabı için geçerlidir. Her hesap kendi sınırlarını korur.";
 "Applies to the OpenAI API key, not to token accounts." = "Token hesapları için değil, OpenAI API anahtarı için geçerlidir.";
+"CodexBar will ask macOS Keychain for the Muse Code login token so it can fetch your Muse Code subscription usage. Click OK to continue." = "CodexBar, Muse Code abonelik kullanımınızı almak için macOS Anahtar Zinciri'nden Muse Code giriş tokenını isteyecek. Devam etmek için Tamam'a tıklayın.";
 /* Claude Platform provider */
 "API credit" = "API kredisi";
 "Purchased credit" = "Satın alınan kredi";
