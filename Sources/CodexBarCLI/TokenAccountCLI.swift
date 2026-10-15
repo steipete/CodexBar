@@ -57,7 +57,7 @@ struct TokenAccountCLIContext {
     let accountsByProvider: [UsageProvider: ProviderTokenAccountData]
     @ProcessEnvironment private var baseEnvironment: [String: String]
     private let managedCodexAccountStoreURL: URL?
-    private let configStore: CodexBarConfigStore
+    private let tokenWriteback: TokenAccountCLIWriteback
 
     init(
         selection: TokenAccountCLISelection,
@@ -72,7 +72,7 @@ struct TokenAccountCLIContext {
         self.config = config
         self.baseEnvironment = baseEnvironment
         self.managedCodexAccountStoreURL = managedCodexAccountStoreURL
-        self.configStore = configStore
+        self.tokenWriteback = TokenAccountCLIWriteback(store: configStore)
         self.accountsByProvider = switch resolutionScope {
         case .configuredAccounts:
             Dictionary(uniqueKeysWithValues: config.providers.compactMap { provider in
@@ -192,15 +192,17 @@ struct TokenAccountCLIContext {
 
     func tokenUpdater(for account: ProviderTokenAccount?) -> ProviderFetchContext.TokenAccountTokenUpdater? {
         guard let account else { return nil }
-        let writeback = TokenAccountCLIWriteback(account: account, store: self.configStore)
+        let writeback = self.tokenWriteback
         return { provider, accountID, token in
-            await writeback.update(provider: provider, accountID: accountID, token: token)
+            guard accountID == account.id else { return }
+            await writeback.update(provider: provider, account: account, token: token)
         }
     }
 
     func manualTokenUpdater() -> ProviderFetchContext.ProviderManualTokenUpdater {
-        { provider, token in
-            try? ProviderDescriptorRegistry.descriptor(for: provider).credentials?.persistManualToken(token)
+        let writeback = self.tokenWriteback
+        return { provider, token in
+            await writeback.updateManual(provider: provider, token: token)
         }
     }
 
@@ -346,28 +348,29 @@ struct TokenAccountCLIContext {
     }
 }
 
-/// A fetch may persist a refreshed token and then discovered account metadata.
+/// One command shares a writer across providers, while external config edits still win.
 private actor TokenAccountCLIWriteback {
-    private let accountID: UUID
     private let store: CodexBarConfigStore
-    private var expectedToken: String
+    private var expectedTokens: [UsageProvider: [UUID: String]] = [:]
 
-    init(account: ProviderTokenAccount, store: CodexBarConfigStore) {
-        self.accountID = account.id
+    init(store: CodexBarConfigStore) {
         self.store = store
-        self.expectedToken = account.token
     }
 
-    func update(provider: UsageProvider, accountID: UUID, token: String) {
-        guard accountID == self.accountID else { return }
+    func updateManual(provider: UsageProvider, token: String) {
+        try? ProviderDescriptorRegistry.descriptor(for: provider).credentials?.persistManualToken(token)
+    }
+
+    func update(provider: UsageProvider, account: ProviderTokenAccount, token: String) {
         if (try? TokenAccountCLIContext.updateStoredTokenAccount(
             store: self.store,
             provider: provider,
-            accountID: accountID,
-            expectedToken: self.expectedToken,
+            accountID: account.id,
+            expectedToken: self.expectedTokens[provider]?[account.id] ?? account.token,
             token: token)) == true
         {
-            self.expectedToken = token.trimmingCharacters(in: .whitespacesAndNewlines)
+            self.expectedTokens[provider, default: [:]][account.id] = token
+                .trimmingCharacters(in: .whitespacesAndNewlines)
         }
     }
 }
