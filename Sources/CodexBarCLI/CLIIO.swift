@@ -7,8 +7,27 @@ import Musl
 #endif
 import Foundation
 
+final class CLIStderrBuffer: @unchecked Sendable {
+    private let lock = NSLock()
+    private var text = ""
+
+    var contents: String {
+        self.lock.withLock { self.text }
+    }
+
+    func append(_ string: String) {
+        self.lock.withLock { self.text += string }
+    }
+}
+
 extension CodexBarCLI {
+    @TaskLocal static var stderrBuffer: CLIStderrBuffer?
+
     static func writeStderr(_ string: String) {
+        if let buffer = stderrBuffer {
+            buffer.append(string)
+            return
+        }
         guard let data = string.data(using: .utf8) else { return }
         FileHandle.standardError.write(data)
     }
