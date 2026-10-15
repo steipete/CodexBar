@@ -1,0 +1,117 @@
+{
+  "fixture": [
+    {
+      "case": "plain rollout",
+      "daysAgo": 3,
+      "form": "plain",
+      "root": "sessions"
+    },
+    {
+      "case": "archive only (sessions)",
+      "daysAgo": 8,
+      "form": "archive",
+      "root": "sessions"
+    },
+    {
+      "case": "archive only (archived_sessions)",
+      "daysAgo": 9,
+      "form": "archive",
+      "root": "archived_sessions"
+    },
+    {
+      "case": "plain and archive both present",
+      "daysAgo": 12,
+      "form": "both",
+      "root": "sessions"
+    },
+    {
+      "case": "fork parent, archived 60 days ago",
+      "daysAgo": 60,
+      "form": "archive",
+      "root": "sessions"
+    },
+    {
+      "case": "fork child in window",
+      "daysAgo": 14,
+      "form": "plain",
+      "root": "sessions"
+    },
+    {
+      "case": "corrupt archive",
+      "daysAgo": 16,
+      "form": "corrupt",
+      "root": "sessions"
+    }
+  ],
+  "scenarios": {
+    "base 0.75.0, every archive decompressed in place (reference)": {
+      "daily": {
+        "2026-09-30": 20,
+        "2026-10-02": 330,
+        "2026-10-05": 330,
+        "2026-10-06": 330,
+        "2026-10-11": 330
+      },
+      "days": 5,
+      "historyCoverageIsEstablished": true,
+      "totalTokens": 1340
+    },
+    "base 0.75.0, fixture": {
+      "daily": {
+        "2026-09-30": null,
+        "2026-10-02": 330,
+        "2026-10-11": 330
+      },
+      "days": 3,
+      "historyCoverageIsEstablished": false,
+      "totalTokens": 660
+    },
+    "head, fixture": {
+      "daily": {
+        "2026-09-30": 20,
+        "2026-10-02": 330,
+        "2026-10-05": 330,
+        "2026-10-06": 330,
+        "2026-10-11": 330
+      },
+      "days": 5,
+      "historyCoverageIsEstablished": false,
+      "totalTokens": 1340
+    },
+    "head, fixture without the corrupt archive": {
+      "daily": {
+        "2026-09-30": 20,
+        "2026-10-02": 330,
+        "2026-10-05": 330,
+        "2026-10-06": 330,
+        "2026-10-11": 330
+      },
+      "days": 5,
+      "historyCoverageIsEstablished": true,
+      "totalTokens": 1340
+    }
+  },
+  "upgrade from 0.75.0 cache": {
+    "parserHashAfter": "7c7bf83f97f67df1",
+    "parserHashBefore": "3f88178bf03ad704",
+    "plainRowsRetainedUnchanged": {
+      "rollout-2026-09-30T12-00-00-0199f0a0-0000-7000-8000-000000000006.jsonl": true,
+      "rollout-2026-10-02T12-00-00-0199f0a0-0000-7000-8000-000000000004.jsonl": true,
+      "rollout-2026-10-11T12-00-00-0199f0a0-0000-7000-8000-000000000001.jsonl": true
+    },
+    "report": {
+      "daily": {
+        "2026-09-30": 20,
+        "2026-10-02": 330,
+        "2026-10-05": 330,
+        "2026-10-06": 330,
+        "2026-10-11": 330
+      },
+      "days": 5,
+      "historyCoverageIsEstablished": true,
+      "totalTokens": 1340
+    },
+    "sameDatabaseInode": true
+  },
+  "window": "--days 30"
+}
