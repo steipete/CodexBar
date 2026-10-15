@@ -2,6 +2,10 @@
 
 ## 0.76.1 — Unreleased
 
+### Fixed
+
+- Codex: remove rejected browser sessions from the affected account’s web store, and protect newer imports from an older rejection (#4514). Thanks @SebTardif!
+
 ## 0.76.0 — 2026-10-15
 
 ### Highlights

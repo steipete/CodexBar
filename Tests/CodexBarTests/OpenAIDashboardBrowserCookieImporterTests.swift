@@ -361,4 +361,383 @@ struct OpenAIDashboardBrowserCookieImporterTests {
         #expect(!OpenAIDashboardBrowserCookieImporter.shouldTrustVerifiedSession(
             afterPersistFailure: OpenAIDashboardBrowserCookieImporter.ImportError.dashboardStillRequiresLogin))
     }
+
+    @Test @MainActor
+    func `account mismatch removes the cookies just written for that email`() async {
+        let script = PersistentCookieScript()
+        script.probe = { "other@example.com" }
+
+        do {
+            _ = try await script.commit(targetEmail: "owner@example.com", requireEmailMatch: true)
+            Issue.record("Expected the other account to be rejected")
+        } catch let error as OpenAIDashboardBrowserCookieImporter.ImportError {
+            guard case let .noMatchingAccount(found) = error else {
+                Issue.record("Expected noMatchingAccount, got \(error)")
+                return
+            }
+            #expect(found == [
+                OpenAIDashboardBrowserCookieImporter.FoundAccount(
+                    sourceLabel: "Chrome",
+                    email: "other@example.com"),
+            ])
+        } catch {
+            Issue.record("Expected noMatchingAccount, got \(error)")
+        }
+
+        #expect(script.log.snapshot == ["clear", "write", "probe", "evict", "clear"])
+    }
+
+    @Test @MainActor
+    func `login failure removes the cookies just written for that email`() async {
+        let script = PersistentCookieScript()
+        script.probe = { throw OpenAIDashboardFetcher.FetchError.loginRequired }
+
+        do {
+            _ = try await script.commit(targetEmail: "owner@example.com", requireEmailMatch: true)
+            Issue.record("Expected login to be rejected")
+        } catch let error as OpenAIDashboardBrowserCookieImporter.ImportError {
+            guard case .dashboardStillRequiresLogin = error else {
+                Issue.record("Expected dashboardStillRequiresLogin, got \(error)")
+                return
+            }
+        } catch {
+            Issue.record("Expected dashboardStillRequiresLogin, got \(error)")
+        }
+
+        #expect(script.log.snapshot == ["clear", "write", "probe", "evict", "clear"])
+    }
+
+    @Test @MainActor
+    func `timed out persistent validation keeps the cookies just written`() async {
+        let script = PersistentCookieScript()
+        script.probe = { throw URLError(.timedOut) }
+
+        do {
+            _ = try await script.commit(targetEmail: "owner@example.com", requireEmailMatch: true)
+            Issue.record("Expected a timeout")
+        } catch {
+            #expect(OpenAIDashboardBrowserCookieImporter.shouldTrustVerifiedSession(afterPersistFailure: error))
+        }
+
+        #expect(script.log.snapshot == ["clear", "write", "probe", "evict"])
+    }
+
+    @Test @MainActor
+    func `default store keeps cookies when persistent validation times out`() async {
+        let script = PersistentCookieScript()
+        script.probe = { throw URLError(.timedOut) }
+
+        do {
+            _ = try await script.commit(targetEmail: "", requireEmailMatch: false)
+            Issue.record("Expected a timeout")
+        } catch let error as URLError {
+            #expect(error.code == .timedOut)
+            #expect(!OpenAIDashboardBrowserCookieImporter.shouldTrustVerifiedSession(afterPersistFailure: error))
+        } catch {
+            Issue.record("Expected URLError.timedOut, got \(error)")
+        }
+
+        #expect(script.log.snapshot == ["clear", "write", "probe", "evict"])
+    }
+
+    @Test @MainActor
+    func `default store login failure removes the cookies just written`() async {
+        let script = PersistentCookieScript()
+        script.probe = { throw OpenAIDashboardFetcher.FetchError.loginRequired }
+
+        do {
+            _ = try await script.commit(targetEmail: "", requireEmailMatch: false)
+            Issue.record("Expected login to be rejected")
+        } catch let error as OpenAIDashboardBrowserCookieImporter.ImportError {
+            guard case .dashboardStillRequiresLogin = error else {
+                Issue.record("Expected dashboardStillRequiresLogin, got \(error)")
+                return
+            }
+        } catch {
+            Issue.record("Expected dashboardStillRequiresLogin, got \(error)")
+        }
+
+        #expect(script.log.snapshot == ["clear", "write", "probe", "evict", "clear"])
+    }
+
+    @Test @MainActor
+    func `matching session keeps the cookies it just wrote`() async throws {
+        let script = PersistentCookieScript()
+        script.probe = { "owner@example.com" }
+
+        let result = try await script.commit(
+            targetEmail: "owner@example.com",
+            requireEmailMatch: true)
+
+        #expect(result.signedInEmail == "owner@example.com")
+        #expect(result.matchesCodexEmail)
+        #expect(script.log.snapshot == ["clear", "write", "probe"])
+    }
+
+    @Test @MainActor
+    func `unrelated probe failure keeps the cookies it just wrote`() async {
+        let script = PersistentCookieScript()
+        script.probe = { throw OpenAIDashboardFetcher.FetchError.noDashboardData(body: "fixture") }
+
+        do {
+            _ = try await script.commit(targetEmail: "owner@example.com", requireEmailMatch: true)
+            Issue.record("Expected the probe failure")
+        } catch let error as OpenAIDashboardFetcher.FetchError {
+            guard case .noDashboardData = error else {
+                Issue.record("Expected noDashboardData, got \(error)")
+                return
+            }
+        } catch {
+            Issue.record("Expected noDashboardData, got \(error)")
+        }
+
+        #expect(script.log.snapshot == ["clear", "write", "probe", "evict"])
+    }
+
+    @Test(.timeLimit(.minutes(1))) @MainActor
+    func `older rejection cannot erase a newer import on the same account store`() async {
+        let jar = TrackedCookieJar()
+        let log = CookieOperationLog()
+        let entered = CookieCallbackFlag()
+        let released = CookieCallbackFlag()
+        let newerStarted = CookieCallbackFlag()
+        let storeKey = "shared-account"
+        defer { released.set() }
+
+        let older = Task { @MainActor in
+            try await commitTrackedSession(
+                storeKey: storeKey,
+                label: "older",
+                jar: jar,
+                log: log,
+                probe: {
+                    entered.set()
+                    while !released.value {
+                        await Task.yield()
+                    }
+                    throw OpenAIDashboardFetcher.FetchError.loginRequired
+                })
+        }
+
+        while !entered.value {
+            await Task.yield()
+        }
+
+        let newer = Task { @MainActor in
+            newerStarted.set()
+            return try await commitTrackedSession(
+                storeKey: storeKey,
+                label: "newer",
+                jar: jar,
+                log: log,
+                probe: { "owner@example.com" })
+        }
+
+        while !newerStarted.value {
+            await Task.yield()
+        }
+        await Task.yield()
+        #expect(jar.owner == "older")
+
+        released.set()
+        let olderResult = await older.result
+        let newerResult = await newer.result
+
+        guard case let .failure(error) = olderResult else {
+            Issue.record("Expected the older import to reject")
+            return
+        }
+        guard let importError = error as? OpenAIDashboardBrowserCookieImporter.ImportError,
+              case .dashboardStillRequiresLogin = importError
+        else {
+            Issue.record("Expected dashboardStillRequiresLogin, got \(error)")
+            return
+        }
+        guard case let .success(result) = newerResult else {
+            Issue.record("Expected the newer import to succeed, got \(newerResult)")
+            return
+        }
+        #expect(result.signedInEmail == "owner@example.com")
+        #expect(jar.owner == "newer")
+        #expect(log.snapshot == [
+            "older clear",
+            "older write",
+            "older probe",
+            "older evict",
+            "older clear",
+            "newer clear",
+            "newer write",
+            "newer probe",
+        ])
+    }
+
+    @Test(.timeLimit(.minutes(1))) @MainActor
+    func `an in-flight import does not block a different account store`() async throws {
+        let olderJar = TrackedCookieJar()
+        let newerJar = TrackedCookieJar()
+        let log = CookieOperationLog()
+        let entered = CookieCallbackFlag()
+        let released = CookieCallbackFlag()
+        let newerFinished = CookieCallbackFlag()
+        defer { released.set() }
+
+        let older = Task { @MainActor in
+            try await commitTrackedSession(
+                storeKey: "account-a",
+                label: "older",
+                jar: olderJar,
+                log: log,
+                probe: {
+                    entered.set()
+                    while !released.value {
+                        await Task.yield()
+                    }
+                    return "owner@example.com"
+                })
+        }
+
+        while !entered.value {
+            await Task.yield()
+        }
+
+        let newer = Task { @MainActor in
+            let result = try await commitTrackedSession(
+                storeKey: "account-b",
+                label: "newer",
+                jar: newerJar,
+                log: log,
+                probe: { "owner@example.com" })
+            newerFinished.set()
+            return result
+        }
+
+        while !newerFinished.value {
+            try Task.checkCancellation()
+            await Task.yield()
+        }
+        #expect(newerFinished.value)
+        #expect(olderJar.owner == "older")
+        #expect(newerJar.owner == "newer")
+
+        released.set()
+        _ = try await older.value
+        let newerResult = try await newer.value
+        #expect(newerResult.signedInEmail == "owner@example.com")
+    }
+
+    @Test(.timeLimit(.minutes(1))) @MainActor
+    func `waiting account transaction respects deadline and cancellation`() async throws {
+        let key = UUID().uuidString
+        var release: CheckedContinuation<Void, Never>?
+        let holder = Task {
+            try await OpenAIDashboardBrowserCookieImporter.withPersistentCookieTransaction(key: key, deadline: nil) {
+                await withCheckedContinuation { release = $0 }
+            }
+        }
+        while release == nil {
+            await Task.yield()
+        }
+        defer { release?.resume() }
+        var touched = false
+        do {
+            try await OpenAIDashboardBrowserCookieImporter.withPersistentCookieTransaction(
+                key: key, deadline: Date().addingTimeInterval(0.03)) { touched = true }
+            Issue.record("Expected the waiting transaction to time out")
+        } catch let error as URLError {
+            #expect(error.code == .timedOut)
+        }
+        var started = false
+        let cancelled = Task {
+            started = true
+            try await OpenAIDashboardBrowserCookieImporter.withPersistentCookieTransaction(key: key, deadline: nil) {
+                touched = true
+            }
+        }
+        while !started {
+            await Task.yield()
+        }
+        cancelled.cancel()
+        do {
+            try await cancelled.value
+            Issue.record("Expected cancellation while the first transaction is held")
+        } catch is CancellationError {}
+        #expect(!touched)
+        release?.resume()
+        release = nil
+        try await holder.value
+        try await OpenAIDashboardBrowserCookieImporter.withPersistentCookieTransaction(
+            key: key, deadline: Date().addingTimeInterval(1)) { touched = true }
+        #expect(touched)
+    }
+}
+
+@MainActor
+private final class PersistentCookieScript {
+    let log = CookieOperationLog()
+    var probe: @MainActor () async throws -> String? = { "owner@example.com" }
+
+    func commit(
+        targetEmail: String,
+        requireEmailMatch: Bool,
+        storeKey: String = UUID().uuidString) async throws -> OpenAIDashboardBrowserCookieImporter.ImportResult
+    {
+        let importer = OpenAIDashboardBrowserCookieImporter(browserDetection: BrowserDetection(cacheTTL: 0))
+        return try await importer.commitPersistentCookieSession(
+            candidate: .init(label: "Chrome", cookies: []),
+            targetEmail: requireEmailMatch ? targetEmail : nil,
+            storeKey: storeKey,
+            actions: OpenAIDashboardBrowserCookieImporter.PersistentCookieSessionActions(
+                clearExisting: { self.log.append("clear") },
+                writeCandidate: { self.log.append("write") },
+                probeSignedInEmail: {
+                    self.log.append("probe")
+                    return try await self.probe()
+                },
+                evictWebView: { self.log.append("evict") }),
+            logger: { _ in })
+    }
+}
+
+@MainActor
+private final class TrackedCookieJar {
+    private(set) var owner: String?
+
+    func clear() {
+        self.owner = nil
+    }
+
+    func write(_ label: String) {
+        self.owner = label
+    }
+}
+
+@MainActor
+private func commitTrackedSession(
+    storeKey: String,
+    label: String,
+    jar: TrackedCookieJar,
+    log: CookieOperationLog,
+    probe: @escaping @MainActor () async throws -> String?) async throws
+    -> OpenAIDashboardBrowserCookieImporter.ImportResult
+{
+    let importer = OpenAIDashboardBrowserCookieImporter(browserDetection: BrowserDetection(cacheTTL: 0))
+    return try await importer.commitPersistentCookieSession(
+        candidate: .init(label: label, cookies: []),
+        targetEmail: "owner@example.com",
+        storeKey: storeKey,
+        actions: OpenAIDashboardBrowserCookieImporter.PersistentCookieSessionActions(
+            clearExisting: {
+                jar.clear()
+                log.append("\(label) clear")
+            },
+            writeCandidate: {
+                jar.write(label)
+                log.append("\(label) write")
+            },
+            probeSignedInEmail: {
+                log.append("\(label) probe")
+                return try await probe()
+            },
+            evictWebView: { log.append("\(label) evict") }),
+        logger: { _ in })
 }
