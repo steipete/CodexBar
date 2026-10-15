@@ -156,9 +156,9 @@ struct ProviderArchitectureGatekeeperTests {
             Self.hash(descriptor.branding.burnDownWidgetColor, into: &burnDownFingerprint)
         }
 
-        // fal, FLORA, and Parallel extend the palette without changing existing provider colors.
-        #expect(widgetFingerprint == 5_478_306_354_800_484_000)
-        #expect(burnDownFingerprint == 1_099_683_618_913_431_824)
+        // fal, FLORA, Parallel, and Claude Platform extend the palette without changing existing provider colors.
+        #expect(widgetFingerprint == 9_322_051_552_041_008_511)
+        #expect(burnDownFingerprint == 6_428_902_102_265_645_629)
     }
 
     @Test
@@ -203,7 +203,7 @@ struct ProviderArchitectureGatekeeperTests {
         #expect(Set(descriptors.filter(\.metadata.usesDetailBackedWindow).map(\.id)) == [
             .perplexity,
             .warp, .kilo, .mistral, .deepseek, .deepinfra, .qoder, .chutes, .longcat, .litellm, .bifrost, .manus,
-            .mimo, .neuralwatt, .abacus, .v0, .llmman, .aixy, .raycast, .workbuddy,
+            .mimo, .neuralwatt, .abacus, .v0, .llmman, .aixy, .raycast, .workbuddy, .claudeplatform,
         ])
         // Antigravity charts calendar days for the same reason Codex does: a day with no local row
         // is still a real day in the window.

@@ -8,7 +8,7 @@ read_when:
 
 # Providers
 
-CodexBar currently registers 103 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
+CodexBar currently registers 104 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
 OpenCode vs OpenCode Go, because the auth source and quota shape differ.
 
 ## Fetch strategies (current)
@@ -181,6 +181,7 @@ complete when the available scan window covers fewer days.
 | [fal](fal.md) | API key with billing read access for the current account credit balance. |
 | [FLORA](flora.md) | API key with billing permission plus a workspace ID for the available USD balance and month-to-date spend. |
 | [Parallel](parallel.md) | Browser session on platform.parallel.ai for the prepaid credit balance and pending debit. |
+| [Claude Platform](claudeplatform.md) | Browser or manual platform.claude.com session cookies for Console API credit balance, expiring credit grants, and month-to-date spend. |
 
 <!-- End generated provider additions -->
 
@@ -219,6 +220,18 @@ complete when the available scan window covers fewer days.
   local-agent JSONL files for the configured history window.
 - Status: Statuspage.io (Anthropic).
 - Details: `docs/claude.md`.
+
+## Claude Platform
+- Browser `sessionKey` cookie for `platform.claude.com` (default browser order, since there is no per-provider
+  browser-list setting), or a manual Cookie header.
+- Reads the undocumented Claude Console billing endpoints with your platform.claude.com browser session:
+  `/api/organizations`, then `prepaid/credits` (required) for each organization with the `api` capability until one
+  is readable (HTTP 403 tries the next), then `current_spend` (optional) for that organization.
+- Cookies are required because the Anthropic Admin API is unavailable for individual Console accounts.
+- Shows the total prepaid API credit balance, expiring subscription and purchased credit grants, and month-to-date
+  spend as a Billing detail row.
+- Status: Statuspage.io (Anthropic).
+- Details: `docs/claudeplatform.md`.
 
 ## z.ai
 - API token from `~/.codexbar/config.json` (`providers[].apiKey`) or `Z_AI_API_KEY` env var.
