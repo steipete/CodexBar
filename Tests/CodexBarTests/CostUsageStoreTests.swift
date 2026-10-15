@@ -955,7 +955,7 @@ extension CostUsageStoreTests {
 
 extension CostUsageStoreTests {
     private static let testedPredecessorParserHashes = [
-        "3f88178bf03ad704", // 0.75.0 before archived-rollout mirrors; rows and checkpoints are unchanged.
+        "3f88178bf03ad704", // 0.75.0-0.76.0 before archived-rollout mirrors; rows and checkpoints are unchanged.
         "fc698834d6329beb", // Before opt-in request observation; saved rows and cursors are unchanged.
         "f406dae284de4a55", // Current main before the Auto-review creator-account reparse.
         "379b799bb4b91683", // Current main before on-demand tool inspection.

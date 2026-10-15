@@ -2160,16 +2160,14 @@ enum CostUsageScanner {
         // Provider-specific by design: Codex JSONL and Claude/Vertex transcripts have distinct parsers and caches.
         switch provider {
         case .codex:
-            // Mirror roots must exist before roots are fingerprinted; decoding waits for the refresh budget.
-            let archivedRollouts = try CodexArchivedRolloutMirror.prepare(
+            // A mirror root has to exist before roots are fingerprinted for its archives to be scanned this refresh.
+            CodexArchivedRolloutMirror.ensureMirrorRoots(
                 sourceRoots: self.codexSourceSessionsRoots(options: options),
-                cacheRoot: options.cacheRoot,
-                checkCancellation: checkCancellation)
+                cacheRoot: options.cacheRoot)
             return try self.loadCodexDaily(
                 range: range,
                 now: now,
                 options: options,
-                archivedRollouts: archivedRollouts,
                 checkCancellation: checkCancellation)
         case .claude:
             return try self.loadClaudeDaily(
@@ -6026,7 +6024,6 @@ enum CostUsageScanner {
         range: CostUsageDayRange,
         now: Date,
         options: Options,
-        archivedRollouts: CodexArchivedRolloutMirror.Inventory,
         checkCancellation: CancellationCheck?) throws -> CostUsageDailyReport
     {
         let loadedCache = Self.loadCodexCache(options: options, range: range)
@@ -6115,13 +6112,23 @@ enum CostUsageScanner {
                 maxBytesPerRefresh: options.maxCodexScanBytesPerRefresh,
                 maxDuration: options.maxCodexScanDurationPerRefresh)
             defer { options.codexScanDidYieldBeforeFileAttempt?(scanBudget.yieldedBeforeFileAttempt) }
-            // Archived rollouts share this refresh's budget and cancellation before files are listed.
-            let archiveSync = try CodexArchivedRolloutMirror.materialize(
-                archivedRollouts,
-                modifiedSince: Self.parseDayKey(scanRange.scanSinceKey, calendar: scanRange.calendar),
-                requiredSessionIds: Self.codexMissingForkParentIds(cache: cache),
-                budget: scanBudget,
+            // Archived rollouts are listed only when a refresh runs, and share its budget and cancellation
+            // before files are listed. A mirror root created here (normally by ensureMirrorRoots) joins next time.
+            let archivedRollouts = try CodexArchivedRolloutMirror.prepare(
+                sourceRoots: Self.codexSourceSessionsRoots(options: options),
+                cacheRoot: options.cacheRoot,
                 checkCancellation: checkCancellation)
+            let archiveSync = archivedRollouts.isEmpty ? CodexArchivedRolloutMirror.SyncResult() :
+                try CodexArchivedRolloutMirror.materialize(
+                    archivedRollouts,
+                    modifiedSince: Self.parseDayKey(scanRange.scanSinceKey, calendar: scanRange.calendar),
+                    requiredSessionIds: Self.codexMissingForkParentIds(cache: cache),
+                    budget: scanBudget,
+                    checkCancellation: checkCancellation)
+            let scannedRootPaths = Set(plan.roots.map(\.standardizedFileURL.path))
+            let mirrorsAwaitingRoot = archivedRollouts.roots.contains { root in
+                !root.archives.isEmpty && !scannedRootPaths.contains(root.mirrorRoot.standardizedFileURL.path)
+            }
             var activeLookbackState = Self.codexActiveLookbackState(
                 cache: cache,
                 roots: plan.roots,
@@ -6533,10 +6540,12 @@ enum CostUsageScanner {
             cache.codexScanCompletedFiles = scanProgress.completedFiles
             // Deferred or failed archives, and archived parents still needed by forks, are files this scan has
             // not counted yet. Including them in the total keeps catch-up pending through completion reconciliation.
-            let pendingArchiveFiles = archiveSync.failed + archiveSync.deferred
+            let pendingArchiveFiles = archivedRollouts.isEmpty ? 0 :
+                archiveSync.failed + archiveSync.deferred
+                + (mirrorsAwaitingRoot ? archiveSync.materialized : 0)
                 + archivedRollouts.unmirroredArchiveCount(
                     forSessionIds: Self.codexMissingForkParentIds(cache: cache),
-                    excluding: archiveSync.materializedSessionIds)
+                    excluding: archiveSync)
             cache.codexScanTotalFiles = scanProgress.totalFiles + pendingArchiveFiles
             cache.codexSessionDiscovery = fileIndex.persistedState
             let catchUpPending = !canValidateExactInventory

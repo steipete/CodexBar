@@ -1,7 +1,14 @@
 import Foundation
+#if canImport(Darwin)
+import Darwin
+#elseif canImport(Glibc)
+import Glibc
+#endif
 import Testing
 @testable import CodexBarCore
 
+/// Decoders are parked in a process-wide store, so these tests must not interleave.
+@Suite(.serialized)
 struct CodexArchivedRolloutMirrorTests {
     /// `zstd -19` of 40 lines `{"type":"event_msg","payload":{"type":"token_count","n":<i>}}`, with an XXH64 checksum.
     private static let compressedFixture =
@@ -101,11 +108,11 @@ struct CodexArchivedRolloutMirrorTests {
     }
 
     @Test
-    func `budget decodes one archive per refresh and defers the rest`() throws {
+    func `budget decodes archives in resumable slices across refreshes`() throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }
         let day = try env.makeLocalNoon(year: 2026, month: 8, day: 30)
-        let payload = Data(repeating: 0x61, count: 300_000)
+        let payload = Self.patternedPayload(count: 300_000)
         for index in 0..<3 {
             try Self.writeArchive(
                 env: env,
@@ -114,29 +121,371 @@ struct CodexArchivedRolloutMirrorTests {
                 contents: payload,
                 modified: day.addingTimeInterval(Double(index)))
         }
-        let inventory = try CodexArchivedRolloutMirror.prepare(
-            sourceRoots: [env.codexSessionsRoot],
-            cacheRoot: env.cacheRoot)
 
-        let first = try CodexArchivedRolloutMirror.materialize(
-            inventory,
-            modifiedSince: nil,
-            budget: CostUsageScanner.CodexScanBudget(maxFileBytes: 0, maxBytesPerRefresh: 100_000))
+        let mirrorRoot = CodexArchivedRolloutMirror.mirrorRoot(for: env.codexSessionsRoot, cacheRoot: env.cacheRoot)
+        func decodedBytesOnDisk() -> Int {
+            let names = FileManager.default.enumerator(atPath: mirrorRoot.path)?.allObjects as? [String] ?? []
+            return names.filter { $0.hasSuffix(".jsonl") || $0.hasSuffix(".resume") }.reduce(0) { total, name in
+                let path = mirrorRoot.appendingPathComponent(name).path
+                return total + ((try? FileManager.default.attributesOfItem(atPath: path)[.size] as? Int) ?? 0)
+            }
+        }
+        var refreshes = 0
+        var result = CodexArchivedRolloutMirror.SyncResult(deferred: 1)
+        while result.hasPendingWork, refreshes < 20 {
+            let before = decodedBytesOnDisk()
+            let budget = CostUsageScanner.CodexScanBudget(maxFileBytes: 0, maxBytesPerRefresh: 100_000)
+            result = try CodexArchivedRolloutMirror.materialize(
+                CodexArchivedRolloutMirror.prepare(sourceRoots: [env.codexSessionsRoot], cacheRoot: env.cacheRoot),
+                modifiedSince: nil,
+                budget: budget)
+            // No refresh decodes past its byte budget, including the first archive, and the budget is charged for it.
+            #expect(decodedBytesOnDisk() - before == 100_000)
+            #expect(budget.bytesConsumed == 100_000)
+            refreshes += 1
+        }
 
-        // The first archive exceeds the budget but still decodes, so each refresh makes progress.
-        #expect(first.materialized == 1)
-        #expect(first.deferred == 2)
-        #expect(first.hasPendingWork)
-        let second = try CodexArchivedRolloutMirror.materialize(
-            CodexArchivedRolloutMirror.prepare(sourceRoots: [env.codexSessionsRoot], cacheRoot: env.cacheRoot),
-            modifiedSince: nil,
-            budget: CostUsageScanner.CodexScanBudget(maxFileBytes: 0, maxBytesPerRefresh: 0))
-        #expect(second.materialized == 2)
-        #expect(!second.hasPendingWork)
+        #expect(refreshes == 9)
+        let mirrored = try Self.mirroredFiles(in: mirrorRoot)
+        #expect(mirrored.count == 3)
+        for url in mirrored {
+            #expect(try Data(contentsOf: url) == payload)
+        }
+        #expect(try !Self.hiddenFiles(in: mirrorRoot).contains { $0.hasSuffix(".resume") })
     }
 
     @Test
-    func `decoding stops at cancellation without recording a failure`() throws {
+    func `decoding pauses when the refresh deadline passes and resumes`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let day = try env.makeLocalNoon(year: 2026, month: 8, day: 30)
+        let payload = Self.patternedPayload(count: 2_000_000)
+        try Self.writeArchive(
+            env: env,
+            day: day,
+            name: "rollout-2026-08-30T12-00-00-\(Self.uuid(0)).jsonl",
+            contents: payload,
+            modified: day)
+        let archive = try #require(CodexArchivedRolloutMirror.prepare(
+            sourceRoots: [env.codexSessionsRoot],
+            cacheRoot: env.cacheRoot).roots.first?.archives.first)
+        var steps = 0
+
+        let paused = try CodexArchivedRolloutMirror.decode(archive, maxNewBytes: .max, shouldPause: {
+            steps += 1
+            return steps > 3
+        })
+
+        #expect(!paused.isComplete)
+        #expect(paused.written > 0 && paused.written < Int64(payload.count))
+        let finished = try CodexArchivedRolloutMirror.decode(archive, maxNewBytes: .max)
+        #expect(finished.isComplete)
+        #expect(paused.written + finished.written == Int64(payload.count))
+        #expect(try Data(contentsOf: archive.mirrorURL) == payload)
+    }
+
+    @Test
+    func `an underestimated content size still decodes in budget sized slices`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let day = try env.makeLocalNoon(year: 2026, month: 8, day: 30)
+        // Two frames: the header only declares the first, tiny frame's size.
+        let head = Self.patternedPayload(count: 1000)
+        let tail = Data(Self.patternedPayload(count: 600_000).reversed())
+        let name = "rollout-2026-08-30T12-00-00-\(Self.uuid(0)).jsonl"
+        let plain = try env.writeCodexSessionFile(day: day, filename: name, contents: "")
+        try FileManager.default.removeItem(at: plain)
+        let archive = URL(fileURLWithPath: plain.path + ".zst")
+        try (Self.rawZstdFrame(head) + Self.rawZstdFrame(tail)).write(to: archive)
+        try FileManager.default.setAttributes([.modificationDate: day], ofItemAtPath: archive.path)
+
+        var refreshes = 0
+        var result = CodexArchivedRolloutMirror.SyncResult(deferred: 1)
+        while result.hasPendingWork, refreshes < 50 {
+            result = try CodexArchivedRolloutMirror.materialize(
+                CodexArchivedRolloutMirror.prepare(sourceRoots: [env.codexSessionsRoot], cacheRoot: env.cacheRoot),
+                modifiedSince: nil,
+                budget: CostUsageScanner.CodexScanBudget(maxFileBytes: 0, maxBytesPerRefresh: 100_000))
+            refreshes += 1
+        }
+
+        #expect(refreshes == 7)
+        let mirrorRoot = CodexArchivedRolloutMirror.mirrorRoot(for: env.codexSessionsRoot, cacheRoot: env.cacheRoot)
+        #expect(try Self.mirroredFiles(in: mirrorRoot).map { try Data(contentsOf: $0) } == [head + tail])
+    }
+
+    @Test
+    func `an exhausted estimate under an uncapped timed budget does not overflow`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let day = try env.makeLocalNoon(year: 2026, month: 8, day: 30)
+        let head = Self.patternedPayload(count: 1000)
+        let tail = Self.patternedPayload(count: 300_000)
+        let plain = try env.writeCodexSessionFile(
+            day: day,
+            filename: "rollout-2026-08-30T12-00-00-\(Self.uuid(0)).jsonl",
+            contents: "")
+        try FileManager.default.removeItem(at: plain)
+        let archiveURL = URL(fileURLWithPath: plain.path + ".zst")
+        try (Self.rawZstdFrame(head) + Self.rawZstdFrame(tail)).write(to: archiveURL)
+        try FileManager.default.setAttributes([.modificationDate: day], ofItemAtPath: archiveURL.path)
+        func refresh(_ budget: CostUsageScanner.CodexScanBudget) throws -> CodexArchivedRolloutMirror.SyncResult {
+            try CodexArchivedRolloutMirror.materialize(
+                CodexArchivedRolloutMirror.prepare(sourceRoots: [env.codexSessionsRoot], cacheRoot: env.cacheRoot),
+                modifiedSince: nil,
+                budget: budget)
+        }
+        // The first slice uses up the header's 1,000-byte estimate.
+        #expect(try refresh(CostUsageScanner.CodexScanBudget(maxFileBytes: 0, maxBytesPerRefresh: 1000)).deferred == 1)
+        let uncapped = CostUsageScanner.CodexScanBudget(maxFileBytes: 0, maxBytesPerRefresh: 0, maxDuration: 3600)
+        uncapped.consume(workBytes: 1)
+
+        let result = try refresh(uncapped)
+
+        #expect(result.materialized == 1)
+        let mirrorRoot = CodexArchivedRolloutMirror.mirrorRoot(for: env.codexSessionsRoot, cacheRoot: env.cacheRoot)
+        #expect(try Self.mirroredFiles(in: mirrorRoot).map { try Data(contentsOf: $0) } == [head + tail])
+    }
+
+    @Test
+    func `a slice locked by another process is deferred`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let day = try env.makeLocalNoon(year: 2026, month: 8, day: 30)
+        let payload = Self.patternedPayload(count: 300_000)
+        try Self.writeArchive(
+            env: env,
+            day: day,
+            name: "rollout-2026-08-30T12-00-00-\(Self.uuid(0)).jsonl",
+            contents: payload,
+            modified: day)
+        let inventory = try CodexArchivedRolloutMirror.prepare(
+            sourceRoots: [env.codexSessionsRoot],
+            cacheRoot: env.cacheRoot)
+        let archive = try #require(inventory.roots.first?.archives.first)
+        try FileManager.default.createDirectory(
+            at: archive.resumeURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true)
+        let holder = open(archive.resumeURL.path, O_RDWR | O_CREAT, 0o644)
+        try #require(holder >= 0)
+        try #require(flock(holder, LOCK_EX | LOCK_NB) == 0)
+
+        let blocked = try CodexArchivedRolloutMirror.materialize(inventory, modifiedSince: nil)
+
+        #expect(blocked.deferred == 1)
+        #expect(blocked.materialized == 0)
+        #expect(!FileManager.default.fileExists(atPath: archive.mirrorURL.path))
+        flock(holder, LOCK_UN)
+        close(holder)
+        let unblocked = try CodexArchivedRolloutMirror.materialize(inventory, modifiedSince: nil)
+        #expect(unblocked.materialized == 1)
+        #expect(try Data(contentsOf: archive.mirrorURL) == payload)
+    }
+
+    @Test
+    func `parked decoders are capped`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        CodexArchivedRolloutMirror.discardDecodeSessionsForTesting()
+        defer { CodexArchivedRolloutMirror.discardDecodeSessionsForTesting() }
+        let day = try env.makeLocalNoon(year: 2026, month: 8, day: 30)
+        for index in 0..<4 {
+            try Self.writeArchive(
+                env: env,
+                day: day,
+                name: "rollout-2026-08-30T12-00-0\(index)-\(Self.uuid(index)).jsonl",
+                contents: Self.patternedPayload(count: 400_000),
+                modified: day.addingTimeInterval(Double(index)))
+        }
+        let archives = try CodexArchivedRolloutMirror.prepare(
+            sourceRoots: [env.codexSessionsRoot],
+            cacheRoot: env.cacheRoot).roots.flatMap(\.archives)
+
+        for archive in archives {
+            #expect(try !CodexArchivedRolloutMirror.decode(archive, maxNewBytes: 50000).isComplete)
+        }
+
+        #expect(CodexArchivedRolloutMirror.parkedDecodeSessionCountForTesting == 2)
+    }
+
+    @Test(arguments: [false, true])
+    func `the scanner counts a large archive once after slicing it across refreshes`(plainControl: Bool) throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let day = try env.makeLocalNoon(year: 2026, month: 8, day: 30)
+        let stamp = env.isoString(for: day)
+        let events = 3000
+        var lines = [
+            #"{"type":"session_meta","payload":{"id":"\#(Self.uuid(0))","source":"vscode","timestamp":"\#(stamp)"}}"#,
+            #"{"type":"turn_context","timestamp":"\#(stamp)","payload":{"model":"gpt-5.4"}}"#,
+        ]
+        for index in 1...events {
+            lines.append(#"{"type":"event_msg","timestamp":"\#(stamp)","payload":{"type":"token_count","info":"#
+                + #"{"total_token_usage":{"input_tokens":\#(index * 10),"output_tokens":0}}}}"#)
+        }
+        let rollout = Data((lines.joined(separator: "\n") + "\n").utf8)
+        #expect(rollout.count > 400_000)
+        if plainControl {
+            _ = try env.writeCodexSessionFile(
+                day: day,
+                filename: "rollout-2026-08-30T12-00-00-\(Self.uuid(0)).jsonl",
+                contents: #require(String(bytes: rollout, encoding: .utf8)))
+        } else {
+            try Self.writeArchive(
+                env: env,
+                day: day,
+                name: "rollout-2026-08-30T12-00-00-\(Self.uuid(0)).jsonl",
+                contents: rollout,
+                modified: day)
+        }
+        var options = CostUsageScanner.Options(
+            codexSessionsRoot: env.codexSessionsRoot,
+            cacheRoot: env.cacheRoot,
+            codexTraceDatabaseURL: env.root.appendingPathComponent("missing.sqlite"))
+        options.refreshMinIntervalSeconds = 0
+        options.maxCodexSessionFileBytes = 150_000
+        options.maxCodexScanBytesPerRefresh = 150_000
+
+        var totals: [Int?] = []
+        var pending = true
+        while pending, totals.count < 20 {
+            // Each refresh happens later, like the app's catch-up passes; a frozen clock never resumes.
+            let now = day.addingTimeInterval(Double(totals.count + 1))
+            totals.append(CostUsageScanner.loadDailyReport(
+                provider: .codex,
+                since: day,
+                until: day,
+                now: now,
+                options: options).summary?.totalTokens)
+            pending = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot).codexScanCatchUpPending == true
+        }
+
+        #expect(totals.count > 3)
+        #expect(totals.last == events * 10)
+    }
+
+    @Test(arguments: [false, true])
+    func `paused slices resume from disk with or without the in memory decoder`(relaunch: Bool) throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let day = try env.makeLocalNoon(year: 2026, month: 8, day: 30)
+        let payload = Self.patternedPayload(count: 700_000)
+        try Self.writeArchive(
+            env: env,
+            day: day,
+            name: "rollout-2026-08-30T12-00-00-\(Self.uuid(0)).jsonl",
+            contents: payload,
+            modified: day)
+        func refresh(_ limit: Int64) throws -> CodexArchivedRolloutMirror.SyncResult {
+            try CodexArchivedRolloutMirror.materialize(
+                CodexArchivedRolloutMirror.prepare(sourceRoots: [env.codexSessionsRoot], cacheRoot: env.cacheRoot),
+                modifiedSince: nil,
+                budget: CostUsageScanner.CodexScanBudget(maxFileBytes: 0, maxBytesPerRefresh: limit))
+        }
+
+        #expect(try refresh(250_000).deferred == 1)
+        if relaunch { CodexArchivedRolloutMirror.discardDecodeSessionsForTesting() }
+        #expect(try refresh(250_000).deferred == 1)
+        if relaunch { CodexArchivedRolloutMirror.discardDecodeSessionsForTesting() }
+        #expect(try refresh(250_000).materialized == 1)
+
+        let mirrorRoot = CodexArchivedRolloutMirror.mirrorRoot(for: env.codexSessionsRoot, cacheRoot: env.cacheRoot)
+        #expect(try Self.mirroredFiles(in: mirrorRoot).map { try Data(contentsOf: $0) } == [payload])
+    }
+
+    @Test
+    func `a changed archive restarts its slice`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let day = try env.makeLocalNoon(year: 2026, month: 8, day: 30)
+        let name = "rollout-2026-08-30T12-00-00-\(Self.uuid(0)).jsonl"
+        try Self.writeArchive(
+            env: env,
+            day: day,
+            name: name,
+            contents: Self.patternedPayload(count: 500_000),
+            modified: day)
+        _ = try CodexArchivedRolloutMirror.materialize(
+            CodexArchivedRolloutMirror.prepare(sourceRoots: [env.codexSessionsRoot], cacheRoot: env.cacheRoot),
+            modifiedSince: nil,
+            budget: CostUsageScanner.CodexScanBudget(maxFileBytes: 0, maxBytesPerRefresh: 200_000))
+        let replacement = Data(Self.patternedPayload(count: 400_000).reversed())
+        try Self.writeArchive(
+            env: env,
+            day: day,
+            name: name,
+            contents: replacement,
+            modified: day.addingTimeInterval(60))
+
+        let result = try CodexArchivedRolloutMirror.materialize(
+            CodexArchivedRolloutMirror.prepare(sourceRoots: [env.codexSessionsRoot], cacheRoot: env.cacheRoot),
+            modifiedSince: nil)
+
+        #expect(result.materialized == 1)
+        let mirrorRoot = CodexArchivedRolloutMirror.mirrorRoot(for: env.codexSessionsRoot, cacheRoot: env.cacheRoot)
+        #expect(try Self.mirroredFiles(in: mirrorRoot).map { try Data(contentsOf: $0) } == [replacement])
+        #expect(try !Self.hiddenFiles(in: mirrorRoot).contains { $0.hasSuffix(".resume") })
+    }
+
+    @Test
+    func `a slice longer than its archive restarts in the same refresh`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let day = try env.makeLocalNoon(year: 2026, month: 8, day: 30)
+        let payload = Self.patternedPayload(count: 200_000)
+        try Self.writeArchive(
+            env: env,
+            day: day,
+            name: "rollout-2026-08-30T12-00-00-\(Self.uuid(0)).jsonl",
+            contents: payload,
+            modified: day)
+        let inventory = try CodexArchivedRolloutMirror.prepare(
+            sourceRoots: [env.codexSessionsRoot],
+            cacheRoot: env.cacheRoot)
+        let archive = try #require(inventory.roots.first?.archives.first)
+        try FileManager.default.createDirectory(
+            at: archive.resumeURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true)
+        try Data(repeating: 0x7A, count: 250_000).write(to: archive.resumeURL)
+
+        let result = try CodexArchivedRolloutMirror.materialize(inventory, modifiedSince: nil)
+
+        #expect(result.materialized == 1)
+        #expect(try Data(contentsOf: archive.mirrorURL) == payload)
+    }
+
+    @Test
+    func `an unavailable slice is retried next refresh without recording a failure`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let day = try env.makeLocalNoon(year: 2026, month: 8, day: 30)
+        let payload = Self.patternedPayload(count: 100_000)
+        try Self.writeArchive(
+            env: env,
+            day: day,
+            name: "rollout-2026-08-30T12-00-00-\(Self.uuid(0)).jsonl",
+            contents: payload,
+            modified: day)
+        let inventory = try CodexArchivedRolloutMirror.prepare(
+            sourceRoots: [env.codexSessionsRoot],
+            cacheRoot: env.cacheRoot)
+        let archive = try #require(inventory.roots.first?.archives.first)
+        // A directory in the slice's place makes open(2) fail, like a transient volume error.
+        try FileManager.default.createDirectory(at: archive.resumeURL, withIntermediateDirectories: true)
+
+        let blocked = try CodexArchivedRolloutMirror.materialize(inventory, modifiedSince: nil)
+
+        #expect(blocked.deferred == 1)
+        #expect(blocked.failed == 0)
+        let mirrorRoot = try #require(inventory.roots.first?.mirrorRoot)
+        #expect(try !Self.hiddenFiles(in: mirrorRoot).contains(".failed-archives.json"))
+        try FileManager.default.removeItem(at: archive.resumeURL)
+        #expect(try CodexArchivedRolloutMirror.materialize(inventory, modifiedSince: nil).materialized == 1)
+        #expect(try Data(contentsOf: archive.mirrorURL) == payload)
+    }
+
+    @Test
+    func `a small archive near the end of the budget is not counted as partial`() throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }
         let day = try env.makeLocalNoon(year: 2026, month: 8, day: 30)
@@ -144,7 +493,32 @@ struct CodexArchivedRolloutMirrorTests {
             env: env,
             day: day,
             name: "rollout-2026-08-30T12-00-00-\(Self.uuid(0)).jsonl",
-            contents: Data(repeating: 0x62, count: 600_000),
+            contents: Self.patternedPayload(count: 5000),
+            modified: day)
+        let budget = CostUsageScanner.CodexScanBudget(maxFileBytes: 0, maxBytesPerRefresh: 100_000)
+        budget.consume(workBytes: 90000)
+
+        let result = try CodexArchivedRolloutMirror.materialize(
+            CodexArchivedRolloutMirror.prepare(sourceRoots: [env.codexSessionsRoot], cacheRoot: env.cacheRoot),
+            modifiedSince: nil,
+            budget: budget)
+
+        #expect(result.materialized == 1)
+        #expect(budget.resumedPartialFileCount == 0)
+        #expect(budget.bytesConsumed == 95000)
+    }
+
+    @Test
+    func `cancellation keeps the slice and a later refresh finishes it`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let day = try env.makeLocalNoon(year: 2026, month: 8, day: 30)
+        let payload = Self.patternedPayload(count: 600_000)
+        try Self.writeArchive(
+            env: env,
+            day: day,
+            name: "rollout-2026-08-30T12-00-00-\(Self.uuid(0)).jsonl",
+            contents: payload,
             modified: day)
         let inventory = try CodexArchivedRolloutMirror.prepare(
             sourceRoots: [env.codexSessionsRoot],
@@ -164,10 +538,13 @@ struct CodexArchivedRolloutMirrorTests {
         }
 
         let mirrorRoot = try #require(inventory.roots.first?.mirrorRoot)
-        let leftovers = try FileManager.default.contentsOfDirectory(atPath: mirrorRoot.path)
-        #expect(!leftovers.contains(".failed-archives.json"))
-        let files = FileManager.default.enumerator(atPath: mirrorRoot.path)?.allObjects as? [String] ?? []
-        #expect(!files.contains { $0.hasSuffix(".jsonl") || $0.hasSuffix(".partial") })
+        #expect(try !Self.hiddenFiles(in: mirrorRoot).contains(".failed-archives.json"))
+        #expect(try Self.mirroredFiles(in: mirrorRoot).isEmpty)
+        let finished = try CodexArchivedRolloutMirror.materialize(
+            CodexArchivedRolloutMirror.prepare(sourceRoots: [env.codexSessionsRoot], cacheRoot: env.cacheRoot),
+            modifiedSince: nil)
+        #expect(finished.materialized == 1)
+        #expect(try Self.mirroredFiles(in: mirrorRoot).map { try Data(contentsOf: $0) } == [payload])
     }
 
     @Test
@@ -320,6 +697,22 @@ struct CodexArchivedRolloutMirrorTests {
         let path = plain.standardizedFileURL.path
         guard path.hasPrefix(rootPath) else { return nil }
         return mirrorRoot.appendingPathComponent(String(path.dropFirst(rootPath.count)), isDirectory: false)
+    }
+
+    /// Non-repeating bytes, so a misplaced resume offset changes the decoded content.
+    private static func patternedPayload(count: Int) -> Data {
+        Data((0..<count).map { UInt8(truncatingIfNeeded: $0 &* 31 &+ ($0 >> 9)) })
+    }
+
+    private static func mirroredFiles(in mirrorRoot: URL) throws -> [URL] {
+        let names = FileManager.default.enumerator(atPath: mirrorRoot.path)?.allObjects as? [String] ?? []
+        return names.filter { ($0 as NSString).lastPathComponent.hasPrefix("rollout-") && $0.hasSuffix(".jsonl") }
+            .map { mirrorRoot.appendingPathComponent($0) }
+    }
+
+    private static func hiddenFiles(in mirrorRoot: URL) throws -> [String] {
+        let names = FileManager.default.enumerator(atPath: mirrorRoot.path)?.allObjects as? [String] ?? []
+        return names.map { ($0 as NSString).lastPathComponent }.filter { $0.hasPrefix(".") }
     }
 
     private static func uuid(_ index: Int) -> String {
