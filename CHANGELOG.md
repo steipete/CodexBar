@@ -2,6 +2,10 @@
 
 ## 0.76.1 — Unreleased
 
+### Fixed
+
+- Updates: recover from a partially failed Homebrew refresh when the installed cask’s tap has the offered CodexBar version, without repeating the refresh (#4520). Thanks @zerosrat!
+
 ## 0.76.0 — 2026-10-15
 
 ### Highlights
