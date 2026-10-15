@@ -384,6 +384,7 @@ jobs:
           install -m 0755 "$BIN_DIR/CodexBarCLI" "$OUT_DIR/CodexBarCLI"
           ln -s "CodexBarCLI" "$OUT_DIR/codexbar"
           printf '%s\n' "${SAFE_REF_NAME#v}" > "$OUT_DIR/VERSION"
+          python3 Scripts/acknowledgements.py --text-output "$OUT_DIR/THIRD_PARTY_NOTICES"
 
           CORE_RESOURCE_SOURCE=""
           for candidate in \
@@ -408,7 +409,7 @@ jobs:
 
           ASSET="CodexBarCLI-${SAFE_REF_NAME}-${{ matrix.asset-platform }}-${{ matrix.asset-arch }}.tar.gz"
           (cd "$OUT_DIR" && tar czf "$ASSET" \
-            CodexBarCLI codexbar VERSION CodexBar_CodexBarCore.bundle)
+            CodexBarCLI codexbar VERSION THIRD_PARTY_NOTICES CodexBar_CodexBarCore.bundle)
           Scripts/generate_release_checksum.sh "$OUT_DIR/$ASSET"
 
           echo "out_dir=$OUT_DIR" >> "$GITHUB_OUTPUT"

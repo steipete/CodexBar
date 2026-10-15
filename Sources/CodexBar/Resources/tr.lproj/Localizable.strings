@@ -722,6 +722,12 @@
 "link_website" = "Web sitesi";
 "link_twitter" = "Twitter";
 "link_email" = "E-posta";
+"link_acknowledgements" = "Teşekkürler";
+"acknowledgements_footer" = "CodexBar bu açık kaynak projelerle geliştirildi.";
+"acknowledgements_others" = "%d diğer kişi";
+"acknowledgements_author" = "Yazar";
+"acknowledgements_authors" = "Yazarlar";
+"acknowledgements_license" = "Lisans";
 "check_updates_auto" = "Güncellemeleri otomatik denetle";
 "update_channel" = "Güncelleme kanalı";
 "check_for_updates" = "Güncellemeleri denetle…";

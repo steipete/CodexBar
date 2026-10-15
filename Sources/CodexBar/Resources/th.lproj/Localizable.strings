@@ -722,6 +722,12 @@
 "link_website" = "เว็บไซต์";
 "link_twitter" = "ทวิตเตอร์";
 "link_email" = "อีเมล";
+"link_acknowledgements" = "กิตติกรรมประกาศ";
+"acknowledgements_footer" = "CodexBar สร้างขึ้นด้วยโปรเจกต์โอเพนซอร์สเหล่านี้";
+"acknowledgements_others" = "อีก %d ราย";
+"acknowledgements_author" = "ผู้เขียน";
+"acknowledgements_authors" = "ผู้เขียน";
+"acknowledgements_license" = "สัญญาอนุญาต";
 "check_updates_auto" = "ตรวจสอบการอัปเดตโดยอัตโนมัติ";
 "update_channel" = "อัปเดตช่อง";
 "check_for_updates" = "ตรวจสอบการอัปเดต...";

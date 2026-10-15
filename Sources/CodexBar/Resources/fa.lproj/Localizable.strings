@@ -722,6 +722,12 @@
 "link_website" = "وب سایت";
 "link_twitter" = "توییتر";
 "link_email" = "ایمیل";
+"link_acknowledgements" = "قدردانی";
+"acknowledgements_footer" = "CodexBar با این پروژه‌های متن‌باز ساخته شده است.";
+"acknowledgements_others" = "%d نفر دیگر";
+"acknowledgements_author" = "نویسنده";
+"acknowledgements_authors" = "نویسندگان";
+"acknowledgements_license" = "مجوز";
 "check_updates_auto" = "به طور خودکار به روزرسانی ها را بررسی کنید";
 "update_channel" = "به روزرسانی کانال";
 "check_for_updates" = "به روزرسانی ها را بررسی کنید...";

@@ -101,7 +101,11 @@ struct PreferencesView: View {
             // no floating card chrome. The material ignores the safe area so it runs up
             // behind the transparent titlebar. The width is user-resizable via the
             // input-only drag strip overlaid on the detail pane's leading edge.
-            SettingsSidebarView(settings: self.settings, store: self.store, selection: self.$selection.pane)
+            SettingsSidebarView(
+                settings: self.settings,
+                store: self.store,
+                selection: self.$selection.pane,
+                onSelectAbout: { self.selection.requestAboutRoot() })
                 .frame(width: self.clampedSidebarWidth)
                 .background {
                     SettingsSidebarMaterial()
@@ -206,7 +210,7 @@ struct PreferencesView: View {
         case .plugins:
             PluginsPane(settings: self.settings, store: self.store)
         case .about:
-            AboutPane(updater: self.updater)
+            AboutPane(updater: self.updater, rootRequests: self.selection.aboutRootRequests)
         case .debug:
             DebugPane(settings: self.settings, store: self.store)
         case let .provider(instanceID):

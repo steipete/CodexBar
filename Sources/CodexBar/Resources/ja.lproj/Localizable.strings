@@ -713,6 +713,12 @@
 "link_website" = "ウェブサイト";
 "link_twitter" = "Twitter";
 "link_email" = "メール";
+"link_acknowledgements" = "謝辞";
+"acknowledgements_footer" = "CodexBar は以下のオープンソースプロジェクトを利用しています。";
+"acknowledgements_others" = "他 %d 名";
+"acknowledgements_author" = "作者";
+"acknowledgements_authors" = "作者";
+"acknowledgements_license" = "ライセンス";
 "check_updates_auto" = "アップデートを自動的に確認";
 "update_channel" = "アップデートチャンネル";
 "check_for_updates" = "アップデートを確認…";

@@ -724,6 +724,12 @@
 "link_website" = "Situs Web";
 "link_twitter" = "Twitter";
 "link_email" = "Surel";
+"link_acknowledgements" = "Ucapan Terima Kasih";
+"acknowledgements_footer" = "CodexBar dibangun dengan proyek sumber terbuka ini.";
+"acknowledgements_others" = "%d lainnya";
+"acknowledgements_author" = "Penulis";
+"acknowledgements_authors" = "Penulis";
+"acknowledgements_license" = "Lisensi";
 "check_updates_auto" = "Periksa pembaruan secara otomatis";
 "update_channel" = "Saluran Pembaruan";
 "check_for_updates" = "Periksa Pembaruan…";

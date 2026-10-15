@@ -712,6 +712,12 @@
 "link_website" = "Trang web";
 "link_twitter" = "Twitter";
 "link_email" = "Email";
+"link_acknowledgements" = "Lời cảm ơn";
+"acknowledgements_footer" = "CodexBar được xây dựng bằng các dự án mã nguồn mở này.";
+"acknowledgements_others" = "%d người khác";
+"acknowledgements_author" = "Tác giả";
+"acknowledgements_authors" = "Tác giả";
+"acknowledgements_license" = "Giấy phép";
 "check_updates_auto" = "Tự động kiểm tra các bản cập nhật";
 "update_channel" = "Kênh cập nhật";
 "check_for_updates" = "Kiểm tra các bản cập nhật…";

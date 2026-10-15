@@ -706,6 +706,12 @@
 "link_website" = "Website";
 "link_twitter" = "Twitter";
 "link_email" = "Email";
+"link_acknowledgements" = "Acknowledgements";
+"acknowledgements_footer" = "CodexBar is built with these open-source projects.";
+"acknowledgements_others" = "%d others";
+"acknowledgements_author" = "Author";
+"acknowledgements_authors" = "Authors";
+"acknowledgements_license" = "License";
 "check_updates_auto" = "Check for updates automatically";
 "update_channel" = "Update channel";
 "check_for_updates" = "Check for Updates…";

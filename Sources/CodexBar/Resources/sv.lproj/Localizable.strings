@@ -715,6 +715,12 @@
 "link_website" = "Webbplats";
 "link_twitter" = "Twitter";
 "link_email" = "E-post";
+"link_acknowledgements" = "Tack";
+"acknowledgements_footer" = "CodexBar är byggt med dessa projekt med öppen källkod.";
+"acknowledgements_others" = "%d andra";
+"acknowledgements_author" = "Upphovsperson";
+"acknowledgements_authors" = "Upphovspersoner";
+"acknowledgements_license" = "Licens";
 "check_updates_auto" = "Sök efter uppdateringar automatiskt";
 "update_channel" = "Uppdateringskanal";
 "check_for_updates" = "Sök efter uppdateringar…";

@@ -74,6 +74,33 @@ struct SettingsWindowControllerTests {
     }
 
     @Test
+    func `every explicit About open returns pushed About pages to the root`() {
+        _ = NSApplication.shared
+        let selection = self.makeSelection()
+        let window = self.makeWindow()
+        let controller = SettingsWindowController(
+            selection: selection,
+            makeWindow: { window },
+            prepareToPresent: {},
+            registerWindow: { _ in },
+            presentWindow: { _ in },
+            didPresentWindow: { _ in },
+            presentationFailed: {})
+
+        controller.open(pane: .about)
+        #expect(selection.aboutRootRequests == 1)
+
+        // The window and its About navigation state survive close; reopening About must still reset them.
+        window.close()
+        #expect(controller.open(pane: .about) == .reused)
+        #expect(selection.aboutRootRequests == 2)
+
+        controller.open(pane: nil)
+        controller.open(pane: .general)
+        #expect(selection.aboutRootRequests == 2)
+    }
+
+    @Test
     func `window creation failure resolves the presentation attempt`() {
         let selection = self.makeSelection()
         var events: [String] = []

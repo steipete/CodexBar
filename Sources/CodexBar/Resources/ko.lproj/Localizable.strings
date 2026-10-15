@@ -702,6 +702,12 @@
 "link_website" = "웹사이트";
 "link_twitter" = "Twitter";
 "link_email" = "이메일";
+"link_acknowledgements" = "감사의 말";
+"acknowledgements_footer" = "CodexBar는 다음 오픈 소스 프로젝트로 만들어졌습니다.";
+"acknowledgements_others" = "외 %d명";
+"acknowledgements_author" = "작성자";
+"acknowledgements_authors" = "작성자";
+"acknowledgements_license" = "라이선스";
 "check_updates_auto" = "자동으로 업데이트 확인";
 "update_channel" = "업데이트 채널";
 "check_for_updates" = "업데이트 확인…";
