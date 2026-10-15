@@ -698,8 +698,10 @@ Each group has a fresh process and temporary `HOME` and `CFFIXED_USER_HOME`, wit
 and session-file isolation, Keychain suppression, timeout, retry, and descendant cleanup.
 Async process fixtures should use `ProcessExitRelease.afterExit` after signaling a Foundation child,
 instead of blocking a cooperative executor in `waitUntilExit()`. PTY setup tests should keep the child
-alive until its output is observed; Darwin can discard unread output when the slave closes. Keep
-immediate-exit coverage in dedicated drain tests, and compare working directories after resolving symlinks.
+alive until its output is observed; Darwin can discard unread output when the last slave descriptor closes.
+The TTY runner retains its slave descriptor until it has harvested output after child exit, then closes it
+before checking EOF. The fast-exit regression waits for child exit before the first read, without a timed delay.
+Compare working directories after resolving symlinks.
 Test output is buffered per group. A direct runtime failure after execution begins fails the run;
 it does not silently rerun the suite through a different runtime. This opt-in adapter depends on
 SwiftPM's toolchain helper contract and needs compatibility validation when updating Xcode.

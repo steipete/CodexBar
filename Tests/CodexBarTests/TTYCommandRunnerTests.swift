@@ -408,22 +408,32 @@ struct TTYCommandRunnerEnvTests {
     private static func runFastExitIteration(_ iteration: Int) -> FastExitIterationOutcome {
         let expected = "pty-drain-race"
         let runner = TTYCommandRunner()
+        let waitForExit: @Sendable (SpawnedProcessGroup) throws -> Void = { process in
+            // Observe exit without reaping, before the runner has read any output.
+            var info = siginfo_t()
+            var result: Int32
+            repeat {
+                result = waitid(P_PID, id_t(process.pid), &info, WEXITED | WNOWAIT)
+            } while result == -1 && errno == EINTR
+            #expect(result == 0)
+        }
 
         do {
-            let result = try runner.run(
-                binary: "/bin/echo",
-                send: "",
-                options: .init(
-                    timeout: Self.harnessPTYTimeout,
-                    extraArgs: [expected],
-                    initialDelay: 0.05,
-                    stopOnSubstrings: [expected],
-                    settleAfterStop: 0,
-                    returnOnEmptyProcessExit: true))
+            let result = try TTYCommandRunner.$beforeInitialReadForTesting.withValue(waitForExit) {
+                try runner.run(
+                    binary: "/bin/echo",
+                    send: "",
+                    options: .init(
+                        timeout: Self.harnessPTYTimeout,
+                        extraArgs: [expected],
+                        baseEnvironment: [:],
+                        initialDelay: 0,
+                        returnOnEmptyProcessExit: true))
+            }
             let clean = result.text.replacingOccurrences(of: "\r", with: "")
             return FastExitIterationOutcome(
                 iteration: iteration,
-                failureDetails: clean.contains(expected)
+                failureDetails: clean == "\(expected)\n" && result.completion == .processExited(status: 0)
                     ? nil
                     : "PTY output was missing; completion: \(result.completion)")
         } catch {
