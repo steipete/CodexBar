@@ -1057,7 +1057,7 @@ private final class QuickJSSerialWorker: @unchecked Sendable {
         override func main() {
             defer { self.state.markStopped() }
             while let job = self.state.next() {
-                job()
+                autoreleasepool { job() }
             }
         }
     }

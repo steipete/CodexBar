@@ -9,12 +9,16 @@ struct SettingsSidebarView: View {
     @Bindable var store: UsageStore
     @Binding var selection: SettingsPane
     @State private var searchText = ""
+    @Environment(\.undoManager) private var undoManager
 
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 6) {
                 SettingsSidebarSearchField(searchText: self.$searchText)
-                SettingsSidebarSortToggle(isOn: self.$settings.providersSortedAlphabetically)
+                SettingsSidebarSortToggle(
+                    isOn: self.$settings.providersSortedAlphabetically,
+                    enabledOnly: self.$settings.providersEnabledOnly,
+                    onRestore: self.restoreProviderOrder)
             }
             .padding(.horizontal, 8)
             .padding(.top, 16)
@@ -26,6 +30,19 @@ struct SettingsSidebarView: View {
             }
             .listStyle(.sidebar)
             .scrollContentBackground(.hidden)
+
+            if self.settings.canUndoProviderOrderChange {
+                HStack {
+                    Text(L("Provider order updated"))
+                    Spacer(minLength: 4)
+                    Button(L("Undo")) { self.settings.undoProviderOrderChange() }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(Color.accentColor)
+                }
+                .font(.caption)
+                .padding(8)
+                .accessibilityElement(children: .contain)
+            }
         }
         .padding(.horizontal, 8)
     }
@@ -49,24 +66,29 @@ struct SettingsSidebarView: View {
     }
 
     private var providersSection: some View {
-        Section {
-            ForEach(self.filteredProviders, id: \.self) { provider in
-                SettingsSidebarProviderRow(
-                    provider: provider,
-                    store: self.store,
-                    isEnabled: self.enabledBinding(for: provider))
-                    .tag(SettingsPane.provider(provider.instanceID))
-                    .moveDisabled(!self.canReorderProviders)
+        let visibleProviders = self.filteredProviders
+        return Section {
+            ForEach(visibleProviders, id: \.self) { provider in
+                self.providerRow(provider)
             }
             .onMove { fromOffsets, toOffset in
                 guard self.canReorderProviders else { return }
-                self.settings.moveProvider(fromOffsets: fromOffsets, toOffset: toOffset)
+                if self.settings.moveVisibleProviders(
+                    visibleProviders.map(\.instanceID), fromOffsets: fromOffsets, toOffset: toOffset)
+                {
+                    self.registerOrderUndo()
+                }
             }
 
-            if self.filteredProviders.isEmpty {
+            if visibleProviders.isEmpty {
                 Text(L("No matching providers"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                Button(L("Clear filters")) {
+                    self.searchText = ""
+                    self.settings.providersEnabledOnly = false
+                }
+                .buttonStyle(.plain)
             }
         } header: {
             HStack(spacing: 4) {
@@ -78,6 +100,23 @@ struct SettingsSidebarView: View {
                     .padding(.trailing, 10)
             }
         }
+    }
+
+    private func providerRow(_ provider: UsageProvider) -> some View {
+        SettingsSidebarProviderRow(
+            provider: provider,
+            store: self.store,
+            isEnabled: self.enabledBinding(for: provider))
+            .tag(SettingsPane.provider(provider.instanceID))
+            .moveDisabled(!self.canReorderProviders)
+    }
+
+    private func restoreProviderOrder() {
+        if self.settings.restoreDefaultProviderOrder() { self.registerOrderUndo() }
+    }
+
+    private func registerOrderUndo() {
+        self.settings.registerProviderOrderUndo(in: self.undoManager)
     }
 
     private var selectionBinding: Binding<SettingsPane?> {
@@ -100,10 +139,14 @@ struct SettingsSidebarView: View {
     }
 
     private var filteredProviders: [UsageProvider] {
-        ProvidersPane.filteredProviders(
-            self.orderedProviders,
+        let providers = self.orderedProviders.filter { provider in
+            !self.settings.providersEnabledOnly
+                || self.settings.isProviderEnabled(provider: provider, metadata: self.store.metadata(for: provider))
+        }
+        return ProvidersPane.filteredProviders(
+            providers,
             query: self.searchText,
-            displayName: { provider in self.store.metadata(for: provider).displayName })
+            displayName: { self.store.metadata(for: $0).displayName })
     }
 
     private var enabledProviderCount: Int {
@@ -113,7 +156,7 @@ struct SettingsSidebarView: View {
     }
 
     private var canReorderProviders: Bool {
-        !self.settings.providersSortedAlphabetically
+        !self.settings.providersSortedAlphabetically && !self.settings.providersEnabledOnly
             && self.searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
@@ -282,22 +325,43 @@ private struct SettingsSidebarSearchField: View {
 
 private struct SettingsSidebarSortToggle: View {
     @Binding var isOn: Bool
+    @Binding var enabledOnly: Bool
+    let onRestore: () -> Void
 
     var body: some View {
-        Button {
-            self.isOn.toggle()
-        } label: {
-            Image(systemName: "arrow.up.arrow.down")
-                .font(.callout)
-                .foregroundStyle(self.isOn ? Color.accentColor : Color.secondary)
-                .frame(width: 24, height: 24)
-                .contentShape(Rectangle())
+        HStack(spacing: 0) {
+            Button {
+                self.isOn.toggle()
+            } label: {
+                Image(systemName: "arrow.up.arrow.down")
+                    .font(.callout)
+                    .foregroundStyle(self.isOn ? Color.accentColor : Color.secondary)
+                    .frame(width: 24, height: 24)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help(self.isOn
+                ? L("Sorted alphabetically (enabled first) — click to use your custom order")
+                : L("Sort providers alphabetically (enabled first)"))
+            .accessibilityLabel(L("Sort providers alphabetically"))
+            .accessibilityAddTraits(self.isOn ? .isSelected : [])
+
+            Menu {
+                Toggle(L("Only enabled providers"), isOn: self.$enabledOnly)
+                Divider()
+                Button(L("Restore default order"), action: self.onRestore)
+                    .help(L("Also restores the provider order in the menu bar. Can be undone."))
+            } label: {
+                Image(systemName: "chevron.down")
+                    .font(.caption2)
+                    .foregroundStyle(self.enabledOnly ? Color.accentColor : Color.secondary)
+                    .frame(width: 14, height: 24)
+            }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .help(L("Provider sorting"))
+            .accessibilityLabel(L("Provider sorting"))
         }
-        .buttonStyle(.plain)
-        .help(self.isOn
-            ? L("Sorted alphabetically (enabled first) — click to use your custom order")
-            : L("Sort providers alphabetically (enabled first)"))
-        .accessibilityLabel(L("Sort providers alphabetically"))
-        .accessibilityAddTraits(self.isOn ? .isSelected : [])
     }
 }

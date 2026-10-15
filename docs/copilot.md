@@ -45,6 +45,7 @@ Copilot uses GitHub OAuth device flow and the Copilot internal usage API for pri
    - Available only for the public GitHub host. Enterprise quota fetches skip public identity and browser-cookie budget enrichment.
    - Disabled by default. The Copilot provider's "Budget extras" setting must be enabled before CodexBar imports
      github.com cookies or renders budget bars.
+   - Automatic cookie imports follow the shared supported-browser order and access gate; background imports never request Keychain permission.
    - CodexBar asks the logged-in GitHub web endpoint for customer-scope budgets:
      - `GET https://github.com/settings/billing/budgets?page=<page>&page_size=10&scope=customer`
    - Headers:

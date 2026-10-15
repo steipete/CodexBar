@@ -19,7 +19,7 @@ struct ClaudeResetJSONParserTests {
         let futureReset = try Self.isoDate("2027-07-09T06:00:00Z")
         let recentReset = try Self.isoDate("2026-07-09T06:00:00Z")
 
-        #expect(snapshot.primary.resetsAt == futureReset)
+        #expect(snapshot.primary?.resetsAt == futureReset)
         #expect(snapshot.secondary?.resetsAt == recentReset)
         #expect(snapshot.opus?.resetsAt == recentReset)
         #expect(snapshot.updatedAt == now)
@@ -42,8 +42,8 @@ struct ClaudeResetJSONParserTests {
             now: now))
         let expectedReset = try Self.isoDate("2026-01-02T20:59:00Z")
 
-        #expect(snapshot.primary.resetsAt == expectedReset)
-        #expect(snapshot.primary.resetDescription == explicitReset)
+        #expect(snapshot.primary?.resetsAt == expectedReset)
+        #expect(snapshot.primary?.resetDescription == explicitReset)
         #expect(snapshot.secondary?.resetsAt == nil)
         #expect(snapshot.secondary?.resetDescription == malformedReset)
     }

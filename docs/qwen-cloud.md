@@ -19,7 +19,7 @@ Qwen Cloud console (`home.qwencloud.com`), including plans that grant hosted Cla
 - **Current quota windows**: Shows reported 5-hour, weekly, and monthly usage percentages, reset times, and plan-specific
   credit limits from the same APIs used by the Qwen Cloud dashboard.
 - Monthly-only responses use the primary **Monthly** bar. When rolling windows are also present, monthly usage appears as a separate **Monthly** row; absent quota totals remain unknown.
-- **Cookie-based auth**: Uses browser cookies or a pasted `Cookie:` header.
+- **Cookie-based auth**: Uses the shared supported-browser order and access gate, or a pasted `Cookie:` header.
 - **Adjustable menu-bar display**: In **Settings → Menu Bar**, add the session/weekly percentage or usage-bar
   items and arrange them like any other provider.
 
@@ -78,7 +78,7 @@ For Team accounts, use the same procedure from `https://home.qwencloud.com/analy
 
 ### "No Qwen Cloud session cookies found in browsers"
 
-Log in at `https://home.qwencloud.com/billing/subscription/token-plan-individual` in Chrome, then refresh CodexBar.
+Log in at `https://home.qwencloud.com/billing/subscription/token-plan-individual` in a supported browser, then refresh CodexBar.
 
 ### "Qwen Cloud cookie header is invalid"
 

@@ -56,7 +56,8 @@ struct CursorAccountSwitchBrowserScanTests {
     func `interactive browser mapping covers every unambiguous SweetCookieKit browser`() {
         let mapping = CursorStatusProbe.interactiveBrowserByBundleIdentifier
         let mappedBrowsers = Set(mapping.values)
-        let deliberatelyUnsupported: Set<Browser> = [.arcBeta, .arcCanary, .yandex]
+        // Ego Lite (SweetCookieKit 0.5.6) has no verified application bundle identifier yet.
+        let deliberatelyUnsupported: Set<Browser> = [.arcBeta, .arcCanary, .yandex, .egoLite]
 
         #expect(mapping.count == mappedBrowsers.count)
         #expect(mappedBrowsers.isDisjoint(with: deliberatelyUnsupported))

@@ -184,18 +184,19 @@ struct OpenAIDashboardBrowserCookieImporterTests {
     func `bounded cookie loads preserve explicit retry context`() async throws {
         BrowserCookieAccessGate.resetForTesting()
         defer { BrowserCookieAccessGate.resetForTesting() }
-        let start = Date()
-
         for deadline in [nil, Date().addingTimeInterval(1)] {
             BrowserCookieAccessGate.resetForTesting()
-            BrowserCookieAccessGate.recordDenied(for: .arc, now: start)
 
             let allowed = try await BrowserCookieAccessGate.withExplicitRetry {
                 try await ProviderInteractionContext.$current.withValue(.userInitiated) {
                     try await OpenAIDashboardBrowserCookieImporter.runBoundedCookieLoad(deadline: deadline) {
                         KeychainAccessGate.withTaskOverrideForTesting(false) {
-                            ProviderInteractionContext.current == .userInitiated &&
-                                BrowserCookieAccessGate.shouldAttempt(.arc, now: start.addingTimeInterval(1))
+                            KeychainAccessPreflight.withCheckGenericPasswordOverrideForTesting { _, _ in
+                                .interactionRequired
+                            } operation: {
+                                ProviderInteractionContext.current == .userInitiated &&
+                                    BrowserCookieAccessGate.shouldAttempt(.arc)
+                            }
                         }
                     }
                 }

@@ -763,7 +763,7 @@ struct AntigravityCLISessionTests {
         let third = await fixture.session.drainOutput()
 
         #expect(first == Data([0xE2, 0x96]))
-        #expect(AntigravityCLIHTTPSFetchStrategy.containsAuthenticationPrompt(second))
+        #expect(AntigravityCLIAuthenticationPrompt.contains(second))
         #expect(third == second)
 
         await fixture.session.finishProbe(success: false, resetAfterFetch: true, forceTerminate: true)
@@ -772,23 +772,23 @@ struct AntigravityCLISessionTests {
 
     @Test
     func `authentication prompt matcher tolerates prompt casing and spacing`() {
-        #expect(AntigravityCLIHTTPSFetchStrategy.containsAuthenticationPrompt(
+        #expect(AntigravityCLIAuthenticationPrompt.contains(
             Data("select  LOGIN\nmethod :".utf8)))
-        #expect(AntigravityCLIHTTPSFetchStrategy.containsAuthenticationPrompt(
+        #expect(AntigravityCLIAuthenticationPrompt.contains(
             Data("Select login method:".utf8)))
-        #expect(!AntigravityCLIHTTPSFetchStrategy.containsAuthenticationPrompt(
+        #expect(!AntigravityCLIAuthenticationPrompt.contains(
             Data("You are currently not signed in".utf8)))
     }
 
     @Test
     func `authentication prompt matcher recognizes logged out and exhausted keyring states`() {
-        #expect(AntigravityCLIHTTPSFetchStrategy.containsAuthenticationPrompt(
+        #expect(AntigravityCLIAuthenticationPrompt.contains(
             Data("You are not logged into Antigravity.".utf8)))
-        #expect(AntigravityCLIHTTPSFetchStrategy.containsAuthenticationPrompt(
+        #expect(AntigravityCLIAuthenticationPrompt.contains(
             Data("keyringAuth: timed out after 10s, skipping keyring auth".utf8)))
-        #expect(AntigravityCLIHTTPSFetchStrategy.containsAuthenticationPrompt(
+        #expect(AntigravityCLIAuthenticationPrompt.contains(
             Data("KEYRING auth : timed out after 10s".utf8)))
-        #expect(!AntigravityCLIHTTPSFetchStrategy.containsAuthenticationPrompt(
+        #expect(!AntigravityCLIAuthenticationPrompt.contains(
             Data("Welcome. You are currently not signed in.\nSigning in...".utf8)))
     }
 
@@ -807,8 +807,8 @@ struct AntigravityCLISessionTests {
         let retainedTail = await fixture.session.drainOutput()
 
         #expect(searchableOutput == oversizedRedraw)
-        #expect(AntigravityCLIHTTPSFetchStrategy.containsAuthenticationPrompt(searchableOutput))
-        #expect(AntigravityCLIHTTPSFetchStrategy.containsAuthenticationPrompt(retainedTail))
+        #expect(AntigravityCLIAuthenticationPrompt.contains(searchableOutput))
+        #expect(AntigravityCLIAuthenticationPrompt.contains(retainedTail))
 
         await fixture.session.finishProbe(success: false, resetAfterFetch: true, forceTerminate: true)
     }

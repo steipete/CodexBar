@@ -5,27 +5,27 @@ enum ProviderCandidateRetryRunnerError: Error {
 }
 
 enum ProviderCandidateRetryRunner {
-    static func run<Candidate, Output>(
-        _ candidates: [Candidate],
+    static func run<Candidates: Sequence, Output>(
+        _ candidates: Candidates,
         shouldRetry: (Error) -> Bool,
-        onRetry: (Candidate, Error) -> Void = { _, _ in },
-        attempt: (Candidate) async throws -> Output) async throws -> Output
+        onRetry: (Candidates.Element, Error) -> Void = { _, _ in },
+        attempt: (Candidates.Element) async throws -> Output) async throws -> Output
     {
-        guard !candidates.isEmpty else {
+        var iterator = candidates.makeIterator()
+        guard var candidate = iterator.next() else {
             throw ProviderCandidateRetryRunnerError.noCandidates
         }
 
-        for (index, candidate) in candidates.enumerated() {
+        while true {
             do {
                 return try await attempt(candidate)
             } catch {
-                let hasMoreCandidates = index + 1 < candidates.count
-                guard hasMoreCandidates, shouldRetry(error) else {
+                guard shouldRetry(error), let next = iterator.next() else {
                     throw error
                 }
                 onRetry(candidate, error)
+                candidate = next
             }
         }
-        throw ProviderCandidateRetryRunnerError.noCandidates
     }
 }

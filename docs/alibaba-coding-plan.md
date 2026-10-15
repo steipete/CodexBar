@@ -11,7 +11,7 @@ read_when:
 Alibaba Coding Plan supports both browser-session and API-key paths, but the supported baseline is browser-session fetching from the Model Studio/Bailian console. API mode remains secondary and may still be limited by account/region behavior.
 
 ## Cookie sources (web mode)
-1) Automatic browser import (Model Studio/Bailian cookies).
+1) Automatic browser import in the shared supported-browser order (Model Studio/Bailian cookies), subject to the shared access gate.
 2) Manual cookie header from Settings.
 3) Environment variable `ALIBABA_CODING_PLAN_COOKIE`.
 

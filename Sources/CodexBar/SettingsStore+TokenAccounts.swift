@@ -34,6 +34,13 @@ extension SettingsStore {
         return self.selectedTokenAccount(for: provider)
     }
 
+    func modelRateLimitScope(for provider: UsageProvider) -> ProviderModelRateLimitScope {
+        if let account = self.effectiveSelectedTokenAccount(for: provider) {
+            return .tokenAccount(account.id)
+        }
+        return .provider
+    }
+
     func setActiveTokenAccountIndex(_ index: Int, for provider: UsageProvider) {
         guard let data = self.tokenAccountsData(for: provider), !data.accounts.isEmpty else { return }
         let clamped = min(max(index, 0), data.accounts.count - 1)
@@ -130,7 +137,8 @@ extension SettingsStore {
             organizationID: organizationID.map(Self.normalizedConfigField) ?? existing.organizationID,
             workspaceID: workspaceID.map(Self.normalizedConfigField) ?? existing.workspaceID,
             seatCreditEntitlement: seatCreditEntitlement.map(Self.normalizedConfigField)
-                ?? existing.seatCreditEntitlement)
+                ?? existing.seatCreditEntitlement,
+            modelRateLimits: existing.modelRateLimits)
 
         var accounts = data.accounts
         accounts[index] = updatedAccount

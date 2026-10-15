@@ -4,6 +4,16 @@ import Observation
 struct MenuCardLiveSubtitle {
     let text: String
     let style: UsageMenuCardView.Model.SubtitleStyle
+    var lastKnownUsageText: String?
+
+    /// Fits live values into the hosted card's measured rows: the stale-usage row updates only when the
+    /// card reserved it; otherwise a live stale notice joins the error text, as before the separate row.
+    func displayed(reservesStaleRow: Bool) -> (subtitle: String, staleRow: String?) {
+        guard !reservesStaleRow, self.style == .error, let stale = self.lastKnownUsageText else {
+            return (self.text, self.lastKnownUsageText)
+        }
+        return ("\(self.text) \(stale)", nil)
+    }
 }
 
 /// Updates values in an already-hosted card without rebuilding its tracked NSMenu.
@@ -134,9 +144,15 @@ final class MenuCardRefreshMonitor {
         fallback: MenuCardLiveSubtitle) -> MenuCardLiveSubtitle
     {
         if self.isManualRefreshInFlight(for: provider) {
-            return MenuCardLiveSubtitle(text: "\(L("Refreshing"))…", style: .loading)
+            return MenuCardLiveSubtitle(
+                text: "\(L("Refreshing"))…",
+                style: .loading,
+                lastKnownUsageText: fallback.lastKnownUsageText)
         }
         guard let model = self.resolveModel(provider) else { return fallback }
-        return MenuCardLiveSubtitle(text: model.subtitleText, style: model.subtitleStyle)
+        return MenuCardLiveSubtitle(
+            text: model.subtitleText,
+            style: model.subtitleStyle,
+            lastKnownUsageText: model.lastKnownUsageText)
     }
 }

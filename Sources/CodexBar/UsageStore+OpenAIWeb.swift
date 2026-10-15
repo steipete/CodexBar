@@ -31,16 +31,11 @@ extension UsageStore {
     }
 
     private static let openAIWebRefreshMultiplier: TimeInterval = 5
-    private static let openAIWebPrimaryFetchTimeout: TimeInterval = 25
+    static let openAIWebDashboardFetchTimeout: TimeInterval = 25
     private static let openAIWebRetryFetchTimeout: TimeInterval = 8
-    private static let openAIWebPostImportFetchTimeout: TimeInterval = 25
-
-    static func openAIWebDashboardFetchTimeout(didImportCookies: Bool) -> TimeInterval {
-        didImportCookies ? self.openAIWebPostImportFetchTimeout : self.openAIWebPrimaryFetchTimeout
-    }
 
     static func openAIWebRetryDashboardFetchTimeout(afterCookieImport: Bool) -> TimeInterval {
-        afterCookieImport ? self.openAIWebPostImportFetchTimeout : self.openAIWebRetryFetchTimeout
+        afterCookieImport ? self.openAIWebDashboardFetchTimeout : self.openAIWebRetryFetchTimeout
     }
 
     nonisolated static func refreshPhase(
@@ -566,7 +561,6 @@ extension UsageStore {
             // Strategy:
             // - Try the existing per-email WebKit cookie store first (fast; avoids Keychain prompts).
             // - On login-required or account mismatch, import cookies from the configured browser order and retry once.
-            var didImportCookiesForRefresh = false
             if self.openAIWebAccountDidChange, let targetEmail = context.targetEmail, !targetEmail.isEmpty {
                 // On account switches, proactively re-import cookies so we don't show stale data from the previous
                 // user.
@@ -574,8 +568,7 @@ extension UsageStore {
                     targetEmail: targetEmail,
                     force: true)
                 guard self.shouldContinueOpenAIDashboardRefresh(token: context.refreshTaskToken) else { return }
-                didImportCookiesForRefresh = true
-                latestCookieImportStatus = self.currentOpenAIDashboardCookieImportStatus()
+                latestCookieImportStatus = self.openAIDashboardCookieImportStatus
                 if await self.abortOpenAIDashboardRetryAfterImportFailure(
                     importedEmail: imported,
                     targetEmail: targetEmail,
@@ -596,7 +589,7 @@ extension UsageStore {
                 accountEmail: effectiveEmail,
                 logger: log,
                 allowNavigationTimeoutRetry: context.force,
-                timeout: Self.openAIWebDashboardFetchTimeout(didImportCookies: didImportCookiesForRefresh),
+                timeout: Self.openAIWebDashboardFetchTimeout,
                 force: context.force)
             guard self.shouldContinueOpenAIDashboardRefresh(token: context.refreshTaskToken) else { return }
 
@@ -608,7 +601,7 @@ extension UsageStore {
                     guard self.shouldContinueOpenAIDashboardRefresh(token: context.refreshTaskToken) else { return }
                     effectiveEmail = imported
                 }
-                latestCookieImportStatus = self.currentOpenAIDashboardCookieImportStatus()
+                latestCookieImportStatus = self.openAIDashboardCookieImportStatus
                 dash = try await self.loadLatestOpenAIDashboard(
                     accountEmail: effectiveEmail,
                     logger: log,
@@ -684,7 +677,7 @@ extension UsageStore {
             force: true,
             preferCachedCookieHeader: true)
         guard self.shouldContinueOpenAIDashboardRefresh(token: context.refreshTaskToken) else { return }
-        latestCookieImportStatus = self.currentOpenAIDashboardCookieImportStatus()
+        latestCookieImportStatus = self.openAIDashboardCookieImportStatus
         if await self.abortOpenAIDashboardRetryAfterImportFailure(
             importedEmail: imported,
             targetEmail: targetEmail,
@@ -735,7 +728,7 @@ extension UsageStore {
         var effectiveEmail = targetEmail
         let imported = await self.importOpenAIDashboardCookiesIfNeeded(targetEmail: targetEmail, force: true)
         guard self.shouldContinueOpenAIDashboardRefresh(token: context.refreshTaskToken) else { return }
-        latestCookieImportStatus = self.currentOpenAIDashboardCookieImportStatus()
+        latestCookieImportStatus = self.openAIDashboardCookieImportStatus
         if await self.abortOpenAIDashboardRetryAfterImportFailure(
             importedEmail: imported,
             targetEmail: targetEmail,
@@ -798,7 +791,7 @@ extension UsageStore {
         var effectiveEmail = targetEmail
         let imported = await self.importOpenAIDashboardCookiesIfNeeded(targetEmail: targetEmail, force: true)
         guard self.shouldContinueOpenAIDashboardRefresh(token: context.refreshTaskToken) else { return }
-        latestCookieImportStatus = self.currentOpenAIDashboardCookieImportStatus()
+        latestCookieImportStatus = self.openAIDashboardCookieImportStatus
         if await self.abortOpenAIDashboardRetryAfterImportFailure(
             importedEmail: imported,
             targetEmail: targetEmail,
@@ -951,12 +944,6 @@ extension UsageStore {
         return "\(source)|\(identityKey)|\(accountKey)|auth:\(authFingerprint)"
     }
 
-    private func actionableOpenAIDashboardImportFailure(targetEmail: String?) -> String? {
-        self.actionableOpenAIDashboardImportFailure(
-            targetEmail: targetEmail,
-            cookieImportStatus: self.openAIDashboardCookieImportStatus)
-    }
-
     private func actionableOpenAIDashboardImportFailure(
         targetEmail: String?,
         cookieImportStatus: String?) -> String?
@@ -1045,10 +1032,6 @@ extension UsageStore {
         self.openAISubscriptionMetadataEnrichmentToken = nil
     }
 
-    private func currentOpenAIDashboardCookieImportStatus() -> String? {
-        self.openAIDashboardCookieImportStatus
-    }
-
     private func loadLatestOpenAIDashboard(
         accountEmail: String?,
         logger: @escaping (String) -> Void,
@@ -1073,7 +1056,7 @@ extension UsageStore {
             accountEmail: accountEmail,
             cacheScope: self.codexCookieCacheScopeForOpenAIWeb(),
             logger: logger,
-            debugDumpHTML: timeout != Self.openAIWebPrimaryFetchTimeout,
+            debugDumpHTML: timeout != Self.openAIWebDashboardFetchTimeout,
             allowNavigationTimeoutRetry: allowNavigationTimeoutRetry,
             timeout: timeout,
             previousSnapshot: previousSnapshot,
@@ -1085,8 +1068,7 @@ extension UsageStore {
     }
 
     private func failClosedForUnreadableManagedCodexStore() async -> String? {
-        self.applyOpenAIDashboardCleanup(Set(CodexDashboardCleanup.allCases), preserveVisibleDashboard: false)
-        self.openAIDashboardRequiresLogin = true
+        self.failClosedOpenAIDashboardSnapshot()
         self.openAIDashboardCookieImportStatus = [
             L("Managed Codex account data is unavailable."),
             L("Fix the managed account store before importing OpenAI cookies."),
@@ -1095,8 +1077,7 @@ extension UsageStore {
     }
 
     private func failClosedRefreshForUnreadableManagedCodexStore() async {
-        self.applyOpenAIDashboardCleanup(Set(CodexDashboardCleanup.allCases), preserveVisibleDashboard: false)
-        self.openAIDashboardRequiresLogin = true
+        self.failClosedOpenAIDashboardSnapshot()
         self.lastOpenAIDashboardError = [
             L("Managed Codex account data is unavailable."),
             L("Fix the managed account store before refreshing OpenAI web data."),
@@ -1104,8 +1085,7 @@ extension UsageStore {
     }
 
     private func failClosedForMissingManagedCodexTarget() async -> String? {
-        self.applyOpenAIDashboardCleanup(Set(CodexDashboardCleanup.allCases), preserveVisibleDashboard: false)
-        self.openAIDashboardRequiresLogin = true
+        self.failClosedOpenAIDashboardSnapshot()
         self.openAIDashboardCookieImportStatus = [
             L("The selected managed Codex account is unavailable."),
             L("Pick another Codex account before importing OpenAI cookies."),
@@ -1114,8 +1094,7 @@ extension UsageStore {
     }
 
     private func failClosedRefreshForMissingManagedCodexTarget() async {
-        self.applyOpenAIDashboardCleanup(Set(CodexDashboardCleanup.allCases), preserveVisibleDashboard: false)
-        self.openAIDashboardRequiresLogin = true
+        self.failClosedOpenAIDashboardSnapshot()
         self.lastOpenAIDashboardError = [
             L("The selected managed Codex account is unavailable."),
             L("Pick another Codex account before refreshing OpenAI web data."),
@@ -1123,8 +1102,7 @@ extension UsageStore {
     }
 
     private func failClosedForMissingProfileCodexTarget() async -> String? {
-        self.applyOpenAIDashboardCleanup(Set(CodexDashboardCleanup.allCases), preserveVisibleDashboard: false)
-        self.openAIDashboardRequiresLogin = true
+        self.failClosedOpenAIDashboardSnapshot()
         self.openAIDashboardCookieImportStatus = [
             L("The selected Codex profile has no verified account email."),
             L("Refresh the profile before importing OpenAI cookies."),
@@ -1133,8 +1111,7 @@ extension UsageStore {
     }
 
     private func failClosedRefreshForMissingProfileCodexTarget() async {
-        self.applyOpenAIDashboardCleanup(Set(CodexDashboardCleanup.allCases), preserveVisibleDashboard: false)
-        self.openAIDashboardRequiresLogin = true
+        self.failClosedOpenAIDashboardSnapshot()
         self.lastOpenAIDashboardError = [
             L("The selected Codex profile has no verified account email."),
             L("Refresh the profile before refreshing OpenAI web data."),

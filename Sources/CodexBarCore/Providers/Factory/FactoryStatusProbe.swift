@@ -8,21 +8,11 @@ import SweetCookieKit
 private let factoryCookieImportOrder: BrowserCookieImportOrder =
     ProviderDefaults.metadata[.factory]?.browserCookieOrder ?? Browser.defaultImportOrder
 
-/// Deep-fallback cookie/token attempts only probe installed browsers; Gecko variants share the
-/// same profile root and add no Keychain cost.
-let factoryFallbackCookieBrowsers: [Browser] = [
-    .chrome,
-    .firefox,
-    .firefoxBeta,
-    .firefoxDeveloperEdition,
-    .firefoxNightly,
-]
-
 // MARK: - Factory Cookie Importer
 
 /// Imports Factory session cookies from browser cookies.
 public enum FactoryCookieImporter {
-    nonisolated(unsafe) static var cookieClient = BrowserCookieClient()
+    private static let cookieClient = BrowserCookieClient()
     private static let sessionCookieNames: Set<String> = [
         "wos-session",
         "__Secure-next-auth.session-token",
@@ -704,8 +694,7 @@ public struct FactoryStatusProbe: Sendable {
         }
 
         // Filter to only installed browsers to avoid unnecessary keychain prompts
-        let installedChromiumAndFirefox = factoryFallbackCookieBrowsers
-            .cookieImportCandidates(using: self.browserDetection)
+        let installedChromiumAndFirefox = [.chrome, .firefox].cookieImportCandidates(using: self.browserDetection)
 
         let attempts: [() async -> FetchAttemptResult] = [
             { await self.attemptStoredCookies(logger: log) },
@@ -749,9 +738,9 @@ public struct FactoryStatusProbe: Sendable {
         logger: @escaping (String) -> Void,
         sources: [Browser]) async -> FetchAttemptResult
     {
-        var lastError: Error?
-        for browserSource in sources {
-            do {
+        do {
+            var lastError: Error?
+            for browserSource in sources {
                 let sessions = try FactoryCookieImporter.importSessions(from: browserSource, logger: logger)
                 for session in sessions {
                     logger("Using cookies from \(session.sourceLabel)")
@@ -768,14 +757,14 @@ public struct FactoryStatusProbe: Sendable {
                         logger("Browser session fetch failed for \(session.sourceLabel): \(error.localizedDescription)")
                     }
                 }
-            } catch {
-                BrowserCookieAccessGate.recordIfNeeded(error)
-                logger("\(browserSource.displayName) cookie import failed: \(error.localizedDescription)")
-                lastError = error
             }
+            if let lastError { return .failure(lastError) }
+            return .skipped
+        } catch {
+            BrowserCookieAccessGate.recordIfNeeded(error)
+            logger("Browser cookie import failed: \(error.localizedDescription)")
+            return .failure(error)
         }
-        if let lastError { return .failure(lastError) }
-        return .skipped
     }
 
     private func attemptStoredCookies(logger: (String) -> Void) async -> FetchAttemptResult {
@@ -872,7 +861,7 @@ public struct FactoryStatusProbe: Sendable {
         for browserSource in sources {
             do {
                 let query = BrowserCookieQuery(domains: ["workos.com"])
-                let sources = try FactoryCookieImporter.cookieClient.codexBarRecords(
+                let sources = try BrowserCookieClient().codexBarRecords(
                     matching: query,
                     in: browserSource,
                     logger: log)

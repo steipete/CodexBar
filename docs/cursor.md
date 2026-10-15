@@ -47,7 +47,7 @@ Linux. Explicit `web` mode never reads local Cursor credentials; macOS uses its 
    - Keychain cache: `com.steipete.codexbar.cache` (account `cookie.cursor`).
 
 3) **Browser cookie import** (macOS only)
-   - Cookie order from provider metadata, falling back to SweetCookieKit's default browser catalog, including Aside, Opera, and Opera Neon.
+   - Cookie order from provider metadata, falling back to SweetCookieKit's default browser catalog, including Aside, Opera, Opera Neon, and Ego Lite.
    - Domain filters: `cursor.com`, `cursor.sh`.
    - Cookie names required (any one counts):
      - `WorkosCursorSessionToken`
@@ -70,6 +70,7 @@ Manual option:
 ## Add and switch account
 - **Add Account** opens `https://authenticator.cursor.sh/` in a supported browser.
 - Aside, Opera, and Opera Neon are supported with SweetCookieKit 0.5.5. The selected application's bundle identifier pins login to that browser's cookie store.
+- SweetCookieKit 0.5.6 adds Ego Lite cookie imports. Add/Switch Account does not offer Ego Lite until its application has a verified, unambiguous bundle-identifier mapping; display names and storage paths are insufficient for interactive login.
 - **Switch Account** opens the same authenticator and waits for a different stable account ID when available, falling back to normalized email when IDs are unavailable.
 - When the system's HTTPS handler is a supported browser, CodexBar opens the route there automatically. When the handler is an intermediary app, CodexBar asks the user to choose a concrete supported browser before opening the route.
 - CodexBar pins the original HTTPS route to that concrete browser and polls cookies only from the same application. Interactive login never falls back to another browser, a stored session, or Cursor.app; cancelling browser selection or the absence of a supported browser stops before login opens.
@@ -172,10 +173,12 @@ If Auto fetches usage with a cookie that the app still cannot confirm for the cu
 In Icon and Percent mode, choose **Providers → Cursor → Menu bar metric → Grok Bot** to replace the
 ordinary percentage in Cursor's layout. This saves a Cursor-only override. The layout editor also offers
 **Grok Bot %** in the usage palette when an allowance is available, for layouts with multiple percentages.
-Both paths show the allowance's own label, for example `Grok Bot 42%`, and follow the used/remaining
-preference. A saved selection displays `Grok Bot –` when the reading is missing or unknown; a real zero
-displays `Grok Bot 0%` in used mode. Auto % continues to use Cursor's standard windows. Balance tokens
-remain independent, and the dropdown keeps its existing reset countdown and paid-weekly pace display.
+Both paths show the allowance's short tag, for example `GB 42%`, and follow the used/remaining
+preference. A saved selection displays `GB –` when the reading is missing or unknown; a real zero
+displays `GB 0%` in used mode. Lane percentages are tagged `T` (Total), `C` (Cursor), and `TP` (Third Party);
+menus and VoiceOver keep the full names. Auto % keeps its existing selection among Cursor's allowances,
+including Grok Bot. Balance tokens remain independent, and the dropdown keeps its existing reset countdown
+and paid-weekly pace display.
 
 Named-extra selections are stored in V4 layout keys. A V3 projection omits them while preserving explicit
 reset-window selections for 0.60.x; V2/V1 projections remain available for older releases. An unchanged

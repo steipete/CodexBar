@@ -1380,6 +1380,7 @@
 "menu_bar_layout_preset_icon_only" = "아이콘만";
 "menu_bar_layout_preset_percent_reset" = "백분율 + 재설정";
 "menu_bar_layout_preset_compact_stacked" = "압축 스택";
+"menu_bar_layout_preset_bars_stacked" = "진행률 막대 겹침";
 "menu_bar_layout_preset_custom" = "사용자 설정";
 "menu_bar_layout_live_preview" = "실시간 미리보기";
 "menu_bar_layout_default_preview" = "기본 레이아웃 미리보기";
@@ -1417,7 +1418,7 @@
 "menu_bar_layout_token_reset_at" = "재설정 시각";
 "menu_bar_layout_token_runs_out" = "소진";
 "menu_bar_layout_token_cost_today" = "오늘 비용";
-"menu_bar_layout_token_cost_30d" = "30일 비용";
+"menu_bar_layout_token_cost_window" = "비용 (기록 범위)";
 "menu_bar_layout_token_space" = "공백";
 "menu_bar_layout_token_line_break" = "줄 바꿈";
 "menu_bar_layout_token_separator_accessibility" = "구분점";
@@ -1435,7 +1436,6 @@
 "Reset time unavailable" = "재설정 시각: 사용할 수 없음";
 "Run-out estimate unavailable" = "소진: 사용할 수 없음";
 "Cost today unavailable" = "오늘 비용: 사용할 수 없음";
-"30-day cost unavailable" = "30일 비용: 사용할 수 없음";
 "Resets" = "재설정";
 "codex_workspaces_cost_unavailable" = "비용을 사용할 수 없음";
 "codex_workspaces_elevated_usage" = "증가한 사용량";
@@ -1520,6 +1520,7 @@
 "5-hour usage" = "5시간 사용량";
 "7-day usage" = "7일 사용량";
 "Total usage" = "총 사용량";
+"claude_oauth_keychain_access_disabled" = "Keychain 접근이 비활성화되어 CodexBar가 Claude 로그인 정보를 읽을 수 없습니다.";
 "claude_oauth_keychain_access_revoked" = "Claude Code의 토큰 교체로 Claude 키체인 접근 권한이 취소되었습니다. 새로 고침을 클릭해 접근 권한을 다시 부여하거나 Claude 사용량 소스를 CLI/Web으로 전환하세요.";
 "claude_showing_last_known_usage" = "마지막으로 확인된 사용량을 표시 중입니다(캡처: %@).";
 "claude_limited_usage_detail" = "사용량 세부 정보가 제한적입니다";
@@ -2475,3 +2476,115 @@
 "Pace sign" = "사용 속도 부호";
 "Ahead of pace is +" = "기준 속도 초과는 +";
 "Reserve is +" = "여유분은 +";
+
+"cost_reset_inferred_tooltip" = "추정: %@에서 이 날짜를 제공하지 않습니다. 월간 지출 한도는 매월 1일 00:00 UTC에 재설정됩니다.";
+/* fal provider credentials */
+"Key with billing read access (BILLING or READONLY preset). Or set FAL_KEY." = "결제 읽기 권한이 있는 키(BILLING 또는 READONLY 프리셋). 또는 FAL_KEY를 설정하세요.";
+
+/* FLORA provider credentials */
+"Needs billing permission on the workspace. Or set FLORA_API_KEY." = "워크스페이스의 결제 권한이 필요합니다. 또는 FLORA_API_KEY를 설정하세요.";
+"Required. The ws_… ID of the workspace the key can bill. Or set FLORA_WORKSPACE_ID." = "필수. 키가 결제할 수 있는 워크스페이스의 ws_… ID. 또는 FLORA_WORKSPACE_ID를 설정하세요.";
+"ak_…" = "ak_…";
+"ws_…" = "ws_…";
+
+"Plan renewal / expiry" = "요금제 갱신 / 만료";
+
+"Hidden by the global optional credits, spending & billing setting." = "선택적 크레딧, 지출 및 결제 정보의 전체 설정에 따라 숨겨져 있습니다.";
+
+"Provider order updated" = "공급자 순서가 변경되었습니다";
+"Undo" = "실행 취소";
+"Clear filters" = "필터 지우기";
+"Change provider order" = "공급자 순서 변경";
+"Provider sorting" = "공급자 정렬";
+"Only enabled providers" = "활성 공급자만 표시";
+"Restore default order" = "기본 순서 복원";
+"Also restores the provider order in the menu bar. Can be undone." = "메뉴 막대의 공급자 순서도 복원합니다. 실행 취소할 수 있습니다.";
+"Local Codex details; excluded from combined totals." = "로컬 Codex 세부 정보, 합산 총계에서 제외됩니다.";
+
+"Auto uses an API key when configured, otherwise browser cookies." = "Auto uses an API key when configured, otherwise browser cookies.";
+"Stored in the CodexBar config file. You can also set COMMAND_CODE_API_KEY." = "Stored in the CodexBar config file. You can also set COMMAND_CODE_API_KEY.";
+/* OpenAI organization rate limits and live usage */
+"%@ tokens · %@ requests" = "토큰 %@ · 요청 %@";
+"15m" = "15분";
+"1h" = "1시간";
+"5-min avg" = "5분 평균";
+"6h" = "6시간";
+"All models" = "모든 모델";
+"Input %@ · cached %@ · output %@" = "입력 %@ · 캐시 %@ · 출력 %@";
+"Live Usage" = "실시간 사용량";
+"Loading live usage…" = "실시간 사용량 로딩 중…";
+"Minute" = "분";
+"Model" = "모델";
+"No API traffic in this window" = "이 기간에 API 트래픽이 없습니다";
+"Open OpenAI Settings" = "OpenAI 설정 열기";
+"OpenAI Admin Usage API · 1-minute buckets · the newest minute can arrive late" = "OpenAI Admin Usage API · 1분 단위 · 최신 분의 반영이 지연될 수 있습니다";
+"OpenAI Live Usage" = "OpenAI 실시간 사용량";
+"Other" = "기타";
+"Peak" = "최고";
+"Peak TPM" = "최고 TPM";
+"Project: %@" = "프로젝트: %@";
+"Range" = "기간";
+"Rate limited; retrying in %ds" = "속도 제한됨; %ds 후 재시도";
+"Requests in window" = "기간 내 요청";
+"Tokens in window" = "기간 내 토큰";
+"Tokens per minute" = "분당 토큰";
+"Uncached input" = "캐시되지 않은 입력";
+"Uncached input %@ · cached input %@ · output %@" = "캐시되지 않은 입력 %@ · 캐시된 입력 %@ · 출력 %@";
+"Organization rate limits" = "조직 속도 제한";
+"Open organization Limits" = "조직 제한 열기";
+"RPM (optional)" = "RPM (선택 사항)";
+"Enter a model and positive limits, such as 40M TPM and 15k RPM." = "모델과 양수 제한을 입력하세요. 예: 40M TPM 및 15k RPM.";
+"Add model" = "모델 추가";
+"Org TPM limit" = "조직 TPM 제한";
+"Org limit %@ TPM" = "조직 제한 %@ TPM";
+"Org limit %@ TPM (off scale)" = "조직 제한 %@ TPM (범위 밖)";
+"Limits…" = "제한…";
+"Highest utilization" = "최고 사용률";
+"%@ of limit" = "제한의 %@";
+"Limit" = "제한";
+"Peak RPM: %@ of limit" = "최고 RPM: 제한의 %@";
+"Peak % of limit" = "최고 사용률(제한 대비 %)";
+
+/* OpenAI live usage errors */
+"Configure an OpenAI organization Admin API key in Settings → Providers → OpenAI." = "설정 → 제공업체 → OpenAI에서 조직 OpenAI Admin API 키를 설정하세요.";
+"An OpenAI organization Admin API key with usage and project read permissions is required." = "사용량 및 프로젝트 읽기 권한이 있는 조직 OpenAI Admin API 키가 필요합니다.";
+"OpenAI API is rate limited." = "OpenAI API의 속도 제한에 도달했습니다.";
+"OpenAI API failed (HTTP %d)." = "OpenAI API 오류(HTTP %d).";
+"Could not parse the OpenAI API response." = "OpenAI API 응답을 파싱할 수 없습니다.";
+"Live usage supports 15-minute, 1-hour, and 6-hour windows." = "실시간 사용량은 15분, 1시간 및 6시간 기간을 지원합니다.";
+
+/* Live usage reporting and project caps */
+
+/* Live usage reporting and project caps */
+"Latest · %@" = "최신 · %@";
+"Latest TPM" = "최신 TPM";
+"reporting…" = "보고 대기 중…";
+"Org limit not set" = "조직 한도 미설정";
+"project cap %@" = "프로젝트 한도 %@";
+"Set org limit…" = "조직 한도 설정…";
+"Org limits come from Settings — OpenAI's API doesn't expose them." = "조직 한도는 설정에서 가져옵니다. OpenAI API는 이 정보를 제공하지 않습니다.";
+"Project caps are the highest per-project limit across %d active projects; org-wide traffic can exceed them." = "프로젝트 한도는 활성 프로젝트 %d개에서 확인한 가장 높은 프로젝트별 한도이며, 조직 전체 트래픽은 이를 초과할 수 있습니다.";
+"Project sample capped at 25; higher project caps may exist." = "표본은 프로젝트 25개로 제한됩니다. 더 높은 프로젝트 한도가 있을 수 있습니다.";
+"Project caps unavailable" = "프로젝트 한도를 사용할 수 없음";
+"OpenAI's API doesn't expose organization rate limits. Copy them from your organization's Limits page. Model IDs match dated snapshots (gpt-5 covers gpt-5-2025-…)." = "OpenAI API는 조직의 요청 속도 한도를 제공하지 않습니다. 조직의 Limits 페이지에서 복사하세요. 모델 ID는 날짜가 포함된 버전에도 적용됩니다(gpt-5는 gpt-5-2025-… 포함).";
+"Tokens / min · last hour" = "토큰 / 분 · 지난 1시간";
+"Latest %@ · Peak %@ at %@" = "최근 %@ · 최대 %@ (%@)";
+"%@ · peak %@ · %@ of org limit" = "%@ · 최대 %@ · 조직 한도의 %@";
+"Tokens / min" = "토큰 / 분";
+"Latest tokens per minute (OpenAI Admin API)" = "최근 분당 토큰 수 (OpenAI Admin API)";
+"Fetches 1-minute usage each refresh for the menu card chart and the menu bar Tokens/min token." = "새로 고칠 때마다 분 단위 사용량을 가져와 메뉴 카드 차트와 메뉴 막대의 토큰/분 요소에 표시합니다.";
+"Live Usage…" = "실시간 사용량…";
+"Batch API %@ · not counted in %% of limit" = "Batch API %@ · 한도 대비 %%에 포함되지 않음";
+"% of limit counts all input, including cached input, plus output, as OpenAI's rate limiter does, and excludes Batch API traffic, which has separate limits. The limiter also reserves max_tokens up front, so short bursts can still hit limits." = "한도 대비 %는 OpenAI의 속도 제한과 동일하게 캐시된 입력을 포함한 모든 입력과 출력을 계산하며, 별도의 한도가 있는 Batch API 트래픽은 제외합니다. 제한기는 max_tokens도 미리 예약하므로 짧은 급증으로도 한도에 도달할 수 있습니다.";
+
+"Tokens / min graph" = "토큰 / 분 그래프";
+"Last hour of tokens per minute (OpenAI Admin API)" = "지난 1시간의 분당 토큰 수 (OpenAI Admin API)";
+"Tokens per minute, latest %@" = "분당 토큰 수, 최신 %@";
+
+"Live" = "실시간";
+
+"Chart" = "차트";
+
+"Daily spend · %@" = "일일 지출 · %@";
+"Applies to the selected token account “%@”. Each account keeps its own limits." = "선택한 토큰 계정 “%@”에 적용됩니다. 각 계정은 자체 한도를 유지합니다.";
+"Applies to the OpenAI API key, not to token accounts." = "토큰 계정이 아닌 OpenAI API 키에 적용됩니다.";

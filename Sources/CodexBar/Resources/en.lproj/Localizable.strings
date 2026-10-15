@@ -6,6 +6,7 @@
 "ollama_safari_cookie_access_hint" = "Safari cookies need Full Disk Access for CodexBar (System Settings > Privacy & Security).";
 "ollama_browser_cookie_decryption_denied" = "%@ cookie decryption was declined in Keychain. Open the provider card and click Refresh (⌘R) to request Keychain access again.";
 "ollama_browser_cookie_decryption_disabled" = "%@ cookie decryption is disabled in CodexBar; enable Keychain access and refresh.";
+"claude_oauth_keychain_access_disabled" = "Keychain access is disabled, so CodexBar can't read Claude's sign-in.";
 "claude_oauth_keychain_access_revoked" = "Claude Keychain access was revoked by Claude Code's token rotation. Click Refresh to re-grant access, or switch Claude Usage source to CLI/Web.";
 "claude_showing_last_known_usage" = "Showing last-known usage captured %@.";
 "claude_limited_usage_detail" = "Limited usage detail";
@@ -639,8 +640,8 @@
 "show_provider_changelog_links_title" = "Show provider changelog links";
 "highlight_menu_cards_on_hover_title" = "Highlight menu cards on hover";
 "show_provider_changelog_links_subtitle" = "Adds release-notes links for supported CLI-backed providers to the menu.";
-"show_credits_extra_usage_title" = "Show credits & extra usage";
-"show_credits_extra_usage_subtitle" = "Show credits and extra usage for supported providers.";
+"show_credits_extra_usage_title" = "Show optional credits, spending & billing details";
+"show_credits_extra_usage_subtitle" = "Applies across providers. Individual visibility settings still apply. Codex and Claude limit reset credits and plan dates are controlled separately.";
 "multi_account_layout_title" = "Multi-account layout";
 "multi_account_layout_subtitle" = "Choose segmented account switching or stacked account cards.";
 "multi_account_layout_segmented" = "Segmented";
@@ -1421,6 +1422,7 @@
 "menu_bar_layout_preset_icon_only" = "Icon only";
 "menu_bar_layout_preset_percent_reset" = "Percent + reset";
 "menu_bar_layout_preset_compact_stacked" = "Compact stacked";
+"menu_bar_layout_preset_bars_stacked" = "Progress bars stacked";
 "menu_bar_layout_preset_custom" = "Custom";
 "menu_bar_layout_live_preview" = "Live preview";
 "menu_bar_layout_default_preview" = "Default layout preview";
@@ -1458,7 +1460,7 @@
 "menu_bar_layout_token_reset_at" = "Reset at";
 "menu_bar_layout_token_runs_out" = "Runs out";
 "menu_bar_layout_token_cost_today" = "Cost today";
-"menu_bar_layout_token_cost_30d" = "Cost 30d";
+"menu_bar_layout_token_cost_window" = "Cost (History window)";
 "menu_bar_layout_token_space" = "Space";
 "menu_bar_layout_token_line_break" = "Line break";
 "menu_bar_layout_token_separator_accessibility" = "Separator dot";
@@ -1476,7 +1478,6 @@
 "Reset time unavailable" = "Reset time unavailable";
 "Run-out estimate unavailable" = "Run-out estimate unavailable";
 "Cost today unavailable" = "Cost today unavailable";
-"30-day cost unavailable" = "30-day cost unavailable";
 "Resets" = "Resets";
 "codex_workspaces_cost_unavailable" = "Cost unavailable";
 "codex_workspaces_elevated_usage" = "Elevated usage";
@@ -2511,3 +2512,116 @@
 "Pace sign" = "Pace sign";
 "Ahead of pace is +" = "Ahead of pace is +";
 "Reserve is +" = "Reserve is +";
+
+"cost_reset_inferred_tooltip" = "Inferred: %@ doesn't report this date. Monthly spend caps roll over at 00:00 UTC on the 1st.";
+/* fal provider credentials */
+"Key with billing read access (BILLING or READONLY preset). Or set FAL_KEY." = "Key with billing read access (BILLING or READONLY preset). Or set FAL_KEY.";
+
+/* FLORA provider credentials */
+"Needs billing permission on the workspace. Or set FLORA_API_KEY." = "Needs billing permission on the workspace. Or set FLORA_API_KEY.";
+"Required. The ws_… ID of the workspace the key can bill. Or set FLORA_WORKSPACE_ID." = "Required. The ws_… ID of the workspace the key can bill. Or set FLORA_WORKSPACE_ID.";
+"ak_…" = "ak_…";
+"ws_…" = "ws_…";
+
+"Plan renewal / expiry" = "Plan renewal / expiry";
+"Hidden by the global optional credits, spending & billing setting." = "Hidden by the global optional credits, spending & billing setting.";
+
+"Provider order updated" = "Provider order updated";
+"Undo" = "Undo";
+"Clear filters" = "Clear filters";
+"Change provider order" = "Change provider order";
+"Provider sorting" = "Provider sorting";
+"Only enabled providers" = "Only enabled providers";
+"Restore default order" = "Restore default order";
+"Also restores the provider order in the menu bar. Can be undone." = "Also restores the provider order in the menu bar. Can be undone.";
+"Local Codex details; excluded from combined totals." = "Local Codex details; excluded from combined totals.";
+
+"Auto uses an API key when configured, otherwise browser cookies." = "Auto uses an API key when configured, otherwise browser cookies.";
+"Stored in the CodexBar config file. You can also set COMMAND_CODE_API_KEY." = "Stored in the CodexBar config file. You can also set COMMAND_CODE_API_KEY.";
+/* OpenAI Live Usage */
+"%@ tokens · %@ requests" = "%@ tokens · %@ requests";
+"15m" = "15m";
+"1h" = "1h";
+"5-min avg" = "5-min avg";
+"6h" = "6h";
+"All models" = "All models";
+"Input %@ · cached %@ · output %@" = "Input %@ · cached %@ · output %@";
+"Live Usage" = "Live Usage";
+"Loading live usage…" = "Loading live usage…";
+"Minute" = "Minute";
+"Model" = "Model";
+"No API traffic in this window" = "No API traffic in this window";
+"Open OpenAI Settings" = "Open OpenAI Settings";
+"OpenAI Admin Usage API · 1-minute buckets · the newest minute can arrive late" = "OpenAI Admin Usage API · 1-minute buckets · the newest minute can arrive late";
+"OpenAI Live Usage" = "OpenAI Live Usage";
+"Other" = "Other";
+"Peak" = "Peak";
+"Peak TPM" = "Peak TPM";
+"Project: %@" = "Project: %@";
+"Range" = "Range";
+"Rate limited; retrying in %ds" = "Rate limited; retrying in %ds";
+"Requests in window" = "Requests in window";
+"Tokens in window" = "Tokens in window";
+"Tokens per minute" = "Tokens per minute";
+"Uncached input" = "Uncached input";
+"Uncached input %@ · cached input %@ · output %@" = "Uncached input %@ · cached input %@ · output %@";
+
+/* OpenAI organization rate limits and live usage */
+"Organization rate limits" = "Organization rate limits";
+"Open organization Limits" = "Open organization Limits";
+"RPM (optional)" = "RPM (optional)";
+"Enter a model and positive limits, such as 40M TPM and 15k RPM." = "Enter a model and positive limits, such as 40M TPM and 15k RPM.";
+"Add model" = "Add model";
+"Org TPM limit" = "Org TPM limit";
+"Org limit %@ TPM" = "Org limit %@ TPM";
+"Org limit %@ TPM (off scale)" = "Org limit %@ TPM (off scale)";
+"Limits…" = "Limits…";
+"Highest utilization" = "Highest utilization";
+"%@ of limit" = "%@ of limit";
+"Limit" = "Limit";
+"Peak RPM: %@ of limit" = "Peak RPM: %@ of limit";
+"Peak % of limit" = "Peak % of limit";
+
+/* OpenAI live usage errors */
+"Configure an OpenAI organization Admin API key in Settings → Providers → OpenAI." = "Configure an OpenAI organization Admin API key in Settings → Providers → OpenAI.";
+"An OpenAI organization Admin API key with usage and project read permissions is required." = "An OpenAI organization Admin API key with usage and project read permissions is required.";
+"OpenAI API is rate limited." = "OpenAI API is rate limited.";
+"OpenAI API failed (HTTP %d)." = "OpenAI API failed (HTTP %d).";
+"Could not parse the OpenAI API response." = "Could not parse the OpenAI API response.";
+"Live usage supports 15-minute, 1-hour, and 6-hour windows." = "Live usage supports 15-minute, 1-hour, and 6-hour windows.";
+
+/* Live usage reporting and project caps */
+
+/* Live usage reporting and project caps */
+"Latest · %@" = "Latest · %@";
+"Latest TPM" = "Latest TPM";
+"reporting…" = "reporting…";
+"Org limit not set" = "Org limit not set";
+"project cap %@" = "project cap %@";
+"Set org limit…" = "Set org limit…";
+"Org limits come from Settings — OpenAI's API doesn't expose them." = "Org limits come from Settings — OpenAI's API doesn't expose them.";
+"Project caps are the highest per-project limit across %d active projects; org-wide traffic can exceed them." = "Project caps are the highest per-project limit across %d active projects; org-wide traffic can exceed them.";
+"Project sample capped at 25; higher project caps may exist." = "Project sample capped at 25; higher project caps may exist.";
+"Project caps unavailable" = "Project caps unavailable";
+"OpenAI's API doesn't expose organization rate limits. Copy them from your organization's Limits page. Model IDs match dated snapshots (gpt-5 covers gpt-5-2025-…)." = "OpenAI's API doesn't expose organization rate limits. Copy them from your organization's Limits page. Model IDs match dated snapshots (gpt-5 covers gpt-5-2025-…).";
+"Tokens / min · last hour" = "Tokens / min · last hour";
+"Latest %@ · Peak %@ at %@" = "Latest %@ · Peak %@ at %@";
+"%@ · peak %@ · %@ of org limit" = "%@ · peak %@ · %@ of org limit";
+"Tokens / min" = "Tokens / min";
+"Latest tokens per minute (OpenAI Admin API)" = "Latest tokens per minute (OpenAI Admin API)";
+"Fetches 1-minute usage each refresh for the menu card chart and the menu bar Tokens/min token." = "Fetches 1-minute usage each refresh for the menu card chart and the menu bar Tokens/min token.";
+"Live Usage…" = "Live Usage…";
+"Batch API %@ · not counted in %% of limit" = "Batch API %@ · not counted in %% of limit";
+"% of limit counts all input, including cached input, plus output, as OpenAI's rate limiter does, and excludes Batch API traffic, which has separate limits. The limiter also reserves max_tokens up front, so short bursts can still hit limits." = "% of limit counts all input, including cached input, plus output, as OpenAI's rate limiter does, and excludes Batch API traffic, which has separate limits. The limiter also reserves max_tokens up front, so short bursts can still hit limits.";
+
+"Tokens / min graph" = "Tokens / min graph";
+"Last hour of tokens per minute (OpenAI Admin API)" = "Last hour of tokens per minute (OpenAI Admin API)";
+"Tokens per minute, latest %@" = "Tokens per minute, latest %@";
+
+"Live" = "Live";
+
+"Chart" = "Chart";
+
+"Daily spend · %@" = "Daily spend · %@";
+"Applies to the selected token account “%@”. Each account keeps its own limits." = "Applies to the selected token account “%@”. Each account keeps its own limits.";
+"Applies to the OpenAI API key, not to token accounts." = "Applies to the OpenAI API key, not to token accounts.";

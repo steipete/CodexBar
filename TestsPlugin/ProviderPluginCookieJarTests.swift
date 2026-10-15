@@ -19,13 +19,13 @@ struct ProviderPluginCookieJarTests {
                 domains: ["example.test"],
                 settings: .init(cookieSource: .auto, manualCookieHeader: nil),
                 batches: { _, _ in nil },
-                jarImporter: {
-                    [.init(
+                jarImporter: { batch in
+                    batch == 0 ? [.init(
                         header: "",
                         source: ProviderInteractionContext.current == .userInitiated
                             ? "interactive" : "background",
                         origin: "",
-                        records: [])]
+                        records: [])] : nil
                 })
         }
         let runtime = try Self.runtime(engine: engine, script: """

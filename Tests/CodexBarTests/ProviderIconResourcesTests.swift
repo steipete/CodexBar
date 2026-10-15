@@ -102,6 +102,30 @@ struct ProviderIconResourcesTests {
     }
 
     @Test
+    func `devin uses the official hexagonal mark across app website and serve`() throws {
+        let root = try Self.repoRoot()
+        let svg = try String(
+            contentsOf: root.appending(path: "Sources/CodexBar/Resources/ProviderIcon-devin.svg"),
+            encoding: .utf8)
+        #expect(svg.contains("fill=\"currentColor\""))
+        #expect(svg.contains("viewBox=\"0 0 128 128\""))
+        #expect(svg.contains("M23 48.6315V29.1756C23 28.3205"))
+        #expect(!svg.contains("<rect"))
+        #expect(!svg.contains("M12 2.25c1.18 0 2.18.76"))
+        let website = try String(contentsOf: root.appending(path: "docs/logos/devin.svg"), encoding: .utf8)
+        #expect(website == svg)
+        let cli = try String(
+            contentsOf: root.appending(path: "Sources/CodexBarCLI/CLIServeProviderIcons.swift"), encoding: .utf8)
+        #expect(cli.contains("\"ProviderIcon-devin\": \"\(Data(svg.utf8).base64EncodedString())\""))
+
+        ProviderBrandIcon.resetCacheForTesting()
+        defer { ProviderBrandIcon.resetCacheForTesting() }
+        let image = try #require(ProviderBrandIcon.image(for: .devin))
+        #expect(image.size == NSSize(width: 18, height: 18))
+        #expect(image.isTemplate)
+    }
+
+    @Test
     func `pi provider icon is a transparent vector template`() throws {
         let root = try Self.repoRoot()
         let resourceURL = root

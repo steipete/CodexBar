@@ -454,7 +454,7 @@ struct ProviderSettingsDescriptorTests {
     }
 
     @Test
-    func `open code cookie refresh permits explicit retry and preserves unvalidated cookie`() async throws {
+    func `open code cookie refresh respects denial cooldown and preserves unvalidated cookie`() async throws {
         let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-opencode-cooldown")
         let context = fixture.settingsContext(provider: .opencode)
         let picker = try #require(OpenCodeProviderImplementation().settingsPickers(context: context).first)
@@ -481,7 +481,7 @@ struct ProviderSettingsDescriptorTests {
 
                 await action.perform()
 
-                #expect(explicitRetryAllowed)
+                #expect(!explicitRetryAllowed)
                 #expect(CookieHeaderCache.load(provider: .opencode)?.cookieHeader == "old-test-cookie")
                 #expect(picker.trailingText?() == L("Failed"))
             }

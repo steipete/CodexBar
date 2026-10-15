@@ -9,6 +9,15 @@ read_when:
 
 ## Settings
 - Menu → Highlight menu cards on hover is on by default. Turn it off to keep normal text and usage-bar colors on provider cards, Overview cards, and Refresh while hovering. Keyboard selection stays visible; clicks and submenus are unchanged. The choice persists locally across restarts.
+- The provider sidebar keeps saved order and the one-click alphabetical toggle (enabled first). The adjacent
+  menu offers Only enabled providers and Restore default order. Search matches service names, provider IDs,
+  CLI names, and CLI aliases, ignoring case and accents.
+- Browsing filters do not rewrite provider configuration or menu bar order. Dragging is available only in the
+  unfiltered saved-order view and retains hidden plugin positions. Restore default order resets built-in service
+  positions to the catalog order, preserving provider configuration and plugins. Undo (also available through
+  the native undo command) reverses the latest sidebar order change without reverting later credential edits;
+  external order changes invalidate it. The enabled-only filter stays local, and alphabetical sorting keeps its
+  existing sync and portable-transfer preference.
 - App copy, credential-expiry alerts, share cards, number formatting, and layout direction follow the selected app language. Widgets use the system language independently; all 23 supported languages have complete app catalogs and generated widget catalogs. After editing app translations or widget lookup keys, run `node Scripts/sync-widget-locales.mjs`; `make check` verifies key coverage, format arguments, plural branches, and generated resources.
 - Notifications → Reset notifications is off by default and uses confirmed session and weekly resets, independently of confetti. Alerts name the provider and window; account labels appear only when Hide personal info is off. The existing macOS notification permission and Focus/Do Not Disturb settings control delivery; this toggle adds no startup permission request.
 - Reset alerts and session-restored alerts share account-scoped reset receipts. Switching accounts establishes a fresh session-notification baseline. Known reset boundaries are persisted per provider, account, and window, preventing repeated banners after refreshes or restarts; a different account or a newly advanced boundary can notify independently. Without reset metadata, the existing detector requires a new usage cycle before notifying again; a new depleted episode can still produce a restored notice. Returning timestamps identify an already-announced cycle without replaying it, and previously announced boundaries stay deduplicated. The reset toggle supports portable preference export/import and remains local unless explicitly transferred.
@@ -30,6 +39,7 @@ read_when:
 - If a Homebrew check or update fails, About shows the error and, when the active receipt identifies the cask, a selectable monospaced upgrade command for that cask with a trailing copy control. The control confirms successful copies briefly; copying does not run an update.
 
 ## Menu bar
+- Provider cards with both live throughput and daily history use a fixed-height Live · Spend chart switch; Live is the default, and the choice is remembered locally per provider instance.
 - About CodexBar includes the running version. When the updater is available, the menu offers Check for Updates… or the existing staged-update action.
 - Overview offers Share Usage Snapshot when its Usage & Spend summary has shareable data. The local preview uses the same spend sources, hidden-source choices, calendar, and currency as that summary; Copy Image exports PNG and TIFF without uploading anything.
 - Shared cards and copied statistics keep model families from providers with complete model history, even when another provider in the same currency has unpriced or incomplete history. A ranking that omits providers or model rows is labeled **PARTIAL** on the image and **Top models (partial)** in copied text; complete rankings retain **BY USAGE**. Selected-day model rows are omitted because the shared totals describe the full reporting window.
@@ -89,7 +99,7 @@ read_when:
 | Usage | Named allowances (Cursor Grok Bot, Antigravity family weekly quotas) | Own label and percentage; a saved selection shows a dash when unavailable |
 | Usage | Session pace, Weekly pace, Auto pace | Signed pace delta for that window |
 | Time | Resets in, Reset at (automatic, Session, Weekly), Runs out | Selected-window relative reset, absolute reset, or pace estimate |
-| Money | Balance, Cost today, Cost 30d | Provider balance or remaining credits, or local cost estimate for the selected period |
+| Money | Balance, Cost today, Cost (History window) | Provider balance or remaining credits, or local cost estimate. Cost (History window) is the total for the selected [History window](cost-reporting-periods.md), and cost thresholds compare that window's total |
 | Structure | Separator dot, Space, Line break | Spacing and optional two-line composition |
 
 The pace tokens render the same delta the menu card shows as "in deficit"/"in reserve", in the compact signed form the
@@ -158,10 +168,11 @@ model-generic token label while the rendered menu-bar prefix and accessibility l
   tertiary, and extra windows render when the provider snapshot has data for them.
 - Manual refresh updates the open card subtitle and persistent Refresh-row spinner in place. Repeated clicks share the
   active request, and the existing row geometry remains fixed through success or failure.
+- Provider errors use up to three red lines, with inline backtick-delimited commands rendered in monospace and the copy control aligned to the first line. Copy preserves the original error text. Stale Claude usage has a separate, single-line secondary notice; Settings error previews retain the notice with the error.
 - Live pace and metric detail text use the full row width. Updates that exceed the space reserved when the menu opened
   show a trailing ellipsis; reopening the menu measures the updated text again.
 - Codex credits can add a separate “Buy Credits…” menu action.
-- Claude capped Extra Usage follows the used/remaining fill preference; spending amounts and “% used” copy stay unchanged.
+- Claude spend-only accounts use one Meter bar and a shared metric row with the used/remaining preference, spend/limit caption, inferred monthly reset, and optional pace. Accounts with quota windows keep the separate Extra usage section. Both follow the existing Extra usage visibility choice.
 - Codex OpenAI web extras: code review remaining and usage breakdown render when dashboard data is attached.
 - Codex and Claude cost cards: a Recent windows list under the daily bars shows each quota window's
   range, cost, and tokens (Current window, Previous window, N windows ago), split at official and banked resets.
@@ -240,3 +251,18 @@ In each provider’s settings, **Visible usage items** selects which reported qu
 Usage-row visibility also filters compact account constraint details. Overall account headroom, severity, ordering, and recommendations continue to use all quotas.
 
 Visibility and accent-color changes preserve account cache identity and retained spend, including when the changes arrive through config reload or sync. Credential and endpoint changes still invalidate their previous usage ownership.
+
+### Optional billing visibility
+
+**Show optional credits, spending & billing details** is the global presentation switch. Per-provider
+**Visible usage items** choices still apply. When the global switch hides a supported item, its checkbox
+remains available with an explanation; checking it does not override the global setting.
+
+Codex and Claude have separate **Limit Reset Credits** and **Plan renewal / expiry** choices. These are
+independent of the global switch. Plan dates appear immediately after the quota rows, before reset credits.
+Compact Overview still omits plan dates when quota bars are present. On upgrade, a previously disabled
+global switch initializes Claude's reset-credit choice to hidden; users can then enable it independently.
+The one-time migration preserves other saved choices and travels with provider settings through sync.
+Claude also has an **Extra usage** checkbox; it does not hide Admin API spend. Cloud credits retain their
+existing independent checkbox and remain subject to the global switch. Menu cards, Settings previews, and
+Overview use the same visibility projection. Fetching, history, alerts, and CLI output are unchanged.

@@ -356,6 +356,7 @@ extension CostUsageStoreReadWorkTests {
 
 extension ReadWorkFixture {
     /// The pre-projection full-load path, including the fetcher's existing merge normalization.
+    /// Full details are complete only when this fixture's scan is complete.
     func fullCachedSnapshot(cache: CostUsageCache? = nil) -> CostUsageTokenSnapshot {
         let roots = CostUsageScanner.codexSessionsRoots(options: self.options)
         let full = CostUsageScanner.codexCache(
@@ -372,6 +373,7 @@ extension ReadWorkFixture {
                     cache: full, range: self.range, modelsDevCacheRoot: self.env.cacheRoot)),
             sessions: CostUsageScanner.buildCodexSessionBreakdownsFromCache(
                 cache: full, range: self.range, modelsDevCacheRoot: self.env.cacheRoot, sessionRoots: roots),
+            detailsAreComplete: !self.incomplete,
             updatedAt: self.now)
     }
 

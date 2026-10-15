@@ -189,6 +189,7 @@ struct OpenCodeGoUsageFetcherErrorTests {
                 cookieHeader: "auth=test",
                 timeout: 2,
                 workspaceIDOverride: "wrk_TEST123",
+                includeZenBalance: false,
                 session: self.makeSession())
             Issue.record("Expected OpenCodeGoUsageError.apiError")
         } catch let error as OpenCodeGoUsageError {

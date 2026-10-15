@@ -115,7 +115,7 @@ struct MiniMaxEndpointOverrideSettingsTests {
             MiniMaxUsageFetcher.resolveCodingPlanURL(region: .global, environment: env).absoluteString ==
                 "https://proxy.example.test:8443/user-center/payment/coding-plan?cycle_type=3")
         #expect(
-            MiniMaxUsageFetcher.resolveRemainsURL(region: .global, environment: env).absoluteString ==
+            MiniMaxUsageFetcher.resolveRemainsURLs(region: .global, environment: env)[0].absoluteString ==
                 "https://proxy.example.test:8443/v1/api/openplatform/coding_plan/remains")
     }
 
@@ -372,7 +372,7 @@ struct MiniMaxUsageParserTests {
         </html>
         """
 
-        #expect(!MiniMaxUsageFetcher._looksSignedOutForTesting(html: html))
+        #expect(!MiniMaxUsageFetcher.looksSignedOut(html: html))
     }
 
     @Test
@@ -384,7 +384,7 @@ struct MiniMaxUsageParserTests {
         </html>
         """
 
-        #expect(MiniMaxUsageFetcher._looksSignedOutForTesting(html: html))
+        #expect(MiniMaxUsageFetcher.looksSignedOut(html: html))
     }
 
     @Test
@@ -1210,9 +1210,33 @@ struct MiniMaxUsageParserTests {
 
 struct MiniMaxAPIRegionTests {
     @Test
+    func `endpoint overrides preserve fragments and replace only billing pagination`() {
+        let env = [
+            MiniMaxSettingsReader.codingPlanURLKey: "https://proxy.example.test/plan?custom=1#section",
+            MiniMaxSettingsReader.remainsURLKey: "https://proxy.example.test/quota?custom=2",
+            MiniMaxSettingsReader.billingHistoryURLKey:
+                "https://proxy.example.test/billing?custom=3&page=8&limit=9&aggregate=true#section",
+        ]
+        #expect(MiniMaxUsageFetcher.resolveCodingPlanURL(region: .global, environment: env).absoluteString ==
+            "https://proxy.example.test/plan?custom=1#section")
+        #expect(MiniMaxUsageFetcher.resolveCodingPlanRefererURL(region: .global, environment: env).absoluteString ==
+            "https://proxy.example.test/plan#section")
+        #expect(MiniMaxUsageFetcher.resolveRemainsURLs(region: .global, environment: env).map(\.absoluteString) ==
+            ["https://proxy.example.test/quota?custom=2"])
+        let billing = MiniMaxUsageFetcher.resolveBillingHistoryURL(region: .global, environment: env, page: 2)
+        #expect(billing.absoluteString ==
+            "https://proxy.example.test/billing?custom=3&page=2&limit=100&aggregate=false#section")
+        for region in MiniMaxAPIRegion.allCases {
+            #expect(region.dashboardURL == region.codingPlanURL)
+            #expect(MiniMaxUsageFetcher.resolveCodingPlanRefererURL(region: region, environment: [:]) ==
+                region.codingPlanRefererURL)
+        }
+    }
+
+    @Test
     func `defaults to global hosts`() {
         let codingPlan = MiniMaxUsageFetcher.resolveCodingPlanURL(region: .global, environment: [:])
-        let remains = MiniMaxUsageFetcher.resolveRemainsURL(region: .global, environment: [:])
+        let remains = MiniMaxUsageFetcher.resolveRemainsURLs(region: .global, environment: [:])[0]
         #expect(codingPlan.host == "platform.minimax.io")
         #expect(remains.host == "platform.minimax.io")
     }
@@ -1220,7 +1244,7 @@ struct MiniMaxAPIRegionTests {
     @Test
     func `uses china mainland hosts`() {
         let codingPlan = MiniMaxUsageFetcher.resolveCodingPlanURL(region: .chinaMainland, environment: [:])
-        let remains = MiniMaxUsageFetcher.resolveRemainsURL(region: .chinaMainland, environment: [:])
+        let remains = MiniMaxUsageFetcher.resolveRemainsURLs(region: .chinaMainland, environment: [:])[0]
         #expect(codingPlan.host == "platform.minimaxi.com")
         #expect(remains.host == "platform.minimaxi.com")
         #expect(codingPlan.query == "cycle_type=3")
@@ -1239,7 +1263,7 @@ struct MiniMaxAPIRegionTests {
 
     @Test
     func `resolves official token plan remains URL`() {
-        let url = MiniMaxUsageFetcher.resolveTokenPlanRemainsURL(region: .chinaMainland)
+        let url = MiniMaxAPIRegion.chinaMainland.tokenPlanRemainsURL
         #expect(url.host == "api.minimaxi.com")
         #expect(url.path == "/v1/token_plan/remains")
     }
@@ -1248,7 +1272,7 @@ struct MiniMaxAPIRegionTests {
     func `host override wins for remains and coding plan`() {
         let env = [MiniMaxSettingsReader.hostKey: "api.minimaxi.com"]
         let codingPlan = MiniMaxUsageFetcher.resolveCodingPlanURL(region: .global, environment: env)
-        let remains = MiniMaxUsageFetcher.resolveRemainsURL(region: .global, environment: env)
+        let remains = MiniMaxUsageFetcher.resolveRemainsURLs(region: .global, environment: env)[0]
         #expect(codingPlan.host == "api.minimaxi.com")
         #expect(remains.host == "api.minimaxi.com")
     }
@@ -1266,7 +1290,7 @@ struct MiniMaxAPIRegionTests {
     @Test
     func `remains url override beats host`() {
         let env = [MiniMaxSettingsReader.remainsURLKey: "https://platform.minimaxi.com/custom/remains"]
-        let remains = MiniMaxUsageFetcher.resolveRemainsURL(region: .global, environment: env)
+        let remains = MiniMaxUsageFetcher.resolveRemainsURLs(region: .global, environment: env)[0]
         #expect(remains.absoluteString == "https://platform.minimaxi.com/custom/remains")
     }
 

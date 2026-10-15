@@ -127,15 +127,24 @@ public struct ProviderMenuBarMetricCapabilities: Sendable, Equatable {
     public let supported: Set<ProviderMenuBarMetric>
     public let tertiaryRequiresWindow: Bool
     public let namedExtras: [String: String]
+    /// Compact menu bar tags (e.g. `TP`) for lane percentages. Full lane titles stay in menus, editor
+    /// chips, and accessibility; lanes without a tag render bare.
+    public let laneShortLabels: [ProviderUsageLane: String]
+    /// Compact menu bar tags keyed like `namedExtras`; extras without a tag render their full title.
+    public let namedExtraShortLabels: [String: String]
 
     public init(
         supported: Set<ProviderMenuBarMetric>,
         tertiaryRequiresWindow: Bool = false,
-        namedExtras: [String: String] = [:])
+        namedExtras: [String: String] = [:],
+        laneShortLabels: [ProviderUsageLane: String] = [:],
+        namedExtraShortLabels: [String: String] = [:])
     {
         self.supported = supported
         self.tertiaryRequiresWindow = tertiaryRequiresWindow
         self.namedExtras = namedExtras
+        self.laneShortLabels = laneShortLabels
+        self.namedExtraShortLabels = namedExtraShortLabels
     }
 
     public func supports(_ metric: ProviderMenuBarMetric) -> Bool {

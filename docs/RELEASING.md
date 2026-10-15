@@ -113,7 +113,7 @@ Each Homebrew handoff uses the release tag, workflow run ID, and run attempt as 
 - [ ] Update versions (scripts/Info.plist, CHANGELOG, About text) — changelog top section must be finalized; release script pulls notes from it automatically.
 - [ ] `swiftformat`, `swiftlint`, `make test` (zero warnings/errors)
 - [ ] `./Scripts/build_icon.sh` if icon changed
-- [ ] Preflight the CLI on the release commit: `gh workflow run release-cli.yml --ref main` and wait for green. The macOS CLI jobs use Xcode 26.3 (26.2 fallback) on the macOS 15 images. Regular CI also builds the app, CLI, and tests with Xcode 26.3 to catch older-toolchain type-checker regressions; this does not replace release-mode packaging preflight.
+- [ ] Preflight the CLI on the release commit: `gh workflow run release-cli.yml --ref main` and wait for green. The macOS CLI jobs use Xcode 26.3 (26.2 fallback) on the macOS 15 images. Regular CI builds and tests with Xcode 27 only, so this preflight is the only remaining check on the older toolchain.
 - [ ] `./Scripts/sign-and-notarize.sh`
 - [ ] Generate Sparkle appcast via `Scripts/release.sh` or `Scripts/make_appcast.sh`; use `SPARKLE_PRIVATE_KEY_FILE` only if overriding Keychain signing.
   - Upload the dSYM archive alongside the app zip on the GitHub release; the release script now automates this and will fail if it’s missing.

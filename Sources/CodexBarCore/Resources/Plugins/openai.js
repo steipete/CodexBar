@@ -6,6 +6,7 @@ defineProvider({
   settings: [
     { key: "OPENAI_API_KEY", title: "API key", type: "secure" },
     { key: "OPENAI_PROJECT_ID", title: "Project ID", type: "plain" },
+    { key: "OPENAI_LIVE_MINUTES", title: "Tokens per minute", type: "plain" },
     { key: "OPENAI_HISTORY_DAYS", title: "History days", type: "plain" },
     { key: "OPENAI_ALLOW_BALANCE_FALLBACK", title: "Balance fallback", type: "plain" },
   ],
@@ -51,9 +52,9 @@ defineProvider({
       const query = [
         `start_time=${range.start}`,
         `end_time=${range.end}`,
-        "bucket_width=1d",
+        `bucket_width=${range.width || "1d"}`,
         `limit=${range.limit}`,
-        `group_by=${encodeURIComponent(groupBy)}`,
+        ...(Array.isArray(groupBy) ? groupBy : [groupBy]).map((value) => `group_by=${encodeURIComponent(value)}`),
       ];
       if (projectID) query.push(`project_ids=${encodeURIComponent(projectID)}`);
       if (page) query.push(`page=${encodeURIComponent(page)}`);
@@ -118,6 +119,102 @@ defineProvider({
       return buckets;
     }
 
+    async function liveUsage() {
+      if (ctx.settings.get("OPENAI_LIVE_MINUTES") === "0") return null;
+      try {
+        const fetchedAt = Math.floor(ctx.date.now().getTime() / 1000);
+        const startTime = Math.floor(fetchedAt / 60) * 60 - 59 * 60;
+        const response = await ctx.http.get(
+          queryURL(
+            "/v1/organization/usage/completions",
+            { start: startTime, end: fetchedAt, limit: 60, width: "1m" },
+            ["model", "batch"],
+            null,
+          ),
+          { timeoutSeconds: 20 },
+        );
+        if (response.status !== 200) return null;
+        const body = parseJSON(response.bodyText);
+        if (
+          !body ||
+          !Array.isArray(body.data) ||
+          body.data.length > 60 ||
+          typeof body.has_more !== "boolean" ||
+          (body.next_page != null && typeof body.next_page !== "string")
+        )
+          return null;
+        let entries = 0;
+        let totalTokens = 0;
+        let totalRequests = 0;
+        const buckets = body.data.map((raw) => {
+          if (
+            !raw ||
+            typeof raw !== "object" ||
+            Array.isArray(raw) ||
+            !Number.isSafeInteger(raw.start_time) ||
+            raw.start_time < startTime ||
+            raw.start_time > fetchedAt ||
+            raw.start_time % 60 !== 0 ||
+            !Number.isSafeInteger(raw.end_time) ||
+            raw.end_time <= raw.start_time ||
+            !Array.isArray(raw.results) ||
+            raw.results.length > 400
+          )
+            throw new Error("Invalid live bucket");
+          const merged = new Map();
+          for (const item of raw.results) {
+            if (!item || typeof item !== "object" || Array.isArray(item)) throw new Error("Invalid live model");
+            if (item.batch != null && typeof item.batch !== "boolean") throw new Error("Invalid live batch");
+            // input_tokens/output_tokens already aggregate text, audio, and image; audio fields are breakdowns.
+            const inputTokens = integer(item.input_tokens, "input_tokens", true) || 0;
+            const cachedInputTokens = integer(item.input_cached_tokens, "input_cached_tokens", true) || 0;
+            const outputTokens = integer(item.output_tokens, "output_tokens", true) || 0;
+            const requests = integer(item.num_model_requests, "num_model_requests", true) || 0;
+            integer(item.input_audio_tokens, "input_audio_tokens", true);
+            integer(item.output_audio_tokens, "output_audio_tokens", true);
+            if (cachedInputTokens > inputTokens) throw new Error("Invalid cached tokens");
+            totalTokens += inputTokens + outputTokens;
+            totalRequests += requests;
+            if (!Number.isSafeInteger(totalTokens) || !Number.isSafeInteger(totalRequests))
+              throw new Error("Unsafe live totals");
+            const modelName = name(item.model, "unknown");
+            const row = {
+              name: modelName,
+              inputTokens,
+              cachedInputTokens,
+              outputTokens,
+              requests,
+              batchTokens: item.batch === true ? inputTokens + outputTokens : 0,
+              batchRequests: item.batch === true ? requests : 0,
+            };
+            const prior = merged.get(modelName);
+            if (prior) {
+              for (const key of [
+                "inputTokens",
+                "cachedInputTokens",
+                "outputTokens",
+                "requests",
+                "batchTokens",
+                "batchRequests",
+              ]) {
+                row[key] += prior[key];
+                if (!Number.isSafeInteger(row[key])) throw new Error("Unsafe live model totals");
+              }
+            }
+            merged.set(modelName, row);
+          }
+          if (merged.size > 200) throw new Error("Too many live models in bucket");
+          entries += merged.size;
+          if (entries > 10000) throw new Error("Too many live models");
+          return { startTime: raw.start_time, models: Array.from(merged.values()) };
+        });
+        return { windowMinutes: 60, startTime, fetchedAt, buckets };
+      } catch (error) {
+        if (error.transportClass === "cancelled") throw error;
+        return null;
+      }
+    }
+
     try {
       const costBuckets = await pages("/v1/organization/costs", "line_item");
       const completionBuckets = await pages("/v1/organization/usage/completions", "model");
@@ -177,23 +274,24 @@ defineProvider({
             throw ctx.fail.parseFailure("Failed to parse OpenAI completion result");
           const input = integer(item.input_tokens, "input_tokens", true) || 0;
           const cached = integer(item.input_cached_tokens, "input_cached_tokens", true) || 0;
-          const audioInput = integer(item.input_audio_tokens, "input_audio_tokens", true) || 0;
+          // input_tokens/output_tokens already aggregate text, audio, and image; audio fields are breakdowns.
+          integer(item.input_audio_tokens, "input_audio_tokens", true);
           const output = integer(item.output_tokens, "output_tokens", true) || 0;
-          const audioOutput = integer(item.output_audio_tokens, "output_audio_tokens", true) || 0;
+          integer(item.output_audio_tokens, "output_audio_tokens", true);
           const requests = integer(item.num_model_requests, "num_model_requests", true) || 0;
-          const tokens = input + audioInput + output + audioOutput;
+          const tokens = input + output;
           day.requests += requests;
-          day.input += input + audioInput;
+          day.input += input;
           day.cached += cached;
-          day.output += output + audioOutput;
+          day.output += output;
           day.tokens += tokens;
           const modelName = name(item.model, "Responses and Chat Completions");
           const model = day.models.get(modelName) || { requests: 0, tokens: 0, input: 0, cached: 0, output: 0 };
           model.requests += requests;
           model.tokens += tokens;
-          model.input += input + audioInput;
+          model.input += input;
           model.cached += cached;
-          model.output += output + audioOutput;
+          model.output += output;
           day.models.set(modelName, model);
         }
       }
@@ -207,6 +305,7 @@ defineProvider({
             )
           : days.slice(-historyDays);
       const cost = costDays.reduce((sum, day) => sum + day.cost, 0);
+      const live = await liveUsage();
       const identity = { loginMethod: projectID ? `Admin API: ${projectID}` : "Admin API" };
       if (projectID) identity.organization = `Project: ${projectID}`;
       return {
@@ -217,6 +316,7 @@ defineProvider({
         sourceLabel: projectID ? "admin-api:project" : "admin-api",
         card: {
           openAIAPIUsage: {
+            ...(live ? { live } : {}),
             historyDays,
             projectID: projectID || null,
             daily: days.map((day) => ({

@@ -1412,6 +1412,7 @@
 "menu_bar_layout_preset_icon_only" = "Yalnızca simge";
 "menu_bar_layout_preset_percent_reset" = "Yüzde ve sıfırlama";
 "menu_bar_layout_preset_compact_stacked" = "Kompakt yığın";
+"menu_bar_layout_preset_bars_stacked" = "İstiflenmiş ilerleme çubukları";
 "menu_bar_layout_preset_custom" = "Özel";
 "menu_bar_layout_live_preview" = "Canlı önizleme";
 "menu_bar_layout_default_preview" = "Varsayılan düzen önizlemesi";
@@ -1449,7 +1450,7 @@
 "menu_bar_layout_token_reset_at" = "Sıfırlama saati";
 "menu_bar_layout_token_runs_out" = "Biter";
 "menu_bar_layout_token_cost_today" = "Bugünkü maliyet";
-"menu_bar_layout_token_cost_30d" = "30 günlük maliyet";
+"menu_bar_layout_token_cost_window" = "Maliyet (Geçmiş penceresi)";
 "menu_bar_layout_token_space" = "Boşluk";
 "menu_bar_layout_token_line_break" = "Satır sonu";
 "menu_bar_layout_token_separator_accessibility" = "Ayırıcı nokta";
@@ -1467,7 +1468,6 @@
 "Reset time unavailable" = "Sıfırlama saati: kullanılamıyor";
 "Run-out estimate unavailable" = "Biter: kullanılamıyor";
 "Cost today unavailable" = "Bugünkü maliyet: kullanılamıyor";
-"30-day cost unavailable" = "30 günlük maliyet: kullanılamıyor";
 "Resets" = "Sıfırlamalar";
 "codex_workspaces_title" = "Çalışma Alanları";
 "codex_workspaces_estimated_local_logs" = "Yerel Codex günlüklerinden tahmin edildi";
@@ -1552,6 +1552,7 @@
 "5-hour usage" = "5 saatlik kullanım";
 "7-day usage" = "7 günlük kullanım";
 "Total usage" = "Toplam kullanım";
+"claude_oauth_keychain_access_disabled" = "Keychain erişimi devre dışı olduğundan CodexBar, Claude oturum açma bilgilerini okuyamıyor.";
 "claude_oauth_keychain_access_revoked" = "Claude Anahtar Zinciri erişimi, Claude Code'un token yenilemesi nedeniyle iptal edildi. Erişimi yeniden vermek için Yenile'ye tıklayın veya Claude kullanım kaynağını CLI/Web olarak değiştirin.";
 "claude_showing_last_known_usage" = "Bilinen son kullanım gösteriliyor (yakalanma zamanı: %@).";
 "claude_limited_usage_detail" = "Kullanım ayrıntıları sınırlı";
@@ -2510,3 +2511,115 @@
 "Pace sign" = "Kullanım hızı işareti";
 "Ahead of pace is +" = "Hızın üzerinde kullanım +";
 "Reserve is +" = "Rezerv +";
+
+"cost_reset_inferred_tooltip" = "Çıkarım: %@ bu tarihi bildirmez. Aylık harcama limitleri her ayın 1'inde 00:00 UTC'de sıfırlanır.";
+/* fal provider credentials */
+"Key with billing read access (BILLING or READONLY preset). Or set FAL_KEY." = "Faturalama okuma erişimi olan anahtar (BILLING veya READONLY ön ayarı). Ya da FAL_KEY değerini ayarlayın.";
+
+/* FLORA provider credentials */
+"Needs billing permission on the workspace. Or set FLORA_API_KEY." = "Çalışma alanında faturalama izni gerekir. Ya da FLORA_API_KEY değerini ayarlayın.";
+"Required. The ws_… ID of the workspace the key can bill. Or set FLORA_WORKSPACE_ID." = "Zorunlu. Anahtarın faturalayabildiği çalışma alanının ws_… kimliği. Ya da FLORA_WORKSPACE_ID değerini ayarlayın.";
+"ak_…" = "ak_…";
+"ws_…" = "ws_…";
+
+"Plan renewal / expiry" = "Plan yenileme / sona erme";
+
+"Hidden by the global optional credits, spending & billing setting." = "İsteğe bağlı krediler, harcamalar ve faturalandırma için genel ayar tarafından gizlendi.";
+
+"Provider order updated" = "Sağlayıcı sırası güncellendi";
+"Undo" = "Geri al";
+"Clear filters" = "Filtreleri temizle";
+"Change provider order" = "Sağlayıcı sırasını değiştir";
+"Provider sorting" = "Sağlayıcı sıralaması";
+"Only enabled providers" = "Yalnızca etkin sağlayıcılar";
+"Restore default order" = "Varsayılan sırayı geri yükle";
+"Also restores the provider order in the menu bar. Can be undone." = "Menü çubuğundaki sağlayıcı sırasını da geri yükler. Geri alınabilir.";
+"Local Codex details; excluded from combined totals." = "Yerel Codex ayrıntıları; birleşik toplamlara dahil edilmez.";
+
+"Auto uses an API key when configured, otherwise browser cookies." = "Auto uses an API key when configured, otherwise browser cookies.";
+"Stored in the CodexBar config file. You can also set COMMAND_CODE_API_KEY." = "Stored in the CodexBar config file. You can also set COMMAND_CODE_API_KEY.";
+/* OpenAI organization rate limits and live usage */
+"%@ tokens · %@ requests" = "%@ token · %@ istek";
+"15m" = "15 dk";
+"1h" = "1 sa";
+"5-min avg" = "5 dk ort.";
+"6h" = "6 sa";
+"All models" = "Tüm modeller";
+"Input %@ · cached %@ · output %@" = "Girdi %@ · önbellekte %@ · çıktı %@";
+"Live Usage" = "Canlı Kullanım";
+"Loading live usage…" = "Canlı kullanım yükleniyor…";
+"Minute" = "Dakika";
+"Model" = "Model";
+"No API traffic in this window" = "Bu aralıkta API trafiği yok";
+"Open OpenAI Settings" = "OpenAI Ayarlarını Aç";
+"OpenAI Admin Usage API · 1-minute buckets · the newest minute can arrive late" = "OpenAI Admin Usage API · 1 dakikalık aralıklar · en son dakikanın verisi gecikebilir";
+"OpenAI Live Usage" = "OpenAI Canlı Kullanım";
+"Other" = "Diğer";
+"Peak" = "Zirve";
+"Peak TPM" = "Zirve TPM";
+"Project: %@" = "Proje: %@";
+"Range" = "Aralık";
+"Rate limited; retrying in %ds" = "Hız sınırına ulaşıldı; %ds sonra yeniden denenecek";
+"Requests in window" = "Aralıktaki istekler";
+"Tokens in window" = "Aralıktaki tokenlar";
+"Tokens per minute" = "Dakikadaki tokenlar";
+"Uncached input" = "Önbelleğe alınmamış girdi";
+"Uncached input %@ · cached input %@ · output %@" = "Önbelleğe alınmamış girdi %@ · önbellekteki girdi %@ · çıktı %@";
+"Organization rate limits" = "Kuruluş hız sınırları";
+"Open organization Limits" = "Kuruluş sınırlarını aç";
+"RPM (optional)" = "RPM (isteğe bağlı)";
+"Enter a model and positive limits, such as 40M TPM and 15k RPM." = "Bir model ve 40M TPM ile 15k RPM gibi pozitif sınırlar girin.";
+"Add model" = "Model ekle";
+"Org TPM limit" = "Kuruluş TPM sınırı";
+"Org limit %@ TPM" = "Kuruluş sınırı %@ TPM";
+"Org limit %@ TPM (off scale)" = "Kuruluş sınırı %@ TPM (ölçek dışında)";
+"Limits…" = "Sınırlar…";
+"Highest utilization" = "En yüksek kullanım";
+"%@ of limit" = "Sınırın %@ kadarı";
+"Limit" = "Sınır";
+"Peak RPM: %@ of limit" = "Zirve RPM: sınırın %@ kadarı";
+"Peak % of limit" = "Zirve / sınır (%)";
+
+/* OpenAI live usage errors */
+"Configure an OpenAI organization Admin API key in Settings → Providers → OpenAI." = "Ayarlar → Sağlayıcılar → OpenAI bölümünde bir OpenAI kuruluş Admin API anahtarı ayarlayın.";
+"An OpenAI organization Admin API key with usage and project read permissions is required." = "Kullanım ve proje okuma izinleri olan bir OpenAI kuruluş Admin API anahtarı gereklidir.";
+"OpenAI API is rate limited." = "OpenAI API hız sınırına ulaştı.";
+"OpenAI API failed (HTTP %d)." = "OpenAI API başarısız oldu (HTTP %d).";
+"Could not parse the OpenAI API response." = "OpenAI API yanıtı ayrıştırılamadı.";
+"Live usage supports 15-minute, 1-hour, and 6-hour windows." = "Canlı kullanım 15 dakika, 1 saat ve 6 saat aralıklarını destekler.";
+
+/* Live usage reporting and project caps */
+
+/* Live usage reporting and project caps */
+"Latest · %@" = "En son · %@";
+"Latest TPM" = "Son TPM";
+"reporting…" = "veri bekleniyor…";
+"Org limit not set" = "Kuruluş sınırı ayarlanmadı";
+"project cap %@" = "proje üst sınırı %@";
+"Set org limit…" = "Kuruluş sınırını ayarla…";
+"Org limits come from Settings — OpenAI's API doesn't expose them." = "Kuruluş sınırları Ayarlar’dan alınır — OpenAI API’si bunları sunmaz.";
+"Project caps are the highest per-project limit across %d active projects; org-wide traffic can exceed them." = "Proje üst sınırları, %d etkin proje arasındaki en yüksek proje başına sınırlardır; kuruluş genelindeki trafik bunları aşabilir.";
+"Project sample capped at 25; higher project caps may exist." = "Örneklem 25 projeyle sınırlıdır; daha yüksek proje üst sınırları bulunabilir.";
+"Project caps unavailable" = "Proje üst sınırları kullanılamıyor";
+"OpenAI's API doesn't expose organization rate limits. Copy them from your organization's Limits page. Model IDs match dated snapshots (gpt-5 covers gpt-5-2025-…)." = "OpenAI API’si kuruluşun hız sınırlarını sunmaz. Bunları kuruluşunuzun Limits sayfasından kopyalayın. Model kimlikleri tarihli sürümlerle de eşleşir (gpt-5, gpt-5-2025-… sürümlerini kapsar).";
+"Tokens / min · last hour" = "Token / dk · son saat";
+"Latest %@ · Peak %@ at %@" = "Son %@ · Zirve %@, %@";
+"%@ · peak %@ · %@ of org limit" = "%@ · zirve %@ · kuruluş sınırının %@ kadarı";
+"Tokens / min" = "Token / dk";
+"Latest tokens per minute (OpenAI Admin API)" = "Son dakika başına token sayısı (OpenAI Admin API)";
+"Fetches 1-minute usage each refresh for the menu card chart and the menu bar Tokens/min token." = "Her yenilemede menü kartı grafiği ve menü çubuğundaki Token/dk öğesi için dakikalık kullanımı getirir.";
+"Live Usage…" = "Canlı kullanım…";
+"Batch API %@ · not counted in %% of limit" = "Batch API %@ · limitin %% değerine dahil edilmez";
+"% of limit counts all input, including cached input, plus output, as OpenAI's rate limiter does, and excludes Batch API traffic, which has separate limits. The limiter also reserves max_tokens up front, so short bursts can still hit limits." = "Limitin % değeri, OpenAI hız sınırlayıcısı gibi önbelleğe alınmış girdiler dahil tüm girdileri ve çıktıları sayar; ayrı limitleri olan Batch API trafiğini hariç tutar. Sınırlayıcı ayrıca max_tokens değerini önceden ayırır, bu nedenle kısa süreli artışlar yine de limitlere ulaşabilir.";
+
+"Tokens / min graph" = "Token / dk grafiği";
+"Last hour of tokens per minute (OpenAI Admin API)" = "Son saatte dakika başına token (OpenAI Admin API)";
+"Tokens per minute, latest %@" = "Dakika başına token, son değer %@";
+
+"Live" = "Canlı";
+
+"Chart" = "Grafik";
+
+"Daily spend · %@" = "Günlük harcama · %@";
+"Applies to the selected token account “%@”. Each account keeps its own limits." = "Seçili “%@” token hesabı için geçerlidir. Her hesap kendi sınırlarını korur.";
+"Applies to the OpenAI API key, not to token accounts." = "Token hesapları için değil, OpenAI API anahtarı için geçerlidir.";

@@ -69,21 +69,23 @@ extension UsageStore {
             _ = self.backgroundWorkSettingsObservationToken
         } onChange: { [weak self] in
             Task { @MainActor [weak self] in
-                guard let self else { return }
-                self.observeSettingsChanges()
-                self.providerAvailabilityCache.removeAll(keepingCapacity: true)
-                self.probeLogs = [:]
-                guard self.startupBehavior.automaticallyStartsBackgroundWork else { return }
-                self.retireDisabledCredentialNotifications()
-                self.startTimer()
-                self.updateProviderRuntimes()
-                let enabledNow = Set(self.settings.enabledProvidersOrdered(
-                    metadataByProvider: self.providerMetadata))
-                if enabledNow != self.versionDetectionProviders {
-                    self.detectVersions()
+                await ProviderInteractionContext.$current.withValue(.background) {
+                    guard let self else { return }
+                    self.observeSettingsChanges()
+                    self.providerAvailabilityCache.removeAll(keepingCapacity: true)
+                    self.probeLogs = [:]
+                    guard self.startupBehavior.automaticallyStartsBackgroundWork else { return }
+                    self.retireDisabledCredentialNotifications()
+                    self.startTimer()
+                    self.updateProviderRuntimes()
+                    let enabledNow = Set(self.settings.enabledProvidersOrdered(
+                        metadataByProvider: self.providerMetadata))
+                    if enabledNow != self.versionDetectionProviders {
+                        self.detectVersions()
+                    }
+                    await self.refreshHistoricalDatasetIfNeeded()
+                    await self.refreshForSettingsChange()
                 }
-                await self.refreshHistoricalDatasetIfNeeded()
-                await self.refreshForSettingsChange()
             }
         }
     }
@@ -334,7 +336,6 @@ final class UsageStore {
     @ObservationIgnored let claudeFetcher: any ClaudeUsageFetching
     @ObservationIgnored let costUsageFetcher: CostUsageFetcher
     @ObservationIgnored let browserDetection: BrowserDetection
-    @ObservationIgnored private let registry: ProviderRegistry
     @ObservationIgnored let settings: SettingsStore
     @ObservationIgnored @ProcessEnvironment private(set) var environmentBase: [String: String]
     @ObservationIgnored let pluginApprovalStore: ProviderPluginApprovalStore
@@ -527,7 +528,6 @@ final class UsageStore {
         self.claudeFetcher = claudeFetcher ?? ClaudeUsageFetcher(browserDetection: browserDetection)
         self.costUsageFetcher = costUsageFetcher
         self.settings = settings
-        self.registry = registry
         self.environmentBase = environmentBase
         self.pluginApprovalStore = pluginApprovalStore
         self.widgetSnapshotURL = widgetSnapshotURL
@@ -1431,19 +1431,8 @@ extension UsageStore {
         }
     }
 
-    private func runBackgroundSnapshot(
-        _ snapshot: @escaping @Sendable () async -> PathDebugSnapshot) async
-    {
-        let result = await snapshot()
-        await MainActor.run {
-            self.pathDebugInfo = result
-        }
-    }
-
     private func refreshPathDebugInfo() async {
-        await self.runBackgroundSnapshot {
-            await PathBuilder.debugSnapshotAsync(purposes: [.rpc, .tty, .nodeTooling])
-        }
+        self.pathDebugInfo = await PathBuilder.debugSnapshotAsync(purposes: [.rpc, .tty, .nodeTooling])
     }
 
     func refreshTokenUsage(_ provider: UsageProvider, force: Bool) async {

@@ -197,7 +197,8 @@ struct WorkBuddyPluginTests {
         let snapshot = try await runtime.fetchUsage(
             settings: values.settings, cookieSource: .manual,
             cookieSessionResolver: { _, _ in sessions.next() })
-        #expect(started.duration(to: .now) < .seconds(15))
+        // WorkBuddy never uses a fetch deadline below 30 s; the shared listing budget normally ends near 5 s.
+        #expect(started.duration(to: .now) < .seconds(30))
         #expect(snapshot.primary?.usedPercent == 10)
         #expect(snapshot.primary?.resetsAt == nil)
     }

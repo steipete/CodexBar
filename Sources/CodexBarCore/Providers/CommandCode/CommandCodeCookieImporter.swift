@@ -5,8 +5,6 @@ import SweetCookieKit
 
 /// Imports CommandCode session cookies from installed browsers (Chrome by default).
 public enum CommandCodeCookieImporter {
-    private static let importSessionCacheTTL: TimeInterval = 5
-    private static let importSessionCache = ExpiringValueCache<[SessionInfo]>(ttl: importSessionCacheTTL)
     private static let log = CodexBarLog.logger(LogCategories.provider(.commandcode, scope: "cookie"))
     private static let cookieClient = BrowserCookieClient()
     private static let cookieDomains = ["commandcode.ai", "www.commandcode.ai"]
@@ -35,17 +33,18 @@ public enum CommandCodeCookieImporter {
         browserDetection: BrowserDetection = BrowserDetection(),
         logger: ((String) -> Void)? = nil) throws -> [SessionInfo]
     {
-        if let cached = self.cachedImportSessions() {
-            return cached
-        }
+        try Array(self.sessionCandidates(browserDetection: browserDetection, logger: logger))
+    }
 
-        let sessions = try BrowserCookieImportSupport.collectSessions(
-            from: self.cookieImportOrder.cookieImportCandidates(using: browserDetection),
+    static func sessionCandidates(
+        browserDetection: BrowserDetection = BrowserDetection(),
+        logger: ((String) -> Void)? = nil) throws -> AnySequence<SessionInfo>
+    {
+        try BrowserCookieImportSupport.collectSessions(
+            from: self.cookieImportOrder.lazyCookieImportCandidates(using: browserDetection),
             missingError: CommandCodeCookieImportError.noCookies,
             logger: { self.emit($0, logger: logger) },
             load: { try self.importSessions(from: $0, logger: logger) })
-        self.storeImportSessions(sessions)
-        return sessions
     }
 
     public static func importSessions(
@@ -76,8 +75,8 @@ public enum CommandCodeCookieImporter {
         browserDetection: BrowserDetection = BrowserDetection(),
         logger: ((String) -> Void)? = nil) throws -> SessionInfo
     {
-        let sessions = try self.importSessions(browserDetection: browserDetection, logger: logger)
-        guard let first = sessions.first else { throw CommandCodeCookieImportError.noCookies }
+        let sessions = try self.sessionCandidates(browserDetection: browserDetection, logger: logger)
+        guard let first = sessions.first(where: { _ in true }) else { throw CommandCodeCookieImportError.noCookies }
         return first
     }
 
@@ -93,21 +92,9 @@ public enum CommandCodeCookieImporter {
         }
     }
 
-    static func invalidateImportSessionCache() {
-        self.importSessionCache.invalidate()
-    }
-
     private static func emit(_ message: String, logger: ((String) -> Void)?) {
         logger?("[commandcode-cookie] \(message)")
         self.log.debug(message)
-    }
-
-    private static func cachedImportSessions(now: Date = Date()) -> [SessionInfo]? {
-        self.importSessionCache.load(now: now)
-    }
-
-    private static func storeImportSessions(_ sessions: [SessionInfo], now: Date = Date()) {
-        self.importSessionCache.store(sessions, now: now)
     }
 }
 

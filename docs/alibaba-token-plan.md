@@ -15,7 +15,7 @@ The Alibaba Token Plan provider tracks Team credits and Personal/Solo rolling-wi
 - **Token-plan usage display**: Shows used, total, and remaining token-plan credits when Bailian returns quota totals.
 - **Personal/Solo windows**: Shows reported 5-hour, 7-day, and monthly usage, reset times, and tier-specific quota totals. A monthly-only plan uses the primary usage bar; alongside rolling windows, monthly usage appears as a separate Monthly row.
 - **Bailian CLI auth**: Reuses an already signed-in `bl` executable without importing browser cookies.
-- **Cookie-based auth**: Uses browser cookies or a pasted `Cookie:` header.
+- **Cookie-based auth**: Uses the shared supported-browser order and access gate, or a pasted `Cookie:` header.
 - **Expiry awareness**: Shows the nearest token-plan expiration date as the reset time when the subscription summary includes it.
 
 ## Setup
@@ -63,7 +63,7 @@ The Alibaba Token Plan provider tracks Team credits and Personal/Solo rolling-wi
 
 ### "No Alibaba Token Plan session cookies found in browsers"
 
-Log in at `https://bailian.console.aliyun.com/cn-beijing?tab=plan#/efm/subscription/token-plan` in Chrome, then refresh CodexBar.
+Log in at `https://bailian.console.aliyun.com/cn-beijing?tab=plan#/efm/subscription/token-plan` in a supported browser, then refresh CodexBar.
 
 ### "Alibaba Token Plan cookie header is invalid"
 

@@ -24,7 +24,7 @@ struct ReplicateProviderImplementation: ProviderImplementation {
             allowsOff: false,
             subtitles: {
                 .init(
-                    auto: "Automatic imports Chrome cookies from replicate.com.",
+                    auto: "Automatic imports browser cookies from replicate.com.",
                     manual: "Paste a Cookie header captured from the billing page.",
                     off: "Replicate cookies are disabled.")
             })]

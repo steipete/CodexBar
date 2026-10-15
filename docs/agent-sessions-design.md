@@ -19,6 +19,9 @@ The v1 JSON protocol remains a top-level array restricted to `codex` and `claude
 
 `LocalAgentSessionScanner` combines bounded process and metadata signals. macOS process and cwd discovery stays in-process through libproc; Linux uses the existing guarded `ps` and `/proc` paths.
 
+On macOS, Codex and Claude bundle checks, provider identity, and CLI/desktop source labels use the preserved executable argument, so prompt paths do not change session classification. Existing executable allowlists, wrapper handling, and command-only fallbacks still apply.
+Pi-family detection also uses the executable and script arguments, so a prompt mentioning a Claude path does not change its provider.
+
 Pi-family processes are handed to one `PiFamilySessionScanner`:
 
 - Plain pi uses process title `pi`; upstream also marks the process with `PI_CODING_AGENT=true`, which CodexBar does not need to read. Its default root is `~/.pi/agent/sessions`, whose project buckets encode cwd as `--<escaped-cwd>--`. A version-3 `session` header supplies id, timestamp, and cwd. The latest bounded `session_info.name` supplies the optional label.

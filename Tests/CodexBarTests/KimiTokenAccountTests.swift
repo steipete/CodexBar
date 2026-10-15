@@ -84,13 +84,17 @@ struct KimiTokenAccountTests {
         let strategy = KimiWebFetchStrategy(
             fetchUsage: { token, selectedRegion in
                 #expect(selectedRegion == region)
-                #expect(["first", "second"].contains(token))
+                #expect(["first", "second"].contains(token.token))
                 return KimiUsageSnapshot(
-                    weekly: .init(limit: "100", used: token == "first" ? "25" : "75", remaining: nil, resetTime: nil),
+                    weekly: .init(
+                        limit: "100",
+                        used: token.token == "first" ? "25" : "75",
+                        remaining: nil,
+                        resetTime: nil),
                     rateLimit: nil,
                     updatedAt: Date(timeIntervalSince1970: 100))
             },
-            desktopToken: { _ in Issue.record("Unexpected desktop import"); return nil },
+            desktopCredential: { _ in Issue.record("Unexpected desktop import"); return nil },
             browserTokens: { _ in Issue.record("Unexpected browser import"); return [] })
         for (index, account) in accounts.enumerated() {
             let snapshot = try #require(cli.settingsSnapshot(for: .kimi, account: account))
@@ -151,10 +155,10 @@ struct KimiTokenAccountTests {
         let environment = cli.environment(base: self.ambient, provider: .kimi, account: account)
         let strategy = KimiWebFetchStrategy(
             fetchUsage: { authToken, _ in
-                #expect(authToken == "expired")
+                #expect(authToken.token == "expired")
                 throw KimiAPIError.invalidToken
             },
-            desktopToken: { _ in Issue.record("Unexpected desktop import"); return nil },
+            desktopCredential: { _ in Issue.record("Unexpected desktop import"); return nil },
             browserTokens: { _ in Issue.record("Unexpected browser import"); return [] })
         do {
             _ = try await strategy.fetch(self.context(environment: environment, settings: settings))

@@ -108,8 +108,9 @@ automatic CLI credential reuse. Configure an International API key or use a `kim
 3. Enable the Kimi provider toggle
 4. CodexBar will automatically find your session
 
-Automatic mode prefers a usable Kimi Desktop cookie. Expired desktop JWTs are skipped; if the server
-rejects a desktop session, the Web source continues through browser profiles instead of stopping.
+Automatic mode prefers the current China Kimi Desktop access token from its primary Local Storage profile.
+Expired or invalid desktop JWTs are skipped; if the server rejects a desktop session, the Web source
+continues through browser profiles instead of stopping.
 Explicit manual tokens remain authoritative. API-key and CLI quota responses include the membership level, so displaying the tier does not require
 browser access. A web session can supply a subscription title when the usage response omits membership;
 a membership lookup failure does not fail the quota query. Quota statistics and the optional plan title
@@ -118,10 +119,21 @@ monthly or Code 7-day statistics. Cancellation stops automatic retries before fu
 
 **Note**: Requires Full Disk Access to read browser cookies (System Settings → Privacy & Security → Full Disk Access → CodexBar).
 
-Automatic mode also checks the official Kimi Desktop app before importing browser cookies. Its Chromium
-Cookies database is opened read-only: active WAL databases use SQLite's normal WAL-aware path, while idle
-WAL-mode databases with no sidecars use an immutable read-only fallback. CodexBar never creates or modifies
-Kimi Desktop database files.
+For China, Desktop discovery reads only the exact `https://www.kimi.com` / `access_token` record in
+`~/Library/Application Support/kimi-desktop/Local Storage/leveldb`. The shared reader follows the current
+LevelDB manifest and sequence numbers, honors deletions, and rejects incomplete or changing reads and
+symlinked profile paths. Only a bare, unexpired access JWT with the `kimi.com` audience is accepted.
+CodexBar does not scan historical tokens, import refresh tokens, or fall back to old China Desktop cookies.
+
+The acquired Desktop session is checked again before each web request. A deleted, replaced, expired,
+or unreadable session stops further requests with that credential. Confirm the intended account in
+Kimi Desktop and refresh CodexBar to acquire it again. Successful Code API or CLI quota results remain
+available when this optional membership enrichment is unavailable. These local checks do not verify JWT
+signatures or revoke requests already sent; the Kimi service authenticates the token.
+
+International retains its existing read-only Desktop cookie discovery; International Desktop Local Storage
+is not imported. Its Cookies database uses WAL-aware SQLite reads, with an immutable fallback for idle
+WAL-mode databases that have no sidecars. CodexBar never creates or modifies Desktop database files.
 
 For the selected region, Automatic mode also reads `access_token` from Chromium browser local storage
 through the shared browser catalog after cookie discovery. Tokens stay bound to the selected Kimi origin;
@@ -178,7 +190,7 @@ When multiple sources are available, CodexBar uses this order:
 2. Fresh Kimi Code CLI access token (`~/.kimi-code/credentials/kimi-code.json`)
 3. Manual cookie/token (from Settings UI) when web fallback is used
 4. Cookie environment variable (`KIMI_AUTH_TOKEN`)
-5. Kimi Desktop `kimi-auth` cookie
+5. Current China Kimi Desktop Local Storage access token (International retains its `kimi-auth` cookie)
 6. Browser cookies (Arc → Chrome → Safari → Edge → Brave → Chromium)
 7. Chromium local storage `access_token` for the selected region
 
@@ -271,6 +283,10 @@ All tiers have a rate limit of 200 requests per 5 hours.
 ### "Kimi auth token is invalid or expired"
 - Your token has expired. Paste a new token from your browser
 - If using Automatic mode, log in to Kimi again in your browser
+
+### "Kimi Desktop session changed before the request was sent"
+- Confirm the intended account is signed in to Kimi Desktop, then refresh CodexBar.
+- The next refresh reads the current session again; no restart is needed.
 
 ### "No Kimi session cookies found"
 - You're not logged in to Kimi in any supported browser

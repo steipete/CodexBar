@@ -3,6 +3,7 @@ import Foundation
 
 extension UsageMenuCardView.Model {
     struct Input {
+        let throughputPresentation: ProviderThroughputPresentation?
         let provider: UsageProvider
         let metadata: ProviderMetadata
         let snapshot: UsageSnapshot?
@@ -54,6 +55,7 @@ extension UsageMenuCardView.Model {
 
         init(
             provider: UsageProvider,
+            throughputPresentation: ProviderThroughputPresentation? = nil,
             metadata: ProviderMetadata,
             snapshot: UsageSnapshot?,
             codexProjection: CodexConsumerProjection? = nil,
@@ -100,6 +102,7 @@ extension UsageMenuCardView.Model {
             now: Date,
             observedWeeklyResets: [CostUsageQuotaResetObservation] = [])
         {
+            self.throughputPresentation = throughputPresentation
             self.provider = provider
             self.metadata = metadata
             self.snapshot = snapshot

@@ -1,6 +1,15 @@
 import Foundation
 
 public enum WorkBuddyProviderDescriptor {
+    /// Sessions bind to the browser User-Agent; the host can reconstruct only Chrome's versioned User-Agent.
+    private static var browserCookieOrder: BrowserCookieImportOrder? {
+        #if os(macOS)
+        [.chrome]
+        #else
+        nil
+        #endif
+    }
+
     private static let webTimeout = PluginProviderSpec.WebSource.Timeout.web(
         minimum: 30, maximum: .infinity, padding: 0, nonFinite: 30)
     public static let descriptor: ProviderDescriptor = Self.spec.makeDescriptor()
@@ -24,8 +33,7 @@ public enum WorkBuddyProviderDescriptor {
             planRow: ProviderPlanRowPresentation(label: "Plan")),
         webSource: .init(
             settingsSection: .init(WorkBuddyProviderSettingsKey.self, cookieSettings: CookieProviderSettings.self),
-            browserCookieOrder: BrowserCookieImportSupport.chromeOnly(
-                reason: "WorkBuddy sessions are bound to Chrome's User-Agent."),
+            browserCookieOrder: Self.browserCookieOrder,
             timeout: Self.webTimeout,
             browserSupportExemption: { _, _, settings in
                 settings?.workbuddy?.cookieSource == .manual

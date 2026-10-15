@@ -17,6 +17,7 @@ public enum MuseAIProviderDescriptor {
             menuCard: ProviderMenuCardPresentation(showsPrimaryBalanceDescription: true)),
         webSource: .init(
             settingsSection: .init(MuseAIProviderSettingsKey.self, cookieSettings: CookieProviderSettings.self),
+            browserCookieOrder: ProviderBrowserCookieDefaults.defaultImportOrder,
             browserSupportExemption: { _, _, settings in settings?.museai?.cookieSource == .manual },
             resolveValues: { $0.settings?.museai?.cookieSource == .off ? nil : .init() },
             field: .init(

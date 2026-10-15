@@ -39,59 +39,42 @@ public enum MistralCookieImporter {
         preferredBrowsers: [Browser]? = nil,
         logger: ((String) -> Void)? = nil) throws -> SessionInfo
     {
-        try self.importSessions(
-            browserDetection: browserDetection,
-            preferredBrowsers: preferredBrowsers,
-            excludingSourceLabels: [],
-            limit: 1,
-            logger: logger)[0]
+        let candidates = try self.sessionCandidates(
+            browserDetection: browserDetection, preferredBrowsers: preferredBrowsers, logger: logger)
+        guard let first = candidates.first(where: { _ in true }) else { throw MistralCookieImportError.noCookies }
+        return first
     }
 
-    static func importSessions(
+    static func sessionCandidates(
         browserDetection: BrowserDetection,
         preferredBrowsers: [Browser]? = nil,
-        excludingSourceLabels: Set<String>,
-        limit: Int? = nil,
-        logger: ((String) -> Void)? = nil) throws -> [SessionInfo]
+        excludingSourceLabels: Set<String> = [],
+        logger: ((String) -> Void)? = nil,
+        loadRecords: @escaping (Browser, BrowserCookieQuery, ((String) -> Void)?) throws
+            -> [BrowserCookieStoreRecords] = { try cookieClient.codexBarRecords(matching: $1, in: $0, logger: $2) })
+        throws -> AnySequence<SessionInfo>
     {
-        let log: (String) -> Void = { msg in logger?("[mistral-cookie] \(msg)") }
-        let order = self.resolvedImportOrder(preferredBrowsers)
-        let installedBrowsers = order.cookieImportCandidates(using: browserDetection)
-        var sessions: [SessionInfo] = []
-
-        for browserSource in installedBrowsers {
-            do {
+        let log: (String) -> Void = { logger?("[mistral-cookie] \($0)") }
+        return try BrowserCookieImportSupport.collectSessions(
+            from: self.resolvedImportOrder(preferredBrowsers).lazyCookieImportCandidates(using: browserDetection),
+            missingError: MistralCookieImportError.noCookies,
+            logger: log,
+            load: { browser in
                 let query = self.cookieQuery()
-                let sources = try Self.cookieClient.codexBarRecords(
-                    matching: query,
-                    in: browserSource,
-                    logger: log)
-                for source in sources where !source.records.isEmpty {
+                return try loadRecords(browser, query, log).compactMap { source in
                     guard !excludingSourceLabels.contains(source.label) else {
                         log("Skipping rejected cookie source \(source.label)")
-                        continue
+                        return nil
                     }
-                    let httpCookies = BrowserCookieClient.makeHTTPCookies(source.records, origin: query.origin)
-                    if !httpCookies.isEmpty {
-                        guard Self.hasSessionCookie(httpCookies) else {
-                            log("Skipping \(source.label) cookies: missing ory_session_* cookie")
-                            continue
-                        }
-                        log("Found \(httpCookies.count) Mistral cookies in \(source.label)")
-                        sessions.append(SessionInfo(cookies: httpCookies, sourceLabel: source.label))
-                        if sessions.count == limit {
-                            return sessions
-                        }
+                    let cookies = BrowserCookieClient.makeHTTPCookies(source.records, origin: query.origin)
+                    guard Self.hasSessionCookie(cookies) else {
+                        log("Skipping \(source.label) cookies: missing ory_session_* cookie")
+                        return nil
                     }
+                    log("Found \(cookies.count) Mistral cookies in \(source.label)")
+                    return SessionInfo(cookies: cookies, sourceLabel: source.label)
                 }
-            } catch {
-                BrowserCookieAccessGate.recordIfNeeded(error)
-                log("\(browserSource.displayName) cookie import failed: \(error.localizedDescription)")
-            }
-        }
-
-        guard !sessions.isEmpty else { throw MistralCookieImportError.noCookies }
-        return sessions
+            })
     }
 
     static func resolvedImportOrder(_ preferredBrowsers: [Browser]?) -> [Browser] {

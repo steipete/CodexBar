@@ -139,17 +139,28 @@ extension StatusItemController {
         let tokens = resolution.layout.flattenedTokens(conditionals: self.settings.menuBarLayoutConditionals)
         let metrics = self.referencedConditionalMetrics(resolution: resolution)
         let showsToday = tokens.contains(.costToday) || metrics.contains(.costToday)
-        let showsLast30Days = tokens.contains(.cost30d) || metrics.contains(.cost30d)
-        guard showsToday || showsLast30Days else { return nil }
+        let showsLast30Days = tokens.contains(.costWindow) || metrics.contains(.costWindow)
+        let showsThroughput = tokens.contains(.tokensPerMinute)
+        let showsSparkline = tokens.contains(.tokensSparkline)
+        guard showsToday || showsLast30Days || showsThroughput || showsSparkline else { return nil }
 
+        let throughput = showsThroughput
+            ? self.store.menuBarSnapshot(for: provider.instanceID)?.throughput?.latestTokensPerMinute.map(String.init)
+            : "unused"
+        let sparkline = showsSparkline
+            ? self.store.menuBarSnapshot(for: provider.instanceID)?.throughput.map {
+                String(MenuBarTokensSparkline(minutes: $0.minutes).hashValue)
+            } : "unused"
         let costs = self.menuBarLayoutCosts(provider: provider)
         return [
+            "throughput=\(throughput ?? "nil")",
+            "sparkline=\(sparkline ?? "nil")",
             "today=\(showsToday ? costs.today ?? "nil" : "unused")",
             "last30Days=\(showsLast30Days ? costs.last30Days ?? "nil" : "unused")",
             // Predicates compare the unrounded amounts, and two token-cost updates can cross a
             // threshold while both format to the same cent, so a conditional also signs the numbers.
             "todayUSD=\(metrics.contains(.costToday) ? Self.exactSignatureValue(costs.todayUSD) : "unused")",
-            "last30DaysUSD=\(metrics.contains(.cost30d) ? Self.exactSignatureValue(costs.last30DaysUSD) : "unused")",
+            "last30DaysUSD=\(metrics.contains(.costWindow) ? Self.exactSignatureValue(costs.last30DaysUSD) : "unused")",
         ].joined(separator: ",")
     }
 

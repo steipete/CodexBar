@@ -5,7 +5,6 @@ extension ClaudeUsageSnapshot {
     {
         var snapshot = ClaudeUsageSnapshot(
             primary: self.primary,
-            primaryWindowKind: self.primaryWindowKind,
             secondary: self.secondary,
             opus: self.opus,
             extraRateWindows: extraRateWindows,

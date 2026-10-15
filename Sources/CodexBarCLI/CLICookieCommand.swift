@@ -110,38 +110,36 @@ extension CodexBarCLI {
         preflight: (ProviderDescriptor) -> CookieRefreshResult? = { _ in nil },
         operation: (ProviderDescriptor) async -> CookieRefreshResult) async -> [CookieRefreshResult]
     {
-        var results: [CookieRefreshResult] = []
-        results.reserveCapacity(targets.count)
-        for descriptor in targets {
-            if let result = preflight(descriptor) {
-                results.append(result)
-                continue
-            }
-
-            let browsers = Self.cookieRefreshBrowserOrder(descriptor: descriptor, config: config)
-            let needsAcknowledgement = BrowserCookieAccessGate.requiresKeychainPromptAcknowledgement(for: browsers)
-            guard !needsAcknowledgement || allowKeychainPrompt else {
-                results.append(CookieRefreshResult(
-                    provider: descriptor.cli.name,
-                    status: .blocked,
-                    message: Self.keychainPromptAcknowledgementHint))
-                continue
-            }
-
-            let result: CookieRefreshResult = if allowKeychainPrompt {
-                await BrowserCookieAccessGate.withExplicitRetry {
-                    await ProviderInteractionContext.$current.withValue(.userInitiated) {
-                        await operation(descriptor)
-                    }
+        func refresh() async -> [CookieRefreshResult] {
+            var results: [CookieRefreshResult] = []
+            results.reserveCapacity(targets.count)
+            for descriptor in targets {
+                if let result = preflight(descriptor) {
+                    results.append(result)
+                    continue
                 }
-            } else {
-                await ProviderInteractionContext.$current.withValue(.userInitiated) {
+
+                let browsers = Self.cookieRefreshBrowserOrder(descriptor: descriptor, config: config)
+                let needsAcknowledgement = BrowserCookieAccessGate.requiresKeychainPromptAcknowledgement(for: browsers)
+                guard !needsAcknowledgement || allowKeychainPrompt else {
+                    results.append(CookieRefreshResult(
+                        provider: descriptor.cli.name,
+                        status: .blocked,
+                        message: Self.keychainPromptAcknowledgementHint))
+                    continue
+                }
+
+                let result = await ProviderInteractionContext.$current.withValue(.userInitiated) {
                     await operation(descriptor)
                 }
+                results.append(result)
             }
-            results.append(result)
+            return results
         }
-        return results
+        if allowKeychainPrompt {
+            return await BrowserCookieAccessGate.withExplicitRetry(bypassingCooldown: true, operation: refresh)
+        }
+        return await refresh()
     }
 
     static func cookieRefreshBrowserOrder(

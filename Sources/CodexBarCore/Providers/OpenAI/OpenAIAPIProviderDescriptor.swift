@@ -5,7 +5,10 @@ public enum OpenAIAPIProviderDescriptor {
     private static let credentials = ProviderCredentialAdapter.apiKey(
         environmentKey: OpenAIAPISettingsReader.adminAPIKeyEnvironmentKey,
         apiKeyDebugLabel: OpenAIAPISettingsReader.apiKeyEnvironmentKey,
-        additionalProjections: [.workspaceID(OpenAIAPISettingsReader.projectIDEnvironmentKey)],
+        additionalProjections: [
+            .workspaceID(OpenAIAPISettingsReader.projectIDEnvironmentKey),
+            .init(key: "OPENAI_LIVE_MINUTES", value: { $0.pluginSettings?["OPENAI_LIVE_MINUTES"] }),
+        ],
         resolve: OpenAIAPISettingsReader.apiKey,
         tokenAccountSupport: TokenAccountSupport(
             title: "API keys",
@@ -52,8 +55,9 @@ public enum OpenAIAPIProviderDescriptor {
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: true,
                 noDataMessage: { "OpenAI usage needs an Admin API key for organization usage." },
-                menuHintLines: [.literal("Reported by OpenAI Admin API organization usage.")],
-                showsCostMenuSection: false),
+                showsCostMenuSection: false,
+                // The KPI grid already shows requests; the source label sits in the card header.
+                showsRequestHistory: false),
             presentation: ProviderUsagePresentation(
                 costPresenter: { snapshot in
                     let style: ProviderCostMenuCardStyle = (snapshot.providerCost?.limit ?? 1) <= 0
@@ -100,6 +104,7 @@ public enum OpenAIAPIProviderDescriptor {
             resolveValues: { context in
                 guard let credential = OpenAIAPIUsageCredential(environment: context.env) else { return nil }
                 var settings = [
+                    "OPENAI_LIVE_MINUTES": context.env["OPENAI_LIVE_MINUTES"] == "0" ? "0" : "60",
                     "OPENAI_HISTORY_DAYS": String(context.costUsageHistoryDays),
                     "OPENAI_ALLOW_BALANCE_FALLBACK": credential.allowsLegacyBalanceFallback ? "1" : "0",
                 ]
@@ -145,7 +150,7 @@ extension OpenAIAPIProviderDescriptor {
         guard let payload = card.property("openAIAPIUsage") else {
             throw ProviderPluginError.invalidSnapshot("card.openAIAPIUsage is required")
         }
-        try Mapper.object(payload, allowed: ["daily", "historyDays", "projectID"], path: "card.openAIAPIUsage")
+        try Mapper.object(payload, allowed: ["daily", "historyDays", "projectID", "live"], path: "card.openAIAPIUsage")
         let historyDays = try Self.cardInteger(payload, "historyDays", maximum: 365)
         guard historyDays > 0 else { throw ProviderPluginError.invalidSnapshot("historyDays must be positive") }
         let project = payload.property("projectID")
@@ -216,6 +221,9 @@ extension OpenAIAPIProviderDescriptor {
             providerCost: usage.providerCost,
             costUsage: usage.costUsage,
             details: usage.details,
+            throughput: payload.property("live").flatMap {
+                try? Self.mapLiveUsage($0, projectID: projectID, maximumEntries: remainingEntries).throughput
+            },
             openAIAPIUsage: history,
             subscriptionExpiresAt: usage.subscriptionExpiresAt,
             subscriptionRenewsAt: usage.subscriptionRenewsAt,
@@ -224,13 +232,17 @@ extension OpenAIAPIProviderDescriptor {
             dataConfidence: usage.dataConfidence)
     }
 
-    private static func cardArray(
+    static func cardArray(
         _ object: any ProviderPluginValue, _ key: String, maximum: Int) throws -> [any ProviderPluginValue]
     {
         guard let value = object.property(key), value.isArray,
-              let length = value.property("length"), length.doubleValue() <= Double(maximum)
+              let length = value.property("length"), length.isNumber
         else { throw ProviderPluginError.invalidSnapshot("card.\(key) must be a bounded array") }
-        return try (0..<Int(length.doubleValue())).map { index in
+        let count = length.doubleValue()
+        guard count.isFinite, count >= 0, count.rounded() == count, count <= Double(maximum) else {
+            throw ProviderPluginError.invalidSnapshot("card.\(key) must be a bounded array")
+        }
+        return try (0..<Int(count)).map { index in
             guard let element = value.element(at: index) else {
                 throw ProviderPluginError.invalidSnapshot("card.\(key) contains a missing value")
             }
@@ -238,14 +250,14 @@ extension OpenAIAPIProviderDescriptor {
         }
     }
 
-    private static func cardNumber(_ object: any ProviderPluginValue, _ key: String) throws -> Double {
+    static func cardNumber(_ object: any ProviderPluginValue, _ key: String) throws -> Double {
         guard let value = object.property(key), value.isNumber,
               value.doubleValue().isFinite, abs(value.doubleValue()) <= 9_007_199_254_740_991
         else { throw ProviderPluginError.invalidSnapshot("card.\(key) must be a finite safe number") }
         return value.doubleValue()
     }
 
-    private static func cardInteger(
+    static func cardInteger(
         _ object: any ProviderPluginValue, _ key: String, maximum: Int = 900_719_925_474) throws -> Int
     {
         // The aggregate of every bounded card row must also fit in a JavaScript-safe integer.
@@ -256,7 +268,7 @@ extension OpenAIAPIProviderDescriptor {
         return Int(number)
     }
 
-    private static func cardName(_ object: any ProviderPluginValue) throws -> String {
+    static func cardName(_ object: any ProviderPluginValue) throws -> String {
         guard let name = object.property("name")
         else { throw ProviderPluginError.invalidSnapshot("card.name is required") }
         return try ProviderPluginSnapshotMapper.resultString(name, path: "card.name")

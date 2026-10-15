@@ -23,31 +23,17 @@ public enum BrowserCookieAccessGate {
     }
 
     private final class ExplicitRetryScope: @unchecked Sendable {
-        private struct State {
-            var selectedBrowser: Browser?
-            var cookieReadClaimed = false
+        let bypassingCooldown: Bool
+        private let cookieReadClaimed = OSAllocatedUnfairLock(initialState: false)
+
+        init(bypassingCooldown: Bool) {
+            self.bypassingCooldown = bypassingCooldown
         }
 
-        private let lock = OSAllocatedUnfairLock<State>(initialState: State())
-
-        func allows(_ browser: Browser) -> Bool {
-            self.lock.withLock { state in
-                if let selectedBrowser = state.selectedBrowser {
-                    return selectedBrowser == browser && !state.cookieReadClaimed
-                }
-                state.selectedBrowser = browser
-                return true
-            }
-        }
-
-        func contains(_ browser: Browser) -> Bool {
-            self.lock.withLock { $0.selectedBrowser == browser }
-        }
-
-        func claimCookieRead(for browser: Browser) -> Bool {
-            self.lock.withLock { state in
-                guard state.selectedBrowser == browser, !state.cookieReadClaimed else { return false }
-                state.cookieReadClaimed = true
+        func claimCookieRead() -> Bool {
+            self.cookieReadClaimed.withLock { claimed in
+                guard !claimed else { return false }
+                claimed = true
                 return true
             }
         }
@@ -59,7 +45,7 @@ public enum BrowserCookieAccessGate {
     private static let cooldownInterval: TimeInterval = 60 * 60 * 6
     private static let log = CodexBarLog.logger(LogCategories.browserCookieGate)
     @TaskLocal private static var explicitRetryScope: ExplicitRetryScope?
-    @TaskLocal private static var accessFailureObserver: (@Sendable (Browser) -> Void)?
+    @TaskLocal private static var accessFailureObserver: (@Sendable (Browser, Bool) -> Void)?
     @TaskLocal private static var deniedBrowsersForTesting: [Browser]?
     #if DEBUG
     @TaskLocal private static var shouldAttemptOverrideForTesting: Bool?
@@ -94,14 +80,14 @@ public enum BrowserCookieAccessGate {
     }
 
     static func withAccessFailureObserver<T>(
-        _ observer: @escaping @Sendable (Browser) -> Void,
+        _ observer: @escaping @Sendable (Browser, Bool) -> Void,
         operation: () throws -> T) rethrows -> T
     {
         try self.$accessFailureObserver.withValue(observer, operation: operation)
     }
 
-    static func recordAccessFailure(for browser: Browser) {
-        self.accessFailureObserver?(browser)
+    static func recordAccessFailure(for browser: Browser, profileDenied: Bool = false) {
+        self.accessFailureObserver?(browser, profileDenied)
     }
 
     private static func shouldAttemptWithPolicy(_ browser: Browser, now: Date) -> Bool {
@@ -116,18 +102,13 @@ public enum BrowserCookieAccessGate {
             return self.shouldAttemptInBackground(browser)
         }
         if self.deniedBrowsersForTesting?.contains(browser) == true {
-            return self.isExplicitRetryAllowed(for: browser)
+            return self.explicitRetryScope != nil
         }
         let shouldCheckKeychain = self.lock.withLock { state in
             self.loadIfNeeded(&state)
             if let blockedUntil = state.deniedUntilByBrowser[browser.rawValue] {
                 if blockedUntil > now {
-                    if self.isExplicitRetryAllowed(for: browser) {
-                        self.log.info(
-                            "Explicit browser cookie retry allowed",
-                            metadata: ["browser": browser.displayName])
-                        return true
-                    }
+                    if self.explicitRetryScope?.bypassingCooldown == true { return true }
                     self.log.debug(
                         "Cookie access blocked",
                         metadata: ["browser": browser.displayName, "until": "\(blockedUntil.timeIntervalSince1970)"])
@@ -138,6 +119,7 @@ public enum BrowserCookieAccessGate {
             }
             if let blockedUntil = state.chromiumFamilyDeniedUntil {
                 if blockedUntil > now {
+                    if self.explicitRetryScope?.bypassingCooldown == true { return true }
                     self.log.debug(
                         "Chromium-family cookie access blocked",
                         metadata: ["browser": browser.displayName, "until": "\(blockedUntil.timeIntervalSince1970)"])
@@ -149,18 +131,13 @@ public enum BrowserCookieAccessGate {
             return true
         }
         guard shouldCheckKeychain else { return false }
+        // Allow Once can leave a reusable cached key even when the ACL still requires interaction.
+        if self.explicitRetryScope != nil { return true }
 
-        let requiresInteraction = self.chromiumKeychainRequiresInteraction(for: browser)
+        let requiresInteraction = self.chromiumKeychainPreflight(for: browser).requiresInteraction
         if requiresInteraction {
-            self.recordDenied(for: browser, now: now)
-            if self.isExplicitRetryAllowed(for: browser) {
-                self.log.info(
-                    "Browser cookie interaction allowed for explicit retry",
-                    metadata: ["browser": browser.displayName])
-                return true
-            }
             self.log.info(
-                "Cookie access requires keychain interaction; suppressing Chromium family",
+                "Cookie access requires keychain interaction; skipping browser",
                 metadata: ["browser": browser.displayName])
             return false
         }
@@ -168,17 +145,23 @@ public enum BrowserCookieAccessGate {
         return true
     }
 
-    public static func withExplicitRetry<T>(_ operation: () throws -> T) rethrows -> T {
-        try self.$explicitRetryScope.withValue(ExplicitRetryScope()) {
+    public static func withExplicitRetry<T>(
+        bypassingCooldown: Bool = false,
+        _ operation: () throws -> T) rethrows -> T
+    {
+        let scope = self.explicitRetryScope ?? ExplicitRetryScope(bypassingCooldown: bypassingCooldown)
+        return try self.$explicitRetryScope.withValue(scope) {
             try operation()
         }
     }
 
     public static func withExplicitRetry<T>(
+        bypassingCooldown: Bool = false,
         isolation: isolated (any Actor)? = #isolation,
         operation: () async throws -> T) async rethrows -> T
     {
-        try await self.$explicitRetryScope.withValue(ExplicitRetryScope()) {
+        let scope = self.explicitRetryScope ?? ExplicitRetryScope(bypassingCooldown: bypassingCooldown)
+        return try await self.$explicitRetryScope.withValue(scope) {
             try await operation()
         }
     }
@@ -226,17 +209,36 @@ public enum BrowserCookieAccessGate {
     }
 
     static func withRecordReadInteractionPolicy<T>(_ operation: () throws -> T) rethrows -> T {
-        guard ProviderInteractionContext.current == .background else {
-            return try operation()
+        do {
+            return try BrowserCookieKeychainAccessGate.withUserInteractionDisallowed(operation)
+        } catch {
+            // ACL metadata is not a secret read. Spend the action's shared allowance only after
+            // the actual no-UI read fails; SweetCookieKit caches a successful key across profiles.
+            guard let cookieError = error as? BrowserCookieError,
+                  case let .accessDenied(browser, _) = cookieError,
+                  browser.usesKeychainForCookieDecryption,
+                  !BrowserCookieKeychainAccessGate.isUserInteractionDisallowed,
+                  self.shouldAttempt(browser),
+                  ProviderInteractionContext.current == .userInitiated,
+                  self.explicitRetryScope?.claimCookieRead() == true
+            else { throw error }
+            do {
+                return try operation()
+            } catch {
+                self.recordIfNeeded(error, afterInteractiveRetry: true)
+                throw error
+            }
         }
-        return try BrowserCookieKeychainAccessGate.withUserInteractionDisallowed(operation)
     }
 
-    public static func recordIfNeeded(_ error: Error, now: Date = Date()) {
+    public static func recordIfNeeded(_ error: Error, now: Date = Date(), afterInteractiveRetry: Bool = false) {
         guard let error = error as? BrowserCookieError else { return }
         guard case .accessDenied = error else { return }
         self.recordAccessFailure(for: error.browser)
-        self.recordDenied(for: error.browser, now: now)
+        // A sibling can share a spent allowance without having made an interactive read.
+        if afterInteractiveRetry {
+            self.recordDenied(for: error.browser, now: now)
+        }
     }
 
     public static func recordDenied(for browser: Browser, now: Date = Date()) {
@@ -273,7 +275,7 @@ public enum BrowserCookieAccessGate {
     static func recordAllowed(for browser: Browser) {
         guard browser.usesKeychainForCookieDecryption,
               ProviderInteractionContext.current == .userInitiated,
-              self.explicitRetryScope?.contains(browser) == true
+              self.explicitRetryScope?.bypassingCooldown == true
         else { return }
         let clearedCooldown = self.lock.withLock { state in
             self.loadIfNeeded(&state)
@@ -291,22 +293,6 @@ public enum BrowserCookieAccessGate {
             metadata: ["browser": browser.displayName])
     }
 
-    static func claimExplicitRetryCookieReadIfNeeded(for browser: Browser) -> Bool {
-        guard browser.usesKeychainForCookieDecryption,
-              ProviderInteractionContext.current == .userInitiated,
-              let retryScope = self.explicitRetryScope,
-              retryScope.contains(browser)
-        else { return true }
-        let hasActiveBrowserCooldown = self.lock.withLock { state in
-            self.loadIfNeeded(&state)
-            return state.deniedUntilByBrowser[browser.rawValue] != nil
-        }
-        guard hasActiveBrowserCooldown else { return true }
-        let claimed = retryScope.claimCookieRead(for: browser)
-        if !claimed { self.recordAccessFailure(for: browser) }
-        return claimed
-    }
-
     public static func resetForTesting() {
         self.lock.withLock { state in
             state.loaded = true
@@ -316,23 +302,18 @@ public enum BrowserCookieAccessGate {
         }
     }
 
-    private static func isExplicitRetryAllowed(for browser: Browser) -> Bool {
-        ProviderInteractionContext.current == .userInitiated && self.explicitRetryScope?.allows(browser) == true
-    }
-
-    private static func chromiumKeychainRequiresInteraction(for browser: Browser) -> Bool {
-        let labels = browser.safeStorageLabels.isEmpty ? self.safeStorageLabels : browser.safeStorageLabels
+    private static func chromiumKeychainPreflight(for browser: Browser) -> KeychainAccessPreflight.Outcome {
+        let labels = browser.safeStorageLabels.isEmpty ? Browser.safeStorageLabels : browser.safeStorageLabels
         for label in labels {
-            switch KeychainAccessPreflight.checkGenericPassword(service: label.service, account: label.account) {
-            case .allowed:
-                return false
-            case .interactionRequired, .temporarilyUnavailable:
-                return true
+            let outcome = KeychainAccessPreflight.checkGenericPassword(service: label.service, account: label.account)
+            switch outcome {
+            case .allowed, .interactionRequired, .temporarilyUnavailable:
+                return outcome
             case .notFound, .failure:
                 continue
             }
         }
-        return false
+        return .notFound
     }
 
     /// Background (non-user-initiated) refreshes must never surface a Keychain prompt. Rather than
@@ -345,7 +326,7 @@ public enum BrowserCookieAccessGate {
         if self.deniedBrowsersForTesting?.contains(browser) == true {
             return false
         }
-        guard self.chromiumKeychainAccessIsAllowed(for: browser) else {
+        guard self.chromiumKeychainPreflight(for: browser) == .allowed else {
             self.log.info(
                 "Skipping background Chromium cookie import to avoid a Keychain prompt",
                 metadata: ["browser": browser.displayName])
@@ -356,27 +337,6 @@ public enum BrowserCookieAccessGate {
             metadata: ["browser": browser.displayName])
         return true
     }
-
-    /// Returns true only when the no-UI Safe Storage preflight explicitly reports `.allowed` for one of
-    /// the browser's labels before any label requires interaction. Symmetric with
-    /// `chromiumKeychainRequiresInteraction`; `.notFound`/`.failure` are skipped and never treated as a
-    /// grant, so only an already-authorized ACL enables a background read.
-    private static func chromiumKeychainAccessIsAllowed(for browser: Browser) -> Bool {
-        let labels = browser.safeStorageLabels.isEmpty ? self.safeStorageLabels : browser.safeStorageLabels
-        for label in labels {
-            switch KeychainAccessPreflight.checkGenericPassword(service: label.service, account: label.account) {
-            case .allowed:
-                return true
-            case .interactionRequired, .temporarilyUnavailable:
-                return false
-            case .notFound, .failure:
-                continue
-            }
-        }
-        return false
-    }
-
-    private static let safeStorageLabels: [(service: String, account: String)] = Browser.safeStorageLabels
 
     private static func normalizedPath(_ url: URL) -> String {
         url.standardizedFileURL.resolvingSymlinksInPath().path
@@ -421,22 +381,8 @@ extension BrowserCookieClient {
         in browser: Browser,
         logger: ((String) -> Void)? = nil) throws -> [BrowserCookieStoreRecords]
     {
-        guard BrowserCookieAccessGate.cookieStoreAccessDecision(
-            homeDirectories: self.configuration.homeDirectories) == .allowed
-        else {
-            throw BrowserCookieStoreAccessSuppressedError()
-        }
-        guard BrowserCookieAccessGate.shouldAttempt(browser) else { return [] }
-        guard BrowserCookieAccessGate.claimExplicitRetryCookieReadIfNeeded(for: browser) else { return [] }
-        do {
-            let records = try BrowserCookieAccessGate.withRecordReadInteractionPolicy {
-                try self.records(matching: query, in: browser, logger: logger)
-            }
-            BrowserCookieAccessGate.recordAllowed(for: browser)
-            return records
-        } catch {
-            BrowserCookieAccessGate.recordIfNeeded(error)
-            throw error
+        try self.readCookieRecords(for: browser) {
+            try self.records(matching: query, in: browser, logger: logger)
         }
     }
 
@@ -447,18 +393,23 @@ extension BrowserCookieClient {
         in store: BrowserCookieStore,
         logger: ((String) -> Void)? = nil) throws -> [BrowserCookieRecord]
     {
+        try self.readCookieRecords(for: store.browser) {
+            try self.records(matching: query, in: store, logger: logger)
+        }
+    }
+
+    private func readCookieRecords<Record>(
+        for browser: Browser,
+        operation: () throws -> [Record]) throws -> [Record]
+    {
         guard BrowserCookieAccessGate.cookieStoreAccessDecision(
             homeDirectories: self.configuration.homeDirectories) == .allowed
         else {
             throw BrowserCookieStoreAccessSuppressedError()
         }
-        let browser = store.browser
         guard BrowserCookieAccessGate.shouldAttempt(browser) else { return [] }
-        guard BrowserCookieAccessGate.claimExplicitRetryCookieReadIfNeeded(for: browser) else { return [] }
         do {
-            let records = try BrowserCookieAccessGate.withRecordReadInteractionPolicy {
-                try self.records(matching: query, in: store, logger: logger)
-            }
+            let records = try BrowserCookieAccessGate.withRecordReadInteractionPolicy(operation)
             BrowserCookieAccessGate.recordAllowed(for: browser)
             return records
         } catch {
@@ -477,11 +428,15 @@ public enum BrowserCookieAccessGate {
         true
     }
 
-    public static func withExplicitRetry<T>(_ operation: () throws -> T) rethrows -> T {
+    public static func withExplicitRetry<T>(
+        bypassingCooldown: Bool = false,
+        _ operation: () throws -> T) rethrows -> T
+    {
         try operation()
     }
 
     public static func withExplicitRetry<T>(
+        bypassingCooldown: Bool = false,
         isolation: isolated (any Actor)? = #isolation,
         operation: () async throws -> T) async rethrows -> T
     {
@@ -496,7 +451,7 @@ public enum BrowserCookieAccessGate {
         try await operation()
     }
 
-    public static func recordIfNeeded(_ error: Error, now: Date = Date()) {}
+    public static func recordIfNeeded(_ error: Error, now: Date = Date(), afterInteractiveRetry: Bool = false) {}
     public static func recordDenied(for browser: Browser, now: Date = Date()) {}
     public static func hasActiveDenial(for browser: Browser, now: Date = Date()) -> Bool {
         false

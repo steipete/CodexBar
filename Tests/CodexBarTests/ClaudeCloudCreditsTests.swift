@@ -26,7 +26,7 @@ struct ClaudeCloudCreditsTests {
         #expect(credit.remainingDollars == limit)
         #expect(credit.usedDollars == 0)
         #expect(credit.expiresAt == nil)
-        #expect(oauth.primary.usedPercent == 12)
+        #expect(oauth.primary?.usedPercent == 12)
         #expect(oauth.providerCost?.used == 5)
         #expect(oauth.providerCost?.limit == 20)
     }
@@ -62,7 +62,7 @@ struct ClaudeCloudCreditsTests {
         let web = try ClaudeWebAPIFetcher._parseUsageResponseForTesting(data)
         #expect(oauth.cloudCredits == nil)
         #expect(web.cloudCredits == nil)
-        #expect(oauth.primary.usedPercent == 12)
+        #expect(oauth.primary?.usedPercent == 12)
         #expect(web.sessionPercentUsed == 12)
     }
 

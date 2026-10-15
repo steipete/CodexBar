@@ -539,7 +539,8 @@ struct OllamaUsageFetcherTests {
     }
 
     @Test
-    func `manual refresh bypasses browser denial cooldown`() async {
+    func `manual refresh can authorize a browser needing interaction`() async {
+        // This override models a gated key, not a recorded user denial.
         await BrowserCookieAccessGate.withDeniedBrowsersForTesting([.brave]) {
             KeychainAccessGate.withTaskOverrideForTesting(false) {
                 BrowserCookieAccessGate.withExplicitRetry {

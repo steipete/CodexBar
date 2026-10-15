@@ -13,6 +13,25 @@ private final class RecordingMenuHighlightView: NSView, MenuCardHighlighting {
     }
 }
 
+@MainActor
+private final class CardActionProbe {
+    var sawAction = false
+}
+
+private struct CardActionProbeView: View {
+    let probe: CardActionProbe
+    @Environment(\.providerCardAction) private var action
+
+    var body: some View {
+        Text(self.recordedLabel())
+    }
+
+    private func recordedLabel() -> String {
+        self.probe.sawAction = self.probe.sawAction || self.action.perform != nil
+        return "Probe"
+    }
+}
+
 extension StatusMenuTests {
     private func makeRecyclingController(settings: SettingsStore) -> StatusItemController {
         let store = self.makeCodexStore(settings: settings, dashboardAuthorized: false)
@@ -65,6 +84,23 @@ extension StatusMenuTests {
             #expect(clickable.isEnabled)
             #expect(submenu.isEnabled)
         }
+    }
+
+    @Test
+    func `every hosted card row receives the card action handler`() {
+        let previousRendering = StatusItemController.menuCardRenderingEnabled
+        StatusItemController.menuCardRenderingEnabled = true
+        defer { StatusItemController.menuCardRenderingEnabled = previousRendering }
+
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        let controller = self.makeRecyclingController(settings: settings)
+        defer { controller.releaseStatusItemsForTesting() }
+
+        // Overview and account layouts build rows through the same entry point as provider cards.
+        let probe = CardActionProbe()
+        _ = controller.makeMenuCardItem(CardActionProbeView(probe: probe), id: "probe", width: 300)
+        #expect(probe.sawAction)
     }
 
     @Test

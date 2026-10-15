@@ -44,7 +44,14 @@ For `agy` 1.2.2 and later, a failed legacy HTTPS fetch can fall back to
 or later before using print mode; [Google introduced non-interactive usage reports in 1.1.11](https://antigravity.google/changelog).
 It requires a successful `usage` command report with known,
 enabled quota buckets, bounds the command to 90 seconds and its output to 1 MiB, and terminates the command
-on cancellation. It runs in a private empty directory and does not send a model prompt or parse TUI output.
+on cancellation. It runs in a private temporary directory and does not send a model prompt or parse TUI output.
+When silent sign-in fails, `agy` print mode can exec `open` or `xdg-open` from `PATH` to start Google OAuth.
+Each print probe puts failing launchers in its existing private directory, prepends that directory to `PATH`,
+and points `BROWSER` at the failing launcher. If the launchers cannot be installed, the report does not start.
+Automatic and manual usage refreshes can still retrieve quota with a working login, but cannot open browser
+sign-in through these launchers. A failed login returns a sign-in or timeout error; run `agy` in a terminal
+to sign in again. **Add Account...** keeps its explicit OAuth login flow. The launchers are removed with the
+probe directory after subprocess cleanup, including failure and cancellation.
 Each print probe receives a fresh `CODEXBAR_PROBE_OWNER` environment marker. On completion, timeout, or
 cancellation, CodexBar stops its process group and reaps same-user processes that still carry that exact marker,
 including detached MCP servers. Ownership and process start identity are checked again before each signal;
@@ -59,7 +66,7 @@ On macOS, Auto can also run the print command for a selected or injected Google 
 its credentials into a temporary `0700` home with a `0600` token file, then runs `agy` with only PATH,
 locale, temporary-directory, and proxy settings inherited. `SSH_TTY` selects agy's file-token storage,
 keeping the ambient CLI login and Keychain untouched. Credentials without an ID token are supported;
-`agy` can refresh an expired grant in that temporary home without starting a login.
+`agy` can silently refresh an expired grant in that temporary home; if that fails, the same browser-launch guard applies.
 
 Before attributing usage, CodexBar checks the effective access token through Google's userinfo endpoint
 and rejects a different or unverifiable account, including conflicting refreshed ID-token claims.

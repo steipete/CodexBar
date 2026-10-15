@@ -19,6 +19,7 @@ enum UsageMenuCardContext {
         var subtitle: String?
         var sourceLabel: String?
         var credits: CreditsSnapshot?
+        var tokenAccountID: UUID?
     }
 
     var account: Account? {
@@ -49,7 +50,8 @@ extension UsageStore {
     func menuCardInput(
         for provider: UsageProvider,
         context: UsageMenuCardContext,
-        now: Date = Date()) -> UsageMenuCardView.Model.Input
+        now: Date = Date(),
+        optionalUsageOverride: Bool? = nil) -> UsageMenuCardView.Model.Input
     {
         let account = context.account
         let isSettings = context.isSettings
@@ -93,8 +95,26 @@ extension UsageStore {
             codexProjection: codexProjection,
             account: account,
             now: now)
+        let presentation = isLive ? self.userFacingErrorPresentation(for: provider) : nil
+        let lastError = account?.error ?? codexProjection?.userFacingErrors.usage
+            ?? (isLive && isSettings ? self.userFacingError(for: provider) : presentation?.message)
+        // Settings keeps its error preview intact; menu cards have a dedicated secondary stale-usage line.
+        let lastKnownUsageCapturedAt = isSettings ? nil : presentation?.lastKnownUsageCapturedAt
+        let throughputScope: ProviderModelRateLimitScope? = isLive
+            ? self.settings.modelRateLimitScope(for: provider)
+            : account?.tokenAccountID.map { .tokenAccount($0) }
         return UsageMenuCardView.Model.Input(
             provider: provider,
+            throughputPresentation: snapshot?.throughput.flatMap {
+                var presentation = ProviderCatalog.implementation(for: provider)?.throughputPresentation(
+                    snapshot: $0,
+                    settings: self.settings,
+                    limitScope: throughputScope)
+                if !isLive, throughputScope != self.settings.modelRateLimitScope(for: provider) {
+                    presentation?.action = nil
+                }
+                return presentation
+            },
             metadata: metadata,
             snapshot: snapshot,
             codexProjection: codexProjection,
@@ -111,11 +131,11 @@ extension UsageStore {
             planOverride: account?.plan ?? .automatic,
             planEmphasis: account?.planEmphasis ?? .none,
             lastKnownUsageCapturedAt: account?.lastKnownUsageCapturedAt
+                ?? lastKnownUsageCapturedAt
                 ?? (isLive ? self.browserSessionLastKnownUsageCapturedAt(for: provider, snapshot: snapshot) : nil),
             isRefreshing: isSettings ? self.refreshingProviders.contains(provider.instanceID)
                 : self.shouldShowRefreshingMenuCardIndicator(for: provider),
-            lastError: account?.error ?? codexProjection?.userFacingErrors.usage
-                ?? (isLive ? self.userFacingError(for: provider) : nil),
+            lastError: lastError,
             limitsAvailability: isSettings && !isLive ? nil : self.knownLimitsAvailability(for: provider),
             usageBarsShowUsed: self.settings.usageBarsShowUsed,
             resetTimeDisplayStyle: self.settings.resetTimeDisplayStyle,
@@ -128,7 +148,7 @@ extension UsageStore {
                 ? self.settings.isCostUsageEffectivelyEnabled(for: provider)
                 : descriptor.tokenCost.showsCostMenuSection && self.settings.costSummaryShowsSubmenu(for: provider),
             costComparisonPeriodsEnabled: !isSettings && self.settings.costComparisonPeriodsEnabled,
-            showOptionalCreditsAndExtraUsage: self.settings.showOptionalCreditsAndExtraUsage,
+            showOptionalCreditsAndExtraUsage: optionalUsageOverride ?? self.settings.showOptionalCreditsAndExtraUsage,
             copilotBudgetExtrasEnabled: self.settings.copilotBudgetExtrasEnabled,
             showsAllUsageLanes: isSettings,
             sourceLabel: account?.sourceLabel ?? (!isSettings && isLive ? self.sourceLabel(for: provider) : nil),

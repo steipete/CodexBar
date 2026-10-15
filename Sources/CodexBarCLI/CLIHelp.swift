@@ -137,6 +137,7 @@ extension CodexBarCLI {
                        [--no-color] [--pretty] [--refresh] [--breakdown] [--provider-native-only]
                        [--period month-to-date|all] [--days <days>] [--group-by project|session]
                        [--remote <ssh-host> | --summary-only]
+                       [--identified-only [--identified-end <unix-ms>]]
 
         Description:
           Print local token cost usage from Claude/Codex native logs plus supported pi and OMP sessions.
@@ -148,6 +149,11 @@ extension CodexBarCLI {
           Experimental: use --provider-native-only to exclude pi and OMP session mirrors.
           Use --provider codex --remote <host> for separate local and SSH-host summaries.
           --summary-only emits versioned Codex JSON totals without account or session details.
+          --identified-only requires --provider codex and JSON. It exports strong native request identities
+          over one UTC window (30 days by default); legacy and unidentified usage are excluded. Prices are unavailable.
+          Add --remote to deduplicate that export with one SSH host using the same millisecond window.
+          Both hosts need a CLI supporting --identified-only. Failures retain an explicitly partial local subtotal.
+          These modes accept --days 1...365, not --period, --summary-only, grouping or breakdown.
 
         Examples:
           codexbar cost
@@ -157,6 +163,7 @@ extension CodexBarCLI {
           codexbar cost --provider antigravity --format json
           codexbar cost --provider muse --format json
           codexbar cost --provider codex --remote build-host --format json
+          codexbar cost --provider codex --identified-only --format json --remote build-host
         """
     }
 

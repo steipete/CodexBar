@@ -11,7 +11,8 @@ struct UsageStoreSpendDashboardCodexCostCatchUpCacheTests {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }
         let store = try UsageStoreSpendDashboardCodexCostCatchUpTests.makeStore(suite: "sleep-completion-real-cache")
-        let sleep = SpendDashboardPendingLoads<Void>()
+        // The worker stays parked while this test runs a real full scan, which can outlast any watchdog under load.
+        let sleep = SpendDashboardPendingLoads<Void>(releaseTimeout: nil)
         defer { store.stopSharedSpendDashboardPublication(); sleep.close() }
         let now = try env.makeLocalNoon(year: 2026, month: 10, day: 8)
         let iso = env.isoString(for: now)

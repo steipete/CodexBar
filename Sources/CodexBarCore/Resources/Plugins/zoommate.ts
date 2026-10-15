@@ -251,7 +251,9 @@ defineProvider({
     }
     throw (
       lastError ??
-      ctx.fail.missingCredential("No ZoomMate session is cached and no session cookies were imported from Chrome.")
+      ctx.fail.missingCredential(
+        "No ZoomMate session is cached and no session cookies were imported from supported browsers.",
+      )
     );
   },
 });

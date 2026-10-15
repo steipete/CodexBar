@@ -6,7 +6,7 @@
     <title>CodexBar — every AI coding limit, in your menu bar</title>
     <meta
       name="description"
-      content="A tiny macOS menu bar app that tracks AI coding-provider usage windows, credits, costs, and resets across 100 providers — Codex, OpenAI, Claude, Cursor, Gemini, Copilot, LiteLLM, Helmcode, v0, TypeSafe, and more."
+      content="A tiny macOS menu bar app that tracks AI coding-provider usage windows, credits, costs, and resets across 103 providers — Codex, OpenAI, Claude, Cursor, Gemini, Copilot, LiteLLM, Helmcode, v0, TypeSafe, and more."
     />
     <meta name="theme-color" content="#0a0a0c" />
     <link rel="canonical" href="https://codexbar.app/" />
@@ -37,14 +37,14 @@
     <meta property="og:title" content="CodexBar" />
     <meta
       property="og:description"
-      content="Track usage windows, credits, and resets across 100 AI coding providers from your macOS menu bar."
+      content="Track usage windows, credits, and resets across 103 AI coding providers from your macOS menu bar."
     />
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://codexbar.app/" />
-    <meta property="og:image" content="https://codexbar.app/social.png?v=2da5e6df9ee2b2ef" />
+    <meta property="og:image" content="https://codexbar.app/social.png?v=37654823e71c87f4" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
-    <meta name="twitter:image" content="https://codexbar.app/social.png?v=2da5e6df9ee2b2ef" />
+    <meta name="twitter:image" content="https://codexbar.app/social.png?v=37654823e71c87f4" />
     <meta name="twitter:card" content="summary_large_image" />
     <link rel="icon" type="image/png" href="./icon.png?v=2" />
     <link rel="apple-touch-icon" href="./icon.png?v=2" />
@@ -293,7 +293,7 @@
         <div class="section-inner">
         <header class="relative z-10 grid gap-5 tablet:grid-cols-[1fr_0.86fr] tablet:items-center">
           <h2 class="provider-reveal max-w-3xl text-balance text-[clamp(2.4rem,4.4vw,5rem)] font-semibold leading-[0.98] tracking-[-0.07em] text-zinc-100">
-            <span data-i18n-rich="providers.title">100 providers,{mobileBreak}one menu bar</span>
+            <span data-i18n-rich="providers.title">103 providers,{mobileBreak}one menu bar</span>
           </h2>
           <p class="provider-reveal max-w-2xl text-[clamp(1rem,1.35vw,1.28rem)] leading-[1.45] tracking-[-0.035em] text-zinc-400" style="--reveal-delay: 70ms">
             <span data-i18n="providers.description">Track usage windows, balances, and spend where each provider exposes them — including Helmcode, v0, and TypeSafe.</span>
@@ -356,7 +356,7 @@
           <li class="provider-card" data-provider="doubao"><a class="provider-card-link" href="https://github.com/steipete/CodexBar/blob/main/docs/doubao.md"><span class="provider-logo" style="--brand:#3370FF;--icon:url('./logos/doubao.svg')"><img src="./logos/doubao.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>Doubao</strong><span data-i18n="auth.apiKey">API key</span></p></a></li>
           <li class="provider-card" data-provider="sakana"><a class="provider-card-link" href="https://github.com/steipete/CodexBar/blob/main/docs/sakana.md"><span class="provider-logo" style="--brand:#2975DB;--icon:url('./logos/sakana.svg')"><img src="./logos/sakana.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>Sakana AI</strong><span data-i18n="auth.cookies">Cookies</span></p></a></li>
           <li class="provider-card" data-provider="venice"><a class="provider-card-link" href="https://github.com/steipete/CodexBar/blob/main/docs/venice.md"><span class="provider-logo" style="--brand:#3C8FDD;--icon:url('./logos/venice.svg')"><img src="./logos/venice.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>Venice</strong><span data-i18n="auth.apiKeyCookies">API key + Cookies</span></p></a></li>
-          <li class="provider-card" data-provider="commandcode"><a class="provider-card-link" href="https://github.com/steipete/CodexBar/blob/main/docs/command-code.md"><span class="provider-logo" style="--brand:#8C4EDD;--icon:url('./logos/commandcode.svg')"><img src="./logos/commandcode.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>Command Code</strong><span data-i18n="auth.cookies">Cookies</span></p></a></li>
+          <li class="provider-card" data-provider="commandcode"><a class="provider-card-link" href="https://github.com/steipete/CodexBar/blob/main/docs/command-code.md"><span class="provider-logo" style="--brand:#8C4EDD;--icon:url('./logos/commandcode.svg')"><img src="./logos/commandcode.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>Command Code</strong><span data-i18n="auth.apiKeyCookies">API key / Cookies</span></p></a></li>
           <li class="provider-card" data-provider="qoder"><a class="provider-card-link" href="https://github.com/steipete/CodexBar/blob/main/docs/qoder.md"><span class="provider-logo" style="--brand:#10B981;--icon:url('./logos/qoder.svg')"><img src="./logos/qoder.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>Qoder</strong><span data-i18n="auth.cookies">Cookies</span></p></a></li>
           <li class="provider-card" data-provider="stepfun"><a class="provider-card-link" href="https://github.com/steipete/CodexBar/blob/main/docs/stepfun.md"><span class="provider-logo" style="--brand:#2196F2;--icon:url('./logos/stepfun.svg')"><img src="./logos/stepfun.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>StepFun</strong><span data-i18n="auth.token">Token</span></p></a></li>
           <li class="provider-card" data-provider="bedrock"><a class="provider-card-link" href="https://github.com/steipete/CodexBar/blob/main/docs/bedrock.md"><span class="provider-logo" style="--brand:#01A88D;--icon:url('./logos/bedrock.svg')"><img src="./logos/bedrock.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>AWS Bedrock</strong><span data-i18n="auth.awsCredentials">AWS credentials</span></p></a></li>
@@ -402,6 +402,9 @@
           <li class="provider-card" data-provider="aerostack"><a class="provider-card-link" href="https://github.com/steipete/CodexBar/blob/main/docs/aerostack.md"><span class="provider-logo" style="--brand:#6366F1;--icon:url('./logos/aerostack.svg')"><img src="./logos/aerostack.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>Aerostack</strong><span data-i18n="auth.apiKey">API key</span></p></a></li>
           <li class="provider-card" data-provider="sailresearch"><a class="provider-card-link" href="https://github.com/steipete/CodexBar/blob/main/docs/sailresearch.md"><span class="provider-logo" style="--brand:#2C4681;--icon:url('./logos/sailresearch.svg')"><img src="./logos/sailresearch.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>Sail Research</strong><span data-i18n="auth.apiKey">API key</span></p></a></li>
           <li class="provider-card" data-provider="sofya"><a class="provider-card-link" href="https://github.com/steipete/CodexBar/blob/main/docs/sofya.md"><span class="provider-logo" style="--brand:#B0B820;--icon:url('./logos/sofya.svg')"><img src="./logos/sofya.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>Sofya</strong><span data-i18n="auth.apiKey">API key</span></p></a></li>
+          <li class="provider-card" data-provider="fal"><a class="provider-card-link" href="https://github.com/steipete/CodexBar/blob/main/docs/fal.md"><span class="provider-logo" style="--brand:#7C3AED;--icon:url('./logos/fal.svg')"><img src="./logos/fal.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>fal</strong><span data-i18n="auth.apiKey">API key</span></p></a></li>
+          <li class="provider-card" data-provider="flora"><a class="provider-card-link" href="https://github.com/steipete/CodexBar/blob/main/docs/flora.md"><span class="provider-logo" style="--brand:#111111;--icon:url('./logos/flora.svg')"><img src="./logos/flora.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>FLORA</strong><span data-i18n="auth.apiKey">API key</span></p></a></li>
+          <li class="provider-card" data-provider="parallel"><a class="provider-card-link" href="https://github.com/steipete/CodexBar/blob/main/docs/parallel.md"><span class="provider-logo" style="--brand:#1D1C1A;--icon:url('./logos/parallel.svg')"><img src="./logos/parallel.svg" alt="" loading="lazy" onerror="this.remove()" /></span><p><strong>Parallel</strong><span data-i18n="auth.cookies">Cookies</span></p></a></li>
 <!-- End generated provider additions -->
           <li class="provider-card"><a class="provider-card-link" href="https://github.com/steipete/CodexBar/blob/main/docs/provider.md"><span class="provider-logo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.84 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 .84.18 2 2 0 0 0 .84-.18l8.58-3.9a1 1 0 0 0 0-1.831z"/><path d="M16 17h6"/><path d="M19 14v6"/><path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 .825.178"/><path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.66 0l2.116-.962"/></svg></span><p><strong data-i18n="providers.yourProvider">Your provider</strong><span class="provider-authoring"><span data-i18n="providers.authoringGuide">Authoring guide</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></svg></span></p></a></li>
         </ul>

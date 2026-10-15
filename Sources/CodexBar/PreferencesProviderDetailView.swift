@@ -8,6 +8,11 @@ enum ProviderMetricInlinePresentation: Equatable {
 
 @MainActor
 struct ProviderDetailView<SupplementaryContent: View>: View {
+    private struct ModelLimitsIdentity: Hashable {
+        let id: String
+        let scope: ProviderModelRateLimitScope?
+    }
+
     let provider: UsageProvider
     @Bindable var store: UsageStore
     @Binding var isEnabled: Bool
@@ -19,6 +24,7 @@ struct ProviderDetailView<SupplementaryContent: View>: View {
     let settingsPickers: [ProviderSettingsPickerDescriptor]
     let settingsToggles: [ProviderSettingsToggleDescriptor]
     let settingsFields: [ProviderSettingsFieldDescriptor]
+    let settingsModelLimits: [ProviderSettingsModelLimitsDescriptor]
     let settingsDirectoryLists: [ProviderSettingsDirectoryListDescriptor]
     let settingsActions: [ProviderSettingsActionsDescriptor]
     let settingsTokenAccounts: ProviderSettingsTokenAccountsDescriptor?
@@ -43,6 +49,7 @@ struct ProviderDetailView<SupplementaryContent: View>: View {
         settingsToggles: [ProviderSettingsToggleDescriptor],
         settingsFields: [ProviderSettingsFieldDescriptor],
         settingsDirectoryLists: [ProviderSettingsDirectoryListDescriptor] = [],
+        settingsModelLimits: [ProviderSettingsModelLimitsDescriptor] = [],
         settingsActions: [ProviderSettingsActionsDescriptor] = [],
         settingsTokenAccounts: ProviderSettingsTokenAccountsDescriptor?,
         settingsOrganizations: ProviderSettingsOrganizationsDescriptor? = nil,
@@ -65,6 +72,7 @@ struct ProviderDetailView<SupplementaryContent: View>: View {
         self.settingsToggles = settingsToggles
         self.settingsFields = settingsFields
         self.settingsDirectoryLists = settingsDirectoryLists
+        self.settingsModelLimits = settingsModelLimits
         self.settingsActions = settingsActions
         self.settingsTokenAccounts = settingsTokenAccounts
         self.settingsOrganizations = settingsOrganizations
@@ -239,6 +247,11 @@ struct ProviderDetailView<SupplementaryContent: View>: View {
                 ProviderSettingsDirectoryListRowView(descriptor: descriptor)
             }
 
+            ForEach(self.settingsModelLimits) { descriptor in
+                ProviderSettingsModelLimitsRowView(descriptor: descriptor)
+                    .id(ModelLimitsIdentity(id: descriptor.id, scope: descriptor.scope))
+            }
+
             if let organizations = self.settingsOrganizations {
                 ProviderSettingsOrganizationsRowView(descriptor: organizations)
             }
@@ -284,7 +297,14 @@ struct ProviderUsageItemVisibilitySettingsView: View {
                                 itemID: item.id,
                                 for: self.provider)
                         })) {
-                    Text(item.title)
+                    VStack(alignment: .leading) {
+                        Text(item.title)
+                        if item.requiresOptionalUsage, !self.settings.showOptionalCreditsAndExtraUsage {
+                            Text(L("Hidden by the global optional credits, spending & billing setting."))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
                 }
                 .toggleStyle(.checkbox)
             }

@@ -22,6 +22,11 @@ extension CostUsageScanner {
         let threadID: String
         let sessionID: String?
         let turnID: String?
+        var timestamp: String?
+        var responseID: String?
+
+        /// Export diagnostics are transient; preserve the original deferred-buffer schema.
+        enum CodingKeys: String, CodingKey { case threadID, sessionID, turnID }
     }
 
     struct CodexTurnPerformanceCompletion: Codable, Equatable {

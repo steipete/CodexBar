@@ -17,29 +17,10 @@ enum ClaudeVerifiedAccountOwner {
 }
 
 extension ClaudeUsageSnapshot {
-    func withAccountIdentity(_ accountID: String) -> ClaudeUsageSnapshot {
-        var snapshot = ClaudeUsageSnapshot(
-            primary: self.primary,
-            primaryWindowKind: self.primaryWindowKind,
-            secondary: self.secondary,
-            opus: self.opus,
-            extraRateWindows: self.extraRateWindows,
-            providerCost: self.providerCost,
-            resetCredits: self.resetCredits,
-            cloudCredits: self.cloudCredits,
-            updatedAt: self.updatedAt,
-            accountEmail: self.accountEmail,
-            accountOrganization: self.accountOrganization,
-            loginMethod: self.loginMethod,
-            rawText: self.rawText,
-            oauthKeychainPersistentRefHash: self.oauthKeychainPersistentRefHash,
-            oauthHistoryOwnerIdentifier: self.oauthHistoryOwnerIdentifier,
-            oauthCredentialOwner: self.oauthCredentialOwner,
-            oauthKeychainCredentialMismatch: self.oauthKeychainCredentialMismatch,
-            oauthKeychainCredentialAbsent: self.oauthKeychainCredentialAbsent,
-            oauthKeychainCredentialUnavailable: self.oauthKeychainCredentialUnavailable,
-            accountID: accountID)
-        snapshot.subscriptionMetadata = self.subscriptionMetadata
+    func withAccountIdentity(_ accountID: String?, email: String? = nil) -> ClaudeUsageSnapshot {
+        var snapshot = self
+        snapshot.accountID = accountID
+        snapshot.accountEmail = email ?? self.accountEmail
         return snapshot
     }
 }

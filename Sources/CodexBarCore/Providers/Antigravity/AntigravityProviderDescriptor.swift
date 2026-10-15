@@ -261,28 +261,18 @@ public enum AntigravityProviderDescriptor {
 }
 
 struct AntigravityStatusFetchStrategy: ProviderFetchStrategy {
-    enum Source {
+    enum Source: String {
         case app
         case ide
 
         var id: String {
-            switch self {
-            case .app: "antigravity.app-local"
-            case .ide: "antigravity.ide-local"
-            }
+            "antigravity.\(self.rawValue)-local"
         }
 
         var processScope: AntigravityStatusProbe.ProcessScope {
             switch self {
             case .app: .appOnly
             case .ide: .ideOnly
-            }
-        }
-
-        var sourceLabel: String {
-            switch self {
-            case .app: "app"
-            case .ide: "ide"
             }
         }
     }
@@ -314,7 +304,7 @@ struct AntigravityStatusFetchStrategy: ProviderFetchStrategy {
         try AntigravitySelectedAccountGuard.validate(usage, context: context)
         return self.makeResult(
             usage: usage,
-            sourceLabel: self.source.sourceLabel)
+            sourceLabel: self.source.rawValue)
     }
 
     func shouldFallback(on _: Error, context: ProviderFetchContext) -> Bool {
@@ -644,6 +634,18 @@ struct AntigravityCLIHTTPSFetchStrategy: ProviderFetchStrategy {
             // Earlier print implementations could turn unsupported slash commands into model prompts.
             guard let version, version >= (1, 1, 11)
             else { throw AntigravityStatusProbeError.parseFailed("CLI usage reports require agy 1.1.11 or later") }
+            // agy's OAuth launcher resolves these commands through PATH, even in print mode.
+            // Reuse the private probe directory; its owner removes the stubs after descendant cleanup.
+            var environment = environment
+            for command in ["open", "xdg-open"] {
+                guard FileManager.default.createFile(
+                    atPath: directory.appendingPathComponent(command).path,
+                    contents: Data("#!/bin/sh\nexit 1\n".utf8),
+                    attributes: [.posixPermissions: 0o700])
+                else { throw AntigravityStatusProbeError.cliReportFailed(.launchFailed) }
+            }
+            environment["PATH"] = directory.path + ":" + (environment["PATH"] ?? "/usr/bin:/bin")
+            environment["BROWSER"] = directory.appendingPathComponent("open").path
             result = try await SubprocessRunner.run(
                 binary: binary,
                 arguments: ["-p", "/usage", "--output-format", "json", "--print-timeout", "90s"],
@@ -925,13 +927,9 @@ struct AntigravityCLIHTTPSFetchStrategy: ProviderFetchStrategy {
             "Antigravity CLI started but no listening ports found")
     }
 
-    static func containsAuthenticationPrompt(_ output: Data) -> Bool {
-        AntigravityCLIAuthenticationPrompt.contains(output)
-    }
-
     private static func checkAuthenticationPrompt(_ dependencies: SnapshotWaitDependencies) async throws {
         let terminalOutput = await dependencies.drainOutput()
-        if Self.containsAuthenticationPrompt(terminalOutput) {
+        if AntigravityCLIAuthenticationPrompt.contains(terminalOutput) {
             throw AntigravityStatusProbeError.authenticationRequired
         }
     }

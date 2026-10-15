@@ -245,18 +245,22 @@ struct TTYCommandRunnerEnvTests {
         let fm = FileManager.default
         let dir = fm.temporaryDirectory.appendingPathComponent("codexbar-tty-\(UUID().uuidString)", isDirectory: true)
         try fm.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? fm.removeItem(at: dir) }
 
+        // Keep the slave open until the cwd is observed: Darwin can discard unread output on exit.
         let runner = TTYCommandRunner()
         let result = try runner.run(
-            binary: "/bin/pwd",
+            binary: "/bin/sh",
             send: "",
             options: .init(
                 timeout: Self.harnessPTYTimeout,
                 workingDirectory: dir,
-                stopOnSubstrings: [dir.path],
-                returnOnEmptyProcessExit: true))
-        let clean = result.text.replacingOccurrences(of: "\r", with: "")
-        #expect(clean.contains(dir.path))
+                extraArgs: ["-c", "/bin/pwd; read -r reply"],
+                baseEnvironment: [:],
+                stopOnSubstrings: [dir.lastPathComponent]))
+        let clean = result.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        #expect(URL(fileURLWithPath: clean).resolvingSymlinksInPath().path == dir.resolvingSymlinksInPath().path)
+        #expect(result.completion == .outputCondition)
     }
 
     @Test

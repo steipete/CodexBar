@@ -36,8 +36,15 @@ public enum MiniMaxCookieImporter {
         browserDetection: BrowserDetection,
         logger: ((String) -> Void)? = nil) throws -> [SessionInfo]
     {
+        try Array(self.sessionCandidates(browserDetection: browserDetection, logger: logger))
+    }
+
+    static func sessionCandidates(
+        browserDetection: BrowserDetection,
+        logger: ((String) -> Void)? = nil) throws -> AnySequence<SessionInfo>
+    {
         try BrowserCookieImportSupport.collectSessions(
-            from: minimaxCookieImportOrder.cookieImportCandidates(using: browserDetection),
+            from: minimaxCookieImportOrder.lazyCookieImportCandidates(using: browserDetection),
             missingError: MiniMaxCookieImportError.noCookies,
             logger: { self.emit($0, logger: logger) },
             load: { try self.importSessions(from: $0, logger: logger) })
@@ -70,8 +77,8 @@ public enum MiniMaxCookieImporter {
         browserDetection: BrowserDetection,
         logger: ((String) -> Void)? = nil) throws -> SessionInfo
     {
-        let sessions = try self.importSessions(browserDetection: browserDetection, logger: logger)
-        guard let first = sessions.first else {
+        let sessions = try self.sessionCandidates(browserDetection: browserDetection, logger: logger)
+        guard let first = sessions.first(where: { _ in true }) else {
             throw MiniMaxCookieImportError.noCookies
         }
         return first
@@ -79,7 +86,8 @@ public enum MiniMaxCookieImporter {
 
     public static func hasSession(browserDetection: BrowserDetection, logger: ((String) -> Void)? = nil) -> Bool {
         do {
-            return try !self.importSessions(browserDetection: browserDetection, logger: logger).isEmpty
+            return try self.sessionCandidates(browserDetection: browserDetection, logger: logger)
+                .contains(where: { _ in true })
         } catch {
             return false
         }
