@@ -2,6 +2,10 @@
 
 ## 0.76.1 — Unreleased
 
+### Fixed
+
+- Codex: keep counting cost for sessions Codex archives as `.jsonl.zst`; they previously dropped out of every cost window once Codex removed the plain log.
+
 ## 0.76.0 — 2026-10-15
 
 ### Highlights

@@ -65,6 +65,12 @@ let package = Package(
                 linkerSettings: [
                     .linkedLibrary("m", .when(platforms: [.linux])),
                 ]),
+            // Decoder-only zstd for Codex rollouts archived as *.jsonl.zst. See Sources/CZstd/README.md.
+            .target(
+                name: "CZstd",
+                path: "Sources/CZstd",
+                exclude: ["README.md", "LICENSE"],
+                publicHeadersPath: "include"),
             // Both glibc and static-musl CLI builds use this target; the module map supplies sqlite3 linkage.
             .systemLibrary(
                 name: "CSQLite3",
@@ -76,6 +82,7 @@ let package = Package(
                 name: "CodexBarCore",
                 dependencies: [
                     "CQuickJS",
+                    "CZstd",
                     .target(name: "CSQLite3", condition: .when(platforms: [.linux])),
                     .product(name: "Crypto", package: "swift-crypto"),
                     .product(name: "Logging", package: "swift-log"),
