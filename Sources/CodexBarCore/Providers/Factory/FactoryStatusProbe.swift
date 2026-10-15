@@ -12,7 +12,7 @@ private let factoryCookieImportOrder: BrowserCookieImportOrder =
 
 /// Imports Factory session cookies from browser cookies.
 public enum FactoryCookieImporter {
-    private static let cookieClient = BrowserCookieClient()
+    @TaskLocal static var cookieClient = BrowserCookieClient()
     private static let sessionCookieNames: Set<String> = [
         "wos-session",
         "__Secure-next-auth.session-token",
@@ -122,11 +122,7 @@ public enum FactoryCookieImporter {
 
     /// Check if Factory session cookies are available
     public static func hasSession(browserDetection: BrowserDetection, logger: ((String) -> Void)? = nil) -> Bool {
-        do {
-            return try !(self.importSessions(browserDetection: browserDetection, logger: logger)).isEmpty
-        } catch {
-            return false
-        }
+        (try? self.importSessions(browserDetection: browserDetection, logger: logger).isEmpty) == false
     }
 
     private static func cookieNames(from cookies: [HTTPCookie]) -> String {
@@ -693,8 +689,8 @@ public struct FactoryStatusProbe: Sendable {
             }
         }
 
-        // Filter to only installed browsers to avoid unnecessary keychain prompts
-        let installedChromiumAndFirefox = [.chrome, .firefox].cookieImportCandidates(using: self.browserDetection)
+        let otherBrowsers = factoryCookieImportOrder.filter { $0 != .safari }
+            .cookieImportCandidates(using: self.browserDetection)
 
         let attempts: [() async -> FetchAttemptResult] = [
             { await self.attemptStoredCookies(logger: log) },
@@ -703,8 +699,8 @@ public struct FactoryStatusProbe: Sendable {
             { await self.attemptLocalStorageTokens(logger: log) },
             { await self.attemptBrowserCookies(logger: log, sources: [.safari]) },
             { await self.attemptWorkOSCookies(logger: log, sources: [.safari]) },
-            { await self.attemptBrowserCookies(logger: log, sources: installedChromiumAndFirefox) },
-            { await self.attemptWorkOSCookies(logger: log, sources: installedChromiumAndFirefox) },
+            { await self.attemptBrowserCookies(logger: log, sources: otherBrowsers) },
+            { await self.attemptWorkOSCookies(logger: log, sources: otherBrowsers) },
         ]
 
         for attempt in attempts {
@@ -738,9 +734,9 @@ public struct FactoryStatusProbe: Sendable {
         logger: @escaping (String) -> Void,
         sources: [Browser]) async -> FetchAttemptResult
     {
-        do {
-            var lastError: Error?
-            for browserSource in sources {
+        var lastError: Error?
+        for browserSource in sources {
+            do {
                 let sessions = try FactoryCookieImporter.importSessions(from: browserSource, logger: logger)
                 for session in sessions {
                     logger("Using cookies from \(session.sourceLabel)")
@@ -757,14 +753,14 @@ public struct FactoryStatusProbe: Sendable {
                         logger("Browser session fetch failed for \(session.sourceLabel): \(error.localizedDescription)")
                     }
                 }
+            } catch {
+                BrowserCookieAccessGate.recordIfNeeded(error)
+                logger("\(browserSource.displayName) cookie import failed: \(error.localizedDescription)")
+                lastError = error
             }
-            if let lastError { return .failure(lastError) }
-            return .skipped
-        } catch {
-            BrowserCookieAccessGate.recordIfNeeded(error)
-            logger("Browser cookie import failed: \(error.localizedDescription)")
-            return .failure(error)
         }
+        if let lastError { return .failure(lastError) }
+        return .skipped
     }
 
     private func attemptStoredCookies(logger: (String) -> Void) async -> FetchAttemptResult {
@@ -861,7 +857,7 @@ public struct FactoryStatusProbe: Sendable {
         for browserSource in sources {
             do {
                 let query = BrowserCookieQuery(domains: ["workos.com"])
-                let sources = try BrowserCookieClient().codexBarRecords(
+                let sources = try FactoryCookieImporter.cookieClient.codexBarRecords(
                     matching: query,
                     in: browserSource,
                     logger: log)

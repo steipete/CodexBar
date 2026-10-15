@@ -1,6 +1,10 @@
 import Foundation
 import Testing
 @testable import CodexBarCore
+#if os(macOS)
+import SQLite3
+import SweetCookieKit
+#endif
 
 @Suite(.serialized)
 struct FactoryStatusProbeFetchTests {
@@ -683,6 +687,108 @@ struct FactoryStatusProbeFetchTests {
         ])
     }
 
+    #if os(macOS)
+    /// A channel-owned Firefox profile rejected under `.firefox` must not abort the loop before
+    /// the channel-specific sources run.
+    @Test(arguments: [
+        (Browser.firefoxBeta, "firefox-beta", "abc.default-beta"),
+        (Browser.firefoxDeveloperEdition, "firefox-dev", "abc.dev-edition-default"),
+        (Browser.firefoxNightly, "firefox-nightly", "abc.default-nightly"),
+    ])
+    func `browser cookie fallback reaches Firefox release channels`(
+        browser: Browser,
+        remotingName: String,
+        profile: String) async throws
+    {
+        KeychainCacheStore.setTestStoreForTesting(true)
+        CookieHeaderCache.clear(provider: .factory)
+        defer { KeychainCacheStore.setTestStoreForTesting(false) }
+
+        let home = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codexbar-deved-home-\(UUID().uuidString)", isDirectory: true)
+        let appResources = home
+            .appendingPathComponent(
+                "Applications/\(browser.appBundleName).app/Contents/Resources",
+                isDirectory: true)
+        let profileDir = home
+            .appendingPathComponent(
+                "Library/Application Support/Firefox/Profiles/\(profile)",
+                isDirectory: true)
+        try FileManager.default.createDirectory(at: appResources, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: profileDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: home) }
+
+        try "[App]\nRemotingName=\(remotingName)\n".write(
+            to: appResources.appendingPathComponent("application.ini"),
+            atomically: true,
+            encoding: .utf8)
+        try """
+        [Compatibility]
+        LastVersion=1
+        LastOSABI=Darwin_aarch64-gcc3
+        LastPlatformDir=\(appResources.path)
+        LastAppDir=\(appResources.path)/browser
+
+        """.write(
+            to: profileDir.appendingPathComponent("compatibility.ini"),
+            atomically: true,
+            encoding: .utf8)
+        try writeGeckoCookies(
+            at: profileDir.appendingPathComponent("cookies.sqlite"),
+            host: "app.factory.ai",
+            name: "session",
+            value: "gecko-channel-session")
+
+        let sessionFile = try await Self.isolateFactorySessionStore()
+        defer { try? FileManager.default.removeItem(at: sessionFile) }
+        await FactorySessionStore.shared.clearSession()
+        defer { CookieHeaderCache.clear(provider: .factory) }
+
+        var logLines: [String] = []
+        let detection = BrowserDetection(
+            homeDirectory: home.path,
+            cacheTTL: 0,
+            now: Date.init,
+            fileExists: { $0.hasPrefix(home.path) && FileManager.default.fileExists(atPath: $0) },
+            directoryContents: { path in
+                guard path.hasPrefix(home.path) else { return nil }
+                return try? FileManager.default.contentsOfDirectory(atPath: path)
+            },
+            applicationURLs: { _ in [] },
+            profileAccessIssue: { _ in nil })
+        let probe = FactoryStatusProbe(
+            timeout: 1.0, browserDetection: detection, transport: ChannelFallbackStubTransport())
+
+        let client = BrowserCookieClient(configuration: .init(homeDirectories: [home]))
+        let snapshot = try await FactoryCookieImporter.$cookieClient.withValue(client) {
+            #expect(FactoryCookieImporter.hasSession(browserDetection: detection))
+            let missing = BrowserDetection(
+                homeDirectory: home.appendingPathComponent("empty").path,
+                cacheTTL: 0,
+                now: Date.init,
+                fileExists: { _ in false },
+                directoryContents: { _ in nil },
+                applicationURLs: { _ in [] },
+                profileAccessIssue: { _ in nil })
+            #expect(!FactoryCookieImporter.hasSession(browserDetection: missing))
+            return try await FactoryLocalStorageImporter.$safariWebsiteDataRoot.withValue(
+                home.appendingPathComponent("empty-safari-store"))
+            {
+                try await probe.fetch(logger: { logLines.append($0) })
+            }
+        }
+
+        #expect(snapshot.userId == "user-1")
+        let channelHit = logLines.firstIndex { $0.contains("Using cookies from \(browser.displayName)") }
+        #expect(channelHit != nil)
+        if browser == .firefoxDeveloperEdition {
+            let failure = try #require(logLines.firstIndex { $0.contains("Firefox cookie import failed") })
+            #expect(failure < (channelHit ?? 0))
+        }
+        await FactorySessionStore.shared.clearSession()
+    }
+    #endif
+
     private static func makeResponse(
         url: URL,
         body: String,
@@ -806,3 +912,60 @@ private struct FactoryStubTransport: ProviderHTTPTransport {
         return (data, response)
     }
 }
+
+#if os(macOS)
+private func writeGeckoCookies(
+    at url: URL,
+    host: String,
+    name: String,
+    value: String) throws
+{
+    var db: OpaquePointer?
+    guard sqlite3_open(url.path, &db) == SQLITE_OK else {
+        throw URLError(.cannotCreateFile)
+    }
+    defer { sqlite3_close(db) }
+    let statements = [
+        """
+        CREATE TABLE moz_cookies (
+            host TEXT, name TEXT, path TEXT, value TEXT,
+            expiry INTEGER, isSecure INTEGER, isHttpOnly INTEGER
+        )
+        """,
+        "INSERT INTO moz_cookies VALUES ('\(host)', '\(name)', '/', '\(value)', 1893456000, 1, 1)",
+    ]
+    for sql in statements {
+        guard sqlite3_exec(db, sql, nil, nil, nil) == SQLITE_OK else {
+            throw URLError(.cannotCreateFile)
+        }
+    }
+}
+
+private struct ChannelFallbackStubTransport: ProviderHTTPTransport {
+    func data(for request: URLRequest) async throws -> (Data, URLResponse) {
+        guard let url = request.url,
+              request.value(forHTTPHeaderField: "Cookie")?.contains("session=gecko-channel-session") == true
+        else { throw URLError(.badServerResponse) }
+        let body = switch (url.host, url.path) {
+        case (_, "/api/app/auth/me"):
+            """
+            {"organization": {"id": "org_1", "name": "Acme", "subscription": {
+              "factoryTier": "team",
+              "orbSubscription": {"plan": {"name": "Team", "id": "plan_1"}, "status": "active"}}}}
+            """
+        case ("api.factory.ai", "/api/organization/subscription/usage"):
+            """
+            {"usage": {"standard": {"userTokens": 100, "totalAllowance": 1000}}, "userId": "user-1"}
+            """
+        default:
+            "{}"
+        }
+        let response = HTTPURLResponse(
+            url: url,
+            statusCode: url.path == "/api/billing/limits" ? 404 : 200,
+            httpVersion: "HTTP/1.1",
+            headerFields: ["Content-Type": "application/json"])!
+        return (Data(body.utf8), response)
+    }
+}
+#endif

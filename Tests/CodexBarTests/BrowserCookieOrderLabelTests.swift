@@ -73,5 +73,16 @@ struct BrowserCookieOrderStatusStringTests {
         #expect(MistralCookieImporter.resolvedImportOrder([.firefox]) == [.firefox])
     }
 
+    @Test
+    func `orders listing firefox also include its release channels`() {
+        // Channel-owned profiles share `Firefox/Profiles` but only import through their own
+        // `Browser` case, so an order that stops at `.firefox` can never reach them.
+        let family: Set<Browser> = [.firefox, .firefoxBeta, .firefoxDeveloperEdition, .firefoxNightly]
+        let violators = ProviderDefaults.metadata.compactMap { provider, metadata -> UsageProvider? in
+            guard let order = metadata.browserCookieOrder, order.contains(where: family.contains) else { return nil }
+            return family.isSubset(of: Set(order)) ? nil : provider
+        }
+        #expect(violators.isEmpty, "orders missing Firefox release channels: \(violators)")
+    }
     #endif
 }

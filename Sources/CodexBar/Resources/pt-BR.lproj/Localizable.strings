@@ -713,6 +713,12 @@
 "link_website" = "Site";
 "link_twitter" = "Twitter";
 "link_email" = "E-mail";
+"link_acknowledgements" = "Agradecimentos";
+"acknowledgements_footer" = "O CodexBar é feito com estes projetos de código aberto.";
+"acknowledgements_others" = "%d outros";
+"acknowledgements_author" = "Autor";
+"acknowledgements_authors" = "Autores";
+"acknowledgements_license" = "Licença";
 "check_updates_auto" = "Buscar atualizações automaticamente";
 "update_channel" = "Canal de atualização";
 "check_for_updates" = "Buscar atualizações…";
@@ -2407,6 +2413,7 @@
 
 "X API cost history is not available." = "O histórico de custos da X API não está disponível.";
 "Paste a console.x.com Cookie header containing auth_token and ct0." = "Cole um cabeçalho Cookie de console.x.com contendo auth_token e ct0.";
+"Paste a platform.claude.com Cookie header containing sessionKey." = "Cole um cabeçalho Cookie de platform.claude.com contendo sessionKey.";
 "Open X Developer Console" = "Abrir o console de desenvolvedores do X";
 "update_available_notification_body" = "Clique para abrir as configurações de atualização e instalar a nova versão.";
 // Structured session performance layout.
@@ -2622,3 +2629,7 @@
 "Daily spend · %@" = "Gasto diário · %@";
 "Applies to the selected token account “%@”. Each account keeps its own limits." = "Aplica-se à conta de token selecionada “%@”. Cada conta mantém seus próprios limites.";
 "Applies to the OpenAI API key, not to token accounts." = "Aplica-se à chave de API da OpenAI, não às contas de token.";
+/* Claude Platform provider */
+"API credit" = "Crédito de API";
+"Purchased credit" = "Crédito comprado";
+"Claude Platform exposes Console credit balance and monthly spend, not local token cost history." = "Claude Platform mostra o saldo de créditos e os gastos mensais do Console, e não o histórico local de custos de tokens.";
