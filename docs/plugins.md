@@ -315,6 +315,10 @@ engine; the same rollback is available in **Settings → Debug → Provider Plug
 CodexBar. JavaScriptCore has no public interrupt API, so a timed-out rollback-engine context is discarded but its
 abandoned evaluation thread can remain alive until process exit.
 
+QuickJS worker jobs drain autoreleased host objects when they finish, preventing refresh temporaries from building up
+across a plugin's lifetime. JavaScriptCore registration and completed-fetch callbacks do not keep retired runtimes or
+contexts alive; active evaluations and the existing fetch watchdog still determine when cleanup can finish.
+
 ## Snapshot result
 
 Return at least one rate window, cost object, detail section, or non-empty identity field:
