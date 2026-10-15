@@ -17,7 +17,7 @@
 ### Fixed
 
 - Plugins: release temporary objects between QuickJS refreshes and free retired JavaScriptCore contexts and completed runtimes (#4512, #4486).
-- Claude: retain account emails from existing OAuth profile checks, even when the profile lacks organization details (#4493).
+- Claude: show the winning OAuth account’s email with a cached background profile lookup; slow or failed identity requests never delay quota refreshes (#4493). Thanks @flutterrausch!
 - Droid: import sessions from Firefox Beta, Developer Edition, and Nightly, and continue past unavailable browser stores (#4461). Thanks @vincent-peng!
 
 ## 0.75.0 — 2026-10-13

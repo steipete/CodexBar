@@ -29,11 +29,11 @@ struct ClaudeVerifiedAccountOwnerTests {
     }
 
     @Test
-    func `profile is fetched only when requested and with the winning usage token`() async throws {
+    func `widget ownership is verified only when requested with the winning usage token`() async throws {
         let skipped = IdentityCalls()
         let plain = try await self.fetch(includeIdentity: false, calls: skipped)
         #expect(plain.accountID == nil)
-        #expect(await skipped.values == ["usage:fixture-access-token"])
+        #expect(await skipped.values.contains("usage:fixture-access-token"))
 
         let requested = IdentityCalls()
         let identified = try await self.fetch(includeIdentity: true, calls: requested)
@@ -41,13 +41,12 @@ struct ClaudeVerifiedAccountOwnerTests {
         #expect(identified.primary?.usedPercent == 25)
         #expect(identified.accountID == ClaudeVerifiedAccountOwner.ownerID(
             accountUUID: "principal-a", email: "owner@example.com", organizationUUID: "org-a"))
-        #expect(plain.accountEmail == nil)
         #expect(identified.accountEmail == "owner@example.com")
         let mapped = ClaudeOAuthFetchStrategy._snapshotForTesting(from: identified)
             .withAccountLabel("Work", for: .claude)
         #expect(mapped.identity?.accountEmail == "owner@example.com")
         #expect(ClaudeOAuthFetchStrategy._snapshotForTesting(from: plain)
-            .withAccountLabel("Work", for: .claude).identity?.accountEmail == "Work")
+            .withAccountLabel("Work", for: .claude).identity?.accountEmail == (plain.accountEmail ?? "Work"))
         #expect(mapped.identity?.accountID == nil)
         #expect(mapped.identity?.widgetAccountOwnerID == identified.accountID)
         #expect(identified.replacingWebExtras(extraRateWindows: [], providerCost: nil).accountID == identified
@@ -78,26 +77,36 @@ struct ClaudeVerifiedAccountOwnerTests {
         cancelProfile: Bool = false) async throws -> ClaudeUsageSnapshot
     {
         let credentials = ClaudeOAuthCredentials(
-            accessToken: "fixture-access-token", refreshToken: nil,
-            expiresAt: Date().addingTimeInterval(3600), scopes: ["user:profile"], rateLimitTier: "claude_pro")
+            accessToken: "fixture-access-token",
+            refreshToken: nil,
+            expiresAt: Date().addingTimeInterval(3600),
+            scopes: ["user:profile"],
+            rateLimitTier: "claude_pro")
         let usage = try JSONDecoder().decode(
             OAuthUsageResponse.self, from: Data(#"{"five_hour":{"utilization":25}}"#.utf8))
         let fetcher = ClaudeUsageFetcher(
             browserDetection: BrowserDetection(cacheTTL: 0),
-            environment: ["PATH": "/usr/bin:/bin"], runtime: .cli, dataSource: .oauth,
+            environment: ["PATH": "/usr/bin:/bin"],
+            runtime: .cli,
+            dataSource: .oauth,
             includeAccountIdentity: includeIdentity)
-        return try await ClaudeUsageFetcher.$loadOAuthCredentialsOverride.withValue({ _, _, _ in credentials }) {
-            try await ClaudeUsageFetcher.$fetchOAuthUsageOverride.withValue({ token, _ in
-                await calls.append("usage:\(token)")
-                return usage
-            }) {
-                try await ClaudeUsageFetcher.$fetchOAuthProfileOverride.withValue({ token in
-                    await calls.append("profile:\(token)")
-                    if cancelProfile { throw CancellationError() }
-                    if profileFails { throw IdentityFailure.unavailable }
-                    return OAuthProfileResponse(
-                        emailAddress: "owner@example.com", organizationUuid: "org-a", accountUuid: "principal-a")
-                }) {
+        let load: @Sendable ([String: String], Bool, Bool) async throws -> ClaudeOAuthCredentials = { _, _, _ in
+            credentials
+        }
+        let fetchUsage: @Sendable (String, Bool) async throws -> OAuthUsageResponse = { token, _ in
+            await calls.append("usage:\(token)")
+            return usage
+        }
+        let fetchProfile: @Sendable (String) async throws -> OAuthProfileResponse = { token in
+            await calls.append("profile:\(token)")
+            if cancelProfile { throw CancellationError() }
+            if profileFails { throw IdentityFailure.unavailable }
+            return OAuthProfileResponse(
+                emailAddress: "owner@example.com", organizationUuid: "org-a", accountUuid: "principal-a")
+        }
+        return try await ClaudeUsageFetcher.$loadOAuthCredentialsOverride.withValue(load) {
+            try await ClaudeUsageFetcher.$fetchOAuthUsageOverride.withValue(fetchUsage) {
+                try await ClaudeUsageFetcher.$fetchOAuthProfileOverride.withValue(fetchProfile) {
                     try await fetcher.loadLatestUsage(model: "sonnet")
                 }
             }
