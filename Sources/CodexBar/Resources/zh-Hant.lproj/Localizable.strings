@@ -1464,6 +1464,8 @@
 "menu_bar_layout_size" = "大小";
 "menu_bar_layout_size_small" = "小";
 "menu_bar_layout_size_regular" = "一般";
+"menu_bar_layout_size_large" = "大";
+"menu_bar_layout_monospaced_digits" = "等寬數字";
 "menu_bar_layout_gap" = "間距";
 "menu_bar_layout_gap_tight" = "緊湊";
 "menu_bar_layout_gap_regular" = "一般";

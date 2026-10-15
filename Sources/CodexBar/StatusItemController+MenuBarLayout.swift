@@ -190,7 +190,8 @@ extension StatusItemController {
             verticalAdjustment: self.settings.menuBarLayoutVerticalAdjustment,
             colorPace: self.settings.menuBarColorPace,
             colorByProvider: self.settings.menuBarColorByProvider,
-            forceStackedStyle: forceStackedStyle)
+            forceStackedStyle: forceStackedStyle,
+            monospacedDigits: self.settings.menuBarLayoutMonospacedDigits)
     }
 
     func menuBarLayoutRenderData(

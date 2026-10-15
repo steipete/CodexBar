@@ -1,9 +1,50 @@
 import Foundation
+import Observation
 import Testing
 @testable import CodexBar
 
 @MainActor
 struct MenuBarLayoutV5PersistenceTests {
+    @Test
+    func `digit spacing changes refresh menu observation`() async {
+        let settings = testSettingsStore(suiteName: "layout-digit-observation", userDefaults: InMemoryUserDefaults())
+        await confirmation { changed in
+            withObservationTracking {
+                _ = settings.menuObservationToken
+            } onChange: {
+                changed()
+            }
+            settings.menuBarLayoutMonospacedDigits = true
+        }
+    }
+
+    @Test
+    func `typography preferences preserve the V5 layout and V4 projection`() throws {
+        let defaults = InMemoryUserDefaults()
+        let settings = testSettingsStore(suiteName: "typography-generation", userDefaults: defaults)
+        #expect(settings.menuBarLayoutSize == .regular)
+        #expect(!settings.menuBarLayoutMonospacedDigits)
+        #expect(defaults.object(forKey: "menuBarLayoutMonospacedDigits") == nil)
+
+        let layout = MenuBarLayout(lines: [[.icon, .progressBar(window: .session)]])
+        settings.setMenuBarLayout(layout, for: nil)
+        settings.setMenuBarLayout(layout, for: .codex)
+        let keys = ["menuBarLayoutV5", "menuBarLayoutV4", "menuBarLayoutOverridesV5", "menuBarLayoutOverridesV4"]
+        let before = keys.map { defaults.data(forKey: $0) }
+        settings.menuBarLayoutSize = .large
+        settings.menuBarLayoutMonospacedDigits = true
+        #expect(keys.map { defaults.data(forKey: $0) } == before)
+
+        let projected = try JSONDecoder().decode(
+            V4Layout.self, from: #require(defaults.data(forKey: "menuBarLayoutV4")))
+        #expect(projected.lines == [[.icon, .percent(window: .session)]])
+        let returned = testSettingsStore(suiteName: "typography-return", userDefaults: defaults)
+        #expect(returned.menuBarLayout == layout)
+        #expect(returned.menuBarLayoutOverrides[.codex] == layout)
+        #expect(returned.menuBarLayoutSize == .large)
+        #expect(returned.menuBarLayoutMonospacedDigits)
+    }
+
     @Test
     func `V4 downgrade and reupgrade preserve bars while older edits win`() throws {
         let defaults = InMemoryUserDefaults()

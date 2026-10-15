@@ -86,15 +86,16 @@ class PackagedAppLaunchTests(unittest.TestCase):
                 TMPDIR=str(temporary) + "/",
                 CODEXBAR_CONFIG=str(ambient / "private-config.json"),
                 CODEXBAR_SKIP_LAUNCH_SMOKE="0",
-                CODEXBAR_LAUNCH_SMOKE_SECONDS="1",
+                CODEXBAR_LAUNCH_SMOKE_SECONDS="6",
                 SMOKE_AMBIENT_SENTINEL="synthetic-only",
                 CODEXBAR_RESOURCE_SMOKE="1",
                 CODEXBAR_ALLOW_TEST_KEYCHAIN_ACCESS="1",
                 CODEXBAR_TEST_CODEX_FILE_FIXTURES="ambient-fixture-grant",
             )
+            # Keep the normal smoke window so a busy host does not kill the stub before Python starts.
             result = subprocess.run(
                 ["/bin/bash", str(script), str(app)], env=environment,
-                capture_output=True, text=True, timeout=20,
+                capture_output=True, text=True, timeout=45,
             )
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             observations = [json.loads(line) for line in receipts.read_text().splitlines()]

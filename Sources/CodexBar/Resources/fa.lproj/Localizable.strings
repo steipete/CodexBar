@@ -1437,6 +1437,8 @@
 "menu_bar_layout_size" = "اندازه";
 "menu_bar_layout_size_small" = "کوچک";
 "menu_bar_layout_size_regular" = "معمولی";
+"menu_bar_layout_size_large" = "بزرگ";
+"menu_bar_layout_monospaced_digits" = "ارقام هم‌عرض";
 "menu_bar_layout_gap" = "فاصله";
 "menu_bar_layout_gap_tight" = "فشرده";
 "menu_bar_layout_gap_regular" = "معمولی";

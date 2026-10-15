@@ -890,6 +890,7 @@ enum MenuBarLayoutPreset: String, CaseIterable, Identifiable, Sendable {
 enum MenuBarLayoutSize: String, CaseIterable, Identifiable, Sendable {
     case small
     case regular
+    case large
 
     var id: String {
         self.rawValue

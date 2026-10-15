@@ -1436,6 +1436,8 @@
 "menu_bar_layout_size" = "Größe";
 "menu_bar_layout_size_small" = "Klein";
 "menu_bar_layout_size_regular" = "Normal";
+"menu_bar_layout_size_large" = "Groß";
+"menu_bar_layout_monospaced_digits" = "Ziffern mit gleicher Breite";
 "menu_bar_layout_gap" = "Abstand";
 "menu_bar_layout_gap_tight" = "Eng";
 "menu_bar_layout_gap_regular" = "Normal";

@@ -86,7 +86,10 @@ read_when:
   currently matches the default. Each “Use all-providers layout” action removes only that provider's override;
   global edits preserve overrides, and disabled providers are left untouched. Before a default is first saved,
   editing still starts from the representative provider's effective layout.
-- Small/Regular controls the token font scale. Tight/Regular controls status-item padding. Compact stacked uses two
+- Small/Regular/Large controls the token font scale; Regular remains the default. Large uses 14-point single-line
+  text and 10-point stacked text. Monospaced digits is independently optional and defaults off; labels remain
+  proportional. These display preferences persist separately from layout tokens, preserving older-build decoding
+  of saved layouts and their V4 projections. Tight/Regular controls status-item padding. Compact stacked uses two
   tightly spaced lines sized to fit the menu bar.
 - Size, gap, and vertical adjustment share a compact options row. The Layout section footer keeps the token-editing
   instructions, including selecting a placed token and pressing Delete to remove it.

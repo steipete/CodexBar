@@ -1403,6 +1403,8 @@
 "menu_bar_layout_size" = "크기";
 "menu_bar_layout_size_small" = "작게";
 "menu_bar_layout_size_regular" = "보통";
+"menu_bar_layout_size_large" = "크게";
+"menu_bar_layout_monospaced_digits" = "고정폭 숫자";
 "menu_bar_layout_gap" = "간격";
 "menu_bar_layout_gap_tight" = "좁게";
 "menu_bar_layout_gap_regular" = "보통";

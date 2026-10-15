@@ -1168,17 +1168,19 @@ struct MenuBarLayoutTests {
         #expect(providerSettings.menuBarLayoutOverrides[.kimi] == providerLayout)
     }
 
-    @Test
+    @Test(arguments: MenuBarLayoutSize.allCases)
     @MainActor
-    func `provider override and display options persist across reload`() throws {
-        let suite = "MenuBarLayoutTests-provider-override"
+    func `provider override and display options persist across reload`(size: MenuBarLayoutSize) throws {
+        let suite = "MenuBarLayoutTests-provider-override-\(size.rawValue)"
         let settings = testSettingsStore(suiteName: suite)
         let global = try #require(MenuBarLayoutPreset.iconOnly.layout)
         let provider = try #require(MenuBarLayoutPreset.compactStacked.layout)
 
         settings.setMenuBarLayout(global, for: nil)
         settings.setMenuBarLayout(provider, for: .claude)
-        settings.menuBarLayoutSize = .small
+        #expect(!settings.menuBarLayoutMonospacedDigits)
+        settings.menuBarLayoutMonospacedDigits = true
+        settings.menuBarLayoutSize = size
         settings.menuBarLayoutGap = .tight
 
         #expect(settings.menuBarLayout(for: .codex) == global)
@@ -1188,7 +1190,8 @@ struct MenuBarLayoutTests {
         let reloaded = Self.reloadSettingsStore(settings)
         #expect(reloaded.menuBarLayout(for: .codex) == global)
         #expect(reloaded.menuBarLayout(for: .claude) == provider)
-        #expect(reloaded.menuBarLayoutSize == .small)
+        #expect(reloaded.menuBarLayoutSize == size)
+        #expect(reloaded.menuBarLayoutMonospacedDigits)
         #expect(reloaded.menuBarLayoutGap == .tight)
 
         reloaded.removeMenuBarLayoutOverride(for: .claude)

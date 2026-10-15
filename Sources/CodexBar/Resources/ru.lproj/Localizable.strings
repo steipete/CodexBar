@@ -1435,6 +1435,8 @@
 "menu_bar_layout_size" = "Размер";
 "menu_bar_layout_size_small" = "Маленький";
 "menu_bar_layout_size_regular" = "Обычный";
+"menu_bar_layout_size_large" = "Большой";
+"menu_bar_layout_monospaced_digits" = "Моноширинные цифры";
 "menu_bar_layout_gap" = "Интервал";
 "menu_bar_layout_gap_tight" = "Узкий";
 "menu_bar_layout_gap_regular" = "Обычный";

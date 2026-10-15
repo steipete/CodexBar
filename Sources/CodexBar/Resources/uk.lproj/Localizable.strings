@@ -1433,6 +1433,8 @@
 "menu_bar_layout_size" = "Розмір";
 "menu_bar_layout_size_small" = "Малий";
 "menu_bar_layout_size_regular" = "Звичайний";
+"menu_bar_layout_size_large" = "Великий";
+"menu_bar_layout_monospaced_digits" = "Моноширинні цифри";
 "menu_bar_layout_gap" = "Інтервал";
 "menu_bar_layout_gap_tight" = "Вузький";
 "menu_bar_layout_gap_regular" = "Звичайний";

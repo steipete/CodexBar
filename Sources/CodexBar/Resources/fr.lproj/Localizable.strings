@@ -1433,6 +1433,8 @@
 "menu_bar_layout_size" = "Taille";
 "menu_bar_layout_size_small" = "Petite";
 "menu_bar_layout_size_regular" = "Normale";
+"menu_bar_layout_size_large" = "Grande";
+"menu_bar_layout_monospaced_digits" = "Chiffres à chasse fixe";
 "menu_bar_layout_gap" = "Espacement";
 "menu_bar_layout_gap_tight" = "Serré";
 "menu_bar_layout_gap_regular" = "Normale";

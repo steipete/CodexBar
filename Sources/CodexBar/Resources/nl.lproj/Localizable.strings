@@ -1433,6 +1433,8 @@
 "menu_bar_layout_size" = "Grootte";
 "menu_bar_layout_size_small" = "Klein";
 "menu_bar_layout_size_regular" = "Normaal";
+"menu_bar_layout_size_large" = "Groot";
+"menu_bar_layout_monospaced_digits" = "Cijfers met vaste breedte";
 "menu_bar_layout_gap" = "Tussenruimte";
 "menu_bar_layout_gap_tight" = "Krap";
 "menu_bar_layout_gap_regular" = "Normaal";

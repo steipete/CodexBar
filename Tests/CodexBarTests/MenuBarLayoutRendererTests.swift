@@ -736,10 +736,12 @@ struct MenuBarLayoutRendererTests {
         #expect(stacked.statusImage == nil)
     }
 
-    @Test
-    func `composeStackedProviderRows joins two independently rendered providers into one title`() {
+    @Test(arguments: MenuBarLayoutSize.allCases)
+    func `composeStackedProviderRows joins two independently rendered providers into one title`(
+        size: MenuBarLayoutSize)
+    {
         let renderer = MenuBarLayoutRenderer()
-        let topOptions = self.options(forceStackedStyle: true)
+        let topOptions = self.options(size: size, forceStackedStyle: true)
         let top = renderer.render(
             layout: MenuBarLayout(lines: [[.percent(window: .automatic)]]),
             data: self.data(automaticUsedPercent: 69, provider: .codex),
@@ -919,8 +921,82 @@ struct MenuBarLayoutRendererTests {
         #expect(try #require(self.baselineOffset(in: lifted.attributedTitle, at: 0)) == -3)
     }
 
-    @Test
-    func `two line icon uses compact paragraph metrics`() {
+    @Test(arguments: MenuBarLayoutSize.allCases, [false, true])
+    func `layout sizes preserve typography and icon dimensions`(size: MenuBarLayoutSize, stacked: Bool) throws {
+        let output = MenuBarLayoutRenderer().render(
+            layout: MenuBarLayout(lines: [[.icon, .percent(window: .automatic)]]),
+            data: self.data(),
+            icon: NSImage(size: NSSize(width: 16, height: 16)),
+            options: self.options(size: size, forceStackedStyle: stacked))
+        let font = try #require(output.attributedTitle.attribute(.font, at: 0, effectiveRange: nil) as? NSFont)
+        let paragraph = try #require(output.attributedTitle.attribute(
+            .paragraphStyle, at: 0, effectiveRange: nil) as? NSParagraphStyle)
+        let expectedFontSize: CGFloat = switch size {
+        case .small: stacked ? 8 : 11
+        case .regular: stacked ? 9 : NSFont.systemFontSize
+        case .large: stacked ? 10 : 14
+        }
+        #expect(font == NSFont.systemFont(ofSize: expectedFontSize))
+        if stacked {
+            let attachment = try #require(output.attributedTitle.attribute(
+                .attachment, at: 0, effectiveRange: nil) as? NSTextAttachment)
+            #expect(attachment.bounds.height == (size == .small ? 8 : 9))
+            #expect(paragraph.minimumLineHeight == (size == .large ? 11 : 9.5))
+            #expect(paragraph.maximumLineHeight == paragraph.minimumLineHeight)
+            #expect(paragraph.lineSpacing == -1)
+        } else {
+            #expect(output.leadingIcon?.size.height == 16)
+            #expect(paragraph.minimumLineHeight == 0)
+            let inline = MenuBarLayoutRenderer().render(
+                layout: MenuBarLayout(lines: [[.icon, .percent(window: .automatic)]]),
+                data: self.data(),
+                icon: NSImage(size: NSSize(width: 16, height: 16)),
+                options: self.options(size: size, highContrast: true))
+            let attachment = try #require(inline.attributedTitle.attribute(
+                .attachment, at: 0, effectiveRange: nil) as? NSTextAttachment)
+            #expect(attachment.bounds.height == (size == .small ? 14 : 18))
+        }
+    }
+
+    @Test(arguments: MenuBarLayoutSize.allCases, [false, true])
+    func `monospaced digits use equal advances and invalidate the cached font`(
+        size: MenuBarLayoutSize, stacked: Bool) throws
+    {
+        let renderer = MenuBarLayoutRenderer()
+        let layout = MenuBarLayout(lines: [[.percent(window: .automatic)]])
+        let data = self.data()
+        let standard = renderer.render(
+            layout: layout,
+            data: data,
+            icon: nil,
+            options: self.options(size: size, forceStackedStyle: stacked))
+        let monospaced = renderer.render(
+            layout: layout,
+            data: data,
+            icon: nil,
+            options: self.options(size: size, forceStackedStyle: stacked, monospacedDigits: true))
+        let font = try #require(monospaced.attributedTitle.attribute(.font, at: 0, effectiveRange: nil) as? NSFont)
+        let originalFont = try #require(standard.attributedTitle.attribute(
+            .font,
+            at: 0,
+            effectiveRange: nil) as? NSFont)
+        #expect(font == NSFont.monospacedDigitSystemFont(ofSize: originalFont.pointSize, weight: .regular))
+        #expect(monospaced.attributedTitle !== standard.attributedTitle)
+        let digitWidths = (0...9).map { digit in
+            NSAttributedString(string: String(digit), attributes: [.font: font]).size().width
+        }
+        #expect(try #require(digitWidths.max()) - #require(digitWidths.min()) < 0.01)
+        #expect(monospaced.attributedTitle.string == standard.attributedTitle.string)
+        let restored = renderer.render(
+            layout: layout,
+            data: data,
+            icon: nil,
+            options: self.options(size: size, forceStackedStyle: stacked))
+        #expect(restored.attributedTitle === standard.attributedTitle)
+    }
+
+    @Test(arguments: MenuBarLayoutSize.allCases)
+    func `two line icon uses compact paragraph metrics`(size: MenuBarLayoutSize) {
         let renderer = MenuBarLayoutRenderer()
         let icon = NSImage(size: NSSize(width: 16, height: 16))
         let output = renderer.render(
@@ -930,13 +1006,62 @@ struct MenuBarLayoutRendererTests {
             ]),
             data: self.data(),
             icon: icon,
-            options: self.options())
+            options: self.options(size: size))
         let bounds = output.attributedTitle.boundingRect(
             with: NSSize(width: 200, height: CGFloat.greatestFiniteMagnitude),
             options: [.usesLineFragmentOrigin, .usesFontLeading])
 
         #expect(output.attributedTitle.attribute(.paragraphStyle, at: 0, effectiveRange: nil) is NSParagraphStyle)
         #expect(bounds.height <= 22)
+    }
+
+    @Test(arguments: [false, true])
+    func `large inline icons fit both stacked rows without changing text typography`(monospacedDigits: Bool) throws {
+        let renderer = MenuBarLayoutRenderer()
+        let icon = NSImage(size: NSSize(width: 16, height: 16))
+        for options in [
+            self.options(size: .large, monospacedDigits: monospacedDigits),
+            self.options(size: .large, highContrast: true, monospacedDigits: monospacedDigits),
+            self.options(size: .large, colorByProvider: true, monospacedDigits: monospacedDigits),
+            self.options(size: .large, forceStackedStyle: true, monospacedDigits: monospacedDigits),
+        ] {
+            let output = renderer.render(
+                layout: MenuBarLayout(lines: [
+                    [.icon, .percent(window: .session)],
+                    [.icon, .percent(window: .weekly)],
+                ]),
+                data: self.data(),
+                icon: icon,
+                options: options)
+            let bounds = output.attributedTitle.boundingRect(
+                with: NSSize(width: 200, height: CGFloat.greatestFiniteMagnitude),
+                options: [.usesLineFragmentOrigin, .usesFontLeading])
+            let font = try #require(output.attributedTitle.attribute(.font, at: 0, effectiveRange: nil) as? NSFont)
+            #expect(font.pointSize == 10)
+            #expect(bounds.height <= 22)
+            #expect(try #require(self.baselineOffset(in: output.attributedTitle, at: 0)) == -1)
+
+            if options.forceStackedStyle {
+                let row = renderer.render(
+                    layout: MenuBarLayout(lines: [[.icon, .percent(window: .automatic)]]),
+                    data: self.data(),
+                    icon: icon,
+                    options: options)
+                let composed = MenuBarLayoutRenderer.composeStackedProviderRows(
+                    top: row, bottom: row, topProviderName: "Codex", bottomProviderName: "Claude")
+                let composedBounds = composed.attributedTitle.boundingRect(
+                    with: NSSize(width: 200, height: CGFloat.greatestFiniteMagnitude),
+                    options: [.usesLineFragmentOrigin, .usesFontLeading])
+                #expect(composedBounds.height <= 22)
+            }
+
+            let missingIcon = renderer.render(
+                layout: MenuBarLayout(lines: [[.icon, .percent(window: .session)], [.percent(window: .weekly)]]),
+                data: self.data(),
+                icon: nil,
+                options: options)
+            #expect(try #require(self.baselineOffset(in: missingIcon.attributedTitle, at: 0)) == -3)
+        }
     }
 
     @Test
@@ -2108,6 +2233,7 @@ struct MenuBarLayoutRendererTests {
     }
 
     func options(
+        size: MenuBarLayoutSize = .regular,
         now: Date? = nil,
         showUsed: Bool = true,
         verticalAdjustment: Int = 0,
@@ -2119,10 +2245,11 @@ struct MenuBarLayoutRendererTests {
         highContrast: Bool = false,
         appearanceName: String = "aqua",
         isHighlighted: Bool = false,
-        forceStackedStyle: Bool = false) -> MenuBarLayoutRenderOptions
+        forceStackedStyle: Bool = false,
+        monospacedDigits: Bool = false) -> MenuBarLayoutRenderOptions
     {
         MenuBarLayoutRenderOptions(
-            size: .regular,
+            size: size,
             highContrast: highContrast,
             showUsed: showUsed,
             conditionals: conditionals,
@@ -2134,7 +2261,8 @@ struct MenuBarLayoutRendererTests {
             verticalAdjustment: verticalAdjustment,
             colorPace: colorPace,
             colorByProvider: colorByProvider,
-            forceStackedStyle: forceStackedStyle)
+            forceStackedStyle: forceStackedStyle,
+            monospacedDigits: monospacedDigits)
     }
 
     private func averageBrightness(

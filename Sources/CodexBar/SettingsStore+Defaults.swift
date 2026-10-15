@@ -469,6 +469,11 @@ extension SettingsStore {
         self.persistMenuBarLayoutOverrides()
     }
 
+    var menuBarLayoutMonospacedDigits: Bool {
+        get { self.defaultsState.menuBarLayoutMonospacedDigits }
+        set { self.setDefault(\.menuBarLayoutMonospacedDigits, newValue, key: "menuBarLayoutMonospacedDigits") }
+    }
+
     var menuBarLayoutSize: MenuBarLayoutSize {
         get { MenuBarLayoutSize(rawValue: self.defaultsState.menuBarLayoutSizeRaw) ?? .regular }
         set { self.setDefault(\.menuBarLayoutSizeRaw, newValue.rawValue, key: "menuBarLayoutSize") }

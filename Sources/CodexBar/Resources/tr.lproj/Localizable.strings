@@ -1435,6 +1435,8 @@
 "menu_bar_layout_size" = "Boyut";
 "menu_bar_layout_size_small" = "Küçük";
 "menu_bar_layout_size_regular" = "Normal";
+"menu_bar_layout_size_large" = "Büyük";
+"menu_bar_layout_monospaced_digits" = "Eş aralıklı rakamlar";
 "menu_bar_layout_gap" = "Boşluk";
 "menu_bar_layout_gap_tight" = "Dar";
 "menu_bar_layout_gap_regular" = "Normal";
