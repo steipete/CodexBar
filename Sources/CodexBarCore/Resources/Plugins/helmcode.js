@@ -32,13 +32,13 @@ defineProvider({
   endpoints: ["https://cloud-api.helmcode.com", "https://cloud-api.nan.builders"],
   settings: [{ key: "TENANT", title: "Manual cookie tenant", type: "plain" }],
   capabilities: ["browser-cookies", "http-status"],
-  cookieDomains: ["helmcode.com", "nan.builders"],
+  cookieDomains: ["helmcode.com", "cloud-api.helmcode.com", "nan.builders"],
   async fetchUsage(ctx) {
     const tenants = [
-      { domain: "helmcode.com", name: "Helmcode Cloud" },
-      { domain: "nan.builders", name: "NaN Builders" },
+      { domain: "helmcode.com", cookieDomain: "cloud-api.helmcode.com", name: "Helmcode Cloud" },
+      { domain: "nan.builders", cookieDomain: "nan.builders", name: "NaN Builders" },
     ];
-    const policy = ctx.browser.availability(tenants[0].domain);
+    const policy = ctx.browser.availability(tenants[0].cookieDomain);
     if (policy === "off") throw ctx.fail.missingCredential("Helmcode dashboard cookies are disabled.");
     // A pasted header has no origin metadata. Never try it against both tenants.
     const candidates = policy === "manual" ? [tenants[ctx.settings.get("TENANT") === "nanBuilders" ? 1 : 0]] : tenants;
@@ -59,35 +59,31 @@ defineProvider({
       if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0) return fail(field);
       return value;
     };
-    const date = (value) => {
-      if (typeof value !== "string") return undefined;
-      try {
-        return ctx.date.iso(value);
-      } catch (error) {
-        void error;
-        return undefined;
+    async function* sessions() {
+      for (const tenant of candidates) {
+        const domains =
+          policy !== "manual" && tenant.domain !== tenant.cookieDomain
+            ? [tenant.domain, tenant.cookieDomain, tenant.domain]
+            : [tenant.cookieDomain];
+        // Try the old cache first, then API-host and parent-domain browser sessions.
+        for (const [index, domain] of domains.entries()) {
+          try {
+            for await (const session of ctx.browser.sessions(domain, {
+              cachedOnly: domains.length > 1 && index === 0,
+            })) {
+              yield { tenant, domain, session };
+            }
+          } catch (error) {
+            void error;
+          }
+        }
       }
-    };
-    const validate = (response) => {
-      const seconds = Number(_nullishCoalesce(response.headers["retry-after"], () => 1));
-      const retryAfterSeconds = Number.isFinite(seconds) && seconds >= 0 ? Math.min(10, seconds) : 1;
-      if (response.status === 429) throw ctx.fail.rateLimited("Helmcode rate limit reached.", { retryAfterSeconds });
-      if (response.status === 408 || response.status >= 500)
-        throw ctx.fail.providerUnavailable("Helmcode dashboard is unavailable.", { retryAfterSeconds });
-      if (response.status < 200 || response.status >= 300)
-        throw ctx.fail.apiFailure(`Helmcode dashboard returned HTTP ${response.status}.`);
-    };
+    }
     let rejected = false;
-    for (const tenant of candidates) {
-      let cookie;
-      try {
-        cookie = await ctx.browser.cookieHeader(tenant.domain);
-      } catch (error) {
-        void error;
-        continue;
-      }
+    for await (const { tenant, domain, session } of sessions()) {
+      if (!session.header) continue;
       const headers = {
-        Cookie: cookie,
+        Cookie: session.header,
         Origin: `https://cloud.${tenant.domain}`,
         Referer: `https://cloud.${tenant.domain}/dashboard`,
       };
@@ -95,11 +91,17 @@ defineProvider({
         ctx.http.get(`https://cloud-api.${tenant.domain}${path}`, { headers, timeoutSeconds });
       const response = await get("/api/usage/quota");
       if ((response.status >= 300 && response.status < 400) || response.status === 401 || response.status === 403) {
-        ctx.browser.rejectCookie(tenant.domain);
+        ctx.browser.rejectCookie(domain, session);
         rejected = true;
         continue;
       }
-      validate(response);
+      const seconds = Number(_nullishCoalesce(response.headers["retry-after"], () => 1));
+      const retryAfterSeconds = Number.isFinite(seconds) && seconds >= 0 ? Math.min(10, seconds) : 1;
+      if (response.status === 429) throw ctx.fail.rateLimited("Helmcode rate limit reached.", { retryAfterSeconds });
+      if (response.status === 408 || response.status >= 500)
+        throw ctx.fail.providerUnavailable("Helmcode dashboard is unavailable.", { retryAfterSeconds });
+      if (response.status < 200 || response.status >= 300)
+        throw ctx.fail.apiFailure(`Helmcode dashboard returned HTTP ${response.status}.`);
       const quota = parse(response.bodyText);
       if (typeof quota.periodStart !== "string" || !Array.isArray(quota.models)) return fail("periodStart or models");
       const optional = async (path) => {
@@ -134,14 +136,15 @@ defineProvider({
           const credit = row.creditTokens == null ? 0 : integer(row.creditTokens, "creditTokens");
           const hours = row.windowHours == null ? undefined : integer(row.windowHours, "windowHours");
           if (hours !== undefined && (hours < 1 || hours > 525600 / 60)) return fail("windowHours");
-          return {
-            name: row.model,
-            cap,
-            used,
-            credit,
-            hours,
-            resetsAt: _nullishCoalesce(date(row.periodEnd), () => fallback),
-          };
+          let resetsAt = fallback;
+          if (typeof row.periodEnd === "string") {
+            try {
+              resetsAt = _nullishCoalesce(ctx.date.iso(row.periodEnd), () => fallback);
+            } catch (error) {
+              void error;
+            }
+          }
+          return { name: row.model, cap, used, credit, hours, resetsAt };
         })
         .filter((row) => row.cap > 0 && (row.hours === undefined || premium));
       models.sort((a, b) => b.used / b.cap - a.used / a.cap || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));

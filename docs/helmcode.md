@@ -19,8 +19,10 @@ The provider is disabled by default and is not widget-selectable.
 
 Automatic cookie source tries Cloud first, then NaN when no Cloud session is available or Cloud rejects it. A quota
 parse error, rate limit, or server failure stops the refresh instead of switching accounts. Sessions are cached in
-separate Keychain scopes by requested cookie domain; rejected sessions are conditionally evicted without erasing
-another tenant or a newer session. The Usage Dashboard action follows the tenant of the displayed successful snapshot.
+separate Keychain scopes by requested cookie domain. Cloud first tries existing sessions under the previous
+`helmcode.com` scope before using `cloud-api.helmcode.com` for current cached sessions and browser imports. If neither
+works, it also imports parent-domain browser cookies from `helmcode.com`. NaN keeps its `nan.builders` scope. Rejected sessions are conditionally evicted
+from the scope that supplied them without erasing another tenant or a newer session. The Usage Dashboard action follows the tenant of the displayed successful snapshot.
 If browser access is suppressed or denied and neither tenant succeeds, the error explains how to retry permission
 with Refresh in the provider menu or use Manual cookies. Background refreshes never request Keychain permission.
 

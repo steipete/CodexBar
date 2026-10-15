@@ -1,15 +1,34 @@
 import Foundation
+import SQLite3
 import Testing
 @testable import CodexBarCore
+@testable import SweetCookieKit
 
 struct HelmcodePluginTests {
     static let now = Date(timeIntervalSince1970: 1_789_000_000)
 
     @Test(arguments: BundledPluginTestSupport.engines)
+    func `Cloud imports an API host session without a parent domain cookie`(
+        engine: ProviderPluginEngineKind) async throws
+    {
+        let domains = try await Self.browserFixture(engine: engine, domain: "cloud-api.helmcode.com")
+        #expect(domains == ["cloud-api.helmcode.com"])
+    }
+
+    @Test(arguments: BundledPluginTestSupport.engines)
+    func `Cloud retains parent domain browser sessions without a cache`(
+        engine: ProviderPluginEngineKind) async throws
+    {
+        let domains = try await Self.browserFixture(engine: engine, domain: ".helmcode.com")
+        #expect(domains.contains("helmcode.com"))
+        #expect(!domains.contains("nan.builders"))
+    }
+
+    @Test(arguments: BundledPluginTestSupport.engines)
     func `a denied Cloud import still permits a usable NaN session`(engine: ProviderPluginEngineKind) async throws {
-        let result = try await Self.fetch(engine: engine, denied: ["helmcode.com"])
+        let result = try await Self.fetch(engine: engine, denied: ["cloud-api.helmcode.com"])
         #expect(result.usage.identity?.accountOrganization == "NaN Builders")
-        #expect(result.domains == ["helmcode.com", "nan.builders"])
+        #expect(result.domains == ["cloud-api.helmcode.com", "helmcode.com", "nan.builders"])
         #expect(result.requests.allSatisfy { $0.url?.host == "cloud-api.nan.builders" })
     }
 
@@ -27,7 +46,7 @@ struct HelmcodePluginTests {
         #expect(usage.identity?.accountOrganization == "Helmcode Cloud")
         #expect(usage.dataConfidence == .exact)
         #expect(result.requests.count == 3)
-        #expect(result.domains == ["helmcode.com"])
+        #expect(result.domains == ["cloud-api.helmcode.com"])
         #expect(HelmcodeProviderDescriptor.dashboardURL(snapshot: usage).absoluteString
             == "https://cloud.helmcode.com/dashboard")
     }
@@ -68,8 +87,8 @@ struct HelmcodePluginTests {
         engine: ProviderPluginEngineKind) async throws
     {
         let result = try await Self.fetch(engine: engine, cloudStatus: status)
-        #expect(result.rejected == ["helmcode.com"])
-        #expect(result.domains == ["helmcode.com", "nan.builders"])
+        #expect(result.rejected == ["cloud-api.helmcode.com"])
+        #expect(result.domains == ["cloud-api.helmcode.com", "helmcode.com", "nan.builders"])
         #expect(result.usage.identity?.accountOrganization == "NaN Builders")
         #expect(result.requests.count == 3)
     }
@@ -162,17 +181,67 @@ struct HelmcodePluginTests {
         return try String(contentsOf: url, encoding: .utf8)
     }
 
+    private static func browserFixture(engine: ProviderPluginEngineKind, domain: String) async throws -> [String] {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let database = directory.appendingPathComponent("Cookies")
+        var db: OpaquePointer?
+        #expect(sqlite3_open(database.path, &db) == SQLITE_OK)
+        let schema = """
+        CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT);
+        INSERT INTO meta VALUES ('version', '24');
+        CREATE TABLE cookies (host_key TEXT, name TEXT, path TEXT, expires_utc INTEGER,
+          is_secure INTEGER, is_httponly INTEGER, value TEXT, encrypted_value BLOB);
+        INSERT INTO cookies VALUES
+          ('\(domain)', 'session', '/', 0, 1, 1, 'fixture-cloud-session', X'');
+        """
+        #expect(sqlite3_exec(db, schema, nil, nil, nil) == SQLITE_OK)
+        sqlite3_close(db)
+        let store = BrowserCookieStore(
+            browser: .chrome,
+            profile: .init(id: "fixture", name: "Fixture"),
+            kind: .network,
+            label: "Synthetic",
+            databaseURL: database)
+        let cookieHeader: @Sendable (String) throws -> String = { domain in
+            let query = ProviderPluginCookieBroker.cookieQuery(domain: domain)
+            let cookies = try ChromeCookieImporter.loadCookies(
+                from: store,
+                matchingDomains: query.domains,
+                domainMatch: query.domainMatch,
+                safeStorageKey: { _ in
+                    Issue.record("Plaintext fixture must not request Safe Storage")
+                    return Data()
+                })
+            guard !cookies.isEmpty else { throw ProviderPluginError.secretAccess("No matching fixture cookie") }
+            return cookies.map { "\($0.name)=\($0.value)" }.joined(separator: "; ")
+        }
+        // Validate the SQLite fixture before the plugin can classify an import error as a missing session.
+        let fixtureHeader = try cookieHeader(domain.trimmingCharacters(in: CharacterSet(charactersIn: ".")))
+        try #require(fixtureHeader == "session=fixture-cloud-session")
+        let result = try await Self.fetch(engine: engine, cookieResolver: cookieHeader)
+        #expect(result.usage.identity?.accountOrganization == "Helmcode Cloud")
+        #expect(result.requests.count == 3)
+        #expect(result.requests.allSatisfy { $0.url?.host == "cloud-api.helmcode.com" })
+        #expect(result.requests.allSatisfy {
+            $0.value(forHTTPHeaderField: "Cookie") == "session=fixture-cloud-session"
+        })
+        return result.domains
+    }
+
     static func fetch(
         engine: ProviderPluginEngineKind,
         source: ProviderCookieSource = .auto,
         tenant: String = "helmcode",
-        available: Set<String> = ["helmcode.com", "nan.builders"],
+        available: Set<String> = ["cloud-api.helmcode.com", "nan.builders"],
         denied: Set<String> = [],
         cloudStatus: Int = 200,
         quota: String? = nil,
         billing: String? = nil,
         credits: String? = nil,
-        optionalStatus: Int = 200) async throws
+        optionalStatus: Int = 200,
+        cookieResolver: (@Sendable (String) throws -> String)? = nil) async throws
         -> (usage: UsageSnapshot, requests: [URLRequest], domains: [String], rejected: [String])
     {
         let quotaBody = try quota ?? Self.fixture("quota")
@@ -183,7 +252,10 @@ struct HelmcodePluginTests {
         let transport = ProviderHTTPTransportStub { request in
             let url = try #require(request.url)
             let domain = url.host == "cloud-api.helmcode.com" ? "helmcode.com" : "nan.builders"
-            #expect(request.value(forHTTPHeaderField: "Cookie") == "session=\(domain)")
+            let cookieDomain = domain == "helmcode.com" ? "cloud-api.helmcode.com" : domain
+            if cookieResolver == nil {
+                #expect(request.value(forHTTPHeaderField: "Cookie") == "__Host-session=\(cookieDomain)")
+            }
             #expect(request.value(forHTTPHeaderField: "Origin") == "https://cloud.\(domain)")
             #expect(request.value(forHTTPHeaderField: "Referer") == "https://cloud.\(domain)/dashboard")
             #expect(request.timeoutInterval == (url.path == "/api/usage/quota" ? 8 : 2))
@@ -211,10 +283,11 @@ struct HelmcodePluginTests {
             cookieResolver: { provider, domain in
                 #expect(provider == .helmcode)
                 domains.append(domain)
+                if let cookieResolver { return try cookieResolver(domain) }
                 if denied
                     .contains(domain) { throw ProviderPluginError.secretAccess("Synthetic cookie permission denial") }
                 guard available.contains(domain) else { throw ProviderPluginError.secretAccess("missing fixture") }
-                return "session=\(domain)"
+                return "__Host-session=\(domain)"
             })
         return await (usage, transport.requests(), domains.values, rejected.values)
     }
