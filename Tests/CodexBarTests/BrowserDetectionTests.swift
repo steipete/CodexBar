@@ -866,6 +866,43 @@ struct BrowserDetectionTests {
         FileManager.default.createFile(atPath: profile.appendingPathComponent("cookies.sqlite").path, contents: Data())
         #expect(detection.isCookieSourceAvailable(.zen) == true)
     }
+
+    @Test(arguments: [
+        // Beta ships as Firefox.app, so release Firefox also passes detection.
+        (browser: Browser.firefoxBeta, profile: "abc.default-beta", channel: Browser.firefoxBeta),
+        (
+            browser: Browser.firefoxDeveloperEdition,
+            profile: "abc.dev-edition-default",
+            channel: Browser.firefoxDeveloperEdition),
+        (browser: Browser.firefoxNightly, profile: "abc.default-nightly", channel: Browser.firefoxNightly),
+    ])
+    func `channel only install stays reachable through shipped provider orders`(
+        browser: Browser,
+        profile: String,
+        channel: Browser) throws
+    {
+        let temp = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: temp, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: temp) }
+
+        let profileDir = temp
+            .appendingPathComponent("Library")
+            .appendingPathComponent("Application Support")
+            .appendingPathComponent("Firefox")
+            .appendingPathComponent("Profiles")
+            .appendingPathComponent(profile)
+        try FileManager.default.createDirectory(at: profileDir, withIntermediateDirectories: true)
+        FileManager.default.createFile(
+            atPath: profileDir.appendingPathComponent("cookies.sqlite").path,
+            contents: Data())
+
+        let detection = self.detection(homeDirectory: temp.path, installedBrowsers: [browser])
+        let orders = ProviderDefaults.metadata.values.compactMap(\.browserCookieOrder)
+            .filter { $0.contains(.firefox) }
+        for order in orders {
+            #expect(order.cookieImportCandidates(using: detection).contains(channel))
+        }
+    }
 }
 
 #else
