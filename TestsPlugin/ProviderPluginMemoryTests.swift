@@ -65,8 +65,12 @@ struct ProviderPluginMemoryTests {
                 },
                 cookieSessionValidator: { _, _ in })
         }
-        // Let the existing fetch watchdogs release their temporary runtime references.
-        try await Task.sleep(for: .seconds(ProviderPluginRuntime.defaultTimeout + 1))
+        // The fetch watchdogs release their temporary runtime references; on a loaded runner they can fire late,
+        // so wait for release with a generous deadline instead of a single fixed sleep.
+        let deadline = ContinuousClock.now + .seconds(ProviderPluginRuntime.defaultTimeout * 4 + 5)
+        while objects.liveCount > 0, ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(250))
+        }
         #expect(objects.capturedCount == 20)
         #expect(objects.liveCount == 0)
     }
