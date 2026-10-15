@@ -114,6 +114,44 @@ struct UsageStoreMenuCardModelTests {
     }
 
     @Test
+    func `settings catalogue keeps the Codex credit lane while optional usage is off`() {
+        let store = self.makeStore()
+        store.settings.showOptionalCreditsAndExtraUsage = false
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let snapshot = UsageSnapshot(primary: nil, secondary: nil, updatedAt: now)
+        let credits = CreditsSnapshot(
+            remaining: 0,
+            events: [],
+            updatedAt: now,
+            codexCreditLimit: CodexCreditLimitSnapshot(
+                used: 27, limit: 100, remainingPercent: 73, resetsAt: nil, updatedAt: now))
+        let context = UsageMenuCardContext.settingsAccount(.init(snapshot: snapshot, credits: credits))
+        let rendered = UsageMenuCardView.Model.make(store.menuCardInput(for: .codex, context: context))
+        let catalogue = UsageMenuCardView.Model.make(store.menuCardInput(
+            for: .codex, context: context, optionalUsageOverride: true))
+        #expect(!rendered.metrics.contains { $0.id == "monthly" })
+        #expect(catalogue.usageItemDescriptors.contains {
+            $0.id == .metric("monthly") && $0.requiresOptionalUsage
+        })
+        #expect(!store.settings.showOptionalCreditsAndExtraUsage)
+    }
+
+    @Test
+    func `real monthly Codex quota is not marked as optional credits`() {
+        let store = self.makeStore()
+        store.settings.showOptionalCreditsAndExtraUsage = false
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 27, windowMinutes: 43200, resetsAt: nil, resetDescription: nil),
+            secondary: nil,
+            updatedAt: Date())
+        let model = UsageMenuCardView.Model.make(store.menuCardInput(
+            for: .codex, context: .settingsAccount(.init(snapshot: snapshot))))
+        #expect(model.usageItemDescriptors.contains {
+            $0.id == .metric("monthly") && !$0.requiresOptionalUsage
+        })
+    }
+
+    @Test
     func `settings keeps diagnostic cost policy separate from menu display choices`() {
         let store = self.makeStore()
         store.settings.costUsageEnabled = true

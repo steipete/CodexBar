@@ -109,6 +109,10 @@ Usage source picker:
   **Hide personal information** uses the same numbered account and workspace labels as the account switcher.
   Authorized OpenAI Code review usage remains on the followed account's row; sibling rows never inherit it,
   and same-email ambiguity keeps the existing display-only dashboard policy.
+- The provider settings catalogue lists optional credit-limit lanes for managed accounts even when optional usage
+  is off. Account previews still follow that switch. Real 30-day quota windows remain independently configurable;
+  they are not treated as optional credit balances. A shared control keeps that meaning when another account has an optional
+  monthly credit lane, regardless of account order.
 - Refresh an individual row or choose **Refresh all accounts** to visit every account in batches of up to six,
   without changing the followed account or promoting credentials to System. The provider header keeps its existing
   account-scoped refresh, including credits and OpenAI web extras. Zero or one account, and ambient PAT mode, keep

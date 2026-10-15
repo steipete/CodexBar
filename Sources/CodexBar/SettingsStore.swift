@@ -256,6 +256,9 @@ final class SettingsStore {
     @ObservationIgnored var configPersistWriteTask: Task<Void, Never>?
     @ObservationIgnored var configFileWatcher: ConfigFileWatcher?
     @ObservationIgnored var configLoading = false
+    @ObservationIgnored let configPersistenceCoordinator = SettingsConfigPersistenceCoordinator()
+    @ObservationIgnored var configNeedsReload = false
+
     @ObservationIgnored var cachedCodexAccountReconciliationSnapshot:
         CachedCodexAccountReconciliationSnapshot?
     @ObservationIgnored var cachedCodexAccountMenuProjection: CachedCodexAccountMenuProjection?
@@ -373,11 +376,20 @@ final class SettingsStore {
             ampCookieStore: ampCookieStore,
             copilotTokenStore: copilotTokenStore,
             tokenAccountStore: tokenAccountStore)
-        let config = CodexBarConfigMigrator.loadOrMigrate(
-            configStore: configStore,
-            userDefaults: userDefaults,
-            keychainAccessDisabled: keychainAccessPolicy.isExplicitlyDisabled(),
-            stores: legacyStores)
+        let config: CodexBarConfig
+        do {
+            config = try CodexBarConfigMigrator.loadOrMigrate(
+                configStore: configStore,
+                userDefaults: userDefaults,
+                keychainAccessDisabled: keychainAccessPolicy.isExplicitlyDisabled(),
+                stores: legacyStores)
+        } catch {
+            config = CodexBarConfig.makeDefault().normalized()
+            self.configNeedsReload = true
+            CodexBarLog.logger(LogCategories.configMigration).error(
+                "Config load failed; preserving the file until it can be reloaded",
+                metadata: ["error": "\(error)"])
+        }
         _ = Self.initializeOpenAIWebAccessPreference(
             userDefaults: userDefaults, config: config, hadExistingConfig: hadExistingConfig)
         self.userDefaults = userDefaults

@@ -21,7 +21,16 @@ struct ProviderAccountUsageOverview {
     let onRefresh: (Set<String>) -> Void
 
     var usageItems: [ProviderUsageItemDescriptor] {
-        self.rows.flatMap(\.usageItems)
+        // Shared controls must keep a real quota visible regardless of account ordering.
+        self.rows.flatMap(\.usageItems).reduce(into: []) { items, item in
+            if let index = items.firstIndex(where: { $0.id == item.id }) {
+                if items[index].requiresOptionalUsage, !item.requiresOptionalUsage {
+                    items[index] = item
+                }
+            } else {
+                items.append(item)
+            }
+        }
     }
 }
 

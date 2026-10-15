@@ -70,8 +70,15 @@ public struct CodexBarConfigStore: @unchecked Sendable {
     }
 
     public func saveEncodedData(_ data: Data) throws {
+        try self.saveEncodedData(data, beforePublish: {})
+    }
+
+    /// App writers can revalidate a snapshot after staging, while still holding the file lock.
+    package func saveEncodedData(_ data: Data, beforePublish: @escaping () throws -> Void) throws {
         try self.withWriteLock {
-            try CredentialFileWriter.writePrivate(data, to: self.fileURL)
+            try CredentialFileWriter.writePrivate(data, to: self.fileURL) { _ in
+                try beforePublish()
+            }
         }
     }
 

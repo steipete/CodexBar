@@ -200,26 +200,18 @@ extension SettingsStore {
     }
 
     func reloadTokenAccounts() {
-        let log = CodexBarLog.logger(LogCategories.tokenAccounts)
-        let accounts: [UsageProvider: ProviderTokenAccountData]
-        do {
-            guard let loaded = try self.configStore.load() else { return }
-            accounts = Dictionary(uniqueKeysWithValues: loaded.providers.compactMap { entry in
-                guard let provider = entry.id.firstPartyProvider,
-                      let data = entry.tokenAccounts
-                else { return nil }
-                return (provider, data)
-            })
-        } catch {
-            log.error("Failed to reload token accounts: \(error)")
-            return
-        }
-        self.updateProviderTokenAccounts(accounts)
+        self.reloadConfig(reason: "token-accounts", origin: .localFile)
     }
 
     func openTokenAccountsFile() {
         do {
-            try Self.writeConfig(self.config, to: self.configStore, watcher: self.configFileWatcher)
+            if !self.configNeedsReload {
+                try Self.writeConfig(
+                    self.config,
+                    to: self.configStore,
+                    watcher: self.configFileWatcher,
+                    permit: self.configPersistenceCoordinator.makeWritePermit())
+            }
         } catch {
             CodexBarLog.logger(LogCategories.tokenAccounts).error("Failed to persist config: \(error)")
             return

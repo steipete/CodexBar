@@ -49,6 +49,7 @@ struct UsageMenuCardView: View {
             let workdayTickAppearance: WorkdayTickAppearance
             let cardStyle: Bool
             var sessionEquivalentDetail: UsagePaceText.SessionEquivalentDetail?
+            let isSyntheticCreditLane: Bool
             var helpText: String?
 
             init(
@@ -68,7 +69,8 @@ struct UsageMenuCardView: View {
                 workdayMarkerPercents: [Double] = [],
                 workdayTickAppearance: WorkdayTickAppearance = .subtle,
                 cardStyle: Bool = false,
-                sessionEquivalentDetail: UsagePaceText.SessionEquivalentDetail? = nil)
+                sessionEquivalentDetail: UsagePaceText.SessionEquivalentDetail? = nil,
+                isSyntheticCreditLane: Bool = false)
             {
                 self.id = id
                 self.title = title
@@ -87,6 +89,7 @@ struct UsageMenuCardView: View {
                 self.workdayTickAppearance = workdayTickAppearance
                 self.cardStyle = cardStyle
                 self.sessionEquivalentDetail = sessionEquivalentDetail
+                self.isSyntheticCreditLane = isSyntheticCreditLane
             }
 
             var percentLabel: String {

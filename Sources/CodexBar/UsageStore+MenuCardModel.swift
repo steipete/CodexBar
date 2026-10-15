@@ -66,6 +66,7 @@ extension UsageStore {
             snapshotOverride: account?.snapshot,
             errorOverride: account?.error,
             creditsOverride: account?.credits,
+            optionalUsageOverride: optionalUsageOverride,
             now: now)
         let supportsTokenCost = codexProjection != nil || descriptor.tokenCost.supportsTokenCost
         let tokenSnapshot: CostUsageTokenSnapshot?
