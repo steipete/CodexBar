@@ -137,12 +137,31 @@ def store_snapshot(home):
     return {'inode': db.stat().st_ino, 'parserHash': meta_rows.get('parser_hash'), 'files': rows}
 
 
+def mirror_permissions(home):
+    """Modes of everything the head CLI wrote under the archive mirror, created under umask 022."""
+    container = home / 'Library/Caches/CodexBar/cost-usage/codex-archived-rollouts'
+    entries = [container, *sorted(container.rglob('*'))]
+    modes = {}
+    for entry in entries:
+        kind = ('directory' if entry.is_dir() else 'decoded transcript' if entry.name.endswith('.jsonl')
+                else 'failure ledger' if entry.name == '.failed-archives.json' else 'other')
+        modes.setdefault(kind, set()).add(oct(entry.stat().st_mode & 0o777))
+    return {
+        'umask': '0o22',
+        'modesByKind': {kind: sorted(values) for kind, values in sorted(modes.items())},
+        'entriesAccessibleToOtherUsers': sum(1 for entry in entries if entry.stat().st_mode & 0o077),
+        'entries': len(entries),
+    }
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--base', type=Path, required=True)
     parser.add_argument('--head', type=Path, required=True)
     parser.add_argument('--out', type=Path, required=True)
     args = parser.parse_args()
+    # The default macOS umask; without explicit modes, new files would be 0644 and directories 0755.
+    os.umask(0o022)
     with tempfile.TemporaryDirectory() as scratch:
         scratch = Path(scratch)
         fixture, clean = scratch / 'codex-home', scratch / 'codex-home-no-corrupt'
@@ -157,6 +176,7 @@ def main():
             'base 0.75.0, every archive decompressed in place (reference)': run(args.base, reference, scratch / 'h3'),
             'head, fixture without the corrupt archive': run(args.head, clean, scratch / 'h4'),
         }}
+        result['head mirror permissions (fixture run)'] = mirror_permissions(scratch / 'h2')
 
         # Upgrade: a 0.75.0 cache is adopted in place by this branch.
         upgrade = scratch / 'h5'

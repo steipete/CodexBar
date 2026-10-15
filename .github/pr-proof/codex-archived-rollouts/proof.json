@@ -43,6 +43,22 @@
       "root": "sessions"
     }
   ],
+  "head mirror permissions (fixture run)": {
+    "entries": 14,
+    "entriesAccessibleToOtherUsers": 0,
+    "modesByKind": {
+      "decoded transcript": [
+        "0o600"
+      ],
+      "directory": [
+        "0o700"
+      ],
+      "failure ledger": [
+        "0o600"
+      ]
+    },
+    "umask": "0o22"
+  },
   "scenarios": {
     "base 0.75.0, every archive decompressed in place (reference)": {
       "daily": {
@@ -92,7 +108,7 @@
     }
   },
   "upgrade from 0.75.0 cache": {
-    "parserHashAfter": "de804fdce598a754",
+    "parserHashAfter": "a9a17d631e24b009",
     "parserHashBefore": "3f88178bf03ad704",
     "plainRowsRetainedUnchanged": {
       "rollout-2026-10-01T12-00-00-0199f0a0-0000-7000-8000-000000000006.jsonl": true,

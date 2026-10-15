@@ -34,6 +34,10 @@ enum CodexArchivedRolloutMirror {
     private static let failureLedgerName = ".failed-archives.json"
     /// Same-mtime check for an already mirrored archive; Foundation round-trips through `Double` seconds.
     private static let mtimeTolerance: TimeInterval = 0.01
+    /// Mirrors hold whole decoded transcripts, which may be private at their source, so every file and
+    /// directory under the mirror container is owner-only regardless of the umask.
+    private static let privateFileMode: mode_t = 0o600
+    private static let privateDirectoryMode: mode_t = 0o700
 
     struct SyncResult: Equatable {
         var materialized = 0
@@ -143,6 +147,23 @@ enum CodexArchivedRolloutMirror {
         }
     }
 
+    /// Creates the mirror root and its container owner-only, and tightens them if an earlier build or
+    /// another tool left them readable by other users. Everything else under the root is created private.
+    private static func createPrivateMirrorRoot(_ mirrorRoot: URL) throws {
+        let container = mirrorRoot.deletingLastPathComponent()
+        let fileManager = FileManager.default
+        try fileManager.createDirectory(at: container.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try fileManager.createDirectory(
+            at: mirrorRoot,
+            withIntermediateDirectories: true,
+            attributes: [.posixPermissions: Int(self.privateDirectoryMode)])
+        for directory in [container, mirrorRoot] {
+            guard chmod(directory.path, self.privateDirectoryMode) == 0 else {
+                throw CocoaError(.fileWriteNoPermission)
+            }
+        }
+    }
+
     // MARK: - Phases
 
     /// Source roots recently found to hold no archives, so the probe below does not rewalk them every refresh.
@@ -174,7 +195,7 @@ enum CodexArchivedRolloutMirror {
             let hasArchive = self.containsArchive(under: sourceRoot.standardizedFileURL)
             self.emptyRootProbes.record(key, empty: !hasArchive)
             if hasArchive {
-                try? FileManager.default.createDirectory(at: mirrorRoot, withIntermediateDirectories: true)
+                try? self.createPrivateMirrorRoot(mirrorRoot)
             }
         }
     }
@@ -213,7 +234,7 @@ enum CodexArchivedRolloutMirror {
                     [$0.mirrorURL.standardizedFileURL.path, $0.resumeURL.standardizedFileURL.path]
                 }))
             if !archives.isEmpty {
-                try FileManager.default.createDirectory(at: mirrorRoot, withIntermediateDirectories: true)
+                try self.createPrivateMirrorRoot(mirrorRoot)
             }
             inventory.roots.append(.init(mirrorRoot: mirrorRoot, archives: archives))
         }
@@ -426,7 +447,10 @@ enum CodexArchivedRolloutMirror {
                   (try? url.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true
             else { continue }
             let path = url.standardizedFileURL.path
-            if expected.contains(path) { continue }
+            if expected.contains(path) {
+                self.restrictToOwner(url)
+                continue
+            }
             if isSlice {
                 self.sessions.discard(path)
             }
@@ -435,6 +459,13 @@ enum CodexArchivedRolloutMirror {
             }
         }
         return removed
+    }
+
+    /// Tightens a mirror or slice an earlier build created with the umask's mode.
+    private static func restrictToOwner(_ url: URL) {
+        var status = stat()
+        guard lstat(url.path, &status) == 0, status.st_mode & 0o077 != 0 else { return }
+        _ = chmod(url.path, self.privateFileMode)
     }
 
     private static func modificationDate(of url: URL) -> Date? {
@@ -472,9 +503,12 @@ enum CodexArchivedRolloutMirror {
             try? FileManager.default.removeItem(at: url)
             return
         }
-        guard let data = try? JSONEncoder().encode(ledger) else { return }
-        try? FileManager.default.createDirectory(at: mirrorRoot, withIntermediateDirectories: true)
-        try? data.write(to: url, options: .atomic)
+        guard let data = try? JSONEncoder().encode(ledger), (try? self.createPrivateMirrorRoot(mirrorRoot)) != nil
+        else { return }
+        _ = FileManager.default.createFile(
+            atPath: url.path,
+            contents: data,
+            attributes: [.posixPermissions: Int(self.privateFileMode)])
     }
 
     // MARK: - zstd
@@ -614,14 +648,10 @@ enum CodexArchivedRolloutMirror {
         let fileManager = FileManager.default
         let sliceURL = archive.resumeURL
         let key = sliceURL.standardizedFileURL.path
-        try fileManager.createDirectory(at: sliceURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-        let descriptor = sliceURL.path.withCString { open($0, O_RDWR | O_CREAT | O_CLOEXEC | O_NOFOLLOW, 0o644) }
-        guard descriptor >= 0 else { throw DecodeError.sliceUnavailable }
-        defer { _ = flock(descriptor, LOCK_UN); _ = close(descriptor) }
-        guard flock(descriptor, LOCK_EX | LOCK_NB) == 0 else {
-            guard errno == EWOULDBLOCK || errno == EAGAIN else { throw DecodeError.sliceUnavailable }
+        guard let descriptor = try self.openLockedSlice(sliceURL) else {
             return DecodeOutcome(isComplete: false, written: 0, isBusy: true)
         }
+        defer { _ = flock(descriptor, LOCK_UN); _ = close(descriptor) }
         if self.modificationDate(of: archive.mirrorURL)
             .map({ abs($0.timeIntervalSince(archive.modified)) < self.mtimeTolerance }) == true
         {
@@ -714,6 +744,32 @@ enum CodexArchivedRolloutMirror {
         }
     }
 
+    /// Opens the slice owner-only and takes its exclusive lock; nil when another process holds it.
+    private static func openLockedSlice(_ sliceURL: URL) throws -> Int32? {
+        try FileManager.default.createDirectory(
+            at: sliceURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true,
+            attributes: [.posixPermissions: Int(self.privateDirectoryMode)])
+        let descriptor = sliceURL.path.withCString {
+            open($0, O_RDWR | O_CREAT | O_CLOEXEC | O_NOFOLLOW, self.privateFileMode)
+        }
+        guard descriptor >= 0 else { throw DecodeError.sliceUnavailable }
+        guard flock(descriptor, LOCK_EX | LOCK_NB) == 0 else {
+            let busy = errno == EWOULDBLOCK || errno == EAGAIN
+            _ = close(descriptor)
+            if busy { return nil }
+            throw DecodeError.sliceUnavailable
+        }
+        // `open` applies the mode only on creation; a slice resumed from an earlier build is tightened here.
+        // Publishing renames this same file, so the mirror keeps the mode.
+        guard fchmod(descriptor, self.privateFileMode) == 0 else {
+            _ = flock(descriptor, LOCK_UN)
+            _ = close(descriptor)
+            throw DecodeError.sliceUnavailable
+        }
+        return descriptor
+    }
+
     /// Moves a finished slice into place with the archive's mtime, while its lock is still held.
     private static func publish(_ archive: Archive, sliceURL: URL) throws {
         let fileManager = FileManager.default
@@ -721,7 +777,8 @@ enum CodexArchivedRolloutMirror {
         guard fileManager.fileExists(atPath: sliceURL.path) else { throw DecodeError.sliceUnavailable }
         try fileManager.setAttributes([.modificationDate: archive.modified], ofItemAtPath: sliceURL.path)
         if fileManager.fileExists(atPath: archive.mirrorURL.path) {
-            _ = try fileManager.replaceItemAt(archive.mirrorURL, withItemAt: sliceURL)
+            // The default keeps the old mirror's permissions; the slice's owner-only mode must win.
+            _ = try fileManager.replaceItemAt(archive.mirrorURL, withItemAt: sliceURL, options: .usingNewMetadataOnly)
         } else {
             try fileManager.moveItem(at: sliceURL, to: archive.mirrorURL)
         }
@@ -738,7 +795,11 @@ enum CodexArchivedRolloutMirror {
         defer { ZSTD_freeDCtx(context) }
         let input = try FileHandle(forReadingFrom: source)
         defer { try? input.close() }
-        guard FileManager.default.createFile(atPath: destination.path, contents: nil) else {
+        guard FileManager.default.createFile(
+            atPath: destination.path,
+            contents: nil,
+            attributes: [.posixPermissions: Int(self.privateFileMode)])
+        else {
             throw CocoaError(.fileWriteUnknown)
         }
         let output = try FileHandle(forWritingTo: destination)
