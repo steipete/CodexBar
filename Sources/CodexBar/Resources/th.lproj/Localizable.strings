@@ -2411,6 +2411,7 @@
 
 "X API cost history is not available." = "ไม่สามารถดูประวัติค่าใช้จ่ายของ X API ได้";
 "Paste a console.x.com Cookie header containing auth_token and ct0." = "วางส่วนหัว Cookie จาก console.x.com ที่มี auth_token และ ct0";
+"Paste a platform.claude.com Cookie header containing sessionKey." = "วางส่วนหัว Cookie จาก platform.claude.com ที่มี sessionKey";
 "Open X Developer Console" = "เปิดคอนโซลนักพัฒนา X";
 "update_available_notification_body" = "คลิกเพื่อเปิดการตั้งค่าการอัปเดตและติดตั้งเวอร์ชันใหม่";
 // Structured session performance layout.
@@ -2622,3 +2623,7 @@
 "Daily spend · %@" = "ค่าใช้จ่ายรายวัน · %@";
 "Applies to the selected token account “%@”. Each account keeps its own limits." = "ใช้กับบัญชีโทเคนที่เลือก “%@” แต่ละบัญชีจะเก็บขีดจำกัดของตนเองไว้";
 "Applies to the OpenAI API key, not to token accounts." = "ใช้กับคีย์ API ของ OpenAI ไม่ใช่บัญชีโทเคน";
+/* Claude Platform provider */
+"API credit" = "เครดิต API";
+"Purchased credit" = "เครดิตที่ซื้อ";
+"Claude Platform exposes Console credit balance and monthly spend, not local token cost history." = "Claude Platform แสดงยอดเครดิตและการใช้จ่ายรายเดือนของ Console ไม่ใช่ประวัติต้นทุนโทเค็นในเครื่อง";

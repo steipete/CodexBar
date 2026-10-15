@@ -2408,6 +2408,7 @@
 
 "X API cost history is not available." = "Không có lịch sử chi phí X API.";
 "Paste a console.x.com Cookie header containing auth_token and ct0." = "Dán tiêu đề Cookie từ console.x.com có chứa auth_token và ct0.";
+"Paste a platform.claude.com Cookie header containing sessionKey." = "Dán tiêu đề Cookie từ platform.claude.com có chứa sessionKey.";
 "Open X Developer Console" = "Mở bảng điều khiển nhà phát triển X";
 "update_available_notification_body" = "Nhấp để mở cài đặt cập nhật và cài đặt phiên bản mới.";
 // Structured session performance layout.
@@ -2621,3 +2622,7 @@
 "Daily spend · %@" = "Chi tiêu hằng ngày · %@";
 "Applies to the selected token account “%@”. Each account keeps its own limits." = "Áp dụng cho tài khoản token đã chọn “%@”. Mỗi tài khoản giữ giới hạn riêng.";
 "Applies to the OpenAI API key, not to token accounts." = "Áp dụng cho khóa API OpenAI, không áp dụng cho các tài khoản token.";
+/* Claude Platform provider */
+"API credit" = "Tín dụng API";
+"Purchased credit" = "Tín dụng đã mua";
+"Claude Platform exposes Console credit balance and monthly spend, not local token cost history." = "Claude Platform hiển thị số dư tín dụng và chi tiêu hàng tháng trên Console, không phải lịch sử chi phí token cục bộ.";

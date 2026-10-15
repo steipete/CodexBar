@@ -2385,6 +2385,7 @@
 
 "X API cost history is not available." = "X API 費用歷史無法使用。";
 "Paste a console.x.com Cookie header containing auth_token and ct0." = "貼上包含 auth_token 和 ct0 的 console.x.com Cookie 標頭。";
+"Paste a platform.claude.com Cookie header containing sessionKey." = "貼上包含 sessionKey 的 platform.claude.com Cookie 標頭。";
 "Open X Developer Console" = "開啟 X 開發者主控台";
 "update_available_notification_body" = "點擊開啟更新設定並安裝新版本。";
 // Structured session performance layout.
@@ -2598,3 +2599,7 @@
 "Daily spend · %@" = "每日支出 · %@";
 "Applies to the selected token account “%@”. Each account keeps its own limits." = "適用於所選權杖帳戶「%@」。每個帳戶保留各自的限制。";
 "Applies to the OpenAI API key, not to token accounts." = "適用於 OpenAI API 金鑰，不適用於權杖帳戶。";
+/* Claude Platform provider */
+"API credit" = "API 額度";
+"Purchased credit" = "已購買額度";
+"Claude Platform exposes Console credit balance and monthly spend, not local token cost history." = "Claude Platform 顯示 Console 額度餘額和每月支出，而不是本地 token 成本歷史記錄。";

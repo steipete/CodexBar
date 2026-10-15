@@ -2406,6 +2406,7 @@
 
 "X API cost history is not available." = "O historial de custos de X API non está dispoñible.";
 "Paste a console.x.com Cookie header containing auth_token and ct0." = "Pega unha cabeceira Cookie de console.x.com que conteña auth_token e ct0.";
+"Paste a platform.claude.com Cookie header containing sessionKey." = "Pega unha cabeceira Cookie de platform.claude.com que conteña sessionKey.";
 "Open X Developer Console" = "Abrir a consola de desenvolvedores de X";
 "update_available_notification_body" = "Preme para abrir a configuración de actualización e instalar a nova versión.";
 // Structured session performance layout.
@@ -2619,3 +2620,7 @@
 "Daily spend · %@" = "Gasto diario · %@";
 "Applies to the selected token account “%@”. Each account keeps its own limits." = "Aplícase á conta de token seleccionada «%@». Cada conta conserva os seus propios límites.";
 "Applies to the OpenAI API key, not to token accounts." = "Aplícase á clave da API de OpenAI, non ás contas de token.";
+/* Claude Platform provider */
+"API credit" = "Crédito da API";
+"Purchased credit" = "Crédito comprado";
+"Claude Platform exposes Console credit balance and monthly spend, not local token cost history." = "Claude Platform mostra o saldo de crédito e o gasto mensual da Console, non o historial local de custos de tokens.";

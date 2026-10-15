@@ -2375,6 +2375,7 @@
 
 "X API cost history is not available." = "X API 비용 기록을 사용할 수 없습니다.";
 "Paste a console.x.com Cookie header containing auth_token and ct0." = "auth_token과 ct0이 포함된 console.x.com의 Cookie 헤더를 붙여넣으세요.";
+"Paste a platform.claude.com Cookie header containing sessionKey." = "sessionKey가 포함된 platform.claude.com의 Cookie 헤더를 붙여넣으세요.";
 "Open X Developer Console" = "X 개발자 콘솔 열기";
 "update_available_notification_body" = "클릭하여 업데이트 설정을 열고 새 버전을 설치하세요.";
 // Structured session performance layout.
@@ -2588,3 +2589,7 @@
 "Daily spend · %@" = "일일 지출 · %@";
 "Applies to the selected token account “%@”. Each account keeps its own limits." = "선택한 토큰 계정 “%@”에 적용됩니다. 각 계정은 자체 한도를 유지합니다.";
 "Applies to the OpenAI API key, not to token accounts." = "토큰 계정이 아닌 OpenAI API 키에 적용됩니다.";
+/* Claude Platform provider */
+"API credit" = "API 크레딧";
+"Purchased credit" = "구매한 크레딧";
+"Claude Platform exposes Console credit balance and monthly spend, not local token cost history." = "Claude Platform은 로컬 토큰 비용 내역이 아닌 Console 크레딧 잔액과 월간 지출을 표시합니다.";

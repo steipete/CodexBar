@@ -2411,6 +2411,7 @@
 
 "X API cost history is not available." = "X API cost history is not available.";
 "Paste a console.x.com Cookie header containing auth_token and ct0." = "Paste a console.x.com Cookie header containing auth_token and ct0.";
+"Paste a platform.claude.com Cookie header containing sessionKey." = "Paste a platform.claude.com Cookie header containing sessionKey.";
 "Open X Developer Console" = "Open X Developer Console";
 "update_available_notification_body" = "Click to open update settings and install the new version.";
 // Structured session performance layout.
@@ -2625,3 +2626,7 @@
 "Daily spend · %@" = "Daily spend · %@";
 "Applies to the selected token account “%@”. Each account keeps its own limits." = "Applies to the selected token account “%@”. Each account keeps its own limits.";
 "Applies to the OpenAI API key, not to token accounts." = "Applies to the OpenAI API key, not to token accounts.";
+/* Claude Platform provider */
+"API credit" = "API credit";
+"Purchased credit" = "Purchased credit";
+"Claude Platform exposes Console credit balance and monthly spend, not local token cost history." = "Claude Platform exposes Console credit balance and monthly spend, not local token cost history.";

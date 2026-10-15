@@ -10,7 +10,7 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-6e5aff?style=flat-square)](LICENSE)
 [![Site](https://img.shields.io/badge/site-codexbar.app-16d3b4?style=flat-square)](https://codexbar.app)
 
-<a href="https://codexbar.app"><img src="docs/social.png?v=37654823e71c87f4" alt="CodexBar — every AI coding limit in your menu bar. 103 providers." width="100%" /></a>
+<a href="https://codexbar.app"><img src="docs/social.png?v=3127a233986e3638" alt="CodexBar — every AI coding limit in your menu bar. 104 providers." width="100%" /></a>
 
 Tiny macOS 14+ menu bar app that keeps **AI coding-provider limits visible** and shows when each window resets. See the [supported providers](#providers) below. One status item per provider, or Merge Icons mode with a provider switcher. No Dock icon, minimal UI, dynamic bar icons.
 
@@ -198,6 +198,7 @@ See [CLI configuration](docs/cli-configuration.md) for the full flow.
 - [fal](docs/fal.md) — API key with billing read access for the current account credit balance.
 - [FLORA](docs/flora.md) — API key with billing permission plus a workspace ID for the available USD balance and month-to-date spend.
 - [Parallel](docs/parallel.md) — Browser session on platform.parallel.ai for the prepaid credit balance and pending debit.
+- [Claude Platform](docs/claudeplatform.md) — Browser or manual platform.claude.com session cookies for Console API credit balance, expiring credit grants, and month-to-date spend.
 <!-- End generated provider additions -->
 
 ## Icon & Screenshot
