@@ -164,7 +164,9 @@ extension StatusItemController {
         let width = self.renderedMenuWidth(for: menu)
         for item in menu.items {
             (item.view as? CostHistoryMenuScrollView)?.updateSize(
-                width: width, maximumHeight: CostHistoryMenuScrollView.maximumHeight(for: menu))
+                width: width,
+                maximumHeight: CostHistoryMenuScrollView.maximumHeight(for: menu),
+                availableHeightBelowAnchor: CostHistoryMenuScrollView.availableHeightBelowAnchor(for: menu))
         }
         guard let identity = self.hostedSubviewIdentity(for: menu) else {
             self.refreshHostedSubviewHeights(in: menu)
@@ -437,6 +439,10 @@ extension StatusItemController {
             return true
         }
 
+        final class ChartHeightRelay {
+            weak var scrollView: CostHistoryMenuScrollView?
+        }
+        let relay = ChartHeightRelay()
         let displayConversion = self.costHistoryDisplayConversion(for: tokenSnapshot)
         let chartView = CostHistoryChartMenuView(
             provider: provider,
@@ -450,12 +456,23 @@ extension StatusItemController {
             projects: provider == .codex ? tokenSnapshot.projects : [],
             sessions: provider == .codex ? tokenSnapshot.sessions : [],
             hidePersonalInfo: self.settings.hidePersonalInfo,
-            width: width)
+            width: width,
+            onDetailHeightChanged: { delta, updateContent in
+                if let scrollView = relay.scrollView {
+                    scrollView.adjustDocumentHeight(by: delta, updateContent: updateContent)
+                } else {
+                    updateContent()
+                }
+            })
         let hosting = MenuHostingView(rootView: chartView.codexBarLocalized())
         let scrollView = CostHistoryMenuScrollView(
             hosting: hosting,
             width: width,
-            maximumHeight: CostHistoryMenuScrollView.maximumHeight(for: submenu))
+            maximumHeight: CostHistoryMenuScrollView.maximumHeight(for: submenu),
+            maximumHeightGrowth: CostHistoryChartMenuView.maximumDetailHeightGrowth(
+                provider: provider, daily: tokenSnapshot.daily),
+            availableHeightBelowAnchor: CostHistoryMenuScrollView.availableHeightBelowAnchor(for: submenu))
+        relay.scrollView = scrollView
 
         let chartItem = NSMenuItem()
         chartItem.view = scrollView

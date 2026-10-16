@@ -487,9 +487,10 @@ private final class CostMetricProofDriver {
         let hoverTopOnScreen = menuWindow.convertPoint(
             toScreen: NSPoint(x: hoverFrameInWindow.midX, y: hoverFrameInWindow.maxY)).y
         let hoverTopClearance = menuFrame.maxY - hoverTopOnScreen
-        guard hoverTopClearance >= minimumControlTopClearance else {
-            self.failure = "Native metric proof chart hover surface remained in the menu's top scroll gutter "
-                + "(clearance=\(hoverTopClearance), minimum=\(minimumControlTopClearance))."
+        let minimumHoverClearance = CostHistoryChartMenuView.verticalPadding
+        guard hoverTopClearance >= minimumHoverClearance else {
+            self.failure = "Native metric proof chart hover surface lost its top padding "
+                + "(clearance=\(hoverTopClearance), minimum=\(minimumHoverClearance))."
             self.finish()
             return false
         }

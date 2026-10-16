@@ -397,7 +397,7 @@ struct CostHistoryChartMenuViewTests {
 
     @Test
     @MainActor
-    func `cost history sizes its viewport to the largest breakdown in the range`() {
+    func `cost history sizes its viewport to the selected day`() {
         let threeRows = CostHistoryChartMenuView._detailViewportConfigurationForTesting(
             provider: .codex,
             daily: [Self.entry(date: "2026-06-07", modelCount: 1), Self.entry(date: "2026-06-08", modelCount: 3)])
@@ -416,15 +416,56 @@ struct CostHistoryChartMenuViewTests {
         #expect(threeRows.rowHeight == 36)
         #expect(cappedRows.rowCount == 4)
         #expect(cappedRows.hasOverflow)
-        #expect(mixedRows.rowCount == 4)
-        #expect(mixedRows.hasOverflow)
+        #expect(mixedRows.rowCount == 1)
+        #expect(!mixedRows.hasOverflow)
         #expect(noRows.rowCount == 0)
         #expect(!noRows.hasOverflow)
     }
 
     @Test
     @MainActor
-    func `cost history expands every row only when the range contains mode details`() {
+    func `hover selection grows and shrinks the detail viewport`() {
+        let daily = [
+            Self.entry(date: "2026-06-07", modelCount: 2),
+            Self.entry(date: "2026-06-08", modelCount: 1),
+            Self.entry(date: "2026-06-09", modelCount: 6, hasModeDetails: true),
+            Self.entry(date: "2026-06-10", modelCount: 0),
+        ]
+        for (day, rows, overflow, height) in [
+            ("2026-06-07", 2, false, 36.0),
+            ("2026-06-08", 1, false, 36.0),
+            ("2026-06-09", 4, true, 44.0),
+            ("2026-06-10", 0, false, 36.0),
+            ("2026-06-07", 2, false, 36.0),
+        ] {
+            let layout = CostHistoryChartMenuView._detailViewportConfigurationForTesting(
+                provider: .codex, daily: daily, selectedDateKey: day)
+            #expect(layout.rowCount == rows)
+            #expect(layout.hasOverflow == overflow)
+            #expect(layout.rowHeight == CGFloat(height))
+        }
+    }
+
+    @Test
+    @MainActor
+    func `screen edge headroom includes overflow and expanded rows but ignores unselectable days`() {
+        let compact = [
+            Self.entry(date: "2026-06-07", modelCount: 2),
+            Self.entry(date: "2026-06-08", modelCount: 1),
+        ]
+        #expect(CostHistoryChartMenuView.maximumDetailHeightGrowth(provider: .codex, daily: compact) == 42)
+        let expanded = [
+            Self.entry(date: "2026-06-07", modelCount: 6, hasModeDetails: true),
+            Self.entry(date: "2026-06-08", modelCount: 1),
+        ]
+        #expect(CostHistoryChartMenuView.maximumDetailHeightGrowth(provider: .codex, daily: expanded) == 177)
+        let unselectable = compact + [Self.entry(date: "invalid-day", modelCount: 6, hasModeDetails: true)]
+        #expect(CostHistoryChartMenuView.maximumDetailHeightGrowth(provider: .codex, daily: unselectable) == 42)
+    }
+
+    @Test
+    @MainActor
+    func `cost history expands rows only when the selected day contains mode details`() {
         let compact = CostHistoryChartMenuView._detailViewportConfigurationForTesting(
             provider: .codex,
             daily: [Self.entry(date: "2026-06-07", modelCount: 2)])
@@ -437,11 +478,12 @@ struct CostHistoryChartMenuViewTests {
 
         #expect(compact.rowHeight == 36)
         #expect(expanded.rowHeight == 44)
-        #expect(compact.rowCount == expanded.rowCount)
+        #expect(compact.rowCount == 2)
+        #expect(expanded.rowCount == 1)
     }
 
     @Test
-    func `metric switch reserves one stable detail layout`() {
+    func `metric switch sizes details for the selected metric day`() {
         let tokenOnly = CostUsageDailyReport.Entry(
             date: "2026-06-07",
             inputTokens: 100,
@@ -480,12 +522,12 @@ struct CostHistoryChartMenuViewTests {
             daily: daily,
             metric: .cost)
 
-        #expect(tokens.rowCount == cost.rowCount)
-        #expect(tokens.hasOverflow == cost.hasOverflow)
-        #expect(tokens.rowHeight == cost.rowHeight)
         #expect(tokens.rowCount == 4)
         #expect(tokens.hasOverflow)
         #expect(tokens.rowHeight == 44)
+        #expect(cost.rowCount == 1)
+        #expect(!cost.hasOverflow)
+        #expect(cost.rowHeight == 36)
     }
 
     @Test
@@ -591,7 +633,7 @@ struct CostHistoryChartMenuViewTests {
 
     @Test
     @MainActor
-    func `cost history fitting height stays stable across compact overflow and mode selections`() {
+    func `cost history fitting height follows selected rows overflow and mode details`() {
         let compactLatestHasOneModel = [
             Self.entry(date: "2026-06-07", modelCount: 3),
             Self.entry(date: "2026-06-08", modelCount: 1),
@@ -621,11 +663,11 @@ struct CostHistoryChartMenuViewTests {
         let overflowHeight = Self.renderedHeight(daily: overflowLatestHasFourModels)
         let modeHeight = Self.renderedHeight(daily: modeLatestHasOneModel)
 
-        #expect(compactHeight == Self.renderedHeight(daily: compactLatestHasThreeModels))
-        #expect(overflowHeight == Self.renderedHeight(daily: overflowLatestHasSixModels))
-        #expect(modeHeight == Self.renderedHeight(daily: modeLatestHasSixModels))
-        #expect(compactHeight < overflowHeight)
-        #expect(overflowHeight < modeHeight)
+        #expect(compactHeight + 84 == Self.renderedHeight(daily: compactLatestHasThreeModels))
+        #expect(overflowHeight + 19 == Self.renderedHeight(daily: overflowLatestHasSixModels))
+        #expect(modeHeight < Self.renderedHeight(daily: modeLatestHasSixModels))
+        #expect(compactHeight < modeHeight)
+        #expect(modeHeight < overflowHeight)
     }
 
     @Test
