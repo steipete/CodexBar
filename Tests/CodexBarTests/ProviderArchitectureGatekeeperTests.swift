@@ -1652,7 +1652,7 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "Antigravity quota payloads use this token to identify a model family, not a CodexBar provider."),
         SuppressedProviderReference(
             path: "Sources/CodexBarCore/Providers/Antigravity/AntigravityStatusProbe.swift",
-            anchor: "if lowercasedTitle.contains(\"gemini\") {",
+            anchor: "if lowercasedTitle.contains(\"gemini\"), !title.contains(where: \\.isNumber) {",
             expectedProviderIDs: ["gemini"],
             reason: "Antigravity quota titles use this token to identify a model family for display."),
         SuppressedProviderReference(

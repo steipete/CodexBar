@@ -2,6 +2,10 @@
 
 ## 0.77.1 — Unreleased
 
+### Fixed
+
+- Antigravity: show the separate Gemini 4 Argon quota as "Gemini 4 Argon weekly" instead of a second "Gemini weekly" row (#4585). Thanks @jangisaac-dev!
+
 ## 0.77.0 — 2026-10-16
 
 ### Highlights
