@@ -1930,7 +1930,7 @@
 "Refresh the profile before refreshing OpenAI web data." = "Uppdatera profilen innan du uppdaterar OpenAI webbdata.";
 "Refreshing account status…" = "Uppdaterar kontostatus...";
 "Remaining budget compared with an ideal steady burn rate." = "Återstående budget jämfört med en idealisk jämn förbränningshastighet.";
-"Renews: %@" = "Förnyar: %@";
+"Plan renews: %@" = "Abonnemanget förnyas: %@";
 "Request quota" = "Begär Kvot";
 "Requesting login…" = "Begär inloggning...";
 "Required. Enter a regular API key or a Management API key here. Management keys also enable account Activity on the official OpenRouter API." = "Krävs. Ange en vanlig API-nyckel eller en Management API-nyckel här. Hanteringsnycklar aktiverar även kontoaktivitet på den officiella OpenRouter API.";
@@ -2630,3 +2630,8 @@
 "API credit" = "API-kredit";
 "Purchased credit" = "Köpt kredit";
 "Claude Platform exposes Console credit balance and monthly spend, not local token cost history." = "Claude Platform visar Console-kreditsaldo och månadsutgifter, inte lokal tokenkostnadshistorik.";
+
+/* Claude desktop cookie source */
+"Claude desktop app" = "Claude-skrivbordsappen";
+"Use Claude desktop app cookies" = "Använd cookies från Claude-skrivbordsappen";
+"For Web usage, follow the account signed into Claude.app instead of a browser." = "För webbanvändning används kontot som är inloggat i Claude.app i stället för webbläsarkontot.";

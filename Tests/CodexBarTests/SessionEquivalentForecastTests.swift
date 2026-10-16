@@ -194,8 +194,8 @@ struct SessionEquivalentForecastTests {
         #expect(exact.windowsUntilReset == 10)
     }
 
-    @Test
-    func `work day setting excludes weekend capacity`() throws {
+    @Test(arguments: [5, 6])
+    func `work day setting excludes weekend capacity`(workDays: Int) throws {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = try #require(TimeZone(secondsFromGMT: 0))
         let now = try #require(calendar.date(from: DateComponents(
@@ -236,11 +236,11 @@ struct SessionEquivalentForecastTests {
             weeklyWindow: weekly,
             burnEstimate: burn,
             now: now,
-            workDays: 5,
+            workDays: workDays,
             calendar: calendar))
 
         #expect(everyDay.windowsUntilReset == 14)
-        #expect(weekdays.windowsUntilReset == 4)
+        #expect(weekdays.windowsUntilReset == (workDays == 5 ? 4 : 9))
     }
 
     @Test

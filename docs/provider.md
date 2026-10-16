@@ -48,6 +48,9 @@ for cookies matching the provider's hosts before requesting Safe Storage; a manu
 interactive Keychain read across all providers and browsers. Denials retain the six-hour browser and Chromium-family
 cooldown, including manual retries; only `codexbar cookie refresh --allow-keychain-prompt` explicitly overrides it.
 Session validation is lazy: stop at the first working browser and continue only after a missing or rejected session.
+Plugin permission errors retain recovery advice for each blocked browser. A decryption denial supersedes a profile
+denial only for that same browser; Safari points to Full Disk Access while Chromium profile denials point to
+Files & Folders. A working session from another browser still wins over these permission errors.
 Safari needs filesystem access (potentially Full Disk Access), while Firefox and Zen read unencrypted cookie stores;
 none of those browsers needs a Safe Storage Keychain grant. A denied or unavailable store remains skippable.
 Restrict a provider to a browser subset only with a documented technical reason next to the code. WorkBuddy retains

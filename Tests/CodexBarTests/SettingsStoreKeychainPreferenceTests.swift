@@ -6,6 +6,22 @@ import Testing
 @Suite(.serialized)
 @MainActor
 struct SettingsStoreKeychainPreferenceTests {
+    @Test
+    func `ordinary settings fixtures own their keychain policy`() {
+        KeychainAccessGate.withTaskOverrideForTesting(true) {
+            let first = testSettingsStore(suiteName: #function, userDefaults: InMemoryUserDefaults())
+            let second = testSettingsStore(suiteName: #function, userDefaults: InMemoryUserDefaults())
+
+            #expect(!first.keychainAccessPolicy.isExplicitlyDisabled())
+            first.debugDisableKeychainAccess = true
+            #expect(first.keychainAccessPolicy.isExplicitlyDisabled())
+            #expect(!second.keychainAccessPolicy.isExplicitlyDisabled())
+            first.debugDisableKeychainAccess = false
+            #expect(!first.keychainAccessPolicy.isExplicitlyDisabled())
+            #expect(KeychainAccessGate.isDisabled)
+        }
+    }
+
     @Test(arguments: [nil, false, true] as [Bool?], [nil, false, true] as [Bool?])
     func `local keychain preference wins and shared defaults fill only an absent value`(
         localValue: Bool?, sharedValue: Bool?)

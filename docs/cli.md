@@ -109,6 +109,7 @@ sources and setup guide. The [provider ID list](provider-ids.md) is generated fr
     50,000 records and conflict IDs and 32 MiB; exceeding a limit rejects the source rather than truncating usage.
     An unavailable source retains successful source data, marks the result partial, and exits nonzero.
     Readable empty history is available; damaged or disappearing files mark the available data partial.
+    Files are read and validated even for a short window; reducing `--days` does not skip older files.
   - Requires explicit `--provider codex` and JSON. Do not combine with `--summary-only`,
     `--period`, `--group-by` or `--breakdown`; the existing separate-host summary command is unchanged.
 - `codexbar cards` prints a one-shot usage snapshot as a responsive terminal card grid.

@@ -3,6 +3,7 @@ import SweetCookieKit
 import Testing
 @testable import CodexBarCore
 
+@Suite(.serialized)
 struct ProviderPluginCookieResultTests {
     @Test(arguments: [true, false])
     func `only a successful nonpersistent script fetch validates an empty refresh`(authenticated: Bool) async throws {

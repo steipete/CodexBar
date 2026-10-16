@@ -296,6 +296,8 @@ public final class BrowserDetection: Sendable {
     private func hasValidProfileDirectory(for browser: Browser, at profilePath: String) -> Bool {
         guard let contents = self.directoryContents(profilePath) else { return false }
 
+        if browser == .claudeDesktop { return self.hasValidCookieStore(for: browser, at: profilePath) }
+
         // Gecko default profiles end in `.default`, `.default-release`, or a channel form such as
         // Developer Edition's `.dev-edition-default`.
         if browser.usesGeckoProfileStore {
@@ -311,6 +313,9 @@ public final class BrowserDetection: Sendable {
     }
 
     private func hasValidCookieStore(for browser: Browser, at profilePath: String) -> Bool {
+        if browser == .claudeDesktop {
+            return self.fileExists("\(profilePath)/Cookies") || self.fileExists("\(profilePath)/Network/Cookies")
+        }
         guard let contents = self.directoryContents(profilePath) else { return false }
 
         if browser.usesGeckoProfileStore {

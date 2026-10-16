@@ -228,6 +228,12 @@ struct SettingsStoreKeychainAccessPolicy {
     let setDisabled: (Bool) -> Void
     let isExplicitlyDisabled: () -> Bool
 
+    static var defaultPolicy: Self {
+        guard SettingsStore.isRunningTests else { return .live }
+        var disabled = false
+        return Self(setDisabled: { disabled = $0 }, isExplicitlyDisabled: { disabled })
+    }
+
     static var live: Self {
         Self(
             setDisabled: { KeychainAccessGate.isDisabled = $0 },
@@ -328,7 +334,7 @@ final class SettingsStore {
         copilotTokenStore: any CopilotTokenStoring = KeychainCopilotTokenStore(),
         tokenAccountStore: any ProviderTokenAccountStoring = FileTokenAccountStore(),
         antigravityOAuthCredentialsStore: AntigravityOAuthCredentialsStore = AntigravityOAuthCredentialsStore(),
-        keychainAccessPolicy: SettingsStoreKeychainAccessPolicy = .live,
+        keychainAccessPolicy: SettingsStoreKeychainAccessPolicy = .defaultPolicy,
         performInitialProviderDetection: Bool = !SettingsStore.isRunningTests)
     {
         // Legacy credential migration must see the saved policy, including shared-defaults fallback.

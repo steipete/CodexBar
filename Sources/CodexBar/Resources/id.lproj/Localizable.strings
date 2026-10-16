@@ -1934,7 +1934,7 @@
 "Refresh the profile before refreshing OpenAI web data." = "Segarkan profil sebelum menyegarkan data web OpenAI.";
 "Refreshing account status…" = "Menyegarkan status akun…";
 "Remaining budget compared with an ideal steady burn rate." = "Anggaran yang tersisa dibandingkan dengan tingkat pembakaran stabil yang ideal.";
-"Renews: %@" = "Diperbarui: %@";
+"Plan renews: %@" = "Paket diperbarui: %@";
 "Request quota" = "Minta Kuota";
 "Requesting login…" = "Meminta masuk…";
 "Required. Enter a regular API key or a Management API key here. Management keys also enable account Activity on the official OpenRouter API." = "Diperlukan. Masukkan kunci API biasa atau kunci Manajemen API di sini. Kunci manajemen juga mengaktifkan Aktivitas akun di OpenRouter API resmi.";
@@ -2632,3 +2632,8 @@
 "API credit" = "Kredit API";
 "Purchased credit" = "Kredit yang dibeli";
 "Claude Platform exposes Console credit balance and monthly spend, not local token cost history." = "Claude Platform menampilkan saldo kredit dan pembelanjaan bulanan Console, bukan riwayat biaya token lokal.";
+
+/* Claude desktop cookie source */
+"Claude desktop app" = "Aplikasi desktop Claude";
+"Use Claude desktop app cookies" = "Gunakan cookie aplikasi desktop Claude";
+"For Web usage, follow the account signed into Claude.app instead of a browser." = "Untuk penggunaan web, ikuti akun yang masuk di Claude.app, bukan akun di browser.";

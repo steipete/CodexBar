@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.76.1 — Unreleased
+
+### Added
+
+- Settings: offer a six-day Monday–Saturday work week for weekly pace and session forecasts (#4548). Thanks @ViaxCo!
+- Claude: optionally read web usage from the Claude desktop app’s signed-in session, following desktop account switches without using browser credentials (#4494). Thanks @flutterrausch!
+
+### Fixed
+
+- Widgets: include optional provider details in snapshot JSON so Claude Cloud credits retain their remaining balance, grant total, and expiry without changing quota rows (#4546). Thanks @djbclark!
+
 ## 0.76.0 — 2026-10-15
 
 ### Highlights

@@ -35,6 +35,11 @@ extension SettingsStore {
         set { self.setCookieSource(newValue, provider: .claude) }
     }
 
+    var claudeDesktopCookiesEnabled: Bool {
+        get { self.configSnapshot.providerConfig(for: .claude)?.claudeDesktopCookiesEnabled ?? false }
+        set { self.updateProviderConfig(provider: .claude) { $0.claudeDesktopCookiesEnabled = newValue } }
+    }
+
     var claudeWorkspaceSpendEnabled: Bool {
         get { self.configSnapshot.providerConfig(for: .claude)?.claudeWorkspaceSpendEnabled ?? false }
         set {
@@ -98,7 +103,8 @@ extension SettingsStore {
             manualCookieHeader: self.claudeSnapshotCookieHeader(
                 routing: routing,
                 hasSelectedAccount: account != nil),
-            organizationID: account?.sanitizedOrganizationID)
+            organizationID: account?.sanitizedOrganizationID,
+            desktopCookiesEnabled: self.claudeDesktopCookiesEnabled)
     }
 
     private static func claudeUsageDataSource(from source: ProviderSourceMode?) -> ClaudeUsageDataSource {

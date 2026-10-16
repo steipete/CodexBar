@@ -1681,7 +1681,7 @@
 "%@m" = "%@min";
 "%d CONNECTED" = "%d CONNECTÉ";
 "%d DAYS" = "%d JOURS";
-"%d days" = "Jours %d";
+"%d days" = "%d jours";
 "%d more accounts ready" = "%d plus de comptes prêts";
 "%d percent" = "%d pourcentage";
 "%d subscriptions" = "%d abonnements";
@@ -1930,7 +1930,7 @@
 "Refresh the profile before refreshing OpenAI web data." = "Actualisez le profil avant d'actualiser les données Web OpenAI.";
 "Refreshing account status…" = "Actualisation de l'état du compte…";
 "Remaining budget compared with an ideal steady burn rate." = "Budget restant par rapport à un taux de combustion idéal et stable.";
-"Renews: %@" = "Renouvelle : %@";
+"Plan renews: %@" = "Renouvellement du forfait : %@";
 "Request quota" = "Demander un quota";
 "Requesting login…" = "Demande de connexion…";
 "Required. Enter a regular API key or a Management API key here. Management keys also enable account Activity on the official OpenRouter API." = "Obligatoire. Entrez ici une clé API normale ou une clé de gestion API. Les clés de gestion permettent également l'activité du compte sur le OpenRouter API officiel.";
@@ -2630,3 +2630,8 @@
 "API credit" = "Crédit API";
 "Purchased credit" = "Crédit acheté";
 "Claude Platform exposes Console credit balance and monthly spend, not local token cost history." = "Claude Platform affiche le solde de crédit et les dépenses mensuelles de la Console, et non l'historique local des coûts de jetons.";
+
+/* Claude desktop cookie source */
+"Claude desktop app" = "Application de bureau Claude";
+"Use Claude desktop app cookies" = "Utiliser les cookies de l’application de bureau Claude";
+"For Web usage, follow the account signed into Claude.app instead of a browser." = "Pour l’utilisation web, suivre le compte connecté à Claude.app plutôt que celui du navigateur.";

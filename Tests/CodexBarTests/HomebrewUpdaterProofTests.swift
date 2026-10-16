@@ -14,7 +14,7 @@ final class HomebrewUpdaterProofTests: XCTestCase {
             dependencies: .init(
                 installedVersion: { "0.65.0" },
                 fetchCaskSource: { "version \"0.66.0\"" },
-                runUpgrade: {},
+                runUpgrade: { _ in },
                 relaunch: {},
                 cask: { .tap }),
             startScheduledChecks: false)

@@ -721,7 +721,7 @@ extension UsageMenuCardView.Model {
         guard let snapshot else { return [] }
         if let renewsAt = snapshot.subscriptionRenewsAt {
             return [String(
-                format: L("Renews: %@"),
+                format: L("Plan renews: %@"),
                 self.subscriptionDateString(
                     renewsAt,
                     provider: provider,

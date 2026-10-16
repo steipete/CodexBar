@@ -31,7 +31,7 @@ final class AboutUpdateCommandProofTests: XCTestCase {
                 dependencies: .init(
                     installedVersion: { "0.65.0" },
                     fetchCaskSource: { "" },
-                    runUpgrade: {},
+                    runUpgrade: { _ in },
                     relaunch: {},
                     cask: { .official }),
                 startScheduledChecks: false)

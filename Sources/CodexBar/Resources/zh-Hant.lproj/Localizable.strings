@@ -1922,7 +1922,7 @@
 "Refresh budgets" = "重新整理預算";
 "Refreshing account status…" = "正在刷新帳號狀態...";
 "Remaining budget compared with an ideal steady burn rate." = "比較剩餘額度與理想的均勻使用速度。";
-"Renews: %@" = "續訂時間：%@";
+"Plan renews: %@" = "方案續訂時間：%@";
 "Request quota" = "請求 配額";
 "Required. Enter a regular API key or a Management API key here. Management keys also enable account Activity on the official OpenRouter API." = "必填。在此輸入常規 API 金鑰或管理 API 金鑰。管理金鑰還可以啟用官方 OpenRouter API 上的帳號活動。";
 "Reset: %@" = "重置：%@";
@@ -2609,3 +2609,8 @@
 "API credit" = "API 額度";
 "Purchased credit" = "已購買額度";
 "Claude Platform exposes Console credit balance and monthly spend, not local token cost history." = "Claude Platform 顯示 Console 額度餘額和每月支出，而不是本地 token 成本歷史記錄。";
+
+/* Claude desktop cookie source */
+"Claude desktop app" = "Claude 桌面應用程式";
+"Use Claude desktop app cookies" = "使用 Claude 桌面應用程式的 Cookie";
+"For Web usage, follow the account signed into Claude.app instead of a browser." = "查詢網頁用量時，使用 Claude.app 中登入的帳號，而非瀏覽器帳號。";

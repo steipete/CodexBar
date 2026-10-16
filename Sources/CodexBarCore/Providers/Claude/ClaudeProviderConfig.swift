@@ -1,6 +1,11 @@
 import Foundation
 
 extension ProviderConfig {
+    public var claudeDesktopCookiesEnabled: Bool? {
+        get { self.extensionValue(forKey: "claudeDesktopCookiesEnabled") }
+        set { self.setExtensionValue(newValue, forKey: "claudeDesktopCookiesEnabled") }
+    }
+
     /// Persisted with the visibility choices so an upgrade or sync cannot reapply the legacy global gate.
     public var claudeResetCreditsVisibilityMigrated: Bool? {
         get { self.extensionValue(forKey: "claudeResetCreditsVisibilityMigrated") }

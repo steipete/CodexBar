@@ -62,6 +62,10 @@ Admin API key setup:
 - Token accounts can also hold `sk-ant-admin...` keys; they route to the Admin API instead of cookie/OAuth usage.
 - Environment fallback: `ANTHROPIC_ADMIN_KEY`.
 
+## Usage Dashboard
+
+The default and API-account Usage Dashboard action opens [Platform usage](https://platform.claude.com/usage). Accounts recognized as Claude subscriptions open [Settings → Usage](https://claude.ai/settings/usage). This action does not change the configured usage source.
+
 ## Admin API
 - Key prefix: `sk-ant-admin...`.
 - Endpoints:
@@ -115,6 +119,13 @@ If Claude works in Chrome but CodexBar cannot import its browser session:
 This recovers browser-session access; it does not repair missing OAuth credentials. If the refreshed session
 instead reports a Cloudflare challenge, follow the network guidance under Web API below rather than repeating
 the cookie import.
+
+## Passive CLI sessions and macOS sleep
+
+After each passive request in the reusable CLI session, and when that session closes, CodexBar sends SIGTERM
+only to `/usr/bin/caffeinate` processes in the session's own process group. The session remains available for
+later requests. There is no recurring process scan; other process groups and other executables are left alone.
+This cleanup applies to the reusable PTY session, not the separate one-shot usage or auth-status commands.
 
 ## Keychain prompt policy (Claude OAuth)
 
@@ -238,6 +249,22 @@ the cookie import.
   (`default_claude_max_5x` / `default_claude_max_20x`), it is surfaced in the label as "Max 5x" / "Max 20x".
 
 ## Web API (cookies)
+
+### Claude desktop app cookies (opt-in, macOS)
+
+Choose **Usage source → Web** and **Claude cookies → Automatic**, then enable **Use Claude desktop app cookies**.
+Sign in to Claude.app first. This option is off by default. The equivalent provider config field is `"claudeDesktopCookiesEnabled": true`,
+also honored by CLI usage. The desktop app source reads `~/Library/Application Support/Claude/Cookies` (or
+`Network/Cookies`) through SweetCookieKit, using `Claude Safe Storage` / `Claude Key` for encrypted values.
+
+Desktop cookie imports are exclusive: a missing or unreadable desktop session never falls back to a browser account.
+Explicitly selected token accounts keep their own credentials; this option applies to automatic-cookie fetches.
+Usage source **Auto** keeps its existing runtime-specific source order; choose **Web** to follow only the desktop session.
+Cookies are reimported on each refresh so account switches made in Claude.app are observed; desktop sessions
+do not read or write the browser cookie cache. The normal shared access gate still forbids prompts from background/settings
+work, checks matching cookie hosts before Safe Storage access, permits at most one interactive read per manual
+action, and honors denial cooldowns. OAuth and Claude Code login sources are unchanged.
+
 - Optional subscription dates come from `GET /api/organizations/{org_id}/subscription_details` on `claude.ai`,
   using an existing manual or cached session cookie. They do not come from the quota response or OAuth expiry.
   `next_charge_at` / `next_charge_date` supply renewal; `plan_ending_at` / `plan_ending_before` supply paid-access
@@ -354,8 +381,9 @@ Changing a cap changes the percentage, not its rollover. A stale observation doe
 - OAuth and Web usage responses can supply promotional cloud-session credit in `iguana_necktie`.
   CodexBar shows a separate **Cloud credits** balance row in the menu and a detail section in the CLI when
   optional credits/extra usage is enabled. The menu row matches the prepaid **Credits** row and shows only the
-  remaining balance; the allowance, progress, and expiry stay in CLI output. CLI JSON exposes the section through
-  `usage.details`, including numeric progress and remaining dollars. No additional request, login, or browser
+  remaining balance; the allowance, progress, and expiry are available in CLI output and the widget snapshot's
+  optional `details` field. CLI JSON exposes the section through `usage.details`, including numeric progress and
+  remaining dollars. No additional request, login, or browser
   discovery is needed for these credits.
 - `limit_dollars`, `used_dollars`, and `remaining_dollars` are already USD amounts. They are never divided by 100,
   added to prepaid Extra usage, counted as local spending, or used for quota pacing. The reported remaining amount
@@ -524,6 +552,7 @@ Model-scoped weekly-window proof (synthetic data, no real accounts or credential
     a configuration issue and recommend checking the provider source/settings, rather than re-authenticating.
 
 ## Cost usage (local log scan)
+- Coverage is local usage-bearing transcripts only. Cloud-backed Code Projects run remotely; unless their token usage is available in a supported local JSONL transcript, it is absent from token totals and API-rate estimates. Account quota percentages are fetched separately, so changing the quota source does not expand history coverage.
 - Source roots:
   - Native Claude logs:
     - `$CLAUDE_CONFIG_DIR` selects one literal directory and uses `<root>/projects`; commas are part of its path.

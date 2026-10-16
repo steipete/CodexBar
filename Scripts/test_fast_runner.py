@@ -108,6 +108,29 @@ class NativeTestRunnerTests(unittest.TestCase):
                 result = self.run_command(["bash", "-c", probe])
                 self.assertEqual(result.returncode, 0, result.stderr)
 
+    def test_native_runners_use_a_private_home_removed_afterward(self):
+        binary = self.directory / "swift"
+        binary.write_text(
+            "#!/usr/bin/env python3\n"
+            "import json, os\n"
+            "from pathlib import Path\n"
+            "home = os.environ['HOME']\n"
+            "Path(os.environ['NATIVE_TEST_CAPTURE']).write_text(json.dumps("
+            "{'home': home, 'fixed': os.environ.get('CFFIXED_USER_HOME'), 'existed': os.path.isdir(home)}))\n",
+            encoding="utf-8",
+        )
+        for command in [["bash", "Scripts/test_fast.sh", "--filter", "Example"],
+                        ["make", "-s", "test-fast"], ["make", "-s", "test-skip-build"]]:
+            with self.subTest(command=command):
+                self.capture.unlink(missing_ok=True)
+                result = self.run_command(command)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                captured = json.loads(self.capture.read_text())
+                self.assertEqual(captured["fixed"], captured["home"])
+                self.assertNotEqual(captured["home"], self.environment["HOME"])
+                self.assertTrue(captured["existed"])
+                self.assertFalse(Path(captured["home"]).exists())
+
     def test_invalid_deadline_fails_before_launch(self):
         for value in ["0", "-1", "invalid"]:
             with self.subTest(value=value):

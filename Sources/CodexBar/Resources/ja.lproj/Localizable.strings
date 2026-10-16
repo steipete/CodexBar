@@ -1682,7 +1682,7 @@
 "%@m" = "%@分";
 "%d CONNECTED" = "接続済み：%d 件";
 "%d DAYS" = "%d 日";
-"%d days" = "%d 日";
+"%d days" = "%d日間";
 "%d more accounts ready" = "%d より多くのアカウントの準備ができました";
 "%d percent" = "%d パーセント";
 "%d subscriptions" = "%d 件のサブスクリプション";
@@ -1931,7 +1931,7 @@
 "Refresh the profile before refreshing OpenAI web data." = "OpenAI Web データを更新する前に、プロファイルを更新してください。";
 "Refreshing account status…" = "アカウントのステータスを更新しています…";
 "Remaining budget compared with an ideal steady burn rate." = "理想的な安定した燃焼速度と比較した残りの予算。";
-"Renews: %@" = "更新: %@";
+"Plan renews: %@" = "プラン更新日: %@";
 "Request quota" = "リクエスト クォータ";
 "Requesting login…" = "ログインをリクエスト中…";
 "Required. Enter a regular API key or a Management API key here. Management keys also enable account Activity on the official OpenRouter API." = "必須。ここに通常の API キーまたは管理 API キーを入力します。管理キーにより、公式 OpenRouter API でのアカウント アクティビティも有効になります。";
@@ -2631,3 +2631,8 @@
 "API credit" = "API クレジット";
 "Purchased credit" = "購入済みクレジット";
 "Claude Platform exposes Console credit balance and monthly spend, not local token cost history." = "Claude Platform は、ローカルのトークンコスト履歴ではなく、Console のクレジット残高と月間支出を表示します。";
+
+/* Claude desktop cookie source */
+"Claude desktop app" = "Claudeデスクトップアプリ";
+"Use Claude desktop app cookies" = "ClaudeデスクトップアプリのCookieを使用";
+"For Web usage, follow the account signed into Claude.app instead of a browser." = "Webの使用量には、ブラウザではなくClaude.appにログイン中のアカウントを使用します。";

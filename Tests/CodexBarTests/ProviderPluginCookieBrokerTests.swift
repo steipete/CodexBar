@@ -89,16 +89,21 @@ struct ProviderPluginCookieBrokerTests {
         }
     }
 
-    @Test
-    func `decryption denial keeps precedence over skipped profiles`() throws {
+    @Test(arguments: [false, true])
+    func `different browser permission failures both remain actionable`(reversed: Bool) throws {
         try self.isolated {
             let broker = ProviderPluginCookieBroker(
                 provider: .manus,
                 domains: self.domains,
                 settings: .init(cookieSource: .auto, manualCookieHeader: nil),
                 batches: { _, _ in
-                    BrowserCookieAccessGate.recordAccessFailure(for: .chrome)
-                    BrowserCookieAccessGate.recordAccessFailure(for: .brave, profileDenied: true)
+                    if reversed {
+                        BrowserCookieAccessGate.recordAccessFailure(for: .chrome, profileDenied: true)
+                        BrowserCookieAccessGate.recordAccessFailure(for: .safari)
+                    } else {
+                        BrowserCookieAccessGate.recordAccessFailure(for: .safari)
+                        BrowserCookieAccessGate.recordAccessFailure(for: .chrome, profileDenied: true)
+                    }
                     return nil
                 })
             let session = try broker.nextSession(domain: "cloud.example.test")
@@ -106,8 +111,54 @@ struct ProviderPluginCookieBrokerTests {
             let missing = ProviderFetchClassifiedError(kind: .missingCredential, message: "Synthetic sign in")
             let failure = try #require(broker.preferredFailure(over: missing) as? ProviderFetchClassifiedError)
             #expect(failure.kind == .permissionDenied)
-            #expect(failure.message.hasPrefix(Browser.chrome.displayName))
+            #expect(failure.message.hasPrefix("Cannot read \(Browser.chrome.displayName)'s profile"))
+            #expect(failure.message.contains("Files & Folders"))
+            #expect(failure.message.contains("Safari"))
+            #expect(failure.message.contains("Full Disk Access"))
+        }
+    }
+
+    @Test(arguments: [false, true])
+    func `decryption denial takes precedence for the same browser`(reversed: Bool) throws {
+        try self.isolated {
+            let broker = ProviderPluginCookieBroker(
+                provider: .manus,
+                domains: self.domains,
+                settings: .init(cookieSource: .auto, manualCookieHeader: nil),
+                batches: { _, _ in
+                    if reversed {
+                        BrowserCookieAccessGate.recordAccessFailure(for: .chrome)
+                        BrowserCookieAccessGate.recordAccessFailure(for: .chrome, profileDenied: true)
+                    } else {
+                        BrowserCookieAccessGate.recordAccessFailure(for: .chrome, profileDenied: true)
+                        BrowserCookieAccessGate.recordAccessFailure(for: .chrome)
+                    }
+                    return nil
+                })
+            #expect(try broker.nextSession(domain: "cloud.example.test") == nil)
+            let missing = ProviderFetchClassifiedError(kind: .missingCredential, message: "Synthetic sign in")
+            let failure = try #require(broker.preferredFailure(over: missing) as? ProviderFetchClassifiedError)
             #expect(failure.message.contains("Keychain permission"))
+            #expect(!failure.message.contains("Files & Folders"))
+        }
+    }
+
+    @Test
+    func `Safari profile denial points to Full Disk Access`() throws {
+        try self.isolated {
+            let broker = ProviderPluginCookieBroker(
+                provider: .manus,
+                domains: self.domains,
+                settings: .init(cookieSource: .auto, manualCookieHeader: nil),
+                batches: { _, _ in
+                    BrowserCookieAccessGate.recordAccessFailure(for: .safari, profileDenied: true)
+                    return nil
+                })
+            #expect(try broker.nextSession(domain: "cloud.example.test") == nil)
+            let missing = ProviderFetchClassifiedError(kind: .missingCredential, message: "Synthetic sign in")
+            let failure = try #require(broker.preferredFailure(over: missing) as? ProviderFetchClassifiedError)
+            #expect(failure.message.contains("Full Disk Access"))
+            #expect(!failure.message.contains("Files & Folders"))
         }
     }
 

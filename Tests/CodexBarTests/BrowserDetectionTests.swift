@@ -30,6 +30,19 @@ struct BrowserDetectionTests {
             profileAccessIssue: { _ in nil })
     }
 
+    @Test
+    func `Claude desktop discovers a root cookie store without browser profile directories`() throws {
+        let home = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: home) }
+        let root = home.appendingPathComponent("Library/Application Support/Claude")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let detection = self.detection(homeDirectory: home.path, installedBrowsers: [.claudeDesktop])
+        #expect(!detection.isCookieSourceAvailable(.claudeDesktop))
+        try Data().write(to: root.appendingPathComponent("Cookies"))
+        #expect(detection.isCookieSourceAvailable(.claudeDesktop))
+        #expect(detection.hasUsableProfileData(.claudeDesktop))
+    }
+
     private static func labelIDs(for browser: Browser) -> [String] {
         browser.safeStorageLabels.map { self.labelID(service: $0.service, account: $0.account) }
     }

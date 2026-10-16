@@ -6,7 +6,6 @@ import SQLite3
 import CSQLite3
 #endif
 
-#if canImport(SQLite3) || canImport(CSQLite3)
 public enum OpenCodeGoLocalUsageError: LocalizedError, Sendable, Equatable {
     case notDetected
     case historyUnavailable(String)
@@ -106,9 +105,14 @@ public struct OpenCodeGoLocalUsageReader: Sendable {
         sqlite3_busy_timeout(db, 250)
 
         let hasParts = sqlite3_table_column_metadata(db, nil, "part", nil, nil, nil, nil, nil, nil) == SQLITE_OK
-        let sql = hasParts
+        let hasSessionMessages = sqlite3_table_column_metadata(
+            db, nil, "session_message", nil, nil, nil, nil, nil, nil) == SQLITE_OK
+        let legacySQL = hasParts
             ? Self.messageAndPartUsageSQL
             : "SELECT createdMs, cost, modelID, tokens FROM (\(Self.providerMessagesSQL)) WHERE hasCost"
+        // OpenCode v2 writes new turns to `session_message` and copies older turns there under the same ids,
+        // so v2 rows only add turns the legacy `message` table does not already hold.
+        let sql = hasSessionMessages ? "\(legacySQL)\nUNION ALL\n\(Self.sessionMessageUsageSQL)" : legacySQL
 
         var stmt: OpaquePointer?
         let prepareResult = sqlite3_prepare_v2(db, sql, -1, &stmt, nil)
@@ -195,6 +199,21 @@ public struct OpenCodeGoLocalUsageReader: Sendable {
               AND json_extract(p.data, '$.type') = 'step-finish'
               AND json_type(p.data, '$.cost') IN ('integer', 'real')
           )
+    """
+
+    private static let sessionMessageUsageSQL = """
+        SELECT
+          CAST(COALESCE(json_extract(s.data, '$.time.created'), s.time_created) AS INTEGER) AS createdMs,
+          CAST(json_extract(s.data, '$.cost') AS REAL) AS cost,
+          COALESCE(json_extract(s.data, '$.model.id'), '') AS modelID,
+          CASE WHEN json_type(s.data, '$.tokens') = 'object'
+            THEN json_extract(s.data, '$.tokens') END AS tokens
+        FROM session_message s
+        WHERE s.type = 'assistant'
+          AND json_valid(s.data)
+          AND json_extract(s.data, '$.model.providerID') = 'opencode-go'
+          AND json_type(s.data, '$.cost') IN ('integer', 'real')
+          AND NOT EXISTS (SELECT 1 FROM message m WHERE m.id = s.id)
     """
 
     private struct DatabaseFingerprint: Equatable {
@@ -464,24 +483,3 @@ public struct OpenCodeGoLocalUsageReader: Sendable {
         return calendar.date(from: components) ?? Date()
     }
 }
-
-#else
-
-public enum OpenCodeGoLocalUsageError: LocalizedError, Sendable, Equatable {
-    case notSupported
-
-    public var errorDescription: String? {
-        "OpenCode Go local usage is only supported on macOS."
-    }
-}
-
-public struct OpenCodeGoLocalUsageReader: Sendable {
-    public init(homeDirectory _: URL = FileManager.default.homeDirectoryForCurrentUser) {}
-    public init(authURL _: URL, databaseURL _: URL) {}
-
-    public func fetch(now _: Date = Date(), historyDays _: Int = 30) throws -> OpenCodeGoUsageSnapshot {
-        throw OpenCodeGoLocalUsageError.notSupported
-    }
-}
-
-#endif

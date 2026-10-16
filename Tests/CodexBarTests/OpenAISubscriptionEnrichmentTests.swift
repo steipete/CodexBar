@@ -261,7 +261,7 @@ struct OpenAISubscriptionEnrichmentTests {
         let after = try fixture.card(snapshot: #require(store.presentationSnapshot(for: .codex)), live: nil)
         #expect(before.subscriptionNotes.isEmpty)
         #expect(after.subscriptionNotes.count == 1)
-        #expect(after.subscriptionNotes[0].hasPrefix("Renews:"))
+        #expect(after.subscriptionNotes[0].hasPrefix("Plan renews:"))
         try captureSubscriptionNativeProof(
             models: [before, after],
             directory: #require(ProcessInfo.processInfo.environment["CODEXBAR_SUBSCRIPTION_PROOF_DIRECTORY"]))

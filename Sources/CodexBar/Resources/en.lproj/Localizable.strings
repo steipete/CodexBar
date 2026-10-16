@@ -1935,7 +1935,7 @@
 "Refresh the profile before refreshing OpenAI web data." = "Refresh the profile before refreshing OpenAI web data.";
 "Refreshing account status…" = "Refreshing account status…";
 "Remaining budget compared with an ideal steady burn rate." = "Remaining budget compared with an ideal steady burn rate.";
-"Renews: %@" = "Renews: %@";
+"Plan renews: %@" = "Plan renews: %@";
 "Request quota" = "Request quota";
 "Requesting login…" = "Requesting login…";
 "Required. Enter a regular API key or a Management API key here. Management keys also enable account Activity on the official OpenRouter API." = "Required. Enter a regular API key or a Management API key here. Management keys also enable account Activity on the official OpenRouter API.";
@@ -2636,3 +2636,8 @@
 "API credit" = "API credit";
 "Purchased credit" = "Purchased credit";
 "Claude Platform exposes Console credit balance and monthly spend, not local token cost history." = "Claude Platform exposes Console credit balance and monthly spend, not local token cost history.";
+
+/* Claude desktop cookie source */
+"Claude desktop app" = "Claude desktop app";
+"Use Claude desktop app cookies" = "Use Claude desktop app cookies";
+"For Web usage, follow the account signed into Claude.app instead of a browser." = "For Web usage, follow the account signed into Claude.app instead of a browser.";

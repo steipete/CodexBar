@@ -9,6 +9,7 @@ read_when:
 
 ## Settings
 - Back and Forward revisit the panes you opened, using Command-[ and Command-] as in System Settings. Selecting a new pane after going back clears forward history; reselecting the current pane preserves it. The last pane still restores at launch, while navigation history lasts only for the current app session. Hidden Debug panes are removed from history. On macOS 26 and later, the controls share the detail header; macOS 14/15 retain the native window title and show the controls above the pane content. The native window title stays set on every version for accessibility and the Window menu.
+- Dock presence follows startup and actual window transitions instead of rescanning windows on every app update. Scheduled Sparkle alerts still request temporary Dock presence, including alerts shown behind another app.
 - Menu → Highlight menu cards on hover is on by default. Turn it off to keep normal text and usage-bar colors on provider cards, Overview cards, and Refresh while hovering. Keyboard selection stays visible; clicks and submenus are unchanged. The choice persists locally across restarts.
 - The provider sidebar keeps saved order and the one-click alphabetical toggle (enabled first). The adjacent
   menu offers Only enabled providers and Restore default order. Search matches service names, provider IDs,
@@ -21,6 +22,7 @@ read_when:
   existing sync and portable-transfer preference.
 - App copy, credential-expiry alerts, share cards, number formatting, and layout direction follow the selected app language. Widgets use the system language independently; all 23 supported languages have complete app catalogs and generated widget catalogs. After editing app translations or widget lookup keys, run `node Scripts/sync-widget-locales.mjs`; `make check` verifies key coverage, format arguments, plural branches, and generated resources.
 - Notifications → Reset notifications is off by default and uses confirmed session and weekly resets, independently of confetti. Alerts name the provider and window; account labels appear only when Hide personal info is off. The existing macOS notification permission and Focus/Do Not Disturb settings control delivery; this toggle adds no startup permission request.
+- Enabled reset confetti runs for about 8.5 seconds so upward-launched pieces finish falling offscreen before the overlay closes. It remains click-through throughout the celebration.
 - Reset alerts and session-restored alerts share account-scoped reset receipts. Switching accounts establishes a fresh session-notification baseline. Known reset boundaries are persisted per provider, account, and window, preventing repeated banners after refreshes or restarts; a different account or a newly advanced boundary can notify independently. Without reset metadata, the existing detector requires a new usage cycle before notifying again; a new depleted episode can still produce a restored notice. Returning timestamps identify an already-announced cycle without replaying it, and previously announced boundaries stay deduplicated. The reset toggle supports portable preference export/import and remains local unless explicitly transferred.
 - Usage & Spend places its time-range picker below the title and Refresh button, keeping the header readable in narrow settings windows.
 - Spend charts group long ranges by week or month, support day/hour drill-down and account isolation, and keep an amount inspector visible below the chart. Reporting-calendar boundaries drive grouping and scrolling; the hourly view shows its UTC offset and a 24-hour clock. Chart sums are labeled recorded spend, and zero, unavailable, and incomplete amounts retain their distinct meanings.
@@ -159,11 +161,11 @@ model-generic token label while the rendered menu-bar prefix and accessibility l
 - Renderer/critter icons dim when last refresh failed and can render incident indicators; brand display mode uses provider branding plus title text.
 - Loading animation runs at a bounded frame rate and has a hard continuous-duration ceiling so provider hangs cannot keep
   the menu bar redrawing forever.
-- Ordinary, fresh single-line text-only token layouts use cached template images so AppKit can reuse them across
-  status-item redraws while retaining native highlighting and display-scale handling. The existing bounded renderer
-  cache includes the content and appearance; memory-pressure cleanup clears it. Stale data, high-contrast mode,
-  provider icons, attachments, colored glyphs such as emoji, and multiline text keep their attributed-title rendering. Critter and bar styles
-  keep their existing renderers.
+- Ordinary, fresh monochrome token layouts use template images so AppKit supplies native highlighting and
+  inactive-display dimming. Combined stacked rows support inline monochrome icons, percentages, and reset text.
+  Individual layout content and appearance remain in the bounded renderer cache; memory-pressure cleanup clears it.
+  Stale data, high-contrast mode, colored glyphs or colored attachments, and layouts with a separate leading icon keep
+  attributed text rendering. Critter and bar styles keep their existing renderers.
 
 ## Menu card
 - Cards with a history submenu show the active menu selection; deselecting the card clears it. Credits and other sections are separate menu items, so selecting usage does not highlight them.
@@ -202,13 +204,17 @@ model-generic token label while the rendered menu-bar prefix and accessibility l
 
 Pace compares your actual usage against the expected consumption rate for the current window. Most providers use an even-consumption budget; Codex can use historical pace data when historical tracking is available.
 
-The **Work days** setting selects the weekly pace model. **Automatic** uses Codex historical pace when enough data is available. Historical daily credits follow local calendar-day boundaries, including midnight daylight-saving transitions. Selecting 4, 5, or 7 days uses that explicit schedule for pace and ETA instead; CodexBar continues collecting history in the background, but does not use historical predictions until the setting returns to Automatic.
+The **Work days** setting selects the weekly pace model. **Automatic** uses Codex historical pace when enough data is available. Historical daily credits follow local calendar-day boundaries, including midnight daylight-saving transitions. Selecting 4, 5, 6, or 7 days uses that explicit schedule for pace and ETA instead; CodexBar continues collecting history in the background, but does not use historical predictions until the setting returns to Automatic. Six days counts Monday through Saturday and excludes Sunday, including in the session forecast's remaining capacity.
 
 - **On pace** – usage matches the expected rate.
 - **X% in deficit** – you're consuming faster than the even rate; at this pace you'll run out before the window resets.
 - **X% in reserve** – you're consuming slower than the even rate; you have headroom to spare.
 
 When usage is in deficit, the right-hand label shows an estimated "Runs out in …" countdown. When usage will last until the reset, it shows "Lasts until reset".
+
+Session-equivalent forecasts require at least three qualifying completed session samples. If an older session reset
+timestamp moves backward, the estimator discards the history segment before that correction and can recover the
+forecast from enough valid later samples.
 
 Pace is calculated for any provider window with enough reset timing data and is hidden when less than 3% of the
 window has elapsed. The weekly menu-bar pace token is the one exception: it may appear after 1% of the weekly
@@ -263,7 +269,8 @@ Visibility and accent-color changes preserve account cache identity and retained
 remains available with an explanation; checking it does not override the global setting.
 
 Codex and Claude have separate **Limit Reset Credits** and **Plan renewal / expiry** choices. These are
-independent of the global switch. Plan dates appear immediately after the quota rows, before reset credits.
+independent of the global switch. Plan dates appear immediately after the quota rows, before reset credits, labeled
+**Plan renews** or **Plan expires** to distinguish them from quota resets.
 Compact Overview still omits plan dates when quota bars are present. On upgrade, a previously disabled
 global switch initializes Claude's reset-credit choice to hidden; users can then enable it independently.
 The one-time migration preserves other saved choices and travels with provider settings through sync.

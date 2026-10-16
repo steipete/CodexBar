@@ -1932,7 +1932,7 @@
 "Refresh the profile before refreshing OpenAI web data." = "Обновите профиль перед обновлением веб-данных OpenAI.";
 "Refreshing account status…" = "Обновление статуса аккаунта…";
 "Remaining budget compared with an ideal steady burn rate." = "Оставшийся бюджет по сравнению с идеальной постоянной скоростью расходования средств.";
-"Renews: %@" = "Обновления: %@";
+"Plan renews: %@" = "Продление плана: %@";
 "Request quota" = "Запрос Квота";
 "Requesting login…" = "Запрос входа…";
 "Required. Enter a regular API key or a Management API key here. Management keys also enable account Activity on the official OpenRouter API." = "Обязательно. Введите здесь обычный ключ API или ключ управления API. Ключи управления также позволяют активировать учетную запись на официальном OpenRouter API.";
@@ -2632,3 +2632,8 @@
 "API credit" = "Кредит API";
 "Purchased credit" = "Купленный кредит";
 "Claude Platform exposes Console credit balance and monthly spend, not local token cost history." = "Claude Platform показывает баланс кредитов и ежемесячные расходы в Console, а не локальную историю затрат на токены.";
+
+/* Claude desktop cookie source */
+"Claude desktop app" = "Приложение Claude для компьютера";
+"Use Claude desktop app cookies" = "Использовать файлы cookie приложения Claude";
+"For Web usage, follow the account signed into Claude.app instead of a browser." = "Для веб-статистики использовать учётную запись в Claude.app вместо учётной записи браузера.";

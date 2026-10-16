@@ -226,6 +226,69 @@ struct ClaudeWebBackgroundRecoveryTests {
         }
     }
 
+    @Test(arguments: [ProviderRuntime.app, .cli])
+    func `desktop cookie refresh follows account switches without borrowing or replacing browser cache`(
+        runtime: ProviderRuntime) async throws
+    {
+        try await self.withIsolatedCookieCache {
+            CookieHeaderCache.store(
+                provider: .claude, cookieHeader: "sessionKey=sk-ant-browser", sourceLabel: "Chrome")
+            defer { CookieHeaderCache.clear(provider: .claude) }
+            let detection = BrowserDetection(cacheTTL: 0)
+            let context = ProviderFetchContext(
+                runtime: runtime,
+                sourceMode: .web,
+                includeCredits: false,
+                webTimeout: 10,
+                webDebugDumpHTML: false,
+                verbose: false,
+                env: [:],
+                settings: .make(claude: .init(
+                    usageDataSource: .web,
+                    webExtrasEnabled: false,
+                    cookieSource: .auto,
+                    manualCookieHeader: nil,
+                    desktopCookiesEnabled: true)),
+                fetcher: UsageFetcher(environment: [:]),
+                claudeFetcher: ClaudeUsageFetcher(browserDetection: detection),
+                browserDetection: detection)
+            for token in ["sk-ant-desktop-first", "sk-ant-desktop-second"] {
+                let session = ClaudeWebAPIFetcher.SessionKeyInfo(
+                    key: token, sourceLabel: "Claude desktop app Claude", cookieCount: 1)
+                try await ClaudeWebSessionKeyImport.$overrideForTesting.withValue(session) {
+                    try await self.withClaudeWebStub { request in
+                        #expect(request.value(forHTTPHeaderField: "Cookie") == "sessionKey=\(token)")
+                        return try Self.response(for: request, setCookie: nil)
+                    } operation: {
+                        let result = try await ClaudeWebFetchStrategy(browserDetection: detection).fetch(context)
+                        #expect(result.usage.primary?.usedPercent == 11)
+                    }
+                }
+            }
+            #expect(CookieHeaderCache.load(provider: .claude)?.cookieHeader == "sessionKey=sk-ant-browser")
+        }
+    }
+
+    @Test
+    func `missing desktop session cannot use a valid cached browser account`() async throws {
+        try await self.withIsolatedCookieCache {
+            CookieHeaderCache.store(
+                provider: .claude, cookieHeader: "sessionKey=sk-ant-browser", sourceLabel: "Chrome")
+            defer { CookieHeaderCache.clear(provider: .claude) }
+            try await ClaudeWebSessionKeyImport.$desktopApp.withValue(true) {
+                #expect(!ClaudeWebAPIFetcher.hasSessionKey(browserDetection: BrowserDetection(cacheTTL: 0)))
+                try await self.withClaudeWebStub { _ in
+                    Issue.record("Missing desktop cookies must not send a request with the browser credential")
+                    throw URLError(.badServerResponse)
+                } operation: {
+                    await #expect(throws: ClaudeWebAPIFetcher.FetchError.self) {
+                        _ = try await ClaudeWebAPIFetcher.fetchUsage(browserDetection: BrowserDetection(cacheTTL: 0))
+                    }
+                }
+            }
+        }
+    }
+
     // MARK: - Helpers (mirrors ClaudeWebCookieRenewalTests' stub/cache isolation)
 
     private func withIsolatedCookieCache<T>(_ operation: () async throws -> T) async rethrows -> T {

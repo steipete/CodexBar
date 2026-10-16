@@ -58,7 +58,7 @@ struct CompactOverviewTests {
         model.providerDetails = []
         model.providerDetailRawTitles = []
         let withoutDate = model
-        model.subscriptionNotes = ["Renews: Nov 5, 2026"]
+        model.subscriptionNotes = ["Plan renews: Nov 5, 2026"]
         model.usageNotes = model.subscriptionNotes
 
         #expect(abs(Self.height(model, layout: .compact) - Self.height(withoutDate, layout: .compact)) < 1)

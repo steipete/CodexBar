@@ -51,22 +51,15 @@ struct DockIconPolicyDecisionTests {
 
     @Test
     func `presentation attempt waits resolves or times out deterministically`() {
-        #expect(DockIconPresentationAttemptDecision.resolve(
-            isAwaiting: false,
-            hasPresentedWindow: false,
-            deadlineExpired: true) == .inactive)
-        #expect(DockIconPresentationAttemptDecision.resolve(
-            isAwaiting: true,
-            hasPresentedWindow: false,
-            deadlineExpired: false) == .awaiting)
-        #expect(DockIconPresentationAttemptDecision.resolve(
-            isAwaiting: true,
-            hasPresentedWindow: true,
-            deadlineExpired: false) == .presented)
-        #expect(DockIconPresentationAttemptDecision.resolve(
-            isAwaiting: true,
-            hasPresentedWindow: false,
-            deadlineExpired: true) == .timedOut)
+        var tracker = DockIconPresentationAttemptTracker()
+        #expect(tracker.resolve(hasPresentedWindow: false, deadlineExpiredFor: nil) == .inactive)
+        _ = tracker.begin()
+        #expect(tracker.resolve(hasPresentedWindow: false, deadlineExpiredFor: nil) == .awaiting)
+        #expect(tracker.resolve(hasPresentedWindow: true, deadlineExpiredFor: nil) == .presented)
+        #expect(!tracker.isAwaiting)
+        let attempt = tracker.begin()
+        #expect(tracker.resolve(hasPresentedWindow: false, deadlineExpiredFor: attempt) == .timedOut)
+        #expect(!tracker.isAwaiting)
     }
 
     @Test
