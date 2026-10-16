@@ -4,12 +4,25 @@ import Testing
 @testable import CodexBarCore
 
 struct KiroRegionalEnrichmentTests {
+    @Test
+    func `missing CLI state does not invent a connectivity endpoint`() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let missingDatabase = directory.appendingPathComponent("data.sqlite3")
+        #expect(throws: KiroUsageLimitsError.self) {
+            try KiroUsageLimitsAPI.usageEndpoint(databaseURL: missingDatabase)
+        }
+        #expect(!FileManager.default.fileExists(atPath: directory.path))
+    }
+
     @Test(arguments: ["us-east-1", "eu-central-1"])
     func `existing enrichment follows the CLI profile region`(region: String) async throws {
         let arn = "arn:aws:codewhisperer:\(region):123456789012:profile/test-profile"
         let database = try self.makeDatabase(profileARN: arn)
         defer { try? FileManager.default.removeItem(at: database.deletingLastPathComponent()) }
         let original = try Data(contentsOf: database)
+        #expect(try KiroUsageLimitsAPI.usageEndpoint(databaseURL: database).absoluteString == (region == "us-east-1"
+                ? "https://codewhisperer.us-east-1.amazonaws.com/"
+                : "https://q.eu-central-1.amazonaws.com/"))
         let transport = ProviderHTTPTransportStub { request in
             let requestURL = try #require(request.url)
             let response = try #require(HTTPURLResponse(
@@ -54,6 +67,9 @@ struct KiroRegionalEnrichmentTests {
         let database = try self.makeDatabase(profileARN: arn)
         defer { try? FileManager.default.removeItem(at: database.deletingLastPathComponent()) }
         let transport = ProviderHTTPTransportStub { _ in throw CancellationError() }
+        #expect(throws: KiroUsageLimitsError.self) {
+            try KiroUsageLimitsAPI.usageEndpoint(databaseURL: database)
+        }
         do {
             _ = try await KiroUsageLimitsAPI.fetch(databaseURL: database, transport: transport)
             Issue.record("Invalid profile unexpectedly fetched usage")

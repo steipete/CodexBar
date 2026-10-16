@@ -60,13 +60,26 @@ struct KiroCLIFetchStrategy: ProviderFetchStrategy {
     let id: String = "kiro.cli"
     let kind: ProviderFetchKind = .cli
 
+    private let connectivityGate: KiroConnectivityGate
+    private let makeProbe: @Sendable () -> KiroStatusProbe
+
+    init(
+        connectivityGate: KiroConnectivityGate = KiroConnectivityGate(),
+        makeProbe: @escaping @Sendable () -> KiroStatusProbe = { KiroStatusProbe() })
+    {
+        self.connectivityGate = connectivityGate
+        self.makeProbe = makeProbe
+    }
+
     func isAvailable(_: ProviderFetchContext) async -> Bool {
         TTYCommandRunner.which("kiro-cli") != nil
     }
 
     func fetch(_: ProviderFetchContext) async throws -> ProviderFetchResult {
-        let probe = KiroStatusProbe()
-        let snap = try await probe.fetch()
+        // Check the CLI's own usage service, not the independently hosted dashboard.
+        // A failed session refresh can otherwise open sign-in tabs on every refresh tick.
+        try await self.connectivityGate.ensureReachable()
+        let snap = try await self.makeProbe().fetch()
         return self.makeResult(
             usage: snap.toUsageSnapshot(),
             sourceLabel: "cli")
