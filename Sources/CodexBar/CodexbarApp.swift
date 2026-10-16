@@ -188,13 +188,15 @@ final class UpdateStatus {
 import Sparkle
 
 @MainActor
-final class SparkleUpdaterController: NSObject, UpdaterProviding, SPUUpdaterDelegate {
+final class SparkleUpdaterController: NSObject, UpdaterProviding, SPUUpdaterDelegate,
+    SPUStandardUserDriverDelegate
+{
     private static let presentationTimeout: Duration = .seconds(60)
 
     private lazy var controller = SPUStandardUpdaterController(
         startingUpdater: false,
         updaterDelegate: self,
-        userDriverDelegate: nil)
+        userDriverDelegate: self)
     let updateStatus = UpdateStatus()
     let unavailableReason: String? = nil
     let isAvailable = true
@@ -292,6 +294,22 @@ final class SparkleUpdaterController: NSObject, UpdaterProviding, SPUUpdaterDele
             } else {
                 self.updateStatus.isUpdateReady = false
             }
+        }
+    }
+
+    /// Scheduled alerts can appear without key, main, or occlusion notifications.
+    nonisolated func standardUserDriverWillHandleShowingUpdate(
+        _ handleShowingUpdate: Bool,
+        forUpdate _: SUAppcastItem,
+        state: SPUUserUpdateState)
+    {
+        guard handleShowingUpdate, !state.userInitiated else { return }
+        Task { @MainActor in
+            if self.dockPresentationAttemptID == nil {
+                self.dockPresentationAttemptID = DockIconController.shared.promote(
+                    presentationTimeout: Self.presentationTimeout)
+            }
+            DockIconController.shared.windowsMayHaveChanged()
         }
     }
 

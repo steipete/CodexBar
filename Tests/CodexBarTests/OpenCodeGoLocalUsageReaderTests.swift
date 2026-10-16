@@ -446,6 +446,54 @@ extension OpenCodeGoLocalUsageReaderTests {
     }
 
     @Test
+    func `v2 session messages add new turns without double counting migrated ones`() throws {
+        let env = try Self.makeEnvironment()
+        defer { try? FileManager.default.removeItem(at: env.root) }
+
+        try Self.writeAuth(to: env.authURL)
+        try Self.createDatabase(at: env.databaseURL, includeSessionMessages: true)
+        let reference = Date(timeIntervalSince1970: TimeInterval(Self.ms("2026-03-06T15:00:00.000Z")) / 1000)
+        let day = Calendar.current.startOfDay(for: reference)
+        let now = day.addingTimeInterval(12 * 3600)
+        let migratedID = try Self.insertMessage(
+            databaseURL: env.databaseURL,
+            createdMs: Self.ms(day.addingTimeInterval(3600)),
+            cost: 3.0,
+            model: "claude-sonnet-4-5")
+        try Self.insertSessionMessage(
+            databaseURL: env.databaseURL,
+            id: migratedID,
+            createdMs: Self.ms(day.addingTimeInterval(3600)),
+            cost: 3.0,
+            model: "claude-sonnet-4-5")
+        try Self.insertSessionMessage(
+            databaseURL: env.databaseURL,
+            createdMs: Self.ms(day.addingTimeInterval(2 * 3600)),
+            cost: 2.0,
+            model: "gpt-5.1-codex",
+            tokens: ["input": 10, "output": 5, "reasoning": 1, "cache": ["read": 4, "write": 0]])
+        try Self.insertSessionMessage(
+            databaseURL: env.databaseURL,
+            createdMs: Self.ms(day.addingTimeInterval(3 * 3600)),
+            cost: 7.0,
+            model: "gpt-5.1-codex",
+            providerID: "openrouter")
+
+        let reader = OpenCodeGoLocalUsageReader(authURL: env.authURL, databaseURL: env.databaseURL)
+        let snapshot = try reader.fetch(now: now, historyDays: 30)
+
+        let entry = try #require(snapshot.daily.first)
+        #expect(snapshot.daily.count == 1)
+        #expect(entry.costUSD == 5.0)
+        #expect(entry.requestCount == 2)
+        #expect(entry.modelsUsed == ["claude-sonnet-4-5", "gpt-5.1-codex"])
+        let breakdowns = try #require(entry.modelBreakdowns)
+        #expect(breakdowns.last?.modelName == "gpt-5.1-codex")
+        #expect(breakdowns.last?.costUSD == 2.0)
+        #expect(breakdowns.last?.totalTokens == 20)
+    }
+
+    @Test
     func `step finish parts inherit their model from the parent message`() throws {
         let env = try Self.makeEnvironment()
         defer { try? FileManager.default.removeItem(at: env.root) }
@@ -777,7 +825,11 @@ extension OpenCodeGoLocalUsageReaderTests {
         try data.write(to: url)
     }
 
-    private static func createDatabase(at url: URL, includeParts: Bool = true) throws {
+    private static func createDatabase(
+        at url: URL,
+        includeParts: Bool = true,
+        includeSessionMessages: Bool = false) throws
+    {
         var db: OpaquePointer?
         guard sqlite3_open(url.path, &db) == SQLITE_OK else { throw SQLiteTestError.open }
         defer { sqlite3_close(db) }
@@ -802,6 +854,21 @@ extension OpenCodeGoLocalUsageReaderTests {
             """)
         if !includeParts {
             try Self.exec(db: db, sql: "DROP TABLE part")
+        }
+        if includeSessionMessages {
+            try Self.exec(
+                db: db,
+                sql: """
+                    CREATE TABLE session_message (
+                      id TEXT PRIMARY KEY,
+                      session_id TEXT NOT NULL,
+                      type TEXT NOT NULL,
+                      seq INTEGER NOT NULL,
+                      time_created INTEGER NOT NULL,
+                      time_updated INTEGER NOT NULL,
+                      data TEXT NOT NULL
+                    );
+                """)
         }
     }
 
@@ -872,6 +939,52 @@ extension OpenCodeGoLocalUsageReaderTests {
         sqlite3_bind_int64(stmt, 5, createdMs)
         guard sqlite3_step(stmt) == SQLITE_DONE else { throw SQLiteTestError.step }
         return messageID
+    }
+
+    private static func insertSessionMessage(
+        databaseURL: URL,
+        id: String = UUID().uuidString,
+        createdMs: Int64,
+        cost: Double,
+        model: String,
+        providerID: String = "opencode-go",
+        tokens: [String: Any]? = nil) throws
+    {
+        var db: OpaquePointer?
+        guard sqlite3_open(databaseURL.path, &db) == SQLITE_OK else { throw SQLiteTestError.open }
+        defer { sqlite3_close(db) }
+
+        var payload: [String: Any] = [
+            "model": ["providerID": providerID, "id": model],
+            "cost": cost,
+            "time": ["created": createdMs],
+        ]
+        if let tokens {
+            payload["tokens"] = tokens
+        }
+        let data = try JSONSerialization.data(withJSONObject: payload)
+        let json = String(data: data, encoding: .utf8) ?? "{}"
+
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(
+            db,
+            """
+            INSERT INTO session_message (id, session_id, type, seq, time_created, time_updated, data)
+            VALUES (?, ?, 'assistant', 0, ?, ?, ?)
+            """,
+            -1,
+            &stmt,
+            nil) == SQLITE_OK
+        else { throw SQLiteTestError.prepare }
+        defer { sqlite3_finalize(stmt) }
+
+        let transient = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
+        sqlite3_bind_text(stmt, 1, id, -1, transient)
+        sqlite3_bind_text(stmt, 2, "session-1", -1, transient)
+        sqlite3_bind_int64(stmt, 3, createdMs)
+        sqlite3_bind_int64(stmt, 4, createdMs)
+        sqlite3_bind_text(stmt, 5, json, -1, transient)
+        guard sqlite3_step(stmt) == SQLITE_DONE else { throw SQLiteTestError.step }
     }
 
     private static func insertStepFinishPart(

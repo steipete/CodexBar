@@ -733,7 +733,7 @@ struct MenuBarLayoutRendererTests {
         #expect(unstacked.leadingIcon != nil)
         #expect(stacked.attributedTitle.string.hasSuffix("50%"))
         #expect(stacked.attributedTitle.string != unstacked.attributedTitle.string)
-        #expect(stacked.statusImage == nil)
+        #expect(stacked.statusImage?.isTemplate == true)
     }
 
     @Test(arguments: MenuBarLayoutSize.allCases)
@@ -769,7 +769,7 @@ struct MenuBarLayoutRendererTests {
         #expect(composed.accessibilityLabel.contains("Codex"))
         #expect(composed.accessibilityLabel.contains("Claude"))
         #expect(composed.leadingIcon == nil)
-        #expect(composed.statusImage == nil)
+        #expect(composed.statusImage?.isTemplate == true)
         #expect(bounds.height <= 22)
     }
 
@@ -2390,9 +2390,7 @@ extension MenuBarLayoutRendererTests {
         let cases: [(MenuBarLayout, MenuBarLayoutRenderOptions)] = [
             (plain, self.options(isStale: true)),
             (plain, highContrast),
-            (MenuBarLayout(lines: [[.percent(window: .automatic)], [.pace(window: .weekly)]]), self.options()),
             (MenuBarLayout(lines: [[.icon, .percent(window: .automatic)]]), self.options()),
-            (MenuBarLayout(lines: [[.percent(window: .automatic), .icon]]), self.options()),
             (MenuBarLayout(lines: [[.icon]]), self.options()),
             (MenuBarLayout(lines: [[.hidden]]), self.options()),
         ]
@@ -2478,6 +2476,73 @@ extension MenuBarLayoutRendererTests {
             }
         }
         #expect(try abs(#require(centroids[-2]) - #require(centroids[2]) - 4) < 0.5)
+    }
+
+    @Test
+    func `stacked monochrome icons percentages and resets share a native template`() throws {
+        let renderer = MenuBarLayoutRenderer()
+        let icon = NSImage(size: NSSize(width: 16, height: 16), flipped: false) { rect in
+            NSColor.black.setFill()
+            NSBezierPath(ovalIn: rect.insetBy(dx: 2, dy: 2)).fill()
+            return true
+        }
+        icon.isTemplate = true
+        let layout = MenuBarLayout(lines: [[.icon, .percent(window: .automatic), .resetCountdown]])
+        let options = self.options(forceStackedStyle: true)
+        let top = renderer.render(layout: layout, data: self.data(), icon: icon, options: options)
+        let bottom = renderer.render(
+            layout: layout, data: self.data(provider: .claude), icon: icon, options: options)
+        let output = MenuBarLayoutRenderer.composeStackedProviderRows(
+            top: top, bottom: bottom, topProviderName: "Codex", bottomProviderName: "Claude")
+        let image = try #require(output.statusImage)
+        #expect(image.isTemplate)
+        #expect(image.size.height == 22)
+        let button = NSButton()
+        _ = StatusItemController.applyMenuBarLayoutContent(output, for: button, gap: .regular)
+        #expect(button.image === image)
+        #expect(button.imagePosition == .imageOnly)
+        #expect(button.attributedTitle.length == 0)
+        #expect(button.accessibilityTitle() == output.accessibilityLabel)
+        let bitmap = try Self.statusBitmap(image: image, scale: 2)
+        var ink = [0, 0]
+        for y in 0..<bitmap.pixelsHigh {
+            for x in 0..<bitmap.pixelsWide where (bitmap.colorAt(x: x, y: y)?.alphaComponent ?? 0) > 0.1 {
+                ink[y < bitmap.pixelsHigh / 2 ? 0 : 1] += 1
+            }
+        }
+        #expect(ink.allSatisfy { $0 > 50 }, "Both stacked rows must remain visible")
+    }
+
+    @Test
+    func `stacked templates preserve colored provider marks warnings and second row emoji`() {
+        let renderer = MenuBarLayoutRenderer()
+        let icon = NSImage(size: NSSize(width: 16, height: 16))
+        icon.isTemplate = true
+        let layout = MenuBarLayout(lines: [[.icon, .percent(window: .automatic)]])
+        let options = self.options(forceStackedStyle: true)
+        let top = renderer.render(layout: layout, data: self.data(), icon: icon, options: options)
+        func compose(_ bottom: MenuBarLayoutRenderedTitle) -> MenuBarLayoutRenderedTitle {
+            MenuBarLayoutRenderer.composeStackedProviderRows(
+                top: top, bottom: bottom, topProviderName: "Codex", bottomProviderName: "Claude")
+        }
+        let colored = renderer.render(
+            layout: layout,
+            data: self.data(provider: .claude),
+            icon: icon,
+            options: self.options(colorByProvider: true, forceStackedStyle: true))
+        #expect(compose(colored).statusImage == nil)
+        let warning = renderer.render(
+            layout: layout,
+            data: self.data(provider: .claude),
+            icon: StatusItemController.quotaWarningFlashImage(base: icon),
+            options: options)
+        #expect(compose(warning).statusImage == nil)
+        let emoji = renderer.render(
+            layout: MenuBarLayout(lines: [[.accountLabel]]),
+            data: self.data(provider: .claude, accountLabel: "Ops 🦞"),
+            icon: nil,
+            options: options)
+        #expect(compose(emoji).statusImage == nil)
     }
 
     private static func statusBitmap(image: NSImage, scale: Int) throws -> NSBitmapImageRep {

@@ -179,11 +179,47 @@ extension OpenAIDashboardBrowserCookieImporter {
     }
 
     private static func waitForMutation(_ task: Task<Void, Never>, deadline: Date?) async throws {
-        try await self.runBoundedCallback(deadline: deadline) { completion in
-            Task { @MainActor in
-                await task.value
-                completion()
+        let grace = try deadline.map { _ in try Duration.seconds(self.remainingTimeout(until: deadline)) }
+        let waiter = Task<Void, Error> { await task.value }
+        switch await BoundedTaskJoin(sourceTask: waiter).value(joinGrace: grace) {
+        case .value: return
+        case let .failure(error): throw error
+        case .timedOut: throw URLError(.timedOut)
+        }
+    }
+
+    @MainActor private static var persistentCookieTransactions: [String: PendingCookieStoreMutation] = [:]
+
+    /// Hold the account jar through validation and rollback, not just individual WebKit writes.
+    static func withPersistentCookieTransaction<T: Sendable>(
+        key: String,
+        deadline: Date?,
+        operation: @escaping @MainActor () async throws -> T) async throws -> T
+    {
+        while let pending = self.persistentCookieTransactions[key] {
+            try Task.checkCancellation()
+            try await self.waitForMutation(pending.task, deadline: deadline)
+            if self.persistentCookieTransactions[key]?.token == pending.token {
+                self.persistentCookieTransactions[key] = nil
             }
+        }
+        let token = UUID()
+        let task = Task {
+            try Task.checkCancellation()
+            _ = try Self.remainingTimeout(until: deadline)
+            return try await operation()
+        }
+        let completion = Task { _ = await task.result }
+        self.persistentCookieTransactions[key] = PendingCookieStoreMutation(token: token, task: completion)
+        defer {
+            if self.persistentCookieTransactions[key]?.token == token {
+                self.persistentCookieTransactions[key] = nil
+            }
+        }
+        return try await withTaskCancellationHandler {
+            try await task.value
+        } onCancel: {
+            task.cancel()
         }
     }
 }

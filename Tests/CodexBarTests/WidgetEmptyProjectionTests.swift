@@ -198,6 +198,57 @@ struct WidgetEmptyProjectionTests {
         #expect(rows.first?.percentLeft == expectedPercent)
     }
 
+    @Test
+    func `Antigravity summary rows publish their reset window for the widget caption`() {
+        let (store, _) = self.makeStore()
+        let reset = Date(timeIntervalSince1970: 1_800_003_600)
+        let summaryID = "antigravity-quota-summary-gemini-5h"
+        let snapshot = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            extraRateWindows: [NamedRateWindow(
+                id: summaryID,
+                title: "Gemini 5-hour",
+                window: RateWindow(
+                    usedPercent: 40,
+                    windowMinutes: 300,
+                    resetsAt: reset,
+                    resetDescription: "Resets in 5 hours"))],
+            updatedAt: Date(timeIntervalSince1970: 1_800_000_000))
+        let rows = store.widgetUsageRows(provider: .antigravity, snapshot: snapshot, now: snapshot.updatedAt)
+        #expect(rows.map(\.id) == [summaryID])
+        // The widget caption reads the row's own window; the 5-hour lanes exist only as usage rows
+        // (the weekly survives as primary/secondary), so dropping it here loses the reset entirely.
+        #expect(rows.first?.window?.resetsAt == reset)
+        #expect(rows.first?.window?.windowMinutes == 300)
+        #expect(rows.first?.window?.resetDescription == "Resets in 5 hours")
+    }
+
+    @Test
+    func `Antigravity summary rows keep their window only when usage is known`() {
+        let (store, _) = self.makeStore()
+        let unknownID = "antigravity-quota-summary-3p-5h"
+        let snapshot = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            extraRateWindows: [NamedRateWindow(
+                id: unknownID,
+                title: "Claude/GPT 5-hour",
+                window: RateWindow(
+                    usedPercent: 0,
+                    windowMinutes: 300,
+                    resetsAt: Date(timeIntervalSince1970: 1_800_003_600),
+                    resetDescription: nil),
+                usageKnown: false)],
+            updatedAt: Date(timeIntervalSince1970: 1_800_000_000))
+        let rows = store.widgetUsageRows(provider: .antigravity, snapshot: snapshot, now: snapshot.updatedAt)
+        #expect(rows.map(\.id) == [unknownID])
+        // An unknown lane must not invent capacity (the bucket is built with usedPercent 0, i.e.
+        // 100% left, and the widget prefers window.remainingPercent): no percentage, no window.
+        #expect(rows.first?.percentLeft == nil)
+        #expect(rows.first?.window == nil)
+    }
+
     @Test(arguments: [false, true])
     func `successful refresh must publish before invalidated widget usage can be retained`(
         publishWhileBlocked: Bool) async

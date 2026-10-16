@@ -62,6 +62,10 @@ Admin API key setup:
 - Token accounts can also hold `sk-ant-admin...` keys; they route to the Admin API instead of cookie/OAuth usage.
 - Environment fallback: `ANTHROPIC_ADMIN_KEY`.
 
+## Usage Dashboard
+
+The default and API-account Usage Dashboard action opens [Platform usage](https://platform.claude.com/usage). Accounts recognized as Claude subscriptions open [Settings → Usage](https://claude.ai/settings/usage). This action does not change the configured usage source.
+
 ## Admin API
 - Key prefix: `sk-ant-admin...`.
 - Endpoints:
