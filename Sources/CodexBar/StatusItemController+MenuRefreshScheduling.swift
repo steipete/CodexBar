@@ -111,6 +111,7 @@ extension StatusItemController {
         var parts = [
             "costEnabled=\(self.settings.costUsageEnabled ? "1" : "0")",
             "codexLocalCost=\(self.settings.codexLocalSessionCostLedgerEnabled ? "1" : "0")",
+            "opencodeLocal=\(self.settings.codexIncludeOpenCodeLocalHistory ? "1" : "0")",
             "costStyle=\(self.settings.costSummaryDisplayStyle.rawValue)",
             "openAIAttached=\(self.store.openAIDashboardAttachmentAuthorized ? "1" : "0")",
             "openAILogin=\(self.store.openAIDashboardRequiresLogin ? "1" : "0")",

@@ -63,6 +63,7 @@
 
 ### Added
 
+- Codex: add an opt-in "Include OpenCode local history (OpenAI)" source that merges machine-local OpenCode usage for `openai`-provider assistant records into the ambient Codex menu/CLI history, with read-only SQLite access, stable-ID deduplication across OpenCode's v1/v2 tables, recorded-cost-as-is semantics, and permanent exclusion from managed accounts, scoped `CODEX_HOME` scans (argument or environment), and the Spend Dashboard (refs #3273). Merged rows carry a visible `(OpenCode local)` model label, source-recorded cost provenance (`sourceRecorded`/`mixed`, never a pure list-price claim), and join the unattributed project bucket in grouped totals while session breakdowns stay native. Database selection mirrors upstream: `OPENCODE_DB` selects exactly one database (`:memory:` reads as no history, never a substitute), otherwise the release database under the XDG data root. Day buckets follow the reporting calendar with a start-of-day lower bound.
 - Providers: add Claude Platform for Console API credit balances, expiring subscription and purchased grants, and optional monthly spend, using its signed-in browser session (#4510). Thanks @mjaverto!
 - About: show bundled open-source acknowledgements and bundle SwiftPM and vendored dependency notices with the app, widget, CLI, and Linux desktop (#4483). Thanks @elijahfriedman!
 - Menu bar: add optional Large text and monospaced digits to custom layouts, preserving existing sizes and older-build layout compatibility (#4455). Thanks @deinspanjer!

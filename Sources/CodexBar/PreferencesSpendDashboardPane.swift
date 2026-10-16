@@ -79,6 +79,7 @@ func spendDashboardProvenanceText(_ provenance: CostProvenance) -> String {
     switch provenance {
     case .listPriceEstimate: L("List-price equivalent")
     case .vendorMetered: L("Plan metered")
+    case .sourceRecorded: L("Source recorded")
     case .mixed: L("Metered and list-price")
     case .unknown: L("Spend unavailable")
     }

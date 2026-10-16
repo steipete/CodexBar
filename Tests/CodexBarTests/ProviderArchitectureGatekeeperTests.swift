@@ -1206,7 +1206,7 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This provider-owned integration passes its fixed identity to a shared helper."),
         SuppressedProviderReference(
             path: "Sources/CodexBar/UsageStore+CodexCostCatchUp.swift",
-            anchor: "&& self.settings.isCostUsageEffectivelyEnabled(for: .codex)",
+            anchor: "&& self.settings.isHistoryLaneEffectivelyEnabled(for: .codex)",
             expectedProviderIDs: ["codex"],
             reason: "This provider-owned integration passes its fixed identity to a shared helper."),
         SuppressedProviderReference(
@@ -1361,7 +1361,7 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "The Codex-only cache hydration path passes its fixed provider identity to shared state helpers."),
         SuppressedProviderReference(
             path: "Sources/CodexBar/UsageStore+TokenCost.swift",
-            anchor: "self.settings.isCostUsageEffectivelyEnabled(for: .codex),",
+            anchor: "self.settings.isHistoryLaneEffectivelyEnabled(for: .codex),",
             expectedProviderIDs: ["codex"],
             reason: "This provider-specific app branch passes its already-selected identity to a shared helper."),
         SuppressedProviderReference(
@@ -1428,13 +1428,13 @@ struct ProviderArchitectureGatekeeperTests {
         SuppressedProviderReference(
             path: "Sources/CodexBarCLI/CLICostCommand.swift",
             occurrence: 1,
-            anchor: "lines.append(Self.costEstimateHint(provider: .codex))",
+            anchor: "lines.append(Self.costEstimateHint(provider: .codex, provenance: snapshot.costProvenance))",
             expectedProviderIDs: ["codex"],
             reason: "This provider-specific app branch passes its already-selected identity to a shared helper."),
         SuppressedProviderReference(
             path: "Sources/CodexBarCLI/CLICostCommand.swift",
             occurrence: 2,
-            anchor: "lines.append(Self.costEstimateHint(provider: .codex))",
+            anchor: "lines.append(Self.costEstimateHint(provider: .codex, provenance: snapshot.costProvenance))",
             expectedProviderIDs: ["codex"],
             reason: "This provider-specific app branch passes its already-selected identity to a shared helper."),
         SuppressedProviderReference(
@@ -3299,13 +3299,6 @@ struct ProviderArchitectureGatekeeperTests {
             expectedReferenceCount: 1,
             expectedReferenceFingerprint: ["claude@0"],
             reason: "This exact app-runtime bridge coordinates provider-owned state through the shared controller."),
-        AllowedProviderConstruct(
-            path: "Sources/CodexBarCLI/CLICostCommand.swift",
-            anchor: "provider == .codex",
-            expectedProviderIDs: ["codex"],
-            expectedReferenceCount: 1,
-            expectedReferenceFingerprint: ["codex@0"],
-            reason: "This exact CLI construct preserves the provider-specific command and output contract."),
         AllowedProviderConstruct(
             path: "Sources/CodexBarCLI/CLICostCommand.swift",
             anchor: "let projects = provider == .codex",

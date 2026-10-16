@@ -1488,6 +1488,10 @@ extension CodexBarCLI {
                         groupBy: .none,
                         format: .json,
                         includePiSessions: true),
+                    includeOpenCodeLocalHistory: Self.costIncludeOpenCodeLocalHistory(
+                        provider: provider,
+                        groupBy: .none,
+                        format: .json),
                     piSessionProcessContexts: piSessionProcessContexts).reporting(context.period)
                 return Self.makeCostPayload(
                     provider: provider,

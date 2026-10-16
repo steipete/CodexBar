@@ -287,7 +287,8 @@ public struct CostUsageTokenSnapshot: Sendable, Equatable {
             provenance: CostProvenance.forWindow(
                 snapshot: self.costProvenance,
                 hasWindowCosts: !costs.isEmpty,
-                includesMetered: windowMetered != nil),
+                includesMetered: windowMetered != nil,
+                includesSourceRecorded: entries.contains { $0.costIsSourceRecorded }),
             meteredCostUSD: windowMetered,
             incompleteRequestCount: CostUsageIncompleteRequests.sum(entries.map(\.incompleteRequestCount)))
     }
@@ -549,6 +550,10 @@ public struct CostUsageDailyReport: Sendable, Codable {
         public let pricedRequestCount: Int?
         public let unmeteredRequestCount: Int?
         public let estimatedRequestCount: Int?
+        /// True when this day's cost was recorded by the source client (for example OpenCode
+        /// local history) rather than estimated from token counts. Persists through caches so
+        /// window provenance stays truthful; older caches decode as plain estimated rows.
+        public let costIsSourceRecorded: Bool
 
         package var hasOnlyIncompleteRequests: Bool {
             self.incompleteRequestCount > 0 && self.totalTokens == nil && self.costUSD == nil
@@ -624,6 +629,7 @@ public struct CostUsageDailyReport: Sendable, Codable {
             case pricedRequestCount
             case unmeteredRequestCount
             case estimatedRequestCount
+            case costIsSourceRecorded
         }
 
         public init(from decoder: Decoder) throws {
@@ -653,6 +659,8 @@ public struct CostUsageDailyReport: Sendable, Codable {
             self.pricedRequestCount = try container.decodeIfPresent(Int.self, forKey: .pricedRequestCount)
             self.unmeteredRequestCount = try container.decodeIfPresent(Int.self, forKey: .unmeteredRequestCount)
             self.estimatedRequestCount = try container.decodeIfPresent(Int.self, forKey: .estimatedRequestCount)
+            self.costIsSourceRecorded =
+                try container.decodeIfPresent(Bool.self, forKey: .costIsSourceRecorded) ?? false
         }
 
         public init(
@@ -670,7 +678,8 @@ public struct CostUsageDailyReport: Sendable, Codable {
             unpricedRequestCount: Int? = nil,
             unmeteredRequestCount: Int? = nil,
             estimatedRequestCount: Int? = nil,
-            pricedRequestCount: Int? = nil)
+            pricedRequestCount: Int? = nil,
+            costIsSourceRecorded: Bool = false)
         {
             self.date = date
             self.inputTokens = inputTokens
@@ -687,6 +696,7 @@ public struct CostUsageDailyReport: Sendable, Codable {
             self.unmeteredRequestCount = unmeteredRequestCount
             self.estimatedRequestCount = estimatedRequestCount
             self.pricedRequestCount = pricedRequestCount
+            self.costIsSourceRecorded = costIsSourceRecorded
         }
 
         public func encode(to encoder: Encoder) throws {
@@ -706,6 +716,9 @@ public struct CostUsageDailyReport: Sendable, Codable {
             try container.encodeIfPresent(self.pricedRequestCount, forKey: .pricedRequestCount)
             try container.encodeIfPresent(self.unmeteredRequestCount, forKey: .unmeteredRequestCount)
             try container.encodeIfPresent(self.estimatedRequestCount, forKey: .estimatedRequestCount)
+            if self.costIsSourceRecorded {
+                try container.encode(true, forKey: .costIsSourceRecorded)
+            }
         }
 
         private static func decodeModelsUsed(from container: KeyedDecodingContainer<CodingKeys>) -> [String]? {
@@ -986,6 +999,7 @@ extension CostUsageDailyReport {
         var costUSD: Double = 0
         var sawCost = false
         var costIsComplete = true
+        var anyCostIsSourceRecorded = false
         var modelsUsed: Set<String> = []
         var breakdowns: [String: BreakdownAccumulator] = [:]
 
@@ -1036,6 +1050,7 @@ extension CostUsageDailyReport {
                     }
                 }
             }
+            self.anyCostIsSourceRecorded = self.anyCostIsSourceRecorded || entry.costIsSourceRecorded
             if let modelsUsed = entry.modelsUsed {
                 self.modelsUsed.formUnion(modelsUsed)
             }
@@ -1079,7 +1094,8 @@ extension CostUsageDailyReport {
                 unpricedRequestCount: includeCoverage ? self.coverage.exact?.unpriced : nil,
                 unmeteredRequestCount: includeCoverage ? self.coverage.exact?.unmetered : nil,
                 estimatedRequestCount: includeCoverage ? self.coverage.exact?.estimated : nil,
-                pricedRequestCount: includeCoverage ? self.coverage.exact?.priced : nil)
+                pricedRequestCount: includeCoverage ? self.coverage.exact?.priced : nil,
+                costIsSourceRecorded: self.anyCostIsSourceRecorded)
         }
 
         func resolvedCostUSD() -> Double? {

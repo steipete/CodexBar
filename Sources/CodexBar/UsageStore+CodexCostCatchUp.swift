@@ -9,6 +9,7 @@ private struct CodexCostCatchUpContext {
     let providerConfigRevision: UInt64
     let costUsageSettingsRevision: UInt64
     let includePiSessions: Bool
+    let includeOpenCodeLocalHistory: Bool
     @ProcessEnvironment private(set) var environment: [String: String]
     let piHistoryScopeGeneration: UInt64
 }
@@ -54,6 +55,8 @@ extension UsageStore {
             providerConfigRevision: self.settings.providerConfigRevision(for: .codex),
             costUsageSettingsRevision: self.settings.costUsageSettingsRevision,
             includePiSessions: self.shouldIncludePiSessionsInTokenSnapshot(for: .codex),
+            // Provider-specific by design: only the ambient Codex ledger merges machine-local OpenCode history.
+            includeOpenCodeLocalHistory: self.shouldIncludeOpenCodeLocalHistoryInTokenSnapshot(for: .codex),
             environment: self.environmentBase,
             piHistoryScopeGeneration: self.piHistoryScopeGeneration)
         self.codexCostCatchUpToken = token
@@ -254,6 +257,7 @@ extension UsageStore {
                 codexHomePath: context.codexHomePath,
                 historyDays: context.historyDays,
                 includePiSessions: context.includePiSessions,
+                includeOpenCodeLocalHistory: context.includeOpenCodeLocalHistory,
                 calendar: self.settings.costUsageBucketCalendar,
                 requireCompleteHistory: true,
                 environment: context.environment)
@@ -305,7 +309,7 @@ extension UsageStore {
             && self.settings.providerConfigRevision(for: .codex) == context.providerConfigRevision
             && self.settings.costUsageSettingsRevision == context.costUsageSettingsRevision
             && self.settings.costUsageHistoryDays == context.historyDays
-            && self.settings.isCostUsageEffectivelyEnabled(for: .codex)
+            && self.settings.isHistoryLaneEffectivelyEnabled(for: .codex)
             && self.isEnabled(.codex)
             && self.tokenCostScope(for: .codex).codexHomePath == context.codexHomePath
             && self.tokenSnapshotScopeSignature(for: .codex) == context.scopeSignature

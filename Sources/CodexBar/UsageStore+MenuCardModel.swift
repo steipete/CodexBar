@@ -144,13 +144,13 @@ extension UsageStore {
             limitsAvailability: isSettings && !isLive ? nil : self.knownLimitsAvailability(for: provider),
             usageBarsShowUsed: self.settings.usageBarsShowUsed,
             resetTimeDisplayStyle: self.settings.resetTimeDisplayStyle,
-            tokenCostUsageEnabled: self.settings.isCostUsageEffectivelyEnabled(for: provider),
+            tokenCostUsageEnabled: self.settings.isHistoryLaneEffectivelyEnabled(for: provider),
             tokenCostIsRefreshing: !isSettings && self.tokenCostRefreshIsActive(for: provider),
             codexLocalSessionCostLedgerEnabled: self.settings.codexLocalSessionCostLedgerEnabled,
             // Settings exposes available costs regardless of the menu's display style.
             costSummaryInlineEnabled: isSettings || self.settings.costSummaryShowsInline(for: provider),
             tokenCostMenuSectionEnabled: isSettings
-                ? self.settings.isCostUsageEffectivelyEnabled(for: provider)
+                ? self.settings.isHistoryLaneEffectivelyEnabled(for: provider)
                 : descriptor.tokenCost.showsCostMenuSection && self.settings.costSummaryShowsSubmenu(for: provider),
             costComparisonPeriodsEnabled: !isSettings && self.settings.costComparisonPeriodsEnabled,
             showOptionalCreditsAndExtraUsage: optionalUsageOverride ?? self.settings.showOptionalCreditsAndExtraUsage,

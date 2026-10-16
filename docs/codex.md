@@ -345,7 +345,7 @@ token record. CodexBar cannot convert a quota percentage into dollars or recover
 | Native Codex | Supported session and archived-session records in the selected home. |
 | Pi / OMP | Supported backend history; enable [Pi](pi.md) for a separate Usage & Spend source. Account-scoped Codex rows stay native. |
 | OpenCodex | Opt-in `~/.opencodex/usage.jsonl` (or `$OPENCODEX_HOME/usage.jsonl`), with recorded provider provenance. This is distinct from OpenCode's session database. |
-| OpenCode using OpenAI/Codex | No native session import; reusing its OAuth credentials only enables remote quota. The OpenCode Go SQLite reader selects `opencode-go` records. |
+| OpenCode using OpenAI/Codex | Opt-in "Include OpenCode local history (OpenAI)" Codex setting (off by default) merges machine-local `openai`-provider OpenCode usage into this Mac's ambient Codex history as `… (OpenCode local)` model rows carrying source-recorded cost, never account-attributed. Reusing its OAuth credentials only enables remote quota. Scoped homes, managed accounts, and the Spend Dashboard always stay native. The OpenCode Go SQLite reader remains a separate `opencode-go` source. |
 | Amp | Account allowances and credits are supported, but Amp session-token history is not imported into Codex costs. |
 | Dots / cloud tasks | Included only when supported usage records are available in a scanned local source. There is no dots/cloud usage-history importer. |
 

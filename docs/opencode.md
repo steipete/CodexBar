@@ -60,10 +60,12 @@ reuse its `openai` OAuth entry for remote quota. Native Codex credentials take p
 `CODEX_HOME` prevents external fallback. External credentials stay read-only; stale credentials fail closed, and
 API-key entries are ignored. See [Codex external OAuth sources](codex.md#optional-external-oauth-sources-off-by-default).
 
-This does not import OpenCode sessions into Codex token or spend totals. The base OpenCode provider tracks its web
-dashboard, while the local SQLite reader described here selects only `opencode-go` assistant records for OpenCode Go.
-Ordinary OpenCode sessions using OpenAI/Codex are not currently included in local cost history. OpenAI API-platform
-usage is a separate [OpenAI provider](openai.md), not Codex subscription quota.
+The base OpenCode provider tracks its web dashboard, while the local SQLite reader described here selects only
+`opencode-go` assistant records for OpenCode Go. Ordinary OpenCode sessions using OpenAI/Codex can join this Mac's
+ambient Codex history only through the opt-in "Include OpenCode local history (OpenAI)" Codex setting (off by
+default); see the [Codex coverage table](codex.md#local-token-and-cost-coverage) for that boundary — managed
+accounts, scoped homes, and the Spend Dashboard always stay native. OpenAI API-platform usage is a separate
+[OpenAI provider](openai.md), not Codex subscription quota.
 
 ## Notes
 - OpenCode Go token accounts accept raw API keys as well as existing Cookie headers. Add each key with its own

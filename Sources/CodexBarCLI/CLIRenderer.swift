@@ -596,6 +596,7 @@ enum CLIRenderer {
             let provenance: String? = switch history.costProvenance {
             case .vendorMetered: "reported"
             case .listPriceEstimate: "estimated"
+            case .sourceRecorded: "recorded"
             case .mixed: "includes estimates"
             case .unknown: nil
             }

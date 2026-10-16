@@ -66,6 +66,14 @@ Rows explicitly billed to `nous` appear under Nous Portal with OpenCodex provena
 name another vendor. Their dollar amounts are estimates from exact Nous/model pricing, never Portal credits or
 the producer's ignored `_meta` values; missing rates stay unpriced. See [Nous local usage and spend](nous.md#local-usage-and-spend).
 
+OpenCode `~/.local/share/opencode/opencode.db` is a separate opt-in, read-only source for the ambient Codex
+history (off by default). It selects only assistant records whose provider is exactly `openai`, so Codex usage
+generated through OpenCode appears in the machine-local Codex menu/CLI history. Rows carry the recorded model and
+token dimensions; recorded cost is surfaced as-is (OpenCode records `$0` for subscription usage) and is never
+recomputed. Deduplication uses stable message IDs across OpenCode's v1 and v2 tables, never fuzzy matching, and
+historical rows are permanently unscoped: they never join managed accounts, scoped `CODEX_HOME` scans, or the
+Spend Dashboard.
+
 The view stays local and does not upload usage history. Refreshes retain the last successful model if a replacement
 scan fails, while provider/account configuration changes replace obsolete results. Coverage text reports how many
 days of the selected local calendar window are covered by the scan window; a 30-day selection is not labeled as
@@ -194,6 +202,7 @@ complete when the available scan window covers fewer days.
 - CLI RPC default: `codex ... app-server` JSON-RPC (`account/read`, `account/rateLimits/read`).
 - CLI PTY: manual diagnostics/parser coverage only; automatic refresh does not launch bare Codex TUI.
 - Local cost usage: scans `CODEX_HOME` (or `~/.codex`) `sessions` and sibling `archived_sessions` JSONL files for the configured history window.
+- Optional OpenCode local history (off by default): a Codex settings toggle merges machine-local OpenCode usage for assistant records with provider `openai` from `~/.local/share/opencode/opencode.db` (v1 `message`/`part` tables with step-finish precedence, and v2 `session_message` rows deduplicated by stable message ID) into this Mac's ambient Codex history only. It is read-only usage metadata (model, tokens, recorded cost); prompts, responses, and `auth.json` are never read, rows are never attributed to an account, and recorded `$0` subscription cost is never reinterpreted as spend. Scoped `CODEX_HOME` scans, managed accounts, and the Spend Dashboard always exclude it. The database location follows OpenCode's own resolution: `OPENCODE_DB` selects exactly one database (`:memory:` reads as no history), otherwise the release database under the XDG data root (`XDG_DATA_HOME` when absolute, else `~/.local/share`). Merged rows surface as `(OpenCode local)` model names with source-recorded cost, so grouped totals and provenance stay truthful; session breakdowns remain native.
 - Completed cost catch-up publishes validated cached history without starting another scan. Native and included Pi/OMP caches must cover the requested window; unavailable or incompatible history preserves existing totals until a later refresh. Token timestamps retain the actual cache scan time. This does not resolve catch-up that remains pending while an active log continuously grows.
 - Status: Statuspage.io (OpenAI).
 - Details: `docs/codex.md`.

@@ -53,6 +53,7 @@ extension SettingsStore {
         _ = self.copilotIconSecondaryWindowIDRaw
         _ = self.costUsageEnabled
         _ = self.codexLocalSessionCostLedgerEnabled
+        _ = self.codexIncludeOpenCodeLocalHistory
         _ = self.costUsageHistoryDays
         _ = self.costUsageBucketTimeZoneIdentifier
         _ = self.openCodexUsageLogsEnabled

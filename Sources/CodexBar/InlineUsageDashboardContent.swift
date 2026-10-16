@@ -249,7 +249,7 @@ extension UsageMenuCardView.Model {
             details.append("\(L("Top model")): \(Self.shortModelName(topModel))")
         }
         let tokenCost = ProviderDescriptorRegistry.descriptor(for: input.provider).tokenCost
-        let hintLines = Self.tokenUsageHintLines(provider: input.provider)
+        let hintLines = Self.tokenUsageHintLines(provider: input.provider, provenance: snapshot.costProvenance)
         if tokenCost.hintPlacement == .beforeRequestHistory {
             details.append(contentsOf: hintLines)
         }
@@ -499,7 +499,7 @@ extension UsageMenuCardView.Model {
                 value: L("%@ tokens", snapshot.last30DaysTokens.map(UsageFormatter.tokenCountString) ?? "—"),
                 emphasis: false))
         }
-        var details = Self.tokenUsageHintLines(provider: provider)
+        var details = Self.tokenUsageHintLines(provider: provider, provenance: snapshot.costProvenance)
         if details.isEmpty { details.append(L("Local token history · dollar costs unavailable")) }
         if let coverage = Self.tokenHistoryCoverageHint(snapshot) { details.append(coverage) }
         if comparisonPeriodsEnabled {

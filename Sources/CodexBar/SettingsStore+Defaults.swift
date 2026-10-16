@@ -551,6 +551,17 @@ extension SettingsStore {
         }
     }
 
+    /// Opt-in, default-off: merge machine-local OpenCode history for OpenAI-provider assistant
+    /// records into the ambient Codex menu/CLI history. Never affects managed Usage & Spend rows
+    /// or scoped CODEX_HOME scans (#3273 contract).
+    var codexIncludeOpenCodeLocalHistory: Bool {
+        get { self.defaultsState.codexIncludeOpenCodeLocalHistory }
+        set {
+            self.setDefault(\.codexIncludeOpenCodeLocalHistory, newValue, key: "codexIncludeOpenCodeLocalHistory")
+            self.noteBackgroundWorkSettingsChanged()
+        }
+    }
+
     var costUsageHistoryDays: Int {
         get { self.costReportingPeriod.days(now: Date(), calendar: self.costUsageBucketCalendar) }
         set { self.costReportingPeriod = .rolling(days: max(1, min(365, newValue))) }

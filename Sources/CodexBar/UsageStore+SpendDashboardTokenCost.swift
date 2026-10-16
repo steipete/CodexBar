@@ -128,6 +128,7 @@ extension UsageStore {
                 historyDays: historyDays,
                 cursorCookieHeaderOverride: cursorCookieHeaderOverride,
                 includePiSessions: self.shouldIncludePiSessionsInTokenSnapshot(for: provider),
+                includeOpenCodeLocalHistory: false,
                 reportContext: .spendDashboard)
             let snapshot = result.snapshot
             try Task.checkCancellation()
