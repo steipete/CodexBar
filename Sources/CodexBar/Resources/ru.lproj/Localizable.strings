@@ -2559,7 +2559,7 @@
 "Clear filters" = "Сбросить фильтры";
 "Change provider order" = "Изменить порядок провайдеров";
 "Provider sorting" = "Сортировка провайдеров";
-"Only enabled providers" = "Только активные провайдеры";
+"Only show enabled providers" = "Показывать только активных провайдеров";
 "Restore default order" = "Восстановить исходный порядок";
 "Also restores the provider order in the menu bar. Can be undone." = "Также восстанавливает порядок провайдеров в строке меню. Действие можно отменить.";
 "Local Codex details; excluded from combined totals." = "Локальные данные Codex; не учитываются в общих итогах.";

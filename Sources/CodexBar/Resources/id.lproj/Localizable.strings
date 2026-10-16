@@ -2562,7 +2562,7 @@
 "Clear filters" = "Hapus filter";
 "Change provider order" = "Ubah urutan penyedia";
 "Provider sorting" = "Pengurutan penyedia";
-"Only enabled providers" = "Hanya penyedia aktif";
+"Only show enabled providers" = "Tampilkan hanya penyedia aktif";
 "Restore default order" = "Pulihkan urutan bawaan";
 "Also restores the provider order in the menu bar. Can be undone." = "Juga memulihkan urutan penyedia di bar menu. Dapat diurungkan.";
 "Local Codex details; excluded from combined totals." = "Detail Codex lokal; tidak termasuk dalam total gabungan.";

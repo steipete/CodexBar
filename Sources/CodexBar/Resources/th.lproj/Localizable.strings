@@ -2562,7 +2562,7 @@
 "Clear filters" = "ล้างตัวกรอง";
 "Change provider order" = "เปลี่ยนลำดับผู้ให้บริการ";
 "Provider sorting" = "การเรียงผู้ให้บริการ";
-"Only enabled providers" = "เฉพาะผู้ให้บริการที่เปิดใช้";
+"Only show enabled providers" = "แสดงเฉพาะผู้ให้บริการที่เปิดใช้";
 "Restore default order" = "คืนค่าลำดับเริ่มต้น";
 "Also restores the provider order in the menu bar. Can be undone." = "คืนค่าลำดับผู้ให้บริการในแถบเมนูด้วย สามารถเลิกทำได้";
 "Local Codex details; excluded from combined totals." = "รายละเอียด Codex ในเครื่อง ไม่รวมอยู่ในยอดรวม";

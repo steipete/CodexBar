@@ -2556,7 +2556,7 @@
 "Clear filters" = "Filter löschen";
 "Change provider order" = "Anbieterreihenfolge ändern";
 "Provider sorting" = "Anbietersortierung";
-"Only enabled providers" = "Nur aktivierte Anbieter";
+"Only show enabled providers" = "Nur aktivierte Anbieter anzeigen";
 "Restore default order" = "Standardreihenfolge wiederherstellen";
 "Also restores the provider order in the menu bar. Can be undone." = "Stellt auch die Anbieterreihenfolge in der Menüleiste wieder her. Kann rückgängig gemacht werden.";
 "Local Codex details; excluded from combined totals." = "Lokale Codex-Details; nicht in den kombinierten Summen enthalten.";

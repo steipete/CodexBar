@@ -2558,7 +2558,7 @@
 "Clear filters" = "フィルターを解除";
 "Change provider order" = "プロバイダーの順序を変更";
 "Provider sorting" = "プロバイダーの並べ替え";
-"Only enabled providers" = "有効なプロバイダーのみ";
+"Only show enabled providers" = "有効なプロバイダーのみ表示";
 "Restore default order" = "既定の順序に戻す";
 "Also restores the provider order in the menu bar. Can be undone." = "メニューバーのプロバイダー順序も戻します。取り消し可能です。";
 "Local Codex details; excluded from combined totals." = "ローカルの Codex 詳細。合計には含まれません。";

@@ -2558,7 +2558,7 @@
 "Clear filters" = "Очистити фільтри";
 "Change provider order" = "Змінити порядок провайдерів";
 "Provider sorting" = "Сортування провайдерів";
-"Only enabled providers" = "Лише активні провайдери";
+"Only show enabled providers" = "Показувати лише активних провайдерів";
 "Restore default order" = "Відновити типовий порядок";
 "Also restores the provider order in the menu bar. Can be undone." = "Також відновлює порядок провайдерів у рядку меню. Дію можна скасувати.";
 "Local Codex details; excluded from combined totals." = "Локальні дані Codex; не враховуються в загальних підсумках.";

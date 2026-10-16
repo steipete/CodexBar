@@ -2557,7 +2557,7 @@
 "Clear filters" = "Rensa filter";
 "Change provider order" = "Ändra leverantörsordning";
 "Provider sorting" = "Sortera leverantörer";
-"Only enabled providers" = "Endast aktiverade leverantörer";
+"Only show enabled providers" = "Visa endast aktiverade leverantörer";
 "Restore default order" = "Återställ standardordning";
 "Also restores the provider order in the menu bar. Can be undone." = "Återställer även leverantörsordningen i menyraden. Kan ångras.";
 "Local Codex details; excluded from combined totals." = "Lokala Codex-detaljer; ingår inte i de sammanlagda totalerna.";

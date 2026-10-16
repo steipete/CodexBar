@@ -2559,7 +2559,7 @@
 "Clear filters" = "Xóa bộ lọc";
 "Change provider order" = "Đổi thứ tự nhà cung cấp";
 "Provider sorting" = "Sắp xếp nhà cung cấp";
-"Only enabled providers" = "Chỉ nhà cung cấp đã bật";
+"Only show enabled providers" = "Chỉ hiển thị nhà cung cấp đã bật";
 "Restore default order" = "Khôi phục thứ tự mặc định";
 "Also restores the provider order in the menu bar. Can be undone." = "Cũng khôi phục thứ tự nhà cung cấp trên thanh menu. Có thể hoàn tác.";
 "Local Codex details; excluded from combined totals." = "Chi tiết Codex cục bộ; không được tính vào tổng kết hợp.";

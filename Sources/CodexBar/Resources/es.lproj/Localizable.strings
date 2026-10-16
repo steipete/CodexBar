@@ -2556,7 +2556,7 @@
 "Clear filters" = "Borrar filtros";
 "Change provider order" = "Cambiar el orden de proveedores";
 "Provider sorting" = "Orden de proveedores";
-"Only enabled providers" = "Solo proveedores activos";
+"Only show enabled providers" = "Mostrar solo proveedores activos";
 "Restore default order" = "Restaurar el orden predeterminado";
 "Also restores the provider order in the menu bar. Can be undone." = "También restaura el orden de proveedores en la barra de menús. Se puede deshacer.";
 "Local Codex details; excluded from combined totals." = "Detalles locales de Codex; excluidos de los totales combinados.";

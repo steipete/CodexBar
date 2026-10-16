@@ -2562,7 +2562,7 @@
 "Clear filters" = "مسح عوامل التصفية";
 "Change provider order" = "تغيير ترتيب المزوّدين";
 "Provider sorting" = "ترتيب المزوّدين";
-"Only enabled providers" = "المزوّدون المفعّلون فقط";
+"Only show enabled providers" = "عرض المزوّدين المفعّلين فقط";
 "Restore default order" = "استعادة الترتيب الافتراضي";
 "Also restores the provider order in the menu bar. Can be undone." = "يستعيد أيضاً ترتيب المزوّدين في شريط القوائم. يمكن التراجع عن هذا الإجراء.";
 "Local Codex details; excluded from combined totals." = "تفاصيل Codex المحلية؛ مستبعدة من الإجماليات المجمّعة.";

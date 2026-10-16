@@ -2526,7 +2526,7 @@
 "Clear filters" = "필터 지우기";
 "Change provider order" = "공급자 순서 변경";
 "Provider sorting" = "공급자 정렬";
-"Only enabled providers" = "활성 공급자만 표시";
+"Only show enabled providers" = "활성 공급자만 표시";
 "Restore default order" = "기본 순서 복원";
 "Also restores the provider order in the menu bar. Can be undone." = "메뉴 막대의 공급자 순서도 복원합니다. 실행 취소할 수 있습니다.";
 "Local Codex details; excluded from combined totals." = "로컬 Codex 세부 정보, 합산 총계에서 제외됩니다.";

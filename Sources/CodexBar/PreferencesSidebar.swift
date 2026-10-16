@@ -19,6 +19,7 @@ struct SettingsSidebarView: View {
                 SettingsSidebarSortToggle(
                     isOn: self.$settings.providersSortedAlphabetically,
                     enabledOnly: self.$settings.providersEnabledOnly,
+                    canRestore: self.settings.canRestoreDefaultProviderOrder,
                     onRestore: self.restoreProviderOrder)
             }
             .padding(.horizontal, 8)
@@ -333,6 +334,7 @@ private struct SettingsSidebarSearchField: View {
 private struct SettingsSidebarSortToggle: View {
     @Binding var isOn: Bool
     @Binding var enabledOnly: Bool
+    let canRestore: Bool
     let onRestore: () -> Void
 
     var body: some View {
@@ -354,9 +356,10 @@ private struct SettingsSidebarSortToggle: View {
             .accessibilityAddTraits(self.isOn ? .isSelected : [])
 
             Menu {
-                Toggle(L("Only enabled providers"), isOn: self.$enabledOnly)
+                Toggle(L("Only show enabled providers"), isOn: self.$enabledOnly)
                 Divider()
                 Button(L("Restore default order"), action: self.onRestore)
+                    .disabled(!self.canRestore)
                     .help(L("Also restores the provider order in the menu bar. Can be undone."))
             } label: {
                 Image(systemName: "chevron.down")

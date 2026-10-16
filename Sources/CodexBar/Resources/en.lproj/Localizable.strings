@@ -2561,7 +2561,7 @@
 "Clear filters" = "Clear filters";
 "Change provider order" = "Change provider order";
 "Provider sorting" = "Provider sorting";
-"Only enabled providers" = "Only enabled providers";
+"Only show enabled providers" = "Only show enabled providers";
 "Restore default order" = "Restore default order";
 "Also restores the provider order in the menu bar. Can be undone." = "Also restores the provider order in the menu bar. Can be undone.";
 "Local Codex details; excluded from combined totals." = "Local Codex details; excluded from combined totals.";

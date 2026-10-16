@@ -2557,7 +2557,7 @@
 "Clear filters" = "Filters wissen";
 "Change provider order" = "Volgorde van aanbieders wijzigen";
 "Provider sorting" = "Aanbieders sorteren";
-"Only enabled providers" = "Alleen ingeschakelde aanbieders";
+"Only show enabled providers" = "Alleen ingeschakelde aanbieders tonen";
 "Restore default order" = "Standaardvolgorde herstellen";
 "Also restores the provider order in the menu bar. Can be undone." = "Herstelt ook de volgorde van aanbieders in de menubalk. Kan ongedaan worden gemaakt.";
 "Local Codex details; excluded from combined totals." = "Lokale Codex-details; niet opgenomen in de gecombineerde totalen.";

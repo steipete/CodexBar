@@ -2562,7 +2562,7 @@
 "Clear filters" = "پاک کردن فیلترها";
 "Change provider order" = "تغییر ترتیب ارائه‌دهندگان";
 "Provider sorting" = "مرتب‌سازی ارائه‌دهندگان";
-"Only enabled providers" = "فقط ارائه‌دهندگان فعال";
+"Only show enabled providers" = "نمایش فقط ارائه‌دهندگان فعال";
 "Restore default order" = "بازیابی ترتیب پیش‌فرض";
 "Also restores the provider order in the menu bar. Can be undone." = "ترتیب ارائه‌دهندگان در نوار منو را نیز بازیابی می‌کند. قابل واگرد است.";
 "Local Codex details; excluded from combined totals." = "جزئیات محلی Codex؛ از مجموع‌های ترکیبی مستثنا شده‌اند.";

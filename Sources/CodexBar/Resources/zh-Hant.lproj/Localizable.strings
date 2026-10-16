@@ -2536,7 +2536,7 @@
 "Clear filters" = "清除篩選";
 "Change provider order" = "更改供應商順序";
 "Provider sorting" = "供應商排序";
-"Only enabled providers" = "只顯示已啟用";
+"Only show enabled providers" = "只顯示已啟用";
 "Restore default order" = "恢復預設順序";
 "Also restores the provider order in the menu bar. Can be undone." = "同時恢復選單列中的供應商順序。可以復原。";
 "Local Codex details; excluded from combined totals." = "本機 Codex 詳細資料；不計入合併總計。";

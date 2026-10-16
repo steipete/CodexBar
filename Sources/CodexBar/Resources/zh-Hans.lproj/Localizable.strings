@@ -2551,7 +2551,7 @@
 "Clear filters" = "清除筛选";
 "Change provider order" = "更改供应商顺序";
 "Provider sorting" = "供应商排序";
-"Only enabled providers" = "仅显示已启用";
+"Only show enabled providers" = "仅显示已启用";
 "Restore default order" = "恢复默认顺序";
 "Also restores the provider order in the menu bar. Can be undone." = "同时恢复菜单栏中的供应商顺序。可以撤销。";
 "Local Codex details; excluded from combined totals." = "本地 Codex 详情；不计入合并总计。";

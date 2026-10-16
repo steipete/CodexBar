@@ -2562,7 +2562,7 @@
 "Clear filters" = "Esborrar filtres";
 "Change provider order" = "Canviar l’ordre dels proveïdors";
 "Provider sorting" = "Ordenació dels proveïdors";
-"Only enabled providers" = "Només proveïdors actius";
+"Only show enabled providers" = "Mostra només els proveïdors actius";
 "Restore default order" = "Restablir l’ordre per defecte";
 "Also restores the provider order in the menu bar. Can be undone." = "També restableix l’ordre dels proveïdors a la barra de menús. Es pot desfer.";
 "Local Codex details; excluded from combined totals." = "Detalls locals de Codex; exclosos dels totals combinats.";
