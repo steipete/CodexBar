@@ -308,6 +308,9 @@ final class MenuBarLayoutRenderer {
         let foregroundColor: NSColor
         let iconHeight: CGFloat
         let attributes: [NSAttributedString.Key: Any]
+        /// Tab-stop x for stacked window labels ("5h" / "W"). Meters and percent values start at
+        /// this exact column, independent of how wide each label draws. `nil` keeps labels compact.
+        let windowPrefixColumnX: CGFloat?
     }
 
     private let cache: MenuBarLayoutTitleCache
@@ -395,6 +398,7 @@ final class MenuBarLayoutRenderer {
         let breakAttributes = top.attributedTitle.attributes(at: top.attributedTitle.length - 1, effectiveRange: nil)
         result.append(NSAttributedString(string: "\n", attributes: breakAttributes))
         result.append(bottom.attributedTitle)
+        self.normalizeWindowLabelTabStops(in: result)
         let secondLineLabel = L("menu_bar_layout_line", 2)
         let accessibilityLabel = "\(topProviderName), \(top.accessibilityLabel), " +
             "\(secondLineLabel), \(bottomProviderName), \(bottom.accessibilityLabel)"
@@ -403,6 +407,32 @@ final class MenuBarLayoutRenderer {
             accessibilityLabel: accessibilityLabel,
             leadingIcon: nil,
             statusImage: Self.statusImage(title: result, foregroundColor: .controlTextColor))
+    }
+
+    /// Each provider row is rendered alone and picks its own `max(label)+4` tab stop. When the
+    /// rows are stacked, a wider label on one provider would otherwise leave the other provider's
+    /// meters on a different column. Rewrite every paragraph to the widest stop in the title.
+    private static func normalizeWindowLabelTabStops(in title: NSMutableAttributedString) {
+        guard title.length > 0 else { return }
+        var sharedX: CGFloat = 0
+        title.enumerateAttribute(
+            .paragraphStyle, in: NSRange(location: 0, length: title.length))
+        { value, _, _ in
+            guard let style = value as? NSParagraphStyle else { return }
+            for tab in style.tabStops where tab.location > sharedX {
+                sharedX = tab.location
+            }
+        }
+        guard sharedX > 0 else { return }
+        title.enumerateAttribute(
+            .paragraphStyle, in: NSRange(location: 0, length: title.length))
+        { value, range, _ in
+            guard let style = value as? NSParagraphStyle, !style.tabStops.isEmpty else { return }
+            let updated = (style.mutableCopy() as? NSMutableParagraphStyle) ?? NSMutableParagraphStyle()
+            updated.tabStops = [NSTextTab(textAlignment: .left, location: sharedX, options: [:])]
+            updated.defaultTabInterval = sharedX
+            title.addAttribute(.paragraphStyle, value: updated, range: range)
+        }
     }
 
     private static func namingProvider(
@@ -505,11 +535,26 @@ final class MenuBarLayoutRenderer {
             attributes[.baselineOffset] = Self.stackedBaselineOffset + 2 + CGFloat(options.verticalAdjustment)
         }
 
+        let windowPrefixColumnX = Self.leadingWindowLabelColumnX(
+            lines: renderedLines,
+            isStacked: isStacked,
+            leadingIcon: leadingIcon != nil,
+            data: data,
+            font: font)
+
+        if let windowPrefixColumnX {
+            paragraphStyle.tabStops = [
+                NSTextTab(textAlignment: .left, location: windowPrefixColumnX, options: [:]),
+            ]
+            paragraphStyle.defaultTabInterval = windowPrefixColumnX
+        }
+
         for (lineIndex, renderedLine) in renderedLines.enumerated() {
             if lineIndex > 0 {
                 result.append(NSAttributedString(string: "\n", attributes: attributes))
             }
             var accessibilityParts: [String] = []
+            var usedWindowLabelTab = false
             for (tokenIndex, token) in renderedLine.enumerated() {
                 // The leading icon is surfaced as `button.image` so AppKit applies the system's
                 // active/inactive display tinting; it is not repeated inside the attributed title,
@@ -521,6 +566,15 @@ final class MenuBarLayoutRenderer {
                 if tokenIndex > 0, token != .space, renderedLine[tokenIndex - 1] != .space {
                     result.append(NSAttributedString(string: "\u{2009}", attributes: attributes))
                 }
+                // One tab per row: the leading window label claims it so later labeled tokens
+                // (for example percent after a meter) keep ordinary spacing mid-line.
+                var tokenColumnX: CGFloat?
+                if !usedWindowLabelTab, Self.isLeadingWindowLabelToken(token),
+                   !Self.windowPrefix(token, data: data).isEmpty
+                {
+                    usedWindowLabelTab = true
+                    tokenColumnX = windowPrefixColumnX
+                }
                 let renderedItem = Self.renderItem(
                     token,
                     data: data,
@@ -529,7 +583,8 @@ final class MenuBarLayoutRenderer {
                         font: font,
                         foregroundColor: foregroundColor,
                         iconHeight: Self.iconHeight(size: options.size, isStacked: isStacked),
-                        attributes: attributes),
+                        attributes: attributes,
+                        windowPrefixColumnX: tokenColumnX),
                     options: options,
                     providerTintColor: providerTintColor)
                 result.append(renderedItem.value)
@@ -853,9 +908,18 @@ final class MenuBarLayoutRenderer {
             automaticText: data.automaticText,
             estimated: data.quotaIsEstimated,
             showUsed: options.showUsed)
-        let prefix = self.windowPrefix(window, data: data)
         let accessibilityPrefix = Self.windowAccessibilityLabel(window, data: data)
-        let display = prefix.isEmpty ? resolvedValue.text : "\(prefix) \(resolvedValue.text)"
+        let prefix = self.windowPrefixRun(
+            self.windowPrefix(window, data: data),
+            columnX: style.windowPrefixColumnX)
+        // A trailing tab already separates the label column; don't also insert a space after it.
+        let display = if prefix.isEmpty {
+            resolvedValue.text
+        } else if prefix.hasSuffix("\t") {
+            "\(prefix)\(resolvedValue.text)"
+        } else {
+            "\(prefix) \(resolvedValue.text)"
+        }
         let accessibility = resolvedValue.isAvailable
             ? L("%@ %@", accessibilityPrefix, resolvedValue.text)
             : L("%@ unavailable", accessibilityPrefix)
@@ -1209,6 +1273,85 @@ final class MenuBarLayoutRenderer {
 }
 
 extension MenuBarLayoutRenderer {
+    /// Compact label shown beside meters and percent values ("5h", "W", "F"). Empty for tokens
+    /// that carry no window label.
+    private static func windowPrefix(_ token: MenuBarLayoutToken, data: MenuBarLayoutRenderData) -> String {
+        let window: PercentWindow? = switch token {
+        case let .percent(window), let .progressBar(window):
+            window
+        default:
+            nil
+        }
+        guard let window else { return "" }
+        return self.windowPrefix(window, data: data)
+    }
+
+    /// Window label followed by a tab when a stacked column is active. The tab jumps to the shared
+    /// tab-stop x, so the meter/percent starts on one column no matter how wide the label draws.
+    /// Empty labels stay empty — a tab there would fake a prefix where none is shown.
+    /// Stacked rows keep window labels ("5h" / "W") beside their meters. A shared tab stop puts
+    /// every meter on one column under proportional fonts — but only when each row starts with
+    /// that window label. If another token (provider name, icon, …) leads the row, its width is
+    /// row-specific and an absolute tab would jump past the stop and insert a gap instead of
+    /// aligning. Those layouts keep the compact natural spacing.
+    private static func leadingWindowLabelColumnX(
+        lines: [[MenuBarLayoutToken]],
+        isStacked: Bool,
+        leadingIcon: Bool,
+        data: MenuBarLayoutRenderData,
+        font: NSFont)
+        -> CGFloat?
+    {
+        guard isStacked else { return nil }
+        var labels: [String] = []
+        for (lineIndex, line) in lines.enumerated() where !line.isEmpty {
+            guard let first = self.firstContentToken(
+                in: line,
+                skipsLeadingIcon: leadingIcon && lineIndex == 0)
+            else { return nil }
+            guard self.isLeadingWindowLabelToken(first) else { return nil }
+            let prefix = self.windowPrefix(first, data: data)
+            guard !prefix.isEmpty else { return nil }
+            labels.append(prefix)
+        }
+        guard !labels.isEmpty else { return nil }
+        return labels
+            .map { ($0 as NSString).size(withAttributes: [.font: font]).width }
+            .max()
+            .map { $0 + 4 }
+    }
+
+    /// First token that lands in the title. A promoted leading icon never draws there.
+    private static func firstContentToken(
+        in line: [MenuBarLayoutToken],
+        skipsLeadingIcon: Bool)
+        -> MenuBarLayoutToken?
+    {
+        var index = 0
+        if skipsLeadingIcon, line.first == .icon {
+            index = 1
+        }
+        guard index < line.count else { return nil }
+        return line[index]
+    }
+
+    /// Leading window labels can share a tab column; anything else (or a label after other
+    /// content) keeps natural spacing so row-specific prefixes cannot overshoot the tab stop.
+    private static func isLeadingWindowLabelToken(_ token: MenuBarLayoutToken) -> Bool {
+        switch token {
+        case .percent, .progressBar:
+            true
+        default:
+            false
+        }
+    }
+
+    private static func windowPrefixRun(_ prefix: String, columnX: CGFloat?) -> String {
+        guard !prefix.isEmpty else { return prefix }
+        guard columnX != nil else { return prefix }
+        return prefix + "\t"
+    }
+
     private static func fontSize(size: MenuBarLayoutSize, isStacked: Bool) -> CGFloat {
         if isStacked {
             return switch size {
@@ -1362,11 +1505,16 @@ extension MenuBarLayoutRenderer {
             height: barSize.height)
 
         // Keep the window label ("5h" / "W") beside the bar so stacked rows stay unambiguous.
-        let prefix = self.windowPrefix(window, data: data)
+        // Stacked titles pad the label to a shared width so both meters start at the same x.
+        let prefix = self.windowPrefixRun(
+            self.windowPrefix(window, data: data),
+            columnX: style.windowPrefixColumnX)
 
         let result = NSMutableAttributedString()
         if !prefix.isEmpty {
-            let label = NSAttributedString(string: "\(prefix) ", attributes: style.attributes)
+            let label = NSAttributedString(
+                string: prefix.hasSuffix("\t") ? prefix : "\(prefix) ",
+                attributes: style.attributes)
             result.append(label)
         }
         result.append(self.attachmentText(attachment, style: style))

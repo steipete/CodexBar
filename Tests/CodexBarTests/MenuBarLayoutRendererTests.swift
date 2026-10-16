@@ -622,9 +622,111 @@ struct MenuBarLayoutRendererTests {
             with: NSSize(width: 200, height: CGFloat.greatestFiniteMagnitude),
             options: [.usesLineFragmentOrigin, .usesFontLeading])
 
-        #expect(output.attributedTitle.string == "5h 25%\nW 60%")
+        #expect(output.attributedTitle.string == "5h\t25%\nW\t60%")
         #expect(output.accessibilityLabel.contains(L("menu_bar_layout_line", 2)))
         #expect(bounds.height <= 22)
+    }
+
+    @Test
+    func `stacked window meters share one label column`() {
+        let renderer = MenuBarLayoutRenderer()
+        let output = renderer.render(
+            layout: MenuBarLayout(lines: [
+                [.progressBar(window: .session)],
+                [.progressBar(window: .weekly)],
+            ]),
+            data: self.data(),
+            icon: nil,
+            options: self.options(showUsed: true))
+
+        let text = output.attributedTitle.string
+        let lines = text.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+        #expect(lines.count == 2)
+        #expect(lines[0].hasPrefix("5h\t"))
+        #expect(lines[1].hasPrefix("W\t"))
+        // Proportional fonts make character counts a poor alignment proxy; measure the rendered
+        // x origin of each meter attachment instead.
+        let full = output.attributedTitle.string as NSString
+        var barOrigins: [CGFloat] = []
+        output.attributedTitle.enumerateAttribute(
+            .attachment, in: NSRange(location: 0, length: output.attributedTitle.length))
+        { value, range, _ in
+            guard value is NSTextAttachment else { return }
+            let lineRange = full.lineRange(for: range)
+            let prefix = full.substring(with: NSRange(
+                location: lineRange.location,
+                length: range.location - lineRange.location))
+            let x = (prefix as NSString).size(withAttributes: output.attributedTitle.attributes(
+                at: range.location, effectiveRange: nil)).width
+            barOrigins.append(x)
+        }
+        #expect(barOrigins.count == 2)
+        #expect(abs(barOrigins[0] - barOrigins[1]) < 1.0)
+    }
+
+    @Test
+    func `composed provider rows share one window label tab stop`() {
+        let renderer = MenuBarLayoutRenderer()
+        // Each row is rendered alone and would pick its own max(label)+4 stop ("5h" vs "W").
+        // Composition must rewrite both paragraphs to the wider stop so the meters line up.
+        let top = renderer.render(
+            layout: MenuBarLayout(lines: [[.progressBar(window: .session)]]),
+            data: self.data(provider: .codex),
+            icon: nil,
+            options: self.options(showUsed: true, forceStackedStyle: true))
+        let bottom = renderer.render(
+            layout: MenuBarLayout(lines: [[.progressBar(window: .weekly)]]),
+            data: self.data(provider: .claude),
+            icon: nil,
+            options: self.options(showUsed: true, forceStackedStyle: true))
+        let composed = MenuBarLayoutRenderer.composeStackedProviderRows(
+            top: top,
+            bottom: bottom,
+            topProviderName: "Codex",
+            bottomProviderName: "Claude")
+
+        let text = composed.attributedTitle.string
+        let lines = text.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+        #expect(lines.count == 2)
+        #expect(lines[0].hasPrefix("5h\t"))
+        #expect(lines[1].hasPrefix("W\t"))
+        let full = text as NSString
+        var barOrigins: [CGFloat] = []
+        composed.attributedTitle.enumerateAttribute(
+            .attachment, in: NSRange(location: 0, length: composed.attributedTitle.length))
+        { value, range, _ in
+            guard value is NSTextAttachment else { return }
+            let lineRange = full.lineRange(for: range)
+            let prefix = full.substring(with: NSRange(
+                location: lineRange.location,
+                length: range.location - lineRange.location))
+            barOrigins.append((prefix as NSString).size(withAttributes: composed.attributedTitle.attributes(
+                at: range.location, effectiveRange: nil)).width)
+        }
+        #expect(barOrigins.count == 2)
+        #expect(abs(barOrigins[0] - barOrigins[1]) < 1.0)
+    }
+
+    @Test
+    func `non-leading window labels keep compact spacing without a shared tab`() {
+        let renderer = MenuBarLayoutRenderer()
+        // Provider name before the meter makes the pre-tab width row-specific; a shared tab stop
+        // would overshoot and insert a gap, so those rows must stay on natural spacing.
+        let output = renderer.render(
+            layout: MenuBarLayout(lines: [
+                [.providerName, .progressBar(window: .session)],
+                [.progressBar(window: .weekly)],
+            ]),
+            data: self.data(),
+            icon: nil,
+            options: self.options(showUsed: true))
+
+        let text = output.attributedTitle.string
+        #expect(!text.contains("\t"))
+        let lines = text.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+        #expect(lines.count == 2)
+        #expect(lines[0].contains("Codex"))
+        #expect(lines[1].hasPrefix("W "))
     }
 
     @Test(arguments: [false, true], [-2, 0, 2])
@@ -646,7 +748,12 @@ struct MenuBarLayoutRendererTests {
         if adjustment == 0 {
             #expect(leadingIcon === icon)
         }
-        #expect(output.attributedTitle.string == "\(explicitSpace ? " " : "\u{2009}")5h 25%\nW 60%")
+        // With an explicit leading space the label is not the row's leading content, so the
+        // shared tab column stays off. Without it, the promoted icon leaves percent first.
+        let expected = explicitSpace
+            ? "\(explicitSpace ? " " : "")5h 25%\nW 60%"
+            : "\u{2009}5h\t25%\nW\t60%"
+        #expect(output.attributedTitle.string == expected)
         #expect(!output.attributedTitle.string.contains("\u{FFFC}"))
         let expectedAccessibility = "\(L("%@ icon", "Codex")), \(L("Session")) 25%, "
             + "\(L("menu_bar_layout_line", 2)), \(L("Weekly")) 60%"
@@ -848,6 +955,8 @@ struct MenuBarLayoutRendererTests {
 
         #expect(output.leadingIcon == nil)
         #expect(output.attributedTitle.attribute(.attachment, at: 0, effectiveRange: nil) is NSTextAttachment)
+        // Automatic percent leads the row with no label; the session/weekly values keep compact
+        // spacing instead of claiming the leading-label tab column.
         #expect(output.attributedTitle.string == "\u{FFFC}\n50%\u{2009}5h 25%\u{2009}W 60%\u{2009}10%")
         #expect(output.accessibilityLabel.contains(L("menu_bar_layout_line", 2)))
     }
