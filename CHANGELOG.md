@@ -2,6 +2,10 @@
 
 ## 0.77.1 — Unreleased
 
+### Fixed
+
+- OpenCode Go: read v2-only local databases, include attributed compaction costs, and keep valid v2 usage when a legacy copy has invalid costs.
+
 ## 0.77.0 — 2026-10-16
 
 ### Highlights

@@ -104,15 +104,7 @@ public struct OpenCodeGoLocalUsageReader: Sendable {
         defer { sqlite3_close(db) }
         sqlite3_busy_timeout(db, 250)
 
-        let hasParts = sqlite3_table_column_metadata(db, nil, "part", nil, nil, nil, nil, nil, nil) == SQLITE_OK
-        let hasSessionMessages = sqlite3_table_column_metadata(
-            db, nil, "session_message", nil, nil, nil, nil, nil, nil) == SQLITE_OK
-        let legacySQL = hasParts
-            ? Self.messageAndPartUsageSQL
-            : "SELECT createdMs, cost, modelID, tokens FROM (\(Self.providerMessagesSQL)) WHERE hasCost"
-        // OpenCode v2 writes new turns to `session_message` and copies older turns there under the same ids,
-        // so v2 rows only add turns the legacy `message` table does not already hold.
-        let sql = hasSessionMessages ? "\(legacySQL)\nUNION ALL\n\(Self.sessionMessageUsageSQL)" : legacySQL
+        let sql = try Self.usageSQL(db: db)
 
         var stmt: OpaquePointer?
         let prepareResult = sqlite3_prepare_v2(db, sql, -1, &stmt, nil)
@@ -158,6 +150,47 @@ public struct OpenCodeGoLocalUsageReader: Sendable {
             message: db.map { String(cString: sqlite3_errmsg($0)) } ?? "unknown error")
     }
 
+    private static func hasTable(named name: String, db: OpaquePointer?) throws -> Bool {
+        let result = sqlite3_table_column_metadata(db, nil, name, nil, nil, nil, nil, nil, nil)
+        switch result {
+        case SQLITE_OK: return true
+        case SQLITE_ERROR: return false
+        default: throw Self.sqliteFailure(db: db, resultCode: result)
+        }
+    }
+
+    private static func usageSQL(db: OpaquePointer?) throws -> String {
+        let hasMessages = try Self.hasTable(named: "message", db: db)
+        let hasSessionMessages = try Self.hasTable(named: "session_message", db: db)
+        guard hasMessages else {
+            guard hasSessionMessages else {
+                throw OpenCodeGoLocalUsageError.historyUnavailable("no supported usage tables")
+            }
+            return Self.sessionMessageUsageSQL
+        }
+        let hasParts = try Self.hasTable(named: "part", db: db)
+        let legacySQL = hasParts
+            ? Self.messageAndPartUsageSQL
+            : "SELECT createdMs, cost, modelID, tokens, messageID FROM (\(Self.providerMessagesSQL)) WHERE hasCost"
+        guard hasSessionMessages else { return legacySQL }
+
+        // Migrated ids retain valid legacy step-finish costs and timestamps. Match the row decoder's
+        // validity checks so an unusable legacy copy cannot hide a valid v2 request.
+        return """
+        WITH legacy_usage AS (\(legacySQL)),
+             v2_usage AS (\(Self.sessionMessageUsageSQL))
+        SELECT createdMs, cost, modelID, tokens, messageID FROM legacy_usage
+        UNION ALL
+        SELECT createdMs, cost, modelID, tokens, messageID FROM v2_usage
+        WHERE NOT EXISTS (
+          SELECT 1 FROM legacy_usage
+          WHERE legacy_usage.messageID = v2_usage.messageID
+            AND legacy_usage.createdMs > 0
+            AND legacy_usage.cost BETWEEN 0 AND \(Double.greatestFiniteMagnitude)
+        )
+        """
+    }
+
     private static let providerMessagesSQL = """
         SELECT
           id AS messageID,
@@ -181,14 +214,15 @@ public struct OpenCodeGoLocalUsageReader: Sendable {
           CAST(json_extract(p.data, '$.cost') AS REAL) AS cost,
           m.modelID AS modelID,
           CASE WHEN json_type(p.data, '$.tokens') = 'object'
-            THEN json_extract(p.data, '$.tokens') END AS tokens
+            THEN json_extract(p.data, '$.tokens') END AS tokens,
+          m.messageID AS messageID
         FROM part p
         JOIN provider_messages m ON m.messageID = p.message_id
         WHERE json_valid(p.data)
           AND json_extract(p.data, '$.type') = 'step-finish'
           AND json_type(p.data, '$.cost') IN ('integer', 'real')
         UNION ALL
-        SELECT createdMs, cost, modelID, tokens
+        SELECT createdMs, cost, modelID, tokens, messageID
         FROM provider_messages m
         WHERE hasCost
           AND NOT EXISTS (
@@ -207,13 +241,13 @@ public struct OpenCodeGoLocalUsageReader: Sendable {
           CAST(json_extract(s.data, '$.cost') AS REAL) AS cost,
           COALESCE(json_extract(s.data, '$.model.id'), '') AS modelID,
           CASE WHEN json_type(s.data, '$.tokens') = 'object'
-            THEN json_extract(s.data, '$.tokens') END AS tokens
+            THEN json_extract(s.data, '$.tokens') END AS tokens,
+          s.id AS messageID
         FROM session_message s
-        WHERE s.type = 'assistant'
+        WHERE s.type IN ('assistant', 'compaction')
           AND json_valid(s.data)
           AND json_extract(s.data, '$.model.providerID') = 'opencode-go'
           AND json_type(s.data, '$.cost') IN ('integer', 'real')
-          AND NOT EXISTS (SELECT 1 FROM message m WHERE m.id = s.id)
     """
 
     private struct DatabaseFingerprint: Equatable {
