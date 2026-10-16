@@ -283,6 +283,8 @@ struct GrokAccountContextTests {
         printf '%s\\n' '{"jsonrpc":"2.0","id":1,"result":{}}'
         IFS= read -r billing_request || exit 0
         printf '%s\\n' '{"jsonrpc":"2.0","id":2,"error":{"code":-32601,"message":"Method not found"}}'
+        IFS= read -r legacy_billing_request || exit 0
+        printf '%s\\n' '{"jsonrpc":"2.0","id":3,"error":{"code":-32601,"message":"Method not found"}}'
         """
         try script.write(toFile: binary, atomically: true, encoding: .utf8)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: binary)

@@ -85,7 +85,10 @@ struct BoundedChildProcessProofTests {
         defer { client.shutdown() }
 
         try await client.initialize()
-        let billing = try await client.fetchBilling()
+        guard case let .legacy(billing) = try await client.fetchBilling() else {
+            Issue.record("Expected legacy billing response")
+            return
+        }
 
         #expect(billing.monthlyLimit?.val == 100)
         #expect(billing.usage?.totalUsed?.val == 25)
