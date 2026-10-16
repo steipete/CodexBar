@@ -285,6 +285,14 @@ action, and honors denial cooldowns. OAuth and Claude Code login sources are unc
 - Session quota warnings ignore a weekly quota promoted into the primary field when the five-hour payload is missing. Existing session warning history stays tied to its account, and weekly warnings continue independently.
 - Preferences → Providers → Claude → Cookie source (Automatic or Manual).
 - Manual mode accepts a `Cookie:` header from a claude.ai request.
+Each Claude token account can optionally select a **Claude config directory** in Settings → Providers → Claude.
+With Track costs enabled, the active account’s local token and API-price cost estimates scan only its `projects` history,
+without default, claude-swap, or Pi history. Selecting a directory declares that its history belongs to the account;
+CodexBar does not infer ownership or detect mixed/copied history beyond existing scanner deduplication. A missing or
+unreadable history directory leaves its estimate unavailable. Clear the mapping to restore the existing combined
+view; unmapped accounts and claude-swap retain their current behavior. The optional `claudeConfigDirectory` field
+is stored on the token account in the config file and does not change quota fetching or credential resolution.
+
 - Multi-account manual tokens: add entries to `~/.codexbar/config.json` (`tokenAccounts`) and set Claude cookies to
   Manual. The menu can show all accounts stacked or a switcher bar (Preferences → Advanced → Display).
 - Claude token accounts accept either `sessionKey` cookies or OAuth access tokens (`sk-ant-oat...`). OAuth-token

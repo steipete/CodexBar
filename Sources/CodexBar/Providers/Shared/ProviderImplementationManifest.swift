@@ -89,6 +89,7 @@ enum ProviderImplementationManifest {
         TypeSafeProviderImplementation(),
         PluginCookieProviderImplementation(spec: HyperProviderDescriptor.spec),
         GitKrakenProviderImplementation(),
+        FutureAGIProviderImplementation(),
         PluginAPIKeyProviderImplementation(spec: DevPassProviderDescriptor.spec),
         PluginAPIKeyProviderImplementation(spec: AtlasCloudProviderDescriptor.spec),
         PluginAPIKeyProviderImplementation(spec: VercelProviderDescriptor.spec),

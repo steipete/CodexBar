@@ -18,6 +18,8 @@ public struct ProviderTokenAccount: Codable, Identifiable, Sendable {
     /// Optional provider-specific workspace/project target. z.ai team accounts
     /// use this for the BigModel project header.
     public let workspaceID: String?
+    /// User-declared Claude history ownership; never used to resolve credentials.
+    public let claudeConfigDirectory: String?
     /// Optional provider-specific AI credit allowance (raw user-entered value). Copilot accounts
     /// use this as the per-seat monthly credit entitlement; GitHub publishes no such entitlement.
     public let seatCreditEntitlement: String?
@@ -37,6 +39,7 @@ public struct ProviderTokenAccount: Codable, Identifiable, Sendable {
         case usageScope
         case organizationID = "organizationId"
         case workspaceID
+        case claudeConfigDirectory
         case seatCreditEntitlement
         case modelRateLimits
     }
@@ -51,6 +54,7 @@ public struct ProviderTokenAccount: Codable, Identifiable, Sendable {
         usageScope: String? = nil,
         organizationID: String? = nil,
         workspaceID: String? = nil,
+        claudeConfigDirectory: String? = nil,
         seatCreditEntitlement: String? = nil,
         modelRateLimits: [ProviderModelRateLimit]? = nil)
     {
@@ -63,6 +67,7 @@ public struct ProviderTokenAccount: Codable, Identifiable, Sendable {
         self.usageScope = usageScope
         self.organizationID = organizationID
         self.workspaceID = workspaceID
+        self.claudeConfigDirectory = claudeConfigDirectory
         self.seatCreditEntitlement = seatCreditEntitlement
         self.modelRateLimits = modelRateLimits.map(ProviderModelRateLimit.validated)
     }
@@ -79,6 +84,7 @@ public struct ProviderTokenAccount: Codable, Identifiable, Sendable {
             usageScope: container.decodeIfPresent(String.self, forKey: .usageScope),
             organizationID: container.decodeIfPresent(String.self, forKey: .organizationID),
             workspaceID: container.decodeIfPresent(String.self, forKey: .workspaceID),
+            claudeConfigDirectory: container.decodeIfPresent(String.self, forKey: .claudeConfigDirectory),
             seatCreditEntitlement: container.decodeIfPresent(String.self, forKey: .seatCreditEntitlement),
             modelRateLimits: container.decodeIfPresent([ProviderModelRateLimit].self, forKey: .modelRateLimits))
     }
@@ -94,6 +100,7 @@ public struct ProviderTokenAccount: Codable, Identifiable, Sendable {
             usageScope: self.usageScope,
             organizationID: self.organizationID,
             workspaceID: self.workspaceID,
+            claudeConfigDirectory: self.claudeConfigDirectory,
             seatCreditEntitlement: self.seatCreditEntitlement,
             modelRateLimits: limits)
     }
@@ -134,6 +141,7 @@ public struct ProviderTokenAccount: Codable, Identifiable, Sendable {
             usageScope: self.usageScope,
             organizationID: self.organizationID,
             workspaceID: self.workspaceID,
+            claudeConfigDirectory: self.claudeConfigDirectory,
             seatCreditEntitlement: self.seatCreditEntitlement,
             modelRateLimits: self.modelRateLimits)
     }

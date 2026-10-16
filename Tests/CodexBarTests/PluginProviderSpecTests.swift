@@ -8,6 +8,7 @@ import Testing
 struct PluginProviderSpecTests {
     private static let providers: [UsageProvider] = [
         .xkiro,
+        .futureagi,
         .atlascloud,
         .vercel,
         .devpass,

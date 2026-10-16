@@ -156,9 +156,9 @@ struct ProviderArchitectureGatekeeperTests {
             Self.hash(descriptor.branding.burnDownWidgetColor, into: &burnDownFingerprint)
         }
 
-        // fal, FLORA, Parallel, and Claude Platform extend the palette without changing existing provider colors.
-        #expect(widgetFingerprint == 9_322_051_552_041_008_511)
-        #expect(burnDownFingerprint == 6_428_902_102_265_645_629)
+        // Future AGI extends the palette without changing existing provider colors.
+        #expect(widgetFingerprint == 3_711_886_239_094_764_584)
+        #expect(burnDownFingerprint == 13_987_331_976_248_604_459)
     }
 
     @Test
@@ -3109,9 +3109,11 @@ struct ProviderArchitectureGatekeeperTests {
             path: "Sources/CodexBar/UsageStore+TokenCost.swift",
             anchor: "return provider == .codex && self.codexCostCatchUpActivity?.phase == .indexing",
             expectedProviderIDs: ["antigravity", "claude", "codex", "vertexai"],
-            expectedReferenceCount: 5,
-            expectedReferenceFingerprint: ["codex@0", "antigravity@5", "vertexai@10", "claude@11", "codex@13"],
-            reason: "History scopes include Antigravity's explicit homes, Vertex's Claude fallback, and Codex ownership."),
+            expectedReferenceCount: 6,
+            expectedReferenceFingerprint: [
+                "codex@0", "antigravity@5", "claude@10", "vertexai@13", "claude@14", "codex@16",
+            ],
+            reason: "History scopes include Antigravity homes, mapped Claude roots, Vertex fallback, and Codex ownership."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/UsageStore+TokenCost.swift",
             anchor: "guard provider == .cursor else {",

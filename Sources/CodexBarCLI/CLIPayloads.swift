@@ -20,6 +20,8 @@ struct ProviderPayload: Encodable {
     let diagnostic: String?
     let error: ProviderErrorPayload?
     let pace: ProviderPacePayload?
+    /// Seconds since the menu bar app fetched this usage; set only when `source` is `codexbar-app`.
+    var ageSeconds: Int?
 
     private enum CodingKeys: String, CodingKey {
         case provider
@@ -36,6 +38,7 @@ struct ProviderPayload: Encodable {
         case diagnostic
         case error
         case pace
+        case ageSeconds
     }
 
     init(

@@ -62,6 +62,16 @@
 "7d" = "7д";
 "A managed Codex login is already running. Wait for it to finish before adding " = "Керований вхід до Codex вже запущено. Перш ніж додавати, зачекайте, поки він закінчиться";
 "API key" = "Ключ API";
+
+/* Future AGI provider */
+"Secret key" = "Секретний ключ";
+"Required with the API key. Saved in the local config file. Or set FI_SECRET_KEY." = "Потрібен разом із ключем API. Зберігається в локальному файлі конфігурації. Або задайте FI_SECRET_KEY.";
+"Paste secret key…" = "Вставте секретний ключ…";
+"AI credits" = "Кредити ШІ";
+"Gateway requests" = "Запити до шлюзу";
+"Future AGI cost history is not available." = "Історія витрат Future AGI недоступна.";
+"Saved in CodexBar's local config file. Or set FI_API_KEY." = "Зберігається в локальному файлі конфігурації CodexBar. Або задайте FI_API_KEY.";
+
 "API region" = "регіон API";
 "API token" = "Маркер API";
 "API tokens" = "маркери API";
@@ -2665,3 +2675,4 @@
 "Claude desktop app" = "Програма Claude для комп’ютера";
 "Use Claude desktop app cookies" = "Використовувати файли cookie програми Claude";
 "For Web usage, follow the account signed into Claude.app instead of a browser." = "Для вебстатистики використовувати обліковий запис у Claude.app замість облікового запису браузера.";
+"Claude config directory" = "Каталог конфігурації Claude";

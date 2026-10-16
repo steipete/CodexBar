@@ -27,6 +27,15 @@ struct UsageCommandContext {
     var persistCLISessions: Bool = false
     var persistentCLISessionIdleWindow: TimeInterval?
     var cardsLayout: Bool = false
+    /// Serves the menu bar app's cached usage after a locked-keychain fetch failure (SSH sessions, opt-in).
+    var usageCacheFallback: (@Sendable (UsageProvider, _ lockedKeychainObserved: Bool, _ terminalError: Error)
+        -> CLIUsageCache.Hit?)?
+
+    func withUsageCacheFallback(config: CodexBarConfig) -> UsageCommandContext {
+        var context = self
+        context.usageCacheFallback = CLIUsageCache.fallbackReader(config: config)
+        return context
+    }
 }
 
 struct UsageCommandOutput {
@@ -52,6 +61,8 @@ private struct UsageSuccessRenderInput {
     let command: UsageCommandContext
     let diagnostic: String?
     let notes: [String]
+    /// Set when the usage came from the menu bar app's cache: seconds since its fetch.
+    var ageSeconds: Int?
 }
 
 extension UsageCommandOutput {
@@ -73,7 +84,7 @@ extension CodexBarCLI {
         let provider = Self.decodeProvider(from: values, config: config)
         let providerList = provider.asList
         let setup = Self.usageFetchSetup(values: values, providers: providerList, output: output)
-        let command = setup.command
+        let command = setup.command.withUsageCacheFallback(config: config)
         let tokenContext = setup.tokenContext(config: config, output: output)
         let appAutoVerifier = command.providerRuntime == .app
         let includeStatus = setup.includeStatus
@@ -384,7 +395,7 @@ extension CodexBarCLI {
                 output.sections.append(text)
             }
         case .json:
-            output.payload.append(self.makeUsagePayload(
+            var usagePayload = self.makeUsagePayload(
                 provider: input.provider,
                 accountLabel: input.accountLabel,
                 cacheAccountKey: input.cacheAccountKey,
@@ -396,10 +407,13 @@ extension CodexBarCLI {
                 antigravityPlanInfo: input.antigravityPlanInfo,
                 dashboard: input.dashboard,
                 diagnostic: input.diagnostic,
-                weeklyWorkDays: input.command.weeklyWorkDays))
+                weeklyWorkDays: input.command.weeklyWorkDays)
+            usagePayload.ageSeconds = input.ageSeconds
+            output.payload.append(usagePayload)
         }
     }
 
+    // swiftlint:disable:next function_body_length
     private static func fetchUsageOutput(
         provider: UsageProvider,
         account: ProviderTokenAccount?,
@@ -410,7 +424,7 @@ extension CodexBarCLI {
     {
         var output = UsageCommandOutput()
         let env = tokenContext.environment(
-            base: ProcessInfo.processInfo.environment,
+            base: tokenContext.baseEnvironment,
             provider: provider,
             account: account,
             codexActiveSourceOverride: codexVisibleAccount?.selectionSource)
@@ -471,7 +485,9 @@ extension CodexBarCLI {
             persistsCLISessions: Self.persistsCLISessions(provider: provider, command: command),
             persistentCLISessionIdleWindow: command.persistentCLISessionIdleWindow,
             resolvedCLIVersion: resolvedCLIVersion)
-        let outcome = await Self.fetchProviderUsage(provider: provider, context: fetchContext)
+        let (outcome, lockedKeychainObserved) = await CLIUsageCache.observingLockedKeychain {
+            await Self.fetchProviderUsage(provider: provider, context: fetchContext)
+        }
         if command.verbose, !command.jsonOnly {
             Self.printFetchAttempts(provider: provider, attempts: outcome.attempts)
         }
@@ -530,6 +546,40 @@ extension CodexBarCLI {
                     notes: notes),
                 output: &output)
         case let .failure(error):
+            // Only a default-account fetch without `--source` whose terminal failure is a credential-access one
+            // after a locked keychain read falls back to the cache.
+            if command.sourceModeOverride == nil, !tokenContext.selection.usesOverride,
+               account == nil, codexVisibleAccount == nil,
+               let hit = command.usageCacheFallback?(provider, lockedKeychainObserved, error)
+            {
+                let usage = hit.entry.usage.scoped(to: provider)
+                let source = "codexbar-app"
+                let appNote = "Cached by the CodexBar app (the keychain was unavailable here). "
+                    + UsageFormatter.updatedString(from: usage.updatedAt)
+                Self.appendSuccessRenderOutput(
+                    UsageSuccessRenderInput(
+                        provider: provider,
+                        accountLabel: nil,
+                        cacheAccountKey: nil,
+                        version: nil,
+                        source: source,
+                        status: status,
+                        usage: usage,
+                        credits: nil,
+                        antigravityPlanInfo: nil,
+                        dashboard: nil,
+                        effectiveSourceMode: effectiveSourceMode,
+                        command: command,
+                        diagnostic: nil,
+                        notes: Self.usageTextNotes(
+                            provider: provider,
+                            sourceMode: effectiveSourceMode,
+                            resolvedSourceLabel: source,
+                            dataConfidence: usage.dataConfidence) + [appNote],
+                        ageSeconds: hit.ageSeconds),
+                    output: &output)
+                break
+            }
             output.exitCode = Self.mapError(error)
             if command.format == .json {
                 output.payload.append(Self.makeProviderErrorPayload(

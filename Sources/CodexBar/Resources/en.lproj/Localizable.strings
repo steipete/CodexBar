@@ -18,6 +18,16 @@
 "90d" = "90d";
 "A managed Codex login is already running. Wait for it to finish before adding " = "A managed Codex login is already running. Wait for it to finish before adding ";
 "API key" = "API key";
+
+/* Future AGI provider */
+"Secret key" = "Secret key";
+"Required with the API key. Saved in the local config file. Or set FI_SECRET_KEY." = "Required with the API key. Saved in the local config file. Or set FI_SECRET_KEY.";
+"Paste secret key…" = "Paste secret key…";
+"AI credits" = "AI credits";
+"Gateway requests" = "Gateway requests";
+"Future AGI cost history is not available." = "Future AGI cost history is not available.";
+"Saved in CodexBar's local config file. Or set FI_API_KEY." = "Saved in CodexBar's local config file. Or set FI_API_KEY.";
+
 "API region" = "API region";
 "API token" = "API token";
 "API tokens" = "API tokens";
@@ -2670,3 +2680,4 @@
 "Claude desktop app" = "Claude desktop app";
 "Use Claude desktop app cookies" = "Use Claude desktop app cookies";
 "For Web usage, follow the account signed into Claude.app instead of a browser." = "For Web usage, follow the account signed into Claude.app instead of a browser.";
+"Claude config directory" = "Claude config directory";

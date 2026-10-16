@@ -240,6 +240,7 @@ public struct CostUsageFetcher: Sendable {
 
     package func loadTokenResult(
         provider: UsageProvider,
+        claudeConfigDirectory: String? = nil,
         environment: [String: String] = ProcessInfo.processInfo.environment,
         antigravityAdditionalProfileHomes: [String] = [],
         now: Date = Date(),
@@ -257,7 +258,18 @@ public struct CostUsageFetcher: Sendable {
         calendar: Calendar? = nil,
         reportContext: CostUsageReportContext = .regular) async throws -> CostUsageTokenResult
     {
-        try await Self.loadTokenResult(
+        var options = self.scannerOptions(calendar: calendar)
+        // Provider-specific by design: explicit account roots never include ambient or swap history.
+        if provider == .claude, let claudeConfigDirectory {
+            let roots = ClaudeConfigPaths.costProjectsRoots(
+                accountConfigDirectory: claudeConfigDirectory, environment: environment)
+            guard let root = roots.first, FileManager.default.isReadableFile(atPath: root.path) else {
+                throw CocoaError(.fileReadNoSuchFile)
+            }
+            options = options ?? CostUsageScanner.Options()
+            options?.claudeProjectsRoots = roots
+        }
+        return try await Self.loadTokenResult(
             provider: provider,
             environment: environment,
             antigravityAdditionalProfileHomes: antigravityAdditionalProfileHomes,
@@ -273,7 +285,7 @@ public struct CostUsageFetcher: Sendable {
             bypassScannerDebounce: bypassScannerDebounce,
             piWorkingDirectories: piWorkingDirectories,
             piSessionProcessContexts: piSessionProcessContexts,
-            scannerOptions: self.scannerOptions(calendar: calendar),
+            scannerOptions: options,
             reportContext: reportContext)
     }
 

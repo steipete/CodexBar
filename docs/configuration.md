@@ -53,6 +53,9 @@ replaced by `loadOrCreateDefault()`.
 }
 ```
 
+`shareUsageWithCLI` (optional boolean, default off) lets `codexbar usage` fall back to the app's cached numbers in SSH
+sessions; see [CLI](cli.md#ssh-sessions-macos).
+
 ## External event hooks
 
 Hooks are local, explicit opt-in automation. Configure them in Settings > Hooks or in this local config file; no

@@ -41,6 +41,16 @@
 "7d" = "7 hari";
 "A managed Codex login is already running. Wait for it to finish before adding " = "Login Codex terkelola sudah berjalan. Tunggu hingga selesai sebelum menambahkan ";
 "API key" = "Kunci API";
+
+/* Future AGI provider */
+"Secret key" = "Kunci rahasia";
+"Required with the API key. Saved in the local config file. Or set FI_SECRET_KEY." = "Diperlukan bersama kunci API. Disimpan dalam file konfigurasi lokal. Atau atur FI_SECRET_KEY.";
+"Paste secret key…" = "Tempel kunci rahasia…";
+"AI credits" = "Kredit AI";
+"Gateway requests" = "Permintaan gateway";
+"Future AGI cost history is not available." = "Riwayat biaya Future AGI tidak tersedia.";
+"Saved in CodexBar's local config file. Or set FI_API_KEY." = "Disimpan dalam file konfigurasi lokal CodexBar. Atau atur FI_API_KEY.";
+
 "API region" = "Wilayah API";
 "API token" = "Token API";
 "API tokens" = "Token API";
@@ -1172,6 +1182,7 @@
 "CodexBar could not save the current system account before switching." = "CodexBar tidak dapat menyimpan akun sistem saat ini sebelum beralih.";
 "CodexBar could not update managed account storage." = "CodexBar tidak dapat memperbarui penyimpanan akun terkelola.";
 "CodexBar found another managed account that already uses the current system account. Resolve the duplicate account before switching." = "CodexBar menemukan akun terkelola lain yang sudah menggunakan akun sistem saat ini. Selesaikan akun duplikat sebelum beralih.";
+"CodexBar will ask macOS Keychain for “%@” so it can decrypt browser cookies and authenticate your account. Click OK to continue." = "CodexBar akan meminta Rantai Kunci macOS untuk “%@” agar dapat mendekripsi cookie browser dan mengautentikasi akun Anda. Klik OK untuk melanjutkan.";
 "CodexBar will ask macOS Keychain for \U201c%@\U201d so it can decrypt browser cookies and authenticate your account. Click OK to continue." = "CodexBar akan meminta Keychain macOS untuk \U201c%@\U201d agar dapat mendekripsi cookie browser dan mengautentikasi akun Anda. Klik OK untuk melanjutkan.";
 "CodexBar will ask macOS Keychain for the Claude Code OAuth token so it can fetch your Claude usage. Click OK to continue." = "CodexBar akan meminta Keychain macOS untuk token OAuth Claude Code agar dapat mengambil penggunaan Claude Anda. Klik OK untuk melanjutkan.";
 "CodexBar will ask macOS Keychain for your %@ cookie header so it can fetch usage. Click OK to continue." = "CodexBar akan meminta Keychain macOS untuk header cookie %@ Anda agar dapat mengambil penggunaan. Klik OK untuk melanjutkan.";
@@ -2666,3 +2677,4 @@
 "Claude desktop app" = "Aplikasi desktop Claude";
 "Use Claude desktop app cookies" = "Gunakan cookie aplikasi desktop Claude";
 "For Web usage, follow the account signed into Claude.app instead of a browser." = "Untuk penggunaan web, ikuti akun yang masuk di Claude.app, bukan akun di browser.";
+"Claude config directory" = "Direktori konfigurasi Claude";

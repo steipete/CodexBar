@@ -62,6 +62,16 @@
 "7d" = "7일";
 "A managed Codex login is already running. Wait for it to finish before adding " = "관리되는 Codex 로그인이 이미 실행 중입니다. 추가하기 전에 완료될 때까지 기다리세요. ";
 "API key" = "API 키";
+
+/* Future AGI provider */
+"Secret key" = "비밀 키";
+"Required with the API key. Saved in the local config file. Or set FI_SECRET_KEY." = "API 키와 함께 필요합니다. 로컬 구성 파일에 저장됩니다. 또는 FI_SECRET_KEY를 설정하세요.";
+"Paste secret key…" = "비밀 키 붙여넣기…";
+"AI credits" = "AI 크레딧";
+"Gateway requests" = "게이트웨이 요청";
+"Future AGI cost history is not available." = "Future AGI 비용 내역을 사용할 수 없습니다.";
+"Saved in CodexBar's local config file. Or set FI_API_KEY." = "CodexBar의 로컬 구성 파일에 저장됩니다. 또는 FI_API_KEY를 설정하세요.";
+
 "API region" = "API 지역";
 "API token" = "API 토큰";
 "API tokens" = "API 토큰";
@@ -2633,3 +2643,4 @@
 "Claude desktop app" = "Claude 데스크톱 앱";
 "Use Claude desktop app cookies" = "Claude 데스크톱 앱 쿠키 사용";
 "For Web usage, follow the account signed into Claude.app instead of a browser." = "웹 사용량에는 브라우저 대신 Claude.app에 로그인한 계정을 사용합니다.";
+"Claude config directory" = "Claude 설정 디렉터리";

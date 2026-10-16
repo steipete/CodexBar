@@ -357,7 +357,9 @@ public enum KeychainAccessPreflight {
         else { return .indeterminate }
 
         var access: SecAccess?
-        guard copyItemAccess(item, &access) == errSecSuccess,
+        let accessStatus = copyItemAccess(item, &access)
+        KeychainLockWitness.note(accessStatus)
+        guard accessStatus == errSecSuccess,
               let access,
               let rawACLs = copyMatchingACLs(access, kSecACLAuthorizationDecrypt)?.takeRetainedValue(),
               let acls = rawACLs as? [SecACL],

@@ -67,7 +67,8 @@ extension SettingsStore {
         externalIdentifier: String? = nil,
         usageScope: String? = nil,
         organizationID: String? = nil,
-        workspaceID: String? = nil)
+        workspaceID: String? = nil,
+        claudeConfigDirectory: String? = nil)
     {
         guard TokenAccountSupportCatalog.support(for: provider) != nil else { return }
         let trimmedToken = token.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -85,7 +86,8 @@ extension SettingsStore {
             externalIdentifier: Self.normalizedConfigField(externalIdentifier),
             usageScope: Self.normalizedConfigField(usageScope),
             organizationID: Self.normalizedConfigField(organizationID),
-            workspaceID: Self.normalizedConfigField(workspaceID))
+            workspaceID: Self.normalizedConfigField(workspaceID),
+            claudeConfigDirectory: Self.normalizedConfigField(claudeConfigDirectory))
         let updated = ProviderTokenAccountData(
             version: existing?.version ?? 1,
             accounts: accounts + [account],
@@ -114,6 +116,7 @@ extension SettingsStore {
         usageScope: String?? = nil,
         organizationID: String?? = nil,
         workspaceID: String?? = nil,
+        claudeConfigDirectory: String?? = nil,
         seatCreditEntitlement: String?? = nil)
     {
         guard let data = self.tokenAccountsData(for: provider), !data.accounts.isEmpty else { return }
@@ -136,6 +139,8 @@ extension SettingsStore {
             usageScope: usageScope.map(Self.normalizedConfigField) ?? existing.usageScope,
             organizationID: organizationID.map(Self.normalizedConfigField) ?? existing.organizationID,
             workspaceID: workspaceID.map(Self.normalizedConfigField) ?? existing.workspaceID,
+            claudeConfigDirectory: claudeConfigDirectory.map(Self.normalizedConfigField)
+                ?? existing.claudeConfigDirectory,
             seatCreditEntitlement: seatCreditEntitlement.map(Self.normalizedConfigField)
                 ?? existing.seatCreditEntitlement,
             modelRateLimits: existing.modelRateLimits)

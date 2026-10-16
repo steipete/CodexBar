@@ -62,6 +62,16 @@
 "7d" = "7 d";
 "A managed Codex login is already running. Wait for it to finish before adding " = "En hanterad Codex-inloggning körs redan. Vänta tills den är klar innan du lägger till ";
 "API key" = "API-nyckel";
+
+/* Future AGI provider */
+"Secret key" = "Hemlig nyckel";
+"Required with the API key. Saved in the local config file. Or set FI_SECRET_KEY." = "Krävs tillsammans med API-nyckeln. Sparas i den lokala konfigurationsfilen. Du kan också ange FI_SECRET_KEY.";
+"Paste secret key…" = "Klistra in hemlig nyckel…";
+"AI credits" = "AI-krediter";
+"Gateway requests" = "Gatewayförfrågningar";
+"Future AGI cost history is not available." = "Kostnadshistorik för Future AGI är inte tillgänglig.";
+"Saved in CodexBar's local config file. Or set FI_API_KEY." = "Sparas i CodexBars lokala konfigurationsfil. Du kan också ange FI_API_KEY.";
+
 "API region" = "API-region";
 "API token" = "API-token";
 "API tokens" = "API-token";
@@ -2664,3 +2674,4 @@
 "Claude desktop app" = "Claude-skrivbordsappen";
 "Use Claude desktop app cookies" = "Använd cookies från Claude-skrivbordsappen";
 "For Web usage, follow the account signed into Claude.app instead of a browser." = "För webbanvändning används kontot som är inloggat i Claude.app i stället för webbläsarkontot.";
+"Claude config directory" = "Konfigurationsmapp för Claude";

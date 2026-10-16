@@ -63,6 +63,16 @@
 "90d" = "90 天";
 "A managed Codex login is already running. Wait for it to finish before adding " = "托管 Codex 登录已在运行。请等待其完成后再添加 ";
 "API key" = "API 密钥";
+
+/* Future AGI provider */
+"Secret key" = "密钥";
+"Required with the API key. Saved in the local config file. Or set FI_SECRET_KEY." = "需与 API 密钥配合使用。保存在本地配置文件中。也可设置 FI_SECRET_KEY。";
+"Paste secret key…" = "粘贴密钥…";
+"AI credits" = "AI 额度";
+"Gateway requests" = "网关请求";
+"Future AGI cost history is not available." = "无法查看 Future AGI 的费用历史。";
+"Saved in CodexBar's local config file. Or set FI_API_KEY." = "保存在 CodexBar 的本地配置文件中。也可设置 FI_API_KEY。";
+
 "API key limit" = "API 密钥限制";
 "API region" = "API 区域";
 "API token" = "API 令牌";
@@ -2657,3 +2667,4 @@
 "Claude desktop app" = "Claude 桌面应用";
 "Use Claude desktop app cookies" = "使用 Claude 桌面应用的 Cookie";
 "For Web usage, follow the account signed into Claude.app instead of a browser." = "查询网页使用量时，使用 Claude.app 中登录的账户，而不是浏览器账户。";
+"Claude config directory" = "Claude 配置目录";

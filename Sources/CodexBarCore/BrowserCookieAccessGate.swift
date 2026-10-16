@@ -214,10 +214,13 @@ public enum BrowserCookieAccessGate {
     {
         let interaction = ProviderInteractionContext.current
         let retryScope = self.explicitRetryScope
+        let lockWitness = KeychainLockWitness.current
         return { input in
             try ProviderInteractionContext.$current.withValue(interaction) {
                 try self.$explicitRetryScope.withValue(retryScope) {
-                    try operation(input)
+                    try KeychainLockWitness.$current.withValue(lockWitness) {
+                        try operation(input)
+                    }
                 }
             }
         }

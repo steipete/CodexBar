@@ -444,7 +444,7 @@ struct ProvidersPane: View {
         guard let support = TokenAccountSupportCatalog.support(for: provider) else { return nil }
         let context = self.makeSettingsContext(provider: provider)
         let implementation = ProviderCatalog.implementation(for: provider)
-        return ProviderSettingsTokenAccountsDescriptor(
+        var descriptor = ProviderSettingsTokenAccountsDescriptor(
             id: "token-accounts-\(provider.rawValue)",
             title: support.title,
             subtitle: support.subtitle,
@@ -471,14 +471,15 @@ struct ProvidersPane: View {
             },
             showsOrganizationField: support.showsOrganizationField,
             showsTeamModeControls: support.showsTeamModeControls,
-            addAccount: { label, token, usageScope, organizationID, workspaceID in
+            addAccount: { label, token, usageScope, organizationID, workspaceID, claudeConfigDirectory in
                 self.settings.addTokenAccount(
                     provider: provider,
                     label: label,
                     token: token,
                     usageScope: usageScope,
                     organizationID: organizationID,
-                    workspaceID: workspaceID)
+                    workspaceID: workspaceID,
+                    claudeConfigDirectory: claudeConfigDirectory)
                 Task { @MainActor in
                     await ProviderInteractionContext.$current.withValue(.userInitiated) {
                         await self.store.refreshProvider(provider, allowDisabled: true)
@@ -527,6 +528,20 @@ struct ProvidersPane: View {
                     }
                 }
             })
+        // Provider-specific by design: only Claude accounts declare local transcript ownership.
+        if provider == .claude {
+            descriptor.claudeConfigDirectory = { accountID in
+                Binding(
+                    get: { self.settings.tokenAccounts(for: provider)
+                        .first(where: { $0.id == accountID })?.claudeConfigDirectory
+                    },
+                    set: { directory in
+                        self.settings.updateTokenAccount(
+                            provider: provider, accountID: accountID, claudeConfigDirectory: .some(directory))
+                    })
+            }
+        }
+        return descriptor
     }
 
     private func makeSettingsContext(provider: UsageProvider) -> ProviderSettingsContext {

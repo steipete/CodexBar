@@ -239,6 +239,7 @@ struct ProviderSettingsTokenAccountsRowView: View {
     @State private var newOrgID: String = ""
     @State private var newProjectID: String = ""
     @State private var newTeamMode = false
+    @State private var newClaudeConfigDirectory: String?
     @State private var teamDrafts: [UUID: TeamAccountDraft] = [:]
 
     var body: some View {
@@ -281,6 +282,9 @@ struct ProviderSettingsTokenAccountsRowView: View {
                         }
                         if self.descriptor.showsTeamModeControls {
                             self.teamModeEditor(account: account)
+                        }
+                        if let directory = self.descriptor.claudeConfigDirectory {
+                            TokenAccountDirectoryPicker(path: directory(account.id))
                         }
                     }
                 }
@@ -325,12 +329,14 @@ struct ProviderSettingsTokenAccountsRowView: View {
                                 token,
                                 usageScope,
                                 accountOrganizationID,
-                                accountWorkspaceID)
+                                accountWorkspaceID,
+                                self.descriptor.claudeConfigDirectory == nil ? nil : self.newClaudeConfigDirectory)
                             self.newLabel = ""
                             self.newToken = ""
                             self.newOrgID = ""
                             self.newProjectID = ""
                             self.newTeamMode = false
+                            self.newClaudeConfigDirectory = nil
                         }
                         .buttonStyle(.bordered)
                         .controlSize(.small)
@@ -340,6 +346,9 @@ struct ProviderSettingsTokenAccountsRowView: View {
                             showsTeamModeControls: self.descriptor.showsTeamModeControls,
                             teamMode: self.newTeamMode,
                             teamContext: (organizationID: self.newOrgID, projectID: self.newProjectID)))
+                    }
+                    if self.descriptor.claudeConfigDirectory != nil {
+                        TokenAccountDirectoryPicker(path: self.$newClaudeConfigDirectory)
                     }
                     if self.descriptor.showsOrganizationField {
                         TextField(text: self.$newOrgID, prompt: Text(L("Org ID (optional)"))) {

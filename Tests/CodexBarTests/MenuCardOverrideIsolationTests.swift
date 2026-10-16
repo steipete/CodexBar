@@ -7,6 +7,36 @@ import Testing
 @MainActor
 struct MenuCardOverrideIsolationTests {
     @Test
+    func `only the active mapped Claude token card receives local costs`() {
+        let store = self.makeStore()
+        store.settings.costUsageEnabled = true
+        store.settings.addTokenAccount(
+            provider: .claude,
+            label: "Personal",
+            token: "fixture-personal",
+            claudeConfigDirectory: "/fixtures/claude-personal")
+        store.settings.addTokenAccount(provider: .claude, label: "Work", token: "fixture-work")
+        let accounts = store.settings.tokenAccounts(for: .claude)
+        store.settings.setActiveTokenAccountIndex(0, for: .claude)
+        store._setTokenSnapshotForTesting(CostUsageTokenSnapshot(
+            sessionTokens: 123,
+            sessionCostUSD: 0.12,
+            last30DaysTokens: 456,
+            last30DaysCostUSD: 1.23,
+            daily: [],
+            updatedAt: Date()), provider: .claude)
+        for (index, account) in accounts.enumerated() {
+            let model = store.menuCardModel(
+                for: .claude, context: .account(.init(tokenAccountID: account.id)))
+            #expect((model.tokenUsage != nil) == (index == 0))
+        }
+        store.settings.setActiveTokenAccountIndex(1, for: .claude)
+        let formerOwner = store.menuCardModel(
+            for: .claude, context: .account(.init(tokenAccountID: accounts[0].id)))
+        #expect(formerOwner.tokenUsage == nil)
+    }
+
+    @Test
     func `explicit selected token account adopts legacy unscoped history`() throws {
         let store = self.makeStore()
         store.settings.addTokenAccount(provider: .claude, label: "Alice", token: "fixture")

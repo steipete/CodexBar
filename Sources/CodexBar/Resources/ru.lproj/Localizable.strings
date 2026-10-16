@@ -62,6 +62,16 @@
 "7d" = "7 дн.";
 "A managed Codex login is already running. Wait for it to finish before adding " = "Управляемый вход Codex уже активен. Подождите, пока он завершится, прежде чем добавлять ";
 "API key" = "API-ключ";
+
+/* Future AGI provider */
+"Secret key" = "Секретный ключ";
+"Required with the API key. Saved in the local config file. Or set FI_SECRET_KEY." = "Требуется вместе с ключом API. Сохраняется в локальном файле конфигурации. Или задайте FI_SECRET_KEY.";
+"Paste secret key…" = "Вставьте секретный ключ…";
+"AI credits" = "Кредиты ИИ";
+"Gateway requests" = "Запросы к шлюзу";
+"Future AGI cost history is not available." = "История расходов Future AGI недоступна.";
+"Saved in CodexBar's local config file. Or set FI_API_KEY." = "Сохраняется в локальном файле конфигурации CodexBar. Или задайте FI_API_KEY.";
+
 "API region" = "Регион API";
 "API token" = "API-токен";
 "API tokens" = "API-токены";
@@ -2666,3 +2676,4 @@
 "Claude desktop app" = "Приложение Claude для компьютера";
 "Use Claude desktop app cookies" = "Использовать файлы cookie приложения Claude";
 "For Web usage, follow the account signed into Claude.app instead of a browser." = "Для веб-статистики использовать учётную запись в Claude.app вместо учётной записи браузера.";
+"Claude config directory" = "Каталог конфигурации Claude";

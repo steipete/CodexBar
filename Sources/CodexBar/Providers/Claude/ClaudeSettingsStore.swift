@@ -198,3 +198,15 @@ extension SettingsStore {
             override: tokenOverride)
     }
 }
+
+extension UsageStore {
+    var claudeTokenCostConfigDirectory: String? {
+        guard !self.settings.claudeSwapEnabled || !ClaudeSwapMenuPrecedence.prefersClaudeSwap(
+            provider: .claude,
+            accountCount: self.claudeSwapAccountSnapshots.count,
+            showSingleAccount: self.settings.claudeSwapShowSingleAccount)
+        else { return nil }
+        return self.settings.effectiveSelectedTokenAccount(for: .claude)?.claudeConfigDirectory
+            .flatMap { $0.isEmpty ? nil : $0 }
+    }
+}

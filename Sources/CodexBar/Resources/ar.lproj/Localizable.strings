@@ -41,6 +41,16 @@
 "7d" = "7 أيام";
 "A managed Codex login is already running. Wait for it to finish before adding " = "تسجيل دخول Codex المدار يعمل بالفعل. انتظر حتى ينتهي قبل إضافة  ";
 "API key" = "مفتاح API";
+
+/* Future AGI provider */
+"Secret key" = "المفتاح السري";
+"Required with the API key. Saved in the local config file. Or set FI_SECRET_KEY." = "مطلوب مع مفتاح API. يُحفظ في ملف الإعدادات المحلي. أو اضبط FI_SECRET_KEY.";
+"Paste secret key…" = "الصق المفتاح السري…";
+"AI credits" = "أرصدة الذكاء الاصطناعي";
+"Gateway requests" = "طلبات البوابة";
+"Future AGI cost history is not available." = "سجل تكاليف Future AGI غير متاح.";
+"Saved in CodexBar's local config file. Or set FI_API_KEY." = "يُحفظ في ملف إعدادات CodexBar المحلي. أو اضبط FI_API_KEY.";
+
 "API region" = "منطقة API";
 "API token" = "API رمز";
 "API tokens" = "رموز API";
@@ -2669,3 +2679,4 @@
 "Claude desktop app" = "تطبيق Claude لسطح المكتب";
 "Use Claude desktop app cookies" = "استخدام ملفات تعريف الارتباط لتطبيق Claude لسطح المكتب";
 "For Web usage, follow the account signed into Claude.app instead of a browser." = "لاستخدام الويب، اتبع الحساب المسجّل الدخول في Claude.app بدلاً من المتصفح.";
+"Claude config directory" = "مجلد إعدادات Claude";

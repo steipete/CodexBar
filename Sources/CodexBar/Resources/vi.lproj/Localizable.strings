@@ -62,6 +62,16 @@
 "7d" = "7d";
 "A managed Codex login is already running. Wait for it to finish before adding " = "Đăng nhập Codex được quản lý đã chạy. Đợi quá trình này hoàn tất trước khi thêm";
 "API key" = "API khóa";
+
+/* Future AGI provider */
+"Secret key" = "Khóa bí mật";
+"Required with the API key. Saved in the local config file. Or set FI_SECRET_KEY." = "Bắt buộc cùng với khóa API. Được lưu trong tệp cấu hình cục bộ. Hoặc đặt FI_SECRET_KEY.";
+"Paste secret key…" = "Dán khóa bí mật…";
+"AI credits" = "Tín dụng AI";
+"Gateway requests" = "Yêu cầu qua cổng";
+"Future AGI cost history is not available." = "Lịch sử chi phí Future AGI không khả dụng.";
+"Saved in CodexBar's local config file. Or set FI_API_KEY." = "Được lưu trong tệp cấu hình cục bộ của CodexBar. Hoặc đặt FI_API_KEY.";
+
 "API region" = "API khu vực";
 "API token" = "API token";
 "API tokens" = "API mã thông báo";
@@ -2666,3 +2676,4 @@
 "Claude desktop app" = "Ứng dụng Claude trên máy tính";
 "Use Claude desktop app cookies" = "Dùng cookie của ứng dụng Claude trên máy tính";
 "For Web usage, follow the account signed into Claude.app instead of a browser." = "Đối với mức sử dụng web, dùng tài khoản đã đăng nhập trong Claude.app thay vì tài khoản trình duyệt.";
+"Claude config directory" = "Thư mục cấu hình Claude";

@@ -11,6 +11,21 @@ import Testing
 @MainActor
 struct ClaudeSwapMenuBarSnapshotTests {
     @Test
+    func `swap presentation keeps combined costs despite a saved token account mapping`() {
+        let store = Self.makeUsageStore(suite: "ClaudeSwapMenuBarSnapshotTests-cost-scope")
+        store.settings.claudeSwapEnabled = true
+        store.settings.addTokenAccount(
+            provider: .claude,
+            label: "Personal",
+            token: "fixture",
+            claudeConfigDirectory: "/fixtures/claude-personal")
+        #expect(store.claudeTokenCostConfigDirectory == "/fixtures/claude-personal")
+        store.claudeSwapAccountSnapshots = Self.swapAccounts(count: 2, activeNumber: 1)
+        #expect(store.claudeTokenCostConfigDirectory == nil)
+        #expect(store.tokenCostScope(for: .claude).signature == "claude")
+    }
+
+    @Test
     func `two swap accounts drive the menu bar from the active account snapshot`() throws {
         let store = Self.makeUsageStore(suite: "ClaudeSwapMenuBarSnapshotTests-two")
         store.claudeSwapAccountSnapshots = Self.swapAccounts(count: 2, activeNumber: 1)
