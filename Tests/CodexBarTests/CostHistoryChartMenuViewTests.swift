@@ -176,7 +176,7 @@ struct CostHistoryChartMenuViewTests {
         #expect(section.sessionLine == "Today: — · Incomplete")
         #expect(section.monthLine.contains("— · Incomplete"))
         #expect(section.hintLine?.contains("Excluded requests with missing final usage: 1") == true)
-        #expect(section.hintLine?.contains("Estimated from local Claude logs") == true)
+        #expect(section.hintLine?.contains("Estimated from") == false)
         #expect(section.comparisonLines.allSatisfy { $0.contains("Incomplete") })
         #expect(CostHistoryChartMenuView._chartValuesForTesting(
             provider: .claude, daily: [entry], metric: .cost) == [0])
@@ -250,14 +250,6 @@ struct CostHistoryChartMenuViewTests {
     func `token axis uses compact token labels instead of currency`() {
         #expect(CostHistoryChartMenuView._yAxisTokenStringForTesting(1_250_000) == "1.2M")
         #expect(!CostHistoryChartMenuView._yAxisTokenStringForTesting(1_250_000).contains("$"))
-    }
-
-    @Test
-    func `Codex chart explains that its token estimate is not a subscription bill`() {
-        #expect(
-            CostHistoryChartMenuView.estimateDisclaimer(provider: .codex)
-                == "Estimated from token usage · not a subscription bill")
-        #expect(CostHistoryChartMenuView.estimateDisclaimer(provider: .claude) == nil)
     }
 
     @Test

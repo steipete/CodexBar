@@ -259,11 +259,7 @@ extension UsageMenuCardView.Model {
                     .append("\(requestHistoryTitle): \(UsageFormatter.tokenCountString(requestCount)) \(L("requests"))")
             }
             if tokenCost.hintPlacement == .afterRequestHistory {
-                if hintLines.isEmpty == false {
-                    details.append(contentsOf: hintLines)
-                } else {
-                    details.append(L("cost_estimate_hint"))
-                }
+                details.append(contentsOf: hintLines)
             }
         }
         return details

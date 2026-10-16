@@ -39,7 +39,6 @@ public enum VertexAIProviderDescriptor {
                 supportsTokenCost: true,
                 noDataMessage: { "No Vertex AI cost data found in Claude logs. Ensure entries include Vertex metadata."
                 },
-                menuHintLines: [.localized("cost_estimate_hint")],
                 supportsTokenSnapshot: true),
             presentation: ProviderUsagePresentation(menuCard: ProviderMenuCardPresentation(
                 supportsInlineTokenCostDashboard: true)),

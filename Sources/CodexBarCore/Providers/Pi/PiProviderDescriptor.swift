@@ -34,13 +34,11 @@ public enum PiProviderDescriptor {
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: true,
                 noDataMessage: self.noDataMessage,
-                menuHintLines: [.estimate],
                 supportsTokenSnapshot: true,
                 settingsStatusOrder: 10,
                 showsHintInProviderDetails: true,
                 historyTitleStyle: .compact,
-                hintPlacement: .afterRequestHistory,
-                chartEstimateDisclaimer: .localized("codex_api_estimate_hint")),
+                hintPlacement: .afterRequestHistory),
             pace: .unsupported,
             history: .alwaysTracked,
             presentation: ProviderUsagePresentation(

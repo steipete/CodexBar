@@ -2,7 +2,6 @@ import Foundation
 
 public enum ProviderTokenCostHint: Sendable, Equatable {
     case localized(String)
-    case estimate
     case literal(String)
 }
 
@@ -40,7 +39,6 @@ public struct ProviderTokenCostConfig: Sendable {
     public let primaryValue: ProviderTokenCostPrimaryValue
     public let showsRequestHistory: Bool
     public let hintPlacement: ProviderTokenCostHintPlacement
-    public let chartEstimateDisclaimer: ProviderTokenCostHint?
     /// Keep calendar slots for missing dates; coverage determines whether their costs are known.
     public let preservesCalendarDaysInCharts: Bool
     public let presentation: ProviderTokenHistoryPresentation
@@ -58,7 +56,6 @@ public struct ProviderTokenCostConfig: Sendable {
         primaryValue: ProviderTokenCostPrimaryValue = .session,
         showsRequestHistory: Bool = true,
         hintPlacement: ProviderTokenCostHintPlacement = .afterRequestHistory,
-        chartEstimateDisclaimer: ProviderTokenCostHint? = nil,
         preservesCalendarDaysInCharts: Bool = false,
         presentation: ProviderTokenHistoryPresentation = .costAndTokens)
     {
@@ -74,7 +71,6 @@ public struct ProviderTokenCostConfig: Sendable {
         self.primaryValue = primaryValue
         self.showsRequestHistory = showsRequestHistory
         self.hintPlacement = hintPlacement
-        self.chartEstimateDisclaimer = chartEstimateDisclaimer
         self.preservesCalendarDaysInCharts = preservesCalendarDaysInCharts
         self.presentation = presentation
     }

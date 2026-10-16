@@ -997,7 +997,7 @@ struct MenuCardModelTests {
 
         #expect(model.tokenUsage?.monthLine.contains("456") == true)
         #expect(model.tokenUsage?.monthLine.contains("tokens") == true)
-        #expect(model.tokenUsage?.hintLine == "Estimated from token usage · not a subscription bill")
+        #expect(model.tokenUsage?.hintLine == nil)
     }
 
     @Test

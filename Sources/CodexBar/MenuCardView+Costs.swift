@@ -360,7 +360,6 @@ extension UsageMenuCardView.Model {
         ProviderDescriptorRegistry.descriptor(for: provider).tokenCost.menuHintLines.map { hint in
             switch hint {
             case let .localized(key): L(key)
-            case .estimate: UsageFormatter.costEstimateHint(provider: provider)
             case let .literal(text): L(text)
             }
         }

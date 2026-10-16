@@ -165,7 +165,6 @@ public enum ClaudeProviderDescriptor {
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: true,
                 noDataMessage: self.noDataMessage,
-                menuHintLines: [.estimate],
                 supportsTokenSnapshot: true,
                 settingsStatusOrder: 0,
                 estimateDisclaimer: "Estimated from local Claude logs at API rates; token totals include cache " +

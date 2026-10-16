@@ -469,10 +469,7 @@ struct InlineCostHistoryDashboardLabelTests {
             "Latest tokens",
             "30d tokens",
         ])
-        #expect(dashboard.detailLines == [
-            "Top model: test-model",
-            "Estimated from token usage · not a subscription bill",
-        ])
+        #expect(dashboard.detailLines == ["Top model: test-model"])
 
         let japaneseAccessibilityLabels = CodexBarLocalizationOverride.$appLanguage.withValue("ja") {
             [7, 30].map { historyDays in

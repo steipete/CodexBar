@@ -347,9 +347,7 @@ struct CostHistoryChartMenuView: View {
                         .lineLimit(1)
                         .truncationMode(.head)
                         .frame(height: Self.detailPrimaryLineHeight, alignment: .leading)
-                    if let disclaimer = UsageFormatter.incompleteUsageNote(incompleteCount)
-                        ?? Self.estimateDisclaimer(provider: self.provider)
-                    {
+                    if let disclaimer = UsageFormatter.incompleteUsageNote(incompleteCount) {
                         Text(disclaimer)
                             .help(disclaimer)
                             .font(.caption2)
@@ -407,17 +405,6 @@ struct CostHistoryChartMenuView: View {
         .frame(minWidth: self.width, maxWidth: .infinity, alignment: .top)
         .onChange(of: activeMetric) { _, newMetric in
             self.onMetricChanged?(newMetric)
-        }
-    }
-
-    static func estimateDisclaimer(provider: UsageProvider) -> String? {
-        guard let hint = ProviderDescriptorRegistry.descriptor(for: provider).tokenCost.chartEstimateDisclaimer else {
-            return nil
-        }
-        return switch hint {
-        case let .localized(key): L(key)
-        case .estimate: UsageFormatter.costEstimateHint(provider: provider)
-        case let .literal(text): L(text)
         }
     }
 

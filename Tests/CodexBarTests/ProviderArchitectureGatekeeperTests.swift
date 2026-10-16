@@ -226,10 +226,10 @@ struct ProviderArchitectureGatekeeperTests {
             descriptor.credentials?.apiKeyDebugLabel.map { (descriptor.id, $0) }
         }.map(\.0) == [.openai, .azureopenai, .opencodego, .openrouter, .elevenlabs, .v0])
 
-        #expect(CodexProviderDescriptor.descriptor.tokenCost.menuHintLines == [.localized("codex_api_estimate_hint")])
-        #expect(ClaudeProviderDescriptor.descriptor.tokenCost.menuHintLines == [.estimate])
-        #expect(CursorProviderDescriptor.descriptor.tokenCost.menuHintLines == [.estimate])
-        #expect(VertexAIProviderDescriptor.descriptor.tokenCost.menuHintLines == [.localized("cost_estimate_hint")])
+        #expect(CodexProviderDescriptor.descriptor.tokenCost.menuHintLines.isEmpty)
+        #expect(ClaudeProviderDescriptor.descriptor.tokenCost.menuHintLines.isEmpty)
+        #expect(CursorProviderDescriptor.descriptor.tokenCost.menuHintLines.isEmpty)
+        #expect(VertexAIProviderDescriptor.descriptor.tokenCost.menuHintLines.isEmpty)
         #expect(BedrockProviderDescriptor.descriptor.tokenCost.menuHintLines == [
             .literal("AWS Cost Explorer billing can lag."),
         ])

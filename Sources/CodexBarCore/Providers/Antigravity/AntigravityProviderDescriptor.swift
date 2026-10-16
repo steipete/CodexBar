@@ -58,14 +58,12 @@ public enum AntigravityProviderDescriptor {
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: true,
                 noDataMessage: { Self.noDataMessageKey },
-                menuHintLines: [.localized(self.estimateHintKey)],
                 supportsTokenSnapshot: true,
                 settingsStatusOrder: 3,
                 showsHintInProviderDetails: true,
                 estimateDisclaimer: "Local usage × public API prices · not Antigravity charges or credits",
                 historyTitleStyle: .compact,
                 hintPlacement: .beforeRequestHistory,
-                chartEstimateDisclaimer: .localized(self.estimateHintKey),
                 preservesCalendarDaysInCharts: true,
                 presentation: .costAndTokens),
             pace: ProviderPaceCapability(sessionPaceWindowRule: .windowDuration(minutes: 300)),
@@ -110,7 +108,6 @@ public enum AntigravityProviderDescriptor {
             nativeAppBundleIdentifiers: ["com.google.antigravity"])
     }
 
-    static let estimateHintKey = "antigravity_cost_estimate_hint"
     static let quotaWindowNoteKey = "antigravity_quota_window_note"
     static let noDataMessageKey = "antigravity_no_priced_token_history"
 
