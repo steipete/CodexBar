@@ -215,3 +215,20 @@ team response dates and other members' details are not retained. Caller cancella
 ## Cost reporting period
 
 The shared [cost reporting period](cost-reporting-periods.md) supports month-to-date in the pinned cost time zone. Cursor-metered spend and daily estimates use the same event window. Quota bars continue to follow Cursor’s billing-cycle start/end dates, which can fall mid-month.
+
+## Unified Cursor/Grok additional spend
+
+Unified personal memberships read monthly additional spend from
+`GET /api/dashboard/v2/usage-status?scope=user`, using the same Cursor session as
+the quota fetch. The legacy `/api/usage-summary` can report zero after account
+unification. `monthlyUsage.usedCents` and `limitCents` are cents;
+`creditsUsedCents` is separate and must not be added to the additional-spend meter.
+The monthly reset comes from that response.
+
+This lookup replaces the legacy `/api/usage?user=...` request-quota lookup on
+unified memberships. Ordinary memberships and team-scoped budgets keep their existing request and cost
+paths. The optional billing request has a five-second budget, uses the normal
+refresh scheduler, and adds no polling process. If billing is unavailable or its
+period/amounts are invalid, additional spend is unavailable rather than a false
+zero. The existing weekly Grok allowance, account identity, and widget projection
+remain independent of this optional read.
