@@ -385,6 +385,10 @@ public struct CursorStatusSnapshot: Sendable {
     /// Grok Bot weekly included usage from `/api/dashboard/get-sand-usage-status`.
     public let sandUsage: CursorSandUsageStatus?
 
+    /// Authoritative monthly additional spend for unified Cursor/Grok accounts.
+    public let unifiedUsage: CursorUnifiedUsageStatus?
+    public let unifiedUsageExpected: Bool
+
     // MARK: - Legacy Plan (Request-Based) Fields
 
     /// Requests used this billing cycle (legacy plans only)
@@ -415,6 +419,8 @@ public struct CursorStatusSnapshot: Sendable {
         accountName: String?,
         rawJSON: String?,
         sandUsage: CursorSandUsageStatus? = nil,
+        unifiedUsage: CursorUnifiedUsageStatus? = nil,
+        unifiedUsageExpected: Bool = false,
         requestsUsed: Int? = nil,
         requestsLimit: Int? = nil)
     {
@@ -435,6 +441,8 @@ public struct CursorStatusSnapshot: Sendable {
         self.accountName = accountName
         self.rawJSON = rawJSON
         self.sandUsage = sandUsage
+        self.unifiedUsage = unifiedUsage
+        self.unifiedUsageExpected = unifiedUsageExpected
         self.requestsUsed = requestsUsed
         self.requestsLimit = requestsLimit
     }
@@ -517,7 +525,17 @@ public struct CursorStatusSnapshot: Sendable {
         }
 
         // Provider cost snapshot for on-demand usage (include budget before first spend)
-        let providerCost: ProviderCostSnapshot? = if resolvedOnDemandUsed > 0
+        let providerCost: ProviderCostSnapshot? = if self.unifiedUsageExpected {
+            self.unifiedUsage?.currentMonthlyUsage(at: now).map { monthly in
+                ProviderCostSnapshot(
+                    used: monthly.usedCents / 100,
+                    limit: (monthly.limitCents ?? 0) / 100,
+                    currencyCode: "USD",
+                    period: "Monthly",
+                    resetsAt: ISO8601DateParser.parse(monthly.resetsAt),
+                    updatedAt: now)
+            }
+        } else if resolvedOnDemandUsed > 0
             || (resolvedOnDemandLimit ?? 0) > 0
         {
             ProviderCostSnapshot(
@@ -1327,11 +1345,19 @@ public struct CursorStatusProbe: Sendable {
         }
         try Task.checkCancellation()
 
+        // Unified accounts replace the irrelevant legacy request-quota lookup with their billing read.
+        // A failed billing read hides additional spend rather than publishing the legacy false zero.
+        var unifiedUsage: CursorUnifiedUsageStatus?
+        let isUnified = usageSummary.usesUnifiedPersonalBilling
+        if isUnified {
+            unifiedUsage = try? await self.fetchUnifiedUsage(cookieHeader: cookieHeader, deadline: deadline)
+        }
+
         // Fetch legacy request usage only if user has a sub ID.
         // Uses try? to avoid breaking the flow for users where this endpoint fails or returns unexpected data.
         var requestUsage: CursorUsageResponse?
         var requestUsageRawJSON: String?
-        if teamBudget == nil, let userId = userInfo?.sub ?? identityFallback?.requestUsageUserID {
+        if !isUnified, teamBudget == nil, let userId = userInfo?.sub ?? identityFallback?.requestUsageUserID {
             do {
                 let (usage, usageRawJSON) = try await self.fetchRequestUsage(
                     userId: userId,
@@ -1361,6 +1387,7 @@ public struct CursorStatusProbe: Sendable {
             rawJSON: combinedRawJSON,
             requestUsage: requestUsage,
             sandUsage: sandUsage,
+            unifiedUsage: unifiedUsage,
             identityFallback: identityFallback,
             teamBudget: teamBudget)
     }
@@ -1399,6 +1426,26 @@ public struct CursorStatusProbe: Sendable {
             throw CursorStatusProbeError
                 .parseFailed("JSON decode failed: \(error.localizedDescription). Raw: \(rawJSON.prefix(200))")
         }
+    }
+
+    private func fetchUnifiedUsage(
+        cookieHeader: String,
+        deadline: Date?) async throws -> CursorUnifiedUsageStatus
+    {
+        guard let timeout = self.optionalRequestTimeout(deadline: deadline, budget: Self.sandUsageTimeout) else {
+            throw CursorStatusProbeError.networkError("Unified usage skipped after login deadline")
+        }
+        let url = self.baseURL.appendingPathComponent(CursorUnifiedUsageStatus.endpointPath)
+            .appending(queryItems: [URLQueryItem(name: "scope", value: "user")])
+        var request = URLRequest(url: url)
+        request.timeoutInterval = timeout
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
+        let (data, response) = try await self.urlSession.data(for: request)
+        guard let response = response as? HTTPURLResponse, response.statusCode == 200 else {
+            throw CursorStatusProbeError.networkError("Unified additional spend is unavailable")
+        }
+        return try JSONDecoder().decode(CursorUnifiedUsageStatus.self, from: data)
     }
 
     private func fetchSandUsage(
