@@ -57,21 +57,38 @@ final class PreferencesSelection {
 
     private let userDefaults: UserDefaults
 
+    struct Destination: Equatable {
+        var pane: SettingsPane
+        var aboutRoute: AboutRoute?
+    }
+
     var pane: SettingsPane {
+        get { self.destination.pane }
+        set {
+            guard newValue != self.pane else { return }
+            self.destination = Destination(pane: newValue)
+        }
+    }
+
+    var aboutRoute: AboutRoute? {
+        self.destination.aboutRoute
+    }
+
+    var title: String {
+        self.aboutRoute == .acknowledgements ? L("link_acknowledgements") : self.pane.title
+    }
+
+    private var destination: Destination {
         didSet {
             self.userDefaults.set(self.pane.persistenceToken, forKey: Self.paneDefaultsKey)
-            guard !self.isTraversingHistory, oldValue != self.pane else { return }
+            guard !self.isTraversingHistory, oldValue != self.destination else { return }
             self.backStack.append(oldValue)
             self.forwardStack.removeAll()
         }
     }
 
-    /// Bumped on every explicit About open (sidebar click, menu command, update notification) so a pushed
-    /// About subpage pops back to the root, even in a Settings window that was closed and reopened.
-    private(set) var aboutRootRequests = 0
-
-    private(set) var backStack: [SettingsPane] = []
-    private(set) var forwardStack: [SettingsPane] = []
+    private(set) var backStack: [Destination] = []
+    private(set) var forwardStack: [Destination] = []
     @ObservationIgnored private var isTraversingHistory = false
 
     var canGoBack: Bool {
@@ -84,36 +101,36 @@ final class PreferencesSelection {
 
     func goBack() {
         guard let previous = self.backStack.popLast() else { return }
-        self.forwardStack.append(self.pane)
+        self.forwardStack.append(self.destination)
         self.traverseHistory(to: previous)
     }
 
     func goForward() {
         guard let next = self.forwardStack.popLast() else { return }
-        self.backStack.append(self.pane)
+        self.backStack.append(self.destination)
         self.traverseHistory(to: next)
     }
 
-    private func traverseHistory(to pane: SettingsPane) {
+    private func traverseHistory(to destination: Destination) {
         self.isTraversingHistory = true
         defer { self.isTraversingHistory = false }
-        self.pane = pane
+        self.destination = destination
     }
 
     /// Drops panes that are no longer reachable so Back/Forward cannot restore them.
     func removeFromHistory(where shouldRemove: (SettingsPane) -> Bool) {
-        self.backStack = Self.pruned(self.backStack, removing: shouldRemove, current: self.pane)
-        self.forwardStack = Self.pruned(self.forwardStack, removing: shouldRemove, current: self.pane)
+        self.backStack = Self.pruned(self.backStack, removing: shouldRemove, current: self.destination)
+        self.forwardStack = Self.pruned(self.forwardStack, removing: shouldRemove, current: self.destination)
     }
 
     /// Also collapses the repeats a removal can leave behind, which would otherwise make Back/Forward a no-op.
     private static func pruned(
-        _ stack: [SettingsPane],
+        _ stack: [Destination],
         removing shouldRemove: (SettingsPane) -> Bool,
-        current: SettingsPane) -> [SettingsPane]
+        current: Destination) -> [Destination]
     {
-        var result: [SettingsPane] = []
-        for pane in stack where !shouldRemove(pane) && pane != result.last {
+        var result: [Destination] = []
+        for pane in stack where !shouldRemove(pane.pane) && pane != result.last {
             result.append(pane)
         }
         while result.last == current {
@@ -125,10 +142,14 @@ final class PreferencesSelection {
     init(userDefaults: UserDefaults = .standard) {
         self.userDefaults = userDefaults
         let token = userDefaults.string(forKey: Self.paneDefaultsKey) ?? ""
-        self.pane = SettingsPane(persistenceToken: token) ?? .general
+        self.destination = Destination(pane: SettingsPane(persistenceToken: token) ?? .general)
     }
 
     func requestAboutRoot() {
-        self.aboutRootRequests += 1
+        self.destination = Destination(pane: .about)
+    }
+
+    func showAcknowledgements() {
+        self.destination = Destination(pane: .about, aboutRoute: .acknowledgements)
     }
 }

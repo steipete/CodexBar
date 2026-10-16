@@ -93,16 +93,17 @@ struct SettingsWindowControllerTests {
             presentationFailed: {})
 
         controller.open(pane: .about)
-        #expect(selection.aboutRootRequests == 1)
+        selection.showAcknowledgements()
+        #expect(selection.aboutRoute == .acknowledgements)
 
         // The window and its About navigation state survive close; reopening About must still reset them.
         window.close()
         #expect(controller.open(pane: .about) == .reused)
-        #expect(selection.aboutRootRequests == 2)
+        #expect(selection.aboutRoute == nil)
 
         controller.open(pane: nil)
         controller.open(pane: .general)
-        #expect(selection.aboutRootRequests == 2)
+        #expect(selection.aboutRoute == nil)
     }
 
     @Test

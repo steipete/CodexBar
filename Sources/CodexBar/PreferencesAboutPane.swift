@@ -4,8 +4,7 @@ import SwiftUI
 @MainActor
 struct AboutPane: View {
     let updater: UpdaterProviding
-    var rootRequests = 0
-    @State private var path: [AboutRoute] = []
+    @Bindable var selection: PreferencesSelection
     @State private var iconHover = false
     @AppStorage("autoUpdateEnabled") private var autoUpdateEnabled: Bool = true
     @AppStorage(UpdateChannel.userDefaultsKey)
@@ -26,19 +25,10 @@ struct AboutPane: View {
     }
 
     var body: some View {
-        NavigationStack(path: self.$path) {
-            // Pushed pages retitle the window; the root title restores it when they pop.
+        if self.selection.aboutRoute == .acknowledgements {
+            AcknowledgementsView(acknowledgements: Acknowledgement.load())
+        } else {
             self.form
-                .navigationTitle(SettingsPane.about.title)
-                .navigationDestination(for: AboutRoute.self) { route in
-                    switch route {
-                    case .acknowledgements:
-                        AcknowledgementsView(acknowledgements: Acknowledgement.load())
-                    }
-                }
-        }
-        .onChange(of: self.rootRequests) { _, _ in
-            self.path = []
         }
     }
 
@@ -60,15 +50,25 @@ struct AboutPane: View {
                 AboutLinkRow(icon: "globe", title: L("link_website"), url: "https://codexbar.app")
                 AboutLinkRow(icon: "bird", title: L("link_twitter"), url: "https://twitter.com/steipete")
                 AboutLinkRow(icon: "envelope", title: L("link_email"), url: "mailto:peter@steipete.me")
-                NavigationLink(value: AboutRoute.acknowledgements) {
-                    Label {
-                        Text(L("link_acknowledgements"))
-                    } icon: {
-                        Image(systemName: "heart.text.square")
-                            .frame(width: 18)
-                            .foregroundStyle(.secondary)
+                Button {
+                    self.selection.showAcknowledgements()
+                } label: {
+                    HStack {
+                        Label {
+                            Text(L("link_acknowledgements"))
+                        } icon: {
+                            Image(systemName: "heart.text.square")
+                                .frame(width: 18)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.tertiary)
                     }
+                    .contentShape(Rectangle())
                 }
+                .buttonStyle(.plain)
             } header: {
                 Text(L("section_links"))
             } footer: {
