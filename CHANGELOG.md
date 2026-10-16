@@ -2,6 +2,10 @@
 
 ## 0.77.1 — Unreleased
 
+### Fixed
+
+- Plugins: drop each user-plugin network session when its request ends, so a later plugin refresh does not keep the old session until the app quits (#4584). Thanks @SebTardif!
+
 ## 0.77.0 — 2026-10-16
 
 ### Highlights
