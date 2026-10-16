@@ -486,7 +486,7 @@ numbers. Set `"shareUsageWithCLI": true` in `config.json` (off by default) and t
 windows (including extra quota rows) and fetch times, without credentials, costs, or account identity. Provider-supplied text such as reset descriptions and
 window titles is stored as received. In a non-GUI session, when a default-account
 fetch without `--source` hits a locked keychain and ends with a missing-credential or cookie-access error (for example
-`No Claude session key found in browser cookies.`), `usage` and `cards` report the app's
+`No Claude session key found in browser cookies.`), or ends with `No available fetch strategy` while a no-UI probe reports the login keychain locked (for example Claude `cli` source, whose spawned `claude` sees the lock itself), `usage` and `cards` report the app's
 numbers instead (at most one hour old) as `"source": "codexbar-app"` with `"ageSeconds"` (whole seconds since the app fetched them). Other failures (timeouts, parse errors, HTTP rejections), token
 accounts, managed Codex accounts/profile homes, explicit account selections, and GUI sessions keep their normal behavior.
 Future-dated, corrupt, incorrectly owned, non-private, and symlinked cache files are ignored. Disabling sharing removes

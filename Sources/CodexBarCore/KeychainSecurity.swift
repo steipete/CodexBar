@@ -89,6 +89,30 @@ enum KeychainLegacyInteraction {
     }
 }
 
+extension KeychainLegacyInteraction {
+    private typealias CopyDefaultFn = @convention(c) (UnsafeMutablePointer<SecKeychain?>?) -> OSStatus
+    private typealias GetStatusFn = @convention(c) (SecKeychain?, UnsafeMutablePointer<UInt32>?) -> OSStatus
+    private static let unlockStateBit: UInt32 = 1 // kSecUnlockStateStatus
+
+    /// True only when the default (login) keychain positively reports itself locked. Never prompts: it reads the
+    /// keychain's state without touching items. Unknown (symbol or call failure) is false, so callers fail closed.
+    static func defaultKeychainIsLocked() -> Bool {
+        guard let handle = dlopen(
+            "/System/Library/Frameworks/Security.framework/Security",
+            RTLD_LAZY | RTLD_NOLOAD) else { return false }
+        defer { dlclose(handle) }
+        guard let copySymbol = dlsym(handle, "SecKeychainCopyDefault"),
+              let statusSymbol = dlsym(handle, "SecKeychainGetStatus") else { return false }
+        let copyDefault = unsafeBitCast(copySymbol, to: CopyDefaultFn.self)
+        let getStatus = unsafeBitCast(statusSymbol, to: GetStatusFn.self)
+        var keychain: SecKeychain?
+        guard copyDefault(&keychain) == errSecSuccess, let keychain else { return false }
+        var status: UInt32 = 0
+        guard getStatus(keychain, &status) == errSecSuccess else { return false }
+        return status & self.unlockStateBit == 0
+    }
+}
+
 /// Records whether a Keychain read in the current fetch failed the way a locked keychain does. The CLI binds one per
 /// provider fetch (task-local, so concurrent fetches stay apart) to tell a locked-keychain failure from any other.
 public final class KeychainLockWitness: @unchecked Sendable {

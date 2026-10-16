@@ -122,18 +122,29 @@ public struct CLIUsageCache: Codable, Sendable {
         config: CodexBarConfig,
         url: URL = defaultURL(),
         hasGraphicSession: () -> Bool = CLIUsageCache.callerHasGraphicSession,
+        keychainIsLocked: @escaping @Sendable () -> Bool = CLIUsageCache.defaultKeychainIsLocked,
         now: @escaping @Sendable () -> Date = { Date() })
         -> (@Sendable (UsageProvider, _ lockedKeychainObserved: Bool, _ terminalError: Error) -> Hit?)?
     {
         guard config.shareUsageWithCLI, !hasGraphicSession() else { return nil }
         return { provider, lockedKeychainObserved, terminalError in
-            guard lockedKeychainObserved, Self.isCredentialAccessFailure(terminalError) else { return nil }
+            // `noAvailableStrategy` means no strategy ran (e.g. a spawned `claude` saw the locked keychain in its own
+            // process, invisible to the witness), so no real failure is hidden; confirm the lock directly instead.
+            let credentialFailure = lockedKeychainObserved && Self.isCredentialAccessFailure(terminalError)
+            guard credentialFailure || (Self.isNoAvailableStrategy(terminalError) && keychainIsLocked()) else {
+                return nil
+            }
             // Provider-specific by design: managed/profile Codex homes do not own the app's live-system cache.
             guard provider != .codex ||
                 (config.providerConfig(for: .codex)?.codexActiveSource ?? .liveSystem) == .liveSystem
             else { return nil }
             return Self.load(from: url)?.hit(for: provider, now: now())
         }
+    }
+
+    static func isNoAvailableStrategy(_ error: Error) -> Bool {
+        if case ProviderFetchError.noAvailableStrategy = error { return true }
+        return false
     }
 
     /// True when the provider failed because it could not obtain a credential or cookie (the symptom a locked
@@ -170,6 +181,11 @@ public struct CLIUsageCache: Codable, Sendable {
         return attributes.contains(.sessionHasGraphicAccess)
     }
 
+    /// No-UI probe of the login keychain; false when unknown.
+    public static func defaultKeychainIsLocked() -> Bool {
+        KeychainLegacyInteraction.defaultKeychainIsLocked()
+    }
+
     /// Runs `body` and reports whether a Keychain read inside it failed the way a locked keychain does.
     public static func observingLockedKeychain<T>(_ body: () async -> T) async -> (T, Bool) {
         let witness = KeychainLockWitness()
@@ -179,6 +195,10 @@ public struct CLIUsageCache: Codable, Sendable {
     #else
     public static func callerHasGraphicSession() -> Bool {
         true
+    }
+
+    public static func defaultKeychainIsLocked() -> Bool {
+        false
     }
 
     public static func observingLockedKeychain<T>(_ body: () async -> T) async -> (T, Bool) {

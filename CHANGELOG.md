@@ -2,6 +2,10 @@
 
 ## 0.77.1 — Unreleased
 
+### Fixed
+
+- CLI: SSH `codexbar usage`/`cards` now also serve the app's cached usage when no fetch strategy was available (such as Claude's `cli` source) and the login keychain is locked (#4597). Thanks @mjaverto!
+
 ## 0.77.0 — 2026-10-16
 
 ### Highlights

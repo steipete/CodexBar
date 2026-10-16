@@ -235,6 +235,29 @@ struct CLIUsageCacheTests {
             .fallbackReader(config: CodexBarConfig(providers: []), hasGraphicSession: { false }) == nil)
     }
 
+    @Test
+    func `no available strategy is served only when the probe reports a locked keychain`() throws {
+        let root = try Self.makeRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let url = root.appendingPathComponent("cache/usage.json")
+        try CLIUsageCache.write(Self.cache(.claude), to: url)
+        func reader(locked: Bool) throws -> @Sendable (UsageProvider, Bool, Error) -> CLIUsageCache.Hit? {
+            let reader = CLIUsageCache.fallbackReader(
+                config: Self.enabledConfig,
+                url: url,
+                hasGraphicSession: { false },
+                keychainIsLocked: { locked },
+                now: { Self.now })
+            return try #require(reader)
+        }
+        let none = ProviderFetchError.noAvailableStrategy(.claude)
+        #expect(try reader(locked: true)(.claude, false, none) != nil)
+        #expect(try reader(locked: false)(.claude, false, none) == nil)
+        #expect(try reader(locked: false)(.claude, true, none) == nil)
+        #expect(try reader(locked: true)(.claude, false, URLError(.timedOut)) == nil)
+        #expect(try reader(locked: true)(.claude, false, ClaudeUsageError.parseFailed("x")) == nil)
+    }
+
     #if os(macOS)
     /// Claude's web strategy fails with `failure` after reading the keychain with `lockStatus`; the CLI then decides
     /// whether the app cache may stand in for that failure.
