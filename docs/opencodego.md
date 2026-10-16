@@ -10,6 +10,7 @@ read_when:
 OpenCode Go is registered separately from OpenCode as `opencodego`. It supports `auto`, `api`, and `web` sources,
 with five-hour, weekly, and monthly quota windows when reported by the selected source. Local cost history reads
 OpenCode Go assistant records from `~/.local/share/opencode/opencode.db`.
+Both legacy `message`/`part` history and v2 `session_message` history are supported; migrated messages are counted once.
 
 Without an API key or a usable session, Auto can return `source: "local"` and
 `usage.dataConfidence: "estimated"`. Its $12/$30/$60 denominators apply to five-hour, weekly, and monthly

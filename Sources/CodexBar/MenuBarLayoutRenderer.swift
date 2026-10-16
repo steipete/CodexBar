@@ -391,7 +391,7 @@ final class MenuBarLayoutRenderer {
             attributedTitle: result,
             accessibilityLabel: accessibilityLabel,
             leadingIcon: nil,
-            statusImage: nil)
+            statusImage: Self.statusImage(title: result, foregroundColor: .controlTextColor))
     }
 
     private static func namingProvider(
@@ -545,8 +545,8 @@ final class MenuBarLayoutRenderer {
             attributedTitle: result,
             accessibilityLabel: accessibilityLabel,
             leadingIcon: leadingIcon,
-            statusImage: !options.highContrast && !options.isStale && !isStacked && !isTintActive
-                && !renderedLines.joined().contains(.icon)
+            statusImage: !options.highContrast && !options.isStale && !isTintActive && leadingIcon == nil
+                && result.string.filter(\.isNewline).count == max(0, renderedLines.count - 1)
                 ? Self.statusImage(title: result, foregroundColor: foregroundColor)
                 : nil)
     }
@@ -596,16 +596,16 @@ final class MenuBarLayoutRenderer {
     }
 
     private static func statusImage(title: NSAttributedString, foregroundColor: NSColor) -> NSImage? {
-        guard title.length > 0, !title.string.contains(where: \.isNewline) else { return nil }
-        // Templates discard color. Preserve both explicitly colored text and fallback emoji glyphs.
+        guard title.length > 0 else { return nil }
+        // Preserve colored glyphs and attachments; monochrome attachment masks may join the template.
         let line = CTLineCreateWithAttributedString(title)
         guard let runs = CTLineGetGlyphRuns(line) as? [CTRun] else { return nil }
         for run in runs {
-            let attributes = CTRunGetAttributes(run) as NSDictionary
-            let range = CTRunGetStringRange(run)
-            let color = title.attribute(.foregroundColor, at: range.location, effectiveRange: nil) as? NSColor
-            guard color == foregroundColor,
-                  let font = attributes[kCTFontAttributeName] as? NSFont,
+            let runAttributes = CTRunGetAttributes(run) as NSDictionary
+            let attributes = title.attributes(at: CTRunGetStringRange(run).location, effectiveRange: nil)
+            guard attributes[.foregroundColor] as? NSColor == foregroundColor,
+                  (attributes[.attachment] as? NSTextAttachment)?.image?.isTemplate != false,
+                  let font = runAttributes[kCTFontAttributeName] as? NSFont,
                   !CTFontGetSymbolicTraits(font as CTFont).contains(.traitColorGlyphs)
             else { return nil }
         }

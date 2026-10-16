@@ -8,6 +8,7 @@ read_when:
 # UI & icon
 
 ## Settings
+- Dock presence follows startup and actual window transitions instead of rescanning windows on every app update. Scheduled Sparkle alerts still request temporary Dock presence, including alerts shown behind another app.
 - Menu → Highlight menu cards on hover is on by default. Turn it off to keep normal text and usage-bar colors on provider cards, Overview cards, and Refresh while hovering. Keyboard selection stays visible; clicks and submenus are unchanged. The choice persists locally across restarts.
 - The provider sidebar keeps saved order and the one-click alphabetical toggle (enabled first). The adjacent
   menu offers Only enabled providers and Restore default order. Search matches service names, provider IDs,
@@ -20,6 +21,7 @@ read_when:
   existing sync and portable-transfer preference.
 - App copy, credential-expiry alerts, share cards, number formatting, and layout direction follow the selected app language. Widgets use the system language independently; all 23 supported languages have complete app catalogs and generated widget catalogs. After editing app translations or widget lookup keys, run `node Scripts/sync-widget-locales.mjs`; `make check` verifies key coverage, format arguments, plural branches, and generated resources.
 - Notifications → Reset notifications is off by default and uses confirmed session and weekly resets, independently of confetti. Alerts name the provider and window; account labels appear only when Hide personal info is off. The existing macOS notification permission and Focus/Do Not Disturb settings control delivery; this toggle adds no startup permission request.
+- Enabled reset confetti runs for about 8.5 seconds so upward-launched pieces finish falling offscreen before the overlay closes. It remains click-through throughout the celebration.
 - Reset alerts and session-restored alerts share account-scoped reset receipts. Switching accounts establishes a fresh session-notification baseline. Known reset boundaries are persisted per provider, account, and window, preventing repeated banners after refreshes or restarts; a different account or a newly advanced boundary can notify independently. Without reset metadata, the existing detector requires a new usage cycle before notifying again; a new depleted episode can still produce a restored notice. Returning timestamps identify an already-announced cycle without replaying it, and previously announced boundaries stay deduplicated. The reset toggle supports portable preference export/import and remains local unless explicitly transferred.
 - Usage & Spend places its time-range picker below the title and Refresh button, keeping the header readable in narrow settings windows.
 - Spend charts group long ranges by week or month, support day/hour drill-down and account isolation, and keep an amount inspector visible below the chart. Reporting-calendar boundaries drive grouping and scrolling; the hourly view shows its UTC offset and a 24-hour clock. Chart sums are labeled recorded spend, and zero, unavailable, and incomplete amounts retain their distinct meanings.
@@ -158,11 +160,11 @@ model-generic token label while the rendered menu-bar prefix and accessibility l
 - Renderer/critter icons dim when last refresh failed and can render incident indicators; brand display mode uses provider branding plus title text.
 - Loading animation runs at a bounded frame rate and has a hard continuous-duration ceiling so provider hangs cannot keep
   the menu bar redrawing forever.
-- Ordinary, fresh single-line text-only token layouts use cached template images so AppKit can reuse them across
-  status-item redraws while retaining native highlighting and display-scale handling. The existing bounded renderer
-  cache includes the content and appearance; memory-pressure cleanup clears it. Stale data, high-contrast mode,
-  provider icons, attachments, colored glyphs such as emoji, and multiline text keep their attributed-title rendering. Critter and bar styles
-  keep their existing renderers.
+- Ordinary, fresh monochrome token layouts use template images so AppKit supplies native highlighting and
+  inactive-display dimming. Combined stacked rows support inline monochrome icons, percentages, and reset text.
+  Individual layout content and appearance remain in the bounded renderer cache; memory-pressure cleanup clears it.
+  Stale data, high-contrast mode, colored glyphs or colored attachments, and layouts with a separate leading icon keep
+  attributed text rendering. Critter and bar styles keep their existing renderers.
 
 ## Menu card
 - Cards with a history submenu show the active menu selection; deselecting the card clears it. Credits and other sections are separate menu items, so selecting usage does not highlight them.

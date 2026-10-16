@@ -166,8 +166,17 @@ struct StatusMenuTests {
     }
 
     @Test
-    func `claude subscription dashboard action opens usage page`() {
-        for plan in ["Claude Pro", "Claude Team"] {
+    func `claude dashboard action opens usage page for account type`() {
+        let cases: [(String?, String)] = [
+            (nil, "https://platform.claude.com/usage"),
+            ("API", "https://platform.claude.com/usage"),
+            ("Claude Enterprise", "https://platform.claude.com/usage"),
+            ("Claude Pro", "https://claude.ai/settings/usage"),
+            ("Claude Max", "https://claude.ai/settings/usage"),
+            ("Claude Team", "https://claude.ai/settings/usage"),
+            ("Claude Ultra", "https://claude.ai/settings/usage"),
+        ]
+        for (plan, expectedURL) in cases {
             self.disableMenuCardsForTesting()
             let settings = self.makeSettings()
             settings.statusChecksEnabled = false
@@ -202,7 +211,7 @@ struct StatusMenuTests {
                 preferencesSelection: PreferencesSelection(),
                 statusBar: self.makeStatusBarForTesting())
 
-            #expect(controller.dashboardURL(for: .claude)?.absoluteString == "https://claude.ai/settings/usage")
+            #expect(controller.dashboardURL(for: .claude)?.absoluteString == expectedURL)
         }
     }
 

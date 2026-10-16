@@ -76,6 +76,9 @@ final class ProviderPluginCookieBroker: @unchecked Sendable {
     private let lock = NSLock()
     private let accessFailureLock = NSLock()
     private var cookieAccessFailure: ProviderFetchClassifiedError?
+    #if os(macOS)
+    private var browserAccessFailures: [(browser: Browser, profileDenied: Bool)] = []
+    #endif
     private var observed: [String: Issued] = [:]
     private var issuedSessions: [String: Issued] = [:]
     private var visited = Set<String>()
@@ -254,16 +257,33 @@ final class ProviderPluginCookieBroker: @unchecked Sendable {
 
     #if os(macOS)
     private func recordAccessFailure(for browser: Browser, profileDenied: Bool) {
-        let permission = browser.usesKeychainForCookieDecryption ? "Keychain permission" : "browser permission"
         self.accessFailureLock.withLock {
-            // An actual decryption denial takes precedence over a skipped profile.
-            guard !profileDenied || self.cookieAccessFailure == nil else { return }
-            let message = profileDenied
-                ? "Cannot read \(browser.displayName)'s profile. In System Settings → Privacy & Security → "
-                + "Files & Folders, turn on \(browser.displayName) under CodexBar, then refresh."
-                : "\(browser.displayName) cookie access needs \(permission) — "
-                + "use Refresh beside Cookie source or Refresh in the provider menu to allow it, "
-                + "or paste a Cookie header in Manual mode."
+            if let index = self.browserAccessFailures.firstIndex(where: { $0.browser == browser }) {
+                // A decryption denial supersedes a skipped profile only for the same browser.
+                self.browserAccessFailures[index].profileDenied =
+                    self.browserAccessFailures[index].profileDenied && profileDenied
+            } else {
+                self.browserAccessFailures.append((browser: browser, profileDenied: profileDenied))
+            }
+            let message = self.browserAccessFailures
+                .sorted { $0.profileDenied && !$1.profileDenied }
+                .map { failure in
+                    if failure.browser == .safari {
+                        return "Safari cookies need Full Disk Access for CodexBar in System Settings → "
+                            + "Privacy & Security → Full Disk Access, then refresh."
+                    }
+                    if failure.profileDenied {
+                        return "Cannot read \(failure.browser.displayName)'s profile. In System Settings → "
+                            + "Privacy & Security → Files & Folders, turn on \(failure.browser.displayName) "
+                            + "under CodexBar, then refresh."
+                    }
+                    let permission = failure.browser.usesKeychainForCookieDecryption
+                        ? "Keychain permission" : "browser permission"
+                    return "\(failure.browser.displayName) cookie access needs \(permission) — "
+                        + "use Refresh beside Cookie source or Refresh in the provider menu to allow it, "
+                        + "or paste a Cookie header in Manual mode."
+                }
+                .joined(separator: " ")
             self.cookieAccessFailure = ProviderFetchClassifiedError(kind: .permissionDenied, message: message)
         }
     }

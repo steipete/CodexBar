@@ -147,7 +147,7 @@ public enum ClaudeProviderDescriptor {
                     notificationSimulationOrder: 1,
                     errorSimulationOrder: 1),
                 browserCookieOrder: self.browserCookieOrder,
-                dashboardURL: "https://console.anthropic.com/settings/billing",
+                dashboardURL: "https://platform.claude.com/usage",
                 subscriptionDashboardURL: "https://claude.ai/settings/usage",
                 changelogURL: "https://github.com/anthropics/claude-code/releases",
                 statusPageURL: "https://status.claude.com/"),
