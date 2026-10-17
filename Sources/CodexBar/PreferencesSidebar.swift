@@ -11,41 +11,120 @@ struct SettingsSidebarView: View {
     var onSelectAbout: () -> Void = {}
     @State private var searchText = ""
     @Environment(\.undoManager) private var undoManager
+    /// Keeps the selected row in the accent color instead of the unfocused grey.
+    @FocusState private var isListFocused: Bool
+
+    private static let searchBarTopPadding: CGFloat = 4
+    private static let searchBarBottomPadding: CGFloat = 8
+
+    private static var searchRowHeight: CGFloat {
+        self.searchBarTopPadding + SettingsSidebarSortToggle.diameter + self.searchBarBottomPadding
+    }
 
     var body: some View {
+        if #available(macOS 26.0, *) {
+            self.glassBody
+        } else {
+            self.classicBody
+        }
+    }
+
+    /// macOS 14/15: the search row sits above the list in standard controls.
+    private var classicBody: some View {
         VStack(spacing: 0) {
             HStack(spacing: 6) {
                 SettingsSidebarSearchField(searchText: self.$searchText)
-                SettingsSidebarSortToggle(
-                    isOn: self.$settings.providersSortedAlphabetically,
-                    enabledOnly: self.$settings.providersEnabledOnly,
-                    onRestore: self.restoreProviderOrder)
+                self.sortToggle
             }
             .padding(.horizontal, 8)
             .padding(.top, 16)
             .padding(.bottom, 8)
 
-            List(selection: self.selectionBinding) {
-                self.appPanesSection
-                self.providersSection
-            }
-            .listStyle(.sidebar)
-            .scrollContentBackground(.hidden)
+            self.list
 
-            if self.settings.canUndoProviderOrderChange {
-                HStack {
-                    Text(L("Provider order updated"))
-                    Spacer(minLength: 4)
-                    Button(L("Undo")) { self.settings.undoProviderOrderChange() }
-                        .buttonStyle(.plain)
-                        .foregroundStyle(Color.accentColor)
-                }
-                .font(.caption)
-                .padding(8)
-                .accessibilityElement(children: .contain)
-            }
+            self.undoBanner
         }
         .padding(.horizontal, 8)
+    }
+
+    /// macOS 26: a Liquid Glass search row floats over the list, which scrolls under it.
+    @available(macOS 26.0, *)
+    private var glassBody: some View {
+        VStack(spacing: 0) {
+            ZStack(alignment: .top) {
+                self.list
+                    .focused(self.$isListFocused)
+                    .safeAreaInset(edge: .top, spacing: 0) {
+                        Color.clear.frame(height: Self.searchRowHeight)
+                    }
+                    // The system edge effect draws an opaque box over the sidebar material;
+                    // `SettingsSidebarScrollGlass` replaces it.
+                    .scrollEdgeEffectHidden(true, for: .top)
+                    .padding(.horizontal, 8)
+
+                // A background, so `ignoresSafeArea` stretches the band up through the titlebar instead of shifting it.
+                Color.clear
+                    .frame(height: Self.searchBarTopPadding + SettingsSidebarSortToggle.diameter)
+                    .background {
+                        SettingsSidebarScrollGlass(fadeHeight: SettingsSidebarSortToggle.diameter / 2)
+                            .ignoresSafeArea(edges: .top)
+                    }
+                    .allowsHitTesting(false)
+
+                GlassEffectContainer(spacing: 0) {
+                    HStack(spacing: 6) {
+                        SettingsSidebarSearchField(searchText: self.$searchText)
+                        self.sortToggle
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.top, Self.searchBarTopPadding)
+            }
+
+            self.undoBanner
+                .padding(.horizontal, 8)
+        }
+        .onAppear {
+            // Defer past AppKit's initial first responder, which is the search field.
+            DispatchQueue.main.async {
+                self.isListFocused = true
+            }
+        }
+        .onChange(of: self.selection) { _, _ in
+            self.isListFocused = true
+        }
+    }
+
+    private var list: some View {
+        List(selection: self.selectionBinding) {
+            self.appPanesSection
+            self.providersSection
+        }
+        .listStyle(.sidebar)
+        .scrollContentBackground(.hidden)
+    }
+
+    private var sortToggle: some View {
+        SettingsSidebarSortToggle(
+            isOn: self.$settings.providersSortedAlphabetically,
+            enabledOnly: self.$settings.providersEnabledOnly,
+            onRestore: self.restoreProviderOrder)
+    }
+
+    @ViewBuilder
+    private var undoBanner: some View {
+        if self.settings.canUndoProviderOrderChange {
+            HStack {
+                Text(L("Provider order updated"))
+                Spacer(minLength: 4)
+                Button(L("Undo")) { self.settings.undoProviderOrderChange() }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(Color.accentColor)
+            }
+            .font(.caption)
+            .padding(8)
+            .accessibilityElement(children: .contain)
+        }
     }
 
     private var appPanesSection: some View {
@@ -299,76 +378,163 @@ private struct SettingsSidebarSearchField: View {
     @Binding var searchText: String
 
     var body: some View {
-        HStack(spacing: 5) {
-            Image(systemName: "magnifyingglass")
-                .foregroundStyle(.secondary)
-                .accessibilityHidden(true)
-
-            TextField(L("Search providers"), text: self.$searchText)
-                .textFieldStyle(.plain)
-
-            if !self.searchText.isEmpty {
-                Button {
-                    self.searchText = ""
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(.secondary)
-                        .accessibilityLabel(L("Clear"))
-                }
-                .buttonStyle(.plain)
+        if #available(macOS 26.0, *) {
+            HStack(spacing: 6) {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .accessibilityHidden(true)
+                self.fieldAndClear
             }
+            .font(.body)
+            .padding(.horizontal, 10)
+            .frame(height: SettingsSidebarSortToggle.diameter)
+            .glassEffect(.regular.tint(Color(nsColor: .controlBackgroundColor).opacity(0.4)), in: .capsule)
+        } else {
+            HStack(spacing: 5) {
+                Image(systemName: "magnifyingglass")
+                    .foregroundStyle(.secondary)
+                    .accessibilityHidden(true)
+                self.fieldAndClear
+            }
+            .font(.callout)
+            .padding(.horizontal, 7)
+            .padding(.vertical, 4)
+            .background(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(Color(nsColor: .textBackgroundColor).opacity(0.6)))
+            .overlay(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .stroke(Color(nsColor: .separatorColor).opacity(0.6), lineWidth: 1))
         }
-        .font(.callout)
-        .padding(.horizontal, 7)
-        .padding(.vertical, 4)
-        .background(
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .fill(Color(nsColor: .textBackgroundColor).opacity(0.6)))
-        .overlay(
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .stroke(Color(nsColor: .separatorColor).opacity(0.6), lineWidth: 1))
+    }
+
+    @ViewBuilder
+    private var fieldAndClear: some View {
+        TextField(L("Search providers"), text: self.$searchText)
+            .textFieldStyle(.plain)
+
+        if !self.searchText.isEmpty {
+            Button {
+                self.searchText = ""
+            } label: {
+                Image(systemName: "xmark.circle.fill")
+                    .foregroundStyle(.secondary)
+                    .accessibilityLabel(L("Clear"))
+            }
+            .buttonStyle(.plain)
+        }
     }
 }
 
+/// Blurs rows scrolled under the search row while keeping the sidebar's color. The glass is oversized so its edge
+/// highlights fall outside the mask, which fades it out over the bottom `fadeHeight` points.
+@available(macOS 26.0, *)
+private struct SettingsSidebarScrollGlass: View {
+    let fadeHeight: CGFloat
+    private static let edgeOverhang: CGFloat = 40
+
+    var body: some View {
+        Color.clear
+            .overlay {
+                Color.clear.glassEffect(.regular, in: Rectangle())
+                    .padding(.horizontal, -Self.edgeOverhang)
+                    .padding(.top, -Self.edgeOverhang)
+            }
+            .mask {
+                VStack(spacing: 0) {
+                    Color.black
+                    LinearGradient(colors: [.black, .clear], startPoint: .top, endPoint: .bottom)
+                        .frame(height: self.fadeHeight)
+                }
+            }
+    }
+}
+
+/// On macOS 26, a glass capsule whose sort circle fills with the accent color when on, next to the sorting menu.
 private struct SettingsSidebarSortToggle: View {
+    /// Matches the glass search field height.
+    static let diameter: CGFloat = 28
+
     @Binding var isOn: Bool
     @Binding var enabledOnly: Bool
     let onRestore: () -> Void
 
     var body: some View {
-        HStack(spacing: 0) {
-            Button {
-                self.isOn.toggle()
-            } label: {
-                Image(systemName: "arrow.up.arrow.down")
-                    .font(.callout)
-                    .foregroundStyle(self.isOn ? Color.accentColor : Color.secondary)
-                    .frame(width: 24, height: 24)
-                    .contentShape(Rectangle())
+        if #available(macOS 26.0, *) {
+            HStack(spacing: 0) {
+                Button {
+                    self.isOn.toggle()
+                } label: {
+                    Image(systemName: "arrow.up.arrow.down")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(self.isOn ? Color.white : Color.secondary)
+                        .frame(width: Self.diameter, height: Self.diameter)
+                        .background {
+                            // A glass tint washes out to grey in dark mode.
+                            if self.isOn {
+                                Circle().fill(Color.accentColor)
+                            }
+                        }
+                        .contentShape(Circle())
+                }
+                .modifier(SortButtonTraits(isOn: self.isOn))
+
+                self.menu(
+                    chevron: Image(systemName: "chevron.down").font(.system(size: 10, weight: .bold)),
+                    size: CGSize(width: 18, height: Self.diameter))
             }
+            .padding(.trailing, 3)
+            .glassEffect(.regular, in: .capsule)
+        } else {
+            HStack(spacing: 0) {
+                Button {
+                    self.isOn.toggle()
+                } label: {
+                    Image(systemName: "arrow.up.arrow.down")
+                        .font(.callout)
+                        .foregroundStyle(self.isOn ? Color.accentColor : Color.secondary)
+                        .frame(width: 24, height: 24)
+                        .contentShape(Rectangle())
+                }
+                .modifier(SortButtonTraits(isOn: self.isOn))
+
+                self.menu(
+                    chevron: Image(systemName: "chevron.down").font(.caption2),
+                    size: CGSize(width: 14, height: 24))
+            }
+        }
+    }
+
+    private func menu(chevron: some View, size: CGSize) -> some View {
+        Menu {
+            Toggle(L("Only enabled providers"), isOn: self.$enabledOnly)
+            Divider()
+            Button(L("Restore default order"), action: self.onRestore)
+                .help(L("Also restores the provider order in the menu bar. Can be undone."))
+        } label: {
+            chevron
+                .foregroundStyle(self.enabledOnly ? Color.accentColor : Color.secondary)
+                .frame(width: size.width, height: size.height)
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help(L("Provider sorting"))
+        .accessibilityLabel(L("Provider sorting"))
+    }
+}
+
+private struct SortButtonTraits: ViewModifier {
+    let isOn: Bool
+
+    func body(content: Content) -> some View {
+        content
             .buttonStyle(.plain)
             .help(self.isOn
                 ? L("Sorted alphabetically (enabled first) — click to use your custom order")
                 : L("Sort providers alphabetically (enabled first)"))
             .accessibilityLabel(L("Sort providers alphabetically"))
             .accessibilityAddTraits(self.isOn ? .isSelected : [])
-
-            Menu {
-                Toggle(L("Only enabled providers"), isOn: self.$enabledOnly)
-                Divider()
-                Button(L("Restore default order"), action: self.onRestore)
-                    .help(L("Also restores the provider order in the menu bar. Can be undone."))
-            } label: {
-                Image(systemName: "chevron.down")
-                    .font(.caption2)
-                    .foregroundStyle(self.enabledOnly ? Color.accentColor : Color.secondary)
-                    .frame(width: 14, height: 24)
-            }
-            .menuStyle(.borderlessButton)
-            .menuIndicator(.hidden)
-            .fixedSize()
-            .help(L("Provider sorting"))
-            .accessibilityLabel(L("Provider sorting"))
-        }
     }
 }

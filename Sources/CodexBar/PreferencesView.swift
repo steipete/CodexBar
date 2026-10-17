@@ -121,6 +121,7 @@ struct PreferencesView: View {
                     maxHeight: .infinity,
                     alignment: .topLeading)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .modifier(SettingsDetailHeaderBar(selection: self.selection, height: self.detailTitlebarInset))
                 // The panes hide their scroll background, and the window uses a transparent full-size
                 // titlebar, so without an opaque detail backing the grouped Form content renders through
                 // the titlebar region and overlaps the window title. Mirror the sidebar's material so the
@@ -134,22 +135,15 @@ struct PreferencesView: View {
                                 .frame(width: 0, height: 0)
                         }
                 }
-                // Cover the transparent titlebar strip over the detail so scrolling Form content stays
-                // below it — matching the sidebar's clean top edge instead of riding up over the window
-                // title. The window draws its title above this cover.
+                // On macOS 26 the header bar's scroll edge effect backs content scrolling under it. Earlier
+                // versions cover the transparent titlebar strip so scrolling Form content stays below the title.
                 .overlay(alignment: .top) {
-                    SettingsDetailTitlebarCoverMaterial()
-                        .frame(height: self.detailTitlebarInset)
-                        .frame(maxWidth: .infinity)
-                        .ignoresSafeArea(edges: .top)
-                        .allowsHitTesting(false)
-                }
-                .overlay(alignment: .top) {
-                    if #available(macOS 26.0, *) {
-                        SettingsDetailHeader(selection: self.selection)
+                    if #unavailable(macOS 26.0) {
+                        SettingsDetailTitlebarCoverMaterial()
                             .frame(height: self.detailTitlebarInset)
                             .frame(maxWidth: .infinity)
                             .ignoresSafeArea(edges: .top)
+                            .allowsHitTesting(false)
                     }
                 }
                 .safeAreaInset(edge: .top, spacing: 0) {
@@ -495,33 +489,116 @@ struct SettingsDetailHeader: View {
     }
 }
 
+/// Both segments share one interactive glass capsule. Avoid per-segment glass joined by `glassEffectUnion`: a union
+/// inside a `GlassEffectContainer` sends SwiftUI's focus navigation into an endless loop when AppKit walks the
+/// key-view loop, freezing the window after the search field loses focus.
 @MainActor
 struct SettingsHistoryButtons: View {
     @Bindable var selection: PreferencesSelection
 
-    var body: some View {
-        ControlGroup {
-            Button {
-                self.selection.goBack()
-            } label: {
-                Label(L("Back"), systemImage: "chevron.backward")
-            }
-            .disabled(!self.selection.canGoBack)
-            .keyboardShortcut("[", modifiers: .command)
-            .help(L("Back"))
+    private static let segmentSize: CGFloat = 36
 
-            Button {
-                self.selection.goForward()
-            } label: {
-                Label(L("Forward"), systemImage: "chevron.forward")
+    var body: some View {
+        if #available(macOS 26.0, *) {
+            HStack(spacing: 0) {
+                self.segment(.back)
+                self.segment(.forward)
             }
-            .disabled(!self.selection.canGoForward)
-            .keyboardShortcut("]", modifiers: .command)
-            .help(L("Forward"))
+            .overlay {
+                Rectangle()
+                    .fill(Color.primary.opacity(0.5))
+                    .frame(width: 1, height: 20)
+                    .allowsHitTesting(false)
+            }
+            .glassEffect(
+                .regular.interactive(self.selection.canGoBack || self.selection.canGoForward),
+                in: .capsule)
+        } else {
+            ControlGroup {
+                self.button(.back)
+                self.button(.forward)
+            }
+            .controlGroupStyle(.navigation)
+            .labelStyle(.iconOnly)
+            .fixedSize()
         }
-        .controlGroupStyle(.navigation)
-        .labelStyle(.iconOnly)
-        .fixedSize()
+    }
+
+    @available(macOS 26.0, *)
+    private func segment(_ direction: Direction) -> some View {
+        Button {
+            self.navigate(direction)
+        } label: {
+            Image(systemName: direction.systemImage)
+                .font(.system(size: 17, weight: .medium))
+                .frame(width: Self.segmentSize, height: Self.segmentSize)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(self.isEnabled(direction) ? .primary : .tertiary)
+        .modifier(SettingsHistoryCommand(direction: direction, isEnabled: self.isEnabled(direction)))
+    }
+
+    private func button(_ direction: Direction) -> some View {
+        Button {
+            self.navigate(direction)
+        } label: {
+            Label(direction.title, systemImage: direction.systemImage)
+        }
+        .modifier(SettingsHistoryCommand(direction: direction, isEnabled: self.isEnabled(direction)))
+    }
+
+    private func isEnabled(_ direction: Direction) -> Bool {
+        switch direction {
+        case .back: self.selection.canGoBack
+        case .forward: self.selection.canGoForward
+        }
+    }
+
+    private func navigate(_ direction: Direction) {
+        switch direction {
+        case .back: self.selection.goBack()
+        case .forward: self.selection.goForward()
+        }
+    }
+
+    enum Direction {
+        case back
+        case forward
+
+        var title: String {
+            switch self {
+            case .back: L("Back")
+            case .forward: L("Forward")
+            }
+        }
+
+        var systemImage: String {
+            switch self {
+            case .back: "chevron.backward"
+            case .forward: "chevron.forward"
+            }
+        }
+
+        var shortcut: KeyEquivalent {
+            switch self {
+            case .back: "["
+            case .forward: "]"
+            }
+        }
+    }
+}
+
+private struct SettingsHistoryCommand: ViewModifier {
+    let direction: SettingsHistoryButtons.Direction
+    let isEnabled: Bool
+
+    func body(content: Content) -> some View {
+        content
+            .disabled(!self.isEnabled)
+            .keyboardShortcut(self.direction.shortcut, modifiers: .command)
+            .help(self.direction.title)
+            .accessibilityLabel(self.direction.title)
     }
 }
 
@@ -613,7 +690,30 @@ private struct SettingsTitlebarInsetReader: NSViewRepresentable {
     }
 }
 
-/// The titlebar strip over the detail column. Blends *within* the window so scrolled Form content frosts
+/// On macOS 26, places the header in the titlebar strip as a safe area bar, so detail scroll views draw the
+/// system's hard scroll edge effect beneath it. Ignoring the titlebar's own inset keeps the content's top inset
+/// at the titlebar height instead of doubling it.
+private struct SettingsDetailHeaderBar: ViewModifier {
+    @Bindable var selection: PreferencesSelection
+    let height: CGFloat
+
+    func body(content: Content) -> some View {
+        if #available(macOS 26.0, *) {
+            content
+                .safeAreaBar(edge: .top, spacing: 0) {
+                    SettingsDetailHeader(selection: self.selection)
+                        .frame(height: self.height)
+                        .frame(maxWidth: .infinity)
+                }
+                .scrollEdgeEffectStyle(.hard, for: .top)
+                .ignoresSafeArea(.container, edges: .top)
+        } else {
+            content
+        }
+    }
+}
+
+/// The titlebar strip over the detail column on macOS 14/15. Blends *within* the window so scrolled Form content frosts
 /// as it passes underneath, the way a standard macOS toolbar treats content scrolling under it, instead of
 /// being cut off against a flat fill.
 @MainActor
