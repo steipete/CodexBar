@@ -2,6 +2,48 @@ import CodexBarCore
 import Foundation
 import SwiftUI
 
+enum MenuBarUsageSource {
+    case local(UsageSnapshot?)
+    case fleet(AccountSnapshotSyncPayload)
+
+    var snapshot: UsageSnapshot? {
+        switch self {
+        case let .local(snapshot): snapshot
+        case let .fleet(snapshot): snapshot.usage
+        }
+    }
+
+    var fleetSnapshot: AccountSnapshotSyncPayload? {
+        guard case let .fleet(snapshot) = self else { return nil }
+        return snapshot
+    }
+
+    var isFleet: Bool {
+        self.fleetSnapshot != nil
+    }
+
+    /// `fleetEnabled` is the conjunction of iCloud sync, usage snapshots, and "Show accounts from other Macs".
+    static func resolve(
+        provider: UsageProvider,
+        localSnapshot: UsageSnapshot?,
+        fleetSnapshots: some Sequence<AccountSnapshotSyncPayload>,
+        currentDeviceID: String,
+        fleetEnabled: Bool) -> Self
+    {
+        guard localSnapshot == nil, fleetEnabled,
+              let fallback = FleetAccountMenuPlanner.projection(
+                  provider: provider,
+                  snapshots: fleetSnapshots,
+                  currentDeviceID: currentDeviceID,
+                  localAccountKeys: [],
+                  hasLocalUsage: false).fallback
+        else {
+            return .local(localSnapshot)
+        }
+        return .fleet(fallback)
+    }
+}
+
 struct FleetAccountMenuProjection {
     let fallback: AccountSnapshotSyncPayload?
     let additionalAccounts: [AccountSnapshotSyncPayload]

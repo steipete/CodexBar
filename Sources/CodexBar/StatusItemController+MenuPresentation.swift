@@ -12,7 +12,8 @@ extension StatusItemController {
         }
         // The switcher mini-bars mirror the menu-bar indicator, so route through the
         // same presentation snapshot (claude-swap active-account override, issue #2731).
-        let snapshot = self.store.menuBarSnapshot(for: provider.instanceID)
+        let source = self.menuBarUsageSource(for: provider)
+        let snapshot = source.snapshot
         if let metric = Self.switcherWeeklyMetricPercent(
             for: provider,
             snapshot: snapshot,
@@ -26,7 +27,8 @@ extension StatusItemController {
         // rate-limit lanes preferred, then use the projected monthly lane for the switcher bar.
         // Provider-specific by design: Codex Business accounts report an included monthly credit limit without
         // rate-limit windows, so only the Codex switcher tab needs this credit fallback.
-        guard provider == .codex else { return nil }
+        // Remote iCloud snapshots must not borrow this Mac's Codex credits projection.
+        guard provider == .codex, !source.isFleet else { return nil }
         let projection = self.store.codexConsumerProjection(
             surface: .menuBar,
             snapshotOverride: snapshot)
