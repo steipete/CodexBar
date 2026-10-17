@@ -2,6 +2,10 @@
 
 ## 0.77.1 — Unreleased
 
+### Fixed
+
+- Spend: keep Claude's priced subtotal in the Usage & Spend total, marked as a lower bound, when some days only used models without a known price (#4579). Thanks @DevilVed!
+
 ## 0.77.0 — 2026-10-16
 
 ### Highlights
