@@ -2,6 +2,10 @@
 
 ## 0.77.1 — Unreleased
 
+### Fixed
+
+- Codex: open the Usage Dashboard on the overview tab to avoid incorrect redirects.
+
 ## 0.77.0 — 2026-10-16
 
 ### Highlights
