@@ -305,10 +305,32 @@ extension CostUsageScanner {
             return CodexPriorityTurnsResolution(turns: [:], validationPending: true)
         }
         let db = opened.db
-        let fileIdentity = opened.fileIdentity
         defer { sqlite3_close(db) }
-        sqlite3_busy_timeout(db, 250)
 
+        let resolution = self.resolveCodexPriorityTurns(
+            db: db,
+            fileIdentity: opened.fileIdentity,
+            url: url,
+            sinceDayKey: sinceDayKey,
+            untilDayKey: untilDayKey)
+        guard let idleState = opened.idleState else { return resolution }
+        // An immutable connection neither locks nor detects changes. A writer that appeared during
+        // the read could have checkpointed pages into the main file, so the result is trusted only
+        // when the file and its sidecar state are unchanged afterwards. Anything else stays pending.
+        guard self.codexPriorityIdleDatabaseState(at: url) == idleState else {
+            self.dropCodexPriorityTurnsMemo(databaseURL: url)
+            return CodexPriorityTurnsResolution(turns: resolution.turns, validationPending: true)
+        }
+        return resolution
+    }
+
+    private static func resolveCodexPriorityTurns(
+        db: OpaquePointer?,
+        fileIdentity: UInt64,
+        url: URL,
+        sinceDayKey: String?,
+        untilDayKey: String?) -> CodexPriorityTurnsResolution
+    {
         let observationID = self.nextCodexPriorityTurnsObservationID()
         guard let maxRowID = self.maxCodexLogsRowID(db) else {
             return CodexPriorityTurnsResolution(turns: [:], validationPending: true)
@@ -448,13 +470,11 @@ extension CostUsageScanner {
         sinceDayKey: String?,
         untilDayKey: String?) -> CodexPriorityTurnsResolution
     {
-        var db: OpaquePointer?
-        guard sqlite3_open_v2(databaseURL.path, &db, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else {
-            sqlite3_close(db)
+        guard let opened = self.openCodexPriorityDatabase(at: databaseURL) else {
             return CodexPriorityTurnsResolution(turns: [:], validationPending: true)
         }
+        let db = opened.db
         defer { sqlite3_close(db) }
-        sqlite3_busy_timeout(db, 250)
 
         let query = """
         select ts, feedback_log_body
@@ -500,9 +520,13 @@ extension CostUsageScanner {
                 turns[parsed.turnID] = parsed
             }
         }
-        return CodexPriorityTurnsResolution(
+        let resolution = CodexPriorityTurnsResolution(
             turns: turns,
             validationPending: stepResult != SQLITE_DONE)
+        guard let idleState = opened.idleState,
+              self.codexPriorityIdleDatabaseState(at: databaseURL) != idleState
+        else { return resolution }
+        return CodexPriorityTurnsResolution(turns: turns, validationPending: true)
     }
 
     private static func maxCodexLogsRowID(_ db: OpaquePointer?) -> Int64? {
@@ -514,9 +538,19 @@ extension CostUsageScanner {
         return sqlite3_column_int64(stmt, 0)
     }
 
+    /// A read-only handle to one trace database. `idleState` is set when the ordinary read-only
+    /// open was declined and the handle reads the main file alone (`immutable=1`); callers compare
+    /// it against `codexPriorityIdleDatabaseState(at:)` after reading, because an immutable
+    /// connection cannot detect a writer that appears mid-read.
+    struct OpenedCodexPriorityDatabase {
+        let db: OpaquePointer?
+        let fileIdentity: UInt64
+        let idleState: CodexPriorityIdleDatabaseState?
+    }
+
     static func openCodexPriorityDatabase(
         at url: URL,
-        afterOpen: (() -> Void)? = nil) -> (db: OpaquePointer?, fileIdentity: UInt64)?
+        afterOpen: (() -> Void)? = nil) -> OpenedCodexPriorityDatabase?
     {
         guard let fileIdentity = self.codexPriorityDatabaseFileIdentity(at: url) else { return nil }
         var db: OpaquePointer?
@@ -524,12 +558,80 @@ extension CostUsageScanner {
             sqlite3_close(db)
             return nil
         }
+        // The schema probe below is the first read, so it must already wait out a brief lock.
+        // An immutable fallback handle takes no locks and needs no timeout.
+        sqlite3_busy_timeout(db, 250)
+        var idleState: CodexPriorityIdleDatabaseState?
+        if !self.codexPriorityDatabaseIsReadable(db) {
+            // Some SQLite builds (Apple's system library among them) decline read-only access to a
+            // WAL database whose -wal and -shm sidecars are absent, because a read-only connection
+            // may not create them. Codex CLI leaves exactly that file behind when it exits. An
+            // absent -wal also means no WAL connection holds the database, so the main file alone
+            // carries the checkpointed state and an immutable connection can read it.
+            let cannotOpen = sqlite3_errcode(db) == SQLITE_CANTOPEN
+            sqlite3_close(db)
+            db = nil
+            guard cannotOpen,
+                  let before = self.codexPriorityIdleDatabaseState(at: url),
+                  let uri = self.codexPriorityImmutableURI(for: url),
+                  sqlite3_open_v2(uri, &db, SQLITE_OPEN_READONLY | SQLITE_OPEN_URI, nil) == SQLITE_OK,
+                  self.codexPriorityDatabaseIsReadable(db)
+            else {
+                sqlite3_close(db)
+                return nil
+            }
+            idleState = before
+        }
         afterOpen?()
         guard self.codexPriorityDatabaseFileIdentity(at: url) == fileIdentity else {
             sqlite3_close(db)
             return nil
         }
-        return (db, fileIdentity)
+        return OpenedCodexPriorityDatabase(db: db, fileIdentity: fileIdentity, idleState: idleState)
+    }
+
+    /// Forces SQLite to read the schema. A read-only open is lazy, so a WAL database without
+    /// sidecars fails here with `SQLITE_CANTOPEN`, not in `sqlite3_open_v2`.
+    private static func codexPriorityDatabaseIsReadable(_ db: OpaquePointer?) -> Bool {
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, "select max(rowid) from logs", -1, &stmt, nil) == SQLITE_OK else {
+            return false
+        }
+        sqlite3_finalize(stmt)
+        return true
+    }
+
+    /// Identity of an idle WAL database: no `-wal` sidecar, plus the main file's size, modification
+    /// time, file system number, and 100-byte header. Nil when a `-wal` sidecar exists or the file
+    /// cannot be examined.
+    struct CodexPriorityIdleDatabaseState: Equatable {
+        let size: UInt64
+        let modified: Date
+        let fileNumber: UInt64
+        let header: Data
+    }
+
+    static func codexPriorityIdleDatabaseState(at url: URL) -> CodexPriorityIdleDatabaseState? {
+        // SQLite places sidecars next to the resolved database file, not next to a symlink.
+        let resolved = url.resolvingSymlinksInPath()
+        guard !FileManager.default.fileExists(atPath: resolved.path + "-wal"),
+              let attributes = try? FileManager.default.attributesOfItem(atPath: resolved.path),
+              let size = (attributes[.size] as? NSNumber)?.uint64Value,
+              let modified = attributes[.modificationDate] as? Date,
+              let fileNumber = (attributes[.systemFileNumber] as? NSNumber)?.uint64Value,
+              let handle = try? FileHandle(forReadingFrom: resolved)
+        else { return nil }
+        defer { try? handle.close() }
+        guard let header = try? handle.read(upToCount: 100) else { return nil }
+        return CodexPriorityIdleDatabaseState(size: size, modified: modified, fileNumber: fileNumber, header: header)
+    }
+
+    /// The `immutable=1` query parameter is only reachable through a URI filename.
+    private static func codexPriorityImmutableURI(for url: URL) -> String? {
+        var allowed = CharacterSet.urlPathAllowed
+        allowed.remove(charactersIn: "%?#")
+        guard let path = url.path.addingPercentEncoding(withAllowedCharacters: allowed) else { return nil }
+        return "file:\(path)?immutable=1"
     }
 
     private static func codexPriorityDatabaseFileIdentity(at url: URL) -> UInt64? {
