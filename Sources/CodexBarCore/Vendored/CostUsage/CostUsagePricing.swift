@@ -249,6 +249,28 @@ enum CostUsagePricing {
             outputCostPerTokenAboveThreshold: nil,
             cacheCreationInputCostPerTokenAboveThreshold: nil,
             cacheReadInputCostPerTokenAboveThreshold: nil),
+        // Mythos is served to verified organizations only and is absent from the models.dev
+        // anthropic catalog. Rates: https://platform.claude.com/docs/en/about-claude/pricing
+        "claude-mythos-5": ClaudePricing(
+            inputCostPerToken: 1e-5,
+            outputCostPerToken: 5e-5,
+            cacheCreationInputCostPerToken: 1.25e-5,
+            cacheReadInputCostPerToken: 1e-6,
+            thresholdTokens: nil,
+            inputCostPerTokenAboveThreshold: nil,
+            outputCostPerTokenAboveThreshold: nil,
+            cacheCreationInputCostPerTokenAboveThreshold: nil,
+            cacheReadInputCostPerTokenAboveThreshold: nil),
+        "claude-mythos-5-1": ClaudePricing(
+            inputCostPerToken: 1e-5,
+            outputCostPerToken: 5e-5,
+            cacheCreationInputCostPerToken: 1.25e-5,
+            cacheReadInputCostPerToken: 2.5e-7,
+            thresholdTokens: nil,
+            inputCostPerTokenAboveThreshold: nil,
+            outputCostPerTokenAboveThreshold: nil,
+            cacheCreationInputCostPerTokenAboveThreshold: nil,
+            cacheReadInputCostPerTokenAboveThreshold: nil),
         "claude-opus-4-5-20251101": ClaudePricing(
             inputCostPerToken: 5e-6,
             outputCostPerToken: 2.5e-5,
