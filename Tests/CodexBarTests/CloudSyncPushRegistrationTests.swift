@@ -1,3 +1,6 @@
+import AppKit
+import CloudKit
+import ObjectiveC
 import Testing
 @testable import CodexBar
 
@@ -58,5 +61,44 @@ struct CloudSyncPushRegistrationTests {
 
         #expect(!activate())
         #expect(registrations == 0)
+    }
+
+    @Test
+    func `app delegate receives remote notifications`() {
+        let selector = #selector(NSApplicationDelegate.application(_:didReceiveRemoteNotification:))
+        #expect(class_getInstanceMethod(AppDelegate.self, selector) != nil)
+    }
+
+    @Test(arguments: [true, false])
+    func `private database pushes fetch only while sync is enabled`(_ enabled: Bool) throws {
+        let userInfo: [String: Any] = [
+            "ck": ["cid": CloudSyncEngine.containerIdentifier, "met": ["dbs": 1]],
+        ]
+        let notification = try #require(CKNotification(fromRemoteNotificationDictionary: userInfo)
+            as? CKDatabaseNotification)
+        #expect(notification.databaseScope == .private)
+        var fetches = 0
+        CloudSyncCoordinator.routeRemoteNotification(userInfo, enabled: enabled) { fetches += 1 }
+        #expect(fetches == (enabled ? 1 : 0))
+    }
+
+    @Test
+    func `unrelated malformed and other database pushes do not fetch`() {
+        let payloads: [[String: Any]] = [
+            [:],
+            ["aps": ["alert": "Unrelated notification"]],
+            ["ck": ["cid": CloudSyncEngine.containerIdentifier]],
+            ["ck": ["cid": CloudSyncEngine.containerIdentifier, "met": [:]]],
+            ["ck": ["cid": "iCloud.example.other", "met": ["dbs": 1]]],
+            ["ck": ["met": ["dbs": 1]]],
+            ["ck": ["cid": CloudSyncEngine.containerIdentifier, "met": ["dbs": 2]]],
+            ["ck": ["cid": CloudSyncEngine.containerIdentifier, "met": ["dbs": 3]]],
+            ["ck": ["cid": CloudSyncEngine.containerIdentifier, "qry": ["dbs": 1]]],
+        ]
+        var fetches = 0
+        for payload in payloads {
+            CloudSyncCoordinator.routeRemoteNotification(payload, enabled: true) { fetches += 1 }
+        }
+        #expect(fetches == 0)
     }
 }
