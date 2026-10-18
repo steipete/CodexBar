@@ -2,6 +2,10 @@
 
 ## 0.77.1 — Unreleased
 
+### Fixed
+
+- Claude: parse OAuth usage `limits` entry by entry with the Web parser, so one malformed entry no longer hides the model-scoped weekly rows beside it (#4126). Thanks @Akagilnc!
+
 ## 0.77.0 — 2026-10-16
 
 ### Highlights

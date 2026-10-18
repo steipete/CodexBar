@@ -42,8 +42,14 @@ enum ClaudeWebExtraRateWindowParser {
     }
 
     private static func scopedWeeklyLimitWindows(from json: [String: Any]) -> [NamedRateWindow] {
+        ClaudeScopedWeeklyLimitMapper.extraRateWindows(from: self.scopedWeeklyLimits(from: json))
+    }
+
+    /// Entry-by-entry parse of the `limits` array, shared with the OAuth path: a field of an
+    /// unexpected type reads as missing instead of discarding the entry or its siblings.
+    static func scopedWeeklyLimits(from json: [String: Any]) -> [ClaudeScopedWeeklyLimitMapper.Limit] {
         guard let limits = json["limits"] as? [[String: Any]] else { return [] }
-        let mappedLimits = limits.map { entry in
+        return limits.map { entry in
             let scope = entry["scope"] as? [String: Any]
             let model = scope?["model"] as? [String: Any]
             return ClaudeScopedWeeklyLimitMapper.Limit(
@@ -54,7 +60,6 @@ enum ClaudeWebExtraRateWindowParser {
                 modelID: model?["id"] as? String,
                 modelName: model?["display_name"] as? String)
         }
-        return ClaudeScopedWeeklyLimitMapper.extraRateWindows(from: mappedLimits)
     }
 
     private static func namedWindow(
