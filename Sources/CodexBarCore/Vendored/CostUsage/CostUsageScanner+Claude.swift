@@ -580,6 +580,16 @@ extension CostUsageScanner {
         return lower.contains("vertex") || (includeGCP && lower.contains("gcp"))
     }
 
+    private static func claudeRootExists(atPath path: String) throws -> Bool {
+        var info = stat()
+        guard path.withCString({ fstatat(AT_FDCWD, $0, &info, 0) }) == 0 else {
+            let code = errno
+            if code == ENOENT || code == ENOTDIR { return false }
+            throw NSError(domain: NSPOSIXErrorDomain, code: Int(code), userInfo: [NSFilePathErrorKey: path])
+        }
+        return true
+    }
+
     private static func claudeRootCandidates(for rootPath: String) -> [String] {
         if rootPath.hasPrefix("/var/") {
             return ["/private" + rootPath, rootPath]
@@ -678,21 +688,36 @@ extension CostUsageScanner {
             try checkCancellation?()
             let rootPath = root.path
             let rootCandidates = Self.claudeRootCandidates(for: rootPath)
-            guard let existingRootPath = rootCandidates.first(where: { FileManager.default.fileExists(atPath: $0) })
+            // A root that exists but cannot be inspected must fail the scan, not silently drop its sources.
+            guard let existingRootPath = try rootCandidates.first(where: { try Self.claudeRootExists(atPath: $0) })
             else { continue }
             let existingRoot = existingRootPath == rootPath ? root : URL(fileURLWithPath: existingRootPath)
+            var enumerationError: Error?
             guard let enumerator = FileManager.default.enumerator(
                 at: existingRoot,
                 includingPropertiesForKeys: nil,
-                options: [.skipsHiddenFiles, .skipsPackageDescendants])
-            else { continue }
+                options: [.skipsHiddenFiles, .skipsPackageDescendants],
+                errorHandler: { _, error in
+                    // Files removed mid-walk are ordinary churn; unreadable directories would undercount.
+                    if CostUsageClaudeFileStamp.isMissingFileError(error) { return true }
+                    enumerationError = error
+                    return false
+                })
+            else {
+                guard try Self.claudeRootExists(atPath: existingRootPath) else { continue }
+                throw NSError(
+                    domain: NSCocoaErrorDomain,
+                    code: NSFileReadUnknownError,
+                    userInfo: [NSFilePathErrorKey: existingRootPath])
+            }
 
             for case let url as URL in enumerator {
                 try checkCancellation?()
                 guard url.pathExtension.lowercased() == "jsonl" else { continue }
-                guard let stamp = CostUsageClaudeFileStamp.read(at: url), stamp.size > 0 else { continue }
+                guard let stamp = try CostUsageClaudeFileStamp.readIfPresent(at: url), stamp.size > 0 else { continue }
                 inventory.files[url.path] = ClaudeSourceFile(url: url, stamp: stamp)
             }
+            if let enumerationError { throw enumerationError }
         }
         return inventory
     }
