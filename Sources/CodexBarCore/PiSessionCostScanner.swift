@@ -579,6 +579,8 @@ enum PiSessionCostScanner {
                     ].joined(separator: "\u{1F}")
                 }
             }
+            // Discovery order follows working directories and process contexts; it is not part of the scope.
+            .sorted()
             .joined(separator: "\u{1E}")
     }
 

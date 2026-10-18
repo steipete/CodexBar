@@ -837,4 +837,35 @@ struct PiSessionProcessContextTests {
         #expect(PiSessionCostCacheIO.load(cacheRoot: env.cacheRoot).sessionRootsFingerprint?
             .contains(firstRoot.path) != true)
     }
+
+    @Test
+    func `pi cost scope ignores the discovery order of identical session roots`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let projects = try ["alpha", "beta", "gamma"].map { name in
+            let project = env.root.appendingPathComponent("pi-project-\(name)", isDirectory: true)
+            let sessionRoot = env.root.appendingPathComponent("pi-sessions-\(name)", isDirectory: true)
+            let settingsDirectory = project.appendingPathComponent(".pi", isDirectory: true)
+            try [sessionRoot, settingsDirectory].forEach {
+                try FileManager.default.createDirectory(at: $0, withIntermediateDirectories: true)
+            }
+            try Data(("{\"sessionDir\":\"" + sessionRoot.path + "\"}").utf8).write(
+                to: settingsDirectory.appendingPathComponent("settings.json"),
+                options: .atomic)
+            return project
+        }
+        func scope(_ workingDirectories: [URL]) -> String {
+            PiSessionCostScanner.scopeFingerprint(options: PiSessionCostScanner.Options(
+                cacheRoot: env.cacheRoot,
+                environment: ["HOME": env.root.path],
+                workingDirectories: workingDirectories))
+        }
+
+        let forward = scope([projects[0], projects[1]])
+        #expect(forward.contains("pi-sessions-alpha"))
+        #expect(forward.contains("pi-sessions-beta"))
+        #expect(scope([projects[1], projects[0]]) == forward)
+        #expect(scope([projects[0], projects[2]]) != forward)
+    }
 }
