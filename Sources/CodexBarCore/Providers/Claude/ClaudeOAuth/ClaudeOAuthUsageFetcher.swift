@@ -180,7 +180,7 @@ enum ClaudeOAuthUsageFetcher {
     static func decodeUsageResponse(_ data: Data) throws -> OAuthUsageResponse {
         let decoder = JSONDecoder()
         var usage = try decoder.decode(OAuthUsageResponse.self, from: data)
-        let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+        let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
         usage.limits = json.map(ClaudeWebExtraRateWindowParser.scopedWeeklyLimits)
         return usage
     }
