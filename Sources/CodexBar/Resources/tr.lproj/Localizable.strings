@@ -2204,6 +2204,10 @@
 "Stored in ~/.codexbar/config.json. Create one at console.x.ai under Settings > Management Keys; inference API keys are not accepted." = "~/.codexbar/config.json konumunda saklanır. Ayarlar > Yönetim Anahtarları altında console.x.ai'de bir tane oluşturun; çıkarım API anahtarları kabul edilmez.";
 "xai-..." = "xai-...";
 "Team ID" = "Takım ID";
+"Vercel access token" = "Vercel erişim belirteci";
+"Optional. Shows your personal budget instead of team credits. Saved in CodexBar's local config file. Or set VERCEL_ACCESS_TOKEN." = "İsteğe bağlı. Ekip kredileri yerine kişisel bütçenizi gösterir. CodexBar'ın yerel yapılandırma dosyasına kaydedilir. Veya VERCEL_ACCESS_TOKEN ayarlayın.";
+"Open Vercel tokens" = "Vercel belirteçlerini aç";
+"Required with a Vercel access token. Or set VERCEL_TEAM_ID." = "Vercel erişim belirteciyle birlikte gereklidir. Veya VERCEL_TEAM_ID ayarlayın.";
 "Required. Shown in the xAI Console URL and team settings." = "Gerekli. xAI Konsolu URL ve ekip ayarlarında gösterilir.";
 "Sakana AI cost summary is not supported." = "Sakana AI maliyet özeti desteklenmiyor.";
 "Stored in ~/.codexbar/config.json. Copy the Sakana AI console Cookie request header." = "~/.codexbar/config.json konumunda saklanır. Sakana AI konsolu Cookie istek başlığını kopyalayın.";
@@ -2694,3 +2698,5 @@
 "Move up" = "Yukarı taşı";
 "Move down" = "Aşağı taşı";
 "Leave blank to keep the saved credential." = "Kayıtlı kimlik bilgisini korumak için boş bırakın.";
+
+"No personal budget configured" = "Kişisel bütçe yapılandırılmadı";

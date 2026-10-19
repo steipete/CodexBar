@@ -7,6 +7,7 @@
 - CLI: Claude Auto usage follows the active claude-swap account, matching cards and dashboard; explicit source/account selections retain their behavior, and adapter fallbacks identify their actual source and account (#4599). Thanks @postoso!
 ### Added
 
+- Vercel: optionally show your personal AI Gateway budget using a separate Vercel access token and Team ID, with UTC reset times and a clear unconfigured state (#4621, #4623). Thanks @sf-jin-ku!
 - Plugins: user plugins can declare a monochrome inline SVG icon (`icon.svg`, at most 8 KB, plain shapes only), drawn as a template image in the switcher and menu card; an SVG that fails validation falls back to the monogram (#4608). Thanks @shivanathd!
 - Plugins: detail rows can declare normal, warning, or critical severity independently of progress, with system colors and warning symbols (#4602). Thanks @DamonYoungWork!
 

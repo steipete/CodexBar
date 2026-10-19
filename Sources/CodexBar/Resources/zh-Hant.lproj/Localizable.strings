@@ -2183,6 +2183,10 @@
 "Stored in ~/.codexbar/config.json. Create one at console.x.ai under Settings > Management Keys; inference API keys are not accepted." = "儲存在~/.codexbar/config.json中。在「設定」>「管理金鑰」下的 console.x.ai 建立一個；推斷 API 金鑰不被接受。";
 "xai-..." = "xai-...";
 "Team ID" = "團隊 ID";
+"Vercel access token" = "Vercel 存取權杖";
+"Optional. Shows your personal budget instead of team credits. Saved in CodexBar's local config file. Or set VERCEL_ACCESS_TOKEN." = "選用。顯示你的個人預算，而非團隊額度。儲存在 CodexBar 的本機設定檔中。或設定 VERCEL_ACCESS_TOKEN。";
+"Open Vercel tokens" = "開啟 Vercel 權杖";
+"Required with a Vercel access token. Or set VERCEL_TEAM_ID." = "使用 Vercel 存取權杖時必填。或設定 VERCEL_TEAM_ID。";
 "Required. Shown in the xAI Console URL and team settings." = "必填。顯示在 xAI 控制台 URL 和團隊設定中。";
 "Sakana AI cost summary is not supported." = "暫不支持 Sakana AI 費用匯總。";
 "Stored in ~/.codexbar/config.json. Copy the Sakana AI console Cookie request header." = "儲存在~/.codexbar/config.json中。複製 Sakana AI 控制台 Cookie 請求標頭。";
@@ -2669,3 +2673,5 @@
 "Move up" = "上移";
 "Move down" = "下移";
 "Leave blank to keep the saved credential." = "留空以保留已儲存的憑證。";
+
+"No personal budget configured" = "尚未設定個人預算";

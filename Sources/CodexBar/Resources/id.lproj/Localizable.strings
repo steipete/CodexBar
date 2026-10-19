@@ -2205,6 +2205,10 @@
 "Stored in ~/.codexbar/config.json. Create one at console.x.ai under Settings > Management Keys; inference API keys are not accepted." = "Disimpan di ~/.codexbar/config.json. Buat satu di console.x.ai di bawah Pengaturan > Kunci Manajemen; kesimpulan kunci API tidak diterima.";
 "xai-..." = "xai-...";
 "Team ID" = "Tim ID";
+"Vercel access token" = "Token akses Vercel";
+"Optional. Shows your personal budget instead of team credits. Saved in CodexBar's local config file. Or set VERCEL_ACCESS_TOKEN." = "Opsional. Menampilkan anggaran pribadi Anda, bukan kredit tim. Disimpan di file konfigurasi lokal CodexBar. Atau atur VERCEL_ACCESS_TOKEN.";
+"Open Vercel tokens" = "Buka token Vercel";
+"Required with a Vercel access token. Or set VERCEL_TEAM_ID." = "Wajib bersama token akses Vercel. Atau atur VERCEL_TEAM_ID.";
 "Required. Shown in the xAI Console URL and team settings." = "Diperlukan. Ditampilkan di Konsol xAI URL dan pengaturan tim.";
 "Sakana AI cost summary is not supported." = "Ringkasan biaya Sakana AI tidak didukung.";
 "Stored in ~/.codexbar/config.json. Copy the Sakana AI console Cookie request header." = "Disimpan di ~/.codexbar/config.json. Salin header permintaan Sakana AI konsol Cookie.";
@@ -2693,3 +2697,5 @@
 "Move up" = "Pindah ke atas";
 "Move down" = "Pindah ke bawah";
 "Leave blank to keep the saved credential." = "Biarkan kosong untuk mempertahankan kredensial tersimpan.";
+
+"No personal budget configured" = "Belum ada anggaran pribadi yang dikonfigurasi";

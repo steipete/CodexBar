@@ -2205,6 +2205,10 @@
 "Stored in ~/.codexbar/config.json. Create one at console.x.ai under Settings > Management Keys; inference API keys are not accepted." = "Emmagatzemat a ~/.codexbar/config.json. Creeu-ne un a console.x.ai a Configuració > Claus de gestió; Les claus d'inferència API no s'accepten.";
 "xai-..." = "xai-...";
 "Team ID" = "Equip ID";
+"Vercel access token" = "Testimoni d'accés de Vercel";
+"Optional. Shows your personal budget instead of team credits. Saved in CodexBar's local config file. Or set VERCEL_ACCESS_TOKEN." = "Opcional. Mostra el vostre pressupost personal en lloc dels crèdits de l'equip. Es desa al fitxer de configuració local de CodexBar. O definiu VERCEL_ACCESS_TOKEN.";
+"Open Vercel tokens" = "Obre els testimonis de Vercel";
+"Required with a Vercel access token. Or set VERCEL_TEAM_ID." = "Obligatori amb un testimoni d'accés de Vercel. O definiu VERCEL_TEAM_ID.";
 "Required. Shown in the xAI Console URL and team settings." = "Obligatori. Es mostra a la consola xAI URL i a la configuració de l'equip.";
 "Sakana AI cost summary is not supported." = "El resum de costos Sakana AI no s'admet.";
 "Stored in ~/.codexbar/config.json. Copy the Sakana AI console Cookie request header." = "Emmagatzemat a ~/.codexbar/config.json. Copieu la capçalera de sol·licitud de la consola Sakana AI Cookie.";
@@ -2693,3 +2697,5 @@
 "Move up" = "Mou amunt";
 "Move down" = "Mou avall";
 "Leave blank to keep the saved credential." = "Deixeu-ho en blanc per conservar la credencial desada.";
+
+"No personal budget configured" = "No hi ha cap pressupost personal configurat";

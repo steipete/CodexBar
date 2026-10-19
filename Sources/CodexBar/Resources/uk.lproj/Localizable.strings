@@ -2201,6 +2201,10 @@
 "Stored in ~/.codexbar/config.json. Create one at console.x.ai under Settings > Management Keys; inference API keys are not accepted." = "Зберігається в ~/.codexbar/config.json. Створіть його на console.x.ai у меню «Параметри» > «Ключі керування»; висновок Ключі API не приймаються.";
 "xai-..." = "xai-...";
 "Team ID" = "Команда ID";
+"Vercel access token" = "Токен доступу Vercel";
+"Optional. Shows your personal budget instead of team credits. Saved in CodexBar's local config file. Or set VERCEL_ACCESS_TOKEN." = "Необов'язково. Показує ваш особистий бюджет замість кредитів команди. Зберігається в локальному файлі конфігурації CodexBar. Або задайте VERCEL_ACCESS_TOKEN.";
+"Open Vercel tokens" = "Відкрити токени Vercel";
+"Required with a Vercel access token. Or set VERCEL_TEAM_ID." = "Потрібен разом із токеном доступу Vercel. Або задайте VERCEL_TEAM_ID.";
 "Required. Shown in the xAI Console URL and team settings." = "Обов'язковий. Показано в налаштуваннях xAI Console URL і команди.";
 "Sakana AI cost summary is not supported." = "Підсумок вартості Sakana AI не підтримується.";
 "Stored in ~/.codexbar/config.json. Copy the Sakana AI console Cookie request header." = "Зберігається в ~/.codexbar/config.json. Скопіюйте заголовок запиту Cookie консолі Sakana AI.";
@@ -2691,3 +2695,5 @@
 "Move up" = "Перемістити вгору";
 "Move down" = "Перемістити вниз";
 "Leave blank to keep the saved credential." = "Залиште порожнім, щоб зберегти поточні облікові дані.";
+
+"No personal budget configured" = "Особистий бюджет не налаштовано";

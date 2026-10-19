@@ -2202,6 +2202,10 @@
 "Stored in ~/.codexbar/config.json. Create one at console.x.ai under Settings > Management Keys; inference API keys are not accepted." = "Được lưu trữ trong ~/.codexbar/config.json. Tạo một cái tại console.x.ai trong Cài đặt > Khóa quản lý; suy luận khóa API không được chấp nhận.";
 "xai-..." = "xai-...";
 "Team ID" = "Đội ID";
+"Vercel access token" = "Mã truy cập Vercel";
+"Optional. Shows your personal budget instead of team credits. Saved in CodexBar's local config file. Or set VERCEL_ACCESS_TOKEN." = "Tùy chọn. Hiển thị ngân sách cá nhân của bạn thay vì tín dụng của nhóm. Được lưu trong tệp cấu hình cục bộ của CodexBar. Hoặc đặt VERCEL_ACCESS_TOKEN.";
+"Open Vercel tokens" = "Mở mã Vercel";
+"Required with a Vercel access token. Or set VERCEL_TEAM_ID." = "Bắt buộc khi dùng mã truy cập Vercel. Hoặc đặt VERCEL_TEAM_ID.";
 "Required. Shown in the xAI Console URL and team settings." = "Bắt buộc. Hiển thị trong Bảng điều khiển xAI URL và cài đặt nhóm.";
 "Sakana AI cost summary is not supported." = "Tóm tắt chi phí Sakana AI không được hỗ trợ.";
 "Stored in ~/.codexbar/config.json. Copy the Sakana AI console Cookie request header." = "Được lưu trữ trong ~/.codexbar/config.json. Sao chép tiêu đề yêu cầu Cookie của bảng điều khiển Sakana AI.";
@@ -2692,3 +2696,5 @@
 "Move up" = "Di chuyển lên";
 "Move down" = "Di chuyển xuống";
 "Leave blank to keep the saved credential." = "Để trống để giữ thông tin xác thực đã lưu.";
+
+"No personal budget configured" = "Chưa thiết lập ngân sách cá nhân";
