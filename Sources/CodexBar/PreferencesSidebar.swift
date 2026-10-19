@@ -26,7 +26,7 @@ struct SettingsSidebarView: View {
             .padding(.top, 16)
             .padding(.bottom, 8)
 
-            List(selection: self.selectionBinding) {
+            List(selection: Binding(self.$selection)) {
                 self.appPanesSection
                 self.providersSection
             }
@@ -78,7 +78,7 @@ struct SettingsSidebarView: View {
                 if self.settings.moveVisibleProviders(
                     visibleProviders.map(\.instanceID), fromOffsets: fromOffsets, toOffset: toOffset)
                 {
-                    self.registerOrderUndo()
+                    self.settings.registerProviderOrderUndo(in: self.undoManager)
                 }
             }
 
@@ -114,21 +114,7 @@ struct SettingsSidebarView: View {
     }
 
     private func restoreProviderOrder() {
-        if self.settings.restoreDefaultProviderOrder() { self.registerOrderUndo() }
-    }
-
-    private func registerOrderUndo() {
-        self.settings.registerProviderOrderUndo(in: self.undoManager)
-    }
-
-    private var selectionBinding: Binding<SettingsPane?> {
-        Binding(
-            get: { self.selection },
-            set: { newValue in
-                if let newValue {
-                    self.selection = newValue
-                }
-            })
+        if self.settings.restoreDefaultProviderOrder() { self.settings.registerProviderOrderUndo(in: self.undoManager) }
     }
 
     private var orderedProviders: [UsageProvider] {
