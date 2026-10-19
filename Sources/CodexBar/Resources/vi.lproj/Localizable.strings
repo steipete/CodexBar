@@ -2680,3 +2680,7 @@
 "Claude desktop app" = "Ứng dụng Claude trên máy tính";
 "Use Claude desktop app cookies" = "Dùng cookie của ứng dụng Claude trên máy tính";
 "For Web usage, follow the account signed into Claude.app instead of a browser." = "Đối với mức sử dụng web, dùng tài khoản đã đăng nhập trong Claude.app thay vì tài khoản trình duyệt.";
+
+/* Munito provider credentials */
+"Key with Read account data (Admin API) permission. Or set MUNITO_API_KEY." = "Khoá có quyền đọc dữ liệu tài khoản (Admin API). Hoặc đặt MUNITO_API_KEY.";
+"Munito reports Admin API spend and limits, not local token cost history." = "Munito báo cáo chi tiêu và giới hạn của Admin API, không phải lịch sử chi phí token cục bộ.";

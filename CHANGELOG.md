@@ -1,50 +1,58 @@
 # Changelog
 
-## 0.76.1 — Unreleased
+## 0.77.1 — Unreleased
+
+## 0.77.0 — 2026-10-16
+
+### Highlights
+
+- Power and memory: Macs can idle-sleep again while the Claude CLI source is in use, because passive probes no longer leave Claude Code's `caffeinate` running; the Dock icon stops rescanning windows on every update pass (up to 40% idle CPU); Codex thread titles no longer keep full pasted prompts in memory; large Codex and Claude histories scan with less CPU.
+- Claude: optionally read usage from the Claude desktop app's own signed-in session; map each token account to its own Claude config directory for local cost; claude-swap cards show session forecasts per account and workspace; tcr account pools appear beside claude-swap.
+- Providers: an explicit Gemini app source for the 5-hour and weekly limits, Munito and Future AGI usage, Antigravity Pro accounts no longer labeled Free, Claude Cloud credits in widgets, OpenCode Go v2 history, and cookie errors that name every blocked browser.
+- Menu bar, settings and CLI: Auto ranks quotas by how soon they run out, Spend items for custom layouts, user plugins in the switcher and Overview, Settings Back/Forward, a six-day work week, an HTTP usage server in Settings, and an opt-in app cache so `codexbar usage` works over SSH with a locked keychain.
 
 ### Added
 
-- Providers: add Future AGI billing-period usage and free allowances with an API-key pair, including AI credits, gateway requests, and estimated usage cost (#4560). Thanks @spencer-shadley!
-- CLI: opt-in `"shareUsageWithCLI"` lets SSH `codexbar usage`/`cards` fall back to the app's cached rate windows (with `source: codexbar-app` and `ageSeconds`) when a fetch fails on a locked keychain (#4554). Thanks @mjaverto!
-- Settings: offer a six-day Monday–Saturday work week for weekly pace and session forecasts (#4548). Thanks @ViaxCo!
-
-### Fixed
-
-- Usage forecasts: restore estimated session quotas and windows until reset when older history contains reset-time corrections (#4540). Thanks @emanuelst!
-- Usage cards: distinguish plan renewal dates from quota resets with “Plan renews” wording across all 23 locales (#4540). Thanks @emanuelst!
-- Cost history: reduce CPU spent scanning large Codex and Claude message bodies without changing parsed usage. (#4552) Thanks @Lucenx9!
-- Developer tests: isolate local test homes so incidental cost refreshes cannot invalidate the app's cost cache. (#4551) Thanks @postoso!
-- Codex cost history: bound database fallback titles to 256 Unicode code points instead of retaining full prompts, while preserving saved session names. (#4550) Thanks @postoso!
-- Updates: recover from a partially failed Homebrew refresh when the installed cask’s tap has the offered CodexBar version, without repeating the refresh (#4520). Thanks @zerosrat!
-- Codex: remove rejected browser sessions from the affected account’s web store, and protect newer imports from an older rejection (#4514). Thanks @SebTardif!
-- Cookie imports: keep each browser’s permission guidance, preserving Chrome’s Files & Folders advice alongside Safari’s Full Disk Access instructions (#4528, #4513). Thanks @alphasafal!
-- Widgets: retain reset times for measured Antigravity quota rows, including five-hour limits (#4529). Thanks @djbclark!
-- Menu bar: apply native inactive-display dimming to fresh monochrome stacked token rows, including inline icons and reset text (#4532).
-- Claude: open Platform usage for default and API accounts while keeping recognized subscriptions on Claude usage settings (#4503). Thanks @Alex-Keyes!
-- Dock: stop rescanning windows on every update pass while preserving Settings and scheduled update dialogs (#4516, #4524). Thanks @harjothkhara and @Leen15!
-- Confetti: let limit-reset celebrations finish falling off the screen instead of cutting off after 5 seconds (#4536). Thanks @lg!
-- OpenCode Go: include v2 session history in local cost and token totals without counting migrated messages twice (#4526). Thanks @edtheflame!
-- Qwen Cloud: treat a Team summary with an empty `Data` object as no Team subscription, so Individual-only accounts no longer show "Team usage unavailable" (#4527, #4525). Thanks @harjothkhara and @mvicari!
-- Claude: optionally map each token account to a Claude config directory for local cost estimates; unmapped accounts keep combined history (#4470). Thanks @lghsigma597!
-- Claude: read tcr account pools through the shared claude-swap adapter, with source-specific identities and read-only account cards (#4517). Thanks @dhkts1!
-- Menu bar: add Spend layout items and conditional rules for providers that report a spend budget, such as Claude Enterprise (#4530). Thanks @benjschiller!
-- Settings: manage an opt-in HTTP usage server with local token storage, VPN/Tailscale binding controls, and automatic start/stop with the Mac app (#4430). Thanks @gmkbenjamin!
-- Plugins: show quota gauges on user-plugin tabs and allow enabled plugins in the Overview provider picker (#4471). Thanks @soimy!
-- Claude: optionally read web usage from the Claude desktop app’s signed-in session, following desktop account switches without using browser credentials (#4494). Thanks @flutterrausch!
-- Settings: navigate visited panes with Back/Forward and Command-[ / Command-], with a native-style detail header on macOS 26 and later (#4475). Thanks @elijahfriedman!
 - Gemini: add an explicit Gemini app source for browser-account 5-hour and weekly limits, separate from CLI and Antigravity quotas, with localized source labels and guidance (#4535, #4533). Thanks @codertesla!
+- Claude: optionally read web usage from the Claude desktop app’s signed-in session, following desktop account switches without using browser credentials (#4494). Thanks @flutterrausch!
+- Claude: read tcr account pools through the shared claude-swap adapter, with source-specific identities and read-only account cards (#4517). Thanks @dhkts1!
+- Claude: optionally map each token account to a Claude config directory for local cost estimates; unmapped accounts keep combined history (#4470). Thanks @lghsigma597!
+- Providers: add Future AGI billing-period usage and free allowances with an API-key pair, including AI credits, gateway requests, and estimated usage cost (#4560). Thanks @spencer-shadley!
+- Providers: add Munito today and this month's spend against the organization's spend limits through a bundled plugin, including Spend layouts, using an admin API key with Read account data permission (#4531). Thanks @dmartinw!
+- Menu bar: add Spend layout items and conditional rules for providers that report a spend budget, such as Claude Enterprise (#4530). Thanks @benjschiller!
+- Plugins: show quota gauges on user-plugin tabs and allow enabled plugins in the Overview provider picker (#4471). Thanks @soimy!
+- Settings: manage an opt-in HTTP usage server with local token storage, VPN/Tailscale binding controls, and automatic start/stop with the Mac app (#4430). Thanks @gmkbenjamin!
+- CLI: opt-in `"shareUsageWithCLI"` lets SSH `codexbar usage`/`cards` fall back to the app's cached rate windows (with `source: codexbar-app` and `ageSeconds`) when a fetch fails on a locked keychain (#4554). Thanks @mjaverto!
+- Settings: navigate visited panes with Back/Forward and Command-[ / Command-], with a native-style detail header on macOS 26 and later (#4475). Thanks @elijahfriedman!
+- Settings: offer a six-day Monday–Saturday work week for weekly pace and session forecasts (#4548). Thanks @ViaxCo!
 
 ### Changed
 
 - Menu bar: Auto prioritizes eligible quotas projected to run out first, then highest usage, and applies the same rule to the unified highest-usage icon while preserving Gemini tier order and ordered credit pools (#4491). Thanks @J2TeamNNL!
 
+### Fixed
 
-- Indonesian: translate the Keychain prompt shown before browser cookie decryption, which appeared in English (#4580).
-- Claude: show session forecasts on claude-swap account cards using separate usage histories for each email and workspace (#4566). Thanks @ViaxCo!
-- Developer tests: detached fixtures that ignore SIGTERM exit when the test process dies, with a 120-second backstop, so interrupted runs do not leave them running (#4570, #4567). Thanks @harjothkhara and @postoso!
-- Antigravity: prefer explicit OAuth paid-tier labels and hide a contradictory Free label when measured five-hour quotas are available (#4565). Thanks @mvicari!
 - Claude: release macOS sleep inhibitors after passive CLI session probes (#4544). Thanks @iamyeizi!
+- Dock: stop rescanning windows on every update pass while preserving Settings and scheduled update dialogs (#4516, #4524). Thanks @harjothkhara and @Leen15!
+- Codex cost history: bound database fallback titles to 256 Unicode code points instead of retaining full prompts, while preserving saved session names. (#4550) Thanks @postoso!
+- Cost history: reduce CPU spent scanning large Codex and Claude message bodies without changing parsed usage. (#4552) Thanks @Lucenx9!
+- Usage forecasts: restore estimated session quotas and windows until reset when older history contains reset-time corrections (#4540). Thanks @emanuelst!
+- Usage cards: distinguish plan renewal dates from quota resets with “Plan renews” wording across all 23 locales (#4540). Thanks @emanuelst!
+- Claude: show session forecasts on claude-swap account cards using separate usage histories for each email and workspace (#4566). Thanks @ViaxCo!
+- Antigravity: prefer explicit OAuth paid-tier labels and hide a contradictory Free label when measured five-hour quotas are available (#4565). Thanks @mvicari!
 - Widgets: include optional provider details in snapshot JSON so Claude Cloud credits retain their remaining balance, grant total, and expiry without changing quota rows (#4546). Thanks @djbclark!
+- Widgets: retain reset times for measured Antigravity quota rows, including five-hour limits (#4529). Thanks @djbclark!
+- Claude: open Platform usage for default and API accounts while keeping recognized subscriptions on Claude usage settings (#4503). Thanks @Alex-Keyes!
+- Codex: remove rejected browser sessions from the affected account’s web store, and protect newer imports from an older rejection (#4514). Thanks @SebTardif!
+- Cookie imports: keep each browser’s permission guidance, preserving Chrome’s Files & Folders advice alongside Safari’s Full Disk Access instructions (#4528, #4513). Thanks @alphasafal!
+- Updates: recover from a partially failed Homebrew refresh when the installed cask’s tap has the offered CodexBar version, without repeating the refresh (#4520). Thanks @zerosrat!
+- OpenCode Go: include v2 session history in local cost and token totals without counting migrated messages twice (#4526). Thanks @edtheflame!
+- Qwen Cloud: treat a Team summary with an empty `Data` object as no Team subscription, so Individual-only accounts no longer show "Team usage unavailable" (#4527, #4525). Thanks @harjothkhara and @mvicari!
+- Menu bar: apply native inactive-display dimming to fresh monochrome stacked token rows, including inline icons and reset text (#4532).
+- Confetti: let limit-reset celebrations finish falling off the screen instead of cutting off after 5 seconds (#4536). Thanks @lg!
+- Indonesian: translate the Keychain prompt shown before browser cookie decryption, which appeared in English (#4580).
+- Developer tests: isolate local test homes so incidental cost refreshes cannot invalidate the app's cost cache. (#4551) Thanks @postoso!
+- Developer tests: detached fixtures that ignore SIGTERM exit when the test process dies, with a 120-second backstop, so interrupted runs do not leave them running (#4570, #4567). Thanks @harjothkhara and @postoso!
 
 ## 0.76.0 — 2026-10-15
 

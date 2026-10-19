@@ -2671,3 +2671,7 @@
 "Claude desktop app" = "Claude 桌面应用";
 "Use Claude desktop app cookies" = "使用 Claude 桌面应用的 Cookie";
 "For Web usage, follow the account signed into Claude.app instead of a browser." = "查询网页使用量时，使用 Claude.app 中登录的账户，而不是浏览器账户。";
+
+/* Munito provider credentials */
+"Key with Read account data (Admin API) permission. Or set MUNITO_API_KEY." = "具有读取账户数据（Admin API）权限的密钥。或设置 MUNITO_API_KEY。";
+"Munito reports Admin API spend and limits, not local token cost history." = "Munito 报告 Admin API 的支出和限额，而非本地 token 成本历史。";

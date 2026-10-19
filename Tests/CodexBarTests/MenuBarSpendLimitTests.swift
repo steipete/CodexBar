@@ -46,7 +46,7 @@ struct MenuBarSpendLimitTests {
 
     /// The Spend window is whatever the Extra usage menu bar metric resolves, so a provider that projects its
     /// own window for that metric (Claude's calendar month) governs percent, reset, and period here too.
-    @Test(arguments: [UsageProvider.claude, .cursor])
+    @Test(arguments: [UsageProvider.claude, .cursor, .munito])
     func `a provider reported budget resolves through the extra usage metric window`(provider: UsageProvider) throws {
         let store = self.makeStore()
         defer { store.stopSharedSpendDashboardPublication() }

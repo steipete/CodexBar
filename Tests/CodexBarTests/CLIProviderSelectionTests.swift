@@ -43,6 +43,7 @@ struct CLIProviderSelectionTests {
             "|flora|",
             "|parallel|",
             "|claudeplatform|",
+            "|munito|",
             "|both|",
             "|all]",
         ]

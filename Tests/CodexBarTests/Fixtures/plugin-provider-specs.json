@@ -698,5 +698,19 @@
     "strategies": ["parallel.js"],
     "supportsTokenCost": false,
     "workspaceOrder": null
+  },
+  {
+    "availability": [true, true, true],
+    "cliResolution": {"MUNITO": ["munito"]},
+    "enterpriseHost": false,
+    "environmentAvailability": [[true, false], [true, true], [true, true], [true, true]],
+    "fields": ["secure"],
+    "id": "munito",
+    "projectToken": "",
+    "projections": {"MUNITO_API_KEY": "fixture-key"},
+    "sourceModes": ["api", "auto"],
+    "strategies": ["munito.js"],
+    "supportsTokenCost": false,
+    "workspaceOrder": null
   }
 ]

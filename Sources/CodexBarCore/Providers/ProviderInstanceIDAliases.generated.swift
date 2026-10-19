@@ -108,6 +108,7 @@ extension ProviderInstanceID {
     public static let flora = UsageProvider.flora.instanceID
     public static let parallel = UsageProvider.parallel.instanceID
     public static let claudeplatform = UsageProvider.claudeplatform.instanceID
+    public static let munito = UsageProvider.munito.instanceID
 }
 
 // swiftformat:enable sortDeclarations

@@ -2679,3 +2679,7 @@
 "Claude desktop app" = "Програма Claude для комп’ютера";
 "Use Claude desktop app cookies" = "Використовувати файли cookie програми Claude";
 "For Web usage, follow the account signed into Claude.app instead of a browser." = "Для вебстатистики використовувати обліковий запис у Claude.app замість облікового запису браузера.";
+
+/* Munito provider credentials */
+"Key with Read account data (Admin API) permission. Or set MUNITO_API_KEY." = "Ключ із правом читання даних облікового запису (Admin API). Або встановіть MUNITO_API_KEY.";
+"Munito reports Admin API spend and limits, not local token cost history." = "Munito звітує про витрати та ліміти Admin API, а не локальну історію витрат на токени.";

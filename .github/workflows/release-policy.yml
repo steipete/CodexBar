@@ -1,0 +1,18 @@
+name: Release policy
+on:
+  pull_request:
+    paths: ['.github/**', 'Scripts/*release*', 'Scripts/sign-and-notarize.sh', 'docs/*releas*', 'docs/RELEASING.md']
+  push:
+    branches: [main]
+    paths: ['.github/**', 'Scripts/*release*', 'Scripts/sign-and-notarize.sh', 'docs/*releas*', 'docs/RELEASING.md']
+permissions: {}
+jobs:
+  policy:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: python3 -m unittest discover -s .github/scripts -p 'test_*.py' -v

@@ -156,9 +156,9 @@ struct ProviderArchitectureGatekeeperTests {
             Self.hash(descriptor.branding.burnDownWidgetColor, into: &burnDownFingerprint)
         }
 
-        // Future AGI extends the palette without changing existing provider colors.
-        #expect(widgetFingerprint == 3_711_886_239_094_764_584)
-        #expect(burnDownFingerprint == 13_987_331_976_248_604_459)
+        // Future AGI and Munito extend the palette without changing existing provider colors.
+        #expect(widgetFingerprint == 6_735_779_563_872_487_318)
+        #expect(burnDownFingerprint == 3_084_140_234_155_981_949)
     }
 
     @Test

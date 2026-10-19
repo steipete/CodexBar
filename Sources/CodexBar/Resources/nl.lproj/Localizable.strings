@@ -2676,3 +2676,7 @@
 "Claude desktop app" = "Claude-desktopapp";
 "Use Claude desktop app cookies" = "Cookies van de Claude-desktopapp gebruiken";
 "For Web usage, follow the account signed into Claude.app instead of a browser." = "Gebruik voor webverbruik het account dat bij Claude.app is aangemeld in plaats van het browseraccount.";
+
+/* Munito provider credentials */
+"Key with Read account data (Admin API) permission. Or set MUNITO_API_KEY." = "Sleutel met machtiging Accountgegevens lezen (Admin API). Of stel MUNITO_API_KEY in.";
+"Munito reports Admin API spend and limits, not local token cost history." = "Munito meldt uitgaven en limieten van de Admin API, niet de lokale tokenkostenhistorie.";

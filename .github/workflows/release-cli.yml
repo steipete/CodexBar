@@ -1,20 +1,22 @@
 name: Release CLI
 
 on:
-  release:
-    types: [published]
-  workflow_dispatch:
+  workflow_call:
     inputs:
+      ref:
+        required: true
+        type: string
       tag:
-        description: "Release tag/version to package for manual artifact builds; manual runs do not publish."
-        required: false
+        required: true
         type: string
 
-permissions:
-  contents: write
+permissions: {}
 
 jobs:
   build-cli:
+    permissions:
+      contents: read
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
@@ -87,7 +89,7 @@ jobs:
             file-arch-pattern: ""
     runs-on: ${{ matrix.runs-on }}
     env:
-      RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+      RELEASE_TAG: ${{ inputs.tag }}
       SWIFT_VERSION: 6.3.3
       SWIFTLY_VERSION: 1.1.3
       SWIFTLY_SIGNING_FINGERPRINT: E813C892820A6FA13755B268F167DF1ACF9CE069
@@ -97,6 +99,9 @@ jobs:
       SQLITE_AMALGAMATION_SHA3_256: 628a44cfe82c66aed1ccbbe85a562d2e33ebe64b3288981ed76285612227934e
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
+          persist-credentials: false
 
       - name: Select Xcode 26.3 or 26.2
         if: matrix.platform == 'macos'
@@ -121,7 +126,7 @@ jobs:
           swift --version
 
       - name: Validate release tag
-        if: github.event_name == 'release' || inputs.tag != ''
+        if: inputs.tag != ''
         shell: bash
         run: |
           set -euo pipefail
@@ -415,90 +420,10 @@ jobs:
           echo "out_dir=$OUT_DIR" >> "$GITHUB_OUTPUT"
           echo "asset=$ASSET" >> "$GITHUB_OUTPUT"
 
-      - name: Upload release assets
-        if: github.event_name == 'release'
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          TAG="${RELEASE_TAG}"
-          OUT_DIR="${{ steps.pkg.outputs.out_dir }}"
-          ASSET="${{ steps.pkg.outputs.asset }}"
-          gh release upload "$TAG" "$OUT_DIR/$ASSET" "$OUT_DIR/$ASSET.sha256" --clobber
-
       - name: Upload workflow artifact (manual runs)
-        if: github.event_name == 'workflow_dispatch'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.1
         with:
-          name: codexbar-cli-${{ matrix.name }}
+          name: payload-cli-${{ matrix.name }}
           path: |
             ${{ steps.pkg.outputs.out_dir }}/${{ steps.pkg.outputs.asset }}
             ${{ steps.pkg.outputs.out_dir }}/${{ steps.pkg.outputs.asset }}.sha256
-
-  update-homebrew-tap:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 80
-    needs: build-cli
-    if: github.event_name == 'release'
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Resolve release tag
-        id: release
-        env:
-          RELEASE_TAG: ${{ github.ref_name }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          tag="${RELEASE_TAG}"
-          if [[ -z "$tag" ]]; then
-            echo "Missing release tag." >&2
-            exit 1
-          fi
-          if [[ ! "$tag" =~ ^v[0-9A-Za-z._-]+$ ]]; then
-            echo "Invalid release tag: $tag" >&2
-            exit 1
-          fi
-          echo "tag=$tag" >> "$GITHUB_OUTPUT"
-          echo "request_id=codexbar-${tag}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_OUTPUT"
-
-      - name: Dispatch tap update
-        env:
-          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
-          RELEASE_TAG: ${{ steps.release.outputs.tag }}
-          REQUEST_ID: ${{ steps.release.outputs.request_id }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          test -n "$GH_TOKEN"
-          for attempt in {1..6}; do
-            if gh workflow run update-formula.yml \
-              --repo steipete/homebrew-tap \
-              --ref main \
-              -f formula=codexbar \
-              -f tag="$RELEASE_TAG" \
-              -f repository=steipete/CodexBar \
-              -f artifact_template='CodexBarCLI-{tag}-{target}.tar.gz' \
-              -f target_aliases='darwin_arm64=macos-arm64,darwin_amd64=macos-x86_64,linux_arm64=linux-aarch64,linux_amd64=linux-x86_64' \
-              -f cask=codexbar \
-              -f cask_artifact='CodexBar-macos-universal-{version}.zip' \
-              -f request_id="$REQUEST_ID"; then
-              exit 0
-            fi
-            if [[ "$attempt" -eq 6 ]]; then
-              echo "Failed to dispatch tap update after ${attempt} attempts." >&2
-              exit 1
-            fi
-            sleep $((attempt * 30))
-          done
-
-      - name: Wait for tap update
-        timeout-minutes: 70
-        env:
-          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
-          REQUEST_ID: ${{ steps.release.outputs.request_id }}
-          RELEASE_TAG: ${{ steps.release.outputs.tag }}
-          TAP_WAIT_TIMEOUT_SECONDS: "3900"
-        shell: bash
-        run: ./Scripts/wait_for_homebrew_tap_update.sh

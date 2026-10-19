@@ -620,6 +620,12 @@ exported as a cloud account snapshot: its ownership can only be verified on the 
 [TinyApi](tinyapi.md) reads aggregate available credits through its website session and the shared cookie host.
 These plugins omit undocumented reset dates, credit-bucket splits, and live request-rate headroom.
 
+## Spend-limit providers
+
+[Munito](munito.md) reads today's and this month's spend against the organization's spend limits from the Admin API
+with a bearer key that holds Read account data permission. The organization read is best-effort; missing or zero
+limits keep the spend rows without a percentage window, and no reset time is guessed.
+
 ## Generative media credit providers
 
 [fal](fal.md) reads the account credit balance from the Platform API billing endpoint with a `Key`-scheme API key
