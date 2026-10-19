@@ -1047,24 +1047,14 @@ enum PiSessionCostScanner {
             var seenEntries = seenEntriesBySessionID[sessionID] ?? []
             for entryID in usage.entryUsages.keys.sorted() where seenEntries.insert(entryID).inserted {
                 guard let entryUsage = usage.entryUsages[entryID] else { continue }
-                guard self.applyEntryUsage(daysByProvider: &days, entryUsage: entryUsage) else { return false }
+                guard self.applyContributions(daysByProvider: &days, contributions: [
+                    entryUsage.providerRawValue: [entryUsage.dayKey: [entryUsage.modelName: entryUsage.usage]],
+                ]) else { return false }
             }
             seenEntriesBySessionID[sessionID] = seenEntries
         }
         cache.daysByProvider = days
         return true
-    }
-
-    private static func applyEntryUsage(
-        daysByProvider: inout [String: [String: [String: PiPackedUsage]]],
-        entryUsage: PiSessionEntryUsage) -> Bool
-    {
-        let contributions = [
-            entryUsage.providerRawValue: [
-                entryUsage.dayKey: [entryUsage.modelName: entryUsage.usage],
-            ],
-        ]
-        return self.applyContributions(daysByProvider: &daysByProvider, contributions: contributions)
     }
 
     private static func modelContext(from object: [String: Any]) -> PiModelContext? {

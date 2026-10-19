@@ -221,6 +221,16 @@ struct ClaudeBaselineCharacterizationTests {
     }
 
     @Test
+    func `CLI auto keeps web then CLI on macOS when OAuth credentials are readable`() async {
+        let env = [
+            "CLAUDE_CLI_PATH": "/usr/bin/true",
+            ClaudeOAuthCredentialsStore.environmentTokenKey: "sk-ant-oat01-characterization",
+        ]
+        let strategyIDs = await self.strategyIDs(runtime: .cli, sourceMode: .auto, env: env)
+        #expect(strategyIDs == ["claude.web", "claude.cli"])
+    }
+
+    @Test
     func `CLI explicit source delegates authentication to the configured Claude executable`() async throws {
         let invocationLog = FileManager.default.temporaryDirectory
             .appendingPathComponent("claude-invocations-\(UUID().uuidString).log")

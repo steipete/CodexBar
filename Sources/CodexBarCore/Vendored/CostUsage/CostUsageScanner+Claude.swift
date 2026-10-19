@@ -681,6 +681,10 @@ extension CostUsageScanner {
             guard let existingRootPath = rootCandidates.first(where: { FileManager.default.fileExists(atPath: $0) })
             else { continue }
             let existingRoot = existingRootPath == rootPath ? root : URL(fileURLWithPath: existingRootPath)
+            if existingRoot.pathExtension == "jsonl", let stamp = CostUsageClaudeFileStamp.read(at: existingRoot) {
+                inventory.files[existingRoot.path] = ClaudeSourceFile(url: existingRoot, stamp: stamp)
+                continue
+            }
             guard let enumerator = FileManager.default.enumerator(
                 at: existingRoot,
                 includingPropertiesForKeys: nil,

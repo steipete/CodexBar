@@ -837,7 +837,9 @@ struct PiSessionProcessContextTests {
         #expect(PiSessionCostCacheIO.load(cacheRoot: env.cacheRoot).sessionRootsFingerprint?
             .contains(firstRoot.path) != true)
     }
+}
 
+extension PiSessionProcessContextTests {
     @Test
     func `pi cost scope ignores the discovery order of identical session roots`() throws {
         let env = try CostUsageTestEnvironment()
@@ -867,5 +869,38 @@ struct PiSessionProcessContextTests {
         #expect(forward.contains("pi-sessions-beta"))
         #expect(scope([projects[1], projects[0]]) == forward)
         #expect(scope([projects[0], projects[2]]) != forward)
+
+        let day = try env.makeLocalNoon(year: 2026, month: 7, day: 1)
+        for name in ["alpha", "beta"] {
+            let rows = try env.jsonl([[
+                "type": "message", "timestamp": env.isoString(for: day),
+                "message": [
+                    "role": "assistant", "provider": "openai-codex", "model": "gpt-5.4",
+                    "usage": ["input": 10, "output": 0],
+                ],
+            ]])
+            try Data(rows.utf8).write(to: env.root.appendingPathComponent("pi-sessions-\(name)/session.jsonl"))
+        }
+        var options = PiSessionCostScanner.Options(
+            cacheRoot: env.cacheRoot,
+            environment: ["HOME": env.root.path],
+            workingDirectories: [projects[0], projects[1]])
+        let initial = PiSessionCostScanner.loadDailyReport(
+            provider: .pi, since: day, until: day, now: day, options: options)
+        #expect(initial.summary?.totalTokens == 20)
+        options.workingDirectories.reverse()
+        let cached = PiSessionCostScanner.loadCachedDailyReportResult(
+            provider: .pi, since: day, until: day, now: day, cacheRoot: env.cacheRoot, options: options)
+        #expect(cached?.report.summary?.totalTokens == 20)
+        #expect(cached?.isComplete == true)
+
+        var legacy = PiSessionCostCacheIO.load(cacheRoot: env.cacheRoot)
+        legacy.sessionRootsFingerprint = legacy.sessionRootsFingerprint?
+            .components(separatedBy: "\u{1E}").reversed().joined(separator: "\u{1E}")
+        PiSessionCostCacheIO.save(cache: legacy, cacheRoot: env.cacheRoot)
+        let upgraded = PiSessionCostScanner.loadDailyReport(
+            provider: .pi, since: day, until: day, now: day, options: options)
+        #expect(upgraded.summary == initial.summary)
+        #expect(PiSessionCostCacheIO.load(cacheRoot: env.cacheRoot).sessionRootsFingerprint == forward)
     }
 }

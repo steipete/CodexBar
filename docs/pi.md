@@ -21,6 +21,8 @@ Default session roots include `~/.pi/agent/sessions` and the supported OMP agent
 
 Root canonicalization preserves an explicit directory marker even when the session directory does not exist yet.
 
+Discovering the same roots in a different order does not change the cache scope. Older unsorted scope fingerprints are refreshed once while retaining the same source selection and totals.
+
 Running Pi/OMP processes also contribute their environment, profile, `--session-dir`, and project settings. Relative paths resolve against that process's working directory. A missing working directory cannot turn an unresolved relative selector into a successful empty scan. Retained roots from explicit command-line or settings selectors survive process exit; settings are revalidated before reuse. Removing a setting from an accessible project drops its former root, while an inaccessible project or broken settings symlink preserves the previous scoped report and its original age.
 
 Live processes with an unreadable environment and no explicit command-line session/profile selector are skipped during cost-root discovery. A single summary diagnostic records the skipped count per discovery pass without logging arguments, paths, or environment values. Default/configured roots and other readable processes still contribute history, including on the first scan. This is best-effort discovery: a custom root visible only in an unreadable process environment cannot be discovered. Explicit selectors that cannot resolve still keep history incomplete; an absolute `--session-dir` remains usable without an environment or working directory.
