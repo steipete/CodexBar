@@ -523,6 +523,13 @@ unavailable (`costUSD: null`). This opt-in CLI mode does not change ordinary cos
     Successful historical queries update their own pricing window independently of the live scan cursor, including
     results with no priority turns; validated pricing outside that window remains intact.
 - Window: configurable 1-365 day rolling history.
+- Logs without `token_usage_record` also recover a resumed session's restarted counter. After a same-session
+  `session_meta`, a first snapshot whose cumulative totals equal its own request and fall below the earlier peak
+  starts a new counter epoch instead of being contained, so later requests are no longer dropped until the new
+  counter passes the pre-resume peak. Forks, counters that continue across the resume, and exact replays of earlier
+  snapshots keep the existing accounting. The pending resume survives scan-budget cuts. Parser revision 14 reparses
+  files through the normal scan budget; stores from `a47b70abaf8ad86c` retain saved history and checkpoints without
+  a rebuild.
 - Owned `token_usage_record` responses recover usage after resumed-session counter resets. Each response is counted
   once on its event date, with matching legacy `token_count` observations reconciled rather than added again.
   Exact mirrors include their timestamps, so repeated counters cannot erase an earlier legacy-only request.

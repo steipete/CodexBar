@@ -2,6 +2,10 @@
 
 ## 0.78.1 — Unreleased
 
+### Fixed
+
+- Codex cost history: count requests after a resumed session restarts its cumulative token counter in logs without request records, instead of dropping them until the counter passes its pre-resume peak; parser revision 14 repairs existing caches through the normal scan budget (#3316).
+
 ## 0.78.0 — 2026-10-19
 
 ### Highlights

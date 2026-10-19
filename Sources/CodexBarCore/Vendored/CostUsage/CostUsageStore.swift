@@ -124,6 +124,7 @@ actor CostUsageStore {
     static let compatiblePredecessorParserHashes: Set<String> = [
         "3f88178bf03ad704", // Exact byte-marker searches preserve native rows, checkpoints, and reports.
         "fc698834d6329beb", // Opt-in request observation defaults to nil; saved rows and cursors are unchanged.
+        "a47b70abaf8ad86c", // Revision 14 reparses rows to restart resumed legacy session counters.
         "f406dae284de4a55", // Revision 13 reparses rows to record the session creator account for Auto-review.
         "379b799bb4b91683", // Current main before tool inspection; stored rows and checkpoints are unchanged.
         "7ce21041b7a36242", // Prior tool inspection stores survive upstream process cleanup.

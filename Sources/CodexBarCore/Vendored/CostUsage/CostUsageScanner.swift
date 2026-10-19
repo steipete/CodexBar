@@ -408,6 +408,9 @@ enum CostUsageScanner {
         var lastLedgerTotal: CostUsageCodexTotals?
         var lastLegacyTotal: CostUsageCodexTotals?
         var countedUsage: CostUsageCodexTotals?
+        /// A same-session resume was seen and its first counter has not been checked for a restart yet.
+        /// Persisted so a scan budget cut between the resume and that counter keeps the boundary.
+        var pendingCounterRestart: Bool?
         var turnPerformance: [String: CodexTurnPerformanceState]?
 
         mutating func clearPendingMirrors(when shouldClear: Bool = true) {
@@ -585,6 +588,22 @@ enum CostUsageScanner {
         }
         return currentTotal * 100 >= previousTotal * 98
             || currentTotal + lastTotal * 2 >= previousTotal
+    }
+
+    /// A restarted counter's first snapshot equals its own request and sits below the old watermark.
+    private static func codexLooksLikeRestartedCounter(
+        total: CostUsageCodexTotals,
+        last: CostUsageCodexTotals,
+        watermark: CostUsageCodexTotals?) -> Bool
+    {
+        guard let watermark,
+              total.input == last.input,
+              total.cached == last.cached,
+              total.output == last.output
+        else { return false }
+        return total.input < watermark.input
+            || total.cached < watermark.cached
+            || total.output < watermark.output
     }
 
     private static func codexShouldPreferTotalDelta(
@@ -823,6 +842,13 @@ enum CostUsageScanner {
                     self.seenRawTotals.removeFirst(self.seenRawTotals.count - Self.seenRawTotalsLimit)
                 }
             }
+        }
+
+        /// Starts a new counter epoch after a resumed session restarted its cumulative counter.
+        /// The seen set survives so exact replays of earlier snapshots stay suppressed.
+        mutating func restartCounter(at origin: CostUsageCodexTotals) {
+            self.watermark = origin
+            self.sawInterleavedTotals = false
         }
 
         /// Raises the watermark for baseline assignments that are not observed raw snapshots
@@ -4516,6 +4542,27 @@ enum CostUsageScanner {
         /// `total - last` gap (the previous page's last total), and totals-only fork accounting bills
         /// the whole thread to the new page. Raise the inherited baseline to that local proof only
         /// when `history_base.thread_id` is not the fork parent already subtracted by #1164.
+        /// Legacy logs have no request ledger to recover a resumed session's restarted counter. Without a
+        /// new epoch, containment drops every later request until the new counter passes the pre-resume
+        /// peak. Forks keep their inherited-baseline accounting.
+        func restartResumedCounterIfNeeded(total: CostUsageCodexTotals, last: CostUsageCodexTotals?) {
+            guard requestLedger.pendingCounterRestart == true else { return }
+            requestLedger.pendingCounterRestart = nil
+            guard forkedFromId == nil, inheritedTotals == nil, let last,
+                  Self.codexLooksLikeRestartedCounter(
+                      total: total,
+                      last: last,
+                      watermark: tracker.watermark ?? rawTotalsBaseline)
+            else { return }
+            let origin = CostUsageCodexTotals(
+                input: 0,
+                cached: 0,
+                output: 0,
+                reasoning: total.reasoning == nil ? nil : 0)
+            tracker.restartCounter(at: origin)
+            rawTotalsBaseline = origin
+        }
+
         func raiseInheritedBaselineIfContinuedCounter(
             total: CostUsageCodexTotals,
             last: CostUsageCodexTotals)
@@ -4556,6 +4603,7 @@ enum CostUsageScanner {
                 requestLedger.clearPendingMirrors()
                 requestLedger.lastLedgerTotal = nil
                 requestLedger.lastLegacyTotal = nil
+                requestLedger.pendingCounterRestart = true
                 isSubagentThread = isSubagentThread || metadata.isSubagentThread
                 if requestLedger.sessionID == nil {
                     requestLedger.sessionID = metadata.requestSessionID ?? metadata.sessionId
@@ -4685,6 +4733,7 @@ enum CostUsageScanner {
                 if tracker.isSeen(adjustedTotal) {
                     return
                 }
+                restartResumedCounterIfNeeded(total: adjustedTotal, last: last)
                 let staleBaseline = tracker.watermark ?? rawTotalsBaseline
                 if let previousTotal = staleBaseline,
                    !hasUnresolvedForkBaseline,
