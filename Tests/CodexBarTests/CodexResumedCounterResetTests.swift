@@ -40,16 +40,17 @@ struct CodexResumedCounterResetTests {
         #expect(parsed.rows == 14)
     }
 
-    @Test
-    func `replayed pre-resume snapshot cannot start a new counter epoch`() throws {
+    /// 65 and 200 requests evict the first snapshot from the tracker's 64-entry seen window.
+    @Test(arguments: [10, 65, 200])
+    func `replayed pre-resume snapshot cannot start a new counter epoch`(requests: Int) throws {
         let parsed = try Self.parse { next in
             // An exact copy of the first snapshot also has total == last; it must stay a replay.
-            (1...10).map { Self.tokenCount(timestamp: next(), total: $0 * 1000, last: 1000) }
+            (1...requests).map { Self.tokenCount(timestamp: next(), total: $0 * 1000, last: 1000) }
                 + [Self.sessionMeta(timestamp: next())]
                 + (1...3).map { Self.tokenCount(timestamp: next(), total: $0 * 1000, last: 1000) }
         }
 
-        #expect(parsed.input == 10000)
+        #expect(parsed.input == requests * 1000)
     }
 
     @Test
@@ -111,6 +112,37 @@ struct CodexResumedCounterResetTests {
         let recovered = try #require(CostUsageStoreAccess.read(cacheRoot: env.cacheRoot).files[path])
         #expect(recovered.hasCurrentCodexParser)
         #expect(recovered.codexRows?.count == 16)
+    }
+
+    @Test(arguments: [true, false])
+    func `resume appended after a completed scan restarts only with recorded origins`(originsRecorded: Bool) throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let day = try env.makeLocalNoon(year: 2026, month: 6, day: 10)
+        let lines = Self.sessionLines(env: env, day: day, events: Self.resumedSessionEvents)
+        // Session metadata, turn context, and the ten pre-resume requests.
+        let resumeIndex = 12
+        let fileURL = try env.writeCodexSessionFile(
+            day: day,
+            filename: "rollout-\(env.isoString(for: day))-appended.jsonl",
+            contents: env.jsonl(Array(lines[..<resumeIndex])))
+        let options = Self.scanOptions(env: env)
+        #expect(Self.scanUntilComplete(env: env, day: day, options: options) == 10000)
+
+        if !originsRecorded {
+            // Earlier history parsed before origins were recorded cannot prove a restart is not a replay.
+            var cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+            let path = try #require(cache.files.keys.first)
+            cache.files[path]?.codexRequestLedgerState?.counterOrigins = nil
+            CostUsageStoreAccess.replace(cacheRoot: env.cacheRoot, cache: cache)
+        }
+        let handle = try FileHandle(forWritingTo: fileURL)
+        try handle.seekToEnd()
+        try handle.write(contentsOf: Data(env.jsonl(Array(lines[resumeIndex...])).utf8))
+        try handle.close()
+
+        let expected = originsRecorded ? Self.resumedSessionInput : 10000
+        #expect(Self.scanUntilComplete(env: env, day: day, options: options) == expected)
     }
 
     // MARK: - Fixtures

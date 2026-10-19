@@ -411,6 +411,10 @@ enum CostUsageScanner {
         /// A same-session resume was seen and its first counter has not been checked for a restart yet.
         /// Persisted so a scan budget cut between the resume and that counter keeps the boundary.
         var pendingCounterRestart: Bool?
+        /// Snapshots whose cumulative totals equal their own request, so they opened a counter. Unlike the
+        /// bounded seen window they are never evicted, so a replayed counter start cannot restart accounting.
+        /// `nil` when earlier history was parsed before origins were recorded.
+        var counterOrigins: [CostUsageCodexTotals]?
         var turnPerformance: [String: CodexTurnPerformanceState]?
 
         mutating func clearPendingMirrors(when shouldClear: Bool = true) {
@@ -422,6 +426,15 @@ enum CostUsageScanner {
             self.pendingLegacyRowIndex = nil
             self.pendingLedgerNearMirror = nil
             self.pendingLegacyNearMirror = nil
+        }
+
+        func isCounterOrigin(_ total: CostUsageCodexTotals) -> Bool {
+            self.counterOrigins?.contains { CostUsageScanner.codexTotalsEqual($0, total) } == true
+        }
+
+        mutating func rememberCounterOrigin(_ total: CostUsageCodexTotals, last: CostUsageCodexTotals?) {
+            guard CostUsageScanner.codexTotalsEqual(total, last), !self.isCounterOrigin(total) else { return }
+            self.counterOrigins?.append(total)
         }
 
         mutating func rememberLegacyCounter(_ total: CostUsageCodexTotals?, when accepted: Bool) {
@@ -596,11 +609,7 @@ enum CostUsageScanner {
         last: CostUsageCodexTotals,
         watermark: CostUsageCodexTotals?) -> Bool
     {
-        guard let watermark,
-              total.input == last.input,
-              total.cached == last.cached,
-              total.output == last.output
-        else { return false }
+        guard let watermark, codexTotalsEqual(total, last) else { return false }
         return total.input < watermark.input
             || total.cached < watermark.cached
             || total.output < watermark.output
@@ -4159,6 +4168,10 @@ enum CostUsageScanner {
         var tokenSnapshots: [CostUsageCodexTokenSnapshot] = []
         var lastAcceptedTokenTimestamp: String?
         var requestLedger = initialRequestLedgerState ?? CodexRequestLedgerState()
+        // Counter origins are complete only when this parse observes the counter from its start.
+        if requestLedger.counterOrigins == nil, tracker.watermark == nil {
+            requestLedger.counterOrigins = []
+        }
         var replacedLegacyRowIndices: Set<Int> = []
         var ledgerLegacyPricingKeys: [Int: CodexSourcePricingKey] = [:]
         let retainedRows = Dictionary(initialRequestLedgerRows.compactMap { row in
@@ -4537,18 +4550,16 @@ enum CostUsageScanner {
                 forkedAt: forkTimestamp ?? "")
         }
 
-        /// Codex Desktop paginated rollouts keep the original `forked_from_id` while continuing the
-        /// same cumulative counter in a new file. The ancestor snapshot is then far below the first
-        /// `total - last` gap (the previous page's last total), and totals-only fork accounting bills
-        /// the whole thread to the new page. Raise the inherited baseline to that local proof only
-        /// when `history_base.thread_id` is not the fork parent already subtracted by #1164.
         /// Legacy logs have no request ledger to recover a resumed session's restarted counter. Without a
         /// new epoch, containment drops every later request until the new counter passes the pre-resume
         /// peak. Forks keep their inherited-baseline accounting.
-        func restartResumedCounterIfNeeded(total: CostUsageCodexTotals, last: CostUsageCodexTotals?) {
+        func observeCounterStart(total: CostUsageCodexTotals, last: CostUsageCodexTotals?) {
+            defer { requestLedger.rememberCounterOrigin(total, last: last) }
             guard requestLedger.pendingCounterRestart == true else { return }
             requestLedger.pendingCounterRestart = nil
+            // Without recorded origins a replayed counter start cannot be told apart, so stay contained.
             guard forkedFromId == nil, inheritedTotals == nil, let last,
+                  requestLedger.counterOrigins != nil, !requestLedger.isCounterOrigin(total),
                   Self.codexLooksLikeRestartedCounter(
                       total: total,
                       last: last,
@@ -4563,6 +4574,11 @@ enum CostUsageScanner {
             rawTotalsBaseline = origin
         }
 
+        /// Codex Desktop paginated rollouts keep the original `forked_from_id` while continuing the
+        /// same cumulative counter in a new file. The ancestor snapshot is then far below the first
+        /// `total - last` gap (the previous page's last total), and totals-only fork accounting bills
+        /// the whole thread to the new page. Raise the inherited baseline to that local proof only
+        /// when `history_base.thread_id` is not the fork parent already subtracted by #1164.
         func raiseInheritedBaselineIfContinuedCounter(
             total: CostUsageCodexTotals,
             last: CostUsageCodexTotals)
@@ -4733,7 +4749,7 @@ enum CostUsageScanner {
                 if tracker.isSeen(adjustedTotal) {
                     return
                 }
-                restartResumedCounterIfNeeded(total: adjustedTotal, last: last)
+                observeCounterStart(total: adjustedTotal, last: last)
                 let staleBaseline = tracker.watermark ?? rawTotalsBaseline
                 if let previousTotal = staleBaseline,
                    !hasUnresolvedForkBaseline,

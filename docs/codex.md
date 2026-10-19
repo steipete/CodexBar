@@ -527,7 +527,9 @@ unavailable (`costUSD: null`). This opt-in CLI mode does not change ordinary cos
   `session_meta`, a first snapshot whose cumulative totals equal its own request and fall below the earlier peak
   starts a new counter epoch instead of being contained, so later requests are no longer dropped until the new
   counter passes the pre-resume peak. Forks, counters that continue across the resume, and exact replays of earlier
-  snapshots keep the existing accounting. The pending resume survives scan-budget cuts. Parser revision 14 reparses
+  snapshots keep the existing accounting. Counter-opening snapshots are remembered without the replay window's eviction,
+  so a replayed counter start never opens an epoch; files whose earlier history lacks that record stay contained.
+  The pending resume survives scan-budget cuts. Parser revision 14 reparses
   files through the normal scan budget; stores from `a47b70abaf8ad86c` retain saved history and checkpoints without
   a rebuild.
 - Owned `token_usage_record` responses recover usage after resumed-session counter resets. Each response is counted
