@@ -224,6 +224,7 @@ struct ClaudeOAuthTests {
           "five_hour": { "utilization": 11.0, "resets_at": "2026-07-03T00:30:00.282668+00:00" },
           "seven_day": { "utilization": 9.0, "resets_at": "2026-07-08T09:00:00.282694+00:00" },
           "limits": [
+            null,
             { "kind": "session", "group": "session", "percent": "11", "resets_at": null, "scope": null },
             {
               "kind": "weekly_scoped", "group": "weekly", "percent": 5, "resets_at": 1791800000,

@@ -4,7 +4,7 @@
 
 ### Fixed
 
-- Claude: parse OAuth usage `limits` entry by entry with the Web parser, so one malformed entry no longer hides the model-scoped weekly rows beside it (#4126). Thanks @Akagilnc!
+- Claude: preserve model-specific weekly usage beside malformed limit entries in OAuth and Web responses, and ignore boolean percentages (#4614, #4126). Thanks @Akagilnc!
 
 ## 0.77.0 — 2026-10-16
 

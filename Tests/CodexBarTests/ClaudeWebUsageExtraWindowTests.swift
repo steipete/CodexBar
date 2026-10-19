@@ -4,6 +4,21 @@ import Testing
 
 struct ClaudeWebUsageExtraWindowTests {
     @Test
+    func `boolean scoped percentages do not become zero or one percent`() throws {
+        let json = #"""
+        {"five_hour":{"utilization":12},"limits":[
+          {"kind":"weekly_scoped","group":"weekly","percent":true,"scope":{"model":{"display_name":"Fable"}}},
+          {"kind":"weekly_scoped","group":"weekly","percent":false,"scope":{"model":{"display_name":"Story"}}}
+        ]}
+        """#
+        let data = Data(json.utf8)
+        let web = try ClaudeWebAPIFetcher._parseUsageResponseForTesting(data)
+        let oauth = try ClaudeUsageFetcher._mapOAuthUsageForTesting(data)
+        #expect(web.extraRateWindows.isEmpty)
+        #expect(oauth.extraRateWindows.isEmpty)
+    }
+
+    @Test
     func `parses claude web API sonnet usage response`() throws {
         let json = """
         {
