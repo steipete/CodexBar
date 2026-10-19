@@ -5,6 +5,8 @@
 ### Fixed
 
 - Settings: disable Restore default order when provider order is already at its default, and clarify the enabled-provider filter (#4592). Thanks @elijahfriedman!
+- Claude: try readable OAuth credentials before starting the CLI in Linux Auto mode, avoiding unnecessary interactive startup while preserving explicit source selection (#4613, #4615). Thanks @yeseoLee!
+- Claude: include Desktop Cowork audit transcripts in local token and cost history, using the existing response deduplication and ignoring result totals (#3209). Thanks @vinschger and @Akagilnc!
 
 ## 0.77.0 — 2026-10-16
 

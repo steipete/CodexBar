@@ -53,7 +53,7 @@ The generic provider pipeline currently resolves Claude strategies in this order
 | app | oauth | `oauth` | No fallback. |
 | app | cli | `cli` | No fallback. |
 | app | web | `web` | No fallback. |
-| cli | auto | `web -> cli` | Web can fall through to CLI. CLI is terminal. |
+| cli | auto | `web -> cli` (Linux: `web -> oauth -> cli`) | Web can fall through to OAuth/CLI. Linux always plans OAuth; it is skipped without usable noninteractive credentials, and its request failures fall through to CLI. Cancellation is terminal. CLI is terminal. |
 | cli | oauth | `oauth` | No fallback. |
 | cli | cli | `cli` | No fallback. |
 | cli | web | `web` | No fallback. |
