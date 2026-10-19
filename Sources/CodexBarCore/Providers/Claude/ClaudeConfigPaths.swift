@@ -38,7 +38,7 @@ public enum ClaudeConfigPaths {
         if environment[self.configDirectoryEnvironmentKey]?.isEmpty ?? true {
             roots.insert(ownerHome.appendingPathComponent(".config/claude/projects", isDirectory: true), at: 0)
             roots.append(contentsOf: ClaudeDesktopProjectsLocator.roots(
-                homeDirectory: ownerHome, fileManager: fileManager))
+                homeDirectory: ownerHome, fileManager: fileManager, includeAuditFiles: true))
         }
 
         let legacy = ownerHome.appendingPathComponent(".claude-swap-backup/sessions", isDirectory: true)
