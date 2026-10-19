@@ -592,6 +592,7 @@ Model-scoped weekly-window proof (synthetic data, no real accounts or credential
       - Additional embedded Claude Desktop project stores, when present:
         - `~/Library/Application Support/Claude/local-agent-mode-sessions/**/.claude/projects`
         - `~/Library/Application Support/Claude/claude-code-sessions/**/.claude/projects`
+      - Cowork `audit.jsonl` files within those Desktop session stores are also scanned, without traversing workspace outputs or dependencies.
     - Current Claude Desktop metadata under `claude-code-sessions` points to shared CLI session JSONL by
       `cliSessionId`; metadata-only directories are not treated as usage sources.
   - Supported pi-compatible sessions:
@@ -605,7 +606,7 @@ Model-scoped weekly-window proof (synthetic data, no real accounts or credential
   - Uses per-model token counts (input, cache read/create, output).
   - Oversized local token or cost values cannot crash history scanning. An overflowing token total stays unavailable while independent counts and finite dollar estimates remain visible; raw rows are retained for later repricing.
   - Deduplicates cumulative streaming chunks by `message.id + requestId`. When `requestId` is absent,
-    exact, nonblank `sessionId + message.id` identifies repeated response snapshots. Distinct explicit request
+    exact, nonblank `sessionId + message.id` (or Cowork's `session_id`) identifies repeated response snapshots. Distinct explicit request
     IDs and distinct fallback sessions remain separate. Rows without sufficient identity are counted individually.
     Within a file, the final complete cumulative chunk wins, including later appends. Copied records retain the
     existing preference for parent and non-sidechain records.
