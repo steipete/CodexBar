@@ -681,6 +681,8 @@
 "overview_rows_follow_order" = "ردیف های نمای کلی همیشه مطابق با ترتیب ارائه دهنده انجام می شوند.";
 "overview_no_providers_selected" = "هیچ ارائه دهنده ای انتخاب نشده است";
 "agent_sessions_title" = "جلسات عامل‌ها";
+"agent_sessions_remote_title" = "نشست‌های راه دور (Tailscale / SSH)";
+"agent_sessions_remote_subtitle" = "میزبان‌های راه دور را پیدا کنید و به آن‌ها متصل شوید. برای پایش فقط این Mac، این گزینه را خاموش کنید.";
 "agent_sessions_subtitle" = "جلسات محلی و جلسات Codex و Claude Code یافته‌شده از طریق SSH را در منو نمایش دهید.";
 "agent_sessions_hosts_title" = "میزبان‌های SSH اضافی";
 "agent_sessions_footer" = "مک‌های موجود در tailnet شما به‌طور خودکار شناسایی می‌شوند. جلسات محلی هر ۳۰ ثانیه و میزبان‌های راه دور هر ۶۰ ثانیه و هنگام باز شدن منو تازه‌سازی می‌شوند.";
@@ -1444,6 +1446,7 @@
 "menu_bar_layout_size_regular" = "معمولی";
 "menu_bar_layout_size_large" = "بزرگ";
 "menu_bar_layout_monospaced_digits" = "ارقام هم‌عرض";
+"menu_bar_layout_show_window_labels" = "نمایش برچسب بازه‌ها";
 "menu_bar_layout_gap" = "فاصله";
 "menu_bar_layout_gap_tight" = "فشرده";
 "menu_bar_layout_gap_regular" = "معمولی";
@@ -2205,6 +2208,10 @@
 "Stored in ~/.codexbar/config.json. Create one at console.x.ai under Settings > Management Keys; inference API keys are not accepted." = "ذخیره شده در ~/.codexbar/config.json. یکی را در console.x.ai در زیر تنظیمات > کلیدهای مدیریت ایجاد کنید. کلیدهای استنتاج API پذیرفته نمی شوند.";
 "xai-..." = "xai-...";
 "Team ID" = "تیم ID";
+"Vercel access token" = "توکن دسترسی Vercel";
+"Optional. Shows your personal budget instead of team credits. Saved in CodexBar's local config file. Or set VERCEL_ACCESS_TOKEN." = "اختیاری. به‌جای اعتبار تیم، بودجهٔ شخصی شما را نشان می‌دهد. در فایل پیکربندی محلی CodexBar ذخیره می‌شود. یا VERCEL_ACCESS_TOKEN را تنظیم کنید.";
+"Open Vercel tokens" = "باز کردن توکن‌های Vercel";
+"Required with a Vercel access token. Or set VERCEL_TEAM_ID." = "همراه با توکن دسترسی Vercel لازم است. یا VERCEL_TEAM_ID را تنظیم کنید.";
 "Required. Shown in the xAI Console URL and team settings." = "مورد نیاز. در کنسول xAI URL و تنظیمات تیم نشان داده شده است.";
 "Sakana AI cost summary is not supported." = "خلاصه هزینه Sakana AI پشتیبانی نمی شود.";
 "Stored in ~/.codexbar/config.json. Copy the Sakana AI console Cookie request header." = "ذخیره شده در ~/.codexbar/config.json. هدر درخواست کنسول Sakana AI Cookie را کپی کنید.";
@@ -2695,3 +2702,5 @@
 "Move up" = "انتقال به بالا";
 "Move down" = "انتقال به پایین";
 "Leave blank to keep the saved credential." = "برای حفظ اطلاعات ورود ذخیره‌شده، خالی بگذارید.";
+
+"No personal budget configured" = "بودجهٔ شخصی تنظیم نشده است";

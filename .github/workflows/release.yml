@@ -73,8 +73,10 @@ jobs:
   macos:
     needs: [validate, availability]
     if: always() && needs.validate.result == 'success' && (needs.availability.result == 'success' || needs.validate.outputs.dry_run == 'true')
-    runs-on: macos-15
+    runs-on: xcode-27
     timeout-minutes: 120
+    env:
+      MACOSX_DEPLOYMENT_TARGET: "14.0"
     permissions:
       contents: read
     steps:
@@ -82,8 +84,16 @@ jobs:
         with:
           ref: ${{ needs.validate.outputs.sha }}
           persist-credentials: false
-      - name: Select Xcode 26.3
-        run: sudo xcode-select -s /Applications/Xcode_26.3.app/Contents/Developer
+      - name: Select Xcode 27 and verify Rosetta
+        run: |
+          set -euo pipefail
+          sudo xcode-select -s /Applications/Xcode_27.0.app/Contents/Developer
+          echo "DEVELOPER_DIR=/Applications/Xcode_27.0.app/Contents/Developer" >> "$GITHUB_ENV"
+          [[ "$(/usr/bin/xcodebuild -version)" == Xcode\ 27* ]]
+          if ! arch -x86_64 /usr/bin/true; then
+            sudo softwareupdate --install-rosetta --agree-to-license
+          fi
+          arch -x86_64 /usr/bin/true
       - name: Install widget project generator
         run: brew install xcodegen
       - name: Install checksum-pinned Sparkle signing tool

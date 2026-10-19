@@ -51,6 +51,7 @@ struct SettingsDefaultsState {
     var menuBarLayoutConditionals: [MenuBarLayoutConditional]
     var menuBarLayoutOverridesRaw: [String: MenuBarLayout]
     var menuBarLayoutMonospacedDigits: Bool
+    var menuBarLayoutShowWindowLabels: Bool
     var menuBarLayoutSizeRaw: String
     var menuBarLayoutGapRaw: String
     var menuBarLayoutVerticalAdjustment: Int
@@ -102,6 +103,7 @@ struct SettingsDefaultsState {
     var appLanguageRaw: String?
     var terminalAppRaw: String?
     var agentSessionsEnabled: Bool
+    var agentSessionsRemoteEnabled: Bool
     var agentSessionLabelStyleRaw: String
     var agentSessionsManualHosts: String
     var agentSessionsHideUnreachableHosts: Bool

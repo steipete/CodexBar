@@ -52,34 +52,36 @@ with tempfile.TemporaryDirectory() as temp:
     assert uuids(main) and uuids(main) == uuids(dwarf), 'dSYM UUID mismatch'
 if config['app'] == 'CodexBar':
     env = dict(os.environ, CODEXBAR_RESOURCE_SMOKE='1')
-    result = subprocess.run([str(app / 'Contents/Helpers/CodexBarCLI')], env=env, text=True, capture_output=True, timeout=30)
-    assert result.returncode == 0 and 'CODEXBAR_RESOURCE_SMOKE_OK' in result.stdout, 'Bundled CLI resources failed'
+    for arch in sorted(required):
+        result = subprocess.run(['arch', '-' + arch, str(app / 'Contents/Helpers/CodexBarCLI')], env=env, text=True, capture_output=True, timeout=30)
+        assert result.returncode == 0 and 'CODEXBAR_RESOURCE_SMOKE_OK' in result.stdout, f'Bundled CLI resources failed for {arch}'
     # The upstream packager owns the release capabilities; ensure they survived signing.
     entitlements = plistlib.loads(subprocess.check_output(['codesign', '-d', '--entitlements', ':-', str(app)], stderr=subprocess.DEVNULL))
     assert entitlements['com.apple.developer.icloud-container-identifiers'] == ['iCloud.com.steipete.codexbar']
     assert (app / 'Contents/embedded.provisionprofile').is_file()
     assert (app / 'Contents/PlugIns/CodexBarWidget.appex').is_dir()
 assert os.environ.get('CI') == 'true', 'Launch verification is only for a fresh CI runner'
-with tempfile.TemporaryDirectory() as home:
-    environment = dict(os.environ, HOME=home, CFFIXED_USER_HOME=home)
-    for name in [
-        'SPARKLE_PRIVATE_KEY',
-        'GH_TOKEN',
-        'GITHUB_TOKEN',
-        'MACOS_SIGNING_P12',
-        'MACOS_SIGNING_P12_PASSWORD',
-        'APP_STORE_CONNECT_API_KEY_P8',
-    ]:
-        environment.pop(name, None)
-    process = subprocess.Popen([str(main)], env=environment)
-    try:
-        time.sleep(8)
-        assert process.poll() is None, 'App exited during launch smoke test'
-    finally:
-        process.terminate()
+for arch in sorted(required):
+    with tempfile.TemporaryDirectory() as home:
+        environment = dict(os.environ, HOME=home, CFFIXED_USER_HOME=home)
+        for name in [
+            'SPARKLE_PRIVATE_KEY',
+            'GH_TOKEN',
+            'GITHUB_TOKEN',
+            'MACOS_SIGNING_P12',
+            'MACOS_SIGNING_P12_PASSWORD',
+            'APP_STORE_CONNECT_API_KEY_P8',
+        ]:
+            environment.pop(name, None)
+        process = subprocess.Popen(['arch', '-' + arch, str(main)], env=environment)
         try:
-            process.wait(timeout=10)
-        except subprocess.TimeoutExpired:
-            process.kill()
-            process.wait()
+            time.sleep(8)
+            assert process.poll() is None, f'App exited during {arch} launch smoke test'
+        finally:
+            process.terminate()
+            try:
+                process.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait()
 print('Verified metadata, architectures, all Mach-O minimum OS versions, signing, notarization, and launch')

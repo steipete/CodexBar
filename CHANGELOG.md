@@ -4,15 +4,20 @@
 
 ### Changed
 
+- CI: move macOS app and CLI release jobs to `xcode-27`, retain macOS 14 support, and verify x86_64 artifacts under Rosetta.
+
 - CLI: Claude Auto usage follows the active claude-swap account, matching cards and dashboard; explicit source/account selections retain their behavior, and adapter fallbacks identify their actual source and account (#4599). Thanks @postoso!
 ### Added
 
+- Menu bar: add a default-on Show window labels layout option; turn it off for bare Session, Weekly, and Scoped weekly percentages while retaining full VoiceOver descriptions (#4634). Thanks @erikburman!
+- Vercel: optionally show your personal AI Gateway budget using a separate Vercel access token and Team ID, with UTC reset times and a clear unconfigured state (#4621, #4623). Thanks @sf-jin-ku!
 - Plugins: user plugins can declare a monochrome inline SVG icon (`icon.svg`, at most 8 KB, plain shapes only), drawn as a template image in the switcher and menu card; an SVG that fails validation falls back to the monogram (#4608). Thanks @shivanathd!
 - Plugins: detail rows can declare normal, warning, or critical severity independently of progress, with system colors and warning symbols (#4602). Thanks @DamonYoungWork!
 
 ### Fixed
 
 - Antigravity: read OAuth quota summaries from the daily host to match the current Gemini allowances reported by agy (#4632). Thanks @toxakara!
+- Agent Sessions: keep Tailscale discovery from launching the VPN app, and add a local-only mode that disables remote discovery and SSH polling (#4624, #4583).
 
 - Settings: disable Restore default order when provider order is already at its default, and clarify the enabled-provider filter (#4592). Thanks @elijahfriedman!
 - Claude: preserve model-specific weekly usage beside malformed limit entries in OAuth and Web responses, and ignore boolean percentages (#4614, #4126). Thanks @Akagilnc!

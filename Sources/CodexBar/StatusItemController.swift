@@ -268,7 +268,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     private var lastSwitcherShowsIcons: Bool
     private var lastObservedUsageBarsShowUsed: Bool
     var lastWidgetDisplaySettingsSignature = ""
-    var lastAgentSessionsEnabled: Bool
+    var lastAgentSessionsVisibility: (local: Bool, remote: Bool)
     var lastAgentSessionsManualHosts: String
     var lastAgentSessionsRefreshFrequency: RefreshFrequency
     var lastStayAwakeEnabled: Bool
@@ -404,7 +404,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         self.lastMergeIcons = settings.mergeIcons
         self.lastSwitcherShowsIcons = settings.switcherShowsIcons
         self.lastObservedUsageBarsShowUsed = settings.usageBarsShowUsed
-        self.lastAgentSessionsEnabled = settings.agentSessionsEnabled
+        self.lastAgentSessionsVisibility = (settings.agentSessionsEnabled, settings.agentSessionsRemoteEnabled)
         self.lastAgentSessionsManualHosts = settings.agentSessionsManualHosts
         self.lastAgentSessionsRefreshFrequency = settings.refreshFrequency
         self.lastStayAwakeEnabled = settings.stayAwakeEnabled

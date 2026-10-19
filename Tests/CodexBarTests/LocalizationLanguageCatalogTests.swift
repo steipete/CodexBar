@@ -47,6 +47,7 @@ struct LocalizationLanguageCatalogTests {
             "merged_icon_source_highest_usage",
             "merged_icon_source_subtitle",
             "merged_icon_source_title",
+            "menu_bar_layout_show_window_labels",
             "spend_performance_cache_help",
             "spend_performance_cached_input",
             "spend_performance_coverage",

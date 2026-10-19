@@ -675,6 +675,8 @@
 "overview_rows_follow_order" = "Übersichtszeilen folgen immer der Anbieterreihenfolge.";
 "overview_no_providers_selected" = "Keine Anbieter ausgewählt";
 "agent_sessions_title" = "Agenten-Sitzungen";
+"agent_sessions_remote_title" = "Entfernte Sitzungen (Tailscale / SSH)";
+"agent_sessions_remote_subtitle" = "Entfernte Hosts erkennen und verbinden. Deaktivieren, um nur diesen Mac zu überwachen.";
 "agent_sessions_subtitle" = "Lokale und über SSH erkannte Codex- und Claude-Code-Sitzungen im Menü anzeigen.";
 "agent_sessions_hosts_title" = "Zusätzliche SSH-Hosts";
 "agent_sessions_footer" = "Macs in deinem Tailnet werden automatisch erkannt. Lokale Sitzungen werden alle 30 Sekunden aktualisiert; Remote-Hosts alle 60 Sekunden und beim Öffnen des Menüs.";
@@ -1443,6 +1445,7 @@
 "menu_bar_layout_size_regular" = "Normal";
 "menu_bar_layout_size_large" = "Groß";
 "menu_bar_layout_monospaced_digits" = "Ziffern mit gleicher Breite";
+"menu_bar_layout_show_window_labels" = "Zeitfensterbeschriftungen anzeigen";
 "menu_bar_layout_gap" = "Abstand";
 "menu_bar_layout_gap_tight" = "Eng";
 "menu_bar_layout_gap_regular" = "Normal";
@@ -2203,6 +2206,10 @@
 "Stored in ~/.codexbar/config.json. Create one at console.x.ai under Settings > Management Keys; inference API keys are not accepted." = "Gespeichert in ~/.codexbar/config.json. Erstellen Sie einen unter console.x.ai unter Einstellungen > Verwaltungsschlüssel. Inferenzschlüssel API werden nicht akzeptiert.";
 "xai-..." = "xai-...";
 "Team ID" = "Team ID";
+"Vercel access token" = "Vercel-Zugriffstoken";
+"Optional. Shows your personal budget instead of team credits. Saved in CodexBar's local config file. Or set VERCEL_ACCESS_TOKEN." = "Optional. Zeigt Ihr persönliches Budget statt der Team-Guthaben. Wird in der lokalen Konfigurationsdatei von CodexBar gespeichert. Alternativ VERCEL_ACCESS_TOKEN setzen.";
+"Open Vercel tokens" = "Vercel-Tokens öffnen";
+"Required with a Vercel access token. Or set VERCEL_TEAM_ID." = "Zusammen mit einem Vercel-Zugriffstoken erforderlich. Alternativ VERCEL_TEAM_ID setzen.";
 "Required. Shown in the xAI Console URL and team settings." = "Erforderlich. Wird in der xAI-Konsole URL und in den Teameinstellungen angezeigt.";
 "Sakana AI cost summary is not supported." = "Die Kostenübersicht Sakana AI wird nicht unterstützt.";
 "Stored in ~/.codexbar/config.json. Copy the Sakana AI console Cookie request header." = "Gespeichert in ~/.codexbar/config.json. Kopieren Sie den Anforderungsheader der Sakana AI-Konsole Cookie.";
@@ -2689,3 +2696,5 @@
 "Move up" = "Nach oben";
 "Move down" = "Nach unten";
 "Leave blank to keep the saved credential." = "Leer lassen, um die gespeicherten Zugangsdaten beizubehalten.";
+
+"No personal budget configured" = "Kein persönliches Budget konfiguriert";

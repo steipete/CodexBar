@@ -681,6 +681,8 @@
 "overview_rows_follow_order" = "แถวภาพรวมจะเป็นไปตามลําดับของผู้ให้บริการเสมอ";
 "overview_no_providers_selected" = "ไม่มีผู้ให้บริการที่เลือก";
 "agent_sessions_title" = "เซสชันเอเจนต์";
+"agent_sessions_remote_title" = "เซสชันระยะไกล (Tailscale / SSH)";
+"agent_sessions_remote_subtitle" = "ค้นหาและเชื่อมต่อกับโฮสต์ระยะไกล ปิดเพื่อตรวจสอบเฉพาะ Mac เครื่องนี้";
 "agent_sessions_subtitle" = "แสดงเซสชัน Codex และ Claude Code ที่ค้นพบในเครื่องและผ่าน SSH ในเมนู";
 "agent_sessions_hosts_title" = "โฮสต์ SSH เพิ่มเติม";
 "agent_sessions_footer" = "ระบบจะค้นหา Mac บน tailnet ของคุณโดยอัตโนมัติ เซสชันในเครื่องจะรีเฟรชทุก 30 วินาที ส่วนโฮสต์ระยะไกลจะรีเฟรชทุก 60 วินาทีและเมื่อเปิดเมนู";
@@ -1444,6 +1446,7 @@
 "menu_bar_layout_size_regular" = "ปกติ";
 "menu_bar_layout_size_large" = "ใหญ่";
 "menu_bar_layout_monospaced_digits" = "ตัวเลขความกว้างคงที่";
+"menu_bar_layout_show_window_labels" = "แสดงป้ายกำกับช่วงเวลา";
 "menu_bar_layout_gap" = "ระยะห่าง";
 "menu_bar_layout_gap_tight" = "ชิด";
 "menu_bar_layout_gap_regular" = "ปกติ";
@@ -2205,6 +2208,10 @@
 "Stored in ~/.codexbar/config.json. Create one at console.x.ai under Settings > Management Keys; inference API keys are not accepted." = "เก็บไว้ใน ~/.codexbar/config.json สร้างอันหนึ่งที่ console.x.ai ภายใต้การตั้งค่า > คีย์การจัดการ ไม่ยอมรับคีย์การอนุมาน API";
 "xai-..." = "xai-...";
 "Team ID" = "ทีม ID";
+"Vercel access token" = "โทเค็นการเข้าถึง Vercel";
+"Optional. Shows your personal budget instead of team credits. Saved in CodexBar's local config file. Or set VERCEL_ACCESS_TOKEN." = "ไม่บังคับ แสดงงบประมาณส่วนตัวของคุณแทนเครดิตของทีม บันทึกไว้ในไฟล์การกำหนดค่าภายในเครื่องของ CodexBar หรือตั้งค่า VERCEL_ACCESS_TOKEN";
+"Open Vercel tokens" = "เปิดโทเค็น Vercel";
+"Required with a Vercel access token. Or set VERCEL_TEAM_ID." = "จำเป็นเมื่อใช้โทเค็นการเข้าถึง Vercel หรือตั้งค่า VERCEL_TEAM_ID";
 "Required. Shown in the xAI Console URL and team settings." = "จำเป็น แสดงในคอนโซล xAI URL และการตั้งค่าทีม";
 "Sakana AI cost summary is not supported." = "ไม่รองรับการสรุปต้นทุน Sakana AI";
 "Stored in ~/.codexbar/config.json. Copy the Sakana AI console Cookie request header." = "เก็บไว้ใน ~/.codexbar/config.json คัดลอกส่วนหัวคำขอคอนโซล Sakana AI Cookie";
@@ -2693,3 +2700,5 @@
 "Move up" = "เลื่อนขึ้น";
 "Move down" = "เลื่อนลง";
 "Leave blank to keep the saved credential." = "เว้นว่างไว้เพื่อใช้ข้อมูลรับรองที่บันทึกไว้ต่อไป";
+
+"No personal budget configured" = "ยังไม่ได้กำหนดงบประมาณส่วนตัว";

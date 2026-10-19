@@ -70,6 +70,12 @@ read_when:
 - Display → Menu Bar → Layout provides presets plus a token editor. Tokens can be clicked to append, dragged from the
   palette, reordered between one or two lines, dragged out, or removed with Delete. Layouts can be global or overridden
   per provider. Manual edits select the Custom preset.
+- To hide Session, Weekly, and Scoped weekly percentage prefixes (such as `5h` and `W`), turn off **Show window labels**
+  next to **Monospaced digits**. It defaults on and applies to all layouts. Percentages keep their full VoiceOver
+  descriptions; named provider lanes, named allowances, Spend currency symbols, and progress-bar labels remain visible.
+  The preference is stored separately as `menuBarLayoutShowWindowLabels`; saved layouts and V5/V6 projections are unchanged.
+- For a provider-specific bare Session percentage, select Codex or Claude in Layout, remove the existing percentage,
+  and add the **second Session %** chip from Usage (the provider's primary lane). This works with window labels enabled.
 - For Codex or Claude weekly usage without a `W` prefix, select that provider in Layout, remove the existing percentage,
   and add the **second Weekly %** chip from Usage (the provider's secondary lane). Repeat for the other provider
   if needed. The first **Weekly %** is a semantic window token and keeps its prefix; lane tokens omit it.
