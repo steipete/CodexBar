@@ -9,6 +9,10 @@ read_when:
 
 # Claude provider
 
+Enable **Settings → Menu Bar → Show all accounts in Overview** to include this provider’s cached account
+cards in Overview. The existing account source and provider selection remain unchanged; see
+[Overview account rows](configuration.md#menu-bar-controls).
+
 The **Plan Usage** submenu includes recorded remaining-quota burndown above utilization history,
 using the same Session, Weekly, and Sonnet labels. See [recorded quota burndown](widgets/burndown-proof.md)
 for capture-age semantics and the existing history retention/privacy behavior.
@@ -295,6 +299,12 @@ is stored on the token account in the config file and does not change quota fetc
 
 - Multi-account manual tokens: add entries to `~/.codexbar/config.json` (`tokenAccounts`) and set Claude cookies to
   Manual. The menu can show all accounts stacked or a switcher bar (Preferences → Advanced → Display).
+- In Settings → Providers → Claude, **Edit** changes a saved account’s label and credential in place.
+  The credential field is masked and starts empty; leave it blank to keep the saved credential, or enter a
+  replacement and choose **Save**. **Cancel** discards the draft. Up/down controls persist account order in
+  the existing config file and menu switcher. Edits and moves preserve the selected account and account ID,
+  including its Claude config directory. Other providers with manual token accounts share the editor; editing
+  a dormant account does not select it.
 - Claude token accounts accept either `sessionKey` cookies or OAuth access tokens (`sk-ant-oat...`). OAuth-token
   accounts route to the OAuth path and disable cookie mode; session-key or cookie-header accounts stay in manual
   cookie mode. The exact edge-routing rules are documented in

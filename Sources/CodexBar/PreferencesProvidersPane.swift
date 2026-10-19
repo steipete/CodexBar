@@ -528,6 +528,12 @@ struct ProvidersPane: View {
                     }
                 }
             })
+        descriptor.editAccount = { accountID, label, token in
+            self.settings.updateTokenAccount(provider: provider, accountID: accountID, label: label, token: token)
+        }
+        descriptor.moveAccount = { accountID, destination in
+            self.settings.moveTokenAccount(provider: provider, accountID: accountID, to: destination)
+        }
         // Provider-specific by design: only Claude accounts declare local transcript ownership.
         if provider == .claude {
             descriptor.claudeConfigDirectory = { accountID in
