@@ -4,6 +4,8 @@
 
 ### Changed
 
+- CI: move macOS app and CLI release jobs to `xcode-27`, retain macOS 14 support, and verify x86_64 artifacts under Rosetta.
+
 - CLI: Claude Auto usage follows the active claude-swap account, matching cards and dashboard; explicit source/account selections retain their behavior, and adapter fallbacks identify their actual source and account (#4599). Thanks @postoso!
 ### Added
 
