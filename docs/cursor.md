@@ -229,6 +229,10 @@ This lookup replaces the legacy `/api/usage?user=...` request-quota lookup on
 unified memberships. Ordinary memberships and team-scoped budgets keep their existing request and cost
 paths. The optional billing request has a five-second budget, uses the normal
 refresh scheduler, and adds no polling process. If billing is unavailable or its
-period/amounts are invalid, additional spend is unavailable rather than a false
-zero. The existing weekly Grok allowance, account identity, and widget projection
-remain independent of this optional read.
+period/amounts are invalid, retain the existing summary spend, cap, and billing
+reset as a fallback. A valid monthly response takes precedence, including zero
+spend or an unlimited cap. The existing weekly Grok allowance, account identity,
+and widget projection remain independent of this optional read.
+
+See [captured billing evidence](cursor-unified-billing-proof.md) for same-account
+API responses, dashboard comparison, CLI output, and compatibility checks.

@@ -11,15 +11,21 @@ struct CursorUnifiedUsageStatusTests {
       "periodStart":"2026-10-01T00:00:00.000Z","resetsAt":"2026-11-01T00:00:00.000Z"}}
     """
 
-    @Test(arguments: [200, 403, 500])
-    func `unified spend replaces legacy request lookup without changing included quota`(statusCode: Int) async throws {
+    @Test(arguments: [200, 403, 500], [0, 250])
+    func `unified spend replaces legacy request lookup without changing included quota`(
+        statusCode: Int,
+        summaryUsed: Int) async throws
+    {
         let session = CursorStatusProbeTestSession { request in
             let url = try #require(request.url)
             let body: String
             var code = 200
             switch url.path {
             case "/api/usage-summary":
-                body = #"{"membershipType":"unified_ultra","individualUsage":{"onDemand":{"used":0,"limit":1000}}}"#
+                body = """
+                {"membershipType":"unified_ultra","billingCycleEnd":"2026-10-25T00:00:00Z",
+                 "individualUsage":{"onDemand":{"used":\(summaryUsed),"limit":1000}}}
+                """
             case "/api/auth/me":
                 body = #"{"sub":"fixture-user","email":"user@example.com"}"#
             case CursorSandUsageStatus.endpointPath:
@@ -52,8 +58,132 @@ struct CursorUnifiedUsageStatusTests {
             #expect(usage.providerCost?.limit == 10)
             #expect(usage.providerCost?.resetsAt == ISO8601DateParser.parse("2026-11-01T00:00:00Z"))
         } else {
-            #expect(usage.providerCost == nil)
+            #expect(usage.providerCost?.used == Double(summaryUsed) / 100)
+            #expect(usage.providerCost?.limit == 10)
+            #expect(usage.providerCost?.resetsAt == ISO8601DateParser.parse("2026-10-25T00:00:00Z"))
         }
+    }
+
+    @Test(arguments: [
+        "{}",
+        #"{"availability":"identity_unlinked"}"#,
+        "not json",
+        Self.monthly.replacingOccurrences(of: "725", with: "-1"),
+        Self.monthly.replacingOccurrences(of: "2026-11-01", with: "2026-10-01"),
+        Self.monthly.replacingOccurrences(of: "2026-10-01", with: "2026-12-01"),
+        Self.monthly.replacingOccurrences(of: "2026-11-01T00:00:00.000Z", with: "bad-date"),
+    ])
+    func `invalid monthly billing retains summary spend cap and reset`(json: String) throws {
+        let summaryJSON = """
+        {"membershipType":"unified_ultra","billingCycleEnd":"2026-10-25T00:00:00Z",
+         "individualUsage":{"onDemand":{"used":250,"limit":1000}}}
+        """
+        let summary = try JSONDecoder().decode(CursorUsageSummary.self, from: Data(summaryJSON.utf8))
+        let monthly = try? JSONDecoder().decode(CursorUnifiedUsageStatus.self, from: Data(json.utf8))
+        let probe = CursorStatusProbe(browserDetection: BrowserDetection(cacheTTL: 0))
+        let usage = probe.parseUsageSummary(summary, userInfo: nil, rawJSON: nil, unifiedUsage: monthly)
+            .toUsageSnapshot(now: Self.now)
+        #expect(usage.providerCost?.used == 2.5)
+        #expect(usage.providerCost?.limit == 10)
+        #expect(usage.providerCost?.resetsAt == ISO8601DateParser.parse("2026-10-25T00:00:00Z"))
+    }
+
+    @Test
+    func `captured unified personal response projects dashboard dollars and monthly reset`() throws {
+        // Sanitized same-session response observed 2026-10-19; see docs/cursor-unified-billing-proof.md.
+        let summaryJSON = """
+        {"membershipType":"unified_ultra","limitType":"user",
+         "billingCycleStart":"2026-10-01T00:00:00.000Z","billingCycleEnd":"2026-11-01T00:00:00.000Z",
+         "individualUsage":{"onDemand":{"enabled":true,"used":0,"limit":1000,"remaining":1000}}}
+        """
+        let monthlyJSON = """
+        {"availability":"available","monthlyUsage":{"usedCents":93,"limitCents":1000,
+         "creditsUsedCents":0,"periodStart":"2026-10-01T00:00:00.000Z",
+         "resetsAt":"2026-11-01T00:00:00.000Z"}}
+        """
+        let summary = try JSONDecoder().decode(CursorUsageSummary.self, from: Data(summaryJSON.utf8))
+        let monthly = try JSONDecoder().decode(CursorUnifiedUsageStatus.self, from: Data(monthlyJSON.utf8))
+        #expect(summary.usesUnifiedPersonalBilling)
+        let probe = CursorStatusProbe(browserDetection: BrowserDetection(cacheTTL: 0))
+        let usage = probe.parseUsageSummary(summary, userInfo: nil, rawJSON: nil, unifiedUsage: monthly)
+            .toUsageSnapshot(now: Self.now)
+        #expect(usage.providerCost?.used == 0.93)
+        #expect(usage.providerCost?.limit == 10)
+        #expect(usage.providerCost?.resetsAt == ISO8601DateParser.parse("2026-11-01T00:00:00Z"))
+    }
+
+    @Test
+    func `stored stable usage retains identity weekly allowance and cost after decoding`() throws {
+        // Actual 0.77.0 CLI output; only account identifiers were replaced.
+        let json = """
+        {
+          "primary": {
+            "usedPercent": 0,
+            "windowMinutes": 44640,
+            "resetDescription": "Resets Nov 1 at 3:00AM",
+            "resetsAt": "2026-11-01T00:00:00Z"
+          },
+          "secondary": {
+            "usedPercent": 0,
+            "windowMinutes": 44640,
+            "resetDescription": "Resets Nov 1 at 3:00AM",
+            "resetsAt": "2026-11-01T00:00:00Z"
+          },
+          "tertiary": {
+            "usedPercent": 0,
+            "windowMinutes": 44640,
+            "resetDescription": "Resets Nov 1 at 3:00AM",
+            "resetsAt": "2026-11-01T00:00:00Z"
+          },
+          "extraRateWindows": [
+            {
+              "id": "cursor-grok-bot",
+              "window": {
+                "usedPercent": 100,
+                "windowMinutes": 10080,
+                "resetsAt": "2026-10-20T06:35:09Z",
+                "resetDescription": "Resets Oct 20 at 9:35AM"
+              },
+              "title": "Grok Bot"
+            }
+          ],
+          "providerCost": {
+            "updatedAt": "2026-10-19T06:56:55Z",
+            "used": 0,
+            "limit": 10,
+            "period": "Monthly",
+            "resetsAt": "2026-11-01T00:00:00Z",
+            "currencyCode": "USD"
+          },
+          "updatedAt": "2026-10-19T06:56:55Z",
+          "identity": {
+            "loginMethod": "Cursor unified_ultra",
+            "accountEmail": "user@example.com",
+            "accountID": "fixture-user",
+            "providerID": "cursor"
+          }
+        }
+        """
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let usage = try decoder.decode(UsageSnapshot.self, from: Data(json.utf8))
+        #expect(usage.identity?.accountEmail == "user@example.com")
+        #expect(usage.identity?.accountID == "fixture-user")
+        #expect(usage.identity?.loginMethod == "Cursor unified_ultra")
+        #expect(usage.providerCost?.used == 0)
+        #expect(usage.providerCost?.limit == 10)
+        #expect(usage.providerCost?.resetsAt == ISO8601DateParser.parse("2026-11-01T00:00:00Z"))
+        #expect(usage.extraRateWindows?.first?.window.usedPercent == 100)
+        #expect(usage.extraRateWindows?.first?.window.resetsAt == ISO8601DateParser.parse("2026-10-20T06:35:09Z"))
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let roundTrip = try decoder.decode(UsageSnapshot.self, from: encoder.encode(usage))
+        #expect(roundTrip.providerCost == usage.providerCost)
+        #expect(roundTrip.identity?.accountID == usage.identity?.accountID)
+        #expect(roundTrip.identity?.accountEmail == usage.identity?.accountEmail)
+        #expect(roundTrip.identity?.loginMethod == usage.identity?.loginMethod)
+        #expect(roundTrip.identity?.providerID == usage.identity?.providerID)
+        #expect(roundTrip.extraRateWindows == usage.extraRateWindows)
     }
 
     @Test

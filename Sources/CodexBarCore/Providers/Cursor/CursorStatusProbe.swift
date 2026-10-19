@@ -525,16 +525,16 @@ public struct CursorStatusSnapshot: Sendable {
         }
 
         // Provider cost snapshot for on-demand usage (include budget before first spend)
-        let providerCost: ProviderCostSnapshot? = if self.unifiedUsageExpected {
-            self.unifiedUsage?.currentMonthlyUsage(at: now).map { monthly in
-                ProviderCostSnapshot(
-                    used: monthly.usedCents / 100,
-                    limit: (monthly.limitCents ?? 0) / 100,
-                    currencyCode: "USD",
-                    period: "Monthly",
-                    resetsAt: ISO8601DateParser.parse(monthly.resetsAt),
-                    updatedAt: now)
-            }
+        let providerCost: ProviderCostSnapshot? = if self.unifiedUsageExpected,
+                                                     let monthly = self.unifiedUsage?.currentMonthlyUsage(at: now)
+        {
+            ProviderCostSnapshot(
+                used: monthly.usedCents / 100,
+                limit: (monthly.limitCents ?? 0) / 100,
+                currencyCode: "USD",
+                period: "Monthly",
+                resetsAt: ISO8601DateParser.parse(monthly.resetsAt),
+                updatedAt: now)
         } else if resolvedOnDemandUsed > 0
             || (resolvedOnDemandLimit ?? 0) > 0
         {
@@ -1346,7 +1346,7 @@ public struct CursorStatusProbe: Sendable {
         try Task.checkCancellation()
 
         // Unified accounts replace the irrelevant legacy request-quota lookup with their billing read.
-        // A failed billing read hides additional spend rather than publishing the legacy false zero.
+        // If optional billing is unavailable or invalid, preserve the existing summary spend and cap.
         var unifiedUsage: CursorUnifiedUsageStatus?
         let isUnified = usageSummary.usesUnifiedPersonalBilling
         if isUnified {
