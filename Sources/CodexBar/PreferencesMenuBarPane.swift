@@ -130,6 +130,13 @@ struct MenuBarPane: View {
 
                 self.overviewProviderRow
                     .disabled(!self.settings.mergeIcons)
+                Toggle(isOn: self.$settings.mergedOverviewAllAccounts) {
+                    SettingsRowLabel(
+                        L("Show all accounts in Overview"),
+                        subtitle: L(
+                            "Expand cached account usage. The six-provider limit still applies."))
+                }
+                .disabled(!self.settings.mergeIcons)
             } header: {
                 Text(L("section_combined_icon"))
             }

@@ -112,3 +112,39 @@ extension CostUsageClaudeCacheIO {
         ArtifactMemo.shared.entries.removeObject(forKey: url.standardizedFileURL.resolvingSymlinksInPath() as NSURL)
     }
 }
+
+/// Convenience entry points used only by scanner tests.
+extension CostUsageScanner {
+    static func parseClaudeFile(
+        fileURL: URL,
+        range: CostUsageDayRange,
+        providerFilter: ClaudeLogProviderFilter,
+        startOffset: Int64 = 0,
+        modelsDevCatalog: ModelsDevCatalog? = nil,
+        modelsDevCacheRoot: URL? = nil) -> ClaudeParseResult
+    {
+        let pricingResolver = modelsDevCatalog.map { CostUsagePricing.ClaudeResolver(catalog: $0) }
+            ?? CostUsagePricing.ClaudeResolver(now: Date(), cacheRoot: modelsDevCacheRoot)
+        return (
+            try? self.parseClaudeFileCancellable(
+                fileURL: fileURL,
+                range: range,
+                providerFilter: providerFilter,
+                startOffset: startOffset,
+                pricingResolver: pricingResolver,
+                checkCancellation: nil)) ?? ClaudeParseResult(rows: [], parsedBytes: startOffset)
+    }
+
+    static func buildClaudeReportFromCache(
+        cache: CostUsageCache,
+        range: CostUsageDayRange,
+        now: Date = Date(),
+        modelsDevCacheRoot: URL? = nil) -> CostUsageDailyReport
+    {
+        self.buildClaudeReportFromCache(
+            cache: cache,
+            rows: self.reconciledClaudeRows(cache: cache),
+            range: range,
+            pricingResolver: CostUsagePricing.ClaudeResolver(now: now, cacheRoot: modelsDevCacheRoot))
+    }
+}

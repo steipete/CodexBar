@@ -144,11 +144,23 @@ enum ProviderPluginSnapshotMapper {
                     value: self.requiredDetailString(row, property: "value", path: rowPath),
                     secondaryValue: self.optionalDetailString(row, property: "secondaryValue", path: rowPath),
                     progress: self.detailProgress(row, path: rowPath),
+                    severity: self.detailSeverity(row, path: rowPath),
                     usageValue: self.optionalFiniteNumber(row, property: "usageValue", path: rowPath))
             }
             let chart = try self.detailChart(section, path: path)
             return try ProviderDetailSection(title: title, rows: rows, chart: chart)
         }
+    }
+
+    private static func detailSeverity(
+        _ row: any ProviderPluginValue,
+        path: String) throws -> ProviderDetailSection.Row.Severity?
+    {
+        guard let value = row.property("severity"), !value.isUndefined, !value.isNull else { return nil }
+        guard value.isString, let severity = ProviderDetailSection.Row.Severity(rawValue: value.stringValue()) else {
+            throw ProviderPluginError.invalidSnapshot("\(path).severity must be normal, warning, or critical")
+        }
+        return severity
     }
 
     private static func detailProgress(

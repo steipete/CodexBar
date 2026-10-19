@@ -874,6 +874,11 @@ extension SettingsStore {
         set { self.setDefault(\.mergedOverviewLayoutRaw, newValue.rawValue, key: "mergedOverviewLayout") }
     }
 
+    var mergedOverviewAllAccounts: Bool {
+        get { self.defaultsState.mergedOverviewAllAccounts }
+        set { self.setDefault(\.mergedOverviewAllAccounts, newValue, key: "mergedOverviewAllAccounts") }
+    }
+
     var switcherShowsIcons: Bool {
         get { self.defaultsState.switcherShowsIcons }
         set { self.setDefault(\.switcherShowsIcons, newValue, key: "switcherShowsIcons") }

@@ -9,6 +9,10 @@ read_when:
 
 # Codex provider
 
+Enable **Settings → Menu Bar → Show all accounts in Overview** to include this provider’s cached account
+cards in Overview. The existing account source and provider selection remain unchanged; see
+[Overview account rows](configuration.md#menu-bar-controls).
+
 The **Plan Usage** submenu includes recorded remaining-quota burndown above utilization history,
 including saved Monthly windows. See [recorded quota burndown](widgets/burndown-proof.md)
 for capture-age semantics and the existing history retention/privacy behavior.

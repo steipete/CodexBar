@@ -360,6 +360,16 @@ unless explicitly exported and imported. Import does not modify `config.json` or
 
 ### Menu bar controls
 
+**Settings → Menu Bar → Show all accounts in Overview** is off by default. When enabled, each selected
+multi-account provider expands into account rows labeled with its account name or email. The provider’s
+current account source stays in use: claude-swap/tcr, managed Codex accounts, or saved token accounts,
+independently of the provider tab’s stacked/segmented layout. The six-provider cap, provider order, and
+Overview selection still apply to providers before expansion; account rows do not use extra provider
+slots. Rows keep each account’s cached usage and errors; missing usage stays unavailable instead of
+borrowing another account’s quota. The setting adds no fetches and does not change refresh limits.
+Clicking a row opens its provider tab without selecting another credential. The local additive defaults
+key is `mergedOverviewAllAccounts`; older versions ignore it.
+
 **Auto** ranks each provider's eligible quota windows from the current snapshot. An exhausted quota comes
 first; otherwise a supported lane’s pace forecast that runs out before reset takes priority, with the shortest time to
 depletion first. Without such a forecast, Auto chooses the highest used percentage. Ties keep provider order.

@@ -227,10 +227,42 @@ struct CostUsageClaudeReportContextTests {
         }
     }
 
+    @Test(.enabled(if: getuid() != 0, "root ignores directory permissions"), arguments: [false, true])
+    func `unreadable source inventory fails without replacing the cache or report memo`(lockRoot: Bool) throws {
+        var fixture = try Fixture()
+        defer { fixture.env.cleanup() }
+        let gate = fixture.env.root.appendingPathComponent("gate", isDirectory: true)
+        let gatedRoot = gate.appendingPathComponent("projects", isDirectory: true)
+        try FileManager.default.createDirectory(at: gatedRoot, withIntermediateDirectories: true)
+        fixture.options.claudeProjectsRoots = [fixture.env.claudeProjectsRoot, gatedRoot]
+        _ = try fixture.write(path: "project/session.jsonl", day: fixture.now, id: "first", input: 10)
+        let locked = lockRoot ? gate : fixture.env.claudeProjectsRoot.appendingPathComponent("locked")
+        if !lockRoot {
+            _ = try fixture.write(path: "locked/session.jsonl", day: fixture.now, id: "locked", input: 5)
+        }
+        let (original, _) = try fixture.load(context: .regular, days: 30)
+        #expect(original.summary?.totalInputTokens == (lockRoot ? 10 : 15))
+        let cacheURL = CostUsageClaudeCacheIO.cacheFileURL(provider: .claude, cacheRoot: fixture.env.cacheRoot)
+        let memoURL = CostUsageClaudeReportMemo.reportMemoFileURL(cacheFileURL: cacheURL)
+        let cacheBefore = try Data(contentsOf: cacheURL)
+        let memoBefore = try Data(contentsOf: memoURL)
+
+        try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: locked.path)
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: locked.path) }
+        #expect(throws: (any Error).self) { try fixture.load(context: .regular, days: 30) }
+        #expect(try Data(contentsOf: cacheURL) == cacheBefore)
+        #expect(try Data(contentsOf: memoURL) == memoBefore)
+
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: locked.path)
+        let (recovered, work) = try fixture.load(context: .regular, days: 30)
+        #expect(recovered.data == original.data)
+        #expect(work == CostUsageScanner.ClaudeScanWorkMetrics())
+    }
+
     struct Fixture {
         let env: CostUsageTestEnvironment
         let now: Date
-        let options: CostUsageScanner.Options
+        var options: CostUsageScanner.Options
 
         init(now: Date? = nil) throws {
             self.env = try CostUsageTestEnvironment()

@@ -218,6 +218,29 @@ struct ClaudeOAuthTests {
     }
 
     @Test
+    func `keeps Fable limit when a sibling entry or its own optional field has an unexpected type`() throws {
+        let json = """
+        {
+          "five_hour": { "utilization": 11.0, "resets_at": "2026-07-03T00:30:00.282668+00:00" },
+          "seven_day": { "utilization": 9.0, "resets_at": "2026-07-08T09:00:00.282694+00:00" },
+          "limits": [
+            null,
+            { "kind": "session", "group": "session", "percent": "11", "resets_at": null, "scope": null },
+            {
+              "kind": "weekly_scoped", "group": "weekly", "percent": 5, "resets_at": 1791800000,
+              "scope": { "model": { "id": null, "display_name": "Fable" }, "surface": null },
+              "is_active": false
+            }
+          ]
+        }
+        """
+        let snap = try ClaudeUsageFetcher._mapOAuthUsageForTesting(Data(json.utf8))
+        let fable = snap.extraRateWindows.first(where: { $0.id == "claude-weekly-scoped-fable" })
+        #expect(fable?.window.usedPercent == 5)
+        #expect(fable?.window.resetsAt == nil)
+    }
+
+    @Test
     func `orders O auth scoped weekly windows before daily routines`() throws {
         let json = """
         {

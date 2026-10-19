@@ -18,6 +18,15 @@ struct ProviderDetailSectionsContent: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    private static func progressColor(_ severity: ProviderDetailSection.Row.Severity?, fallback: Color) -> Color {
+        switch severity {
+        case .normal: Color(nsColor: .systemGreen)
+        case .warning: Color(nsColor: .systemOrange)
+        case .critical: Color(nsColor: .systemRed)
+        case nil: fallback
+        }
+    }
+
     private func section(_ section: ProviderDetailSection) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             if let title = section.title {
@@ -34,9 +43,21 @@ struct ProviderDetailSectionsContent: View {
                             .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
                         Spacer(minLength: 8)
                         VStack(alignment: .trailing, spacing: 1) {
-                            Text(row.value)
-                                .foregroundStyle(MenuHighlightStyle.primary(self.isHighlighted))
-                                .fontWeight(.medium)
+                            HStack(spacing: 4) {
+                                if let severity = row.severity, severity != .normal {
+                                    Label(
+                                        severity == .critical ? L("quota_warning_critical") :
+                                            L("quota_warning_warning"),
+                                        systemImage: severity == .critical
+                                            ? "exclamationmark.octagon.fill" : "exclamationmark.triangle.fill")
+                                        .labelStyle(.iconOnly)
+                                        .foregroundStyle(self.isHighlighted
+                                            ? .white : Self.progressColor(severity, fallback: self.chartColor))
+                                }
+                                Text(row.value)
+                                    .foregroundStyle(MenuHighlightStyle.primary(self.isHighlighted))
+                                    .fontWeight(.medium)
+                            }
                             if let secondaryValue = row.secondaryValue {
                                 Text(secondaryValue)
                                     .font(.caption2)
@@ -51,7 +72,7 @@ struct ProviderDetailSectionsContent: View {
                         // is clamped here, the "used / total" caption keeps the raw numbers.
                         UsageProgressBar(
                             percent: min(100, max(0, progress.usedPercent)),
-                            tint: self.chartColor,
+                            tint: Self.progressColor(row.severity, fallback: self.chartColor),
                             accessibilityLabel: row.label)
                     }
                 }

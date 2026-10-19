@@ -2680,3 +2680,11 @@
 /* Munito provider credentials */
 "Key with Read account data (Admin API) permission. Or set MUNITO_API_KEY." = "Sleutel met machtiging Accountgegevens lezen (Admin API). Of stel MUNITO_API_KEY in.";
 "Munito reports Admin API spend and limits, not local token cost history." = "Munito meldt uitgaven en limieten van de Admin API, niet de lokale tokenkostenhistorie.";
+
+"Show all accounts in Overview" = "Alle accounts in het overzicht tonen";
+
+"Expand cached account usage. The six-provider limit still applies." = "Klap geselecteerde aanbieders uit met gebruiksgegevens van accounts uit de cache. De limiet van zes aanbieders blijft gelden.";
+"Edit" = "Bewerken";
+"Move up" = "Omhoog";
+"Move down" = "Omlaag";
+"Leave blank to keep the saved credential." = "Laat leeg om de opgeslagen inloggegevens te behouden.";

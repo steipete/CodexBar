@@ -2683,3 +2683,11 @@
 /* Munito provider credentials */
 "Key with Read account data (Admin API) permission. Or set MUNITO_API_KEY." = "アカウントデータの読み取り（Admin API）権限を持つキー。または MUNITO_API_KEY を設定してください。";
 "Munito reports Admin API spend and limits, not local token cost history." = "Munito は Admin API の支出と上限を報告します。ローカルのトークンコスト履歴ではありません。";
+
+"Show all accounts in Overview" = "概要にすべてのアカウントを表示";
+
+"Expand cached account usage. The six-provider limit still applies." = "選択したプロバイダーを、キャッシュ済みのアカウント使用量で展開します。プロバイダーは引き続き最大6つです。";
+"Edit" = "編集";
+"Move up" = "上へ移動";
+"Move down" = "下へ移動";
+"Leave blank to keep the saved credential." = "保存済みの認証情報を維持するには空欄にしてください。";

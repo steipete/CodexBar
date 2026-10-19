@@ -212,11 +212,11 @@ struct ProviderArchitectureGatekeeperTests {
         #if os(macOS)
         // Antigravity and Muse use bounded local usage readers.
         #expect(Set(descriptors.filter(\.tokenCost.supportsTokenSnapshot).map(\.id)) == [
-            .codex, .claude, .cursor, .vertexai, .bedrock, .antigravity, .muse, .pi,
+            .codex, .claude, .cursor, .vertexai, .bedrock, .antigravity, .muse, .pi, .opencodego,
         ])
         #else
         #expect(Set(descriptors.filter(\.tokenCost.supportsTokenSnapshot).map(\.id)) == [
-            .codex, .claude, .vertexai, .bedrock, .antigravity, .muse, .pi,
+            .codex, .claude, .vertexai, .bedrock, .antigravity, .muse, .pi, .opencodego,
         ])
         #endif
         #expect(Set(descriptors.filter { $0.cli.binaryLocator != nil }.map(\.id)) == [
@@ -972,7 +972,7 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This is the mathematical constant π used by the renderer, not a provider selection."),
         SuppressedProviderReference(
             path: "Sources/CodexBar/StatusItemController+Animation.swift",
-            anchor: "style == .combined ? 0 : self.tiltAmount(for: primaryProvider) * .pi / 28",
+            anchor: "let tilt = merged && style == .combined ? 0 : self.tiltAmount(for: provider) * .pi / 28",
             expectedProviderIDs: ["pi"],
             reason: "This is the mathematical constant π used for an animation angle, not a provider selection."),
         SuppressedProviderReference(
@@ -3301,6 +3301,13 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact app-runtime bridge coordinates provider-owned state through the shared controller."),
         AllowedProviderConstruct(
             path: "Sources/CodexBarCLI/CLICostCommand.swift",
+            anchor: "if includeBreakdown, provider == .claude || provider == .opencodego, !snapshot.daily.isEmpty {",
+            expectedProviderIDs: ["claude", "opencodego"],
+            expectedReferenceCount: 2,
+            expectedReferenceFingerprint: ["claude@0", "opencodego@0"],
+            reason: "Claude and OpenCode Go expose daily and per-model local history in the shared CLI renderer."),
+        AllowedProviderConstruct(
+            path: "Sources/CodexBarCLI/CLICostCommand.swift",
             anchor: "provider == .codex",
             expectedProviderIDs: ["codex"],
             expectedReferenceCount: 1,
@@ -3380,6 +3387,13 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact shared construct dispatches a provider-owned capability at the generic integration boundary."),
         AllowedProviderConstruct(
             path: "Sources/CodexBarCore/CostUsageFetcher.swift",
+            anchor: "if provider == .opencodego {",
+            expectedProviderIDs: ["muse", "opencodego", "pi"],
+            expectedReferenceCount: 3,
+            expectedReferenceFingerprint: ["opencodego@0", "muse@11", "pi@23"],
+            reason: "The CLI cost adapter reuses OpenCode Go's existing device-local recorded history reader."),
+        AllowedProviderConstruct(
+            path: "Sources/CodexBarCore/CostUsageFetcher.swift",
             anchor: "var historyCoverageIsEstablished = provider != .codex",
             expectedProviderIDs: ["codex"],
             expectedReferenceCount: 2,
@@ -3456,6 +3470,13 @@ struct ProviderArchitectureGatekeeperTests {
             expectedReferenceCount: 1,
             expectedReferenceFingerprint: ["codex@0"],
             reason: "This exact shared construct dispatches a provider-owned capability at the generic integration boundary."),
+        AllowedProviderConstruct(
+            path: "Sources/CodexBarCore/PiSessionCostScanner.swift",
+            anchor: "guard !backend.isEmpty, let model, !model.isEmpty else { return nil }",
+            expectedProviderIDs: ["pi"],
+            expectedReferenceCount: 1,
+            expectedReferenceFingerprint: ["pi@0"],
+            reason: "Unsupported backends retain tokens only in standalone Pi history without native-provider pricing."),
         AllowedProviderConstruct(
             path: "Sources/CodexBarCore/PiSessionCostScanner.swift",
             anchor: "guard provider == .codex || provider == .claude || provider == .pi else {",

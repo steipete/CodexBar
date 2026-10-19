@@ -85,6 +85,7 @@ enum PiSessionCostScanner {
     private struct AssistantIdentity {
         let provider: UsageProvider
         let modelName: String
+        let pricingProvider: UsageProvider?
     }
 
     private struct ModelsDevPricingContext {
@@ -102,7 +103,7 @@ enum PiSessionCostScanner {
 
     static let costScale = 1_000_000_000.0
     /// Bump for Pi-only cost formula changes not represented by the parser or pricing fingerprints.
-    private static let costFormulaVersion = 4
+    private static let costFormulaVersion = 5
     private static let maxLineBytes = 16 * 1024 * 1024
     private static let sessionStartFilenameRegex = try? NSRegularExpression(
         pattern: "^(\\d{4}-\\d{2}-\\d{2})T(\\d{2})-(\\d{2})-(\\d{2})-(\\d{3})Z_")
@@ -297,7 +298,7 @@ enum PiSessionCostScanner {
             try checkCancellation?()
             PiSessionCostCacheIO.save(cache: cache, cacheRoot: options.cacheRoot, calendar: range.calendar)
         }
-        // Provider-specific by design: Pi aggregates native vendor mirrors and standalone Bedrock sessions.
+        // Provider-specific by design: Pi aggregates native vendor mirrors and standalone backend sessions.
         let lastScanAt = cache.lastScanUnixMs > 0
             ? Date(timeIntervalSince1970: TimeInterval(cache.lastScanUnixMs) / 1000)
             : nil
@@ -579,6 +580,8 @@ enum PiSessionCostScanner {
                     ].joined(separator: "\u{1F}")
                 }
             }
+            // Discovery order follows working directories and process contexts; it is not part of the scope.
+            .sorted()
             .joined(separator: "\u{1E}")
     }
 
@@ -919,62 +922,54 @@ enum PiSessionCostScanner {
                             entry: object,
                             message: message,
                             fallback: currentModelContext)
-                        guard let identity else {
-                            let unsupported = if let explicit = self.extractProviderText(
-                                entry: object,
-                                message: message)
+                        let date = self.timestampDate(entry: object, message: message)
+                        if let identity, let date {
+                            let dayKey = CostUsageScanner.CostUsageDayRange.dayKey(
+                                from: date,
+                                calendar: range.calendar)
+                            guard CostUsageScanner.CostUsageDayRange.isInRange(
+                                dayKey: dayKey, since: range.scanSinceKey, until: range.scanUntilKey)
+                            else { return }
+                            if let usage = self.extractUsage(
+                                provider: identity.pricingProvider,
+                                modelName: identity.modelName,
+                                message: message,
+                                pricingDate: date,
+                                pricingContext: pricingContext)
                             {
-                                self.mappedProvider(fromPiProvider: explicit) == nil
-                            } else {
-                                currentModelContext?.isUnsupportedBackend == true
-                            }
-                            guard unsupported else {
-                                isComplete = false
+                                add(
+                                    provider: identity.provider,
+                                    dayKey: dayKey,
+                                    modelName: identity.modelName,
+                                    usage: usage,
+                                    entryID: self.entryIdentifier(from: object))
                                 return
                             }
-                            if let date = self.timestampDate(entry: object, message: message) {
-                                let day = CostUsageScanner.CostUsageDayRange.dayKey(
-                                    from: date,
-                                    calendar: range.calendar)
-                                if CostUsageScanner.CostUsageDayRange.isInRange(
-                                    dayKey: day, since: range.scanSinceKey, until: range.scanUntilKey)
-                                {
-                                    unsupportedAssistantDayKeys.insert(day)
-                                }
-                            } else {
-                                hasUndatedUnsupportedAssistant = true
+                        }
+
+                        // Incomplete unsupported rows affect only standalone history; native failures
+                        // must prevent cache advancement even when their date or model is unknown.
+                        let unsupported = if let identity {
+                            identity.pricingProvider == nil
+                        } else if let explicit = self.extractProviderText(entry: object, message: message) {
+                            self.mappedProvider(fromPiProvider: explicit) == nil
+                        } else {
+                            currentModelContext?.isUnsupportedBackend == true
+                        }
+                        guard unsupported else {
+                            isComplete = false
+                            return
+                        }
+                        if let date {
+                            let day = CostUsageScanner.CostUsageDayRange.dayKey(from: date, calendar: range.calendar)
+                            if CostUsageScanner.CostUsageDayRange.isInRange(
+                                dayKey: day, since: range.scanSinceKey, until: range.scanUntilKey)
+                            {
+                                unsupportedAssistantDayKeys.insert(day)
                             }
-                            return
+                        } else {
+                            hasUndatedUnsupportedAssistant = true
                         }
-                        guard let date = self.timestampDate(entry: object, message: message) else {
-                            // A recognized assistant row without a usable timestamp cannot be
-                            // assigned to a day. Keep the scan incomplete so cache advancement
-                            // never permanently hides its usage.
-                            isComplete = false
-                            return
-                        }
-                        let dayKey = CostUsageScanner.CostUsageDayRange.dayKey(
-                            from: date,
-                            calendar: range.calendar)
-                        guard CostUsageScanner.CostUsageDayRange.isInRange(
-                            dayKey: dayKey, since: range.scanSinceKey, until: range.scanUntilKey)
-                        else { return }
-                        guard let usage = self.extractUsage(
-                            provider: identity.provider,
-                            modelName: identity.modelName,
-                            message: message,
-                            pricingDate: date,
-                            pricingContext: pricingContext)
-                        else {
-                            isComplete = false
-                            return
-                        }
-                        add(
-                            provider: identity.provider,
-                            dayKey: dayKey,
-                            modelName: identity.modelName,
-                            usage: usage,
-                            entryID: self.entryIdentifier(from: object))
                     }
                 })
             // A scan can stop at the last complete newline while an active writer leaves a
@@ -1045,7 +1040,9 @@ enum PiSessionCostScanner {
             var seenEntries = seenEntriesBySessionID[sessionID] ?? []
             for entryID in usage.entryUsages.keys.sorted() where seenEntries.insert(entryID).inserted {
                 guard let entryUsage = usage.entryUsages[entryID] else { continue }
-                guard self.applyEntryUsage(daysByProvider: &days, entryUsage: entryUsage) else { return false }
+                guard self.applyContributions(daysByProvider: &days, contributions: [
+                    entryUsage.providerRawValue: [entryUsage.dayKey: [entryUsage.modelName: entryUsage.usage]],
+                ]) else { return false }
             }
             seenEntriesBySessionID[sessionID] = seenEntries
         }
@@ -1053,24 +1050,14 @@ enum PiSessionCostScanner {
         return true
     }
 
-    private static func applyEntryUsage(
-        daysByProvider: inout [String: [String: [String: PiPackedUsage]]],
-        entryUsage: PiSessionEntryUsage) -> Bool
-    {
-        let contributions = [
-            entryUsage.providerRawValue: [
-                entryUsage.dayKey: [entryUsage.modelName: entryUsage.usage],
-            ],
-        ]
-        return self.applyContributions(daysByProvider: &daysByProvider, contributions: contributions)
-    }
-
     private static func modelContext(from object: [String: Any]) -> PiModelContext? {
-        guard let providerText = object["provider"] as? String else { return nil }
-        guard let provider = self.mappedProvider(fromPiProvider: providerText) else {
-            return PiModelContext(providerRawValue: "", modelName: "", isUnsupportedBackend: true)
-        }
+        guard let providerText = (object["provider"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        else { return nil }
         let rawModelName = (object["modelId"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard let provider = self.mappedProvider(fromPiProvider: providerText) else {
+            return PiModelContext(
+                providerRawValue: providerText, modelName: rawModelName, isUnsupportedBackend: true)
+        }
         guard let modelName = self.normalizeModelName(rawModelName, provider: provider) else { return nil }
         return PiModelContext(providerRawValue: provider.rawValue, modelName: modelName)
     }
@@ -1084,17 +1071,22 @@ enum PiSessionCostScanner {
         let explicitProvider = explicitProviderText.flatMap(self.mappedProvider(fromPiProvider:))
         let explicitModelText = self.extractModelText(entry: entry, message: message)
 
-        if explicitProviderText != nil, explicitProvider == nil {
-            return nil
+        if let backend = explicitProviderText ??
+            (fallback?.isUnsupportedBackend == true ? fallback?.providerRawValue : nil),
+            self.mappedProvider(fromPiProvider: backend) == nil
+        {
+            let model = explicitModelText ?? (fallback?.providerRawValue == backend ? fallback?.modelName : nil)
+            guard !backend.isEmpty, let model, !model.isEmpty else { return nil }
+            return AssistantIdentity(provider: .pi, modelName: "\(backend)/\(model)", pricingProvider: nil)
         }
 
         guard let provider = explicitProvider ?? fallback.flatMap({ UsageProvider(rawValue: $0.providerRawValue) }),
               let rawModel = explicitModelText ?? fallback.flatMap({
-                  $0.providerRawValue == provider.rawValue ? $0.modelName : nil
+                  !$0.isUnsupportedBackend && $0.providerRawValue == provider.rawValue ? $0.modelName : nil
               }),
               let model = self.normalizeModelName(rawModel, provider: provider)
         else { return nil }
-        return AssistantIdentity(provider: provider, modelName: model)
+        return AssistantIdentity(provider: provider, modelName: model, pricingProvider: provider)
     }
 
     private static func extractProviderText(entry: [String: Any], message: [String: Any]) -> String? {
@@ -1157,7 +1149,7 @@ enum PiSessionCostScanner {
     }
 
     private static func extractUsage(
-        provider: UsageProvider,
+        provider: UsageProvider?,
         modelName: String,
         message: [String: Any],
         pricingDate: Date? = nil,
@@ -1242,13 +1234,15 @@ enum PiSessionCostScanner {
     }
 
     private static func computedCostUSD(
-        provider: UsageProvider,
+        provider: UsageProvider?,
         modelName: String,
         usage: PiPackedUsage,
         cacheWrite1h: Int,
         pricingDate: Date? = nil,
         pricingContext: ModelsDevPricingContext? = nil) -> Double?
     {
+        // Unknown backends contribute standalone tokens without borrowing another provider's prices.
+        guard let provider else { return nil }
         // Provider-specific by design: Pi delegates disjoint token costs to the shared tariff calculators.
         switch provider {
         case .codex:

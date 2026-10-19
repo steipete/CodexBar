@@ -6,7 +6,19 @@ struct OpenCodeGoProviderImplementation: ProviderImplementation {
 
     @MainActor
     func presentation(context _: ProviderPresentationContext) -> ProviderPresentation {
-        ProviderPresentation { _ in "web" }
+        ProviderPresentation { context in
+            context.store.sourceLabel(for: context.provider)
+        }
+    }
+
+    @MainActor
+    func defaultSourceLabel(context: ProviderSourceLabelContext) -> String? {
+        context.settings.providerConfig(for: .opencodego)?.source?.rawValue
+    }
+
+    @MainActor
+    func sourceMode(context: ProviderSourceModeContext) -> ProviderSourceMode {
+        context.settings.providerConfig(for: .opencodego)?.source ?? .auto
     }
 
     @MainActor
