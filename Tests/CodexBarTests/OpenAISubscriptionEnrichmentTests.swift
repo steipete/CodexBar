@@ -107,7 +107,7 @@ struct OpenAISubscriptionEnrichmentTests {
                         snapshot: ownSnapshot,
                         info: AccountInfo(email: account.email, plan: nil),
                         credits: ownCredits)))),
-                #require(controller.codexAccountMenuCardModel(for: account, accountSnapshot: record)),
+                #require(store.codexAccountMenuCardModel(for: account, accountSnapshot: record)),
             ]
             for model in models {
                 #expect(model.email == account.email)

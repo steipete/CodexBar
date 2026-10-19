@@ -9,7 +9,7 @@ read_when:
 
 Enable Pi in Settings → Providers to show Pi and OMP token history as a separate local source in the menu, Usage & Spend, Overview, and widgets. Pi has no subscription quota or account balance. Costs are API-rate estimates from recorded assistant usage, not a billing statement. No provider login or credential is required to read the transcripts.
 
-The scanner supports the `openai-codex`, `anthropic`, and `amazon-bedrock` backends. Bedrock sessions stay in standalone Pi history and use the exact model ID in the cached models.dev Bedrock catalog, preserving regional and global prices. They are never mirrored into native Claude or Codex history. Other backends keep standalone Pi history incomplete; they do not become measured zero or invalidate supported partitions. Supported usage with an unknown model retains its recorded tokens and is marked unpriced. Mixed priced and unpriced history preserves the known subtotal without presenting it as a complete cost.
+The scanner prices the `openai-codex`, `anthropic`, and `amazon-bedrock` backends. Bedrock sessions stay in standalone Pi history and use the exact model ID in the cached models.dev Bedrock catalog, preserving regional and global prices. They are never mirrored into native Claude or Codex history. Other backends retain valid timestamped usage as unpriced tokens in standalone Pi history, labeled with their backend and model; they never borrow native-provider prices or enter native Claude/Codex history. Missing or malformed usage keeps standalone history incomplete without invalidating supported partitions. Supported usage with an unknown model retains its recorded tokens and is marked unpriced. Mixed priced and unpriced history preserves the known subtotal without presenting it as a complete cost.
 
 The `cacheWrite1h` counter (`cttl.ephemeral1h` on OMP) is the one-hour subset of `cacheWrite`, priced at twice the input rate; remaining writes use the default cache-write tariff. The first present field wins in this order: `cacheWrite1h`, `cache_write_1h`, `cttl.ephemeral1h`, `cttl.ephemeral_1h`. Missing one-hour counters retain the default tariff. Invalid counts, including a one-hour count larger than total writes, keep history incomplete; a malformed first-present counter cannot fall through to another spelling. Pi's recorded `usage.cost` is not used to replace the independent estimate.
 
@@ -20,6 +20,8 @@ Cost collection can refresh the public [models.dev pricing catalog](model-pricin
 Default session roots include `~/.pi/agent/sessions` and the supported OMP agent/profile stores. Discovery honors `PI_CODING_AGENT_DIR`, `PI_CODING_AGENT_SESSION_DIR`, OMP configuration/XDG roots, and `OMP_PROFILE` (or `PI_PROFILE` when absent). A named profile limits discovery to that profile. Invalid or unresolved explicit selectors produce incomplete history.
 
 Root canonicalization preserves an explicit directory marker even when the session directory does not exist yet.
+
+Discovering the same roots in a different order does not change the cache scope. Older unsorted scope fingerprints are refreshed once while retaining the same source selection and totals.
 
 Running Pi/OMP processes also contribute their environment, profile, `--session-dir`, and project settings. Relative paths resolve against that process's working directory. A missing working directory cannot turn an unresolved relative selector into a successful empty scan. Retained roots from explicit command-line or settings selectors survive process exit; settings are revalidated before reuse. Removing a setting from an accessible project drops its former root, while an inaccessible project or broken settings symlink preserves the previous scoped report and its original age.
 
@@ -48,3 +50,5 @@ Incomplete refreshes can preserve a previously valid report with its original so
 Files replaced while being read leave the refresh incomplete. A pricing-catalog change requires a complete reparse before new estimates replace the prior report. An explicit refresh reparses Pi history even when file size and modification time are unchanged, including Pi usage shown under Claude or Codex.
 
 The one-hour counter correction invalidates the Pi pricing key once, including estimates mirrored into Claude or Codex reports. Existing Pi cache rows do not retain the one-hour split, so all Pi sessions in the scan window must be reparsed before publishing corrected prices. The cache schema and native Claude/Codex caches are unchanged; subsequent refreshes resume normal cache reuse.
+
+The addition of unsupported-backend token history also invalidates the Pi pricing key once so previously ignored rows are collected. The cache schema stays unchanged.

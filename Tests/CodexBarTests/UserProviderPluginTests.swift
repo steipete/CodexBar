@@ -923,6 +923,110 @@ extension UserProviderPluginTests {
             .write(to: directory.appendingPathComponent("\(stage)-menus.json"))
     }
 
+    @MainActor
+    @Test
+    func `plugin svg icon is kept and rendered as a template image`() throws {
+        let fixture = try Fixture()
+        defer { fixture.remove() }
+        let svg = #"""
+        <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 16 16">
+        <path d="M2 2h12v12H2z"/></svg>
+        """#
+        _ = try fixture.write(name: "svg.js", source: Self.iconPlugin(id: "svg-meter", svg: svg))
+        let plugin = try #require(UserProviderPluginRegistry.refresh(
+            loader: fixture.loader(transport: RecordingTransport(responseJSON: "{}"))).first?.plugin)
+
+        #expect(plugin.manifest.icon.svg == svg)
+        let open = #"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16">"#
+        for paint in ["none", "currentColor", "black", "#fff", "#336699cc", "rgb(1, 2, 3)", "rgba(0,0,0,50%)"] {
+            let shape = #"<path d="M2 2h12v12H2z" fill=""# + paint + #"" stroke=""# + paint
+                + #"" transform="rotate(45 8 8)"/>"#
+            #expect(ProviderPluginIconSVG.isValid(open + shape + "</svg>"), "rejected: \(paint)")
+        }
+        #expect(plugin.manifest.icon.monogram == "SV")
+        let image = try #require(StatusItemController.userPluginSVGImage(plugin))
+        #expect(image.isTemplate)
+        #expect(image.size == NSSize(width: 16, height: 16))
+        let bitmap = try #require(image.representations.first as? NSBitmapImageRep)
+        #expect(bitmap.pixelsWide == 32)
+        #expect(bitmap.pixelsHigh == 32)
+        #expect(image.representations.count == 1)
+        let center = try #require(bitmap.colorAt(x: 16, y: 16))
+        #expect(center.alphaComponent > 0.9)
+    }
+
+    @Test
+    func `unsafe or oversized svg icons fall back to the monogram`() throws {
+        let open = #"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16">"#
+        let rejected = [
+            #"<svg width="1000000000" height="16"><path d="M0 0h1v1z"/></svg>"#,
+            #"<svg viewBox="0 0 1e100 16"><path d="M0 0h1v1z"/></svg>"#,
+            #"<svg width="16" viewBox="0 0 16 1e-99"><path d="M0 0h1v1z"/></svg>"#,
+            open + "<script>alert(1)</script></svg>",
+            open + "<style>path{fill:red}</style></svg>",
+            open + "<foreignObject><div/></foreignObject></svg>",
+            open + #"<image href="https://example.com/x.png"/></svg>"#,
+            open + #"<path d="M0 0h1v1z" fill="url(#g)"/></svg>"#,
+            open + #"<path d="M0 0h1v1z" onload="x()"/></svg>"#,
+            // CSS escapes, comments and character references cannot smuggle a URL past the check.
+            open + #"<path d="M0 0h1v1z" fill="u\72l(https://example.com/p.svg#x)"/></svg>"#,
+            open + #"<path d="M0 0h1v1z" stroke="U\52L(#g)"/></svg>"#,
+            open + #"<path d="M0 0h1v1z" fill="&#117;rl(#g)"/></svg>"#,
+            open + #"<path d="M0 0h1v1z" fill="red;background:url(x)"/></svg>"#,
+            open + #"<path d="M0 0h1v1z" fill="/**/red"/></svg>"#,
+            #"<svg xmlns="https://example.com/other" viewBox="0 0 16 16"><path d="M0 0h1v1z"/></svg>"#,
+            // Red team: other ways to reference or inject.
+            open + #"<path d="M0 0h1v1z" fill="&#x55;RL(#g)"/></svg>"#,
+            open + #"<path d="M0 0h1v1z" fill="\#u{FF55}\#u{FF52}\#u{FF4C}(#g)"/></svg>"#,
+            open + #"<path d="M0 0h1v1z" fill="url (#g)"/></svg>"#,
+            open + #"<path d="M0 0h1v1z" fill="image-set(&quot;x.png&quot; 1x)"/></svg>"#,
+            open + #"<path d="M0 0h1v1z" style="fill:red"/></svg>"#,
+            open + ##"<use href="#a"/></svg>"##,
+            open + #"<a href="https://example.com"><path d="M0 0h1v1z"/></a></svg>"#,
+            open + #"<path xlink:href="https://example.com/x" d="M0 0h1v1z"/></svg>"#,
+            #"<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><path d="M0 0h1v1z"/></svg>"#,
+            #"<svg xmlns="http://www.w3.org/2000/svg" xml:base="https://example.com/"><path d="M0 0h1v1z"/></svg>"#,
+            open + #"<path xmlns="https://example.com/other" d="M0 0h1v1z"/></svg>"#,
+            #"<?xml-stylesheet href="https://example.com/s.css"?><svg xmlns="http://www.w3.org/2000/svg"/>"#,
+            open + #"<path d="M0 0h1v1z" fill="red&#59;x"/></svg>"#,
+            open + #"<path d="M0 0h1v1z" fill="image-set(x.png 1x)"/></svg>"#,
+            open + #"<path d="M0 0h1v1z" stroke="paint(x)"/></svg>"#,
+            open + #"<path d="M0 0h1v1z" fill="var(--x)"/></svg>"#,
+            open + "<path d=\"M0 0h1v1z\" fill=\"red\u{0}\"/></svg>",
+            #"<!DOCTYPE svg [<!ENTITY x "y">]><svg><path d="&x;"/></svg>"#,
+            #"<g><path d="M0 0h1v1z"/></g>"#,
+            open + #"<path d=""# + String(repeating: "M0 0h1v1z", count: 1000) + #""/></svg>"#,
+            "",
+        ]
+        for svg in rejected {
+            #expect(!ProviderPluginIconSVG.isValid(svg), "accepted: \(svg.prefix(60))")
+        }
+
+        let fixture = try Fixture()
+        defer { fixture.remove() }
+        _ = try fixture.write(name: "bad.js", source: Self.iconPlugin(id: "bad-meter", svg: rejected[0]))
+        let plugin = try #require(UserProviderPluginRegistry.refresh(
+            loader: fixture.loader(transport: RecordingTransport(responseJSON: "{}"))).first?.plugin)
+        #expect(plugin.manifest.icon.svg == nil)
+        #expect(plugin.manifest.icon.monogram == "SV")
+        #expect(ProviderPluginIcon(monogram: "SV", tint: "#336699", svg: rejected[0]).svg == nil)
+    }
+
+    private static func iconPlugin(id: String, svg: String) -> String {
+        // Test SVGs contain no backticks or `${`, so a JS template literal carries them verbatim.
+        let literal = "`" + svg + "`"
+        return """
+        defineProvider({
+          id: "\(id)",
+          name: "SVG Meter",
+          icon: { monogram: "SV", tint: "#0176D3", svg: \(literal) },
+          endpoints: ["https://\(id).example"],
+          settings: [],
+          fetchUsage() { return { primary: { usedPercent: 12 } }; },
+        });
+        """
+    }
+
     private static func menuPlugin(id: String, name: String, topLevel: Bool? = nil) -> String {
         """
         defineProvider({

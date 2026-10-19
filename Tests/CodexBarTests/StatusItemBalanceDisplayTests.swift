@@ -953,7 +953,7 @@ extension StatusItemBalanceDisplayTests {
             details: [ProviderDetailSection(title: "Billing", rows: [.init(label: "Balance", value: "$2.57")])],
             updatedAt: Date())
         store._setSnapshotForTesting(snapshot, provider: .lithosai)
-        let selected = controller.primaryProviderForUnifiedIcon()
+        let selected = try #require(controller.primaryProviderForUnifiedIcon().firstPartyProvider)
         #expect(selected == .lithosai)
         #expect(controller.menuBarDisplayText(for: selected, snapshot: snapshot) == "$2.57")
         let data = controller.menuBarLayoutRenderData(provider: selected, snapshot: snapshot, warningFlash: false)

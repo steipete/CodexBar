@@ -17,6 +17,7 @@ extension UsageMenuCardView.Model {
                         value: row.value,
                         secondaryValue: self.localizedProviderDetailSecondaryValue(row, provider: provider),
                         progress: row.progress,
+                        severity: row.severity,
                         usageValue: row.usageValue)
                 }
                 return try? ProviderDetailSection(
@@ -35,6 +36,7 @@ extension UsageMenuCardView.Model {
                         self.localizedProviderDetailValue($0, provider: provider)
                     },
                     progress: row.progress,
+                    severity: row.severity,
                     usageValue: row.usageValue)
             }
             let chart = section.chart.flatMap { chart in

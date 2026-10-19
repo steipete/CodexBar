@@ -53,7 +53,11 @@ public struct OpenCodeGoLocalUsageReader: Sendable {
     @TaskLocal static var scanObserverForTesting: (@Sendable () -> Void)?
     #endif
 
-    public func fetch(now: Date = Date(), historyDays: Int = 30) throws -> OpenCodeGoUsageSnapshot {
+    public func fetch(
+        now: Date = Date(),
+        historyDays: Int = 30,
+        calendar: Calendar = .current) throws -> OpenCodeGoUsageSnapshot
+    {
         let hasAuth = Self.hasAuthKey(at: self.authURL)
         guard FileManager.default.fileExists(atPath: self.databaseURL.path) else {
             if hasAuth {
@@ -66,7 +70,7 @@ public struct OpenCodeGoLocalUsageReader: Sendable {
         guard !rows.isEmpty else {
             throw hasAuth ? OpenCodeGoLocalUsageError.historyUnavailable("no local usage rows") : .notDetected
         }
-        return Self.snapshot(rows: rows, now: now, historyDays: historyDays)
+        return Self.snapshot(rows: rows, now: now, historyDays: historyDays, calendar: calendar)
     }
 
     private func readRows() throws -> [UsageRow] {
@@ -315,7 +319,12 @@ public struct OpenCodeGoLocalUsageReader: Sendable {
         return !key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
-    private static func snapshot(rows: [UsageRow], now: Date, historyDays: Int) -> OpenCodeGoUsageSnapshot {
+    private static func snapshot(
+        rows: [UsageRow],
+        now: Date,
+        historyDays: Int,
+        calendar: Calendar) -> OpenCodeGoUsageSnapshot
+    {
         let nowMs = Int64(now.timeIntervalSince1970 * 1000)
         let sessionStart = nowMs - Int64(Self.fiveHours * 1000)
         let weekStart = self.startOfUTCWeek(now: now).timeIntervalSince1970 * 1000
@@ -350,20 +359,18 @@ public struct OpenCodeGoLocalUsageReader: Sendable {
             rollingResetInSec: rollingResetInSec,
             weeklyResetInSec: max(0, Int((weekEndMs - nowMs) / 1000)),
             monthlyResetInSec: max(0, Int((monthBounds.endMs - nowMs) / 1000)),
-            daily: self.dailyEntries(rows: rows, now: now, historyDays: historyDays),
+            daily: self.dailyEntries(rows: rows, now: now, historyDays: historyDays, calendar: calendar),
             updatedAt: now)
     }
 
-    /// Buckets local `opencode-go` message costs into calendar-day entries (device local time,
-    /// matching how Codex/Claude cost history is keyed) so the cost history chart can render a
-    /// per-day bar chart the same way it does for those providers.
+    /// Buckets local `opencode-go` costs in the requested calendar, defaulting to device-local days.
     private static func dailyEntries(
         rows: [UsageRow],
         now: Date,
-        historyDays: Int) -> [CostUsageDailyReport.Entry]
+        historyDays: Int,
+        calendar: Calendar) -> [CostUsageDailyReport.Entry]
     {
-        let clampedHistoryDays = max(1, min(365, historyDays))
-        let calendar = Calendar.current
+        let clampedHistoryDays = max(1, historyDays)
         guard let since = calendar.date(byAdding: .day, value: -(clampedHistoryDays - 1), to: now) else {
             return []
         }
@@ -372,7 +379,7 @@ public struct OpenCodeGoLocalUsageReader: Sendable {
         let entries: [CostUsageDailyReport.Entry] = rows.compactMap { row in
             let date = Date(timeIntervalSince1970: TimeInterval(row.createdMs) / 1000)
             guard date >= sinceStartOfDay, date <= now else { return nil }
-            let key = CostUsageScanner.CostUsageDayRange.dayKey(from: date)
+            let key = CostUsageScanner.CostUsageDayRange.dayKey(from: date, calendar: calendar)
             let trimmedModel = row.model.trimmingCharacters(in: .whitespacesAndNewlines)
             let model = trimmedModel.isEmpty ? "unknown" : trimmedModel
             let tokens = row.tokens

@@ -587,6 +587,17 @@ public struct CostUsageFetcher: Sendable {
                 historyDays: clampedHistoryDays,
                 calendar: fallbackCalendar))
         }
+        // OpenCode Go shares the app's device-local reader and recorded-cost projection.
+        if provider == .opencodego {
+            let home = environment["HOME"].map { URL(fileURLWithPath: $0, isDirectory: true) }
+                ?? FileManager.default.homeDirectoryForCurrentUser
+            return try await CostUsageScanExecutor.run { _ in
+                let usage = try OpenCodeGoLocalUsageReader(homeDirectory: home).fetch(
+                    now: now, historyDays: clampedHistoryDays, calendar: fallbackCalendar)
+                return CostUsageTokenResult(snapshot: usage.toCostUsageTokenSnapshot(
+                    historyDays: clampedHistoryDays, calendar: fallbackCalendar))
+            }
+        }
         // Provider-specific by design: Muse local history has token evidence but no established dollar rates.
         if provider == .muse {
             return try await CostUsageTokenResult(snapshot: Self.loadMuseLocalSnapshot(

@@ -8,6 +8,7 @@ extension StatusItemController {
                 plugin.manifest.name,
                 plugin.manifest.icon.monogram,
                 plugin.manifest.icon.tint,
+                plugin.manifest.icon.svg ?? "",
             ].map { "\($0.utf8.count):\($0)" }.joined()
         }.joined()
         return [

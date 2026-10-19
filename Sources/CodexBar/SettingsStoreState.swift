@@ -88,6 +88,7 @@ struct SettingsDefaultsState {
     var jetbrainsIDEBasePath: String
     var mergeIcons: Bool
     var mergedOverviewLayoutRaw: String
+    var mergedOverviewAllAccounts: Bool
     var switcherShowsIcons: Bool
     var mergeIconsStacked: Bool
     var mergeIconStackedTopProviderRaw: String?

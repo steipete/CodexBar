@@ -4,13 +4,7 @@ import Foundation
 extension SettingsStore {
     var opencodegoWorkspaceID: String {
         get { self.configSnapshot.providerConfig(for: .opencodego)?.workspaceID ?? "" }
-        set {
-            let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
-            let value = trimmed.isEmpty ? nil : trimmed
-            self.updateProviderConfig(provider: .opencodego) { entry in
-                entry.workspaceID = value
-            }
-        }
+        set { self[providerConfig: .opencodego, field: .workspace] = newValue }
     }
 
     var opencodegoCookieHeader: String {
@@ -34,20 +28,10 @@ extension SettingsStore {
     {
         let cookieSettings: ProviderSettingsSnapshot.CookieProviderSettings = self.resolvedCookieSettings(
             provider: .opencodego,
-            configuredSource: self.opencodegoCookieSource,
-            configuredHeader: self.opencodegoCookieHeader,
             tokenOverride: tokenOverride)
         return ProviderSettingsSnapshot.OpenCodeProviderSettings(
             cookieSource: cookieSettings.cookieSource,
             manualCookieHeader: cookieSettings.manualCookieHeader,
-            workspaceID: self.opencodegoSnapshotWorkspaceID)
-    }
-
-    private var opencodegoSnapshotWorkspaceID: String? {
-        guard let workspaceID = self.configSnapshot.providerConfig(for: .opencodego)?.workspaceID else {
-            return nil
-        }
-        let trimmed = workspaceID.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
+            workspaceID: self.providerConfig(for: .opencodego)?.sanitizedWorkspaceID)
     }
 }
