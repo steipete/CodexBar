@@ -2651,3 +2651,11 @@
 /* Munito provider credentials */
 "Key with Read account data (Admin API) permission. Or set MUNITO_API_KEY." = "계정 데이터 읽기(Admin API) 권한이 있는 키입니다. 또는 MUNITO_API_KEY를 설정하세요.";
 "Munito reports Admin API spend and limits, not local token cost history." = "Munito는 Admin API 지출 및 한도를 보고하며, 로컬 토큰 비용 기록은 아닙니다.";
+
+"Show all accounts in Overview" = "개요에 모든 계정 표시";
+
+"Expand cached account usage. The six-provider limit still applies." = "캐시된 계정 사용량으로 선택한 제공업체를 펼칩니다. 제공업체는 최대 6개까지 표시됩니다.";
+"Edit" = "편집";
+"Move up" = "위로 이동";
+"Move down" = "아래로 이동";
+"Leave blank to keep the saved credential." = "저장된 인증 정보를 유지하려면 비워 두세요.";

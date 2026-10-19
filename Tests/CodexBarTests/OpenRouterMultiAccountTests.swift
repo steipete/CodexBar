@@ -287,7 +287,7 @@ struct OpenRouterMultiAccountTests {
         #expect(stacked.accounts.map(\.label) == ["Personal", "Work"])
         #expect(stacked.snapshots.map(\.account.id) == accounts.map(\.id))
         let cardModels = stacked.snapshots.compactMap {
-            controller.tokenAccountMenuCardModel(for: .openrouter, accountSnapshot: $0)
+            store.tokenAccountMenuCardModel(for: .openrouter, accountSnapshot: $0)
         }
         #expect(cardModels.map(\.provider) == [.openrouter, .openrouter])
         #expect(cardModels.map(\.email) == ["Personal", "Work"])

@@ -9,6 +9,10 @@ read_when:
 
 # Claude provider
 
+Enable **Settings → Menu Bar → Show all accounts in Overview** to include this provider’s cached account
+cards in Overview. The existing account source and provider selection remain unchanged; see
+[Overview account rows](configuration.md#menu-bar-controls).
+
 The **Plan Usage** submenu includes recorded remaining-quota burndown above utilization history,
 using the same Session, Weekly, and Sonnet labels. See [recorded quota burndown](widgets/burndown-proof.md)
 for capture-age semantics and the existing history retention/privacy behavior.
@@ -295,6 +299,12 @@ is stored on the token account in the config file and does not change quota fetc
 
 - Multi-account manual tokens: add entries to `~/.codexbar/config.json` (`tokenAccounts`) and set Claude cookies to
   Manual. The menu can show all accounts stacked or a switcher bar (Preferences → Advanced → Display).
+- In Settings → Providers → Claude, **Edit** changes a saved account’s label and credential in place.
+  The credential field is masked and starts empty; leave it blank to keep the saved credential, or enter a
+  replacement and choose **Save**. **Cancel** discards the draft. Up/down controls persist account order in
+  the existing config file and menu switcher. Edits and moves preserve the selected account and account ID,
+  including its Claude config directory. Other providers with manual token accounts share the editor; editing
+  a dormant account does not select it.
 - Claude token accounts accept either `sessionKey` cookies or OAuth access tokens (`sk-ant-oat...`). OAuth-token
   accounts route to the OAuth path and disable cookie mode; session-key or cookie-header accounts stay in manual
   cookie mode. The exact edge-routing rules are documented in
@@ -619,6 +629,7 @@ Model-scoped weekly-window proof (synthetic data, no real accounts or credential
   - GPT usage recorded through Claude Code uses the bundled OpenAI model's long-context boundary (272K for supported models), while retaining catalog rates. Uncached input and cache-read/create tokens all contribute to the prompt length. Saved reports are recalculated after pricing corrections without discarding retained Codex history.
   - Native provider cache: `~/Library/Caches/CodexBar/cost-usage/claude-v6.json`
   - Report memo: `~/Library/Caches/CodexBar/cost-usage/claude-v6.report-memo.json` stores source stamps and the daily report across launches. It is reused only while transcript inventory, cache/pricing artifacts, requested window, and report-semantics revision still match.
+  - An unreadable transcript root or directory fails the refresh without replacing the last valid cache or report memo. Restoring access allows the next refresh to reuse that history; genuinely missing paths still count as removed sources.
   - A pricing catalog replacement during a refresh preserves certification of the parsed transcript window. The next refresh applies the replacement prices to cached rows without reparsing unchanged transcripts, including after a restart. Externally replaced transcript caches still require window certification again.
   - Unchanged sources reuse the memo even when a menu refresh bypasses the scan debounce. Explicit rescans still reparse transcripts, but identical cache and report-memo content is not rewritten; an unchanged rebuild retains its previous scan timestamp. Existing artifacts may be rewritten once to establish deterministic key ordering. Changed transcripts or report metadata still replace the corresponding complete JSON artifacts.
   - Persistence keeps at most eight lightweight artifact identities independently of the decoded-row cache. An unchanged cache identity plus matching device/inode, size, and nanosecond mtime skips encoding; otherwise sorted JSON fingerprints avoid full-file read-back while preserving identical rebuilds. External replacement invalidates reuse, and changed files still use temporary-file rename. Evicted identities are re-established on load or the next save.

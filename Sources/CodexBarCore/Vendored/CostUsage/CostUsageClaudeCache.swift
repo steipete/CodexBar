@@ -12,8 +12,17 @@ struct CostUsageClaudeFileStamp: Equatable, Sendable, Codable {
     }
 
     static func read(at url: URL) -> Self? {
+        try? self.readIfPresent(at: url)
+    }
+
+    /// Returns nil for a missing path, but throws when an existing source cannot be stat'ed.
+    static func readIfPresent(at url: URL) throws -> Self? {
         var info = stat()
-        guard url.path.withCString({ fstatat(AT_FDCWD, $0, &info, 0) }) == 0 else { return nil }
+        guard url.path.withCString({ fstatat(AT_FDCWD, $0, &info, 0) }) == 0 else {
+            let code = errno
+            if code == ENOENT || code == ENOTDIR { return nil }
+            throw NSError(domain: NSPOSIXErrorDomain, code: Int(code), userInfo: [NSFilePathErrorKey: url.path])
+        }
         guard info.st_mode & mode_t(S_IFMT) == mode_t(S_IFREG) else { return nil }
         #if os(Linux)
         let modifiedTime = info.st_mtim
@@ -25,6 +34,18 @@ struct CostUsageClaudeFileStamp: Equatable, Sendable, Codable {
             size: Int64(info.st_size),
             modifiedSeconds: Int64(modifiedTime.tv_sec),
             modifiedNanoseconds: Int64(modifiedTime.tv_nsec))
+    }
+
+    static func isMissingFileError(_ error: Error) -> Bool {
+        let error = error as NSError
+        if error.domain == NSPOSIXErrorDomain { return error.code == Int(ENOENT) || error.code == Int(ENOTDIR) }
+        if error.domain == NSCocoaErrorDomain,
+           error.code == NSFileNoSuchFileError || error.code == NSFileReadNoSuchFileError
+        {
+            return true
+        }
+        guard let underlying = error.userInfo[NSUnderlyingErrorKey] as? Error else { return false }
+        return self.isMissingFileError(underlying)
     }
 }
 

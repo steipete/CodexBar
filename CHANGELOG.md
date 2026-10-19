@@ -2,9 +2,13 @@
 
 ## 0.77.1 — Unreleased
 
+- Overview: optionally show every Claude adapter, managed Codex, and saved token account using cached usage, while retaining the six-provider selection limit (#4594). Thanks @pedrozimmermannsoares!
+- Settings: edit saved token-account labels and credentials in place and reorder accounts without changing the active account (#4612). Thanks @lghsigma597!
 ### Fixed
 
 - Pi: keep cache scope stable when the same session roots are discovered in a different order (#4618). Thanks @dhruva77!
+- Claude cost history: preserve the last valid cache when transcript roots or directories are unreadable (#4617). Thanks @dhruva77!
+- Codex: open the Usage Dashboard on the overview tab to avoid incorrect redirects (#4607). Thanks @Alex-Keyes!
 - Claude: try readable OAuth credentials before starting the CLI in Linux Auto mode, avoiding unnecessary interactive startup while preserving explicit source selection (#4613, #4615). Thanks @yeseoLee!
 - Claude: include Desktop Cowork audit transcripts in local token and cost history, using the existing response deduplication and ignoring result totals (#3209). Thanks @vinschger and @Akagilnc!
 

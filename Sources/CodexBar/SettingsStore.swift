@@ -688,6 +688,7 @@ extension SettingsStore {
             mergeIcons: userDefaults.object(forKey: "mergeIcons") as? Bool ?? true,
             mergedOverviewLayoutRaw: userDefaults.string(forKey: "mergedOverviewLayout")
                 ?? MergedOverviewLayout.detailed.rawValue,
+            mergedOverviewAllAccounts: userDefaults.bool(forKey: "mergedOverviewAllAccounts"),
             switcherShowsIcons: userDefaults.object(forKey: "switcherShowsIcons") as? Bool ?? true,
             mergeIconsStacked: userDefaults.object(forKey: "mergeIconsStacked") as? Bool ?? false,
             mergeIconStackedTopProviderRaw: userDefaults.string(forKey: "mergeIconStackedTopProvider"),

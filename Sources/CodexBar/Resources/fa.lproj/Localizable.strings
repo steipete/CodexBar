@@ -2687,3 +2687,11 @@
 /* Munito provider credentials */
 "Key with Read account data (Admin API) permission. Or set MUNITO_API_KEY." = "کلید با مجوز خواندن داده‌های حساب (Admin API). یا MUNITO_API_KEY را تنظیم کنید.";
 "Munito reports Admin API spend and limits, not local token cost history." = "Munito هزینه و محدودیت‌های Admin API را گزارش می‌کند، نه تاریخچه هزینه توکن محلی را.";
+
+"Show all accounts in Overview" = "نمایش همهٔ حساب‌ها در نمای کلی";
+
+"Expand cached account usage. The six-provider limit still applies." = "ارائه‌دهندگان انتخاب‌شده را با داده‌های مصرف ذخیره‌شدهٔ حساب‌ها گسترش دهید. محدودیت شش ارائه‌دهنده همچنان برقرار است.";
+"Edit" = "ویرایش";
+"Move up" = "انتقال به بالا";
+"Move down" = "انتقال به پایین";
+"Leave blank to keep the saved credential." = "برای حفظ اطلاعات ورود ذخیره‌شده، خالی بگذارید.";

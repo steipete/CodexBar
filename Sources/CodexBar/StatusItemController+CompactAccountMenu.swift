@@ -51,7 +51,7 @@ extension StatusItemController {
                 cardModel: { [weak self] projectedAccount in
                     guard let self,
                           let accountSnapshot = snapshotsByID[projectedAccount.id.opaqueID] else { return nil }
-                    return self.tokenAccountMenuCardModel(for: provider, accountSnapshot: accountSnapshot)
+                    return self.store.tokenAccountMenuCardModel(for: provider, accountSnapshot: accountSnapshot)
                 },
                 planAction: nil),
             to: menu,
@@ -87,7 +87,7 @@ extension StatusItemController {
                 cardModel: { [weak self] projectedAccount in
                     guard let self,
                           let account = accountsByID[projectedAccount.id.opaqueID] else { return nil }
-                    return self.codexAccountMenuCardModel(
+                    return self.store.codexAccountMenuCardModel(
                         for: account,
                         accountSnapshot: snapshotsByAccountID[account.id])
                 },

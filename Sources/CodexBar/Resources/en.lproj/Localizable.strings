@@ -2688,3 +2688,11 @@
 /* Munito provider credentials */
 "Key with Read account data (Admin API) permission. Or set MUNITO_API_KEY." = "Key with Read account data (Admin API) permission. Or set MUNITO_API_KEY.";
 "Munito reports Admin API spend and limits, not local token cost history." = "Munito reports Admin API spend and limits, not local token cost history.";
+
+"Show all accounts in Overview" = "Show all accounts in Overview";
+
+"Expand cached account usage. The six-provider limit still applies." = "Expand cached account usage. The six-provider limit still applies.";
+"Edit" = "Edit";
+"Move up" = "Move up";
+"Move down" = "Move down";
+"Leave blank to keep the saved credential." = "Leave blank to keep the saved credential.";

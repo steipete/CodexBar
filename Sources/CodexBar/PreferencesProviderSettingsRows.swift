@@ -241,6 +241,9 @@ struct ProviderSettingsTokenAccountsRowView: View {
     @State private var newTeamMode = false
     @State private var newClaudeConfigDirectory: String?
     @State private var teamDrafts: [UUID: TeamAccountDraft] = [:]
+    @State private var editingAccountID: UUID?
+    @State private var editLabel = ""
+    @State private var editToken = ""
 
     var body: some View {
         Section {
@@ -274,11 +277,41 @@ struct ProviderSettingsTokenAccountsRowView: View {
                             }
                             .buttonStyle(.plain)
 
+                            if self.descriptor.primaryAddAction == nil, self.descriptor.editAccount != nil {
+                                Button(L("Edit")) {
+                                    self.editingAccountID = account.id
+                                    self.editLabel = account.label
+                                    self.editToken = ""
+                                }
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
+                            }
+                            if let move = self.descriptor.moveAccount {
+                                Button {
+                                    move(account.id, index - 1)
+                                } label: {
+                                    Image(systemName: "chevron.up")
+                                }
+                                .help(L("Move up"))
+                                .accessibilityLabel(L("Move up"))
+                                .disabled(index == 0)
+                                Button {
+                                    move(account.id, index + 1)
+                                } label: {
+                                    Image(systemName: "chevron.down")
+                                }
+                                .help(L("Move down"))
+                                .accessibilityLabel(L("Move down"))
+                                .disabled(index == accounts.count - 1)
+                            }
                             Button(L("Remove")) {
                                 self.descriptor.removeAccount(account.id)
                             }
                             .buttonStyle(.bordered)
                             .controlSize(.small)
+                        }
+                        if self.editingAccountID == account.id {
+                            self.accountEditor(account: account)
                         }
                         if self.descriptor.showsTeamModeControls {
                             self.teamModeEditor(account: account)
@@ -417,6 +450,31 @@ struct ProviderSettingsTokenAccountsRowView: View {
                 SettingsSectionFooter(L(self.descriptor.subtitle))
             }
         }
+    }
+
+    private func accountEditor(account: ProviderTokenAccount) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            TextField(L("Label"), text: self.$editLabel)
+            SecureField(L(self.descriptor.placeholder), text: self.$editToken)
+            Text(L("Leave blank to keep the saved credential."))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            HStack {
+                Button(L("Save")) {
+                    let token = self.editToken.trimmingCharacters(in: .whitespacesAndNewlines)
+                    self.descriptor.editAccount?(account.id, self.editLabel, token.isEmpty ? nil : token)
+                    self.editingAccountID = nil
+                    self.editToken = ""
+                }
+                .disabled(self.editLabel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                Button(L("Cancel")) {
+                    self.editingAccountID = nil
+                    self.editToken = ""
+                }
+            }
+        }
+        .textFieldStyle(.roundedBorder)
+        .padding(.leading, 24)
     }
 
     private func isActive(index: Int, accountCount: Int) -> Bool {
