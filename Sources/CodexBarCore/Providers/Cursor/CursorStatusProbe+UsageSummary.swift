@@ -112,8 +112,7 @@ extension CursorStatusProbe {
             accountName: userInfo?.name,
             rawJSON: rawJSON,
             sandUsage: sandUsage,
-            unifiedUsage: unifiedUsage,
-            unifiedUsageExpected: summary.usesUnifiedPersonalBilling,
+            unifiedUsage: summary.usesUnifiedPersonalBilling ? unifiedUsage : nil,
             requestsUsed: requestsUsed,
             requestsLimit: requestsLimit)
     }

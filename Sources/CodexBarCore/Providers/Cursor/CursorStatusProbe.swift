@@ -387,7 +387,6 @@ public struct CursorStatusSnapshot: Sendable {
 
     /// Authoritative monthly additional spend for unified Cursor/Grok accounts.
     public let unifiedUsage: CursorUnifiedUsageStatus?
-    public let unifiedUsageExpected: Bool
 
     // MARK: - Legacy Plan (Request-Based) Fields
 
@@ -420,7 +419,6 @@ public struct CursorStatusSnapshot: Sendable {
         rawJSON: String?,
         sandUsage: CursorSandUsageStatus? = nil,
         unifiedUsage: CursorUnifiedUsageStatus? = nil,
-        unifiedUsageExpected: Bool = false,
         requestsUsed: Int? = nil,
         requestsLimit: Int? = nil)
     {
@@ -442,7 +440,6 @@ public struct CursorStatusSnapshot: Sendable {
         self.rawJSON = rawJSON
         self.sandUsage = sandUsage
         self.unifiedUsage = unifiedUsage
-        self.unifiedUsageExpected = unifiedUsageExpected
         self.requestsUsed = requestsUsed
         self.requestsLimit = requestsLimit
     }
@@ -525,9 +522,7 @@ public struct CursorStatusSnapshot: Sendable {
         }
 
         // Provider cost snapshot for on-demand usage (include budget before first spend)
-        let providerCost: ProviderCostSnapshot? = if self.unifiedUsageExpected,
-                                                     let monthly = self.unifiedUsage?.currentMonthlyUsage(at: now)
-        {
+        let providerCost: ProviderCostSnapshot? = if let monthly = self.unifiedUsage?.currentMonthlyUsage(at: now) {
             ProviderCostSnapshot(
                 used: monthly.usedCents / 100,
                 limit: (monthly.limitCents ?? 0) / 100,

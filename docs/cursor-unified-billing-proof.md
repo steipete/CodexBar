@@ -85,13 +85,13 @@ Installed **0.77.0** CLI (`06:56:55 UTC`), sanitized cost output:
 }
 ```
 
-Locally rebuilt PR CLI (`07:01:36 UTC`), sanitized cost output:
+Locally rebuilt PR CLI (`07:05:52 UTC`), sanitized cost output:
 
 ```json
 {
   "used": 0.93,
   "resetsAt": "2026-11-01T00:00:00Z",
-  "updatedAt": "2026-10-19T07:01:36Z",
+  "updatedAt": "2026-10-19T07:05:52Z",
   "limit": 10,
   "period": "Monthly",
   "currencyCode": "USD"

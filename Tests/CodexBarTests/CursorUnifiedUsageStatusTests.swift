@@ -195,6 +195,16 @@ struct CursorUnifiedUsageStatusTests {
         let unlimited = try JSONDecoder().decode(CursorUnifiedUsageStatus.self, from: Data(zero.utf8))
         #expect(unlimited.currentMonthlyUsage(at: Self.now)?.usedCents == 0)
         #expect(unlimited.currentMonthlyUsage(at: Self.now)?.limitCents == nil)
+
+        let summaryJSON = """
+        {"membershipType":"unified_ultra","individualUsage":{"onDemand":{"used":250,"limit":1000}}}
+        """
+        let summary = try JSONDecoder().decode(CursorUsageSummary.self, from: Data(summaryJSON.utf8))
+        let probe = CursorStatusProbe(browserDetection: BrowserDetection(cacheTTL: 0))
+        let usage = probe.parseUsageSummary(summary, userInfo: nil, rawJSON: nil, unifiedUsage: unlimited)
+            .toUsageSnapshot(now: Self.now)
+        #expect(usage.providerCost?.used == 0)
+        #expect(usage.providerCost?.limit == 0)
     }
 
     @Test(arguments: [
@@ -220,7 +230,9 @@ struct CursorUnifiedUsageStatusTests {
         let summary = try JSONDecoder().decode(CursorUsageSummary.self, from: Data(json.utf8))
         #expect(!summary.usesUnifiedPersonalBilling)
         let probe = CursorStatusProbe(browserDetection: BrowserDetection(cacheTTL: 0))
-        let snapshot = probe.parseUsageSummary(summary, userInfo: nil, rawJSON: nil)
+        let monthly = try JSONDecoder().decode(CursorUnifiedUsageStatus.self, from: Data(Self.monthly.utf8))
+        let snapshot = probe.parseUsageSummary(summary, userInfo: nil, rawJSON: nil, unifiedUsage: monthly)
+        #expect(snapshot.unifiedUsage == nil)
         #expect(snapshot.toUsageSnapshot(now: Self.now).providerCost?.used == 50)
         #expect(snapshot.toUsageSnapshot(now: Self.now).providerCost?.limit == 100)
     }
