@@ -219,7 +219,7 @@ test('stable Gemini bucket IDs deduplicate representatives with general display 
         primary: ordinary, extraRateWindows: [
             quotaSummary('gemini-weekly', 'General models weekly', ordinary),
             quotaSummary('gemini-argon-wtu-weekly', 'General models weekly', {...ordinary, usedPercent: 100})]}}]));
-    assert.deepEqual([...row.windows.map(window => [window.key, window.label, window.remaining, !!window.scoped])], [
+    assert.deepEqual(Array.from(row.windows, window => [window.key, window.label, window.remaining, !!window.scoped]), [
         ['extra:antigravity-quota-summary-gemini-weekly', 'General models weekly', 20, false],
         ['extra:antigravity-quota-summary-gemini-argon-wtu-weekly', 'General models weekly', 0, true]]);
 });
@@ -237,9 +237,9 @@ test('representative families prefer stable IDs and fall back to legacy titles',
             primary: window, secondary: window, extraRateWindows: [
                 quotaSummary(thirdPartyID, thirdPartyTitle, window),
                 quotaSummary(geminiID, geminiTitle, window)]}}]));
-        assert.deepEqual([...row.windows.map(item => item.key)], [
+        assert.deepEqual(Array.from(row.windows, item => item.key), [
             'extra:antigravity-quota-summary-' + geminiID, 'extra:antigravity-quota-summary-' + thirdPartyID]);
-        assert.deepEqual([...row.windows.map(item => item.label)], [geminiTitle, thirdPartyTitle]);
+        assert.deepEqual(Array.from(row.windows, item => item.label), [geminiTitle, thirdPartyTitle]);
     }
 });
 

@@ -14,6 +14,17 @@ function measured(entry) {
         entry.usageKnown !== false && remaining(entry.window) !== null;
 }
 
+function antigravityQuotaFamily(extra) {
+    if (extra.id.indexOf("antigravity-quota-summary-") !== 0) return "";
+    var id = extra.id.toLowerCase();
+    if (id.indexOf("gemini") !== -1) return "gemini";
+    if (/3p|third-party/.test(id)) return "claude-gpt";
+    var title = String(extra.title || "");
+    if (/gemini/i.test(title)) return "gemini";
+    if (/claude|gpt/i.test(title)) return "claude-gpt";
+    return "";
+}
+
 // Duration name for a reported cadence; empty when the provider omits window metadata.
 function cadenceLabel(minutes) {
     if (minutes >= 1440) return (minutes / 1440) + " day";
@@ -36,15 +47,14 @@ function rows(text, showIdentity) {
         // windows, and the extra limit below must not hide a representative. The row keeps the
         // pool's own key, so its alert history follows it when another pool becomes binding.
         // Families are matched as Core selects them, because two families can report equal values.
-        var families = {primary: /gemini/i, secondary: /claude|gpt/i};
+        var families = {primary: "gemini", secondary: "claude-gpt"};
         var represented = [];
         ["primary", "secondary", "tertiary"].forEach(function(key, index) {
             var window = usage[key];
             var left = remaining(window);
             if (left === null) return;
             var copy = entry.provider === "antigravity" && families[key] ? extras.filter(function(extra) {
-                return extra.id.indexOf("antigravity-quota-summary-") === 0 &&
-                    represented.indexOf(extra) === -1 && families[key].test(String(extra.title || "")) &&
+                return antigravityQuotaFamily(extra) === families[key] && represented.indexOf(extra) === -1 &&
                     extra.window.usedPercent === window.usedPercent &&
                     extra.window.windowMinutes === window.windowMinutes && extra.window.resetsAt === window.resetsAt;
             }).sort(function(a, b) {
