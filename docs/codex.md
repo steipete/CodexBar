@@ -240,6 +240,7 @@ and stable account numbers distinguish rows while usable workspace labels remain
 - Uses an off-screen `WKWebView` with a per-account `WKWebsiteDataStore`.
   - Store key: deterministic UUID from the normalized email.
 - WebKit store can hold multiple accounts concurrently.
+- Active page preparation and JavaScript evaluations share the refresh deadline. Expired pages are terminated and discarded; verified API usage remains available. Timeout diagnostics do not start new JavaScript after the deadline.
 - A browser session rejected for an account mismatch or a login requirement is removed only from the affected store. Imports into the same store finish validation and cleanup before the next import writes cookies; other accounts remain independent.
 - WebView acquisitions retain ownership during page preparation. Store eviction invalidates its pending preparations; evict-all invalidates all. Stale success/failure/timeout retries cannot displace replacements. Ordinary lease release leaves concurrent temporary views valid. Leases retain their cleanup owner independently of the cache and release once: validated pages allow brief reuse; other releases schedule deferred cleanup, including temporary views.
 - Cookie import (Automatic mode, when WebKit store has no matching session or login required):

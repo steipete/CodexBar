@@ -513,8 +513,8 @@ generation from the producer's fallback. Identical session/line
 copies deduplicate, while contradictory copies remain partial.
 
 One cancellable job on `CostUsageScanExecutor` owns discovery, SQL, decoding, and fallback. Limits are 500 files,
-10,000 directory entries, 10,000 rows per file, 50,000 rows overall, 16 MiB per record, 64 MiB per file,
-128 MiB of attempted payload bytes overall, and a five-second cooperative scan deadline. Rejected rows consume the budget;
+10,000 directory entries, 10,000 rows per file, 100,000 rows overall, 16 MiB per record, 64 MiB per file,
+512 MiB of attempted payload bytes overall, and a 30-second cooperative scan deadline. Rejected rows consume the budget;
 exactly 500 complete databases are accepted. Discovery is incremental and JSONL is read in bounded chunks.
 Schema inspection bounds each catalogue walk to 128 entries and each table to 64 columns (one additional row detects
 truncation), with a shared 64 KiB allowance per database for inspected schema text and the same cooperative deadline/cancellation.
