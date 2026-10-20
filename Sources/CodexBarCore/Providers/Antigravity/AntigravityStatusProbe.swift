@@ -205,10 +205,10 @@ public struct AntigravityStatusSnapshot: Sendable {
         }
 
         let primary = Self.quotaSummaryRepresentative(
-            matching: { $0.lowercased().contains("gemini") },
+            matching: { AntigravityQuotaFamilyVisibility.knownFamily(windowID: $0.id, title: $0.title) == .gemini },
             in: namedWindows)
         let secondary = Self.quotaSummaryRepresentative(
-            matching: { $0.lowercased().contains("claude") || $0.lowercased().contains("gpt") },
+            matching: { AntigravityQuotaFamilyVisibility.knownFamily(windowID: $0.id, title: $0.title) == .claudeGPT },
             in: namedWindows)
 
         let identity = ProviderIdentitySnapshot(
@@ -226,11 +226,10 @@ public struct AntigravityStatusSnapshot: Sendable {
     }
 
     private static func quotaSummaryRepresentative(
-        matching predicate: (String) -> Bool,
+        matching predicate: (NamedRateWindow) -> Bool,
         in windows: [NamedRateWindow]) -> RateWindow?
     {
-        windows
-            .filter { $0.usageKnown && predicate($0.title) }
+        self.quotaSummaryRepresentativeCandidates(in: windows.filter(predicate))
             .max { lhs, rhs in
                 if lhs.window.usedPercent != rhs.window.usedPercent {
                     return lhs.window.usedPercent < rhs.window.usedPercent
@@ -238,6 +237,25 @@ public struct AntigravityStatusSnapshot: Sendable {
                 return lhs.title.localizedCaseInsensitiveCompare(rhs.title) == .orderedDescending
             }?
             .window
+    }
+
+    static func quotaSummaryRepresentativeCandidates(in windows: [NamedRateWindow]) -> [NamedRateWindow] {
+        let known = windows.filter(\.usageKnown)
+        let ordinaryGeminiIDs = Set(known.filter { window in
+            var id = window.id.lowercased().replacingOccurrences(of: "_", with: "-")
+            if id.hasSuffix(" limit") {
+                id.removeLast(" limit".count)
+            }
+            let prefix = Self.quotaSummaryWindowIDPrefix + "gemini-"
+            guard id.hasPrefix(prefix) else { return false }
+            let cadence = String(id.dropFirst(prefix.count))
+            return Self.sessionCadenceAliases.contains(cadence) || cadence == "weekly"
+        }.map(\.id))
+        guard !ordinaryGeminiIDs.isEmpty else { return known }
+        return known.filter {
+            ordinaryGeminiIDs.contains($0.id) ||
+                AntigravityQuotaFamilyVisibility.knownFamily(windowID: $0.id, title: $0.title) != .gemini
+        }
     }
 
     private static func quotaSummaryWindows(from quotaSummary: AntigravityQuotaSummary) -> [NamedRateWindow] {

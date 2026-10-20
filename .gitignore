@@ -46,5 +46,4 @@ docs/.astro/
 # Packages/
 # Package.resolved
 
-# Local verification evidence
 .verify/

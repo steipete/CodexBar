@@ -130,16 +130,15 @@ struct AntigravityQuotaRepresentativeTests {
     }
 
     private func usage(buckets: [[String: Any]], groupName: String = "Gemini Models") throws -> UsageSnapshot {
+        let quota: [String: Any] = ["groups": [["name": groupName, "buckets": buckets]]]
         let report: [String: Any] = [
             "status": "SUCCESS",
-            "command": ["name": "usage", "data": ["groups": [["name": groupName, "buckets": buckets]]]],
+            "command": ["name": "usage", "data": quota],
         ]
         let data = try JSONSerialization.data(withJSONObject: report)
-        // The summary response also permits unknown-only payloads that print reports reject.
-        let object = try #require((report["command"] as? [String: Any])?["data"])
         if buckets.allSatisfy({ $0["remaining_fraction"] == nil }) {
             return try AntigravityStatusProbe.parseQuotaSummaryResponse(
-                JSONSerialization.data(withJSONObject: object)).toUsageSnapshot()
+                JSONSerialization.data(withJSONObject: quota)).toUsageSnapshot()
         }
         return try AntigravityStatusProbe.parseCLIUsageReport(data).toUsageSnapshot()
     }
