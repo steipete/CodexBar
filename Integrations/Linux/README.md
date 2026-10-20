@@ -125,6 +125,11 @@ UTF-8, including existing glyphs. Installed binaries and icons replace links at
 their destination; existing Omarchy adapter links, including dangling links, are
 archived before the new adapter is installed.
 
+The installer honors absolute `XDG_CONFIG_HOME` and `XDG_DATA_HOME` paths.
+Unset, empty, or relative values use `~/.config` and `~/.local/share`, respectively.
+The executable always installs to `~/.local/bin/codexbar-linux`; `XDG_BIN_HOME`
+does not change that destination.
+
 ## Build and install
 
 Requires Linux, C++17, make, qmake6, and Qt 6.4 or newer: Base, Declarative/Quick,

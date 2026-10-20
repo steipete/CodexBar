@@ -24,7 +24,8 @@ TestCase {
         function refresh() {}
         function showWindow(page) {}
     }
-    Desktop.QuickView { id: view; visible: true }
+    property var view: null
+    Component { id: viewComponent; Desktop.QuickView {} }
 
     function textItem(item, text) {
         if (item.text === text && item.visible) return item;
@@ -42,7 +43,8 @@ TestCase {
             coverage: "History may be incomplete", error: "Synthetic provider cost error"}];
         desktop.costError = "Local spending could not be refreshed. Previous data may be stale.";
         desktop.costBusy = false;
-        view.selectedIndex = 0;
+        view = createTemporaryObject(viewComponent, testCase, {visible: true});
+        verify(view);
     }
     function test_retainedCostShowsRefreshError() {
         tryVerify(function() { return shown(desktop.costError); });

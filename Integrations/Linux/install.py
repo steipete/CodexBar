@@ -36,6 +36,11 @@ def quoted(path):
     return '"' + text + '"'
 
 
+def xdg_directory(variable, fallback):
+    path = Path(os.environ.get(variable, ''))
+    return path if path.is_absolute() else fallback
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--binary', type=Path, default=REPO / ('bin/codexbar-linux' if (REPO / 'bin/codexbar-linux').exists() else '.local/linux-build/codexbar-linux'))
@@ -47,8 +52,8 @@ def main():
     binary = args.binary.resolve()
     if not binary.is_file() or not os.access(binary, os.X_OK):
         parser.error('Build codexbar-linux first, or pass --binary')
-    config = Path(os.environ.get('XDG_CONFIG_HOME', Path.home() / '.config'))
-    data = Path(os.environ.get('XDG_DATA_HOME', Path.home() / '.local/share'))
+    config = xdg_directory('XDG_CONFIG_HOME', Path.home() / '.config')
+    data = xdg_directory('XDG_DATA_HOME', Path.home() / '.local/share')
     shell_path = config / 'omarchy/shell.json'
     shell = json.loads(shell_path.read_text(encoding='utf-8')) if args.omarchy else None
     existing = None
