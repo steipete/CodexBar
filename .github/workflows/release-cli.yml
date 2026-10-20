@@ -318,6 +318,14 @@ jobs:
 
           echo "bin_dir=$("${SHOW_BIN_ARGS[@]}")" >> "$GITHUB_OUTPUT"
 
+      - name: Verify CodexBarCLI does not link libxml2
+        if: ${{ matrix.asset-platform == 'linux' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          BIN="${{ steps.build.outputs.bin_dir }}/CodexBarCLI"
+          bash Scripts/check-linux-cli-linkage.sh "$BIN"
+
       - name: Smoke test CodexBarCLI
         timeout-minutes: 5
         shell: bash

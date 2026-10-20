@@ -51,7 +51,7 @@ defineProvider({
       const body = await read(`https://api.vercel.com/ai-gateway/budgets/list?${query}`);
       if (!Array.isArray(body?.budgets)) return fail();
       for (const budget of body.budgets) {
-        if (budget?.scopeType !== "user" || budget.scopeId !== user.id) continue;
+        if (budget?.scopeType !== "user" || ![user.id, `usr_${user.id}`].includes(budget.scopeId)) continue;
         if (typeof budget.active !== "boolean" || typeof budget.archived !== "boolean") return fail();
         if (budget.source !== undefined && budget.source !== "default") return fail();
         if (budget.active && !budget.archived) matches.push(budget);
@@ -117,7 +117,7 @@ defineProvider({
         {
           title: "Personal budget",
           rows: [
-            { label: "spent", value: spentText },
+            { label: "Spend", value: spentText },
             { label: "Limit", value: limitText },
             { label: "Remaining", value: ctx.format.usd(Math.max(0, limit - spent)) },
           ],

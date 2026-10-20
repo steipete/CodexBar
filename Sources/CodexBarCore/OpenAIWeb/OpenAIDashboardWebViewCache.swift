@@ -24,6 +24,7 @@ final class OpenAIDashboardWebViewCache {
         }
     }
 
+    @MainActor
     private final class Acquisition {
         let key: ObjectIdentifier
         var entry: Entry?
@@ -36,6 +37,7 @@ final class OpenAIDashboardWebViewCache {
         func checkCancellation() throws {
             try Task.checkCancellation()
             if self.isInvalidated { throw CancellationError() }
+            if let entry, Date() >= entry.deadline { throw URLError(.timedOut) }
         }
     }
 
@@ -75,19 +77,19 @@ final class OpenAIDashboardWebViewCache {
         var isBusy: Bool
         var preservedPageExpiresAt: Date?
         var preservedPageExpiryWorkItem: DispatchWorkItem?
+        var deadlineTask: Task<Void, Never>?
+        var deadline = Date.distantFuture
 
         init(
             webView: WKWebView,
             host: OffscreenWebViewHost,
             lastUsedAt: Date,
-            isBusy: Bool,
-            preservedPageExpiresAt: Date? = nil)
+            isBusy: Bool)
         {
             self.webView = webView
             self.host = host
             self.lastUsedAt = lastUsedAt
             self.isBusy = isBusy
-            self.preservedPageExpiresAt = preservedPageExpiresAt
         }
 
         func armPreservedPage(until expiry: Date) {
@@ -118,7 +120,16 @@ final class OpenAIDashboardWebViewCache {
             return preservedPageExpiresAt <= now
         }
 
+        func finishDeadline() {
+            if self.deadlineTask != nil, Date() >= self.deadline {
+                WebKitContentProcess.terminate(self.webView)
+            }
+            self.deadlineTask?.cancel()
+            self.deadlineTask = nil
+        }
+
         func close() {
+            // Keep the deadline armed through eviction until a suspended caller unwinds.
             self.isBusy = false
             self.clearPreservedPage()
             self.host.close()
@@ -341,6 +352,19 @@ final class OpenAIDashboardWebViewCache {
             acquisition.entry = entry
             entry.isBusy = true
             entry.lastUsedAt = now
+            entry.deadline = deadline
+            entry.deadlineTask = Task { @MainActor [weak self, weak entry] in
+                try? await Task.sleep(for: .seconds(max(0, deadline.timeIntervalSinceNow)))
+                guard !Task.isCancelled, let entry else { return }
+                entry.deadlineTask = nil
+                log("OpenAI WebView deadline reached; terminating the page.")
+                WebKitContentProcess.terminate(entry.webView)
+                if let self {
+                    self.evictEntry(entry)
+                } else {
+                    entry.close()
+                }
+            }
             entry.host.show()
 
             do {
@@ -353,6 +377,7 @@ final class OpenAIDashboardWebViewCache {
                 if !isTemporary, self.entries[key] !== entry { throw CancellationError() }
             } catch {
                 let stillOwnsEntry = isTemporary || self.entries[key] === entry
+                entry.finishDeadline()
                 self.evictEntry(entry)
                 try acquisition.checkCancellation()
                 guard stillOwnsEntry else { throw CancellationError() }
@@ -393,6 +418,7 @@ final class OpenAIDashboardWebViewCache {
             release: { [weak self, entry] in
                 guard !releaseState.isReleased else { return }
                 releaseState.isReleased = true
+                entry.finishDeadline()
                 if !isTemporary, let self {
                     self.releaseCachedEntry(
                         entry,
@@ -434,18 +460,12 @@ final class OpenAIDashboardWebViewCache {
     }
 
     func evictIdle() {
-        let idleEntries = self.entries.filter { _, entry in
-            !entry.isBusy
-        }
+        let idleEntries = self.entries.values.filter { !$0.isBusy }
         guard !idleEntries.isEmpty else { return }
-
-        for (key, entry) in idleEntries {
-            entry.clearPreservedPage()
-            entry.host.close()
-            self.entries.removeValue(forKey: key)
+        for entry in idleEntries {
+            self.evictEntry(entry)
         }
         Self.log.debug("OpenAI idle webviews evicted", metadata: ["count": "\(idleEntries.count)"])
-        self.scheduleNextIdlePrune()
     }
 
     /// Schedule against the oldest idle entry so later releases cannot postpone its eviction.
@@ -489,18 +509,11 @@ final class OpenAIDashboardWebViewCache {
     }
 
     private func prune(now: Date) {
-        let expiredPreserved = self.entries.values.filter { entry in
-            !entry.isBusy && entry.hasExpiredPreservedPage(now: now)
+        let expired = self.entries.values.filter { entry in
+            !entry.isBusy && (entry.hasExpiredPreservedPage(now: now)
+                || now.timeIntervalSince(entry.lastUsedAt) >= self.idleTimeout)
         }
-        for entry in expiredPreserved {
-            Self.log.debug("OpenAI webview preserved page expired")
-            self.evictEntry(entry)
-        }
-
-        let expired = self.entries.filter { _, entry in
-            !entry.isBusy && now.timeIntervalSince(entry.lastUsedAt) >= self.idleTimeout
-        }
-        for (_, entry) in expired {
+        for entry in expired {
             Self.log.debug("OpenAI webview pruned")
             self.evictEntry(entry)
         }

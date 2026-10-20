@@ -33,7 +33,8 @@ reset countdown, or billing-period estimate. Select the appropriate team's API k
 
 `vercel-budget.js` reads `GET /v2/user` for the token's user ID, then
 `GET /ai-gateway/budgets/list?teamId=…&scopeType=user` with `limit=200`, following `nextCursor` for up to 20 pages
-with the same team on every page. The budget is matched by user ID; a custom budget takes precedence over an inherited
+with the same team on every page. The budget is matched to the authenticated user's native ID or its `usr_`-prefixed
+form; a custom budget takes precedence over an inherited
 default. The card shows spend, limit, and remaining personal allowance. Daily, weekly, and monthly
 budgets reset at the documented UTC boundaries (weekly on Monday); a cumulative (`none`) budget has no reset date.
 

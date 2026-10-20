@@ -276,29 +276,38 @@ public struct OpenAIDashboardFetcher {
             throw FetchError.noDashboardData(body: "OpenAI dashboard APIs unavailable and page scrape disabled.")
         }
 
-        let remainingTimeout = try Self.requiredRemainingTimeout(until: deadline)
-        logLine("dashboard phase=webview_acquire")
-        let lease = try await self.makeWebView(
-            websiteDataStore: websiteDataStore,
-            logger: logger,
-            timeout: remainingTimeout,
-            allowNavigationTimeoutRetry: allowNavigationTimeoutRetry)
-        defer {
-            lease.setPreserveLoadedPageOnRelease(false)
-            lease.release()
-            logLine("dashboard phase=webview_released elapsed=\(Self.phaseElapsed(since: startedAt))")
+        do {
+            let remainingTimeout = try Self.requiredRemainingTimeout(until: deadline)
+            logLine("dashboard phase=webview_acquire")
+            let lease = try await self.makeWebView(
+                websiteDataStore: websiteDataStore,
+                logger: logger,
+                timeout: remainingTimeout,
+                allowNavigationTimeoutRetry: allowNavigationTimeoutRetry)
+            defer {
+                lease.setPreserveLoadedPageOnRelease(false)
+                lease.release()
+                logLine("dashboard phase=webview_released elapsed=\(Self.phaseElapsed(since: startedAt))")
+            }
+            logLine("dashboard phase=hydrate elapsed=\(Self.phaseElapsed(since: startedAt))")
+            return try await self.collectPageSnapshot(.init(
+                webView: lease.webView,
+                apiData: apiData,
+                verifiedSignedInEmail: verifiedSignedInEmail,
+                subscriptionResult: .unavailable,
+                previousSnapshot: previousSnapshot,
+                deadline: deadline,
+                startedAt: startedAt,
+                debugDumpHTML: debugDumpHTML,
+                log: lease.log))
+        } catch {
+            try Task.checkCancellation()
+            guard !(error is CancellationError), Date() >= deadline,
+                  let apiData, apiData.hasUsageData, let verifiedSignedInEmail else { throw error }
+            logLine("dashboard page deadline reached; returning verified API snapshot")
+            return Self.snapshotByMergingAPI(
+                apiData: apiData, verifiedEmail: verifiedSignedInEmail, previous: previousSnapshot)
         }
-        logLine("dashboard phase=hydrate elapsed=\(Self.phaseElapsed(since: startedAt))")
-        return try await self.collectPageSnapshot(.init(
-            webView: lease.webView,
-            apiData: apiData,
-            verifiedSignedInEmail: verifiedSignedInEmail,
-            subscriptionResult: .unavailable,
-            previousSnapshot: previousSnapshot,
-            deadline: deadline,
-            startedAt: startedAt,
-            debugDumpHTML: debugDumpHTML,
-            log: lease.log))
     }
 
     /// Fetches optional subscription metadata independently of the dashboard result.
@@ -449,22 +458,7 @@ public struct OpenAIDashboardFetcher {
 
     func probeReadiness(webView: WKWebView) async throws -> ReadinessProbe {
         let any = try await webView.evaluateJavaScript(openAIDashboardReadinessScript)
-        guard let dict = any as? [String: Any] else {
-            return ReadinessProbe(
-                loginRequired: true,
-                workspacePicker: false,
-                cloudflareInterstitial: false,
-                href: nil,
-                signedInEmail: nil,
-                authStatus: nil,
-                creditsHeaderPresent: false,
-                creditsHeaderInViewport: false,
-                didScrollToCredits: false,
-                rowCount: 0,
-                usageBreakdownReady: false,
-                hasCodeReviewSignal: false,
-                hasDashboardSignal: false)
-        }
+        let dict = (any as? [String: Any]) ?? ["loginRequired": true]
 
         var loginRequired = (dict["loginRequired"] as? Bool) ?? false
         let authStatus = (dict["authStatus"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -492,47 +486,18 @@ public struct OpenAIDashboardFetcher {
 
     func scrape(webView: WKWebView) async throws -> ScrapeResult {
         let any = try await webView.evaluateJavaScript(openAIDashboardScrapeScript)
-        guard let dict = any as? [String: Any] else {
-            return ScrapeResult(
-                loginRequired: true,
-                workspacePicker: false,
-                cloudflareInterstitial: false,
-                href: nil,
-                bodyText: nil,
-                signedInEmail: nil,
-                authStatus: nil,
-                accountPlan: nil,
-                creditsPurchaseURL: nil,
-                rows: [],
-                usageBreakdown: [],
-                usageBreakdownDebug: nil,
-                usageBreakdownError: nil,
-                scrollY: 0,
-                scrollHeight: 0,
-                viewportHeight: 0,
-                creditsHeaderPresent: false,
-                creditsHeaderInViewport: false,
-                didScrollToCredits: false)
-        }
+        let dict = (any as? [String: Any]) ?? ["loginRequired": true]
 
         var loginRequired = (dict["loginRequired"] as? Bool) ?? false
         let workspacePicker = (dict["workspacePicker"] as? Bool) ?? false
         let cloudflareInterstitial = (dict["cloudflareInterstitial"] as? Bool) ?? false
         let rows = (dict["rows"] as? [[String]]) ?? []
 
-        var usageBreakdown: [OpenAIDashboardDailyBreakdown] = []
         let usageBreakdownDebug = dict["usageBreakdownDebug"] as? String
         let usageBreakdownError = dict["usageBreakdownError"] as? String
-        if let raw = dict["usageBreakdownJSON"] as? String, !raw.isEmpty {
-            do {
-                let decoder = JSONDecoder()
-                let decoded = try decoder.decode([OpenAIDashboardDailyBreakdown].self, from: Data(raw.utf8))
-                usageBreakdown = OpenAIDashboardDailyBreakdown.removingSkillUsageServices(from: decoded)
-            } catch {
-                // Best-effort parse; ignore errors to avoid blocking other dashboard data.
-                usageBreakdown = []
-            }
-        }
+        let usageBreakdown = (dict["usageBreakdownJSON"] as? String)
+            .flatMap { try? JSONDecoder().decode([OpenAIDashboardDailyBreakdown].self, from: Data($0.utf8)) }
+            .map { OpenAIDashboardDailyBreakdown.removingSkillUsageServices(from: $0) } ?? []
 
         var signedInEmail = dict["signedInEmail"] as? String
         signedInEmail = signedInEmail?.trimmingCharacters(in: .whitespacesAndNewlines)

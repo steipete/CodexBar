@@ -10,10 +10,10 @@ struct VercelBudgetPluginTests {
     static let secrets = ["VERCEL_ACCESS_TOKEN": "fixture-token"]
     /// Wednesday, 2026-10-14 12:00 UTC.
     static let now = Date(timeIntervalSince1970: 1_791_979_200)
-    static let user = #"{"user":{"id":"user_fixture","email":"fixture@example.com"}}"#
+    static let user = #"{"user":{"id":"fixtureUser","email":"fixture@example.com"}}"#
 
     static func budget(
-        _ user: String = "user_fixture",
+        _ user: String = "usr_fixtureUser",
         spend: String = "30",
         limit: String = "120",
         period: String = "monthly",
@@ -74,7 +74,8 @@ struct VercelBudgetPluginTests {
         #expect(snapshot.primary?.resetDescription == "$30.00 / $120.00")
         #expect(snapshot.details.first?.title == "Personal budget")
         #expect(snapshot.details.first?.rows.map(\.value) == ["$30.00", "$120.00", "$90.00"])
-        #expect(snapshot.identity?.accountID == "user_fixture")
+        #expect(snapshot.details.first?.rows.map(\.label) == ["Spend", "Limit", "Remaining"])
+        #expect(snapshot.identity?.accountID == "fixtureUser")
         #expect(snapshot.identity?.accountOrganization == "team_fixture")
         #expect(snapshot.dataConfidence == .exact)
         #expect(recorder.all.compactMap(\.url?.path) == [
@@ -82,6 +83,13 @@ struct VercelBudgetPluginTests {
             "/ai-gateway/budgets/list",
             "/ai-gateway/budgets/list",
         ])
+    }
+
+    @Test
+    func `native user scope IDs remain supported`() async throws {
+        let snapshot = try await Self.fetch(pages: ["": Self.page([Self.budget("fixtureUser")])])
+        #expect(snapshot.primary?.usedPercent == 25)
+        #expect(snapshot.identity?.accountID == "fixtureUser")
     }
 
     @Test(arguments: [
