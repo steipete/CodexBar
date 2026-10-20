@@ -6,7 +6,6 @@ import SQLite3
 import CSQLite3
 #endif
 
-#if canImport(SQLite3) || canImport(CSQLite3)
 public enum OpenCodeGoLocalUsageError: LocalizedError, Sendable, Equatable {
     case notDetected
     case historyUnavailable(String)
@@ -54,7 +53,11 @@ public struct OpenCodeGoLocalUsageReader: Sendable {
     @TaskLocal static var scanObserverForTesting: (@Sendable () -> Void)?
     #endif
 
-    public func fetch(now: Date = Date(), historyDays: Int = 30) throws -> OpenCodeGoUsageSnapshot {
+    public func fetch(
+        now: Date = Date(),
+        historyDays: Int = 30,
+        calendar: Calendar = .current) throws -> OpenCodeGoUsageSnapshot
+    {
         let hasAuth = Self.hasAuthKey(at: self.authURL)
         guard FileManager.default.fileExists(atPath: self.databaseURL.path) else {
             if hasAuth {
@@ -67,7 +70,7 @@ public struct OpenCodeGoLocalUsageReader: Sendable {
         guard !rows.isEmpty else {
             throw hasAuth ? OpenCodeGoLocalUsageError.historyUnavailable("no local usage rows") : .notDetected
         }
-        return Self.snapshot(rows: rows, now: now, historyDays: historyDays)
+        return Self.snapshot(rows: rows, now: now, historyDays: historyDays, calendar: calendar)
     }
 
     private func readRows() throws -> [UsageRow] {
@@ -106,9 +109,14 @@ public struct OpenCodeGoLocalUsageReader: Sendable {
         sqlite3_busy_timeout(db, 250)
 
         let hasParts = sqlite3_table_column_metadata(db, nil, "part", nil, nil, nil, nil, nil, nil) == SQLITE_OK
-        let sql = hasParts
+        let hasSessionMessages = sqlite3_table_column_metadata(
+            db, nil, "session_message", nil, nil, nil, nil, nil, nil) == SQLITE_OK
+        let legacySQL = hasParts
             ? Self.messageAndPartUsageSQL
             : "SELECT createdMs, cost, modelID, tokens FROM (\(Self.providerMessagesSQL)) WHERE hasCost"
+        // OpenCode v2 writes new turns to `session_message` and copies older turns there under the same ids,
+        // so v2 rows only add turns the legacy `message` table does not already hold.
+        let sql = hasSessionMessages ? "\(legacySQL)\nUNION ALL\n\(Self.sessionMessageUsageSQL)" : legacySQL
 
         var stmt: OpaquePointer?
         let prepareResult = sqlite3_prepare_v2(db, sql, -1, &stmt, nil)
@@ -195,6 +203,21 @@ public struct OpenCodeGoLocalUsageReader: Sendable {
               AND json_extract(p.data, '$.type') = 'step-finish'
               AND json_type(p.data, '$.cost') IN ('integer', 'real')
           )
+    """
+
+    private static let sessionMessageUsageSQL = """
+        SELECT
+          CAST(COALESCE(json_extract(s.data, '$.time.created'), s.time_created) AS INTEGER) AS createdMs,
+          CAST(json_extract(s.data, '$.cost') AS REAL) AS cost,
+          COALESCE(json_extract(s.data, '$.model.id'), '') AS modelID,
+          CASE WHEN json_type(s.data, '$.tokens') = 'object'
+            THEN json_extract(s.data, '$.tokens') END AS tokens
+        FROM session_message s
+        WHERE s.type = 'assistant'
+          AND json_valid(s.data)
+          AND json_extract(s.data, '$.model.providerID') = 'opencode-go'
+          AND json_type(s.data, '$.cost') IN ('integer', 'real')
+          AND NOT EXISTS (SELECT 1 FROM message m WHERE m.id = s.id)
     """
 
     private struct DatabaseFingerprint: Equatable {
@@ -296,7 +319,12 @@ public struct OpenCodeGoLocalUsageReader: Sendable {
         return !key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
-    private static func snapshot(rows: [UsageRow], now: Date, historyDays: Int) -> OpenCodeGoUsageSnapshot {
+    private static func snapshot(
+        rows: [UsageRow],
+        now: Date,
+        historyDays: Int,
+        calendar: Calendar) -> OpenCodeGoUsageSnapshot
+    {
         let nowMs = Int64(now.timeIntervalSince1970 * 1000)
         let sessionStart = nowMs - Int64(Self.fiveHours * 1000)
         let weekStart = self.startOfUTCWeek(now: now).timeIntervalSince1970 * 1000
@@ -331,20 +359,18 @@ public struct OpenCodeGoLocalUsageReader: Sendable {
             rollingResetInSec: rollingResetInSec,
             weeklyResetInSec: max(0, Int((weekEndMs - nowMs) / 1000)),
             monthlyResetInSec: max(0, Int((monthBounds.endMs - nowMs) / 1000)),
-            daily: self.dailyEntries(rows: rows, now: now, historyDays: historyDays),
+            daily: self.dailyEntries(rows: rows, now: now, historyDays: historyDays, calendar: calendar),
             updatedAt: now)
     }
 
-    /// Buckets local `opencode-go` message costs into calendar-day entries (device local time,
-    /// matching how Codex/Claude cost history is keyed) so the cost history chart can render a
-    /// per-day bar chart the same way it does for those providers.
+    /// Buckets local `opencode-go` costs in the requested calendar, defaulting to device-local days.
     private static func dailyEntries(
         rows: [UsageRow],
         now: Date,
-        historyDays: Int) -> [CostUsageDailyReport.Entry]
+        historyDays: Int,
+        calendar: Calendar) -> [CostUsageDailyReport.Entry]
     {
-        let clampedHistoryDays = max(1, min(365, historyDays))
-        let calendar = Calendar.current
+        let clampedHistoryDays = max(1, historyDays)
         guard let since = calendar.date(byAdding: .day, value: -(clampedHistoryDays - 1), to: now) else {
             return []
         }
@@ -353,7 +379,7 @@ public struct OpenCodeGoLocalUsageReader: Sendable {
         let entries: [CostUsageDailyReport.Entry] = rows.compactMap { row in
             let date = Date(timeIntervalSince1970: TimeInterval(row.createdMs) / 1000)
             guard date >= sinceStartOfDay, date <= now else { return nil }
-            let key = CostUsageScanner.CostUsageDayRange.dayKey(from: date)
+            let key = CostUsageScanner.CostUsageDayRange.dayKey(from: date, calendar: calendar)
             let trimmedModel = row.model.trimmingCharacters(in: .whitespacesAndNewlines)
             let model = trimmedModel.isEmpty ? "unknown" : trimmedModel
             let tokens = row.tokens
@@ -464,24 +490,3 @@ public struct OpenCodeGoLocalUsageReader: Sendable {
         return calendar.date(from: components) ?? Date()
     }
 }
-
-#else
-
-public enum OpenCodeGoLocalUsageError: LocalizedError, Sendable, Equatable {
-    case notSupported
-
-    public var errorDescription: String? {
-        "OpenCode Go local usage is only supported on macOS."
-    }
-}
-
-public struct OpenCodeGoLocalUsageReader: Sendable {
-    public init(homeDirectory _: URL = FileManager.default.homeDirectoryForCurrentUser) {}
-    public init(authURL _: URL, databaseURL _: URL) {}
-
-    public func fetch(now _: Date = Date(), historyDays _: Int = 30) throws -> OpenCodeGoUsageSnapshot {
-        throw OpenCodeGoLocalUsageError.notSupported
-    }
-}
-
-#endif

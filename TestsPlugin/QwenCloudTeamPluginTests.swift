@@ -56,6 +56,7 @@ struct QwenCloudTeamPluginTests {
     @Test(arguments: BundledPluginTestSupport.engines, [
         #"{"successResponse":true,"data":{"Success":true,"Data":null}}"#,
         #"{"successResponse":true,"data":{"Success":true,"Data":{"SubscriptionGroupList":[]}}}"#,
+        #"{"successResponse":true,"data":{"Success":true,"Data":{}}}"#,
     ])
     func `no active Team subscription leaves Individual available`(
         engine: ProviderPluginEngineKind, payload: String) async throws
@@ -100,7 +101,9 @@ struct QwenCloudTeamPluginTests {
         envelope["Data"] = data
         root["data"] = envelope
         let multiple = try #require(String(data: JSONSerialization.data(withJSONObject: root), encoding: .utf8))
-        for payload in [#"{"successResponse":true,"data":{}}"#, multiple] {
+        let nonArrayGroups = #"{"successResponse":true,"data":{"Success":true,"Data":{"SubscriptionGroupList":{}}}}"#
+        let partial = #"{"successResponse":true,"data":{"Success":true,"Data":{"ProductCode":"x"}}}"#
+        for payload in [#"{"successResponse":true,"data":{}}"#, nonArrayGroups, partial, multiple] {
             let error = await #expect(throws: ProviderFetchClassifiedError.self) {
                 try await Self.fetch(payload, engine: engine)
             }
@@ -190,10 +193,15 @@ struct QwenCloudTeamPluginTests {
         #expect(attempts.values == [true])
     }
 
-    @Test(arguments: [false, true])
-    func `Individual fallback distinguishes absent Team from a broken Team response`(broken: Bool) async throws {
-        let summary = broken ? #"{"successResponse":true,"data":{}}"#
-            : #"{"successResponse":true,"data":{"Success":true,"Data":null}}"#
+    @Test(arguments: [
+        (true, #"{"successResponse":true,"data":{}}"#),
+        (false, #"{"successResponse":true,"data":{"Success":true,"Data":null}}"#),
+        (false, #"{"successResponse":true,"data":{"Success":true,"Data":{}}}"#),
+        (true, #"{"successResponse":true,"data":{"Success":true,"Data":{"ProductCode":"x"}}}"#),
+    ])
+    func `Individual fallback distinguishes absent Team from a broken Team response`(
+        broken: Bool, summary: String) async throws
+    {
         let strategy = QwenCloudTeamFetchStrategy(transport: Self.transport(summary: summary), now: Self.now)
         let pipeline = ProviderFetchPipeline(
             resolveStrategies: { _ in [strategy, IndividualFixture()] },

@@ -222,6 +222,29 @@ struct SettingsWindowAppearanceTests {
     }
 
     @Test
+    func `settings toolbar follows OS availability without losing the native title`() {
+        let bridge = SettingsWindowAppearanceView()
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 400, height: 300),
+            styleMask: [.titled],
+            backing: .buffered,
+            defer: false)
+
+        window.contentView = bridge
+
+        bridge.refreshWindowAppearance(for: .light, windowTitle: "General")
+        #expect(window.title == "General")
+        if #available(macOS 26.0, *) {
+            #expect(window.toolbar?.identifier == SettingsWindowToolbar.identifier)
+            #expect(window.toolbarStyle == .unified)
+            #expect(window.titleVisibility == .hidden)
+        } else {
+            #expect(window.toolbar == nil)
+            #expect(window.titleVisibility == .visible)
+        }
+    }
+
+    @Test
     func `repeated theme updates cannot leave an explicit appearance`() {
         let resetCapture = ResetCapture()
         let bridge = SettingsWindowAppearanceView { resetCapture.actions.append($0) }

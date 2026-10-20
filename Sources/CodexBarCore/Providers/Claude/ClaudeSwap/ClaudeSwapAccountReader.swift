@@ -28,6 +28,7 @@ public enum ClaudeSwapAccountReader {
 
     public static func readAccountList(
         executablePath: String,
+        source: ClaudeSwapAccountSource = .claudeSwap,
         timeout: TimeInterval = ClaudeSwapAccountReader.defaultTimeout) async throws -> ClaudeSwapAccountList
     {
         // Handled claude-swap failures print a schema-v1 error envelope to stdout
@@ -35,10 +36,10 @@ public enum ClaudeSwapAccountReader {
         // the envelope as `ClaudeSwapListParserError.reportedError`.
         let result = try await self.run(
             executablePath: executablePath,
-            arguments: ["--list", "--json"],
+            arguments: source.listArguments,
             timeout: timeout,
             acceptsNonZeroExit: true,
-            label: "claude-swap list")
+            label: "\(source.label) list")
         return try ClaudeSwapListParser.parse(Data(result.utf8))
     }
 
@@ -68,16 +69,18 @@ public enum ClaudeSwapAccountReader {
         return parsed
     }
 
-    /// Best-effort version probe (`cswap --version` prints `cswap <version>`).
+    /// Best-effort version probe (`cswap --version` prints `cswap <version>`,
+    /// `tcr --version` prints `tcr <version>`).
     public static func readVersion(
         executablePath: String,
+        source: ClaudeSwapAccountSource = .claudeSwap,
         timeout: TimeInterval = 10) async -> String?
     {
         guard let output = try? await self.run(
             executablePath: executablePath,
             arguments: ["--version"],
             timeout: timeout,
-            label: "claude-swap version")
+            label: "\(source.label) version")
         else {
             return nil
         }

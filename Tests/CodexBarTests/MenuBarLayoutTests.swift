@@ -446,12 +446,12 @@ struct MenuBarLayoutTests {
     /// label beside the threshold field is `thresholdUnit`.
     @Test
     func `metric drives the editor row controls and units`() {
-        #expect(MenuBarConditionalMetric.allCases.count == 18)
+        #expect(MenuBarConditionalMetric.allCases.count == 22)
 
         let withDirection = MenuBarConditionalMetric.allCases.filter(\.supportsDirection)
         #expect(withDirection == [
-            .session, .weekly, .scopedWeekly, .automatic,
-            .primaryLane, .secondaryLane, .tertiaryLane, .balance,
+            .session, .weekly, .scopedWeekly, .automatic, .spend,
+            .primaryLane, .secondaryLane, .tertiaryLane, .balance, .spendAmount,
         ])
 
         #expect(MenuBarConditionalMetric.session.thresholdUnit == "%")

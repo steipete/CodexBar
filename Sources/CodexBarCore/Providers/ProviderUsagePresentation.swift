@@ -201,6 +201,7 @@ public struct ProviderMenuBarWindowContext: Sendable {
 public enum ProviderMenuBarWindowResolution: Sendable {
     case unhandled
     case resolved(RateWindow?)
+    case automaticCandidates([RateWindow])
 }
 
 public enum ProviderPlanUtilizationSeries: Sendable, Hashable {

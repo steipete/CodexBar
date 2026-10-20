@@ -151,7 +151,7 @@ public struct PreferencesDocument: Codable, Sendable {
                         }
                 } else {
                     valid = key == "mergedOverviewSelectedProviders" && values.count <= 6 && values.allSatisfy {
-                        if case let .string(raw) = $0 { return UsageProvider(rawValue: raw) != nil }; return false
+                        if case let .string(raw) = $0 { return ProviderInstanceID(rawValue: raw) != nil }; return false
                     }
                 }
             case .object:

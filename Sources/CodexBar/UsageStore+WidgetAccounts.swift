@@ -54,10 +54,10 @@ extension UsageStore {
             return accounts.compactMap { account in
                 // Slots can be reused. Bind the pin to the same opaque ownership guard as retained usage,
                 // without persisting the adapter's email, organization, or display label.
-                guard let owner = ClaudeSwapRetainedUsageStore.ownershipFingerprint(for: account) else { return nil }
+                guard let id = Self.claudeSwapWidgetOwnerKey(for: account) else { return nil }
                 return self.widgetAccountEntry(
                     provider: provider,
-                    id: "claude/swap:\(account.id.opaqueID):\(owner)",
+                    id: id,
                     label: "Account \(account.id.opaqueID)",
                     snapshot: account.snapshot,
                     now: now)
@@ -170,6 +170,21 @@ extension UsageStore {
             workspaceID: account.workspaceID,
             seatCreditEntitlement: account.seatCreditEntitlement)
         return self.tokenAccountSnapshotCacheKey(provider: provider, account: scoped)
+    }
+
+    /// Saved widget pin and quota owner for an account-source slot. The ownership fingerprint hashes only
+    /// slot and email, so each source needs its own namespace or claude-swap slot 1 and tcr slot 1 with the
+    /// same email would share one pin. claude-swap keeps `claude/swap:` byte for byte: pins saved before tcr
+    /// existed must still resolve.
+    static func claudeSwapWidgetOwnerKey(for account: ProviderAccountUsageSnapshot) -> String? {
+        guard let source = ClaudeSwapAccountSource(identitySource: account.id.source),
+              let owner = ClaudeSwapRetainedUsageStore.ownershipFingerprint(for: account)
+        else { return nil }
+        let namespace = switch source {
+        case .claudeSwap: "swap"
+        case .tcr: "tcr"
+        }
+        return "claude/\(namespace):\(account.id.opaqueID):\(owner)"
     }
 
     static func widgetOpaqueAccountID(_ identity: String) -> String {

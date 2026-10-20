@@ -7,9 +7,9 @@ struct UnifiedIconContext: Equatable, Sendable {
     let isStacked: Bool
 
     func resolve(
-        fallback: UsageProvider,
+        fallback: ProviderInstanceID,
         mergeIcons: Bool,
-        enabledProviders: Set<UsageProvider>) -> UsageProvider
+        enabledProviders: Set<UsageProvider>) -> ProviderInstanceID
     {
         guard mergeIcons,
               !self.isStacked,
@@ -18,6 +18,14 @@ struct UnifiedIconContext: Equatable, Sendable {
               let focusedProvider = self.focusedProvider,
               enabledProviders.contains(focusedProvider)
         else { return fallback }
-        return focusedProvider
+        return focusedProvider.instanceID
+    }
+
+    static func currentSelectionProvider(
+        selected: ProviderInstanceID?,
+        enabled: Set<ProviderInstanceID>) -> ProviderInstanceID?
+    {
+        guard let selected, enabled.contains(selected) else { return nil }
+        return selected
     }
 }

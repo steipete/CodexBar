@@ -231,6 +231,7 @@ struct SettingsStoreAdditionalTests {
             .codex: standard.union([.primaryAndSecondary, .extraUsage]),
             .claude: standard.union([.primaryAndSecondary, .extraUsage]),
             .cursor: standard.union([.tertiary, .extraUsage]),
+            .munito: standard.union([.extraUsage]),
             .gemini: standard.union([.average]),
             .perplexity: standard.union([.tertiary]),
             .opencodego: standard.union([.tertiary]),

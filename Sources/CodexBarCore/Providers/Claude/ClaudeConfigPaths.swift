@@ -18,11 +18,16 @@ public enum ClaudeConfigPaths {
 
     /// Local cost sources only; account credentials and cswap's private metadata are never read.
     public static func costProjectsRoots(
+        accountConfigDirectory: String? = nil,
         environment: [String: String],
         homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser,
         fileManager: FileManager = .default,
         workingDirectory: URL? = nil) -> [URL]
     {
+        if let directory = self.nonemptyLiteral(accountConfigDirectory) {
+            return [self.directoryURL(directory, workingDirectory: workingDirectory)
+                .appendingPathComponent("projects", isDirectory: true)]
+        }
         var pathEnvironment = environment
         if pathEnvironment["HOME"]?.isEmpty ?? true {
             pathEnvironment["HOME"] = homeDirectory.path
@@ -33,7 +38,7 @@ public enum ClaudeConfigPaths {
         if environment[self.configDirectoryEnvironmentKey]?.isEmpty ?? true {
             roots.insert(ownerHome.appendingPathComponent(".config/claude/projects", isDirectory: true), at: 0)
             roots.append(contentsOf: ClaudeDesktopProjectsLocator.roots(
-                homeDirectory: ownerHome, fileManager: fileManager))
+                homeDirectory: ownerHome, fileManager: fileManager, includeAuditFiles: true))
         }
 
         let legacy = ownerHome.appendingPathComponent(".claude-swap-backup/sessions", isDirectory: true)

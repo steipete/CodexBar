@@ -357,6 +357,7 @@ extension MenuBarLayoutConditional {
 }
 
 extension MenuBarConditionalMetric {
+    // swiftlint:disable cyclomatic_complexity
     /// Reuses the palette token labels so a metric and the block it measures always read the same, and
     /// resolves lane names through the provider's own labels rather than hard-coding "Primary".
     func editorLabel(provider: UsageProvider?) -> String {
@@ -365,6 +366,7 @@ extension MenuBarConditionalMetric {
         case .weekly: MenuBarLayoutToken.percent(window: .weekly).editorLabel(provider: provider)
         case .scopedWeekly: L("menu_bar_layout_token_scoped_weekly")
         case .automatic: L("menu_bar_layout_token_auto")
+        case .spend: MenuBarLayoutToken.percent(window: .spend).editorLabel(provider: provider)
         case .primaryLane: MenuBarLayoutToken.lanePercent(lane: .primary).editorLabel(provider: provider)
         case .secondaryLane: MenuBarLayoutToken.lanePercent(lane: .secondary).editorLabel(provider: provider)
         case .tertiaryLane: MenuBarLayoutToken.lanePercent(lane: .tertiary).editorLabel(provider: provider)
@@ -378,13 +380,17 @@ extension MenuBarConditionalMetric {
                 "menu_bar_layout_conditional_metric_resets_in",
                 L("menu_bar_layout_conditional_metric_scoped_weekly"))
         case .automaticResetsIn: L("menu_bar_layout_conditional_metric_resets_in", L("Auto"))
+        case .spendResetsIn: L("menu_bar_layout_conditional_metric_resets_in", L("Spend"))
         case .sessionPace: MenuBarLayoutToken.pace(window: .session).editorLabel(provider: provider)
         case .weeklyPace: MenuBarLayoutToken.pace(window: .weekly).editorLabel(provider: provider)
         case .automaticPace: L("menu_bar_layout_token_auto_pace")
+        case .spendPace: MenuBarLayoutToken.pace(window: .spend).editorLabel(provider: provider)
         case .runsOutIn: L("menu_bar_layout_token_runs_out")
         case .balance: L("Balance")
         case .costToday: L("menu_bar_layout_token_cost_today")
         case .costWindow: L("menu_bar_layout_token_cost_window")
+        case .spendAmount: MenuBarLayoutToken.spendAmount.editorLabel(provider: provider)
         }
     }
+    // swiftlint:enable cyclomatic_complexity
 }

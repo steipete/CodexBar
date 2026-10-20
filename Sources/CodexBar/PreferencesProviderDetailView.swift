@@ -208,7 +208,8 @@ struct ProviderDetailView<SupplementaryContent: View>: View {
 
             ProviderMenuBarPercentWindowSettingsView(
                 provider: self.provider,
-                settings: self.store.settings)
+                settings: self.store.settings,
+                snapshot: self.store.snapshot(for: self.provider.instanceID))
 
             if !self.menuBarSettingsPickers.isEmpty {
                 Section {

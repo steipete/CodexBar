@@ -175,9 +175,9 @@ final class StatusMenuProviderNativeProofTests: XCTestCase {
                 metadata: ProviderDescriptorRegistry.descriptor(for: provider).metadata,
                 enabled: true)
             _ = fixture.settings.setMergedOverviewProviderSelection(
-                provider: provider,
+                provider: provider.instanceID,
                 isSelected: overview,
-                activeProviders: providers)
+                activeProviders: providers.map(\.instanceID))
         }
         fixture.settings.mergeIcons = true
         fixture.settings.selectedMenuProvider = .claude

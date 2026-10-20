@@ -397,7 +397,7 @@ extension HistoricalUsagePaceTests {
     }
 
     @MainActor
-    @Test(arguments: [4, 5, 7])
+    @Test(arguments: [4, 5, 6, 7])
     func `explicit work day schedule overrides historical Codex pace`(workDays: Int) throws {
         let suite = "HistoricalUsagePaceTests-workdays-override-history-\(workDays)-\(UUID().uuidString)"
         let store = try Self.makeUsageStoreForBackfillTests(

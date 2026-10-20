@@ -280,7 +280,7 @@ struct MenuBarMetricWindowResolverTests {
     }
 
     @Test
-    func `automatic metric keeps default primary order when no window is exhausted`() {
+    func `automatic metric chooses highest usage without a forecast`() {
         let snapshot = UsageSnapshot(
             primary: RateWindow(usedPercent: 42, windowMinutes: 300, resetsAt: nil, resetDescription: "Primary"),
             secondary: RateWindow(usedPercent: 99, windowMinutes: 10080, resetsAt: nil, resetDescription: "Secondary"),
@@ -292,8 +292,8 @@ struct MenuBarMetricWindowResolverTests {
             snapshot: snapshot,
             supportsAverage: false)
 
-        #expect(window?.resetDescription == "Primary")
-        #expect(window?.usedPercent == 42)
+        #expect(window?.resetDescription == "Secondary")
+        #expect(window?.usedPercent == 99)
     }
 
     @Test

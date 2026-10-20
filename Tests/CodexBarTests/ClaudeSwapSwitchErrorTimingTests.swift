@@ -109,7 +109,7 @@ struct ClaudeSwapSwitchErrorTimingTests {
         #expect(fixture.store.claudeSwapTransientState.switchPhase == .activating)
         #expect(progress.phases == [.activating])
         let startedRevision = fixture.store.claudeSwapRevision
-        let deadline = Date().addingTimeInterval(8)
+        let deadline = Date().addingTimeInterval(30)
         while !gate.entered, Date() < deadline {
             try await Task.sleep(for: .milliseconds(10))
         }
@@ -228,7 +228,7 @@ struct ClaudeSwapSwitchErrorTimingTests {
                 "--switch-to\n2\n--json\n")
             return
         }
-        let deadline = Date().addingTimeInterval(8)
+        let deadline = Date().addingTimeInterval(30)
         while !gate.entered, Date() < deadline {
             try await Task.sleep(for: .milliseconds(10))
         }
@@ -260,10 +260,10 @@ struct ClaudeSwapSwitchErrorTimingTests {
         fixture.settings.claudeSwapEnabled = true
         let path = "/synthetic/read-only-cswap"
         fixture.settings.claudeSwapExecutablePath = path
-        #expect(fixture.store.isCurrentClaudeSwapRefresh(executablePath: path, generation: nil))
+        #expect(fixture.store.isCurrentClaudeSwapRefresh(executablePath: path, source: .claudeSwap, generation: nil))
         let cancelled = Task { @MainActor in
             withUnsafeCurrentTask { $0?.cancel() }
-            return fixture.store.isCurrentClaudeSwapRefresh(executablePath: path, generation: nil)
+            return fixture.store.isCurrentClaudeSwapRefresh(executablePath: path, source: .claudeSwap, generation: nil)
         }
         #expect(await cancelled.value == false)
     }

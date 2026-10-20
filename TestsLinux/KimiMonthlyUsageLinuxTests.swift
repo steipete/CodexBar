@@ -30,6 +30,8 @@ struct KimiMonthlyUsageLinuxTests {
                 #expect(window == monthly)
             case .unhandled:
                 #expect(metric != .automatic)
+            case .automaticCandidates:
+                Issue.record("Kimi menu bar resolution should not return automatic candidates.")
             }
         }
         #expect(presentation.menuCard.blockingQuota?.windowID == "kimi-monthly")

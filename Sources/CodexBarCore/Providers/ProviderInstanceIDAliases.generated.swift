@@ -87,6 +87,7 @@ extension ProviderInstanceID {
     public static let typesafe = UsageProvider.typesafe.instanceID
     public static let hyper = UsageProvider.hyper.instanceID
     public static let gitkraken = UsageProvider.gitkraken.instanceID
+    public static let futureagi = UsageProvider.futureagi.instanceID
     public static let devpass = UsageProvider.devpass.instanceID
     public static let atlascloud = UsageProvider.atlascloud.instanceID
     public static let vercel = UsageProvider.vercel.instanceID
@@ -107,6 +108,7 @@ extension ProviderInstanceID {
     public static let flora = UsageProvider.flora.instanceID
     public static let parallel = UsageProvider.parallel.instanceID
     public static let claudeplatform = UsageProvider.claudeplatform.instanceID
+    public static let munito = UsageProvider.munito.instanceID
 }
 
 // swiftformat:enable sortDeclarations

@@ -3,14 +3,14 @@
 ## Project Structure & Modules
 - `Sources/CodexBar`: Swift 6 menu bar app (usage/credits probes, icon renderer, settings). Keep changes small and reuse existing helpers.
 - `Tests/CodexBarTests`: XCTest coverage for usage parsing, status probes, icon patterns; mirror new logic with focused tests.
-- `Scripts`: build/package helpers (`package_app.sh`, `sign-and-notarize.sh`, `make_appcast.sh`, `build_icon.sh`, `compile_and_run.sh`). Release wrappers call `Scripts/mac-release`, which resolves `MAC_RELEASE_TOOL` or the shared `agent-scripts` checkout.
+- `Scripts`: build/package helpers (`package_app.sh`, `sign-and-notarize.sh`, `build_icon.sh`, `compile_and_run.sh`). Read-only release helpers call `Scripts/mac-release`, which resolves `MAC_RELEASE_TOOL` or the shared `agent-scripts` checkout; CI owns publication.
 - `docs`: release notes and process (`docs/RELEASING.md`, screenshots). Root-level zips/appcast are generated artifacts—avoid editing except during releases.
 
 ## Build, Test, Run
 - Dev loop: `./Scripts/compile_and_run.sh` kills old instances, builds, packages, relaunches `CodexBar.app`, and confirms it stays running; add `--test` for the sharded full suite.
 - Quick build/test: `swift build` (debug) or `swift build -c release`; `make test` for the sharded full suite.
 - Package locally: `./Scripts/package_app.sh` to refresh `CodexBar.app`, then restart with `pkill -x CodexBar || pkill -f CodexBar.app || true; cd /Users/steipete/Projects/codexbar && open -n /Users/steipete/Projects/codexbar/CodexBar.app`.
-- Release flow: `./Scripts/release.sh`; app metadata lives in `.mac-release.env`, repo build/signing stays in `Scripts/sign-and-notarize.sh`, and validation steps live in `docs/RELEASING.md`.
+- Release publication is owned by `.github/workflows/release.yml`; use its default dry-run dispatch to rehearse. Repo build/signing stays in `Scripts/sign-and-notarize.sh`; see `docs/RELEASING.md`.
 
 ## Coding Style & Naming
 - Enforce SwiftFormat/SwiftLint: run `swiftformat Sources Tests` and `swiftlint --strict`. 4-space indent, 120-char lines, explicit `self` is intentional—do not remove.
@@ -44,8 +44,8 @@
 - For CLI-testable provider/parser/settings behavior, use CLI/focused tests instead of `Scripts/package_app.sh` or `./Scripts/compile_and_run.sh`.
 - Run `./Scripts/compile_and_run.sh` only when UI/runtime behavior needs bundle-level validation; it builds, tests, packages, relaunches, and verifies the app stays running.
 - Widget/Tahoe UI issues: use Parallels macOS VM plus screenshots/clicks for autonomous verification.
-- Release script: keep it in the foreground; do not background it—wait until it finishes.
-- Sparkle release key: use `.mac-release.env` `MAC_RELEASE_SIGNING_KEY_FILE`, the legacy `AGCY8w5vHirVfGGDGc8Szc5iuOqupZSh9pMj/Qs67XI=` key. Do not use `sparkle-private-key-KEEP-SECURE.txt`; that is VibeTunnel's mismatched key.
+- Release workflow: wait for completion and verify the complete artifact/feed/tap handoff; do not publish locally.
+- Sparkle release key: CI `SPARKLE_PRIVATE_KEY` must match the existing AGCY public key in `.github/release.json`; never substitute another app’s key.
 - Swift concurrency: treat sibling `async let` tasks as a review red flag when one child is required and another is optional/best-effort. Prefer sequential awaits or a drained `withThrowingTaskGroup` that surfaces required failures and explicitly contains optional failures; crash stacks mentioning `swift_task_dealloc` or `asyncLet_finish_after_task_completion` should trigger an audit of nearby `async let` usage.
 - Prefer modern SwiftUI/Observation macros: use `@Observable` models with `@State` ownership and `@Bindable` in views; avoid `ObservableObject`, `@ObservedObject`, and `@StateObject`.
 - Favor modern macOS 15+ APIs over legacy/deprecated counterparts when refactoring (Observation, new display link APIs, updated menu item styling, etc.).

@@ -36,6 +36,8 @@ request URL. The host copies the selected `ct0` cookie into `X-CSRF-Token` for `
 read cookies or send requests to any other origin. Imported sessions are not persisted by this provider. Off mode makes
 no requests; expired sessions can advance to another automatic profile, while manual mode remains pinned.
 
+If multiple browsers are blocked, the shared cookie diagnostic lists each browser's recovery action. Chrome profile access needs **System Settings → Privacy & Security → Files & Folders → CodexBar → Google Chrome**; Safari cookie access may need **Full Disk Access** for CodexBar. A Safari denial no longer hides Chrome's profile guidance. This changes error reporting only, without extra cookie reads or permission prompts.
+
 Use a refresh interval of at least five minutes if the console rate-limits requests. HTTP 429 is reported as rate
 limited, without an immediate retry. The integration follows CodexBar's shared refresh interval; it does not introduce
 an independent polling timer. Recent spend, payment controls, plan history, and widgets are outside this integration.

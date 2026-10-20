@@ -1,0 +1,91 @@
+{
+  "schemaVersion": 1,
+  "activeAccountNumber": null,
+  "supportsAccountSwitching": false,
+  "accounts": [
+    {
+      "number": 1,
+      "email": "alice@example.com",
+      "organizationName": "Example Team",
+      "active": false,
+      "usageStatus": "ok",
+      "usageFetchedAt": "2025-12-31T23:00:00Z",
+      "disabled": false,
+      "usage": {
+        "fiveHour": {
+          "pct": 40.0,
+          "resetsAt": "2026-01-01T04:00:00Z"
+        },
+        "sevenDay": {
+          "pct": 60.0,
+          "resetsAt": "2026-01-08T00:00:00Z"
+        },
+        "scoped": [
+          {
+            "name": "Example model",
+            "pct": 10.0,
+            "resetsAt": "2026-01-08T00:00:00Z"
+          }
+        ]
+      }
+    },
+    {
+      "number": 2,
+      "email": "bob@example.com",
+      "organizationName": "",
+      "active": false,
+      "usageStatus": "unavailable",
+      "disabled": false,
+      "usage": {}
+    },
+    {
+      "number": 3,
+      "email": "carol@example.com",
+      "organizationName": "",
+      "active": false,
+      "usageStatus": "ok",
+      "disabled": true,
+      "usage": {
+        "fiveHour": {
+          "pct": 20.0
+        }
+      }
+    },
+    {
+      "number": 4,
+      "email": "dave@example.com",
+      "organizationName": "",
+      "active": false,
+      "usageStatus": "unavailable",
+      "disabled": true,
+      "usage": {
+        "sevenDay": {
+          "pct": 50.0,
+          "resetsAt": "2026-01-02T00:00:00Z"
+        }
+      }
+    },
+    {
+      "number": 5,
+      "email": "erin@example.com",
+      "organizationName": "",
+      "active": false,
+      "usageStatus": "relogin_required",
+      "disabled": false,
+      "usage": {}
+    },
+    {
+      "number": 6,
+      "email": "frank@example.com",
+      "organizationName": "",
+      "active": false,
+      "usageStatus": "unavailable",
+      "disabled": false,
+      "usage": {
+        "fiveHour": {
+          "pct": 10.0
+        }
+      }
+    }
+  ]
+}

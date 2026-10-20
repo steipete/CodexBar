@@ -32,16 +32,17 @@ struct PreferencesSelectionTests {
     }
 
     @Test
-    func `selection restores persisted pane and saves changes`() throws {
-        let suite = "PreferencesSelectionTests-\(UUID().uuidString)"
-        let defaults = try #require(UserDefaults(suiteName: suite))
-        defer { defaults.removePersistentDomain(forName: suite) }
+    func `selection restores persisted pane and saves changes`() {
+        let defaults = InMemoryUserDefaults()
 
         #expect(PreferencesSelection(userDefaults: defaults).pane == .general)
 
         let selection = PreferencesSelection(userDefaults: defaults)
         selection.pane = .provider(.codex)
         #expect(defaults.string(forKey: PreferencesSelection.paneDefaultsKey) == "provider:codex")
-        #expect(PreferencesSelection(userDefaults: defaults).pane == .provider(.codex))
+        let restored = PreferencesSelection(userDefaults: defaults)
+        #expect(restored.pane == .provider(.codex))
+        #expect(!restored.canGoBack)
+        #expect(!restored.canGoForward)
     }
 }

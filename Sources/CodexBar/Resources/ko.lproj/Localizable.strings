@@ -62,6 +62,16 @@
 "7d" = "7일";
 "A managed Codex login is already running. Wait for it to finish before adding " = "관리되는 Codex 로그인이 이미 실행 중입니다. 추가하기 전에 완료될 때까지 기다리세요. ";
 "API key" = "API 키";
+
+/* Future AGI provider */
+"Secret key" = "비밀 키";
+"Required with the API key. Saved in the local config file. Or set FI_SECRET_KEY." = "API 키와 함께 필요합니다. 로컬 구성 파일에 저장됩니다. 또는 FI_SECRET_KEY를 설정하세요.";
+"Paste secret key…" = "비밀 키 붙여넣기…";
+"AI credits" = "AI 크레딧";
+"Gateway requests" = "게이트웨이 요청";
+"Future AGI cost history is not available." = "Future AGI 비용 내역을 사용할 수 없습니다.";
+"Saved in CodexBar's local config file. Or set FI_API_KEY." = "CodexBar의 로컬 구성 파일에 저장됩니다. 또는 FI_API_KEY를 설정하세요.";
+
 "API region" = "API 지역";
 "API token" = "API 토큰";
 "API tokens" = "API 토큰";
@@ -655,6 +665,8 @@
 "overview_rows_follow_order" = "개요 행은 항상 공급자 순서를 따릅니다.";
 "overview_no_providers_selected" = "선택된 공급자 없음";
 "agent_sessions_title" = "에이전트 세션";
+"agent_sessions_remote_title" = "원격 세션 (Tailscale / SSH)";
+"agent_sessions_remote_subtitle" = "원격 호스트를 검색하고 연결합니다. 이 Mac만 모니터링하려면 끄세요.";
 "agent_sessions_subtitle" = "메뉴에 로컬 및 SSH로 검색된 Codex 및 Claude Code 세션을 표시합니다.";
 "agent_sessions_hosts_title" = "추가 SSH 호스트";
 "agent_sessions_footer" = "tailnet의 Mac은 자동으로 검색됩니다. 로컬 세션은 30초마다, 원격 호스트는 60초마다 그리고 메뉴를 열 때 새로 고칩니다.";
@@ -1400,6 +1412,7 @@
 "menu_bar_layout_size_regular" = "보통";
 "menu_bar_layout_size_large" = "크게";
 "menu_bar_layout_monospaced_digits" = "고정폭 숫자";
+"menu_bar_layout_show_window_labels" = "기간 레이블 표시";
 "menu_bar_layout_gap" = "간격";
 "menu_bar_layout_gap_tight" = "좁게";
 "menu_bar_layout_gap_regular" = "보통";
@@ -1422,6 +1435,9 @@
 "menu_bar_layout_token_runs_out" = "소진";
 "menu_bar_layout_token_cost_today" = "오늘 비용";
 "menu_bar_layout_token_cost_window" = "비용 (기록 범위)";
+"menu_bar_layout_token_spend" = "지출 %";
+"menu_bar_layout_token_spend_pace" = "지출 속도";
+"menu_bar_layout_token_spend_budget" = "지출 / 예산";
 "menu_bar_layout_token_space" = "공백";
 "menu_bar_layout_token_line_break" = "줄 바꿈";
 "menu_bar_layout_token_separator_accessibility" = "구분점";
@@ -1583,6 +1599,7 @@
 "menu_bar_layout_conditional_default_session_spent" = "세션 거의 소진";
 "menu_bar_layout_conditional_default_either_high" = "세션 또는 주간 사용량 높음";
 "menu_bar_layout_conditional_default_scoped_weekly" = "모델별 주간 60% 초과 사용";
+"menu_bar_layout_conditional_default_spend_high" = "지출 90% 초과 사용";
 "Visible usage items" = "표시할 사용량 항목";
 "Restore Defaults" = "기본값 복원";
 "Choose which usage rows appear in this provider's menu, Settings preview, and Overview." = "이 제공업체의 메뉴, 설정 미리보기 및 개요에 표시할 사용량 행을 선택합니다.";
@@ -1766,6 +1783,9 @@
 "Gateway URL" = "게이트웨이 URL";
 "Gemini CLI login is no longer supported" = "Gemini CLI 로그인은 더 이상 지원되지 않습니다.";
 "Gemini CLI migration" = "Gemini CLI 마이그레이션";
+"Gemini app" = "Gemini 앱";
+"Gemini CLI" = "Gemini CLI";
+"Gemini app limits use your browser account and are separate from Gemini CLI quotas." = "Gemini 앱의 한도는 브라우저 계정에 적용되며 Gemini CLI 할당량과는 별개입니다.";
 "Generated locally by CodexBar · Data through %@" = "CodexBar에 의해 로컬에서 생성됨 · %@ 기준 데이터";
 "GitHub cookies" = "GitHub cookies";
 "GitHub does not publish this value. Enter it to show a usage bar. Applies to the selected GitHub account." = "GitHub는 이 값을 게시하지 않습니다. 사용량 표시줄을 표시하려면 입력하세요. 선택한 GitHub 계정에 적용됩니다.";
@@ -1868,6 +1888,7 @@
 "Paste the Cookie header from a billing-page request. It must contain sessionid." = "청구 페이지 요청에서 Cookie 헤더를 붙여넣습니다. sessionid를 포함해야 합니다.";
 "Paste z.ai / GLM API key…" = "z.ai / GLM API 키 붙여넣기…";
 "Path to the cswap executable (github.com/realiti4/claude-swap)." = "cswap 실행 파일의 경로(github.com/realiti4/claude-swap)";
+"Path to the tcr executable (github.com/dhkts1/teamclaude-rs)." = "tcr 실행 파일의 경로(github.com/dhkts1/teamclaude-rs)";
 "Peak %@" = "피크 %@";
 "Percent left" = "남은 비율";
 "Pick another Codex account before importing OpenAI cookies." = "OpenAI cookies를 가져오기 전에 다른 Codex 계정을 선택하세요.";
@@ -1899,7 +1920,7 @@
 "Refresh the profile before refreshing OpenAI web data." = "OpenAI 웹 데이터를 새로 고치기 전에 프로필을 새로 고치십시오.";
 "Refreshing account status…" = "계정 상태 새로고침 중…";
 "Remaining budget compared with an ideal steady burn rate." = "이상적인 꾸준한 연소율과 비교한 남은 예산입니다.";
-"Renews: %@" = "갱신: %@";
+"Plan renews: %@" = "요금제 갱신: %@";
 "Request quota" = "할당량 요청";
 "Requesting login…" = "로그인을 요청하는 중…";
 "Required. Enter a regular API key or a Management API key here. Management keys also enable account Activity on the official OpenRouter API." = "필수입니다. 여기에 일반 API 키 또는 관리 API 키를 입력하세요. 관리 키는 공식 OpenRouter API에서 계정 활동도 활성화합니다.";
@@ -1922,6 +1943,8 @@
 "Select the provider to display." = "표시할 공급자를 선택하세요.";
 "Session (5-hour)" = "세션(5시간)";
 "Session and weekly usage with credits and costs." = "크레딧를 사용한 세션 및 주간 사용량과 비용.";
+"Set the cswap executable path below." = "아래에 cswap 실행 파일 경로를 설정하세요.";
+"Set the tcr executable path below." = "아래에 tcr 실행 파일 경로를 설정하세요.";
 "Settings unavailable." = "설정을 사용할 수 없습니다.";
 "Show account card when only one account is available" = "하나의 계정만 사용할 수 있는 경우 계정 카드 표시";
 "Show model-specific weekly usage in widgets" = "위젯에 모델별 주간 사용량 표시";
@@ -1929,6 +1952,7 @@
 "Shows model-specific Claude quotas, such as Fable, in desktop widgets." = "데스크톱 위젯에 모델별 Claude 할당량(예: Fable)를 표시합니다.";
 "Shows the hidden accounts" = "숨겨진 계정을 표시합니다";
 "Shows usage and lets you switch accounts through `cswap`. Credentials stay managed by claude-swap; CodexBar never reads them." = "사용량을 표시하고 `cswap`를 통해 계정을 전환할 수 있습니다. 자격 증명은 claude-swap에 의해 관리됩니다. CodexBar는 절대 읽지 않습니다.";
+"Shows usage from `tcr`; it does not switch accounts, because tcr picks the account for each request. Credentials stay managed by tcr; CodexBar never reads them." = "`tcr`의 사용량을 표시합니다. tcr가 요청마다 계정을 선택하므로 계정을 전환하지 않습니다. 자격 증명은 tcr에 의해 관리됩니다. CodexBar는 절대 읽지 않습니다.";
 "Stay Awake" = "깨어 있으라";
 "Stored in the CodexBar config file. Reads monthly budget and routed usage from /v1/usage." = "CodexBar 구성 파일에 저장됩니다. /v1/usage에서 월별 예산 및 라우팅된 사용량을 읽습니다.";
 "Stored in ~/.codexbar/config.json. OPENAI_ADMIN_KEY is required for organization usage; legacy/user keys only get a best-effort balance fallback." = "~/.codexbar/config.json에 저장됩니다. 조직에서 사용하려면 OPENAI_ADMIN_KEY가 필요합니다. 레거시/사용자 키는 최선의 균형 대체만 얻습니다.";
@@ -1937,6 +1961,7 @@
 "SuperGrok OAuth" = "SuperGrok OAuth";
 "Switch Account…" = "계정 전환…";
 "Switch Claude Code account" = "Claude Code 계정 전환";
+"Claude accounts in tcr" = "tcr의 Claude 계정";
 "Switch Claude Code to %@" = "Claude Code를 %@로 전환";
 "Switch Provider" = "공급자 전환";
 "Switch the provider shown in the widget." = "위젯에 표시된 공급자를 전환하세요.";
@@ -2023,6 +2048,7 @@
 "sk-ant-admin..." = "sk-ant-admin...";
 "sk-or-v1-..." = "sk-or-v1-...";
 "spent" = "할당량 고갈";
+"tcr executable" = "tcr 실행 파일";
 "under pace" = "계획된 속도보다 사용량이 적음";
 "us-east-1" = "us-east-1";
 "used" = "사용됨";
@@ -2033,6 +2059,7 @@
 "~%@ est" = "~%@ 추정";
 "~%@ tracked tokens (partial)" = "~%@ 기록된 토큰 (부분)";
 "~/.local/bin/cswap" = "~/.local/bin/cswap";
+"/Applications/TcrBar.app/Contents/MacOS/tcr" = "/Applications/TcrBar.app/Contents/MacOS/tcr";
 "~/Library/Application Support/JetBrains/IntelliJIdea2024.3" = "~/Library/Application Support/JetBrains/IntelliJIdea2024.3";
 "00000000-0000-0000-0000-000000000000" = "00000000-0000-0000-0000-000000000000";
 
@@ -2145,6 +2172,10 @@
 "Stored in ~/.codexbar/config.json. Create one at console.x.ai under Settings > Management Keys; inference API keys are not accepted." = "~/.codexbar/config.json에 저장됩니다. 설정 > 관리 키 아래 console.x.ai에서 하나를 생성합니다. 추론 API 키는 허용되지 않습니다.";
 "xai-..." = "xai-...";
 "Team ID" = "팀 ID";
+"Vercel access token" = "Vercel 액세스 토큰";
+"Optional. Shows your personal budget instead of team credits. Saved in CodexBar's local config file. Or set VERCEL_ACCESS_TOKEN." = "선택 사항입니다. 팀 크레딧 대신 개인 예산을 표시합니다. CodexBar의 로컬 구성 파일에 저장됩니다. 또는 VERCEL_ACCESS_TOKEN을 설정하세요.";
+"Open Vercel tokens" = "Vercel 토큰 열기";
+"Required with a Vercel access token. Or set VERCEL_TEAM_ID." = "Vercel 액세스 토큰과 함께 필요합니다. 또는 VERCEL_TEAM_ID를 설정하세요.";
 "Required. Shown in the xAI Console URL and team settings." = "필수입니다. xAI 콘솔 URL 및 팀 설정에 표시됩니다.";
 "Sakana AI cost summary is not supported." = "Sakana AI 비용 요약은 지원되지 않습니다.";
 "Stored in ~/.codexbar/config.json. Copy the Sakana AI console Cookie request header." = "~/.codexbar/config.json에 저장됩니다. Sakana AI 콘솔 Cookie 요청 헤더를 복사합니다.";
@@ -2480,6 +2511,8 @@
 "Pace sign" = "사용 속도 부호";
 "Ahead of pace is +" = "기준 속도 초과는 +";
 "Reserve is +" = "여유분은 +";
+"Back" = "뒤로";
+"Forward" = "앞으로";
 
 "cost_reset_inferred_tooltip" = "추정: %@에서 이 날짜를 제공하지 않습니다. 월간 지출 한도는 매월 1일 00:00 UTC에 재설정됩니다.";
 /* fal provider credentials */
@@ -2500,7 +2533,7 @@
 "Clear filters" = "필터 지우기";
 "Change provider order" = "공급자 순서 변경";
 "Provider sorting" = "공급자 정렬";
-"Only enabled providers" = "활성 공급자만 표시";
+"Only show enabled providers" = "활성 공급자만 표시";
 "Restore default order" = "기본 순서 복원";
 "Also restores the provider order in the menu bar. Can be undone." = "메뉴 막대의 공급자 순서도 복원합니다. 실행 취소할 수 있습니다.";
 "Local Codex details; excluded from combined totals." = "로컬 Codex 세부 정보, 합산 총계에서 제외됩니다.";
@@ -2597,3 +2630,41 @@
 "API credit" = "API 크레딧";
 "Purchased credit" = "구매한 크레딧";
 "Claude Platform exposes Console credit balance and monthly spend, not local token cost history." = "Claude Platform은 로컬 토큰 비용 내역이 아닌 Console 크레딧 잔액과 월간 지출을 표시합니다.";
+
+"Claude config directory" = "Claude 설정 디렉터리";
+/* App-managed HTTP server */
+"http_server_title" = "HTTP 서버";
+"http_server_enable" = "HTTP 서버 활성화";
+"http_server_bind" = "바인딩할 IPv4 주소";
+"http_server_port" = "포트";
+"http_server_token" = "서버 토큰";
+"http_server_show" = "표시";
+"http_server_generate" = "생성";
+"http_server_cache" = "캐시 간격(초)";
+"http_server_timeout" = "요청 제한 시간(초, 0은 비활성화)";
+"http_server_all_accounts" = "스냅샷에 모든 계정 포함";
+"http_server_identity" = "대시보드 식별 정보";
+"http_server_redacted" = "가림";
+"http_server_warning" = "사용량, 비용, 계정 및 프로젝트 정보를 공개하며 공급자 인증 정보는 공개하지 않습니다. HTTP는 서버 토큰을 암호화하지 않고 전송합니다. 신뢰할 수 있는 VPN 또는 Tailscale 연결에서만 사용하세요.";
+"http_server_plain_http" = "이 Mac 외부에서 암호화되지 않은 HTTP 허용";
+"http_server_dashboard" = "대시보드";
+"http_server_wildcard" = "다른 기기에서는 0.0.0.0을 이 Mac의 VPN 또는 Tailscale IPv4 주소로 바꾸세요.";
+"http_server_footer" = "기본적으로 꺼져 있습니다. CodexBar와 함께 시작되고 종료 시 중지됩니다. 설정과 토큰은 이 Mac에 보관되며 동기화 및 내보내기에서 제외됩니다. 원격 접근을 위해 Mac이 잠자기에 들어가지 않도록 하세요.";
+/* Claude desktop cookie source */
+"Claude desktop app" = "Claude 데스크톱 앱";
+"Use Claude desktop app cookies" = "Claude 데스크톱 앱 쿠키 사용";
+"For Web usage, follow the account signed into Claude.app instead of a browser." = "웹 사용량에는 브라우저 대신 Claude.app에 로그인한 계정을 사용합니다.";
+
+/* Munito provider credentials */
+"Key with Read account data (Admin API) permission. Or set MUNITO_API_KEY." = "계정 데이터 읽기(Admin API) 권한이 있는 키입니다. 또는 MUNITO_API_KEY를 설정하세요.";
+"Munito reports Admin API spend and limits, not local token cost history." = "Munito는 Admin API 지출 및 한도를 보고하며, 로컬 토큰 비용 기록은 아닙니다.";
+
+"Show all accounts in Overview" = "개요에 모든 계정 표시";
+
+"Expand cached account usage. The six-provider limit still applies." = "캐시된 계정 사용량으로 선택한 제공업체를 펼칩니다. 제공업체는 최대 6개까지 표시됩니다.";
+"Edit" = "편집";
+"Move up" = "위로 이동";
+"Move down" = "아래로 이동";
+"Leave blank to keep the saved credential." = "저장된 인증 정보를 유지하려면 비워 두세요.";
+
+"No personal budget configured" = "개인 예산이 설정되지 않았습니다";

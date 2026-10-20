@@ -88,6 +88,8 @@ Manual option:
   - Stable user ID, email, and name.
 - `GET https://cursor.com/api/usage?user=ID`
   - Legacy request-based plan usage (request counts + limits).
+- `GET https://cursor.com/api/dashboard/v2/usage-status?scope=user`
+  - Optional monthly additional spend for unified personal memberships; failures retain usage-summary data.
 - `POST https://cursor.com/api/dashboard/get-sand-usage-status`
   - Grok Bot weekly included usage (`usagePercent`, `nextResetTimestampUtc`). Same session cookie;
     requires `Origin: https://cursor.com`. Best-effort: a failure leaves Cursor's monthly bars intact.
@@ -176,9 +178,9 @@ ordinary percentage in Cursor's layout. This saves a Cursor-only override. The l
 Both paths show the allowance's short tag, for example `GB 42%`, and follow the used/remaining
 preference. A saved selection displays `GB –` when the reading is missing or unknown; a real zero
 displays `GB 0%` in used mode. Lane percentages are tagged `T` (Total), `C` (Cursor), and `TP` (Third Party);
-menus and VoiceOver keep the full names. Auto % keeps its existing selection among Cursor's allowances,
-including Grok Bot. Balance tokens remain independent, and the dropdown keeps its existing reset countdown
-and paid-weekly pace display.
+menus and VoiceOver keep the full names. Auto % ranks usable allowances, including Grok Bot, by depletion
+forecast and then used percentage; an exhausted total or exhaustion of every subquota still takes priority.
+Balance tokens remain independent, and the dropdown keeps its existing reset countdown and paid-weekly pace display.
 
 Named-extra selections are stored in V4 layout keys. A V3 projection omits them while preserving explicit
 reset-window selections for 0.60.x; V2/V1 projections remain available for older releases. An unchanged
@@ -218,21 +220,13 @@ The shared [cost reporting period](cost-reporting-periods.md) supports month-to-
 
 ## Unified Cursor/Grok additional spend
 
-Unified personal memberships read monthly additional spend from
-`GET /api/dashboard/v2/usage-status?scope=user`, using the same Cursor session as
-the quota fetch. The legacy `/api/usage-summary` can report zero after account
-unification. `monthlyUsage.usedCents` and `limitCents` are cents;
-`creditsUsedCents` is separate and must not be added to the additional-spend meter.
-The monthly reset comes from that response.
+Unified personal memberships with `limitType: "user"` read monthly additional spend from
+`GET /api/dashboard/v2/usage-status?scope=user`, using the existing Cursor session. The legacy usage summary can
+report zero after account unification. A valid, available monthly response supplies `usedCents`, `limitCents`,
+`periodStart`, and `resetsAt`; amounts convert from cents to USD. Separate `creditsUsedCents` consumption is not
+added to additional spend. See the [affected-account response](https://github.com/steipete/CodexBar/pull/4593#issuecomment-6261700483).
 
-This lookup replaces the legacy `/api/usage?user=...` request-quota lookup on
-unified memberships. Ordinary memberships and team-scoped budgets keep their existing request and cost
-paths. The optional billing request has a five-second budget, uses the normal
-refresh scheduler, and adds no polling process. If billing is unavailable or its
-period/amounts are invalid, retain the existing summary spend, cap, and billing
-reset as a fallback. A valid monthly response takes precedence, including zero
-spend or an unlimited cap. The existing weekly Grok allowance, account identity,
-and widget projection remain independent of this optional read.
-
-See [captured billing evidence](cursor-unified-billing-proof.md) for same-account
-API responses, dashboard comparison, CLI output, and compatibility checks.
+The optional lookup replaces the legacy request-quota lookup for these personal memberships and has a five-second
+request budget. Unavailable, failed, incomplete, malformed, or out-of-period responses retain the summary's spend,
+cap, and reset. Valid zero spend remains zero. Team budgets, legacy plans, weekly Grok allowance, account identity,
+and the normal refresh scheduler retain their existing behavior.

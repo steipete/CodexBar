@@ -103,6 +103,7 @@ public enum UsageProvider: String, CaseIterable, Sendable, Codable {
     case typesafe
     case hyper
     case gitkraken
+    case futureagi
     case devpass
     case atlascloud
     case vercel
@@ -123,6 +124,7 @@ public enum UsageProvider: String, CaseIterable, Sendable, Codable {
     case flora
     case parallel
     case claudeplatform
+    case munito
 }
 
 // swiftformat:enable sortDeclarations

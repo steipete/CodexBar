@@ -131,7 +131,9 @@ struct CopilotSwitcherCreditBarTests {
             showsIcons: false,
             iconProvider: { _ in NSImage(size: NSSize(width: 16, height: 16)) },
             weeklyRemainingProvider: { provider in
-                StatusItemController.switcherWeeklyMetricPercent(for: provider, snapshot: snapshot, showUsed: true)
+                provider.firstPartyProvider.flatMap {
+                    StatusItemController.switcherWeeklyMetricPercent(for: $0, snapshot: snapshot, showUsed: true)
+                }
             },
             onSelect: { _ in })
         view.updateConstraintsForSubtreeIfNeeded()

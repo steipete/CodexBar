@@ -62,7 +62,7 @@ struct KiroLoginRunnerTests {
             with open(os.environ["FIXTURE_PID"], "w") as handle:
                 handle.write(str(os.getpid()))
             os.write(ready_write, b"R")
-            signal.pause()
+            \(KiroProcessTestSupport.pythonOwnerBoundedHold())
             os._exit(0)
         os.waitpid(intermediate, 0)
         os.read(ready_read, 1)
@@ -80,6 +80,51 @@ struct KiroLoginRunnerTests {
         let childPID = try #require(KiroProcessTestSupport.readPID(from: childPIDFile))
         // The acknowledged writer is still held: returning cannot depend on pipe EOF.
         #expect(kill(childPID, 0) == 0)
+    }
+
+    @Test(.timeLimit(.minutes(1)))
+    func `detached fixture hold exits when its owning process is killed`() async throws {
+        let root = try Self.makeRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let holderPIDFile = root.appendingPathComponent("holder.pid")
+        // Emergency cleanup only: the assertion below requires the holder to exit on its own.
+        defer { Self.killFixture(in: holderPIDFile) }
+        // The synthetic owner stands in for the test process: it detaches the same SIGTERM-ignoring
+        // holder as the output-drain fixture, bound to the owner's PID, and is then SIGKILLed.
+        let owner = Process()
+        owner.executableURL = URL(fileURLWithPath: "/usr/bin/python3")
+        owner.arguments = ["-c", """
+        import os, signal, sys
+        owner = os.getpid()
+        intermediate = os.fork()
+        if intermediate == 0:
+            if os.fork() != 0:
+                os._exit(0)
+            os.setsid()
+            signal.signal(signal.SIGTERM, signal.SIG_IGN)
+            with open(sys.argv[1], "w") as handle:
+                handle.write(str(os.getpid()))
+            \(KiroProcessTestSupport.pythonOwnerBoundedHold(ownerPID: "owner"))
+            os._exit(0)
+        os.waitpid(intermediate, 0)
+        \(KiroProcessTestSupport.pythonOwnerBoundedHold())
+        """, holderPIDFile.path]
+        owner.standardOutput = FileHandle.nullDevice
+        owner.standardError = FileHandle.nullDevice
+        try owner.run()
+        defer {
+            if owner.isRunning { _ = kill(owner.processIdentifier, SIGKILL) }
+            ProcessExitRelease.afterExit(owner)
+        }
+
+        let holderPID = try await KiroProcessTestSupport.waitForPID(in: holderPIDFile)
+        #expect(kill(holderPID, 0) == 0)
+        #expect(kill(owner.processIdentifier, SIGKILL) == 0)
+
+        try await KiroProcessTestSupport.waitForExit(
+            of: holderPID,
+            timeout: .seconds(10),
+            description: "detached holder exit after its owner was SIGKILLed")
     }
 
     @Test(.timeLimit(.minutes(1)))

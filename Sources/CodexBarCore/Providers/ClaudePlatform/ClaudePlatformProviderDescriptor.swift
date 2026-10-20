@@ -19,6 +19,10 @@ public enum ClaudePlatformProviderDescriptor {
                 ProviderCostPresentation(showsGenericFallback: false, menuCardStyle: .prepaidCredits)
             },
             menuBarBalanceUsesPrepaidCost: true,
+            menuBarWindowResolver: { context in
+                guard context.metric == .automatic else { return .unhandled }
+                return .resolved(context.snapshot.primary ?? context.snapshot.secondary)
+            },
             // Credit grants expire rather than reset, so their expiry stays a detail line.
             menuCard: ProviderMenuCardPresentation(
                 showsPrimaryBalanceDescription: true,

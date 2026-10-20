@@ -96,8 +96,9 @@ struct PreferencesPaneSmokeTests {
         #expect(MenuBarSettingsMenuOptions.displayModes == MenuBarDisplayMode.allCases)
         #expect(MenuBarSettingsMenuOptions.iconStyles == MenuBarIconStyle.allCases)
         #expect(MenuBarSettingsMenuOptions.switcherRows == SwitcherRowsOption.allCases)
-        #expect(MenuSettingsMenuOptions.weeklyProgressWorkDays == [nil, 4, 5, 7])
+        #expect(MenuSettingsMenuOptions.weeklyProgressWorkDays == [nil, 4, 5, 6, 7])
         #expect(MenuSettingsMenuOptions.weeklyProgressWorkDaysLabel(nil) == L("Automatic"))
+        #expect(MenuSettingsMenuOptions.weeklyProgressWorkDaysLabel(6) == L("%d days", 6))
         #expect(MenuSettingsMenuOptions.workdayTickAppearances == WorkdayTickAppearance.allCases)
         #expect(MenuSettingsMenuOptions.multiAccountLayouts == MultiAccountMenuLayout.allCases)
         #expect(MenuSettingsMenuOptions.usageBarsFill == UsageBarsFillOption.allCases)
@@ -119,6 +120,9 @@ struct PreferencesPaneSmokeTests {
         #expect(reloaded.workdayTickAppearance == .highContrast)
         #expect(reloaded.multiAccountMenuLayout == .stacked)
         #expect(reloaded.costSummaryDisplayStyle == .costSubmenu)
+
+        reloaded.weeklyProgressWorkDays = 6
+        #expect(Self.makeSettingsStore(suite: suite, reset: false).weeklyProgressWorkDays == 6)
     }
 
     @Test
@@ -563,6 +567,13 @@ struct PreferencesPaneSmokeTests {
             #expect(L("display_mode_reset_time_desc").contains("↻ 15:56"))
             #expect(L("vertex_ai_login_instructions").contains("\n\n1. Öffnen Sie Terminal"))
             #expect(!L("vertex_ai_login_instructions").contains("\\n"))
+        }
+    }
+
+    @Test(arguments: [("fr", "6 jours"), ("ar", "٦ أيام"), ("fa", "۶ روز"), ("ja", "6日間")])
+    func `six work days label keeps the number first`(language: String, expected: String) {
+        CodexBarLocalizationOverride.$appLanguage.withValue(language) {
+            #expect(MenuSettingsMenuOptions.weeklyProgressWorkDaysLabel(6) == expected)
         }
     }
 

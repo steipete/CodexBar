@@ -598,7 +598,7 @@ extension UsageMenuCardView.Model {
         } else if input.provider == .sub2api {
             "Weekly"
         } else {
-            input.metadata.weeklyLabel
+            presentation.rateWindowLabels(metadata: input.metadata, snapshot: snapshot, now: input.now).secondary
         }
         let tertiaryLabel = input.provider == .sub2api
             ? L("Monthly")
@@ -721,7 +721,7 @@ extension UsageMenuCardView.Model {
         guard let snapshot else { return [] }
         if let renewsAt = snapshot.subscriptionRenewsAt {
             return [String(
-                format: L("Renews: %@"),
+                format: L("Plan renews: %@"),
                 self.subscriptionDateString(
                     renewsAt,
                     provider: provider,

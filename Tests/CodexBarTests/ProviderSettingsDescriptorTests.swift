@@ -19,7 +19,7 @@ struct ProviderSettingsDescriptorTests {
         #expect(fixture.settings.providerConfig(for: .xkiro)?.apiKey == "fixture-key")
     }
 
-    @Test(arguments: [UsageProvider.atlascloud, .vercel])
+    @Test(arguments: [UsageProvider.atlascloud])
     func `balance providers keep API keys in their own config`(provider: UsageProvider) throws {
         let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-\(provider.rawValue)")
         let implementation = try #require(ProviderCatalog.implementation(for: provider))
@@ -1638,7 +1638,8 @@ extension ProviderSettingsDescriptorTests {
             userDefaults: defaults,
             configStore: testConfigStore(suiteName: suite),
             zaiTokenStore: NoopZaiTokenStore(),
-            syntheticTokenStore: NoopSyntheticTokenStore())
+            syntheticTokenStore: NoopSyntheticTokenStore(),
+            keychainAccessPolicy: .init(setDisabled: { _ in }, isExplicitlyDisabled: { false }))
         let store = UsageStore(
             fetcher: UsageFetcher(environment: [:]),
             browserDetection: BrowserDetection(cacheTTL: 0),

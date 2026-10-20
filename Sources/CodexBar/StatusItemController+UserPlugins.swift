@@ -35,10 +35,17 @@ extension StatusItemController {
         return providerIDs.contains(fallbackProviderID) ? fallbackProviderID : providerIDs.first ?? fallbackProviderID
     }
 
+    func overviewProviderIDs(enabledProviders: [UsageProvider]) -> [ProviderInstanceID] {
+        let enabled = Set(enabledProviders)
+        return self.store.enabledProvidersForDisplay().filter {
+            $0.firstPartyProvider.map(enabled.contains) ?? true
+        }
+    }
+
     func includesOverviewTab(enabledProviders: [UsageProvider]) -> Bool {
-        enabledProviders.count > 1 &&
+        self.switcherProviderIDs(enabledFirstPartyProviders: enabledProviders).count > 1 &&
             !self.settings.resolvedMergedOverviewProviders(
-                activeProviders: enabledProviders,
+                activeProviders: self.overviewProviderIDs(enabledProviders: enabledProviders),
                 maxVisibleProviders: SettingsStore.mergedOverviewProviderLimit).isEmpty
     }
 
@@ -84,9 +91,24 @@ extension StatusItemController {
             menu.addItem(.separator())
         }
         for (index, plugin) in plugins.enumerated() {
-            let snapshot = self.store.snapshots[plugin.manifest.id]
-            let error = self.store.errors[plugin.manifest.id]
-            let view = UserPluginMenuCardView(
+            menu.addItem(self.makeUserPluginMenuCardItem(plugin, width: width))
+            if index < plugins.count - 1 {
+                menu.addItem(.separator())
+            }
+        }
+        menu.addItem(.separator())
+    }
+
+    func makeUserPluginMenuCardItem(
+        _ plugin: UserProviderPlugin,
+        width: CGFloat,
+        id: String? = nil,
+        onClick: (() -> Void)? = nil) -> NSMenuItem
+    {
+        let snapshot = self.store.snapshots[plugin.manifest.id]
+        let error = self.store.errors[plugin.manifest.id]
+        return self.makeMenuCardItem(
+            UserPluginMenuCardView(
                 plugin: plugin,
                 snapshot: snapshot,
                 error: error,
@@ -98,19 +120,13 @@ extension StatusItemController {
                         for: plugin.manifest.id,
                         originatingMenuID: nil,
                         originatingMenuInteractionGeneration: nil)
-                })
-            menu.addItem(self.makeMenuCardItem(
-                view,
-                id: "pluginCard:\(plugin.manifest.id.rawValue)",
-                width: width,
-                heightCacheScope: plugin.manifest.id.rawValue,
-                heightCacheFingerprint: UserPluginMenuCardView.fingerprint(snapshot: snapshot, error: error),
-                containsInteractiveControls: true))
-            if index < plugins.count - 1 {
-                menu.addItem(.separator())
-            }
-        }
-        menu.addItem(.separator())
+                }),
+            id: id ?? "pluginCard:\(plugin.manifest.id.rawValue)",
+            width: width,
+            heightCacheScope: plugin.manifest.id.rawValue,
+            heightCacheFingerprint: UserPluginMenuCardView.fingerprint(snapshot: snapshot, error: error),
+            containsInteractiveControls: true,
+            onClick: onClick)
     }
 
     func refreshOpenMenusAfterUserPluginRefresh(_ instanceID: ProviderInstanceID) {
@@ -118,10 +134,15 @@ extension StatusItemController {
         guard self.isMenuRefreshEnabled else { return }
         let cardID = "pluginCard:\(instanceID.rawValue)"
         // Plugin cards capture snapshots, so their visible payload needs the guarded rebuild path.
-        for menu in self.openMenus.values
-            where menu.items.contains(where: { $0.representedObject as? String == cardID })
-        {
-            self.scheduleOpenMenuRebuildIfStillVisible(menu, provider: self.menuProvider(for: menu))
+        let overviewID = "\(Self.overviewRowIdentifierPrefix)\(instanceID.rawValue)"
+        for menu in self.openMenus.values {
+            (menu.items.first?.view as? ProviderSwitcherView)?.updateQuotaIndicators()
+            if menu.items.contains(where: {
+                let id = $0.representedObject as? String
+                return id == cardID || id == overviewID
+            }) {
+                self.scheduleOpenMenuRebuildIfStillVisible(menu, provider: self.menuProvider(for: menu))
+            }
         }
     }
 
@@ -143,6 +164,9 @@ extension StatusItemController {
     }
 
     func userPluginSwitcherIcon(for plugin: UserProviderPlugin) -> NSImage {
+        if let image = Self.userPluginSVGImage(plugin) {
+            return image
+        }
         let size = NSSize(width: 16, height: 16)
         let image = NSImage(size: size, flipped: false) { rect in
             let rawTint = plugin.manifest.icon.tint.dropFirst()
@@ -165,6 +189,47 @@ extension StatusItemController {
             return true
         }
         image.isTemplate = false
+        return image
+    }
+
+    /// The plugin's validated SVG as a template image, or nil when it has none or it does not decode.
+    static func userPluginSVGImage(_ plugin: UserProviderPlugin) -> NSImage? {
+        guard let svg = plugin.manifest.icon.svg,
+              let source = NSImage(data: Data(svg.utf8)),
+              source.size.width.isFinite, source.size.height.isFinite,
+              source.size.width > 0, source.size.height > 0,
+              source.size.width <= CGFloat(ProviderPluginIconSVG.maximumCanvasDimension),
+              source.size.height <= CGFloat(ProviderPluginIconSVG.maximumCanvasDimension),
+              let bitmap = NSBitmapImageRep(
+                  bitmapDataPlanes: nil,
+                  pixelsWide: 32,
+                  pixelsHigh: 32,
+                  bitsPerSample: 8,
+                  samplesPerPixel: 4,
+                  hasAlpha: true,
+                  isPlanar: false,
+                  colorSpaceName: .deviceRGB,
+                  bytesPerRow: 0,
+                  bitsPerPixel: 0),
+              let context = NSGraphicsContext(bitmapImageRep: bitmap)
+        else { return nil }
+        let scale = 32 / max(source.size.width, source.size.height)
+        guard scale.isFinite else { return nil }
+        source.size = NSSize(width: source.size.width * scale, height: source.size.height * scale)
+        let rect = NSRect(
+            x: (32 - source.size.width) / 2,
+            y: (32 - source.size.height) / 2,
+            width: source.size.width,
+            height: source.size.height)
+        NSGraphicsContext.saveGraphicsState()
+        defer { NSGraphicsContext.restoreGraphicsState() }
+        NSGraphicsContext.current = context
+        context.cgContext.clear(NSRect(x: 0, y: 0, width: 32, height: 32))
+        source.draw(in: rect)
+        bitmap.size = NSSize(width: 16, height: 16)
+        let image = NSImage(size: bitmap.size)
+        image.addRepresentation(bitmap)
+        image.isTemplate = true
         return image
     }
 }
@@ -205,11 +270,16 @@ private struct UserPluginMenuCardView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 9) {
             HStack(spacing: 8) {
-                Text(self.plugin.manifest.icon.monogram)
-                    .font(.caption.bold())
-                    .foregroundStyle(.white)
-                    .frame(width: 26, height: 26)
-                    .background(self.tint, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                Group {
+                    if let image = StatusItemController.userPluginSVGImage(self.plugin) {
+                        Image(nsImage: image).resizable().scaledToFit().padding(4)
+                    } else {
+                        Text(self.plugin.manifest.icon.monogram).font(.caption.bold())
+                    }
+                }
+                .foregroundStyle(.white)
+                .frame(width: 26, height: 26)
+                .background(self.tint, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
                 VStack(alignment: .leading, spacing: 1) {
                     Text(self.plugin.manifest.name).font(.headline)
                     Text(self.plugin.fileURL.lastPathComponent)

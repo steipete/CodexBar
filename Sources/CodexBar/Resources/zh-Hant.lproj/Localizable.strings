@@ -62,6 +62,16 @@
 "7d" = "7 天";
 "A managed Codex login is already running. Wait for it to finish before adding " = "託管 Codex 登入已在執行。請等待其完成後再新增 ";
 "API key" = "API 金鑰";
+
+/* Future AGI provider */
+"Secret key" = "密鑰";
+"Required with the API key. Saved in the local config file. Or set FI_SECRET_KEY." = "需與 API 金鑰搭配使用。儲存在本機設定檔中。也可設定 FI_SECRET_KEY。";
+"Paste secret key…" = "貼上密鑰…";
+"AI credits" = "AI 額度";
+"Gateway requests" = "閘道請求";
+"Future AGI cost history is not available." = "無法查看 Future AGI 的費用歷史。";
+"Saved in CodexBar's local config file. Or set FI_API_KEY." = "儲存在 CodexBar 的本機設定檔中。也可設定 FI_API_KEY。";
+
 "API key limit" = "API 金鑰限制";
 "API region" = "API 區域";
 "API token" = "API token";
@@ -664,6 +674,8 @@
 "overview_rows_follow_order" = "概覽列一律依提供者順序排列。";
 "overview_no_providers_selected" = "未選擇提供者";
 "agent_sessions_title" = "Agent 工作階段";
+"agent_sessions_remote_title" = "遠端工作階段（Tailscale / SSH）";
+"agent_sessions_remote_subtitle" = "探索並連線至遠端主機。關閉後僅監控此 Mac。";
 "agent_sessions_subtitle" = "在選單中顯示本機及透過 SSH 發現的 Codex 和 Claude Code 工作階段。";
 "agent_sessions_hosts_title" = "其他 SSH 主機";
 "agent_sessions_footer" = "系統會自動發現 tailnet 上的 Mac。本機工作階段每 30 秒重新整理一次；遠端主機每 60 秒以及開啟選單時重新整理。";
@@ -1461,6 +1473,7 @@
 "menu_bar_layout_size_regular" = "一般";
 "menu_bar_layout_size_large" = "大";
 "menu_bar_layout_monospaced_digits" = "等寬數字";
+"menu_bar_layout_show_window_labels" = "顯示時段標籤";
 "menu_bar_layout_gap" = "間距";
 "menu_bar_layout_gap_tight" = "緊湊";
 "menu_bar_layout_gap_regular" = "一般";
@@ -1483,6 +1496,9 @@
 "menu_bar_layout_token_runs_out" = "預計用盡";
 "menu_bar_layout_token_cost_today" = "今日費用";
 "menu_bar_layout_token_cost_window" = "費用（歷史時段）";
+"menu_bar_layout_token_spend" = "支出 %";
+"menu_bar_layout_token_spend_pace" = "支出節奏";
+"menu_bar_layout_token_spend_budget" = "支出 / 預算";
 "menu_bar_layout_token_space" = "空格";
 "menu_bar_layout_token_line_break" = "換行";
 "menu_bar_layout_token_separator_accessibility" = "分隔點";
@@ -1645,6 +1661,7 @@
 "menu_bar_layout_conditional_default_session_spent" = "工作階段即將用盡";
 "menu_bar_layout_conditional_default_either_high" = "工作階段或每週用量偏高";
 "menu_bar_layout_conditional_default_scoped_weekly" = "模型專屬每週已用超過 60%";
+"menu_bar_layout_conditional_default_spend_high" = "支出已用超過 90%";
 "Visible usage items" = "可見用量項目";
 "Restore Defaults" = "回復預設值";
 "Choose which usage rows appear in this provider's menu, Settings preview, and Overview." = "選擇要在此供應商的選單、設定預覽與概覽中顯示的用量列。";
@@ -1811,6 +1828,9 @@
 "Gateway URL" = "網關URL";
 "Gemini CLI login is no longer supported" = "Gemini CLI 不再支援登入";
 "Gemini CLI migration" = "Gemini CLI 遷移";
+"Gemini app" = "Gemini 應用程式";
+"Gemini CLI" = "Gemini CLI";
+"Gemini app limits use your browser account and are separate from Gemini CLI quotas." = "Gemini 應用程式的限額適用於你在瀏覽器中登入的帳號，與 Gemini CLI 配額相互獨立。";
 "Generated locally by CodexBar · Data through %@" = "由 CodexBar 本地生成 · 數據截至 %@";
 "GitHub cookies" = "GitHub Cookie";
 "GitHub does not publish this value. Enter it to show a usage bar. Applies to the selected GitHub account." = "GitHub 不公佈該值。輸入它以顯示使用欄。適用於選定的 GitHub 帳戶。";
@@ -1896,6 +1916,7 @@
 "Paste the Cookie header from a billing-page request. It must contain sessionid." = "粘貼帳單頁面請求中的 Cookie 請求頭，其中必須包含 sessionid。";
 "Paste z.ai / GLM API key…" = "粘貼 z.ai / GLM API 密鑰…";
 "Path to the cswap executable (github.com/realiti4/claude-swap)." = "cswap 執行檔的路徑 (github.com/realiti4/claude-swap)。";
+"Path to the tcr executable (github.com/dhkts1/teamclaude-rs)." = "tcr 執行檔的路徑 (github.com/dhkts1/teamclaude-rs)。";
 "Peak %@" = "峰值%@";
 "Plan expires: %@" = "計劃到期：%@";
 "Portable preferences" = "可遷移的偏好設置";
@@ -1922,7 +1943,7 @@
 "Refresh budgets" = "重新整理預算";
 "Refreshing account status…" = "正在刷新帳號狀態...";
 "Remaining budget compared with an ideal steady burn rate." = "比較剩餘額度與理想的均勻使用速度。";
-"Renews: %@" = "續訂時間：%@";
+"Plan renews: %@" = "方案續訂時間：%@";
 "Request quota" = "請求 配額";
 "Required. Enter a regular API key or a Management API key here. Management keys also enable account Activity on the official OpenRouter API." = "必填。在此輸入常規 API 金鑰或管理 API 金鑰。管理金鑰還可以啟用官方 OpenRouter API 上的帳號活動。";
 "Reset: %@" = "重置：%@";
@@ -1944,12 +1965,15 @@
 "Select the provider to display." = "選擇要顯示的提供者。";
 "Session (5-hour)" = "五小時配額";
 "Session and weekly usage with credits and costs." = "顯示會話及每周用量、額度和費用。";
+"Set the cswap executable path below." = "請在下方設定 cswap 執行檔的路徑。";
+"Set the tcr executable path below." = "請在下方設定 tcr 執行檔的路徑。";
 "Show account card when only one account is available" = "只有一個帳戶可用時顯示帳戶卡";
 "Show model-specific weekly usage in widgets" = "在小工具中顯示各模型的每周用量";
 "Show workspace spend" = "顯示工作空間支出";
 "Shows model-specific Claude quotas, such as Fable, in desktop widgets." = "在桌面小工具中顯示各 Claude 模型的配額，例如 Fable。";
 "Shows the hidden accounts" = "顯示隱藏帳戶";
 "Shows usage and lets you switch accounts through `cswap`. Credentials stay managed by claude-swap; CodexBar never reads them." = "顯示用量，並通過 `cswap` 切換帳戶。憑據由 claude-swap 管理，CodexBar 不會讀取。";
+"Shows usage from `tcr`; it does not switch accounts, because tcr picks the account for each request. Credentials stay managed by tcr; CodexBar never reads them." = "顯示來自 `tcr` 的用量；不會切換帳戶，因為 tcr 會為每個請求選擇帳戶。憑據由 tcr 管理，CodexBar 不會讀取。";
 "Stay Awake" = "保持喚醒";
 "Stored in the CodexBar config file. Reads monthly budget and routed usage from /v1/usage." = "儲存在 CodexBar 設定檔中。從 /v1/usage 讀取每月預算和路由使用量。";
 "Stored in ~/.codexbar/config.json. OPENAI_ADMIN_KEY is required for organization usage; legacy/user keys only get a best-effort balance fallback." = "保存在 ~/.codexbar/config.json 中。查看組織用量需要 OPENAI_ADMIN_KEY；舊版或用戶密鑰僅能嘗試獲取餘額。";
@@ -1958,6 +1982,7 @@
 "SuperGrok OAuth" = "SuperGrok OAuth";
 "Switch Account…" = "切換帳戶...";
 "Switch Claude Code account" = "切換Claude Code帳號";
+"Claude accounts in tcr" = "tcr 中的 Claude 帳戶";
 "Switch Claude Code to %@" = "將 Claude Code 切換到 %@";
 "Switch Provider" = "切換提供者";
 "Switch the provider shown in the widget." = "切換小工具中顯示的提供者。";
@@ -2037,6 +2062,7 @@
 "sk-ant-admin..." = "sk-ant-admin...";
 "sk-or-v1-..." = "sk-or-v1-...";
 "spent" = "已耗盡";
+"tcr executable" = "tcr 執行檔";
 "under pace" = "使用速度較慢";
 "us-east-1" = "us-east-1";
 "used" = "已用";
@@ -2047,6 +2073,7 @@
 "~%@ est" = "~%@ 估計";
 "~%@ tracked tokens (partial)" = "約 %@ 個已記錄 token（部分數據）";
 "~/.local/bin/cswap" = "~/.local/bin/cswap";
+"/Applications/TcrBar.app/Contents/MacOS/tcr" = "/Applications/TcrBar.app/Contents/MacOS/tcr";
 "~/Library/Application Support/JetBrains/IntelliJIdea2024.3" = "~/Library/Application Support/JetBrains/IntelliJIdea2024.3";
 "00000000-0000-0000-0000-000000000000" = "00000000-0000-0000-0000-000000000000";
 
@@ -2159,6 +2186,10 @@
 "Stored in ~/.codexbar/config.json. Create one at console.x.ai under Settings > Management Keys; inference API keys are not accepted." = "儲存在~/.codexbar/config.json中。在「設定」>「管理金鑰」下的 console.x.ai 建立一個；推斷 API 金鑰不被接受。";
 "xai-..." = "xai-...";
 "Team ID" = "團隊 ID";
+"Vercel access token" = "Vercel 存取權杖";
+"Optional. Shows your personal budget instead of team credits. Saved in CodexBar's local config file. Or set VERCEL_ACCESS_TOKEN." = "選用。顯示你的個人預算，而非團隊額度。儲存在 CodexBar 的本機設定檔中。或設定 VERCEL_ACCESS_TOKEN。";
+"Open Vercel tokens" = "開啟 Vercel 權杖";
+"Required with a Vercel access token. Or set VERCEL_TEAM_ID." = "使用 Vercel 存取權杖時必填。或設定 VERCEL_TEAM_ID。";
 "Required. Shown in the xAI Console URL and team settings." = "必填。顯示在 xAI 控制台 URL 和團隊設定中。";
 "Sakana AI cost summary is not supported." = "暫不支持 Sakana AI 費用匯總。";
 "Stored in ~/.codexbar/config.json. Copy the Sakana AI console Cookie request header." = "儲存在~/.codexbar/config.json中。複製 Sakana AI 控制台 Cookie 請求標頭。";
@@ -2490,6 +2521,8 @@
 "Pace sign" = "使用節奏符號";
 "Ahead of pace is +" = "超出節奏為 +";
 "Reserve is +" = "餘量為 +";
+"Back" = "返回";
+"Forward" = "前進";
 
 "cost_reset_inferred_tooltip" = "推斷：%@ 不提供此日期。每月支出上限會在每月 1 日 00:00 UTC 重置。";
 /* fal provider credentials */
@@ -2510,7 +2543,7 @@
 "Clear filters" = "清除篩選";
 "Change provider order" = "更改供應商順序";
 "Provider sorting" = "供應商排序";
-"Only enabled providers" = "只顯示已啟用";
+"Only show enabled providers" = "只顯示已啟用";
 "Restore default order" = "恢復預設順序";
 "Also restores the provider order in the menu bar. Can be undone." = "同時恢復選單列中的供應商順序。可以復原。";
 "Local Codex details; excluded from combined totals." = "本機 Codex 詳細資料；不計入合併總計。";
@@ -2607,3 +2640,41 @@
 "API credit" = "API 額度";
 "Purchased credit" = "已購買額度";
 "Claude Platform exposes Console credit balance and monthly spend, not local token cost history." = "Claude Platform 顯示 Console 額度餘額和每月支出，而不是本地 token 成本歷史記錄。";
+
+"Claude config directory" = "Claude 設定目錄";
+/* App-managed HTTP server */
+"http_server_title" = "HTTP 伺服器";
+"http_server_enable" = "啟用 HTTP 伺服器";
+"http_server_bind" = "綁定 IPv4 位址";
+"http_server_port" = "連接埠";
+"http_server_token" = "伺服器權杖";
+"http_server_show" = "顯示";
+"http_server_generate" = "產生";
+"http_server_cache" = "快取間隔（秒）";
+"http_server_timeout" = "要求逾時（秒；0 表示停用）";
+"http_server_all_accounts" = "在快照中包含所有帳號";
+"http_server_identity" = "儀表板身分資訊";
+"http_server_redacted" = "已遮蔽";
+"http_server_warning" = "公開用量、費用、帳號和專案資訊，但絕不公開供應商憑證。HTTP 會以未加密方式傳送伺服器權杖。請僅透過受信任的 VPN 或 Tailscale 連線使用。";
+"http_server_plain_http" = "允許此 Mac 以外的未加密 HTTP 存取";
+"http_server_dashboard" = "儀表板";
+"http_server_wildcard" = "在其他裝置上，請將 0.0.0.0 替換為此 Mac 的 VPN 或 Tailscale IPv4 位址。";
+"http_server_footer" = "預設關閉。隨 CodexBar 啟動，並在結束時停止。設定和權杖僅保存在此 Mac 上，不會同步或匯出。遠端存取時請保持 Mac 喚醒。";
+/* Claude desktop cookie source */
+"Claude desktop app" = "Claude 桌面應用程式";
+"Use Claude desktop app cookies" = "使用 Claude 桌面應用程式的 Cookie";
+"For Web usage, follow the account signed into Claude.app instead of a browser." = "查詢網頁用量時，使用 Claude.app 中登入的帳號，而非瀏覽器帳號。";
+
+/* Munito provider credentials */
+"Key with Read account data (Admin API) permission. Or set MUNITO_API_KEY." = "具備讀取帳戶資料（Admin API）權限的金鑰。或設定 MUNITO_API_KEY。";
+"Munito reports Admin API spend and limits, not local token cost history." = "Munito 回報 Admin API 的支出與上限，而非本機 token 成本歷史。";
+
+"Show all accounts in Overview" = "在總覽中顯示所有帳戶";
+
+"Expand cached account usage. The six-provider limit still applies." = "使用快取的帳戶用量展開所選供應商。仍最多顯示六個供應商。";
+"Edit" = "編輯";
+"Move up" = "上移";
+"Move down" = "下移";
+"Leave blank to keep the saved credential." = "留空以保留已儲存的憑證。";
+
+"No personal budget configured" = "尚未設定個人預算";

@@ -188,13 +188,15 @@ final class UpdateStatus {
 import Sparkle
 
 @MainActor
-final class SparkleUpdaterController: NSObject, UpdaterProviding, SPUUpdaterDelegate {
+final class SparkleUpdaterController: NSObject, UpdaterProviding, SPUUpdaterDelegate,
+    SPUStandardUserDriverDelegate
+{
     private static let presentationTimeout: Duration = .seconds(60)
 
     private lazy var controller = SPUStandardUpdaterController(
         startingUpdater: false,
         updaterDelegate: self,
-        userDriverDelegate: nil)
+        userDriverDelegate: self)
     let updateStatus = UpdateStatus()
     let unavailableReason: String? = nil
     let isAvailable = true
@@ -292,6 +294,22 @@ final class SparkleUpdaterController: NSObject, UpdaterProviding, SPUUpdaterDele
             } else {
                 self.updateStatus.isUpdateReady = false
             }
+        }
+    }
+
+    /// Scheduled alerts can appear without key, main, or occlusion notifications.
+    nonisolated func standardUserDriverWillHandleShowingUpdate(
+        _ handleShowingUpdate: Bool,
+        forUpdate _: SUAppcastItem,
+        state: SPUUserUpdateState)
+    {
+        guard handleShowingUpdate, !state.userInitiated else { return }
+        Task { @MainActor in
+            if self.dockPresentationAttemptID == nil {
+                self.dockPresentationAttemptID = DockIconController.shared.promote(
+                    presentationTimeout: Self.presentationTimeout)
+            }
+            DockIconController.shared.windowsMayHaveChanged()
         }
     }
 
@@ -456,6 +474,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             missingItemRetriesRemaining: Self.settingsMenuReadinessRetryCount,
             fallbackVerificationRetriesRemaining: Self.settingsMenuFallbackVerificationRetryCount)
         self.cloudSyncCoordinator?.start()
+        Task { await self.settings?.httpServer.startSaved() }
         Task { @MainActor [weak self] in
             await Task.yield()
             guard let settings = self?.settings else { return }
@@ -492,10 +511,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         guard !self.isWaitingForConfigPersistence else { return .terminateLater }
-        guard let save = self.settings?.persistPendingConfigForTermination() else { return .terminateNow }
+        let serverStop = self.settings?.httpServer.stopForTermination()
+        let save = self.settings?.persistPendingConfigForTermination()
+        guard save != nil || serverStop != nil else { return .terminateNow }
         self.isWaitingForConfigPersistence = true
         Task.detached {
-            await save.value
+            await save?.value
+            await serverStop?.value
             // NSApplication may be inside a modal loop entered from the main dispatch queue.
             // A MainActor task cannot reliably resume there; deliver the reply on that run loop.
             RunLoop.main.perform(inModes: [.default, .modalPanel]) {

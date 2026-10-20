@@ -1,11 +1,17 @@
 import Foundation
+#if canImport(CryptoKit)
+import CryptoKit
+#else
+import Crypto
+#endif
 
-/// Projects parsed `cswap --list --json` rows into the provider-neutral
-/// account snapshot consumed by menus. Identity uses the source-issued numeric
-/// slot (`claude-swap:<slot>`), never email or credential-derived values.
+/// Projects parsed schema-v1 list rows (`cswap --list --json`, `tcr list --json`)
+/// into the provider-neutral account snapshot consumed by menus. Identity uses the
+/// source-issued numeric slot (`claude-swap:<slot>`, `tcr:<slot>`), never email or
+/// credential-derived values.
 public enum ClaudeSwapAccountProjection {
-    public static let sourceName = "claude-swap"
-    public static let sourceLabel = "claude-swap"
+    public static let sourceName = ClaudeSwapAccountSource.claudeSwap.label
+    public static let sourceLabel = ClaudeSwapAccountSource.claudeSwap.label
     static let fiveHourWindowMinutes = 5 * 60
     static let sevenDayWindowMinutes = 7 * 24 * 60
     static let exhaustedUsedPercent = 100.0
@@ -17,6 +23,7 @@ public enum ClaudeSwapAccountProjection {
 
     public static func accountSnapshots(
         from list: ClaudeSwapAccountList,
+        source: ClaudeSwapAccountSource = .claudeSwap,
         previousAccounts: [ProviderAccountUsageSnapshot] = [],
         now: Date = Date()) -> [ProviderAccountUsageSnapshot]
     {
@@ -32,23 +39,24 @@ public enum ClaudeSwapAccountProjection {
         let duplicateEmails = self.duplicateEmails(in: ordered)
         let labels = self.displayLabels(for: ordered, duplicateEmails: duplicateEmails)
         return zip(ordered, labels).map { row, label in
-            let id = ProviderAccountIdentity(source: self.sourceName, opaqueID: String(row.number))
+            let id = ProviderAccountIdentity(source: source.label, opaqueID: String(row.number))
             let projected = self.usageSnapshot(
                 for: row,
+                source: source,
                 previous: previousByID[id],
                 now: now)
-            let snapshot = projected.snapshot
             return ProviderAccountUsageSnapshot(
                 id: id,
                 provider: .claude,
                 displayLabel: self.decoratedLabel(label, row: row),
                 accountEmail: row.email.isEmpty ? nil : row.email,
+                historyAccountKey: self.historyAccountKey(for: row, source: source),
                 isActive: row.isActive,
                 canActivate: list.supportsAccountSwitching && self.canActivate(row),
                 usesLastKnownUsage: projected.usesLastKnownUsage,
-                snapshot: snapshot,
-                error: self.errorText(for: row, usage: projected, now: now),
-                sourceLabel: self.sourceLabel)
+                snapshot: projected.snapshot,
+                error: self.errorText(for: row, source: source, usage: projected, now: now),
+                sourceLabel: source.label)
         }
     }
 
@@ -145,6 +153,7 @@ public enum ClaudeSwapAccountProjection {
 
     private static func usageSnapshot(
         for row: ClaudeSwapAccountRow,
+        source: ClaudeSwapAccountSource,
         previous: ProviderAccountUsageSnapshot?,
         now: Date) -> ProjectedUsage
     {
@@ -155,6 +164,7 @@ public enum ClaudeSwapAccountProjection {
             if let projected = self.snapshot(
                 from: row.measurement,
                 row: row,
+                source: source,
                 updatedAt: row.usageFetchedAt ?? now)
             {
                 if row.usageStatus == .ok {
@@ -162,39 +172,44 @@ public enum ClaudeSwapAccountProjection {
                 }
                 if let pruned = self.prunedAtLimitSnapshot(
                     projected,
-                    identity: projected.identity ?? self.identitySnapshot(for: row),
+                    identity: projected.identity ?? self.identitySnapshot(for: row, source: source),
                     now: now)
                 {
                     return .live(pruned)
                 }
             }
             guard row.usageStatus == .unavailable else { return .none }
-            if let reported = self.lastGoodSnapshot(for: row) {
+            if let reported = self.lastGoodSnapshot(for: row, source: source) {
                 return .lastKnown(reported)
             }
-            if let retained = self.retainedAtLimitSnapshot(previous, matching: row, now: now) {
+            if let retained = self.retainedAtLimitSnapshot(previous, matching: row, source: source, now: now) {
                 // Retaining a fallback must not make it eligible for the age-less icon.
                 return previous?.usesLastKnownUsage == true ? .lastKnown(retained) : .live(retained)
             }
             return .none
         case .tokenExpired, .reloginRequired, .apiKey, .keychainUnavailable, .noCredentials,
              .foreignCredential, .unknown:
-            guard let reported = self.lastGoodSnapshot(for: row) else { return .none }
+            guard let reported = self.lastGoodSnapshot(for: row, source: source) else { return .none }
             return .lastKnown(reported)
         }
     }
 
-    private static func lastGoodSnapshot(for row: ClaudeSwapAccountRow) -> UsageSnapshot? {
+    private static func lastGoodSnapshot(
+        for row: ClaudeSwapAccountRow,
+        source: ClaudeSwapAccountSource) -> UsageSnapshot?
+    {
         guard let lastGood = row.lastGoodUsage else { return nil }
         return self.snapshot(
             from: lastGood.measurement,
             row: row,
+            source: source,
             updatedAt: lastGood.fetchedAt)
     }
 
     private static func retainedAtLimitSnapshot(
         _ previous: ProviderAccountUsageSnapshot?,
         matching row: ClaudeSwapAccountRow,
+        source: ClaudeSwapAccountSource,
         now: Date) -> UsageSnapshot?
     {
         guard let previous, let snapshot = previous.snapshot else { return nil }
@@ -205,7 +220,7 @@ public enum ClaudeSwapAccountProjection {
         guard let previousFingerprint, let rowFingerprint, previousFingerprint == rowFingerprint else {
             return nil
         }
-        return self.prunedAtLimitSnapshot(snapshot, identity: self.identitySnapshot(for: row), now: now)
+        return self.prunedAtLimitSnapshot(snapshot, identity: self.identitySnapshot(for: row, source: source), now: now)
     }
 
     /// Drops windows whose reset is in the past so a mixed snapshot cannot keep showing
@@ -247,6 +262,7 @@ public enum ClaudeSwapAccountProjection {
     private static func snapshot(
         from measurement: ClaudeSwapUsageMeasurement,
         row: ClaudeSwapAccountRow,
+        source: ClaudeSwapAccountSource,
         updatedAt: Date) -> UsageSnapshot?
     {
         let primary = measurement.fiveHour.map { window in
@@ -280,16 +296,27 @@ public enum ClaudeSwapAccountProjection {
             extraRateWindows: scoped.isEmpty ? nil : scoped,
             providerCost: providerCost,
             updatedAt: updatedAt,
-            identity: self.identitySnapshot(for: row))
+            identity: self.identitySnapshot(for: row, source: source))
     }
 
-    private static func identitySnapshot(for row: ClaudeSwapAccountRow) -> ProviderIdentitySnapshot {
+    private static func historyAccountKey(for row: ClaudeSwapAccountRow, source: ClaudeSwapAccountSource) -> String? {
+        let email = self.normalizedEmail(row.email)
+        let organization = row.organizationUuid.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !email.isEmpty, source == .claudeSwap || !organization.isEmpty else { return nil }
+        let pair = try? JSONEncoder().encode([email, organization])
+        return pair.map { "__claude_swap__:" + SHA256.hash(data: $0).map { String(format: "%02x", $0) }.joined() }
+    }
+
+    private static func identitySnapshot(
+        for row: ClaudeSwapAccountRow,
+        source: ClaudeSwapAccountSource) -> ProviderIdentitySnapshot
+    {
         ProviderIdentitySnapshot(
             providerID: .claude,
             accountEmail: row.email.isEmpty ? nil : row.email,
             accountOrganization: nil,
-            loginMethod: self.sourceLabel,
-            accountID: "\(self.sourceName):\(row.number)")
+            loginMethod: source.label,
+            accountID: "\(source.label):\(row.number)")
     }
 
     private static func scopedRateWindows(_ windows: [ClaudeSwapScopedUsageWindow]) -> [NamedRateWindow] {
@@ -304,29 +331,35 @@ public enum ClaudeSwapAccountProjection {
         })
     }
 
-    private static func errorText(for row: ClaudeSwapAccountRow, usage: ProjectedUsage, now: Date) -> String? {
-        switch row.usageStatus {
+    private static func errorText(
+        for row: ClaudeSwapAccountRow,
+        source: ClaudeSwapAccountSource,
+        usage: ProjectedUsage,
+        now: Date) -> String?
+    {
+        let tool = source.label
+        return switch row.usageStatus {
         case .ok:
             usage.snapshot == nil ? "No usage windows reported." : nil
         case .tokenExpired:
-            "Token expired. Switch to this account in claude-swap to refresh it."
+            "Token expired. Switch to this account in \(tool) to refresh it."
         case .reloginRequired:
-            "Re-login required. Re-authenticate this account in claude-swap."
+            "Re-login required. Re-authenticate this account in \(tool)."
         case .apiKey:
             "API-key account; subscription usage is unavailable."
         case .keychainUnavailable:
-            "claude-swap could not read the active account's Keychain entry."
+            "\(tool) could not read the active account's Keychain entry."
         case .noCredentials:
             "No stored credentials for this account slot."
         case .foreignCredential:
-            "claude-swap reports the live credential belongs to a different account. " +
-                "Re-authenticate this account in claude-swap to restore its saved login."
+            "\(tool) reports the live credential belongs to a different account. " +
+                "Re-authenticate this account in \(tool) to restore its saved login."
         case .unavailable:
             usage.usesLastKnownUsage
                 ? self.unavailableUsageNote
                 : (self.atLimitNote(from: usage.snapshot, now: now) ?? self.unavailableUsageNote)
         case let .unknown(raw):
-            "Unrecognized claude-swap status: \(raw)"
+            "Unrecognized \(tool) status: \(raw)"
         }
     }
 

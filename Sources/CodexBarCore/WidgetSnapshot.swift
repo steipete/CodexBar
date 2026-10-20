@@ -29,6 +29,7 @@ public struct WidgetSnapshot: Codable, Sendable {
         public let providerCost: ProviderCostSnapshot?
         public let quotaOwnerKey: String?
         public let balanceText: String?
+        public let details: [ProviderDetailSection]?
 
         public init(
             instanceID: ProviderInstanceID,
@@ -43,7 +44,8 @@ public struct WidgetSnapshot: Codable, Sendable {
             dailyUsage: [DailyUsagePoint],
             providerCost: ProviderCostSnapshot? = nil,
             quotaOwnerKey: String? = nil,
-            balanceText: String? = nil)
+            balanceText: String? = nil,
+            details: [ProviderDetailSection]? = nil)
         {
             self.provider = instanceID
             self.updatedAt = updatedAt
@@ -58,6 +60,7 @@ public struct WidgetSnapshot: Codable, Sendable {
             self.providerCost = providerCost
             self.quotaOwnerKey = quotaOwnerKey
             self.balanceText = balanceText
+            self.details = details
         }
 
         public init(
@@ -73,7 +76,8 @@ public struct WidgetSnapshot: Codable, Sendable {
             dailyUsage: [DailyUsagePoint],
             providerCost: ProviderCostSnapshot? = nil,
             quotaOwnerKey: String? = nil,
-            balanceText: String? = nil)
+            balanceText: String? = nil,
+            details: [ProviderDetailSection]? = nil)
         {
             self.init(
                 instanceID: provider.instanceID,
@@ -88,7 +92,8 @@ public struct WidgetSnapshot: Codable, Sendable {
                 dailyUsage: dailyUsage,
                 providerCost: providerCost,
                 quotaOwnerKey: quotaOwnerKey,
-                balanceText: balanceText)
+                balanceText: balanceText,
+                details: details)
         }
     }
 
@@ -254,15 +259,11 @@ public enum WidgetSnapshotStore {
         private var value: Value?
 
         func set(_ value: Value?) {
-            self.lock.lock()
-            self.value = value
-            self.lock.unlock()
+            self.lock.withLock { self.value = value }
         }
 
         func get() -> Value? {
-            self.lock.lock()
-            defer { self.lock.unlock() }
-            return self.value
+            self.lock.withLock { self.value }
         }
     }
 

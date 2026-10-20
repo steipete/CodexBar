@@ -13,7 +13,6 @@ extension SettingsStore {
         try document.set("mergedOverviewLayout", self.mergedOverviewLayout.rawValue)
         if self.userDefaults.object(forKey: "mergedOverviewSelectedProviders") != nil {
             let active = self.orderedProviders().filter { self.providerEnablement[$0] ?? false }
-                .compactMap(\.firstPartyProvider)
             try document.set(
                 "mergedOverviewSelectedProviders",
                 self.resolvedMergedOverviewProviders(activeProviders: active)
@@ -43,9 +42,8 @@ extension SettingsStore {
             self.mergedOverviewLayout = layout
         }
         if let value: [String] = try document.value("mergedOverviewSelectedProviders") {
-            self.mergedOverviewSelectedProviders = value.compactMap(UsageProvider.init(rawValue:))
+            self.mergedOverviewSelectedProviders = value.compactMap(ProviderInstanceID.init(rawValue:))
             let active = self.orderedProviders().filter { self.providerEnablement[$0] ?? false }
-                .compactMap(\.firstPartyProvider)
             self.userDefaults.set(
                 active.map(\.rawValue).sorted(),
                 forKey: Self.mergedOverviewSelectionEditedActiveProvidersKey)

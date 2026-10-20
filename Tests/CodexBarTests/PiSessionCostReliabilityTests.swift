@@ -131,7 +131,7 @@ struct PiSessionCostReliabilityTests {
     }
 
     @Test(arguments: [false, true])
-    func `unsupported backends stay incomplete across cached reads and recover after a growing rewrite`(
+    func `unsupported backends retain unpriced tokens across cached reads and growing rewrites`(
         mixed: Bool) throws
     {
         let env = try CostUsageTestEnvironment()
@@ -142,8 +142,14 @@ struct PiSessionCostReliabilityTests {
         if mixed { rows.append(self.row(env, day, id: "supported", input: 10)) }
         let path = try env.writePiSessionFile(relativePath: "coverage.jsonl", contents: env.jsonl(rows))
         let first = try self.scan(day, options: options)
-        #expect(!first.isComplete)
-        #expect(first.report.summary?.totalTokens == (mixed ? 10 : nil))
+        #expect(first.isComplete)
+        #expect(first.report.summary?.totalTokens == (mixed ? 40 : 30))
+        #expect(first.report.data.first?.coverageCounts.unpriced == 1)
+        let unpriced = try #require(first.report.data.first?.modelBreakdowns?.first {
+            $0.modelName == "openrouter/gpt-5.4"
+        })
+        #expect(unpriced.totalTokens == 30)
+        #expect(unpriced.costUSD == nil)
         #expect(first.lastScanAt == day)
         #expect(PiSessionCostScanner.loadCachedDailyReportResult(
             provider: .pi,
@@ -152,7 +158,7 @@ struct PiSessionCostReliabilityTests {
             now: day,
             cacheRoot: env.cacheRoot,
             options: options,
-            allowEstablishedEmpty: true) == nil)
+            allowEstablishedEmpty: true)?.report.summary?.totalTokens == (mixed ? 40 : 30))
         let native = try self.scan(day, options: options, provider: .codex)
         #expect(native.isComplete)
         #expect(native.report.summary?.totalTokens == (mixed ? 10 : nil))
@@ -165,21 +171,64 @@ struct PiSessionCostReliabilityTests {
         #expect(restored.report.summary?.totalTokens == (mixed ? 47 : 37))
     }
 
+    @Test(arguments: [false, true])
+    func `malformed unsupported usage remains incomplete without poisoning native history`(undated: Bool) throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let day = try env.makeLocalNoon(year: 2026, month: 4, day: 8)
+        let options = try self.options(env)
+        let input: Any = undated ? 10 : "invalid"
+        var invalid = self.row(env, day, id: "invalid", input: input, provider: "openrouter")
+        if undated { invalid.removeValue(forKey: "timestamp") }
+        _ = try env.writePiSessionFile(relativePath: "invalid-backend.jsonl", contents: env.jsonl([
+            self.row(env, day, id: "valid", input: 10), invalid,
+        ]))
+        #expect(try !self.scan(day, options: options).isComplete)
+        let native = try self.scan(day, options: options, provider: .codex)
+        #expect(native.isComplete)
+        #expect(native.report.summary?.totalTokens == 10)
+    }
+
+    @Test
+    func `unsupported backend context cannot supply a native provider model`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let day = try env.makeLocalNoon(year: 2026, month: 4, day: 8)
+        let options = try self.options(env)
+        _ = try env.writePiSessionFile(relativePath: "context-collision.jsonl", contents: env.jsonl([
+            ["type": "model_change", "provider": "claude", "modelId": "fixture-model"],
+            [
+                "type": "message", "timestamp": env.isoString(for: day),
+                "message": ["role": "assistant", "provider": "anthropic", "usage": ["input": 10, "output": 1]],
+            ],
+        ]))
+        let native = try self.scan(day, options: options, provider: .claude)
+        #expect(!native.isComplete)
+        #expect(native.report.summary?.totalTokens == nil)
+    }
+
     @Test
     func `unsupported model change context survives an append without poisoning native partitions`() throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }
         let day = try env.makeLocalNoon(year: 2026, month: 4, day: 8)
         let options = try self.options(env)
-        let change: [String: Any] = ["type": "model_change", "provider": "google", "modelId": "gemini-2.5-pro"]
+        let change: [String: Any] = [
+            "type": "model_change", "provider": " google ", "modelId": "gemini-2.5-pro",
+        ]
         let message: [String: Any] = [
             "type": "message", "timestamp": env.isoString(for: day),
             "message": ["role": "assistant", "usage": ["input": 10, "output": 1]],
         ]
-        let file = try env.writePiSessionFile(relativePath: "context.jsonl", contents: env.jsonl([change, message]))
-        #expect(try !self.scan(day, options: options).isComplete)
+        let file = try env.writePiSessionFile(relativePath: "context.jsonl", contents: env.jsonl([change]))
+        _ = try self.scan(day, options: options)
         try self.append(env.jsonl([message]), to: file)
-        #expect(try !self.scan(day.addingTimeInterval(1), options: options).isComplete)
+        #expect(try self.scan(day, options: options).isComplete)
+        #expect(try self.scan(day, options: options).report.summary?.totalTokens == 11)
+        #expect(try self.scan(day, options: options).report.data.first?.modelsUsed == ["google/gemini-2.5-pro"])
+        try self.append(env.jsonl([message]), to: file)
+        #expect(try self.scan(day.addingTimeInterval(1), options: options).isComplete)
+        #expect(try self.scan(day, options: options).report.summary?.totalTokens == 22)
         #expect(try self.scan(day, options: options, provider: .claude).isComplete)
     }
 

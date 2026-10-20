@@ -41,6 +41,16 @@
 "7d" = "7 gün";
 "A managed Codex login is already running. Wait for it to finish before adding " = "Yönetilen bir Codex girişi zaten çalışıyor. Eklemeden önce bitmesini bekleyin ";
 "API key" = "API anahtarı";
+
+/* Future AGI provider */
+"Secret key" = "Gizli anahtar";
+"Required with the API key. Saved in the local config file. Or set FI_SECRET_KEY." = "API anahtarıyla birlikte gereklidir. Yerel yapılandırma dosyasına kaydedilir. Alternatif olarak FI_SECRET_KEY ayarlayın.";
+"Paste secret key…" = "Gizli anahtarı yapıştırın…";
+"AI credits" = "Yapay zekâ kredileri";
+"Gateway requests" = "Ağ geçidi istekleri";
+"Future AGI cost history is not available." = "Future AGI maliyet geçmişi kullanılamıyor.";
+"Saved in CodexBar's local config file. Or set FI_API_KEY." = "CodexBar’ın yerel yapılandırma dosyasına kaydedilir. Alternatif olarak FI_API_KEY ayarlayın.";
+
 "API region" = "API bölgesi";
 "API token" = "API tokenı";
 "API tokens" = "API tokenları";
@@ -671,6 +681,8 @@
 "overview_rows_follow_order" = "Genel Bakış satırları her zaman sağlayıcı sırasını takip eder.";
 "overview_no_providers_selected" = "Sağlayıcı seçilmedi";
 "agent_sessions_title" = "Ajan oturumları";
+"agent_sessions_remote_title" = "Uzak oturumlar (Tailscale / SSH)";
+"agent_sessions_remote_subtitle" = "Uzak makineleri keşfedin ve bağlanın. Yalnızca bu Mac’i izlemek için kapatın.";
 "agent_sessions_subtitle" = "Menüde yerel ve SSH ile keşfedilen Codex ve Claude Code oturumlarını göster.";
 "agent_sessions_hosts_title" = "Ek SSH sunucuları";
 "agent_sessions_footer" = "Tailnet'inizdeki Mac'ler otomatik olarak keşfedilir. Yerel oturumlar 30 saniyede bir; uzak sunucular 60 saniyede bir ve menü açıldığında yenilenir.";
@@ -1432,6 +1444,7 @@
 "menu_bar_layout_size_regular" = "Normal";
 "menu_bar_layout_size_large" = "Büyük";
 "menu_bar_layout_monospaced_digits" = "Eş aralıklı rakamlar";
+"menu_bar_layout_show_window_labels" = "Dönem etiketlerini göster";
 "menu_bar_layout_gap" = "Boşluk";
 "menu_bar_layout_gap_tight" = "Dar";
 "menu_bar_layout_gap_regular" = "Normal";
@@ -1454,6 +1467,9 @@
 "menu_bar_layout_token_runs_out" = "Biter";
 "menu_bar_layout_token_cost_today" = "Bugünkü maliyet";
 "menu_bar_layout_token_cost_window" = "Maliyet (Geçmiş penceresi)";
+"menu_bar_layout_token_spend" = "Harcama %";
+"menu_bar_layout_token_spend_pace" = "Harcama temposu";
+"menu_bar_layout_token_spend_budget" = "Harcama / bütçe";
 "menu_bar_layout_token_space" = "Boşluk";
 "menu_bar_layout_token_line_break" = "Satır sonu";
 "menu_bar_layout_token_separator_accessibility" = "Ayırıcı nokta";
@@ -1617,6 +1633,7 @@
 "menu_bar_layout_conditional_default_session_spent" = "Oturum neredeyse tükendi";
 "menu_bar_layout_conditional_default_either_high" = "Oturum veya haftalık kullanım yükseldi";
 "menu_bar_layout_conditional_default_scoped_weekly" = "Model haftasının %60'ından fazlası kullanıldı";
+"menu_bar_layout_conditional_default_spend_high" = "Harcamanın %90'ından fazlası kullanıldı";
 "Visible usage items" = "Görünür kullanım öğeleri";
 "Restore Defaults" = "Varsayılanları Geri Yükle";
 "Choose which usage rows appear in this provider's menu, Settings preview, and Overview." = "Bu sağlayıcının menüsünde, Ayarlar önizlemesinde ve Genel Bakış'ta hangi kullanım satırlarının görüneceğini seçin.";
@@ -1800,6 +1817,9 @@
 "Gateway URL" = "Ağ Geçidi URL";
 "Gemini CLI login is no longer supported" = "Gemini CLI oturum açma işlemi artık desteklenmiyor";
 "Gemini CLI migration" = "Gemini CLI geçişi";
+"Gemini app" = "Gemini uygulaması";
+"Gemini CLI" = "Gemini CLI";
+"Gemini app limits use your browser account and are separate from Gemini CLI quotas." = "Gemini uygulamasının sınırları tarayıcı hesabınız için geçerlidir ve Gemini CLI kotalarından ayrıdır.";
 "Generated locally by CodexBar · Data through %@" = "CodexBar tarafından yerel olarak oluşturulmuştur · %@ tarihine kadar veriler";
 "GitHub cookies" = "GitHub cookies";
 "GitHub does not publish this value. Enter it to show a usage bar. Applies to the selected GitHub account." = "GitHub bu değeri yayınlamaz. Kullanım çubuğunu göstermek için girin. Seçilen GitHub hesabı için geçerlidir.";
@@ -1903,6 +1923,7 @@
 "Paste the Cookie header from a billing-page request. It must contain sessionid." = "Bir fatura sayfası isteğinden Cookie başlığını yapıştırın. sessionid içermelidir.";
 "Paste z.ai / GLM API key…" = "z.ai / GLM API anahtarını yapıştırın…";
 "Path to the cswap executable (github.com/realiti4/claude-swap)." = "cswap yürütülebilir dosyasının yolu (github.com/realiti4/claude-swap).";
+"Path to the tcr executable (github.com/dhkts1/teamclaude-rs)." = "tcr yürütülebilir dosyasının yolu (github.com/dhkts1/teamclaude-rs).";
 "Peak %@" = "Zirve %@";
 "Percent left" = "Kalan yüzde";
 "Pick another Codex account before importing OpenAI cookies." = "OpenAI cookies'yi içe aktarmadan önce başka bir Codex hesabı seçin.";
@@ -1934,7 +1955,7 @@
 "Refresh the profile before refreshing OpenAI web data." = "OpenAI web verilerini yenilemeden önce profili yenileyin.";
 "Refreshing account status…" = "Hesap durumu yenileniyor…";
 "Remaining budget compared with an ideal steady burn rate." = "İdeal sabit yazma hızıyla karşılaştırıldığında kalan bütçe.";
-"Renews: %@" = "Yeniler: %@";
+"Plan renews: %@" = "Plan yenilenir: %@";
 "Request quota" = "Kota talebinde bulunun";
 "Requesting login…" = "Giriş isteniyor…";
 "Required. Enter a regular API key or a Management API key here. Management keys also enable account Activity on the official OpenRouter API." = "Gerekli. Buraya normal bir API anahtarı veya Yönetim API anahtarı girin. Yönetim anahtarları ayrıca resmi OpenRouter API'deki hesap Etkinliğini de etkinleştirir.";
@@ -1957,6 +1978,8 @@
 "Select the provider to display." = "Görüntülenecek sağlayıcıyı seçin.";
 "Session (5-hour)" = "Oturum (5 saat)";
 "Session and weekly usage with credits and costs." = "Krediler ile oturum ve haftalık kullanım ve maliyetler.";
+"Set the cswap executable path below." = "cswap yürütülebilir dosyasının yolunu aşağıda ayarlayın.";
+"Set the tcr executable path below." = "tcr yürütülebilir dosyasının yolunu aşağıda ayarlayın.";
 "Settings unavailable." = "Ayarlar kullanılamıyor.";
 "Show account card when only one account is available" = "Yalnızca bir hesap mevcut olduğunda hesap kartını göster";
 "Show model-specific weekly usage in widgets" = "Widget'larda modele özgü haftalık kullanımı göster";
@@ -1964,6 +1987,7 @@
 "Shows model-specific Claude quotas, such as Fable, in desktop widgets." = "Masaüstü widget'larında Fable gibi modele özgü Claude Kota'yi gösterir.";
 "Shows the hidden accounts" = "Gizli hesapları gösterir";
 "Shows usage and lets you switch accounts through `cswap`. Credentials stay managed by claude-swap; CodexBar never reads them." = "Kullanımı gösterir ve `cswap` aracılığıyla hesaplar arasında geçiş yapmanızı sağlar. Kimlik bilgileri claude-swap tarafından yönetilmeye devam eder; CodexBar bunları asla okumaz.";
+"Shows usage from `tcr`; it does not switch accounts, because tcr picks the account for each request. Credentials stay managed by tcr; CodexBar never reads them." = "Kullanımı `tcr` üzerinden gösterir; hesaplar arasında geçiş yapmaz, çünkü tcr her istek için hesabı kendisi seçer. Kimlik bilgileri tcr tarafından yönetilmeye devam eder; CodexBar bunları asla okumaz.";
 "Stay Awake" = "Uyanık Kal";
 "Stored in the CodexBar config file. Reads monthly budget and routed usage from /v1/usage." = "CodexBar yapılandırma dosyasında saklanır. /v1/usage'den aylık bütçeyi ve yönlendirilmiş kullanımı okur.";
 "Stored in ~/.codexbar/config.json. OPENAI_ADMIN_KEY is required for organization usage; legacy/user keys only get a best-effort balance fallback." = "~/.codexbar/config.json konumunda saklanır. OPENAI_ADMIN_KEY kurumsal kullanım için gereklidir; eski/kullanıcı anahtarları yalnızca en iyi çaba dengesine geri döner.";
@@ -1972,6 +1996,7 @@
 "SuperGrok OAuth" = "SuperGrok OAuth";
 "Switch Account…" = "Hesap Değiştir…";
 "Switch Claude Code account" = "Claude Code hesabını değiştir";
+"Claude accounts in tcr" = "tcr içindeki Claude hesapları";
 "Switch Claude Code to %@" = "Claude Code'yi %@ olarak değiştirin";
 "Switch Provider" = "Sağlayıcıyı Değiştir";
 "Switch the provider shown in the widget." = "Widget'ta gösterilen sağlayıcıyı değiştirin.";
@@ -2058,6 +2083,7 @@
 "sk-ant-admin..." = "sk-ant-admin...";
 "sk-or-v1-..." = "sk-or-v1-...";
 "spent" = "Kota tükendi";
+"tcr executable" = "tcr çalıştırılabilir";
 "under pace" = "planlanan hızın altında kullanım";
 "us-east-1" = "us-east-1";
 "used" = "kullanıldı";
@@ -2068,6 +2094,7 @@
 "~%@ est" = "~%@ tahmini";
 "~%@ tracked tokens (partial)" = "~%@ Kaydedilen tokenlar (KISMİ)";
 "~/.local/bin/cswap" = "~/.local/bin/cswap";
+"/Applications/TcrBar.app/Contents/MacOS/tcr" = "/Applications/TcrBar.app/Contents/MacOS/tcr";
 "~/Library/Application Support/JetBrains/IntelliJIdea2024.3" = "~/Library/Application Support/JetBrains/IntelliJIdea2024.3";
 "00000000-0000-0000-0000-000000000000" = "00000000-0000-0000-0000-000000000000";
 
@@ -2180,6 +2207,10 @@
 "Stored in ~/.codexbar/config.json. Create one at console.x.ai under Settings > Management Keys; inference API keys are not accepted." = "~/.codexbar/config.json konumunda saklanır. Ayarlar > Yönetim Anahtarları altında console.x.ai'de bir tane oluşturun; çıkarım API anahtarları kabul edilmez.";
 "xai-..." = "xai-...";
 "Team ID" = "Takım ID";
+"Vercel access token" = "Vercel erişim belirteci";
+"Optional. Shows your personal budget instead of team credits. Saved in CodexBar's local config file. Or set VERCEL_ACCESS_TOKEN." = "İsteğe bağlı. Ekip kredileri yerine kişisel bütçenizi gösterir. CodexBar'ın yerel yapılandırma dosyasına kaydedilir. Veya VERCEL_ACCESS_TOKEN ayarlayın.";
+"Open Vercel tokens" = "Vercel belirteçlerini aç";
+"Required with a Vercel access token. Or set VERCEL_TEAM_ID." = "Vercel erişim belirteciyle birlikte gereklidir. Veya VERCEL_TEAM_ID ayarlayın.";
 "Required. Shown in the xAI Console URL and team settings." = "Gerekli. xAI Konsolu URL ve ekip ayarlarında gösterilir.";
 "Sakana AI cost summary is not supported." = "Sakana AI maliyet özeti desteklenmiyor.";
 "Stored in ~/.codexbar/config.json. Copy the Sakana AI console Cookie request header." = "~/.codexbar/config.json konumunda saklanır. Sakana AI konsolu Cookie istek başlığını kopyalayın.";
@@ -2515,6 +2546,8 @@
 "Pace sign" = "Kullanım hızı işareti";
 "Ahead of pace is +" = "Hızın üzerinde kullanım +";
 "Reserve is +" = "Rezerv +";
+"Back" = "Geri";
+"Forward" = "İleri";
 
 "cost_reset_inferred_tooltip" = "Çıkarım: %@ bu tarihi bildirmez. Aylık harcama limitleri her ayın 1'inde 00:00 UTC'de sıfırlanır.";
 /* fal provider credentials */
@@ -2535,7 +2568,7 @@
 "Clear filters" = "Filtreleri temizle";
 "Change provider order" = "Sağlayıcı sırasını değiştir";
 "Provider sorting" = "Sağlayıcı sıralaması";
-"Only enabled providers" = "Yalnızca etkin sağlayıcılar";
+"Only show enabled providers" = "Yalnızca etkin sağlayıcıları göster";
 "Restore default order" = "Varsayılan sırayı geri yükle";
 "Also restores the provider order in the menu bar. Can be undone." = "Menü çubuğundaki sağlayıcı sırasını da geri yükler. Geri alınabilir.";
 "Local Codex details; excluded from combined totals." = "Yerel Codex ayrıntıları; birleşik toplamlara dahil edilmez.";
@@ -2632,3 +2665,41 @@
 "API credit" = "API kredisi";
 "Purchased credit" = "Satın alınan kredi";
 "Claude Platform exposes Console credit balance and monthly spend, not local token cost history." = "Claude Platform, yerel token maliyet geçmişini değil, Console kredi bakiyesini ve aylık harcamayı gösterir.";
+
+"Claude config directory" = "Claude yapılandırma dizini";
+/* App-managed HTTP server */
+"http_server_title" = "HTTP sunucusu";
+"http_server_enable" = "HTTP sunucusunu etkinleştir";
+"http_server_bind" = "Bağlanılacak IPv4 adresi";
+"http_server_port" = "Bağlantı noktası";
+"http_server_token" = "Sunucu belirteci";
+"http_server_show" = "Göster";
+"http_server_generate" = "Oluştur";
+"http_server_cache" = "Önbellek aralığı (saniye)";
+"http_server_timeout" = "İstek zaman aşımı (saniye; 0 devre dışı bırakır)";
+"http_server_all_accounts" = "Anlık görüntülere tüm hesapları dahil et";
+"http_server_identity" = "Panodaki kimlik";
+"http_server_redacted" = "Gizlenmiş";
+"http_server_warning" = "Kullanım, maliyet, hesap ve proje bilgilerini paylaşır; sağlayıcı kimlik bilgilerini asla paylaşmaz. HTTP sunucu belirtecini şifrelemeden gönderir. Yalnızca güvenilir bir VPN veya Tailscale bağlantısı kullanın.";
+"http_server_plain_http" = "Bu Mac dışında şifrelenmemiş HTTP’ye izin ver";
+"http_server_dashboard" = "Pano";
+"http_server_wildcard" = "Diğer cihazlarda 0.0.0.0 yerine bu Mac’in VPN veya Tailscale IPv4 adresini kullanın.";
+"http_server_footer" = "Varsayılan olarak kapalıdır. CodexBar ile başlar ve kapatıldığında durur. Ayarlar ve belirteç bu Mac’te kalır; eşitleme ve dışa aktarmaya dahil edilmez. Uzaktan erişim için Mac’i uyanık tutun.";
+/* Claude desktop cookie source */
+"Claude desktop app" = "Claude masaüstü uygulaması";
+"Use Claude desktop app cookies" = "Claude masaüstü uygulamasının çerezlerini kullan";
+"For Web usage, follow the account signed into Claude.app instead of a browser." = "Web kullanımı için tarayıcı hesabı yerine Claude.app içinde oturum açılan hesabı kullan.";
+
+/* Munito provider credentials */
+"Key with Read account data (Admin API) permission. Or set MUNITO_API_KEY." = "Hesap verilerini okuma (Admin API) iznine sahip anahtar. Ya da MUNITO_API_KEY ayarlayın.";
+"Munito reports Admin API spend and limits, not local token cost history." = "Munito, Admin API harcamalarını ve limitlerini raporlar; yerel token maliyet geçmişini raporlamaz.";
+
+"Show all accounts in Overview" = "Genel bakışta tüm hesapları göster";
+
+"Expand cached account usage. The six-provider limit still applies." = "Önbellekteki hesap kullanımını kullanarak seçili sağlayıcıları genişletir. Altı sağlayıcı sınırı geçerli kalır.";
+"Edit" = "Düzenle";
+"Move up" = "Yukarı taşı";
+"Move down" = "Aşağı taşı";
+"Leave blank to keep the saved credential." = "Kayıtlı kimlik bilgisini korumak için boş bırakın.";
+
+"No personal budget configured" = "Kişisel bütçe yapılandırılmadı";

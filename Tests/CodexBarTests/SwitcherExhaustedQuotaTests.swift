@@ -154,7 +154,7 @@ struct SwitcherExhaustedQuotaTests {
             weeklyRemainingProvider: { provider in
                 provider == .opencodego
                     ? StatusItemController.switcherWeeklyMetricPercent(
-                        for: provider,
+                        for: .opencodego,
                         snapshot: snapshot(),
                         showUsed: false)
                     : 60

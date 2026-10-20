@@ -57,7 +57,7 @@ extension StatusItemController {
             // the reset itself, whichever comes first; the next icon update schedules any later boundary.
             delays.append(delay)
         }
-        delays += self.menuBarWeeklyPaceRefreshDelays(providers: providers, now: now)
+        delays += self.menuBarPaceRefreshDelays(providers: providers, now: now)
 
         if self.menuBarObservesCodexReset(providers: providers) {
             let projection = self.store.codexConsumerProjection(surface: .menuBar, now: now)
@@ -120,7 +120,7 @@ extension StatusItemController {
     /// Wake at `resetsAt - threshold` for every placed reset-countdown predicate. Nothing else in the
     /// layout changes at that instant, so without this the branch would only flip on the next unrelated
     /// refresh. Run-out predicates are deliberately excluded: their estimate drifts with usage rather
-    /// than crossing a fixed instant, and `menuBarWeeklyPaceRefreshDelays` already covers that lane.
+    /// than crossing a fixed instant, and `menuBarPaceRefreshDelays` already covers that lane.
     private func menuBarConditionalResetDelays(
         provider: UsageProvider,
         resolution: MenuBarLayoutResolution,
@@ -142,6 +142,7 @@ extension StatusItemController {
             case .weeklyResetsIn: windows.weekly
             case .scopedWeeklyResetsIn: scopedWeekly
             case .automaticResetsIn: windows.automatic
+            case .spendResetsIn: windows.spend
             default: nil
             }
             guard let resetsAt = window?.resetsAt else { return nil }
@@ -157,7 +158,7 @@ extension StatusItemController {
             return [stackedProviders.top, stackedProviders.bottom]
         }
         if self.shouldMergeIcons {
-            return [self.primaryProviderForUnifiedIcon()]
+            return [self.primaryProviderForUnifiedIcon()].compactMap(\.firstPartyProvider)
         }
         return UsageProvider.allCases.filter(self.isVisible)
     }
@@ -173,7 +174,7 @@ extension StatusItemController {
         }
         let activeProviders = self.store.enabledFirstPartyProvidersForDisplay()
         return self.settings.resolvedMergedOverviewProviders(
-            activeProviders: activeProviders,
+            activeProviders: self.overviewProviderIDs(enabledProviders: activeProviders),
             maxVisibleProviders: SettingsStore.mergedOverviewProviderLimit).contains(.codex)
     }
 
@@ -188,39 +189,35 @@ extension StatusItemController {
             boundary.timeIntervalSince(now) + self.menuBarCountdownRefreshEpsilon)
     }
 
-    private func menuBarWeeklyPaceRefreshDelays(
+    private func menuBarPaceRefreshDelays(
         providers: [UsageProvider],
         now: Date)
         -> [TimeInterval]
     {
-        providers.compactMap { provider in
+        providers.flatMap { provider -> [TimeInterval] in
             let resolution = self.renderedMenuBarLayoutResolution(for: provider)
             guard !resolution.usesLegacyRendering,
                   self.settings.menuBarIconStyle == .iconAndPercent
-            else { return nil }
-            let showsWeeklyPace = resolution.layout
-                .flattenedTokens(conditionals: self.settings.menuBarLayoutConditionals)
-                .contains(where: {
-                    if case .pace(window: .weekly) = $0 { return true }
-                    return false
-                })
-                // A predicate reads the same pace value with no token to detect, so it needs the same
-                // eligibility wake-up.
-                || self.referencedConditionalMetrics(resolution: resolution).contains(.weeklyPace)
-            guard showsWeeklyPace else { return nil }
+            else { return [] }
+            let tokens = resolution.layout.flattenedTokens(conditionals: self.settings.menuBarLayoutConditionals)
+            // A predicate reads the same pace value with no token to detect, so it needs the same
+            // eligibility wake-up.
+            let metrics = self.referencedConditionalMetrics(resolution: resolution)
+            let paced: [(PercentWindow, MenuBarConditionalMetric)] = [(.weekly, .weeklyPace), (.spend, .spendPace)]
+                .filter { tokens.contains(.pace(window: $0)) || metrics.contains($1) }
+            guard !paced.isEmpty else { return [] }
             let snapshot = self.store.menuBarSnapshot(for: provider.instanceID)
-            guard let window = self.store.menuBarLayoutWindows(
-                provider: provider,
-                snapshot: snapshot,
-                now: now).weekly
-            else { return nil }
-            let elapsedWindow = self.store.paceWindowForElapsedEligibility(provider: provider, window: window)
-            return Self.menuBarPaceRefreshDelay(window: elapsedWindow, now: now)
+            let windows = self.store.menuBarLayoutWindows(provider: provider, snapshot: snapshot, now: now)
+            return paced.compactMap { percentWindow, _ in
+                guard let window = percentWindow == .spend ? windows.spend : windows.weekly else { return nil }
+                let elapsedWindow = self.store.paceWindowForElapsedEligibility(provider: provider, window: window)
+                return Self.menuBarPaceRefreshDelay(window: elapsedWindow, now: now)
+            }
         }
     }
 
     /// A pace or run-out predicate compares a clock-derived value, so it needs a tick even when no token
-    /// does. `menuBarWeeklyPaceRefreshDelays` only wakes on the one-shot pace-eligibility boundary, so a
+    /// does. `menuBarPaceRefreshDelays` only wakes on the one-shot pace-eligibility boundary, so a
     /// predicate-only layout would otherwise keep the branch that was true when the value last moved.
     ///
     /// Both numbers are pre-rounded to the granularity the menu bar shows — whole percentage points and

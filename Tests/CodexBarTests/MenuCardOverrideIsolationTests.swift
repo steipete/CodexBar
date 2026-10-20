@@ -7,6 +7,36 @@ import Testing
 @MainActor
 struct MenuCardOverrideIsolationTests {
     @Test
+    func `only the active mapped Claude token card receives local costs`() {
+        let store = self.makeStore()
+        store.settings.costUsageEnabled = true
+        store.settings.addTokenAccount(
+            provider: .claude,
+            label: "Personal",
+            token: "fixture-personal",
+            claudeConfigDirectory: "/fixtures/claude-personal")
+        store.settings.addTokenAccount(provider: .claude, label: "Work", token: "fixture-work")
+        let accounts = store.settings.tokenAccounts(for: .claude)
+        store.settings.setActiveTokenAccountIndex(0, for: .claude)
+        store._setTokenSnapshotForTesting(CostUsageTokenSnapshot(
+            sessionTokens: 123,
+            sessionCostUSD: 0.12,
+            last30DaysTokens: 456,
+            last30DaysCostUSD: 1.23,
+            daily: [],
+            updatedAt: Date()), provider: .claude)
+        for (index, account) in accounts.enumerated() {
+            let model = store.menuCardModel(
+                for: .claude, context: .account(.init(tokenAccountID: account.id)))
+            #expect((model.tokenUsage != nil) == (index == 0))
+        }
+        store.settings.setActiveTokenAccountIndex(1, for: .claude)
+        let formerOwner = store.menuCardModel(
+            for: .claude, context: .account(.init(tokenAccountID: accounts[0].id)))
+        #expect(formerOwner.tokenUsage == nil)
+    }
+
+    @Test
     func `explicit selected token account adopts legacy unscoped history`() throws {
         let store = self.makeStore()
         store.settings.addTokenAccount(provider: .claude, label: "Alice", token: "fixture")
@@ -122,16 +152,7 @@ struct MenuCardOverrideIsolationTests {
                 accountEmail: "bob@example.com",
                 accountOrganization: nil,
                 loginMethod: "max"))
-        let controller = StatusItemController(
-            store: store,
-            settings: store.settings,
-            account: AccountInfo(email: nil, plan: nil),
-            updater: DisabledUpdaterController(),
-            preferencesSelection: PreferencesSelection(),
-            statusBar: .system)
-        defer { controller.releaseStatusItemsForTesting() }
-
-        let model = try #require(controller.tokenAccountMenuCardModel(
+        let model = try #require(store.tokenAccountMenuCardModel(
             for: .claude,
             accountSnapshot: TokenAccountUsageSnapshot(
                 account: bob,
@@ -149,14 +170,6 @@ struct MenuCardOverrideIsolationTests {
     @Test
     func `failed stacked token account card keeps its configured label`() throws {
         let store = self.makeStore()
-        let controller = StatusItemController(
-            store: store,
-            settings: store.settings,
-            account: AccountInfo(email: nil, plan: nil),
-            updater: DisabledUpdaterController(),
-            preferencesSelection: PreferencesSelection(),
-            statusBar: .system)
-        defer { controller.releaseStatusItemsForTesting() }
         let account = ProviderTokenAccount(
             id: UUID(),
             label: "Rejected group",
@@ -170,7 +183,7 @@ struct MenuCardOverrideIsolationTests {
             sourceLabel: nil,
             cacheKey: "fixture-cache")
 
-        let model = try #require(controller.tokenAccountMenuCardModel(
+        let model = try #require(store.tokenAccountMenuCardModel(
             for: .sub2api,
             accountSnapshot: accountSnapshot))
 
@@ -181,14 +194,6 @@ struct MenuCardOverrideIsolationTests {
     @Test
     func `successful stacked token account card prefers fetched identity over configured label`() throws {
         let store = self.makeStore()
-        let controller = StatusItemController(
-            store: store,
-            settings: store.settings,
-            account: AccountInfo(email: nil, plan: nil),
-            updater: DisabledUpdaterController(),
-            preferencesSelection: PreferencesSelection(),
-            statusBar: .system)
-        defer { controller.releaseStatusItemsForTesting() }
         let account = ProviderTokenAccount(
             id: UUID(),
             label: "Configured group",
@@ -211,7 +216,7 @@ struct MenuCardOverrideIsolationTests {
             sourceLabel: "api",
             cacheKey: "fixture-cache")
 
-        let model = try #require(controller.tokenAccountMenuCardModel(
+        let model = try #require(store.tokenAccountMenuCardModel(
             for: .sub2api,
             accountSnapshot: accountSnapshot))
 

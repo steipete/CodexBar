@@ -47,6 +47,7 @@ struct LocalizationLanguageCatalogTests {
             "merged_icon_source_highest_usage",
             "merged_icon_source_subtitle",
             "merged_icon_source_title",
+            "menu_bar_layout_show_window_labels",
             "spend_performance_cache_help",
             "spend_performance_cached_input",
             "spend_performance_coverage",
@@ -730,6 +731,7 @@ struct LocalizationLanguageCatalogTests {
 
         // Brands, protocol examples, pure format strings and accepted Italian cognates.
         let intentionallyUnchanged: Set = [
+            "/Applications/TcrBar.app/Contents/MacOS/tcr",
             "<1%% %@",
             "%.0f%% %@",
             "%@ %@",
@@ -751,7 +753,9 @@ struct LocalizationLanguageCatalogTests {
             "Flash",
             "Flash Lite",
             "Gateway URL",
+            "Gemini CLI",
             "Gemini Flash",
+            "Gemini app",
             "GitHub",
             "GitHub cookies",
             "Google OAuth",
@@ -791,6 +795,7 @@ struct LocalizationLanguageCatalogTests {
             "gsk_...",
             "hooks_executable_placeholder",
             "hooks_threshold_placeholder",
+            "http_server_dashboard",
             "https://api.aixy-gateway.com",
             "https://bifrost.example.com",
             "https://litellm.example.com",
@@ -974,6 +979,22 @@ extension LocalizationLanguageCatalogTests {
 }
 
 extension LocalizationLanguageCatalogTests {
+    @Test
+    func `Gemini app quota guidance is translated in every catalog`() throws {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent()
+        let resources = root.appendingPathComponent("Sources/CodexBar/Resources")
+        let key = "Gemini app limits use your browser account and are separate from Gemini CLI quotas."
+        for language in AppLanguage.allCases where language != .system && language != .english {
+            let url = resources.appendingPathComponent("\(language.rawValue).lproj/Localizable.strings")
+            let catalog = try #require(NSDictionary(contentsOf: url) as? [String: String])
+            let phrase = try #require(catalog[key], "Missing \(language.rawValue): \(key)")
+            #expect(!phrase.isEmpty)
+            #expect(phrase != key, "Untranslated \(language.rawValue): \(key)")
+            #expect(catalog["Gemini CLI"] == "Gemini CLI")
+        }
+    }
+
     @Test
     func `credential expiry settings and alerts are translated in every language`() throws {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent()

@@ -8,6 +8,7 @@ public enum GeminiProviderDescriptor {
             id: .gemini,
             menuBarMetrics: ProviderMenuBarMetricCapabilities(
                 supported: [.automatic, .primary, .secondary, .average]),
+            settingsSection: .init(GeminiProviderSettingsKey.self, cookieSettings: CookieProviderSettings.self),
             metadata: ProviderMetadata(
                 id: .gemini,
                 displayName: "Gemini",
@@ -28,6 +29,7 @@ public enum GeminiProviderDescriptor {
                 ],
                 debugLogUnavailableMessage: "Gemini debug log not yet implemented",
                 debugPane: ProviderDebugPaneCapabilities(errorSimulationOrder: 2),
+                browserCookieOrder: ProviderBrowserCookieDefaults.defaultImportOrder,
                 dashboardURL: "https://gemini.google.com",
                 changelogURL: "https://github.com/google-gemini/gemini-cli/releases",
                 statusPageURL: nil,
@@ -47,6 +49,14 @@ public enum GeminiProviderDescriptor {
                 supportsTokenCost: false,
                 noDataMessage: { "Gemini cost summary is not supported." }),
             presentation: ProviderUsagePresentation(
+                rateWindowLabeler: { metadata, snapshot, _ in
+                    let isWeb = snapshot.primary?.windowMinutes == 300 || snapshot.secondary?.windowMinutes == 10080
+                    return ProviderRateWindowLabels(
+                        primary: isWeb ? "5-hour" : metadata.sessionLabel,
+                        secondary: isWeb ? "Weekly" : metadata.weeklyLabel,
+                        tertiary: metadata.opusLabel ?? "",
+                        showsTertiary: !isWeb && metadata.supportsOpus)
+                },
                 identityPresenter: { provider, snapshot in
                     guard let plan = snapshot.loginMethod(for: provider), !plan.isEmpty else {
                         return ProviderIdentityPresentation(badge: nil, plan: nil)
@@ -54,15 +64,42 @@ public enum GeminiProviderDescriptor {
                     let display = UsageFormatter.cleanPlanName(plan)
                     return ProviderIdentityPresentation(badge: display, plan: display)
                 },
-                iconDecorations: [.gemini]),
+                iconDecorations: [.gemini],
+                menuBarWindowResolver: { context in
+                    guard context.metric == .automatic else { return .unhandled }
+                    let snapshot = context.snapshot
+                    return .resolved(
+                        ProviderUsagePresentation.exhausted(snapshot.primary, snapshot.secondary, snapshot.tertiary)
+                            ?? snapshot.primary ?? snapshot.secondary ?? snapshot.tertiary)
+                }),
             fetchPlan: ProviderFetchPlan(
-                sourceModes: [.auto, .api],
-                pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [GeminiStatusFetchStrategy()] })),
+                sourceModes: [.auto, .api, .web],
+                pipeline: ProviderFetchPipeline(resolveStrategies: { context in
+                    // App quotas belong to a browser account; never silently substitute them for CLI quotas.
+                    guard context.sourceMode == .web else { return [GeminiStatusFetchStrategy()] }
+                    return [ScriptFetchStrategy(
+                        id: "gemini.web",
+                        provider: .gemini,
+                        bundledPlugin: "gemini-web",
+                        sourceLabel: "Gemini app",
+                        kind: .web,
+                        timeout: context.webTimeout,
+                        resolveValues: { _ in .init() },
+                        isEnabled: { _ in true })]
+                })),
             cli: ProviderCLIConfig(
                 name: "gemini",
                 binaryLocator: { BinaryLocator.resolveGeminiBinary(env: $0) },
-                versionDetector: { _ in ProviderVersionDetector.geminiVersion() }))
+                versionDetector: { _ in ProviderVersionDetector.geminiVersion() },
+                browserSupportExemption: { source, _, settings in
+                    source == .web && settings?[GeminiProviderSettingsKey.self]?.cookieSource == .manual
+                }))
     }
+}
+
+public enum GeminiProviderSettingsKey: ProviderSettingsSectionKey {
+    public static let providerID = ProviderInstanceID.gemini
+    public typealias Section = CookieProviderSettings
 }
 
 struct GeminiStatusFetchStrategy: ProviderFetchStrategy {

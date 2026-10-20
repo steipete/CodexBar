@@ -365,7 +365,7 @@ extension KiroStatusProbeTests {
             fi
             if [ "$1" = "chat" ] && [ "$3" = "/usage" ]; then
               if [ ! -t 1 ]; then
-                (trap '' TERM; while true; do sleep 1; done) &
+                (trap '' TERM; \(KiroProcessTestSupport.shellOwnerBoundedHold())) &
                 child=$!
                 printf '%s\n' "$child" > '\(childPIDFile.path)'
                 printf 'Plan: loading...\n'

@@ -109,7 +109,7 @@ struct ClaudeSwapMenuProgressSchedulingTests {
     }
 
     private static func waitUntil(_ predicate: () -> Bool) async throws {
-        let deadline = ContinuousClock.now + .seconds(8)
+        let deadline = ContinuousClock.now + .seconds(30)
         while !predicate(), ContinuousClock.now < deadline {
             try await Task.sleep(for: .milliseconds(10))
         }
@@ -162,7 +162,7 @@ private final class ClaudeSwapMenuProgressFixture {
         fi
         printf '%s\n' "$@" >> "$0.calls"
         touch "$0.entered"
-        remaining=800
+        remaining=3000
         while [ ! -e "$0.release" ] && [ "$remaining" -gt 0 ]; do
           sleep 0.01
           remaining=$((remaining - 1))

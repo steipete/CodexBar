@@ -109,9 +109,10 @@ public enum ZaiProviderDescriptor {
                 automaticSelectionPrioritizesExhaustedWindow: false,
                 menuBarWindowResolver: { context in
                     guard context.metric == .automatic else { return .unhandled }
-                    return .resolved(ProviderUsagePresentation.mostConstrained(
+                    return .automaticCandidates([
                         context.snapshot.primary,
-                        context.snapshot.secondary))
+                        context.snapshot.secondary,
+                    ].compactMap(\.self))
                 },
                 primaryBindingQuotaLanes: [.secondary],
                 optionalDetails: ProviderOptionalDetailsPresentation(

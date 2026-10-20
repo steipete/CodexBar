@@ -33,10 +33,10 @@ struct CostUsageScannerClaudeCacheUpgradeTests {
         let model = try #require(fresh.data.first?.modelsUsed?.first)
         let cacheURL = CostUsageClaudeCacheIO.cacheFileURL(provider: provider, cacheRoot: env.cacheRoot)
         let memoURL = CostUsageClaudeReportMemo.reportMemoFileURL(cacheFileURL: cacheURL)
-        var memo = try JSONDecoder().decode(PersistedReportMemo.self, from: Data(contentsOf: memoURL))
+        var memo = try self.readMemo(at: memoURL)
         let initialMemoKey = memo.reportKey
         let initialInventory = memo.sourceInventory
-        let legacyCache = try self.seedLegacyCache(at: cacheURL, day: day)
+        let legacyCache = try self.seedLegacyCache(provider: provider, cacheRoot: env.cacheRoot, day: day)
         let path = try #require(legacyCache.usage.files.keys.first)
         let legacyCacheStamp = try #require(CostUsageClaudeFileStamp.read(at: cacheURL))
         memo.reportKey = self.replacingCacheStamp(in: initialMemoKey, with: legacyCacheStamp)
@@ -52,7 +52,7 @@ struct CostUsageScannerClaudeCacheUpgradeTests {
 
         memo.reportSemanticsVersion = 1
         try JSONEncoder().encode(memo).write(to: memoURL)
-        let seededMemo = try JSONDecoder().decode(PersistedReportMemo.self, from: Data(contentsOf: memoURL))
+        let seededMemo = try self.readMemo(at: memoURL)
         #expect(seededMemo.version == 1)
         #expect(seededMemo.reportSemanticsVersion == 1)
         #expect(seededMemo.reportKey == memo.reportKey)
@@ -78,8 +78,8 @@ struct CostUsageScannerClaudeCacheUpgradeTests {
         #expect(work.incrementalTranscriptParses == 0)
         #expect(work.cacheEncodes == 1)
 
-        let savedCache = try JSONDecoder().decode(CostUsageClaudeCache.self, from: Data(contentsOf: cacheURL))
-        let savedMemo = try JSONDecoder().decode(PersistedReportMemo.self, from: Data(contentsOf: memoURL))
+        let savedCache = CostUsageClaudeCacheIO.load(provider: provider, cacheRoot: env.cacheRoot)
+        let savedMemo = try self.readMemo(at: memoURL)
         #expect(savedCache.usage.version == 4)
         #expect(savedCache.usage.files.count == 1)
         #expect(savedCache.usage.files[path]?.claudeRows?.map(\.output) == [19])
@@ -141,7 +141,7 @@ struct CostUsageScannerClaudeCacheUpgradeTests {
         let dayKey = try #require(fresh.data.first?.date)
         let cacheURL = CostUsageClaudeCacheIO.cacheFileURL(provider: .claude, cacheRoot: env.cacheRoot)
         let memoURL = CostUsageClaudeReportMemo.reportMemoFileURL(cacheFileURL: cacheURL)
-        var cache = try JSONDecoder().decode(CostUsageClaudeCache.self, from: Data(contentsOf: cacheURL))
+        var cache = CostUsageClaudeCacheIO.load(provider: .claude, cacheRoot: env.cacheRoot)
         let path = try #require(cache.usage.files.keys.first)
         let row = try #require(cache.usage.files[path]?.claudeRows?.first)
         cache.usage.files[path]?.claudeRows = [CostUsageScanner.ClaudeUsageRow(
@@ -164,7 +164,7 @@ struct CostUsageScannerClaudeCacheUpgradeTests {
         #expect(cache.usage.version == 4)
         try JSONEncoder().encode(cache).write(to: cacheURL)
         let cacheStamp = try #require(CostUsageClaudeFileStamp.read(at: cacheURL))
-        var memo = try JSONDecoder().decode(PersistedReportMemo.self, from: Data(contentsOf: memoURL))
+        var memo = try self.readMemo(at: memoURL)
         memo.reportKey = self.replacingCacheStamp(in: memo.reportKey, with: cacheStamp)
         memo.report = CostUsageDailyReport(
             data: [CostUsageDailyReport.Entry(
@@ -206,7 +206,7 @@ struct CostUsageScannerClaudeCacheUpgradeTests {
         #expect(CostUsageClaudeFileStamp.read(at: cacheURL) == cacheStamp)
         #expect(CostUsageClaudeFileStamp.read(at: source) == sourceStamp)
         #expect(try Data(contentsOf: source) == sourceData)
-        let savedMemo = try JSONDecoder().decode(PersistedReportMemo.self, from: Data(contentsOf: memoURL))
+        let savedMemo = try self.readMemo(at: memoURL)
         #expect(savedMemo.reportSemanticsVersion == CostUsageClaudeReportMemo.reportSemanticsVersion)
         CostUsageScanner.evictClaudeReportMemoForTesting(provider: .claude, cacheRoot: env.cacheRoot)
         let (restarted, restartWork) = self.recordedLoad(provider: .claude, day: day, options: options)
@@ -249,7 +249,7 @@ struct CostUsageScannerClaudeCacheUpgradeTests {
         #expect(fresh.summary?.totalCostUSD == nil)
         let cacheURL = CostUsageClaudeCacheIO.cacheFileURL(provider: .claude, cacheRoot: env.cacheRoot)
         let memoURL = CostUsageClaudeReportMemo.reportMemoFileURL(cacheFileURL: cacheURL)
-        var cache = try JSONDecoder().decode(CostUsageClaudeCache.self, from: Data(contentsOf: cacheURL))
+        var cache = CostUsageClaudeCacheIO.load(provider: .claude, cacheRoot: env.cacheRoot)
         let path = try #require(cache.usage.files.keys.first)
         let row = try #require(cache.usage.files[path]?.claudeRows?.first)
         cache.usage.version = 2
@@ -273,7 +273,7 @@ struct CostUsageScannerClaudeCacheUpgradeTests {
         let legacyData = try JSONEncoder().encode(cache)
         #expect(try #require(String(data: legacyData, encoding: .utf8)).contains("isIncomplete") == false)
         try legacyData.write(to: cacheURL)
-        var memo = try JSONDecoder().decode(PersistedReportMemo.self, from: Data(contentsOf: memoURL))
+        var memo = try self.readMemo(at: memoURL)
         memo.reportKey = try self.replacingCacheStamp(
             in: memo.reportKey,
             with: #require(CostUsageClaudeFileStamp.read(at: cacheURL)))
@@ -304,10 +304,10 @@ struct CostUsageScannerClaudeCacheUpgradeTests {
         #expect(work.cacheDecodes == 1)
         #expect(work.transcriptParses == 1)
         #expect(work.cacheEncodes == 1)
-        let savedCache = try JSONDecoder().decode(CostUsageClaudeCache.self, from: Data(contentsOf: cacheURL))
+        let savedCache = CostUsageClaudeCacheIO.load(provider: .claude, cacheRoot: env.cacheRoot)
         #expect(savedCache.usage.version == 4)
         #expect(savedCache.usage.files[path]?.claudeRows?.first?.isIncomplete == true)
-        let savedMemo = try JSONDecoder().decode(PersistedReportMemo.self, from: Data(contentsOf: memoURL))
+        let savedMemo = try self.readMemo(at: memoURL)
         #expect(savedMemo.reportSemanticsVersion == CostUsageClaudeReportMemo.reportSemanticsVersion)
         CostUsageScanner.evictClaudeReportMemoForTesting(provider: .claude, cacheRoot: env.cacheRoot)
         let (restarted, restartWork) = self.recordedLoad(provider: .claude, day: day, options: options)
@@ -325,8 +325,14 @@ struct CostUsageScannerClaudeCacheUpgradeTests {
         var report: CostUsageDailyReport
     }
 
-    private func seedLegacyCache(at cacheURL: URL, day: Date) throws -> CostUsageClaudeCache {
-        var cache = try JSONDecoder().decode(CostUsageClaudeCache.self, from: Data(contentsOf: cacheURL))
+    private func readMemo(at url: URL) throws -> PersistedReportMemo {
+        let data = try JSONSerialization.data(withJSONObject: claudeMemoObjectForTesting(at: url))
+        return try JSONDecoder().decode(PersistedReportMemo.self, from: data)
+    }
+
+    private func seedLegacyCache(provider: UsageProvider, cacheRoot: URL, day: Date) throws -> CostUsageClaudeCache {
+        let cacheURL = CostUsageClaudeCacheIO.cacheFileURL(provider: provider, cacheRoot: cacheRoot)
+        var cache = CostUsageClaudeCacheIO.load(provider: provider, cacheRoot: cacheRoot)
         let path = try #require(cache.usage.files.keys.first)
         let finalRow = try #require(cache.usage.files[path]?.claudeRows?.first)
         let rows = [7, 19, 19].map { output in

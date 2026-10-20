@@ -297,7 +297,7 @@ struct SpawnedProcessGroupTests {
                 sys.executable,
                 "-c",
                 "import os,signal,sys; signal.signal(signal.SIGTERM, signal.SIG_IGN); "
-                "open(sys.argv[1], 'w').write(str(os.getpid())); signal.pause()",
+                "open(sys.argv[1], 'w').write(str(os.getpid())); \(KiroProcessTestSupport.pythonOwnerBoundedHold())",
                 sys.argv[1],
             ],
             start_new_session=True,
@@ -484,6 +484,7 @@ struct SpawnedProcessGroupTests {
 
         let script = """
         import os
+        import select
         import signal
         import sys
         import time
@@ -504,13 +505,16 @@ struct SpawnedProcessGroupTests {
                     os.write(writer, b"1")
                     os.close(writer)
                     counter = 1
-                    while True:
+                    deadline = time.monotonic() + \(KiroProcessTestSupport.fixtureHoldLimit)
+                    while time.monotonic() < deadline:
                         counter += 1
                         heartbeat.seek(0)
                         heartbeat.write(str(counter))
                         heartbeat.truncate()
                         heartbeat.flush()
-                        time.sleep(0.02)
+                        if \(KiroProcessTestSupport.pythonOwnerExitWait(timeout: 0.02)):
+                            os._exit(0)
+                    os._exit(0)
             os.close(writer)
             os.read(reader, 1)
             os.close(reader)
@@ -623,6 +627,7 @@ struct SpawnedProcessGroupTests {
 
         let script = """
         import os
+        import select
         import signal
         import sys
         import time
@@ -636,13 +641,15 @@ struct SpawnedProcessGroupTests {
                 handle.write(str(os.getpid()))
             counter = 0
             with open(sys.argv[2], "w") as heartbeat:
-                while True:
+                deadline = time.monotonic() + \(KiroProcessTestSupport.fixtureHoldLimit)
+                while time.monotonic() < deadline:
                     counter += 1
                     heartbeat.seek(0)
                     heartbeat.write(str(counter))
                     heartbeat.truncate()
                     heartbeat.flush()
-                    time.sleep(0.02)
+                    if \(KiroProcessTestSupport.pythonOwnerExitWait(timeout: 0.02)):
+                        os._exit(0)
             os._exit(0)
         """
         let stdoutPipe = Pipe()
@@ -709,6 +716,7 @@ struct SpawnedProcessGroupTests {
 
         let script = """
         import os
+        import select
         import signal
         import sys
         import time
@@ -732,13 +740,16 @@ struct SpawnedProcessGroupTests {
                         os.write(writer, b"1")
                         os.close(writer)
                         counter = 1
-                        while True:
+                        deadline = time.monotonic() + \(KiroProcessTestSupport.fixtureHoldLimit)
+                        while time.monotonic() < deadline:
                             counter += 1
                             heartbeat.seek(0)
                             heartbeat.write(str(counter))
                             heartbeat.truncate()
                             heartbeat.flush()
-                            time.sleep(0.02)
+                            if \(KiroProcessTestSupport.pythonOwnerExitWait(timeout: 0.02)):
+                                os._exit(0)
+                        os._exit(0)
                 with open(sys.argv[2], "w") as handle:
                     handle.write(str(child))
                 os.close(writer)

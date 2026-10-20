@@ -156,7 +156,6 @@ struct SessionEquivalentForecast: Equatable, Sendable {
 enum SessionEquivalentBurnEstimator {
     static let defaultSampleLimit = 7
     static let minimumSampleCount = 3
-    private static let observationAlignmentTolerance: TimeInterval = 0
     private static let resetEquivalenceTolerance = SessionEquivalentForecast.resetTolerance
 
     private struct SessionGroup {
@@ -227,7 +226,10 @@ enum SessionEquivalentBurnEstimator {
                 groups[lastIndex].entries.append(entry)
                 groups[lastIndex].maximumUsedPercent = max(groups[lastIndex].maximumUsedPercent, entry.usedPercent)
             } else {
-                guard groups.last.map({ $0.resetsAt <= resetsAt }) ?? true else { return nil }
+                if let previous = groups.last, previous.resetsAt > resetsAt {
+                    // A reset correction starts a new history segment; never combine samples across it.
+                    groups.removeAll(keepingCapacity: true)
+                }
                 groups.append(SessionGroup(
                     resetsAt: resetsAt,
                     entries: [entry],
@@ -299,7 +301,6 @@ enum SessionEquivalentBurnEstimator {
             entries: weeklyEntries,
             tolerance: Self.resetEquivalenceTolerance,
             requireNotAfterTarget: true),
-            weeklyStart.capturedAt <= windowStart,
             weeklyStart.capturedAt < firstSessionEntry.capturedAt
         {
             observations.append(BurnObservation(sessionUsedPercent: 0, weeklyEntry: weeklyStart))
@@ -309,7 +310,7 @@ enum SessionEquivalentBurnEstimator {
             guard let weeklyEntry = Self.nearestEntry(
                 to: sessionEntry.capturedAt,
                 entries: weeklyEntries,
-                tolerance: Self.observationAlignmentTolerance)
+                tolerance: 0)
             else {
                 continue
             }
@@ -324,7 +325,6 @@ enum SessionEquivalentBurnEstimator {
                entries: weeklyEntries,
                tolerance: Self.resetEquivalenceTolerance,
                requireNotAfterTarget: true),
-           weeklyEnd.capturedAt <= group.resetsAt,
            lastSessionEntry.capturedAt < weeklyEnd.capturedAt
         {
             observations.append(BurnObservation(sessionUsedPercent: 100, weeklyEntry: weeklyEnd))

@@ -22,10 +22,13 @@ public struct ProviderPluginSetting: Equatable, Sendable {
 public struct ProviderPluginIcon: Equatable, Sendable {
     public let monogram: String
     public let tint: String
+    /// A validated monochrome SVG, rendered as a template image. Nil means the monogram is shown.
+    public let svg: String?
 
-    public init(monogram: String, tint: String) {
+    public init(monogram: String, tint: String, svg: String? = nil) {
         self.monogram = monogram
         self.tint = tint
+        self.svg = svg.flatMap { ProviderPluginIconSVG.isValid($0) ? $0 : nil }
     }
 }
 
@@ -420,7 +423,9 @@ public struct ProviderPluginManifest: Sendable {
         else {
             throw ProviderPluginError.invalidManifest("icon tint must be a #RRGGBB color")
         }
-        return ProviderPluginIcon(monogram: monogram, tint: tint.uppercased())
+        // An SVG that fails validation is dropped rather than failing the plugin: the monogram is the fallback.
+        let svg = try Self.optionalString(value, property: "svg")
+        return ProviderPluginIcon(monogram: monogram, tint: tint.uppercased(), svg: svg)
     }
 
     private static func normalizedCookieDomain(_ rawValue: String) throws -> String {

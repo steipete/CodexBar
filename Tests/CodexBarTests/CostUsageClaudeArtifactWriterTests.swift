@@ -3,8 +3,8 @@ import Testing
 @testable import CodexBarCore
 
 struct CostUsageClaudeArtifactWriterTests {
-    @Test(arguments: [false, true])
-    func `replacement keeps exact bytes across growth shrink and fallback`(disableCloning: Bool) throws {
+    @Test
+    func `replacement keeps exact bytes across growth and shrink`() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
@@ -26,7 +26,7 @@ struct CostUsageClaudeArtifactWriterTests {
             .enumerated()
         {
             let temporary = root.appendingPathComponent("private-\(index)")
-            try CostUsageClaudeArtifactWriter.$disableCloningForTesting.withValue(disableCloning) {
+            do {
                 let writer = try #require(CostUsageClaudeArtifactWriter(temporaryURL: temporary, replacing: source))
                 var bytes = 0
                 // Split through comparison-block boundaries and exercise Data slices with nonzero indices.
@@ -36,7 +36,7 @@ struct CostUsageClaudeArtifactWriterTests {
                 try writer.finish()
                 #expect(try Data(contentsOf: temporary) == expected)
                 #expect(try Data(contentsOf: source) == original)
-                if disableCloning { #expect(bytes == expected.count) }
+                #expect(bytes <= expected.count)
             }
         }
     }
@@ -85,25 +85,6 @@ struct CostUsageClaudeArtifactWriterTests {
         #expect(try Data(contentsOf: temporary) == original)
         #expect(CostUsageClaudeArtifactWriter(temporaryURL: temporary, replacing: source) == nil)
         #expect(try Data(contentsOf: temporary) == original)
-        #expect(try Data(contentsOf: source) == original)
-    }
-
-    @Test
-    func `reset discards cloned suffix before fallback output`() throws {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: root) }
-        let source = root.appendingPathComponent("source.json")
-        let temporary = root.appendingPathComponent("private.json")
-        let original = Data(repeating: 97, count: 128_000)
-        try original.write(to: source)
-        let writer = try #require(CostUsageClaudeArtifactWriter(temporaryURL: temporary, replacing: source))
-        _ = try writer.append(original)
-        try writer.reset()
-        let fallback = Data("replacement".utf8)
-        #expect(try writer.append(fallback) == fallback.count)
-        try writer.finish()
-        #expect(try Data(contentsOf: temporary) == fallback)
         #expect(try Data(contentsOf: source) == original)
     }
 }

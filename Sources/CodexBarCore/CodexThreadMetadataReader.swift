@@ -66,17 +66,17 @@ public struct CodexThreadMetadataReader: Sendable {
         guard sqlite3_open_v2(self.databaseURL.path, &database, SQLITE_OPEN_READONLY, nil) == SQLITE_OK,
               let database
         else {
-            if database != nil {
-                sqlite3_close(database)
-            }
+            sqlite3_close(database)
             return result
         }
         defer { sqlite3_close(database) }
         sqlite3_busy_timeout(database, 100)
 
+        // Bound prompt-sized fallback titles before Swift conversion; SQLite counts Unicode code points for TEXT.
+        let boundedTitle = "substr(title, 1, 256)"
         let queries = [
-            "SELECT title, agent_path FROM threads WHERE id = ?1 LIMIT 1",
-            "SELECT title, NULL FROM threads WHERE id = ?1 LIMIT 1",
+            "SELECT \(boundedTitle), agent_path FROM threads WHERE id = ?1 LIMIT 1",
+            "SELECT \(boundedTitle), NULL FROM threads WHERE id = ?1 LIMIT 1",
         ]
         var statement: OpaquePointer?
         for query in queries where statement == nil {

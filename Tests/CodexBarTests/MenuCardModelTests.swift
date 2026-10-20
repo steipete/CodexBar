@@ -808,7 +808,7 @@ struct MiniMaxMenuCardModelTests {
         #expect(model.providerDetails.first?.rows.map(\.value) == ["4 / 100", "1 / 100"])
         #expect(model.providerCost?.title == "Credits")
         #expect(model.providerCost?.spendLine == "Balance: 14000")
-        #expect(model.usageNotes == [String(format: L("Renews: %@"), minimaxRenewDate(1_810_569_600))])
+        #expect(model.usageNotes == [String(format: L("Plan renews: %@"), minimaxRenewDate(1_810_569_600))])
     }
 }
 

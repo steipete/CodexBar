@@ -53,6 +53,7 @@ struct MenuBarLayoutThroughputTests {
         #expect(v4Rules[0].elseToken == .hidden)
         let restoredRules = try MenuBarLayoutPersistence.preferredLibrary(
             current: decoder.decode([MenuBarLayoutConditional].self, from: rules.current),
+            v5: decoder.decode([MenuBarLayoutConditional].self, from: rules.v5),
             v4: v4Rules,
             v3: decoder.decode([MenuBarLayoutConditional].self, from: rules.v3),
             released: decoder.decode([MenuBarLayoutConditional].self, from: rules.released),

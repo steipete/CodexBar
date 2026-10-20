@@ -102,10 +102,11 @@ public enum MiniMaxProviderDescriptor {
                 automaticSelectionPrioritizesExhaustedWindow: false,
                 menuBarWindowResolver: { context in
                     guard context.metric == .automatic else { return .unhandled }
-                    return .resolved(ProviderUsagePresentation.mostConstrained(
+                    return .automaticCandidates([
                         context.snapshot.primary,
                         context.snapshot.secondary,
-                        context.snapshot.tertiary))
+                        context.snapshot.tertiary,
+                    ].compactMap(\.self))
                 },
                 optionalDetails: ProviderOptionalDetailsPresentation(
                     hiddenTitlesWithoutOptionalUsage: ["Billing history"],

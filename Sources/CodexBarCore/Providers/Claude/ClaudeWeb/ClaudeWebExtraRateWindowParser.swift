@@ -1,3 +1,4 @@
+import CoreFoundation
 import Foundation
 
 enum ClaudeWebExtraRateWindowParser {
@@ -42,8 +43,14 @@ enum ClaudeWebExtraRateWindowParser {
     }
 
     private static func scopedWeeklyLimitWindows(from json: [String: Any]) -> [NamedRateWindow] {
-        guard let limits = json["limits"] as? [[String: Any]] else { return [] }
-        let mappedLimits = limits.map { entry in
+        ClaudeScopedWeeklyLimitMapper.extraRateWindows(from: self.scopedWeeklyLimits(from: json))
+    }
+
+    /// Entry-by-entry parse of the `limits` array, shared with the OAuth path: a field of an
+    /// unexpected type reads as missing instead of discarding the entry or its siblings.
+    static func scopedWeeklyLimits(from json: [String: Any]) -> [ClaudeScopedWeeklyLimitMapper.Limit] {
+        guard let limits = json["limits"] as? [Any] else { return [] }
+        return limits.compactMap { $0 as? [String: Any] }.map { entry in
             let scope = entry["scope"] as? [String: Any]
             let model = scope?["model"] as? [String: Any]
             return ClaudeScopedWeeklyLimitMapper.Limit(
@@ -54,7 +61,6 @@ enum ClaudeWebExtraRateWindowParser {
                 modelID: model?["id"] as? String,
                 modelName: model?["display_name"] as? String)
         }
-        return ClaudeScopedWeeklyLimitMapper.extraRateWindows(from: mappedLimits)
     }
 
     private static func namedWindow(
@@ -86,12 +92,9 @@ enum ClaudeWebExtraRateWindowParser {
     }
 
     private static func percentValue(from value: Any?) -> Double? {
-        if let intValue = value as? Int {
-            return Double(intValue)
-        }
-        if let doubleValue = value as? Double {
-            return doubleValue
-        }
-        return nil
+        guard let number = value as? NSNumber,
+              CFGetTypeID(number) != CFBooleanGetTypeID()
+        else { return nil }
+        return number.doubleValue
     }
 }

@@ -56,6 +56,10 @@ extension UsageStore {
         let account = context.account
         let isSettings = context.isSettings
         let isLive = account == nil
+        // Provider-specific by design: an explicit Claude mapping gives only the active token card local costs.
+        let ownsMappedCosts = provider == .claude && self.claudeTokenCostConfigDirectory != nil &&
+            account?.tokenAccountID == self.settings.effectiveSelectedTokenAccount(for: provider)?.id
+        let usesStoredCosts = isLive || ownsMappedCosts
         let metadata = self.metadata(for: provider)
         let descriptor = ProviderDescriptorRegistry.descriptor(for: provider)
         // An explicitly empty account stays empty; live data may belong to another account.
@@ -71,12 +75,12 @@ extension UsageStore {
         let supportsTokenCost = codexProjection != nil || descriptor.tokenCost.supportsTokenCost
         let tokenSnapshot: CostUsageTokenSnapshot?
         if isSettings {
-            tokenSnapshot = isLive && supportsTokenCost ? self.tokenSnapshot(for: provider) : nil
+            tokenSnapshot = usesStoredCosts && supportsTokenCost ? self.tokenSnapshot(for: provider) : nil
         } else {
             let projected = isLive || snapshot != nil
                 ? self.tokenSnapshot(fromProviderSnapshot: snapshot, provider: provider)
                 : nil
-            let stored = isLive && supportsTokenCost && !Self.tokenCostRequiresProviderSnapshot(provider)
+            let stored = usesStoredCosts && supportsTokenCost && !Self.tokenCostRequiresProviderSnapshot(provider)
                 ? self.tokenSnapshot(for: provider)
                 : nil
             tokenSnapshot = projected ?? stored
@@ -123,7 +127,7 @@ extension UsageStore {
             creditsError: isSettings ? codexProjection?.credits?.userFacingError : nil,
             dashboardError: isSettings ? codexProjection?.userFacingErrors.dashboard : nil,
             tokenSnapshot: tokenSnapshot,
-            tokenError: isLive && supportsTokenCost ? self.tokenError(for: provider) : nil,
+            tokenError: usesStoredCosts && supportsTokenCost ? self.tokenError(for: provider) : nil,
             account: account?.info ?? (isLive && metadata.usesAccountFallback
                 ? self.accountInfo(for: provider)
                 : AccountInfo(email: nil, plan: nil)),

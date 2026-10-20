@@ -77,7 +77,8 @@ public enum OpenCodeGoProviderDescriptor {
                 supportsTokenCost: true,
                 noDataMessage: {
                     "No OpenCode Go local usage history found in ~/.local/share/opencode/opencode.db."
-                }),
+                },
+                supportsTokenSnapshot: true),
             pace: ProviderPaceCapability(
                 resetWindowPace: .windowDuration(minutes: ProviderPaceCapability.monthlyWindowSentinelMinutes),
                 inferredMonthlyDuration: .windowDuration(minutes: ProviderPaceCapability.monthlyWindowSentinelMinutes),
@@ -96,10 +97,11 @@ public enum OpenCodeGoProviderDescriptor {
                 switcherUsesAutomaticMenuBarWindow: true,
                 menuBarWindowResolver: { context in
                     guard context.metric == .automatic else { return .unhandled }
-                    return .resolved(ProviderUsagePresentation.mostConstrained(
+                    return .automaticCandidates([
                         context.snapshot.primary,
                         context.snapshot.secondary,
-                        context.snapshot.tertiary))
+                        context.snapshot.tertiary,
+                    ].compactMap(\.self))
                 },
                 planUtilizationSeriesResolver: { snapshot in
                     var series: Set<ProviderPlanUtilizationSeries> = []
@@ -128,6 +130,7 @@ public enum OpenCodeGoProviderDescriptor {
             cli: ProviderCLIConfig(
                 name: "opencodego",
                 versionDetector: nil,
+                supportsCostCommand: true,
                 browserSupportExemption: { sourceMode, _, settings in
                     sourceMode == .auto || settings?.opencodego?.cookieSource == .manual
                 }))

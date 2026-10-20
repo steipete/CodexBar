@@ -53,6 +53,7 @@ enum ClaudeWebPrepaidCreditsRequest {
 }
 
 enum ClaudeWebSessionKeyImport {
+    @TaskLocal static var desktopApp = false
     #if DEBUG
     @TaskLocal static var overrideForTesting: ClaudeWebAPIFetcher.SessionKeyInfo?
     @TaskLocal static var browserOverrideForTesting:
@@ -115,8 +116,12 @@ public enum ClaudeWebAPIFetcher {
     private static let maxProbeBytes = 200_000
     #if os(macOS)
     private static let cookieClient = BrowserCookieClient()
-    private static let cookieImportOrder: BrowserCookieImportOrder =
-        ProviderDefaults.metadata[.claude]?.browserCookieOrder ?? Browser.defaultImportOrder
+    static var cookieImportOrder: BrowserCookieImportOrder {
+        // Desktop cookies are an explicit account choice, never a fallback to another browser account.
+        ClaudeWebSessionKeyImport.desktopApp ? [.claudeDesktop] :
+            (ProviderDefaults.metadata[.claude]?.browserCookieOrder ?? Browser.defaultImportOrder)
+            .filter { $0 != .claudeDesktop }
+    }
     #else
     private static let cookieImportOrder: BrowserCookieImportOrder = []
     #endif
@@ -145,6 +150,7 @@ public enum ClaudeWebAPIFetcher {
 
     public enum FetchError: LocalizedError, Sendable {
         case noSessionKeyFound
+        case noDesktopSessionKeyFound
         case invalidSessionKey
         case notSupportedOnThisPlatform
         case networkError(Error)
@@ -159,6 +165,8 @@ public enum ClaudeWebAPIFetcher {
             switch self {
             case .noSessionKeyFound:
                 "No Claude session key found in browser cookies."
+            case .noDesktopSessionKeyFound:
+                "No readable Claude desktop session found. Sign in to Claude.app and check cookie access."
             case .invalidSessionKey:
                 "Invalid Claude session key format."
             case .notSupportedOnThisPlatform:
@@ -478,7 +486,7 @@ extension ClaudeWebAPIFetcher {
     #if os(macOS)
     /// Checks if we can find a Claude session key in browser cookies without making API calls.
     public static func hasSessionKey(browserDetection: BrowserDetection, logger: ((String) -> Void)? = nil) -> Bool {
-        if let cached = CookieHeaderCache.load(provider: .claude),
+        if !ClaudeWebSessionKeyImport.desktopApp, let cached = CookieHeaderCache.load(provider: .claude),
            self.hasSessionKey(cookieHeader: cached.cookieHeader)
         {
             return true
@@ -565,7 +573,7 @@ extension ClaudeWebAPIFetcher {
                 }
             }
 
-            throw FetchError.noSessionKeyFound
+            throw ClaudeWebSessionKeyImport.desktopApp ? FetchError.noDesktopSessionKeyFound : .noSessionKeyFound
         }
     }
     #endif
@@ -1392,6 +1400,11 @@ extension ClaudeWebAPIFetcher {
         logger: ((String) -> Void)?) async throws -> WebUsageData
     {
         let log: (String) -> Void = { msg in logger?("[claude-web] \(msg)") }
+        if ClaudeWebSessionKeyImport.desktopApp {
+            // Reimport on each refresh so a desktop account switch cannot reuse a still-valid old session.
+            let session = try self.extractSessionKeyInfo(browserDetection: browserDetection, logger: log)
+            return try await self.fetchUsage(using: session, options: options, logger: log, cachePersistence: nil)
+        }
         var cacheObservation = CookieHeaderCache.observeForConditionalMutation(provider: .claude)
         var invalidatedCacheError: FetchError?
 

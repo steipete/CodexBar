@@ -144,6 +144,21 @@ struct PreferencesView: View {
                         .ignoresSafeArea(edges: .top)
                         .allowsHitTesting(false)
                 }
+                .overlay(alignment: .top) {
+                    if #available(macOS 26.0, *) {
+                        SettingsDetailHeader(selection: self.selection)
+                            .frame(height: self.detailTitlebarInset)
+                            .frame(maxWidth: .infinity)
+                            .ignoresSafeArea(edges: .top)
+                    }
+                }
+                .safeAreaInset(edge: .top, spacing: 0) {
+                    if #unavailable(macOS 26.0) {
+                        SettingsHistoryButtons(selection: self.selection)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(8)
+                    }
+                }
                 .overlay(alignment: .leading) {
                     self.sidebarResizeHandle
                 }
@@ -228,9 +243,11 @@ struct PreferencesView: View {
     }
 
     private func ensureValidSelection() {
-        if !self.settings.debugMenuEnabled, self.selection.pane == .debug {
+        guard !self.settings.debugMenuEnabled else { return }
+        if self.selection.pane == .debug {
             self.selection.pane = .general
         }
+        self.selection.removeFromHistory { $0 == .debug }
     }
 }
 
@@ -407,14 +424,9 @@ final class SettingsWindowAppearanceView: NSView {
         if !window.titlebarAppearsTransparent {
             window.titlebarAppearsTransparent = true
         }
-        if window.titleVisibility != .visible {
-            window.titleVisibility = .visible
-        }
+        SettingsWindowToolbar.configure(window)
         if window.titlebarSeparatorStyle != .none {
             window.titlebarSeparatorStyle = .none
-        }
-        if window.toolbar != nil {
-            window.toolbar = nil
         }
         // Full-size content lets the sidebar material extend behind the titlebar so the
         // edge-to-edge sidebar reaches the top of the window; content stays below the
@@ -422,6 +434,94 @@ final class SettingsWindowAppearanceView: NSView {
         if !window.styleMask.contains(.fullSizeContentView) {
             window.styleMask.insert(.fullSizeContentView)
         }
+    }
+}
+
+@MainActor
+enum SettingsWindowToolbar {
+    static let identifier = NSToolbar.Identifier("com.steipete.codexbar.settings.toolbar")
+
+    static func configure(_ window: NSWindow) {
+        if #available(macOS 26.0, *) {
+            // Keep the native title set for accessibility and the Window menu.
+            if window.titleVisibility != .hidden {
+                window.titleVisibility = .hidden
+            }
+            if window.toolbar?.identifier != self.identifier {
+                let toolbar = NSToolbar(identifier: self.identifier)
+                toolbar.allowsUserCustomization = false
+                toolbar.displayMode = .iconOnly
+                window.toolbar = toolbar
+            }
+            if window.toolbarStyle != .unified {
+                window.toolbarStyle = .unified
+            }
+        } else {
+            if window.titleVisibility != .visible {
+                window.titleVisibility = .visible
+            }
+            if window.toolbar != nil {
+                window.toolbar = nil
+            }
+        }
+    }
+}
+
+@MainActor
+struct SettingsDetailHeader: View {
+    @Bindable var selection: PreferencesSelection
+    private var showsTitle: Bool {
+        switch self.selection.pane {
+        case .usageSpend: false
+        case let .provider(instanceID): instanceID.firstPartyProvider == nil
+        default: true
+        }
+    }
+
+    var body: some View {
+        HStack(spacing: 12) {
+            SettingsHistoryButtons(selection: self.selection)
+            if self.showsTitle {
+                Text(self.selection.pane.title)
+                    .font(.system(size: 15, weight: .bold))
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .accessibilityAddTraits(.isHeader)
+                    .allowsHitTesting(false)
+            }
+        }
+        .padding(.horizontal, 8)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+    }
+}
+
+@MainActor
+struct SettingsHistoryButtons: View {
+    @Bindable var selection: PreferencesSelection
+
+    var body: some View {
+        ControlGroup {
+            Button {
+                self.selection.goBack()
+            } label: {
+                Label(L("Back"), systemImage: "chevron.backward")
+            }
+            .disabled(!self.selection.canGoBack)
+            .keyboardShortcut("[", modifiers: .command)
+            .help(L("Back"))
+
+            Button {
+                self.selection.goForward()
+            } label: {
+                Label(L("Forward"), systemImage: "chevron.forward")
+            }
+            .disabled(!self.selection.canGoForward)
+            .keyboardShortcut("]", modifiers: .command)
+            .help(L("Forward"))
+        }
+        .controlGroupStyle(.navigation)
+        .labelStyle(.iconOnly)
+        .fixedSize()
     }
 }
 

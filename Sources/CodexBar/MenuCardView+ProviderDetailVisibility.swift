@@ -62,6 +62,7 @@ extension UsageMenuCardView.Model {
                         in: row.secondaryValue,
                         isEnabled: true),
                     progress: row.progress,
+                    severity: row.severity,
                     usageValue: row.usageValue)
             }
             let chart = section.chart.flatMap { chart in

@@ -26,3 +26,20 @@ struct CodexBarConfigHooksTests {
         #expect(decoded.hooks == hooks)
     }
 }
+
+struct CodexBarConfigShareUsageTests {
+    private static let legacyJSON = Data(#"{"version":1,"providers":[{"id":"codex","enabled":true}]}"#.utf8)
+
+    @Test
+    func `sharing is opt in and legacy configs omit the flag on round trip`() throws {
+        var config = try CodexBarConfig.decode(from: Self.legacyJSON)
+        #expect(!config.shareUsageWithCLI)
+        #expect(config.providers.first?.enabled == true)
+        for enabled in [false, true, false] {
+            config.shareUsageWithCLI = enabled
+            let data = try config.encodedData()
+            #expect(try #require(String(data: data, encoding: .utf8)).contains("shareUsageWithCLI") == enabled)
+            #expect(try CodexBarConfig.decode(from: data).shareUsageWithCLI == enabled)
+        }
+    }
+}

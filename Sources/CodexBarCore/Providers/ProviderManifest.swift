@@ -89,6 +89,7 @@ public enum ProviderManifest {
         TypeSafeProviderDescriptor.descriptor,
         HyperProviderDescriptor.descriptor,
         GitKrakenProviderDescriptor.descriptor,
+        FutureAGIProviderDescriptor.descriptor,
         DevPassProviderDescriptor.descriptor,
         AtlasCloudProviderDescriptor.descriptor,
         VercelProviderDescriptor.descriptor,
@@ -109,5 +110,6 @@ public enum ProviderManifest {
         FloraProviderDescriptor.descriptor,
         ParallelProviderDescriptor.descriptor,
         ClaudePlatformProviderDescriptor.descriptor,
+        MunitoProviderDescriptor.descriptor,
     ]
 }

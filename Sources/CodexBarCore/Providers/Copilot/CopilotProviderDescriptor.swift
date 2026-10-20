@@ -78,11 +78,10 @@ public enum CopilotProviderDescriptor {
                 },
                 automaticSelectionPrioritizesExhaustedWindow: false,
                 menuBarWindowResolver: { context in
-                    guard context.metric == .automatic,
-                          let primary = context.snapshot.primary,
-                          let secondary = context.snapshot.secondary
-                    else { return .unhandled }
-                    return .resolved(primary.usedPercent >= secondary.usedPercent ? primary : secondary)
+                    guard context.metric == .automatic else { return .unhandled }
+                    return .automaticCandidates([
+                        context.snapshot.primary, context.snapshot.secondary,
+                    ].compactMap(\.self))
                 },
                 switcherUsedPercentFallback: { snapshot in
                     snapshot.detailRow(id: CopilotCreditDetailRows.seatRowID)?.progress?.usedPercent

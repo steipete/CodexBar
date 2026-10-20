@@ -474,6 +474,11 @@ extension SettingsStore {
         set { self.setDefault(\.menuBarLayoutMonospacedDigits, newValue, key: "menuBarLayoutMonospacedDigits") }
     }
 
+    var menuBarLayoutShowWindowLabels: Bool {
+        get { self.defaultsState.menuBarLayoutShowWindowLabels }
+        set { self.setDefault(\.menuBarLayoutShowWindowLabels, newValue, key: "menuBarLayoutShowWindowLabels") }
+    }
+
     var menuBarLayoutSize: MenuBarLayoutSize {
         get { MenuBarLayoutSize(rawValue: self.defaultsState.menuBarLayoutSizeRaw) ?? .regular }
         set { self.setDefault(\.menuBarLayoutSizeRaw, newValue.rawValue, key: "menuBarLayoutSize") }
@@ -497,6 +502,7 @@ extension SettingsStore {
     private func persistMenuBarLayout(_ layout: MenuBarLayout) {
         guard let blobs = try? MenuBarLayoutPersistence.encoded(layout) else { return }
         self.userDefaults.set(blobs.current, forKey: MenuBarLayoutUserDefaultsKey.layoutCurrent)
+        self.userDefaults.set(blobs.v5, forKey: MenuBarLayoutUserDefaultsKey.layoutV5)
         self.userDefaults.set(blobs.v4, forKey: MenuBarLayoutUserDefaultsKey.layoutV4)
         self.userDefaults.set(blobs.v3, forKey: MenuBarLayoutUserDefaultsKey.layoutV3)
         self.userDefaults.set(blobs.released, forKey: MenuBarLayoutUserDefaultsKey.layoutReleased)
@@ -508,6 +514,7 @@ extension SettingsStore {
             .encodedLibrary(self.defaultsState.menuBarLayoutConditionals)
         else { return }
         self.userDefaults.set(blobs.current, forKey: MenuBarLayoutUserDefaultsKey.conditionalsCurrent)
+        self.userDefaults.set(blobs.v5, forKey: MenuBarLayoutUserDefaultsKey.conditionalsV5)
         self.userDefaults.set(blobs.v4, forKey: MenuBarLayoutUserDefaultsKey.conditionalsV4)
         self.userDefaults.set(blobs.v3, forKey: MenuBarLayoutUserDefaultsKey.conditionalsV3)
         self.userDefaults.set(blobs.released, forKey: MenuBarLayoutUserDefaultsKey.conditionalsReleased)
@@ -518,6 +525,7 @@ extension SettingsStore {
         guard let blobs = try? MenuBarLayoutPersistence.encodedOverrides(self.defaultsState.menuBarLayoutOverridesRaw)
         else { return }
         self.userDefaults.set(blobs.current, forKey: MenuBarLayoutUserDefaultsKey.overridesCurrent)
+        self.userDefaults.set(blobs.v5, forKey: MenuBarLayoutUserDefaultsKey.overridesV5)
         self.userDefaults.set(blobs.v4, forKey: MenuBarLayoutUserDefaultsKey.overridesV4)
         self.userDefaults.set(blobs.v3, forKey: MenuBarLayoutUserDefaultsKey.overridesV3)
         self.userDefaults.set(blobs.released, forKey: MenuBarLayoutUserDefaultsKey.overridesReleased)
@@ -871,6 +879,11 @@ extension SettingsStore {
         set { self.setDefault(\.mergedOverviewLayoutRaw, newValue.rawValue, key: "mergedOverviewLayout") }
     }
 
+    var mergedOverviewAllAccounts: Bool {
+        get { self.defaultsState.mergedOverviewAllAccounts }
+        set { self.setDefault(\.mergedOverviewAllAccounts, newValue, key: "mergedOverviewAllAccounts") }
+    }
+
     var switcherShowsIcons: Bool {
         get { self.defaultsState.switcherShowsIcons }
         set { self.setDefault(\.switcherShowsIcons, newValue, key: "switcherShowsIcons") }
@@ -926,10 +939,10 @@ extension SettingsStore {
         }
     }
 
-    var mergedOverviewSelectedProviders: [UsageProvider] {
+    var mergedOverviewSelectedProviders: [ProviderInstanceID] {
         get {
             Self.normalizeProviders(
-                self.mergedOverviewSelectedProvidersRaw.compactMap(UsageProvider.init(rawValue:)),
+                self.mergedOverviewSelectedProvidersRaw.compactMap(ProviderInstanceID.init(rawValue:)),
                 maxCount: Self.mergedOverviewProviderLimit)
         }
         set {
@@ -955,14 +968,14 @@ extension SettingsStore {
         }
     }
 
-    private func mergedOverviewSelectionApplies(to activeProviders: [UsageProvider]) -> Bool {
+    private func mergedOverviewSelectionApplies(to activeProviders: [ProviderInstanceID]) -> Bool {
         guard let editedRaw = self.mergedOverviewSelectionEditedActiveProvidersRaw else { return false }
         let editedSet = Set(editedRaw)
         let activeSet = Set(Self.normalizeProviders(activeProviders).map(\.rawValue))
         return editedSet == activeSet
     }
 
-    private func markMergedOverviewSelectionEdited(for activeProviders: [UsageProvider]) {
+    private func markMergedOverviewSelectionEdited(for activeProviders: [ProviderInstanceID]) {
         let signature = Set(Self.normalizeProviders(activeProviders).map(\.rawValue))
         self.mergedOverviewSelectionEditedActiveProvidersRaw = Array(signature).sorted()
     }
@@ -974,8 +987,8 @@ extension SettingsStore {
     }
 
     func resolvedMergedOverviewProviders(
-        activeProviders: [UsageProvider],
-        maxVisibleProviders: Int = SettingsStore.mergedOverviewProviderLimit) -> [UsageProvider]
+        activeProviders: [ProviderInstanceID],
+        maxVisibleProviders: Int = SettingsStore.mergedOverviewProviderLimit) -> [ProviderInstanceID]
     {
         guard maxVisibleProviders > 0 else { return [] }
         let normalizedActive = Self.normalizeProviders(activeProviders)
@@ -994,8 +1007,8 @@ extension SettingsStore {
 
     @discardableResult
     func reconcileMergedOverviewSelectedProviders(
-        activeProviders: [UsageProvider],
-        maxVisibleProviders: Int = SettingsStore.mergedOverviewProviderLimit) -> [UsageProvider]
+        activeProviders: [ProviderInstanceID],
+        maxVisibleProviders: Int = SettingsStore.mergedOverviewProviderLimit) -> [ProviderInstanceID]
     {
         guard maxVisibleProviders > 0 else {
             self.clearMergedOverviewSelectionPreference()
@@ -1029,10 +1042,10 @@ extension SettingsStore {
 
     @discardableResult
     func setMergedOverviewProviderSelection(
-        provider: UsageProvider,
+        provider: ProviderInstanceID,
         isSelected: Bool,
-        activeProviders: [UsageProvider],
-        maxVisibleProviders: Int = SettingsStore.mergedOverviewProviderLimit) -> [UsageProvider]
+        activeProviders: [ProviderInstanceID],
+        maxVisibleProviders: Int = SettingsStore.mergedOverviewProviderLimit) -> [ProviderInstanceID]
     {
         guard maxVisibleProviders > 0 else {
             self.clearMergedOverviewSelectionPreference()
@@ -1122,6 +1135,11 @@ extension SettingsStore {
         set { self.setDefault(\.agentSessionsEnabled, newValue, key: "agentSessionsEnabled") }
     }
 
+    var agentSessionsRemoteEnabled: Bool {
+        get { self.defaultsState.agentSessionsRemoteEnabled }
+        set { self.setDefault(\.agentSessionsRemoteEnabled, newValue, key: "agentSessionsRemoteEnabled") }
+    }
+
     var agentSessionLabelStyle: AgentSessionLabelStyle {
         get { AgentSessionLabelStyle(rawValue: self.defaultsState.agentSessionLabelStyleRaw) ?? .project }
         set { self.setDefault(\.agentSessionLabelStyleRaw, newValue.rawValue, key: "agentSessionLabelStyle") }
@@ -1144,9 +1162,12 @@ extension SettingsStore {
 }
 
 extension SettingsStore {
-    private static func normalizeProviders(_ providers: [UsageProvider], maxCount: Int? = nil) -> [UsageProvider] {
-        var seen: Set<UsageProvider> = []
-        var normalized: [UsageProvider] = []
+    private static func normalizeProviders(
+        _ providers: [ProviderInstanceID],
+        maxCount: Int? = nil) -> [ProviderInstanceID]
+    {
+        var seen: Set<ProviderInstanceID> = []
+        var normalized: [ProviderInstanceID] = []
         for provider in providers where !seen.contains(provider) {
             seen.insert(provider)
             normalized.append(provider)

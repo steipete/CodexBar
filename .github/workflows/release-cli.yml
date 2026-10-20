@@ -1,20 +1,22 @@
 name: Release CLI
 
 on:
-  release:
-    types: [published]
-  workflow_dispatch:
+  workflow_call:
     inputs:
+      ref:
+        required: true
+        type: string
       tag:
-        description: "Release tag/version to package for manual artifact builds; manual runs do not publish."
-        required: false
+        required: true
         type: string
 
-permissions:
-  contents: write
+permissions: {}
 
 jobs:
   build-cli:
+    permissions:
+      contents: read
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
@@ -64,7 +66,7 @@ jobs:
             swift-sdk-arch: aarch64
             file-arch-pattern: aarch64
           - name: macos-arm64
-            runs-on: macos-15
+            runs-on: xcode-27
             platform: macos
             asset-platform: macos
             asset-arch: arm64
@@ -75,7 +77,7 @@ jobs:
             swift-sdk-arch: ""
             file-arch-pattern: ""
           - name: macos-x86_64
-            runs-on: macos-15-intel
+            runs-on: xcode-27
             platform: macos
             asset-platform: macos
             asset-arch: x86_64
@@ -87,7 +89,7 @@ jobs:
             file-arch-pattern: ""
     runs-on: ${{ matrix.runs-on }}
     env:
-      RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+      RELEASE_TAG: ${{ inputs.tag }}
       SWIFT_VERSION: 6.3.3
       SWIFTLY_VERSION: 1.1.3
       SWIFTLY_SIGNING_FINGERPRINT: E813C892820A6FA13755B268F167DF1ACF9CE069
@@ -97,21 +99,27 @@ jobs:
       SQLITE_AMALGAMATION_SHA3_256: 628a44cfe82c66aed1ccbbe85a562d2e33ebe64b3288981ed76285612227934e
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
+          persist-credentials: false
 
-      - name: Select Xcode 26.3 or 26.2
+      - name: Select Xcode 27
         if: matrix.platform == 'macos'
         run: |
           set -euo pipefail
-          # Both versions are part of the official macOS 15 runner image.
-          for candidate in /Applications/Xcode_26.3.app /Applications/Xcode_26.2.app; do
-            if [[ -d "$candidate" ]]; then
-              sudo xcode-select -s "${candidate}/Contents/Developer"
-              echo "DEVELOPER_DIR=${candidate}/Contents/Developer" >> "$GITHUB_ENV"
-              break
-            fi
-          done
-          [[ "$(/usr/bin/xcodebuild -version)" == Xcode\ 26.* ]]
+          sudo xcode-select -s /Applications/Xcode_27.0.app/Contents/Developer
+          echo "DEVELOPER_DIR=/Applications/Xcode_27.0.app/Contents/Developer" >> "$GITHUB_ENV"
+          echo "MACOSX_DEPLOYMENT_TARGET=14.0" >> "$GITHUB_ENV"
+          [[ "$(/usr/bin/xcodebuild -version)" == Xcode\ 27* ]]
           /usr/bin/xcodebuild -version
+
+      - name: Ensure Rosetta for x86_64 execution
+        if: matrix.platform == 'macos' && matrix.asset-arch == 'x86_64'
+        run: |
+          if ! arch -x86_64 /usr/bin/true; then
+            sudo softwareupdate --install-rosetta --agree-to-license
+          fi
+          arch -x86_64 /usr/bin/true
 
       - name: Runner info
         run: |
@@ -121,7 +129,7 @@ jobs:
           swift --version
 
       - name: Validate release tag
-        if: github.event_name == 'release' || inputs.tag != ''
+        if: inputs.tag != ''
         shell: bash
         run: |
           set -euo pipefail
@@ -318,6 +326,10 @@ jobs:
 
           BIN_DIR="${{ steps.build.outputs.bin_dir }}"
           BIN="$BIN_DIR/CodexBarCLI"
+          CLI_COMMAND=("$BIN")
+          if [[ "${{ matrix.platform }}" == "macos" ]]; then
+            CLI_COMMAND=(arch "-${{ matrix.asset-arch }}" "$BIN")
+          fi
           run_with_timeout() {
             local output="$1"
             shift
@@ -350,19 +362,19 @@ jobs:
           file "$BIN"
           if [[ "${{ matrix.platform }}" == "macos" ]]; then
             lipo -archs "$BIN" | tr ' ' '\n' | grep -Fx "${{ matrix.asset-arch }}"
-            run_with_timeout "$RUNNER_TEMP/codexbar-cli-smoke-${{ matrix.name }}.txt" "$BIN" config validate --format json
+            run_with_timeout "$RUNNER_TEMP/codexbar-cli-smoke-${{ matrix.name }}.txt" "${CLI_COMMAND[@]}" config validate --format json
           elif [[ -n "${{ matrix.swift-sdk }}" ]]; then
-            run_with_timeout "$RUNNER_TEMP/codexbar-cli-help-${{ matrix.name }}.txt" "$BIN" --help
-            run_with_timeout "$RUNNER_TEMP/codexbar-cli-config-${{ matrix.name }}.json" "$BIN" config validate --format json
+            run_with_timeout "$RUNNER_TEMP/codexbar-cli-help-${{ matrix.name }}.txt" "${CLI_COMMAND[@]}" --help
+            run_with_timeout "$RUNNER_TEMP/codexbar-cli-config-${{ matrix.name }}.json" "${CLI_COMMAND[@]}" config validate --format json
             file "$BIN" | grep -q "${{ matrix.file-arch-pattern }}"
             file "$BIN" | grep -q "statically linked"
           else
-            run_with_timeout "$RUNNER_TEMP/codexbar-cli-help-${{ matrix.name }}.txt" "$BIN" --help
+            run_with_timeout "$RUNNER_TEMP/codexbar-cli-help-${{ matrix.name }}.txt" "${CLI_COMMAND[@]}" --help
             file "$BIN" | grep -q "${{ matrix.file-arch-pattern }}"
           fi
           printf '%s\n' "${RELEASE_TAG#v}" > "$BIN_DIR/VERSION"
           VERSION_OUTPUT="$RUNNER_TEMP/codexbar-cli-version-${{ matrix.name }}.txt"
-          run_with_timeout "$VERSION_OUTPUT" "$BIN" --version
+          run_with_timeout "$VERSION_OUTPUT" "${CLI_COMMAND[@]}" --version
           grep -Fx "CodexBar ${RELEASE_TAG#v}" "$VERSION_OUTPUT"
           rm "$BIN_DIR/VERSION"
 
@@ -400,11 +412,17 @@ jobs:
             exit 1
           fi
           cp -R "$CORE_RESOURCE_SOURCE" "$OUT_DIR/CodexBar_CodexBarCore.bundle"
+          CLI_COMMAND=("$OUT_DIR/CodexBarCLI")
+          SYMLINK_COMMAND=("$OUT_DIR/codexbar")
+          if [[ "${{ matrix.platform }}" == "macos" ]]; then
+            CLI_COMMAND=(arch "-${{ matrix.asset-arch }}" "$OUT_DIR/CodexBarCLI")
+            SYMLINK_COMMAND=(arch "-${{ matrix.asset-arch }}" "$OUT_DIR/codexbar")
+          fi
           DIRECT_RESOURCE_SMOKE_OUTPUT="$RUNNER_TEMP/codexbar-cli-resource-smoke-direct-${{ matrix.name }}.txt"
-          CODEXBAR_RESOURCE_SMOKE=1 "$OUT_DIR/CodexBarCLI" > "$DIRECT_RESOURCE_SMOKE_OUTPUT"
+          CODEXBAR_RESOURCE_SMOKE=1 "${CLI_COMMAND[@]}" > "$DIRECT_RESOURCE_SMOKE_OUTPUT"
           grep -Fx "CODEXBAR_RESOURCE_SMOKE_OK" "$DIRECT_RESOURCE_SMOKE_OUTPUT"
           SYMLINK_RESOURCE_SMOKE_OUTPUT="$RUNNER_TEMP/codexbar-cli-resource-smoke-symlink-${{ matrix.name }}.txt"
-          CODEXBAR_RESOURCE_SMOKE=1 "$OUT_DIR/codexbar" > "$SYMLINK_RESOURCE_SMOKE_OUTPUT"
+          CODEXBAR_RESOURCE_SMOKE=1 "${SYMLINK_COMMAND[@]}" > "$SYMLINK_RESOURCE_SMOKE_OUTPUT"
           grep -Fx "CODEXBAR_RESOURCE_SMOKE_OK" "$SYMLINK_RESOURCE_SMOKE_OUTPUT"
 
           ASSET="CodexBarCLI-${SAFE_REF_NAME}-${{ matrix.asset-platform }}-${{ matrix.asset-arch }}.tar.gz"
@@ -415,90 +433,10 @@ jobs:
           echo "out_dir=$OUT_DIR" >> "$GITHUB_OUTPUT"
           echo "asset=$ASSET" >> "$GITHUB_OUTPUT"
 
-      - name: Upload release assets
-        if: github.event_name == 'release'
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          TAG="${RELEASE_TAG}"
-          OUT_DIR="${{ steps.pkg.outputs.out_dir }}"
-          ASSET="${{ steps.pkg.outputs.asset }}"
-          gh release upload "$TAG" "$OUT_DIR/$ASSET" "$OUT_DIR/$ASSET.sha256" --clobber
-
       - name: Upload workflow artifact (manual runs)
-        if: github.event_name == 'workflow_dispatch'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.1
         with:
-          name: codexbar-cli-${{ matrix.name }}
+          name: payload-cli-${{ matrix.name }}
           path: |
             ${{ steps.pkg.outputs.out_dir }}/${{ steps.pkg.outputs.asset }}
             ${{ steps.pkg.outputs.out_dir }}/${{ steps.pkg.outputs.asset }}.sha256
-
-  update-homebrew-tap:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 80
-    needs: build-cli
-    if: github.event_name == 'release'
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Resolve release tag
-        id: release
-        env:
-          RELEASE_TAG: ${{ github.ref_name }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          tag="${RELEASE_TAG}"
-          if [[ -z "$tag" ]]; then
-            echo "Missing release tag." >&2
-            exit 1
-          fi
-          if [[ ! "$tag" =~ ^v[0-9A-Za-z._-]+$ ]]; then
-            echo "Invalid release tag: $tag" >&2
-            exit 1
-          fi
-          echo "tag=$tag" >> "$GITHUB_OUTPUT"
-          echo "request_id=codexbar-${tag}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_OUTPUT"
-
-      - name: Dispatch tap update
-        env:
-          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
-          RELEASE_TAG: ${{ steps.release.outputs.tag }}
-          REQUEST_ID: ${{ steps.release.outputs.request_id }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          test -n "$GH_TOKEN"
-          for attempt in {1..6}; do
-            if gh workflow run update-formula.yml \
-              --repo steipete/homebrew-tap \
-              --ref main \
-              -f formula=codexbar \
-              -f tag="$RELEASE_TAG" \
-              -f repository=steipete/CodexBar \
-              -f artifact_template='CodexBarCLI-{tag}-{target}.tar.gz' \
-              -f target_aliases='darwin_arm64=macos-arm64,darwin_amd64=macos-x86_64,linux_arm64=linux-aarch64,linux_amd64=linux-x86_64' \
-              -f cask=codexbar \
-              -f cask_artifact='CodexBar-macos-universal-{version}.zip' \
-              -f request_id="$REQUEST_ID"; then
-              exit 0
-            fi
-            if [[ "$attempt" -eq 6 ]]; then
-              echo "Failed to dispatch tap update after ${attempt} attempts." >&2
-              exit 1
-            fi
-            sleep $((attempt * 30))
-          done
-
-      - name: Wait for tap update
-        timeout-minutes: 70
-        env:
-          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
-          REQUEST_ID: ${{ steps.release.outputs.request_id }}
-          RELEASE_TAG: ${{ steps.release.outputs.tag }}
-          TAP_WAIT_TIMEOUT_SECONDS: "3900"
-        shell: bash
-        run: ./Scripts/wait_for_homebrew_tap_update.sh

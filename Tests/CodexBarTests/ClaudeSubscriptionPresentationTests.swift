@@ -50,7 +50,7 @@ struct ClaudeSubscriptionPresentationTests {
         formatter.setLocalizedDateFormatFromTemplate("MMM d, yyyy")
         #expect(try self.model(expiry).usageNotes == ["Plan expires: \(formatter.string(from: date))"])
         let renewal = self.snapshot.withSubscriptionMetadata(expiresAt: nil, renewsAt: date, renewsAtIsDateOnly: true)
-        #expect(try self.model(renewal).usageNotes == ["Renews: \(formatter.string(from: date))"])
+        #expect(try self.model(renewal).usageNotes == ["Plan renews: \(formatter.string(from: date))"])
         #expect(UsageMenuCardView.Model.subscriptionMetadataNotes(snapshot: self.snapshot, provider: .codex).isEmpty)
     }
 

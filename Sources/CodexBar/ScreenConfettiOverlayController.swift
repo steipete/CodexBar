@@ -5,7 +5,7 @@ import Vortex
 
 @MainActor
 final class ScreenConfettiOverlayController {
-    private static let overlayLifetime: TimeInterval = 5
+    static let overlayLifetime: TimeInterval = 8.5
 
     private let logger = CodexBarLog.logger(LogCategories.confetti)
     private var windows: [NSWindow] = []
@@ -117,7 +117,7 @@ private final class ClickThroughOverlayPanel: NSPanel {
     }
 }
 
-private struct ScreenConfettiOverlayView: View {
+struct ScreenConfettiOverlayView: View {
     private static let clockwiseRotationAngles: [Double] = [270, 234, 198, 162, 126, 90]
     private static let counterclockwiseRotationAngles: [Double] = [90, 126, 162, 198, 234, 270]
 
@@ -207,7 +207,7 @@ private struct ScreenConfettiOverlayView: View {
         }
     }
 
-    private func makeFireworkConfettiSystem(
+    func makeFireworkConfettiSystem(
         in size: CGSize,
         launchAngle: Double,
         phaseIndex: Int,
@@ -234,12 +234,12 @@ private struct ScreenConfettiOverlayView: View {
             emissionLimit: 42,
             emissionDuration: 0.08,
             idleDuration: 10,
-            lifespan: 4.2,
+            lifespan: 8,
             speed: 0.72,
             speedVariation: 0.44,
             angleRange: .degrees(360),
             acceleration: [0, 0.32],
-            dampingFactor: 0.18,
+            dampingFactor: 0.34,
             angularSpeed: [0, 0, 3],
             angularSpeedVariation: [2, 2, 14],
             colors: .random(resolvedColors),

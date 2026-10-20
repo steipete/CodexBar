@@ -1,8 +1,12 @@
 import Foundation
+#if os(macOS)
+import Security
+#endif
 import SweetCookieKit
 import Testing
 @testable import CodexBarCore
 
+@Suite(.serialized)
 struct ProviderPluginCookieResultTests {
     @Test(arguments: [true, false])
     func `only a successful nonpersistent script fetch validates an empty refresh`(authenticated: Bool) async throws {
@@ -108,6 +112,52 @@ struct ProviderPluginCookieResultTests {
             }
         }
     }
+
+    #if os(macOS)
+    @Test(arguments: BundledPluginTestSupport.engines)
+    func `plugin fetch tasks keep separate witnesses when an importer reports a keychain status`(
+        engine: ProviderPluginEngineKind) async throws
+    {
+        let domain = "fixture-\(UUID().uuidString.lowercased()).example.test"
+        let source = """
+        defineProvider({id: 'lithosai', name: 'Fixture', endpoints: ['https://\(domain)'], settings: [],
+          capabilities: ['browser-cookies'], cookieDomains: ['\(domain)'],
+          async fetchUsage(ctx) {
+            for await (const session of ctx.browser.sessions('\(domain)')) {
+              return {primary: {usedPercent: 42}};
+            }
+            throw new Error('No session');
+          }
+        });
+        """
+        func fetch(importerStatus: OSStatus) async throws -> Bool {
+            let runtime = try ProviderPluginRuntime(source: source, engine: engine)
+            let (usage, observed) = await CLIUsageCache.observingLockedKeychain {
+                let broker = ProviderPluginCookieBroker(
+                    provider: .lithosai,
+                    domains: [domain],
+                    settings: .init(cookieSource: .auto, manualCookieHeader: nil),
+                    batches: { _, _ in nil },
+                    jarImporter: { batch in
+                        KeychainLockWitness.note(importerStatus)
+                        return batch == 0 ? [ProviderPluginCookieSession(header: "", source: "Chrome", origin: "")] :
+                            nil
+                    })
+                return try? await runtime.fetchUsage(cookieSessionResolver: { domain, cachedOnly in
+                    try broker.nextSession(domain: domain, cachedOnly: cachedOnly)
+                })
+            }
+            #expect(usage?.primary?.usedPercent == 42)
+            return observed
+        }
+        // Concurrent fetches keep their own witness: only the locked one observes it.
+        async let locked = fetch(importerStatus: errSecInteractionNotAllowed)
+        async let other = fetch(importerStatus: errSecItemNotFound)
+        let (lockedObserved, otherObserved) = try await (locked, other)
+        #expect(lockedObserved)
+        #expect(!otherObserved)
+    }
+    #endif
 
     @Test(arguments: BundledPluginTestSupport.engines, [
         UsageProvider.lithosai, .museai, .abacus, .helmcode, .qoder, .parallel,

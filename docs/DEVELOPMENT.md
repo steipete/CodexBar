@@ -180,6 +180,10 @@ their `_PATH` suffix otherwise matches `_PAT`. Other matching variables, includi
 Use synthetic dictionaries or set synthetic sentinels inside fixtures; never depend on inherited real credentials.
 For direct `swift test`, source the script in a Bash subshell first. This does not authorize live account tests.
 
+`make test`, `make test-fast`, and `make test-skip-build` also give test discovery and execution a temporary
+`HOME` and `CFFIXED_USER_HOME`, removed when the invocation ends. This keeps incidental default cost-store
+access out of the developer's cache. Direct `swift test` callers must provide their own isolated home.
+
 `@ProcessEnvironment` provides count-only descriptions and reflection for stored process-environment dictionaries
 throughout the app, CLI, provider contexts, and session scanners. Use it on every stored environment, including
 captured configuration structs and optional dictionaries. Optional storage preserves `nil` versus an empty map;
@@ -218,6 +222,9 @@ existing binaries. No framework search-path override is added.
 `make test` remains the complete sharded path. Measured expensive suites run in their own groups, retaining all
 selections and their deadlines while avoiding whole-batch retries. Apple-Silicon macOS CI includes the CLI entry suite;
 the former Intel-runner exclusion is retired.
+
+Ordinary settings fixtures use an instance-owned Keychain access policy, including direct `SettingsStore`
+initializers. Tests that deliberately exercise the process-wide gate must explicitly inject `.live` and restore it.
 
 Claude OAuth gate tests use `ClaudeOAuthDefaultsFixtures()` so each test case owns an in-memory preferences store.
 Keep reset, expiry, and persisted-key assertions inside that scope; nested tasks inherit it, detached tasks do not.
@@ -309,6 +316,14 @@ already-correct config entries. The real setter still handles changed flags and 
 provider-toggle actions under test on the production setter; the fixture helper is for setup before observing changes.
 
 ### Cost scanner CPU regressions
+
+Cost marker searches compare exact UTF-8 bytes with bounded libc `memchr` and `memcmp` calls.
+Both buffers remain borrowed during the search, and candidate starts stop at the last position
+where the complete needle fits. Empty needles retain Foundation's `Data.range(of:)` behavior.
+`CostUsageAsciiSearchTests` compares results with Foundation, including nonzero-index data views,
+binary bytes, Unicode, repeated prefixes, and matches at the buffer boundary.
+JSON decoding, parser classification, and resumable scan state keep their existing paths.
+The parser-hash change retains `3f88178bf03ad704` as a tested compatible native-store predecessor.
 
 `CostUsageJsonl` finds complete physical LF spans with bounded libc `memchr` on Darwin, Glibc, and
 Musl, using the same span algorithm with scalar LF search elsewhere. Borrowed pointers stay inside
@@ -702,6 +717,10 @@ alive until its output is observed; Darwin can discard unread output when the la
 The TTY runner retains its slave descriptor until it has harvested output after child exit, then closes it
 before checking EOF. The fast-exit regression waits for child exit before the first read, without a timed delay.
 Compare working directories after resolving symlinks.
+
+Detached SIGTERM-ignoring fixtures use `KiroProcessTestSupport` to watch the test process with kqueue
+`NOTE_EXIT`, with a 120-second backstop. Watch the test process rather than a short-lived fixture parent;
+heartbeat loops also retain an absolute deadline so they cannot wait forever while the owner remains alive.
 Test output is buffered per group. A direct runtime failure after execution begins fails the run;
 it does not silently rerun the suite through a different runtime. This opt-in adapter depends on
 SwiftPM's toolchain helper contract and needs compatibility validation when updating Xcode.

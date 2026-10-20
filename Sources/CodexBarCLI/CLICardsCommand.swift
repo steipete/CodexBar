@@ -20,7 +20,7 @@ extension CodexBarCLI {
         let provider = Self.decodeProvider(from: values, config: config)
         let providerList = provider.asList
         let setup = Self.usageFetchSetup(values: values, providers: providerList, output: output, cardsLayout: true)
-        let command = setup.command
+        let command = setup.command.withUsageCacheFallback(config: config)
         let tokenContext = setup.tokenContext(config: config, output: output)
         let brief = values.flags.contains("brief")
         // Provider-specific by design: claude-swap cards need Claude's integration configuration and subprocess.
@@ -39,6 +39,7 @@ extension CodexBarCLI {
             let result = await CLIClaudeSwapCards.fetch(
                 eligible: claudeSwapEligible,
                 executablePath: CLIClaudeSwapCards.executablePath(from: claudeConfig),
+                source: claudeConfig?.resolvedClaudeSwapSource ?? .claudeSwap,
                 showSingleAccount: claudeConfig?.claudeSwapShowSingleAccount == true,
                 renderOptions: CLIClaudeSwapCardsRenderOptions(
                     status: status,

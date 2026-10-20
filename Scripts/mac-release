@@ -2,6 +2,11 @@
 set -euo pipefail
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+case "${1:-}" in
+  ""|status|notes|changelog-html|verify-appcast|check-assets) ;;
+  *) echo 'Publishing is owned by .github/workflows/release.yml; use a dry-run dispatch for verification.' >&2; exit 2 ;;
+esac
+
 ROOT=$(cd "$SCRIPT_DIR/.." && pwd)
 cd "$ROOT"
 

@@ -5,6 +5,32 @@ import Testing
 
 struct TokenAccountCLISelectionTests {
     @Test
+    func `Claude credential refresh preserves its local cost directory`() throws {
+        let account = ProviderTokenAccount(
+            id: UUID(),
+            label: "Personal",
+            token: "fixture-old",
+            addedAt: 1,
+            lastUsed: nil,
+            claudeConfigDirectory: "/fixtures/claude-personal")
+        let config = CodexBarConfig(providers: [ProviderConfig(
+            id: UsageProvider.claude.instanceID,
+            tokenAccounts: ProviderTokenAccountData(version: 1, accounts: [account], activeIndex: 0))])
+        let store = try Self.configStore()
+        defer { try? FileManager.default.removeItem(at: store.fileURL.deletingLastPathComponent()) }
+        try store.save(config)
+        #expect(try TokenAccountCLIContext.updateStoredTokenAccount(
+            store: store,
+            provider: .claude,
+            accountID: account.id,
+            expectedToken: "fixture-old",
+            token: "fixture-new"))
+        let saved = try #require(try store.load()?.providerConfig(for: .claude)?.tokenAccounts?.accounts.first)
+        #expect(saved.token == "fixture-new")
+        #expect(saved.claudeConfigDirectory == account.claudeConfigDirectory)
+    }
+
+    @Test
     func `parallel providers retain both refreshed account credentials`() async throws {
         let providers: [UsageProvider] = [.antigravity, .stepfun]
         let accounts = providers.map { _ in Self.account(token: "original-token") }

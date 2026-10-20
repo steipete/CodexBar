@@ -152,8 +152,7 @@ public enum CursorProviderDescriptor {
         if !subquotas.isEmpty, usableSubquotas.isEmpty {
             return .resolved(subquotas.max(by: { $0.usedPercent < $1.usedPercent }))
         }
-        return .resolved(([total].compactMap(\.self) + usableSubquotas)
-            .max(by: { $0.usedPercent < $1.usedPercent }))
+        return .automaticCandidates([total].compactMap(\.self) + usableSubquotas)
     }
 
     private static var supportsTokenSnapshot: Bool {

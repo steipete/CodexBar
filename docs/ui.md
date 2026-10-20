@@ -8,9 +8,12 @@ read_when:
 # UI & icon
 
 ## Settings
+- Back and Forward revisit the panes you opened, using Command-[ and Command-] as in System Settings. Selecting a new pane after going back clears forward history; reselecting the current pane preserves it. The last pane still restores at launch, while navigation history lasts only for the current app session. Hidden Debug panes are removed from history. On macOS 26 and later, the controls share the detail header; macOS 14/15 retain the native window title and show the controls above the pane content. The native window title stays set on every version for accessibility and the Window menu.
+- Dock presence follows startup and actual window transitions instead of rescanning windows on every app update. Scheduled Sparkle alerts still request temporary Dock presence, including alerts shown behind another app.
 - Menu → Highlight menu cards on hover is on by default. Turn it off to keep normal text and usage-bar colors on provider cards, Overview cards, and Refresh while hovering. Keyboard selection stays visible; clicks and submenus are unchanged. The choice persists locally across restarts.
 - The provider sidebar keeps saved order and the one-click alphabetical toggle (enabled first). The adjacent
-  menu offers Only enabled providers and Restore default order. Search matches service names, provider IDs,
+  menu offers Only show enabled providers and Restore default order. Restore is disabled when the saved order
+  is already the default and alphabetical sorting is off. Search matches service names, provider IDs,
   CLI names, and CLI aliases, ignoring case and accents.
 - Browsing filters do not rewrite provider configuration or menu bar order. Dragging is available only in the
   unfiltered saved-order view and retains hidden plugin positions. Restore default order resets built-in service
@@ -20,6 +23,7 @@ read_when:
   existing sync and portable-transfer preference.
 - App copy, credential-expiry alerts, share cards, number formatting, and layout direction follow the selected app language. Widgets use the system language independently; all 23 supported languages have complete app catalogs and generated widget catalogs. After editing app translations or widget lookup keys, run `node Scripts/sync-widget-locales.mjs`; `make check` verifies key coverage, format arguments, plural branches, and generated resources.
 - Notifications → Reset notifications is off by default and uses confirmed session and weekly resets, independently of confetti. Alerts name the provider and window; account labels appear only when Hide personal info is off. The existing macOS notification permission and Focus/Do Not Disturb settings control delivery; this toggle adds no startup permission request.
+- Enabled reset confetti runs for about 8.5 seconds so upward-launched pieces finish falling offscreen before the overlay closes. It remains click-through throughout the celebration.
 - Reset alerts and session-restored alerts share account-scoped reset receipts. Switching accounts establishes a fresh session-notification baseline. Known reset boundaries are persisted per provider, account, and window, preventing repeated banners after refreshes or restarts; a different account or a newly advanced boundary can notify independently. Without reset metadata, the existing detector requires a new usage cycle before notifying again; a new depleted episode can still produce a restored notice. Returning timestamps identify an already-announced cycle without replaying it, and previously announced boundaries stay deduplicated. The reset toggle supports portable preference export/import and remains local unless explicitly transferred.
 - Usage & Spend places its time-range picker below the title and Refresh button, keeping the header readable in narrow settings windows.
 - Spend charts group long ranges by week or month, support day/hour drill-down and account isolation, and keep an amount inspector visible below the chart. Reporting-calendar boundaries drive grouping and scrolling; the hourly view shows its UTC offset and a 24-hour clock. Chart sums are labeled recorded spend, and zero, unavailable, and incomplete amounts retain their distinct meanings.
@@ -66,6 +70,12 @@ read_when:
 - Display → Menu Bar → Layout provides presets plus a token editor. Tokens can be clicked to append, dragged from the
   palette, reordered between one or two lines, dragged out, or removed with Delete. Layouts can be global or overridden
   per provider. Manual edits select the Custom preset.
+- To hide Session, Weekly, and Scoped weekly percentage prefixes (such as `5h` and `W`), turn off **Show window labels**
+  next to **Monospaced digits**. It defaults on and applies to all layouts. Percentages keep their full VoiceOver
+  descriptions; named provider lanes, named allowances, Spend currency symbols, and progress-bar labels remain visible.
+  The preference is stored separately as `menuBarLayoutShowWindowLabels`; saved layouts and V5/V6 projections are unchanged.
+- For a provider-specific bare Session percentage, select Codex or Claude in Layout, remove the existing percentage,
+  and add the **second Session %** chip from Usage (the provider's primary lane). This works with window labels enabled.
 - For Codex or Claude weekly usage without a `W` prefix, select that provider in Layout, remove the existing percentage,
   and add the **second Weekly %** chip from Usage (the provider's secondary lane). Repeat for the other provider
   if needed. The first **Weekly %** is a semantic window token and keeps its prefix; lane tokens omit it.
@@ -98,19 +108,30 @@ read_when:
 | Group | Tokens | Behavior |
 | --- | --- | --- |
 | Identity | Icon, Provider name, Account | Provider-scoped branding and identity |
-| Usage | Session %, Weekly %, Scoped weekly %, Auto %, Usage bar | Window percentage or a compact three-glyph usage bar |
+| Usage | Session %, Weekly %, Scoped weekly %, Auto %, Spend %, Usage bar | Window percentage or a compact three-glyph usage bar |
 | Usage | Named allowances (Cursor Grok Bot, Antigravity family weekly quotas) | Own label and percentage; a saved selection shows a dash when unavailable |
-| Usage | Session pace, Weekly pace, Auto pace | Signed pace delta for that window |
-| Time | Resets in, Reset at (automatic, Session, Weekly), Runs out | Selected-window relative reset, absolute reset, or pace estimate |
-| Money | Balance, Cost today, Cost (History window) | Provider balance or remaining credits, or local cost estimate. Cost (History window) is the total for the selected [History window](cost-reporting-periods.md), and cost thresholds compare that window's total |
+| Usage | Session pace, Weekly pace, Auto pace, Spend pace | Signed pace delta for that window |
+| Time | Resets in, Reset at (automatic, Session, Weekly, Spend), Runs out | Selected-window relative reset, absolute reset, or pace estimate |
+| Money | Balance, Cost today, Cost (History window), Spend, Spend / budget | Provider balance or remaining credits, or local cost estimate. Cost (History window) is the total for the selected [History window](cost-reporting-periods.md), and cost thresholds compare that window's total. Spend and Spend / budget show the provider-reported amount spent, alone or against its budget |
 | Structure | Separator dot, Space, Line break | Spacing and optional two-line composition |
+
+Spend items use the provider-reported budget behind the Extra usage metric and honor **Show optional credits,
+spending & billing details**. They do not use prepaid balances or local cost estimates. Spend % carries the budget's
+currency symbol; credit-denominated caps have no currency prefix and no monetary amount. Spend pace requires a
+reported period and becomes available after 1% of that period. Existing layouts are unchanged; new installs also
+include a **Spend over 90% used** conditional rule.
+
+Spend layouts, overrides, and rules are stored in V6. Older builds read a V5 projection without Spend tokens or rules;
+V4 and earlier projections retain their existing compatibility behavior. Returning restores the full layout when the
+older copy was unchanged. Edits in an older build take precedence, while untouched overrides and Spend rules survive;
+clearing the older rule library deliberately clears all rules.
 
 The pace tokens render the same delta the menu card shows as "in deficit"/"in reserve", in the compact signed form the
 pre-0.45 **Both** display mode used: `+11%` means usage runs that far ahead of the sustainable rate, `-8%` that far
 behind it, `0%` on pace. Each pace token reads its own window, so `Weekly pace` never borrows the session delta — unlike
 `Runs out`, which always estimates from the weekly (or automatic) lane. A pace token renders an en dash while pace is
-unavailable, including the first 3% of a window. The weekly menu-bar pace token may appear after 1% of its weekly
-window has elapsed; session, automatic, and Runs out tokens keep the 3% threshold. See [Pace tracking](#pace-tracking).
+unavailable. Weekly and Spend pace may appear after 1% of their respective periods has elapsed; session, automatic,
+and Runs out tokens keep the 3% threshold. See [Pace tracking](#pace-tracking).
 
 Choose **Pace sign** under **Menu Bar → Icon**, next to **Color Pace Indicator**:
 **Ahead of pace is +** (the default) shows deficits as positive and reserves as negative;
@@ -120,9 +141,9 @@ pace stays an en dash. The menu card's reserve/deficit wording and the numeric m
 do not change: positive pace thresholds still mean usage ahead of pace.
 
 Enable **Color Pace Indicator** under **Menu Bar → Icon** to show usage behind pace (reserve) in green and usage ahead
-of pace (risk of running out early) in red. The option defaults off, applies to all three pace tokens and the layout
+of pace (risk of running out early) in red. The option defaults off, applies to all four pace tokens and the layout
 preview, and keeps the signed percentages. Zero and unavailable pace stay neutral; stale pace colors are dimmed unless high-contrast rendering is active.
-It colors **Session pace**, **Weekly pace**, and **Auto pace** in the layout editor. Enabling it does not add tokens,
+It colors **Session pace**, **Weekly pace**, **Auto pace**, and **Spend pace** in the layout editor. Enabling it does not add tokens,
 rewrite stored layouts, or migrate legacy display modes. Existing installs stay monochrome until the option is enabled.
 These colors keep the same meaning with either pace sign: reserve is green and deficit is red.
 
@@ -158,11 +179,11 @@ model-generic token label while the rendered menu-bar prefix and accessibility l
 - Renderer/critter icons dim when last refresh failed and can render incident indicators; brand display mode uses provider branding plus title text.
 - Loading animation runs at a bounded frame rate and has a hard continuous-duration ceiling so provider hangs cannot keep
   the menu bar redrawing forever.
-- Ordinary, fresh single-line text-only token layouts use cached template images so AppKit can reuse them across
-  status-item redraws while retaining native highlighting and display-scale handling. The existing bounded renderer
-  cache includes the content and appearance; memory-pressure cleanup clears it. Stale data, high-contrast mode,
-  provider icons, attachments, colored glyphs such as emoji, and multiline text keep their attributed-title rendering. Critter and bar styles
-  keep their existing renderers.
+- Ordinary, fresh monochrome token layouts use template images so AppKit supplies native highlighting and
+  inactive-display dimming. Combined stacked rows support inline monochrome icons, percentages, and reset text.
+  Individual layout content and appearance remain in the bounded renderer cache; memory-pressure cleanup clears it.
+  Stale data, high-contrast mode, colored glyphs or colored attachments, and layouts with a separate leading icon keep
+  attributed text rendering. Critter and bar styles keep their existing renderers.
 
 ## Menu card
 - Cards with a history submenu show the active menu selection; deselecting the card clears it. Credits and other sections are separate menu items, so selecting usage does not highlight them.
@@ -201,13 +222,17 @@ model-generic token label while the rendered menu-bar prefix and accessibility l
 
 Pace compares your actual usage against the expected consumption rate for the current window. Most providers use an even-consumption budget; Codex can use historical pace data when historical tracking is available.
 
-The **Work days** setting selects the weekly pace model. **Automatic** uses Codex historical pace when enough data is available. Historical daily credits follow local calendar-day boundaries, including midnight daylight-saving transitions. Selecting 4, 5, or 7 days uses that explicit schedule for pace and ETA instead; CodexBar continues collecting history in the background, but does not use historical predictions until the setting returns to Automatic.
+The **Work days** setting selects the weekly pace model. **Automatic** uses Codex historical pace when enough data is available. Historical daily credits follow local calendar-day boundaries, including midnight daylight-saving transitions. Selecting 4, 5, 6, or 7 days uses that explicit schedule for pace and ETA instead; CodexBar continues collecting history in the background, but does not use historical predictions until the setting returns to Automatic. Six days counts Monday through Saturday and excludes Sunday, including in the session forecast's remaining capacity.
 
 - **On pace** – usage matches the expected rate.
 - **X% in deficit** – you're consuming faster than the even rate; at this pace you'll run out before the window resets.
 - **X% in reserve** – you're consuming slower than the even rate; you have headroom to spare.
 
 When usage is in deficit, the right-hand label shows an estimated "Runs out in …" countdown. When usage will last until the reset, it shows "Lasts until reset".
+
+Session-equivalent forecasts require at least three qualifying completed session samples. If an older session reset
+timestamp moves backward, the estimator discards the history segment before that correction and can recover the
+forecast from enough valid later samples.
 
 Pace is calculated for any provider window with enough reset timing data and is hidden when less than 3% of the
 window has elapsed. The weekly menu-bar pace token is the one exception: it may appear after 1% of the weekly
@@ -262,7 +287,8 @@ Visibility and accent-color changes preserve account cache identity and retained
 remains available with an explanation; checking it does not override the global setting.
 
 Codex and Claude have separate **Limit Reset Credits** and **Plan renewal / expiry** choices. These are
-independent of the global switch. Plan dates appear immediately after the quota rows, before reset credits.
+independent of the global switch. Plan dates appear immediately after the quota rows, before reset credits, labeled
+**Plan renews** or **Plan expires** to distinguish them from quota resets.
 Compact Overview still omits plan dates when quota bars are present. On upgrade, a previously disabled
 global switch initializes Claude's reset-credit choice to hidden; users can then enable it independently.
 The one-time migration preserves other saved choices and travels with provider settings through sync.

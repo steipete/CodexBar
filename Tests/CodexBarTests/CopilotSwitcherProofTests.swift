@@ -42,7 +42,7 @@ struct CopilotSwitcherProofTests {
                 weeklyRemainingProvider: { provider in
                     provider == .copilot
                         ? StatusItemController.switcherWeeklyMetricPercent(
-                            for: provider,
+                            for: .copilot,
                             snapshot: snapshot,
                             showUsed: showUsed)
                         : (showUsed ? 40 : 60)

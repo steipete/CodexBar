@@ -25,6 +25,7 @@ struct HomebrewUpdaterControllerTests {
         var upgradeError: Error?
         var versionAfterUpgrade: String?
         var upgradeCount = 0
+        var requestedVersion: String?
         var upgradeWait: CheckedContinuation<Void, Never>?
         var suspendUpgrade = false
         var relaunchCount = 0
@@ -47,7 +48,8 @@ struct HomebrewUpdaterControllerTests {
                         if let error = self.fetchError { throw error }
                         return self.caskSource
                     },
-                    runUpgrade: { @MainActor in
+                    runUpgrade: { @MainActor targetVersion in
+                        self.requestedVersion = targetVersion
                         self.upgradeCount += 1
                         if self.suspendUpgrade, self.upgradeCount == 1 {
                             await withCheckedContinuation { self.upgradeWait = $0 }
@@ -177,7 +179,7 @@ struct HomebrewUpdaterControllerTests {
             dependencies: .init(
                 installedVersion: { "0.65.0" },
                 fetchCaskSource: { throw HomebrewUpdateError.invalidCaskResponse },
-                runUpgrade: {},
+                runUpgrade: { _ in },
                 relaunch: {},
                 cask: { throw HomebrewUpdateError.invalidCaskResponse }),
             startScheduledChecks: false)
@@ -272,6 +274,7 @@ struct HomebrewUpdaterControllerTests {
 
         #expect(fixture.upgradeCount == 1)
         #expect(fixture.relaunchCount == 1)
+        #expect(fixture.requestedVersion == "0.66.0")
         #expect(controller.updateStatus.availableVersion == nil)
         #expect(controller.updateStatus.isInstalling == false)
     }

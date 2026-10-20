@@ -260,6 +260,7 @@ struct CodexBarConfigMigratorTests {
             ampCookieStore: secrets,
             copilotTokenStore: secrets,
             tokenAccountStore: CountingTokenAccountStore(),
+            keychainAccessPolicy: .live,
             performInitialProviderDetection: false)
 
         #expect(store.debugDisableKeychainAccess == disabled)

@@ -240,6 +240,7 @@ public struct CostUsageFetcher: Sendable {
 
     package func loadTokenResult(
         provider: UsageProvider,
+        claudeConfigDirectory: String? = nil,
         environment: [String: String] = ProcessInfo.processInfo.environment,
         antigravityAdditionalProfileHomes: [String] = [],
         now: Date = Date(),
@@ -257,7 +258,18 @@ public struct CostUsageFetcher: Sendable {
         calendar: Calendar? = nil,
         reportContext: CostUsageReportContext = .regular) async throws -> CostUsageTokenResult
     {
-        try await Self.loadTokenResult(
+        var options = self.scannerOptions(calendar: calendar)
+        // Provider-specific by design: explicit account roots never include ambient or swap history.
+        if provider == .claude, let claudeConfigDirectory {
+            let roots = ClaudeConfigPaths.costProjectsRoots(
+                accountConfigDirectory: claudeConfigDirectory, environment: environment)
+            guard let root = roots.first, FileManager.default.isReadableFile(atPath: root.path) else {
+                throw CocoaError(.fileReadNoSuchFile)
+            }
+            options = options ?? CostUsageScanner.Options()
+            options?.claudeProjectsRoots = roots
+        }
+        return try await Self.loadTokenResult(
             provider: provider,
             environment: environment,
             antigravityAdditionalProfileHomes: antigravityAdditionalProfileHomes,
@@ -273,7 +285,7 @@ public struct CostUsageFetcher: Sendable {
             bypassScannerDebounce: bypassScannerDebounce,
             piWorkingDirectories: piWorkingDirectories,
             piSessionProcessContexts: piSessionProcessContexts,
-            scannerOptions: self.scannerOptions(calendar: calendar),
+            scannerOptions: options,
             reportContext: reportContext)
     }
 
@@ -574,6 +586,17 @@ public struct CostUsageFetcher: Sendable {
                 now: now,
                 historyDays: clampedHistoryDays,
                 calendar: fallbackCalendar))
+        }
+        // OpenCode Go shares the app's device-local reader and recorded-cost projection.
+        if provider == .opencodego {
+            let home = environment["HOME"].map { URL(fileURLWithPath: $0, isDirectory: true) }
+                ?? FileManager.default.homeDirectoryForCurrentUser
+            return try await CostUsageScanExecutor.run { _ in
+                let usage = try OpenCodeGoLocalUsageReader(homeDirectory: home).fetch(
+                    now: now, historyDays: clampedHistoryDays, calendar: fallbackCalendar)
+                return CostUsageTokenResult(snapshot: usage.toCostUsageTokenSnapshot(
+                    historyDays: clampedHistoryDays, calendar: fallbackCalendar))
+            }
         }
         // Provider-specific by design: Muse local history has token evidence but no established dollar rates.
         if provider == .muse {

@@ -62,6 +62,16 @@
 "7d" = "7d";
 "A managed Codex login is already running. Wait for it to finish before adding " = "Er is al een beheerde Codex-aanmelding actief. Wacht tot het klaar is voordat je het toevoegt";
 "API key" = "API-sleutel";
+
+/* Future AGI provider */
+"Secret key" = "Geheime sleutel";
+"Required with the API key. Saved in the local config file. Or set FI_SECRET_KEY." = "Vereist samen met de API-sleutel. Opgeslagen in het lokale configuratiebestand. Of stel FI_SECRET_KEY in.";
+"Paste secret key…" = "Plak de geheime sleutel…";
+"AI credits" = "AI-tegoed";
+"Gateway requests" = "Gatewayverzoeken";
+"Future AGI cost history is not available." = "De kostengeschiedenis van Future AGI is niet beschikbaar.";
+"Saved in CodexBar's local config file. Or set FI_API_KEY." = "Opgeslagen in het lokale configuratiebestand van CodexBar. Of stel FI_API_KEY in.";
+
 "API region" = "API-regio";
 "API token" = "API-token";
 "API tokens" = "API-tokens";
@@ -665,6 +675,8 @@
 "overview_rows_follow_order" = "Overzichtsrijen volgen altijd de volgorde van de provider.";
 "overview_no_providers_selected" = "Geen aanbieders geselecteerd";
 "agent_sessions_title" = "Agentsessies";
+"agent_sessions_remote_title" = "Externe sessies (Tailscale / SSH)";
+"agent_sessions_remote_subtitle" = "Ontdek externe hosts en maak verbinding. Schakel uit om alleen deze Mac te volgen.";
 "agent_sessions_subtitle" = "Toon lokale en via SSH gevonden Codex- en Claude Code-sessies in het menu.";
 "agent_sessions_hosts_title" = "Aanvullende SSH-hosts";
 "agent_sessions_footer" = "Macs op uw tailnet worden automatisch gevonden. Lokale sessies worden elke 30 seconden vernieuwd; externe hosts elke 60 seconden en wanneer het menu wordt geopend.";
@@ -1430,6 +1442,7 @@
 "menu_bar_layout_size_regular" = "Normaal";
 "menu_bar_layout_size_large" = "Groot";
 "menu_bar_layout_monospaced_digits" = "Cijfers met vaste breedte";
+"menu_bar_layout_show_window_labels" = "Periodelabels tonen";
 "menu_bar_layout_gap" = "Tussenruimte";
 "menu_bar_layout_gap_tight" = "Krap";
 "menu_bar_layout_gap_regular" = "Normaal";
@@ -1452,6 +1465,9 @@
 "menu_bar_layout_token_runs_out" = "Op";
 "menu_bar_layout_token_cost_today" = "Kosten vandaag";
 "menu_bar_layout_token_cost_window" = "Kosten (Geschiedenisvenster)";
+"menu_bar_layout_token_spend" = "Uitgaven %";
+"menu_bar_layout_token_spend_pace" = "Uitgaventempo";
+"menu_bar_layout_token_spend_budget" = "Uitgaven / begroting";
 "menu_bar_layout_token_space" = "Spatie";
 "menu_bar_layout_token_line_break" = "Regeleinde";
 "menu_bar_layout_token_separator_accessibility" = "Scheidingspunt";
@@ -1613,6 +1629,7 @@
 "menu_bar_layout_conditional_default_session_spent" = "Sessie bijna verbruikt";
 "menu_bar_layout_conditional_default_either_high" = "Sessie of week loopt hoog op";
 "menu_bar_layout_conditional_default_scoped_weekly" = "Modelweek boven 60% gebruikt";
+"menu_bar_layout_conditional_default_spend_high" = "Uitgaven boven 90% gebruikt";
 "Visible usage items" = "Zichtbare gebruiksitems";
 "Restore Defaults" = "Standaardinstellingen herstellen";
 "Choose which usage rows appear in this provider's menu, Settings preview, and Overview." = "Kies welke gebruiksrijen worden weergegeven in het menu van deze provider, het instellingenvoorbeeld en het overzicht.";
@@ -1796,6 +1813,9 @@
 "Gateway URL" = "Gateway URL";
 "Gemini CLI login is no longer supported" = "Inloggen met Gemini CLI wordt niet langer ondersteund";
 "Gemini CLI migration" = "Gemini CLI-migratie";
+"Gemini app" = "Gemini-app";
+"Gemini CLI" = "Gemini CLI";
+"Gemini app limits use your browser account and are separate from Gemini CLI quotas." = "De limieten van de Gemini-app gelden voor je browseraccount en staan los van de quota van Gemini CLI.";
 "Generated locally by CodexBar · Data through %@" = "Lokaal gegenereerd door CodexBar · Gegevens tot %@";
 "GitHub cookies" = "GitHub cookies";
 "GitHub does not publish this value. Enter it to show a usage bar. Applies to the selected GitHub account." = "GitHub publiceert deze waarde niet. Voer het in om een ​​gebruiksbalk weer te geven. Geldt voor de geselecteerde GitHub-rekening.";
@@ -1899,6 +1919,7 @@
 "Paste the Cookie header from a billing-page request. It must contain sessionid." = "Plak de Cookie-header uit een factuurpaginaverzoek. Het moet sessionid bevatten.";
 "Paste z.ai / GLM API key…" = "Plak z.ai / GLM API sleutel…";
 "Path to the cswap executable (github.com/realiti4/claude-swap)." = "Pad naar het uitvoerbare bestand cswap (github.com/realiti4/claude-swap).";
+"Path to the tcr executable (github.com/dhkts1/teamclaude-rs)." = "Pad naar het uitvoerbare bestand tcr (github.com/dhkts1/teamclaude-rs).";
 "Peak %@" = "Piek %@";
 "Percent left" = "Percentage resterend";
 "Pick another Codex account before importing OpenAI cookies." = "Kies een ander Codex-account voordat u OpenAI cookies importeert.";
@@ -1930,7 +1951,7 @@
 "Refresh the profile before refreshing OpenAI web data." = "Vernieuw het profiel voordat u de OpenAI-webgegevens vernieuwt.";
 "Refreshing account status…" = "Accountstatus vernieuwen…";
 "Remaining budget compared with an ideal steady burn rate." = "Resterend budget vergeleken met een ideale stabiele brandsnelheid.";
-"Renews: %@" = "Vernieuwt: %@";
+"Plan renews: %@" = "Abonnement wordt verlengd: %@";
 "Request quota" = "Quotum aanvragen";
 "Requesting login…" = "Inloggen aanvragen…";
 "Required. Enter a regular API key or a Management API key here. Management keys also enable account Activity on the official OpenRouter API." = "Vereist. Voer hier een gewone API-sleutel of een Management API-sleutel in. Beheersleutels maken ook accountactiviteit mogelijk op de officiële OpenRouter API.";
@@ -1953,6 +1974,8 @@
 "Select the provider to display." = "Selecteer de provider die u wilt weergeven.";
 "Session (5-hour)" = "Sessie (5 uur)";
 "Session and weekly usage with credits and costs." = "Sessie en wekelijks gebruik met Kredieten en kosten.";
+"Set the cswap executable path below." = "Stel hieronder het pad naar het uitvoerbare bestand cswap in.";
+"Set the tcr executable path below." = "Stel hieronder het pad naar het uitvoerbare bestand tcr in.";
 "Settings unavailable." = "Instellingen niet beschikbaar.";
 "Show account card when only one account is available" = "Toon accountkaart als er slechts één account beschikbaar is";
 "Show model-specific weekly usage in widgets" = "Toon modelspecifiek wekelijks gebruik in widgets";
@@ -1960,6 +1983,7 @@
 "Shows model-specific Claude quotas, such as Fable, in desktop widgets." = "Toont modelspecifieke Claude Quotum, zoals Fable, in bureaubladwidgets.";
 "Shows the hidden accounts" = "Toont de verborgen accounts";
 "Shows usage and lets you switch accounts through `cswap`. Credentials stay managed by claude-swap; CodexBar never reads them." = "Toont het gebruik en laat u van account wisselen via `cswap`. Inloggegevens blijven beheerd door claude-swap; CodexBar leest ze nooit.";
+"Shows usage from `tcr`; it does not switch accounts, because tcr picks the account for each request. Credentials stay managed by tcr; CodexBar never reads them." = "Toont het gebruik uit `tcr`; wisselt niet van account, omdat tcr voor elk verzoek het account kiest. Inloggegevens blijven beheerd door tcr; CodexBar leest ze nooit.";
 "Stay Awake" = "Blijf wakker";
 "Stored in the CodexBar config file. Reads monthly budget and routed usage from /v1/usage." = "Opgeslagen in het CodexBar-configuratiebestand. Leest het maandbudget en het gerouteerde gebruik van /v1/usage.";
 "Stored in ~/.codexbar/config.json. OPENAI_ADMIN_KEY is required for organization usage; legacy/user keys only get a best-effort balance fallback." = "Opgeslagen in ~/.codexbar/config.json. OPENAI_ADMIN_KEY is vereist voor gebruik in de organisatie; oudere/gebruikerssleutels krijgen alleen een terugval in de balans van de beste inspanning.";
@@ -1968,6 +1992,7 @@
 "SuperGrok OAuth" = "SuperGrok OAuth";
 "Switch Account…" = "Van account wisselen…";
 "Switch Claude Code account" = "Claude Code-account wijzigen";
+"Claude accounts in tcr" = "Claude-accounts in tcr";
 "Switch Claude Code to %@" = "Schakel Claude Code over naar %@";
 "Switch Provider" = "Van aanbieder wisselen";
 "Switch the provider shown in the widget." = "Wijzig de provider die in de widget wordt weergegeven.";
@@ -2054,6 +2079,7 @@
 "sk-ant-admin..." = "sk-ant-admin...";
 "sk-or-v1-..." = "sk-or-v1-...";
 "spent" = "Quotum is uitgeput";
+"tcr executable" = "tcr uitvoerbaar bestand";
 "under pace" = "gebruik beneden het geplande tempo";
 "us-east-1" = "us-east-1";
 "used" = "gebruikt";
@@ -2064,6 +2090,7 @@
 "~%@ est" = "~%@ geschat";
 "~%@ tracked tokens (partial)" = "~%@ Vastgelegde tokens (GEDEELTELIJK)";
 "~/.local/bin/cswap" = "~/.local/bin/cswap";
+"/Applications/TcrBar.app/Contents/MacOS/tcr" = "/Applications/TcrBar.app/Contents/MacOS/tcr";
 "~/Library/Application Support/JetBrains/IntelliJIdea2024.3" = "~/Library/Application Support/JetBrains/IntelliJIdea2024.3";
 "00000000-0000-0000-0000-000000000000" = "00000000-0000-0000-0000-000000000000";
 
@@ -2176,6 +2203,10 @@
 "Stored in ~/.codexbar/config.json. Create one at console.x.ai under Settings > Management Keys; inference API keys are not accepted." = "Opgeslagen in ~/.codexbar/config.json. Maak er een aan op console.x.ai onder Instellingen > Beheersleutels; gevolgtrekking API-sleutels worden niet geaccepteerd.";
 "xai-..." = "xai-...";
 "Team ID" = "Team ID";
+"Vercel access token" = "Vercel-toegangstoken";
+"Optional. Shows your personal budget instead of team credits. Saved in CodexBar's local config file. Or set VERCEL_ACCESS_TOKEN." = "Optioneel. Toont je persoonlijke budget in plaats van teamtegoed. Opgeslagen in het lokale configuratiebestand van CodexBar. Of stel VERCEL_ACCESS_TOKEN in.";
+"Open Vercel tokens" = "Vercel-tokens openen";
+"Required with a Vercel access token. Or set VERCEL_TEAM_ID." = "Vereist samen met een Vercel-toegangstoken. Of stel VERCEL_TEAM_ID in.";
 "Required. Shown in the xAI Console URL and team settings." = "Vereist. Weergegeven in de xAI-console URL en teaminstellingen.";
 "Sakana AI cost summary is not supported." = "Sakana AI-kostenoverzicht wordt niet ondersteund.";
 "Stored in ~/.codexbar/config.json. Copy the Sakana AI console Cookie request header." = "Opgeslagen in ~/.codexbar/config.json. Kopieer de Sakana AI-console Cookie-verzoekheader.";
@@ -2511,6 +2542,8 @@
 "Pace sign" = "Teken van gebruikstempo";
 "Ahead of pace is +" = "Boven het tempo is +";
 "Reserve is +" = "Reserve krijgt +";
+"Back" = "Terug";
+"Forward" = "Vooruit";
 
 "cost_reset_inferred_tooltip" = "Afgeleid: %@ meldt deze datum niet. Maandelijkse bestedingslimieten worden op de 1e om 00:00 UTC gereset.";
 /* fal provider credentials */
@@ -2531,7 +2564,7 @@
 "Clear filters" = "Filters wissen";
 "Change provider order" = "Volgorde van aanbieders wijzigen";
 "Provider sorting" = "Aanbieders sorteren";
-"Only enabled providers" = "Alleen ingeschakelde aanbieders";
+"Only show enabled providers" = "Alleen ingeschakelde aanbieders tonen";
 "Restore default order" = "Standaardvolgorde herstellen";
 "Also restores the provider order in the menu bar. Can be undone." = "Herstelt ook de volgorde van aanbieders in de menubalk. Kan ongedaan worden gemaakt.";
 "Local Codex details; excluded from combined totals." = "Lokale Codex-details; niet opgenomen in de gecombineerde totalen.";
@@ -2626,3 +2659,41 @@
 "API credit" = "API-tegoed";
 "Purchased credit" = "Gekocht tegoed";
 "Claude Platform exposes Console credit balance and monthly spend, not local token cost history." = "Claude Platform toont het Console-tegoed en de maandelijkse uitgaven, niet de lokale tokenkostengeschiedenis.";
+
+"Claude config directory" = "Claude-configuratiemap";
+/* App-managed HTTP server */
+"http_server_title" = "HTTP-server";
+"http_server_enable" = "HTTP-server inschakelen";
+"http_server_bind" = "IPv4-luisteradres";
+"http_server_port" = "Poort";
+"http_server_token" = "Servertoken";
+"http_server_show" = "Tonen";
+"http_server_generate" = "Genereren";
+"http_server_cache" = "Cache-interval (seconden)";
+"http_server_timeout" = "Time-out voor verzoeken (seconden; 0 schakelt uit)";
+"http_server_all_accounts" = "Alle accounts in momentopnamen opnemen";
+"http_server_identity" = "Identiteit op dashboard";
+"http_server_redacted" = "Afgeschermd";
+"http_server_warning" = "Deelt gebruik, kosten en account- en projectinformatie, nooit inloggegevens van providers. HTTP verstuurt het servertoken onversleuteld. Gebruik alleen een vertrouwde VPN- of Tailscale-verbinding.";
+"http_server_plain_http" = "Onversleutelde HTTP buiten deze Mac toestaan";
+"http_server_dashboard" = "Dashboard";
+"http_server_wildcard" = "Vervang op andere apparaten 0.0.0.0 door het VPN- of Tailscale-IPv4-adres van deze Mac.";
+"http_server_footer" = "Standaard uit. Start met CodexBar en stopt wanneer het afsluit. Instellingen en token blijven op deze Mac en worden niet gesynchroniseerd of geëxporteerd. Houd de Mac wakker voor externe toegang.";
+/* Claude desktop cookie source */
+"Claude desktop app" = "Claude-desktopapp";
+"Use Claude desktop app cookies" = "Cookies van de Claude-desktopapp gebruiken";
+"For Web usage, follow the account signed into Claude.app instead of a browser." = "Gebruik voor webverbruik het account dat bij Claude.app is aangemeld in plaats van het browseraccount.";
+
+/* Munito provider credentials */
+"Key with Read account data (Admin API) permission. Or set MUNITO_API_KEY." = "Sleutel met machtiging Accountgegevens lezen (Admin API). Of stel MUNITO_API_KEY in.";
+"Munito reports Admin API spend and limits, not local token cost history." = "Munito meldt uitgaven en limieten van de Admin API, niet de lokale tokenkostenhistorie.";
+
+"Show all accounts in Overview" = "Alle accounts in het overzicht tonen";
+
+"Expand cached account usage. The six-provider limit still applies." = "Klap geselecteerde aanbieders uit met gebruiksgegevens van accounts uit de cache. De limiet van zes aanbieders blijft gelden.";
+"Edit" = "Bewerken";
+"Move up" = "Omhoog";
+"Move down" = "Omlaag";
+"Leave blank to keep the saved credential." = "Laat leeg om de opgeslagen inloggegevens te behouden.";
+
+"No personal budget configured" = "Geen persoonlijk budget ingesteld";

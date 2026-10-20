@@ -95,6 +95,7 @@ struct ClaudeSwapListParserTests {
         let second = try #require(list.accounts.last)
         #expect(second.isActive == true)
         #expect(second.organizationName.isEmpty)
+        #expect(second.organizationUuid.isEmpty)
         #expect(second.alias == nil)
         #expect(second.fiveHour?.usedPercent == 80)
         #expect(second.fiveHour?.resetsAt == nil)
@@ -156,7 +157,7 @@ struct ClaudeSwapListParserTests {
               "email": "shared@example.com",
               "organizationName": "Sendbird",
               "alias": "Work",
-              "organizationUuid": "ignored-uuid",
+              "organizationUuid": "workspace-fixture",
               "isOrganization": true,
               "active": true,
               "usageStatus": "ok",
@@ -178,9 +179,11 @@ struct ClaudeSwapListParserTests {
         let accounts = try self.parse(json).accounts
         let first = try #require(accounts.first)
         #expect(first.organizationName == "Sendbird")
+        #expect(first.organizationUuid == "workspace-fixture")
         #expect(first.alias == "Work")
         let second = try #require(accounts.last)
         #expect(second.organizationName.isEmpty)
+        #expect(second.organizationUuid.isEmpty)
         #expect(second.alias == nil)
     }
 

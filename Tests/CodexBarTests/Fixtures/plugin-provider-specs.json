@@ -15,6 +15,20 @@
   },
   {
     "availability": [true, true, true],
+    "cliResolution": {"FUTUREAGI": ["futureagi"]},
+    "enterpriseHost": false,
+    "environmentAvailability": [[true, true], [true, true], [true, true], [true, true]],
+    "fields": ["secure", "secure"],
+    "id": "futureagi",
+    "projectToken": "",
+    "projections": {"FI_API_KEY": "fixture-key"},
+    "sourceModes": ["api", "auto"],
+    "strategies": ["futureagi.js"],
+    "supportsTokenCost": false,
+    "workspaceOrder": null
+  },
+  {
+    "availability": [true, true, true],
     "cliResolution": {"ATLASCLOUD": ["atlascloud"]},
     "enterpriseHost": false,
     "environmentAvailability": [[true, false], [true, true], [true, true], [true, true]],
@@ -32,14 +46,14 @@
     "cliResolution": {"VERCEL": ["vercel"]},
     "enterpriseHost": false,
     "environmentAvailability": [[true, false], [true, true], [true, true], [true, true]],
-    "fields": ["secure"],
+    "fields": ["secure", "secure", "plain"],
     "id": "vercel",
     "projectToken": "",
-    "projections": {"AI_GATEWAY_API_KEY": "fixture-key"},
+    "projections": {"AI_GATEWAY_API_KEY": "fixture-key", "VERCEL_TEAM_ID": "fixture-project"},
     "sourceModes": ["api", "auto"],
     "strategies": ["vercel.js"],
     "supportsTokenCost": false,
-    "workspaceOrder": null
+    "workspaceOrder": 9
   },
   {
     "availability": [true, true, true],
@@ -682,6 +696,20 @@
     "projections": {},
     "sourceModes": ["auto", "web"],
     "strategies": ["parallel.js"],
+    "supportsTokenCost": false,
+    "workspaceOrder": null
+  },
+  {
+    "availability": [true, true, true],
+    "cliResolution": {"MUNITO": ["munito"]},
+    "enterpriseHost": false,
+    "environmentAvailability": [[true, false], [true, true], [true, true], [true, true]],
+    "fields": ["secure"],
+    "id": "munito",
+    "projectToken": "",
+    "projections": {"MUNITO_API_KEY": "fixture-key"},
+    "sourceModes": ["api", "auto"],
+    "strategies": ["munito.js"],
     "supportsTokenCost": false,
     "workspaceOrder": null
   }

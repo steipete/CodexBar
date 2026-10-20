@@ -14,16 +14,38 @@ struct TailscaleSessionTests {
     }
 
     @Test
-    func `binary candidates prefer the CLI wrapper over the app binary`() throws {
-        // A GUI-launched app inherits a minimal PATH that omits the CLI locations.
+    func `binary candidates never include the app bundle`() {
         let candidates = RemoteSessionFetcher.tailscaleBinaryCandidates(path: "/usr/bin:/bin")
-
-        // The standard wrapper locations are still probed, ahead of the app binary…
         #expect(candidates.contains("/usr/local/bin/tailscale"))
         #expect(candidates.contains("/opt/homebrew/bin/tailscale"))
-        // …and the dual-mode app binary is the last resort.
-        #expect(candidates.last == "/Applications/Tailscale.app/Contents/MacOS/Tailscale")
-        #expect(try #require(candidates.firstIndex(of: "/usr/local/bin/tailscale")) < candidates.count - 1)
+        #expect(!candidates.contains("/Applications/Tailscale.app/Contents/MacOS/Tailscale"))
+    }
+
+    @Test
+    func `discovery skips app binaries symlinks and launch wrappers`() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let app = root.appendingPathComponent("Tailscale.app/Contents/MacOS/Tailscale")
+        try FileManager.default.createDirectory(at: app.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let cli = root.appendingPathComponent("tailscale")
+        let link = root.appendingPathComponent("linked-tailscale")
+        let wrapper = root.appendingPathComponent("wrapped-tailscale")
+        for file in [app, cli] {
+            try Data([0xCF, 0xFA, 0xED, 0xFE]).write(to: file)
+            try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: file.path)
+        }
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: app)
+        try Data("#!/bin/sh\nexec /Applications/Tailscale.app/Contents/MacOS/Tailscale \"$@\"\n".utf8)
+            .write(to: wrapper)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: wrapper.path)
+        var probed: [String] = []
+        _ = await RemoteSessionFetcher.firstDiscoveredHosts(
+            candidates: [app.path, link.path, wrapper.path, cli.path], localHost: nil)
+        { binary in
+            probed.append(binary)
+            return nil
+        }
+        #expect(probed == [cli.path])
     }
 
     @Test
@@ -32,47 +54,6 @@ struct TailscaleSessionTests {
 
         #expect(candidates.first == "/opt/homebrew/bin/tailscale")
         #expect(candidates.count(where: { $0 == "/opt/homebrew/bin/tailscale" }) == 1)
-    }
-
-    @Test
-    func `cli environment injects a shell marker for the app-binary fallback`() {
-        // Without a marker the dual-mode binary launches the GUI instead of the CLI.
-        let env = RemoteSessionFetcher.tailscaleCLIEnvironment(from: ["PATH": "/usr/bin"])
-
-        #expect(env["SHLVL"] == "1")
-    }
-
-    @Test
-    func `cli environment preserves an existing terminal context`() {
-        // Leave TERM alone and don't fabricate a SHLVL…
-        let withTerm = RemoteSessionFetcher.tailscaleCLIEnvironment(from: ["TERM": "xterm-256color"])
-        #expect(withTerm["SHLVL"] == nil)
-
-        // …and never clobber a caller-provided SHLVL.
-        let withShlvl = RemoteSessionFetcher.tailscaleCLIEnvironment(from: ["SHLVL": "3"])
-        #expect(withShlvl["SHLVL"] == "3")
-    }
-
-    @Test(arguments: [
-        [String: String](),
-        ["TERM": "xterm-256color"],
-        ["SHLVL": "3"],
-        ["TERM": "xterm-256color", "SHLVL": "1"],
-        ["TAILSCALE_BE_CLI": "0"],
-        ["TERM": "", "TAILSCALE_BE_CLI": ""],
-        ["SHLVL": "3", "TAILSCALE_BE_CLI": "1"],
-    ])
-    func `cli environment forces CLI mode and preserves unrelated values`(_ context: [String: String]) {
-        var original = context
-        original["PATH"] = "/usr/bin:/bin"
-        original["LANG"] = "en_US.UTF-8"
-        var expected = original
-        expected["TAILSCALE_BE_CLI"] = "1"
-        if original["TERM"] == nil, original["SHLVL"] == nil {
-            expected["SHLVL"] = "1"
-        }
-
-        #expect(RemoteSessionFetcher.tailscaleCLIEnvironment(from: original) == expected)
     }
 
     @Test
@@ -86,11 +67,12 @@ struct TailscaleSessionTests {
         var probed: [String] = []
         let hosts = await RemoteSessionFetcher.firstDiscoveredHosts(
             candidates: ["/first/tailscale", "/second/tailscale"],
-            localHost: "local-mac")
-        { binary in
-            probed.append(binary)
-            return binary == "/first/tailscale" ? Data(#"{"Version":"1.0"}"#.utf8) : validStatus
-        }
+            localHost: "local-mac",
+            isStandaloneCLI: { _ in true },
+            run: { binary in
+                probed.append(binary)
+                return binary == "/first/tailscale" ? Data(#"{"Version":"1.0"}"#.utf8) : validStatus
+            })
 
         #expect(hosts == ["linuxbox"])
         #expect(probed == ["/first/tailscale", "/second/tailscale"]) // fell through, in order
@@ -106,11 +88,12 @@ struct TailscaleSessionTests {
         var probed: [String] = []
         let hosts = await RemoteSessionFetcher.firstDiscoveredHosts(
             candidates: ["/inactive/tailscale", "/running/tailscale"],
-            localHost: "local-mac")
-        { binary in
-            probed.append(binary)
-            return binary == "/inactive/tailscale" ? inactiveStatus : runningStatus
-        }
+            localHost: "local-mac",
+            isStandaloneCLI: { _ in true },
+            run: { binary in
+                probed.append(binary)
+                return binary == "/inactive/tailscale" ? inactiveStatus : runningStatus
+            })
 
         #expect(hosts == ["linuxbox"])
         #expect(probed == ["/inactive/tailscale", "/running/tailscale"])
@@ -120,7 +103,9 @@ struct TailscaleSessionTests {
     func `discovery returns empty when no candidate yields a valid status`() async {
         let hosts = await RemoteSessionFetcher.firstDiscoveredHosts(
             candidates: ["/a/tailscale", "/b/tailscale"],
-            localHost: nil) { _ in Data("nope".utf8) }
+            localHost: nil,
+            isStandaloneCLI: { _ in true },
+            run: { _ in Data("nope".utf8) })
 
         #expect(hosts.isEmpty)
     }

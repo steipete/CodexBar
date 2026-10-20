@@ -39,6 +39,33 @@ struct CLICostTests {
     }
 
     @Test
+    func `OpenCode Go text breakdown preserves unknown costs and model tokens`() {
+        let snapshot = CostUsageTokenSnapshot(
+            sessionTokens: 125,
+            sessionCostUSD: nil,
+            last30DaysTokens: 125,
+            last30DaysCostUSD: nil,
+            historyDays: 1,
+            daily: [.init(
+                date: "1970-01-01",
+                inputTokens: 100,
+                outputTokens: 25,
+                totalTokens: 125,
+                costUSD: nil,
+                modelsUsed: ["fixture-model"],
+                modelBreakdowns: [.init(modelName: "fixture-model", costUSD: nil, totalTokens: 125)])],
+            updatedAt: Date(timeIntervalSince1970: 0))
+        let output = CodexBarCLI.renderCostText(
+            provider: .opencodego, snapshot: snapshot, useColor: false, includeBreakdown: true)
+        #expect(output.hasPrefix("OpenCode Go Cost (API-rate estimate)\n"))
+        #expect(output.contains("Estimated from local logs · may differ from your bill"))
+        #expect(output.contains("Daily breakdown"))
+        #expect(output.contains("fixture-model"))
+        #expect(output.contains("125 tokens"))
+        #expect(!output.contains("$0.00"))
+    }
+
+    @Test
     func `parses session group by and keeps project parsing`() throws {
         let parser = CommandParser(signature: CodexBarCLI._costSignatureForTesting())
 

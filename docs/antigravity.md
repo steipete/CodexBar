@@ -127,7 +127,9 @@ Starter accounts can supply only weekly limits. Both weekly groups remain visibl
 inventing five-hour allowances. OAuth first tries `retrieveUserQuotaSummary` with the selected account's
 project and a two-second timeout cap. Unavailable, legacy model-bucket, or unmeasured summary responses fall
 back to the existing model endpoints; authentication failures and cancellation still propagate. Grouped OAuth
-quotas retain that account's existing email and plan, without an additional identity request.
+quotas retain that account's existing email, without an additional identity request. OAuth prefers an explicit
+paid tier over the generic Cloud Code tier. If no paid plan is identified, a measured, enabled five-hour
+quota suppresses a contradictory `Free` label; weekly-only Starter quotas keep their existing plan label.
 
 Older local payloads may only include raw Claude, GPT-OSS, Gemini tiers, account plan, and session reset timestamps.
 Current Antigravity IDE local endpoints return `GetUserStatus`, `GetAvailableModels`, and `GetCascadeModelConfigData`
@@ -173,7 +175,7 @@ be polled within the readiness deadline.
 - `POST https://cloudcode-pa.googleapis.com/v1internal:onboardUser`
 - `POST https://cloudcode-pa.googleapis.com/v1internal:fetchAvailableModels`
 - `POST https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuota`
-- `POST https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary` (preferred when it returns measured
+- `POST https://daily-cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary` (preferred when it returns measured
   groups; older model-bucket responses use the model-endpoint fallback)
 
 ## Data sources + fallback order
@@ -333,7 +335,8 @@ shared OAuth file can still be used as a fallback credential source.
   - ISO-8601 preferred; numeric epoch seconds as fallback.
 - Identity:
   - Local HTTPS merges email and plan from the same server's `GetUserStatus`; print reports supply neither.
-  - OAuth retains the selected account's existing email claims and `loadCodeAssist` plan when parsing grouped quotas.
+  - OAuth retains the selected account's email claims and resolves the plan from `loadCodeAssist`, preferring
+    `paidTier` over generic tier metadata. Measured five-hour quotas never carry a contradictory `Free` label.
 
 ## UI mapping
 - Provider metadata:

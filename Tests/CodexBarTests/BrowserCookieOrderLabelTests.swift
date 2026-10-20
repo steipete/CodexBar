@@ -21,8 +21,17 @@ struct BrowserCookieOrderStatusStringTests {
         let order = try #require(ProviderDefaults.metadata[.claude]?.browserCookieOrder)
 
         #expect(order.first == .chrome)
-        #expect(order.count == Browser.defaultImportOrder.count)
-        #expect(Set(order) == Set(Browser.defaultImportOrder))
+        #expect(order.count == Browser.defaultImportOrder.count + 1)
+        #expect(Set(order) == Set(Browser.defaultImportOrder + [.claudeDesktop]))
+    }
+
+    @Test
+    func `Claude desktop import requires explicit selection and excludes other browsers`() {
+        #expect(!ClaudeWebAPIFetcher.cookieImportOrder.contains(.claudeDesktop))
+        ClaudeWebSessionKeyImport.$desktopApp.withValue(true) {
+            #expect(ClaudeWebAPIFetcher.cookieImportOrder == [.claudeDesktop])
+        }
+        #expect(ClaudeWebAPIFetcher.cookieImportOrder.first == .chrome)
     }
 
     @Test

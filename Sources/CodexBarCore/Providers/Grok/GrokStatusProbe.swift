@@ -158,6 +158,7 @@ public struct GrokStatusProbe: Sendable {
         let credentials = try? GrokCredentialsStore.load(env: env)
 
         var billing: GrokBillingResponse?
+        var webBilling: GrokWebBillingSnapshot?
         var rpcError: Error?
         var billingAttempted = false
         do {
@@ -165,14 +166,18 @@ public struct GrokStatusProbe: Sendable {
             defer { client.shutdown() }
             try await client.initialize()
             billingAttempted = true
-            billing = try await client.fetchBilling()
+            switch try await client.fetchBilling() {
+            case let .legacy(response): billing = response
+            case let .credits(response): webBilling = response
+            }
         } catch {
             rpcError = error
         }
 
-        let isIdentityOnly = billing == nil && self.identityOnlyFallback(credentials, billingAttempted, rpcError)
+        let hasBilling = billing != nil || webBilling != nil
+        let isIdentityOnly = !hasBilling && self.identityOnlyFallback(credentials, billingAttempted, rpcError)
         // Terminal CLI failures must reach the provider's web fallback without scanning discarded history.
-        guard billing != nil || isIdentityOnly else {
+        guard hasBilling || isIdentityOnly else {
             throw rpcError ?? GrokRPCError.notAuthenticated
         }
 
@@ -187,11 +192,11 @@ public struct GrokStatusProbe: Sendable {
             session: self.settingsTransport)
         return GrokUsageSnapshot(
             billing: billing,
-            webBilling: nil,
+            webBilling: webBilling,
             credentials: isIdentityOnly ? credentials : Self.credentialsForSnapshot(
                 credentials: credentials,
                 billing: billing,
-                webBilling: nil),
+                webBilling: webBilling),
             localSummary: localSummary,
             cliVersion: cliVersion,
             updatedAt: Date(),

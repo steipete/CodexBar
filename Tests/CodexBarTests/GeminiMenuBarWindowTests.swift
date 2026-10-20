@@ -81,4 +81,21 @@ struct GeminiMenuBarWindowTests {
             #expect(window?.usedPercent == 30, "Failed preference: \(preference)")
         }
     }
+
+    @Test
+    func `gemini automatic still surfaces an exhausted model tier`() throws {
+        let snapshot = try GeminiStatusProbe.parse(text: """
+        gemini-2.5-pro                               3       70.0% (Resets in 24h)
+        gemini-2.5-flash-lite                       12        0.0% (Resets in 6h)
+        """).toUsageSnapshot()
+
+        let window = MenuBarMetricWindowResolver.rateWindow(
+            preference: .automatic,
+            provider: .gemini,
+            snapshot: snapshot,
+            supportsAverage: true)
+
+        #expect(window == snapshot.tertiary)
+        #expect(window?.usedPercent == 100)
+    }
 }

@@ -8,7 +8,7 @@ read_when:
 
 # Providers
 
-CodexBar currently registers 104 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
+CodexBar currently registers 106 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
 OpenCode vs OpenCode Go, because the auth source and quota shape differ.
 
 ## Fetch strategies (current)
@@ -76,8 +76,8 @@ complete when the available scan window covers fewer days.
 | Codex | App Auto: OAuth API (`oauth`) → CLI RPC/PTy (`codex-cli`). CLI Auto: Web dashboard (`openai-web`) → CLI RPC/PTy (`codex-cli`). |
 | OpenAI | Admin API key (`api`) for organization spend/usage; legacy API-key balance fallback. |
 | Azure OpenAI | API key + endpoint + deployment probe (`api`) for deployment status validation. |
-| Claude | Admin API key (`api`) when configured; otherwise App Auto: OAuth API (`oauth`) → CLI PTY (`claude`) → Web API (`web`). CLI Auto: Web API (`web`) → CLI PTY (`claude`). |
-| Gemini | OAuth-backed API via Gemini CLI credentials (`api`). |
+| Claude | Admin API key (`api`) when configured; otherwise App Auto: OAuth API (`oauth`) → CLI PTY (`claude`) → Web API (`web`). CLI Auto: Web API (`web`) → CLI PTY (`claude`); on Linux, Web API (`web`) → OAuth API (`oauth`) → CLI PTY (`claude`). |
+| Gemini | Gemini CLI OAuth quotas (`auto`/`api`, default), or opt-in Gemini app 5-hour/weekly limits via cookies (`web`). |
 | Antigravity | Local LSP/HTTP probe (`local`). |
 | Cursor | Web API via cookies → legacy stored session → Cursor.app local auth (`web`). |
 | OpenCode | Web dashboard via cookies (`web`). |
@@ -113,7 +113,7 @@ complete when the available scan window covers fewer days.
 | [v0](v0.md) | API key and optional project scope from settings/env → bundled plugin for Platform API billing and rate limits (`api`). |
 | [DevPass](devpass.md) | Regular LLM Gateway API key → bundled plugin for plan credits, premium weekly usage, and all-time key spend (`api`). |
 | [Atlas Cloud](atlascloud.md) | Standard API key → account-wide available USD balance (`api`). |
-| [Vercel AI Gateway](vercel.md) | AI Gateway API key → team-wide USD balance and lifetime spend (`api`). |
+| [Vercel AI Gateway](vercel.md) | AI Gateway API key → team-wide USD balance and lifetime spend; optional Vercel access token and Team ID → personal budget instead (`api`). |
 | Windsurf | Web session bundle from browser localStorage (`web`) → local SQLite cache (`local`). |
 | Ollama | API key verifies Cloud API access (`api`); browser cookies expose current credit balance/details or legacy quota windows (`web`). |
 | [llmman](llmman.md) | Local `llmman serve` node report, optional API key → bundled plugin for loaded-model memory and store summary (`api`). |
@@ -168,6 +168,7 @@ complete when the available scan window covers fewer days.
 |---|---|
 | [Langdock](langdock.md) | Selected Edge, Chrome, or Safari profile → personal included session and weekly limits (`web`, macOS). |
 | [X API](xapi.md) | Browser or manual console.x.com cookies for prepaid and free credits, including negative balances. |
+| [Future AGI](futureagi.md) | API key and secret key (billing-period usage, allowances, and estimated cost). |
 | [LithosAI](lithosai.md) | Browser or manual console cookies for prepaid USD balance and optional UTC spend. |
 | [WorkBuddy](workbuddy.md) | Chrome or manual www.workbuddy.cn cookies for the monthly credits allowance, plan name, and cycle reset. |
 | [Tavily](tavily.md) | API key for account-plan, per-key, and pay-as-you-go credit totals. |
@@ -182,6 +183,7 @@ complete when the available scan window covers fewer days.
 | [FLORA](flora.md) | API key with billing permission plus a workspace ID for the available USD balance and month-to-date spend. |
 | [Parallel](parallel.md) | Browser session on platform.parallel.ai for the prepaid credit balance and pending debit. |
 | [Claude Platform](claudeplatform.md) | Browser or manual platform.claude.com session cookies for Console API credit balance, expiring credit grants, and month-to-date spend. |
+| [Munito](munito.md) | Admin API key with Read account data permission for today's and this month's spend against the organization's spend limits. |
 
 <!-- End generated provider additions -->
 
@@ -215,6 +217,8 @@ complete when the available scan window covers fewer days.
 - Admin API shows organization spend/messages summaries with the same inline dashboard pattern as OpenAI API.
 - App Auto: OAuth API (`oauth`) → CLI PTY (`claude`) → Web API (`web`).
 - CLI Auto: Web API (`web`) → CLI PTY (`claude`).
+- Linux CLI Auto: Web API (`web`) → OAuth API (`oauth`) → CLI PTY (`claude`). The OAuth step is skipped without
+  usable noninteractive credentials; OAuth request failures fall back to the CLI.
 - Local cost usage: scans `CLAUDE_CONFIG_DIR` when set, otherwise `~/.config/claude/projects`,
   `~/.claude/projects` (including current Claude Desktop Code/Cowork CLI sessions), and nested Claude Desktop
   local-agent JSONL files for the configured history window.
@@ -277,7 +281,8 @@ complete when the available scan window covers fewer days.
 - Details: `docs/kilo.md`.
 
 ## Gemini
-- OAuth-backed quota API (`retrieveUserQuota`) using Gemini CLI credentials.
+- Default Gemini CLI source: OAuth-backed quota API (`retrieveUserQuota`) using Gemini CLI credentials.
+- Explicit Gemini app source: bundled cookie plugin for `gemini.google.com/usage` 5-hour and weekly limits.
 - Token refresh via Google OAuth if expired.
 - Tier detection via `loadCodeAssist`.
 - Status: Google Workspace incidents (Gemini product).

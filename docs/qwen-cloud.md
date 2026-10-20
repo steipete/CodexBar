@@ -16,6 +16,8 @@ Qwen Cloud console (`home.qwencloud.com`), including plans that grant hosted Cla
 - **Team credit pool**: Shows used and remaining credits, assigned seats, and the next credit-cycle reset. A valid Team
   plan takes precedence when the account also has an Individual plan. Without an active Team plan, Individual usage
   remains available; Team errors are retained as diagnostics when Individual usage succeeds.
+  Empty summaries (`Data: {}`, `Data: null`, or an empty group list) mean no Team subscription and do not
+  add a warning. Malformed nonempty summaries remain diagnostics.
 - **Current quota windows**: Shows reported 5-hour, weekly, and monthly usage percentages, reset times, and plan-specific
   credit limits from the same APIs used by the Qwen Cloud dashboard.
 - Monthly-only responses use the primary **Monthly** bar. When rolling windows are also present, monthly usage appears as a separate **Monthly** row; absent quota totals remain unknown.

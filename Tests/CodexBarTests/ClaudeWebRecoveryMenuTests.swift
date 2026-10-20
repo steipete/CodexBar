@@ -18,6 +18,16 @@ struct ClaudeWebRecoveryMenuTests {
                 "Sign in to claude.ai (or refresh Claude cookies) to load usage data.")
     }
 
+    @Test(arguments: [ClaudeUsageDataSource.auto, .web])
+    func `desktop cookie errors do not suggest logging into another browser`(source: ClaudeUsageDataSource) {
+        let actions = self.actions(
+            error: ClaudeWebAPIFetcher.FetchError.noDesktopSessionKeyFound.localizedDescription,
+            source: source,
+            desktopCookies: true)
+        #expect(actions.contains { $0.1 == .providerSettings(.claude) })
+        #expect(!actions.contains { $0.1 == .loginToProvider(url: "https://claude.ai/") })
+    }
+
     private func makeSettings(root: URL) -> SettingsStore {
         SettingsStore(
             userDefaults: InMemoryUserDefaults(),
@@ -68,6 +78,7 @@ struct ClaudeWebRecoveryMenuTests {
         error: String? = nil,
         source: ClaudeUsageDataSource,
         cookieSource: ProviderCookieSource = .auto,
+        desktopCookies: Bool = false,
         selectedSessionKey: Bool = false,
         authenticatedAccountEmail: String? = nil,
         authenticatedOAuthWithoutEmail: Bool = false,
@@ -90,6 +101,7 @@ struct ClaudeWebRecoveryMenuTests {
             settings.addTokenAccount(provider: .claude, label: "Session", token: "sk-ant-session-token")
         }
         settings.claudeCookieSource = cookieSource
+        settings.claudeDesktopCookiesEnabled = desktopCookies
         let fetcher = UsageFetcher()
         let store = UsageStore(
             fetcher: fetcher,

@@ -1000,6 +1000,7 @@ extension CostUsageStoreTests {
         "7e293e8fc9e25700",
         "494eee446bb2e5f9",
         "6366caa15c925349",
+        "3f88178bf03ad704",
         "4a593b5d59c7bcf3",
         "b77d4ec72e14ea63",
         "cfd84d13ad7d4cfa",

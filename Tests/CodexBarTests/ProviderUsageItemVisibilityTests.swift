@@ -46,13 +46,13 @@ struct ProviderUsageItemVisibilityTests {
     func `claude independently selects resets extra usage and subscription without losing quota notes`() {
         var model = Self.model(provider: .claude, metricIDs: ["primary", "secondary"], showsResetCredits: true)
         model.providerCost = .init(title: "Extra usage", percentUsed: 10, spendLine: "$1 / $10", percentLine: nil)
-        model.subscriptionNotes = ["Renews: Nov 5, 2026"]
-        model.usageNotes = ["Usage estimate", "Renews: Nov 5, 2026"]
+        model.subscriptionNotes = ["Plan renews: Nov 5, 2026"]
+        model.usageNotes = ["Usage estimate", "Plan renews: Nov 5, 2026"]
         let items = model.usageItemDescriptors
         #expect(items.contains { $0.id == .claudeResetCredits && !$0.requiresOptionalUsage })
         #expect(items.contains { $0.id == .claudeExtraUsage && $0.requiresOptionalUsage })
         #expect(items.contains { $0.id == .subscription && !$0.requiresOptionalUsage })
-        #expect(model.quotaSubscriptionNotes == ["Renews: Nov 5, 2026"])
+        #expect(model.quotaSubscriptionNotes == ["Plan renews: Nov 5, 2026"])
         #expect(model.supplementalUsageNotes == ["Usage estimate"])
 
         let hidden = model.applyingUsageItemVisibility(hiddenItemIDs: [.claudeExtraUsage, .subscription])

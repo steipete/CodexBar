@@ -84,7 +84,7 @@ struct CLILoginRunnerTests {
     func `timeout removes a child that ignores termination`() async throws {
         let fixture = try Fixture(script: """
         #!/bin/sh
-        /bin/sh -c 'trap "" TERM; while :; do /bin/sleep 1; done' &
+        /bin/sh -c 'trap "" TERM; \(KiroProcessTestSupport.shellOwnerBoundedHold())' &
         printf '%s' "$!" > "$LOGIN_PID_FILE"
         printf 'login-started\\n'
         wait

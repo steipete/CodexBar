@@ -71,6 +71,11 @@ struct SettingsWindowControllerTests {
         #expect(registeredWindows.allSatisfy { $0 === window })
         #expect(presentedPanes == [.about, .general])
         #expect(selection.pane == .general)
+        selection.goBack()
+        #expect(selection.pane == .about)
+        selection.goForward()
+        #expect(selection.pane == .general)
+        #expect(makeCount == 1)
     }
 
     @Test

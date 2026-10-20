@@ -14,6 +14,31 @@ struct ProviderBrowsingTests {
     }
 
     @Test
+    func `restore availability follows provider order and alphabetical sorting independently of filtering`() {
+        let settings = self.store()
+        #expect(!settings.canRestoreDefaultProviderOrder)
+        #expect(!settings.restoreDefaultProviderOrder())
+        settings.providersEnabledOnly = true
+        #expect(!settings.canRestoreDefaultProviderOrder)
+
+        settings.providersSortedAlphabetically = true
+        #expect(settings.canRestoreDefaultProviderOrder)
+        #expect(settings.restoreDefaultProviderOrder())
+        #expect(!settings.canRestoreDefaultProviderOrder)
+        #expect(settings.undoProviderOrderChange())
+        #expect(settings.canRestoreDefaultProviderOrder)
+
+        settings.providersSortedAlphabetically = false
+        let original = settings.configSnapshot.providers.map(\.id)
+        settings.setProviderOrder(original.reversed())
+        #expect(settings.canRestoreDefaultProviderOrder)
+        #expect(settings.restoreDefaultProviderOrder())
+        #expect(!settings.canRestoreDefaultProviderOrder)
+        #expect(settings.undoProviderOrderChange())
+        #expect(settings.canRestoreDefaultProviderOrder)
+    }
+
+    @Test
     func `visible move preserves hidden slots and rejects stale or invalid positions`() throws {
         let plugin = try #require(ProviderInstanceID(rawValue: "synthetic-plugin"))
         let full: [ProviderInstanceID] = [.codex, plugin, .claude, .gemini]

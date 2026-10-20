@@ -59,14 +59,8 @@ cd /Users/steipete/Projects/codexbar && open -n /Users/steipete/Projects/codexba
 ```
 
 ### Release
-```bash
-# Edit .mac-release.env first: MAC_RELEASE_REPO, feed URL, download URL,
-# bundle id, and Sparkle public/signing key must point at your fork.
-./Scripts/release.sh
 
-# See full release process
-cat docs/RELEASING.md
-```
+Local release publication has been retired. Use the CI workflow described in the [current release process](RELEASING.md). A fork must adapt the repository, bundle identifiers, feed URL, Sparkle key, signing credentials, and tap handoff before enabling publication. Default dry runs verify the artifacts without publishing.
 
 ### Git Workflow
 ```bash
@@ -100,7 +94,7 @@ git push origin feature/my-feature
 - `Scripts/compile_and_run.sh` - Main development script
 - `Scripts/package_app.sh` - Package app bundle
 - `Scripts/sign-and-notarize.sh` - Release signing
-- `Scripts/make_appcast.sh` - Generate appcast XML
+- `.github/workflows/release.yml` - CI release and Sparkle publication
 
 ### Documentation
 - `docs/augment.md` - Augment provider guide

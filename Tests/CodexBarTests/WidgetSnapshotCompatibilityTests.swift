@@ -16,6 +16,7 @@ struct WidgetSnapshotCompatibilityTests {
         #expect(claude.usageRows?.map(\.id) == ["session", "weekly"])
         #expect(claude.quotaOwnerKey == "fixture-claude-owner")
         #expect(claude.updatedAt == snapshot.generatedAt)
+        #expect(claude.details == nil)
         let codex = try #require(snapshot.entries.first { $0.provider == .codex })
         #expect(codex.primary?.remainingPercent == 90)
         #expect(codex.creditsRemaining == 12.5)
@@ -46,7 +47,7 @@ struct WidgetSnapshotCompatibilityTests {
     @Test
     func `legacy reader ignores account additions and a rollback write remains readable`() throws {
         let old = try self.decoder().decode(WidgetSnapshot.self, from: Data(Self.legacyJSON.utf8))
-        let accountUsage = WidgetSnapshot.ProviderEntry(
+        let accountUsage = try WidgetSnapshot.ProviderEntry(
             provider: .claude,
             updatedAt: old.generatedAt,
             primary: RateWindow(usedPercent: 80, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
@@ -55,7 +56,8 @@ struct WidgetSnapshotCompatibilityTests {
             creditsRemaining: nil,
             codeReviewRemainingPercent: nil,
             tokenUsage: nil,
-            dailyUsage: [])
+            dailyUsage: [],
+            details: [ProviderDetailSection(rows: [.init(label: "Cloud credits", value: "$12 remaining")])])
         let snapshot = WidgetSnapshot(
             entries: [accountUsage] + old.entries.filter { $0.provider == .codex },
             accounts: [
@@ -68,6 +70,8 @@ struct WidgetSnapshotCompatibilityTests {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         let legacy = try self.decoder().decode(LegacyWidgetSnapshot.self, from: encoder.encode(snapshot))
+        let current = try self.decoder().decode(WidgetSnapshot.self, from: encoder.encode(snapshot))
+        #expect(current.entries.first?.details?.first?.rows.first?.label == "Cloud credits")
 
         #expect(legacy.entries.map(\.provider) == [.claude, .codex])
         #expect(legacy.entries.first?.primary?.remainingPercent == 20)

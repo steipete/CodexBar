@@ -74,6 +74,17 @@ sources and setup guide. The [provider ID list](provider-ids.md) is generated fr
     no denormalization — intended for agents that want a token-cheaper alternative to parsing JSON. `usage --format
     toon` is the only command that supports it; every other command still advertises and accepts only
     `--format text|json`, and treats `toon` like any other unrecognized value.
+  - Since 0.78.0, Claude usage in Auto follows the active claude-swap slot when the integration is enabled,
+    including a single configured slot regardless of `claudeSwapShowSingleAccount`. Earlier versions always used
+    the ordinary CLI source order (Web → CLI on macOS), so a browser signed into another account could supply usage.
+    The result remains one Claude payload: `source` names the adapter and `usage.accountEmail` / `usage.identity.accountID`
+    identify the active slot. Measurement timestamps and any last-known usage diagnostic are preserved.
+  - Explicit non-auto `--source` modes, a configured non-auto source, and `--account`, `--account-index`, or
+    `--all-accounts` bypass this precedence. Without the integration, source selection is unchanged.
+  - If the adapter fails, returns no active slot, or has no usable usage for that slot, the ordinary source order
+    still applies. The actual winning source gains ` (claude-swap fallback)` (or ` (tcr fallback)`) in text and JSON,
+    and the identity remains that of the fallback account. Another swap slot is never substituted. Pooled tcr
+    adapters normally report no active slot and therefore use the labeled fallback.
 - `codexbar cost` prints token cost usage for Claude, Codex, Cursor, Antigravity, Muse Code, and Pi.
   - Claude and Codex are scanned from local session logs without web/CLI access.
   - [Pi](pi.md) reads supported Pi/OMP local assistant history. Selecting Pi alongside Claude/Codex keeps those providers native-only so combined totals count each source once.
@@ -109,6 +120,7 @@ sources and setup guide. The [provider ID list](provider-ids.md) is generated fr
     50,000 records and conflict IDs and 32 MiB; exceeding a limit rejects the source rather than truncating usage.
     An unavailable source retains successful source data, marks the result partial, and exits nonzero.
     Readable empty history is available; damaged or disappearing files mark the available data partial.
+    Files are read and validated even for a short window; reducing `--days` does not skip older files.
   - Requires explicit `--provider codex` and JSON. Do not combine with `--summary-only`,
     `--period`, `--group-by` or `--breakdown`; the existing separate-host summary command is unchanged.
 - `codexbar cards` prints a one-shot usage snapshot as a responsive terminal card grid.
@@ -128,7 +140,8 @@ sources and setup guide. The [provider ID list](provider-ids.md) is generated fr
   - claude-swap sentinel accounts remain successful cards with their problem text and no fabricated usage metrics.
     A list adapter, parser, or timeout failure retains useful ambient Claude output, adds a distinct
     `Claude (claude-swap)` failure footer entry, and makes the command exit non-zero.
-  - This precedence is cards-only: `codexbar usage` and `codexbar serve` keep their existing output cardinality.
+  - Cards expands swap accounts; `codexbar usage` returns only the active slot as described above.
+    `codexbar serve` keeps its existing `/usage` behavior.
   - Honors `$COLUMNS` for layout; falls back to 80 columns. Use `--no-color` for plain output.
   - Kitty, Ghostty, WezTerm, and other truecolor terminals auto-enable enhanced gradients/outlines.
   - Force enhanced mode elsewhere with `CODEXBAR_CARDS_ENHANCED=1`.
@@ -198,13 +211,14 @@ sources and setup guide. The [provider ID list](provider-ids.md) is generated fr
     - `cli`: CLI/local-helper source where the provider exposes one (for example Codex RPC/PTy, Claude PTY, Kilo CLI fallback, Kiro CLI, local probes).
     - `oauth`: OAuth-backed source where supported (Codex, Claude, Vertex AI).
     - `api`: API-backed flow where supported; credentials may be API keys or existing tokens. See the complete [provider source table](providers.md#fetch-strategies-current) and each provider's guide for supported modes.
-    - Output `source` reflects the strategy actually used (`openai-web`, `web`, `oauth`, `api`, `local`, `cli`, or provider CLI label).
+    - Output `source` reflects the strategy actually used (`openai-web`, `web`, `oauth`, `api`, `local`, `cli`, `claude-swap`, `tcr`, or provider CLI label; `codexbar-app` with `ageSeconds` when SSH falls back to the app's cache, see [SSH sessions](#ssh-sessions-macos)).
     - Codex web: OpenAI web dashboard (usage limits, credits remaining, code review remaining, usage breakdown).
         - `--web-timeout <seconds>` (default: 60)
         - `--web-debug-dump-html` (writes HTML snapshots to `/tmp` when data is missing)
     - Claude web: claude.ai API (session + weekly usage, account metadata, and prepaid Usage credits balance when
       available).
-      CLI Auto falls back to the installed Claude executable when web credentials are unavailable. This foreground
+      CLI Auto falls back to the installed Claude executable when web credentials are unavailable (on Linux, readable
+      Claude Code OAuth credentials are tried first). This foreground
       command delegates authentication to Claude Code; the app keeps its stricter prompt-free background availability
       gate for scheduled refreshes.
     - Command Code auto: `COMMAND_CODE_API_KEY`/config `apiKey` when set, otherwise commandcode.ai browser session cookies on macOS or a configured manual cookie on Linux. Explicit `api`/`web` pins that source.
@@ -277,6 +291,42 @@ The saved app reporting period applies by default. `--period month-to-date|all` 
 - `totals`: `inputTokens`, `outputTokens`, `cacheReadTokens`, `cacheCreationTokens`, `totalTokens`, `totalCost`. These totals, `daily[]`, and `projects[]` retain the full requested window described by `historyDays`.
 - Claude/Vertex preliminary proxy records without final usage are excluded from totals. A positive optional `incompleteRequestCount` appears on the provider, `totals`, affected `daily[]`, and affected `modelBreakdowns[]`; complete-only payloads keep their previous shape. Known amounts remain partial subtotals, while incomplete-only amounts stay unavailable. Text output and the web dashboard mark these subtotals **Incomplete**. Usage & Spend exports include the same optional count on affected currency groups, providers, and model rows.
 - `error`: structured provider error when a fetch fails (for example Cursor requested while its cookie source is Off).
+
+## Manage the HTTP server from the Mac app
+
+In **Settings → Advanced → HTTP server**, enable the server, generate a token,
+and click **Apply**. Defaults are off, `127.0.0.1:8080`, a 60-second cache,
+a 30-second request timeout, and redacted dashboard identity. Apply saves the settings
+and restarts only the app's own bundled CLI helper. A terminal-started server is
+independent; a port conflict appears as a startup failure in Settings.
+
+For a phone or another device, bind to the Mac's VPN/Tailscale IPv4 address, or
+`0.0.0.0` to listen on every IPv4 interface. Non-loopback listening requires a token
+and explicit acceptance of unencrypted HTTP. The server exposes usage, cost, account and
+project information, never provider credentials. Dashboard identity controls affect
+account discovery and snapshots; `/usage` and `/cost` retain their CLI payloads. The token is a credential for that
+information: anyone holding it can read those endpoints. Use an encrypted VPN or
+Tailscale connection; do not expose this HTTP listener directly to the internet.
+When binding `0.0.0.0`, replace that address in the copied URL with the Mac's actual
+VPN/Tailscale address on the remote device.
+
+Open the copied dashboard URL in the phone's browser and enter the token. API clients
+send `Authorization: Bearer <token>` to `/usage`, `/cost`, or
+`/dashboard/v1/snapshot`; no provider login is needed on the remote device. The Mac
+must remain awake with CodexBar running. Quitting CodexBar stops its managed server;
+reopening starts it again if enabled. **Show**, **Generate**, and **Copy** manage the
+token locally. After generating a replacement, click Apply and update your clients.
+The token and server settings live in the owner-only `http-server.json` beside the
+app's resolved provider config, outside CodexBar's sync and settings export payloads.
+
+The built-in server speaks HTTP, not HTTPS. An iOS app may need an explicit App
+Transport Security policy for a trusted VPN HTTP endpoint. For HTTPS, use a separately
+configured TLS reverse proxy and a certificate trusted by the device (publicly trusted,
+or a self-signed certificate explicitly installed and trusted). Keep bearer
+authentication enabled through that proxy. A proxy forwarding to loopback must expose
+only token-gated dashboard routes, or enforce its own authentication for `/usage` and
+`/cost`, which remain unauthenticated on loopback. This setting does not install certificates,
+configure a proxy, or change the behavior of a separate `codexbar serve` command.
 
 ## Example usage
 ```
@@ -440,6 +490,20 @@ non-zero only when it cannot produce a valid snapshot document.
 - OpenAI web requires a signed-in `chatgpt.com` session in a supported browser or a manual cookie header. No passwords are stored; CodexBar reuses cookies.
 - Safari cookie import may require granting CodexBar Full Disk Access (System Settings → Privacy & Security → Full Disk Access).
 - The `openaiDashboard` JSON field is normally sourced from the app’s cached dashboard snapshot; `--source auto|web` refreshes it live via WebKit using a per-account cookie store.
+
+## SSH sessions (macOS)
+
+When the login keychain is locked, keychain-backed providers can fail over SSH while the app has fresh
+numbers. Set `"shareUsageWithCLI": true` in `config.json` (off by default) and the app writes a private cache
+(`~/Library/Application Support/CodexBar/CLIUsageCache/usage.json`, `0600` in a `0700` directory) holding rate
+windows (including extra quota rows) and fetch times, without credentials, costs, or account identity. Provider-supplied text such as reset descriptions and
+window titles is stored as received. In a non-GUI session, when a default-account
+fetch without `--source` hits a locked keychain and ends with a missing-credential or cookie-access error (for example
+`No Claude session key found in browser cookies.`), `usage` and `cards` report the app's
+numbers instead (at most one hour old) as `"source": "codexbar-app"` with `"ageSeconds"` (whole seconds since the app fetched them). Other failures (timeouts, parse errors, HTTP rejections), token
+accounts, managed Codex accounts/profile homes, explicit account selections, and GUI sessions keep their normal behavior.
+Future-dated, corrupt, incorrectly owned, non-private, and symlinked cache files are ignored. Disabling sharing removes
+the file; providers that no longer have an eligible default-account snapshot are withdrawn on the next publication.
 
 ## Managed Codex accounts (macOS)
 

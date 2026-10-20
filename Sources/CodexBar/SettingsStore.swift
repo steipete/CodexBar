@@ -228,6 +228,12 @@ struct SettingsStoreKeychainAccessPolicy {
     let setDisabled: (Bool) -> Void
     let isExplicitlyDisabled: () -> Bool
 
+    static var defaultPolicy: Self {
+        guard SettingsStore.isRunningTests else { return .live }
+        var disabled = false
+        return Self(setDisabled: { disabled = $0 }, isExplicitlyDisabled: { disabled })
+    }
+
     static var live: Self {
         Self(
             setDisabled: { KeychainAccessGate.isDisabled = $0 },
@@ -248,6 +254,8 @@ final class SettingsStore {
     #endif
 
     @ObservationIgnored let userDefaults: UserDefaults
+    @ObservationIgnored lazy var httpServer = HTTPServerController(
+        configURL: self.configStore.fileURL.deletingLastPathComponent().appendingPathComponent("http-server.json"))
     @ObservationIgnored let configStore: CodexBarConfigStore
     @ObservationIgnored let antigravityOAuthCredentialsStore: AntigravityOAuthCredentialsStore
     @ObservationIgnored let keychainAccessPolicy: SettingsStoreKeychainAccessPolicy
@@ -328,7 +336,7 @@ final class SettingsStore {
         copilotTokenStore: any CopilotTokenStoring = KeychainCopilotTokenStore(),
         tokenAccountStore: any ProviderTokenAccountStoring = FileTokenAccountStore(),
         antigravityOAuthCredentialsStore: AntigravityOAuthCredentialsStore = AntigravityOAuthCredentialsStore(),
-        keychainAccessPolicy: SettingsStoreKeychainAccessPolicy = .live,
+        keychainAccessPolicy: SettingsStoreKeychainAccessPolicy = .defaultPolicy,
         performInitialProviderDetection: Bool = !SettingsStore.isRunningTests)
     {
         // Legacy credential migration must see the saved policy, including shared-defaults fallback.
@@ -555,6 +563,10 @@ extension SettingsStore {
         if userDefaults.string(forKey: "iCloudSyncDeviceID") == nil {
             userDefaults.set(iCloudSyncDeviceID, forKey: "iCloudSyncDeviceID")
         }
+        if userDefaults.object(forKey: "agentSessionsRemoteEnabled") == nil {
+            // Preserve existing remote monitoring, but keep first-time Agent Sessions local-only.
+            userDefaults.set(userDefaults.bool(forKey: "agentSessionsEnabled"), forKey: "agentSessionsRemoteEnabled")
+        }
         return SettingsDefaultsState(
             refreshFrequency: refreshFrequency,
             adaptiveActivityScanConsent: adaptiveActivityScanConsent,
@@ -619,6 +631,8 @@ extension SettingsStore {
             menuBarLayoutConditionals: menuBarLayoutConditionals,
             menuBarLayoutOverridesRaw: menuBarLayoutOverridesRaw,
             menuBarLayoutMonospacedDigits: userDefaults.bool(forKey: "menuBarLayoutMonospacedDigits"),
+            menuBarLayoutShowWindowLabels: userDefaults
+                .object(forKey: "menuBarLayoutShowWindowLabels") as? Bool ?? true,
             menuBarLayoutSizeRaw: userDefaults.string(forKey: "menuBarLayoutSize")
                 ?? MenuBarLayoutSize.regular.rawValue,
             menuBarLayoutGapRaw: userDefaults.string(forKey: "menuBarLayoutGap")
@@ -680,6 +694,7 @@ extension SettingsStore {
             mergeIcons: userDefaults.object(forKey: "mergeIcons") as? Bool ?? true,
             mergedOverviewLayoutRaw: userDefaults.string(forKey: "mergedOverviewLayout")
                 ?? MergedOverviewLayout.detailed.rawValue,
+            mergedOverviewAllAccounts: userDefaults.bool(forKey: "mergedOverviewAllAccounts"),
             switcherShowsIcons: userDefaults.object(forKey: "switcherShowsIcons") as? Bool ?? true,
             mergeIconsStacked: userDefaults.object(forKey: "mergeIconsStacked") as? Bool ?? false,
             mergeIconStackedTopProviderRaw: userDefaults.string(forKey: "mergeIconStackedTopProvider"),
@@ -696,6 +711,7 @@ extension SettingsStore {
             appLanguageRaw: userDefaults.string(forKey: "appLanguage"),
             terminalAppRaw: userDefaults.string(forKey: "terminalApp"),
             agentSessionsEnabled: userDefaults.object(forKey: "agentSessionsEnabled") as? Bool ?? false,
+            agentSessionsRemoteEnabled: userDefaults.bool(forKey: "agentSessionsRemoteEnabled"),
             agentSessionLabelStyleRaw: userDefaults.string(forKey: "agentSessionLabelStyle")
                 ?? AgentSessionLabelStyle.project.rawValue,
             agentSessionsManualHosts: userDefaults.string(forKey: "agentSessionsManualHosts") ?? "",
@@ -847,6 +863,7 @@ extension SettingsStore {
     private static func loadMenuBarLayout(userDefaults: UserDefaults) -> MenuBarLayout? {
         MenuBarLayoutPersistence.loadLayout(
             current: self.decodeMenuBarLayout(userDefaults.data(forKey: MenuBarLayoutUserDefaultsKey.layoutCurrent)),
+            v5: self.decodeMenuBarLayout(userDefaults.data(forKey: MenuBarLayoutUserDefaultsKey.layoutV5)),
             v4: self.decodeMenuBarLayout(userDefaults.data(forKey: MenuBarLayoutUserDefaultsKey.layoutV4)),
             v3: self.decodeMenuBarLayout(userDefaults.data(forKey: MenuBarLayoutUserDefaultsKey.layoutV3)),
             released: self.decodeMenuBarLayout(
@@ -861,6 +878,8 @@ extension SettingsStore {
         MenuBarLayoutPersistence.loadLibrary(
             current: self.decodeMenuBarLayoutConditionals(
                 userDefaults.data(forKey: MenuBarLayoutUserDefaultsKey.conditionalsCurrent)),
+            v5: self.decodeMenuBarLayoutConditionals(
+                userDefaults.data(forKey: MenuBarLayoutUserDefaultsKey.conditionalsV5)),
             v4: self
                 .decodeMenuBarLayoutConditionals(userDefaults
                     .data(forKey: MenuBarLayoutUserDefaultsKey.conditionalsV4)),
@@ -886,6 +905,8 @@ extension SettingsStore {
         MenuBarLayoutPersistence.loadOverrides(
             current: self.decodeMenuBarLayoutOverrides(
                 userDefaults.data(forKey: MenuBarLayoutUserDefaultsKey.overridesCurrent)),
+            v5: self.decodeMenuBarLayoutOverrides(
+                userDefaults.data(forKey: MenuBarLayoutUserDefaultsKey.overridesV5)),
             v4: self.decodeMenuBarLayoutOverrides(userDefaults.data(forKey: MenuBarLayoutUserDefaultsKey.overridesV4)),
             v3: self.decodeMenuBarLayoutOverrides(
                 userDefaults.data(forKey: MenuBarLayoutUserDefaultsKey.overridesV3)),

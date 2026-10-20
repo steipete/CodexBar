@@ -150,10 +150,23 @@ struct PreferencesDocumentTests {
     }
 
     @Test
+    func `overview import preserves plugin instance IDs in the legacy string array`() throws {
+        let defaults = InMemoryUserDefaults()
+        let settings = self.store("plugin-overview", defaults: defaults)
+        var document = PreferencesDocument()
+        try document.set("mergedOverviewSelectedProviders", ["codex", "fixture-meter"])
+        try settings.importPreferences(document)
+        #expect(settings.mergedOverviewSelectedProviders.map(\.rawValue) == ["codex", "fixture-meter"])
+        #expect(defaults.stringArray(forKey: "mergedOverviewSelectedProviders") == ["codex", "fixture-meter"])
+        let legacySelection = defaults.stringArray(forKey: "mergedOverviewSelectedProviders")?
+            .compactMap(UsageProvider.init(rawValue:))
+        #expect(legacySelection == [.codex])
+    }
+
+    @Test
     func `overview import marks the selection edited for local active providers`() throws {
         let settings = self.store("overview")
         let active = settings.orderedProviders().filter { settings.providerEnablement[$0] ?? false }
-            .compactMap(\.firstPartyProvider)
         try #require(!active.isEmpty)
         var document = PreferencesDocument()
         try document.set("mergedOverviewSelectedProviders", [String]())

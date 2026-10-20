@@ -22,7 +22,8 @@ final class ClaudeProviderRuntime: ProviderRuntime {
         let configuration = Configuration(
             providerEnabled: context.store.isEnabled(.claude),
             enabled: context.settings.claudeSwapEnabled,
-            executablePath: context.settings.claudeSwapExecutablePath)
+            executablePath: context.settings.claudeSwapExecutablePath,
+            source: context.settings.claudeSwapSource)
         guard configuration != self.lastSwapConfiguration else { return }
         self.lastSwapConfiguration = configuration
 
@@ -38,5 +39,6 @@ final class ClaudeProviderRuntime: ProviderRuntime {
         let providerEnabled: Bool
         let enabled: Bool
         let executablePath: String
+        let source: ClaudeSwapAccountSource
     }
 }

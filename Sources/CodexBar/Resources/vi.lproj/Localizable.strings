@@ -62,6 +62,16 @@
 "7d" = "7d";
 "A managed Codex login is already running. Wait for it to finish before adding " = "Đăng nhập Codex được quản lý đã chạy. Đợi quá trình này hoàn tất trước khi thêm";
 "API key" = "API khóa";
+
+/* Future AGI provider */
+"Secret key" = "Khóa bí mật";
+"Required with the API key. Saved in the local config file. Or set FI_SECRET_KEY." = "Bắt buộc cùng với khóa API. Được lưu trong tệp cấu hình cục bộ. Hoặc đặt FI_SECRET_KEY.";
+"Paste secret key…" = "Dán khóa bí mật…";
+"AI credits" = "Tín dụng AI";
+"Gateway requests" = "Yêu cầu qua cổng";
+"Future AGI cost history is not available." = "Lịch sử chi phí Future AGI không khả dụng.";
+"Saved in CodexBar's local config file. Or set FI_API_KEY." = "Được lưu trong tệp cấu hình cục bộ của CodexBar. Hoặc đặt FI_API_KEY.";
+
 "API region" = "API khu vực";
 "API token" = "API token";
 "API tokens" = "API mã thông báo";
@@ -661,6 +671,8 @@
 "overview_rows_follow_order" = "Các hàng tổng quan luôn tuân theo thứ tự Nhà cung cấp.";
 "overview_no_providers_selected" = "Không có nhà cung cấp nào được chọn";
 "agent_sessions_title" = "Phiên tác nhân";
+"agent_sessions_remote_title" = "Phiên từ xa (Tailscale / SSH)";
+"agent_sessions_remote_subtitle" = "Tìm và kết nối với máy từ xa. Tắt để chỉ theo dõi máy Mac này.";
 "agent_sessions_subtitle" = "Hiển thị các phiên Codex và Claude Code cục bộ cùng các phiên được phát hiện qua SSH trong menu.";
 "agent_sessions_hosts_title" = "Máy chủ SSH bổ sung";
 "agent_sessions_footer" = "Các máy Mac trên tailnet của bạn được tự động phát hiện. Các phiên cục bộ được làm mới 30 giây một lần; các máy chủ từ xa được làm mới 60 giây một lần và khi menu mở.";
@@ -1431,6 +1443,7 @@
 "menu_bar_layout_size_regular" = "Thường";
 "menu_bar_layout_size_large" = "Lớn";
 "menu_bar_layout_monospaced_digits" = "Chữ số có độ rộng cố định";
+"menu_bar_layout_show_window_labels" = "Hiển thị nhãn khoảng thời gian";
 "menu_bar_layout_gap" = "Khoảng cách";
 "menu_bar_layout_gap_tight" = "Hẹp";
 "menu_bar_layout_gap_regular" = "Thường";
@@ -1453,6 +1466,9 @@
 "menu_bar_layout_token_runs_out" = "Sắp hết";
 "menu_bar_layout_token_cost_today" = "Chi phí hôm nay";
 "menu_bar_layout_token_cost_window" = "Chi phí (Cửa sổ lịch sử)";
+"menu_bar_layout_token_spend" = "Chi phí %";
+"menu_bar_layout_token_spend_pace" = "Tốc độ chi phí";
+"menu_bar_layout_token_spend_budget" = "Chi phí / ngân sách";
 "menu_bar_layout_token_space" = "Khoảng trắng";
 "menu_bar_layout_token_line_break" = "Ngắt dòng";
 "menu_bar_layout_token_separator_accessibility" = "Dấu chấm phân cách";
@@ -1615,6 +1631,7 @@
 "menu_bar_layout_conditional_default_session_spent" = "Phiên gần cạn";
 "menu_bar_layout_conditional_default_either_high" = "Phiên hoặc tuần đang ở mức cao";
 "menu_bar_layout_conditional_default_scoped_weekly" = "Tuần theo mô hình đã dùng trên 60%";
+"menu_bar_layout_conditional_default_spend_high" = "Chi phí đã dùng trên 90%";
 "Visible usage items" = "Mục sử dụng hiển thị";
 "Restore Defaults" = "Khôi phục mặc định";
 "Choose which usage rows appear in this provider's menu, Settings preview, and Overview." = "Chọn các hàng sử dụng xuất hiện trong menu của nhà cung cấp này, bản xem trước Cài đặt và Tổng quan.";
@@ -1798,6 +1815,9 @@
 "Gateway URL" = "Cổng URL";
 "Gemini CLI login is no longer supported" = "Đăng nhập Gemini CLI không còn được hỗ trợ";
 "Gemini CLI migration" = "Di chuyển Gemini CLI";
+"Gemini app" = "Ứng dụng Gemini";
+"Gemini CLI" = "Gemini CLI";
+"Gemini app limits use your browser account and are separate from Gemini CLI quotas." = "Giới hạn của ứng dụng Gemini áp dụng cho tài khoản của bạn trong trình duyệt và tách biệt với hạn mức của Gemini CLI.";
 "Generated locally by CodexBar · Data through %@" = "Được tạo cục bộ bởi CodexBar · Dữ liệu đến %@";
 "GitHub cookies" = "GitHub cookies";
 "GitHub does not publish this value. Enter it to show a usage bar. Applies to the selected GitHub account." = "GitHub không công bố giá trị này. Nhập nó để hiển thị một thanh sử dụng. Áp dụng cho tài khoản GitHub đã chọn.";
@@ -1901,6 +1921,7 @@
 "Paste the Cookie header from a billing-page request. It must contain sessionid." = "Dán tiêu đề Cookie từ yêu cầu trang thanh toán. Nó phải chứa sessionid.";
 "Paste z.ai / GLM API key…" = "Dán khóa z.ai / GLM API…";
 "Path to the cswap executable (github.com/realiti4/claude-swap)." = "Đường dẫn đến tệp thực thi cswap (github.com/realiti4/claude-swap).";
+"Path to the tcr executable (github.com/dhkts1/teamclaude-rs)." = "Đường dẫn đến tệp thực thi tcr (github.com/dhkts1/teamclaude-rs).";
 "Peak %@" = "Đỉnh %@";
 "Percent left" = "Phần trăm còn lại";
 "Pick another Codex account before importing OpenAI cookies." = "Chọn một tài khoản Codex khác trước khi nhập OpenAI cookies.";
@@ -1932,7 +1953,7 @@
 "Refresh the profile before refreshing OpenAI web data." = "Làm mới cấu hình trước khi làm mới dữ liệu web OpenAI.";
 "Refreshing account status…" = "Đang làm mới trạng thái tài khoản…";
 "Remaining budget compared with an ideal steady burn rate." = "Ngân sách còn lại so với tốc độ đốt ổn định lý tưởng.";
-"Renews: %@" = "Gia hạn: %@";
+"Plan renews: %@" = "Gia hạn gói: %@";
 "Request quota" = "Yêu cầu Hạn mức";
 "Requesting login…" = "Đang yêu cầu đăng nhập…";
 "Required. Enter a regular API key or a Management API key here. Management keys also enable account Activity on the official OpenRouter API." = "Bắt buộc. Nhập khóa API thông thường hoặc khóa API quản lý tại đây. Khóa quản lý cũng cho phép Hoạt động tài khoản trên OpenRouter API chính thức.";
@@ -1955,6 +1976,8 @@
 "Select the provider to display." = "Chọn nhà cung cấp để hiển thị.";
 "Session (5-hour)" = "Phiên (5 giờ)";
 "Session and weekly usage with credits and costs." = "Phiên và mức sử dụng hàng tuần với Tín dụng và chi phí.";
+"Set the cswap executable path below." = "Đặt đường dẫn tệp thực thi cswap bên dưới.";
+"Set the tcr executable path below." = "Đặt đường dẫn tệp thực thi tcr bên dưới.";
 "Settings unavailable." = "Cài đặt không có sẵn.";
 "Show account card when only one account is available" = "Hiển thị thẻ tài khoản khi chỉ có một tài khoản";
 "Show model-specific weekly usage in widgets" = "Hiển thị mức sử dụng hàng tuần theo từng mẫu cụ thể trong các tiện ích";
@@ -1962,6 +1985,7 @@
 "Shows model-specific Claude quotas, such as Fable, in desktop widgets." = "Hiển thị Claude Hạn mức dành riêng cho mẫu máy, chẳng hạn như Fable, trong các tiện ích trên máy tính để bàn.";
 "Shows the hidden accounts" = "Hiển thị các tài khoản ẩn";
 "Shows usage and lets you switch accounts through `cswap`. Credentials stay managed by claude-swap; CodexBar never reads them." = "Hiển thị mức sử dụng và cho phép bạn chuyển đổi tài khoản thông qua `cswap`. Thông tin xác thực vẫn được quản lý bởi claude-swap; CodexBar không bao giờ đọc chúng.";
+"Shows usage from `tcr`; it does not switch accounts, because tcr picks the account for each request. Credentials stay managed by tcr; CodexBar never reads them." = "Hiển thị mức sử dụng từ `tcr`; không chuyển đổi tài khoản, vì tcr tự chọn tài khoản cho mỗi yêu cầu. Thông tin xác thực vẫn được quản lý bởi tcr; CodexBar không bao giờ đọc chúng.";
 "Stay Awake" = "Luôn tỉnh táo";
 "Stored in the CodexBar config file. Reads monthly budget and routed usage from /v1/usage." = "Được lưu trữ trong tệp cấu hình CodexBar. Đọc ngân sách hàng tháng và định tuyến mức sử dụng từ /v1/usage.";
 "Stored in ~/.codexbar/config.json. OPENAI_ADMIN_KEY is required for organization usage; legacy/user keys only get a best-effort balance fallback." = "Được lưu trữ trong ~/.codexbar/config.json. OPENAI_ADMIN_KEY là bắt buộc để sử dụng trong tổ chức; Khóa kế thừa/người dùng chỉ nhận được dự phòng số dư nỗ lực tốt nhất.";
@@ -1970,6 +1994,7 @@
 "SuperGrok OAuth" = "SuperGrok OAuth";
 "Switch Account…" = "Chuyển đổi tài khoản…";
 "Switch Claude Code account" = "Chuyển tài khoản Claude Code";
+"Claude accounts in tcr" = "Tài khoản Claude trong tcr";
 "Switch Claude Code to %@" = "Chuyển Claude Code sang %@";
 "Switch Provider" = "Chuyển đổi nhà cung cấp";
 "Switch the provider shown in the widget." = "Chuyển đổi nhà cung cấp được hiển thị trong widget.";
@@ -2056,6 +2081,7 @@
 "sk-ant-admin..." = "sk-ant-admin...";
 "sk-or-v1-..." = "sk-or-v1-...";
 "spent" = "Hạn mức đã cạn kiệt";
+"tcr executable" = "tcr có thể thực thi được";
 "under pace" = "sử dụng dưới tốc độ dự kiến";
 "us-east-1" = "us-east-1";
 "used" = "đã dùng";
@@ -2066,6 +2092,7 @@
 "~%@ est" = "~%@ ước tính";
 "~%@ tracked tokens (partial)" = "~%@ Token đã ghi nhận (MỘT PHẦN)";
 "~/.local/bin/cswap" = "~/.local/bin/cswap";
+"/Applications/TcrBar.app/Contents/MacOS/tcr" = "/Applications/TcrBar.app/Contents/MacOS/tcr";
 "~/Library/Application Support/JetBrains/IntelliJIdea2024.3" = "~/Library/Application Support/JetBrains/IntelliJIdea2024.3";
 "00000000-0000-0000-0000-000000000000" = "00000000-0000-0000-0000-000000000000";
 
@@ -2178,6 +2205,10 @@
 "Stored in ~/.codexbar/config.json. Create one at console.x.ai under Settings > Management Keys; inference API keys are not accepted." = "Được lưu trữ trong ~/.codexbar/config.json. Tạo một cái tại console.x.ai trong Cài đặt > Khóa quản lý; suy luận khóa API không được chấp nhận.";
 "xai-..." = "xai-...";
 "Team ID" = "Đội ID";
+"Vercel access token" = "Mã truy cập Vercel";
+"Optional. Shows your personal budget instead of team credits. Saved in CodexBar's local config file. Or set VERCEL_ACCESS_TOKEN." = "Tùy chọn. Hiển thị ngân sách cá nhân của bạn thay vì tín dụng của nhóm. Được lưu trong tệp cấu hình cục bộ của CodexBar. Hoặc đặt VERCEL_ACCESS_TOKEN.";
+"Open Vercel tokens" = "Mở mã Vercel";
+"Required with a Vercel access token. Or set VERCEL_TEAM_ID." = "Bắt buộc khi dùng mã truy cập Vercel. Hoặc đặt VERCEL_TEAM_ID.";
 "Required. Shown in the xAI Console URL and team settings." = "Bắt buộc. Hiển thị trong Bảng điều khiển xAI URL và cài đặt nhóm.";
 "Sakana AI cost summary is not supported." = "Tóm tắt chi phí Sakana AI không được hỗ trợ.";
 "Stored in ~/.codexbar/config.json. Copy the Sakana AI console Cookie request header." = "Được lưu trữ trong ~/.codexbar/config.json. Sao chép tiêu đề yêu cầu Cookie của bảng điều khiển Sakana AI.";
@@ -2513,6 +2544,8 @@
 "Pace sign" = "Dấu nhịp sử dụng";
 "Ahead of pace is +" = "Vượt nhịp là +";
 "Reserve is +" = "Dự trữ là +";
+"Back" = "Quay lại";
+"Forward" = "Tiếp";
 
 "cost_reset_inferred_tooltip" = "Suy ra: %@ không báo cáo ngày này. Hạn mức chi tiêu hằng tháng được đặt lại vào 00:00 UTC ngày 1.";
 /* fal provider credentials */
@@ -2533,7 +2566,7 @@
 "Clear filters" = "Xóa bộ lọc";
 "Change provider order" = "Đổi thứ tự nhà cung cấp";
 "Provider sorting" = "Sắp xếp nhà cung cấp";
-"Only enabled providers" = "Chỉ nhà cung cấp đã bật";
+"Only show enabled providers" = "Chỉ hiển thị nhà cung cấp đã bật";
 "Restore default order" = "Khôi phục thứ tự mặc định";
 "Also restores the provider order in the menu bar. Can be undone." = "Cũng khôi phục thứ tự nhà cung cấp trên thanh menu. Có thể hoàn tác.";
 "Local Codex details; excluded from combined totals." = "Chi tiết Codex cục bộ; không được tính vào tổng kết hợp.";
@@ -2630,3 +2663,41 @@
 "API credit" = "Tín dụng API";
 "Purchased credit" = "Tín dụng đã mua";
 "Claude Platform exposes Console credit balance and monthly spend, not local token cost history." = "Claude Platform hiển thị số dư tín dụng và chi tiêu hàng tháng trên Console, không phải lịch sử chi phí token cục bộ.";
+
+"Claude config directory" = "Thư mục cấu hình Claude";
+/* App-managed HTTP server */
+"http_server_title" = "Máy chủ HTTP";
+"http_server_enable" = "Bật máy chủ HTTP";
+"http_server_bind" = "Địa chỉ IPv4 lắng nghe";
+"http_server_port" = "Cổng";
+"http_server_token" = "Mã truy cập máy chủ";
+"http_server_show" = "Hiện";
+"http_server_generate" = "Tạo";
+"http_server_cache" = "Khoảng thời gian bộ nhớ đệm (giây)";
+"http_server_timeout" = "Thời gian chờ yêu cầu (giây; 0 để tắt)";
+"http_server_all_accounts" = "Bao gồm mọi tài khoản trong ảnh chụp";
+"http_server_identity" = "Danh tính trên bảng điều khiển";
+"http_server_redacted" = "Đã che";
+"http_server_warning" = "Chia sẻ mức sử dụng, chi phí, thông tin tài khoản và dự án, không bao giờ chia sẻ thông tin đăng nhập nhà cung cấp. HTTP gửi mã truy cập máy chủ không mã hóa. Chỉ dùng kết nối VPN hoặc Tailscale đáng tin cậy.";
+"http_server_plain_http" = "Cho phép HTTP không mã hóa bên ngoài máy Mac này";
+"http_server_dashboard" = "Bảng điều khiển";
+"http_server_wildcard" = "Trên thiết bị khác, thay 0.0.0.0 bằng địa chỉ IPv4 VPN hoặc Tailscale của máy Mac này.";
+"http_server_footer" = "Mặc định tắt. Khởi động cùng CodexBar và dừng khi thoát. Cài đặt và mã truy cập chỉ ở trên máy Mac này, không được đồng bộ hoặc xuất. Giữ máy Mac thức để truy cập từ xa.";
+/* Claude desktop cookie source */
+"Claude desktop app" = "Ứng dụng Claude trên máy tính";
+"Use Claude desktop app cookies" = "Dùng cookie của ứng dụng Claude trên máy tính";
+"For Web usage, follow the account signed into Claude.app instead of a browser." = "Đối với mức sử dụng web, dùng tài khoản đã đăng nhập trong Claude.app thay vì tài khoản trình duyệt.";
+
+/* Munito provider credentials */
+"Key with Read account data (Admin API) permission. Or set MUNITO_API_KEY." = "Khoá có quyền đọc dữ liệu tài khoản (Admin API). Hoặc đặt MUNITO_API_KEY.";
+"Munito reports Admin API spend and limits, not local token cost history." = "Munito báo cáo chi tiêu và giới hạn của Admin API, không phải lịch sử chi phí token cục bộ.";
+
+"Show all accounts in Overview" = "Hiển thị tất cả tài khoản trong Tổng quan";
+
+"Expand cached account usage. The six-provider limit still applies." = "Mở rộng các nhà cung cấp đã chọn bằng dữ liệu sử dụng tài khoản trong bộ nhớ đệm. Giới hạn sáu nhà cung cấp vẫn áp dụng.";
+"Edit" = "Sửa";
+"Move up" = "Di chuyển lên";
+"Move down" = "Di chuyển xuống";
+"Leave blank to keep the saved credential." = "Để trống để giữ thông tin xác thực đã lưu.";
+
+"No personal budget configured" = "Chưa thiết lập ngân sách cá nhân";

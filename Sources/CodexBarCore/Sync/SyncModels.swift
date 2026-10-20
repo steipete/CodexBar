@@ -257,17 +257,18 @@ public struct AccountSnapshotSyncPayload: Codable, Sendable {
         return CanonicalSyncJSON.hash(data: Data(identity.lowercased().utf8))
     }
 
-    /// CloudKit record IDs cannot be renamed. Claude Swap snapshots keyed by
-    /// `claude-swap:<slot>` replace a same-device email-keyed record; that
+    /// CloudKit record IDs cannot be renamed. Account-source snapshots keyed by
+    /// `claude-swap:<slot>` or `tcr:<slot>` replace a same-device email-keyed record; that
     /// predecessor is deleted only after the slot-keyed replacement is saved.
     /// Other providers must not classify an email-to-durable-ID change as obsolete.
     public func emailKeyedPredecessorRecordName() -> String? {
-        // Provider-specific by design: only Claude Swap slot keys retire leftover email-keyed CloudKit snapshots.
+        // Provider-specific by design: only account-source slot keys (claude-swap, tcr) retire leftover
+        // email-keyed CloudKit snapshots.
         guard self.provider == .claude,
-              self.usage.identity?.loginMethod == ClaudeSwapAccountProjection.sourceLabel
+              let source = self.usage.identity?.loginMethod.flatMap(ClaudeSwapAccountSource.init(identitySource:))
         else { return nil }
         let accountID = self.usage.identity?.accountID?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        guard accountID.hasPrefix("\(ClaudeSwapAccountProjection.sourceName):") else { return nil }
+        guard accountID.hasPrefix("\(source.label):") else { return nil }
         let emailKey = Self.accountKey(for: self.usage.identity?.accountEmail)
         guard emailKey != "default",
               Self.accountKey(for: accountID) == self.accountKey,

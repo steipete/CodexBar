@@ -228,7 +228,7 @@ func testSettingsStore(
     userDefaults: UserDefaults? = nil,
     tokenAccountStore: any ProviderTokenAccountStoring = InMemoryTokenAccountStore(),
     config: CodexBarConfig? = nil,
-    keychainAccessPolicy: SettingsStoreKeychainAccessPolicy = .live,
+    keychainAccessPolicy: SettingsStoreKeychainAccessPolicy = .defaultPolicy,
     prepareDefaults: ((UserDefaults) -> Void)? = nil) -> SettingsStore
 {
     let isolatedSuiteName = "\(suiteName)-\(UUID().uuidString)"

@@ -786,6 +786,39 @@ struct CodexConsumerProjectionTests {
     }
 
     @Test
+    func `automatic forecast preserves source slot after weekly reclassification`() {
+        let store = self.makeStore(suite: "CodexConsumerProjectionTests-source-pace-slot")
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 60,
+                windowMinutes: 10080,
+                resetsAt: now.addingTimeInterval(6 * 86400),
+                resetDescription: nil),
+            secondary: nil,
+            updatedAt: now)
+        let selection = store.codexConsumerProjection(
+            surface: .menuBar,
+            snapshotOverride: snapshot,
+            now: now).automaticMenuBarSelection()
+
+        #expect(selection?.window == snapshot.primary)
+        #expect(selection?.eta == nil)
+    }
+
+    @Test
+    func `automatic menu bar metric chooses busy weekly quota over empty session`() {
+        let store = self.makeStore(suite: "CodexConsumerProjectionTests-busy-weekly")
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 0, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            secondary: RateWindow(usedPercent: 90, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
+            updatedAt: now)
+
+        #expect(store.codexMenuBarMetricWindow(snapshot: snapshot, now: now) == snapshot.secondary)
+    }
+
+    @Test
     func `automatic menu bar metric keeps the standard five hour session primary`() {
         let store = self.makeStore(suite: "CodexConsumerProjectionTests-standard-automatic")
         let now = Date(timeIntervalSince1970: 1_800_000_000)

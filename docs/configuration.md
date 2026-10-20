@@ -53,6 +53,9 @@ replaced by `loadOrCreateDefault()`.
 }
 ```
 
+`shareUsageWithCLI` (optional boolean, default off) lets `codexbar usage` fall back to the app's cached numbers in SSH
+sessions; see [CLI](cli.md#ssh-sessions-macos).
+
 ## External event hooks
 
 Hooks are local, explicit opt-in automation. Configure them in Settings > Hooks or in this local config file; no
@@ -157,7 +160,9 @@ All provider fields are optional unless noted.
   Example: `"modelRateLimits": [{"model": "gpt-5", "tokensPerMinute": 40000000, "requestsPerMinute": 15000}]`.
 - `tokenAccounts`: multi-account tokens for providers in `TokenAccountSupportCatalog`.
 - `claudeSwapEnabled`: allow the Claude provider to read account usage from claude-swap.
-- `claudeSwapExecutablePath`: path to the `cswap` executable.
+- `claudeSwapExecutablePath`: path to the `cswap` executable, or to `tcr` when `claudeSwapSource` is `"tcr"`.
+- `claudeSwapSource`: `"claude-swap"` (default) or `"tcr"`; selects the list command (`cswap --list --json` or
+  `tcr list --json`), the card label and the `<source>:<slot>` identity. Machine-local like the executable path.
 - `claudeSwapShowSingleAccount`: prefer a claude-swap card when exactly one account is available. Defaults to
   `false`; multiple claude-swap accounts retain their existing precedence.
 
@@ -290,7 +295,7 @@ Automatic reception of changes requires a release signed with the macOS Push Not
 
 Fetched records and removed-record recovery apply together with their local sync bookkeeping. Cancelling sync, turning it off, or accepting a newer batch prevents a suspended older apply from overwriting provider settings, preferences, or fleet records.
 
-Never synced, by design: `hooks` (sync payloads structurally cannot create or modify hook rules — they execute local binaries), machine-local paths (`claudeSwapExecutablePath`, `codexProfileHomePaths`, `awsProfile`/`awsAuthMode`, `source`, `codexActiveSource`, `cookieSource`), menu-bar layout/geometry, debug settings, usage history, and cost ledgers. A provider is never auto-enabled on a Mac where its required local CLI is missing. Records carry a schema version; older app versions pause sync instead of rewriting newer payloads. The CLI does not talk to CloudKit — the running app watches `config.json`, applies CLI or hand edits locally, and syncs changed provider payloads to the fleet when iCloud sync is enabled. Remote changes written to the file are recognized as app writes and are not echoed back. The app tracks per-provider dirty state and never re-uploads unchanged state at launch.
+Never synced, by design: `hooks` (sync payloads structurally cannot create or modify hook rules — they execute local binaries), machine-local paths (`claudeSwapExecutablePath`, `claudeSwapSource`, `codexProfileHomePaths`, `awsProfile`/`awsAuthMode`, `source`, `codexActiveSource`, `cookieSource`), menu-bar layout/geometry, debug settings, usage history, and cost ledgers. A provider is never auto-enabled on a Mac where its required local CLI is missing. Records carry a schema version; older app versions pause sync instead of rewriting newer payloads. The CLI does not talk to CloudKit — the running app watches `config.json`, applies CLI or hand edits locally, and syncs changed provider payloads to the fleet when iCloud sync is enabled. Remote changes written to the file are recognized as app writes and are not echoed back. The app tracks per-provider dirty state and never re-uploads unchanged state at launch.
 
 ## Notes
 - Fields not relevant to a provider are ignored.
@@ -354,6 +359,23 @@ iCloud projection syncs onward; reset notifications, the additional menu setting
 unless explicitly exported and imported. Import does not modify `config.json` or iCloud's remote-update suppression.
 
 ### Menu bar controls
+
+**Settings → Menu Bar → Show all accounts in Overview** is off by default. When enabled, each selected
+multi-account provider expands into account rows labeled with its account name or email. The provider’s
+current account source stays in use: claude-swap/tcr, managed Codex accounts, or saved token accounts,
+independently of the provider tab’s stacked/segmented layout. The six-provider cap, provider order, and
+Overview selection still apply to providers before expansion; account rows do not use extra provider
+slots. Rows keep each account’s cached usage and errors; missing usage stays unavailable instead of
+borrowing another account’s quota. The setting adds no fetches and does not change refresh limits.
+Clicking a row opens its provider tab without selecting another credential. The local additive defaults
+key is `mergedOverviewAllAccounts`; older versions ignore it.
+
+**Auto** ranks each provider's eligible quota windows from the current snapshot. An exhausted quota comes
+first; otherwise a supported lane’s pace forecast that runs out before reset takes priority, with the shortest time to
+depletion first. Without such a forecast, Auto chooses the highest used percentage. Ties keep provider order.
+The unified highest-usage icon uses the same priority for providers set to Auto and displays the selected
+window's actual percentage. Explicit metric choices and provider-specific credit-pool ordering are preserved.
+This uses reported usage, duration, and reset time; it adds no observation history or background timer.
 
 The layout editor includes an optional **Tokens / min** value token (for example `49M/min`) using the provider’s latest reported complete minute. OpenAI supplies it through the **Tokens per minute** provider setting. It uses the same unavailable placeholder as other value tokens when no throughput is available. The optional **Tokens / min graph** token shows the last hour as a compact graph, using the maximum minute in each column and excluding minutes that are still reporting. Drag either token into your layout to enable it; default layouts include neither. The graph uses the status item’s own provider data and the standard unavailable placeholder when there are no reported minutes.
 
