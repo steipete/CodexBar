@@ -33,7 +33,7 @@ Prereleases (`alpha.N`, `beta.N`, or `rc.N`) are marked as GitHub prereleases an
 
 The release is complete only after the release assets, live appcast, and tap agree. The pipeline preserves a failed draft as a version reservation and never clobbers assets. If feed or tap handoff fails after publication, inspect the retained payload and repair that handoff from the verified bytes; do not rerun packaging or recreate the tag. After a successful release, open the next Unreleased changelog section.
 
-Local read-only helpers remain: `Scripts/check-release-assets.sh`, `Scripts/verify_appcast.sh`, and `Scripts/generate-release-notes.sh` (where present). Local packaging and development scripts remain available, but publication belongs to CI. When installing a ZIP manually, use `ditto -x -k` or Finder to preserve the signed bundle and avoid AppleDouble files.
+Local read-only helpers remain: `Scripts/check-release-assets.sh`, `Scripts/verify_appcast.sh`, and `Scripts/generate-release-notes.sh` (where present). They need the shared `agent-scripts` helper but no signing credentials: `Scripts/verify_appcast.sh <version>` downloads that appcast entry's enclosure, checks its length and EdDSA signature against `SUPublicEDKey`, then verifies the app's code signature, Gatekeeper assessment, and stapled notarization. Local packaging and development scripts remain available, but publication belongs to CI. When installing a ZIP manually, use `ditto -x -k` or Finder to preserve the signed bundle and avoid AppleDouble files.
 
 The app and dSYM are universal arm64/x86_64. The release also contains both architectures of the macOS CLI, Linux glibc CLI, Linux musl CLI, and Linux desktop. Homebrew receives both the app cask and CLI formula updates.
 
