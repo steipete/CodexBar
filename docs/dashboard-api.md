@@ -385,7 +385,8 @@ A managed Codex entry in redacted mode (other account fields use the same shapes
   model family that reports no usage. The key appears only when it is `true`, so a payload with no idle window keeps
   its previous shape. This is an additive schema-v1 extension. A client that wants every window, such as a script or
   an adapter, ignores the key and keeps the row. The built-in web UI drops these rows so the page matches the app
-  menu, which hides an untouched Antigravity model family. Only the producer can set this: a zero `usedPercent` also
+  menu. Returned Antigravity Claude/GPT allowances remain visible at zero usage and never receive `idle`.
+  Other Antigravity families retain idle filtering. Only the producer can set this: a zero `usedPercent` also
   stands for a lane whose usage the provider never reported, and the payload does not carry that distinction.
 - `providers[].credits`: Remaining credits or balance when available.
   Grok's purchased wallet is currently exposed by `codexbar usage --provider grok --json` and `/usage` as

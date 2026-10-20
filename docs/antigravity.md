@@ -360,15 +360,17 @@ shared OAuth file can still be used as a fallback credential source.
   a stacked display. These choices appear when the corresponding known quota-summary windows are available;
   a missing or unknown family allowance hides only its token, without substituting its session quota or the
   other family's weekly quota. The existing **Weekly %** token still shows the most constrained family.
-- Antigravity reports every model family the plan covers, so an account that only uses Gemini still receives a
-  Claude/GPT pair pinned at 0%. Menu cards and widgets hide a family once every lane in it reports known zero usage.
-  A family with unknown usage stays visible, and every family remains visible when all are untouched, for example
-  right after a weekly reset. Provider details is the diagnostic surface and always lists every family, the same
-  principle it already applies to cost data. The filter is display-only: the snapshot, raw CLI JSON, and menu-bar
-  ranking still see every window, and menu-bar selection ranks by highest used, so an untouched family never wins.
-- The dashboard-v1 payload keeps every family for its script clients and marks the lanes of an untouched family with
-  `idle` instead. The `codexbar serve` web UI skips those rows, so the web card matches the menu without repeating
-  the family rule in JavaScript. See `docs/dashboard-api.md`.
+- Returned Claude/GPT quota-summary buckets remain visible in menu cards, CLI text and cards, widgets, and the
+  dashboard even when every Claude/GPT lane reports zero usage. Claude and GPT share each reported allowance;
+  CodexBar does not split it into separate budgets or add allowances that the source did not supply.
+  This reverses the Claude/GPT idle-family filtering introduced in #2924.
+- Other families retain the idle-family rule: a family hides only when every lane reports known zero usage and
+  another family is active or unknown. Unknown usage stays visible, and every family remains visible when all
+  are untouched, for example right after a weekly reset. Provider details always lists every family.
+  This display-only rule leaves the snapshot, raw CLI JSON, quota values, and menu-bar ranking unchanged.
+- The dashboard-v1 payload keeps every family for script clients and marks hidden lanes with `idle`.
+  Returned Claude/GPT lanes never receive that flag. The `codexbar serve` web UI skips flagged rows, so the
+  web card matches the menu without repeating the family rule in JavaScript. See `docs/dashboard-api.md`.
 - CLI text and `cards` render quota-summary buckets once, using the same idle-family visibility rule. Missing or disabled quota stays unavailable, including in brief cards, while reset context remains visible. Raw JSON retains every bucket.
 - Linux and Omarchy list each measured quota-summary bucket once with its family title. The most constrained bucket in each family stays first for the tray meters; notification history follows the bucket when its position changes.
 

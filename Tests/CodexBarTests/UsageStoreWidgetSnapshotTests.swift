@@ -419,22 +419,21 @@ struct UsageStoreWidgetSnapshotTests {
     }
 
     @Test
-    func `widget snapshot hides untouched antigravity model families`() async throws {
-        let suite = "UsageStoreWidgetSnapshotTests-antigravity-untouched-family"
-        let defaults = try #require(UserDefaults(suiteName: suite))
-        defaults.removePersistentDomain(forName: suite)
-
-        let settings = SettingsStore(
-            userDefaults: defaults,
-            configStore: testConfigStore(suiteName: suite),
-            zaiTokenStore: NoopZaiTokenStore(),
-            syntheticTokenStore: NoopSyntheticTokenStore())
+    func `widget snapshot shows untouched antigravity Claude GPT allowances`() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let settings = testSettingsStore(
+            suiteName: #function,
+            userDefaults: InMemoryUserDefaults(),
+            config: testConfigWithAllProvidersDisabled())
         settings.statusChecksEnabled = false
 
         let store = UsageStore(
             fetcher: UsageFetcher(environment: [:]),
-            browserDetection: BrowserDetection(cacheTTL: 0),
-            settings: settings)
+            browserDetection: BrowserDetection(homeDirectory: root.path, fileExists: { _ in false }),
+            settings: settings,
+            startupBehavior: .testing,
+            environmentBase: [:],
+            widgetSnapshotURL: root.appendingPathComponent("widget.json"))
         let snapshot = UsageSnapshot(
             primary: RateWindow(usedPercent: 1, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
             secondary: nil,
@@ -477,7 +476,10 @@ struct UsageStoreWidgetSnapshotTests {
         #expect(entry.usageRows?.map(\.title) == [
             "Gemini 5-hour",
             "Gemini weekly",
+            "Claude/GPT 5-hour",
+            "Claude/GPT weekly",
         ])
+        #expect(entry.usageRows?.compactMap(\.percentLeft) == [99, 96, 100, 100])
     }
 
     @Test

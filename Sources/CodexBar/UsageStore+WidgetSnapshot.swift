@@ -569,7 +569,6 @@ extension UsageStore {
         snapshot: UsageSnapshot) -> [WidgetSnapshot.WidgetUsageRowSnapshot]?
     {
         let windows = snapshot.extraRateWindows ?? []
-        // Match the menu card and drop model families the account never touches.
         let idleIDs = AntigravityQuotaFamilyVisibility.idleWindowIDs(in: snapshot)
         var visible = windows.filter {
             $0.id.hasPrefix(Self.antigravityQuotaSummaryWindowIDPrefix) && !idleIDs.contains($0.id)

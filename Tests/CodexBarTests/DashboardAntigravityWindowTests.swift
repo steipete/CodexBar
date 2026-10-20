@@ -3,11 +3,6 @@ import Foundation
 import Testing
 @testable import CodexBarCLI
 
-/// The dashboard snapshot renders one Antigravity lane per quota bucket. The primary and secondary
-/// representatives are copies of two of those buckets, kept only so the icon and menu bar have
-/// standard slots to read, so the dashboard must not repeat them as rows of their own. Every family
-/// stays in the payload for script clients, and the lanes of a family that reports no usage carry
-/// `idle` so a display client can drop the same rows the menu card and the widget hide.
 struct DashboardAntigravityWindowTests {
     @Test
     func `dashboard renders one Antigravity lane per quota bucket`() throws {
@@ -38,7 +33,7 @@ struct DashboardAntigravityWindowTests {
     }
 
     @Test
-    func `dashboard marks an Antigravity family that reports no usage as idle`() throws {
+    func `dashboard keeps unused Claude GPT quotas visible`() throws {
         let windows = try self.antigravityWindows(geminiSessionPercent: 3.9, geminiWeeklyPercent: 8.1)
 
         // Every lane still ships, so a script client loses nothing.
@@ -48,7 +43,7 @@ struct DashboardAntigravityWindowTests {
             "Claude/GPT 5-hour",
             "Claude/GPT weekly",
         ])
-        #expect(windows.map { $0["idle"] as? Bool } == [nil, nil, true, true])
+        #expect(windows.allSatisfy { $0["idle"] == nil })
     }
 
     @Test

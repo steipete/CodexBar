@@ -484,11 +484,6 @@ enum DashboardSnapshotBuilder {
         return windows
     }
 
-    /// Display lanes for an Antigravity quota-summary snapshot, or `nil` when the snapshot has no
-    /// summary lanes and must keep the standard primary and secondary rows. Every family stays in the
-    /// payload, because a script client reads the same document and must not lose a window. The lanes of
-    /// a family that reports no usage carry `idle`, the same rule the menu card and the widget use to
-    /// hide that family, so the web UI can drop those rows without repeating the rule in JavaScript.
     private static func antigravityQuotaSummaryWindows(_ usage: UsageSnapshot) -> [DashboardWindowPayload]? {
         let extras = usage.extraRateWindows ?? []
         guard extras.contains(where: { AntigravityStatusSnapshot.isQuotaSummaryWindowID($0.id) }) else {

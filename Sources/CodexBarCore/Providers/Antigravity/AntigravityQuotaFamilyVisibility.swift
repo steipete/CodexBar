@@ -1,9 +1,7 @@
 import Foundation
 
-/// Antigravity reports every model family the plan covers, so an account that only runs Gemini still
-/// receives a Claude/GPT pair pinned at 0%. Display surfaces hide a family once every lane in it reports
-/// known zero usage. Menu bar and icon selection rank by highest used, so an untouched family
-/// never wins there and this stays a display-only filter.
+/// Display-only filtering for unused Antigravity quota families. Returned Claude/GPT allowances stay
+/// visible even at zero usage because they describe available shared capacity.
 public enum AntigravityQuotaFamilyVisibility {
     public enum KnownFamily: String, CaseIterable {
         case gemini
@@ -34,7 +32,8 @@ public enum AntigravityQuotaFamilyVisibility {
             lanes.allSatisfy { $0.usageKnown && $0.window.usedPercent <= 0 }
         }
         guard idleFamilies.count < families.count else { return [] }
-        return Set(idleFamilies.values.flatMap { lanes in lanes.map(\.id) })
+        let hiddenFamilies = idleFamilies.filter { $0.key != KnownFamily.claudeGPT.rawValue }
+        return Set(hiddenFamilies.values.flatMap { lanes in lanes.map(\.id) })
     }
 
     /// Classifies a lane the same way the widget row resolver does: the bucket ID carries the family and
