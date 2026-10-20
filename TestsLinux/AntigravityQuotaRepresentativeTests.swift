@@ -19,8 +19,8 @@ struct AntigravityQuotaRepresentativeTests {
         let rows = try #require(usage.extraRateWindows)
         #expect(rows.count == 3)
         #expect(rows.first { $0.id.hasSuffix("argon-wtu-weekly") }?.window.usedPercent == 100)
-        #expect(self.presentation.semanticWindows(snapshot: usage).weekly == primary)
-        #expect(self.iconWindows(usage).secondary == primary)
+        #expect(self.presentation.semanticWindows(snapshot: usage).weekly?.usedPercent == 100)
+        #expect(self.iconWindows(usage).secondary?.usedPercent == 100)
         guard case let .resolved(window) = self.presentation.menuBarWindow(context: .init(
             metric: .primary,
             snapshot: usage,
@@ -38,7 +38,7 @@ struct AntigravityQuotaRepresentativeTests {
             self.bucket(id: "gemini-argon-wtu-weekly", remaining: 0),
         ], groupName: "General models")
         #expect(usage.primary?.remainingPercent == 80)
-        #expect(self.presentation.semanticWindows(snapshot: usage).weekly?.remainingPercent == 80)
+        #expect(self.presentation.semanticWindows(snapshot: usage).weekly?.remainingPercent == 0)
     }
 
     @Test(arguments: ["absent", "unknown", "disabled"])
@@ -58,7 +58,7 @@ struct AntigravityQuotaRepresentativeTests {
     }
 
     @Test
-    func `cadences prefer ordinary quota independently and still compare Claude GPT`() throws {
+    func `cadence and icon selection retain the most constrained model quota`() throws {
         let usage = try self.usage(buckets: [
             self.bucket(id: "gemini-5h", remaining: 0.6, cadence: "5h"),
             self.bucket(id: "gemini-weekly", remaining: 0.9),
@@ -69,7 +69,7 @@ struct AntigravityQuotaRepresentativeTests {
         #expect(usage.primary?.windowMinutes == 300)
         let semantic = self.presentation.semanticWindows(snapshot: usage)
         #expect(semantic.session?.remainingPercent == 60)
-        #expect(semantic.weekly?.remainingPercent == 70)
+        #expect(semantic.weekly?.remainingPercent == 0)
         #expect(self.iconWindows(usage).primary == semantic.session)
         #expect(self.iconWindows(usage).secondary == semantic.weekly)
     }
@@ -83,6 +83,24 @@ struct AntigravityQuotaRepresentativeTests {
         #expect(usage.primary?.remainingPercent == 80)
         #expect(self.presentation.semanticWindows(snapshot: usage).weekly?.remainingPercent == 10)
         #expect(self.iconWindows(usage).secondary?.remainingPercent == 10)
+    }
+
+    @Test
+    func `equal cadence buckets and groups retain source order`() throws {
+        let groups: [[String: Any]] = [
+            ["name": "Gemini first", "buckets": [
+                self.bucket(id: "gemini-z-weekly", remaining: 0.7),
+                self.bucket(id: "gemini-a-weekly", remaining: 0.8),
+            ]],
+            ["name": "Gemini second", "buckets": [self.bucket(id: "gemini-b-weekly", remaining: 0.9)]],
+        ]
+        let data = try JSONSerialization.data(withJSONObject: ["groups": groups])
+        let usage = try AntigravityStatusProbe.parseQuotaSummaryResponse(data).toUsageSnapshot()
+        #expect(usage.extraRateWindows?.map(\.id) == [
+            "antigravity-quota-summary-gemini-z-weekly",
+            "antigravity-quota-summary-gemini-a-weekly",
+            "antigravity-quota-summary-gemini-b-weekly",
+        ])
     }
 
     @Test

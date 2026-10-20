@@ -243,6 +243,17 @@ test('representative families prefer stable IDs and fall back to legacy titles',
     }
 });
 
+test('equal-valued Gemini buckets keep the ordinary representative identity', () => {
+    const window = pool(50, 10080, '2030-01-01T00:00:00Z');
+    const [row] = model.rows(JSON.stringify([{provider: 'antigravity', usage: {
+        primary: window, extraRateWindows: [
+            quotaSummary('gemini-special-weekly', 'Gemini special weekly', window),
+            quotaSummary('gemini-weekly', 'Gemini weekly', window)]}}]));
+    assert.deepEqual(Array.from(row.windows, item => item.key), [
+        'extra:antigravity-quota-summary-gemini-weekly',
+        'extra:antigravity-quota-summary-gemini-special-weekly']);
+});
+
 test('family representatives still lead, so the summary and tray report the binding pools', () => {
     const geminiWeekly = pool(95, 10080, '2026-09-23T00:00:00Z');
     const claudeSession = pool(100, 300, '2026-09-21T01:00:00Z');

@@ -25,6 +25,11 @@ function antigravityQuotaFamily(extra) {
     return "";
 }
 
+function ordinaryGeminiQuota(extra) {
+    return /^antigravity-quota-summary-gemini-(session|5h|5-hour|five hour|five-hour|weekly)( limit)?$/.test(
+        extra.id.toLowerCase().replace(/_/g, "-"));
+}
+
 // Duration name for a reported cadence; empty when the provider omits window metadata.
 function cadenceLabel(minutes) {
     if (minutes >= 1440) return (minutes / 1440) + " day";
@@ -58,8 +63,9 @@ function rows(text, showIdentity) {
                     extra.window.usedPercent === window.usedPercent &&
                     extra.window.windowMinutes === window.windowMinutes && extra.window.resetsAt === window.resetsAt;
             }).sort(function(a, b) {
-                // Core breaks equal usage ties by the case-insensitive title.
-                return String(a.title || "").toLowerCase().localeCompare(String(b.title || "").toLowerCase());
+                // Core prefers ordinary Gemini quota, then breaks ties by the case-insensitive title.
+                return Number(ordinaryGeminiQuota(b)) - Number(ordinaryGeminiQuota(a)) ||
+                    String(a.title || "").toLowerCase().localeCompare(String(b.title || "").toLowerCase());
             })[0] : null;
             if (copy) represented.push(copy);
             var suppliedLabel = entry.rateWindowLabels && entry.rateWindowLabels[key];

@@ -139,8 +139,8 @@ public enum AntigravityProviderDescriptor {
     }
 
     private static func mostConstrained(windows: [NamedRateWindow], minutes: Int) -> RateWindow? {
-        AntigravityStatusSnapshot.quotaSummaryRepresentativeCandidates(
-            in: windows.filter { $0.window.windowMinutes == minutes })
+        windows
+            .filter { $0.window.windowMinutes == minutes }
             .max { lhs, rhs in
                 if lhs.window.usedPercent != rhs.window.usedPercent {
                     return lhs.window.usedPercent < rhs.window.usedPercent

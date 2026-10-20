@@ -327,12 +327,12 @@ shared OAuth file can still be used as a fallback credential source.
   - `Gemini` groups Gemini Pro and Gemini Flash text models.
   - `Claude + GPT` groups Claude text models and GPT/GPT-OSS text models.
 - Representative selection:
-  - Measured ordinary Gemini buckets (`gemini-5h` and `gemini-weekly`, including supported cadence aliases) take
-    precedence over separately reported model-specific Gemini quotas such as Argon. Stable bucket IDs determine
-    this preference, independently of display labels. Without measured ordinary Gemini quota, model-specific
-    quota remains a fallback. Every returned bucket keeps its percentage and reset metadata in `extraRateWindows`.
+  - Quota summaries prefer measured ordinary Gemini buckets (`gemini-5h` and `gemini-weekly`, including supported
+    cadence aliases) over model-specific Gemini allowances. Stable bucket IDs determine this preference independently
+    of display labels. Model-specific quotas remain the fallback when ordinary quota is absent, unknown, or disabled.
+    Every returned bucket retains its percentage and reset metadata in `extraRateWindows`.
   - Hidden model rows such as Lite, autocomplete, and image variants do not drive summary bars.
-  - For each group, CodexBar uses the lowest remaining known quota row and preserves that row's reset metadata.
+  - For each group, CodexBar uses the lowest remaining known candidate and preserves that row's reset metadata.
   - Rows with reset metadata but no remaining fraction stay visible as unavailable reset context only when their group
     has no known usage row.
 - `resetTime` parsing:
@@ -355,8 +355,7 @@ shared OAuth file can still be used as a fallback credential source.
   in `extraRateWindows` for reset context and are marked with `usageKnown: false`; clients should not render their
   `usedPercent` as a real exhausted quota.
 - Menu-bar layout Session and Weekly tokens independently select the most constrained known quota-summary row for
-  each cadence across model families, preferring ordinary Gemini over model-specific Gemini quota within that cadence.
-  The icon uses the same cadence preference. They do not use the Gemini and Claude/GPT family representatives, which can
+  each cadence across model families. They do not use the Gemini and Claude/GPT family representatives, which can
   represent different cadences. Unknown or missing summary cadences remain unavailable; snapshots without summary
   rows retain the standard cadence fallback. Automatic selection, its exhausted-quota option, and explicit family
   metrics retain their existing selection policies.
@@ -375,7 +374,7 @@ shared OAuth file can still be used as a fallback credential source.
   `idle` instead. The `codexbar serve` web UI skips those rows, so the web card matches the menu without repeating
   the family rule in JavaScript. See `docs/dashboard-api.md`.
 - CLI text and `cards` render quota-summary buckets once, using the same idle-family visibility rule. Missing or disabled quota stays unavailable, including in brief cards, while reset context remains visible. Raw JSON retains every bucket.
-- Linux and Omarchy list each measured quota-summary bucket once with its family title. The most constrained bucket in each family stays first for the tray meters; notification history follows the bucket when its position changes.
+- Linux and Omarchy list each measured quota-summary bucket once with its family title. Each family's selected representative stays first for the tray meters; stable bucket IDs preserve row and notification identity when titles change or quota values match.
 
 ## Quota observation history
 
