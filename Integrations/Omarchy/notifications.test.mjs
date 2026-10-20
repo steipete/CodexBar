@@ -103,7 +103,7 @@ test('a stable-ID representative with a general title emits one alert per allowa
         return usage.rows(JSON.stringify([{provider: 'antigravity', usage: {
             primary: window, extraRateWindows: [
                 {id: 'antigravity-quota-summary-gemini-weekly', title: 'General models weekly', window},
-                {id: 'antigravity-quota-summary-gemini-argon-wtu-weekly', title: 'General models weekly',
+                {id: 'antigravity-quota-summary-gemini-synthetic-limited-weekly', title: 'General models weekly',
                     window: {...window, usedPercent: 100}}
             ]}}]));
     };
@@ -113,6 +113,6 @@ test('a stable-ID representative with a general title emits one alert per allowa
     assert.deepEqual(Array.from(low.events, event => event.message), ['General models weekly: 5% quota remaining.']);
     assert.deepEqual(Object.keys(low.state), [
         'antigravity/extra:antigravity-quota-summary-gemini-weekly',
-        'antigravity/extra:antigravity-quota-summary-gemini-argon-wtu-weekly']);
+        'antigravity/extra:antigravity-quota-summary-gemini-synthetic-limited-weekly']);
     assert.equal(model.transition(low.state, entries(95), 10).events.length, 0);
 });

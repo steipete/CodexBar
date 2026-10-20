@@ -9,7 +9,7 @@ struct AntigravityQuotaRepresentativeTests {
     func `ordinary Gemini quota represents availability beside exhausted model quota`(ordinaryID: String) throws {
         let usage = try self.usage(buckets: [
             self.bucket(id: ordinaryID, remaining: 0.9996),
-            self.bucket(id: "gemini-argon-wtu-weekly", remaining: 0),
+            self.bucket(id: "gemini-synthetic-limited-weekly", remaining: 0),
             self.bucket(id: "gemini-synthetic-special-weekly", remaining: 0.1),
         ])
         let primary = try #require(usage.primary)
@@ -18,7 +18,7 @@ struct AntigravityQuotaRepresentativeTests {
         #expect(primary.resetsAt == Date(timeIntervalSince1970: 1_900_000_000))
         let rows = try #require(usage.extraRateWindows)
         #expect(rows.count == 3)
-        #expect(rows.first { $0.id.hasSuffix("argon-wtu-weekly") }?.window.usedPercent == 100)
+        #expect(rows.first { $0.id.hasSuffix("synthetic-limited-weekly") }?.window.usedPercent == 100)
         #expect(self.presentation.semanticWindows(snapshot: usage).weekly?.usedPercent == 100)
         #expect(self.iconWindows(usage).secondary?.usedPercent == 100)
         guard case let .resolved(window) = self.presentation.menuBarWindow(context: .init(
@@ -35,7 +35,7 @@ struct AntigravityQuotaRepresentativeTests {
     func `stable ordinary bucket ID wins even when group title changes`() throws {
         let usage = try self.usage(buckets: [
             self.bucket(id: "gemini-weekly", remaining: 0.8),
-            self.bucket(id: "gemini-argon-wtu-weekly", remaining: 0),
+            self.bucket(id: "gemini-synthetic-limited-weekly", remaining: 0),
         ], groupName: "General models")
         #expect(usage.primary?.remainingPercent == 80)
         #expect(self.presentation.semanticWindows(snapshot: usage).weekly?.remainingPercent == 0)
@@ -43,7 +43,7 @@ struct AntigravityQuotaRepresentativeTests {
 
     @Test(arguments: ["absent", "unknown", "disabled"])
     func `model specific quota remains a fallback without measured ordinary quota`(ordinaryState: String) throws {
-        var buckets = [self.bucket(id: "gemini-argon-wtu-weekly", remaining: 0.25)]
+        var buckets = [self.bucket(id: "gemini-synthetic-limited-weekly", remaining: 0.25)]
         if ordinaryState != "absent" {
             buckets.append(self.bucket(
                 id: "gemini-weekly",
@@ -62,7 +62,7 @@ struct AntigravityQuotaRepresentativeTests {
         let usage = try self.usage(buckets: [
             self.bucket(id: "gemini-5h", remaining: 0.6, cadence: "5h"),
             self.bucket(id: "gemini-weekly", remaining: 0.9),
-            self.bucket(id: "gemini-argon-wtu-weekly", remaining: 0),
+            self.bucket(id: "gemini-synthetic-limited-weekly", remaining: 0),
             self.bucket(id: "3p-weekly", remaining: 0.7),
         ])
         #expect(usage.primary?.remainingPercent == 60)
@@ -78,7 +78,7 @@ struct AntigravityQuotaRepresentativeTests {
     func `ordinary session does not erase model specific weekly fallback`() throws {
         let usage = try self.usage(buckets: [
             self.bucket(id: "gemini-5h", remaining: 0.8, cadence: "5h"),
-            self.bucket(id: "gemini-argon-wtu-weekly", remaining: 0.1),
+            self.bucket(id: "gemini-synthetic-limited-weekly", remaining: 0.1),
         ])
         #expect(usage.primary?.remainingPercent == 80)
         #expect(self.presentation.semanticWindows(snapshot: usage).weekly?.remainingPercent == 10)

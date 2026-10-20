@@ -10,6 +10,8 @@
 - TypeSafe: send a browser User-Agent so Cloudflare no longer blocks Linux requests (the default user agent contains `curl/`), which made valid sessions look expired (#4648). Thanks @johan456789!
 ### Added
 
+- Linux: link the community codexbar-dms widget for DankMaterialShell, sharing the Linux desktop backend (#4658). Thanks @quantmind-br!
+
 - Settings: add Israeli new shekel (`ILS`, `₪`) to Preferred Currency with daily exchange rates and offline conversion (#4646). Thanks @elijahfriedman!
 
 - Antigravity: scan larger local histories without dropping complete cost reports while retaining bounded work and cancellation (#4639). Thanks @arhmnsh!
