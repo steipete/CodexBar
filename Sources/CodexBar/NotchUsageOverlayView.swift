@@ -228,7 +228,7 @@ struct NotchUsageOverlayView: View {
                     agentSessions: self.agentSessions)
                 self.expanded(content: NotchUsageOverlayContent(model: model))
                     .padding(.top, NotchUsageOverlayContent.topPadding)
-                    .background(.regularMaterial, in: UnevenRoundedRectangle(
+                    .background(Color(nsColor: .windowBackgroundColor), in: UnevenRoundedRectangle(
                         bottomLeadingRadius: 18, bottomTrailingRadius: 18, style: .continuous))
                     .padding(.horizontal, 4)
                     .padding(.bottom, 4)
