@@ -114,7 +114,7 @@ files successfully before extracting either archive, then use the installation
 commands above with the downloaded filenames.
 
 To upgrade, quit CodexBar, rerun the installation block, and reopen it.
-Preferences and disabled autostart are preserved. There is no desktop
+Preferences and disabled autostart are preserved, including `Hidden = true` entries and comments in existing desktop files. There is no desktop
 auto-updater or distro repository package yet. Ordinary CI artifacts are
 previews, not releases. See [validation and removal](#validation-and-removal)
 for uninstall paths.

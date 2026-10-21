@@ -25,6 +25,7 @@ read_when:
   session or weekly quota data.
 - **Preferences → Providers → Claude → Show model-specific weekly usage in widgets** adds every known scoped weekly quota (including Fable when available) after Session, Weekly, and Opus. It defaults off, affects no other surface or fetching, and removes even previously saved scoped rows when turned off without fresh data.
 - If no snapshot is available, widgets fall back to preview/empty data.
+- Provider-pinned widgets (Usage, History, Metric) retain their configured provider. If it is absent from a nonempty snapshot's `enabledProviders`, the empty state names it as unavailable and points at Edit Widget. That list records enabled, available, widget-capable providers; missing credentials can therefore produce this state too. With no available providers or no saved snapshot, widgets point at provider setup in Settings. Enabled providers awaiting a measurement show **No data**. The Switcher has no provider editor, so its recovery always points at app settings. Burn Down uses the same **No data** label in its own empty-state layout; account widgets keep their own setup guidance.
 
 Persistence must finish before requesting a timeline reload. Tests opt in with an in-memory save override or test-owned snapshot URL; neither reloads WidgetKit. Use the helper's explicit test-mode decision and per-store reload callback to verify ordering without changing process-wide isolation or calling WidgetKit.
 

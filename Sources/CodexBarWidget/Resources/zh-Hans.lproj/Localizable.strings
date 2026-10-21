@@ -2,6 +2,7 @@
 "%@ %@" = "%@ %@";
 "%@ API est. · not billed" = "%@ API 估算 · 非实际账单";
 "%@ cost" = "%@费用";
+"%@ is unavailable. Edit the widget to choose a provider." = "%@ 不可用。编辑小组件以选择提供商。";
 "%@ left" = "%@ 剩余";
 "%@ tokens" = "%@ token 用量";
 "%@ used" = "已使用 %@";
@@ -75,6 +76,7 @@
 "Daily usage" = "每日用量";
 "Deployment" = "部署";
 "Edit predictions" = "编辑预测";
+"Enable a provider in CodexBar → Settings → Providers." = "在 CodexBar → 设置 → 提供商中启用一个提供商。";
 "Enable account widgets in CodexBar → Settings → Menu → Widgets. Then edit this widget to choose an account." = "在 CodexBar → 设置 → 菜单 → 小部件中启用帐户小部件。然后编辑此小部件以选择一个帐户。";
 "Extra usage" = "额外用量";
 "Extra usage balance" = "额外用量余额";
@@ -164,10 +166,7 @@
 "Two quota burn-down charts in one tile." = "一张图块中包含两个 配额 燃尽图。";
 "Unavailable account" = "账户: 不可用";
 "Usage" = "用量";
-"Usage data appears after a refresh." = "刷新后会显示使用情况数据。";
-"Usage data will appear once the app refreshes." = "应用程序刷新后，将显示使用数据。";
 "Usage history chart with recent totals." = "使用历史记录图表以及最近的总计。";
-"Usage history will appear after a refresh." = "刷新后会出现使用历史记录。";
 "Usage limit" = "使用限制";
 "Usage limits and reset countdowns for one saved account." = "一个已保存帐户的使用限制和重置倒计时。";
 "Usage widget with a provider switcher." = "可切换提供商的用量小组件。";

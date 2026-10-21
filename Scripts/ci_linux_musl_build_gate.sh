@@ -39,6 +39,9 @@ classify_path() {
     Scripts/install_swift_static_sdk.sh)
       require_linux_musl_build "$path" "changes the Swift static SDK installer"
       ;;
+    Scripts/check-linux-cli-codex-cost-smoke.sh)
+      require_linux_musl_build "$path" "changes the Linux CLI Codex cost smoke test"
+      ;;
   esac
 }
 

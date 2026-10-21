@@ -621,7 +621,6 @@
 
 /* Display Pane */
 "menu_bar_style_title" = "Стиль рядка меню";
-"menu_bar_style_subtitle" = "Визначає вигляд елемента рядка меню.";
 "menu_bar_inactive_display_contrast_title" = "Покращити видимість на неактивних дисплеях";
 "menu_bar_inactive_display_contrast_subtitle" = "Підвищує контрастність значка й показника, щоб їх було видно на інших дисплеях.";
 "menu_bar_style_critters" = "Тварини";
@@ -1222,6 +1221,7 @@
 "Password" = "Пароль";
 "%@ authentication is disabled." = "Автентифікацію %@ вимкнено.";
 "%@ cookies are disabled." = "Файли cookie %@ вимкнено.";
+"%@ is unavailable. Edit the widget to choose a provider." = "%@ недоступний. Відредагуйте віджет, щоб вибрати постачальника.";
 "%@ web API access is disabled." = "Доступ до веб-API %@ вимкнено.";
 "Disable %@ dashboard cookie usage." = "Вимкнути використання файлів cookie панелі інструментів %@.";
 "Keychain access is disabled in Advanced, so browser cookie import is unavailable." = "Доступ Keychain вимкнено в Advanced, тому імпорт файлів cookie браузера недоступний.";
@@ -1410,6 +1410,7 @@
 /* Menu bar layout editor */
 "menu_bar_layout_title" = "Компонування";
 "menu_bar_layout_footer" = "Перетягуйте елементи, щоб упорядкувати смугу меню. Натисніть елемент, щоб додати його; виберіть розміщений елемент і натисніть Delete, щоб видалити його.";
+"menu_bar_layout_footer_requires_icon_and_percent" = "Компонування застосовується лише до стилю рядка меню «%@». Виберіть цей стиль вище, щоб змінити його.";
 "menu_bar_layout_group_identity" = "Ідентифікація";
 "menu_bar_layout_group_usage" = "Використання";
 "menu_bar_layout_group_time" = "Час";
@@ -1800,6 +1801,7 @@
 "Details for %@" = "Деталі для %@";
 "EST. %@" = "Приблизно %@";
 "Enable Antigravity provider" = "Увімкнути постачальника Antigravity";
+"Enable a provider in CodexBar → Settings → Providers." = "Увімкніть постачальника в CodexBar → Налаштування → Постачальники.";
 "Enable account widgets in CodexBar → Settings → Menu → Widgets. Then edit this widget to choose an account." = "Увімкніть віджети облікового запису в CodexBar → Налаштування → Меню → Віджети. Потім відредагуйте цей віджет, щоб вибрати обліковий запис.";
 "Error: %@" = "Помилка: %@";
 "Examples: alt+cmd+2, shift+right. Refresh (cmd+r), Settings (cmd+,) and Quit (cmd+q) are reserved." = "Приклади: alt+cmd+2, shift+right. Сполучення для оновлення (cmd+r), параметрів (cmd+,) і виходу (cmd+q) зарезервовано.";
@@ -2017,7 +2019,6 @@
 "Usage data appears after a refresh." = "Дані про використання з’являються після оновлення.";
 "Usage data will appear once the app refreshes." = "Дані про використання з’являться, коли програма оновиться.";
 "Usage history chart with recent totals." = "Графік історії використання з останніми підсумками.";
-"Usage history will appear after a refresh." = "Історія використання з’явиться після оновлення.";
 "Usage limit" = "Ліміт використання";
 "Usage limits and reset countdowns for one saved account." = "Ліміти використання та зворотний відлік до їх скидання для одного збереженого облікового запису.";
 "Usage widget with a provider switcher." = "Віджет використання з перемикачем постачальників.";
@@ -2466,7 +2467,7 @@
 "spend_performance_cache_help" = "Кешовані вхідні дані, поділені на всі вхідні дані за придатними ходами діалогу. Значення зважено за вхідними токенами; показано охоплення вимірювань.";
 "spend_performance_metric_help" = "Про ці спостереження";
 "merged_icon_source_title" = "Джерело об’єднаної іконки";
-"merged_icon_source_subtitle" = "Виберіть провайдера для згорнутої об’єднаної іконки.";
+"merged_icon_source_subtitle" = "«Найбільше використання» порівнює лише квоти. Для провайдерів без квот виберіть «Поточний вибір».";
 "merged_icon_source_current_selection" = "Поточний вибір";
 "merged_icon_source_highest_usage" = "Найбільше використання";
 "merged_icon_source_frontmost_app" = "Застосунок провайдера на передньому плані";

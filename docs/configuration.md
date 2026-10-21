@@ -377,6 +377,8 @@ The unified highest-usage icon uses the same priority for providers set to Auto 
 window's actual percentage. Explicit metric choices and provider-specific credit-pool ordering are preserved.
 This uses reported usage, duration, and reset time; it adds no observation history or background timer.
 
+The **Layout** editor applies only to **Icon & percent**. With **Critters** or **Meter bars** selected, its footer explains which style to choose before editing.
+
 The layout editor includes an optional **Tokens / min** value token (for example `49M/min`) using the provider’s latest reported complete minute. OpenAI supplies it through the **Tokens per minute** provider setting. It uses the same unavailable placeholder as other value tokens when no throughput is available. The optional **Tokens / min graph** token shows the last hour as a compact graph, using the maximum minute in each column and excluding minutes that are still reporting. Drag either token into your layout to enable it; default layouts include neither. The graph uses the status item’s own provider data and the standard unavailable placeholder when there are no reported minutes.
 
 Switching from **Icon & percent** back to **Meters** or **Critters** redraws the selected style immediately, even when usage has not changed.

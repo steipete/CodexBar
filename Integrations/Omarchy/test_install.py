@@ -7,6 +7,35 @@ import unittest
 
 
 class InstallTests(unittest.TestCase):
+    def test_reinstall_preserves_the_desktop_entry_hidden_setting(self):
+        cases = [
+            ('Hidden=true\n', True),
+            ('Hidden = true\n', True),
+            ('Hidden\t=\ttrue\n', True),
+            ('Hidden=false\n', False),
+            ('# Hidden=true\nHidden=false\n', False),
+            ('Comment=Set Hidden=true to disable startup\nHidden=false\n', False),
+            ('X-Hidden=true\nHidden=false\n', False),
+            ('Hidden=false\n[Desktop Action Settings]\nHidden=true\n', False),
+            ('[Desktop Action Settings]\nHidden=true\n', False),
+            ('hidden=true\n', False),
+        ]
+        for entry, disabled in cases:
+            with self.subTest(entry=entry), tempfile.TemporaryDirectory() as temporary:
+                home = Path(temporary)
+                config, data = home / 'config', home / 'data'
+                startup = config / 'autostart/com.steipete.CodexBar.desktop'
+                startup.parent.mkdir(parents=True)
+                startup.write_text('[Desktop Entry]\nType=Application\nName=CodexBar\n' + entry)
+                environment = dict(os.environ, HOME=str(home), XDG_CONFIG_HOME=str(config), XDG_DATA_HOME=str(data))
+                script = Path(__file__).resolve().parents[1] / 'Linux/install.py'
+                for _ in range(2):
+                    result = subprocess.run(['python3', str(script), '--binary', '/usr/bin/true',
+                                             '--cli', '/usr/bin/true'], env=environment,
+                                            capture_output=True, text=True, timeout=10)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertIn(f'Hidden={str(disabled).lower()}', startup.read_text().splitlines())
+
     def test_xdg_directories_use_defaults_unless_absolute(self):
         for value in [None, '', 'relative', 'absolute']:
             with self.subTest(value=value), tempfile.TemporaryDirectory() as temporary:
