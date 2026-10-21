@@ -5,7 +5,7 @@ import SwiftUI
 @Observable
 final class NotchUsageOverlayViewState {
     var isExpanded = false
-    var notchFrameInHeader: CGRect = .zero
+    var notchFrameInPanel: CGRect = .zero
     /// Height the provider grid wants at the panel's current width, reported from inside its
     /// scroll view where nothing clamps it. Zero until the first report.
     var gridContentHeight: CGFloat = 0
@@ -226,23 +226,34 @@ struct NotchUsageOverlayView: View {
                     store: self.store,
                     settings: self.settings,
                     agentSessions: self.agentSessions)
-                self.expanded(content: NotchUsageOverlayContent(model: model))
-                    .padding(.top, NotchUsageOverlayContent.topPadding)
-                    .background(Color(nsColor: .windowBackgroundColor), in: UnevenRoundedRectangle(
-                        bottomLeadingRadius: 18, bottomTrailingRadius: 18, style: .continuous))
-                    .padding(.horizontal, 4)
-                    .padding(.bottom, 4)
-                    .transition(.scale(scale: 0.4, anchor: .top).combined(with: .opacity))
-                    .onPreferenceChange(NotchGridHeightKey.self) { height in
-                        MainActor.assumeIsolated {
-                            self.viewState.gridContentHeight = height
-                        }
+                VStack(spacing: 0) {
+                    if self.settings.notchShowsEars {
+                        NotchUsageEarsView(
+                            model: model,
+                            settings: self.settings,
+                            notchFrame: self.viewState.notchFrameInPanel.offsetBy(dx: -4, dy: 0))
+                            .frame(height: self.viewState.notchFrameInPanel.height)
                     }
-                    .onPreferenceChange(NotchBandHeightKey.self) { height in
-                        MainActor.assumeIsolated {
-                            self.viewState.bandContentHeight = height
-                        }
+                    self.expanded(content: NotchUsageOverlayContent(model: model))
+                        .padding(.top, NotchUsageOverlayContent.topPadding)
+                }
+                .background(Color(nsColor: .windowBackgroundColor), in: UnevenRoundedRectangle(
+                    bottomLeadingRadius: 18,
+                    bottomTrailingRadius: 18,
+                    style: .continuous))
+                .padding(.horizontal, 4)
+                .padding(.bottom, 4)
+                .transition(.scale(scale: 0.4, anchor: .top).combined(with: .opacity))
+                .onPreferenceChange(NotchGridHeightKey.self) { height in
+                    MainActor.assumeIsolated {
+                        self.viewState.gridContentHeight = height
                     }
+                }
+                .onPreferenceChange(NotchBandHeightKey.self) { height in
+                    MainActor.assumeIsolated {
+                        self.viewState.bandContentHeight = height
+                    }
+                }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -310,35 +321,27 @@ struct NotchUsageOverlayView: View {
     }
 }
 
-/// Opaque notch ears beside the camera, visible only with the expanded dashboard.
-struct NotchUsageHeaderView: View {
+/// Extra information in the same popover; its parent owns the background and transition.
+struct NotchUsageEarsView: View {
     static let minimumSideWidth: CGFloat = 160
 
-    let store: UsageStore
+    let model: NotchUsageOverlayModel
     let settings: SettingsStore
-    let viewState: NotchUsageOverlayViewState
+    let notchFrame: CGRect
 
     var body: some View {
-        ZStack {
-            if self.viewState.isExpanded, self.settings.notchShowsEars {
-                let model = NotchUsageOverlayModel.make(store: self.store, settings: self.settings)
-                HStack(spacing: 0) {
-                    self.summary(
-                        model.earItem(selection: self.settings.notchLeftEarContent, automaticIndex: 0),
-                        style: model.iconStyle)
-                        .frame(width: max(0, self.viewState.notchFrameInHeader.minX))
-                    Color.clear.frame(width: self.viewState.notchFrameInHeader.width)
-                    self.summary(
-                        model.earItem(selection: self.settings.notchRightEarContent, automaticIndex: 1),
-                        style: model.iconStyle)
-                        .frame(maxWidth: .infinity)
-                }
-                .background(Color(nsColor: .windowBackgroundColor))
-                .transition(.opacity)
-            }
+        HStack(spacing: 0) {
+            self.summary(
+                self.model.earItem(selection: self.settings.notchLeftEarContent, automaticIndex: 0),
+                style: self.model.iconStyle)
+                .frame(width: max(0, self.notchFrame.minX))
+            Color.clear.frame(width: self.notchFrame.width)
+            self.summary(
+                self.model.earItem(selection: self.settings.notchRightEarContent, automaticIndex: 1),
+                style: self.model.iconStyle)
+                .frame(maxWidth: .infinity)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .animation(.easeInOut(duration: 0.2), value: self.viewState.isExpanded)
     }
 
     @ViewBuilder

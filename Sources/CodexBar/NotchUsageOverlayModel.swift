@@ -22,6 +22,7 @@ struct NotchUsageOverlayModel: Equatable {
         let bars: [Bar]
         let statusText: String?
         var resetCredits: LimitResetCreditsPresentation?
+        var earResetCredits: LimitResetCreditsPresentation?
 
         /// VoiceOver summary for the whole tile. The tile is one combined accessibility element,
         /// so the label has to carry the bar details itself — overriding it with just the name
@@ -54,6 +55,12 @@ struct NotchUsageOverlayModel: Equatable {
         var expiryText: String?
     }
 
+    struct EarChoice: Equatable, Identifiable {
+        let id: String
+        let provider: ProviderInstanceID
+        let title: String
+    }
+
     /// The agent-session list, rendered as a full-width band above or below the provider grid.
     /// Never a tile in the grid, so it cannot appear in ``items`` by construction.
     struct SessionsBand: Equatable {
@@ -78,16 +85,7 @@ struct NotchUsageOverlayModel: Equatable {
     var headerItems: [HeaderItem] {
         let credits = self.items.compactMap { row -> HeaderItem? in
             guard let credits = row.resetCredits else { return nil }
-            return HeaderItem(
-                id: "\(row.id.rawValue):reset-credits",
-                provider: row.id,
-                providerName: row.name,
-                title: L("Limit Reset Credits"),
-                value: credits.text,
-                accessibilityLabel: "\(row.name), \(credits.accessibilityLabel)",
-                expiryText: credits.items.compactMap(\.countdownExpiryText).first.map {
-                    String(format: L("Expires %@"), $0)
-                })
+            return Self.resetCreditHeader(row: row, credits: credits, showsExpiry: false)
         }
         let quotas = self.items.map { row in
             row.bars.map { bar in
@@ -103,10 +101,60 @@ struct NotchUsageOverlayModel: Equatable {
         return credits + quotas.compactMap(\.first) + quotas.flatMap { $0.dropFirst() }
     }
 
+    var earChoices: [EarChoice] {
+        var choices = self.headerItems.map {
+            EarChoice(id: $0.id, provider: $0.provider, title: "\($0.providerName) — \($0.title)")
+        }
+        // Provider-specific by design: only these inventories support resets; expiry ears are Codex/Claude-only.
+        for row in self.items where [ProviderInstanceID.codex, .claude, .grok].contains(row.id) {
+            let id = "\(row.id.rawValue):reset-credits"
+            if !choices.contains(where: { $0.id == id }) {
+                choices.append(EarChoice(
+                    id: id, provider: row.id, title: "\(row.name) — \(L("Limit Reset Credits"))"))
+            }
+            if row.id == .codex || row.id == .claude {
+                choices.append(EarChoice(
+                    id: "\(id)-expiry",
+                    provider: row.id,
+                    title: "\(row.name) — \(L("Limit Reset Credits + Expiry"))"))
+            }
+        }
+        return choices
+    }
+
     func earItem(selection: String, automaticIndex: Int) -> HeaderItem? {
+        for row in self.items where row.id == .codex || row.id == .claude {
+            let id = "\(row.id.rawValue):reset-credits"
+            if selection == id || selection == "\(id)-expiry" {
+                return Self.resetCreditHeader(
+                    row: row,
+                    credits: row.earResetCredits,
+                    showsExpiry: selection == "\(id)-expiry")
+            }
+        }
         let items = self.headerItems
         guard selection.isEmpty else { return items.first { $0.id == selection } }
         return items.indices.contains(automaticIndex) ? items[automaticIndex] : nil
+    }
+
+    private static func resetCreditHeader(
+        row: ProviderRow,
+        credits: LimitResetCreditsPresentation?,
+        showsExpiry: Bool) -> HeaderItem
+    {
+        HeaderItem(
+            id: "\(row.id.rawValue):reset-credits\(showsExpiry ? "-expiry" : "")",
+            provider: row.id,
+            providerName: row.name,
+            title: L("Limit Reset Credits"),
+            value: credits?.text ?? L("Unavailable"),
+            accessibilityLabel: [
+                row.name,
+                credits?.accessibilityLabel ?? "\(L("Limit Reset Credits")), \(L("Unavailable"))",
+            ].joined(separator: ", "),
+            expiryText: showsExpiry ? credits?.items.compactMap(\.countdownExpiryText).first.map {
+                String(format: L("Expires %@"), $0)
+            } : nil)
     }
 
     /// Round-robin placement shared by the tile grid and the full-width session band: element `i`
@@ -302,7 +350,36 @@ struct NotchUsageOverlayModel: Equatable {
             tint: card.progressColor,
             bars: bars,
             statusText: card.subtitleStyle == .error ? card.subtitleText : (bars.isEmpty ? card.placeholder : nil),
-            resetCredits: card.limitResetCredits)
+            resetCredits: card.limitResetCredits,
+            earResetCredits: self.resetCreditsForEars(provider: provider, store: store, settings: settings, now: now))
+    }
+
+    @MainActor
+    private static func resetCreditsForEars(
+        provider: UsageProvider,
+        store: UsageStore,
+        settings: SettingsStore,
+        now: Date) -> LimitResetCreditsPresentation?
+    {
+        // Provider-specific by design: explicit Codex/Claude ears retain zero from their account-scoped inventories.
+        guard provider == .codex || provider == .claude,
+              let snapshot = store.presentationSnapshot(for: provider)
+        else { return nil }
+        if provider == .codex, let credits = snapshot.codexResetCredits {
+            return LimitResetCreditsPresentation.make(
+                snapshot: credits,
+                resetStyle: settings.resetTimeDisplayStyle,
+                now: now,
+                includeEmpty: true)
+        }
+        if provider == .claude, let credits = snapshot.claudeResetCredits {
+            return LimitResetCreditsPresentation.make(
+                expirations: credits.availableExpirations(at: now),
+                resetStyle: settings.resetTimeDisplayStyle,
+                now: now,
+                includeEmpty: true)
+        }
+        return nil
     }
 
     @MainActor

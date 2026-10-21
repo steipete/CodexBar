@@ -143,11 +143,19 @@ struct NotchPane: View {
     }
 
     private func earPicker(_ title: String, selection: Binding<String>) -> some View {
-        let items = NotchUsageOverlayModel.make(store: self.store, settings: self.settings).headerItems
+        let model = NotchUsageOverlayModel.make(store: self.store, settings: self.settings)
+        let items = model.earChoices
         return Picker(title, selection: selection) {
             Text(L("Automatic")).tag("")
-            ForEach(items) { item in
-                Text("\(item.providerName) — \(item.title)").tag(item.id)
+            ForEach(model.items) { provider in
+                let choices = items.filter { $0.provider == provider.id }
+                if !choices.isEmpty {
+                    Section(provider.name) {
+                        ForEach(choices) { item in
+                            Text(item.title).tag(item.id)
+                        }
+                    }
+                }
             }
             if !selection.wrappedValue.isEmpty, !items.contains(where: { $0.id == selection.wrappedValue }) {
                 Text(L("notch_ear_unavailable")).tag(selection.wrappedValue)

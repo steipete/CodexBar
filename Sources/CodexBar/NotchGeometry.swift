@@ -25,13 +25,18 @@ enum NotchGeometry {
         return CGRect(x: x, y: y, width: width, height: height)
     }
 
-    /// A separate, click-through surface joins the content to the top of the display.
-    static func headerFrame(contentFrame: CGRect, notchRect: CGRect) -> CGRect {
-        CGRect(x: contentFrame.minX, y: notchRect.minY, width: contentFrame.width, height: notchRect.height)
+    /// Ears extend the same popover upward without moving or resizing its dashboard.
+    static func expandedPanelFrame(contentFrame: CGRect, notchRect: CGRect, showsEars: Bool) -> CGRect {
+        guard showsEars else { return contentFrame }
+        return CGRect(
+            x: contentFrame.minX,
+            y: contentFrame.minY,
+            width: contentFrame.width,
+            height: notchRect.maxY - contentFrame.minY)
     }
 
-    static func notchFrameInHeader(headerFrame: CGRect, notchRect: CGRect) -> CGRect {
-        notchRect.intersection(headerFrame).offsetBy(dx: -headerFrame.minX, dy: -headerFrame.minY)
+    static func notchFrameInPanel(panelFrame: CGRect, notchRect: CGRect) -> CGRect {
+        notchRect.intersection(panelFrame).offsetBy(dx: -panelFrame.minX, dy: -panelFrame.minY)
     }
 
     /// Computes the camera housing rectangle in global screen coordinates.

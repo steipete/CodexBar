@@ -21,8 +21,12 @@ Synthetic provider tiles in brand and monochrome styles:
 - `notchShowsEars` — on by default; independently hides the **Notch ears** while keeping the main
   overlay enabled. Ears appear only while the panel is expanded.
 - `notchLeftEarContent` / `notchRightEarContent` — independent provider metric or reset-credit
-  selections. Empty means **Automatic**, prioritising available reset credits then provider quotas.
-  An unavailable or hidden selection stays blank until that same item is available again.
+  selections, grouped by provider in each picker. Empty means **Automatic**, prioritising available reset credits then provider quotas.
+  Reset-credit choices remain available for enabled Codex, Claude, and Grok providers even with no
+  current inventory. Codex and Claude offer separate **Limit Reset Credits** and **Limit Reset Credits + Expiry**
+  choices. Explicit credit selections use the same account's inventory independently of menu visibility,
+  retain the provider logo at zero, and show **Unavailable** when no inventory was reported. The expiry
+  variant adds the next expiry countdown when it fits. Hidden providers remain hidden.
 - `notchColumnCount` (1–4, default 1) — how many columns the tiles flow into. Width is never
   configured; the panel measures its own content.
 - `notchMatchesRowHeights` (default on) — off, each column packs independently, so a short tile
@@ -65,35 +69,37 @@ Synthetic provider tiles in brand and monochrome styles:
   `NotchUsageOverlayController.expandedFrame` sums those two reports — each capped by its own
   ceiling — plus the stack's spacing and padding. Measuring a separate copy instead drifts from what
   SwiftUI lays out, which showed up as content stuck behind a scroll no matter how high the ceiling
-  was raised. The total is still bounded by 90% of the screen height and the screen width less a
-  margin. The interactive content frame is anchored below the camera housing's bottom edge, outside
-  both auxiliary menu-bar areas, including when the display has a nonzero origin.
+  was raised. The dashboard is still bounded by 90% of the screen height and the screen width less a
+  margin. It is anchored below the camera housing's bottom edge, outside both auxiliary menu-bar
+  areas, including when the display has a nonzero origin; enabled ears add the camera housing height.
 - The frame is re-measured while the panel is open: `applyExpandedFrame` wraps the measurement in
   `withObservationTracking`, so a snapshot landing after the panel opened resizes it. Without that
   the panel keeps its opening size and late-arriving bars are stuck behind a scroll.
 - The panel's hosting view sets `sizingOptions = []`. Without it the hosting view installs its
   content's ideal size as window constraints and a long provider list grows the panel off-screen.
-- Opaque notch ears extend from the content's top edge to the top of the screen, joining the
-  dashboard to the camera housing. Their header reserves the camera's actual position, including on shifted
-  displays and when width clamping makes the side spaces unequal. The two side summaries prioritise
-  available reset credits, then visible provider quotas, using the same provider logos and account-scoped
-  menu presentation as the tiles. Hidden providers and hidden usage items stay hidden. The minimum
-  width allows 160pt on either side of the camera when ears are enabled; the display still bounds the total
-  width. Reset credits include the next expiry countdown (including days) when it fits, with the full
-  expiry inventory retained in the tooltip and accessibility label.
+- Enabling **Notch ears** increases the same popover's height by the camera housing height, without
+  moving or resizing the dashboard below it. The ears are a row inside the popover, sharing its opaque
+  background and its single spring/opacity transition; there is no separate ear window or animation.
+  The top corners are square against the display edge; the bottom corners remain rounded.
+  The row reserves the camera's actual position, including shifted displays and unequal side spaces.
+  Each side can show a provider metric or reset credits, using the same logos and account-scoped menu
+  presentation as the tiles. Hidden providers and quota items stay hidden; explicitly selected Codex
+  and Claude reset credits are independent of menu visibility. The **+ Expiry** choice includes
+  the next expiry countdown (including days) when it fits, with the full expiry inventory retained in
+  the tooltip and accessibility label. The minimum width leaves 160pt on each side of the camera,
+  whether ears are enabled or disabled, and the display still bounds the total width.
 
 ## Hover and hotkey
-- Three borderless, non-activating `NSPanel` windows share one controller. A camera-housing-sized
-  tracking trigger stays in the notch; the wider interactive content window starts below the menu
-  strip and is hidden while collapsed. The opaque ears sit above status items and receive mouse
-  events in the menu-bar area they cover. Turning ears off restores access to that area immediately.
-  None becomes key or main. Expanding never widens the interactive notch trigger.
+- Two borderless, non-activating `NSPanel` windows share one controller: a camera-housing-sized
+  tracking trigger and the expanded popover. With ears enabled, the popover extends to the top of
+  the display and receives mouse events in the menu-bar area it covers. With ears disabled, its top
+  sits below the camera. Neither window becomes key or main, and the trigger never widens.
 - Hover is detected by an `NSTrackingArea` (`.activeAlways`, `.inVisibleRect`,
   `.mouseEnteredAndExited`) on the hosting view — no global event monitor, so no Accessibility
   permission.
-- Entering the camera trigger starts a 0.35s dwell before expansion. Leaving all three surfaces starts a 0.4s grace
-  period, cancelled by re-entry. Crossing between the trigger, ears, and content preserves hover ownership.
-  Collapse immediately hides the ears and disables content mouse handling, then hides that window after the animation;
+- Entering the camera trigger starts a 0.35s dwell before expansion. Leaving both windows starts a 0.4s grace
+  period, cancelled by re-entry. Crossing from the trigger into any part of the popover preserves hover ownership.
+  Collapse immediately disables popover mouse handling, then hides the whole window after its shared animation;
   its hide task is separate from hover grace so a re-entry cannot leave an invisible click target.
 - `NotchHotkeyState` is the pure decision table for the shortcut: toggle flips on each press and
   survives key release; hold expands on press and collapses on release unless the pointer is inside,
@@ -101,8 +107,8 @@ Synthetic provider tiles in brand and monochrome styles:
   collapse it.
 - `NotchUsageOverlayController` observes the setting and
   `NSApplication.didChangeScreenParametersNotification`; turning the setting off or losing the
-  notched screen cancels all pending transitions and tears all three windows down without a relaunch.
-  Disabling ears also removes their hover ownership while keeping the main content available.
+  notched screen cancels all pending transitions and tears both windows down without a relaunch.
+  Disabling ears shrinks the same window below the menu strip while keeping the main content available.
 
 ## Provider presentation
 `NotchUsageOverlayModel.make(store:settings:agentSessions:)` walks

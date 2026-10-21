@@ -1707,9 +1707,11 @@
 "Column per harness" = "Colonna per strumento";
 
 // Notch ears
-"section_notch_ears" = "Notch ears";
-"notch_ears_title" = "Show notch ears";
-"notch_ears_subtitle" = "Opaque summaries beside the camera while the panel is expanded. They receive clicks in the menu-bar area they cover.";
-"notch_left_ear" = "Left ear";
-"notch_right_ear" = "Right ear";
-"notch_ear_unavailable" = "Selected item unavailable";
+"section_notch_ears" = "Alette del notch";
+"notch_ears_title" = "Mostra le alette del notch";
+"notch_ears_subtitle" = "Riepiloghi opachi ai lati della fotocamera mentre il pannello è espanso. Ricevono i clic nell’area della barra dei menu che coprono.";
+"notch_left_ear" = "Aletta sinistra";
+"notch_right_ear" = "Aletta destra";
+"notch_ear_unavailable" = "Elemento selezionato non disponibile";
+
+"Limit Reset Credits + Expiry" = "Crediti di reimpostazione limite + Scadenza";

@@ -476,7 +476,16 @@ struct NotchUsageSettingsTests {
         #expect(header[0].value == "1 available")
         #expect(header[0].accessibilityLabel.contains("Codex"))
         #expect(header[1].value == "75% left")
-        #expect(header[0].expiryText == "Expires in 2d")
+        #expect(header[0].expiryText == nil)
+        #expect(model.earItem(selection: "codex:reset-credits-expiry", automaticIndex: 0)?
+            .expiryText == "Expires in 2d")
+        #expect(model.earChoices.contains { $0.id == "claude:reset-credits" })
+        #expect(model.earChoices.filter { $0.id == "codex:reset-credits" }.count == 1)
+        #expect(model.earChoices.filter { $0.provider == .claude }.map(\.id)
+            == ["claude:secondary", "claude:reset-credits", "claude:reset-credits-expiry"])
+        #expect(model.earChoices.filter { $0.provider == .codex }.map(\.id)
+            == ["codex:reset-credits", "codex:secondary", "codex:reset-credits-expiry"])
+        #expect(model.earItem(selection: "claude:reset-credits", automaticIndex: 0)?.value == "Unavailable")
         #expect(model.earItem(selection: "", automaticIndex: 0)?.id == "codex:reset-credits")
         #expect(model.earItem(selection: "", automaticIndex: 1)?.id == "claude:secondary")
         #expect(model.earItem(selection: "codex:secondary", automaticIndex: 0)?.provider == .codex)
@@ -486,13 +495,73 @@ struct NotchUsageSettingsTests {
         settings.setUsageItemVisible(false, itemID: .codexResetCredits, for: .codex)
         let hiddenCredits = NotchUsageOverlayModel.make(store: store, settings: settings, now: now).headerItems
         #expect(NotchUsageOverlayModel.make(store: store, settings: settings, now: now)
-            .earItem(selection: "codex:reset-credits", automaticIndex: 0) == nil)
+            .earItem(selection: "codex:reset-credits", automaticIndex: 0)?.value == "1 available")
         #expect(hiddenCredits.map(\.id) == ["claude:secondary", "codex:secondary"])
         settings.setNotchProviderVisible(.codex, visible: false)
+        #expect(!NotchUsageOverlayModel.make(store: store, settings: settings, now: now).earChoices
+            .contains { $0.provider == .codex })
         #expect(NotchUsageOverlayModel.make(store: store, settings: settings, now: now).headerItems
             .map(\.provider) == [.claude])
         settings.setUsageItemVisible(false, itemID: .metric("secondary"), for: .claude)
         #expect(NotchUsageOverlayModel.make(store: store, settings: settings, now: now).headerItems.isEmpty)
+        settings.showOptionalCreditsAndExtraUsage = false
+        store._setSnapshotForTesting(UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            claudeResetCredits: ClaudeRateLimitResetCreditsSnapshot(
+                expirations: [
+                    now.addingTimeInterval(86400),
+                    now.addingTimeInterval(172_800),
+                    now.addingTimeInterval(-1),
+                ],
+                updatedAt: now),
+            updatedAt: now), provider: .claude)
+        let claude = NotchUsageOverlayModel.make(store: store, settings: settings, now: now)
+            .earItem(selection: "claude:reset-credits-expiry", automaticIndex: 0)
+        #expect(claude?.provider == .claude)
+        #expect(claude?.value == "2 available")
+        #expect(claude?.expiryText == "Expires in 1d")
+        #expect(NotchUsageOverlayModel.make(store: store, settings: settings, now: now)
+            .earItem(selection: "claude:reset-credits", automaticIndex: 0)?.expiryText == nil)
+    }
+
+    @Test
+    func `explicit reset credit ears retain zero and provider identity without menu extras`() throws {
+        let settings = testSettingsStore(
+            suiteName: "NotchUsageSettingsTests-zero-credits",
+            userDefaults: InMemoryUserDefaults(),
+            config: CodexBarConfig(providers: [
+                ProviderConfig(id: .claude, enabled: true),
+                ProviderConfig(id: .codex, enabled: true),
+            ]))
+        settings.showOptionalCreditsAndExtraUsage = false
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings)
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        for provider in [UsageProvider.claude, .codex] {
+            store._setSnapshotForTesting(UsageSnapshot(
+                primary: nil,
+                secondary: nil,
+                codexResetCredits: provider == .codex
+                    ? CodexRateLimitResetCreditsSnapshot(credits: [], availableCount: 0, updatedAt: now) : nil,
+                claudeResetCredits: provider == .claude
+                    ? ClaudeRateLimitResetCreditsSnapshot(expirations: [], updatedAt: now) : nil,
+                updatedAt: now), provider: provider)
+            settings.setUsageItemVisible(false, itemID: .codexResetCredits, for: provider)
+        }
+        let model = NotchUsageOverlayModel.make(store: store, settings: settings, now: now)
+        for provider in [UsageProvider.claude, .codex] {
+            for suffix in ["reset-credits", "reset-credits-expiry"] {
+                let ear = try #require(model.earItem(selection: "\(provider.rawValue):\(suffix)", automaticIndex: 0))
+                #expect(ear.provider == provider.instanceID)
+                #expect(ear.value == "0 available")
+                #expect(ear.expiryText == nil)
+                #expect(ear.accessibilityLabel.contains("0 available"))
+            }
+            #expect(store.menuCardModel(for: provider, now: now).limitResetCredits == nil)
+        }
     }
 
     @Test

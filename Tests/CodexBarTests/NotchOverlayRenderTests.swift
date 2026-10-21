@@ -50,6 +50,8 @@ final class NotchOverlayRenderTests: XCTestCase {
                         description: nil)],
                     availableCount: 1,
                     updatedAt: now) : nil,
+                claudeResetCredits: provider == .claude
+                    ? ClaudeRateLimitResetCreditsSnapshot(expirations: [], updatedAt: now) : nil,
                 updatedAt: now), provider: provider)
         }
         settings.notchColumnCount = 2
@@ -78,26 +80,24 @@ final class NotchOverlayRenderTests: XCTestCase {
             .background(Color(nsColor: .windowBackgroundColor)))
         try Self.render(overlay, appearance: .darkAqua, to: output.appendingPathComponent("overlay.png"))
         settings.menuBarShowsBrandIconWithPercent = true
-        settings.notchLeftEarContent = "codex:reset-credits"
-        settings.notchRightEarContent = "claude:secondary"
-        state.notchFrameInHeader = CGRect(x: 240, y: 0, width: 220, height: 40)
-        let joined = AnyView(VStack(spacing: 0) {
-            NotchUsageHeaderView(store: store, settings: settings, viewState: state)
-                .frame(width: 700, height: 40)
-                .overlay(alignment: .top) {
-                    UnevenRoundedRectangle(bottomLeadingRadius: 10, bottomTrailingRadius: 10)
-                        .fill(.black)
-                        .frame(width: 220, height: 40)
-                }
-            NotchUsageOverlayView(store: store, settings: settings, agentSessions: nil, viewState: state)
-                .frame(width: 700, height: 220)
-        }
-        .background(Color(nsColor: .windowBackgroundColor)))
+        settings.notchLeftEarContent = "codex:reset-credits-expiry"
+        settings.notchRightEarContent = "claude:reset-credits"
+        state.notchFrameInPanel = CGRect(x: 240, y: 0, width: 220, height: 40)
+        let joined = AnyView(NotchUsageOverlayView(
+            store: store, settings: settings, agentSessions: nil, viewState: state)
+            .frame(width: 700, height: 260)
+            .overlay(alignment: .top) {
+                UnevenRoundedRectangle(bottomLeadingRadius: 10, bottomTrailingRadius: 10)
+                    .fill(.black)
+                    .frame(width: 220, height: 40)
+            })
         try Self.render(joined, appearance: .darkAqua, to: output.appendingPathComponent("notch-header-synthetic.png"))
-        state.notchFrameInHeader = CGRect(x: 160, y: 0, width: 220, height: 40)
-        let narrowEars = AnyView(NotchUsageHeaderView(store: store, settings: settings, viewState: state)
-            .frame(width: 540, height: 40))
+        state.notchFrameInPanel = CGRect(x: 160, y: 0, width: 220, height: 40)
+        let narrowEars = AnyView(NotchUsageOverlayView(
+            store: store, settings: settings, agentSessions: nil, viewState: state)
+            .frame(width: 540, height: 260))
         try Self.render(narrowEars, appearance: .darkAqua, to: output.appendingPathComponent("narrow-ears.png"))
+        state.notchFrameInPanel = CGRect(x: 240, y: 0, width: 220, height: 40)
         settings.notchUsageSummaryEnabled = true
         settings.notchShowsAgentSessions = true
         settings.notchSessionsMaxHeight = 1600

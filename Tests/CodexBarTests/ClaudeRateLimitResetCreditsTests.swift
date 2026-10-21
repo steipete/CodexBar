@@ -235,7 +235,7 @@ struct ClaudeRateLimitResetCreditsTests {
             #"{"grants": [\#(grant)]}"#,
             #"{"eligible": null, "grants": [\#(grant)]}"#,
             #"{"eligible": "yes", "grants": [\#(grant)]}"#,
-            Self.eligibleBlock([]),
+            Self.eligibleBlock([#"{"resets_left": "many", "paused": false}"#]),
             "null",
             "[]",
             nil,
@@ -243,6 +243,20 @@ struct ClaudeRateLimitResetCreditsTests {
             let usage = try Self.parseUsage(block)
             #expect(usage.resetCredits == nil)
             #expect(usage.sessionPercentUsed == 12)
+        }
+    }
+
+    @Test
+    func `eligible empty or spent inventory preserves a known zero`() throws {
+        let now = Self.wholeSecondNow()
+        for grants in [
+            [],
+            [Self.grant(id: "spent", resetsLeft: 0, endsIn: 86400, now: now)],
+            [Self.grant(id: "expired", resetsLeft: 1, endsIn: -60, now: now)],
+        ] {
+            let credits = try #require(Self.parse(Self.eligibleBlock(grants)))
+            #expect(credits.availableExpirations(at: now).isEmpty)
+            #expect(credits.detailSections(now: now).isEmpty)
         }
     }
 

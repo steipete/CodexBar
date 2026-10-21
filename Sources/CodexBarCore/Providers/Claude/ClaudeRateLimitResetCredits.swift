@@ -85,6 +85,12 @@ struct ClaudeLimitResetStatusResponse: Decodable {
                 grants.append(grant)
             }
         }
+        guard records.currentIndex == 0 || !grants.isEmpty else {
+            throw DecodingError.dataCorruptedError(
+                forKey: .grants,
+                in: container,
+                debugDescription: "No readable reset grants")
+        }
         self.grants = grants
     }
 
@@ -97,7 +103,6 @@ struct ClaudeLimitResetStatusResponse: Decodable {
             guard grant.resetsLeft <= Self.maximumResets - expirations.count else { return nil }
             expirations.append(contentsOf: repeatElement(grant.endsAt, count: grant.resetsLeft))
         }
-        guard !expirations.isEmpty else { return nil }
         return ClaudeRateLimitResetCreditsSnapshot(expirations: expirations, updatedAt: updatedAt)
     }
 

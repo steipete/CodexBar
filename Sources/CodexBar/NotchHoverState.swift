@@ -1,9 +1,8 @@
-/// The trigger, ears, and content windows share one hover interaction.
+/// The trigger and expanded popover windows share one hover interaction.
 struct NotchHoverState {
     enum Region: Hashable {
         case trigger
         case content
-        case ears
     }
 
     enum Transition: Equatable {
