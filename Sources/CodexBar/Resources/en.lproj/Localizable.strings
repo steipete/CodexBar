@@ -2470,7 +2470,7 @@
 "spend_performance_cache_help" = "Cached input divided by total input across eligible turns. Weighted by input tokens, with sample coverage shown.";
 "spend_performance_metric_help" = "About these observations";
 "merged_icon_source_title" = "Combined icon source";
-"merged_icon_source_subtitle" = "Choose which provider the collapsed combined icon shows.";
+"merged_icon_source_subtitle" = "Highest usage compares quotas only. For providers without quotas, use Current selection.";
 "merged_icon_source_current_selection" = "Current selection";
 "merged_icon_source_highest_usage" = "Highest usage";
 "merged_icon_source_frontmost_app" = "Frontmost provider app";

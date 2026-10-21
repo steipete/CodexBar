@@ -2470,7 +2470,7 @@
 "spend_performance_cache_help" = "ورودی ذخیره‌شده در حافظهٔ پنهان تقسیم بر کل ورودی در نوبت‌های واجد شرایط. نتیجه بر اساس تعداد توکن‌های ورودی وزن‌دهی می‌شود و پوشش نمونه‌ها نیز نمایش داده می‌شود.";
 "spend_performance_metric_help" = "دربارهٔ این مشاهدات";
 "merged_icon_source_title" = "منبع نماد ترکیبی";
-"merged_icon_source_subtitle" = "انتخاب کنید نماد ترکیبی در حالت جمع‌شده کدام ارائه‌دهنده را نشان دهد.";
+"merged_icon_source_subtitle" = "«بیشترین استفاده» فقط سهمیه‌ها را مقایسه می‌کند. برای ارائه‌دهندگان بدون سهمیه، از «انتخاب فعلی» استفاده کنید.";
 "merged_icon_source_current_selection" = "انتخاب فعلی";
 "merged_icon_source_highest_usage" = "بیشترین استفاده";
 "merged_icon_source_frontmost_app" = "برنامه ارائه‌دهنده در پیش‌زمینه";

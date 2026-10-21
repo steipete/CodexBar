@@ -2468,7 +2468,7 @@
 "spend_performance_cache_help" = "Zwischengespeicherte Eingabe geteilt durch die gesamte Eingabe aller berücksichtigten Gesprächsrunden. Gewichtet nach Eingabetokens; der Anteil der erfassten Runden wird angezeigt.";
 "spend_performance_metric_help" = "Zu diesen Beobachtungen";
 "merged_icon_source_title" = "Quelle des kombinierten Symbols";
-"merged_icon_source_subtitle" = "Wählen Sie, welchen Anbieter das eingeklappte kombinierte Symbol anzeigt.";
+"merged_icon_source_subtitle" = "„Höchste Nutzung“ vergleicht nur Kontingente. Wählen Sie für Anbieter ohne Kontingente „Aktuelle Auswahl“.";
 "merged_icon_source_current_selection" = "Aktuelle Auswahl";
 "merged_icon_source_highest_usage" = "Höchste Nutzung";
 "merged_icon_source_frontmost_app" = "Anbieter-App im Vordergrund";

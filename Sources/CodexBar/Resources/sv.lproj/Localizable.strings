@@ -2465,7 +2465,7 @@
 "spend_performance_cache_help" = "Cachade indata dividerade med totala indata för de samtalsturer som kan räknas med. Viktat efter indatatoken, med mätningarnas täckning angiven.";
 "spend_performance_metric_help" = "Om dessa observationer";
 "merged_icon_source_title" = "Källa för kombinerad ikon";
-"merged_icon_source_subtitle" = "Välj vilken leverantör den hopfällda kombinerade ikonen visar.";
+"merged_icon_source_subtitle" = "”Högsta användning” jämför endast kvoter. Använd ”Aktuellt val” för leverantörer utan kvoter.";
 "merged_icon_source_current_selection" = "Aktuellt val";
 "merged_icon_source_highest_usage" = "Högsta användning";
 "merged_icon_source_frontmost_app" = "Leverantörsapp i förgrunden";

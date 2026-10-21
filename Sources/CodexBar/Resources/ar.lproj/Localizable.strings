@@ -2470,7 +2470,7 @@
 "spend_performance_cache_help" = "المدخلات المخزنة مؤقتًا مقسومة على إجمالي المدخلات في الجولات المؤهلة. تُرجّح النتيجة بعدد رموز الإدخال، مع عرض مدى تغطية العينات.";
 "spend_performance_metric_help" = "حول هذه الملاحظات";
 "merged_icon_source_title" = "مصدر الأيقونة المدمجة";
-"merged_icon_source_subtitle" = "اختر المزوّد الذي تعرضه الأيقونة المدمجة عند طيّها.";
+"merged_icon_source_subtitle" = "يقارن «أعلى استخدام» الحصص فقط. للمزوّدين الذين لا يفرضون حصصًا، استخدم «التحديد الحالي».";
 "merged_icon_source_current_selection" = "التحديد الحالي";
 "merged_icon_source_highest_usage" = "أعلى استخدام";
 "merged_icon_source_frontmost_app" = "تطبيق المزوّد في المقدمة";

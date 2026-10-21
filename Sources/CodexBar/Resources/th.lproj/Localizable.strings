@@ -2470,7 +2470,7 @@
 "spend_performance_cache_help" = "อินพุตที่แคชไว้หารด้วยอินพุตทั้งหมดจากรอบที่เข้าเกณฑ์ ถ่วงน้ำหนักตามจำนวนโทเค็นอินพุต พร้อมแสดงความครอบคลุมของตัวอย่าง";
 "spend_performance_metric_help" = "เกี่ยวกับข้อมูลที่สังเกตได้เหล่านี้";
 "merged_icon_source_title" = "แหล่งที่มาของไอคอนรวม";
-"merged_icon_source_subtitle" = "เลือกผู้ให้บริการที่จะแสดงบนไอคอนรวมเมื่อยุบ";
+"merged_icon_source_subtitle" = "“การใช้งานสูงสุด” เปรียบเทียบเฉพาะโควตา สำหรับผู้ให้บริการที่ไม่มีโควตา ให้ใช้ “ตัวเลือกปัจจุบัน”";
 "merged_icon_source_current_selection" = "ตัวเลือกปัจจุบัน";
 "merged_icon_source_highest_usage" = "การใช้งานสูงสุด";
 "merged_icon_source_frontmost_app" = "แอปผู้ให้บริการที่อยู่ด้านหน้า";

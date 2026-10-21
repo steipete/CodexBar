@@ -167,6 +167,7 @@ run_portable_checks() {
   check_swift_test_sharding
   check_ci_path_gate
   python3 "${ROOT_DIR}/Scripts/test_linux_cli_linkage.py"
+  python3 "${ROOT_DIR}/Scripts/test_linux_cli_codex_cost_smoke.py"
   check_ci_build_cache
   check_homebrew_tap_wait
   check_repository_size

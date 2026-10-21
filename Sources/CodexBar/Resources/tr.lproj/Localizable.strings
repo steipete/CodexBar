@@ -2469,7 +2469,7 @@
 "spend_performance_cache_help" = "Uygun konuşma turlarındaki önbelleğe alınmış girdinin toplam girdiye oranı. Girdi tokenlarına göre ağırlıklandırılır ve ölçümlerin kapsamı gösterilir.";
 "spend_performance_metric_help" = "Bu gözlemler hakkında";
 "merged_icon_source_title" = "Birleşik simge kaynağı";
-"merged_icon_source_subtitle" = "Daraltılmış birleşik simgede gösterilecek sağlayıcıyı seçin.";
+"merged_icon_source_subtitle" = "“En yüksek kullanım” yalnızca kotaları karşılaştırır. Kotası olmayan sağlayıcılar için “Geçerli seçim” seçeneğini kullanın.";
 "merged_icon_source_current_selection" = "Geçerli seçim";
 "merged_icon_source_highest_usage" = "En yüksek kullanım";
 "merged_icon_source_frontmost_app" = "Öndeki sağlayıcı uygulaması";

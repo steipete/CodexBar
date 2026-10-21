@@ -2467,7 +2467,7 @@
 "spend_performance_cache_help" = "Кэшированный ввод, делённый на весь ввод по подходящим ходам диалога. Значение взвешено по входным токенам; показан охват замеров.";
 "spend_performance_metric_help" = "Об этих наблюдениях";
 "merged_icon_source_title" = "Источник объединённого значка";
-"merged_icon_source_subtitle" = "Выберите провайдера для свёрнутого объединённого значка.";
+"merged_icon_source_subtitle" = "«Наибольшее использование» сравнивает только квоты. Для провайдеров без квот используйте «Текущий выбор».";
 "merged_icon_source_current_selection" = "Текущий выбор";
 "merged_icon_source_highest_usage" = "Наибольшее использование";
 "merged_icon_source_frontmost_app" = "Приложение провайдера на переднем плане";

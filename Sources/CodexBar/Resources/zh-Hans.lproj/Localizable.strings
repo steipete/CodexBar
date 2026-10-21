@@ -2459,7 +2459,7 @@
 "spend_performance_cache_help" = "有效轮次中，缓存输入占总输入的比例。按输入 token 加权，并显示样本覆盖情况。";
 "spend_performance_metric_help" = "关于这些统计";
 "merged_icon_source_title" = "合并图标来源";
-"merged_icon_source_subtitle" = "选择折叠后的合并图标显示哪个服务提供方。";
+"merged_icon_source_subtitle" = "“最高用量”仅比较配额。对于没有配额的服务提供方，请使用“当前选择”。";
 "merged_icon_source_current_selection" = "当前选择";
 "merged_icon_source_highest_usage" = "最高用量";
 "merged_icon_source_frontmost_app" = "最前台的服务提供方应用";

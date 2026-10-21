@@ -2469,7 +2469,7 @@
 "spend_performance_cache_help" = "Dane wejściowe z pamięci podręcznej podzielone przez wszystkie dane wejściowe z kwalifikujących się tur rozmowy. Wartość ważona liczbą tokenów wejściowych, z informacją o zakresie dostępnych pomiarów.";
 "spend_performance_metric_help" = "O tych obserwacjach";
 "merged_icon_source_title" = "Źródło połączonej ikony";
-"merged_icon_source_subtitle" = "Wybierz dostawcę wyświetlanego przez zwiniętą połączoną ikonę.";
+"merged_icon_source_subtitle" = "„Najwyższe użycie” porównuje tylko limity. Dla dostawców bez limitów użyj opcji „Bieżący wybór”.";
 "merged_icon_source_current_selection" = "Bieżący wybór";
 "merged_icon_source_highest_usage" = "Najwyższe użycie";
 "merged_icon_source_frontmost_app" = "Aplikacja dostawcy na pierwszym planie";

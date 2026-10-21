@@ -101,7 +101,10 @@ let package = Package(
                 swiftSettings: [
                     .enableUpcomingFeature("StrictConcurrency"),
                 ],
-                linkerSettings: sqlite3LinkerSettings),
+                linkerSettings: sqlite3LinkerSettings + [
+                    // musl's default thread stack is too small for synchronous Swift cost scans.
+                    .unsafeFlags(["-Xlinker", "-z", "-Xlinker", "stack-size=8388608"], .when(platforms: [.linux])),
+                ]),
             // Crash-test subprocess: tests SIGKILL it mid-save to prove the cost store's
             // save cycle is atomic. Not shipped; built only as a test dependency.
             .executableTarget(

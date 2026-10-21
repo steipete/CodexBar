@@ -2444,7 +2444,7 @@
 "spend_performance_cache_help" = "將符合條件的輪次中已快取的輸入除以總輸入量。依輸入 token 數加權，並顯示樣本涵蓋範圍。";
 "spend_performance_metric_help" = "關於這些觀測值";
 "merged_icon_source_title" = "合併圖示來源";
-"merged_icon_source_subtitle" = "選擇摺疊後的合併圖示顯示哪個服務提供者。";
+"merged_icon_source_subtitle" = "「最高用量」僅比較配額。對於沒有配額的服務提供者，請使用「目前選取」。";
 "merged_icon_source_current_selection" = "目前選取";
 "merged_icon_source_highest_usage" = "最高用量";
 "merged_icon_source_frontmost_app" = "最前景的服務提供者 App";

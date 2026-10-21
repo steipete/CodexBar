@@ -2434,7 +2434,7 @@
 "spend_performance_cache_help" = "대상 턴의 캐시된 입력을 전체 입력으로 나눈 값입니다. 입력 토큰 수로 가중치를 적용하며 표본 범위도 표시합니다.";
 "spend_performance_metric_help" = "관측값 안내";
 "merged_icon_source_title" = "통합 아이콘 표시 기준";
-"merged_icon_source_subtitle" = "접힌 통합 아이콘에 표시할 공급자를 선택합니다.";
+"merged_icon_source_subtitle" = "‘사용량이 가장 높음’은 할당량만 비교합니다. 할당량이 없는 공급자는 ‘현재 선택’을 사용하세요.";
 "merged_icon_source_current_selection" = "현재 선택";
 "merged_icon_source_highest_usage" = "사용량이 가장 높음";
 "merged_icon_source_frontmost_app" = "전면의 공급자 앱";

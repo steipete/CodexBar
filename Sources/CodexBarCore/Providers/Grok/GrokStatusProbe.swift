@@ -174,6 +174,14 @@ public struct GrokStatusProbe: Sendable {
             rpcError = error
         }
 
+        // ACP wallet-only success needs the same bounded quota enrichment as the proxy.
+        if let credits = webBilling, let credentials, !credentials.isExpired {
+            webBilling = try await GrokOAuthFetchStrategy.resolvingUnknownUsage(
+                credits, credentials: credentials, grpcBilling: {
+                    try await GrokWebBillingFetcher.fetch(credentials: $0, session: self.settingsTransport)
+                }).snapshot
+        }
+
         let hasBilling = billing != nil || webBilling != nil
         let isIdentityOnly = !hasBilling && self.identityOnlyFallback(credentials, billingAttempted, rpcError)
         // Terminal CLI failures must reach the provider's web fallback without scanning discarded history.
@@ -283,10 +291,7 @@ public struct GrokStatusProbe: Sendable {
     {
         // If remote usage succeeded, xAI accepted auth and the local
         // identity is still useful even when the persisted expires_at is stale.
-        if billing != nil || webBilling != nil {
-            return credentials
-        }
-        return credentials.flatMap { $0.isExpired ? nil : $0 }
+        credentials.flatMap { billing != nil || webBilling != nil || !$0.isExpired ? $0 : nil }
     }
 
     static func shouldSurfaceRemoteAuthError(_ error: Error?) -> Bool {

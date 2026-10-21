@@ -2466,7 +2466,7 @@
 "spend_performance_cache_help" = "対象ターンのキャッシュ済み入力を総入力で割った値です。入力トークン数で重み付けし、サンプルの対象範囲も表示します。";
 "spend_performance_metric_help" = "観測値について";
 "merged_icon_source_title" = "結合アイコンの表示元";
-"merged_icon_source_subtitle" = "折りたたまれた結合アイコンに表示するプロバイダーを選択します。";
+"merged_icon_source_subtitle" = "「使用率が最も高いプロバイダー」はクォータのみを比較します。クォータのないプロバイダーには「現在の選択」を使用してください。";
 "merged_icon_source_current_selection" = "現在の選択";
 "merged_icon_source_highest_usage" = "使用率が最も高いプロバイダー";
 "merged_icon_source_frontmost_app" = "最前面のプロバイダーアプリ";

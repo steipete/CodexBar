@@ -364,6 +364,9 @@ there is no `auth.json`. Local cost estimates do not require account identity or
 Managed and profile homes retain their separate history scopes; a home already represented by a visible account
 is not added again as a local source. This does not read the CLI's keyring credentials.
 
+The static musl Linux CLI reserves an 8 MiB thread stack so scanning non-empty Codex session logs
+does not exhaust musl's smaller default stack. The scanner and cache format stay shared with glibc and macOS.
+
 For a manual comparison with another development machine, run `codexbar cost --provider codex --remote <ssh-host>`.
 Both hosts scan their own native Codex logs once and return separate summaries, retaining their own day boundaries,
 pricing provenance, missing values, and incomplete-request counts. Only bounded totals cross SSH. A remote error keeps

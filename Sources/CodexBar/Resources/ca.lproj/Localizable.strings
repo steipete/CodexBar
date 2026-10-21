@@ -2470,7 +2470,7 @@
 "spend_performance_cache_help" = "Entrada en memòria cau dividida per l’entrada total dels torns vàlids. Ponderada pels tokens d’entrada, amb la cobertura de les mostres indicada.";
 "spend_performance_metric_help" = "Sobre aquestes observacions";
 "merged_icon_source_title" = "Origen de la icona combinada";
-"merged_icon_source_subtitle" = "Trieu quin proveïdor mostra la icona combinada quan està plegada.";
+"merged_icon_source_subtitle" = "«Ús més alt» només compara quotes. Per als proveïdors sense quota, feu servir «Selecció actual».";
 "merged_icon_source_current_selection" = "Selecció actual";
 "merged_icon_source_highest_usage" = "Ús més alt";
 "merged_icon_source_frontmost_app" = "Aplicació del proveïdor en primer pla";

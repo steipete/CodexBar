@@ -2464,7 +2464,7 @@
 "spend_performance_cache_help" = "Entrada en caché dividida entre la entrada total de los turnos válidos. Ponderada por los tokens de entrada, con la cobertura de las muestras indicada.";
 "spend_performance_metric_help" = "Acerca de estas observaciones";
 "merged_icon_source_title" = "Origen del icono combinado";
-"merged_icon_source_subtitle" = "Elige qué proveedor muestra el icono combinado cuando está contraído.";
+"merged_icon_source_subtitle" = "«Mayor uso» solo compara cuotas. Para proveedores sin cuotas, usa «Selección actual».";
 "merged_icon_source_current_selection" = "Selección actual";
 "merged_icon_source_highest_usage" = "Mayor uso";
 "merged_icon_source_frontmost_app" = "Aplicación del proveedor en primer plano";

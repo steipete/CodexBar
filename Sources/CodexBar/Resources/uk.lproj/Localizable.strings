@@ -2466,7 +2466,7 @@
 "spend_performance_cache_help" = "Кешовані вхідні дані, поділені на всі вхідні дані за придатними ходами діалогу. Значення зважено за вхідними токенами; показано охоплення вимірювань.";
 "spend_performance_metric_help" = "Про ці спостереження";
 "merged_icon_source_title" = "Джерело об’єднаної іконки";
-"merged_icon_source_subtitle" = "Виберіть провайдера для згорнутої об’єднаної іконки.";
+"merged_icon_source_subtitle" = "«Найбільше використання» порівнює лише квоти. Для провайдерів без квот виберіть «Поточний вибір».";
 "merged_icon_source_current_selection" = "Поточний вибір";
 "merged_icon_source_highest_usage" = "Найбільше використання";
 "merged_icon_source_frontmost_app" = "Застосунок провайдера на передньому плані";

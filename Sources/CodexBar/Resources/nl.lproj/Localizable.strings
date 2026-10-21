@@ -2465,7 +2465,7 @@
 "spend_performance_cache_help" = "Gecachte invoer gedeeld door de totale invoer van de gespreksbeurten die in aanmerking komen. Gewogen op basis van invoertokens, met vermelding van de dekking van de metingen.";
 "spend_performance_metric_help" = "Over deze waarnemingen";
 "merged_icon_source_title" = "Bron van gecombineerd pictogram";
-"merged_icon_source_subtitle" = "Kies welke provider het ingeklapte gecombineerde pictogram toont.";
+"merged_icon_source_subtitle" = "‘Hoogste gebruik’ vergelijkt alleen quota. Gebruik ‘Huidige selectie’ voor providers zonder quota.";
 "merged_icon_source_current_selection" = "Huidige selectie";
 "merged_icon_source_highest_usage" = "Hoogste gebruik";
 "merged_icon_source_frontmost_app" = "Provider-app op de voorgrond";

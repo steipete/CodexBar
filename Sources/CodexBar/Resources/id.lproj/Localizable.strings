@@ -2470,7 +2470,7 @@
 "spend_performance_cache_help" = "Input yang di-cache dibagi total input dari giliran yang memenuhi syarat. Dibobot berdasarkan token input, dengan cakupan sampel ditampilkan.";
 "spend_performance_metric_help" = "Tentang pengamatan ini";
 "merged_icon_source_title" = "Sumber ikon gabungan";
-"merged_icon_source_subtitle" = "Pilih penyedia yang ditampilkan ikon gabungan saat diciutkan.";
+"merged_icon_source_subtitle" = "“Penggunaan tertinggi” hanya membandingkan kuota. Untuk penyedia tanpa kuota, gunakan “Pilihan saat ini”.";
 "merged_icon_source_current_selection" = "Pilihan saat ini";
 "merged_icon_source_highest_usage" = "Penggunaan tertinggi";
 "merged_icon_source_frontmost_app" = "Aplikasi penyedia di depan";
