@@ -11,28 +11,33 @@ public enum UsageFormatter {
     private static let localizationLock = NSLock()
     private nonisolated(unsafe) static var localizationProvider: (@Sendable (String) -> String)?
     private nonisolated(unsafe) static var localeProvider: (@Sendable () -> Locale)?
+    private nonisolated(unsafe) static var countdownTemplates: [String: String] = [:]
 
     public static func setLocalizationProvider(_ provider: @escaping @Sendable (String) -> String) {
         self.localizationLock.lock()
         self.localizationProvider = provider
+        self.countdownTemplates.removeAll()
         self.localizationLock.unlock()
     }
 
     public static func clearLocalizationProvider() {
         self.localizationLock.lock()
         self.localizationProvider = nil
+        self.countdownTemplates.removeAll()
         self.localizationLock.unlock()
     }
 
     public static func setLocaleProvider(_ provider: @escaping @Sendable () -> Locale) {
         self.localizationLock.lock()
         self.localeProvider = provider
+        self.countdownTemplates.removeAll()
         self.localizationLock.unlock()
     }
 
     public static func clearLocaleProvider() {
         self.localizationLock.lock()
         self.localeProvider = nil
+        self.countdownTemplates.removeAll()
         self.localizationLock.unlock()
     }
 
@@ -116,15 +121,36 @@ public enum UsageFormatter {
         let minutes = totalMinutes % 60
 
         if days > 0 {
-            if hours > 0 { return "in \(days)d \(hours)h" }
-            if minutes > 0 { return "in \(days)d \(minutes)m" }
-            return "in \(days)d"
+            if hours > 0 { return self.countdownText("in %@d %@h", "\(days)", "\(hours)") }
+            if minutes > 0 { return self.countdownText("in %@d %@m", "\(days)", "\(minutes)") }
+            return self.countdownText("in %@d", "\(days)")
         }
         if hours > 0 {
-            if minutes > 0 { return "in \(hours)h \(minutes)m" }
-            return "in \(hours)h"
+            if minutes > 0 { return self.countdownText("in %@h %@m", "\(hours)", "\(minutes)") }
+            return self.countdownText("in %@h", "\(hours)")
         }
-        return "in \(totalMinutes)m"
+        return self.countdownText("in %@m", "\(totalMinutes)")
+    }
+
+    /// Countdown renders run on every menu-bar refresh, so the localized template is cached per key.
+    /// The cache is dropped whenever the localization or locale provider changes.
+    private static func countdownText(_ key: String, _ args: String...) -> String {
+        let template = self.countdownTemplate(for: key)
+        return String(format: template, arguments: args.map { $0 as CVarArg })
+    }
+
+    private static func countdownTemplate(for key: String) -> String {
+        self.localizationLock.lock()
+        if let cached = self.countdownTemplates[key] {
+            self.localizationLock.unlock()
+            return cached
+        }
+        self.localizationLock.unlock()
+        let template = self.localized(key)
+        self.localizationLock.lock()
+        self.countdownTemplates[key] = template
+        self.localizationLock.unlock()
+        return template
     }
 
     private static func resetCountdownMinutes(from date: Date, now: Date) -> Int? {
