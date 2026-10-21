@@ -34,6 +34,17 @@ struct NotchPane: View {
             }
 
             Section {
+                Toggle(isOn: self.$settings.notchShowsEars) {
+                    SettingsRowLabel(L("notch_ears_title"), subtitle: L("notch_ears_subtitle"))
+                }
+                .disabled(!self.isEnabled)
+                self.earPicker(L("notch_left_ear"), selection: self.$settings.notchLeftEarContent)
+                self.earPicker(L("notch_right_ear"), selection: self.$settings.notchRightEarContent)
+            } header: {
+                Text(L("section_notch_ears"))
+            }
+
+            Section {
                 LabeledContent(L("notch_hotkey_title")) {
                     SettingsShortcutRecorder(shortcutName: .showNotchOverlay, isEnabled: self.isEnabled)
                 }
@@ -129,6 +140,21 @@ struct NotchPane: View {
         .toggleStyle(.switch)
         .scrollContentBackground(.hidden)
         .background(FocusResigningBackground())
+    }
+
+    private func earPicker(_ title: String, selection: Binding<String>) -> some View {
+        let items = NotchUsageOverlayModel.make(store: self.store, settings: self.settings).headerItems
+        return Picker(title, selection: selection) {
+            Text(L("Automatic")).tag("")
+            ForEach(items) { item in
+                Text("\(item.providerName) — \(item.title)").tag(item.id)
+            }
+            if !selection.wrappedValue.isEmpty, !items.contains(where: { $0.id == selection.wrappedValue }) {
+                Text(L("notch_ear_unavailable")).tag(selection.wrappedValue)
+            }
+        }
+        .pickerStyle(.menu)
+        .disabled(!self.isEnabled || !self.settings.notchShowsEars)
     }
 
     private var sessionsControlsEnabled: Bool {

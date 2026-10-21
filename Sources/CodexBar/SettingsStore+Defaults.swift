@@ -176,6 +176,21 @@ extension SettingsStore {
         self.setDefault(\.notchItemOrderRaw, keys, key: "notchItemOrder")
     }
 
+    var notchShowsEars: Bool {
+        get { self.defaultsState.notchShowsEars }
+        set { self.setDefault(\.notchShowsEars, newValue, key: "notchShowsEars") }
+    }
+
+    var notchLeftEarContent: String {
+        get { self.defaultsState.notchLeftEarContent }
+        set { self.setDefault(\.notchLeftEarContent, newValue, key: "notchLeftEarContent") }
+    }
+
+    var notchRightEarContent: String {
+        get { self.defaultsState.notchRightEarContent }
+        set { self.setDefault(\.notchRightEarContent, newValue, key: "notchRightEarContent") }
+    }
+
     var notchShowsAgentSessions: Bool {
         get { self.defaultsState.notchShowsAgentSessions }
         set {

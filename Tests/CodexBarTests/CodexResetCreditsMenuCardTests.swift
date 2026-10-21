@@ -61,6 +61,7 @@ struct CodexResetCreditsMenuCardTests {
 
         #expect(presentation.items.map(\.expiryText) == ["Expires \(formatted)"])
         #expect(presentation.expirySummaryText == formatted)
+        #expect(presentation.items.first?.countdownExpiryText == "in 1d")
     }
 
     @Test

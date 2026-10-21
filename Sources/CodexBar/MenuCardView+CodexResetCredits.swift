@@ -4,6 +4,7 @@ import SwiftUI
 struct LimitResetCreditPresentationItem: Equatable {
     let expiryText: String
     let compactExpiryText: String
+    var countdownExpiryText: String?
 }
 
 struct LimitResetCreditsPresentation: Equatable {
@@ -84,7 +85,8 @@ struct LimitResetCreditsPresentation: Equatable {
             : formattedTime
         return LimitResetCreditPresentationItem(
             expiryText: String(format: L("Expires %@"), formattedTime),
-            compactExpiryText: compactExpiryText)
+            compactExpiryText: compactExpiryText,
+            countdownExpiryText: Self.formattedTime(expiresAt, resetStyle: .countdown, now: now))
     }
 
     private static func formattedTime(

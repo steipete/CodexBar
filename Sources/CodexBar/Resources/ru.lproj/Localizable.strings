@@ -1703,3 +1703,11 @@
 "notch_items_footer" = "Перетащите, чтобы изменить порядок. Плитки заполняют столбцы в этом порядке; отключите строку, чтобы исключить её.";
 "Match providers" = "Как у провайдеров";
 "Column per harness" = "Столбец для каждого инструмента";
+
+// Notch ears
+"section_notch_ears" = "Notch ears";
+"notch_ears_title" = "Show notch ears";
+"notch_ears_subtitle" = "Opaque summaries beside the camera while the panel is expanded. They receive clicks in the menu-bar area they cover.";
+"notch_left_ear" = "Left ear";
+"notch_right_ear" = "Right ear";
+"notch_ear_unavailable" = "Selected item unavailable";

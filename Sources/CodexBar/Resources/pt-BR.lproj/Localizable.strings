@@ -1702,3 +1702,11 @@
 "notch_items_footer" = "Arraste para reordenar. Os blocos preenchem as colunas nesta ordem; desative uma linha para excluí-la.";
 "Match providers" = "Igual aos provedores";
 "Column per harness" = "Coluna por ferramenta";
+
+// Notch ears
+"section_notch_ears" = "Notch ears";
+"notch_ears_title" = "Show notch ears";
+"notch_ears_subtitle" = "Opaque summaries beside the camera while the panel is expanded. They receive clicks in the menu-bar area they cover.";
+"notch_left_ear" = "Left ear";
+"notch_right_ear" = "Right ear";
+"notch_ear_unavailable" = "Selected item unavailable";

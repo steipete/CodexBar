@@ -43,7 +43,7 @@ final class NotchOverlayRenderTests: XCTestCase {
                         resetType: "codex_rate_limits",
                         status: .available,
                         grantedAt: now,
-                        expiresAt: now.addingTimeInterval(86400),
+                        expiresAt: now.addingTimeInterval(172_801),
                         redeemStartedAt: nil,
                         redeemedAt: nil,
                         title: nil,
@@ -78,6 +78,8 @@ final class NotchOverlayRenderTests: XCTestCase {
             .background(Color(nsColor: .windowBackgroundColor)))
         try Self.render(overlay, appearance: .darkAqua, to: output.appendingPathComponent("overlay.png"))
         settings.menuBarShowsBrandIconWithPercent = true
+        settings.notchLeftEarContent = "codex:reset-credits"
+        settings.notchRightEarContent = "claude:secondary"
         state.notchFrameInHeader = CGRect(x: 240, y: 0, width: 220, height: 40)
         let joined = AnyView(VStack(spacing: 0) {
             NotchUsageHeaderView(store: store, settings: settings, viewState: state)
@@ -92,6 +94,10 @@ final class NotchOverlayRenderTests: XCTestCase {
         }
         .background(Color(nsColor: .windowBackgroundColor)))
         try Self.render(joined, appearance: .darkAqua, to: output.appendingPathComponent("notch-header-synthetic.png"))
+        state.notchFrameInHeader = CGRect(x: 160, y: 0, width: 220, height: 40)
+        let narrowEars = AnyView(NotchUsageHeaderView(store: store, settings: settings, viewState: state)
+            .frame(width: 540, height: 40))
+        try Self.render(narrowEars, appearance: .darkAqua, to: output.appendingPathComponent("narrow-ears.png"))
         settings.notchUsageSummaryEnabled = true
         settings.notchShowsAgentSessions = true
         settings.notchSessionsMaxHeight = 1600

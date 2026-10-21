@@ -8,6 +8,7 @@ struct NotchUsageOverlayModel: Equatable {
         let percentText: String
         let resetText: String?
         var showsProgress = true
+        var id = ""
 
         var accessibilityLabel: String {
             [self.title, self.percentText, self.resetText].compactMap(\.self).joined(separator: ", ")
@@ -46,9 +47,11 @@ struct NotchUsageOverlayModel: Equatable {
     struct HeaderItem: Equatable, Identifiable {
         let id: String
         let provider: ProviderInstanceID
+        let providerName: String
         let title: String
         let value: String
         let accessibilityLabel: String
+        var expiryText: String?
     }
 
     /// The agent-session list, rendered as a full-width band above or below the provider grid.
@@ -78,20 +81,32 @@ struct NotchUsageOverlayModel: Equatable {
             return HeaderItem(
                 id: "\(row.id.rawValue):reset-credits",
                 provider: row.id,
+                providerName: row.name,
                 title: L("Limit Reset Credits"),
                 value: credits.text,
-                accessibilityLabel: "\(row.name), \(credits.accessibilityLabel)")
+                accessibilityLabel: "\(row.name), \(credits.accessibilityLabel)",
+                expiryText: credits.items.compactMap(\.countdownExpiryText).first.map {
+                    String(format: L("Expires %@"), $0)
+                })
         }
-        let quotas = self.items.compactMap { row -> HeaderItem? in
-            guard let bar = row.bars.first else { return nil }
-            return HeaderItem(
-                id: "\(row.id.rawValue):quota",
-                provider: row.id,
-                title: bar.title,
-                value: bar.percentText,
-                accessibilityLabel: "\(row.name), \(bar.accessibilityLabel)")
+        let quotas = self.items.map { row in
+            row.bars.map { bar in
+                HeaderItem(
+                    id: "\(row.id.rawValue):\(bar.id)",
+                    provider: row.id,
+                    providerName: row.name,
+                    title: bar.title,
+                    value: bar.percentText,
+                    accessibilityLabel: "\(row.name), \(bar.accessibilityLabel)")
+            }
         }
-        return Array((credits + quotas).prefix(2))
+        return credits + quotas.compactMap(\.first) + quotas.flatMap { $0.dropFirst() }
+    }
+
+    func earItem(selection: String, automaticIndex: Int) -> HeaderItem? {
+        let items = self.headerItems
+        guard selection.isEmpty else { return items.first { $0.id == selection } }
+        return items.indices.contains(automaticIndex) ? items[automaticIndex] : nil
     }
 
     /// Round-robin placement shared by the tile grid and the full-width session band: element `i`
@@ -131,24 +146,28 @@ struct NotchUsageOverlayModel: Equatable {
 
         if let primary = snapshot.primary {
             bars.append(self.makeBar(
+                id: "primary",
                 title: labels.map { L($0.primary) } ?? L("metric_pref_primary"),
                 window: primary,
                 showUsed: showUsed))
         }
         if let secondary = snapshot.secondary {
             bars.append(self.makeBar(
+                id: "secondary",
                 title: labels.map { L($0.secondary) } ?? L("metric_pref_secondary"),
                 window: secondary,
                 showUsed: showUsed))
         }
         if let tertiary = snapshot.tertiary {
             bars.append(self.makeBar(
+                id: "tertiary",
                 title: labels.map { L($0.tertiary) } ?? L("metric_pref_tertiary"),
                 window: tertiary,
                 showUsed: showUsed))
         }
         if let extra = snapshot.extraRateWindows?.first(where: \.usageKnown) {
             bars.append(self.makeBar(
+                id: "extra",
                 title: L(extra.title),
                 window: extra.window,
                 showUsed: showUsed))
@@ -261,7 +280,8 @@ struct NotchUsageOverlayModel: Equatable {
                 percent: metric.percent,
                 percentText: metric.statusText ?? metric.percentLabel,
                 resetText: metric.resetText,
-                showsProgress: metric.statusText == nil)
+                showsProgress: metric.statusText == nil,
+                id: metric.id)
         }
         let hasExtraMetric = card.metrics.contains { !["primary", "secondary", "tertiary"].contains($0.id) }
         if bars.count < 4, !hasExtraMetric {
@@ -272,7 +292,8 @@ struct NotchUsageOverlayModel: Equatable {
                     percent: settings.usageBarsShowUsed ? used : 100 - used,
                     percentText: cost.percentLine ?? cost.spendLine,
                     resetText: cost.percentLine == nil ? nil : cost.spendLine,
-                    showsProgress: cost.percentUsed != nil))
+                    showsProgress: cost.percentUsed != nil,
+                    id: "cost"))
             }
         }
         return ProviderRow(
@@ -330,7 +351,7 @@ struct NotchUsageOverlayModel: Equatable {
         return "\(seconds / 86400)d"
     }
 
-    private static func makeBar(title: String, window: RateWindow, showUsed: Bool) -> Bar {
+    private static func makeBar(id: String, title: String, window: RateWindow, showUsed: Bool) -> Bar {
         let used = Self.clampedPercent(window.usedPercent)
         let remaining = 100 - used
         // Some providers describe the window itself (e.g. "5-hour"), which is already the row title here.
@@ -340,7 +361,8 @@ struct NotchUsageOverlayModel: Equatable {
             title: title,
             percent: showUsed ? used : remaining,
             percentText: percentText,
-            resetText: resetText)
+            resetText: resetText,
+            id: id)
     }
 
     private static func makeCostBar(cost: ProviderCostSnapshot, showUsed: Bool) -> Bar {
@@ -353,7 +375,8 @@ struct NotchUsageOverlayModel: Equatable {
             title: title,
             percent: showUsed ? used : remaining,
             percentText: percentText,
-            resetText: resetText)
+            resetText: resetText,
+            id: "cost")
     }
 
     private static func clampedPercent(_ percent: Double) -> Double {

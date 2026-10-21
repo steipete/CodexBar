@@ -12,6 +12,9 @@ struct SettingsDefaultsState {
     var notchMatchesRowHeights: Bool
     var notchProvidersMaxHeight: Double
     var notchSessionsMaxHeight: Double
+    var notchShowsEars: Bool
+    var notchLeftEarContent: String
+    var notchRightEarContent: String
     var notchShowsAgentSessions: Bool
     var notchSessionsColumnsRaw: Int
     var notchSessionsPlacementRaw: String

@@ -1702,3 +1702,11 @@
 "notch_items_footer" = "ドラッグして並べ替えます。タイルはこの順序で列に配置されます。除外するには行をオフにします。";
 "Match providers" = "プロバイダに合わせる";
 "Column per harness" = "ツールごとに列を分ける";
+
+// Notch ears
+"section_notch_ears" = "Notch ears";
+"notch_ears_title" = "Show notch ears";
+"notch_ears_subtitle" = "Opaque summaries beside the camera while the panel is expanded. They receive clicks in the menu-bar area they cover.";
+"notch_left_ear" = "Left ear";
+"notch_right_ear" = "Right ear";
+"notch_ear_unavailable" = "Selected item unavailable";

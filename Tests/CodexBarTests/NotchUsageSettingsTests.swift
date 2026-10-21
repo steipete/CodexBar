@@ -448,7 +448,7 @@ struct NotchUsageSettingsTests {
             settings: settings)
         let now = Date(timeIntervalSince1970: 1_800_000_000)
         let window = RateWindow(usedPercent: 25, windowMinutes: 10080, resetsAt: nil, resetDescription: nil)
-        let credits = [3600.0, -1.0].enumerated().map { index, expiry in
+        let credits = [172_800.0, -1.0].enumerated().map { index, expiry in
             CodexRateLimitResetCredit(
                 id: "fixture-\(index)",
                 resetType: "codex_rate_limits",
@@ -469,20 +469,51 @@ struct NotchUsageSettingsTests {
         store._setSnapshotForTesting(UsageSnapshot(primary: nil, secondary: window, updatedAt: now), provider: .claude)
         settings.setNotchItemOrder(["claude", "codex"])
 
-        let header = NotchUsageOverlayModel.make(store: store, settings: settings, now: now).headerItems
-        #expect(header.map(\.id) == ["codex:reset-credits", "claude:quota"])
+        settings.resetTimesShowAbsolute = true
+        let model = NotchUsageOverlayModel.make(store: store, settings: settings, now: now)
+        let header = model.headerItems
+        #expect(header.map(\.id) == ["codex:reset-credits", "claude:secondary", "codex:secondary"])
         #expect(header[0].value == "1 available")
         #expect(header[0].accessibilityLabel.contains("Codex"))
         #expect(header[1].value == "75% left")
+        #expect(header[0].expiryText == "Expires in 2d")
+        #expect(model.earItem(selection: "", automaticIndex: 0)?.id == "codex:reset-credits")
+        #expect(model.earItem(selection: "", automaticIndex: 1)?.id == "claude:secondary")
+        #expect(model.earItem(selection: "codex:secondary", automaticIndex: 0)?.provider == .codex)
+        #expect(model.earItem(selection: "missing:primary", automaticIndex: 0) == nil)
+        #expect(model.earItem(selection: "", automaticIndex: 99) == nil)
 
         settings.setUsageItemVisible(false, itemID: .codexResetCredits, for: .codex)
         let hiddenCredits = NotchUsageOverlayModel.make(store: store, settings: settings, now: now).headerItems
-        #expect(hiddenCredits.map(\.id) == ["claude:quota", "codex:quota"])
+        #expect(NotchUsageOverlayModel.make(store: store, settings: settings, now: now)
+            .earItem(selection: "codex:reset-credits", automaticIndex: 0) == nil)
+        #expect(hiddenCredits.map(\.id) == ["claude:secondary", "codex:secondary"])
         settings.setNotchProviderVisible(.codex, visible: false)
         #expect(NotchUsageOverlayModel.make(store: store, settings: settings, now: now).headerItems
             .map(\.provider) == [.claude])
         settings.setUsageItemVisible(false, itemID: .metric("secondary"), for: .claude)
         #expect(NotchUsageOverlayModel.make(store: store, settings: settings, now: now).headerItems.isEmpty)
+    }
+
+    @Test
+    func `ears visibility and each content selection persist independently of the main notch`() throws {
+        let fixture = try Self.makeFixture("ears")
+        let settings = fixture.store
+        #expect(settings.notchShowsEars)
+        #expect(settings.notchLeftEarContent.isEmpty)
+        #expect(settings.notchRightEarContent.isEmpty)
+        settings.notchUsageSummaryEnabled = true
+        settings.notchShowsEars = false
+        settings.notchLeftEarContent = "codex:reset-credits"
+        settings.notchRightEarContent = "claude:secondary"
+        let reloaded = try Self.reload(fixture)
+        #expect(reloaded.notchUsageSummaryEnabled)
+        #expect(!reloaded.notchShowsEars)
+        #expect(reloaded.notchLeftEarContent == "codex:reset-credits")
+        #expect(reloaded.notchRightEarContent == "claude:secondary")
+        reloaded.notchShowsEars = true
+        reloaded.notchUsageSummaryEnabled = false
+        #expect(reloaded.notchShowsEars)
     }
 
     @Test

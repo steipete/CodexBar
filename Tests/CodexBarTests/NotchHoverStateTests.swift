@@ -46,12 +46,27 @@ struct NotchHoverStateTests {
     }
 
     @Test
-    func `teardown clears both regions and ignores their late exit callbacks`() {
+    func `ears retain hover between the camera and dashboard and release it when disabled`() {
+        var state = NotchHoverState()
+        state.update(.trigger, isInside: true)
+        #expect(state.update(.ears, isInside: true) == .unchanged)
+        #expect(state.update(.trigger, isInside: false) == .unchanged)
+        #expect(state.update(.content, isInside: true) == .unchanged)
+        #expect(state.update(.ears, isInside: false) == .unchanged)
+        #expect(state.update(.content, isInside: false) == .exited)
+        #expect(state.update(.ears, isInside: true) == .entered)
+        #expect(state.update(.ears, isInside: false) == .exited)
+    }
+
+    @Test
+    func `teardown clears all regions and ignores their late exit callbacks`() {
         var state = NotchHoverState()
         state.update(.trigger, isInside: true)
         state.update(.content, isInside: true)
+        state.update(.ears, isInside: true)
         state.clear()
         #expect(!state.isInside)
+        #expect(state.update(.ears, isInside: false) == .unchanged)
         #expect(state.update(.trigger, isInside: false) == .unchanged)
         #expect(state.update(.content, isInside: false) == .unchanged)
         #expect(state.update(.trigger, isInside: true) == .entered)

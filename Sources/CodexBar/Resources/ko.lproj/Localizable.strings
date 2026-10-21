@@ -1671,3 +1671,11 @@
 "notch_items_footer" = "끌어서 순서를 바꿉니다. 타일은 이 순서로 열을 채웁니다. 제외하려면 행을 끄세요.";
 "Match providers" = "제공자와 동일";
 "Column per harness" = "도구별 열";
+
+// Notch ears
+"section_notch_ears" = "Notch ears";
+"notch_ears_title" = "Show notch ears";
+"notch_ears_subtitle" = "Opaque summaries beside the camera while the panel is expanded. They receive clicks in the menu-bar area they cover.";
+"notch_left_ear" = "Left ear";
+"notch_right_ear" = "Right ear";
+"notch_ear_unavailable" = "Selected item unavailable";

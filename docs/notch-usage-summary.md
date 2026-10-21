@@ -18,6 +18,11 @@ Synthetic provider tiles in brand and monochrome styles:
 
 ## Settings
 - `notchUsageSummaryEnabled` — off by default; no panel exists until it is on.
+- `notchShowsEars` — on by default; independently hides the **Notch ears** while keeping the main
+  overlay enabled. Ears appear only while the panel is expanded.
+- `notchLeftEarContent` / `notchRightEarContent` — independent provider metric or reset-credit
+  selections. Empty means **Automatic**, prioritising available reset credits then provider quotas.
+  An unavailable or hidden selection stays blank until that same item is available again.
 - `notchColumnCount` (1–4, default 1) — how many columns the tiles flow into. Width is never
   configured; the panel measures its own content.
 - `notchMatchesRowHeights` (default on) — off, each column packs independently, so a short tile
@@ -68,25 +73,27 @@ Synthetic provider tiles in brand and monochrome styles:
   the panel keeps its opening size and late-arriving bars are stuck behind a scroll.
 - The panel's hosting view sets `sizingOptions = []`. Without it the hosting view installs its
   content's ideal size as window constraints and a long provider list grows the panel off-screen.
-- A display-only header extends from the content's top edge to the top of the screen, joining the
-  dashboard to the camera housing. It reserves the camera's actual position, including on shifted
+- Opaque notch ears extend from the content's top edge to the top of the screen, joining the
+  dashboard to the camera housing. Their header reserves the camera's actual position, including on shifted
   displays and when width clamping makes the side spaces unequal. The two side summaries prioritise
   available reset credits, then visible provider quotas, using the same provider logos and account-scoped
   menu presentation as the tiles. Hidden providers and hidden usage items stay hidden. The minimum
-  width allows 160pt on either side of the camera; the display still bounds the total width.
+  width allows 160pt on either side of the camera when ears are enabled; the display still bounds the total
+  width. Reset credits include the next expiry countdown (including days) when it fits, with the full
+  expiry inventory retained in the tooltip and accessibility label.
 
 ## Hover and hotkey
 - Three borderless, non-activating `NSPanel` windows share one controller. A camera-housing-sized
   tracking trigger stays in the notch; the wider interactive content window starts below the menu
-  strip and is hidden while collapsed. A display-only header sits behind status items and always
-  has `ignoresMouseEvents = true`, so its side summaries cannot intercept menu-extra clicks.
+  strip and is hidden while collapsed. The opaque ears sit above status items and receive mouse
+  events in the menu-bar area they cover. Turning ears off restores access to that area immediately.
   None becomes key or main. Expanding never widens the interactive notch trigger.
 - Hover is detected by an `NSTrackingArea` (`.activeAlways`, `.inVisibleRect`,
   `.mouseEnteredAndExited`) on the hosting view — no global event monitor, so no Accessibility
   permission.
-- Entering either surface starts a 0.35s dwell before expansion. Leaving both starts a 0.4s grace
-  period, cancelled by re-entry. Crossing between the trigger and content preserves hover ownership.
-  Collapse immediately disables content mouse handling, then hides that window after the animation;
+- Entering the camera trigger starts a 0.35s dwell before expansion. Leaving all three surfaces starts a 0.4s grace
+  period, cancelled by re-entry. Crossing between the trigger, ears, and content preserves hover ownership.
+  Collapse immediately hides the ears and disables content mouse handling, then hides that window after the animation;
   its hide task is separate from hover grace so a re-entry cannot leave an invisible click target.
 - `NotchHotkeyState` is the pure decision table for the shortcut: toggle flips on each press and
   survives key release; hold expands on press and collapses on release unless the pointer is inside,
@@ -95,7 +102,7 @@ Synthetic provider tiles in brand and monochrome styles:
 - `NotchUsageOverlayController` observes the setting and
   `NSApplication.didChangeScreenParametersNotification`; turning the setting off or losing the
   notched screen cancels all pending transitions and tears all three windows down without a relaunch.
-  The display-only side summaries do not own hover; the notch trigger and main content retain that role.
+  Disabling ears also removes their hover ownership while keeping the main content available.
 
 ## Provider presentation
 `NotchUsageOverlayModel.make(store:settings:agentSessions:)` walks
@@ -129,7 +136,8 @@ CODEXBAR_NOTCH_RENDER_DIR=/tmp/notch-proof swift test --build-system native --jo
 ```
 
 These renders cover presentation, not native event delivery. Before merging, verify on a notched
-Mac that neighboring menu extras remain clickable, crossing between trigger and content preserves
-hover, and shortcut, scrolling, disablement, and shutdown behave correctly.
+Mac that ears own clicks while expanded and enabled, menu extras are accessible when ears are hidden,
+crossing between trigger, ears, and content preserves hover, and shortcut, scrolling, disablement,
+and shutdown behave correctly.
 
 See also: `docs/providers.md`.

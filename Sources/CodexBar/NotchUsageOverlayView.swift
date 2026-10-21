@@ -310,7 +310,7 @@ struct NotchUsageOverlayView: View {
     }
 }
 
-/// Display-only wings beside the camera; the owning window passes every mouse event through.
+/// Opaque notch ears beside the camera, visible only with the expanded dashboard.
 struct NotchUsageHeaderView: View {
     static let minimumSideWidth: CGFloat = 160
 
@@ -320,18 +320,20 @@ struct NotchUsageHeaderView: View {
 
     var body: some View {
         ZStack {
-            if self.viewState.isExpanded {
+            if self.viewState.isExpanded, self.settings.notchShowsEars {
                 let model = NotchUsageOverlayModel.make(store: self.store, settings: self.settings)
                 HStack(spacing: 0) {
-                    self.summary(model.headerItems.first, style: model.iconStyle)
-                        .frame(width: max(0, self.viewState.notchFrameInHeader.minX - 4))
+                    self.summary(
+                        model.earItem(selection: self.settings.notchLeftEarContent, automaticIndex: 0),
+                        style: model.iconStyle)
+                        .frame(width: max(0, self.viewState.notchFrameInHeader.minX))
                     Color.clear.frame(width: self.viewState.notchFrameInHeader.width)
-                    self.summary(model.headerItems.dropFirst().first, style: model.iconStyle)
+                    self.summary(
+                        model.earItem(selection: self.settings.notchRightEarContent, automaticIndex: 1),
+                        style: model.iconStyle)
                         .frame(maxWidth: .infinity)
                 }
-                .background(.regularMaterial, in: UnevenRoundedRectangle(
-                    topLeadingRadius: 18, topTrailingRadius: 18, style: .continuous))
-                .padding(.horizontal, 4)
+                .background(Color(nsColor: .windowBackgroundColor))
                 .transition(.opacity)
             }
         }
@@ -355,7 +357,13 @@ struct NotchUsageHeaderView: View {
                 }
                 VStack(alignment: .leading, spacing: 1) {
                     Text(item.title).font(.caption2).foregroundStyle(.secondary)
-                    Text(item.value).font(.caption.weight(.semibold)).monospacedDigit()
+                    ViewThatFits(in: .horizontal) {
+                        if let expiry = item.expiryText {
+                            Text("\(item.value) · \(expiry)").fixedSize()
+                        }
+                        Text(item.value)
+                    }
+                    .font(.caption.weight(.semibold)).monospacedDigit()
                 }
                 .lineLimit(1)
             }
@@ -364,6 +372,7 @@ struct NotchUsageHeaderView: View {
             .clipped()
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(item.accessibilityLabel)
+            .help(item.accessibilityLabel)
         } else {
             Color.clear
         }
