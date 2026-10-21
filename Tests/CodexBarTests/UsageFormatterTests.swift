@@ -759,4 +759,22 @@ struct UsageFormatterTests {
             .matches(in: value, options: [], range: nsRange)
             .compactMap { Range($0.range, in: value).map { String(value[$0]) } }
     }
+
+    @Test
+    func `countdowns use the selected app catalog without retaining another language`() {
+        UsageFormatter.setLocalizationProvider { L($0) }
+        defer { UsageFormatter.clearLocalizationProvider() }
+        let now = Date(timeIntervalSince1970: 1_000_000)
+        let reset = now.addingTimeInterval(2 * 3600)
+        CodexBarLocalizationOverride.$appLanguage.withValue("uk") {
+            #expect(UsageFormatter.resetCountdownDescription(from: reset, now: now) == "через 2 год")
+            #expect(UsageFormatter.resetCountdownDescription(from: now, now: now) == "зараз")
+            #expect(L("usage_percent_suffix_left") == "залишилося")
+            #expect(L("full") == "повний")
+            #expect(L("%@m", "5") == "5 хв")
+        }
+        CodexBarLocalizationOverride.$appLanguage.withValue("en") {
+            #expect(UsageFormatter.resetCountdownDescription(from: reset, now: now) == "in 2h")
+        }
+    }
 }

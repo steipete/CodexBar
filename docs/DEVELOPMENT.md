@@ -34,6 +34,10 @@ read_when:
 4. **Optional file log**: enable Debug → Logging → "Enable file logging" to write
    `~/Library/Logs/CodexBar/CodexBar.log` (verbosity defaults to "Verbose")
 
+## Localized countdowns
+
+`UsageFormatter.resetCountdownDescription` returns a complete relative phrase. Use `resetCountdownDuration` inside sentences that already include a preposition, such as “Runs out in %@”. Countdown units come from each language’s existing abbreviated templates; Ukrainian uses `дн.`, `год`, and `хв`, which do not require plural inflection. Keep widget catalogs generated from the app catalogs with `node Scripts/sync-widget-locales.mjs`.
+
 ## Swift Toolchain Compatibility
 
 CI builds and tests with Xcode 27 only, on GitHub's `xcode-27` image. Older

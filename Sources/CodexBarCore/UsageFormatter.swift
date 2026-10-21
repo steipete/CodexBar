@@ -11,33 +11,28 @@ public enum UsageFormatter {
     private static let localizationLock = NSLock()
     private nonisolated(unsafe) static var localizationProvider: (@Sendable (String) -> String)?
     private nonisolated(unsafe) static var localeProvider: (@Sendable () -> Locale)?
-    private nonisolated(unsafe) static var countdownTemplates: [String: String] = [:]
 
     public static func setLocalizationProvider(_ provider: @escaping @Sendable (String) -> String) {
         self.localizationLock.lock()
         self.localizationProvider = provider
-        self.countdownTemplates.removeAll()
         self.localizationLock.unlock()
     }
 
     public static func clearLocalizationProvider() {
         self.localizationLock.lock()
         self.localizationProvider = nil
-        self.countdownTemplates.removeAll()
         self.localizationLock.unlock()
     }
 
     public static func setLocaleProvider(_ provider: @escaping @Sendable () -> Locale) {
         self.localizationLock.lock()
         self.localeProvider = provider
-        self.countdownTemplates.removeAll()
         self.localizationLock.unlock()
     }
 
     public static func clearLocaleProvider() {
         self.localizationLock.lock()
         self.localeProvider = nil
-        self.countdownTemplates.removeAll()
         self.localizationLock.unlock()
     }
 
@@ -124,48 +119,27 @@ public enum UsageFormatter {
         guard let totalMinutes = self.resetCountdownMinutes(from: date, now: now) else {
             return self.localized("Unknown")
         }
-        if totalMinutes == 0 { return "now" }
+        if totalMinutes == 0 { return relative ? self.localized("now") : "now" }
         let days = totalMinutes / (24 * 60)
         let hours = (totalMinutes / 60) % 24
         let minutes = totalMinutes % 60
         let prefix = relative ? "in " : ""
 
         if days > 0 {
-            if hours > 0 { return self.countdownText("\(prefix)%@d %@h", "\(days)", "\(hours)") }
+            if hours > 0 { return self.localized("\(prefix)%@d %@h", "\(days)", "\(hours)") }
             if minutes > 0 {
                 guard relative else {
-                    return "\(self.countdownText("%@d", "\(days)")) \(self.countdownText("%@m", "\(minutes)"))"
+                    return "\(self.localized("%@d", "\(days)")) \(self.localized("%@m", "\(minutes)"))"
                 }
-                return self.countdownText("in %@d %@m", "\(days)", "\(minutes)")
+                return self.localized("in %@d %@m", "\(days)", "\(minutes)")
             }
-            return self.countdownText("\(prefix)%@d", "\(days)")
+            return self.localized("\(prefix)%@d", "\(days)")
         }
         if hours > 0 {
-            if minutes > 0 { return self.countdownText("\(prefix)%@h %@m", "\(hours)", "\(minutes)") }
-            return self.countdownText("\(prefix)%@h", "\(hours)")
+            if minutes > 0 { return self.localized("\(prefix)%@h %@m", "\(hours)", "\(minutes)") }
+            return self.localized("\(prefix)%@h", "\(hours)")
         }
-        return self.countdownText("\(prefix)%@m", "\(totalMinutes)")
-    }
-
-    /// Countdown renders run on every menu-bar refresh, so the localized template is cached per key.
-    /// The cache is dropped whenever the localization or locale provider changes.
-    private static func countdownText(_ key: String, _ args: String...) -> String {
-        let template = self.countdownTemplate(for: key)
-        return String(format: template, arguments: args.map { $0 as CVarArg })
-    }
-
-    private static func countdownTemplate(for key: String) -> String {
-        self.localizationLock.lock()
-        if let cached = self.countdownTemplates[key] {
-            self.localizationLock.unlock()
-            return cached
-        }
-        self.localizationLock.unlock()
-        let template = self.localized(key)
-        self.localizationLock.lock()
-        self.countdownTemplates[key] = template
-        self.localizationLock.unlock()
-        return template
+        return self.localized("\(prefix)%@m", "\(totalMinutes)")
     }
 
     private static func resetCountdownMinutes(from date: Date, now: Date) -> Int? {
