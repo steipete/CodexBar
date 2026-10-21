@@ -200,6 +200,9 @@ struct UsageTile<Header: View>: View {
             let displayed = WidgetUsageDisplay.percent(
                 fromRemaining: lane.remainingPercent,
                 showUsed: self.showsUsed)
+            let title = WidgetLaneCopy.caption(
+                title: W("%@ %@", W(lane.title), WidgetFormat.percent(displayed)),
+                showUsed: self.showsUsed)
             HeroBlock(
                 value: WidgetFormat.percent(displayed),
                 caption: Text(WidgetLaneCopy.caption(title: lane.title, showUsed: self.showsUsed)),
@@ -209,7 +212,8 @@ struct UsageTile<Header: View>: View {
                 color: color,
                 numberSize: self.size.heroNumberSize,
                 spreads: spreads,
-                compact: self.size == .small)
+                compact: self.size == .small,
+                inlineQuotaTitle: title)
         } else if let fallback {
             HeroBlock(
                 value: fallback.value,
@@ -225,7 +229,7 @@ struct UsageTile<Header: View>: View {
 
     private func resetText(_ lane: WidgetTileLane) -> Text? {
         switch WidgetLaneCopy.reset(resetsAt: lane.resetsAt, resetDescription: lane.resetDescription) {
-        case let .date(reset): Text("Reset: \(Text(reset, style: .relative))")
+        case let .date(reset): WidgetDateText.reset(reset)
         case let .text(value): Text(value)
         case nil: nil
         }
@@ -246,7 +250,7 @@ struct UsageTile<Header: View>: View {
                 showsBar: self.size.showsSecondaryBars)
         }
         if plan.overflowCount > 0 {
-            Text("+\(plan.overflowCount) more")
+            Text(W("+%@ more", String(describing: plan.overflowCount)))
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
         }
@@ -403,14 +407,14 @@ enum WidgetFallbackHero {
         if let cost = WidgetBalanceFormatter.extraUsageCost(for: entry) {
             return WidgetFallbackHeroContent(
                 value: WidgetFormat.currency(cost.used, code: cost.currencyCode),
-                caption: "Extra usage balance",
+                caption: W("Extra usage balance"),
                 detail: nil,
                 consumedMetricID: "extra-usage")
         }
         if let credits = entry.creditsRemaining {
             return WidgetFallbackHeroContent(
                 value: WidgetFormat.credits(credits),
-                caption: "Credits left",
+                caption: W("Credits left"),
                 detail: nil,
                 consumedMetricID: "credits")
         }
@@ -419,7 +423,7 @@ enum WidgetFallbackHero {
             return token.sessionTokens.map { tokens in
                 WidgetFallbackHeroContent(
                     value: UsageFormatter.tokenCountString(tokens),
-                    caption: "\(token.sessionLabel) tokens",
+                    caption: W("%@ tokens", W(token.sessionLabel)),
                     detail: nil,
                     consumedMetricID: "session-cost")
             }

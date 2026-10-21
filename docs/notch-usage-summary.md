@@ -41,6 +41,7 @@ Synthetic provider tiles in brand and monochrome styles:
   without the user revisiting the pane.
 - `notchShowsAgentSessions` — shows the agent-session list independently of the Menu pane toggle.
   The shared scanner runs while either the menu or enabled notch requests sessions.
+  Remote discovery and SSH polling still require the separate remote-sessions opt-in.
   The overlay reads `StatusItemController`'s `AgentSessionsStore` rather than running a second
   scanner, wired in `AppDelegate.ensureStatusController()`.
 - `notchSessionsColumns` — defaults to matching provider columns; choose 1–4 independently or

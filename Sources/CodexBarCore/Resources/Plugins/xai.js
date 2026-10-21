@@ -35,6 +35,22 @@ defineProvider({
       throw ctx.fail.parseFailure("Could not parse xAI billing data: balance total.val is not a cent amount");
     }
     const balance = -Number(raw) / 100;
+    let liveRemaining;
+    try {
+      const preview = await ctx.http.getJSON(`${root}/postpaid/invoice/preview`, { timeoutSeconds: 5 });
+      const cents = preview.json?.coreInvoice?.amountAfterVat;
+      if (
+        preview.status >= 200 &&
+        preview.status < 300 &&
+        typeof cents === "string" &&
+        /^-?\d+$/.test(cents) &&
+        Number.isSafeInteger(Number(cents))
+      ) {
+        liveRemaining = balance - Number(cents) / 100;
+      }
+    } catch (error) {
+      if (error.transportClass === "cancelled") throw error;
+    }
     const now = ctx.date.now();
     const start = new Date(now);
     start.setUTCDate(start.getUTCDate() - 29);
@@ -98,6 +114,9 @@ defineProvider({
           title: "Billing summary",
           rows: [
             { label: "Prepaid balance", value: `$${balance.toFixed(2)}` },
+            ...(liveRemaining === undefined
+              ? []
+              : [{ label: "Live remaining (est.)", value: `$${liveRemaining.toFixed(2)}` }]),
             {
               label: partial ? "Last 30 days (partial)" : "Last 30 days",
               value: `$${daily.reduce((sum, point) => sum + point.value, 0).toFixed(2)}`,

@@ -1324,6 +1324,35 @@ extension CostHistoryChartMenuViewTests {
     }
 
     @Test
+    func `conversation title changes invalidate visible rows but not privacy masked rows`() {
+        let untitled = CostUsageSessionBreakdown(
+            sessionID: "01a10000-0000-0000-0000-00006c0a5925",
+            lastActivity: Date(timeIntervalSince1970: 100),
+            inputTokens: 100,
+            cachedInputTokens: 20,
+            outputTokens: 10,
+            totalTokens: 110,
+            requestCount: 1,
+            costUSD: 0.88,
+            modelBreakdowns: [])
+        let titled = untitled.withTitle("Python Complexity Tools")
+        let renamed = untitled.withTitle("OpenAPI CLI Tools")
+
+        let fallback = L("Session %@", "01a1...6c0a5925")
+        #expect(Self.fingerprint(sessions: [titled, untitled, untitled.withTitle(" \n ")])
+            .sessions.map(\.name) == ["Python Complexity Tools", fallback, fallback])
+        #expect(Self.fingerprint(sessions: [untitled]) != Self.fingerprint(sessions: [titled]))
+        #expect(Self.fingerprint(sessions: [titled]) != Self.fingerprint(sessions: [renamed]))
+        let hidden = CostHistoryChartMenuView.renderFingerprint(
+            from: Self.makeSnapshot(sessions: [titled]), provider: .codex, hidePersonalInfo: true)
+        #expect(hidden.sessions.map(\.name) == [fallback])
+        #expect(hidden == CostHistoryChartMenuView.renderFingerprint(
+            from: Self.makeSnapshot(sessions: [renamed]), provider: .codex, hidePersonalInfo: true))
+        #expect(hidden == CostHistoryChartMenuView.renderFingerprint(
+            from: Self.makeSnapshot(sessions: [untitled]), provider: .codex, hidePersonalInfo: true))
+    }
+
+    @Test
     @MainActor
     func `render fingerprint tracks displayed session token components`() {
         func session(input: Int?, cached: Int?, output: Int?) -> CostUsageSessionBreakdown {

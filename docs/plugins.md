@@ -20,6 +20,11 @@ App refreshes are scoped to the installed plugin runtime and its fetch settings.
 reconfiguring a plugin prevents an older refresh from publishing usage or errors. A replacement refresh waits for retired
 work to finish and reads the current configuration when its fetch starts. Display-only preferences do not invalidate usage.
 
+When icons are merged and the source is **Current selection**, selecting a user plugin also selects its menu-bar
+quota. It uses the same quota as the switcher gauge: the most-used seven-day window, or the first available window.
+Before usage arrives, the plugin remains selected with unavailable usage. Other merged-icon sources retain their
+built-in provider behavior.
+
 ## Bundled provider registration
 
 For a bundled plugin with a simple API-key configuration, declare a public `PluginProviderSpec` named `spec` in its
@@ -72,6 +77,13 @@ See [WorkBuddy](workbuddy.md) for the request contract, bounded optional reset l
 [X API](xapi.md) uses the same cookie host with a bundled `ct0` header echo for account discovery and developer-console
 credits. Its script preserves dollar balances and debt without receiving cookie values or adding a native fetcher.
 
+[Gemini app](gemini.md) uses `gemini-web` for explicit web-source quotas on both engines. Request-URL-scoped,
+nonpersistent cookie sessions use the shared access gate; the existing Gemini CLI OAuth source stays native.
+
+[Claude Platform](claudeplatform.md) sends the opaque `sessionKey` cookie through the same cookie host, so its script
+never sees cookie values. It lists organizations, then reads required `prepaid/credits` (a 403 tries the next API
+organization) and optional `current_spend`, whose failures keep the balance. Both plugin engines run it.
+
 Manus, Muse (muse.ai), Perplexity, Hyper, Raycast, Sakana, and T3 Chat use the shared app implementation. Helmcode retains its tenant
 picker/snapshot, and Qoder retains its regional dashboard action and source-label adapter while sharing cookie UI.
 Provider-owned values resolvers retain token normalization and captured-header allowlists. Replicate and TypeSafe
@@ -79,6 +91,11 @@ remain outside this spec migration: their native strategies publish cookies cond
 honor pinned-account fallback, and enforce their existing redirect policies.
 
 ## Minimal plugin
+
+[Cosmic AI](cosmic.md), [Aerostack](aerostack.md), [Sail Research](sailresearch.md), and [Sofya](sofya.md)
+use the shared API credential spec and fixed-origin GET requests on both engines. Cosmic adds an explicit Project ID
+through the spec's workspace field. Their scripts preserve each API's account scope, separate credit pools, and
+reported periods; missing quotas and reset dates remain unavailable.
 
 ```js
 defineProvider({
@@ -114,9 +131,23 @@ defineProvider({
 - `id`: 1–64 lowercase ASCII letters, digits, or hyphens. It must not match a built-in provider or another installed
   plugin.
 - `name`: trimmed display name, 1–80 UTF-8 bytes.
-- `icon` (optional): `{monogram, tint}`. `monogram` is 1–3 characters; `tint` is `#RRGGBB`. The fallback is the first
-  letter of `name` with a neutral tint. File/SVG icons are not supported.
+- `icon` (optional): `{monogram, tint, svg}`. `monogram` is 1–3 characters; `tint` is `#RRGGBB`. The fallback is the first
+  letter of `name` with a neutral tint. `svg` (optional) is an inline monochrome SVG string of at most 8 KB, drawn as a
+  template image like built-in provider icons. Only `svg`, `g`, `path`, `circle`, `ellipse`, `rect`, `line`, `polyline`,
+  `polygon`, `title`, and `desc` elements with plain geometry/fill/stroke attributes are accepted: no scripts, styles,
+  links, `url(...)` references, raster images, `foreignObject`, or DOCTYPE/entities. Attribute values may use only
+  letters, digits, spaces and `.,#%+-()` (no CSS escapes, comments or declarations); `fill`/`stroke` must be a colour
+  keyword, `#hex`, or numeric `rgb()`/`rgba()`; `xmlns` must be the SVG namespace. An SVG that fails these checks is
+  ignored and the monogram is shown. The host rasterizes accepted icons into a 32×32 bitmap before display;
+  canvas sizes are checked before native decoding and limited to 4096×4096. Include a finite `viewBox` or paired
+  positive `width`/`height` (numbers or `px`); partial dimensions and other canvas units fall back to the monogram.
+  File icons are not supported.
 - `topLevel` (optional, default `true`): gives an enabled plugin its own provider-switcher tab when Merge Icons is on. Set to `false` to keep an appended card.
+  Plugin tabs show a quota gauge from the most constrained reported seven-day window, otherwise the first available
+  primary, secondary, tertiary, or extra window. They follow the used/remaining display preference; unknown usage
+  stays unavailable. Enabled plugins can also be selected in **Settings → Menu Bar → Overview**; they share the
+  six-provider limit and render their existing usage card. Overview selections retain the same string-array format,
+  so older builds can still read the built-in providers while ignoring unknown plugin IDs.
 - `endpoints`: 1–16 declared network origins. A fixed endpoint is a normalized HTTPS origin such as
   `https://api.example.com` (no path, query, fragment, or user info). A settings-derived endpoint is
   `{setting: "BASE_URL", policy: "https"}`, `{setting: "BASE_URL", policy: "https-or-loopback-http"}`, or
@@ -223,6 +254,9 @@ so portable third-party plugins must use the host helpers below instead of ECMA-
   Background imports remain non-interactive. Suppressed or denied access reports permission recovery guidance rather
   than a missing login when all authentication paths fail; valid fallback credentials can still succeed. A successful
   refresh retains each manifest's cookie persistence policy, including nonpersistent sessions.
+  When an admitted discovery attempt cannot read a browser profile, the error names the browser and points to
+  **System Settings → Privacy & Security → Files & Folders → CodexBar**. Enable that browser and refresh.
+  Policy-blocked imports do not probe profiles, and an observed Keychain denial keeps its existing guidance.
 - `ctx.browser.supportedBrowsers` is a comma-separated display list from the provider's configured browser catalog subset (Chrome for user plugins). It describes supported Automatic sources, not installed or searched profiles; it performs no browser or Keychain access. On platforms without browser import it reads `none on this platform`.
 - `await ctx.browser.cookieHeader(domain)` returns a cookie header only with the `browser-cookies` capability and for a
   declared domain. User plugins import from Chrome; bundled providers retain their declared browser order.
@@ -307,6 +341,10 @@ engine; the same rollback is available in **Settings → Debug → Provider Plug
 CodexBar. JavaScriptCore has no public interrupt API, so a timed-out rollback-engine context is discarded but its
 abandoned evaluation thread can remain alive until process exit.
 
+QuickJS worker jobs drain autoreleased host objects when they finish, preventing refresh temporaries from building up
+across a plugin's lifetime. JavaScriptCore registration and completed-fetch callbacks do not keep retired runtimes or
+contexts alive; active evaluations and the existing fetch watchdog still determine when cleanup can finish.
+
 ## Snapshot result
 
 Return at least one rate window, cost object, detail section, or non-empty identity field:
@@ -342,6 +380,11 @@ Named extra windows accept an optional `usageKnown` boolean (default `true`). Se
 the window remains visible as **Unavailable**, and its placeholder `usedPercent` is not presented as measured usage.
 Detail rows accept optional `progress` (a finite consumed fraction from 0 through 1) and `usageValue` (finite raw usage).
 The host maps the fraction to native progress with `used: progress, total: 1`; `usageValue` is preserved independently.
+An optional row `severity: "normal" | "warning" | "critical"` uses the system green, orange, or red accent;
+warning and critical rows also show a labeled warning symbol. The plugin computes its own thresholds independently
+of `progress`. Omit `severity` (or pass null) to keep the existing provider tint. Invalid values fail the fetch.
+For example, a pool row can return `progress: used / total, severity: remaining < 20 ? "critical" :
+remaining < 50 ? "warning" : "normal"`; progress remains consumed usage, not remaining usage.
 Absent or null numeric fields leave existing text-only rows unchanged. A supplied `usageKnown` must be a boolean,
 including when the window uses the nested `window` form; null is invalid.
 An identity-only snapshot is useful for balance-only or zero-usage provider states and renders its available account,
@@ -363,6 +406,14 @@ every key. Null, arrays, wrong types, unknown keys, and cross-provider requests 
 Card payloads are descriptor-owned, never arbitrary Swift decoding. OpenAI's `card.openAIAPIUsage` adapter accepts daily
 cost, token, request, model, and line-item history for the existing native chart. It rejects unknown fields, bounds the
 history to 366 buckets and 10,000 breakdown entries, and validates finite numbers, safe integer counts, names, and dates.
+An optional `live` object contains `windowMinutes: 60`, Unix-second `startTime` and `fetchedAt`, and `buckets`
+with `startTime` and `models` (`name`, `inputTokens`, `cachedInputTokens`, `outputTokens`, `requests`, optional `batchTokens` and
+`batchRequests`). The batch fields default to 0 when missing, must be nonnegative integers, and must not exceed
+`inputTokens + outputTokens` and `requests`, respectively. Batch API subsets are excluded only from rate-limit
+utilization; charts and totals include all traffic. Both QuickJS
+and JavaScriptCore validate this payload. It accepts at most 60 buckets and 200 models per bucket, sharing the
+10,000-entry budget with daily breakdowns. Invalid live data drops only throughput; daily data remains valid.
+The Swift window fetcher and plugin adapter share the same zero-filled minute grid and reporting frontier.
 No other provider or user-installed plugin receives that adapter by declaring a card field.
 
 Fireworks alone allows `persist: { ACCOUNT_SLUG: "discovered-slug" }`. The app/CLI writer rechecks ownership, applies the
@@ -529,7 +580,7 @@ Bundled scripts own requests, error classification, and snapshot mapping; Swift 
 | [ZenMux](zenmux.md) | Both engines require subscription quotas. Optional USD PAYG enrichment failures preserve quotas except for credential rejection and cancellation. |
 | [Atlas Cloud](atlascloud.md), [Vercel AI Gateway](vercel.md) | Fixed-origin bearer GETs return account/team balances as generic details without quota windows. Scripts classify HTTP failures; the host bounds retries. |
 | [GitKraken AI](gitkraken.md) | First-party bearer GET with optional organization scope returns generic weekly windows/details. |
-| [Charm Hyper](hyper.md) | Declared-domain cookies or a secure API key reach one fixed credits endpoint. TypeScript owns session preference, API fallback, errors, and HC balance parsing. |
+| [Charm Hyper](hyper.md) | Declared-domain cookies read the signed-in Hyper dashboard; a secure API key reaches the fixed credits endpoint. TypeScript owns session preference, API fallback, errors, and HC balance parsing. |
 | [Zed](zed.md) | Swift discovers editor settings and Keychain credentials. Opt-in browser billing uses only the declared `zed.dev` cookie session, never editor credentials. |
 | [Aixy](aixy.md) | TypeScript maps key-scoped usage and budgets; the host validates the configured gateway origin and supplies the API key. |
 | [Qwen Cloud](qwen-cloud.md) | `qwencloud-team.ts` discovers the billing selector and fetches Team credits through form POSTs. Native Qwen cookie selection supplies one opaque dashboard session; Individual remains native as the fallback. |
@@ -537,6 +588,8 @@ Bundled scripts own requests, error classification, and snapshot mapping; Swift 
 | [Muse (muse.ai)](museai.md) | `ctx.browser.sessions` for `muse.ai`, with `persistent-storage` holding the deploy-specific server-action ID. A stale ID (`404 Server action not found.`) triggers rediscovery from the signed-in page's chunks. |
 
 ## Native adapters with declarative registration
+
+Ollama's API-key strategy runs `ollama-api.ts` on both engines: a fixed-origin bearer GET reads the included allowance, reset, and purchased balance into the existing Monthly and Credits presentation. Cookie import and HTML parsing remain native. The public legacy catalog fetcher remains available for CodexBarCore API compatibility but is no longer used by provider refreshes.
 
 Hugging Face, Nous, Fireworks, xAI, Venice, and Zed also declare `PluginProviderSpec` values. Hugging Face keeps its
 serialized, retained script runtime and CLI-token reader. Nous keeps Hermes credential validation and diagnostics;
@@ -555,8 +608,15 @@ credential discovery merely to use the default script builder.
 A bundled plugin can declare `cookiePolicy.store: "selected-profile"` with `selection: "request-url"`,
 `cache: "nonpersistent"`, `imports: "access-gated"`, a nonempty `requiredCookies` list, and a `sessionURL` on
 its single declared request host. Its `PluginProviderSpec.WebSource` registers a settings section with
-`selectedProfileBrowser`; the shared **Browser profile** picker persists the explicit `browserProfileID`.
+`selectedProfileBrowsers`; the shared **Browser** and **Browser profile** pickers persist `browserID` and
+the explicit `browserProfileID`. The first registered browser preserves legacy configurations without a
+`browserID`; it does not select a profile. Unsupported browser IDs fail closed. Changing the browser clears
+the profile selection, previous measurements, and pending fetches. Safari requires a concrete cookie file;
+the importer's browser-wide placeholder is rejected.
 There is no default profile, Manual header path, other-profile fallback, or cookie-cache read/write.
+The single-browser `selectedProfileBrowser` initializer and property remain supported for source compatibility
+with the public `CodexBarCore` API shipped in v0.73.0. New registrations use `selectedProfileBrowsers`; the legacy
+property returns `nil` for registrations that support multiple browsers.
 
 The host fingerprints the selected browser/profile and the applicable required cookies before fetching. After
 success, failure, or cancellation it reads that same profile again under the background no-interaction gate.
@@ -570,3 +630,31 @@ Providers without stable account identity can set `history: .unavailable` and `b
 on the spec. Langdock uses these capabilities and does not backfill missing reset dates from prior sessions.
 Providers with both widget capabilities disabled are omitted from widget files. Selected-profile usage is never
 exported as a cloud account snapshot: its ownership can only be verified on the importing device.
+
+## Search and research credit providers
+
+[Tavily](tavily.md) reads account-plan, API-key, and pay-as-you-go credits through the public usage API;
+[Linkup](linkup.md) reads its prepaid USD balance. Both use explicit API keys and the shared `PluginProviderSpec`.
+[Exa](exa.md) reads selected-key monthly spend using a support-enabled Team Management service key and API key ID.
+[TinyApi](tinyapi.md) reads aggregate available credits through its website session and the shared cookie host.
+These plugins omit undocumented reset dates, credit-bucket splits, and live request-rate headroom.
+
+## Spend-limit providers
+
+[Munito](munito.md) reads today's and this month's spend against the organization's spend limits from the Admin API
+with a bearer key that holds Read account data permission. The organization read is best-effort; missing or zero
+limits keep the spend rows without a percentage window, and no reset time is guessed.
+
+## Generative media credit providers
+
+[fal](fal.md) reads the account credit balance from the Platform API billing endpoint with a `Key`-scheme API key
+that holds billing read access. A successful response without the credits block is reported as a temporary provider
+outage rather than a parse failure, so the last good balance stays visible.
+
+[FLORA](flora.md) reads one workspace's available USD balance and UTC month-to-date spend with a bearer API key
+that holds billing permission. Its explicit workspace ID also supports keys whose workspace list is empty
+because they lack read permission. Unavailable spend keeps its documented reason instead of becoming zero.
+
+[Parallel](parallel.md) reads the prepaid credit balance through the shared cookie host with a session-cookie POST
+to the platform dashboard's internal balance endpoint. Parallel API keys cannot read the balance, and its Account API
+needs OAuth, so the provider is web-only. A changed response shape fails parsing instead of reporting zero.

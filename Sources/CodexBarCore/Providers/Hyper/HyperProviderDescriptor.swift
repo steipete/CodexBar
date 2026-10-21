@@ -1,6 +1,3 @@
-import Foundation
-import SweetCookieKit
-
 public enum HyperProviderDescriptor {
     public static let descriptor: ProviderDescriptor = Self.spec.makeDescriptor(credentials: Self.credentials)
     public static let spec = PluginProviderSpec(
@@ -19,7 +16,7 @@ public enum HyperProviderDescriptor {
             costPresenter: { _ in ProviderCostPresentation(showsGenericFallback: false, menuCardStyle: .hidden) }),
         webSource: .init(
             settingsSection: .init(HyperProviderSettingsKey.self, cookieSettings: CookieProviderSettings.self),
-            browserCookieOrder: Self.browserCookieOrder,
+            browserCookieOrder: ProviderBrowserCookieDefaults.defaultImportOrder,
             mode: .sessionOrAPI,
             browserSupportExemption: { _, _, settings in
                 settings?[HyperProviderSettingsKey.self]?.cookieSource == .manual
@@ -39,7 +36,7 @@ public enum HyperProviderDescriptor {
             picker: .init(
                 id: "hyper-cookie-source",
                 allowsOff: true,
-                auto: .literal("Prefer a signed-in Hyper session from Chrome, then fall back to an API key."),
+                auto: .literal("Prefer a signed-in Hyper browser session, then fall back to an API key."),
                 manual: .literal("Paste a Cookie header from hyper.charm.land."),
                 off: .literal("Use only the configured API key."),
                 showsRefreshAction: true),
@@ -69,14 +66,6 @@ public enum HyperProviderDescriptor {
 
     public static func apiKey(environment: [String: String]) -> String? {
         SettingsValue.cleaned(environment[self.apiKeyEnvironmentKey])
-    }
-
-    private static var browserCookieOrder: BrowserCookieImportOrder? {
-        #if os(macOS)
-        [.chrome]
-        #else
-        nil
-        #endif
     }
 }
 

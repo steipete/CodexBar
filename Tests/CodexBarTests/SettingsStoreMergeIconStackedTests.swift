@@ -14,7 +14,7 @@ struct SettingsStoreMergeIconStackedTests {
         settings.mergeIconStackedTopProvider = .cursor
         settings.mergeIconStackedBottomProvider = .claude
         let shared = MenuBarLayout(lines: [[.icon, .percent(window: .automatic)], [.costToday]])
-        let custom = MenuBarLayout(lines: [[.providerName, .resetCountdown], [.cost30d]])
+        let custom = MenuBarLayout(lines: [[.providerName, .resetCountdown], [.costWindow]])
         settings.setMenuBarLayout(shared, for: nil)
         settings.setMenuBarLayout(custom, for: .claude)
 

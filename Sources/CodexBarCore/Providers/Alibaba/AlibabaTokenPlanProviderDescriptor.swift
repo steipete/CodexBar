@@ -1,9 +1,5 @@
 import Foundation
 
-#if os(macOS)
-import SweetCookieKit
-#endif
-
 public enum AlibabaTokenPlanProviderDescriptor {
     public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
     private static let credentials = ProviderCredentialAdapter(
@@ -24,22 +20,8 @@ public enum AlibabaTokenPlanProviderDescriptor {
     }
 
     static func makeDescriptor() -> ProviderDescriptor {
-        #if os(macOS)
-        let browserOrder: BrowserCookieImportOrder = [
-            .chrome,
-            .chromeBeta,
-            .brave,
-            .edge,
-            .arc,
-            .firefox,
-            .safari,
-        ]
-        #else
-        let browserOrder: BrowserCookieImportOrder? = nil
-        #endif
-
         // Provider-specific by design: The Alibaba folder co-locates the distinct Alibaba Token Plan descriptor.
-        return ProviderDescriptor(
+        ProviderDescriptor(
             id: .alibabatokenplan,
             settingsSection: .init(
                 AlibabaTokenPlanProviderSettingsKey.self,
@@ -78,7 +60,7 @@ public enum AlibabaTokenPlanProviderDescriptor {
                     "token plan plus": "Token Plan Plus",
                 ],
                 debugLogUnavailableMessage: "Alibaba Token Plan debug log not yet implemented",
-                browserCookieOrder: browserOrder,
+                browserCookieOrder: ProviderBrowserCookieDefaults.defaultImportOrder,
                 dashboardURL: AlibabaTokenPlanUsageFetcher.dashboardURL.absoluteString,
                 statusPageURL: nil,
                 statusLinkURL: "https://status.aliyun.com"),

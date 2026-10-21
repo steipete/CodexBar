@@ -306,32 +306,6 @@ extension ClaudeOAuthCredentialsStore {
         let securityCLIReadAccountOverride: String?
         let pendingCacheClearStore: ClaudeOAuthPendingCacheClearStore?
         let oauthCacheOperationRecorder: OAuthCacheOperationRecorder?
-
-        init(
-            keychainOverrideStore: ClaudeKeychainOverrideStore?,
-            keychainData: Data?,
-            keychainFingerprint: ClaudeKeychainFingerprint?,
-            memoryCacheStore: MemoryCacheStore?,
-            fingerprintStore: ClaudeKeychainFingerprintStore?,
-            keychainAccessOverride: Bool?,
-            credentialsFileFingerprintStore: CredentialsFileFingerprintStore?,
-            securityCLIReadOverride: SecurityCLIReadOverride?,
-            securityCLIReadAccountOverride: String?,
-            pendingCacheClearStore: ClaudeOAuthPendingCacheClearStore?,
-            oauthCacheOperationRecorder: OAuthCacheOperationRecorder?)
-        {
-            self.keychainOverrideStore = keychainOverrideStore
-            self.keychainData = keychainData
-            self.keychainFingerprint = keychainFingerprint
-            self.memoryCacheStore = memoryCacheStore
-            self.fingerprintStore = fingerprintStore
-            self.keychainAccessOverride = keychainAccessOverride
-            self.credentialsFileFingerprintStore = credentialsFileFingerprintStore
-            self.securityCLIReadOverride = securityCLIReadOverride
-            self.securityCLIReadAccountOverride = securityCLIReadAccountOverride
-            self.pendingCacheClearStore = pendingCacheClearStore
-            self.oauthCacheOperationRecorder = oauthCacheOperationRecorder
-        }
     }
 
     static func withKeychainAccessOverrideForTesting<T>(

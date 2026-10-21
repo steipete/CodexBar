@@ -64,7 +64,7 @@ final class ShareStatsWindowController: NSWindowController, NSWindowDelegate {
             saveImage: { [weak self] in
                 guard let self else { return false }
                 return ShareStatsExporter.saveImage(self.payload)
-            }))
+            }).codexBarLocalized())
     }
 }
 

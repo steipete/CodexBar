@@ -9,11 +9,13 @@ extension StatusItemController {
         let menuID = ObjectIdentifier(menu)
         let generation = self.menuSession.beginTrackingSession(menuID)
         (menu as? StatusItemMenu)?.menuInteractionGeneration = generation
+        self.refreshStatusItemContentForColorMode()
     }
 
     func endMenuTrackingSession(for menu: NSMenu) {
         (menu as? StatusItemMenu)?.menuInteractionGeneration = nil
         self.menuSession.endTrackingSession(ObjectIdentifier(menu))
+        self.refreshStatusItemContentForColorMode()
     }
 
     private func rootMenu(for menu: NSMenu) -> NSMenu {
@@ -157,10 +159,64 @@ extension StatusItemController {
     }
 
     func clearMenuHighlight(_ key: ObjectIdentifier) {
+        self.keyboardHighlightedMenus.remove(key)
         if let highlightedView = self.highlightedMenuItems.removeValue(forKey: key)?.view {
             (highlightedView as? MenuCardHighlighting)?.setHighlighted(false)
         }
         self.nativeHighlightDeferredMenuRebuilds.removeValue(forKey: key)
+    }
+
+    func menu(_ menu: NSMenu, willHighlight item: NSMenuItem?) {
+        self.menu(menu, willHighlight: item, eventType: NSApp?.currentEvent?.type)
+    }
+
+    func menu(_ menu: NSMenu, willHighlight item: NSMenuItem?, eventType: NSEvent.EventType?) {
+        let key = ObjectIdentifier(menu)
+        let wasKeyboardHighlighted = self.keyboardHighlightedMenus.contains(key)
+        switch eventType {
+        case .keyDown:
+            self.keyboardHighlightedMenus.insert(key)
+        case .mouseMoved, .mouseEntered, .mouseExited, .leftMouseDown, .leftMouseUp, .leftMouseDragged,
+             .rightMouseDown, .rightMouseUp, .rightMouseDragged, .otherMouseDown, .otherMouseUp,
+             .otherMouseDragged, .scrollWheel:
+            self.keyboardHighlightedMenus.remove(key)
+        default:
+            break
+        }
+        let previous = self.highlightedMenuItems[key]
+        guard previous !== item else {
+            if wasKeyboardHighlighted != self.keyboardHighlightedMenus.contains(key), let item {
+                self.applyMenuCardHighlight(item, highlighted: true)
+            }
+            return
+        }
+        let previousWasNative = self.isNativeMenuItemHighlighted(in: menu)
+
+        if let previous {
+            (previous.view as? MenuCardHighlighting)?.setHighlighted(false)
+        }
+
+        if let item,
+           item.isEnabled,
+           (item.view as? MenuCardHighlighting)?.allowsMenuHighlight != false
+        {
+            self.highlightedMenuItems[key] = item
+            self.applyMenuCardHighlight(item, highlighted: true)
+        } else {
+            self.highlightedMenuItems.removeValue(forKey: key)
+        }
+
+        if previousWasNative, !self.isNativeMenuItemHighlighted(in: menu) {
+            self.resumeMenuRebuildDeferredForNativeHighlightIfNeeded(menu)
+        }
+    }
+
+    func applyMenuCardHighlight(_ item: NSMenuItem, highlighted: Bool) {
+        let view = item.view as? MenuCardHighlighting
+        // Keep native selection tracking intact; only pointer-driven custom-row rendering is optional.
+        let keyboardSelected = item.menu.map { self.keyboardHighlightedMenus.contains(ObjectIdentifier($0)) } ?? false
+        view?.setHighlighted(highlighted && item.isEnabled && view?.allowsMenuHighlight != false
+            && (self.settings.highlightMenuCardsOnHover || keyboardSelected))
     }
 
     func removeMenuLifecycleState(_ key: ObjectIdentifier) {

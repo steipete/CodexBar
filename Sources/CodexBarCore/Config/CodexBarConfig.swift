@@ -7,6 +7,7 @@ public struct CodexBarConfig: Codable, Sendable {
         case version
         case providers
         case hooks
+        case shareUsageWithCLI
     }
 
     private enum ProviderCodingKeys: String, CodingKey {
@@ -24,15 +25,20 @@ public struct CodexBarConfig: Codable, Sendable {
     public var providers: [ProviderConfig]
     /// Optional external event hooks. Absent (nil) or disabled means no hooks run.
     public var hooks: HooksConfig?
+    /// Opt-in: the app writes a private usage cache that `codexbar usage` falls back to in SSH sessions whose
+    /// locked login keychain breaks a provider's own fetch. Off by default; written to the file only when on.
+    public var shareUsageWithCLI: Bool
 
     public init(
         version: Int = Self.currentVersion,
         providers: [ProviderConfig],
-        hooks: HooksConfig? = nil)
+        hooks: HooksConfig? = nil,
+        shareUsageWithCLI: Bool = false)
     {
         self.version = version
         self.providers = providers
         self.hooks = hooks
+        self.shareUsageWithCLI = shareUsageWithCLI
     }
 
     public init(from decoder: any Decoder) throws {
@@ -69,12 +75,14 @@ public struct CodexBarConfig: Codable, Sendable {
         }
         self.providers = providers
         self.hooks = try container.decodeIfPresent(HooksConfig.self, forKey: .hooks)
+        self.shareUsageWithCLI = try container.decodeIfPresent(Bool.self, forKey: .shareUsageWithCLI) ?? false
     }
 
     public func encode(to encoder: any Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(self.version, forKey: .version)
         try container.encodeIfPresent(self.hooks, forKey: .hooks)
+        if self.shareUsageWithCLI { try container.encode(true, forKey: .shareUsageWithCLI) }
         var entries = container.nestedUnkeyedContainer(forKey: .providers)
         var providers = self.providers.makeIterator()
         for unknown in self.unknownProviders {
@@ -165,6 +173,7 @@ public struct CodexBarConfig: Codable, Sendable {
         for var provider in self.providers {
             guard !seen.contains(provider.id) else { continue }
             seen.insert(provider.id)
+            provider.modelRateLimits = provider.modelRateLimits.map(ProviderModelRateLimit.validated)
             if let firstPartyProvider = provider.id.firstPartyProvider {
                 ProviderDescriptorRegistry.descriptor(for: firstPartyProvider).normalizeConfig(&provider)
             }
@@ -303,6 +312,7 @@ public struct ProviderConfig: Codable, Sendable, Identifiable {
     public var accentColor: String?
     /// Stable menu-card item IDs hidden for this provider. Nil keeps the default of showing every item.
     public var hiddenUsageItemIDs: [String]?
+    public var modelRateLimits: [ProviderModelRateLimit]?
     /// Arbitrary user-plugin values stay scoped to the provider instance. Secure values are redacted from config dumps.
     public var pluginSettings: [String: String]?
     public var pluginSecrets: [String: String]?
@@ -324,6 +334,7 @@ public struct ProviderConfig: Codable, Sendable, Identifiable {
         quotaWarnings: QuotaWarningConfig? = nil,
         accentColor: String? = nil,
         hiddenUsageItemIDs: [String]? = nil,
+        modelRateLimits: [ProviderModelRateLimit]? = nil,
         pluginSettings: [String: String]? = nil,
         pluginSecrets: [String: String]? = nil)
     {
@@ -342,6 +353,7 @@ public struct ProviderConfig: Codable, Sendable, Identifiable {
         self.quotaWarnings = quotaWarnings
         self.accentColor = accentColor
         self.hiddenUsageItemIDs = hiddenUsageItemIDs
+        self.modelRateLimits = modelRateLimits.map(ProviderModelRateLimit.validated)
         self.pluginSettings = pluginSettings
         self.pluginSecrets = pluginSecrets
         self.extensionValues = [:]

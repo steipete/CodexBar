@@ -60,7 +60,7 @@ struct OllamaProviderImplementation: ProviderImplementation {
             ProviderSettingsPickerDescriptor(
                 id: "ollama-usage-source",
                 title: "Usage source",
-                subtitle: "API key verifies Ollama Cloud access; cookies still expose quota limits.",
+                subtitle: "",
                 binding: sourceBinding,
                 options: sourceOptions,
                 isVisible: nil,

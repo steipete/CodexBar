@@ -35,29 +35,27 @@ struct InlineCostHistoryCalendarTests {
         #expect(points.map { $0.hoverDetail?.tokenCount } == [100, 0, 100, 100])
     }
 
-    @Test
-    func `incomplete history retains unknown missing days`() throws {
+    @Test(arguments: [UsageProvider.codex, .claude, .pi])
+    func `incomplete history retains unknown missing days`(provider: UsageProvider) throws {
         let snapshot = try InlineCostCalendarFixture.snapshot(
             now: InlineCostCalendarFixture.now(),
             days: 4,
             covered: false)
-        let points = try InlineCostCalendarFixture.model(snapshot).points
+        let points = try InlineCostCalendarFixture.model(snapshot, provider: provider).points
         #expect(points.map { $0.value as Double? } == [3, nil, nil, 4])
         #expect(!points.contains { $0.accessibilityValue.contains("$0.00") })
         #expect(points.map { $0.hoverDetail?.tokenCount } == [100, nil, 100, 100])
     }
 
-    @Test
-    func `other providers retain sparse histories with token only days`() throws {
+    @Test(arguments: [UsageProvider.claude, .pi])
+    func `local history providers preserve calendar slots and unpriced days`(provider: UsageProvider) throws {
         let snapshot = try InlineCostCalendarFixture.snapshot(
-            now: InlineCostCalendarFixture.now(),
-            days: 4,
-            covered: true)
-        let points = try InlineCostCalendarFixture.model(snapshot, provider: .claude).points
-        #expect(points.map(\.id) == ["2026-08-21", "2026-08-23", "2026-08-24"])
-        #expect(points.map(\.value) == [3, nil, 4])
-        #expect(points.map { $0.hoverDetail?.tokenCount } == [100, 100, 100])
-        #expect(points[1].accessibilityValue.hasSuffix(": — · 100 tokens"))
+            now: InlineCostCalendarFixture.now(), days: 4, covered: true)
+        let points = try InlineCostCalendarFixture.model(snapshot, provider: provider).points
+        #expect(points.map(\.id) == ["2026-08-21", "2026-08-22", "2026-08-23", "2026-08-24"])
+        #expect(points.map(\.value) == [3, 0, nil, 4])
+        #expect(points.map { $0.hoverDetail?.tokenCount } == [100, 0, 100, 100])
+        #expect(points[2].accessibilityValue.hasSuffix(": — · 100 tokens"))
     }
 
     @Test

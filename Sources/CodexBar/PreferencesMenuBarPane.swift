@@ -13,8 +13,14 @@ struct MenuBarPane: View {
         L("overview_choose_providers", String(limit))
     }
 
-    static func inactiveDisplayContrastAvailable(for style: MenuBarIconStyle) -> Bool {
+    static func layoutEditorEnabled(for style: MenuBarIconStyle) -> Bool {
         style == .iconAndPercent
+    }
+
+    static func layoutFooterText(for style: MenuBarIconStyle) -> String {
+        self.layoutEditorEnabled(for: style)
+            ? L("menu_bar_layout_footer")
+            : L("menu_bar_layout_footer_requires_icon_and_percent", MenuBarIconStyle.iconAndPercent.label)
     }
 
     var body: some View {
@@ -24,6 +30,7 @@ struct MenuBarPane: View {
                 L("menu_bar_layout_token_session_pace"),
                 L("menu_bar_layout_token_weekly_pace"),
                 L("menu_bar_layout_token_auto_pace"),
+                L("menu_bar_layout_token_spend_pace"),
             ].joined(separator: ", ")
 
         Form {
@@ -31,11 +38,7 @@ struct MenuBarPane: View {
                 SettingsMenuPicker(
                     selection: self.$settings.menuBarIconStyle,
                     options: MenuBarSettingsMenuOptions.iconStyles,
-                    label: {
-                        SettingsRowLabel(
-                            L("menu_bar_style_title"),
-                            subtitle: L("menu_bar_style_subtitle"))
-                    },
+                    label: { Text(L("menu_bar_style_title")) },
                     optionLabel: { style in
                         Text(style.label)
                     })
@@ -46,7 +49,7 @@ struct MenuBarPane: View {
                         subtitle: "\(MenuBarIconStyle.iconAndPercent.label): "
                             + L("menu_bar_inactive_display_contrast_subtitle"))
                 }
-                .disabled(!Self.inactiveDisplayContrastAvailable(for: self.settings.menuBarIconStyle))
+                .disabled(!Self.layoutEditorEnabled(for: self.settings.menuBarIconStyle))
 
                 Toggle(isOn: self.$settings.menuBarColorPace) {
                     SettingsRowLabel(
@@ -54,17 +57,30 @@ struct MenuBarPane: View {
                         subtitle: paceColorSubtitle)
                 }
                 .disabled(self.settings.menuBarIconStyle != .iconAndPercent)
+
+                SettingsMenuPicker(
+                    selection: self.$settings.menuBarPaceReservePositive,
+                    options: [false, true],
+                    label: { Text(L("Pace sign")) },
+                    optionLabel: { reservePositive in
+                        Text(reservePositive ? L("Reserve is +") : L("Ahead of pace is +"))
+                    })
+                    .disabled(self.settings.menuBarIconStyle != .iconAndPercent)
+
+                Toggle(isOn: self.$settings.menuBarColorByProvider) {
+                    Text(L("Color by provider"))
+                }
             } header: {
                 Text(L("section_icon"))
             }
 
             Section {
                 MenuBarLayoutEditor(settings: self.settings, store: self.store)
-                    .disabled(self.settings.menuBarIconStyle != .iconAndPercent)
+                    .disabled(!Self.layoutEditorEnabled(for: self.settings.menuBarIconStyle))
             } header: {
                 Text(L("menu_bar_layout_title"))
             } footer: {
-                SettingsSectionFooter(L("menu_bar_layout_footer"))
+                SettingsSectionFooter(Self.layoutFooterText(for: self.settings.menuBarIconStyle))
             }
 
             Section {
@@ -111,15 +127,18 @@ struct MenuBarPane: View {
                     })
                     .disabled(!self.settings.mergeIcons)
 
-                Toggle(isOn: self.$settings.menuBarShowsHighestUsage) {
-                    SettingsRowLabel(
-                        L("show_most_used_provider_title"),
-                        subtitle: L("show_most_used_provider_subtitle"))
-                }
-                .disabled(!self.settings.mergeIcons || self.mergedIconPresentation.effectiveStyle == .stacked)
+                UnifiedIconSourcePicker(selection: self.$settings.unifiedIconSource)
+                    .disabled(!self.settings.mergeIcons || self.mergedIconPresentation.effectiveStyle == .stacked)
 
                 self.overviewProviderRow
                     .disabled(!self.settings.mergeIcons)
+                Toggle(isOn: self.$settings.mergedOverviewAllAccounts) {
+                    SettingsRowLabel(
+                        L("Show all accounts in Overview"),
+                        subtitle: L(
+                            "Expand cached account usage. The six-provider limit still applies."))
+                }
+                .disabled(!self.settings.mergeIcons)
             } header: {
                 Text(L("section_combined_icon"))
             }
@@ -157,7 +176,7 @@ struct MenuBarPane: View {
 
     private var overviewProviderRow: some View {
         LabeledContent {
-            if self.showsOverviewConfigureButton {
+            if self.settings.mergeIcons, !self.activeProvidersInOrder.isEmpty {
                 Button(L("configure")) {
                     self.isOverviewProviderPopoverPresented = true
                 }
@@ -213,8 +232,8 @@ struct MenuBarPane: View {
         .frame(width: 280)
     }
 
-    private var activeProvidersInOrder: [UsageProvider] {
-        self.store.enabledFirstPartyProviders()
+    private var activeProvidersInOrder: [ProviderInstanceID] {
+        self.store.enabledProvidersForDisplay()
     }
 
     private var mergedIconPresentation: MergedIconPresentation {
@@ -237,14 +256,10 @@ struct MenuBarPane: View {
             })
     }
 
-    private var overviewSelectedProviders: [UsageProvider] {
+    private var overviewSelectedProviders: [ProviderInstanceID] {
         self.settings.resolvedMergedOverviewProviders(
             activeProviders: self.activeProvidersInOrder,
             maxVisibleProviders: Self.maxOverviewProviders)
-    }
-
-    private var showsOverviewConfigureButton: Bool {
-        self.settings.mergeIcons && !self.activeProvidersInOrder.isEmpty
     }
 
     private var overviewProviderSelectionSummary: String {
@@ -253,11 +268,16 @@ struct MenuBarPane: View {
         return selectedNames.joined(separator: ", ")
     }
 
+    private func providerDisplayName(_ instanceID: ProviderInstanceID) -> String {
+        if let provider = instanceID.firstPartyProvider { return self.providerDisplayName(provider) }
+        return UserProviderPluginRegistry.plugin(for: instanceID)?.manifest.name ?? instanceID.rawValue
+    }
+
     private func providerDisplayName(_ provider: UsageProvider) -> String {
         ProviderDescriptorRegistry.descriptor(for: provider).metadata.displayName
     }
 
-    private func setOverviewProviderSelection(provider: UsageProvider, isSelected: Bool) {
+    private func setOverviewProviderSelection(provider: ProviderInstanceID, isSelected: Bool) {
         _ = self.settings.setMergedOverviewProviderSelection(
             provider: provider,
             isSelected: isSelected,

@@ -94,6 +94,44 @@ struct WidgetAccountSnapshotTests {
 @MainActor
 struct WidgetAccountPublicationTests {
     @Test
+    func `snapshot counts accounts beyond the six account cap without publishing their identities`() async throws {
+        let (settings, store) = self.makeStore()
+        settings.accountWidgetsEnabled = true
+        for index in 3...9 {
+            settings.addTokenAccount(provider: .claude, label: "Fixture \(index)", token: "fixture-token-\(index)")
+        }
+        store.accountSnapshots[.claude] = settings.tokenAccounts(for: .claude).enumerated().map { index, account in
+            TokenAccountUsageSnapshot(
+                account: account,
+                snapshot: self.usage(percent: Double(index * 10), owner: "fixture-owner-\(index)"),
+                error: nil,
+                sourceLabel: "fixture",
+                cacheKey: store.tokenAccountSnapshotCacheKey(provider: .claude, account: account))
+        }
+        var saved: WidgetSnapshot?
+        store._test_widgetSnapshotSaveOverride = { saved = $0 }
+        store.persistWidgetSnapshot(reason: "account-overflow-fixture")
+        await store.widgetSnapshotPersistTask?.value
+        let snapshot = try #require(saved)
+        #expect(snapshot.accounts.count == 6)
+        let data = try JSONEncoder().encode(snapshot)
+        let object = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        #expect((object["accountOverflowCounts"] as? [String: Int])?["claude"] == 3)
+        let encoded = try #require(String(data: data, encoding: .utf8))
+        #expect(!encoded.contains("Fixture 8"))
+        #expect(snapshot.accounts.contains { $0.label == "Fixture 9" })
+
+        settings.accountWidgetsEnabled = false
+        store.persistWidgetSnapshot(reason: "account-overflow-opt-out-fixture")
+        await store.widgetSnapshotPersistTask?.value
+        let cleared = try #require(saved)
+        #expect(cleared.accounts.isEmpty)
+        let clearedObject = try #require(
+            JSONSerialization.jsonObject(with: JSONEncoder().encode(cleared)) as? [String: Any])
+        #expect(clearedObject["accountOverflowCounts"] == nil)
+    }
+
+    @Test
     func `profile paths and personal identities are not persisted in widget identifiers`() {
         let first = UsageStore.widgetOpaqueAccountID("profile:/Users/fixture/private-account")
         #expect(first == UsageStore.widgetOpaqueAccountID("profile:/Users/fixture/private-account"))

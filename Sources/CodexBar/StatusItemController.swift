@@ -161,6 +161,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     var fallbackMenu: NSMenu?
     var menuAppearanceObserver: StatusMenuAppearanceObserver?
     var openMenus: [ObjectIdentifier: NSMenu] = [:]
+    var frontmostProviderMonitor: FrontmostProviderMonitor?
     var menuRefreshTasks: [ObjectIdentifier: Task<Void, Never>] = [:]
     /// Manual refreshes tracked per scope so refreshing one provider neither greys out nor blocks
     /// a manual refresh of another. `.global` covers the all-providers refresh (⌘R / merged overview).
@@ -183,6 +184,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     var deferredOpenAIDashboardRefreshReason: String?
     var deferredMenuInteractionRefreshTask: Task<Void, Never>?
     var highlightedMenuItems: [ObjectIdentifier: NSMenuItem] = [:]
+    var keyboardHighlightedMenus: Set<ObjectIdentifier> = []
     /// Open-menu rebuilds paused so AppKit's native selection background cannot retain stale geometry.
     var nativeHighlightDeferredMenuRebuilds: [ObjectIdentifier: NativeHighlightDeferredMenuRebuild] = [:]
     /// Baseline resync intent survives rebuild coalescing and any native-row or hosted-submenu deferral.
@@ -266,7 +268,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     private var lastSwitcherShowsIcons: Bool
     private var lastObservedUsageBarsShowUsed: Bool
     var lastWidgetDisplaySettingsSignature = ""
-    var lastAgentSessionsMonitoringEnabled: Bool
+    var lastSessionMonitoring: (local: Bool, remote: Bool)
     var lastAgentSessionsManualHosts: String
     var lastAgentSessionsRefreshFrequency: RefreshFrequency
     var lastStayAwakeEnabled: Bool
@@ -402,7 +404,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         self.lastMergeIcons = settings.mergeIcons
         self.lastSwitcherShowsIcons = settings.switcherShowsIcons
         self.lastObservedUsageBarsShowUsed = settings.usageBarsShowUsed
-        self.lastAgentSessionsMonitoringEnabled = settings.agentSessionsMonitoringEnabled
+        self.lastSessionMonitoring = (settings.agentSessionsMonitoringEnabled, settings.agentSessionsRemoteEnabled)
         self.lastAgentSessionsManualHosts = settings.agentSessionsManualHosts
         self.lastAgentSessionsRefreshFrequency = settings.refreshFrequency
         self.lastStayAwakeEnabled = settings.stayAwakeEnabled
@@ -434,6 +436,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
             self.agentSessions.start()
         }
         self.updateVisibility()
+        self.synchronizeFrontmostProviderMonitor()
         self.updateIcons()
         self.scheduleCodexAccountMenuProjectionRevalidationIfNeeded(
             for: self.store.enabledFirstPartyProvidersForDisplay())
@@ -464,6 +467,11 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
             self,
             selector: #selector(self.handleScreenParametersDidChange(_:)),
             name: NSApplication.didChangeScreenParametersNotification,
+            object: nil)
+        NSWorkspace.shared.notificationCenter.addObserver(
+            self,
+            selector: #selector(self.refreshStatusItemContentForColorMode),
+            name: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification,
             object: nil)
         self.observeMenuBarTimeEnvironmentChanges()
     }
@@ -684,6 +692,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
             self.reorderProviderStatusItems(previousOrder: previousOrder)
         }
         self.updateVisibility()
+        self.synchronizeFrontmostProviderMonitor()
         self.updateIcons()
         self.persistWidgetSnapshotIfWidgetDisplaySettingsChanged()
         if shouldRefreshOpenMenus {
@@ -932,6 +941,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         self.overviewSharePresentation.task?.cancel()
         self.screenChangeVisibilityTask?.cancel()
         NotificationCenter.default.removeObserver(self)
+        NSWorkspace.shared.notificationCenter.removeObserver(self)
     }
 }
 

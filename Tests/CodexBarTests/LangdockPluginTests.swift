@@ -4,6 +4,11 @@ import Testing
 
 struct LangdockPluginTests {
     static let profile = ProviderBrowserProfile(browserID: "edge", profileID: "/synthetic/Edge/Profile 2")
+    static let profiles = [
+        Self.profile,
+        ProviderBrowserProfile(browserID: "chrome", profileID: "/synthetic/Chrome/Profile 2"),
+        ProviderBrowserProfile(browserID: "safari", profileID: "/synthetic/Safari/Personal/Cookies.binarycookies"),
+    ]
     static let plan = """
     {"sessionUsageLimitsEnabled":true,"sessionUsagePercent":12.5,
      "sessionResetsAt":"2026-09-25T12:00:00.123Z","weeklyUsagePercent":104.2,
@@ -38,7 +43,7 @@ struct LangdockPluginTests {
             domains: runtime.manifest.cookieDomains,
             settings: settings,
             batches: { _, _ in Issue.record("Must not import another profile or cached header"); return nil },
-            jarImporter: { Issue.record("Must not enumerate other profiles"); return [] },
+            jarImporter: { _ in Issue.record("Must not enumerate other profiles"); return nil },
             policy: runtime.manifest.cookiePolicy,
             profileReader: reader)
     }
@@ -47,6 +52,7 @@ struct LangdockPluginTests {
         _ body: String,
         code: Int = 200,
         now: Date = Date(),
+        profile: ProviderBrowserProfile = Self.profile,
         engine: ProviderPluginEngineKind = .automatic)
         async throws -> UsageSnapshot
     {
@@ -66,14 +72,14 @@ struct LangdockPluginTests {
                     Data(body.utf8),
                     #require(HTTPURLResponse(url: url, statusCode: code, httpVersion: nil, headerFields: nil)))
             })
-        return try await runtime.fetchResult(cookies: Self.broker(runtime), now: now).usage
+        return try await runtime.fetchResult(cookies: Self.broker(runtime, profile: profile), now: now).usage
     }
 
-    @Test(arguments: BundledPluginTestSupport.engines)
+    @Test(arguments: BundledPluginTestSupport.engines, Self.profiles)
     func `session weekly overage and reset dates match the contributor fixture`(
-        engine: ProviderPluginEngineKind) async throws
+        engine: ProviderPluginEngineKind, profile: ProviderBrowserProfile) async throws
     {
-        let usage = try await Self.fetch(Self.body(Self.plan), engine: engine)
+        let usage = try await Self.fetch(Self.body(Self.plan), profile: profile, engine: engine)
         #expect(usage.primary?.usedPercent == 12.5)
         #expect(usage.primary?.windowMinutes == 300)
         #expect(usage.primary?.resetsAt != nil)
@@ -81,7 +87,7 @@ struct LangdockPluginTests {
         #expect(usage.secondary?.windowMinutes == 10080)
         #expect(usage.secondary?.resetsAt != nil)
         #expect(usage.dataConfidence == .percentOnly)
-        #expect(usage.browserSessionOwner?.profile == Self.profile)
+        #expect(usage.browserSessionOwner?.profile == profile)
         #expect(usage.identity?.accountID == nil)
     }
 

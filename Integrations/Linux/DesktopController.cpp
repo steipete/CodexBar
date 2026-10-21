@@ -72,11 +72,12 @@ bool DesktopController::validate(QVariantMap &values) {
     if (values.value("executable").toString().trimmed().isEmpty()) {
         m_configError = "Specify the CodexBar CLI executable."; return false;
     }
-    for (const auto &key : {"refreshSeconds", "accountIndex", "notifyThreshold"}) {
+    for (const auto &key : {"refreshSeconds", "accountIndex", "notifyThreshold", "barProviders"}) {
         bool ok = false;
         const int number = values.value(key).toInt(&ok);
         const int min = QString(key) == "refreshSeconds" ? 60 : QString(key) == "notifyThreshold" ? 1 : 0;
-        const int max = QString(key) == "refreshSeconds" ? 3600 : QString(key) == "notifyThreshold" ? 99 : 999;
+        const int max = QString(key) == "refreshSeconds" ? 3600 : QString(key) == "notifyThreshold" ? 99
+            : QString(key) == "barProviders" ? 80 : 999;
         if (!ok || number < min || number > max) { m_configError = QString("Invalid %1.").arg(key); return false; }
         values[key] = number;
     }
@@ -98,7 +99,7 @@ bool DesktopController::validate(QVariantMap &values) {
         !QStringList{"meters", "icon"}.contains(values.value("trayStyle").toString())) {
         m_configError = "Unsupported display preference."; return false;
     }
-    for (const auto &key : {"allAccounts", "showIdentity", "showCosts", "showStatus", "notifications", "showTray", "refreshOnOpen", "showPace", "warningColors", "followOmarchyTheme"})
+    for (const auto &key : {"allAccounts", "showIdentity", "showCosts", "showStatus", "notifications", "showTray", "compactQuickView", "refreshOnOpen", "showPace", "showBarDetail", "showScopedCaps", "warningColors", "followOmarchyTheme"})
         values[key] = values.value(key).toBool();
     return true;
 }
@@ -106,8 +107,9 @@ bool DesktopController::validate(QVariantMap &values) {
 void DesktopController::loadSettings(const QString &cliOverride) {
     m_settings = {{"executable", "codexbar"}, {"provider", "codex"}, {"source", "auto"},
         {"refreshSeconds", 300}, {"accountIndex", 0}, {"notifyThreshold", 10}, {"allAccounts", false},
-        {"showIdentity", false}, {"showCosts", true}, {"showStatus", true}, {"notifications", false}, {"showTray", true}, {"refreshOnOpen", false}, {"providerOrder", QStringList{}},
+        {"showIdentity", false}, {"showCosts", true}, {"showStatus", true}, {"notifications", false}, {"showTray", true}, {"compactQuickView", false}, {"refreshOnOpen", false}, {"providerOrder", QStringList{}},
         {"quotaDisplay", "remaining"}, {"resetDisplay", "countdown"}, {"showPace", true},
+        {"showBarDetail", false}, {"showScopedCaps", false}, {"barProviders", 2},
         {"warningColors", true}, {"trayStyle", "meters"}, {"followOmarchyTheme", false}};
     m_configPath = QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation) + "/codexbar/linux.json";
     QFile file(m_configPath);
@@ -224,17 +226,24 @@ void DesktopController::probe(QProcess &process, const QStringList &command, boo
             if (invalid) m_costError = "Local spending could not be refreshed. Previous data may be stale.";
             else { m_spending = parsed.toVariant().toList(); m_costError.clear(); m_costUpdated = QDateTime::currentMSecsSinceEpoch(); }
         } else {
-            if (invalid) {
+            const bool custom = m_settings.value("provider") == "custom";
+            auto rows = invalid ? QVariantList{} : parsed.toVariant().toList();
+            // A CLI that does not recognise the requested ID may answer for other providers; never
+            // show their usage under this one.
+            if (custom)
+                rows.erase(std::remove_if(rows.begin(), rows.end(), [this](const QVariant &row) {
+                    return row.toMap().value("provider") != m_currentProvider; }), rows.end());
+            if (invalid || (custom && rows.isEmpty())) {
                 m_batchFailed = true;
                 for (const auto &entry : m_entries) {
-                    if (m_settings.value("provider") != "custom" || entry.toMap().value("provider") == m_currentProvider)
+                    if (!custom || entry.toMap().value("provider") == m_currentProvider)
                         m_batchEntries.append(entry);
                 }
-                if (m_settings.value("provider") == "custom" && !std::any_of(m_batchEntries.begin(), m_batchEntries.end(),
+                if (custom && !std::any_of(m_batchEntries.begin(), m_batchEntries.end(),
                     [this](const QVariant &entry) { return entry.toMap().value("provider") == m_currentProvider; }))
                     m_batchEntries.append(QVariantMap{{"provider", m_currentProvider}, {"windows", QVariantList{}},
                         {"error", "Usage unavailable"}, {"failed", true}});
-            } else m_batchEntries.append(parsed.toVariant().toList());
+            } else m_batchEntries.append(rows);
             if (!m_pendingProviders.isEmpty()) {
                 QTimer::singleShot(0, this, &DesktopController::nextProvider);
                 return;
@@ -288,7 +297,7 @@ void DesktopController::copySummary() {
 
 void DesktopController::showWindow(const QString &page) {
     if (page == "spending" && QDateTime::currentMSecsSinceEpoch() - m_costUpdated > 300000) refreshCosts();
-    if (page == "usage" && m_settings.value("refreshOnOpen").toBool()) refresh();
+    if ((page == "usage" || page == "quick-view") && m_settings.value("refreshOnOpen").toBool()) refresh();
     emit windowRequested(page);
 }
 
@@ -296,7 +305,15 @@ void DesktopController::updateLabels() {
     const auto rows = m_engine.toScriptValue(m_entries);
     const auto mode = m_settings.value("quotaDisplay").toString();
     m_summary = call(m_usageModel, "summary", {rows, mode}).toString();
-    m_barEntries = QJsonArray::fromVariantList(call(m_usageModel, "barSegments", {rows, mode}).toVariant().toList());
+    // The bar keeps its single leading percentage until these are switched on, so an upgrade
+    // changes nothing; the limit is display only and never stops a provider being polled.
+    auto options = m_engine.newObject();
+    options.setProperty("detail", m_settings.value("showBarDetail").toBool());
+    options.setProperty("pace", m_settings.value("showPace").toBool());
+    options.setProperty("scopedCaps", m_settings.value("showScopedCaps").toBool());
+    options.setProperty("maxProviders", m_settings.value("barProviders").toInt());
+    m_barEntries = QJsonArray::fromVariantList(
+        call(m_usageModel, "barSegments", {rows, mode, options}).toVariant().toList());
 }
 
 QJsonObject DesktopController::snapshot() const {
@@ -384,7 +401,7 @@ bool DesktopController::listen(const QString &socketPath) {
                     response = {{"ok", ok}, {"enabled", launchAtLogin()}};
                 }
                 else if (command == "refresh") { refresh(); refreshCosts(); }
-                else if (command == "settings" || command == "usage" || command == "spending") showWindow(command);
+                else if (command == "settings" || command == "usage" || command == "spending" || command == "quick-view") showWindow(command);
                 else if (command == "configure" && request.value("settings").isObject()) {
                     const bool ok = saveSettings(request.value("settings").toObject().toVariantMap());
                     response = {{"ok", ok}, {"error", m_configError}};

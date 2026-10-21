@@ -147,13 +147,17 @@ extension UsageStore {
             tokenOverride: nil)
     }
 
-    func refreshCodexVisibleAccountsForMenu(generation: UInt64? = nil) async {
+    func refreshCodexVisibleAccountsForMenu(
+        generation: UInt64? = nil,
+        requestedAccountIDs: Set<String>? = nil) async
+    {
         let projection = self.freshCodexVisibleAccountProjectionForAccountRefresh()
         let accounts = self.limitedCodexVisibleAccounts(
-            projection.visibleAccounts,
+            projection.visibleAccounts.filter { requestedAccountIDs?.contains($0.id) ?? true },
             snapshots: self.codexAccountSnapshots,
             activeVisibleAccountID: projection.activeVisibleAccountID)
-        guard accounts.count > 1 else {
+        guard requestedAccountIDs != nil ? !accounts.isEmpty : accounts.count > 1 else {
+            if requestedAccountIDs != nil { return }
             self.codexAccountSnapshots = []
             return
         }
@@ -164,7 +168,7 @@ extension UsageStore {
             projection.source(forVisibleAccountID: $0)
         }
         let originalVisibleAccount = originalVisibleAccountID.flatMap { id in
-            accounts.first { $0.id == id }
+            projection.visibleAccounts.first { $0.id == id }
         }
         let priorSnapshots = self.codexAccountSnapshots
         var snapshots: [CodexAccountUsageSnapshot] = []
@@ -236,9 +240,15 @@ extension UsageStore {
             }
         }
 
-        let currentSnapshots = Self.codexAccountSnapshots(snapshots, reconciledWith: currentProjection)
+        let fetchedIDs = Set(accounts.map(\.id))
+        let retained = Self.codexAccountSnapshots(priorSnapshots, reconciledWith: projection)
+            .filter { !fetchedIDs.contains($0.id) }
+        let currentSnapshots = Self.codexAccountSnapshots(retained + snapshots, reconciledWith: currentProjection)
         self.codexAccountSnapshots = currentSnapshots
         self.codexAccountUsageSnapshotStore?.store(currentSnapshots)
+
+        // A view-only refresh of a sibling owns its row, not the globally followed presentation.
+        if requestedAccountIDs != nil, !accounts.contains(where: \.isActive) { return }
 
         let selectionStillMatches = self.codexVisibleSelectionStillMatches(
             originalVisibleAccountID: originalVisibleAccountID,
@@ -312,20 +322,11 @@ extension UsageStore {
             currentProjection.visibleAccounts.first { $0.id == id }
         }
         let currentSelectionSource = currentActiveAccount?.selectionSource
-        if currentProjection.activeVisibleAccountID == originalVisibleAccountID,
-           currentSelectionSource == originalSelectionSource
-        {
-            guard let originalAccount else { return true }
-            guard let currentActiveAccount else { return false }
-            return Self.codexVisibleAccountMatchesCurrentProjection(
-                originalAccount,
-                account: currentActiveAccount)
+        guard currentSelectionSource == originalSelectionSource else { return false }
+        guard let originalAccount else {
+            return currentProjection.activeVisibleAccountID == originalVisibleAccountID
         }
-        guard let originalAccount, let currentActiveAccount,
-              currentSelectionSource == originalSelectionSource
-        else {
-            return false
-        }
+        guard let currentActiveAccount else { return false }
         return Self.codexVisibleAccountMatchesCurrentProjection(
             originalAccount, account: currentActiveAccount)
     }
@@ -336,6 +337,12 @@ extension UsageStore {
         // Auth files can change while account fetches are in flight, so account refreshes bypass the
         // short-lived reconciliation cache used for normal menu rendering and stale-result guards.
         self.settings.invalidateCodexAccountReconciliationSnapshotCache()
+        return self.codexVisibleAccountProjectionWithCurrentManagedAuth(requireLiveManagedAuthFor: accountIDs)
+    }
+
+    func codexVisibleAccountProjectionWithCurrentManagedAuth(
+        requireLiveManagedAuthFor accountIDs: Set<UUID> = []) -> CodexVisibleAccountProjection
+    {
         let snapshot = self.settings.codexAccountReconciliationSnapshot
         return Self.codexVisibleAccountProjectionWithFreshManagedAuthFingerprints(
             CodexVisibleAccountProjection.make(from: snapshot),
@@ -1058,7 +1065,7 @@ extension UsageStore {
     {
         guard let guardValue,
               let lastGuard = self.lastCodexUsagePublicationGuard,
-              Self.codexScopedRefreshGuardAllowsResetBackfill(lastGuard, matching: guardValue)
+              Self.codexScopedRefreshGuardsMatchAccount(lastGuard, guardValue)
         else {
             return nil
         }
@@ -1151,13 +1158,6 @@ extension UsageStore {
         }
         guard let accountKey = CodexIdentityResolver.normalizeEmail(account.email) else { return false }
         return guardValue.accountKey == accountKey
-    }
-
-    private nonisolated static func codexScopedRefreshGuardAllowsResetBackfill(
-        _ lastGuard: CodexAccountScopedRefreshGuard,
-        matching expectedGuard: CodexAccountScopedRefreshGuard) -> Bool
-    {
-        self.codexScopedRefreshGuardsMatchAccount(lastGuard, expectedGuard)
     }
 
     nonisolated static func codexScopedRefreshGuard(for account: CodexVisibleAccount)

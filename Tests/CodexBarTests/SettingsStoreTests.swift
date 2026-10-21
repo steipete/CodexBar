@@ -404,7 +404,7 @@ struct SettingsStoreTests {
             .gemini,
             .grok,
         ]
-        let expectedProviders: [UsageProvider] = [.opencode, .codex, .claude, .cursor, .warp, .gemini]
+        let expectedProviders: [ProviderInstanceID] = [.opencode, .codex, .claude, .cursor, .warp, .gemini]
         #expect(storeA.mergedOverviewSelectedProviders == expectedProviders)
 
         let defaultsB = try #require(UserDefaults(suiteName: suite))
@@ -422,7 +422,7 @@ struct SettingsStoreTests {
         let suite = "SettingsStoreTests-merged-overview-invalid-raw-\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }
-        defaults.set(["codex", "unknown-provider", "claude", "codex"], forKey: "mergedOverviewSelectedProviders")
+        defaults.set(["codex", "INVALID PROVIDER", "claude", "codex"], forKey: "mergedOverviewSelectedProviders")
         let configStore = testConfigStore(suiteName: suite)
         let store = SettingsStore(
             userDefaults: defaults,
@@ -445,7 +445,7 @@ struct SettingsStoreTests {
             zaiTokenStore: NoopZaiTokenStore(),
             syntheticTokenStore: NoopSyntheticTokenStore())
 
-        let activeProviders: [UsageProvider] = [.codex, .claude, .cursor, .opencode, .warp, .gemini, .grok]
+        let activeProviders: [ProviderInstanceID] = [.codex, .claude, .cursor, .opencode, .warp, .gemini, .grok]
         let resolved = store.resolvedMergedOverviewProviders(activeProviders: activeProviders)
 
         #expect(resolved == [.codex, .claude, .cursor, .opencode, .warp, .gemini])
@@ -464,7 +464,7 @@ struct SettingsStoreTests {
             syntheticTokenStore: NoopSyntheticTokenStore())
 
         store.mergedOverviewSelectedProviders = []
-        let activeProviders: [UsageProvider] = [.codex, .claude, .cursor, .opencode, .warp, .gemini, .grok]
+        let activeProviders: [ProviderInstanceID] = [.codex, .claude, .cursor, .opencode, .warp, .gemini, .grok]
         let resolved = store.resolvedMergedOverviewProviders(activeProviders: activeProviders)
 
         #expect(resolved == [])
@@ -483,7 +483,7 @@ struct SettingsStoreTests {
             syntheticTokenStore: NoopSyntheticTokenStore())
 
         store.mergedOverviewSelectedProviders = [.opencode, .codex, .cursor]
-        let activeProviders: [UsageProvider] = [.codex, .claude, .cursor, .opencode, .warp, .gemini, .grok]
+        let activeProviders: [ProviderInstanceID] = [.codex, .claude, .cursor, .opencode, .warp, .gemini, .grok]
         let resolved = store.resolvedMergedOverviewProviders(activeProviders: activeProviders)
 
         #expect(resolved == [.codex, .cursor, .opencode])
@@ -502,7 +502,7 @@ struct SettingsStoreTests {
             syntheticTokenStore: NoopSyntheticTokenStore())
 
         store.mergedOverviewSelectedProviders = [.codex, .claude, .opencode]
-        let activeProviders: [UsageProvider] = [.codex, .cursor, .gemini, .opencode, .warp, .grok, .amp]
+        let activeProviders: [ProviderInstanceID] = [.codex, .cursor, .gemini, .opencode, .warp, .grok, .amp]
 
         let resolved = store.reconcileMergedOverviewSelectedProviders(activeProviders: activeProviders)
 
@@ -523,7 +523,7 @@ struct SettingsStoreTests {
             syntheticTokenStore: NoopSyntheticTokenStore())
 
         store.mergedOverviewSelectedProviders = [.codex, .claude, .cursor]
-        let activeProviders: [UsageProvider] = [.codex, .claude]
+        let activeProviders: [ProviderInstanceID] = [.codex, .claude]
 
         let resolved = store.reconcileMergedOverviewSelectedProviders(activeProviders: activeProviders)
 
@@ -546,7 +546,7 @@ struct SettingsStoreTests {
             syntheticTokenStore: NoopSyntheticTokenStore())
 
         store.mergedOverviewSelectedProviders = [.codex]
-        let activeProviders: [UsageProvider] = [.codex, .claude, .cursor]
+        let activeProviders: [ProviderInstanceID] = [.codex, .claude, .cursor]
 
         let resolved = store.reconcileMergedOverviewSelectedProviders(activeProviders: activeProviders)
 
@@ -566,7 +566,7 @@ struct SettingsStoreTests {
             zaiTokenStore: NoopZaiTokenStore(),
             syntheticTokenStore: NoopSyntheticTokenStore())
 
-        let activeProviders: [UsageProvider] = [.codex, .claude, .cursor]
+        let activeProviders: [ProviderInstanceID] = [.codex, .claude, .cursor]
         #expect(store.resolvedMergedOverviewProviders(activeProviders: activeProviders) == activeProviders)
 
         _ = store.setMergedOverviewProviderSelection(
@@ -590,13 +590,13 @@ struct SettingsStoreTests {
             zaiTokenStore: NoopZaiTokenStore(),
             syntheticTokenStore: NoopSyntheticTokenStore())
 
-        let initialActiveProviders: [UsageProvider] = [.codex, .claude, .cursor]
+        let initialActiveProviders: [ProviderInstanceID] = [.codex, .claude, .cursor]
         _ = store.setMergedOverviewProviderSelection(
             provider: .claude,
             isSelected: false,
             activeProviders: initialActiveProviders)
 
-        let reorderedActiveProviders: [UsageProvider] = [.cursor, .codex, .claude]
+        let reorderedActiveProviders: [ProviderInstanceID] = [.cursor, .codex, .claude]
         let resolved = store.resolvedMergedOverviewProviders(activeProviders: reorderedActiveProviders)
 
         #expect(resolved == [.cursor, .codex])
@@ -615,7 +615,7 @@ struct SettingsStoreTests {
             syntheticTokenStore: NoopSyntheticTokenStore())
 
         store.mergedOverviewSelectedProviders = [.codex, .claude, .cursor]
-        let activeProviders: [UsageProvider] = [.codex, .claude, .cursor, .opencode, .warp, .gemini, .grok]
+        let activeProviders: [ProviderInstanceID] = [.codex, .claude, .cursor, .opencode, .warp, .gemini, .grok]
 
         _ = store.setMergedOverviewProviderSelection(
             provider: .cursor,
@@ -638,7 +638,7 @@ struct SettingsStoreTests {
             zaiTokenStore: NoopZaiTokenStore(),
             syntheticTokenStore: NoopSyntheticTokenStore())
 
-        let activeProviders: [UsageProvider] = [.codex, .claude, .cursor, .opencode, .warp, .gemini, .grok]
+        let activeProviders: [ProviderInstanceID] = [.codex, .claude, .cursor, .opencode, .warp, .gemini, .grok]
         _ = store.setMergedOverviewProviderSelection(
             provider: .claude,
             isSelected: false,
@@ -647,10 +647,10 @@ struct SettingsStoreTests {
             provider: .grok,
             isSelected: true,
             activeProviders: activeProviders)
-        let expectedSelection: [UsageProvider] = [.codex, .cursor, .opencode, .warp, .gemini, .grok]
+        let expectedSelection: [ProviderInstanceID] = [.codex, .cursor, .opencode, .warp, .gemini, .grok]
         #expect(store.mergedOverviewSelectedProviders == expectedSelection)
 
-        let reducedActiveProviders: [UsageProvider] = [.codex, .claude, .cursor]
+        let reducedActiveProviders: [ProviderInstanceID] = [.codex, .claude, .cursor]
         let resolvedWhenReduced = store.reconcileMergedOverviewSelectedProviders(
             activeProviders: reducedActiveProviders)
 
@@ -673,7 +673,7 @@ struct SettingsStoreTests {
             zaiTokenStore: NoopZaiTokenStore(),
             syntheticTokenStore: NoopSyntheticTokenStore())
 
-        let activeProviders: [UsageProvider] = [.codex, .claude, .cursor, .opencode, .warp, .gemini, .grok]
+        let activeProviders: [ProviderInstanceID] = [.codex, .claude, .cursor, .opencode, .warp, .gemini, .grok]
         _ = store.setMergedOverviewProviderSelection(
             provider: .codex,
             isSelected: false,

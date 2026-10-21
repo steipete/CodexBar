@@ -2,6 +2,9 @@ import Foundation
 
 public enum CommandCodeProviderDescriptor {
     public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
+    private static let credentials = ProviderCredentialAdapter.apiKey(
+        environmentKey: CommandCodeSettingsReader.apiKeyEnvironmentKey,
+        resolve: CommandCodeSettingsReader.apiKey)
 
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
@@ -9,6 +12,7 @@ public enum CommandCodeProviderDescriptor {
             settingsSection: .init(
                 CommandCodeProviderSettingsKey.self,
                 cookieSettings: CommandCodeProviderSettings.self),
+            credentials: self.credentials,
             metadata: ProviderMetadata(
                 id: .commandcode,
                 displayName: "Command Code",
@@ -47,21 +51,45 @@ public enum CommandCodeProviderDescriptor {
             presentation: ProviderUsagePresentation(
                 primaryBindingQuotaLanes: [.secondary]),
             fetchPlan: ProviderFetchPlan(
-                sourceModes: [.auto, .web],
-                pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [CommandCodeWebFetchStrategy()] })),
+                sourceModes: [.auto, .api, .web],
+                pipeline: ProviderFetchPipeline(resolveStrategies: self.resolveStrategies)),
             cli: ProviderCLIConfig(
                 name: "commandcode",
                 aliases: ["command-code"],
                 versionDetector: nil,
-                browserSupportExemption: { _, _, settings in
-                    settings?.commandcode?.cookieSource == .manual
+                browserSupportExemption: { sourceMode, environment, settings in
+                    settings?.commandcode?.cookieSource == .manual ||
+                        ((sourceMode == .auto || sourceMode == .api) &&
+                            environment.flatMap(CommandCodeSettingsReader.apiKey) != nil)
                 }))
+    }
+
+    private static func resolveStrategies(context: ProviderFetchContext) async -> [any ProviderFetchStrategy] {
+        let api = APITokenFetchStrategy(
+            id: "commandcode.api",
+            reportsMissingCredentials: context.sourceMode == .api,
+            resolveToken: CommandCodeSettingsReader.apiKey,
+            missingCredentialsError: { CommandCodeUsageError.missingAPIKey },
+            loadUsage: { apiKey, _ in
+                try await CommandCodeUsageFetcher.fetchUsage(apiKey: apiKey).toUsageSnapshot()
+            })
+        return switch context.sourceMode {
+        case .auto:
+            if CommandCodeSettingsReader.apiKey(environment: context.env) != nil {
+                [api]
+            } else {
+                [CommandCodeWebFetchStrategy()]
+            }
+        case .api: [api]
+        case .web: [CommandCodeWebFetchStrategy()]
+        case .cli, .oauth: []
+        }
     }
 }
 
 struct CommandCodeWebFetchStrategy: ProviderFetchStrategy {
     typealias UsageLoader = @Sendable (String) async throws -> CommandCodeUsageSnapshot
-    typealias SessionLoader = @Sendable () throws -> [CommandCodeResolvedSession]
+    typealias SessionLoader = @Sendable () throws -> any Sequence<CommandCodeResolvedSession>
 
     let id: String = "commandcode.web"
     let kind: ProviderFetchKind = .web
@@ -109,31 +137,32 @@ struct CommandCodeWebFetchStrategy: ProviderFetchStrategy {
             }
         }
 
-        let sessions: [CommandCodeResolvedSession]
+        let sessions: any Sequence<CommandCodeResolvedSession>
         do {
             sessions = try self.sessionLoader()
         } catch {
             throw CommandCodeUsageError.missingCredentials
         }
 
-        let candidates = sessions.filter { !$0.cookieHeader.isEmpty }
-        guard !candidates.isEmpty else { throw CommandCodeUsageError.missingCredentials }
-
-        return try await ProviderCandidateRetryRunner.run(
-            candidates,
-            shouldRetry: { error in
-                (error as? CommandCodeUsageError) == .invalidCredentials
-            },
-            attempt: { session in
-                let snapshot = try await self.usageLoader(session.cookieHeader)
-                CookieHeaderCache.store(
-                    provider: .commandcode,
-                    cookieHeader: session.cookieHeader,
-                    sourceLabel: session.sourceLabel)
-                return self.makeResult(
-                    usage: snapshot.toUsageSnapshot(),
-                    sourceLabel: session.sourceLabel)
-            })
+        do {
+            return try await ProviderCandidateRetryRunner.run(
+                AnySequence(sessions).lazy.filter { !$0.cookieHeader.isEmpty },
+                shouldRetry: { error in
+                    (error as? CommandCodeUsageError) == .invalidCredentials
+                },
+                attempt: { session in
+                    let snapshot = try await self.usageLoader(session.cookieHeader)
+                    CookieHeaderCache.store(
+                        provider: .commandcode,
+                        cookieHeader: session.cookieHeader,
+                        sourceLabel: session.sourceLabel)
+                    return self.makeResult(
+                        usage: snapshot.toUsageSnapshot(),
+                        sourceLabel: session.sourceLabel)
+                })
+        } catch ProviderCandidateRetryRunnerError.noCandidates {
+            throw CommandCodeUsageError.missingCredentials
+        }
     }
 
     private static func manualCookieHeader(from context: ProviderFetchContext) -> String? {
@@ -147,9 +176,9 @@ struct CommandCodeWebFetchStrategy: ProviderFetchStrategy {
         false
     }
 
-    private static func loadAutomaticSessions() throws -> [CommandCodeResolvedSession] {
+    private static func loadAutomaticSessions() throws -> any Sequence<CommandCodeResolvedSession> {
         #if os(macOS)
-        try CommandCodeCookieImporter.importSessions().map { session in
+        try CommandCodeCookieImporter.sessionCandidates().lazy.map { session in
             CommandCodeResolvedSession(
                 cookieHeader: session.cookieHeader,
                 sourceLabel: session.sourceLabel)

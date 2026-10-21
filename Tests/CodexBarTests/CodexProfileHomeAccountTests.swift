@@ -515,6 +515,7 @@ struct CodexProfileHomeAccountTests {
 
         func cleanup() {
             self.store._test_tokenUsageSnapshotLoaderOverride = nil
+            self.store._test_codexCostCatchUpStatusOverride = nil
             self.settings._test_codexReconciliationEnvironment = nil
             try? FileManager.default.removeItem(at: self.root)
         }
@@ -563,6 +564,9 @@ struct CodexProfileHomeAccountTests {
             settings: settings,
             startupBehavior: .testing,
             environmentBase: environment)
+        store._test_codexCostCatchUpStatusOverride = { _ in
+            CostUsageFetcher.CodexScanCatchUpStatus(pending: false, progressKey: "isolated-complete")
+        }
         return ProfileHomeCostFixture(
             settings: settings,
             store: store,

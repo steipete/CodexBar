@@ -17,8 +17,8 @@ script. Settings-derived origins include the private-network HTTP policy for LLM
 
 `converted` means the bundled conversion is present behind `CODEXBAR_JS_PROVIDERS=1`. `cut-over` means the script is
 authoritative on its supported engines; each row states whether a Linux native core remains. Totals count only the
-69 audit rows below, excluding the separately listed plugin-first additions. The registry now contains 92 providers:
-69 audit rows, 14 additional plugin-first rows, and 9 providers not yet classified in this matrix (CodeRabbit,
+69 audit rows below, excluding the separately listed plugin-first additions. The registry now contains 106 providers:
+69 audit rows, 28 additional plugin-first rows, and 9 providers not yet classified in this matrix (CodeRabbit,
 Hugging Face, IBM Bob, Muse, Nous, Pi, Replicate, TypeSafe, and v0).
 
 `needs-cookie-import` now means **additional cookie/session capability**, not absence of cookie import. The current
@@ -57,9 +57,9 @@ Abacus, Muse, LongCat, Replicate, and TypeSafe unchanged.
 | `needs-pty/webview/native` | 8 |
 | `needs-host-extension` | 4 |
 | **Audit total** | **69** |
-| Additional plugin-first providers | 14 |
+| Additional plugin-first providers | 28 |
 | Registered providers not yet classified here | 9 |
-| **Registry total** | **92** |
+| **Registry total** | **106** |
 
 ## Matrix
 
@@ -78,7 +78,7 @@ Abacus, Muse, LongCat, Replicate, and TypeSafe unchanged.
 | alibabatokenplan | `needs-host-extension` | No | Form POST is available in host-caps-3. Cookie-jar lane host-caps-4 must preserve domain/path metadata through redirects and define legacy-header migration before cutover. |
 | qwencloud | `needs-host-extension` | Team only | `qwencloud-team.ts` fetches Team credits with form POST and an opaque dashboard session supplied by native cookie selection. Individual remains native: its cookie-derived CSRF/cna payload and paired-host auth parity still need a separate conversion audit. |
 | factory | `needs-files/subprocess/oauth-broker` | No | The canonical fallback recovers WorkOS tokens from browser localStorage and persists sessions; cookie headers cover only part of auth. |
-| gemini | `needs-files/subprocess/oauth-broker` | No | Gemini CLI credential/config files, Google OAuth refresh, and a curl fallback own the current flow. |
+| gemini | `needs-files/subprocess/oauth-broker` | Web only | The opt-in Gemini app source uses `gemini-web` on both engines with opaque, nonpersistent cookie sessions. CLI credentials, Google OAuth refresh, and its curl fallback remain native. |
 | antigravity | `needs-pty/webview/native` | No | Process/port discovery, localhost IDE RPC, OAuth files, and a persistent PTY make this a native integration. |
 | copilot | `needs-files/subprocess/oauth-broker` | No | Full parity includes stored token discovery and interactive device authorization with form-encoded POST; billing cookies alone are insufficient. |
 | devin | `needs-files/subprocess/oauth-broker` | No | Full auth discovery reads Chromium localStorage and organization state; manual bearer alone is partial. |
@@ -94,7 +94,7 @@ Abacus, Muse, LongCat, Replicate, and TypeSafe unchanged.
 | moonshot | `cut-over` | Yes | Both engines use the bundled TypeScript plugin for regional bearer GET and identity-only balances, preserving USD/CNY rounding and negative zero. Swift resolves region-bound credentials; the native fetcher is deleted. |
 | amp | `needs-files/subprocess/oauth-broker` | No | CLI subprocess and browser-cookie strategies plus workspace credit details are outside this host. |
 | t3chat | `cut-over` | Yes | Both engines preserve the 60-second default web timeout (bounded to 90 seconds), safe captured cURL headers, JSONL parsing, and base/overage windows. The native fetcher and parser are deleted. |
-| ollama | `needs-cookie-import` | No | HTML parsing and API-key arbitration fit scripts, but automatic auth tries multiple browser-session candidates and preserves browser access diagnostics. |
+| ollama | `needs-cookie-import` | API only | `ollama-api.ts` reads included and purchased balances. Native cookie import/HTML parsing retains browser-session candidate arbitration and access diagnostics. |
 | synthetic | `cut-over` | Yes | Cut over on both engines: fixed-origin bearer GET with generic windows, cost, dates, and identity; the native fetch twin is deleted. |
 | warp | `needs-pty/webview/native` | No | Legacy classification pending a separate parity audit: GraphQL JSON POST is now supported, so the former GET-only rationale no longer establishes a blocker. |
 | openrouter | `cut-over` | Yes | Cut over on JavaScriptCore: endpoint and client-header overrides plus one-second best-effort key enrichment match native behavior; the native fetch core is Linux-only. |
@@ -140,22 +140,36 @@ Abacus, Muse, LongCat, Replicate, and TypeSafe unchanged.
 | Provider | Status | Engines | Scope |
 |---|---|---|---|
 | gitkraken | `cut-over` | QuickJS + JavaScriptCore | First-party bearer GET, optional organization header, weekly personal/shared credits; API-only, no subprocess fallback. |
-| hyper | `cut-over` | QuickJS + JavaScriptCore | Fixed-origin credits GET with Chrome/manual session preference and API-key fallback; native HC balance, no invented quotas or resets. |
+| hyper | `cut-over` | QuickJS + JavaScriptCore | Signed-in dashboard GET with supported-browser/manual session preference and API-key fallback to a fixed credits GET; native HC balance, no invented quotas or resets. |
 | devpass | `cut-over` | QuickJS + JavaScriptCore | Documented bearer GET for billing-cycle and premium weekly credits plus separate all-time key spend; API-only. |
 | atlascloud | `cut-over` | QuickJS + JavaScriptCore | Public billing API bearer GET for the account-wide available USD balance; no invented quota or Coding Plan allowance. |
-| vercel | `cut-over` | QuickJS + JavaScriptCore | Public credits API bearer GET for team USD balance and lifetime spend; no CLI discovery or metered reporting. |
+| vercel | `cut-over` | QuickJS + JavaScriptCore | Public credits API bearer GET for team USD balance and lifetime spend; a second bundled script reads the personal budget with an optional Vercel access token. No CLI discovery or metered reporting. |
 | llmman | `cut-over` | QuickJS + JavaScriptCore | Configured loopback/private-network daemon origin with an optional bearer key; `/llmman/node` memory and model summaries, best-effort version. |
 | xkiro | `cut-over` | QuickJS + JavaScriptCore | Documented, unmetered bearer GET for daily free-token counters; separate from paid spend and wallet balances. |
 | aixy | `cut-over` | QuickJS + JavaScriptCore | Plugin-first key-scoped usage and overlapping budgets via bearer GET; both engines preserve reservations and zero-versus-unavailable spend. |
-| raycast | `cut-over` | QuickJS + JavaScriptCore | Declared-domain Chrome/manual cookies, host-over-parent cookie precedence, same-refresh session rejection, and website credit mapping; no native session strategy. |
-| museai | `cut-over` | QuickJS + JavaScriptCore | Declared-domain Chrome or manual cookies (including Linux CLI), persisted Next.js server-action ID with settings-chunk rediscovery after deploys, and weekly percent mapping; no native fetcher. |
+| raycast | `cut-over` | QuickJS + JavaScriptCore | Declared-domain supported-browser/manual cookies, host-over-parent cookie precedence, same-refresh session rejection, and website credit mapping; no native session strategy. |
+| museai | `cut-over` | QuickJS + JavaScriptCore | Declared-domain supported-browser or manual cookies (including Linux CLI), persisted Next.js server-action ID with settings-chunk rediscovery after deploys, and weekly percent mapping; no native fetcher. |
 <!-- Generated provider additions: Scripts/regenerate-provider-docs.mjs -->
 
 | Provider | Status | Engines | Scope |
 |---|---|---|---|
-| langdock | `cut-over` | QuickJS + JavaScriptCore | Host-owned selected Edge profile, live session revalidation, and personal tRPC limits on both engines; no quota history or widgets. |
+| langdock | `cut-over` | QuickJS + JavaScriptCore | Host-owned selected browser profile, live session revalidation, and personal tRPC limits on both engines; no quota history or widgets. |
 | xapi | `cut-over` | QuickJS + JavaScriptCore | Same-session account discovery and dollar balances through host-owned cookies and CSRF header echo on both engines. |
+| futureagi | `cut-over` | QuickJS + JavaScriptCore | Required usage-overview GET; API-key pair; no cookies or inference calls. |
 | lithosai | `cut-over` | QuickJS + JavaScriptCore | Opaque session cookies with same-origin host CSRF echo; active-organization balance and optional spend on both engines. |
 | workbuddy | `cut-over` | QuickJS + JavaScriptCore | Host-owned website session cookies with the matching Chrome User-Agent; billing summary plus optional package listings for the cycle reset on both engines. |
+| tavily | `cut-over` | QuickJS + JavaScriptCore | Account-plan and API-key credits through the public usage API. |
+| linkup | `cut-over` | QuickJS + JavaScriptCore | Bearer-authenticated credit balance on both engines; no inferred allowance, usage, or reset. |
+| tinyapi | `cut-over` | QuickJS + JavaScriptCore | Console credit balance on both engines; no inferred monthly allowance, pool split, or reset. |
+| exa | `cut-over` | QuickJS + JavaScriptCore | Selected-key billing on both engines; no inferred team balance, allowance, or reset. |
+| cosmic | `cut-over` | QuickJS + JavaScriptCore | Fixed-origin bearer GET to the official CLI's project usage endpoint on both engines; explicit project scope, no generation or guessed resets. |
+| aerostack | `cut-over` | QuickJS + JavaScriptCore | Fixed-origin bearer GET for account AI-token counters and the reported period on both engines; no login, reset inference, or agent execution. |
+| sailresearch | `cut-over` | QuickJS + JavaScriptCore | Fixed-origin bearer GET for organization billing on both engines; fractional-cent conversion, plan-limited history, no inferred quotas or resets. |
+| sofya | `cut-over` | QuickJS + JavaScriptCore | Fixed-origin bearer GET for separate account credit pools, free-tier eligibility, and the supplied monthly reset on both engines. |
+| fal | `cut-over` | QuickJS + JavaScriptCore | Fixed-origin `Key` GET for the account credit balance on both engines; no inferred allowance, usage, or reset. |
+| flora | `cut-over` | QuickJS + JavaScriptCore | Fixed-origin bearer GET for one configured workspace's balance, member limit, and UTC month-to-date spend on both engines; no inferred allowance or reset. |
+| parallel | `cut-over` | QuickJS + JavaScriptCore | Fixed-origin session-cookie POST to the platform dashboard's internal balance endpoint on both engines; no API key, allowance, usage history, or reset. |
+| claudeplatform | `cut-over` | QuickJS + JavaScriptCore | Opaque sessionKey cookie; API-organization credit balance, grants, and optional spend on both engines. |
+| munito | `cut-over` | QuickJS + JavaScriptCore | Fixed-origin bearer GET for the spend limits and organization on both engines; no guessed reset time. |
 
 <!-- End generated provider additions -->

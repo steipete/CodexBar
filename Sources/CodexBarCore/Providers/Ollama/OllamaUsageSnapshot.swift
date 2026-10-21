@@ -10,6 +10,7 @@ public struct OllamaUsageSnapshot: Sendable {
     public let sessionResetsAt: Date?
     public let weeklyResetsAt: Date?
     public let sessionWindowMinutes: Int?
+    public let details: [ProviderDetailSection]
     public let updatedAt: Date
 
     public init(
@@ -22,6 +23,7 @@ public struct OllamaUsageSnapshot: Sendable {
         sessionResetsAt: Date?,
         weeklyResetsAt: Date?,
         sessionWindowMinutes: Int? = nil,
+        details: [ProviderDetailSection] = [],
         updatedAt: Date)
     {
         self.planName = planName
@@ -33,6 +35,7 @@ public struct OllamaUsageSnapshot: Sendable {
         self.sessionResetsAt = sessionResetsAt
         self.weeklyResetsAt = weeklyResetsAt
         self.sessionWindowMinutes = sessionWindowMinutes
+        self.details = details
         self.updatedAt = updatedAt
     }
 }
@@ -41,13 +44,18 @@ extension OllamaUsageSnapshot {
     public func toUsageSnapshot() -> UsageSnapshot {
         // The 2026-08 page makes the monthly window primary; the legacy 5-hour session
         // and weekly windows remain as fallback for pages still rendering them.
-        let monthlyWindow = self.makeMonthlyWindow()
-        let sessionWindow = self.makeSessionWindow(
+        let monthlyWindow = self.makeWindow(
+            usedPercent: self.monthlyUsedPercent,
+            resetsAt: self.monthlyResetsAt,
+            minutes: ProviderPaceCapability.monthlyWindowSentinelMinutes)
+        let sessionWindow = self.makeWindow(
             usedPercent: self.sessionUsedPercent,
-            resetsAt: self.sessionResetsAt)
-        let weeklyWindow = self.makeWeeklyWindow(
+            resetsAt: self.sessionResetsAt,
+            minutes: self.sessionWindowMinutes)
+        let weeklyWindow = self.makeWindow(
             usedPercent: self.weeklyUsedPercent,
-            resetsAt: self.weeklyResetsAt)
+            resetsAt: self.weeklyResetsAt,
+            minutes: 7 * 24 * 60)
 
         let plan = self.planName?.trimmingCharacters(in: .whitespacesAndNewlines)
         let email = self.accountEmail?.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -60,39 +68,18 @@ extension OllamaUsageSnapshot {
         return UsageSnapshot(
             primary: monthlyWindow ?? sessionWindow,
             secondary: weeklyWindow,
-            tertiary: nil,
-            providerCost: nil,
+            details: self.details,
             updatedAt: self.updatedAt,
             identity: identity)
     }
 
-    private func makeMonthlyWindow() -> RateWindow? {
-        guard let usedPercent = self.monthlyUsedPercent else { return nil }
-        let clamped = min(100, max(0, usedPercent))
-        return RateWindow(
-            usedPercent: clamped,
-            windowMinutes: ProviderPaceCapability.monthlyWindowSentinelMinutes,
-            resetsAt: self.monthlyResetsAt,
-            resetDescription: nil)
-    }
-
-    private func makeSessionWindow(usedPercent: Double?, resetsAt: Date?) -> RateWindow? {
-        guard let usedPercent else { return nil }
-        let clamped = min(100, max(0, usedPercent))
-        return RateWindow(
-            usedPercent: clamped,
-            windowMinutes: self.sessionWindowMinutes,
-            resetsAt: resetsAt,
-            resetDescription: nil)
-    }
-
-    private func makeWeeklyWindow(usedPercent: Double?, resetsAt: Date?) -> RateWindow? {
-        guard let usedPercent else { return nil }
-        let clamped = min(100, max(0, usedPercent))
-        return RateWindow(
-            usedPercent: clamped,
-            windowMinutes: 7 * 24 * 60,
-            resetsAt: resetsAt,
-            resetDescription: nil)
+    private func makeWindow(usedPercent: Double?, resetsAt: Date?, minutes: Int?) -> RateWindow? {
+        usedPercent.map {
+            RateWindow(
+                usedPercent: min(100, max(0, $0)),
+                windowMinutes: minutes,
+                resetsAt: resetsAt,
+                resetDescription: nil)
+        }
     }
 }

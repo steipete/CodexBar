@@ -74,8 +74,9 @@ extension CodexAccountScopedRefreshTests {
         }
     }
 
-    private func withSelectedAccountRetentionFixture(
+    func withSelectedAccountRetentionFixture(
         sameEmail: Bool,
+        count: Int = 2,
         body: (UsageStore, FileCodexAccountUsageSnapshotStore, [CodexVisibleAccount]) async throws -> Void)
         async throws
     {
@@ -87,7 +88,7 @@ extension CodexAccountScopedRefreshTests {
         settings.accountWidgetsEnabled = false
         settings.codexUsageDataSource = .oauth
         settings.codexCookieSource = .off
-        let saved = try (0..<2).map { index in
+        let saved = try (0..<count).map { index in
             let email = sameEmail ? "shared@example.com" : "account-\(index)@example.com"
             let home = root.appendingPathComponent("home-\(index)", isDirectory: true)
             let workspace = "workspace-\(index)"
@@ -108,7 +109,7 @@ extension CodexAccountScopedRefreshTests {
         try FileManagedCodexAccountStore(fileURL: metadataURL).storeAccounts(ManagedCodexAccountSet(
             version: FileManagedCodexAccountStore.currentVersion, accounts: saved))
         settings._test_managedCodexAccountStoreURL = metadataURL
-        settings.codexActiveSource = .managedAccount(id: saved[0].id)
+        settings.codexActiveSource = saved.first.map { .managedAccount(id: $0.id) } ?? .liveSystem
         let accounts = try saved.map { saved in
             try #require(settings.codexVisibleAccountProjection.visibleAccounts
                 .first { $0.storedAccountID == saved.id })
@@ -128,23 +129,25 @@ extension CodexAccountScopedRefreshTests {
                         accountOrganization: nil,
                         loginMethod: "Pro",
                         accountID: account.workspaceAccountID)),
-                error: account.id == accounts[1].id ? "Network error" : nil,
+                error: account.id == accounts.dropFirst().first?.id ? "Network error" : nil,
                 sourceLabel: "oauth",
                 credits: CreditsSnapshot(remaining: 12, events: [], updatedAt: prior))
         })
         let store = self.makeUsageStore(settings: settings, codexAccountUsageSnapshotStore: snapshotStore)
         store._test_widgetSnapshotSaveOverride = { _ in }
+        store._test_codexResetCreditsFetcherOverride = { _ in nil }
         self.installContextualCodexProvider(on: store, sourceLabel: "oauth", kind: .oauth) { _ in
-            UsageSnapshot(
+            let selected = try #require(saved.first)
+            return UsageSnapshot(
                 primary: RateWindow(usedPercent: 42, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
                 secondary: nil,
                 updatedAt: Date(),
                 identity: ProviderIdentitySnapshot(
                     providerID: .codex,
-                    accountEmail: saved[0].email,
+                    accountEmail: selected.email,
                     accountOrganization: nil,
                     loginMethod: "Pro",
-                    accountID: saved[0].effectiveWorkspaceAccountID))
+                    accountID: selected.effectiveWorkspaceAccountID))
         }
         try await body(store, snapshotStore, accounts)
         await store.widgetSnapshotPersistTask?.value

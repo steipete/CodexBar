@@ -100,7 +100,7 @@ extension UsageMenuCardView.Model {
                let total = input.snapshot?.detailRow(label: "Credits total")?.value,
                total != "0"
             {
-                presentation.detailLeft = String(format: L("%@ of %@ credits left"), remaining, total)
+                presentation.detailText = String(format: L("%@ of %@ credits left"), remaining, total)
             }
         case .none, .requestQuota:
             break
@@ -226,7 +226,7 @@ extension UsageMenuCardView.Model {
         else {
             return PersonalInfoRedactor.redactEmails(in: detail, isEnabled: true)
         }
-        return PersonalInfoRedactor.redactEmails(in: "Team\(detail[separator.lowerBound...])", isEnabled: true)
+        return PersonalInfoRedactor.redactEmails(in: "\(L("Team"))\(detail[separator.lowerBound...])", isEnabled: true)
     }
 
     static func blockingQuotaMetrics(_ metrics: [Metric], input: Input, snapshot: UsageSnapshot) -> [Metric] {
@@ -347,6 +347,7 @@ extension UsageMenuCardView.Model {
             self.providerDetails.isEmpty &&
             self.openAIAPIUsage == nil &&
             self.inlineUsageDashboard == nil &&
+            self.throughput == nil &&
             self.limitResetCredits == nil &&
             self.cloudCredits == nil &&
             self.creditsRemaining == nil &&
@@ -361,6 +362,7 @@ extension UsageMenuCardView.Model {
             !self.providerDetails.isEmpty ||
             self.openAIAPIUsage != nil ||
             self.inlineUsageDashboard != nil ||
+            self.throughput != nil ||
             self.limitResetCredits != nil ||
             self.cloudCredits != nil ||
             self.placeholder != nil
@@ -372,6 +374,7 @@ extension UsageMenuCardView.Model {
             !self.usageNotes.isEmpty ||
             !self.providerDetails.isEmpty ||
             self.inlineUsageDashboard != nil ||
+            self.throughput != nil ||
             self.limitResetCredits != nil
     }
 
@@ -381,6 +384,7 @@ extension UsageMenuCardView.Model {
 
     var creditsOnlyInlineUsageDashboard: Bool {
         self.creditsText != nil &&
+            self.throughput == nil &&
             self.inlineUsageDashboard != nil &&
             self.metrics.isEmpty &&
             self.usageNotes.isEmpty &&
@@ -424,6 +428,9 @@ extension UsageMenuCardView.Model {
               self.accountIdentityFingerprint == candidate.accountIdentityFingerprint,
               !includeMetrics || self.metrics.count == candidate.metrics.count,
               self.usageNotes == candidate.usageNotes,
+              self.throughput?.summaryLine == candidate.throughput?.summaryLine,
+              self.throughput?.presentation?.action == candidate.throughput?.presentation?.action,
+              self.throughput?.presentation?.limitLine == candidate.throughput?.presentation?.limitLine,
               self.providerDetails == candidate.providerDetails,
               (self.openAIAPIUsage == nil) == (candidate.openAIAPIUsage == nil),
               self.creditsShowProgress == candidate.creditsShowProgress,
@@ -591,7 +598,7 @@ extension UsageMenuCardView.Model {
         } else if input.provider == .sub2api {
             "Weekly"
         } else {
-            input.metadata.weeklyLabel
+            presentation.rateWindowLabels(metadata: input.metadata, snapshot: snapshot, now: input.now).secondary
         }
         let tertiaryLabel = input.provider == .sub2api
             ? L("Monthly")
@@ -713,18 +720,32 @@ extension UsageMenuCardView.Model {
     static func subscriptionMetadataNotes(snapshot: UsageSnapshot?, provider: UsageProvider) -> [String] {
         guard let snapshot else { return [] }
         if let renewsAt = snapshot.subscriptionRenewsAt {
-            return [String(format: L("Renews: %@"), self.subscriptionDateString(renewsAt, provider: provider))]
+            return [String(
+                format: L("Plan renews: %@"),
+                self.subscriptionDateString(
+                    renewsAt,
+                    provider: provider,
+                    dateOnly: snapshot.subscriptionRenewsAtIsDateOnly))]
         }
         if let expiresAt = snapshot.subscriptionExpiresAt {
-            return [String(format: L("Plan expires: %@"), self.subscriptionDateString(expiresAt, provider: provider))]
+            return [String(
+                format: L("Plan expires: %@"),
+                self.subscriptionDateString(
+                    expiresAt,
+                    provider: provider,
+                    dateOnly: snapshot.subscriptionExpiresAtIsDateOnly))]
         }
         return []
     }
 
-    private static func subscriptionDateString(_ date: Date, provider: UsageProvider) -> String {
+    private static func subscriptionDateString(
+        _ date: Date,
+        provider: UsageProvider,
+        dateOnly: Bool = false) -> String
+    {
         let formatter = DateFormatter()
         formatter.locale = Locale.current
-        formatter.timeZone = self.subscriptionDateTimeZone(provider: provider)
+        formatter.timeZone = dateOnly ? TimeZone(secondsFromGMT: 0) : self.subscriptionDateTimeZone(provider: provider)
         formatter.setLocalizedDateFormatFromTemplate("MMM d, yyyy")
         return formatter.string(from: date)
     }
@@ -926,7 +947,13 @@ extension UsageMenuCardView.Model {
         input: Input,
         percentStyle: PercentStyle) -> [Metric]
     {
-        guard let extraRateWindows = snapshot.extraRateWindows else { return [] }
+        var extraRateWindows = snapshot.extraRateWindows ?? []
+        if input.provider == .claude, input.showOptionalCreditsAndExtraUsage,
+           MenuBarMetricWindowResolver.claudeSpendLimitWindow(snapshot: snapshot) != nil,
+           let spend = snapshot.claudeMonthlySpendWindow
+        {
+            extraRateWindows.append(spend)
+        }
         let menuCard = ProviderDescriptorRegistry.descriptor(for: input.provider).presentation.menuCard
         // Codex additional limits (e.g. Codex Spark) are optional extra usage and follow the
         // "optional credits and extra usage" setting. Other providers' extra windows (Antigravity
@@ -960,7 +987,14 @@ extension UsageMenuCardView.Model {
             let resetText = usesResetDetail && namedWindow.window.resetsAt == nil
                 ? nil
                 : resolvedResetText
-            let detailText: String? = if usesResetDetail {
+            let detailText: String? = if namedWindow.id == "claude-extra-usage" {
+                Self.providerCostSection(
+                    cost: snapshot.providerCost,
+                    style: .claude,
+                    preferredCurrencyCode: input.preferredCurrencyCode).map {
+                    [$0.spendLine, $0.balanceLine].compactMap(\.self).joined(separator: " · ")
+                }
+            } else if usesResetDetail {
                 namedWindow.window.resetDescription
             } else {
                 nil
@@ -991,7 +1025,7 @@ extension UsageMenuCardView.Model {
             } else {
                 nil
             }
-            return Metric(
+            var metric = Metric(
                 id: namedWindow.id,
                 title: title,
                 percent: Self.clamped(
@@ -1013,6 +1047,10 @@ extension UsageMenuCardView.Model {
                         weeklyWindow: namedWindow.window,
                         weeklyWindowID: namedWindow.id)
                     : nil)
+            if namedWindow.id == "claude-extra-usage", snapshot.providerCost?.resetsAt == nil {
+                metric.helpText = L("cost_reset_inferred_tooltip", "Claude")
+            }
+            return metric
         }
     }
 
@@ -1089,6 +1127,7 @@ extension UsageMenuCardView.Model {
         window: RateWindow,
         input: Input) -> PaceDetail?
     {
+        if let detail = resetWindowPaceDetail(window: window, input: input) { return detail }
         // Provider-specific by design: extra-window pacing covers Codex, Claude, Antigravity, and Cursor 7-day extras.
         if provider == .claude || provider == .cursor, window.windowMinutes != 10080 {
             return nil

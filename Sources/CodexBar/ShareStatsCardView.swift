@@ -52,7 +52,7 @@ struct ShareStatsCardView: View {
                     .font(.system(size: 26, weight: .semibold, design: .rounded))
             }
             Spacer()
-            Text("LOCAL SNAPSHOT")
+            Text(L("LOCAL SNAPSHOT"))
                 .font(.system(size: 14, weight: .semibold, design: .rounded))
                 .tracking(1.8)
                 .foregroundStyle(self.secondary)
@@ -68,7 +68,7 @@ struct ShareStatsCardView: View {
     private var hero: some View {
         HStack(alignment: .bottom, spacing: 52) {
             VStack(alignment: .leading, spacing: 2) {
-                Text("TRACKED TOKENS · \(self.periodLabel)")
+                Text(L("TRACKED TOKENS · %@", String(describing: self.periodLabel)))
                     .font(.system(size: 20, weight: .semibold, design: .rounded))
                     .tracking(1.8)
                     .foregroundStyle(self.secondary)
@@ -81,7 +81,7 @@ struct ShareStatsCardView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
 
             VStack(alignment: .leading, spacing: 9) {
-                Text("EST. \(self.spendLabel)")
+                Text(L("EST. %@", String(describing: self.spendLabel)))
                     .font(.system(size: 18, weight: .semibold, design: .rounded))
                     .tracking(1.2)
                     .foregroundStyle(self.secondary)
@@ -110,15 +110,15 @@ struct ShareStatsCardView: View {
     private var currencySummary: String {
         let hiddenCount = self.payload.currencies.count - min(self.payload.currencies.count, 2)
         return hiddenCount > 0
-            ? "+\(hiddenCount) more currencies · see subscription rows"
+            ? L("+%d more currencies · see subscription rows", hiddenCount)
             : ShareStatsFormatting.subscriptionSummary(count: self.payload.providers.count)
-            + " · native currencies kept separate"
+            + L(" · native currencies kept separate")
     }
 
     private var rankings: some View {
         HStack(alignment: .top, spacing: 46) {
             VStack(alignment: .leading, spacing: 6) {
-                self.sectionHeader("SUBSCRIPTIONS", detail: "\(self.payload.providers.count) CONNECTED")
+                self.sectionHeader(L("SUBSCRIPTIONS"), detail: L("%d CONNECTED", self.payload.providers.count))
                 ForEach(
                     Array(self.payload.providers.prefix(self.providerDisplayLimit).enumerated()),
                     id: \.offset)
@@ -130,7 +130,9 @@ struct ShareStatsCardView: View {
                         color: ShareStatsPalette.color(at: index))
                 }
                 if self.payload.providers.count > self.providerDisplayLimit {
-                    Text("+\(self.payload.providers.count - self.providerDisplayLimit) more configured")
+                    Text(L(
+                        "+%@ more configured",
+                        String(describing: self.payload.providers.count - self.providerDisplayLimit)))
                         .font(.system(size: 16, weight: .medium, design: .rounded))
                         .foregroundStyle(self.secondary)
                         .padding(.leading, 20)
@@ -140,9 +142,9 @@ struct ShareStatsCardView: View {
 
             VStack(alignment: .leading, spacing: 0) {
                 VStack(alignment: .leading, spacing: 6) {
-                    self.sectionHeader("TOP MODELS", detail: self.payload.modelRankingDetail)
+                    self.sectionHeader(L("TOP MODELS"), detail: self.payload.modelRankingDetail)
                     if self.payload.topModels.isEmpty {
-                        Text("No model-level history in this local snapshot")
+                        Text(L("No model-level history in this local snapshot"))
                             .font(.system(size: 18, weight: .medium, design: .rounded))
                             .foregroundStyle(self.secondary)
                             .padding(.top, 4)
@@ -158,7 +160,7 @@ struct ShareStatsCardView: View {
                         }
                     }
                 }
-                Text("Only aggregate usage, plan tier, and estimated spend are included.")
+                Text(L("Only aggregate usage, plan tier, and estimated spend are included."))
                     .font(.system(size: 16, weight: .medium, design: .rounded))
                     .foregroundStyle(self.secondary)
                     .padding(.top, 18)
@@ -176,11 +178,11 @@ struct ShareStatsCardView: View {
     }
 
     private var periodLabel: String {
-        self.isAllTime ? "ALL" : "\(self.payload.days) DAYS"
+        self.isAllTime ? L("ALL") : L("%d DAYS", self.payload.days)
     }
 
     private var spendLabel: String {
-        self.isAllTime ? "ALL-TIME SPEND" : "\(self.payload.days)-DAY SPEND"
+        self.isAllTime ? L("ALL-TIME SPEND") : L("%d-DAY SPEND", self.payload.days)
     }
 
     private var trackedTokensText: String {
@@ -190,11 +192,11 @@ struct ShareStatsCardView: View {
     }
 
     private var coverageDenominator: String {
-        self.isAllTime ? "all" : "\(self.payload.days)d"
+        self.isAllTime ? L("all") : L("%dd", self.payload.days)
     }
 
     private func spendText(for currency: ShareStatsCurrencyPayload) -> String {
-        guard let cost = currency.estimatedCost else { return "Unavailable" }
+        guard let cost = currency.estimatedCost else { return L("Unavailable") }
         let formatted = ShareStatsFormatting.currency(cost, code: currency.currencyCode)
         return currency.isPartial ? "~\(formatted)" : formatted
     }
@@ -221,9 +223,9 @@ struct ShareStatsCardView: View {
 
     private var footer: some View {
         HStack(spacing: 12) {
-            Label("LOCAL · AGGREGATE ONLY", systemImage: "lock.shield")
+            Label(L("LOCAL · AGGREGATE ONLY"), systemImage: "lock.shield")
             Spacer()
-            Text("DATA THROUGH \(ShareStatsFormatting.dataThrough(self.payload).uppercased())")
+            Text(L("DATA THROUGH %@", String(describing: ShareStatsFormatting.dataThrough(self.payload).uppercased())))
         }
         .font(.system(size: 14, weight: .medium, design: .rounded))
         .tracking(0.7)
@@ -276,7 +278,7 @@ private struct ShareStatsModelRow: View {
         if let cost = self.model.estimatedCost, cost.isFinite {
             return "~\(ShareStatsFormatting.currency(cost, code: self.model.currencyCode))"
         }
-        return self.model.totalTokens.map(ShareStatsFormatting.compactCount) ?? "used"
+        return self.model.totalTokens.map(ShareStatsFormatting.compactCount) ?? L("used")
     }
 }
 
@@ -333,12 +335,12 @@ private struct ShareStatsProviderRow: View {
         if let cost = self.provider.estimatedCost, cost.isFinite {
             metrics.append("~\(ShareStatsFormatting.currency(cost, code: self.provider.currencyCode))")
             if self.provider.coveredDayCount < self.days {
-                metrics.append("\(self.provider.coveredDayCount)/\(self.days)d")
+                metrics.append(L("%d/%dd", self.provider.coveredDayCount, self.days))
             }
         } else {
-            metrics.append("Spend unavailable")
+            metrics.append(L("Spend unavailable"))
         }
-        return metrics.isEmpty ? "connected" : metrics.joined(separator: " · ")
+        return metrics.isEmpty ? L("connected") : metrics.joined(separator: " · ")
     }
 }
 

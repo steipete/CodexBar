@@ -656,7 +656,7 @@ public enum CodexOAuthUsageFetcher {
 
     private static func parseChatGPTBaseURL(from contents: String) -> String? {
         for rawLine in contents.split(whereSeparator: \.isNewline) {
-            let line = rawLine.split(separator: "#", maxSplits: 1, omittingEmptySubsequences: true).first
+            let line = rawLine.split(separator: "#", maxSplits: 1, omittingEmptySubsequences: false).first
             let trimmed = line?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             guard !trimmed.isEmpty else { continue }
             let parts = trimmed.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: true)

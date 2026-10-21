@@ -3,6 +3,91 @@ import Testing
 @testable import CodexBarCore
 
 struct PiProcessRootEnvironmentTests {
+    @Test(arguments: [false, true])
+    func `unreadable process diagnostics are aggregated without private context`(unreadable: Bool) throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let environment = ["HOME": env.root.path]
+        let records = LockIsolated<[[String: String]]>([])
+        let roots = PiFamilySessionScanner.costSessionRoots(
+            environment: environment,
+            baseDirectories: [env.root],
+            processContexts: ["pi", "omp"].map {
+                PiSessionProcessContext(
+                    command: $0,
+                    arguments: [$0, "", "", ""],
+                    workingDirectory: env.root,
+                    selectorEnvironment: unreadable ? nil : environment)
+            },
+            logger: CodexBarLogger(minimumLevel: .warning) { level, message, metadata in
+                #expect(level == .warning)
+                #expect(message == "Pi cost discovery skipped process contexts with unreadable environments")
+                records.setValue(records.value + [metadata ?? [:]])
+            })
+        let allRootsResolved = roots.allSatisfy(\.resolutionIsComplete)
+        #expect(allRootsResolved)
+        #expect(records.value == (unreadable ? [["skippedContexts": "2"]] : []))
+    }
+
+    @Test
+    func `unreadable live processes preserve default and readable process history`() async throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let day = try env.makeLocalNoon(year: 2026, month: 7, day: 6)
+        let defaultRoot = env.root.appendingPathComponent(".pi/agent/sessions", isDirectory: true)
+        let selectedRoot = env.root.appendingPathComponent("selected-sessions", isDirectory: true)
+        for (root, input) in [(defaultRoot, 5), (selectedRoot, 10)] {
+            try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+            let entry: [String: Any] = [
+                "type": "message", "timestamp": env.isoString(for: day),
+                "message": [
+                    "role": "assistant", "provider": "openai-codex", "model": "gpt-5.4",
+                    "usage": ["input": input, "output": 2, "totalTokens": input + 2],
+                ],
+            ]
+            try env.jsonl([entry]).write(
+                to: root.appendingPathComponent("2026-07-06T10-00-00-000Z_fixture.jsonl"),
+                atomically: true,
+                encoding: .utf8)
+        }
+        let environment = ["HOME": env.root.path]
+        let scanner = LocalAgentSessionScanner(
+            processOutputProvider: { _ in
+                """
+                201 1 Mon Jul 6 09:03:00 2026 pi
+                202 1 Mon Jul 6 09:04:00 2026 pi
+                203 1 Mon Jul 6 09:05:00 2026 pi
+                """
+            },
+            cwdProvider: { _, _ in [201: env.root.path, 202: env.root.path] },
+            processEnvironmentProvider: { _ in
+                [202: ["HOME": env.root.path, "PI_CODING_AGENT_SESSION_DIR": selectedRoot.path]]
+            })
+        let contexts = await scanner.piSessionProcessContexts(environment: environment)
+        #expect(contexts.count == 3)
+        #expect(contexts.filter { $0.selectorEnvironment == nil }.count == 2)
+        let options = PiSessionCostScanner.Options(
+            cacheRoot: env.cacheRoot,
+            refreshMinIntervalSeconds: 0,
+            environment: environment,
+            workingDirectory: env.root,
+            processContexts: contexts)
+        // Exercise both a first scan with no prior report and a subsequent cached refresh.
+        for now in [day, day.addingTimeInterval(1)] {
+            let result = try PiSessionCostScanner.loadDailyReportResultCancellable(
+                provider: .pi,
+                since: day,
+                until: day,
+                now: now,
+                options: options,
+                checkCancellation: nil)
+            #expect(result.isComplete)
+            #expect(result.report.summary?.totalTokens == 19)
+            #expect((result.report.summary?.totalCostUSD ?? 0) > 0)
+            #expect(result.lastScanAt == now)
+        }
+    }
+
     @Test
     func `process contexts retain distinct profiles for identical commands and directories`() async throws {
         let env = try CostUsageTestEnvironment()

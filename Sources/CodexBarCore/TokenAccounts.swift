@@ -18,9 +18,16 @@ public struct ProviderTokenAccount: Codable, Identifiable, Sendable {
     /// Optional provider-specific workspace/project target. z.ai team accounts
     /// use this for the BigModel project header.
     public let workspaceID: String?
+    /// User-declared Claude history ownership; never used to resolve credentials.
+    public let claudeConfigDirectory: String?
     /// Optional provider-specific AI credit allowance (raw user-entered value). Copilot accounts
     /// use this as the per-seat monthly credit entitlement; GitHub publishes no such entitlement.
     public let seatCreditEntitlement: String?
+
+    /// Manual organization limits for this credential, with no provider-level inheritance.
+    /// Nil means never set or unknown, [] explicitly clears limits, and non-empty lists hold validated rows.
+    /// Preserving these states lets clears sync while older senders cannot erase limits they do not know about.
+    public let modelRateLimits: [ProviderModelRateLimit]?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -32,7 +39,9 @@ public struct ProviderTokenAccount: Codable, Identifiable, Sendable {
         case usageScope
         case organizationID = "organizationId"
         case workspaceID
+        case claudeConfigDirectory
         case seatCreditEntitlement
+        case modelRateLimits
     }
 
     public init(
@@ -45,7 +54,9 @@ public struct ProviderTokenAccount: Codable, Identifiable, Sendable {
         usageScope: String? = nil,
         organizationID: String? = nil,
         workspaceID: String? = nil,
-        seatCreditEntitlement: String? = nil)
+        claudeConfigDirectory: String? = nil,
+        seatCreditEntitlement: String? = nil,
+        modelRateLimits: [ProviderModelRateLimit]? = nil)
     {
         self.id = id
         self.label = label
@@ -56,7 +67,42 @@ public struct ProviderTokenAccount: Codable, Identifiable, Sendable {
         self.usageScope = usageScope
         self.organizationID = organizationID
         self.workspaceID = workspaceID
+        self.claudeConfigDirectory = claudeConfigDirectory
         self.seatCreditEntitlement = seatCreditEntitlement
+        self.modelRateLimits = modelRateLimits.map(ProviderModelRateLimit.validated)
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        try self.init(
+            id: container.decode(UUID.self, forKey: .id),
+            label: container.decode(String.self, forKey: .label),
+            token: container.decode(String.self, forKey: .token),
+            addedAt: container.decode(TimeInterval.self, forKey: .addedAt),
+            lastUsed: container.decodeIfPresent(TimeInterval.self, forKey: .lastUsed),
+            externalIdentifier: container.decodeIfPresent(String.self, forKey: .externalIdentifier),
+            usageScope: container.decodeIfPresent(String.self, forKey: .usageScope),
+            organizationID: container.decodeIfPresent(String.self, forKey: .organizationID),
+            workspaceID: container.decodeIfPresent(String.self, forKey: .workspaceID),
+            claudeConfigDirectory: container.decodeIfPresent(String.self, forKey: .claudeConfigDirectory),
+            seatCreditEntitlement: container.decodeIfPresent(String.self, forKey: .seatCreditEntitlement),
+            modelRateLimits: container.decodeIfPresent([ProviderModelRateLimit].self, forKey: .modelRateLimits))
+    }
+
+    public func withModelRateLimits(_ limits: [ProviderModelRateLimit]?) -> ProviderTokenAccount {
+        ProviderTokenAccount(
+            id: self.id,
+            label: self.label,
+            token: self.token,
+            addedAt: self.addedAt,
+            lastUsed: self.lastUsed,
+            externalIdentifier: self.externalIdentifier,
+            usageScope: self.usageScope,
+            organizationID: self.organizationID,
+            workspaceID: self.workspaceID,
+            claudeConfigDirectory: self.claudeConfigDirectory,
+            seatCreditEntitlement: self.seatCreditEntitlement,
+            modelRateLimits: limits)
     }
 
     public var displayName: String {
@@ -95,7 +141,9 @@ public struct ProviderTokenAccount: Codable, Identifiable, Sendable {
             usageScope: self.usageScope,
             organizationID: self.organizationID,
             workspaceID: self.workspaceID,
-            seatCreditEntitlement: self.seatCreditEntitlement)
+            claudeConfigDirectory: self.claudeConfigDirectory,
+            seatCreditEntitlement: self.seatCreditEntitlement,
+            modelRateLimits: self.modelRateLimits)
     }
 }
 

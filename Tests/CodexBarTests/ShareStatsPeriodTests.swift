@@ -58,7 +58,8 @@ struct ShareStatsPeriodTests {
         let label = ShareStatsFormatting.dataThrough(payload)
         // Check the rendered civil date independently of the formatter under test.
         let dateReader = DateFormatter()
-        dateReader.locale = .current
+        // Test processes select English app resources, independent of the host's regional preferences.
+        dateReader.locale = Locale(identifier: "en")
         dateReader.calendar = calendar
         dateReader.timeZone = calendar.timeZone
         dateReader.setLocalizedDateFormatFromTemplate("MMM d, yyyy")

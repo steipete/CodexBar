@@ -145,12 +145,12 @@ private struct CombinedBurnRow: View {
         let heroNum = self.metric == .pace ? abs(Int(self.geom.margin.rounded()))
             : self.metric == .used ? Int((100 - self.geom.vNow).rounded())
             : Int(self.geom.vNow.rounded())
-        let suffix = self.metric == .remaining ? "left" : self.metric == .used ? "used" : ""
+        let suffix = self.metric == .remaining ? W("left") : self.metric == .used ? W("used") : ""
         let prefixArrow = self.metric == .pace
 
-        let paceWord: String = self.geom.depleted ? "spent" : self.geom.fresh ? "full"
-            : self.geom.status == .ahead ? "under pace"
-            : self.geom.status == .behind ? "over pace" : "on pace"
+        let paceWord: String = self.geom.depleted ? W("spent") : self.geom.fresh ? W("full")
+            : self.geom.status == .ahead ? W("under pace")
+            : self.geom.status == .behind ? W("over pace") : W("on pace")
         let arrow: String = self.geom.depleted ? "■" : self.geom.fresh ? "◆"
             : self.geom.status == .ahead ? "▲" : self.geom.status == .behind ? "▼" : "●"
 
@@ -221,7 +221,7 @@ private struct CombinedBurnRow: View {
                         .font(.system(size: 9))
                         .foregroundStyle(self.theme.sub.opacity(0.85))
                     if let effectiveResetDate {
-                        Text(effectiveResetDate, style: .relative)
+                        WidgetDateText.offset(effectiveResetDate)
                             .font(.system(size: 9.5, weight: .medium))
                             .foregroundStyle(self.theme.text)
                             .monospacedDigit()
@@ -267,7 +267,7 @@ private struct CombinedEmptyRow: View {
                 .font(.system(size: 9.5, weight: .heavy))
                 .foregroundStyle(self.theme.sub)
                 .kerning(1)
-            Text("No data")
+            Text(W("No data"))
                 .font(.system(size: 10))
                 .foregroundStyle(self.theme.sub)
             Spacer()

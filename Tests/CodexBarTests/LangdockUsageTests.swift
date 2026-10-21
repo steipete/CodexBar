@@ -72,7 +72,7 @@ struct LangdockUsageTests {
         #expect(registration.cookieSettings(from: snapshot)?.selectedBrowserProfile?
             .profileID == "/synthetic/Edge/Profile 1")
         #expect(!LangdockProviderDescriptor.descriptor.metadata.defaultEnabled)
-        #expect(LangdockProviderDescriptor.descriptor.metadata.browserCookieOrder == [.edge])
+        #expect(LangdockProviderDescriptor.descriptor.metadata.browserCookieOrder == [.edge, .chrome, .safari])
         var disabled = config
         disabled.cookieSource = .off
         let disabledContribution = try #require(registration.credentialContribution(

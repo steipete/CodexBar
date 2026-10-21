@@ -1,6 +1,63 @@
 import CodexBarCore
+import Foundation
 import SwiftUI
 import WidgetKit
+
+/// Widget catalogs are generated from the app catalogs by sync-widget-locales.mjs.
+enum WidgetLocalization {
+    static let resourceBundle: Bundle = {
+        #if SWIFT_PACKAGE
+        return .module
+        #else
+        return .main
+        #endif
+    }()
+
+    static var currentBundle: Bundle {
+        #if SWIFT_PACKAGE
+        let defaultLanguage = TestProcessSafety.isRunning ? "en" : ""
+        #else
+        let defaultLanguage = ""
+        #endif
+        let language = WidgetLocalizationOverride.language ?? defaultLanguage
+        return self.bundle(language: language)
+    }
+
+    static func bundle(language: String, resourceBundle: Bundle = WidgetLocalization.resourceBundle) -> Bundle {
+        let language = language.isEmpty
+            ? Bundle.preferredLocalizations(from: resourceBundle.localizations).first ?? "en"
+            : language
+        // Native SwiftPM builds lowercase language-directory names, including region and script suffixes.
+        for candidate in [language, language.lowercased()] {
+            if let path = resourceBundle.path(forResource: candidate, ofType: "lproj"),
+               let bundle = Bundle(path: path)
+            {
+                return bundle
+            }
+        }
+        return resourceBundle
+    }
+}
+
+enum WidgetLocalizationOverride {
+    @TaskLocal static var language: String?
+}
+
+func W(_ key: String, _ arguments: CVarArg...) -> String {
+    let bundle = WidgetLocalization.currentBundle
+    var value = bundle.localizedString(forKey: key, value: nil, table: nil)
+    if value.isEmpty || value == key,
+       let path = WidgetLocalization.resourceBundle.path(forResource: "en", ofType: "lproj"),
+       let english = Bundle(path: path)
+    {
+        value = english.localizedString(forKey: key, value: nil, table: nil)
+    }
+    let language = bundle.bundleURL.deletingPathExtension().lastPathComponent
+    let locale = bundle.bundleURL.pathExtension == "lproj"
+        ? Locale(identifier: language == "ar" ? "ar@numbers=arab" : language)
+        : Locale.current
+    return arguments.isEmpty ? value : String(format: value, locale: locale, arguments: arguments)
+}
 
 extension EnvironmentValues {
     /// Mirrors the app's "show used instead of remaining" preference into the tiles.
@@ -174,7 +231,7 @@ enum ProviderTitle {
 enum ProviderMarkLabel {
     static func text(for provider: UsageProvider, isSelected: Bool) -> String {
         let name = ProviderDefaults.metadata[provider]?.displayName ?? provider.rawValue.capitalized
-        return isSelected ? "\(name), selected" : name
+        return isSelected ? W("%@, selected", name) : name
     }
 }
 
@@ -231,7 +288,7 @@ struct QuotaLaneView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
             HStack(spacing: 6) {
-                Text(self.title)
+                Text(W(self.title))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
@@ -275,6 +332,7 @@ struct HeroBlock: View {
     /// under the headline.
     var spreads: Bool = false
     var compact: Bool = false
+    var inlineQuotaTitle: String?
 
     var isUnavailable: Bool {
         self.value == WidgetFormat.unavailable
@@ -289,7 +347,31 @@ struct HeroBlock: View {
         VStack(alignment: .leading, spacing: 2) {
             // A missing figure is drawn small and muted: at headline size the em-dash placeholder
             // reads as a heavy black bar, which looks like a broken tile rather than "no data".
-            if self.compact {
+            if let title = self.inlineQuotaTitle {
+                ViewThatFits(in: .horizontal) {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text(title)
+                            .font(.headline)
+                            .foregroundStyle(self.unavailableAwareColor)
+                            .fixedSize()
+                        Spacer(minLength: 4)
+                        self.detail?
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.trailing)
+                            // Native live date text needs a finite proposal for ViewThatFits in WidgetKit.
+                            .frame(width: 120, alignment: .trailing)
+                    }
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(title)
+                            .font(.headline)
+                            .foregroundStyle(self.unavailableAwareColor)
+                            .lineLimit(2)
+                            .minimumScaleFactor(0.75)
+                        self.detail?.font(.caption2).foregroundStyle(.secondary)
+                    }
+                }
+            } else if self.compact {
                 HStack(alignment: .center, spacing: 5) {
                     self.valueText
                     self.caption?
@@ -309,7 +391,7 @@ struct HeroBlock: View {
                         .minimumScaleFactor(0.75)
                 }
             }
-            if let detail = self.detail {
+            if self.inlineQuotaTitle == nil, let detail = self.detail {
                 detail
                     .font(.caption2)
                     .foregroundStyle(.secondary)
@@ -424,11 +506,40 @@ struct FreshnessLabel: View {
     var body: some View {
         // WidgetKit advances native date text between reloads; a formatted TimelineView string can freeze.
         // fixedSize on live date text can erase the rest of the tile.
-        Text(self.updatedAt, style: .relative)
+        WidgetDateText.offset(self.updatedAt)
             .font(.caption2)
             .foregroundStyle(WidgetFreshness
                 .isStale(self.updatedAt) ? AnyShapeStyle(Color.orange) : AnyShapeStyle(.secondary))
             .lineLimit(1)
+    }
+}
+
+enum WidgetDateText {
+    static func offset(_ date: Date) -> Text {
+        if #available(macOS 15, *) {
+            return Text(.currentDate, format: self.ageFormat(date))
+        }
+        return Text(date, style: .relative)
+    }
+
+    @available(macOS 15, *)
+    static func ageFormat(_ date: Date) -> SystemFormatStyle.DateOffset {
+        .init(to: date, allowedFields: [.day, .hour, .minute], maxFieldCount: 2, sign: .never)
+    }
+
+    static func reset(_ date: Date) -> Text {
+        if #available(macOS 15, *) {
+            // System date references update visually in the out-of-process WidgetKit host.
+            return Text(
+                "Resets \(Text(.currentDate, format: self.resetFormat(date)))",
+                bundle: WidgetLocalization.currentBundle)
+        }
+        return Text("Resets in \(Text(date, style: .relative))", bundle: WidgetLocalization.currentBundle)
+    }
+
+    @available(macOS 15, *)
+    static func resetFormat(_ date: Date) -> SystemFormatStyle.DateReference {
+        .init(to: date, allowedFields: [.day, .hour, .minute], maxFieldCount: 2, thresholdField: .minute)
     }
 }
 
@@ -447,7 +558,7 @@ struct WidgetEmptyState: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
-            Text("Open CodexBar")
+            Text(W("Open CodexBar"))
                 .font(.subheadline.weight(.semibold))
             Text(self.message)
                 .font(.caption)

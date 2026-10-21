@@ -13,7 +13,13 @@ struct SpendDashboardTrendPanel: View {
     @State private var focusedInterval: DateInterval?
 
     var body: some View {
-        SpendDashboardPanel {
+        let legendProviders = SpendTrendChartModel(
+            group: self.group,
+            section: self.activeSection,
+            day: self.day,
+            overviewInterval: self.focusedInterval).legendProviders(in: self.group)
+        let sourceID = self.selectedSourceID.flatMap { id in legendProviders.contains { $0.id == id } ? id : nil }
+        return SpendDashboardPanel {
             VStack(alignment: .leading, spacing: 14) {
                 HStack(spacing: 12) {
                     Text(self.activeSection == .hourly ? self.activeSection.title : L("Estimated spend"))
@@ -50,18 +56,17 @@ struct SpendDashboardTrendPanel: View {
                     group: self.group,
                     section: self.activeSection,
                     day: self.day,
-                    sourceID: self.selectedSourceID,
+                    sourceID: sourceID,
                     overviewInterval: self.focusedInterval,
                     onSelectDay: { day in
                         self.focusedDay = self.group.calendar.startOfDay(for: day)
                         self.selection = .hourly
                     },
                     onSelectInterval: { self.focusedInterval = $0 })
-                    .id(self.chartIdentity)
+                    .id(self.chartIdentity(sourceID: sourceID))
 
-                ViewThatFits(in: .horizontal) {
-                    HStack(spacing: 8) { self.legend }
-                    VStack(alignment: .leading, spacing: 6) { self.legend }
+                MenuBarLayoutChipFlowLayout(spacing: 8) {
+                    self.legend(providers: legendProviders, selectedSourceID: sourceID)
                 }
             }
         }
@@ -70,14 +75,14 @@ struct SpendDashboardTrendPanel: View {
             self.selection = selectedDay != nil && !self.hourlyDays.isEmpty ? .hourly : .daily
         }
         .onChange(of: self.group.chartDomain) { _, _ in self.focusedInterval = nil }
-        .onChange(of: self.group.providers.map(\.id)) { _, ids in
+        .onChange(of: legendProviders.map(\.id)) { _, ids in
             if let selectedSourceID, !ids.contains(selectedSourceID) { self.selectedSourceID = nil }
         }
     }
 
-    private var chartIdentity: String {
+    private func chartIdentity(sourceID: String?) -> String {
         "\(self.activeSection):\(self.day?.timeIntervalSince1970 ?? 0):"
-            + "\(self.selectedSourceID ?? "all"):\(self.group.chartDomain):"
+            + "\(sourceID ?? "all"):\(self.group.chartDomain):"
             + "\(self.focusedInterval?.start.timeIntervalSince1970 ?? 0)"
     }
 
@@ -144,8 +149,8 @@ struct SpendDashboardTrendPanel: View {
         .controlSize(.small)
     }
 
-    private var legend: some View {
-        ForEach(self.group.providers) { provider in
+    private func legend(providers: [SpendDashboardModel.ProviderRow], selectedSourceID: String?) -> some View {
+        ForEach(providers) { provider in
             Button {
                 self.selectedSourceID = self.selectedSourceID == provider.id ? nil : provider.id
             } label: {
@@ -162,13 +167,13 @@ struct SpendDashboardTrendPanel: View {
                 }
                 .padding(.horizontal, 7).padding(.vertical, 4)
                 .background(
-                    self.selectedSourceID == provider.id ? Color.primary.opacity(0.07) : .clear,
+                    selectedSourceID == provider.id ? Color.primary.opacity(0.07) : .clear,
                     in: RoundedRectangle(cornerRadius: 6))
-                .opacity(self.selectedSourceID == nil || self.selectedSourceID == provider.id ? 1 : 0.6)
+                .opacity(selectedSourceID == nil || selectedSourceID == provider.id ? 1 : 0.6)
             }
             .buttonStyle(.plain)
             .help(L("Click to isolate a source. Click again to show all."))
-            .accessibilityAddTraits(self.selectedSourceID == provider.id ? .isSelected : [])
+            .accessibilityAddTraits(selectedSourceID == provider.id ? .isSelected : [])
             .accessibilityIdentifier("spend-trend-source-\(provider.id)")
         }
     }
@@ -286,7 +291,7 @@ struct SpendTrendChart: View {
                     .accessibilityLabel("\(self.sourceText(point)), \(self.bucketText(point.date, model: model))")
                     .accessibilityValue(self.costText(point.cost, sourceID: point.sourceID))
             }
-            if let date = self.inspectedDate ?? self.pinnedDate {
+            if let date = (self.inspectedDate ?? self.pinnedDate).flatMap({ model.inspectionDate(at: $0) }) {
                 RuleMark(x: .value(self.groupingText(model), self.center(of: date, unit: model.unit)))
                     .foregroundStyle(.secondary.opacity(0.45))
             }
@@ -343,12 +348,12 @@ struct SpendTrendChart: View {
                                 at: location,
                                 proxy: proxy,
                                 geometry: geometry,
-                                unit: model.unit)
+                                model: model)
                         case .ended: self.inspectedDate = nil
                         }
                     }
                     .onTapGesture { location in
-                        guard let date = self.date(at: location, proxy: proxy, geometry: geometry, unit: model.unit)
+                        guard let date = self.date(at: location, proxy: proxy, geometry: geometry, model: model)
                         else { return }
                         self.pinnedDate = date
                         self.inspectedDate = nil
@@ -377,7 +382,7 @@ struct SpendTrendChart: View {
     }
 
     private func inspection(_ model: SpendTrendChartModel) -> some View {
-        let date = self.inspectedDate ?? self.pinnedDate
+        let date = (self.inspectedDate ?? self.pinnedDate).flatMap { model.inspectionDate(at: $0) }
         let bucket = date.flatMap { model.bucket(at: $0) } ?? (date == nil ? model.peak : nil)
         return VStack(alignment: .leading, spacing: 5) {
             HStack {
@@ -414,10 +419,7 @@ struct SpendTrendChart: View {
                 Text(bucket.map { self.costText($0.total) } ?? L("No data available"))
                     .fontWeight(.semibold).monospacedDigit()
             }
-            ViewThatFits(in: .horizontal) {
-                HStack(spacing: 12) { self.inspectionRows(bucket) }
-                VStack(alignment: .leading, spacing: 4) { self.inspectionRows(bucket) }
-            }
+            MenuBarLayoutChipFlowLayout(spacing: 12) { self.inspectionRows(bucket) }
         }
         .font(.callout)
         .padding(10)
@@ -447,12 +449,12 @@ struct SpendTrendChart: View {
         at location: CGPoint,
         proxy: ChartProxy,
         geometry: GeometryProxy,
-        unit: Calendar.Component) -> Date?
+        model: SpendTrendChartModel) -> Date?
     {
         guard let frame = proxy.plotFrame, geometry[frame].contains(location),
               let date = proxy.value(atX: location.x - geometry[frame].minX, as: Date.self)
         else { return nil }
-        return self.group.calendar.dateInterval(of: unit, for: date)?.start
+        return model.inspectionDate(at: date)
     }
 
     private func center(of date: Date, unit: Calendar.Component) -> Date {

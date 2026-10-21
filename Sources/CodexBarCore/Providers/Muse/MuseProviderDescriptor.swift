@@ -15,15 +15,6 @@ public enum MuseProviderDescriptor {
             "Muse Code login not found. Run `muse login`, then refresh CodexBar."
         })
 
-    /// Chrome needs a no-UI Safe Storage grant and Firefox needs none; Safari's store can require Full Disk Access.
-    private static var browserCookieOrder: BrowserCookieImportOrder? {
-        #if os(macOS)
-        [.chrome, .firefox]
-        #else
-        nil
-        #endif
-    }
-
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
             id: .muse,
@@ -56,7 +47,7 @@ public enum MuseProviderDescriptor {
                 cliName: "muse",
                 defaultEnabled: false,
                 widgetSelectable: false,
-                browserCookieOrder: self.browserCookieOrder,
+                browserCookieOrder: ProviderBrowserCookieDefaults.defaultImportOrder,
                 dashboardURL: "https://dev.meta.ai",
                 subscriptionDashboardURL: "https://dev.meta.ai",
                 statusPageURL: nil),

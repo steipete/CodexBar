@@ -769,3 +769,33 @@ struct SpendActivityHeatmapTests {
             modelBreakdowns: [])
     }
 }
+
+extension SpendActivitySeries {
+    fileprivate init(
+        daily: [Int],
+        isCovered: [Bool],
+        isScanned: [Bool],
+        start: Date,
+        rangeStart: Date,
+        today: Date,
+        calendar: Calendar)
+    {
+        let dates = daily.indices.map { index in
+            calendar.date(byAdding: .day, value: index, to: start).map { calendar.startOfDay(for: $0) }
+        }
+        let visible = dates.indices.filter { index in
+            dates[index].map { rangeStart...today ~= $0 } ?? false
+        }
+        self.init(
+            daily: daily,
+            isCovered: isCovered,
+            isScanned: isScanned,
+            start: start,
+            rangeStart: rangeStart,
+            today: today,
+            calendar: calendar,
+            dates: dates,
+            visibleIndices: visible,
+            coveredDayCount: visible.count(where: { isCovered[$0] }))
+    }
+}

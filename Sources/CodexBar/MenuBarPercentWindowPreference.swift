@@ -40,19 +40,20 @@ enum MenuBarPercentWindowPreference: Hashable, Identifiable, Sendable {
         self == .monthlyPlan ? .monthlyPlan : .automatic
     }
 
-    func label(for provider: UsageProvider) -> String {
+    func label(for provider: UsageProvider, snapshot: UsageSnapshot? = nil) -> String {
         let descriptor = ProviderDescriptorRegistry.descriptor(for: provider)
         if case let .extra(id) = self { return descriptor.menuBarMetrics.namedExtras[id].map(L) ?? L("Usage") }
         guard self != .automatic else { return L("menu_bar_layout_token_auto") }
         if self == .monthlyPlan { return MenuBarMetricPreference.monthlyPlan.label }
         if self == .tertiary {
-            return MenuBarLayoutLaneLabels(provider: provider, snapshot: nil).label(for: .tertiary)
+            return MenuBarLayoutLaneLabels(provider: provider, snapshot: snapshot).label(for: .tertiary)
         }
         let primary = PercentWindow.forSemanticWindow(descriptor.presentation.primarySemanticWindow)
         let presentation = descriptor.presentation
-        return L(self.percentWindow == primary
-            ? presentation.menuBarLayoutPrimaryLabel ?? descriptor.metadata.sessionLabel
-            : presentation.menuBarLayoutSecondaryLabel ?? descriptor.metadata.weeklyLabel)
+        let labels = MenuBarLayoutLaneLabels(provider: provider, snapshot: snapshot)
+        return self.percentWindow == primary
+            ? presentation.menuBarLayoutPrimaryLabel.map(L) ?? labels.primary
+            : presentation.menuBarLayoutSecondaryLabel.map(L) ?? labels.secondary
     }
 
     /// Semantic windows keep their existing mapping; an independently selectable tertiary pool
@@ -165,7 +166,7 @@ enum MenuBarPercentWindowPreference: Hashable, Identifiable, Sendable {
         }
         return MenuBarLayout(lines: layout.lines.map { line in
             line.map { token in
-                if case .percent = token { return self.layoutToken }
+                if case let .percent(window) = token, window != .spend { return self.layoutToken }
                 if !hasOrdinaryPercent, token == .lanePercent(lane: .tertiary) { return self.layoutToken }
                 if !hasOrdinaryPercent, !hasTertiary, case .extraPercent = token { return self.layoutToken }
                 return token
@@ -192,7 +193,8 @@ enum MenuBarPercentWindowPreference: Hashable, Identifiable, Sendable {
 
     private static func percentWindows(in layout: MenuBarLayout) -> [PercentWindow] {
         layout.lines.flatMap(\.self).compactMap { token in
-            guard case let .percent(window) = token else { return nil }
+            // Spend % is a provider budget, not a quota window: the picker never selects, rewrites or removes it.
+            guard case let .percent(window) = token, window != .spend else { return nil }
             return window
         }
     }

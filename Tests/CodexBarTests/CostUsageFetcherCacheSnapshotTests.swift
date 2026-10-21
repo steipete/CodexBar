@@ -109,6 +109,14 @@ struct CostUsageFetcherCacheSnapshotTests {
         #expect(cached?.snapshot.last30DaysTokens == 0)
         #expect(cached?.snapshot.last30DaysCostUSD == 0)
         #expect(cached?.snapshot.historyCoverageIsEstablished == true)
+        #expect(cached?.snapshot.detailsAreComplete == true)
+        let totalsOnly = await CostUsageFetcher.loadCachedCodexTokenSnapshotResult(
+            now: now,
+            historyDays: 1,
+            includePiSessions: false,
+            includeProjectAndSessionBreakdowns: false,
+            scannerOptions: options)
+        #expect(totalsOnly?.snapshot.detailsAreComplete == false)
         #expect(cached?.lastRefreshAt == scanTime)
     }
 
@@ -373,6 +381,8 @@ struct CostUsageFetcherCacheSnapshotTests {
         #expect(cached?.snapshot.historyCoverageIsEstablished == true)
         #expect(cached?.snapshot.last30DaysTokens == 42)
         #expect(cached?.staleSnapshotUpdatedAt == established.updatedAt)
+        #expect(!partial.detailsAreComplete)
+        #expect(cached?.snapshot.detailsAreComplete == false)
         #expect(cached?.lastRefreshAt == nil)
     }
 
@@ -464,6 +474,7 @@ struct CostUsageFetcherCacheSnapshotTests {
             piScannerOptions: piOptions)
 
         #expect(cached?.snapshot.sessionTokens == 207)
+        #expect(cached?.snapshot.detailsAreComplete == false)
         #expect(cached?.snapshot.updatedAt == oldestScanTime)
         #expect(cached?.snapshot.updatedAt != hydratedAt)
         #expect(cached?.lastRefreshAt == nil)

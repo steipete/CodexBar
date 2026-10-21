@@ -1,9 +1,5 @@
 import Foundation
 
-#if os(macOS)
-import SweetCookieKit
-#endif
-
 public enum AlibabaCodingPlanProviderDescriptor {
     public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
     private static let credentials = ProviderCredentialAdapter.apiKey(
@@ -15,21 +11,7 @@ public enum AlibabaCodingPlanProviderDescriptor {
             isValid: { AlibabaCodingPlanAPIRegion(rawValue: $0) != nil }))
 
     static func makeDescriptor() -> ProviderDescriptor {
-        #if os(macOS)
-        let browserOrder: BrowserCookieImportOrder = [
-            .chrome,
-            .chromeBeta,
-            .brave,
-            .edge,
-            .arc,
-            .firefox,
-            .safari,
-        ]
-        #else
-        let browserOrder: BrowserCookieImportOrder? = nil
-        #endif
-
-        return ProviderDescriptor(
+        ProviderDescriptor(
             id: .alibaba,
             settingsSection: .init(
                 AlibabaCodingPlanProviderSettingsKey.self,
@@ -67,7 +49,7 @@ public enum AlibabaCodingPlanProviderDescriptor {
                     "alibaba coding plan pro": "Pro", "starter": "Starter", "enterprise": "Enterprise",
                 ],
                 debugLogUnavailableMessage: "Alibaba Coding Plan debug log not yet implemented",
-                browserCookieOrder: browserOrder,
+                browserCookieOrder: ProviderBrowserCookieDefaults.defaultImportOrder,
                 dashboardURL: AlibabaCodingPlanAPIRegion.international.dashboardURL.absoluteString,
                 statusPageURL: nil,
                 statusLinkURL: "https://status.aliyun.com"),

@@ -82,14 +82,13 @@ struct ClaudeSyntheticPlaceholderMenuCardTests {
     func `compact overview preserves enterprise spend without quota windows`(showOptional: Bool) throws {
         let model = Self.enterpriseModel(showOptional: showOptional)
         let row = OverviewMenuCardRowView(model: model, storageText: nil, width: 340, layout: .compact)
-        #expect(model.metrics.isEmpty)
-        #expect(model.placeholder == "Limits not available")
-        #expect(row.usesFullCard)
-        #expect((model.providerCost != nil) == showOptional)
+        #expect(model.metrics.count == (showOptional ? 1 : 0))
+        #expect(row.usesFullCard == !showOptional)
+        #expect(model.providerCost == nil)
         if showOptional {
-            let cost = try #require(model.providerCost)
-            #expect(cost.title == "Extra usage")
-            #expect(cost.spendLine == "Monthly cap: $9.95 / $150.00")
+            let metric = try #require(model.metrics.first)
+            #expect(metric.title == "Extra usage")
+            #expect(metric.detailText == "Monthly cap: $9.95 / $150.00")
         }
         #expect(!OverviewMenuCardRowView(model: model, storageText: nil, width: 340).usesFullCard)
     }

@@ -196,7 +196,7 @@ struct AdaptiveRefreshHeuristicsTests {
     }
 
     /// The reset-boundary pipeline tests need `refresh()` to complete with a snapshot still in
-    /// place, and `clearDisabledProviderRefreshState` wipes snapshots of disabled providers. So
+    /// place, and `clearProviderRuntimeState` wipes snapshots of disabled providers. So
     /// codex stays enabled but its fetch is stubbed to return a canned snapshot whose primary
     /// window resets 10 minutes out — inside a 30-minute normal-refresh window, outside nothing.
     /// The live-system account is pinned and the snapshot carries the same email, so the

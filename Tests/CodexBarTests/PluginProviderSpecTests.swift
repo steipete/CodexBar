@@ -8,6 +8,7 @@ import Testing
 struct PluginProviderSpecTests {
     private static let providers: [UsageProvider] = [
         .xkiro,
+        .futureagi,
         .atlascloud,
         .vercel,
         .devpass,
@@ -21,6 +22,8 @@ struct PluginProviderSpecTests {
         .aixy, .bifrost, .deepgram, .llmproxy, .litellm, .sub2api, .llmman,
         .helmcode, .hyper, .manus, .perplexity, .qoder, .raycast, .sakana, .t3chat, .museai,
         .huggingface, .nous, .fireworks, .xai, .venice, .zed,
+        .tavily, .linkup, .tinyapi, .exa,
+        .cosmic, .aerostack, .sailresearch, .sofya, .fal, .flora, .parallel, .munito,
     ]
 
     private static let isolatedEnvironment = [

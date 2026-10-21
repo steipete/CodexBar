@@ -1,6 +1,6 @@
 import CodexBarCore
 
-extension StatusItemController {
+extension UsageStore {
     func codexAccountMenuCardModel(
         for account: CodexVisibleAccount,
         accountSnapshot: CodexAccountUsageSnapshot?) -> UsageMenuCardView.Model?
@@ -10,8 +10,8 @@ extension StatusItemController {
             context: .account(.init(
                 snapshot: accountSnapshot?.snapshot,
                 error: CodexAccountHealth.status(for: account, error: accountSnapshot?.error).label,
-                info: self.accountInfo(for: account),
-                historySelection: self.store.codexPlanUtilizationHistorySelection(forVisibleAccount: account),
+                info: AccountInfo(email: account.email, plan: account.workspaceLabel),
+                historySelection: self.codexPlanUtilizationHistorySelection(forVisibleAccount: account),
                 credits: accountSnapshot?.credits)))
     }
 }

@@ -378,7 +378,9 @@ struct AntigravityLocalIntegrityTests {
         var now: TimeInterval = 0
         var budget: AntigravityLocalReader.Budget?
         defer { budget = nil }
-        budget = AntigravityLocalReader.Budget(limits: .init(), clock: { now }, cancellation: {
+        var limits = AntigravityLocalReader.Limits()
+        limits.duration = 5
+        budget = AntigravityLocalReader.Budget(limits: limits, clock: { now }, cancellation: {
             if budget?.statistics.schemaColumns == 1 {
                 if deadline { now = 5 } else { throw expected }
             }

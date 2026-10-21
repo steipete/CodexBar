@@ -50,6 +50,7 @@ struct StatusComponentsMenuView: View {
         .padding(.vertical, 8)
         .frame(width: self.width, alignment: .leading)
         .fixedSize(horizontal: false, vertical: true)
+        .codexBarLocalized()
     }
 
     /// A single leaf row: dot · name · right-aligned status.

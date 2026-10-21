@@ -2,25 +2,116 @@
 import Foundation
 import LocalAuthentication
 import Security
+import SweetCookieKit
 import Testing
 @testable import CodexBarCore
 
 struct MuseKeychainAccessTests {
+    @Test
+    func `missing Muse grant names the Keychain Access recovery without reading secrets`() throws {
+        let run = try Self.fetchToken(outcome: .interactionRequired, interaction: .background)
+        #expect(run.error?.errorDescription?.contains("Keychain Access") == true)
+        #expect(run.events == ["preflight"])
+    }
+
+    @Test
+    func `temporary Muse Keychain failure names unlocking rather than a missing grant`() throws {
+        let run = try Self.fetchToken(outcome: .temporarilyUnavailable, interaction: .userInitiated)
+        #expect(run.error?.errorDescription?.contains("unlock") == true)
+        #expect(run.events.allSatisfy { $0 == "preflight" })
+    }
+
+    @Test
+    func `manual refresh can grant access to the Muse login`() throws {
+        let run = try Self.fetchToken(outcome: .interactionRequired, interaction: .userInitiated)
+        #expect(run.token == "dca:fixture-keychain")
+        #expect(run.error == nil)
+        #expect(run.events == ["preflight", "explain museToken", "read interactive"])
+    }
+
+    @Test
+    func `settings no UI policy prevents a Muse grant inside a manual scope`() throws {
+        try BrowserCookieKeychainAccessGate.withUserInteractionDisallowed {
+            let run = try Self.fetchToken(outcome: .interactionRequired, interaction: .userInitiated)
+            #expect(run.error == .keychainAccessNotGranted)
+            #expect(run.events == ["preflight"])
+        }
+    }
+
+    @Test
+    func `repeated Muse reads share one manual action allowance`() throws {
+        try BrowserCookieAccessGate.withIsolatedStateForTesting {
+            try BrowserCookieAccessGate.withExplicitRetry {
+                let first = try Self.fetchToken(outcome: .interactionRequired, interaction: .userInitiated)
+                let second = try Self.fetchToken(outcome: .interactionRequired, interaction: .userInitiated)
+                #expect(first.token != nil)
+                #expect(second.error == .keychainAccessNotGranted)
+                #expect(second.events == ["preflight"])
+            }
+        }
+    }
+
+    @Test
+    func `a denial suppresses a later manual action without another read`() throws {
+        try BrowserCookieAccessGate.withIsolatedStateForTesting {
+            let denied = try Self.fetchToken(
+                outcome: .interactionRequired, interaction: .userInitiated, readStatus: errSecUserCanceled)
+            let retried = try Self.fetchToken(outcome: .interactionRequired, interaction: .userInitiated)
+            #expect(denied.error == .keychainAccessNotGranted)
+            #expect(retried.error == .keychainAccessNotGranted)
+            #expect(retried.events == ["preflight"])
+        }
+    }
+
     @Test(
         arguments: [KeychainAccessPreflight.Outcome.interactionRequired, .temporarilyUnavailable, .failure(-1)],
         [ProviderInteraction.background, .userInitiated])
-    func `refreshes fail before any secret read or prompt when preflight is not allowed`(
+    func `blocked preflight only reads interactively for a user action when access was not granted`(
         outcome: KeychainAccessPreflight.Outcome,
         interaction: ProviderInteraction) throws
     {
         for hasMetadata in [false, true] {
             let run = try Self.fetchToken(
                 outcome: outcome, interaction: interaction, hasMetadata: hasMetadata)
-            #expect(run.error == .keychainUnavailable)
-            #expect(run.token == nil)
-            #expect(!run.events.isEmpty)
-            #expect(run.events.allSatisfy { $0 == "preflight" })
+            if outcome == .interactionRequired, interaction == .userInitiated {
+                #expect(run.error == nil)
+                #expect(run.token == "dca:fixture-keychain")
+                #expect(run.events == ["preflight", "explain museToken", "read interactive"])
+            } else {
+                #expect(run.error ==
+                    (outcome == .interactionRequired ? .keychainAccessNotGranted : .keychainUnavailable))
+                #expect(run.token == nil)
+                #expect(!run.events.isEmpty)
+                #expect(run.events.allSatisfy { $0 == "preflight" })
+            }
         }
+    }
+
+    @Test
+    func `a denied interactive read keeps the grant diagnostic`() throws {
+        let run = try Self.fetchToken(
+            outcome: .interactionRequired, interaction: .userInitiated, readStatus: errSecUserCanceled)
+        #expect(run.error == .keychainAccessNotGranted)
+        #expect(run.token == nil)
+        #expect(run.events == ["preflight", "explain museToken", "read interactive"])
+    }
+
+    @Test(arguments: [errSecNotAvailable, errSecInteractionNotAllowed])
+    func `a temporary interactive read failure stays unavailable instead of a denial`(readStatus: OSStatus) throws {
+        let run = try Self.fetchToken(
+            outcome: .interactionRequired, interaction: .userInitiated, readStatus: readStatus)
+        #expect(run.error == .keychainUnavailable)
+        #expect(run.token == nil)
+        #expect(run.events == ["preflight", "explain museToken", "read interactive"])
+    }
+
+    @Test
+    func `without an explanation alert a user action never reads interactively`() throws {
+        let run = try Self.fetchToken(
+            outcome: .interactionRequired, interaction: .userInitiated, explainsPrompt: false)
+        #expect(run.error == .keychainAccessNotGranted)
+        #expect(run.token == nil)
+        #expect(run.events == ["preflight"])
     }
 
     @Test(arguments: [ProviderInteraction.background, .userInitiated])
@@ -120,7 +211,8 @@ struct MuseKeychainAccessTests {
         interaction: ProviderInteraction,
         hasMetadata: Bool = true,
         disabled: Bool = false,
-        readStatus: OSStatus = errSecSuccess) throws -> Run
+        readStatus: OSStatus = errSecSuccess,
+        explainsPrompt: Bool = true) throws -> Run
     {
         let home = try Self.temporaryHome()
         defer { try? FileManager.default.removeItem(at: home) }
@@ -131,7 +223,12 @@ struct MuseKeychainAccessTests {
         let events = LockIsolated<[String]>([])
         var run = Run()
         Self.withSyntheticKeychain(
-            outcome: outcome, interaction: interaction, events: events, disabled: disabled, readStatus: readStatus)
+            outcome: outcome,
+            interaction: interaction,
+            events: events,
+            disabled: disabled,
+            readStatus: readStatus,
+            explainsPrompt: explainsPrompt)
         {
             do {
                 run.token = try MuseCredentials.accessToken(
@@ -154,6 +251,7 @@ struct MuseKeychainAccessTests {
         events: LockIsolated<[String]>,
         disabled: Bool = false,
         readStatus: OSStatus = errSecSuccess,
+        explainsPrompt: Bool = true,
         operation: () -> T) -> T
     {
         let record: @Sendable (String) -> Void = { events.setValue(events.value + [$0]) }
@@ -161,23 +259,33 @@ struct MuseKeychainAccessTests {
             #expect(query[kSecAttrService as String] as? String == MuseCredentials.keychainService)
             #expect(query[kSecAttrAccount as String] as? String == MuseCredentials.keychainAccount)
             #expect(query[kSecReturnData as String] as? Bool == true)
-            #expect((query[kSecUseAuthenticationContext as String] as? LAContext)?.interactionNotAllowed == true)
-            #expect(query[kSecUseAuthenticationUI as String] as? String == KeychainNoUIQuery.uiFailPolicyForTesting())
-            record("read no-ui")
+            if let context = query[kSecUseAuthenticationContext as String] as? LAContext {
+                #expect(context.interactionNotAllowed == true)
+                #expect(query[kSecUseAuthenticationUI as String] as? String ==
+                    KeychainNoUIQuery.uiFailPolicyForTesting())
+                record("read no-ui")
+            } else {
+                #expect(query[kSecUseAuthenticationUI as String] == nil)
+                record("read interactive")
+            }
             return (readStatus, Data(#"{"access_token":"dca:fixture-keychain"}"#.utf8))
         }
-        return KeychainAccessGate.withTaskOverrideForTesting(disabled) {
-            KeychainAccessPreflight.withCheckGenericPasswordOverrideForTesting { service, account in
-                #expect(service == MuseCredentials.keychainService)
-                #expect(account == MuseCredentials.keychainAccount)
-                record("preflight")
-                return outcome
-            } operation: {
-                KeychainPromptHandler.withHandlerForTesting {
-                    record("explain \($0.kind)")
-                } operation: {
-                    MuseCredentials.$keychainReadOverrideForTesting.withValue(read) {
-                        ProviderInteractionContext.$current.withValue(interaction, operation: operation)
+        return BrowserCookieAccessGate.withIsolatedStateForTesting {
+            BrowserCookieAccessGate.withExplicitRetry {
+                KeychainAccessGate.withTaskOverrideForTesting(disabled) {
+                    KeychainAccessPreflight.withCheckGenericPasswordOverrideForTesting { service, account in
+                        #expect(service == MuseCredentials.keychainService)
+                        #expect(account == MuseCredentials.keychainAccount)
+                        record("preflight")
+                        return outcome
+                    } operation: {
+                        KeychainPromptHandler.withHandlerForTesting(
+                            explainsPrompt ? { record("explain \($0.kind)") } : nil)
+                        {
+                            MuseCredentials.$keychainReadOverrideForTesting.withValue(read) {
+                                ProviderInteractionContext.$current.withValue(interaction, operation: operation)
+                            }
+                        }
                     }
                 }
             }

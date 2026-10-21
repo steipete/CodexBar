@@ -65,6 +65,27 @@ struct AlibabaCodingPlanCookieImporterTests {
     }
 
     @Test
+    func `chromium fallback keeps its browser denial gate after metadata discovery`() throws {
+        let home = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: home) }
+        let directory = home.appendingPathComponent("Library/Application Support/Google/Chrome/Default/Network")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try Data().write(to: directory.appendingPathComponent("Cookies"))
+        let client = BrowserCookieClient(configuration: .init(homeDirectories: [home]))
+        try BrowserCookieAccessGate.withShouldAttemptOverrideForTesting(false) {
+            #expect(try client.codexBarStores(for: .chrome).count == 1)
+            let result = try AliyunOneConsoleChromiumCookieFallbackImporter.importSession(
+                browser: .chrome,
+                domains: ["example.com"],
+                isAuthenticatedSession: { _ in Issue.record("Must not read cookies"); return false },
+                sessionLabel: "Synthetic",
+                cookieClient: client,
+                logger: { _ in Issue.record("Must not start fallback decryption") })
+            #expect(result == nil)
+        }
+    }
+
+    @Test
     func `domain matching requires exact or label bounded suffix`() {
         #expect(AlibabaCodingPlanCookieImporter.matchesCookieDomain("console.aliyun.com"))
         #expect(AlibabaCodingPlanCookieImporter.matchesCookieDomain(".modelstudio.console.alibabacloud.com"))

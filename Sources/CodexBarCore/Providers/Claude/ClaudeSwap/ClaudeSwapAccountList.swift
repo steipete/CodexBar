@@ -4,7 +4,7 @@ import Foundation
 /// Strictly parsed result of `cswap --list --json` (schema v1).
 ///
 /// Only the fields allow-listed in `docs/claude-multi-account-and-status-items.md`
-/// are decoded: slot number, display email, display-only `organizationName`,
+/// are decoded: slot number, email and organization UUID for history, display-only `organizationName`,
 /// optional display-only `alias`, active/disabled state, usage status, quota
 /// windows, spend, and measurement times. `lastGoodUsage` is display-only.
 /// Extra fields are ignored; unknown schema versions and partial top-level shapes are rejected.
@@ -27,8 +27,9 @@ public struct ClaudeSwapAccountList: Equatable, Sendable {
 
 public struct ClaudeSwapAccountRow: Equatable, Sendable {
     public let number: Int
-    /// Display-only sensitive value; never logged or persisted.
+    /// Sensitive value; only its history digest may be persisted, never the raw email.
     public let email: String
+    public let organizationUuid: String
     /// Display-only workspace name from cswap schema v1; always present, may be empty.
     /// Never identity, never logged, never persisted.
     public let organizationName: String
@@ -50,6 +51,7 @@ public struct ClaudeSwapAccountRow: Equatable, Sendable {
     public init(
         number: Int,
         email: String,
+        organizationUuid: String = "",
         organizationName: String = "",
         alias: String? = nil,
         isActive: Bool,
@@ -64,6 +66,7 @@ public struct ClaudeSwapAccountRow: Equatable, Sendable {
     {
         self.number = number
         self.email = email
+        self.organizationUuid = organizationUuid
         self.organizationName = organizationName
         self.alias = alias
         self.isActive = isActive
@@ -244,6 +247,7 @@ public enum ClaudeSwapListParser {
         return try ClaudeSwapAccountRow(
             number: number,
             email: email,
+            organizationUuid: row["organizationUuid"] as? String ?? "",
             organizationName: organizationName,
             alias: alias,
             isActive: isActive,

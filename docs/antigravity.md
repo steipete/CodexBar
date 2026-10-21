@@ -44,7 +44,14 @@ For `agy` 1.2.2 and later, a failed legacy HTTPS fetch can fall back to
 or later before using print mode; [Google introduced non-interactive usage reports in 1.1.11](https://antigravity.google/changelog).
 It requires a successful `usage` command report with known,
 enabled quota buckets, bounds the command to 90 seconds and its output to 1 MiB, and terminates the command
-on cancellation. It runs in a private empty directory and does not send a model prompt or parse TUI output.
+on cancellation. It runs in a private temporary directory and does not send a model prompt or parse TUI output.
+When silent sign-in fails, `agy` print mode can exec `open` or `xdg-open` from `PATH` to start Google OAuth.
+Each print probe puts failing launchers in its existing private directory, prepends that directory to `PATH`,
+and points `BROWSER` at the failing launcher. If the launchers cannot be installed, the report does not start.
+Automatic and manual usage refreshes can still retrieve quota with a working login, but cannot open browser
+sign-in through these launchers. A failed login returns a sign-in or timeout error; run `agy` in a terminal
+to sign in again. **Add Account...** keeps its explicit OAuth login flow. The launchers are removed with the
+probe directory after subprocess cleanup, including failure and cancellation.
 Each print probe receives a fresh `CODEXBAR_PROBE_OWNER` environment marker. On completion, timeout, or
 cancellation, CodexBar stops its process group and reaps same-user processes that still carry that exact marker,
 including detached MCP servers. Ownership and process start identity are checked again before each signal;
@@ -59,7 +66,7 @@ On macOS, Auto can also run the print command for a selected or injected Google 
 its credentials into a temporary `0700` home with a `0600` token file, then runs `agy` with only PATH,
 locale, temporary-directory, and proxy settings inherited. `SSH_TTY` selects agy's file-token storage,
 keeping the ambient CLI login and Keychain untouched. Credentials without an ID token are supported;
-`agy` can refresh an expired grant in that temporary home without starting a login.
+`agy` can silently refresh an expired grant in that temporary home; if that fails, the same browser-launch guard applies.
 
 Before attributing usage, CodexBar checks the effective access token through Google's userinfo endpoint
 and rejects a different or unverifiable account, including conflicting refreshed ID-token claims.
@@ -120,7 +127,9 @@ Starter accounts can supply only weekly limits. Both weekly groups remain visibl
 inventing five-hour allowances. OAuth first tries `retrieveUserQuotaSummary` with the selected account's
 project and a two-second timeout cap. Unavailable, legacy model-bucket, or unmeasured summary responses fall
 back to the existing model endpoints; authentication failures and cancellation still propagate. Grouped OAuth
-quotas retain that account's existing email and plan, without an additional identity request.
+quotas retain that account's existing email, without an additional identity request. OAuth prefers an explicit
+paid tier over the generic Cloud Code tier. If no paid plan is identified, a measured, enabled five-hour
+quota suppresses a contradictory `Free` label; weekly-only Starter quotas keep their existing plan label.
 
 Older local payloads may only include raw Claude, GPT-OSS, Gemini tiers, account plan, and session reset timestamps.
 Current Antigravity IDE local endpoints return `GetUserStatus`, `GetAvailableModels`, and `GetCascadeModelConfigData`
@@ -166,7 +175,7 @@ be polled within the readiness deadline.
 - `POST https://cloudcode-pa.googleapis.com/v1internal:onboardUser`
 - `POST https://cloudcode-pa.googleapis.com/v1internal:fetchAvailableModels`
 - `POST https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuota`
-- `POST https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary` (preferred when it returns measured
+- `POST https://daily-cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary` (preferred when it returns measured
   groups; older model-bucket responses use the model-endpoint fallback)
 
 ## Data sources + fallback order
@@ -318,15 +327,20 @@ shared OAuth file can still be used as a fallback credential source.
   - `Gemini` groups Gemini Pro and Gemini Flash text models.
   - `Claude + GPT` groups Claude text models and GPT/GPT-OSS text models.
 - Representative selection:
+  - Quota summaries prefer measured ordinary Gemini buckets (`gemini-5h` and `gemini-weekly`, including supported
+    cadence aliases) over model-specific Gemini allowances. Stable bucket IDs determine this preference independently
+    of display labels. Model-specific quotas remain the fallback when ordinary quota is absent, unknown, or disabled.
+    Every returned bucket retains its percentage and reset metadata in `extraRateWindows`.
   - Hidden model rows such as Lite, autocomplete, and image variants do not drive summary bars.
-  - For each group, CodexBar uses the lowest remaining known quota row and preserves that row's reset metadata.
+  - For each group, CodexBar uses the lowest remaining known candidate and preserves that row's reset metadata.
   - Rows with reset metadata but no remaining fraction stay visible as unavailable reset context only when their group
     has no known usage row.
 - `resetTime` parsing:
   - ISO-8601 preferred; numeric epoch seconds as fallback.
 - Identity:
   - Local HTTPS merges email and plan from the same server's `GetUserStatus`; print reports supply neither.
-  - OAuth retains the selected account's existing email claims and `loadCodeAssist` plan when parsing grouped quotas.
+  - OAuth retains the selected account's email claims and resolves the plan from `loadCodeAssist`, preferring
+    `paidTier` over generic tier metadata. Measured five-hour quotas never carry a contradictory `Free` label.
 
 ## UI mapping
 - Provider metadata:
@@ -360,7 +374,7 @@ shared OAuth file can still be used as a fallback credential source.
   `idle` instead. The `codexbar serve` web UI skips those rows, so the web card matches the menu without repeating
   the family rule in JavaScript. See `docs/dashboard-api.md`.
 - CLI text and `cards` render quota-summary buckets once, using the same idle-family visibility rule. Missing or disabled quota stays unavailable, including in brief cards, while reset context remains visible. Raw JSON retains every bucket.
-- Linux and Omarchy list each measured quota-summary bucket once with its family title. The most constrained bucket in each family stays first for the tray meters; notification history follows the bucket when its position changes.
+- Linux and Omarchy list each measured quota-summary bucket once with its family title. Each family's selected representative stays first for the tray meters; stable bucket IDs preserve row and notification identity when titles change or quota values match.
 
 ## Quota observation history
 
@@ -503,8 +517,8 @@ generation from the producer's fallback. Identical session/line
 copies deduplicate, while contradictory copies remain partial.
 
 One cancellable job on `CostUsageScanExecutor` owns discovery, SQL, decoding, and fallback. Limits are 500 files,
-10,000 directory entries, 10,000 rows per file, 50,000 rows overall, 16 MiB per record, 64 MiB per file,
-128 MiB of attempted payload bytes overall, and a five-second cooperative scan deadline. Rejected rows consume the budget;
+10,000 directory entries, 10,000 rows per file, 100,000 rows overall, 16 MiB per record, 64 MiB per file,
+512 MiB of attempted payload bytes overall, and a 30-second cooperative scan deadline. Rejected rows consume the budget;
 exactly 500 complete databases are accepted. Discovery is incremental and JSONL is read in bounded chunks.
 Schema inspection bounds each catalogue walk to 128 entries and each table to 64 columns (one additional row detects
 truncation), with a shared 64 KiB allowance per database for inspected schema text and the same cooperative deadline/cancellation.

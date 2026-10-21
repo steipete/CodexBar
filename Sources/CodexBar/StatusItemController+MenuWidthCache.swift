@@ -161,8 +161,8 @@ extension StatusItemController {
             "openTerminal:\(command)"
         case let .loginToProvider(url):
             "loginToProvider:\(url)"
-        case .openCodexWorkspaces:
-            CodexWorkspacesWindowIdentity.menuItem
+        case .openCodexWorkspaces, .openOpenAILiveUsage:
+            self.windowMenuAction(for: action).1
         case .settings:
             "settings"
         case let .providerSettings(provider):

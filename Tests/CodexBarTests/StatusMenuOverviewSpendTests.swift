@@ -631,7 +631,7 @@ extension StatusMenuTests {
         settings.costUsageEnabled = true
         settings.costSummaryDisplayStyle = .both
         let selected: [UsageProvider] = [.openai, .claude, .gemini, .antigravity, .openrouter, .grok]
-        settings.mergedOverviewSelectedProviders = selected
+        settings.mergedOverviewSelectedProviders = selected.map(\.instanceID)
         enableTestProviders(Set(selected), settings: settings)
 
         let store = self.makeCodexStore(settings: settings, dashboardAuthorized: false)
@@ -668,11 +668,12 @@ extension StatusMenuTests {
         defer { controller.releaseStatusItemsForTesting() }
 
         let overviewProviders = settings.reconcileMergedOverviewSelectedProviders(
-            activeProviders: selected)
-        let model = controller.overviewSpendDashboardModel(providers: overviewProviders, now: now)
+            activeProviders: selected.map(\.instanceID))
+        let model = controller.overviewSpendDashboardModel(
+            providers: overviewProviders.compactMap(\.firstPartyProvider), now: now)
         let summary = OverviewSpendSummary(model: model, providerCount: overviewProviders.count)
 
-        #expect(overviewProviders == selected)
+        #expect(overviewProviders == selected.map(\.instanceID))
         #expect(model.groups.first?.providers.map(\.provider).sorted { $0.rawValue < $1.rawValue } == [
             .claude,
             .openrouter,
@@ -755,8 +756,9 @@ extension StatusMenuTests {
         defer { controller.releaseStatusItemsForTesting() }
 
         let scopes = controller.overviewProviderScopes(enabledProviders: enabledRoster)
-        let hiddenProvider = try #require(scopes.spend.first { !scopes.visible.contains($0) })
-        let pricedProviders = [scopes.visible[0], scopes.visible[1], hiddenProvider]
+        let hiddenProvider = try #require(scopes.spend.first { !scopes.visible.contains($0.instanceID) })
+        let pricedProviders = try [scopes.visible[0], scopes.visible[1]]
+            .map { try #require($0.firstPartyProvider) } + [hiddenProvider]
         store._setTokenSnapshotForTesting(snapshot(cost: 35.09), provider: pricedProviders[0])
         store._setTokenSnapshotForTesting(snapshot(cost: 39.79), provider: pricedProviders[1])
         store._setTokenSnapshotForTesting(snapshot(cost: 10.12), provider: pricedProviders[2])
@@ -773,7 +775,7 @@ extension StatusMenuTests {
         let overviewRows = ids.filter { $0.hasPrefix("overviewRow-") }
 
         #expect(scopes.visible.count == 6)
-        #expect(!scopes.visible.contains(hiddenProvider))
+        #expect(!scopes.visible.contains(hiddenProvider.instanceID))
         #expect(scopes.spend == enabledRoster)
         #expect(duplicateScopes.spend == enabledRoster)
         #expect(Set(overviewRows) == Set(scopes.visible.map { "overviewRow-\($0.rawValue)" }))

@@ -19,7 +19,7 @@ struct ProviderSettingsDescriptorTests {
         #expect(fixture.settings.providerConfig(for: .xkiro)?.apiKey == "fixture-key")
     }
 
-    @Test(arguments: [UsageProvider.atlascloud, .vercel])
+    @Test(arguments: [UsageProvider.atlascloud])
     func `balance providers keep API keys in their own config`(provider: UsageProvider) throws {
         let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-\(provider.rawValue)")
         let implementation = try #require(ProviderCatalog.implementation(for: provider))
@@ -307,6 +307,8 @@ struct ProviderSettingsDescriptorTests {
         let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-ollama-refresh")
         let context = fixture.settingsContext(provider: .ollama)
         let pickers = OllamaProviderImplementation().settingsPickers(context: context)
+        let usageSource = try #require(pickers.first { $0.id == "ollama-usage-source" })
+        #expect(usageSource.subtitle.isEmpty)
         let picker = try #require(pickers.first { $0.id == "ollama-cookie-source" })
         let action = try #require(picker.trailingActions.first)
 
@@ -452,7 +454,7 @@ struct ProviderSettingsDescriptorTests {
     }
 
     @Test
-    func `open code cookie refresh permits explicit retry and preserves unvalidated cookie`() async throws {
+    func `open code cookie refresh respects denial cooldown and preserves unvalidated cookie`() async throws {
         let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-opencode-cooldown")
         let context = fixture.settingsContext(provider: .opencode)
         let picker = try #require(OpenCodeProviderImplementation().settingsPickers(context: context).first)
@@ -479,7 +481,7 @@ struct ProviderSettingsDescriptorTests {
 
                 await action.perform()
 
-                #expect(explicitRetryAllowed)
+                #expect(!explicitRetryAllowed)
                 #expect(CookieHeaderCache.load(provider: .opencode)?.cookieHeader == "old-test-cookie")
                 #expect(picker.trailingText?() == L("Failed"))
             }
@@ -1636,7 +1638,8 @@ extension ProviderSettingsDescriptorTests {
             userDefaults: defaults,
             configStore: testConfigStore(suiteName: suite),
             zaiTokenStore: NoopZaiTokenStore(),
-            syntheticTokenStore: NoopSyntheticTokenStore())
+            syntheticTokenStore: NoopSyntheticTokenStore(),
+            keychainAccessPolicy: .init(setDisabled: { _ in }, isExplicitlyDisabled: { false }))
         let store = UsageStore(
             fetcher: UsageFetcher(environment: [:]),
             browserDetection: BrowserDetection(cacheTTL: 0),

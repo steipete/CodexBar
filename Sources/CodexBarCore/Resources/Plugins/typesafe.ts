@@ -2,6 +2,9 @@ type TypeSafeRecord = Record<string, unknown>;
 
 const billingURL = "https://console.typesafe.ai/settings/billing";
 const billingOrigin = "https://console.typesafe.ai";
+// Cloudflare blocks the Linux default UA (it contains "curl/"), so send a browser-style one.
+const userAgent =
+  "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36";
 const actionCacheKey = "typesafe.billing.next-action";
 const actionCacheTTL = 12 * 60 * 60;
 const maximumChunkCount = 60;
@@ -37,15 +40,13 @@ defineProvider({
         throw ctx.fail.apiFailure(`TypeSafe returned HTTP ${response.status}.`);
     };
     // Login pages can also arrive directly with HTTP 200, without an HTTP redirect.
-    const isLoginLanding = (body: string): boolean => /\\?"\(auth\)\\?",\{\\?"children\\?":\[\\?"login\\?"/.test(body);
     const validateBody = (response: CodexBarHTTPTextResponse): void => {
       validate(response);
-      if (isLoginLanding(response.bodyText)) expired();
+      if (/\\?"\(auth\)\\?",\{\\?"children\\?":\[\\?"login\\?"/.test(response.bodyText)) expired();
     };
-    const actionIDPattern = /"([0-9a-f]{40,})"[^)]{0,150}"getBillingOverviewResult"/i;
     const discoverActionID = async (cookie: string): Promise<string> => {
       const page = await ctx.http.get(billingURL, {
-        headers: { Cookie: cookie, Accept: "text/html" },
+        headers: { Cookie: cookie, Accept: "text/html", "User-Agent": userAgent },
         timeoutSeconds: 6,
       });
       validateBody(page);
@@ -61,10 +62,10 @@ defineProvider({
       let discoveryFailure: unknown;
       for (const url of chunkURLs) {
         try {
-          const chunk = await ctx.http.get(url, { timeoutSeconds: 2 });
+          const chunk = await ctx.http.get(url, { headers: { "User-Agent": userAgent }, timeoutSeconds: 2 });
           if (chunk.status === 429 || chunk.status === 408 || chunk.status >= 500) validate(chunk);
           if (chunk.status < 200 || chunk.status >= 300) continue;
-          const action = actionIDPattern.exec(chunk.bodyText)?.[1];
+          const action = /"([0-9a-f]{40,})"[^)]{0,150}"getBillingOverviewResult"/i.exec(chunk.bodyText)?.[1];
           if (action) return action;
         } catch (error) {
           discoveryFailure ??= error;
@@ -87,6 +88,7 @@ defineProvider({
           "Next-Action": id,
           Accept: "text/x-component",
           "Content-Type": "application/json",
+          "User-Agent": userAgent,
         },
         body: [],
         timeoutSeconds: 6,
@@ -145,22 +147,20 @@ defineProvider({
     const availableRows = 24 - rows.length;
     const creditRows: CodexBarDetailRow[] = [];
     let creditCount = 0;
-    if (Array.isArray(billing.credits)) {
-      for (const item of billing.credits) {
-        const credit = record(item);
-        const amount = number(credit?.amount);
-        const remaining = number(credit?.remaining);
-        const expiresAt = typeof credit?.expiresAt === "string" ? credit.expiresAt : undefined;
-        if (amount === undefined || remaining === undefined || remaining <= 0 || !expiresAt) continue;
-        const expires = Date.parse(expiresAt);
-        if (!Number.isFinite(expires)) continue;
-        creditCount++;
-        if (creditRows.length >= availableRows) continue;
-        creditRows.push({
-          label: "Credit",
-          value: `${ctx.format.number(remaining)} of ${ctx.format.number(amount)}, expires ${ctx.format.monthDay(expires)}`,
-        });
-      }
+    for (const item of Array.isArray(billing.credits) ? billing.credits : []) {
+      const credit = record(item);
+      const amount = number(credit?.amount);
+      const remaining = number(credit?.remaining);
+      const expiresAt = typeof credit?.expiresAt === "string" ? credit.expiresAt : undefined;
+      if (amount === undefined || remaining === undefined || remaining <= 0 || !expiresAt) continue;
+      const expires = Date.parse(expiresAt);
+      if (!Number.isFinite(expires)) continue;
+      creditCount++;
+      if (creditRows.length >= availableRows) continue;
+      creditRows.push({
+        label: "Credit",
+        value: `${ctx.format.number(remaining)} of ${ctx.format.number(amount)}, expires ${ctx.format.monthDay(expires)}`,
+      });
     }
     if (creditCount > availableRows) {
       const shown = availableRows - 1;

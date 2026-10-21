@@ -6,19 +6,22 @@ public struct ClaudeProviderSettings: Sendable {
     public let cookieSource: ProviderCookieSource
     public let manualCookieHeader: String?
     public let organizationID: String?
+    public let desktopCookiesEnabled: Bool
 
     public init(
         usageDataSource: ClaudeUsageDataSource,
         webExtrasEnabled: Bool,
         cookieSource: ProviderCookieSource,
         manualCookieHeader: String?,
-        organizationID: String? = nil)
+        organizationID: String? = nil,
+        desktopCookiesEnabled: Bool = false)
     {
         self.usageDataSource = usageDataSource
         self.webExtrasEnabled = webExtrasEnabled
         self.cookieSource = cookieSource
         self.manualCookieHeader = manualCookieHeader
         self.organizationID = organizationID
+        self.desktopCookiesEnabled = desktopCookiesEnabled
     }
 }
 

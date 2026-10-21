@@ -27,6 +27,18 @@ struct ProviderDetailSectionsContentTests {
         #expect(size.height > 58)
     }
 
+    @Test
+    func `privacy redaction preserves detail severity and progress`() throws {
+        let row = try ProviderDetailSection.Row(
+            label: "Pool user@example.com", value: "10%", progress: .init(used: 0.9, total: 1), severity: .critical)
+        let model = try UsageMenuCardView.Model.make(Self.input(
+            details: [ProviderDetailSection(rows: [row])], hidePersonalInfo: true))
+        let redacted = try #require(model.providerDetails.first?.rows.first)
+        #expect(redacted.label == "Pool")
+        #expect(redacted.severity == .critical)
+        #expect(redacted.progress == row.progress)
+    }
+
     private static func section(kind: ProviderDetailSection.Chart.Kind) throws -> ProviderDetailSection {
         try ProviderDetailSection(
             title: "Usage",
@@ -41,7 +53,10 @@ struct ProviderDetailSectionsContentTests {
                 ]))
     }
 
-    private static func input(details: [ProviderDetailSection]) -> UsageMenuCardView.Model.Input {
+    private static func input(
+        details: [ProviderDetailSection],
+        hidePersonalInfo: Bool = false) -> UsageMenuCardView.Model.Input
+    {
         let provider: UsageProvider = .synthetic
         return UsageMenuCardView.Model.Input(
             provider: provider,
@@ -63,7 +78,7 @@ struct ProviderDetailSectionsContentTests {
             resetTimeDisplayStyle: .countdown,
             tokenCostUsageEnabled: false,
             showOptionalCreditsAndExtraUsage: true,
-            hidePersonalInfo: false,
+            hidePersonalInfo: hidePersonalInfo,
             now: Date())
     }
 }

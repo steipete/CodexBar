@@ -6,6 +6,41 @@ import Testing
 @MainActor
 struct SettingsPersistenceContractTests {
     @Test
+    func `older clients sorting changes remain authoritative on restart`() {
+        let defaults = InMemoryUserDefaults()
+        defaults.set("custom", forKey: "providerListSortMode")
+        defaults.set(true, forKey: "providersSortedAlphabetically")
+        #expect(testSettingsStore(suiteName: #function, userDefaults: defaults).providersSortedAlphabetically)
+        defaults.set("alphabetical", forKey: "providerListSortMode")
+        defaults.set(false, forKey: "providersSortedAlphabetically")
+        #expect(!testSettingsStore(suiteName: #function, userDefaults: defaults).providersSortedAlphabetically)
+    }
+
+    @Test
+    func `portable export preserves older clients sorting changes`() throws {
+        for (raw, alphabetical) in [("custom", true), ("alphabetical", false)] {
+            let defaults = InMemoryUserDefaults()
+            defaults.set(raw, forKey: "providerListSortMode")
+            defaults.set(alphabetical, forKey: "providersSortedAlphabetically")
+            let exported = try PreferencesDocument(data: PreferencesDocument(defaults: defaults).encoded())
+            #expect(try exported.value("providersSortedAlphabetically", as: Bool.self) == alphabetical)
+            #expect(try exported.value("providerListSortMode", as: String.self) == nil)
+        }
+    }
+
+    @Test
+    func `menu hover highlighting defaults on and persists both choices`() {
+        let defaults = InMemoryUserDefaults()
+        let settings = testSettingsStore(suiteName: #function, userDefaults: defaults)
+        #expect(settings.highlightMenuCardsOnHover)
+        settings.highlightMenuCardsOnHover = false
+        let reloaded = testSettingsStore(suiteName: #function, userDefaults: defaults)
+        #expect(!reloaded.highlightMenuCardsOnHover)
+        reloaded.highlightMenuCardsOnHover = true
+        #expect(testSettingsStore(suiteName: #function, userDefaults: defaults).highlightMenuCardsOnHover)
+    }
+
+    @Test
     func `optional and raw preferences round trip without boxed nil values`() {
         let defaults = InMemoryUserDefaults()
         let settings = testSettingsStore(suiteName: #function, userDefaults: defaults)

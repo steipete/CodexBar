@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """Package a built Linux desktop app without bundling credentials or a provider CLI."""
 import argparse
+import importlib.util
+import io
+import json
 import platform
 from pathlib import Path
 import re
@@ -30,6 +33,11 @@ def main():
         'README.md': REPO / 'Integrations/Linux/README.md',
         'LICENSE': REPO / 'LICENSE',
     }
+    spec = importlib.util.spec_from_file_location('acknowledgements', REPO / 'Scripts/acknowledgements.py')
+    notices = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(notices)
+    entries = json.loads((REPO / notices.RESOURCE).read_text())
+    notices.check(REPO, entries)
     for path in ['Integrations/Linux/install.py', 'Integrations/Linux/icon.svg',
                  'Integrations/Omarchy/Panel.qml', 'Integrations/Omarchy/manifest.json']:
         files[path] = REPO / path
@@ -38,6 +46,11 @@ def main():
         files[f'Integrations/Omarchy/icons/{icon.name}'] = icon
     # Explicit allowlist: never archive the checkout, user config, or local CLI resource tree.
     with tarfile.open(destination, 'w:gz') as archive:
+        content = notices.render(entries).encode('utf-8')
+        info = tarfile.TarInfo(f'{name}/THIRD_PARTY_NOTICES')
+        info.size = len(content)
+        info.mode = 0o644
+        archive.addfile(info, io.BytesIO(content))
         for relative, source in files.items():
             info = archive.gettarinfo(str(source), arcname=f'{name}/{relative}')
             info.uid = info.gid = 0

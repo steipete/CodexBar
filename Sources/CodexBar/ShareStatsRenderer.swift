@@ -5,7 +5,7 @@ import SwiftUI
 enum ShareStatsRenderer {
     static func pngData(for payload: ShareStatsPayload) -> Data? {
         let size = ShareStatsCardView.size
-        let view = NSHostingView(rootView: ShareStatsCardView(payload: payload))
+        let view = NSHostingView(rootView: ShareStatsCardView(payload: payload).codexBarLocalized())
         view.frame = CGRect(origin: .zero, size: size)
         view.layoutSubtreeIfNeeded()
 

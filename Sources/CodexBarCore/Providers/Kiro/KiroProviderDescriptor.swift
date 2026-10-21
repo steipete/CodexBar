@@ -37,8 +37,15 @@ public enum KiroProviderDescriptor {
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "Kiro cost summary is not supported." }),
-            presentation: ProviderUsagePresentation(menuCard: ProviderMenuCardPresentation(
-                primaryDetailKind: .kiroCredits)),
+            pace: .calendarMonthResetWindow,
+            presentation: ProviderUsagePresentation(
+                menuBarWindowResolver: { context in
+                    guard context.metric == .automatic else { return .unhandled }
+                    return .resolved(
+                        ProviderUsagePresentation.exhausted(context.snapshot.primary, context.snapshot.secondary)
+                            ?? context.snapshot.primary ?? context.snapshot.secondary)
+                },
+                menuCard: ProviderMenuCardPresentation(primaryDetailKind: .kiroCredits)),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .cli],
                 pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [KiroCLIFetchStrategy()] })),

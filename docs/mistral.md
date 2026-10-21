@@ -16,7 +16,7 @@ page does not expose a Vibe allowance.
 
 1. Open **Settings -> Providers**.
 2. Enable **Mistral**.
-3. Sign in to [Mistral Admin](https://admin.mistral.ai/organization/usage) in Chrome, Firefox, or Safari.
+3. Sign in to [Mistral Admin](https://admin.mistral.ai/organization/usage) in a supported browser.
 4. Leave Cookie source on **Automatic**, or switch to **Manual** and paste a `Cookie:` header from a request to
    `admin.mistral.ai`.
 
@@ -26,8 +26,8 @@ require the `X-CSRFTOKEN` header.
 On Linux, browser import is unavailable, so the CLI reads Mistral only in Manual mode: set the provider's
 `cookieSource` to `manual` and its `cookieHeader` to the pasted header in `~/.config/codexbar/config.json`.
 
-Automatic import tries Chrome, Firefox (including Developer Edition), then Safari. Safari requires Full Disk Access.
-Other Chromium browsers remain available through Manual mode. Automatic import reads only unexpired cookies from
+Automatic import follows the shared supported-browser order. Safari requires Full Disk Access.
+The shared access gate bounds Keychain prompts. Automatic import reads only unexpired cookies from
 the documented Mistral domains.
 
 ## Data Sources
@@ -96,7 +96,7 @@ existing snapshot; no additional requests are made. JSON output is unchanged: th
 
 ### "No Mistral session cookies found"
 
-Sign in to [Mistral Admin](https://admin.mistral.ai/organization/usage) in Chrome, Firefox, or Safari, then refresh.
+Sign in to [Mistral Admin](https://admin.mistral.ai/organization/usage) in a supported browser, then refresh.
 
 ### "Mistral cookie header is invalid"
 

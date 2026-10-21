@@ -8,17 +8,18 @@ extension UsageStore {
     }
 
     nonisolated static func requiresBrowserSession(_ provider: UsageProvider) -> Bool {
-        ProviderDescriptorRegistry.descriptor(for: provider).settingsSection.selectedProfileBrowser != nil
+        ProviderDescriptorRegistry.descriptor(for: provider).settingsSection.selectedProfileBrowsers != nil
     }
 
     func profileScopedSnapshot(for instanceID: ProviderInstanceID) -> UsageSnapshot? {
         let snapshot = self.snapshots[instanceID]
         guard let provider = instanceID.firstPartyProvider,
-              let browser = ProviderDescriptorRegistry.descriptor(for: provider).settingsSection.selectedProfileBrowser
+              let browsers = ProviderDescriptorRegistry.descriptor(for: provider).settingsSection
+                  .selectedProfileBrowsers
         else { return snapshot }
         guard let snapshot, let owner = snapshot.browserSessionOwner,
-              owner.profile == ProviderBrowserProfile(
-                  browserID: browser, profileID: self.settings.providerConfig(for: provider)?.browserProfileID ?? "")
+              owner.profile == ProviderBrowserProfile.selected(
+                  in: self.settings.providerConfig(for: provider), browsers: browsers)
         else { return nil }
         return snapshot
     }

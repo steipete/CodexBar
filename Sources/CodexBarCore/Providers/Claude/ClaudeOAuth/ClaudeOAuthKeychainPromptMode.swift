@@ -187,6 +187,10 @@ public enum ClaudeOAuthKeychainPromptPreference {
         self.taskOverride
     }
 
+    static var applicationUserDefaultsOverrideForTesting: UserDefaults? {
+        self.taskApplicationUserDefaultsOverride?.value ?? self.taskImplicitApplicationUserDefaultsOverride?.value
+    }
+
     static func withApplicationUserDefaultsOverrideForTesting<T>(
         _ userDefaults: UserDefaults?,
         operation: () throws -> T) rethrows -> T

@@ -11,13 +11,20 @@ public protocol ManagedCodexAccountStoring: Sendable {
     func ensureFileExists() throws -> URL
 }
 
+/// A store capability whose implementations must read registry metadata without credential hydration or persistence.
+public protocol ManagedCodexAccountMetadataLoading: Sendable {
+    func loadAccountMetadata() throws -> ManagedCodexAccountSet
+}
+
 extension ManagedCodexAccountStoring {
     public var lockURL: URL? {
         nil
     }
 }
 
-public struct FileManagedCodexAccountStore: ManagedCodexAccountStoring, @unchecked Sendable {
+public struct FileManagedCodexAccountStore: ManagedCodexAccountStoring, ManagedCodexAccountMetadataLoading,
+    @unchecked Sendable
+{
     public static let currentVersion = 3
 
     private let fileURL: URL

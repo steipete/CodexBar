@@ -107,7 +107,7 @@ struct OpenAISubscriptionEnrichmentTests {
                         snapshot: ownSnapshot,
                         info: AccountInfo(email: account.email, plan: nil),
                         credits: ownCredits)))),
-                #require(controller.codexAccountMenuCardModel(for: account, accountSnapshot: record)),
+                #require(store.codexAccountMenuCardModel(for: account, accountSnapshot: record)),
             ]
             for model in models {
                 #expect(model.email == account.email)
@@ -261,7 +261,7 @@ struct OpenAISubscriptionEnrichmentTests {
         let after = try fixture.card(snapshot: #require(store.presentationSnapshot(for: .codex)), live: nil)
         #expect(before.subscriptionNotes.isEmpty)
         #expect(after.subscriptionNotes.count == 1)
-        #expect(after.subscriptionNotes[0].hasPrefix("Renews:"))
+        #expect(after.subscriptionNotes[0].hasPrefix("Plan renews:"))
         try captureSubscriptionNativeProof(
             models: [before, after],
             directory: #require(ProcessInfo.processInfo.environment["CODEXBAR_SUBSCRIPTION_PROOF_DIRECTORY"]))

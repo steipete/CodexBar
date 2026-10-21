@@ -11,9 +11,13 @@ struct StatusItemControllerMenuTests {
         var automaticallyDownloadsUpdates = false
         let isAvailable = true
         let unavailableReason: String? = nil
-        let updateStatus = UpdateStatus(isUpdateReady: true)
+        let updateStatus = UpdateStatus()
         var checkForUpdatesCount = 0
         var installUpdateCount = 0
+
+        init() {
+            self.updateStatus.isUpdateReady = true
+        }
 
         func checkForUpdates(_ sender: Any?) {
             _ = sender

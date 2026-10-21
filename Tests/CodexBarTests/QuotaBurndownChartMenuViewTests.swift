@@ -26,6 +26,45 @@ struct QuotaBurndownChartMenuViewTests {
     }
 
     @Test
+    func `kiro monthly credits show a burndown`() {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let reset = now.addingTimeInterval(20 * 86400)
+        let history = PlanUtilizationSeriesHistory(name: .monthly, windowMinutes: 43200, entries: [
+            .init(capturedAt: now.addingTimeInterval(-86400), usedPercent: 10, resetsAt: reset),
+            .init(capturedAt: now, usedPercent: 18, resetsAt: reset),
+        ])
+        let view = QuotaBurndownChartMenuView(
+            provider: .kiro,
+            histories: [history],
+            width: 400,
+            referenceDate: now)
+
+        #expect(view._seriesRemainingForTesting == ["monthly:43200": 82])
+        #expect(view._seriesSampleCountsForTesting == ["monthly:43200": 2])
+    }
+
+    @Test(arguments: [
+        ("2026-02-01T00:00:00Z", "2026-03-01T00:00:00Z"),
+        ("2026-09-01T00:00:00Z", "2026-10-01T00:00:00Z"),
+        ("2026-10-01T00:00:00Z", "2026-11-01T00:00:00Z"),
+    ])
+    func `kiro burndown starts at the calendar month start`(start: String, reset: String) throws {
+        let start = try #require(ISO8601DateFormatter().date(from: start))
+        let reset = try #require(ISO8601DateFormatter().date(from: reset))
+        let now = start.addingTimeInterval(3600)
+        let history = PlanUtilizationSeriesHistory(name: .monthly, windowMinutes: 43200, entries: [
+            .init(capturedAt: now, usedPercent: 1, resetsAt: reset),
+        ])
+        let view = QuotaBurndownChartMenuView(
+            provider: .kiro,
+            histories: [history],
+            width: 400,
+            referenceDate: now)
+
+        #expect(view._seriesStartsForTesting == ["monthly:43200": start])
+    }
+
+    @Test
     func `legacy and migrated monthly captures merge without duplicate tabs or lost samples`() {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         let reset = now.addingTimeInterval(86400)

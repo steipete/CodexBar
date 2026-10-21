@@ -100,6 +100,7 @@ struct SpendDashboardMidnightDSTTests {
             calendar: calendar,
             selectedDay: transition)
         #expect(selected.groups.first?.chartDomain.upperBound == nextStart)
-        #expect(selected.groups.first?.hourlyChartDomain?.upperBound == nextStart)
+        let group = try #require(selected.groups.first)
+        #expect(SpendTrendChartModel(group: group, section: .hourly, day: transition).domain.upperBound == nextStart)
     }
 }

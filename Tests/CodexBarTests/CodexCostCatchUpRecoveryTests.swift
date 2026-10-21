@@ -165,7 +165,7 @@ struct CodexCostCatchUpRecoveryTests {
                 id: "other",
                 cacheIdentity: "other")] : accounts
         store.synchronizeSpendDashboardCodexCostCatchUp(accounts: current)
-        await store.spendDashboardCodexCostCatchUpTask?.value
+        await store.spendDashboardCodexCostCatchUpCompletionCheckTask?.value
         #expect(store.spendDashboardCodexCostCatchUpActivity == activity)
         #expect(advances == 1)
         #expect(store.spendDashboardCodexCostCatchUpTask == nil)
@@ -208,7 +208,7 @@ struct CodexCostCatchUpRecoveryTests {
                 completionIsConfirmed: true)
         }
         store.synchronizeSpendDashboardCodexCostCatchUp(accounts: accounts)
-        await store.spendDashboardCodexCostCatchUpTask?.value
+        await store.spendDashboardCodexCostCatchUpCompletionCheckTask?.value
         #expect(store.spendDashboardCodexCostCatchUpActivity?.phase == .complete)
         #expect(advances == 1)
     }
@@ -216,7 +216,8 @@ struct CodexCostCatchUpRecoveryTests {
     @Test(arguments: ["accounts", "settings", "stop", "refresh", "cancel"])
     func `a changed owner cannot be overwritten by a completion read`(action: String) async throws {
         let store = try UsageStoreSpendDashboardCodexCostCatchUpTests.makeStore(suite: "completion-race")
-        defer { store.cancelSpendDashboardCodexCostCatchUp() }
+        let reads = SpendDashboardPendingLoads<Void>()
+        defer { store.cancelSpendDashboardCodexCostCatchUp(); reads.close() }
         let accounts = [UsageStoreSpendDashboardCodexCostCatchUpTests.account(
             id: "fixture",
             cacheIdentity: "fixture")]
@@ -232,9 +233,8 @@ struct CodexCostCatchUpRecoveryTests {
             accounts: accounts,
             mode: .accelerated)
         await store.spendDashboardCodexCostCatchUpTask?.value
-        var continuation: CheckedContinuation<Void, Never>?
         store._test_spendDashboardCodexCostCatchUpStatusOverride = { _ in
-            await withCheckedContinuation { continuation = $0 }
+            try? await reads.load()
             return .init(
                 pending: false,
                 progressKey: "complete",
@@ -242,12 +242,8 @@ struct CodexCostCatchUpRecoveryTests {
                 completionIsConfirmed: true)
         }
         store.synchronizeSpendDashboardCodexCostCatchUp(accounts: accounts)
-        let task = try #require(store.spendDashboardCodexCostCatchUpTask)
-        for _ in 0..<1000 {
-            if continuation != nil { break }
-            await Task.yield()
-        }
-        let read = try #require(continuation)
+        let task = try #require(store.spendDashboardCodexCostCatchUpCompletionCheckTask)
+        try await reads.waitForPendingCount(1)
         store._test_spendDashboardCodexCostCatchUpStatusOverride = { _ in
             .init(pending: true, progressKey: "same")
         }
@@ -259,12 +255,12 @@ struct CodexCostCatchUpRecoveryTests {
         case "settings": store.settings.costUsageHistoryDays = 365
         case "stop": store.stopSpendDashboardCodexCostCatchUp()
         case "refresh":
-            let previousToken = store.spendDashboardCodexCostCatchUpToken
+            let previousToken = store.spendDashboardCodexCostCatchUpContext?.token
             store.startSpendDashboardCodexCostCatchUpIfNeeded(accounts: accounts)
-            #expect(store.spendDashboardCodexCostCatchUpToken != previousToken)
+            #expect(store.spendDashboardCodexCostCatchUpContext?.token != previousToken)
         default: store.cancelSpendDashboardCodexCostCatchUp()
         }
-        read.resume()
+        reads.resume()
         await task.value
         await store.spendDashboardCodexCostCatchUpTask?.value
         let reason = store.spendDashboardCodexCostCatchUpActivity?.pauseReason

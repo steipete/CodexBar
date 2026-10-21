@@ -5,9 +5,16 @@ extension CostUsageScanner {
         _ field: [UInt8],
         from bytes: UnsafeBufferPointer<UInt8>,
         in range: Range<Int>,
-        atDepth targetDepth: Int) -> String?
+        atDepth targetDepth: Int,
+        allowingEscapedKeys: Bool = false) -> String?
     {
-        self.extractJSONByteField(field, from: bytes, in: range, atDepth: targetDepth) { valueIndex in
+        self.extractJSONByteField(
+            field,
+            from: bytes,
+            in: range,
+            atDepth: targetDepth,
+            allowingEscapedKeys: allowingEscapedKeys)
+        { valueIndex in
             guard let parsed = parseJSONByteStringRange(in: bytes, index: &valueIndex, limit: range.upperBound),
                   parsed.range.lowerBound < parsed.range.upperBound
             else { return nil }
@@ -72,6 +79,7 @@ extension CostUsageScanner {
         from bytes: UnsafeBufferPointer<UInt8>,
         in range: Range<Int>,
         atDepth targetDepth: Int,
+        allowingEscapedKeys: Bool = false,
         parseValue: (inout Int) -> T?) -> T?
     {
         var index = range.lowerBound
@@ -90,10 +98,12 @@ extension CostUsageScanner {
                 guard let key = parseJSONByteStringRange(in: bytes, index: &valueIndex, limit: range.upperBound)
                 else { return nil }
                 index = valueIndex
-                guard depth == targetDepth,
-                      !key.hasEscapes,
-                      self.byteRange(bytes, key.range, equals: field)
-                else { continue }
+                guard depth == targetDepth else { continue }
+                let matches = key.hasEscapes
+                    ? allowingEscapedKeys && self.decodeEscapedJSONByteString(from: bytes, in: key.range)
+                    == String(bytes: field, encoding: .utf8)
+                    : self.byteRange(bytes, key.range, equals: field)
+                guard matches else { continue }
 
                 self.skipJSONByteWhitespace(in: bytes, index: &valueIndex, limit: range.upperBound)
                 guard valueIndex < range.upperBound, bytes[valueIndex] == 0x3A else { continue } // :
@@ -288,7 +298,7 @@ extension CostUsageScanner {
         var data = Data([0x22])
         data.append(UnsafeBufferPointer(rebasing: bytes[range]))
         data.append(0x22)
-        return (try? JSONSerialization.jsonObject(with: data)) as? String
+        return (try? JSONSerialization.jsonObject(with: data, options: [.fragmentsAllowed])) as? String
     }
 
     private static func byteRange(

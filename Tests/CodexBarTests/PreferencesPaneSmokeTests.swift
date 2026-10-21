@@ -96,8 +96,9 @@ struct PreferencesPaneSmokeTests {
         #expect(MenuBarSettingsMenuOptions.displayModes == MenuBarDisplayMode.allCases)
         #expect(MenuBarSettingsMenuOptions.iconStyles == MenuBarIconStyle.allCases)
         #expect(MenuBarSettingsMenuOptions.switcherRows == SwitcherRowsOption.allCases)
-        #expect(MenuSettingsMenuOptions.weeklyProgressWorkDays == [nil, 4, 5, 7])
+        #expect(MenuSettingsMenuOptions.weeklyProgressWorkDays == [nil, 4, 5, 6, 7])
         #expect(MenuSettingsMenuOptions.weeklyProgressWorkDaysLabel(nil) == L("Automatic"))
+        #expect(MenuSettingsMenuOptions.weeklyProgressWorkDaysLabel(6) == L("%d days", 6))
         #expect(MenuSettingsMenuOptions.workdayTickAppearances == WorkdayTickAppearance.allCases)
         #expect(MenuSettingsMenuOptions.multiAccountLayouts == MultiAccountMenuLayout.allCases)
         #expect(MenuSettingsMenuOptions.usageBarsFill == UsageBarsFillOption.allCases)
@@ -119,6 +120,9 @@ struct PreferencesPaneSmokeTests {
         #expect(reloaded.workdayTickAppearance == .highContrast)
         #expect(reloaded.multiAccountMenuLayout == .stacked)
         #expect(reloaded.costSummaryDisplayStyle == .costSubmenu)
+
+        reloaded.weeklyProgressWorkDays = 6
+        #expect(Self.makeSettingsStore(suite: suite, reset: false).weeklyProgressWorkDays == 6)
     }
 
     @Test
@@ -131,9 +135,35 @@ struct PreferencesPaneSmokeTests {
 
     @Test
     func `inactive display contrast is available only for icon and percent`() {
-        #expect(!MenuBarPane.inactiveDisplayContrastAvailable(for: .critters))
-        #expect(!MenuBarPane.inactiveDisplayContrastAvailable(for: .bars))
-        #expect(MenuBarPane.inactiveDisplayContrastAvailable(for: .iconAndPercent))
+        #expect(!MenuBarPane.layoutEditorEnabled(for: .critters))
+        #expect(!MenuBarPane.layoutEditorEnabled(for: .bars))
+        #expect(MenuBarPane.layoutEditorEnabled(for: .iconAndPercent))
+    }
+
+    @Test
+    func `menu bar layout footer follows the selected style`() {
+        #expect(MenuBarPane.layoutEditorEnabled(for: .iconAndPercent))
+        #expect(!MenuBarPane.layoutEditorEnabled(for: .critters))
+        #expect(!MenuBarPane.layoutEditorEnabled(for: .bars))
+
+        CodexBarLocalizationOverride.$appLanguage.withValue("en") {
+            let enabledFooter = MenuBarPane.layoutFooterText(for: .iconAndPercent)
+            let disabledFooter = MenuBarPane.layoutFooterText(for: .critters)
+
+            #expect(enabledFooter.contains("Drag tokens"))
+            #expect(!enabledFooter.contains("Icon & percent"))
+            #expect(disabledFooter.contains("Icon & percent"))
+            #expect(!disabledFooter.contains("Drag tokens"))
+            #expect(!disabledFooter.contains("%@"))
+            #expect(MenuBarPane.layoutFooterText(for: .bars) == disabledFooter)
+        }
+
+        CodexBarLocalizationOverride.$appLanguage.withValue("de") {
+            let footer = MenuBarPane.layoutFooterText(for: .bars)
+
+            #expect(footer.contains(MenuBarIconStyle.iconAndPercent.label))
+            #expect(!footer.contains("%@"))
+        }
     }
 
     @Test
@@ -563,6 +593,13 @@ struct PreferencesPaneSmokeTests {
             #expect(L("display_mode_reset_time_desc").contains("↻ 15:56"))
             #expect(L("vertex_ai_login_instructions").contains("\n\n1. Öffnen Sie Terminal"))
             #expect(!L("vertex_ai_login_instructions").contains("\\n"))
+        }
+    }
+
+    @Test(arguments: [("fr", "6 jours"), ("ar", "٦ أيام"), ("fa", "۶ روز"), ("ja", "6日間")])
+    func `six work days label keeps the number first`(language: String, expected: String) {
+        CodexBarLocalizationOverride.$appLanguage.withValue(language) {
+            #expect(MenuSettingsMenuOptions.weeklyProgressWorkDaysLabel(6) == expected)
         }
     }
 

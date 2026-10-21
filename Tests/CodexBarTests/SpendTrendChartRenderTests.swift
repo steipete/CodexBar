@@ -36,6 +36,7 @@ final class SpendTrendChartRenderTests: XCTestCase {
             requestedDays: 365,
             now: now,
             calendar: calendar).groups.first)
+        let sparseGroup = try SpendTrendScopeTests.group()
         for (name, section, width, appearance, chartGroup, language, locale) in [
             (
                 "02-daily-overview",
@@ -54,6 +55,10 @@ final class SpendTrendChartRenderTests: XCTestCase {
             ("09-component-icons", .daily, 760, .darkAqua, longGroup, "zh-Hans", "zh_CN"),
             ("10-english-hourly", .hourly, 760, .aqua, group, "en", "en_US"),
             ("11-german-narrow-hourly", .hourly, 480, .darkAqua, group, "de", "de_DE"),
+            ("12-used-sources-only", .daily, 760, .aqua, sparseGroup, "zh-Hans", "zh_CN"),
+            ("13-used-sources-narrow", .daily, 480, .aqua, sparseGroup, "zh-Hans", "zh_CN"),
+            ("14-hourly-used-sources", .hourly, 760, .aqua, sparseGroup, "zh-Hans", "zh_CN"),
+            ("15-used-sources-dark", .daily, 480, .darkAqua, sparseGroup, "zh-Hans", "zh_CN"),
         ] {
             try await CodexBarLocalizationOverride.$appLanguage.withValue(language) {
                 let view = VStack(alignment: .leading, spacing: 16) {

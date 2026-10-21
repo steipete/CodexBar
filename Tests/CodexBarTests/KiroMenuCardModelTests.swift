@@ -53,7 +53,7 @@ struct KiroMenuCardModelTests {
         #expect(model.email == "person@example.com")
         #expect(model.planText == "Kiro Free")
         #expect(model.metrics.map(\.title) == ["Credits", "Bonus"])
-        #expect(model.metrics.first?.detailLeftText == "49.83 of 50 credits left")
+        #expect(model.metrics.first?.detailText == "49.83 of 50 credits left")
         #expect(model.metrics.dropFirst().first?.detailLeftText == "1954.47 of 2000 bonus credits left")
         #expect(model.usageNotes.contains("Auth: Google"))
         #expect(model.providerDetails.flatMap(\.rows).contains {
@@ -66,6 +66,46 @@ struct KiroMenuCardModelTests {
             $0.label == "Overage cost" && $0.value == "$1.61"
         })
         #expect(model.usageNotes.contains { $0.localizedCaseInsensitiveContains("Context window") } == false)
+    }
+
+    @Test
+    func `kiro model shows monthly pace beside the credits line`() throws {
+        let now = Date(timeIntervalSince1970: 1_792_022_400)
+        let snapshot = KiroUsageSnapshot(
+            planName: "KIRO POWER",
+            creditsUsed: 6000,
+            creditsTotal: 10000,
+            creditsPercent: 60,
+            bonusCreditsUsed: nil,
+            bonusCreditsTotal: nil,
+            bonusExpiryDays: nil,
+            resetsAt: Date(timeIntervalSince1970: 1_793_491_200),
+            updatedAt: now).toUsageSnapshot()
+        let metadata = try #require(ProviderDefaults.metadata[.kiro])
+
+        let model = UsageMenuCardView.Model.make(.init(
+            provider: .kiro,
+            metadata: metadata,
+            snapshot: snapshot,
+            credits: nil,
+            creditsError: nil,
+            dashboardError: nil,
+            tokenSnapshot: nil,
+            tokenError: nil,
+            account: AccountInfo(email: nil, plan: nil),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: false,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
+            now: now))
+
+        let credits = try #require(model.metrics.first)
+        #expect(credits.detailLeftText == "15% in deficit")
+        #expect(credits.pacePercent != nil)
+        #expect(credits.detailText == "4000 of 10000 credits left")
     }
 
     @Test

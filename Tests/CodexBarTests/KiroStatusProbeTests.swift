@@ -365,7 +365,7 @@ extension KiroStatusProbeTests {
             fi
             if [ "$1" = "chat" ] && [ "$3" = "/usage" ]; then
               if [ ! -t 1 ]; then
-                (trap '' TERM; while true; do sleep 1; done) &
+                (trap '' TERM; \(KiroProcessTestSupport.shellOwnerBoundedHold())) &
                 child=$!
                 printf '%s\n' "$child" > '\(childPIDFile.path)'
                 printf 'Plan: loading...\n'
@@ -1380,6 +1380,7 @@ extension KiroStatusProbeTests {
 
         #expect(usage.primary?.usedPercent == 25.0)
         #expect(usage.primary?.resetsAt == resetDate)
+        #expect(usage.primary?.windowMinutes == ProviderPaceCapability.monthlyWindowSentinelMinutes)
         #expect(usage.secondary?.usedPercent == 25.0) // 5/20 * 100
         #expect(usage.loginMethod(for: .kiro) == nil)
         #expect(usage.accountOrganization(for: .kiro) == nil)
@@ -1403,6 +1404,7 @@ extension KiroStatusProbeTests {
         let usage = snapshot.toUsageSnapshot()
 
         #expect(usage.primary?.usedPercent == 20.0)
+        #expect(usage.primary?.windowMinutes == nil)
         #expect(usage.secondary == nil)
     }
 

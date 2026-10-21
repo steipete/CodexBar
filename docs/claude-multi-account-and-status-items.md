@@ -77,7 +77,7 @@ envelope. CodexBar does not need
   With `false`, account cards and chips remain inspectable but never offer switching or re-authentication actions.
   A present non-boolean value (including `null` or a number) is rejected as a malformed capability.
 - Bound runtime and stdout, terminate on timeout, and retain the last successful snapshot with a stale marker.
-- Parse only slot number, active state, usage status, 5-hour/7-day percentages, optional `usage.scoped` display names
+- Parse only slot number, email, `organizationUuid`, active state, usage status, 5-hour/7-day percentages, optional `usage.scoped` display names
   and percentages, reset timestamps, display-only `organizationName` (always present, may be empty), and optional
   display-only `alias` when non-empty. Ignore malformed or unknown scoped rows without discarding valid account-wide
   windows. Unknown extra JSON fields remain ignored. Empty `organizationName` is not an error; `alias` is not required.
@@ -91,7 +91,9 @@ envelope. CodexBar does not need
   windows only when the source supplies no explicit last-good measurement; preserve their freshness provenance.
 - Disabled slots are excluded only from source-owned automatic rotation. They remain explicit switch targets;
   `foreign_credential` is also recoverable through the existing explicit slot activation contract.
-- Treat email, organization name, and alias as display-only. Never log or persist them. Respect Hide Personal Info.
+- Never log or persist raw email, organization UUID, organization name, or alias. Respect Hide Personal Info.
+  Forecast history hashes the normalized email and organization UUID as a pair, independently of the activation slot.
+  Personal accounts may have an empty organization UUID; email changes start a new history.
   When two or more slots share an email, disambiguate with `email · organizationName` or `email · Account N`; a
   user-chosen alias wins. Unique emails stay email-only.
 - Use the source-issued numeric slot for identity (`claude-swap:<slot>`), not email or credential-derived values.

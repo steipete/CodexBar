@@ -6,6 +6,8 @@ import SweetCookieKit
 
 #if os(macOS)
 enum FactoryLocalStorageImporter {
+    @TaskLocal static var safariWebsiteDataRoot: URL?
+
     struct TokenInfo {
         let refreshToken: String
         let accessToken: String?
@@ -84,7 +86,7 @@ enum FactoryLocalStorageImporter {
     }
 
     private static func safariLocalStorageCandidates() -> [LocalStorageCandidate] {
-        let root = FileManager.default.homeDirectoryForCurrentUser
+        let root = self.safariWebsiteDataRoot ?? FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("Library")
             .appendingPathComponent("Containers")
             .appendingPathComponent("com.apple.Safari")

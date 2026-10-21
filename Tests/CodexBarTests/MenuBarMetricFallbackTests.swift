@@ -45,7 +45,7 @@ struct MenuBarMetricFallbackTests {
         let snapshot = UsageSnapshot(
             primary: primary, secondary: secondary, tertiary: tertiary, updatedAt: .distantPast)
         let expectations: [(MenuBarMetricPreference, Double)] = [
-            (.automatic, 30), (.primary, 30), (.secondary, 50), (.tertiary, 30), (.average, 40),
+            (.automatic, 70), (.primary, 30), (.secondary, 50), (.tertiary, 30), (.average, 40),
         ]
         for (preference, expected) in expectations {
             #expect(MenuBarMetricWindowResolver.rateWindow(

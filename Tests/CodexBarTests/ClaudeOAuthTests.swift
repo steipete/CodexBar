@@ -105,11 +105,11 @@ struct ClaudeOAuthTests {
         let snap = try ClaudeUsageFetcher._mapOAuthUsageForTesting(
             Data(json.utf8),
             rateLimitTier: "claude_pro")
-        #expect(snap.primary.usedPercent == 12.5)
-        #expect(snap.primary.windowMinutes == 300)
+        #expect(snap.primary?.usedPercent == 12.5)
+        #expect(snap.primary?.windowMinutes == 300)
         #expect(snap.secondary?.usedPercent == 30)
         #expect(snap.opus?.usedPercent == 5)
-        #expect(snap.primary.resetsAt != nil)
+        #expect(snap.primary?.resetsAt != nil)
         #expect(snap.loginMethod == "Claude Pro")
         #expect(snap.oauthHistoryOwnerIdentifier?.count == 64)
     }
@@ -215,6 +215,29 @@ struct ClaudeOAuthTests {
         #expect(fable?.title == "Fable only")
         #expect(fable?.window.usedPercent == 5)
         #expect(fable?.window.resetsAt != nil)
+    }
+
+    @Test
+    func `keeps Fable limit when a sibling entry or its own optional field has an unexpected type`() throws {
+        let json = """
+        {
+          "five_hour": { "utilization": 11.0, "resets_at": "2026-07-03T00:30:00.282668+00:00" },
+          "seven_day": { "utilization": 9.0, "resets_at": "2026-07-08T09:00:00.282694+00:00" },
+          "limits": [
+            null,
+            { "kind": "session", "group": "session", "percent": "11", "resets_at": null, "scope": null },
+            {
+              "kind": "weekly_scoped", "group": "weekly", "percent": 5, "resets_at": 1791800000,
+              "scope": { "model": { "id": null, "display_name": "Fable" }, "surface": null },
+              "is_active": false
+            }
+          ]
+        }
+        """
+        let snap = try ClaudeUsageFetcher._mapOAuthUsageForTesting(Data(json.utf8))
+        let fable = snap.extraRateWindows.first(where: { $0.id == "claude-weekly-scoped-fable" })
+        #expect(fable?.window.usedPercent == 5)
+        #expect(fable?.window.resetsAt == nil)
     }
 
     @Test
@@ -359,10 +382,9 @@ struct ClaudeOAuthTests {
             Data(json.utf8),
             subscriptionType: "enterprise")
         #expect(snap.loginMethod == "Claude Enterprise")
-        #expect(snap.primary.usedPercent == 38.15)
-        #expect(snap.primaryWindowKind == .spendLimit)
-        #expect(snap.primary.windowMinutes == nil)
-        #expect(snap.primary.resetDescription == "Spend limit: €7.63 / €20.00")
+        #expect(snap.providerCost?.spendLimitWindow?.usedPercent == 38.15)
+        #expect(snap.primary == nil)
+        #expect(snap.primary?.windowMinutes == nil)
         #expect(snap.secondary == nil)
         #expect(snap.providerCost?.period == "Spend limit")
         #expect(snap.providerCost?.currencyCode == "EUR")
@@ -391,9 +413,8 @@ struct ClaudeOAuthTests {
         """
         let snap = try ClaudeUsageFetcher._mapOAuthUsageForTesting(Data(json.utf8))
         #expect(snap.loginMethod == nil)
-        #expect(snap.primaryWindowKind == .spendLimit)
-        #expect(snap.primary.usedPercent == 38.15)
-        #expect(snap.primary.resetDescription == "Spend limit: €7.63 / €20.00")
+        #expect(snap.primary == nil)
+        #expect(snap.providerCost?.spendLimitWindow?.usedPercent == 38.15)
         #expect(snap.providerCost?.period == "Spend limit")
         #expect(snap.providerCost?.currencyCode == "EUR")
         #expect(snap.providerCost?.limit == 20)
@@ -416,9 +437,8 @@ struct ClaudeOAuthTests {
         let snap = try ClaudeUsageFetcher._mapOAuthUsageForTesting(
             Data(json.utf8),
             subscriptionType: "enterprise")
-        #expect(snap.primaryWindowKind == .spendLimit)
-        #expect(snap.primary.usedPercent == 12.3456)
-        #expect(snap.primary.resetDescription == "Spend limit: $1,234.56 / $10,000.00")
+        #expect(snap.primary == nil)
+        #expect(snap.providerCost?.spendLimitWindow?.usedPercent == 12.3456)
         #expect(snap.providerCost?.period == "Spend limit")
         #expect(snap.providerCost?.limit == 10000)
         #expect(snap.providerCost?.used == 1234.56)

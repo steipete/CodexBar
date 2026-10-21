@@ -11,24 +11,31 @@ extension StatusItemController {
     /// A single fast flick should not race the highlight through the whole list.
     private static let maxScrollStepsPerEvent = 3
 
-    /// Classic scroll wheels keep row-to-row overview navigation. Precise trackpad scrolling is
-    /// left to AppKit's native menu scroller so the content follows the user's fingers instead
-    /// of waiting for a threshold and jumping the highlighted row.
+    /// Classic scroll wheels keep row-to-row overview navigation while the whole menu fits.
+    /// Overflowing menus and precise trackpad scrolling are left to AppKit's native scroller so
+    /// content follows the user's input instead of jumping only the highlighted row.
     @discardableResult
     func handleOverviewScrollWheel(_ event: NSEvent, menu: NSMenu) -> Bool {
-        guard self.menuHasOverviewRows(menu) else {
+        // Only the root overview list translates coarse scrolling into highlight movement;
+        // row submenus (e.g. scrollable charts) and precise input stay with AppKit.
+        guard menu.items.contains(where: self.isOverviewRow),
+              self.openMenus.count <= 1,
+              !event.hasPreciseScrollingDeltas
+        else {
             self.overviewScrollAccumulatedDelta = 0
             return false
         }
-        // Leave the wheel alone while a row submenu is open (e.g. scrollable charts);
-        // only the root overview list translates scrolling into highlight movement.
-        guard self.openMenus.count <= 1 else {
-            self.overviewScrollAccumulatedDelta = 0
-            return false
-        }
-        guard !event.hasPreciseScrollingDeltas else {
-            self.overviewScrollAccumulatedDelta = 0
-            return false
+        // Highlighting a custom row does not reveal it. Let AppKit move overflowing content,
+        // using settled geometry from this presentation rather than a cached menu size.
+        if let scrollView = Self.attachedMenuScrollView(in: menu) {
+            scrollView.layoutSubtreeIfNeeded()
+            if let geometry = Self.menuViewportGeometry(in: scrollView),
+               geometry.clipSize.height > 0,
+               geometry.documentSize.height - geometry.clipSize.height > 0.5
+            {
+                self.overviewScrollAccumulatedDelta = 0
+                return false
+            }
         }
         // Precise trackpad/Magic Mouse scrolling already returned above, so this only guards
         // non-precise devices that still report a momentum phase: swallow that flick tail so the
@@ -60,10 +67,8 @@ extension StatusItemController {
         return true
     }
 
-    func menuHasOverviewRows(_ menu: NSMenu) -> Bool {
-        menu.items.contains { item in
-            (item.representedObject as? String)?.hasPrefix(Self.overviewRowIdentifierPrefix) == true
-        }
+    private func isOverviewRow(_ item: NSMenuItem) -> Bool {
+        (item.representedObject as? String)?.hasPrefix(Self.overviewRowIdentifierPrefix) == true
     }
 
     func resetOverviewScrollAccumulation() {
@@ -77,11 +82,12 @@ extension StatusItemController {
         }
         guard let target = self.overviewScrollTargetItem(in: menu, step: step) else { return }
         let menuID = ObjectIdentifier(menu)
-        guard self.highlightedMenuItems[menuID] !== target else { return }
+        let changesRow = self.highlightedMenuItems[menuID] !== target
 
         // Advance local state immediately so a capped multi-step flick can target successive rows
         // before AppKit drains the synthetic mouse-move events.
-        self.menu(menu, willHighlight: target)
+        self.menu(menu, willHighlight: target, eventType: .scrollWheel)
+        guard changesRow else { return }
 
         guard let view = target.view,
               let window = view.window
@@ -104,9 +110,7 @@ extension StatusItemController {
     }
 
     func overviewScrollTargetItem(in menu: NSMenu, step: OverviewScrollStep) -> NSMenuItem? {
-        let rows = menu.items.filter { item in
-            (item.representedObject as? String)?.hasPrefix(Self.overviewRowIdentifierPrefix) == true
-        }
+        let rows = menu.items.filter(self.isOverviewRow)
         guard !rows.isEmpty else { return nil }
 
         guard let current = self.highlightedMenuItems[ObjectIdentifier(menu)],
@@ -115,12 +119,8 @@ extension StatusItemController {
             return step == .down ? rows.first : rows.last
         }
 
-        let targetIndex: Int = switch step {
-        case .up:
-            max(0, currentIndex - 1)
-        case .down:
-            min(rows.count - 1, currentIndex + 1)
-        }
+        let offset = step == .up ? -1 : 1
+        let targetIndex = min(rows.count - 1, max(0, currentIndex + offset))
         return rows[targetIndex]
     }
 }

@@ -31,8 +31,8 @@ public enum MuseCredentials {
             if let token = try self.keychainAccessToken() {
                 return token
             }
-        } catch let error as MuseUsageError where error == .keychainAccessDisabled || error == .keychainUnavailable {
-            if error == .keychainUnavailable || authFile != nil { throw error }
+        } catch MuseUsageError.keychainAccessDisabled where authFile == nil {
+            // With no metadata and lookup disabled, there is no detectable login.
         }
         throw MuseUsageError.missingCredentials
     }
@@ -112,12 +112,32 @@ public enum MuseCredentials {
         case .notFound:
             return nil
         case .allowed:
-            break
-        case .interactionRequired, .temporarilyUnavailable, .failure:
+            return try self.readKeychainToken(allowPrompt: false)
+        case .interactionRequired:
+            // Only an explicit user action in the app may earn the grant through the system prompt.
+            // Background refreshes and processes without the explanation alert (the CLI) never prompt.
+            guard KeychainPromptHandler.isInstalled,
+                  BrowserCookieAccessGate.claimCredentialRead(service: self.keychainService),
+                  KeychainPromptHandler.notifyIfHandled(
+                      KeychainPromptContext(
+                          kind: .museToken,
+                          service: self.keychainService,
+                          account: self.keychainAccount))
+            else {
+                throw MuseUsageError.keychainAccessNotGranted
+            }
+            return try self.readKeychainToken(allowPrompt: true)
+        case .temporarilyUnavailable, .failure:
             throw MuseUsageError.keychainUnavailable
         }
+        #else
+        return nil
+        #endif
+    }
 
-        let (status, data) = self.readKeychainItem()
+    #if os(macOS)
+    private static func readKeychainToken(allowPrompt: Bool) throws -> String? {
+        let (status, data) = self.readKeychainItem(allowPrompt: allowPrompt)
         switch status {
         case errSecSuccess:
             guard let data else {
@@ -127,15 +147,17 @@ public enum MuseCredentials {
         case errSecItemNotFound:
             return nil
         default:
+            if allowPrompt, [errSecUserCanceled, errSecAuthFailed, errSecNoAccessForItem].contains(status) {
+                BrowserCookieAccessGate.recordCredentialDenial(service: self.keychainService)
+                throw MuseUsageError.keychainAccessNotGranted
+            }
             throw MuseUsageError.keychainUnavailable
         }
-        #else
-        return nil
-        #endif
     }
+    #endif
 
     #if os(macOS)
-    private static func readKeychainItem() -> (OSStatus, Data?) {
+    private static func readKeychainItem(allowPrompt: Bool) -> (OSStatus, Data?) {
         var query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: self.keychainService,
@@ -143,7 +165,9 @@ public enum MuseCredentials {
             kSecMatchLimit as String: kSecMatchLimitOne,
             kSecReturnData as String: true,
         ]
-        KeychainNoUIQuery.apply(to: &query)
+        if !allowPrompt {
+            KeychainNoUIQuery.apply(to: &query)
+        }
         #if DEBUG
         if let override = self.keychainReadOverrideForTesting {
             return override(query)

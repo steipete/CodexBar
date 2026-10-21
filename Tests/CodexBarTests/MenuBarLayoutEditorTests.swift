@@ -8,6 +8,17 @@ import UniformTypeIdentifiers
 
 struct MenuBarLayoutEditorTests {
     @Test
+    func `saved history cost item uses the history window label`() throws {
+        try CodexBarLocalizationOverride.$appLanguage.withValue("en") {
+            let token = try JSONDecoder().decode(MenuBarLayoutToken.self, from: Data(#"{"cost30d":{}}"#.utf8))
+            let metric = try JSONDecoder().decode(MenuBarConditionalMetric.self, from: Data(#""cost30d""#.utf8))
+            #expect(token.editorLabel(provider: nil) == "Cost (History window)")
+            #expect(token.editorAccessibilityLabel(provider: nil) == "Cost (History window)")
+            #expect(metric.editorLabel(provider: nil) == "Cost (History window)")
+        }
+    }
+
+    @Test
     @MainActor
     func `all scope discloses only enabled saved overrides in provider order including equal layouts`() throws {
         let settings = try Self.overrideSettings()
@@ -96,6 +107,32 @@ struct MenuBarLayoutEditorTests {
     }
 
     @Test
+    func `cost window token is named after the history window`() {
+        for provider in [nil, UsageProvider.codex] {
+            #expect(MenuBarLayoutToken.costWindow.editorLabel(provider: provider) == "Cost (History window)")
+            #expect(MenuBarLayoutToken.costWindow.editorAccessibilityLabel(provider: provider)
+                == "Cost (History window)")
+        }
+        #expect(MenuBarLayoutToken.costToday.editorLabel(provider: nil) == "Cost today")
+    }
+
+    @Test
+    func `cost window conditional metric is named after the history window`() {
+        #expect(MenuBarConditionalMetric.costWindow.editorLabel(provider: nil) == "Cost (History window)")
+        let conditional = MenuBarLayoutConditional(
+            clauses: [MenuBarConditionalClause(
+                combinator: nil,
+                predicate: MenuBarConditionalPredicate(
+                    metric: .costWindow,
+                    comparison: .greaterThanOrEqual,
+                    threshold: 5))],
+            thenToken: .costWindow,
+            elseToken: .hidden)
+        #expect(conditional.editorSummary(provider: nil)
+            == "If Cost (History window) >= 5 USD then Cost (History window) else Hide")
+    }
+
+    @Test
     func `Cursor exposes Grok Bot after its named window is available`() {
         let grokBot = NamedRateWindow(
             id: "cursor-grok-bot",
@@ -107,19 +144,41 @@ struct MenuBarLayoutEditorTests {
             .percent(window: .session),
             .percent(window: .weekly),
             .percent(window: .scopedWeekly),
+            .percent(window: .spend),
             .lanePercent(lane: .primary),
             .lanePercent(lane: .secondary),
             .extraPercent(id: "cursor-grok-bot"),
             .percent(window: .automatic),
             .usageBar,
+            .progressBar(window: .session),
+            .progressBar(window: .weekly),
+            .progressBar(window: .scopedWeekly),
+            .progressBar(window: .automatic),
+            .tokensPerMinute,
+            .tokensSparkline,
             .pace(window: .session),
             .pace(window: .weekly),
             .pace(window: .automatic),
+            .pace(window: .spend),
         ])
+        #expect(MenuBarLayoutPaletteTokens.conditionalBranch.contains(.progressBar(window: .scopedWeekly)))
         #expect(!MenuBarLayoutPaletteTokens.usage(provider: .codex, snapshot: cursor)
             .contains(.extraPercent(id: "cursor-grok-bot")))
         #expect(!MenuBarLayoutPaletteTokens.usage(provider: .cursor, snapshot: nil)
             .contains(.extraPercent(id: "cursor-grok-bot")))
+    }
+
+    @Test
+    func `spend tokens are in the layout and conditional palettes`() {
+        let spendUsage: [MenuBarLayoutToken] = [.percent(window: .spend), .pace(window: .spend)]
+        let spendTime: [MenuBarLayoutToken] = [
+            .windowResetCountdown(window: .spend), .windowResetAbsolute(window: .spend),
+        ]
+        let spendMoney: [MenuBarLayoutToken] = [.spendAmount, .spendBudget]
+        #expect(spendUsage.allSatisfy(MenuBarLayoutPaletteTokens.usage(provider: .codex, snapshot: nil).contains))
+        #expect(spendTime.allSatisfy(MenuBarLayoutPaletteTokens.time.contains))
+        let branch = MenuBarLayoutPaletteTokens.conditionalBranch
+        #expect((spendUsage + spendTime + spendMoney).allSatisfy(branch.contains))
     }
 
     @Test

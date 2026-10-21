@@ -3,15 +3,50 @@ import Foundation
 @preconcurrency import UserNotifications
 
 @MainActor
-final class AppNotifications {
+final class AppNotifications: NSObject, UNUserNotificationCenterDelegate {
     static let shared = AppNotifications()
+    nonisolated static let updateCategoryIdentifier = "codexbar-update-available"
 
     private let centerProvider: @Sendable () -> UNUserNotificationCenter
     private let logger = CodexBarLog.logger(LogCategories.notifications)
     private var authorizationTask: Task<Bool, Never>?
+    private var openUpdateSettings: (@MainActor () -> Void)?
 
     init(centerProvider: @escaping @Sendable () -> UNUserNotificationCenter = { UNUserNotificationCenter.current() }) {
         self.centerProvider = centerProvider
+        super.init()
+    }
+
+    func configureUpdateAction(_ openSettings: @escaping @MainActor () -> Void) {
+        self.openUpdateSettings = openSettings
+        guard !Self.isRunningUnderTests else { return }
+        self.centerProvider().delegate = self
+    }
+
+    func handleResponse(categoryIdentifier: String, actionIdentifier: String) {
+        guard categoryIdentifier == Self.updateCategoryIdentifier,
+              actionIdentifier == UNNotificationDefaultActionIdentifier else { return }
+        self.openUpdateSettings?()
+    }
+
+    nonisolated static func presentationOptions(categoryIdentifier: String) -> UNNotificationPresentationOptions {
+        categoryIdentifier == self.updateCategoryIdentifier ? [.banner, .list] : []
+    }
+
+    nonisolated func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification) async -> UNNotificationPresentationOptions
+    {
+        Self.presentationOptions(categoryIdentifier: notification.request.content.categoryIdentifier)
+    }
+
+    nonisolated func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse) async
+    {
+        let category = response.notification.request.content.categoryIdentifier
+        let action = response.actionIdentifier
+        await self.handleResponse(categoryIdentifier: category, actionIdentifier: action)
     }
 
     func requestAuthorizationOnStartup() {
@@ -26,6 +61,7 @@ final class AppNotifications {
         badge: NSNumber? = nil,
         soundEnabled: Bool = true,
         identifier: String? = nil,
+        categoryIdentifier: String = "",
         isCurrent: @escaping @MainActor () -> Bool = { true },
         onCompletion: (@MainActor (Bool) -> Void)? = nil)
     {
@@ -39,6 +75,7 @@ final class AppNotifications {
             content.body = body
             content.sound = soundEnabled ? .default : nil
             content.badge = badge
+            content.categoryIdentifier = categoryIdentifier
 
             let request = UNNotificationRequest(
                 identifier: identifier ?? "codexbar-\(idPrefix)-\(UUID().uuidString)",

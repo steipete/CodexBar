@@ -69,21 +69,23 @@ extension UsageStore {
             _ = self.backgroundWorkSettingsObservationToken
         } onChange: { [weak self] in
             Task { @MainActor [weak self] in
-                guard let self else { return }
-                self.observeSettingsChanges()
-                self.invalidateProviderAvailabilityCache()
-                self.probeLogs = [:]
-                guard self.startupBehavior.automaticallyStartsBackgroundWork else { return }
-                self.retireDisabledCredentialNotifications()
-                self.startTimer()
-                self.updateProviderRuntimes()
-                let enabledNow = Set(self.settings.enabledProvidersOrdered(
-                    metadataByProvider: self.providerMetadata))
-                if enabledNow != self.versionDetectionProviders {
-                    self.detectVersions()
+                await ProviderInteractionContext.$current.withValue(.background) {
+                    guard let self else { return }
+                    self.observeSettingsChanges()
+                    self.providerAvailabilityCache.removeAll(keepingCapacity: true)
+                    self.probeLogs = [:]
+                    guard self.startupBehavior.automaticallyStartsBackgroundWork else { return }
+                    self.retireDisabledCredentialNotifications()
+                    self.startTimer()
+                    self.updateProviderRuntimes()
+                    let enabledNow = Set(self.settings.enabledProvidersOrdered(
+                        metadataByProvider: self.providerMetadata))
+                    if enabledNow != self.versionDetectionProviders {
+                        self.detectVersions()
+                    }
+                    await self.refreshHistoricalDatasetIfNeeded()
+                    await self.refreshForSettingsChange()
                 }
-                await self.refreshHistoricalDatasetIfNeeded()
-                await self.refreshForSettingsChange()
             }
         }
     }
@@ -98,16 +100,11 @@ extension UsageStore {
         return self.openAIDashboard
     }
 
-    /// Returns the login method (plan type) for the specified provider, if available.
-    private func loginMethod(for provider: UsageProvider) -> String? {
-        self.snapshots[provider.instanceID]?.loginMethod(for: provider)
-    }
-
     /// Returns true if the Claude account appears to be a subscription (Max, Pro, Ultra, Team).
     /// Returns false for API users or when plan cannot be determined.
     func isClaudeSubscription() -> Bool {
         // Provider-specific by design: Claude subscription plans choose its consumer dashboard account action.
-        Self.isSubscriptionPlan(self.loginMethod(for: .claude))
+        Self.isSubscriptionPlan(self.claudeSnapshot?.loginMethod(for: .claude))
     }
 
     /// Determines if a login method string indicates a Claude subscription plan.
@@ -117,12 +114,7 @@ extension UsageStore {
     }
 
     var preferredSnapshot: UsageSnapshot? {
-        for provider in self.enabledProviders() {
-            if let snap = self.snapshots[provider] {
-                return snap
-            }
-        }
-        return nil
+        self.enabledProviders().lazy.compactMap { self.snapshots[$0] }.first
     }
 }
 
@@ -170,6 +162,7 @@ final class UsageStore {
     @ObservationIgnored let widgetAccountSnapshotStore: (any WidgetAccountSnapshotStoring)?
     var tokenAccountLiveStateProviders: Set<ProviderInstanceID> = []
     var codexAccountSnapshots: [CodexAccountUsageSnapshot] = []
+    var codexSettingsRefreshingAccountIDs: Set<String> = []
     var kiloScopeSnapshots: [KiloScopeSnapshot] = []
     var claudeSwapAccountSnapshots: [ProviderAccountUsageSnapshot] = []
     var claudeSwapLastRefreshAt: Date?
@@ -336,6 +329,8 @@ final class UsageStore {
     @ObservationIgnored var invalidatedQueuedWidgetProviders: Set<ProviderInstanceID> = []
     @ObservationIgnored var lastWidgetSourceSnapshots: [ProviderInstanceID: UsageSnapshot] = [:]
     @ObservationIgnored let widgetSnapshotURL: URL?
+    @ObservationIgnored let cliUsageCacheURL: URL?
+    @ObservationIgnored var cliUsageCachePersistTask: Task<Void, Never>?
     @ObservationIgnored let widgetTimelineReloader: @MainActor () -> Void
     @ObservationIgnored var widgetUsagePreservationBlockedProviders: Set<ProviderInstanceID> = []
 
@@ -343,7 +338,6 @@ final class UsageStore {
     @ObservationIgnored let claudeFetcher: any ClaudeUsageFetching
     @ObservationIgnored let costUsageFetcher: CostUsageFetcher
     @ObservationIgnored let browserDetection: BrowserDetection
-    @ObservationIgnored private let registry: ProviderRegistry
     @ObservationIgnored let settings: SettingsStore
     @ObservationIgnored @ProcessEnvironment private(set) var environmentBase: [String: String]
     @ObservationIgnored let pluginApprovalStore: ProviderPluginApprovalStore
@@ -390,13 +384,14 @@ final class UsageStore {
     @ObservationIgnored var codexCostCatchUpPassIsRunning = false
     @ObservationIgnored var codexCostCatchUpRestartRequested = false
     @ObservationIgnored var spendDashboardCodexCostCatchUpTask: Task<Void, Never>?
-    @ObservationIgnored var spendDashboardCodexCostCatchUpToken: UUID?
-    @ObservationIgnored var spendDashboardCodexCostCatchUpScopeSignature: String?
+    @ObservationIgnored var spendDashboardCodexCostCatchUpContext: SpendDashboardCodexCostCatchUpContext?
     @ObservationIgnored var spendDashboardCodexCostCatchUpMode: CodexCostCatchUpMode = .automatic
     @ObservationIgnored var spendDashboardCodexCostCatchUpStopRequested = false
     @ObservationIgnored var spendDashboardCodexCostCatchUpPassIsRunning = false
     @ObservationIgnored var spendDashboardCodexCostCatchUpRestartRequested = false
-    @ObservationIgnored var spendDashboardCodexCostCatchUpPausedContext: SpendDashboardCodexCostCatchUpContext?
+    @ObservationIgnored var spendDashboardCodexCostCatchUpIsWaiting = false
+    @ObservationIgnored var spendDashboardCodexCostCatchUpCompletionCheckTask: Task<Void, Never>?
+    @ObservationIgnored var spendDashboardCodexCostCompletionCheckRevision: UInt64 = 0
     @ObservationIgnored var forcedRefreshEnrichmentTask: Task<Void, Never>?
     @ObservationIgnored var forcedRefreshEnrichmentToken: UUID?
     @ObservationIgnored var pendingForcedRefreshEnrichmentTask: Task<Void, Never>?
@@ -526,6 +521,7 @@ final class UsageStore {
         environmentBase: [String: String] = ProcessInfo.processInfo.environment,
         pluginApprovalStore: ProviderPluginApprovalStore = ProviderPluginApprovalStore(),
         widgetSnapshotURL: URL? = nil,
+        cliUsageCacheURL: URL? = nil,
         widgetAccountSnapshotStore: (any WidgetAccountSnapshotStoring)? = nil,
         widgetTimelineReloader: @escaping @MainActor () -> Void = UsageStore.reloadWidgetTimelines,
         planUtilizationHistoryLoadGateForTesting: PlanUtilizationHistoryLoadGate? = nil)
@@ -535,10 +531,10 @@ final class UsageStore {
         self.claudeFetcher = claudeFetcher ?? ClaudeUsageFetcher(browserDetection: browserDetection)
         self.costUsageFetcher = costUsageFetcher
         self.settings = settings
-        self.registry = registry
         self.environmentBase = environmentBase
         self.pluginApprovalStore = pluginApprovalStore
         self.widgetSnapshotURL = widgetSnapshotURL
+        self.cliUsageCacheURL = cliUsageCacheURL
         self.widgetTimelineReloader = widgetTimelineReloader
         self.historicalUsageHistoryStore = historicalUsageHistoryStore
         self.startupBehavior = startupBehavior.resolved(isRunningTests: TestProcessSafety.isRunning)
@@ -588,7 +584,7 @@ final class UsageStore {
                 for: self.freshCodexVisibleAccountsForSnapshotHydration())
         }
         self.logStartupState()
-        self.bindSettings()
+        self.observeSettingsChanges()
         self.pathDebugInfo = PathDebugSnapshot(
             codexBinary: nil,
             claudeBinary: nil,
@@ -675,32 +671,23 @@ final class UsageStore {
     }
 
     func sourceLabel(for provider: UsageProvider) -> String {
-        var label = self.lastSourceLabels[provider.instanceID] ?? ""
-        if label.isEmpty {
-            let descriptor = ProviderDescriptorRegistry.descriptor(for: provider)
-            let modes = descriptor.fetchPlan.sourceModes
-            if modes.count == 1, let mode = modes.first {
-                label = mode.rawValue
-            } else {
-                let context = ProviderSourceLabelContext(
-                    provider: provider,
-                    settings: self.settings,
-                    store: self,
-                    descriptor: descriptor)
-                label = ProviderCatalog.implementation(for: provider)?
-                    .defaultSourceLabel(context: context)
-                    ?? "auto"
-            }
-        }
-
+        let descriptor = ProviderDescriptorRegistry.descriptor(for: provider)
         let context = ProviderSourceLabelContext(
             provider: provider,
             settings: self.settings,
             store: self,
-            descriptor: ProviderDescriptorRegistry.descriptor(for: provider))
-        return ProviderCatalog.implementation(for: provider)?
-            .decorateSourceLabel(context: context, baseLabel: label)
-            ?? label
+            descriptor: descriptor)
+        let implementation = ProviderCatalog.implementation(for: provider)
+        var label = self.lastSourceLabels[provider.instanceID] ?? ""
+        if label.isEmpty {
+            let modes = descriptor.fetchPlan.sourceModes
+            if modes.count == 1, let mode = modes.first {
+                label = mode.rawValue
+            } else {
+                label = implementation?.defaultSourceLabel(context: context) ?? "auto"
+            }
+        }
+        return implementation?.decorateSourceLabel(context: context, baseLabel: label) ?? label
     }
 
     func fetchAttempts(for provider: UsageProvider) -> [ProviderFetchAttempt] {
@@ -732,15 +719,10 @@ final class UsageStore {
         let enabled = self.settings.isProviderEnabledCached(
             provider: provider,
             metadataByProvider: self.providerMetadata)
-        guard enabled else { return false }
-        return self.isProviderAvailable(provider)
+        return enabled && self.isProviderAvailable(provider)
     }
 
-    func isProviderAvailable(_ provider: UsageProvider) -> Bool {
-        self.isProviderAvailable(provider, now: Date())
-    }
-
-    func isProviderAvailable(_ provider: UsageProvider, now: Date) -> Bool {
+    func isProviderAvailable(_ provider: UsageProvider, now: Date = Date()) -> Bool {
         guard provider != .codex else { return true }
 
         let configRevision = self.settings.configRevision
@@ -770,10 +752,6 @@ final class UsageStore {
             configRevision: configRevision,
             expiresAt: now.addingTimeInterval(self.providerAvailabilityCacheTTL))
         return available
-    }
-
-    private func invalidateProviderAvailabilityCache() {
-        self.providerAvailabilityCache.removeAll(keepingCapacity: true)
     }
 
     #if DEBUG
@@ -923,10 +901,6 @@ final class UsageStore {
     }
 
     // MARK: - Private
-
-    private func bindSettings() {
-        self.observeSettingsChanges()
-    }
 
     #if DEBUG
     @ObservationIgnored private(set) var refreshTimerSleepOverrideForTesting: Duration?
@@ -1461,19 +1435,8 @@ extension UsageStore {
         }
     }
 
-    private func runBackgroundSnapshot(
-        _ snapshot: @escaping @Sendable () async -> PathDebugSnapshot) async
-    {
-        let result = await snapshot()
-        await MainActor.run {
-            self.pathDebugInfo = result
-        }
-    }
-
     private func refreshPathDebugInfo() async {
-        await self.runBackgroundSnapshot {
-            await PathBuilder.debugSnapshotAsync(purposes: [.rpc, .tty, .nodeTooling])
-        }
+        self.pathDebugInfo = await PathBuilder.debugSnapshotAsync(purposes: [.rpc, .tty, .nodeTooling])
     }
 
     func refreshTokenUsage(_ provider: UsageProvider, force: Bool) async {
@@ -1602,6 +1565,10 @@ extension UsageStore {
             let durationText = String(format: "%.2f", duration)
             let message = "cost usage failed provider=\(provider.rawValue) duration=\(durationText)s error=\(msg)"
             self.tokenCostLogger.error(message)
+            // Provider-specific by design: an unavailable mapped Claude directory must not retain old costs.
+            if provider == .claude, self.claudeTokenCostConfigDirectory != nil {
+                self.clearTokenSnapshot(for: provider)
+            }
             let hadPriorData = self.tokenSnapshotPublications[provider.instanceID]?.snapshot != nil
             let shouldSurface = self.tokenFailureGates[provider.instanceID]?
                 .shouldSurfaceError(onFailureWithPriorData: hadPriorData) ?? true

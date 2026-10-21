@@ -33,8 +33,7 @@ public enum VeniceProviderDescriptor {
         aliases: ["ven"],
         webSource: .init(
             settingsSection: .init(VeniceProviderSettingsKey.self, cookieSettings: VeniceProviderSettings.self),
-            browserCookieOrder: BrowserCookieImportSupport.chromeOnly(
-                reason: "Preserve Chrome web sessions without unrelated Keychain prompts"),
+            browserCookieOrder: ProviderBrowserCookieDefaults.defaultImportOrder,
             mode: .sessionOrAPI,
             // Auto uses the API key; only explicit web mode requires browser support.
             browserSupportExemption: { sourceMode, _, _ in sourceMode == .auto },

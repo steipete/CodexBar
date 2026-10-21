@@ -4,7 +4,7 @@ import Testing
 @testable import CodexBar
 
 @MainActor
-@Suite(.serialized)
+@Suite(.serialized, CodexCredentialFixtures())
 struct StatusMenuTests {
     func disableMenuCardsForTesting() {
         StatusItemController.menuCardRenderingEnabled = false
@@ -166,8 +166,17 @@ struct StatusMenuTests {
     }
 
     @Test
-    func `claude subscription dashboard action opens usage page`() {
-        for plan in ["Claude Pro", "Claude Team"] {
+    func `claude dashboard action opens usage page for account type`() {
+        let cases: [(String?, String)] = [
+            (nil, "https://platform.claude.com/usage"),
+            ("API", "https://platform.claude.com/usage"),
+            ("Claude Enterprise", "https://platform.claude.com/usage"),
+            ("Claude Pro", "https://claude.ai/settings/usage"),
+            ("Claude Max", "https://claude.ai/settings/usage"),
+            ("Claude Team", "https://claude.ai/settings/usage"),
+            ("Claude Ultra", "https://claude.ai/settings/usage"),
+        ]
+        for (plan, expectedURL) in cases {
             self.disableMenuCardsForTesting()
             let settings = self.makeSettings()
             settings.statusChecksEnabled = false
@@ -202,7 +211,7 @@ struct StatusMenuTests {
                 preferencesSelection: PreferencesSelection(),
                 statusBar: self.makeStatusBarForTesting())
 
-            #expect(controller.dashboardURL(for: .claude)?.absoluteString == "https://claude.ai/settings/usage")
+            #expect(controller.dashboardURL(for: .claude)?.absoluteString == expectedURL)
         }
     }
 
@@ -695,7 +704,7 @@ struct StatusMenuTests {
 
         enableTestProviders([.codex, .claude], settings: settings)
 
-        let activeProviders: [UsageProvider] = [.codex, .claude]
+        let activeProviders: [ProviderInstanceID] = [.codex, .claude]
         _ = settings.setMergedOverviewProviderSelection(
             provider: .codex,
             isSelected: false,
@@ -1380,6 +1389,8 @@ extension StatusMenuTests {
         settings.costUsageEnabled = true
         settings.costSummaryDisplayStyle = .both
         settings.claudeWebExtrasEnabled = true
+        settings.showOptionalCreditsAndExtraUsage = true
+        settings.preferredCurrencyCode = "EUR"
 
         let registry = ProviderRegistry.shared
         if let codexMeta = registry.metadata[.codex] {
@@ -1443,6 +1454,24 @@ extension StatusMenuTests {
         controller.menuWillOpen(menu)
         let ids = menu.items.compactMap { $0.representedObject as? String }
         #expect(ids.contains("menuCardExtraUsage"))
+        let model = controller.menuCardModel(for: .claude)
+        #expect(model?.providerCost?.spendLine == "Monthly: €0.00 / €2,000.00")
+        #expect(model?.metrics.contains { $0.id == "claude-extra-usage" } == false)
+        controller.menuDidClose(menu)
+
+        settings.setUsageItemVisible(false, itemID: .claudeExtraUsage, for: .claude)
+        let hiddenMenu = controller.makeMenu()
+        controller.menuWillOpen(hiddenMenu)
+        #expect(!self.representedIDs(in: hiddenMenu).contains("menuCardExtraUsage"))
+        #expect(controller.menuCardModel(for: .claude)?.providerCost == nil)
+        controller.menuDidClose(hiddenMenu)
+
+        settings.setUsageItemVisible(true, itemID: .claudeExtraUsage, for: .claude)
+        let restoredMenu = controller.makeMenu()
+        controller.menuWillOpen(restoredMenu)
+        #expect(self.representedIDs(in: restoredMenu).contains("menuCardExtraUsage"))
+        #expect(controller.menuCardModel(for: .claude)?.providerCost?.spendLine == "Monthly: €0.00 / €2,000.00")
+        controller.menuDidClose(restoredMenu)
     }
 
     @Test

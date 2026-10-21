@@ -3,6 +3,9 @@ import Commander
 import Foundation
 
 struct ServeOptions: CommanderParsable {
+    @Flag(name: .long("all-accounts"), help: "Include all local accounts in dashboard snapshots")
+    var allAccounts: Bool = false
+
     @Flag(names: [.short("v"), .long("verbose")], help: "Enable verbose logging")
     var verbose: Bool = false
 
@@ -38,8 +41,8 @@ struct ServeOptions: CommanderParsable {
 
     @Option(
         name: .long("identity"),
-        help: "Dashboard snapshot identity detail: full (default) or redacted. Use redacted to hide email local " +
-            "parts from authorized dashboard clients.")
+        help: "Account identity detail: full or redacted. Expanded snapshots are private by default; " +
+            "ordinary snapshots and account discovery follow the app privacy setting.")
     var identity: String?
 }
 
@@ -47,6 +50,7 @@ enum CLIServeRoute: Equatable {
     case webUI
     case providerIcon(name: String)
     case health
+    case accounts(id: String?)
     case usage(provider: String?)
     case cost(provider: String?)
     case dashboardSnapshot(provider: String?, detail: String?)
@@ -75,6 +79,12 @@ enum CLIServeRouter {
             return .providerIcon(name: String(path.dropFirst("/icons/".count).dropLast(".svg".count)))
         case "/health":
             return .health
+        case "/accounts":
+            return .accounts(id: nil)
+        case let path where path.hasPrefix("/accounts/"):
+            let id = String(path.dropFirst("/accounts/".count))
+            guard !id.isEmpty, !id.contains("/") else { throw CLIServeRouteError.notFound }
+            return .accounts(id: id)
         case "/usage":
             return .usage(provider: normalizedProvider)
         case "/cost":
@@ -125,11 +135,12 @@ struct ServeRuntime {
     let healthVersion: String?
     let dashboardAuth: CLIServeDashboardAuth
     /// Identity detail for dashboard snapshots. `nil` means no `--identity` startup
-    /// option was given, so each request follows the app's "Hide personal information"
-    /// setting. An explicit `--identity redacted` hides email local parts from every
-    /// authorized dashboard client and ignores the app setting.
+    /// option was given: expanded snapshots are private, while ordinary snapshots
+    /// follow the app's "Hide personal information" setting. An explicit `--identity redacted` hides email local
+    /// parts from authorized dashboard clients and ignores the app setting.
     let dashboardIdentityMode: DashboardIdentityMode?
-    /// True for non-loopback binds: every data route (`/usage`, `/cost`,
+    let dashboardAllAccounts: Bool
+    /// True for non-loopback binds: every data route (`/accounts`, `/usage`, `/cost`,
     /// `/dashboard/v1/snapshot`) then requires the bearer token, so account data
     /// is never exposed to the network unauthenticated. `/` and `/health` stay open.
     /// Resolved once at startup from the bind host.
@@ -145,6 +156,7 @@ struct ServeRuntime {
         healthVersion: String?,
         dashboardAuth: CLIServeDashboardAuth,
         dashboardIdentityMode: DashboardIdentityMode? = nil,
+        dashboardAllAccounts: Bool = false,
         bindHost: String)
     {
         self.configStore = configStore
@@ -156,6 +168,7 @@ struct ServeRuntime {
         self.healthVersion = healthVersion
         self.dashboardAuth = dashboardAuth
         self.dashboardIdentityMode = dashboardIdentityMode
+        self.dashboardAllAccounts = dashboardAllAccounts
         self.dataRoutesRequireAuth = !CLIServeSecurity.isLoopbackHost(bindHost)
     }
 }
@@ -181,6 +194,7 @@ struct ServeUsageContext: Sendable {
     let providerDeadline: ContinuousClock.Instant?
     let providerOperations: CLIServeOperationCoordinator<UsageCommandOutput>
     let includeAllCodexAccounts: Bool
+    let includeAllAccounts: Bool
     let persistCLISessions: Bool
 
     init(
@@ -191,6 +205,7 @@ struct ServeUsageContext: Sendable {
         providerDeadline: ContinuousClock.Instant?,
         providerOperations: CLIServeOperationCoordinator<UsageCommandOutput>,
         includeAllCodexAccounts: Bool = true,
+        includeAllAccounts: Bool = false,
         persistCLISessions: Bool = true)
     {
         self.config = config
@@ -200,6 +215,7 @@ struct ServeUsageContext: Sendable {
         self.providerDeadline = providerDeadline
         self.providerOperations = providerOperations
         self.includeAllCodexAccounts = includeAllCodexAccounts
+        self.includeAllAccounts = includeAllAccounts
         self.persistCLISessions = persistCLISessions
     }
 }
@@ -263,28 +279,15 @@ actor CLIServeResponseCache {
         let accountID: String
     }
 
-    private struct LastGoodUsageItem {
+    private struct LastGoodItem {
         let recordedAt: Date
         let data: Data
-    }
-
-    private struct UsageMergeResult {
-        let response: CLILocalHTTPResponse
-    }
-
-    private struct LastGoodCostItem {
-        let recordedAt: Date
-        let data: Data
-    }
-
-    private struct CostMergeResult {
-        let response: CLILocalHTTPResponse
     }
 
     private var entries: [String: Entry] = [:]
     private var lastGood: [String: LastGoodEntry] = [:]
-    private var lastGoodUsageItems: [String: [UsageItemKey: LastGoodUsageItem]] = [:]
-    private var lastGoodCostItems: [String: [String: LastGoodCostItem]] = [:]
+    private var lastGoodUsageItems: [String: [UsageItemKey: LastGoodItem]] = [:]
+    private var lastGoodCostItems: [String: [String: LastGoodItem]] = [:]
     private var lastGoodCostOrder: [String: [String]] = [:]
 
     private func pruneExpiredEntries(now: Date) {
@@ -307,14 +310,9 @@ actor CLIServeResponseCache {
         self.lastGoodCostOrder = self.lastGoodCostOrder.filter { self.lastGoodCostItems[$0.key] != nil }
     }
 
-    private func response(for key: String) -> CLILocalHTTPResponse? {
-        guard let entry = self.entries[key] else { return nil }
-        return entry.response
-    }
-
     func cachedResponse(for key: String, now: Date) -> CLILocalHTTPResponse? {
         self.pruneExpiredEntries(now: now)
-        return self.response(for: key)
+        return self.entries[key]?.response
     }
 
     /// Returns a recently expired whole response for stale-while-revalidate.
@@ -346,7 +344,6 @@ actor CLIServeResponseCache {
         now: Date,
         shouldCache: Bool) -> CLILocalHTTPResponse
     {
-        let delivered: CLILocalHTTPResponse
         let staleResponse = self.staleResponse(for: key, staleTTL: policy.staleTTL, now: now)
         let usageMerge = self.mergeLastGoodUsageItems(
             into: response,
@@ -361,17 +358,13 @@ actor CLIServeResponseCache {
             now: now,
             replaceCachedItems: shouldCache)
         if shouldCache {
-            self.store(response, for: key, ttl: policy.ttl, now: now)
+            if policy.ttl > 0, response.status == .ok {
+                self.entries[key] = Entry(expiresAt: now.addingTimeInterval(policy.ttl), response: response)
+            }
             self.lastGood[key] = LastGoodEntry(recordedAt: now, response: response)
-            delivered = response
-        } else if let usageMerge {
-            delivered = usageMerge.response
-        } else if let costMerge {
-            delivered = costMerge.response
-        } else {
-            delivered = staleResponse ?? response
+            return response
         }
-        return delivered
+        return usageMerge ?? costMerge ?? staleResponse ?? response
     }
 
     private func staleResponse(
@@ -403,7 +396,7 @@ actor CLIServeResponseCache {
         for key: String,
         staleTTL: TimeInterval,
         now: Date,
-        replaceCachedItems: Bool) -> UsageMergeResult?
+        replaceCachedItems: Bool) -> CLILocalHTTPResponse?
     {
         guard key.hasPrefix("usage:"),
               response.status == .ok,
@@ -452,7 +445,7 @@ actor CLIServeResponseCache {
                 }
             } else {
                 if let data = try? JSONSerialization.data(withJSONObject: item, options: [.sortedKeys]) {
-                    cachedItems[itemKey] = LastGoodUsageItem(recordedAt: now, data: data)
+                    cachedItems[itemKey] = LastGoodItem(recordedAt: now, data: data)
                 }
             }
         }
@@ -461,14 +454,13 @@ actor CLIServeResponseCache {
         guard replacedError,
               let body = try? JSONSerialization.data(withJSONObject: items, options: [.sortedKeys])
         else {
-            return UsageMergeResult(response: response)
+            return response
         }
-        return UsageMergeResult(
-            response: CLILocalHTTPResponse(
-                status: response.status,
-                body: body,
-                contentType: response.contentType,
-                usageCacheKeys: response.usageCacheKeys))
+        return CLILocalHTTPResponse(
+            status: response.status,
+            body: body,
+            contentType: response.contentType,
+            usageCacheKeys: response.usageCacheKeys)
     }
 
     private static func usageItemKey(_ item: [String: Any], accountID: String?) -> UsageItemKey? {
@@ -497,7 +489,7 @@ actor CLIServeResponseCache {
         for key: String,
         staleTTL: TimeInterval,
         now: Date,
-        replaceCachedItems: Bool) -> CostMergeResult?
+        replaceCachedItems: Bool) -> CLILocalHTTPResponse?
     {
         guard key.hasPrefix("cost:"),
               response.status == .ok,
@@ -512,7 +504,7 @@ actor CLIServeResponseCache {
             return provider
         }
         guard providers.count == items.count, Set(providers).count == providers.count else {
-            return CostMergeResult(response: response)
+            return response
         }
 
         var cachedItems = replaceCachedItems ? [:] : self.lastGoodCostItems[key] ?? [:]
@@ -528,20 +520,20 @@ actor CLIServeResponseCache {
                     items[index] = cachedItem
                 }
             } else if let data = try? JSONSerialization.data(withJSONObject: items[index], options: [.sortedKeys]) {
-                cachedItems[provider] = LastGoodCostItem(recordedAt: now, data: data)
+                cachedItems[provider] = LastGoodItem(recordedAt: now, data: data)
             }
         }
         self.lastGoodCostItems[key] = cachedItems
         self.lastGoodCostOrder[key] = providers
 
         guard let body = try? JSONSerialization.data(withJSONObject: items, options: [.sortedKeys]) else {
-            return CostMergeResult(response: response)
+            return response
         }
-        return CostMergeResult(response: CLILocalHTTPResponse(
+        return CLILocalHTTPResponse(
             status: response.status,
             body: body,
             contentType: response.contentType,
-            usageCacheKeys: response.usageCacheKeys))
+            usageCacheKeys: response.usageCacheKeys)
     }
 
     private func staleCostResponse(
@@ -568,11 +560,6 @@ actor CLIServeResponseCache {
             return nil
         }
         return CLILocalHTTPResponse(status: .ok, body: body)
-    }
-
-    private func store(_ response: CLILocalHTTPResponse, for key: String, ttl: TimeInterval, now: Date) {
-        guard ttl > 0, response.status == .ok else { return }
-        self.entries[key] = Entry(expiresAt: now.addingTimeInterval(ttl), response: response)
     }
 
     func cachedEntryCount() -> Int {
@@ -727,6 +714,9 @@ extension CodexBarCLI {
                 kind: .args)
         }
 
+        let heapTrimmer = CLIServeHeapTrimmer.start()
+        defer { heapTrimmer?.cancel() }
+
         // Resolve the running build version once, at startup, before an in-place
         // app/tarball update can replace the on-disk binary. Resolving it lazily
         // per request would let a stale serve report the newly installed version
@@ -741,6 +731,7 @@ extension CodexBarCLI {
             healthVersion: Self.currentVersion(),
             dashboardAuth: CLIServeDashboardAuth(bearer: dashboardBearer),
             dashboardIdentityMode: dashboardIdentityMode,
+            dashboardAllAccounts: values.flags.contains("allAccounts"),
             bindHost: bindHost)
         let server = CLILocalHTTPServer(
             host: bindHost,
@@ -873,6 +864,8 @@ extension CodexBarCLI {
             startedAt: startedAt,
             requestTimeout: runtime.requestTimeout)
         let route: CLIServeRoute
+        let noStore = request.path == "/accounts" || request.path.hasPrefix("/accounts/") ||
+            request.path.hasPrefix("/dashboard/v1/")
         do {
             route = try CLIServeRouter.route(
                 method: request.method,
@@ -880,10 +873,10 @@ extension CodexBarCLI {
                 queryItems: request.queryItems)
         } catch CLIServeRouteError.methodNotAllowed {
             let response = Self.serveError(status: .methodNotAllowed, message: "method not allowed")
-            return request.path.hasPrefix("/dashboard/v1/") ? Self.addingNoStore(response) : response
+            return noStore ? Self.addingNoStore(response) : response
         } catch {
             let response = Self.serveError(status: .notFound, message: "not found")
-            return request.path.hasPrefix("/dashboard/v1/") ? Self.addingNoStore(response) : response
+            return noStore ? Self.addingNoStore(response) : response
         }
 
         switch route {
@@ -894,6 +887,8 @@ extension CodexBarCLI {
                 ?? Self.serveError(status: .notFound, message: "not found")
         case .health:
             return Self.serveHealthResponse(version: runtime.healthVersion)
+        case let .accounts(id):
+            return Self.serveAccountsRoute(request, id: id, runtime: runtime)
         case let .usage(provider):
             // On non-loopback binds every data route requires the bearer token,
             // checked before any cache access so unauthenticated requests can
@@ -1006,7 +1001,8 @@ extension CodexBarCLI {
         // the operation key so a body cached before a toggle cannot be replayed after it.
         let identityMode = Self.resolveDashboardIdentityMode(
             configured: runtime.dashboardIdentityMode,
-            hidesPersonalInfo: Self.hidePersonalInfoFromDefaults())
+            hidesPersonalInfo: Self.hidePersonalInfoFromDefaults(),
+            allAccounts: runtime.dashboardAllAccounts)
         let usageBarsShowUsed = Self.usageBarsShowUsedFromDefaults()
         let snapshot: CLIServeConfigSnapshot
         let operationKey: String
@@ -1017,7 +1013,8 @@ extension CodexBarCLI {
             operationKey = try Self.serveDashboardOperationKey(
                 identityMode: identityMode,
                 usageBarsShowUsed: usageBarsShowUsed,
-                provider: provider)
+                provider: provider,
+                allAccounts: runtime.dashboardAllAccounts)
             detail = try Self.dashboardSnapshotDetail(rawDetail)
             providers = try Self.dashboardSnapshotProviders(provider)
         } catch {
@@ -1050,7 +1047,8 @@ extension CodexBarCLI {
                             providerTimeout: providerTimeout,
                             providerDeadline: providerDeadline,
                             providerOperations: runtime.providerOperations,
-                            includeAllCodexAccounts: false),
+                            includeAllCodexAccounts: runtime.dashboardAllAccounts,
+                            includeAllAccounts: runtime.dashboardAllAccounts),
                         costCollection: ServeCostCollectionContext(
                             configFingerprint: snapshot.cacheToken,
                             providerTimeout: providerTimeout,
@@ -1109,10 +1107,12 @@ extension CodexBarCLI {
     static func serveDashboardOperationKey(
         identityMode: DashboardIdentityMode,
         usageBarsShowUsed: Bool,
-        provider: String?) throws -> String
+        provider: String?,
+        allAccounts: Bool = false) throws -> String
     {
         try self.serveOperationKey(
-            kind: "dashboard-\(identityMode.rawValue)-\(usageBarsShowUsed ? "used" : "remaining")",
+            kind: "dashboard-\(identityMode.rawValue)-\(usageBarsShowUsed ? "used" : "remaining")"
+                + (allAccounts ? "-all-accounts" : ""),
             provider: provider)
     }
 
@@ -1309,62 +1309,6 @@ extension CodexBarCLI {
             usageCacheKeys: output.payload.map(\.cacheAccountKey))
     }
 
-    static func serveUsageOutput(
-        selection: ProviderSelection,
-        context: ServeUsageContext) async throws -> UsageCommandOutput
-    {
-        let tokenContext = try TokenAccountCLIContext(
-            selection: TokenAccountCLISelection(label: nil, index: nil, allAccounts: false),
-            config: context.config,
-            verbose: false)
-
-        let browserDetection = BrowserDetection()
-        let command = UsageCommandContext(
-            format: .json,
-            includeCredits: true,
-            sourceModeOverride: nil,
-            antigravityPlanDebug: false,
-            augmentDebug: false,
-            webDebugDumpHTML: false,
-            webTimeout: context.providerTimeout ?? 60,
-            verbose: false,
-            useColor: false,
-            resetStyle: Self.resetTimeDisplayStyleFromDefaults(),
-            weeklyWorkDays: Self.weeklyProgressWorkDaysFromDefaults(),
-            jsonOnly: true,
-            includeAllCodexAccounts: context.includeAllCodexAccounts,
-            fetcher: UsageFetcher(),
-            claudeFetcher: ClaudeUsageFetcher(browserDetection: browserDetection),
-            browserDetection: browserDetection,
-            persistCLISessions: context.persistCLISessions,
-            persistentCLISessionIdleWindow: Self.serveCLISessionIdleWindow(
-                refreshInterval: context.refreshInterval))
-
-        return await Self.serveCollectUsageOutputs(
-            providers: selection.asList,
-            configFingerprint: Self.serveUsageOperationFingerprint(
-                configFingerprint: context.configFingerprint,
-                includeAllCodexAccounts: context.includeAllCodexAccounts),
-            deadline: context.providerDeadline,
-            operations: context.providerOperations)
-        { provider in
-            await ProviderInteractionContext.$current.withValue(.background) {
-                await Self.fetchUsageOutputs(
-                    provider: provider,
-                    status: nil,
-                    tokenContext: tokenContext,
-                    command: command)
-            }
-        }
-    }
-
-    static func serveUsageOperationFingerprint(
-        configFingerprint: String,
-        includeAllCodexAccounts: Bool) -> String
-    {
-        "\(configFingerprint):codex-accounts=\(includeAllCodexAccounts ? "all" : "selected")"
-    }
-
     /// Adapts the shared dashboard snapshot producer to the authenticated HTTP
     /// route. Auth, response caching, and `Cache-Control: no-store` remain owned
     /// by the surrounding serve request path.
@@ -1411,8 +1355,9 @@ extension CodexBarCLI {
     /// row instead of blocking the others, so the overall response still renders
     /// every healthy provider. (Per-account error rows that carry a
     /// cache key are merged with last-known-good by `CLIServeResponseCache`; a
-    /// timeout row is account-agnostic and is not reconstructed, matching the
-    /// existing "a timeout cannot prove the active account" cache rule.) Each
+    /// default timeout row is account-agnostic and is not reconstructed. Expanded
+    /// dashboards can publish completed siblings plus account-local timeout rows;
+    /// unfinished accounts carry no cache key, so stale usage is never reassigned.) Each
     /// deadline is absolute from HTTP request entry. The operation coordinator
     /// retains timed-out sources until they really exit, preventing a later route
     /// from stacking work for that provider. Results are merged in caller order.
@@ -1439,6 +1384,24 @@ extension CodexBarCLI {
         operations: CLIServeOperationCoordinator<UsageCommandOutput>,
         fetch: @Sendable @escaping (UsageProvider) async -> UsageCommandOutput) async -> UsageCommandOutput
     {
+        await self.serveCollectUsageOutputs(
+            providers: providers,
+            configFingerprint: configFingerprint,
+            deadline: deadline,
+            operations: operations,
+            fetch: { provider, _ in await fetch(provider) })
+    }
+
+    static func serveCollectUsageOutputs(
+        providers: [UsageProvider],
+        configFingerprint: String,
+        deadline: ContinuousClock.Instant?,
+        operations: CLIServeOperationCoordinator<UsageCommandOutput>,
+        fetch: @Sendable @escaping (
+            UsageProvider,
+            @escaping CLIServeOperationCoordinator<UsageCommandOutput>.PublishPartial) async -> UsageCommandOutput)
+        async -> UsageCommandOutput
+    {
         let indexed = await withTaskGroup(of: (Int, UsageCommandOutput).self) { group in
             for (index, provider) in providers.enumerated() {
                 group.addTask {
@@ -1447,10 +1410,10 @@ extension CodexBarCLI {
                         for: provider.rawValue,
                         fingerprint: configFingerprint,
                         deadline: deadline,
-                        timeoutValue: timeout)
-                    {
-                        await fetch(provider)
-                    }
+                        timeoutValue: timeout,
+                        operationWithProgress: { publish in
+                            await fetch(provider, publish)
+                        })
                     return (index, output)
                 }
             }
@@ -1647,7 +1610,7 @@ extension CodexBarCLI {
         self.serveJSON(ServeHealthPayload(status: "ok", version: version))
     }
 
-    /// The data routes (`/usage`, `/cost`, `/dashboard/v1/snapshot`) carry account
+    /// The data routes (`/accounts`, `/usage`, `/cost`, `/dashboard/v1/snapshot`) carry account
     /// data; keep every response on them out of shared HTTP caches. Idempotent:
     /// responses that already declare a Cache-Control policy (e.g. 401s) pass
     /// through unchanged.
@@ -1675,7 +1638,7 @@ extension CodexBarCLI {
             ])
     }
 
-    private static func serveJSON(
+    static func serveJSON(
         _ payload: some Encodable,
         status: CLIHTTPStatus = .ok,
         extraHeaders: [(String, String)] = [],
@@ -1689,7 +1652,7 @@ extension CodexBarCLI {
             usageCacheKeys: usageCacheKeys)
     }
 
-    private static func serveError(status: CLIHTTPStatus, message: String) -> CLILocalHTTPResponse {
+    static func serveError(status: CLIHTTPStatus, message: String) -> CLILocalHTTPResponse {
         self.serveJSON(ServeErrorPayload(error: message), status: status)
     }
 }

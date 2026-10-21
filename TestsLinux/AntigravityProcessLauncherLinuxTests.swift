@@ -40,10 +40,7 @@ struct AntigravityProcessLauncherLinuxTests {
           echo closed >> \(outputURL.path)
         fi
         """
-        // Direct writes close the executable before spawn; atomic replacement can race with exec on overlay
-        // filesystems.
-        try Data(script.utf8).write(to: scriptURL)
-        #expect(chmod(scriptURL.path, 0o700) == 0)
+        try FakeExecutable.install(script, at: scriptURL)
 
         let handle = try AntigravityPTYProcessLauncher().launch(binary: scriptURL.path)
         defer {

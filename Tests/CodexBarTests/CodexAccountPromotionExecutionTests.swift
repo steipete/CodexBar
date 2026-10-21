@@ -189,6 +189,54 @@ struct CodexAccountPromotionExecutionTests {
     }
 
     @Test
+    func `executor import repair keeps a raced home when the staged home reuses its path`() async throws {
+        let container = try CodexAccountPromotionTestContainer(
+            suiteName: "CodexAccountPromotionExecutionTests-import-same-home-collision")
+        defer { container.tearDown() }
+
+        let target = try container.createManagedAccount(
+            persistedEmail: "beta@example.com",
+            authAccountID: "acct-beta")
+        let sharedHomeURL = container.managedHomesURL.appendingPathComponent(
+            "shared-raced-home",
+            isDirectory: true)
+        let concurrentManaged = ManagedCodexAccount(
+            id: UUID(),
+            email: "alpha@example.com",
+            providerAccountID: "acct-alpha",
+            workspaceLabel: "Personal",
+            workspaceAccountID: "acct-alpha",
+            managedHomePath: sharedHomeURL.path,
+            createdAt: 1,
+            updatedAt: 1,
+            lastAuthenticatedAt: 1)
+        try container.persistAccounts([target])
+        let liveAuthData = try container.writeLiveOAuthAuthFile(
+            email: "alpha@example.com",
+            accountID: "acct-alpha")
+        let context = try await self.makeContext(container: container, targetID: target.id)
+        let executor = CodexDisplacedLivePreservationExecutor(
+            store: ConcurrentDuplicateManagedCodexAccountStore(
+                base: container.fileStore,
+                concurrentAccount: concurrentManaged),
+            homeFactory: FixedManagedHomeFactory(
+                base: container.homeFactory,
+                stagedHomeURL: sharedHomeURL),
+            authMaterialReader: DefaultCodexAuthMaterialReader(),
+            fileManager: .default)
+
+        let result = try executor.execute(plan: .importNew(reason: .noExistingManagedDestination), context: context)
+
+        #expect(result == .alreadyManaged(managedAccountID: concurrentManaged.id))
+        let accounts = try container.loadAccounts().accounts
+        let repaired = try #require(accounts.first(where: { $0.id == concurrentManaged.id }))
+        #expect(repaired.managedHomePath == sharedHomeURL.path)
+        #expect(FileManager.default.fileExists(atPath: sharedHomeURL.path))
+        #expect(try container.managedAuthData(for: repaired) == liveAuthData)
+        #expect(try container.liveAuthData() == liveAuthData)
+    }
+
+    @Test
     func `executor import rejects a raced workspace collision with conflicting readable auth`() async throws {
         let container = try CodexAccountPromotionTestContainer(
             suiteName: "CodexAccountPromotionExecutionTests-import-conflicting-collision")

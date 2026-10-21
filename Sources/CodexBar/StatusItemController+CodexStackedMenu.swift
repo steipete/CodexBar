@@ -21,7 +21,7 @@ extension StatusItemController {
             }
 
             for account in section.accounts {
-                let model = self.codexAccountMenuCardModel(
+                let model = self.store.codexAccountMenuCardModel(
                     for: account,
                     accountSnapshot: snapshotsByAccountID[account.id])
                 guard let model else { continue }

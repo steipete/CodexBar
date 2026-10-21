@@ -20,6 +20,7 @@ import SwiftUI
 /// harness hosting this view: imperative-only was 0% resize on hover and 40% during a
 /// drag; with cursor rects it is 100% in both.
 struct SidebarResizeHandle: NSViewRepresentable {
+    @Environment(\.layoutDirection) private var layoutDirection
     @Binding var width: Double
     let minWidth: Double
     let maxWidth: Double
@@ -35,6 +36,7 @@ struct SidebarResizeHandle: NSViewRepresentable {
     }
 
     private func configure(_ view: SidebarResizeHandleView) {
+        view.layoutDirection = self.layoutDirection
         view.getWidth = { self.width }
         view.setWidth = { newWidth in
             self.width = min(max(newWidth, self.minWidth), self.maxWidth)
@@ -48,6 +50,7 @@ final class SidebarResizeHandleView: NSView {
 
     var getWidth: (() -> Double)?
     var setWidth: ((Double) -> Void)?
+    var layoutDirection: LayoutDirection = .leftToRight
 
     private var dragStartX: CGFloat = 0
     private var dragStartWidth: Double = 0
@@ -114,8 +117,8 @@ final class SidebarResizeHandleView: NSView {
 
     override func mouseDragged(with event: NSEvent) {
         let deltaX = event.locationInWindow.x - self.dragStartX
-        // Sidebar sits left of the strip: dragging right (positive delta) grows it.
-        self.setWidth?(self.dragStartWidth + Double(deltaX))
+        let directedDelta = self.layoutDirection == .rightToLeft ? -deltaX : deltaX
+        self.setWidth?(self.dragStartWidth + Double(directedDelta))
         // Keep the resize cursor while the pointer strays outside the moving strip.
         NSCursor.resizeLeftRight.set()
     }

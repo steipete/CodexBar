@@ -43,7 +43,7 @@ extension CostUsageScanner {
             priorityTurns: priorityTurns,
             pricingResolver: pricingResolver)
         guard includeBreakdowns else { return (daily, [], []) }
-        var latestSessions: [String: (usage: CostUsageFileUsage, report: CostUsageDailyReport)] = [:]
+        var latestSessions: [String: (usage: CostUsageFileUsage, report: CostUsageDailyReport, path: String)] = [:]
         let projectPathResolver = CodexCanonicalProjectPathResolver()
         var accumulatorsByProjectPath: [String: CodexProjectBreakdownAccumulator] = [:]
         for (filePath, usage) in cache.files {
@@ -51,6 +51,7 @@ extension CostUsageScanner {
                 sinceKey: range.scanSinceKey,
                 untilKey: range.scanUntilKey,
                 calendar: range.calendar)
+                || !Self.codexTurnPerformanceSamples(usage: usage, range: range).isEmpty
             else {
                 continue
             }
@@ -69,7 +70,7 @@ extension CostUsageScanner {
             if includeSession {
                 let id = usage.sessionId ?? URL(fileURLWithPath: filePath).deletingPathExtension().lastPathComponent
                 if !id.isEmpty, latestSessions[id].map({ $0.usage.mtimeUnixMs < usage.mtimeUnixMs }) ?? true {
-                    latestSessions[id] = (usage, report)
+                    latestSessions[id] = (usage, report, filePath)
                 }
             }
             guard includeProjects, !report.data.isEmpty else { continue }
@@ -114,9 +115,15 @@ extension CostUsageScanner {
             return lhs.name.localizedStandardCompare(rhs.name) == .orderedAscending
         }
         let sessions = latestSessions.compactMap { id, file -> CostUsageSessionBreakdown? in
-            guard !file.report.data.isEmpty else { return nil }
+            let performanceSamples = Self.codexTurnPerformanceSamples(usage: file.usage, range: range)
+            // A turn can complete after midnight with all billed requests on the previous day.
+            guard !file.report.data.isEmpty || !performanceSamples.isEmpty else { return nil }
             return Self.codexSessionBreakdown(
-                sessionID: id, usage: file.usage, report: file.report, projectPathResolver: projectPathResolver)
+                source: SessionToolActivitySource(fileURL: URL(fileURLWithPath: file.path), sessionID: id),
+                usage: file.usage,
+                report: file.report,
+                projectPathResolver: projectPathResolver,
+                performanceSamples: performanceSamples)
         }
         .sorted { lhs, rhs in
             if lhs.lastActivity != rhs.lastActivity {
@@ -128,10 +135,11 @@ extension CostUsageScanner {
     }
 
     private static func codexSessionBreakdown(
-        sessionID: String,
+        source: SessionToolActivitySource,
         usage: CostUsageFileUsage,
         report: CostUsageDailyReport,
-        projectPathResolver: CodexCanonicalProjectPathResolver) -> CostUsageSessionBreakdown
+        projectPathResolver: CodexCanonicalProjectPathResolver,
+        performanceSamples: [CostUsageTurnPerformanceSample]) -> CostUsageSessionBreakdown
     {
         let summary = report.summary
         let requestCounts = report.data.compactMap(\.requestCount)
@@ -139,7 +147,7 @@ extension CostUsageScanner {
             ?? projectPathResolver.canonicalProjectPath(for: usage.projectPath)
         let projectPath = resolvedProjectPath?.isEmpty == false ? resolvedProjectPath : nil
         var session = CostUsageSessionBreakdown(
-            sessionID: sessionID,
+            sessionID: source.sessionID,
             lastActivity: Date(timeIntervalSince1970: TimeInterval(usage.mtimeUnixMs) / 1000),
             inputTokens: summary?.totalInputTokens,
             cachedInputTokens: summary?.cacheReadTokens,
@@ -150,7 +158,9 @@ extension CostUsageScanner {
             modelBreakdowns: Self.codexProjectModelBreakdowns(from: report.data) ?? [],
             projectPath: projectPath,
             projectName: projectPath.map { Self.codexProjectName(path: $0) },
-            title: usage.codexSession?.title)
+            title: usage.codexSession?.title,
+            turnPerformanceSamples: performanceSamples,
+            toolActivitySource: source)
         session.workingDirectory = usage.projectPath
         return session
     }

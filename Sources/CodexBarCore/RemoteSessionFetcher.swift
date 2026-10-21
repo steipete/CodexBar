@@ -103,14 +103,12 @@ public struct RemoteSessionFetcher: Sendable {
         environment: [String: String] = ProcessInfo.processInfo.environment,
         localHost: String = ProcessInfo.processInfo.hostName) async -> [String]
     {
-        let probeEnvironment = Self.tailscaleCLIEnvironment(from: environment)
         let candidates = Self.tailscaleBinaryCandidates(path: environment["PATH"])
-            .filter { FileManager.default.isExecutableFile(atPath: $0) }
         return await Self.firstDiscoveredHosts(candidates: candidates, localHost: localHost) { binary in
             guard let result = try? await SubprocessRunner.run(
                 binary: binary,
                 arguments: ["status", "--json"],
-                environment: probeEnvironment,
+                environment: environment,
                 timeout: 5,
                 label: "Tailscale session host discovery")
             else { return nil }
@@ -118,22 +116,21 @@ public struct RemoteSessionFetcher: Sendable {
         }
     }
 
-    /// Runs `tailscale status --json` on each candidate in order, falling through to the next when a
-    /// candidate fails (`run` returns nil), returns invalid status JSON, or reports an inactive backend.
-    /// Returns the first candidate's parsed hosts (possibly empty), or `[]` if none succeed. This keeps
-    /// the app-binary fallback working even when an earlier — but non-functional — `tailscale` variant
-    /// is installed (e.g. an open-source/Homebrew CLI that isn't the active client).
+    /// Probe only standalone CLIs: app launchers can start a disconnected VPN even for status.
     package static func firstDiscoveredHosts(
         candidates: [String],
         localHost: String?,
+        isStandaloneCLI: (String) -> Bool = Self.isStandaloneTailscaleCLI,
         run: (String) async -> Data?) async -> [String]
     {
-        for binary in candidates {
+        for binary in candidates where isStandaloneCLI(binary) {
             guard let data = await run(binary),
                   let hosts = TailscaleStatusParser.parseHosts(from: data, excludingLocalHost: localHost)
             else { continue }
             return hosts
         }
+        CodexBarLog.logger("sessions").debug(
+            "No active standalone Tailscale CLI found; app bundles and launcher scripts are skipped.")
         return []
     }
 
@@ -227,37 +224,37 @@ public struct RemoteSessionFetcher: Sendable {
         ].joined(separator: " || ")
     }
 
-    /// Ordered candidate paths for the `tailscale` CLI, most-preferred first.
-    ///
-    /// The macOS app ships its CLI as a thin `/bin/sh` wrapper (usually
-    /// `/usr/local/bin/tailscale`) around the app's dual-mode binary. We prefer the
-    /// wrapper, but a GUI-launched CodexBar inherits a minimal `PATH` (`/usr/bin:/bin`)
-    /// that omits the standard CLI locations, so we also probe them explicitly before
-    /// falling back to the app binary itself.
+    /// PATH first, then standalone CLI installation directories omitted by GUI launch environments.
     package static func tailscaleBinaryCandidates(path: String?) -> [String] {
         let pathDirs = PathBuilder.searchDirectories(path?.split(separator: ":").map(String.init) ?? [])
         var seen = Set<String>()
-        var candidates = (pathDirs + ["/usr/local/bin", "/opt/homebrew/bin"])
+        return (pathDirs + ["/usr/local/bin", "/opt/homebrew/bin"])
             .filter { seen.insert($0).inserted }
             .map { $0 + "/tailscale" }
-        // Last resort: the dual-mode app binary. Must be run via
-        // `tailscaleCLIEnvironment(from:)` so it stays in CLI mode.
-        candidates.append("/Applications/Tailscale.app/Contents/MacOS/Tailscale")
-        return candidates
     }
 
-    /// Environment that keeps the dual-mode Tailscale app binary in CLI mode.
-    ///
-    /// Shell markers alone can still select the GUI path and crash newer app binaries. Force the
-    /// documented CLI override for every candidate, including symlinks to the app. Retain the shell
-    /// marker for older installations without changing an existing terminal context.
-    package static func tailscaleCLIEnvironment(from environment: [String: String]) -> [String: String] {
-        var environment = environment
-        environment["TAILSCALE_BE_CLI"] = "1"
-        if environment["TERM"] == nil, environment["SHLVL"] == nil {
-            environment["SHLVL"] = "1"
-        }
-        return environment
+    package static func isStandaloneTailscaleCLI(_ path: String) -> Bool {
+        let url = URL(fileURLWithPath: path).resolvingSymlinksInPath()
+        guard !url.path.lowercased().contains(".app/"),
+              FileManager.default.isExecutableFile(atPath: url.path),
+              let values = try? url.resourceValues(forKeys: [.isRegularFileKey]), values.isRegularFile == true,
+              let file = try? FileHandle(forReadingFrom: url)
+        else { return false }
+        defer { try? file.close() }
+        guard let bytes = try? file.read(upToCount: 4), bytes.count == 4 else { return false }
+        let magic = bytes.reduce(UInt32(0)) { ($0 << 8) | UInt32($1) }
+        // Mach-O (including universal binaries) or ELF, never a wrapper that could launch the app.
+        return [
+            0xFEED_FACE,
+            0xCEFA_EDFE,
+            0xFEED_FACF,
+            0xCFFA_EDFE,
+            0xCAFE_BABE,
+            0xBEBA_FECA,
+            0xCAFE_BABF,
+            0xBFBA_FECA,
+            0x7F45_4C46,
+        ].contains(magic)
     }
 
     private func findExecutable(_ name: String, environment: [String: String]) -> String? {

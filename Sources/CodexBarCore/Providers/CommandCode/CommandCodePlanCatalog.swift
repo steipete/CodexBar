@@ -10,10 +10,10 @@ public enum CommandCodePlanCatalog {
     public struct Plan: Sendable, Equatable {
         public let id: String
         public let displayName: String
-        /// Monthly credit allowance in USD.
-        public let monthlyCreditsUSD: Double
+        /// Monthly credit allowance in USD, or nil for an unknown plan.
+        public let monthlyCreditsUSD: Double?
 
-        public init(id: String, displayName: String, monthlyCreditsUSD: Double) {
+        public init(id: String, displayName: String, monthlyCreditsUSD: Double?) {
             self.id = id
             self.displayName = displayName
             self.monthlyCreditsUSD = monthlyCreditsUSD
@@ -22,6 +22,7 @@ public enum CommandCodePlanCatalog {
 
     public static let plans: [Plan] = [
         Plan(id: "individual-go", displayName: "Go", monthlyCreditsUSD: 10),
+        Plan(id: "individual-go-v1", displayName: "Go", monthlyCreditsUSD: 10),
         Plan(id: "individual-goat", displayName: "GOAT", monthlyCreditsUSD: 70),
         Plan(id: "individual-pro", displayName: "Pro", monthlyCreditsUSD: 30),
         Plan(id: "individual-pro-v1", displayName: "Pro", monthlyCreditsUSD: 80),

@@ -38,7 +38,8 @@ if args[0]=='cost':
 else:
  usage=state.get('usage',{'identity':{'accountEmail':'private@example.com'},
  'primary':{'usedPercent':40,'windowMinutes':300,'resetsAt':'2030-01-01T00:00:00Z'}})
- print(json.dumps([{'provider':provider,'usage':usage,'rateWindowLabels':state.get('rateWindowLabels'),'pace':state.get('pace'),'resetCredits':state.get('resetCredits'),'status':state.get('status')}]))
+ answered=state.get('answerAs',{}).get(provider,provider)
+ print(json.dumps([{'provider':answered,'usage':usage,'rateWindowLabels':state.get('rateWindowLabels'),'pace':state.get('pace'),'resetCredits':state.get('resetCredits'),'status':state.get('status')}]))
 ''')
         self.fake.chmod(0o755)
         self.log = (self.root / 'desktop.log').open('w+')
@@ -225,6 +226,78 @@ else:
         self.assertEqual(value['costError'], '')
         self.assertEqual(value['spending'][0]['month'], 12)
 
+    def test_bar_detail_caps_and_pace_are_independent_preferences(self):
+        usage = {'primary': {'usedPercent': 63, 'windowMinutes': 300, 'resetsAt': '2030-01-01T05:00:00Z'},
+                 'secondary': {'usedPercent': 39, 'windowMinutes': 10080, 'resetsAt': '2030-01-03T00:00:00Z'},
+                 'extraRateWindows': [{'id': 'claude-weekly-scoped-fable', 'title': 'Fable only',
+                                       'window': {'usedPercent': 100, 'windowMinutes': 10080}}]}
+        (self.root / 'state.json').write_text(json.dumps({
+            'usage': usage, 'pace': {'secondary': {'deltaPercent': 14, 'expectedUsedPercent': 25}}}))
+        self.client('--refresh')
+        value = self.wait_for(lambda value: value.get('entries') and not value['busy'])
+        # Default: the single leading percentage this adapter has always drawn.
+        self.assertEqual([entry['text'] for entry in value['barEntries']], ['37%'])
+        self.assertTrue(self.client('--configure', '{"showBarDetail":true}')['ok'])
+        value = self.wait_for(lambda value: value['barEntries'][0]['text'] != '37%')
+        self.assertEqual([entry['text'] for entry in value['barEntries']], ['5H 37% · 7D 61% · +14%'])
+        self.assertTrue(self.client('--configure', '{"showScopedCaps":true}')['ok'])
+        value = self.wait_for(lambda value: 'Fable' in value['barEntries'][0]['text'])
+        self.assertEqual([entry['text'] for entry in value['barEntries']], ['5H 37% · 7D 61% · Fable 0% · +14%'])
+        self.assertEqual(value['entries'][0]['windows'][1]['paceExpected'], 25)
+        self.assertTrue(self.client('--configure', '{"showPace":false}')['ok'])
+        self.assertEqual(self.client('--snapshot')['barEntries'][0]['text'], '5H 37% · 7D 61% · Fable 0%')
+        self.assertTrue(self.client('--configure', '{"showBarDetail":false}')['ok'])
+        self.assertEqual(self.client('--snapshot')['barEntries'][0]['text'], '37% · Fable 0%')
+        # The tray tooltip keeps its own compact form.
+        self.assertEqual(value['summary'], 'CX 37%')
+
+    def test_bar_provider_limit_validates_and_only_changes_display(self):
+        providers = ['codex', 'claude', 'acme']
+        self.assertTrue(self.client('--configure', json.dumps({
+            'provider': 'custom', 'providerOrder': providers}))['ok'])
+        value = self.wait_for(lambda value: len(value.get('entries', [])) == 3 and not value['busy'])
+        self.assertEqual([row['provider'] for row in value['barEntries']], providers[:2])
+        self.assertEqual(value['summary'], 'CX 60%  ·  CL 60%  +1')
+        calls = (self.root / 'calls.jsonl').read_text()
+        for limit in [1, 0, 80, 2]:
+            self.assertTrue(self.client('--configure', json.dumps({'barProviders': limit}))['ok'])
+            value = self.client('--snapshot')
+            self.assertEqual([row['provider'] for row in value['barEntries']], providers[:limit or None])
+            self.assertEqual([row['provider'] for row in value['entries']], providers)
+            self.assertEqual(value['summary'], 'CX 60%  ·  CL 60%  +1')
+        self.assertEqual((self.root / 'calls.jsonl').read_text(), calls)
+        settings = self.root / 'config/codexbar/linux.json'
+        saved = settings.read_bytes()
+        for limit in [-1, 81, 'invalid', None]:
+            self.assertFalse(self.client('--configure', json.dumps({'barProviders': limit}), check=False)['ok'])
+            self.assertEqual(settings.read_bytes(), saved)
+        self.client('--refresh')
+        self.wait_for(lambda value: not value['busy'])
+        calls = [json.loads(line)['args'] for line in (self.root / 'calls.jsonl').read_text().splitlines()]
+        polled = [args[args.index('--provider') + 1] for args in calls if args[0] == 'usage']
+        self.assertEqual(polled[-3:], providers)
+
+    def test_settings_from_before_the_bar_preferences_survive_an_upgrade(self):
+        self.client('--quit')
+        self.process.wait(timeout=4)
+        settings = self.root / 'config/codexbar/linux.json'
+        settings.parent.mkdir(parents=True, exist_ok=True)
+        # Written by a release without showBarDetail, showScopedCaps or barProviders.
+        settings.write_text(json.dumps({'provider': 'custom', 'providerOrder': ['claude', 'codex'],
+                                        'quotaDisplay': 'used', 'showPace': False, 'refreshSeconds': 600}))
+        self.process = subprocess.Popen([str(APP), '--background', '--no-tray', '--cli', str(self.fake)],
+                                        env=self.environment, stdout=self.log, stderr=self.log)
+        value = self.wait_for(lambda value: len(value.get('entries', [])) == 2 and not value['busy'])
+        self.assertEqual([entry['provider'] for entry in value['entries']], ['claude', 'codex'])
+        self.assertEqual(value['quotaDisplay'], 'used')
+        self.assertEqual([entry['text'] for entry in value['barEntries']], ['40%', '40%'])
+        self.assertTrue(self.client('--configure', '{"notifyThreshold":20}')['ok'])
+        saved = json.loads(settings.read_text())
+        self.assertEqual({key: saved[key] for key in ['provider', 'providerOrder', 'quotaDisplay', 'showPace', 'refreshSeconds']},
+                         {'provider': 'custom', 'providerOrder': ['claude', 'codex'], 'quotaDisplay': 'used',
+                          'showPace': False, 'refreshSeconds': 600})
+        self.assertEqual((saved['showBarDetail'], saved['showScopedCaps'], saved['barProviders']), (False, False, 2))
+
     def test_invalid_config_is_not_overwritten(self):
         self.client('--quit')
         self.process.wait(timeout=4)
@@ -253,21 +326,29 @@ else:
         self.assertTrue(value['stale'])
         self.assertEqual(value['summary'], 'CX 60%')
 
-    def test_refresh_on_open_is_optional_and_does_not_scan_spending(self):
+    def test_quick_view_is_opt_in_and_never_scans_cost_on_open(self):
         calls = self.root / 'calls.jsonl'
-        self.client('--usage')
-        time.sleep(0.15)
-        self.assertEqual(len(calls.read_text().splitlines()), 1)
+        self.client('--configure', '{}')
+        settings = self.root / 'config/codexbar/linux.json'
+        self.assertFalse(json.loads(settings.read_text())['compactQuickView'])
+        for enabled in [False, True]:
+            self.client('--configure', json.dumps({'compactQuickView': enabled}))
+            self.assertEqual(json.loads(settings.read_text())['compactQuickView'], enabled)
+            for command in ['--usage', '--quick-view']:
+                self.client(command)
+                snapshot = self.client('--snapshot')
+                self.assertFalse(snapshot['costBusy'])
+                self.assertEqual(snapshot['costProviders'], 0)
+        self.assertEqual([json.loads(line)['args'][0] for line in calls.read_text().splitlines()], ['usage'])
         self.client('--configure', '{"refreshOnOpen":true}')
-        self.wait_for(lambda value: bool(value.get('entries')) and not value['busy'])
-        previous = len(calls.read_text().splitlines())
-        self.client('--usage')
-        end = time.monotonic() + 4
-        while len(calls.read_text().splitlines()) == previous and time.monotonic() < end:
-            time.sleep(0.05)
-        self.assertEqual(len(calls.read_text().splitlines()), previous + 1)
-        for line in calls.read_text().splitlines():
-            self.assertEqual(json.loads(line)['args'][0], 'usage')
+        self.client('--quick-view')
+        self.wait_for(lambda value: not value['busy'] and len(calls.read_text().splitlines()) >= 2)
+        self.assertEqual([json.loads(line)['args'][0] for line in calls.read_text().splitlines()],
+                         ['usage', 'usage'])
+        self.client('--spending')
+        self.wait_for(lambda value: value['costProviders'] == 1 and not value['costBusy'])
+        self.client('--quick-view')
+        self.assertEqual([json.loads(line)['args'][0] for line in calls.read_text().splitlines()].count('cost'), 1)
 
     def test_failed_spending_preserves_previous_scan(self):
         self.client('--spending')
@@ -296,6 +377,15 @@ else:
         value = self.wait_for(lambda value: bool(value.get('error')) and not value['busy'])
         self.assertEqual([row['provider'] for row in value['entries']], ['claude', 'codex'])
         self.assertTrue(value['stale'])
+
+    def test_custom_provider_ignores_usage_answered_for_another_provider(self):
+        # An older CLI answers an unrecognised ID with its enabled providers instead of failing.
+        (self.root / 'state.json').write_text('{"answerAs":{"alibabatokenplan":"codex"}}')
+        self.client('--configure', '{"provider":"custom","providerOrder":["codex","alibabatokenplan"]}')
+        value = self.wait_for(lambda value: len(value.get('entries', [])) == 2 and not value['busy'])
+        self.assertEqual([row['provider'] for row in value['entries']], ['codex', 'alibabatokenplan'])
+        self.assertEqual(value['entries'][1]['windows'], [])
+        self.assertEqual(value['entries'][1]['error'], 'Usage unavailable')
 
     def test_selection_change_during_custom_batch(self):
         (self.root / 'state.json').write_text('{"delay":0.3}')

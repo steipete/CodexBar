@@ -10,6 +10,8 @@ struct AdvancedPane: View {
 
     var body: some View {
         Form {
+            HTTPServerSection(controller: self.settings.httpServer)
+
             Section {
                 LabeledContent {
                     Button {

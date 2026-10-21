@@ -141,6 +141,7 @@ actor ClaudeCLISession {
     }
 
     private func captureExclusive(request: CaptureRequest) async throws -> String {
+        defer { self.releaseSleepInhibitors() }
         if try self.ensureStarted(request: request) {
             // Dismiss /usage or /status before typing; keep Escape separate from the next command's input.
             try self.send("\u{1b}")
@@ -376,7 +377,7 @@ actor ClaudeCLISession {
         }
 
         var processGroup: pid_t?
-        if setpgid(pid, pid) == 0 {
+        if setpgid(pid, pid) == 0 || getpgid(pid) == pid {
             processGroup = pid
             TTYCommandRunner.updateActiveProcessGroupForAppShutdown(pid: pid, processGroup: processGroup)
         }
@@ -452,14 +453,7 @@ actor ClaudeCLISession {
     }
 
     static func launchEnvironment(baseEnv: [String: String] = ProcessInfo.processInfo.environment) -> [String: String] {
-        var env = self.scrubbedClaudeEnvironment(from: TTYCommandRunner.enrichedEnvironment(baseEnv: baseEnv))
-        // Passive status and auth probes must not mutate or update the user's Claude CLI installation.
-        env["DISABLE_AUTOUPDATER"] = "1"
-        return env
-    }
-
-    private static func scrubbedClaudeEnvironment(from base: [String: String]) -> [String: String] {
-        var env = base
+        var env = TTYCommandRunner.enrichedEnvironment(baseEnv: baseEnv)
         let explicitKeys: [String] = [
             ClaudeOAuthCredentialsStore.environmentTokenKey,
             ClaudeOAuthCredentialsStore.environmentScopesKey,
@@ -470,10 +464,24 @@ actor ClaudeCLISession {
         for key in env.keys where key.hasPrefix("ANTHROPIC_") {
             env.removeValue(forKey: key)
         }
+        // Passive status and auth probes must not mutate or update the user's Claude CLI installation.
+        env["DISABLE_AUTOUPDATER"] = "1"
         return env
     }
 
+    private func releaseSleepInhibitors() {
+        #if canImport(Darwin)
+        guard let group = self.processGroup, group > 1 else { return }
+        for pid in DarwinProcessEnumerator.allPIDs() where getpgid(pid) == group {
+            guard DarwinProcessEnumerator.executablePath(pid: pid) == "/usr/bin/caffeinate",
+                  getpgid(pid) == group else { continue }
+            kill(pid, SIGTERM)
+        }
+        #endif
+    }
+
     private func cleanup() {
+        self.releaseSleepInhibitors()
         if self.process != nil {
             Self.log.debug("Claude CLI session stopping")
         }
@@ -511,6 +519,7 @@ actor ClaudeCLISession {
                 }
             }
             TTYCommandRunner.unregisterActiveProcessForAppShutdown(pid: proc.processIdentifier)
+            ProcessExitRelease.afterExit(proc)
         }
 
         self.process = nil

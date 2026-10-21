@@ -9,6 +9,16 @@ struct CostHistoryIdentity: Equatable {
         self.name = hidePersonalInfo ? placeholder : name
         self.path = hidePersonalInfo ? nil : path
     }
+
+    init(sessionID: String, title: String?, path: String? = nil, hidePersonalInfo: Bool) {
+        let fallbackName = L("Session %@", CostHistoryChartMenuView.shortSessionID(sessionID))
+        let title = title?.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.init(
+            name: title.flatMap { $0.isEmpty ? nil : $0 } ?? fallbackName,
+            path: path,
+            placeholder: fallbackName,
+            hidePersonalInfo: hidePersonalInfo)
+    }
 }
 
 extension SpendDashboardModel.ProjectRow {
@@ -41,11 +51,10 @@ extension SpendDashboardModel.ProjectRow {
 extension SpendDashboardModel.SessionRow {
     /// Thread names and project folders are personal; the short session ID is the masked label.
     func displayIdentity(hidePersonalInfo: Bool) -> CostHistoryIdentity {
-        let fallbackName = L("Session %@", CostHistoryChartMenuView.shortSessionID(self.sessionID))
-        return CostHistoryIdentity(
-            name: self.title ?? fallbackName,
+        CostHistoryIdentity(
+            sessionID: self.sessionID,
+            title: self.title,
             path: self.projectPath,
-            placeholder: fallbackName,
             hidePersonalInfo: hidePersonalInfo)
     }
 

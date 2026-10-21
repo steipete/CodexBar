@@ -177,6 +177,7 @@ struct PlanUtilizationHistoryChartMenuView: View {
             self.selectedSeriesID = firstVisibleSeries.id
             self.selectedPointID = nil
         }
+        .codexBarLocalized()
     }
 
     nonisolated static func visibleSeries(

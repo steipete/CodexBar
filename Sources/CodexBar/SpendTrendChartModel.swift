@@ -48,7 +48,7 @@ struct SpendTrendChartModel {
     {
         self.section = section
         self.calendar = group.calendar
-        let points: [Segment]
+        let points: [(source: (id: String, provider: UsageProvider, name: String), date: Date, cost: Double)]
         if section == .hourly {
             let day = day ?? Self.focusedDay(nil, group: group) ?? group.chartDomain.lowerBound
             let interval = group.calendar.dateInterval(of: .day, for: day)
@@ -59,14 +59,7 @@ struct SpendTrendChartModel {
             points = group.hourlyPoints.filter {
                 $0.hour >= interval.start && $0.hour < interval.end
             }.map {
-                Segment(
-                    sourceID: $0.sourceID,
-                    provider: $0.provider,
-                    name: $0.providerName,
-                    date: $0.hour,
-                    cost: $0.cost,
-                    start: 0,
-                    end: 0)
+                (($0.sourceID, $0.provider, $0.providerName), $0.hour, $0.cost)
             }
         } else {
             self.scope = overviewInterval.map { $0.start...$0.end } ?? group.chartDomain
@@ -80,39 +73,30 @@ struct SpendTrendChartModel {
             points = group.dailyPoints.filter {
                 $0.day >= scope.lowerBound && $0.day < scope.upperBound
             }.map {
-                Segment(
-                    sourceID: $0.sourceID,
-                    provider: $0.provider,
-                    name: $0.providerName,
-                    date: $0.day,
-                    cost: $0.cost,
-                    start: 0,
-                    end: 0)
+                (($0.sourceID, $0.provider, $0.providerName), $0.day, $0.cost)
             }
         }
-        let filtered = points.filter { sourceID == nil || $0.sourceID == sourceID }
+        let filtered = points.filter { sourceID == nil || $0.source.id == sourceID }
         let unit = self.unit
         let grouped = Dictionary(grouping: filtered) {
             group.calendar.dateInterval(of: unit, for: $0.date)?.start ?? $0.date
         }
         self.buckets = grouped.keys.sorted().compactMap { date in
             var end = 0.0
-            let sources = Dictionary(grouping: grouped[date] ?? [], by: \.sourceID)
-            let segments = sources.keys.sorted().compactMap { sourceID -> Segment? in
-                guard let point = sources[sourceID]?.first else { return nil }
-                let cost = (sources[sourceID] ?? []).reduce(0) { $0 + $1.cost }
-                var segment = Segment(
-                    sourceID: point.sourceID,
-                    provider: point.provider,
-                    name: point.name,
+            let sources = Dictionary(grouping: grouped[date] ?? [], by: { $0.source.id })
+            let segments = sources.sorted { $0.key < $1.key }.map { _, points in
+                let point = points[0]
+                let cost = points.reduce(0) { $0 + $1.cost }
+                let start = end
+                end += cost
+                return Segment(
+                    sourceID: point.source.id,
+                    provider: point.source.provider,
+                    name: point.source.name,
                     date: date,
                     cost: cost,
-                    start: 0,
-                    end: 0)
-                segment.start = end
-                end += cost
-                segment.end = end
-                return segment
+                    start: start,
+                    end: end)
             }
             return end.isFinite ? Bucket(date: date, segments: segments) : nil
         }
@@ -241,6 +225,19 @@ struct SpendTrendChartModel {
         return self.buckets.first { $0.date == start }
     }
 
+    /// Plot padding can resolve to an adjacent date. Daily inspection must refer to a drawn bucket;
+    /// hourly gaps within the selected day still distinguish missing data from recorded zero.
+    func inspectionDate(at date: Date) -> Date? {
+        guard date >= self.domain.lowerBound, date < self.domain.upperBound else { return nil }
+        if self.section == .daily { return self.bucket(at: date)?.date }
+        return self.calendar.dateInterval(of: self.unit, for: date)?.start
+    }
+
+    func legendProviders(in group: SpendDashboardModel.CurrencyGroup) -> [SpendDashboardModel.ProviderRow] {
+        let sourceIDs = Set(self.segments.map(\.sourceID))
+        return group.providers.filter { sourceIDs.contains($0.id) }
+    }
+
     func interval(at date: Date) -> DateInterval? {
         guard let interval = self.calendar.dateInterval(of: self.unit, for: date) else { return nil }
         let start = max(interval.start, self.scope.lowerBound)
@@ -249,14 +246,13 @@ struct SpendTrendChartModel {
     }
 
     static func hourlyDays(_ group: SpendDashboardModel.CurrencyGroup) -> [Date] {
-        Set(group.hourlyPoints.map { group.calendar.startOfDay(for: $0.hour) }).sorted()
+        group.hourlyDays
     }
 
     static func focusedDay(_ day: Date?, group: SpendDashboardModel.CurrencyGroup) -> Date? {
         let days = self.hourlyDays(group)
-        if let selectedDay = group.selectedDay { return selectedDay }
-        if let day, days.contains(day) { return day }
-        return days.last
+        return [group.selectedDay, day].compactMap { $0.map { group.calendar.startOfDay(for: $0) } }
+            .first(where: days.contains) ?? days.last
     }
 }
 

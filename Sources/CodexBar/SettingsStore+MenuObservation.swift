@@ -29,11 +29,14 @@ extension SettingsStore {
         _ = self.usageBarsShowUsed
         _ = self.resetTimesShowAbsolute
         _ = self.providerChangelogLinksEnabled
+        _ = self.highlightMenuCardsOnHover
         _ = self.menuBarShowsBrandIconWithPercent
         _ = self.menuBarHidesCritters
         _ = self.menuBarColorPace
+        _ = self.menuBarPaceReservePositive
+        _ = self.menuBarColorByProvider
         _ = self.menuBarHighContrastOnInactiveDisplays
-        _ = self.menuBarShowsHighestUsage
+        _ = self.unifiedIconSource
         _ = self.menuBarDisplayMode
         _ = self.menuBarShowsResetTimeWhenExhausted
         _ = self.kiroMenuBarDisplayMode
@@ -43,6 +46,8 @@ extension SettingsStore {
         _ = self.menuBarMetricPreferencesRaw
         _ = self.menuBarLayout
         _ = self.menuBarLayoutOverrides
+        _ = self.menuBarLayoutMonospacedDigits
+        _ = self.menuBarLayoutShowWindowLabels
         _ = self.menuBarLayoutSize
         _ = self.menuBarLayoutGap
         _ = self.menuBarLayoutVerticalAdjustment
@@ -77,6 +82,7 @@ extension SettingsStore {
         _ = self.stayAwakeEnabled
         _ = self.agentSessionsEnabled
         _ = self.agentSessionsMonitoringEnabled
+        _ = self.agentSessionsRemoteEnabled
         _ = self.agentSessionLabelStyle
         _ = self.agentSessionsManualHosts
         _ = self.agentSessionsHideUnreachableHosts
@@ -105,6 +111,7 @@ extension SettingsStore {
         _ = self.ollamaCookieSource
         _ = self.mergeIcons
         _ = self.mergedOverviewLayout
+        _ = self.mergedOverviewAllAccounts
         _ = self.switcherShowsIcons
         _ = self.mergeIconsStacked
         _ = self.mergeIconStackedTopProviderRaw

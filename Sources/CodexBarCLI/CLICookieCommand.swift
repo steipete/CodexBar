@@ -48,6 +48,7 @@ extension CodexBarCLI {
         let results = await Self.performCookieRefreshes(
             targets: targets,
             allowKeychainPrompt: allowKeychainPrompt,
+            config: config,
             preflight: { descriptor in
                 Self.cookieRefreshSkipResult(descriptor: descriptor, config: config)
             },
@@ -105,47 +106,64 @@ extension CodexBarCLI {
     static func performCookieRefreshes(
         targets: [ProviderDescriptor],
         allowKeychainPrompt: Bool,
+        config: CodexBarConfig? = nil,
         preflight: (ProviderDescriptor) -> CookieRefreshResult? = { _ in nil },
         operation: (ProviderDescriptor) async -> CookieRefreshResult) async -> [CookieRefreshResult]
     {
-        var results: [CookieRefreshResult] = []
-        results.reserveCapacity(targets.count)
-        for descriptor in targets {
-            if let result = preflight(descriptor) {
-                results.append(result)
-                continue
-            }
-
-            let browsers = descriptor.metadata.browserCookieOrder ?? []
-            let needsAcknowledgement = BrowserCookieAccessGate.requiresKeychainPromptAcknowledgement(for: browsers)
-            guard !needsAcknowledgement || allowKeychainPrompt else {
-                results.append(CookieRefreshResult(
-                    provider: descriptor.cli.name,
-                    status: .blocked,
-                    message: Self.keychainPromptAcknowledgementHint))
-                continue
-            }
-
-            let result: CookieRefreshResult = if allowKeychainPrompt {
-                await BrowserCookieAccessGate.withExplicitRetry {
-                    await ProviderInteractionContext.$current.withValue(.userInitiated) {
-                        await operation(descriptor)
-                    }
+        func refresh() async -> [CookieRefreshResult] {
+            var results: [CookieRefreshResult] = []
+            results.reserveCapacity(targets.count)
+            for descriptor in targets {
+                if let result = preflight(descriptor) {
+                    results.append(result)
+                    continue
                 }
-            } else {
-                await ProviderInteractionContext.$current.withValue(.userInitiated) {
+
+                let browsers = Self.cookieRefreshBrowserOrder(descriptor: descriptor, config: config)
+                let needsAcknowledgement = BrowserCookieAccessGate.requiresKeychainPromptAcknowledgement(for: browsers)
+                guard !needsAcknowledgement || allowKeychainPrompt else {
+                    results.append(CookieRefreshResult(
+                        provider: descriptor.cli.name,
+                        status: .blocked,
+                        message: Self.keychainPromptAcknowledgementHint))
+                    continue
+                }
+
+                let result = await ProviderInteractionContext.$current.withValue(.userInitiated) {
                     await operation(descriptor)
                 }
+                results.append(result)
             }
-            results.append(result)
+            return results
         }
-        return results
+        if allowKeychainPrompt {
+            return await BrowserCookieAccessGate.withExplicitRetry(bypassingCooldown: true, operation: refresh)
+        }
+        return await refresh()
     }
 
-    static func cookieRefreshFailure(provider: UsageProvider, error: any Error) -> CookieRefreshResult {
+    static func cookieRefreshBrowserOrder(
+        descriptor: ProviderDescriptor,
+        config: CodexBarConfig?) -> BrowserCookieImportOrder
+    {
+        let browsers = descriptor.metadata.browserCookieOrder ?? []
+        guard let selectedBrowsers = descriptor.settingsSection.selectedProfileBrowsers else { return browsers }
+        guard let profile = ProviderBrowserProfile.selected(
+            in: config?.providerConfig(for: descriptor.id.instanceID), browsers: selectedBrowsers)
+        else { return [] }
+        return browsers.filter { $0.rawValue == profile.browserID }
+    }
+
+    static func cookieRefreshFailure(
+        provider: UsageProvider,
+        error: any Error,
+        config: CodexBarConfig? = nil) -> CookieRefreshResult
+    {
         let descriptor = ProviderDescriptorRegistry.descriptor(for: provider)
-        let promptCapableBrowsers = (descriptor.metadata.browserCookieOrder ?? [])
+        let promptCapableBrowsers = Self.cookieRefreshBrowserOrder(descriptor: descriptor, config: config)
             .filter { BrowserCookieAccessGate.requiresKeychainPromptAcknowledgement(for: [$0]) }
+        let classifiedError = ((error as? ProviderBrowserSessionFailure)?.underlyingError ?? error)
+            as? ProviderFetchClassifiedError
         let message: String = if let browser = promptCapableBrowsers.first, KeychainAccessGate.isDisabled {
             "\(browser.displayName) cookie decryption is disabled in CodexBar; " +
                 "enable Keychain access and refresh."
@@ -155,7 +173,7 @@ extension CodexBarCLI {
             "\(browser.displayName) cookie decryption was declined in Keychain; " +
                 "rerun with --allow-keychain-prompt to request Keychain access again."
         } else {
-            switch (error as? ProviderFetchClassifiedError)?.kind {
+            switch classifiedError?.kind {
             case .authenticationExpired: "The provider rejected the browser session. Sign in again and retry."
             case .permissionDenied:
                 "Permission was denied while refreshing the browser session. Check access and retry."
@@ -164,7 +182,8 @@ extension CodexBarCLI {
             case .parseFailure: "The provider response could not be read. Check for a CodexBar update."
             case .networkFailure: "The provider could not be reached. Check your connection and retry."
             case .apiFailure: "The provider could not validate the browser session. Retry later."
-            case .missingCredential, nil: self.browserCookieAccessFailureHint
+            case .missingCredential, nil:
+                promptCapableBrowsers.isEmpty ? Self.browserSessionFailureHint : Self.browserCookieAccessFailureHint
             }
         }
         return CookieRefreshResult(provider: descriptor.cli.name, status: .failed, message: message)
@@ -186,8 +205,10 @@ extension CodexBarCLI {
         "Browser cookie decryption may open a macOS Keychain prompt. " +
         "Retry interactively with --allow-keychain-prompt to acknowledge it."
 
-    private static let browserCookieAccessFailureHint =
-        "No browser session cookie was refreshed. Sign in in a configured browser and retry. " +
+    private static let browserSessionFailureHint =
+        "No browser session cookie was refreshed. Sign in in a configured browser and retry."
+
+    private static let browserCookieAccessFailureHint = Self.browserSessionFailureHint + " " +
         "If Keychain access was declined, CodexBar keeps the six-hour denial cooldown; " +
         "use --allow-keychain-prompt only for an explicit interactive retry."
 
@@ -223,7 +244,7 @@ extension CodexBarCLI {
                     status: .refreshed,
                     message: "Browser cookie refreshed.")
             case let .failure(error):
-                Self.cookieRefreshFailure(provider: provider, error: error)
+                Self.cookieRefreshFailure(provider: provider, error: error, config: tokenContext.config)
             }
         }
     }
@@ -244,8 +265,7 @@ extension CodexBarCLI {
         guard !result.isFailure else { return result }
 
         let commit = CookieHeaderCache.commitRefreshReadSuppression(gate)
-        guard commit.stagedCount > 0,
-              commit.committedCount == commit.stagedCount,
+        guard commit.committedCount == commit.stagedCount,
               commit.failedCount == 0
         else {
             return CookieRefreshResult(

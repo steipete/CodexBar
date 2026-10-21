@@ -1,8 +1,0 @@
-Historical contributor proof
-
-The original real-history measurement is preserved at:
-https://github.com/gabrielrojasc/CodexBar/blob/26ffcafa4370c462f7f061ee53267d6bc25a8d6d/.github/pr-proof/codex-ledger-mirror-window-real-setup.log
-
-It covers the earlier implementation, before the maintainer's continuity,
-fork-replay, and unknown-price corrections. Its runtime totals do not measure
-the final implementation; current behavior is covered by the regression suites.

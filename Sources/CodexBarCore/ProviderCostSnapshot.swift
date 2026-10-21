@@ -51,6 +51,11 @@ public struct ProviderCostSnapshot: Equatable, Codable, Sendable {
         self.balanceIsUnavailable = nil
     }
 
+    /// False for credit-denominated amounts (Codex extra usage), which have no currency to format.
+    package var isMonetary: Bool {
+        self.currencyCode != CodexExtraUsageCost.currencyCode
+    }
+
     /// Projects a positive spend budget into a quota meter without assigning it a time-window cadence.
     package var spendLimitWindow: RateWindow? {
         guard self.limit > 0 else { return nil }

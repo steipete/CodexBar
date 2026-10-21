@@ -42,7 +42,7 @@ enum AliyunOneConsoleChromiumCookieFallbackImporter {
         logger: ((String) -> Void)? = nil) throws -> AliyunOneConsoleCookieImporter.SessionInfo?
     {
         let stores = try cookieClient.codexBarStores(for: browser).filter { $0.databaseURL != nil }
-        guard !stores.isEmpty else { return nil }
+        guard !stores.isEmpty, BrowserCookieAccessGate.shouldAttempt(browser) else { return nil }
 
         logger?("Trying \(browser.displayName) Chromium fallback")
         let keys = try self.derivedKeys(for: browser)

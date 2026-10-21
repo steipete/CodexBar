@@ -114,8 +114,6 @@ struct AgentProcessBasenameTests {
             ["/Applications/Claude.app/Contents/MacOS/Claude"],
             ["/Users/test/Library/Application Support/Claude/claude-code/claude", "--resume"],
             ["disclaimer", "/Users/test/Library/Application Support/Claude/claude-code/claude", "--resume"],
-            ["pi", "Application", "Support/Claude/claude-code/claude"],
-            ["bun", "Application", "Support/Claude/claude-code/claude", "omp"],
             ["/Applications/ChatGPT.app/Contents/Resources/codex", "app-server"],
             ["/"], [""], ["~"], ["~/"], ["."], [".."], ["/foo/."], ["/foo/.."], [],
         ]
@@ -135,6 +133,26 @@ struct AgentProcessBasenameTests {
                     #expect(AgentPSOutputParser.piDialect(arguments: arguments) == expected.dialect)
                 }
             }
+        }
+    }
+
+    @Test
+    func `preserved Pi arguments cannot be reclassified by a Claude path`() {
+        let cases: [([String], AgentSession.Dialect)] = [
+            (["pi", "Application", "Support/Claude/claude-code/claude"], .pi),
+            (["bun", "Application", "Support/Claude/claude-code/claude", "omp"], .omp),
+        ]
+        for (arguments, dialect) in cases {
+            let command = arguments.joined(separator: " ")
+            let record = AgentProcessRecord(pid: 1, ppid: 0, startedAt: nil, command: command, arguments: arguments)
+            #expect(record.executableBasename == arguments[0])
+            #expect(AgentPSOutputParser.piDialect(for: record) == dialect)
+            #expect(AgentPSOutputParser.piDialect(arguments: arguments) == dialect)
+            #expect(AgentPSOutputParser.provider(for: record) == .pi)
+
+            let fallback = AgentProcessRecord(pid: 1, ppid: 0, startedAt: nil, command: command)
+            #expect(fallback.executableBasename == "claude")
+            #expect(AgentPSOutputParser.provider(for: fallback) == .claude)
         }
     }
 

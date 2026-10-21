@@ -9,6 +9,7 @@ struct MenuBarLayoutWindows {
     let session: RateWindow?
     let weekly: RateWindow?
     let automatic: RateWindow?
+    let spend: RateWindow?
 
     func resetWindow(_ selection: PercentWindow, snapshot: UsageSnapshot?) -> RateWindow? {
         let window: RateWindow? = switch selection {
@@ -16,6 +17,7 @@ struct MenuBarLayoutWindows {
         case .weekly: self.weekly
         case .automatic: self.automatic
         case .scopedWeekly: MenuBarLayoutSemanticWindowResolver.scopedWeeklyNamedWindow(snapshot: snapshot)?.window
+        case .spend: self.spend
         }
         return window?.isSyntheticPlaceholder == true ? nil : window
     }
@@ -73,7 +75,10 @@ extension StatusItemController {
         let wasCached = button.image === (rendered.statusImage ?? rendered.leadingIcon)
             && button.imagePosition == expectedImagePosition
             && button.attributedTitle.isEqual(to: expectedTitle)
-        self.setButtonLayoutContent(rendered, for: button, statusItem: statusItem)
+        // Stored layouts replace the image outside the legacy render-signature cache.
+        self.lastAppliedMergedIconRenderSignature = nil
+        self.lastAppliedProviderIconRenderSignatures[provider.instanceID] = nil
+        statusItem.length = Self.applyMenuBarLayoutContent(rendered, for: button, gap: self.settings.menuBarLayoutGap)
         return wasCached
     }
 
@@ -118,6 +123,7 @@ extension StatusItemController {
             topProviderName: L(self.store.metadata(for: top).displayName),
             bottomProviderName: L(self.store.metadata(for: bottom).displayName))
         let wasCached = button.image == nil && button.attributedTitle.isEqual(to: rendered.attributedTitle)
+        self.lastAppliedMergedIconRenderSignature = nil
         self.statusItem.length = Self.applyMenuBarLayoutContent(
             rendered,
             for: button,
@@ -148,6 +154,21 @@ extension StatusItemController {
             options: options)
     }
 
+    private func isStatusItemHighlighted(for provider: UsageProvider, button: NSButton?) -> Bool {
+        // Tracking sessions start before openMenus is populated and end before AppKit clears its highlight.
+        if let menu = self.shouldMergeIcons ? self.mergedMenu : self.providerMenus[provider.instanceID] {
+            return self.menuSession.menuInteractionGeneration(for: ObjectIdentifier(menu)) != nil
+        }
+        return button?.isHighlighted == true
+    }
+
+    func providerTintColor(for provider: UsageProvider, button: NSButton) -> NSColor? {
+        guard self.settings.menuBarColorByProvider else { return nil }
+        return MenuBarLayoutRenderer.effectiveProviderTintColor(
+            for: provider,
+            options: self.menuBarLayoutRenderOptions(for: provider, button: button, now: Date()))
+    }
+
     private func menuBarLayoutRenderOptions(
         for provider: UsageProvider,
         button: NSButton?,
@@ -155,118 +176,40 @@ extension StatusItemController {
         forceStackedStyle: Bool = false)
         -> MenuBarLayoutRenderOptions
     {
-        let appearanceName = button?.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua])?.rawValue ?? "default"
+        let appearanceName = (button?.effectiveAppearance ?? NSApp.effectiveAppearance).name.rawValue
         return MenuBarLayoutRenderOptions(
             size: self.settings.menuBarLayoutSize,
-            highContrast: self.shouldUseHighContrastStatusItemContent,
+            highContrast: self.shouldUseHighContrastStatusItemContent
+                || (self.settings.menuBarColorByProvider && (self.settings.menuBarHighContrastOnInactiveDisplays
+                        || NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast)),
             showUsed: self.settings.usageBarsShowUsed,
             conditionals: self.settings.menuBarLayoutConditionals,
             appearanceName: appearanceName,
             isDebugApp: Self.isDebugApp(bundleIdentifier: Bundle.main.bundleIdentifier),
             isStale: self.store.isStale(provider: provider),
+            isHighlighted: self.isStatusItemHighlighted(for: provider, button: button),
             now: now,
             verticalAdjustment: self.settings.menuBarLayoutVerticalAdjustment,
             colorPace: self.settings.menuBarColorPace,
-            forceStackedStyle: forceStackedStyle)
+            colorByProvider: self.settings.menuBarColorByProvider,
+            forceStackedStyle: forceStackedStyle,
+            monospacedDigits: self.settings.menuBarLayoutMonospacedDigits,
+            showWindowLabels: self.settings.menuBarLayoutShowWindowLabels)
     }
 
     func menuBarLayoutRenderData(
         provider: UsageProvider,
         snapshot: UsageSnapshot?,
         warningFlash: Bool,
-        now: Date = .init())
-        -> MenuBarLayoutRenderData
+        now: Date = .init()) -> MenuBarLayoutRenderData
     {
-        let windows = self.menuBarLayoutWindows(provider: provider, snapshot: snapshot, now: now)
-        let scopedNamed = MenuBarLayoutSemanticWindowResolver.scopedWeeklyNamedWindow(snapshot: snapshot)
-        let paceWindow = windows.weekly ?? windows.automatic
-        // Bind the pace itself rather than only its label: `etaSeconds` is the numeric run-out that
-        // conditional predicates compare, and resolving it twice would score the window twice.
-        let pace = paceWindow.flatMap {
-            self.store.weeklyPace(
-                provider: provider,
-                window: $0,
-                dataConfidence: snapshot?.dataConfidence ?? .unknown,
-                now: now)
-        }
-        let runsOut = pace
-            .flatMap { UsagePaceText.weeklyDetail(provider: provider, pace: $0, now: now).rightLabel }
-        let costs = self.menuBarLayoutCosts(provider: provider, now: now)
-        let balanceAmounts = MenuBarLayoutBalanceResolver.balanceAmountsUSD(
-            provider: provider,
-            snapshot: snapshot)
-        let codexCredits = self.menuBarLayoutCodexCredits(
+        self.store.menuBarLayoutRenderData(
             provider: provider,
             snapshot: snapshot,
-            now: now)
-        let providerName = L(self.store.metadata(for: provider).displayName)
-        let accountLabel = self.menuBarLayoutAccountLabel(provider: provider, snapshot: snapshot)
-        let automatic = MenuBarLayoutRenderWindow(windows.automatic)
-
-        return MenuBarLayoutRenderData(
-            provider: provider,
             iconKey: "\(provider.rawValue):\(warningFlash ? "warning" : "normal")",
-            providerName: providerName,
-            accountLabel: accountLabel,
-            laneLabels: MenuBarLayoutLaneLabels(provider: provider, snapshot: snapshot),
-            primary: MenuBarLayoutRenderWindow(windows.primary),
-            secondary: MenuBarLayoutRenderWindow(windows.secondary),
-            tertiary: MenuBarLayoutRenderWindow(windows.tertiary),
-            extraRateWindows: (snapshot?.extraRateWindows ?? []).map(MenuBarLayoutRenderExtra.init),
-            session: MenuBarLayoutRenderWindow(windows.session),
-            weekly: MenuBarLayoutRenderWindow(windows.weekly),
-            scopedWeekly: MenuBarLayoutRenderWindow(scopedNamed?.window),
-            scopedWeeklyTitle: scopedNamed?.title,
-            automatic: automatic,
-            automaticText: Self.menuBarLayoutAutomaticText(
-                provider: provider,
-                snapshot: snapshot,
-                automatic: automatic),
-            sessionPace: self.store.menuBarLayoutPaceText(
-                provider: provider,
-                window: windows.session,
-                dataConfidence: snapshot?.dataConfidence ?? .unknown,
-                now: now),
-            weeklyPace: self.store.menuBarLayoutPaceText(
-                provider: provider,
-                window: windows.weekly,
-                dataConfidence: snapshot?.dataConfidence ?? .unknown,
-                now: now,
-                minimumElapsedPercent: 1),
-            automaticPace: self.store.menuBarLayoutPaceText(
-                provider: provider,
-                window: windows.automatic,
-                dataConfidence: snapshot?.dataConfidence ?? .unknown,
-                now: now),
-            runsOut: runsOut,
-            balance: MenuBarLayoutBalanceResolver.balance(
-                provider: provider,
-                snapshot: snapshot,
-                codexCredits: codexCredits),
-            costToday: costs.today,
-            cost30d: costs.last30Days,
-            metrics: MenuBarLayoutRenderMetrics(
-                sessionPaceDelta: self.store.menuBarLayoutPaceDelta(
-                    provider: provider,
-                    window: windows.session,
-                    dataConfidence: snapshot?.dataConfidence ?? .unknown,
-                    now: now),
-                weeklyPaceDelta: self.store.menuBarLayoutPaceDelta(
-                    provider: provider,
-                    window: windows.weekly,
-                    dataConfidence: snapshot?.dataConfidence ?? .unknown,
-                    now: now,
-                    minimumElapsedPercent: 1),
-                automaticPaceDelta: self.store.menuBarLayoutPaceDelta(
-                    provider: provider,
-                    window: windows.automatic,
-                    dataConfidence: snapshot?.dataConfidence ?? .unknown,
-                    now: now),
-                runsOutMinutes: pace?.etaSeconds.map { Int(($0 / 60).rounded()) },
-                balanceRemainingUSD: balanceAmounts.remaining,
-                balanceUsedUSD: balanceAmounts.used,
-                costTodayUSD: costs.todayUSD,
-                cost30dUSD: costs.last30DaysUSD))
+            accountLabel: self.menuBarLayoutAccountLabel(provider: provider, snapshot: snapshot),
+            costs: self.menuBarLayoutCosts(provider: provider, now: now),
+            now: now)
     }
 
     func menuBarLayoutCodexCredits(
@@ -323,14 +266,190 @@ extension StatusItemController {
             last30DaysUSD: last30DaysAmount.flatMap(toUSD))
     }
 
+    /// Select dates from the same semantic windows as reset display tokens. Keep styles separate:
+    /// an absolute weekly clock must not cause minute-by-minute countdown wakeups.
+    func menuBarLayoutResetDates(
+        for provider: UsageProvider,
+        now: Date,
+        absolute: Bool? = nil) -> [Date]
+    {
+        let snapshot = self.store.menuBarSnapshot(for: provider.instanceID)
+        let windows = self.store.menuBarLayoutWindows(provider: provider, snapshot: snapshot, now: now)
+        let tokens = self.renderedMenuBarLayoutResolution(for: provider).layout
+            .flattenedTokens(conditionals: self.settings.menuBarLayoutConditionals)
+        let selections = Set(tokens.filter { absolute == nil || $0.resetIsAbsolute == absolute }
+            .compactMap(\.resetWindow))
+        return PercentWindow.allCases.filter(selections.contains).compactMap {
+            windows.resetWindow($0, snapshot: snapshot)?.resetsAt
+        }
+    }
+
+    static func applyMenuBarLayoutContent(
+        _ rendered: MenuBarLayoutRenderedTitle,
+        for button: NSButton,
+        gap: MenuBarLayoutGap) -> CGFloat
+    {
+        // Eligible monochrome content uses a template; rich content retains native title rendering.
+        let title = rendered.statusImage == nil ? rendered.attributedTitle : NSAttributedString()
+        if !button.attributedTitle.isEqual(to: title) {
+            button.attributedTitle = title
+        }
+        let image = rendered.statusImage ?? rendered.leadingIcon
+        if button.image !== image {
+            button.image = image
+        }
+        let position: NSControl.ImagePosition = image == nil ? .noImage : (title.length > 0 ? .imageLeft : .imageOnly)
+        if button.imagePosition != position {
+            button.imagePosition = position
+        }
+        if button.accessibilityTitle() != rendered.accessibilityLabel {
+            button.setAccessibilityTitle(rendered.accessibilityLabel)
+        }
+
+        // AppKit exposes no content-inset API on NSStatusBarButton. Explicit item length is the actual
+        // status-item padding mechanism: tight removes most edge space; regular keeps the native breathing room.
+        return rendered.statusItemWidth(gap: gap)
+    }
+
+    @objc func refreshStatusItemContentForColorMode() {
+        guard self.settings.menuBarColorByProvider, !self.hasPreparedForAppShutdown else { return }
+
+        if self.shouldMergeIcons {
+            _ = self.applyIcon(phase: nil, bypassMergedMenuTrackingDeferral: true)
+        } else {
+            for provider in self.store.enabledFirstPartyProvidersForDisplay() {
+                _ = self.applyIcon(for: provider, phase: nil)
+            }
+        }
+    }
+}
+
+/// Shared layout values keep the editor and status item on the same balance and quota projection.
+extension UsageStore {
+    func menuBarLayoutRenderData(
+        provider: UsageProvider,
+        snapshot: UsageSnapshot?,
+        iconKey: String,
+        accountLabel: String?,
+        costs: MenuBarLayoutCostValues,
+        now: Date = .init())
+        -> MenuBarLayoutRenderData
+    {
+        let windows = self.menuBarLayoutWindows(provider: provider, snapshot: snapshot, now: now)
+        let scopedNamed = MenuBarLayoutSemanticWindowResolver.scopedWeeklyNamedWindow(snapshot: snapshot)
+        let paceWindow = windows.weekly ?? windows.automatic
+        // Bind the pace itself rather than only its label: `etaSeconds` is the numeric run-out that
+        // conditional predicates compare, and resolving it twice would score the window twice.
+        let pace = paceWindow.flatMap {
+            self.weeklyPace(
+                provider: provider,
+                window: $0,
+                dataConfidence: snapshot?.dataConfidence ?? .unknown,
+                now: now)
+        }
+        let runsOut = pace
+            .flatMap { UsagePaceText.weeklyDetail(provider: provider, pace: $0, now: now).rightLabel }
+        let balanceAmounts = MenuBarLayoutBalanceResolver.balanceAmountsUSD(
+            provider: provider,
+            snapshot: snapshot,
+            showsOptionalCredits: self.settings.showOptionalCreditsAndExtraUsage)
+        let codexCredits = self.codexConsumerProjectionIfNeeded(
+            for: provider,
+            surface: .menuBar,
+            snapshotOverride: snapshot,
+            now: now)?.credits?.snapshot
+        let spend = self.menuBarLayoutSpend(provider: provider, snapshot: snapshot, now: now)
+        let providerName = L(self.metadata(for: provider).displayName)
+        let automatic = MenuBarLayoutRenderWindow(windows.automatic)
+
+        return MenuBarLayoutRenderData(
+            provider: provider,
+            quotaIsEstimated: snapshot?.dataConfidence == .estimated,
+            iconKey: iconKey,
+            providerName: providerName,
+            accountLabel: accountLabel,
+            laneLabels: MenuBarLayoutLaneLabels(provider: provider, snapshot: snapshot),
+            primary: MenuBarLayoutRenderWindow(windows.primary),
+            secondary: MenuBarLayoutRenderWindow(windows.secondary),
+            tertiary: MenuBarLayoutRenderWindow(windows.tertiary),
+            extraRateWindows: (snapshot?.extraRateWindows ?? []).map(MenuBarLayoutRenderExtra.init),
+            session: MenuBarLayoutRenderWindow(windows.session),
+            weekly: MenuBarLayoutRenderWindow(windows.weekly),
+            scopedWeekly: MenuBarLayoutRenderWindow(scopedNamed?.window),
+            scopedWeeklyTitle: scopedNamed?.title,
+            automatic: automatic,
+            automaticText: StatusItemController.menuBarLayoutAutomaticText(
+                provider: provider,
+                snapshot: snapshot,
+                automatic: automatic,
+                showsOptionalCredits: self.settings.showOptionalCreditsAndExtraUsage),
+            sessionPace: self.menuBarLayoutPaceText(
+                provider: provider,
+                window: windows.session,
+                dataConfidence: snapshot?.dataConfidence ?? .unknown,
+                now: now),
+            weeklyPace: self.menuBarLayoutPaceText(
+                provider: provider,
+                window: windows.weekly,
+                dataConfidence: snapshot?.dataConfidence ?? .unknown,
+                now: now,
+                minimumElapsedPercent: 1),
+            automaticPace: self.menuBarLayoutPaceText(
+                provider: provider,
+                window: windows.automatic,
+                dataConfidence: snapshot?.dataConfidence ?? .unknown,
+                now: now),
+            runsOut: runsOut,
+            balance: MenuBarLayoutBalanceResolver.balance(
+                provider: provider,
+                snapshot: snapshot,
+                codexCredits: codexCredits,
+                showsOptionalCredits: self.settings.showOptionalCreditsAndExtraUsage),
+            tokensPerMinute: snapshot?.throughput?.latestTokensPerMinute,
+            tokensSparkline: snapshot?.throughput.map { MenuBarTokensSparkline(minutes: $0.minutes) },
+            costToday: costs.today,
+            cost30d: costs.last30Days,
+            metrics: MenuBarLayoutRenderMetrics(
+                sessionPaceDelta: self.menuBarLayoutPaceDelta(
+                    provider: provider,
+                    window: windows.session,
+                    dataConfidence: snapshot?.dataConfidence ?? .unknown,
+                    now: now),
+                weeklyPaceDelta: self.menuBarLayoutPaceDelta(
+                    provider: provider,
+                    window: windows.weekly,
+                    dataConfidence: snapshot?.dataConfidence ?? .unknown,
+                    now: now,
+                    minimumElapsedPercent: 1),
+                automaticPaceDelta: self.menuBarLayoutPaceDelta(
+                    provider: provider,
+                    window: windows.automatic,
+                    dataConfidence: snapshot?.dataConfidence ?? .unknown,
+                    now: now),
+                runsOutMinutes: pace?.etaSeconds.map { Int(($0 / 60).rounded()) },
+                balanceRemainingUSD: balanceAmounts.remaining,
+                balanceUsedUSD: balanceAmounts.used,
+                costTodayUSD: costs.todayUSD,
+                cost30dUSD: costs.last30DaysUSD,
+                spendPaceDelta: spend.paceDelta,
+                spendUsedUSD: spend.usedUSD,
+                spendRemainingUSD: spend.remainingUSD),
+            spend: MenuBarLayoutRenderWindow(spend.window),
+            spendPace: spend.pace,
+            spendAmount: spend.amount,
+            spendBudget: spend.budget,
+            spendCurrencySymbol: spend.currencySymbol)
+    }
+
     func menuBarLayoutWindows(
         provider: UsageProvider,
         snapshot: UsageSnapshot?,
         now: Date)
         -> MenuBarLayoutWindows
     {
+        let spend = self.spendLimit(for: provider, snapshot: snapshot, now: now)?.window
         if provider == .codex,
-           let projection = self.store.codexConsumerProjectionIfNeeded(
+           let projection = self.codexConsumerProjectionIfNeeded(
                for: provider,
                surface: .menuBar,
                snapshotOverride: snapshot,
@@ -345,7 +464,8 @@ extension StatusItemController {
                 tertiary: snapshot?.tertiary,
                 session: session,
                 weekly: weekly,
-                automatic: automatic)
+                automatic: automatic,
+                spend: spend)
         }
 
         let semanticWindows = MenuBarLayoutSemanticWindowResolver.windows(
@@ -371,59 +491,7 @@ extension StatusItemController {
             automatic: MenuBarLayoutAutomaticWindowDisplayNormalizer.normalized(
                 provider: provider,
                 snapshot: snapshot,
-                window: automatic))
-    }
-
-    /// Select dates from the same semantic windows as reset display tokens. Keep styles separate:
-    /// an absolute weekly clock must not cause minute-by-minute countdown wakeups.
-    func menuBarLayoutResetDates(
-        for provider: UsageProvider,
-        now: Date,
-        absolute: Bool? = nil) -> [Date]
-    {
-        let snapshot = self.store.menuBarSnapshot(for: provider.instanceID)
-        let windows = self.menuBarLayoutWindows(provider: provider, snapshot: snapshot, now: now)
-        let tokens = self.renderedMenuBarLayoutResolution(for: provider).layout
-            .flattenedTokens(conditionals: self.settings.menuBarLayoutConditionals)
-        let selections = Set(tokens.filter { absolute == nil || $0.resetIsAbsolute == absolute }
-            .compactMap(\.resetWindow))
-        return PercentWindow.allCases.filter(selections.contains).compactMap {
-            windows.resetWindow($0, snapshot: snapshot)?.resetsAt
-        }
-    }
-
-    private func setButtonLayoutContent(
-        _ rendered: MenuBarLayoutRenderedTitle,
-        for button: NSStatusBarButton,
-        statusItem: NSStatusItem)
-    {
-        statusItem.length = Self.applyMenuBarLayoutContent(rendered, for: button, gap: self.settings.menuBarLayoutGap)
-    }
-
-    static func applyMenuBarLayoutContent(
-        _ rendered: MenuBarLayoutRenderedTitle,
-        for button: NSButton,
-        gap: MenuBarLayoutGap) -> CGFloat
-    {
-        // Ordinary single-line text uses a cached template. Rich content retains native title rendering.
-        let title = rendered.statusImage == nil ? rendered.attributedTitle : NSAttributedString()
-        if !button.attributedTitle.isEqual(to: title) {
-            button.attributedTitle = title
-        }
-        let image = rendered.statusImage ?? rendered.leadingIcon
-        if button.image !== image {
-            button.image = image
-        }
-        let position: NSControl.ImagePosition = image == nil ? .noImage : (title.length > 0 ? .imageLeft : .imageOnly)
-        if button.imagePosition != position {
-            button.imagePosition = position
-        }
-        if button.accessibilityTitle() != rendered.accessibilityLabel {
-            button.setAccessibilityTitle(rendered.accessibilityLabel)
-        }
-
-        // AppKit exposes no content-inset API on NSStatusBarButton. Explicit item length is the actual
-        // status-item padding mechanism: tight removes most edge space; regular keeps the native breathing room.
-        return rendered.statusItemWidth(gap: gap)
+                window: automatic),
+            spend: spend)
     }
 }

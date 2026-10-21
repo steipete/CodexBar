@@ -636,7 +636,7 @@ struct MenuBarCountdownRefreshTests {
 
     /// A pace or run-out predicate compares a clock-derived value, so it needs a tick even when the
     /// layout carries no pace or reset token to trigger the token-gated schedulers.
-    @Test(arguments: [MenuBarConditionalMetric.runsOutIn, .weeklyPace, .sessionPace, .automaticPace])
+    @Test(arguments: [MenuBarConditionalMetric.runsOutIn, .weeklyPace, .sessionPace, .automaticPace, .spendPace])
     func `predicate-only clock-derived conditional schedules a refresh`(metric: MenuBarConditionalMetric) {
         let controller = Self.makePredicateOnlyController(
             suite: "MenuBarCountdownRefreshTests-predicate-only-\(metric.rawValue)",

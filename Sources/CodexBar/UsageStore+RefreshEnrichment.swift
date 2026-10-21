@@ -24,8 +24,9 @@ extension UsageStore {
             // Replacement is the stronger policy: a settings change must not join work started
             // with the old configuration merely because another required refresh arrived first.
             self.coalesceProviderRefreshes = self.coalesceProviderRefreshes && newer.coalesceProviderRefreshes
-            if newer.interaction == .userInitiated {
-                self.interaction = .userInitiated
+            // Coalescing must not turn an automatic settings refresh into an interactive action.
+            if newer.interaction == .background {
+                self.interaction = .background
             }
         }
     }

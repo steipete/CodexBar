@@ -9,6 +9,59 @@ struct WidgetAccountCompatibilityTests {
     private let measuredAt = Date(timeIntervalSince1970: 1_782_000_000)
 
     @Test
+    func `overflow counts follow Claude Swap and Codex inventories without expanding publication`() throws {
+        let (claudeSettings, claudeStore) = self.makeStore(provider: .claude)
+        claudeSettings.claudeSwapEnabled = true
+        claudeStore.claudeSwapAccountSnapshots = self.swapAccounts((1...9).map {
+            self.swapRow(number: $0, email: "fixture-\($0)@example.test", isActive: $0 == 9, usedPercent: 20)
+        })
+        #expect(claudeStore.widgetAccountOverflowCounts() == ["claude": 3])
+        #expect(claudeStore.makeWidgetAccountEntries(now: self.measuredAt).count == 6)
+        claudeSettings.accountWidgetsEnabled = false
+        #expect(claudeStore.widgetAccountOverflowCounts().isEmpty)
+
+        let (codexSettings, codexStore) = self.makeStore(provider: .codex)
+        let owner = self.observedAccount(email: "fixture@example.test", workspace: "fixture-workspace")
+        let siblings = (1...8).map {
+            self.observedAccount(
+                email: "fixture-\($0)@example.test",
+                workspace: "fixture-\($0)",
+                homeName: "profile-\($0)")
+        }
+        self.publishCodexProjection(
+            self.projection(owner: owner, siblings: siblings),
+            settings: codexSettings,
+            store: codexStore)
+        #expect(codexStore.widgetAccountOverflowCounts() == ["codex": 3])
+        #expect(codexStore.makeWidgetAccountEntries(now: self.measuredAt).count == 6)
+        try codexSettings.setProviderEnabled(
+            provider: .codex,
+            metadata: #require(ProviderDefaults.metadata[.codex]),
+            enabled: false)
+        #expect(codexStore.widgetAccountOverflowCounts().isEmpty)
+    }
+
+    @Test
+    func `Claude Swap widget labels do not inherit the app language`() throws {
+        let (settings, store) = self.makeStore(provider: .claude)
+        settings.claudeSwapEnabled = true
+        settings.claudeSwapShowSingleAccount = true
+        store.claudeSwapAccountSnapshots = self.swapAccounts([
+            self.swapRow(number: 1, email: "fixture@example.com", usedPercent: 20),
+        ])
+        let english = CodexBarLocalizationOverride.$appLanguage.withValue("en") {
+            store.makeWidgetAccountEntries(now: self.measuredAt)
+        }
+        let chinese = CodexBarLocalizationOverride.$appLanguage.withValue("zh-Hans") {
+            store.makeWidgetAccountEntries(now: self.measuredAt)
+        }
+        let expected = try #require(english.first)
+        let actual = try #require(chinese.first)
+        #expect(actual.id == expected.id)
+        #expect(actual.label == expected.label)
+    }
+
+    @Test
     func `removing a Claude Swap sibling preserves the remaining pinned widget`() throws {
         let (settings, store) = self.makeStore(provider: .claude)
         settings.claudeSwapEnabled = true

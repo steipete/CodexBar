@@ -86,12 +86,18 @@ struct ClaudeDirectUsageFallbackTests {
         let environment = ClaudeCLISession.launchEnvironment(baseEnv: [
             "DISABLE_AUTOUPDATER": "0",
             ClaudeOAuthCredentialsStore.environmentTokenKey: "oauth-token",
+            ClaudeOAuthCredentialsStore.environmentScopesKey: "user:inference",
             "ANTHROPIC_API_KEY": "api-token",
+            "ANTHROPIC_BASE_URL": "https://example.invalid",
+            "CLAUDE_CONFIG_DIR": "/synthetic/claude-profile",
         ])
 
         #expect(environment["DISABLE_AUTOUPDATER"] == "1")
         #expect(environment[ClaudeOAuthCredentialsStore.environmentTokenKey] == nil)
+        #expect(environment[ClaudeOAuthCredentialsStore.environmentScopesKey] == nil)
         #expect(environment["ANTHROPIC_API_KEY"] == nil)
+        #expect(environment["ANTHROPIC_BASE_URL"] == nil)
+        #expect(environment["CLAUDE_CONFIG_DIR"] == "/synthetic/claude-profile")
     }
 
     @Test

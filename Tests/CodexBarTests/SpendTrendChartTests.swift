@@ -165,6 +165,7 @@ struct SpendTrendChartTests {
         }
         for point in points {
             #expect(model.bucket(at: point.hour.addingTimeInterval(1800))?.date == point.hour)
+            #expect(model.inspectionDate(at: point.hour.addingTimeInterval(1800)) == point.hour)
         }
     }
 

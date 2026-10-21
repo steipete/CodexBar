@@ -5,6 +5,36 @@ import Testing
 
 struct UserFacingLocalizationCoverageTests {
     @Test
+    func `OpenAI credential scope captions are translated and preserve the account label`() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("Sources/CodexBar/Resources")
+        let accountKey = "Applies to the selected token account “%@”. Each account keeps its own limits."
+        let providerKey = "Applies to the OpenAI API key, not to token accounts."
+        let languages = try FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: nil)
+            .filter { $0.pathExtension == "lproj" }
+        #expect(languages.count == 23)
+        for language in languages {
+            let identifier = language.deletingPathExtension().lastPathComponent
+            let source = try String(contentsOf: language.appendingPathComponent("Localizable.strings"), encoding: .utf8)
+            #expect(source.contains("\"\(accountKey)\" ="))
+            #expect(source.contains("\"\(providerKey)\" ="))
+            CodexBarLocalizationOverride.$appLanguage.withValue(identifier) {
+                let account = L(accountKey, "Synthetic Account")
+                let provider = L(providerKey)
+                #expect(account.contains("Synthetic Account"))
+                #expect(!account.contains("%@"))
+                if identifier != "en" {
+                    #expect(account != accountKey.replacingOccurrences(of: "%@", with: "Synthetic Account"))
+                    #expect(provider != providerKey)
+                }
+            }
+        }
+    }
+
+    @Test
     func `selected user-facing UI surfaces avoid raw English literals`() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
@@ -65,6 +95,30 @@ struct UserFacingLocalizationCoverageTests {
             "Sources/CodexBar/PreferencesSpendDashboardPane.swift": [
                 "Text(\"Partial estimate\")",
             ],
+            "Sources/CodexBar/PreferencesMenuPane.swift": [
+                "title: \"Stay Awake\",",
+            ],
+            "Sources/CodexBar/PreferencesTransferSection.swift": [
+                "Text(\"Portable Preferences\")",
+                "Button(\"Export…\")",
+                "Button(\"Import…\")",
+                "Text(\"Shortcuts\")",
+            ],
+            "Sources/CodexBar/ShareStatsCardView.swift": [
+                "Text(\"LOCAL SNAPSHOT\")",
+                "Label(\"LOCAL · AGGREGATE ONLY\"",
+            ],
+            "Sources/CodexBarWidget/WidgetTiles.swift": [
+                "String(describing: Text(reset, style: .relative))",
+            ],
+            "Sources/CodexBar/PreferencesNotificationsPane.swift": [
+                "\"Credential expiry\"",
+                "\"Notify once when a provider account needs you to sign in again.\"",
+            ],
+            "Sources/CodexBar/UsageStore+CredentialNotifications.swift": [
+                " needs sign-in\"",
+                "\"Open CodexBar to review the account error and sign in again.\"",
+            ],
             "Sources/CodexBar/SpendDashboardProviderBreakdown.swift": [
                 "Text(\"Model breakdown unavailable\")",
                 "Text(\"Partial model breakdown\")",
@@ -119,6 +173,38 @@ struct UserFacingLocalizationCoverageTests {
         #expect(
             violations.isEmpty,
             "Raw user-facing localization markers remain:\n\(violations.joined(separator: "\n"))")
+    }
+
+    @Test
+    func `credential expiry settings and alerts follow the selected language`() {
+        let translations = [
+            (
+                "en",
+                "Credential expiry",
+                "Notify once when a provider account needs you to sign in again.",
+                "Codex needs sign-in",
+                "Open CodexBar to review the account error and sign in again."),
+            (
+                "zh-Hans",
+                "登录凭据过期",
+                "当服务商账户需要重新登录时，发送一次通知。",
+                "Codex 需要重新登录",
+                "打开 CodexBar 查看账户错误并重新登录。"),
+            (
+                "zh-Hant",
+                "登入憑證過期",
+                "當服務商帳戶需要重新登入時，傳送一次通知。",
+                "Codex 需要重新登入",
+                "開啟 CodexBar 查看帳戶錯誤並重新登入。"),
+        ]
+        for (language, title, subtitle, alertTitle, alertBody) in translations {
+            CodexBarLocalizationOverride.$appLanguage.withValue(language) {
+                #expect(L("credential_expiry_notifications_title") == title)
+                #expect(L("credential_expiry_notifications_subtitle") == subtitle)
+                #expect(L("credential_expiry_notification_title", "Codex") == alertTitle)
+                #expect(L("credential_expiry_notification_body") == alertBody)
+            }
+        }
     }
 
     @Test

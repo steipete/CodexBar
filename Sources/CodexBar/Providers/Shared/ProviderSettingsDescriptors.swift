@@ -46,6 +46,20 @@ struct ProviderSettingsContext {
         self.settings.providerConfigBinding(provider: self.provider, field: field)
     }
 
+    func modelRateLimitsBinding(scope: ProviderModelRateLimitScope) -> Binding<[ProviderModelRateLimit]> {
+        Binding(
+            get: {
+                self.settings.providerConfig(for: self.provider)?.modelRateLimits(for: scope) ?? []
+            },
+            set: { limits in
+                self.settings.updateProviderConfig(provider: self.provider, affectsBackgroundWork: false) {
+                    $0.setModelRateLimits(
+                        ProviderModelRateLimit.validated(limits),
+                        for: scope)
+                }
+            })
+    }
+
     func providerConfigSecretBinding(key: String, logField: String) -> Binding<String> {
         self.settings.providerConfigSecretBinding(provider: self.provider, key: key, logField: logField)
     }
@@ -173,6 +187,18 @@ struct ProviderSettingsDirectoryListDescriptor: Identifiable {
     let binding: Binding<[String]>
 }
 
+/// Shared per-model throughput editor; providers contribute only data and actions.
+@MainActor
+struct ProviderSettingsModelLimitsDescriptor: Identifiable {
+    let id: String
+    let title: String
+    let subtitle: String
+    let binding: Binding<[ProviderModelRateLimit]>
+    let actions: [ProviderSettingsActionDescriptor]
+    var scopeText: String?
+    var scope: ProviderModelRateLimitScope?
+}
+
 /// Shared action row descriptor rendered in the Providers settings pane.
 @MainActor
 struct ProviderSettingsActionsDescriptor: Identifiable {
@@ -202,7 +228,8 @@ struct ProviderSettingsTokenAccountsDescriptor: Identifiable {
         _ token: String,
         _ usageScope: String?,
         _ organizationID: String?,
-        _ workspaceID: String?) -> Void
+        _ workspaceID: String?,
+        _ claudeConfigDirectory: String?) -> Void
     let updateAccount: (
         _ accountID: UUID,
         _ usageScope: String?,
@@ -213,6 +240,9 @@ struct ProviderSettingsTokenAccountsDescriptor: Identifiable {
     let primaryAddAction: (() async -> Void)?
     let openConfigFile: () -> Void
     let reloadFromDisk: () -> Void
+    var claudeConfigDirectory: ((UUID) -> Binding<String?>)?
+    var editAccount: ((_ accountID: UUID, _ label: String, _ token: String?) -> Void)?
+    var moveAccount: ((_ accountID: UUID, _ destination: Int) -> Void)?
 }
 
 /// Shared organizations descriptor rendered in the Providers settings pane.

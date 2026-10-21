@@ -27,6 +27,16 @@ struct UsageCommandContext {
     var persistCLISessions: Bool = false
     var persistentCLISessionIdleWindow: TimeInterval?
     var cardsLayout: Bool = false
+    var sourceLabelSuffix = ""
+    /// Serves the menu bar app's cached usage after a locked-keychain fetch failure (SSH sessions, opt-in).
+    var usageCacheFallback: (@Sendable (UsageProvider, _ lockedKeychainObserved: Bool, _ terminalError: Error)
+        -> CLIUsageCache.Hit?)?
+
+    func withUsageCacheFallback(config: CodexBarConfig) -> UsageCommandContext {
+        var context = self
+        context.usageCacheFallback = CLIUsageCache.fallbackReader(config: config)
+        return context
+    }
 }
 
 struct UsageCommandOutput {
@@ -52,6 +62,8 @@ private struct UsageSuccessRenderInput {
     let command: UsageCommandContext
     let diagnostic: String?
     let notes: [String]
+    /// Set when the usage came from the menu bar app's cache: seconds since its fetch.
+    var ageSeconds: Int?
 }
 
 extension UsageCommandOutput {
@@ -73,58 +85,139 @@ extension CodexBarCLI {
         let provider = Self.decodeProvider(from: values, config: config)
         let providerList = provider.asList
         let setup = Self.usageFetchSetup(values: values, providers: providerList, output: output)
-        let command = setup.command
+        let command = setup.command.withUsageCacheFallback(config: config)
         let tokenContext = setup.tokenContext(config: config, output: output)
         let appAutoVerifier = command.providerRuntime == .app
-        var sections: [String] = []
-        var payload: [ProviderPayload] = []
-        var exitCode: ExitCode = .success
-
-        for p in providerList {
-            let status = setup.includeStatus ? await Self.fetchStatus(for: p) : nil
-            if appAutoVerifier {
-                // Background app Auto intentionally launches the opaque Claude owner CLI only after a successful
-                // user-initiated fetch has established this process's account-scoped availability marker. Recreate
-                // that real app lifecycle before exercising the background route; discard the foreground payload.
-                var establishmentCommand = command
-                establishmentCommand.sourceModeOverride = .cli
-                let establishment = await ProviderInteractionContext.$current.withValue(.userInitiated) {
-                    await Self.fetchUsageOutputs(
-                        provider: p,
-                        status: status,
-                        tokenContext: tokenContext,
-                        command: establishmentCommand)
-                }
-                if establishment.exitCode != .success {
-                    exitCode = establishment.exitCode
-                    sections.append(contentsOf: establishment.sections)
-                    payload.append(contentsOf: establishment.payload)
-                    continue
-                }
-            }
-            // CLI usage should not clear Keychain cooldowns or attempt interactive Keychain prompts.
-            let output = await ProviderInteractionContext.$current.withValue(.background) {
-                await Self.fetchUsageOutputs(
-                    provider: p,
-                    status: status,
-                    tokenContext: tokenContext,
-                    command: command)
-            }
-            if output.exitCode != .success {
-                exitCode = output.exitCode
-            }
-            sections.append(contentsOf: output.sections)
-            payload.append(contentsOf: output.payload)
+        let includeStatus = setup.includeStatus
+        let result = await Self.collectUsageOutputs(providers: providerList) { provider in
+            await Self.fetchSingleProviderUsageOutput(
+                provider: provider,
+                includeStatus: includeStatus,
+                appAutoVerifier: appAutoVerifier,
+                tokenContext: tokenContext,
+                command: command)
         }
 
         Self.printUsageOutput(
             format: command.format,
             toonRequested: output.toonRequested,
-            sections: sections,
-            payload: payload,
+            sections: result.sections,
+            payload: result.payload,
             pretty: output.pretty)
 
-        Self.exit(code: exitCode, output: output, kind: exitCode == .success ? .runtime : .provider)
+        Self.exit(code: result.exitCode, output: output, kind: result.exitCode == .success ? .runtime : .provider)
+    }
+
+    /// Bound provider I/O while preserving the sequential command's output and failure precedence.
+    static func collectUsageOutputs(
+        providers: [UsageProvider],
+        fetch: @escaping @Sendable (UsageProvider) async -> UsageCommandOutput) async -> UsageCommandOutput
+    {
+        await withTaskGroup(of: (Int, UsageCommandOutput, String).self) { group in
+            func enqueue(_ index: Int) {
+                group.addTask {
+                    let diagnostics = CLIStderrBuffer()
+                    let output = await Self.$stderrBuffer.withValue(diagnostics) {
+                        // CLI fetching must not clear Keychain cooldowns or authorize prompts.
+                        await ProviderInteractionContext.$current.withValue(.background) {
+                            await fetch(providers[index])
+                        }
+                    }
+                    return (index, output, diagnostics.contents)
+                }
+            }
+            var next = min(providers.count, 3)
+            for index in 0..<next {
+                enqueue(index)
+            }
+            var results: [(Int, UsageCommandOutput, String)] = []
+            for await result in group {
+                results.append(result)
+                if next < providers.count {
+                    enqueue(next)
+                    next += 1
+                }
+            }
+            var output = UsageCommandOutput()
+            for (_, result, diagnostics) in results.sorted(by: { $0.0 < $1.0 }) {
+                Self.writeStderr(diagnostics)
+                output.merge(result)
+            }
+            return output
+        }
+    }
+
+    static func fetchSingleProviderUsageOutput(
+        provider: UsageProvider,
+        includeStatus: Bool,
+        appAutoVerifier: Bool,
+        tokenContext: TokenAccountCLIContext,
+        command: UsageCommandContext) async -> UsageCommandOutput
+    {
+        let status = includeStatus ? await Self.fetchStatus(for: provider) : nil
+        if appAutoVerifier {
+            // Background app Auto intentionally launches the opaque Claude owner CLI only after a successful
+            // user-initiated fetch has established this process's account-scoped availability marker. Recreate
+            // that real app lifecycle before exercising the background route; discard the foreground payload.
+            var establishmentCommand = command
+            establishmentCommand.sourceModeOverride = .cli
+            let establishment = await ProviderInteractionContext.$current.withValue(.userInitiated) {
+                await Self.fetchUsageOutputs(
+                    provider: provider,
+                    status: status,
+                    tokenContext: tokenContext,
+                    command: establishmentCommand)
+            }
+            if establishment.exitCode != .success {
+                return establishment
+            }
+        }
+        var command = command
+        // Provider-specific by design: one-shot Claude Auto usage follows the adapter's active slot.
+        let config = tokenContext.config.providerConfig(for: .claude)
+        if !appAutoVerifier, CLIClaudeSwapCards.isEligible(
+            provider: provider,
+            integrationEnabled: config?.claudeSwapEnabled == true,
+            hasExplicitAccountSelection: tokenContext.selection.usesOverride,
+            sourceModeOverride: command.sourceModeOverride ?? tokenContext.preferredSourceMode(for: provider))
+        {
+            let source = config?.resolvedClaudeSwapSource ?? .claudeSwap
+            if let list = try? await ClaudeSwapAccountReader.readAccountList(
+                executablePath: CLIClaudeSwapCards.executablePath(from: config), source: source),
+                let active = ClaudeSwapAccountProjection.accountSnapshots(
+                    from: list,
+                    source: source,
+                    previousAccounts: ClaudeSwapRetainedUsageStore.load()).first(where: \.isActive),
+                let usage = active.snapshot
+            {
+                let diagnostic = active.error.map(CLIClaudeSwapText.sanitizeDiagnostic)
+                var result = UsageCommandOutput()
+                Self.appendSuccessRenderOutput(
+                    UsageSuccessRenderInput(
+                        provider: provider,
+                        accountLabel: CLIClaudeSwapText.sanitizeLabel(active.displayLabel),
+                        cacheAccountKey: nil,
+                        version: nil,
+                        source: source.label,
+                        status: status,
+                        usage: usage,
+                        credits: nil,
+                        antigravityPlanInfo: nil,
+                        dashboard: nil,
+                        effectiveSourceMode: .auto,
+                        command: command,
+                        diagnostic: diagnostic,
+                        notes: diagnostic.map { [$0] } ?? []),
+                    output: &result)
+                return result
+            }
+            command.sourceLabelSuffix = " (\(source.label) fallback)"
+        }
+        return await Self.fetchUsageOutputs(
+            provider: provider,
+            status: status,
+            tokenContext: tokenContext,
+            command: command)
     }
 
     /// TOON piggybacks on the JSON fetch/render pipeline (same data, denser rendering at print time)
@@ -180,24 +273,30 @@ extension CodexBarCLI {
         provider: UsageProvider,
         status: ProviderStatusPayload?,
         tokenContext: TokenAccountCLIContext,
-        command: UsageCommandContext) async -> UsageCommandOutput
+        command: UsageCommandContext,
+        publishPartial: CLIServeOperationCoordinator<UsageCommandOutput>
+            .PublishPartial? = nil) async -> UsageCommandOutput
     {
         // Provider-specific by design: Codex can enumerate reconciled live, managed, and profile-home accounts.
         if provider == .codex, command.includeAllCodexAccounts {
-            var output = UsageCommandOutput()
-            let accounts = tokenContext.visibleCodexAccounts().visibleAccounts
+            let projection = tokenContext.visibleCodexAccounts()
+            let accounts = projection.visibleAccounts
             let selections: [CodexVisibleAccount?] = accounts.isEmpty ? [nil] : accounts.map { Optional($0) }
-            for visibleAccount in selections {
-                let result = await Self.fetchUsageOutput(
+            return await Self.collectAccountUsage(
+                provider: provider,
+                // Provider-specific by design: Codex profiles use durable source IDs, not token-account UUIDs.
+                accounts: selections.map { $0.map(DashboardUsageAccount.codex) },
+                inventoryIncomplete: projection.hasUnreadableAddedAccountStore,
+                publishPartial: publishPartial)
+            { index in
+                await Self.fetchUsageOutput(
                     provider: provider,
                     account: nil,
-                    codexVisibleAccount: visibleAccount,
+                    codexVisibleAccount: selections[index],
                     status: status,
                     tokenContext: tokenContext,
                     command: command)
-                output.merge(result)
             }
-            return output
         }
 
         let accounts: [ProviderTokenAccount]
@@ -213,34 +312,24 @@ extension CodexBarCLI {
                 error: error)
         }
 
-        let selections = Self.accountSelections(from: accounts)
-        var output = UsageCommandOutput()
-        let accountRefreshDelay = TokenAccountSupportCatalog
-            .support(for: provider)?.minimumDelayBetweenAccountRefreshes
-        for (index, account) in selections.enumerated() {
-            if index > 0, let accountRefreshDelay {
-                do {
-                    try await Task.sleep(for: accountRefreshDelay)
-                } catch {
-                    return output
-                }
-            }
-            let result = await Self.fetchUsageOutput(
+        let selections: [ProviderTokenAccount?] = accounts.isEmpty ? [nil] : accounts.map { Optional($0) }
+        let data = tokenContext.accountsByProvider[provider]
+        let activeID = data.flatMap { $0.accounts.isEmpty ? nil : $0.accounts[$0.clampedActiveIndex()].id }
+        return await Self.collectAccountUsage(
+            provider: provider,
+            accounts: selections.map { account in
+                account.map { .token($0, active: $0.id == activeID) }
+            },
+            minimumDelay: TokenAccountSupportCatalog.support(for: provider)?.minimumDelayBetweenAccountRefreshes,
+            publishPartial: publishPartial)
+        { index in
+            await Self.fetchUsageOutput(
                 provider: provider,
-                account: account,
+                account: selections[index],
                 status: status,
                 tokenContext: tokenContext,
                 command: command)
-            output.merge(result)
         }
-        return output
-    }
-
-    private static func accountSelections(from accounts: [ProviderTokenAccount]) -> [ProviderTokenAccount?] {
-        if accounts.isEmpty {
-            return [nil]
-        }
-        return accounts.map { Optional($0) }
     }
 
     private static func usageOutputForAccountResolutionError(
@@ -255,7 +344,7 @@ extension CodexBarCLI {
             output.payload.append(Self.makeProviderErrorPayload(
                 provider: provider,
                 account: nil,
-                source: command.sourceModeOverride?.rawValue ?? "auto",
+                source: (command.sourceModeOverride?.rawValue ?? "auto") + command.sourceLabelSuffix,
                 status: status,
                 error: error,
                 kind: .provider))
@@ -268,37 +357,6 @@ extension CodexBarCLI {
             Self.writeStderr("Error: \(error.localizedDescription)\n")
         }
         return output
-    }
-
-    // swiftlint:disable:next function_parameter_count
-    private static func makeUsagePayload(
-        provider: UsageProvider,
-        accountLabel: String?,
-        cacheAccountKey: String?,
-        version: String?,
-        source: String,
-        status: ProviderStatusPayload?,
-        usage: UsageSnapshot,
-        credits: CreditsSnapshot?,
-        antigravityPlanInfo: AntigravityPlanInfoSummary?,
-        dashboard: OpenAIDashboardSnapshot?,
-        diagnostic: String?,
-        weeklyWorkDays: Int?) -> ProviderPayload
-    {
-        ProviderPayload(
-            provider: provider,
-            account: accountLabel,
-            cacheAccountKey: cacheAccountKey,
-            version: version,
-            source: source,
-            status: status,
-            usage: usage,
-            credits: credits,
-            antigravityPlanInfo: antigravityPlanInfo,
-            openaiDashboard: dashboard,
-            error: nil,
-            diagnostic: diagnostic,
-            pace: CLIRenderer.providerPacePayload(provider: provider, snapshot: usage, weeklyWorkDays: weeklyWorkDays))
     }
 
     private static func appendSuccessRenderOutput(
@@ -341,9 +399,9 @@ extension CodexBarCLI {
                 output.sections.append(text)
             }
         case .json:
-            output.payload.append(self.makeUsagePayload(
+            var usagePayload = ProviderPayload(
                 provider: input.provider,
-                accountLabel: input.accountLabel,
+                account: input.accountLabel,
                 cacheAccountKey: input.cacheAccountKey,
                 version: input.version,
                 source: input.source,
@@ -351,12 +409,17 @@ extension CodexBarCLI {
                 usage: input.usage,
                 credits: input.credits,
                 antigravityPlanInfo: input.antigravityPlanInfo,
-                dashboard: input.dashboard,
+                openaiDashboard: input.dashboard,
+                error: nil,
                 diagnostic: input.diagnostic,
-                weeklyWorkDays: input.command.weeklyWorkDays))
+                pace: CLIRenderer.providerPacePayload(
+                    provider: input.provider, snapshot: input.usage, weeklyWorkDays: input.command.weeklyWorkDays))
+            usagePayload.ageSeconds = input.ageSeconds
+            output.payload.append(usagePayload)
         }
     }
 
+    // swiftlint:disable:next function_body_length
     private static func fetchUsageOutput(
         provider: UsageProvider,
         account: ProviderTokenAccount?,
@@ -367,7 +430,7 @@ extension CodexBarCLI {
     {
         var output = UsageCommandOutput()
         let env = tokenContext.environment(
-            base: ProcessInfo.processInfo.environment,
+            base: tokenContext.baseEnvironment,
             provider: provider,
             account: account,
             codexActiveSourceOverride: codexVisibleAccount?.selectionSource)
@@ -398,7 +461,7 @@ extension CodexBarCLI {
                 account: (
                     label: account?.label ?? codexVisibleAccount?.menuDisplayName,
                     cacheKey: cacheAccountKey),
-                source: effectiveSourceMode.rawValue,
+                source: effectiveSourceMode.rawValue + command.sourceLabelSuffix,
                 status: status,
                 command: command)
         }
@@ -428,7 +491,9 @@ extension CodexBarCLI {
             persistsCLISessions: Self.persistsCLISessions(provider: provider, command: command),
             persistentCLISessionIdleWindow: command.persistentCLISessionIdleWindow,
             resolvedCLIVersion: resolvedCLIVersion)
-        let outcome = await Self.fetchProviderUsage(provider: provider, context: fetchContext)
+        let (outcome, lockedKeychainObserved) = await CLIUsageCache.observingLockedKeychain {
+            await Self.fetchProviderUsage(provider: provider, context: fetchContext)
+        }
         if command.verbose, !command.jsonOnly {
             Self.printFetchAttempts(provider: provider, attempts: outcome.attempts)
         }
@@ -462,7 +527,7 @@ extension CodexBarCLI {
                     ? (resolvedCLIVersion
                         ?? Self.detectVersion(for: provider, browserDetection: command.browserDetection))
                     : nil)
-            let source = result.sourceLabel
+            let source = result.sourceLabel + command.sourceLabelSuffix
             let notes = Self.usageTextNotes(
                 provider: provider,
                 sourceMode: effectiveSourceMode,
@@ -487,13 +552,47 @@ extension CodexBarCLI {
                     notes: notes),
                 output: &output)
         case let .failure(error):
+            // Only a default-account fetch without `--source` whose terminal failure is a credential-access one
+            // after a locked keychain read falls back to the cache.
+            if command.sourceModeOverride == nil, !tokenContext.selection.usesOverride,
+               account == nil, codexVisibleAccount == nil,
+               let hit = command.usageCacheFallback?(provider, lockedKeychainObserved, error)
+            {
+                let usage = hit.entry.usage.scoped(to: provider)
+                let source = "codexbar-app" + command.sourceLabelSuffix
+                let appNote = "Cached by the CodexBar app (the keychain was unavailable here). "
+                    + UsageFormatter.updatedString(from: usage.updatedAt)
+                Self.appendSuccessRenderOutput(
+                    UsageSuccessRenderInput(
+                        provider: provider,
+                        accountLabel: nil,
+                        cacheAccountKey: nil,
+                        version: nil,
+                        source: source,
+                        status: status,
+                        usage: usage,
+                        credits: nil,
+                        antigravityPlanInfo: nil,
+                        dashboard: nil,
+                        effectiveSourceMode: effectiveSourceMode,
+                        command: command,
+                        diagnostic: nil,
+                        notes: Self.usageTextNotes(
+                            provider: provider,
+                            sourceMode: effectiveSourceMode,
+                            resolvedSourceLabel: source,
+                            dataConfidence: usage.dataConfidence) + [appNote],
+                        ageSeconds: hit.ageSeconds),
+                    output: &output)
+                break
+            }
             output.exitCode = Self.mapError(error)
             if command.format == .json {
                 output.payload.append(Self.makeProviderErrorPayload(
                     provider: provider,
                     account: account?.label ?? codexVisibleAccount?.menuDisplayName,
                     cacheAccountKey: cacheAccountKey,
-                    source: effectiveSourceMode.rawValue,
+                    source: effectiveSourceMode.rawValue + command.sourceLabelSuffix,
                     status: status,
                     error: error,
                     kind: .provider))

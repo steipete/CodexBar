@@ -6,6 +6,19 @@ import Testing
 @Suite(.serialized, CodexCredentialFixtures())
 struct CLIOpenAIDashboardCacheTests {
     @Test
+    func `dashboard cache requires a fixture URL in tests`() async {
+        let fixtureURL = URL(fileURLWithPath: "/synthetic/codexbar/dashboard.json")
+        let unscopedURL = await OpenAIDashboardCacheStore.$cacheURLOverride.withValue(fixtureURL) {
+            #expect(OpenAIDashboardCacheStore.cacheURL == fixtureURL)
+            return await Task.detached { OpenAIDashboardCacheStore.cacheURL }.value
+        }
+        #expect(unscopedURL == nil)
+        OpenAIDashboardCacheStore.$cacheURLOverride.withValue(nil) {
+            #expect(OpenAIDashboardCacheStore.cacheURL == nil)
+        }
+    }
+
+    @Test
     func `cached dashboard restores when authority allows cached reuse`() throws {
         OpenAIDashboardCacheStore.clear()
         defer { OpenAIDashboardCacheStore.clear() }

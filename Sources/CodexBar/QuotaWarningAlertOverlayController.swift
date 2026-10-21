@@ -60,7 +60,7 @@ final class QuotaWarningAlertOverlayController {
         let frame = screen.frame
         let contentView = QuotaWarningAlertOverlayView(title: title, message: message)
             .allowsHitTesting(false)
-        let hostingView = NSHostingView(rootView: contentView)
+        let hostingView = NSHostingView(rootView: contentView.codexBarLocalized())
         hostingView.wantsLayer = true
         hostingView.layer?.backgroundColor = NSColor.clear.cgColor
 

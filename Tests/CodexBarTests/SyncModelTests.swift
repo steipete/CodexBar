@@ -286,6 +286,41 @@ struct SyncModelTests {
     }
 
     @Test
+    func `tcr slot keyed snapshot retires the leftover email keyed CloudKit record`() throws {
+        let tcr = Self.snapshot(
+            provider: .claude,
+            loginMethod: ClaudeSwapAccountSource.tcr.label,
+            accountID: "tcr:2",
+            email: "Owner@Example.com")
+        let emailKey = AccountSnapshotSyncPayload.accountKey(for: "owner@example.com")
+        let predecessor = try #require(tcr.emailKeyedPredecessorRecordName())
+
+        #expect(predecessor == "snap-claude-\(emailKey)-device-id")
+        #expect(tcr.recordName != predecessor)
+        #expect(
+            AccountSnapshotSyncPayload.obsoleteEmailKeyedRecordNames(
+                liveSnapshots: [tcr],
+                knownRecordNames: [predecessor]) == [predecessor])
+    }
+
+    @Test
+    func `a slot key whose prefix disagrees with its source names no predecessor`() {
+        let mixed = Self.snapshot(
+            provider: .claude,
+            loginMethod: ClaudeSwapAccountSource.tcr.label,
+            accountID: "claude-swap:2",
+            email: "owner@example.com")
+        let unknown = Self.snapshot(
+            provider: .claude,
+            loginMethod: "some-future-tool",
+            accountID: "some-future-tool:2",
+            email: "owner@example.com")
+
+        #expect(mixed.emailKeyedPredecessorRecordName() == nil)
+        #expect(unknown.emailKeyedPredecessorRecordName() == nil)
+    }
+
+    @Test
     func `email keyed snapshot has no CloudKit predecessor`() {
         let payload = Self.claudeSnapshot(accountID: "owner@example.com", email: "owner@example.com")
 

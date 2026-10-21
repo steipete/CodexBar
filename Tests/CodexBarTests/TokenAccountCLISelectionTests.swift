@@ -5,6 +5,63 @@ import Testing
 
 struct TokenAccountCLISelectionTests {
     @Test
+    func `Claude credential refresh preserves its local cost directory`() throws {
+        let account = ProviderTokenAccount(
+            id: UUID(),
+            label: "Personal",
+            token: "fixture-old",
+            addedAt: 1,
+            lastUsed: nil,
+            claudeConfigDirectory: "/fixtures/claude-personal")
+        let config = CodexBarConfig(providers: [ProviderConfig(
+            id: UsageProvider.claude.instanceID,
+            tokenAccounts: ProviderTokenAccountData(version: 1, accounts: [account], activeIndex: 0))])
+        let store = try Self.configStore()
+        defer { try? FileManager.default.removeItem(at: store.fileURL.deletingLastPathComponent()) }
+        try store.save(config)
+        #expect(try TokenAccountCLIContext.updateStoredTokenAccount(
+            store: store,
+            provider: .claude,
+            accountID: account.id,
+            expectedToken: "fixture-old",
+            token: "fixture-new"))
+        let saved = try #require(try store.load()?.providerConfig(for: .claude)?.tokenAccounts?.accounts.first)
+        #expect(saved.token == "fixture-new")
+        #expect(saved.claudeConfigDirectory == account.claudeConfigDirectory)
+    }
+
+    @Test
+    func `parallel providers retain both refreshed account credentials`() async throws {
+        let providers: [UsageProvider] = [.antigravity, .stepfun]
+        let accounts = providers.map { _ in Self.account(token: "original-token") }
+        let config = CodexBarConfig(providers: zip(providers, accounts).map { provider, account in
+            ProviderConfig(
+                id: provider.instanceID,
+                tokenAccounts: ProviderTokenAccountData(version: 1, accounts: [account], activeIndex: 0))
+        })
+        let store = try Self.configStore()
+        defer { try? FileManager.default.removeItem(at: store.fileURL.deletingLastPathComponent()) }
+        try store.save(config)
+        let context = try Self.writebackContext(config: config, store: store)
+        // Keep the first atomic write open long enough for the other provider to request its writeback.
+        let beforePublish: @Sendable (URL) throws -> Void = { _ in Thread.sleep(forTimeInterval: 0.1) }
+        await withTaskGroup(of: Void.self) { group in
+            for (provider, account) in zip(providers, accounts) {
+                group.addTask {
+                    await CredentialFileWriter.$beforePublishForTesting.withValue(beforePublish) {
+                        await context.tokenUpdater(for: account)?(provider, account.id, "refreshed-token")
+                    }
+                }
+            }
+        }
+        let saved = try #require(try store.load())
+        for provider in providers {
+            #expect(saved.providerConfig(for: provider.instanceID)?.tokenAccounts?.accounts.first?.token
+                == "refreshed-token")
+        }
+    }
+
+    @Test
     func `usage and cards share provider selection constraints`() {
         let all = TokenAccountCLISelection(label: nil, index: nil, allAccounts: true)
         #expect(all.providerSelectionError([.codex]) == nil)

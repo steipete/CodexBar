@@ -329,6 +329,11 @@ public struct CopilotBudgetWebFetcher: Sendable {
     private let expectedGitHubAccountIdentifier: String?
     private let browserDetection: BrowserDetection
     private let transport: any ProviderHTTPTransport
+    #if os(macOS)
+    var sessionLoader: @Sendable (BrowserDetection) throws -> AnySequence<CopilotGitHubCookieImporter.SessionInfo> = {
+        try CopilotGitHubCookieImporter.sessionCandidates(browserDetection: $0)
+    }
+    #endif
     private let now: @Sendable () -> Date
 
     public init(
@@ -368,7 +373,7 @@ public struct CopilotBudgetWebFetcher: Sendable {
         }
 
         #if os(macOS)
-        for session in CopilotGitHubCookieImporter.importSessions(browserDetection: self.browserDetection) {
+        for session in try self.sessionLoader(self.browserDetection) {
             do {
                 let windows = try await self.fetchBudgetWindows(cookieHeader: session.cookieHeader)
                 CookieHeaderCache.store(
@@ -752,10 +757,10 @@ public struct CopilotBudgetWebFetcher: Sendable {
 }
 
 #if os(macOS)
-private enum CopilotGitHubCookieImporter {
+enum CopilotGitHubCookieImporter {
     private static let cookieClient = BrowserCookieClient()
     private static let cookieImportOrder: BrowserCookieImportOrder =
-        ProviderDefaults.metadata[.copilot]?.browserCookieOrder ?? [.chrome]
+        ProviderDefaults.metadata[.copilot]?.browserCookieOrder ?? Browser.defaultImportOrder
     private static let sessionCookieNames: Set<String> = [
         "user_session",
         "__Host-user_session_same_site",
@@ -764,7 +769,7 @@ private enum CopilotGitHubCookieImporter {
         "dotcom_user",
     ]
 
-    struct SessionInfo {
+    struct SessionInfo: Sendable {
         let cookies: [HTTPCookie]
         let sourceLabel: String
 
@@ -773,29 +778,28 @@ private enum CopilotGitHubCookieImporter {
         }
     }
 
-    static func importSessions(browserDetection: BrowserDetection) -> [SessionInfo] {
-        let installedBrowsers = self.cookieImportOrder.cookieImportCandidates(using: browserDetection)
-        return installedBrowsers.flatMap { browser -> [SessionInfo] in
-            do {
-                return try self.importSessions(from: browser)
-            } catch {
-                BrowserCookieAccessGate.recordIfNeeded(error)
-                return []
-            }
-        }
-    }
-
-    private static func importSessions(from browser: Browser) throws -> [SessionInfo] {
-        let query = BrowserCookieQuery(domains: ["github.com", "www.github.com"])
-        let sources = try self.cookieClient.codexBarRecords(matching: query, in: browser)
-        return sources.compactMap { source -> SessionInfo? in
-            guard !source.records.isEmpty else { return nil }
-            let cookies = BrowserCookieClient.makeHTTPCookies(source.records, origin: query.origin)
-            guard cookies.contains(where: { self.sessionCookieNames.contains($0.name) }) else {
-                return nil
-            }
-            return SessionInfo(cookies: cookies, sourceLabel: source.label)
-        }
+    static func sessionCandidates(
+        browserDetection: BrowserDetection,
+        loadRecords: @escaping (Browser, BrowserCookieQuery, ((String) -> Void)?) throws
+            -> [BrowserCookieStoreRecords] = { try cookieClient.codexBarRecords(matching: $1, in: $0, logger: $2) })
+        throws -> AnySequence<SessionInfo>
+    {
+        try BrowserCookieImportSupport.collectSessions(
+            from: self.cookieImportOrder.lazyCookieImportCandidates(using: browserDetection),
+            missingError: nil,
+            logger: { _ in },
+            load: { browser in
+                let query = BrowserCookieQuery(domains: ["github.com", "www.github.com"])
+                let sources = try loadRecords(browser, query, nil)
+                return sources.compactMap { source -> SessionInfo? in
+                    guard !source.records.isEmpty else { return nil }
+                    let cookies = BrowserCookieClient.makeHTTPCookies(source.records, origin: query.origin)
+                    guard cookies.contains(where: { self.sessionCookieNames.contains($0.name) }) else {
+                        return nil
+                    }
+                    return SessionInfo(cookies: cookies, sourceLabel: source.label)
+                }
+            })
     }
 }
 #endif

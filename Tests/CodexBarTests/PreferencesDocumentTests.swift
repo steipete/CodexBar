@@ -34,11 +34,56 @@ struct PreferencesDocumentTests {
     }
 
     @Test
+    func `frontmost icon source survives app and CLI preference transfer`() throws {
+        let defaults = InMemoryUserDefaults()
+        let source = self.store("icon-source", defaults: defaults)
+        source.unifiedIconSource = .frontmostApp
+        let appDocument = try PreferencesDocument(data: source.exportPreferences().encoded())
+        let cliDocument = try PreferencesDocument(defaults: defaults)
+        for document in [appDocument, cliDocument] {
+            let target = self.store("icon-target")
+            try target.importPreferences(document)
+            #expect(target.unifiedIconSource == .frontmostApp)
+        }
+    }
+
+    @Test(arguments: [false, true])
+    func `legacy icon preference import replaces a newer source`(highestUsage: Bool) throws {
+        let settings = self.store("legacy-icon-source")
+        settings.unifiedIconSource = .frontmostApp
+        var document = PreferencesDocument()
+        try document.set("menuBarShowsHighestUsage", highestUsage)
+        try settings.importPreferences(document)
+        #expect(settings.unifiedIconSource == (highestUsage ? .highestUsage : .currentSelection))
+    }
+
+    @Test
+    func `queued icon preference imports respect latest choice in either format`() throws {
+        let defaults = InMemoryUserDefaults()
+        let settings = self.store("queued-icon-source", defaults: defaults)
+        var current = PreferencesDocument()
+        try current.set("unifiedIconSource", "frontmostApp")
+        var legacy = PreferencesDocument()
+        try legacy.set("menuBarShowsHighestUsage", true)
+
+        try current.queueImport(in: defaults)
+        try legacy.queueImport(in: defaults)
+        settings.consumePendingPreferencesImport()
+        #expect(settings.unifiedIconSource == .highestUsage)
+
+        try legacy.queueImport(in: defaults)
+        try current.queueImport(in: defaults)
+        settings.consumePendingPreferencesImport()
+        #expect(settings.unifiedIconSource == .frontmostApp)
+    }
+
+    @Test
     func `missing keys preserve existing preferences and legacy defaults`() throws {
         let defaults = InMemoryUserDefaults()
         defaults.set("twoMinutes", forKey: "refreshFrequency")
         defaults.set(true, forKey: "mergeIconsStacked")
         let settings = self.store("migration", defaults: defaults)
+        settings.unifiedIconSource = .frontmostApp
         let document =
             try PreferencesDocument(data: Data(#"{"version":1,"preferences":{"hidePersonalInfo":true}}"#.utf8))
         try settings.importPreferences(document)
@@ -46,6 +91,7 @@ struct PreferencesDocumentTests {
         #expect(settings.mergeIconsStacked)
         #expect(settings.providerSwitcherShortcuts == ProviderSwitcherShortcuts.defaults)
         #expect(settings.hidePersonalInfo)
+        #expect(settings.unifiedIconSource == .frontmostApp)
     }
 
     @Test
@@ -76,6 +122,7 @@ struct PreferencesDocumentTests {
         #"{"version":1,"preferences":{"hidePersonalInfo":"true"}}"#,
         #"{"version":1,"preferences":{"weeklyProgressWorkDays":9}}"#,
         #"{"version":1,"preferences":{"refreshFrequency":"tomorrow"}}"#,
+        #"{"version":1,"preferences":{"unifiedIconSource":"unknown"}}"#,
         #"{"version":1,"preferences":{"switcherShortcuts":{"next":"left"}}}"#,
     ])
     func `invalid documents reject before any setters`(_ json: String) throws {
@@ -103,10 +150,23 @@ struct PreferencesDocumentTests {
     }
 
     @Test
+    func `overview import preserves plugin instance IDs in the legacy string array`() throws {
+        let defaults = InMemoryUserDefaults()
+        let settings = self.store("plugin-overview", defaults: defaults)
+        var document = PreferencesDocument()
+        try document.set("mergedOverviewSelectedProviders", ["codex", "fixture-meter"])
+        try settings.importPreferences(document)
+        #expect(settings.mergedOverviewSelectedProviders.map(\.rawValue) == ["codex", "fixture-meter"])
+        #expect(defaults.stringArray(forKey: "mergedOverviewSelectedProviders") == ["codex", "fixture-meter"])
+        let legacySelection = defaults.stringArray(forKey: "mergedOverviewSelectedProviders")?
+            .compactMap(UsageProvider.init(rawValue:))
+        #expect(legacySelection == [.codex])
+    }
+
+    @Test
     func `overview import marks the selection edited for local active providers`() throws {
         let settings = self.store("overview")
         let active = settings.orderedProviders().filter { settings.providerEnablement[$0] ?? false }
-            .compactMap(\.firstPartyProvider)
         try #require(!active.isEmpty)
         var document = PreferencesDocument()
         try document.set("mergedOverviewSelectedProviders", [String]())

@@ -66,10 +66,12 @@ extension UsageStore {
     }
 
     func refreshForSettingsChange() async {
-        await self.runRefresh(
-            startupConnectivityRetryAttempt: nil,
-            coalesceProviderRefreshesOverride: false,
-            waitForRefreshAvailability: true)
+        _ = await ProviderInteractionContext.$current.withValue(.background) {
+            await self.runRefresh(
+                startupConnectivityRetryAttempt: nil,
+                coalesceProviderRefreshesOverride: false,
+                waitForRefreshAvailability: true)
+        }
     }
 
     func prepareRefreshState(for provider: UsageProvider? = nil) {
@@ -94,7 +96,8 @@ extension UsageStore {
     func refreshProvider(
         _ provider: UsageProvider,
         allowDisabled: Bool = false,
-        coalesceIfRefreshing: Bool = false) async
+        coalesceIfRefreshing: Bool = false,
+        codexAccountIDs: Set<String>? = nil) async
     {
         // Codex source reconciliation can persist a settings correction. Perform it before
         // capturing the publication revision so the request cannot invalidate itself.
@@ -149,7 +152,8 @@ extension UsageStore {
                     await self.refreshProviderTracked(
                         provider,
                         allowDisabled: allowDisabled,
-                        generation: request.generation)
+                        generation: request.generation,
+                        codexAccountIDs: codexAccountIDs)
                 }
             }
             let publishedNewSnapshot = didStartRefresh &&
@@ -195,7 +199,8 @@ extension UsageStore {
     private func refreshProviderTracked(
         _ provider: UsageProvider,
         allowDisabled: Bool,
-        generation: UInt64) async
+        generation: UInt64,
+        codexAccountIDs: Set<String>?) async
     {
         if self.providerRefreshCoordinator.beginActivity(for: provider.instanceID) {
             self.refreshingProviders.insert(provider.instanceID)
@@ -213,7 +218,8 @@ extension UsageStore {
                 provider,
                 allowDisabled: allowDisabled,
                 generation: generation,
-                retryMode: retryMode)
+                retryMode: retryMode,
+                codexAccountIDs: codexAccountIDs)
             if retryMode == nil {
                 break
             }
@@ -288,7 +294,8 @@ extension UsageStore {
         _ provider: UsageProvider,
         allowDisabled: Bool,
         generation: UInt64,
-        retryMode: ProviderRefreshRetryMode?) async -> ProviderRefreshRetryMode?
+        retryMode: ProviderRefreshRetryMode?,
+        codexAccountIDs: Set<String>?) async -> ProviderRefreshRetryMode?
     {
         guard let spec = await self.providerRefreshSpec(provider) else { return nil }
         guard self.isCurrentProviderRefreshGeneration(provider, generation: generation) else { return nil }
@@ -298,12 +305,14 @@ extension UsageStore {
         let codexLimitResetOwnerKey = codexPreparation?.limitResetOwnerKey
 
         if !spec.isEnabled(), !allowDisabled {
-            await self.clearDisabledProviderRefreshState(provider)
+            self.clearProviderRuntimeState(provider)
             return nil
         }
 
-        if provider == .codex, self.shouldFetchAllCodexVisibleAccounts() {
-            await self.refreshCodexVisibleAccountsForMenu(generation: generation)
+        if provider == .codex, codexAccountIDs != nil || self.shouldFetchAllCodexVisibleAccounts() {
+            guard !self.shouldUseAmbientCodexPATForUsage() else { return nil }
+            await self.refreshCodexVisibleAccountsForMenu(
+                generation: generation, requestedAccountIDs: codexAccountIDs)
             return nil
         } else if provider == .codex {
             self.reconcileCodexWidgetAccountSnapshots()
@@ -353,7 +362,6 @@ extension UsageStore {
         self.diagnostics[provider.instanceID] = nil
         let claudeAuthStateBeforeFetch = claudeActiveAccountIdentitySourceEligible
             ? await Self.captureClaudeRefreshAuthState(
-                invalidateCredentialsFile: true,
                 environment: fetchContext.env)
             : nil
         let priorTokenAccountSnapshot = self.tokenAccountSnapshot(provider: provider, account: tokenAccount)
@@ -930,14 +938,9 @@ extension UsageStore {
         self.codexAccountUsageSnapshotStore?.store(currentSnapshots)
     }
 
-    private func clearDisabledProviderRefreshState(_ provider: UsageProvider) async {
-        self.clearProviderRuntimeState(provider)
-    }
-
     private struct ClaudeRefreshAuthState {
         let fingerprintToken: String
         let credentialsFileChanged: Bool
-        let keychainFingerprintChanged: Bool
         let keychainPersistentRefHash: String?
         let activeAccountUuid: String?
         let activeAccountIdentity: String?
@@ -957,7 +960,6 @@ extension UsageStore {
         changedDuringFetch: Bool) -> Bool
     {
         beforeFetch?.credentialsFileChanged == true ||
-            beforeFetch?.keychainFingerprintChanged == true ||
             changedDuringFetch
     }
 
@@ -1119,14 +1121,12 @@ extension UsageStore {
     }
 
     private nonisolated static func captureClaudeRefreshAuthState(
-        invalidateCredentialsFile: Bool,
         environment: [String: String]) async -> ClaudeRefreshAuthState
     {
         await withTaskGroup(of: ClaudeRefreshAuthState.self, returning: ClaudeRefreshAuthState.self) { group in
             group.addTask {
-                let credentialsFileChanged = invalidateCredentialsFile
-                    ? ClaudeOAuthCredentialsStore.invalidateCacheIfCredentialsFileChanged(environment: environment)
-                    : false
+                let credentialsFileChanged = ClaudeOAuthCredentialsStore
+                    .invalidateCacheIfCredentialsFileChanged(environment: environment)
                 let fingerprintBefore = ClaudeOAuthCredentialsStore
                     .currentCredentialsFileFingerprintWithoutPromptForAuthGate(environment: environment) ?? "none"
                 let activeAccountUuid = Self.activeClaudeAccountUuid(environment: environment)
@@ -1139,7 +1139,6 @@ extension UsageStore {
                 return ClaudeRefreshAuthState(
                     fingerprintToken: fingerprintAfter,
                     credentialsFileChanged: credentialsFileChanged,
-                    keychainFingerprintChanged: false,
                     keychainPersistentRefHash: nil,
                     activeAccountUuid: activeAccountUuid,
                     activeAccountIdentity: activeAccountIdentity,
@@ -1218,7 +1217,6 @@ extension UsageStore {
             beforeFetch: ClaudeRefreshAuthState(
                 fingerprintToken: beforeFetchFingerprintToken,
                 credentialsFileChanged: false,
-                keychainFingerprintChanged: false,
                 keychainPersistentRefHash: beforeFetchPersistentRefHash,
                 activeAccountUuid: nil,
                 activeAccountIdentity: nil,
@@ -1238,7 +1236,6 @@ extension UsageStore {
             beforeFetch: ClaudeRefreshAuthState(
                 fingerprintToken: "before",
                 credentialsFileChanged: false,
-                keychainFingerprintChanged: false,
                 keychainPersistentRefHash: "before-ref",
                 activeAccountUuid: nil,
                 activeAccountIdentity: identityBeforeFetch,

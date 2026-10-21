@@ -27,7 +27,11 @@ public enum CursorProviderDescriptor {
             menuBarMetrics: ProviderMenuBarMetricCapabilities(
                 supported: [.automatic, .primary, .secondary, .tertiary, .extraUsage],
                 tertiaryRequiresWindow: true,
-                namedExtras: [CursorSandUsageStatus.extraWindowID: CursorSandUsageStatus.extraWindowTitle]),
+                namedExtras: [CursorSandUsageStatus.extraWindowID: CursorSandUsageStatus.extraWindowTitle],
+                // Several Cursor pools fit in the menu bar only with short tags; Total and Third Party
+                // would both derive "T", so the tags are explicit.
+                laneShortLabels: [.primary: "T", .secondary: "C", .tertiary: "TP"],
+                namedExtraShortLabels: [CursorSandUsageStatus.extraWindowID: "GB"]),
             settingsSection: .init(CursorProviderSettingsKey.self, cookieSettings: CursorProviderSettings.self),
             credentials: self.credentials,
             metadata: ProviderMetadata(
@@ -109,7 +113,8 @@ public enum CursorProviderDescriptor {
                     #else
                     false
                     #endif
-                }))
+                }),
+            nativeAppBundleIdentifiers: ["com.todesktop.230313mzl4w4u92"])
     }
 
     private static var supportsCostCommand: Bool {
@@ -147,8 +152,7 @@ public enum CursorProviderDescriptor {
         if !subquotas.isEmpty, usableSubquotas.isEmpty {
             return .resolved(subquotas.max(by: { $0.usedPercent < $1.usedPercent }))
         }
-        return .resolved(([total].compactMap(\.self) + usableSubquotas)
-            .max(by: { $0.usedPercent < $1.usedPercent }))
+        return .automaticCandidates([total].compactMap(\.self) + usableSubquotas)
     }
 
     private static var supportsTokenSnapshot: Bool {

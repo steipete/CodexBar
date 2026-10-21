@@ -379,7 +379,7 @@ extension StatusItemController {
         }
 
         let chartView = UsageBreakdownChartMenuView(breakdown: breakdown, width: width)
-        let hosting = MenuHostingView(rootView: chartView)
+        let hosting = MenuHostingView(rootView: chartView.codexBarLocalized())
         hosting.frame = NSRect(
             origin: .zero,
             size: NSSize(width: width, height: self.hostedSubviewFittingHeight(for: hosting, width: width)))
@@ -406,7 +406,7 @@ extension StatusItemController {
         }
 
         let chartView = CreditsHistoryChartMenuView(breakdown: breakdown, width: width)
-        let hosting = MenuHostingView(rootView: chartView)
+        let hosting = MenuHostingView(rootView: chartView.codexBarLocalized())
         hosting.frame = NSRect(
             origin: .zero,
             size: NSSize(width: width, height: self.hostedSubviewFittingHeight(for: hosting, width: width)))
@@ -451,7 +451,7 @@ extension StatusItemController {
             sessions: provider == .codex ? tokenSnapshot.sessions : [],
             hidePersonalInfo: self.settings.hidePersonalInfo,
             width: width)
-        let hosting = MenuHostingView(rootView: chartView)
+        let hosting = MenuHostingView(rootView: chartView.codexBarLocalized())
         let scrollView = CostHistoryMenuScrollView(
             hosting: hosting,
             width: width,

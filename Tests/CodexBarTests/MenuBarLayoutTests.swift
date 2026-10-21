@@ -26,6 +26,8 @@ struct MenuBarLayoutTests {
                 .pace(window: .weekly),
                 .pace(window: .automatic),
                 .usageBar,
+                .progressBar(window: .session), .progressBar(window: .weekly),
+                .progressBar(window: .scopedWeekly), .progressBar(window: .automatic),
             ],
             [
                 .resetCountdown,
@@ -34,7 +36,7 @@ struct MenuBarLayoutTests {
                 .runsOutCompact,
                 .balance,
                 .costToday,
-                .cost30d,
+                .costWindow,
                 .separatorDot,
                 .space,
             ],
@@ -54,6 +56,20 @@ struct MenuBarLayoutTests {
         #expect(String(bytes: labeled, encoding: .utf8) == #"{"runsOut":{}}"#)
         #expect(String(bytes: compact, encoding: .utf8) == #"{"runsOutCompact":{}}"#)
         #expect(try JSONDecoder().decode(MenuBarLayoutToken.self, from: labeled) == .runsOut)
+    }
+
+    @Test
+    func `cost window token keeps its persisted discriminator`() throws {
+        let encoded = try JSONEncoder().encode(MenuBarLayoutToken.costWindow)
+
+        #expect(String(bytes: encoded, encoding: .utf8) == #"{"cost30d":{}}"#)
+        #expect(try JSONDecoder().decode(MenuBarLayoutToken.self, from: encoded) == .costWindow)
+        #expect(try JSONDecoder().decode(MenuBarLayoutToken.self, from: Data(#"{"cost30d":{}}"#.utf8)) == .costWindow)
+        #expect(MenuBarConditionalMetric.costWindow.rawValue == "cost30d")
+        #expect(MenuBarConditionalMetric(rawValue: "cost30d") == .costWindow)
+        let metric = try JSONEncoder().encode(MenuBarConditionalMetric.costWindow)
+        #expect(String(bytes: metric, encoding: .utf8) == #""cost30d""#)
+        #expect(try JSONDecoder().decode(MenuBarConditionalMetric.self, from: metric) == .costWindow)
     }
 
     @Test
@@ -430,12 +446,12 @@ struct MenuBarLayoutTests {
     /// label beside the threshold field is `thresholdUnit`.
     @Test
     func `metric drives the editor row controls and units`() {
-        #expect(MenuBarConditionalMetric.allCases.count == 18)
+        #expect(MenuBarConditionalMetric.allCases.count == 22)
 
         let withDirection = MenuBarConditionalMetric.allCases.filter(\.supportsDirection)
         #expect(withDirection == [
-            .session, .weekly, .scopedWeekly, .automatic,
-            .primaryLane, .secondaryLane, .tertiaryLane, .balance,
+            .session, .weekly, .scopedWeekly, .automatic, .spend,
+            .primaryLane, .secondaryLane, .tertiaryLane, .balance, .spendAmount,
         ])
 
         #expect(MenuBarConditionalMetric.session.thresholdUnit == "%")
@@ -1152,17 +1168,19 @@ struct MenuBarLayoutTests {
         #expect(providerSettings.menuBarLayoutOverrides[.kimi] == providerLayout)
     }
 
-    @Test
+    @Test(arguments: MenuBarLayoutSize.allCases)
     @MainActor
-    func `provider override and display options persist across reload`() throws {
-        let suite = "MenuBarLayoutTests-provider-override"
+    func `provider override and display options persist across reload`(size: MenuBarLayoutSize) throws {
+        let suite = "MenuBarLayoutTests-provider-override-\(size.rawValue)"
         let settings = testSettingsStore(suiteName: suite)
         let global = try #require(MenuBarLayoutPreset.iconOnly.layout)
         let provider = try #require(MenuBarLayoutPreset.compactStacked.layout)
 
         settings.setMenuBarLayout(global, for: nil)
         settings.setMenuBarLayout(provider, for: .claude)
-        settings.menuBarLayoutSize = .small
+        #expect(!settings.menuBarLayoutMonospacedDigits)
+        settings.menuBarLayoutMonospacedDigits = true
+        settings.menuBarLayoutSize = size
         settings.menuBarLayoutGap = .tight
 
         #expect(settings.menuBarLayout(for: .codex) == global)
@@ -1172,7 +1190,8 @@ struct MenuBarLayoutTests {
         let reloaded = Self.reloadSettingsStore(settings)
         #expect(reloaded.menuBarLayout(for: .codex) == global)
         #expect(reloaded.menuBarLayout(for: .claude) == provider)
-        #expect(reloaded.menuBarLayoutSize == .small)
+        #expect(reloaded.menuBarLayoutSize == size)
+        #expect(reloaded.menuBarLayoutMonospacedDigits)
         #expect(reloaded.menuBarLayoutGap == .tight)
 
         reloaded.removeMenuBarLayoutOverride(for: .claude)

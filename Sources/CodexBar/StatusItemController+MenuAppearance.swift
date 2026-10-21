@@ -27,6 +27,7 @@ final class StatusMenuAppearanceObserver {
     convenience init(controller: StatusItemController) {
         self.init(source: NSApplication.shared, appearance: \NSApplication.effectiveAppearance) { [weak controller] in
             controller?.pinKnownMenus(to: $0)
+            controller?.refreshStatusItemContentForColorMode()
         }
     }
 

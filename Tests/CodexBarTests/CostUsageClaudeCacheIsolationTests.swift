@@ -75,7 +75,6 @@ struct CostUsageClaudeCacheIsolationTests {
         }
         #expect(encoded.snapshot().cacheEncodes == 1)
         #expect(encoded.snapshot().fragmentEncodes == 0)
-        #expect(encoded.snapshot().fragmentFallbacks == 0)
         #expect(encoded.persistenceSnapshot().writes == 1)
     }
 }

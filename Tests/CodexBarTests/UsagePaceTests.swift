@@ -152,6 +152,31 @@ struct UsagePaceTests {
     }
 
     @Test
+    func `six work days includes Saturday and excludes Sunday`() throws {
+        let calendar = Self.utcCalendar
+        let reset = try Self.date(year: 2026, month: 6, day: 15, hour: 0, calendar: calendar)
+        let window = RateWindow(
+            usedPercent: 90,
+            windowMinutes: 10080,
+            resetsAt: reset,
+            resetDescription: nil)
+
+        let saturday = try #require(UsagePace.weekly(
+            window: window,
+            now: reset.addingTimeInterval(-36 * 3600),
+            workDays: 6,
+            calendar: calendar))
+        let sunday = try #require(UsagePace.weekly(
+            window: window,
+            now: reset.addingTimeInterval(-12 * 3600),
+            workDays: 6,
+            calendar: calendar))
+
+        #expect(abs(saturday.expectedUsedPercent - 100 * 5.5 / 6) < 0.01)
+        #expect(sunday.expectedUsedPercent == 100)
+    }
+
+    @Test
     func `workday aware pace shows on track midweek`() throws {
         // Window: Sun Jun 7 00:00 → Sun Jun 14 00:00.
         // "now" is Thu Jun 11 00:00 → 3 full workdays (Mon-Wed) elapsed of 5.

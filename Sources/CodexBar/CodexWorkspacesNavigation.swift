@@ -63,7 +63,7 @@ final class CodexWorkspacesWindowController: NSWindowController {
             minimumSize: Self.minimumContentSize,
             model: model,
             store: store,
-            settings: settings))
+            settings: settings).codexBarLocalized())
         // Share the content minimum without adopting the empty state's intrinsic window size.
         hostingController.sizingOptions = .minSize
         window.contentViewController = hostingController

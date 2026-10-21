@@ -113,6 +113,6 @@ struct RaycastMenuCardModelTests {
         #expect(model.providerDetails.map(\.title) == ["Credits"])
         #expect(model.providerDetails[0].rows.map(\.label) == ["Left", "Total"])
         #expect(model.subscriptionNotes.count == 1)
-        #expect(model.subscriptionNotes[0].hasPrefix("Renews: "))
+        #expect(model.subscriptionNotes[0].hasPrefix("Plan renews: "))
     }
 }

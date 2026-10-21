@@ -64,6 +64,7 @@ struct InlineUsageDashboardModel: Equatable {
     /// ISO 4217 currency code for cost dashboards. When non-nil, `MiniUsageBars` shows a max-cost scale label.
     /// Nil for token/points dashboards.
     var currencyCode: String?
+    var chartTitle: String?
 }
 
 extension UsageMenuCardView.Model {
@@ -296,11 +297,12 @@ extension UsageMenuCardView.Model {
                 providerCurrency: snapshot.currencyCode)
         }
 
-        let historyDays = snapshot.displayHistoryDays(calendar: input.costUsageBucketCalendar)
+        let tokenCost = ProviderDescriptorRegistry.descriptor(for: input.provider).tokenCost
+        let calendar = tokenCost.chartCalendar ?? input.costUsageBucketCalendar
+        let historyDays = snapshot.displayHistoryDays(calendar: calendar)
         let explicitLabel = snapshot.historyLabel.map { L($0) }
         let period = explicitLabel ?? (historyDays == 1 ? L("Today") : String(format: L("Last %d days"), historyDays))
         let legacyMonth = explicitLabel == nil && historyDays == 30
-        let tokenCost = ProviderDescriptorRegistry.descriptor(for: input.provider).tokenCost
         let historyTitle = tokenCost.historyTitleStyle == .compact
             ? (legacyMonth ? "30d" : period)
             :
@@ -313,8 +315,7 @@ extension UsageMenuCardView.Model {
             days: Self.inlineCostHistoryDays(
                 snapshot: snapshot,
                 historyDays: historyDays,
-                preservesCalendarDays: tokenCost.preservesCalendarDaysInCharts,
-                calendar: input.costUsageBucketCalendar),
+                calendar: calendar),
             displayCurrencyCode: displayCurrencyCode,
             convertedValue: convertedValue)
         let latest = CostUsageTokenSnapshot.latestEntry(in: snapshot.daily)
@@ -386,7 +387,7 @@ extension UsageMenuCardView.Model {
         if input.provider == .cursor, let meteredCostUSD = snapshot.meteredCostUSD {
             kpis.insert(
                 .init(
-                    title: "Cursor-metered",
+                    title: L("Cursor-metered"),
                     value: convertedString(meteredCostUSD),
                     emphasis: true),
                 at: 0)
@@ -399,6 +400,7 @@ extension UsageMenuCardView.Model {
             detailLines: details)
         model.quotaWindows = quota.rows
         model.currencyCode = displayCurrencyCode
+        model.chartTitle = L("Daily spend · %@", period)
         return model
     }
 
@@ -484,7 +486,6 @@ extension UsageMenuCardView.Model {
         comparisonPeriodsEnabled: Bool,
         calendar: Calendar) -> InlineUsageDashboardModel
     {
-        let config = ProviderDescriptorRegistry.descriptor(for: provider).tokenCost
         let historyDays = snapshot.displayHistoryDays(calendar: calendar)
         let historyLabel = snapshot.historyLabel.map { L($0) } ?? Self.costHistoryWindowLabel(days: historyDays)
         var kpis = [InlineUsageDashboardModel.KPI(
@@ -509,7 +510,6 @@ extension UsageMenuCardView.Model {
             days: Self.inlineCostHistoryDays(
                 snapshot: snapshot,
                 historyDays: historyDays,
-                preservesCalendarDays: config.preservesCalendarDaysInCharts,
                 calendar: calendar),
             displayCurrencyCode: "USD",
             convertedValue: { $0 },
@@ -570,23 +570,17 @@ extension UsageMenuCardView.Model {
     private static func inlineCostHistoryDays(
         snapshot: CostUsageTokenSnapshot,
         historyDays: Int,
-        preservesCalendarDays: Bool,
         calendar sourceCalendar: Calendar)
         -> [(date: String, costUSD: Double?, totalTokens: Int?, incompleteRequestCount: Int)]
     {
-        let existingDays = snapshot.daily.suffix(historyDays)
-            .compactMap { entry -> (date: String, costUSD: Double?, totalTokens: Int?, incompleteRequestCount: Int)? in
-                guard entry.costUSD != nil || entry.totalTokens != nil || entry.incompleteRequestCount > 0
-                else { return nil }
-                return (entry.date, entry.costUSD, entry.totalTokens, entry.incompleteRequestCount)
-            }
-        guard preservesCalendarDays else { return existingDays }
-
+        guard !snapshot.daily.isEmpty || snapshot.last30DaysTokens != nil || snapshot.last30DaysCostUSD != nil else {
+            return []
+        }
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = sourceCalendar.timeZone
         let endDate = calendar.startOfDay(for: snapshot.updatedAt)
         guard let startDate = calendar.date(byAdding: .day, value: -(historyDays - 1), to: endDate) else {
-            return existingDays
+            return []
         }
 
         let entriesByDay = Dictionary(snapshot.daily.map { ($0.date, $0) }, uniquingKeysWith: { _, newer in newer })
@@ -693,16 +687,18 @@ extension UsageMenuCardView.Model {
 
 struct InlineUsageDashboardContent: View {
     private let model: InlineUsageDashboardModel
+    var showsChart = true
     @Environment(\.menuItemHighlighted) private var isHighlighted
 
-    init(model: InlineUsageDashboardModel) {
+    init(model: InlineUsageDashboardModel, showsChart: Bool = true) {
         self.model = model
+        self.showsChart = showsChart
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             self.kpis
-            if !self.model.points.isEmpty {
+            if self.showsChart, !self.model.points.isEmpty {
                 MiniUsageBars(model: self.model)
                     .frame(height: 58)
                     .accessibilityElement(children: .contain)
@@ -806,13 +802,13 @@ struct InlineUsageDashboardContent: View {
     private struct MiniUsageBars: View {
         let model: InlineUsageDashboardModel
         @Environment(\.menuItemHighlighted) private var isHighlighted
-        @Environment(\.layoutDirection) private var layoutDirection
+        @Environment(\.menuUsageBarSelection) private var injectedSelection
         @State private var selectedPointID: String?
 
         var body: some View {
             let scale = UsageChartScale(values: self.model.points.compactMap(\.value))
             let hoverDetail = self.model.points
-                .first(where: { $0.id == self.selectedPointID })?
+                .first(where: { $0.id == (self.injectedSelection ?? self.$selectedPointID).wrappedValue })?
                 .hoverDetail
             VStack(alignment: .trailing, spacing: 2) {
                 if let currencyCode = self.model.currencyCode {
@@ -830,181 +826,15 @@ struct InlineUsageDashboardContent: View {
                         .opacity(hoverDetail != nil || scale.maximum > 0 ? 1 : 0)
                         .accessibilityHidden(hoverDetail != nil)
                 }
-                GeometryReader { geometry in
-                    let layout = InlineUsageBarLayout(width: geometry.size.width, count: self.model.points.count)
-                    ZStack {
-                        HStack(alignment: .bottom, spacing: layout.spacing) {
-                            ForEach(self.model.points) { point in
-                                let barHeight = self.height(
-                                    for: point,
-                                    scale: scale,
-                                    available: geometry.size.height)
-                                RoundedRectangle(cornerRadius: 1.5, style: .continuous)
-                                    .fill(self.fill(for: point, scale: scale))
-                                    .frame(width: layout.barWidth)
-                                    .frame(height: barHeight)
-                                    .overlay {
-                                        if point.id == self.selectedPointID {
-                                            RoundedRectangle(cornerRadius: 1.5, style: .continuous)
-                                                .strokeBorder(
-                                                    MenuHighlightStyle.primary(self.isHighlighted),
-                                                    lineWidth: layout.selectionStrokeWidth(barHeight: barHeight))
-                                        }
-                                    }
-                                    .accessibilityLabel(point.accessibilityValue)
-                            }
-                        }
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-                        .overlay(alignment: .bottomLeading) {
-                            Rectangle()
-                                .fill(MenuHighlightStyle.secondary(self.isHighlighted).opacity(0.22))
-                                .frame(height: 1)
-                        }
-
-                        if self.model.points.contains(where: { $0.hoverDetail != nil }) {
-                            MouseLocationReader { location in
-                                self.updateSelection(location: location, layout: layout)
-                            }
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            .contentShape(Rectangle())
-                        }
-                    }
-                    .onChange(of: geometry.size.width) { _, _ in
-                        self.clearSelection()
-                    }
-                    .onChange(of: self.model.points) { previousPoints, points in
-                        let nextPointID = InlineUsageBarHoverSelection.reconciledPointID(
-                            current: self.selectedPointID,
-                            previousPoints: previousPoints,
-                            points: points)
-                        guard self.selectedPointID != nextPointID else { return }
-                        self.selectedPointID = nextPointID
-                    }
-                    .onChange(of: self.layoutDirection) { _, _ in
-                        self.clearSelection()
-                    }
-                }
+                MenuUsageBarStrip(
+                    points: self.model.points.map(\.menuUsageBarPoint),
+                    baseColor: self.baseColor,
+                    selection: self.injectedSelection ?? self.$selectedPointID)
             }
-        }
-
-        private func updateSelection(location: CGPoint?, layout: InlineUsageBarLayout) {
-            let nextPointID = InlineUsageBarHoverSelection.pointID(
-                current: self.selectedPointID,
-                locationX: location?.x,
-                layout: layout,
-                layoutDirection: self.layoutDirection,
-                points: self.model.points)
-            guard self.selectedPointID != nextPointID else { return }
-            self.selectedPointID = nextPointID
-        }
-
-        private func clearSelection() {
-            guard self.selectedPointID != nil else { return }
-            self.selectedPointID = nil
-        }
-
-        private func height(
-            for point: InlineUsageDashboardModel.Point,
-            scale: UsageChartScale,
-            available: CGFloat) -> CGFloat
-        {
-            guard let value = point.value else { return 1 }
-            let ratio = scale.fraction(for: value)
-            guard ratio > 0 else { return 1 }
-            return max(3, CGFloat(ratio) * available)
-        }
-
-        private func fill(for point: InlineUsageDashboardModel.Point, scale: UsageChartScale) -> Color {
-            guard let value = point.value else { return .clear }
-            let ratio = max(0.18, scale.fraction(for: value))
-            if self.isHighlighted {
-                return Color.white.opacity(0.55 + ratio * 0.35)
-            }
-            return self.baseColor.opacity(0.42 + ratio * 0.58)
         }
 
         private var baseColor: Color {
-            if let barColor = self.model.barColor {
-                return barColor
-            }
-            switch self.model.valueStyle {
-            case .currencyUSD, .currency:
-                return Color(red: 0.81, green: 0.56, blue: 0.24)
-            case .tokens:
-                return Color(red: 0.48, green: 0.41, blue: 0.86)
-            case .points:
-                return Color(red: 0.16, green: 0.62, blue: 0.36)
-            }
+            self.model.chartColor
         }
-    }
-}
-
-struct InlineUsageBarLayout {
-    let spacing: CGFloat
-    let barWidth: CGFloat
-    private let width: CGFloat
-    private let barCount: Int
-
-    init(width: CGFloat, count: Int) {
-        self.width = max(0, width)
-        self.barCount = max(0, count)
-        let layoutCount = max(1, self.barCount)
-        self.spacing = self.barCount <= 1 ? 0 : min(2, self.width / CGFloat(layoutCount) / 4)
-        self.barWidth = self.barCount == 0
-            ? 0
-            : max(0, (self.width - self.spacing * CGFloat(self.barCount - 1)) / CGFloat(self.barCount))
-    }
-
-    func selectionStrokeWidth(barHeight: CGFloat) -> CGFloat {
-        min(1, self.barWidth / 2, max(0, barHeight) / 2)
-    }
-
-    func contains(_ locationX: CGFloat) -> Bool {
-        self.barCount > 0 && self.width > 0 && locationX >= 0 && locationX <= self.width
-    }
-
-    func index(atX locationX: CGFloat, layoutDirection: LayoutDirection = .leftToRight) -> Int? {
-        guard self.contains(locationX), self.barWidth > 0 else { return nil }
-
-        let stride = self.barWidth + self.spacing
-        guard stride > 0 else { return nil }
-        let resolvedX = layoutDirection == .rightToLeft ? self.width - locationX : locationX
-        if self.spacing < 1 {
-            let nearest = Int(((resolvedX - self.barWidth / 2) / stride).rounded())
-            return min(max(nearest, 0), self.barCount - 1)
-        }
-        let index = min(Int(resolvedX / stride), self.barCount - 1)
-        let offset = resolvedX - CGFloat(index) * stride
-        let tolerance = max(1, self.width) * CGFloat.ulpOfOne * 8
-        return offset <= self.barWidth + tolerance ? index : nil
-    }
-}
-
-enum InlineUsageBarHoverSelection {
-    static func reconciledPointID(
-        current: String?,
-        previousPoints: [InlineUsageDashboardModel.Point],
-        points: [InlineUsageDashboardModel.Point]) -> String?
-    {
-        guard previousPoints.map(\.id) == points.map(\.id), let current else { return nil }
-        return points.contains { $0.id == current && $0.hoverDetail != nil } ? current : nil
-    }
-
-    static func pointID(
-        current: String?,
-        locationX: CGFloat?,
-        layout: InlineUsageBarLayout,
-        layoutDirection: LayoutDirection,
-        points: [InlineUsageDashboardModel.Point]) -> String?
-    {
-        guard let locationX else { return nil }
-        guard layout.contains(locationX) else { return nil }
-        guard let index = layout.index(atX: locationX, layoutDirection: layoutDirection) else {
-            return current.flatMap { currentID in
-                points.contains { $0.id == currentID && $0.hoverDetail != nil } ? currentID : nil
-            }
-        }
-        guard points.indices.contains(index), points[index].hoverDetail != nil else { return nil }
-        return points[index].id
     }
 }

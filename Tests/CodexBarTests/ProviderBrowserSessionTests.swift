@@ -28,27 +28,30 @@ struct ProviderBrowserSessionTests {
     func `same profile login changes discard success errors and cancellation`(
         engine: ProviderPluginEngineKind, outcome: String) async throws
     {
-        let token = OSAllocatedUnfairLock(initialState: "synthetic-account-a")
-        let interactions = OSAllocatedUnfairLock(initialState: [ProviderInteraction]())
-        let runtime = try Self.runtime(engine, outcome: outcome) { token.withLock { $0 = "synthetic-account-b" } }
-        let failure = try #require(await #expect(throws: ProviderBrowserSessionFailure.self) {
-            try await ProviderInteractionContext.$current.withValue(.userInitiated) {
-                let broker = LangdockPluginTests.broker(runtime) { profile in
-                    #expect(profile == LangdockPluginTests.profile)
-                    interactions.withLock { $0.append(ProviderInteractionContext.current) }
-                    return try [LangdockPluginTests.record(token.withLock { $0 })]
+        for selectedProfile in LangdockPluginTests.profiles {
+            let token = OSAllocatedUnfairLock(initialState: "synthetic-account-a")
+            let interactions = OSAllocatedUnfairLock(initialState: [ProviderInteraction]())
+            let runtime = try Self.runtime(engine, outcome: outcome) { token.withLock { $0 = "synthetic-account-b" } }
+            let failure = try #require(await #expect(throws: ProviderBrowserSessionFailure.self) {
+                try await ProviderInteractionContext.$current.withValue(.userInitiated) {
+                    let broker = LangdockPluginTests.broker(runtime, profile: selectedProfile) { profile in
+                        #expect(profile == selectedProfile)
+                        interactions.withLock { $0.append(ProviderInteractionContext.current) }
+                        return try [LangdockPluginTests.record(token.withLock { $0 })]
+                    }
+                    return try await runtime.fetchResult(cookies: broker)
                 }
-                return try await runtime.fetchResult(cookies: broker)
-            }
-        })
-        #expect(failure.owner == nil)
-        #expect((failure.underlyingError as? ProviderFetchClassifiedError)?.kind == .authenticationExpired)
-        #expect(interactions.withLock { $0 } == [.userInitiated, .background])
-        let prior = try await LangdockPluginTests.fetch(
-            LangdockPluginTests.body(LangdockPluginTests.plan),
-            engine: engine)
-        #expect(!UsageStore.shouldPreservePriorSnapshot(after: failure, hadPriorData: true, priorSnapshot: prior))
-        #expect(!UsageStore.shouldSuppressProviderCancellation(failure, priorSnapshot: prior))
+            })
+            #expect(failure.owner == nil)
+            #expect((failure.underlyingError as? ProviderFetchClassifiedError)?.kind == .authenticationExpired)
+            #expect(interactions.withLock { $0 } == [.userInitiated, .background])
+            let prior = try await LangdockPluginTests.fetch(
+                LangdockPluginTests.body(LangdockPluginTests.plan),
+                profile: selectedProfile,
+                engine: engine)
+            #expect(!UsageStore.shouldPreservePriorSnapshot(after: failure, hadPriorData: true, priorSnapshot: prior))
+            #expect(!UsageStore.shouldSuppressProviderCancellation(failure, priorSnapshot: prior))
+        }
     }
 
     @Test(arguments: BundledPluginTestSupport.engines, ["http", "network", "cancelled"])
@@ -94,26 +97,31 @@ struct ProviderBrowserSessionTests {
     func `selected sessions never expose credentials and never consult another profile or cache`(
         engine: ProviderPluginEngineKind) async throws
     {
-        let source = ProviderPluginSelectedProfileTests.source.replacingOccurrences(
-            of: "const response = await", with: """
-            if (session.header !== undefined || session.cacheKey !== undefined || session.fingerprint !== undefined)
-              throw new Error('Session secret exposed');
-            let denied = false;
-            try { await ctx.browser.cookieHeader('app.langdock.com'); } catch { denied = true; }
-            if (!denied) throw new Error('Header API exposed');
-            const response = await
-            """)
-        let runtime = try Self.runtime(engine, source: source)
-        let storage = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        defer { try? FileManager.default.removeItem(at: storage) }
-        try await CookieHeaderCache.withLegacyBaseURLOverrideForTesting(storage) {
-            CookieHeaderCache.store(provider: .langdock, cookieHeader: "auth_token=other-account", sourceLabel: "Other")
-            let broker = LangdockPluginTests.broker(runtime)
-            #expect(try broker.nextSession(domain: "app.langdock.com", cachedOnly: true) == nil)
-            let result = try await runtime.fetchResult(cookies: broker)
-            #expect(result.usage.primary?.usedPercent == 42)
-            #expect(try broker.nextSession(domain: "app.langdock.com") == nil)
-            #expect(CookieHeaderCache.load(provider: .langdock)?.cookieHeader == "auth_token=other-account")
+        for selectedProfile in LangdockPluginTests.profiles {
+            let source = ProviderPluginSelectedProfileTests.source.replacingOccurrences(
+                of: "const response = await", with: """
+                if (session.header !== undefined || session.cacheKey !== undefined || session.fingerprint !== undefined)
+                  throw new Error('Session secret exposed');
+                let denied = false;
+                try { await ctx.browser.cookieHeader('app.langdock.com'); } catch { denied = true; }
+                if (!denied) throw new Error('Header API exposed');
+                const response = await
+                """)
+            let runtime = try Self.runtime(engine, source: source)
+            let storage = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+            defer { try? FileManager.default.removeItem(at: storage) }
+            try await CookieHeaderCache.withLegacyBaseURLOverrideForTesting(storage) {
+                CookieHeaderCache.store(
+                    provider: .langdock,
+                    cookieHeader: "auth_token=other-account",
+                    sourceLabel: "Other")
+                let broker = LangdockPluginTests.broker(runtime, profile: selectedProfile)
+                #expect(try broker.nextSession(domain: "app.langdock.com", cachedOnly: true) == nil)
+                let result = try await runtime.fetchResult(cookies: broker)
+                #expect(result.usage.primary?.usedPercent == 42)
+                #expect(try broker.nextSession(domain: "app.langdock.com") == nil)
+                #expect(CookieHeaderCache.load(provider: .langdock)?.cookieHeader == "auth_token=other-account")
+            }
         }
     }
 
@@ -136,6 +144,9 @@ struct ProviderBrowserSessionTests {
         #expect(try expected != owner(
             [record],
             profile: .init(browserID: "edge", profileID: "/synthetic/Edge/Profile 1")))
+        #expect(try expected != owner(
+            [record],
+            profile: .init(browserID: "chrome", profileID: LangdockPluginTests.profile.profileID)))
         #expect(throws: ProviderFetchClassifiedError.self) { try owner([]) }
         #expect(throws: ProviderFetchClassifiedError.self) { try owner([
             record,
@@ -143,8 +154,8 @@ struct ProviderBrowserSessionTests {
         ]) }
     }
 
-    @Test
-    func `only the explicitly configured store is read even when another is first`() throws {
+    @Test(arguments: [Browser.edge, .chrome, .safari])
+    func `only the explicitly configured store is read even when another is first`(browser: Browser) throws {
         func store(
             _ id: String,
             browser: Browser = .edge,
@@ -157,18 +168,21 @@ struct ProviderBrowserSessionTests {
                 label: "Fixture",
                 databaseURL: URL(fileURLWithPath: id).appendingPathComponent("Cookies"))
         }
-        let selected = LangdockPluginTests.profile
-        let expected = store(selected.profileID)
+        let directory = "/synthetic/selected"
+        let expected = store(directory, browser: browser, kind: browser == .safari ? .safari : .network)
+        let selected = try ProviderBrowserProfile(
+            browserID: browser.rawValue,
+            profileID: #require(ProviderBrowserProfile.selectableProfile(for: expected)).id)
         let stores = [
-            store("/synthetic/other"),
-            store(selected.profileID, browser: .chrome),
-            store(selected.profileID, kind: .primary),
+            store("/synthetic/other", browser: browser, kind: browser == .safari ? .safari : .network),
+            store(directory, browser: browser == .chrome ? .edge : .chrome),
             expected,
+            store(directory, browser: browser, kind: browser == .safari ? .safari : .primary),
         ]
         #expect(try ProviderBrowserProfile.selectedStore(selected, from: stores) == expected)
         #expect(throws: ProviderFetchClassifiedError.self) {
             try ProviderBrowserProfile.selectedStore(
-                .init(browserID: "edge", profileID: "/synthetic/absent"),
+                .init(browserID: browser.rawValue, profileID: "/synthetic/absent"),
                 from: stores)
         }
     }

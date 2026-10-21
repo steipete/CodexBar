@@ -49,13 +49,21 @@ enum MenuBarLayoutPaletteTokens {
             .percent(window: .session),
             .percent(window: .weekly),
             .percent(window: .scopedWeekly),
+            .percent(window: .spend),
         ] + MenuBarLayoutLane.available(for: provider, snapshot: snapshot).map { .lanePercent(lane: $0) }
             + MenuBarLayoutNamedExtra.availableTokens(provider: provider, snapshot: snapshot) + [
                 .percent(window: .automatic),
                 .usageBar,
+                .progressBar(window: .session),
+                .progressBar(window: .weekly),
+                .progressBar(window: .scopedWeekly),
+                .progressBar(window: .automatic),
+                .tokensPerMinute,
+                .tokensSparkline,
                 .pace(window: .session),
                 .pace(window: .weekly),
                 .pace(window: .automatic),
+                .pace(window: .spend),
             ]
     }
 
@@ -66,6 +74,8 @@ enum MenuBarLayoutPaletteTokens {
         .windowResetAbsolute(window: .session),
         .windowResetCountdown(window: .weekly),
         .windowResetAbsolute(window: .weekly),
+        .windowResetCountdown(window: .spend),
+        .windowResetAbsolute(window: .spend),
         .runsOut,
         .runsOutCompact,
     ]
@@ -77,15 +87,25 @@ enum MenuBarLayoutPaletteTokens {
         .percent(window: .session),
         .percent(window: .weekly),
         .percent(window: .scopedWeekly),
+        .percent(window: .spend),
         .percent(window: .automatic),
         .usageBar,
+        .progressBar(window: .session),
+        .progressBar(window: .weekly),
+        .progressBar(window: .scopedWeekly),
+        .progressBar(window: .automatic),
         .pace(window: .session),
         .pace(window: .weekly),
         .pace(window: .automatic),
+        .pace(window: .spend),
     ] + Self.time + [
         .balance,
         .costToday,
-        .cost30d,
+        .tokensPerMinute,
+        .tokensSparkline,
+        .costWindow,
+        .spendAmount,
+        .spendBudget,
         .separatorDot,
         .space,
         .hidden,
@@ -294,6 +314,26 @@ struct MenuBarLayoutEditor: View {
             })
     }
 
+    private var monospacedDigitsBinding: Binding<Bool> {
+        Binding(
+            get: { self.settings.menuBarLayoutMonospacedDigits },
+            set: { enabled in
+                self.settings.menuBarLayoutMonospacedDigits = enabled
+                MenuBarLayoutEditorPersistence.activate(
+                    self.layout, for: self.persistenceProvider, settings: self.settings)
+            })
+    }
+
+    private var showWindowLabelsBinding: Binding<Bool> {
+        Binding(
+            get: { self.settings.menuBarLayoutShowWindowLabels },
+            set: { enabled in
+                self.settings.menuBarLayoutShowWindowLabels = enabled
+                MenuBarLayoutEditorPersistence.activate(
+                    self.layout, for: self.persistenceProvider, settings: self.settings)
+            })
+    }
+
     private var gapBinding: Binding<MenuBarLayoutGap> {
         Binding(
             get: { self.settings.menuBarLayoutGap },
@@ -328,7 +368,7 @@ struct MenuBarLayoutEditor: View {
             MenuBarLayoutPaletteGroup(
                 id: "money",
                 title: L("menu_bar_layout_group_money"),
-                tokens: [.balance, .costToday, .cost30d],
+                tokens: [.balance, .costToday, .costWindow, .spendAmount, .spendBudget],
                 includesLineBreak: false),
             MenuBarLayoutPaletteGroup(
                 id: "structure",
@@ -623,6 +663,10 @@ struct MenuBarLayoutEditor: View {
                         activate: {
                             self.write(MenuBarLayoutEditorMutations.append(token, to: self.layout))
                         })
+                        .help(token == .tokensPerMinute
+                            ? L("Latest tokens per minute (OpenAI Admin API)")
+                            : token == .tokensSparkline
+                            ? L("Last hour of tokens per minute (OpenAI Admin API)") : "")
                 }
                 if group.includesLineBreak {
                     MenuBarLayoutEditorChip(
@@ -719,7 +763,9 @@ struct MenuBarLayoutEditor: View {
         MenuBarLayoutDisplayOptions(
             size: self.sizeBinding,
             gap: self.gapBinding,
-            verticalAdjustment: self.$settings.menuBarLayoutVerticalAdjustment)
+            verticalAdjustment: self.$settings.menuBarLayoutVerticalAdjustment,
+            monospacedDigits: self.monospacedDigitsBinding,
+            showWindowLabels: self.showWindowLabelsBinding)
     }
 
     private func applyPreset(_ preset: MenuBarLayoutPreset) {
@@ -883,6 +929,8 @@ struct MenuBarLayoutChipFlowLayout: Layout {
 
 @MainActor
 struct MenuBarLayoutPreview: View {
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.colorSchemeContrast) private var colorSchemeContrast
     let layout: MenuBarLayout
     let provider: UsageProvider?
     @Bindable var settings: SettingsStore
@@ -897,89 +945,32 @@ struct MenuBarLayoutPreview: View {
             ?? self.representativeData(provider: provider)
         let icon = ProviderBrandIcon.image(for: provider)
         let minute = Date(timeIntervalSince1970: floor(Date().timeIntervalSince1970 / 60) * 60)
+        let appearanceName = self.colorScheme == .dark ? "darkAqua" : "aqua"
         let rendered = self.renderer.render(
             layout: self.layout,
             data: data,
             icon: icon,
             options: MenuBarLayoutRenderOptions(
                 size: self.settings.menuBarLayoutSize,
-                highContrast: self.settings.menuBarHighContrastOnInactiveDisplays,
+                highContrast: self.settings.menuBarHighContrastOnInactiveDisplays
+                    || (self.settings.menuBarColorByProvider && self.colorSchemeContrast == .increased),
                 showUsed: self.settings.usageBarsShowUsed,
                 conditionals: self.settings.menuBarLayoutConditionals,
-                appearanceName: "preview",
+                appearanceName: appearanceName,
                 isDebugApp: false,
                 now: minute,
                 verticalAdjustment: self.settings.menuBarLayoutVerticalAdjustment,
-                colorPace: self.settings.menuBarColorPace))
+                colorPace: self.settings.menuBarColorPace,
+                colorByProvider: self.settings.menuBarColorByProvider,
+                monospacedDigits: self.settings.menuBarLayoutMonospacedDigits,
+                showWindowLabels: self.settings.menuBarLayoutShowWindowLabels))
         MenuBarLayoutPreviewText(rendered: rendered)
     }
 
     func liveData(provider: UsageProvider, snapshot: UsageSnapshot) -> MenuBarLayoutRenderData {
         let now = Date()
-        let session: RateWindow?
-        let weekly: RateWindow?
-        let rawAutomatic: RateWindow?
-        let primary: RateWindow?
-        let secondary: RateWindow?
-        let tertiary = snapshot.tertiary
-        if provider == .codex,
-           let projection = self.store.codexConsumerProjectionIfNeeded(
-               for: provider,
-               surface: .menuBar,
-               snapshotOverride: snapshot,
-               now: now)
-        {
-            session = projection.menuBarSelectableRateWindow(for: .session)
-            weekly = projection.menuBarSelectableRateWindow(for: .weekly)
-            rawAutomatic = projection.automaticMenuBarWindow()
-            primary = session
-            secondary = weekly
-        } else {
-            let semanticWindows = MenuBarLayoutSemanticWindowResolver.windows(
-                provider: provider,
-                snapshot: snapshot)
-            session = semanticWindows.session
-            weekly = semanticWindows.weekly
-            // Provider-specific by design: Mistral's automatic lane can explicitly select its Monthly Plan window.
-            let automaticPreference = provider == .mistral
-                ? self.settings.menuBarMetricPreference(for: provider, snapshot: snapshot)
-                : .automatic
-            rawAutomatic = MenuBarMetricWindowResolver.rateWindow(
-                preference: automaticPreference,
-                provider: provider,
-                snapshot: snapshot,
-                supportsAverage: self.settings.menuBarMetricSupportsAverage(for: provider),
-                antigravityPrioritizeExhaustedQuotas: self.settings.antigravityPrioritizeExhaustedQuotas,
-                now: now)
-            primary = snapshot.primary
-            secondary = snapshot.secondary
-        }
-        let automatic = MenuBarLayoutAutomaticWindowDisplayNormalizer.normalized(
-            provider: provider,
-            snapshot: snapshot,
-            window: rawAutomatic)
-        let scopedNamed = MenuBarLayoutSemanticWindowResolver.scopedWeeklyNamedWindow(snapshot: snapshot)
-        let paceWindow = weekly ?? automatic
-        // Bind the pace itself: `etaSeconds` is the numeric run-out conditional predicates compare.
-        let pace = paceWindow.flatMap {
-            self.store.weeklyPace(
-                provider: provider,
-                window: $0,
-                dataConfidence: snapshot.dataConfidence,
-                now: now)
-        }
-        let runsOut = pace
-            .flatMap { UsagePaceText.weeklyDetail(provider: provider, pace: $0, now: now).rightLabel }
         let cost = self.store.tokenSnapshotForCurrentProviderConfig(for: provider)?.snapshot
         let costToday = MenuBarLayoutCostResolver.todayCostUSD(snapshot: cost, now: now)
-        let balanceAmounts = MenuBarLayoutBalanceResolver.balanceAmountsUSD(
-            provider: provider,
-            snapshot: snapshot)
-        let codexCredits = self.store.codexConsumerProjectionIfNeeded(
-            for: provider,
-            surface: .menuBar,
-            snapshotOverride: snapshot,
-            now: now)?.credits?.snapshot
         // Thresholds are USD, and `convertedCost` returns the source amount unchanged when no rate
         // exists, so keep the datum only when the conversion actually landed in USD.
         let toUSD = { (value: Double) -> Double? in
@@ -989,78 +980,22 @@ struct MenuBarLayoutPreview: View {
                 providerCurrency: cost?.currencyCode)
             return converted.currencyCode == "USD" ? converted.value : nil
         }
-        let automaticRenderWindow = MenuBarLayoutRenderWindow(automatic)
-        return MenuBarLayoutRenderData(
+        return self.store.menuBarLayoutRenderData(
             provider: provider,
+            snapshot: snapshot,
             iconKey: provider.rawValue,
-            providerName: L(self.store.metadata(for: provider).displayName),
             accountLabel: self.settings.hidePersonalInfo ? nil : snapshot.accountEmail(for: provider),
-            laneLabels: MenuBarLayoutLaneLabels(provider: provider, snapshot: snapshot),
-            primary: MenuBarLayoutRenderWindow(primary),
-            secondary: MenuBarLayoutRenderWindow(secondary),
-            tertiary: MenuBarLayoutRenderWindow(tertiary),
-            extraRateWindows: (snapshot.extraRateWindows ?? []).map(MenuBarLayoutRenderExtra.init),
-            session: MenuBarLayoutRenderWindow(session),
-            weekly: MenuBarLayoutRenderWindow(weekly),
-            scopedWeekly: MenuBarLayoutRenderWindow(scopedNamed?.window),
-            scopedWeeklyTitle: scopedNamed?.title,
-            automatic: automaticRenderWindow,
-            automaticText: StatusItemController.menuBarLayoutAutomaticText(
-                provider: provider,
-                snapshot: snapshot,
-                automatic: automaticRenderWindow),
-            sessionPace: self.store.menuBarLayoutPaceText(
-                provider: provider,
-                window: session,
-                dataConfidence: snapshot.dataConfidence,
-                now: now),
-            weeklyPace: self.store.menuBarLayoutPaceText(
-                provider: provider,
-                window: weekly,
-                dataConfidence: snapshot.dataConfidence,
-                now: now,
-                minimumElapsedPercent: 1),
-            automaticPace: self.store.menuBarLayoutPaceText(
-                provider: provider,
-                window: automatic,
-                dataConfidence: snapshot.dataConfidence,
-                now: now),
-            runsOut: runsOut,
-            balance: MenuBarLayoutBalanceResolver.balance(
-                provider: provider,
-                snapshot: snapshot,
-                codexCredits: codexCredits),
-            costToday: costToday.map {
-                UsageFormatter.currencyString($0, currencyCode: cost?.currencyCode ?? "USD")
-            },
-            cost30d: cost?.last30DaysCostUSD.map {
-                UsageFormatter.currencyString($0, currencyCode: cost?.currencyCode ?? "USD")
-            },
-            metrics: MenuBarLayoutRenderMetrics(
-                sessionPaceDelta: self.store.menuBarLayoutPaceDelta(
-                    provider: provider,
-                    window: session,
-                    dataConfidence: snapshot.dataConfidence,
-                    now: now),
-                weeklyPaceDelta: self.store.menuBarLayoutPaceDelta(
-                    provider: provider,
-                    window: weekly,
-                    dataConfidence: snapshot.dataConfidence,
-                    now: now,
-                    minimumElapsedPercent: 1),
-                automaticPaceDelta: self.store.menuBarLayoutPaceDelta(
-                    provider: provider,
-                    window: automatic,
-                    dataConfidence: snapshot.dataConfidence,
-                    now: now),
-                runsOutMinutes: pace?.etaSeconds.map { Int(($0 / 60).rounded()) },
-                balanceRemainingUSD: balanceAmounts.remaining,
-                balanceUsedUSD: balanceAmounts.used,
-                costTodayUSD: costToday.flatMap(toUSD),
-                cost30dUSD: cost?.last30DaysCostUSD.flatMap(toUSD)))
+            costs: MenuBarLayoutCostValues(
+                today: costToday.map { UsageFormatter.currencyString($0, currencyCode: cost?.currencyCode ?? "USD") },
+                last30Days: cost?.last30DaysCostUSD.map {
+                    UsageFormatter.currencyString($0, currencyCode: cost?.currencyCode ?? "USD")
+                },
+                todayUSD: costToday.flatMap(toUSD),
+                last30DaysUSD: cost?.last30DaysCostUSD.flatMap(toUSD)),
+            now: now)
     }
 
-    private func representativeData(provider: UsageProvider) -> MenuBarLayoutRenderData {
+    func representativeData(provider: UsageProvider) -> MenuBarLayoutRenderData {
         let now = Date()
         let session = RateWindow(
             usedPercent: 37,
@@ -1080,11 +1015,18 @@ struct MenuBarLayoutPreview: View {
         // Sample pace comes straight from the pure calculation rather than the store, so the palette
         // preview stays deterministic before any snapshot has been fetched.
         let samplePace = { (window: RateWindow) -> String? in
-            MenuBarDisplayText.paceText(pace: UsagePace.weekly(window: window, now: now))
+            MenuBarDisplayText.paceText(
+                pace: UsagePace.weekly(window: window, now: now),
+                reservePositive: self.settings.menuBarPaceReservePositive)
         }
         let samplePaceDelta = { (window: RateWindow) -> Double? in
             UsagePace.weekly(window: window, now: now)?.deltaPercent.rounded()
         }
+        let spend = RateWindow(
+            usedPercent: 46,
+            windowMinutes: 30 * 24 * 60,
+            resetsAt: now.addingTimeInterval(12 * 24 * 60 * 60),
+            resetDescription: nil)
         return MenuBarLayoutRenderData(
             provider: provider,
             iconKey: "\(provider.rawValue)-representative",
@@ -1107,6 +1049,10 @@ struct MenuBarLayoutPreview: View {
             runsOut: L("Runs out in %@", "1d 16h"),
             // Provider-specific by design: only OpenRouter previews the Balance palette token.
             balance: provider == .openrouter ? "$12.34" : nil,
+            tokensPerMinute: 49_000_000,
+            tokensSparkline: .init(
+                values: [30, 65, 40, 50, 35, 80, 45, 60, 151, 55, 70, 45, 60, 49].map { $0 * 1_000_000 },
+                latest: 49_000_000),
             costToday: "$1.25",
             cost30d: "$20.00",
             metrics: MenuBarLayoutRenderMetrics(
@@ -1115,10 +1061,18 @@ struct MenuBarLayoutPreview: View {
                 automaticPaceDelta: samplePaceDelta(session),
                 // 1d 16h == 40h, matching the sample `runsOut` text above.
                 runsOutMinutes: 2400,
+                // Provider-specific by design: Balance predicates mirror the OpenRouter preview amounts.
                 balanceRemainingUSD: provider == .openrouter ? 12.34 : nil,
                 balanceUsedUSD: provider == .openrouter ? 7.66 : nil,
                 costTodayUSD: 1.25,
-                cost30dUSD: 20))
+                cost30dUSD: 20,
+                spendPaceDelta: samplePaceDelta(spend),
+                spendUsedUSD: 460,
+                spendRemainingUSD: 540),
+            spend: MenuBarLayoutRenderWindow(spend),
+            spendPace: samplePace(spend),
+            spendAmount: "$460",
+            spendBudget: "$460 / $1,000")
     }
 }
 
@@ -1170,6 +1124,7 @@ extension MenuBarLayoutPreset {
         case .iconOnly: L("menu_bar_layout_preset_icon_only")
         case .percentAndReset: L("menu_bar_layout_preset_percent_reset")
         case .compactStacked: L("menu_bar_layout_preset_compact_stacked")
+        case .barsStacked: L("menu_bar_layout_preset_bars_stacked")
         case .custom: L("menu_bar_layout_preset_custom")
         }
     }
@@ -1180,6 +1135,7 @@ extension MenuBarLayoutSize {
         switch self {
         case .small: L("menu_bar_layout_size_small")
         case .regular: L("menu_bar_layout_size_regular")
+        case .large: L("menu_bar_layout_size_large")
         }
     }
 }
@@ -1210,7 +1166,8 @@ extension MenuBarLayoutToken {
     private func providerEditorLabel(provider: UsageProvider?) -> String? {
         let window: PercentWindow? = switch self {
         case let .percent(window), let .pace(window),
-             let .windowResetCountdown(window), let .windowResetAbsolute(window): window
+             let .windowResetCountdown(window), let .windowResetAbsolute(window),
+             let .progressBar(window): window
         default: nil
         }
         guard let localizedLabel = window?.providerLabel(provider: provider) else { return nil }
@@ -1221,6 +1178,8 @@ extension MenuBarLayoutToken {
             L("%@: %@", localizedLabel, L("menu_bar_layout_token_resets_in"))
         case .windowResetAbsolute:
             L("%@: %@", localizedLabel, L("menu_bar_layout_token_reset_at"))
+        case .progressBar:
+            L("%@ %@", localizedLabel, L("menu_bar_layout_token_bar"))
         default: nil
         }
     }
@@ -1234,13 +1193,17 @@ extension MenuBarLayoutToken {
         case .percent(window: .weekly): L("menu_bar_layout_token_weekly")
         case .percent(window: .scopedWeekly): L("menu_bar_layout_token_scoped_weekly")
         case .percent(window: .automatic): L("menu_bar_layout_token_auto")
+        case .percent(window: .spend): L("menu_bar_layout_token_spend")
         case let .lanePercent(lane): L("%@ %@", lane.rawValue.capitalized, "%")
         case .extraPercent: L("%@ %@", L("Usage"), "%")
         case .pace(window: .session): L("menu_bar_layout_token_session_pace")
         case .pace(window: .weekly): L("menu_bar_layout_token_weekly_pace")
         case .pace(window: .scopedWeekly): L("menu_bar_layout_token_weekly_pace")
         case .pace(window: .automatic): L("menu_bar_layout_token_auto_pace")
+        case .pace(window: .spend): L("menu_bar_layout_token_spend_pace")
         case .usageBar: L("menu_bar_layout_token_bar")
+        case let .progressBar(window):
+            L("%@ %@", Self.resetWindowLabel(window), L("menu_bar_layout_token_bar"))
         case .resetCountdown: L("menu_bar_layout_token_resets_in")
         case .resetAbsolute: L("menu_bar_layout_token_reset_at")
         case let .windowResetCountdown(window):
@@ -1250,8 +1213,12 @@ extension MenuBarLayoutToken {
         case .runsOut: L("menu_bar_layout_token_runs_out")
         case .runsOutCompact: "\(L("menu_bar_layout_token_runs_out")) (compact)"
         case .balance: L("Balance")
+        case .tokensPerMinute: L("Tokens / min")
+        case .tokensSparkline: L("Tokens / min graph")
         case .costToday: L("menu_bar_layout_token_cost_today")
-        case .cost30d: L("menu_bar_layout_token_cost_30d")
+        case .costWindow: L("menu_bar_layout_token_cost_window")
+        case .spendAmount: L("Spend")
+        case .spendBudget: L("menu_bar_layout_token_spend_budget")
         case .separatorDot: "·"
         case .space: L("menu_bar_layout_token_space")
         case .conditional: L("menu_bar_layout_token_conditional")
@@ -1265,6 +1232,7 @@ extension MenuBarLayoutToken {
         case .weekly: L("Weekly")
         case .scopedWeekly: L("menu_bar_layout_conditional_metric_scoped_weekly")
         case .automatic: L("Automatic")
+        case .spend: L("Spend")
         }
     }
 
@@ -1293,13 +1261,15 @@ extension MenuBarLayoutToken {
         case .accountLabel: "person.crop.circle"
         case .percent, .lanePercent, .extraPercent: "percent"
         case .pace: "speedometer"
-        case .usageBar: "chart.bar.fill"
+        case .usageBar, .progressBar: "chart.bar.fill"
         case .resetCountdown, .windowResetCountdown: "timer"
         case .resetAbsolute, .windowResetAbsolute: "clock"
         case .runsOut, .runsOutCompact: "hourglass.bottomhalf.filled"
         case .balance: "creditcard"
-        case .costToday: "dollarsign.circle"
-        case .cost30d: "calendar.badge.clock"
+        case .tokensPerMinute: "speedometer"
+        case .tokensSparkline: "chart.bar.xaxis"
+        case .costToday, .spendAmount, .spendBudget: "dollarsign.circle"
+        case .costWindow: "calendar.badge.clock"
         case .separatorDot: "smallcircle.filled.circle"
         case .space: "space"
         case .conditional: "switch.2"
@@ -1314,61 +1284,69 @@ struct MenuBarLayoutDisplayOptions: View {
     @Binding var size: MenuBarLayoutSize
     @Binding var gap: MenuBarLayoutGap
     @Binding var verticalAdjustment: Int
+    @Binding var monospacedDigits: Bool
+    @Binding var showWindowLabels: Bool
 
     var body: some View {
-        HStack(spacing: 18) {
-            HStack(spacing: 8) {
-                Text(L("menu_bar_layout_size"))
-                    .lineLimit(1)
-                    .fixedSize()
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 18) {
+                HStack(spacing: 8) {
+                    Text(L("menu_bar_layout_size"))
+                        .lineLimit(1)
+                        .fixedSize()
 
-                Picker(L("menu_bar_layout_size"), selection: self.$size) {
-                    ForEach(MenuBarLayoutSize.allCases) { size in
-                        Text(size.label).tag(size)
+                    Picker(L("menu_bar_layout_size"), selection: self.$size) {
+                        ForEach(MenuBarLayoutSize.allCases) { size in
+                            Text(size.label).tag(size)
+                        }
                     }
-                }
-                .labelsHidden()
-                .pickerStyle(.menu)
-                .fixedSize()
-            }
-
-            HStack(spacing: 8) {
-                Text(L("menu_bar_layout_gap"))
-                    .lineLimit(1)
-                    .fixedSize()
-
-                Picker(L("menu_bar_layout_gap"), selection: self.$gap) {
-                    ForEach(MenuBarLayoutGap.allCases) { gap in
-                        Text(gap.label).tag(gap)
-                    }
-                }
-                .labelsHidden()
-                .pickerStyle(.menu)
-                .fixedSize()
-            }
-
-            HStack(spacing: 8) {
-                Text(L("menu_bar_layout_vertical_adjustment"))
-                    .lineLimit(1)
-                    .fixedSize()
-
-                TextField(
-                    "",
-                    value: self.$verticalAdjustment,
-                    format: .number)
                     .labelsHidden()
-                    .textFieldStyle(.roundedBorder)
-                    .multilineTextAlignment(.trailing)
-                    .monospacedDigit()
-                    .frame(width: 44)
-
-                Stepper(value: self.$verticalAdjustment, in: -20...20, step: 1) {
-                    EmptyView()
+                    .pickerStyle(.menu)
+                    .fixedSize()
                 }
-                .labelsHidden()
-            }
 
-            Spacer()
+                HStack(spacing: 8) {
+                    Text(L("menu_bar_layout_gap"))
+                        .lineLimit(1)
+                        .fixedSize()
+
+                    Picker(L("menu_bar_layout_gap"), selection: self.$gap) {
+                        ForEach(MenuBarLayoutGap.allCases) { gap in
+                            Text(gap.label).tag(gap)
+                        }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                    .fixedSize()
+                }
+
+                HStack(spacing: 8) {
+                    Text(L("menu_bar_layout_vertical_adjustment"))
+                        .lineLimit(1)
+                        .fixedSize()
+
+                    TextField(
+                        "",
+                        value: self.$verticalAdjustment,
+                        format: .number)
+                        .labelsHidden()
+                        .textFieldStyle(.roundedBorder)
+                        .multilineTextAlignment(.trailing)
+                        .monospacedDigit()
+                        .frame(width: 44)
+
+                    Stepper(value: self.$verticalAdjustment, in: -20...20, step: 1) {
+                        EmptyView()
+                    }
+                    .labelsHidden()
+                }
+
+                Spacer()
+            }
+            Toggle(L("menu_bar_layout_monospaced_digits"), isOn: self.$monospacedDigits)
+                .toggleStyle(.checkbox)
+            Toggle(L("menu_bar_layout_show_window_labels"), isOn: self.$showWindowLabels)
+                .toggleStyle(.checkbox)
         }
     }
 }

@@ -1,6 +1,6 @@
 # Recorded quota burndown
 
-Codex and Claude's **Plan Usage** submenu shows recorded remaining quota above the
+Codex, Claude, and Kiro's **Plan Usage** submenu shows recorded remaining quota above the
 existing utilization history when a saved quota window has not expired. Each chart
 keeps its own selector. Labels and saved-window normalization come from the shared
 utilization-chart preparation, including Claude's Sonnet lane and legacy Codex

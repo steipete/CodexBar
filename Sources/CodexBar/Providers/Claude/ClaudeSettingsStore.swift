@@ -35,6 +35,11 @@ extension SettingsStore {
         set { self.setCookieSource(newValue, provider: .claude) }
     }
 
+    var claudeDesktopCookiesEnabled: Bool {
+        get { self.configSnapshot.providerConfig(for: .claude)?.claudeDesktopCookiesEnabled ?? false }
+        set { self.updateProviderConfig(provider: .claude) { $0.claudeDesktopCookiesEnabled = newValue } }
+    }
+
     var claudeWorkspaceSpendEnabled: Bool {
         get { self.configSnapshot.providerConfig(for: .claude)?.claudeWorkspaceSpendEnabled ?? false }
         set {
@@ -82,6 +87,16 @@ extension SettingsStore {
                 value: newValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "cleared" : "set")
         }
     }
+
+    var claudeSwapSource: ClaudeSwapAccountSource {
+        get { self.configSnapshot.providerConfig(for: .claude)?.resolvedClaudeSwapSource ?? .claudeSwap }
+        set {
+            self.updateProviderConfig(provider: .claude) { entry in
+                entry.claudeSwapSource = newValue == .claudeSwap ? nil : newValue.rawValue
+            }
+            self.logProviderModeChange(provider: .claude, field: "claudeSwapSource", value: newValue.rawValue)
+        }
+    }
 }
 
 extension SettingsStore {
@@ -98,7 +113,8 @@ extension SettingsStore {
             manualCookieHeader: self.claudeSnapshotCookieHeader(
                 routing: routing,
                 hasSelectedAccount: account != nil),
-            organizationID: account?.sanitizedOrganizationID)
+            organizationID: account?.sanitizedOrganizationID,
+            desktopCookiesEnabled: self.claudeDesktopCookiesEnabled)
     }
 
     private static func claudeUsageDataSource(from source: ProviderSourceMode?) -> ClaudeUsageDataSource {
@@ -180,5 +196,17 @@ extension SettingsStore {
             provider: .claude,
             settings: self,
             override: tokenOverride)
+    }
+}
+
+extension UsageStore {
+    var claudeTokenCostConfigDirectory: String? {
+        guard !self.settings.claudeSwapEnabled || !ClaudeSwapMenuPrecedence.prefersClaudeSwap(
+            provider: .claude,
+            accountCount: self.claudeSwapAccountSnapshots.count,
+            showSingleAccount: self.settings.claudeSwapShowSingleAccount)
+        else { return nil }
+        return self.settings.effectiveSelectedTokenAccount(for: .claude)?.claudeConfigDirectory
+            .flatMap { $0.isEmpty ? nil : $0 }
     }
 }

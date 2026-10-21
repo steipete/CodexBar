@@ -31,6 +31,16 @@ JetBrains AI is a local-only provider. We read quota information from the IDE's 
    - Reads at most 4 MiB, ending at the file size captured when opened, even if the file grows during the read.
      A partial first line is discarded; an unfinished final line rejects the tail. Only parsed quota/refill
      fields leave the reader; unrelated log text is never retained, persisted, or sent over the network
+   - Two record families are accepted, and the newest record of either wins:
+     `QuotaManager2Impl - New quota state is: Available(...)` (AI Assistant; both the flat layout and the newer
+     `Available(quota=JbaiQuota(...))` layout with `Known(refill=JbaiQuotaRefill(...))` refills), and
+     `AiaActivationTransmitter - Received message from junie: quota_update:{...}` (JSON relayed by Junie). After the
+     AI Assistant → Air migration (observed in PhpStorm 2026.2, refill state `AIAssistantForbiddenException ...
+     (AirMigration)`), only the Junie record keeps updating. Its `tariffQuota` maps to monthly used/maximum/available
+     and `until` (epoch ms) to the expiry; the license/quota IDs are not decoded. Junie records carry no refill state
+   - After the migration, AI Assistant keeps logging `New quota state is: Error(exception=...AIAssistantForbiddenException...)`
+     between Junie's updates. Only that disabled-assistant error is skipped; any other error or unknown latest state
+     still invalidates older log quota
    - Accepts only complete `Available` monthly quota records with finite, nonnegative numbers. A malformed,
      truncated, unknown, or changed latest quota state falls back to XML rather than reusing older log quota
    - With an XML source selected, only that IDE installation's log is eligible. Other IDEs may use different
@@ -63,6 +73,14 @@ JetBrains AI is a local-only provider. We read quota information from the IDE's 
   "monthly credits left" display; top-up credits are not included in this monthly percentage
 - For XML, if either monthly value is missing or non-finite, use the top-level `current` / `maximum` together and derive
   the remaining total from them; never combine monthly and total balances
+- Top-up credits: `topUpQuota.available` becomes a `Top-up credits` detail section with one
+  `Remaining` row ("54.90 credits"); no usage bar. JetBrains spends top-ups only after the monthly quota is
+  used up, and its own account page draws the top-up bar as full or empty only, so a ratio would invent meaning.
+  Quota units convert to IDE credits at 100,000 units per credit (1,000,000 = 10.00 monthly credits); one
+  AI Credit is $1 USD per [JetBrains licensing docs](https://www.jetbrains.com/help/ai-assistant/licensing-and-subscriptions.html),
+  so no separate currency value is shown. Missing or non-finite `available`/`maximum`, negative balances,
+  or zero maxima hide the section; a missing balance is never reconstructed from `current`. The log's optional
+  `topUpQuota=QuotaDetails(...)` group maps the same way
 - Reset date: from `nextRefill.next`, not `quotaInfo.until`
 - HTML entity decoding: `&#10;` → newline, `&quot;` → quote
 
@@ -70,7 +88,9 @@ JetBrains AI is a local-only provider. We read quota information from the IDE's 
 
 - Provider metadata:
   - Display: `JetBrains AI`
-  - Label: `Current` (primary only)
+  - Label: `Current` (monthly credits only)
+  - Detail section: `Top-up credits` → `Remaining` (purchased credits, shown only when present)
+  - Menu bar Balance element: the same remaining top-up credits, alongside the unchanged monthly percentage
 - Identity: detected IDE name + version (e.g., "IntelliJ IDEA 2025.3")
 - Status badge: none (no status page integration)
 - Source detail: `local`; no Version row because this provider has no CLI version detector

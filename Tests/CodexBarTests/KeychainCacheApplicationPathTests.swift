@@ -110,14 +110,39 @@ struct KeychainCacheApplicationPathTests {
             self.app = self.root.appendingPathComponent("CodexBar.app", isDirectory: true)
             self.helper = self.app.appendingPathComponent("Contents/Helpers/CodexBarCLI")
             self.bin = self.root.appendingPathComponent("bin", isDirectory: true)
+            var completed = false
+            defer { if !completed { try? FileManager.default.removeItem(at: self.root) } }
             for directory in [self.helper.deletingLastPathComponent(), self.bin] {
                 try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
             }
             #if os(macOS)
-            try FileManager.default.copyItem(atPath: "/bin/sleep", toPath: self.helper.path)
+            let source = self.root.appendingPathComponent("helper.c")
+            try """
+            #include <unistd.h>
+            int main(void) {
+                char byte;
+                if (write(STDOUT_FILENO, "r", 1) != 1) return 1;
+                return read(STDIN_FILENO, &byte, 1) < 0;
+            }
+            """.write(to: source, atomically: true, encoding: .utf8)
+            // Relocated Apple platform executables can be killed before their first instruction.
+            for (tool, arguments) in [
+                ("/usr/bin/xcrun", ["clang", source.path, "-o", self.helper.path]),
+                ("/usr/bin/codesign", ["--force", "--sign", "-", self.helper.path]),
+            ] {
+                let process = Process()
+                process.executableURL = URL(fileURLWithPath: tool)
+                process.arguments = arguments
+                process.standardOutput = FileHandle.nullDevice
+                process.standardError = FileHandle.nullDevice
+                try process.run()
+                process.waitUntilExit()
+                try #require(process.terminationStatus == 0)
+            }
             #else
             try Data().write(to: self.helper)
             #endif
+            completed = true
         }
 
         func makeAlias(style: LinkStyle) throws -> URL {
@@ -146,11 +171,20 @@ struct KeychainCacheApplicationPathTests {
         func start(through alias: URL) throws -> Process {
             let process = Process()
             process.executableURL = alias
-            process.arguments = ["60"]
             process.environment = ["PATH": "/usr/bin:/bin"]
-            process.standardOutput = FileHandle.nullDevice
+            process.standardInput = Pipe()
+            let output = Pipe()
+            process.standardOutput = output
             process.standardError = FileHandle.nullDevice
             try process.run()
+            do {
+                // Wait for the image to execute before retargeting its launch alias or querying kernel identity.
+                let ready = try output.fileHandleForReading.read(upToCount: 1)
+                try #require(ready == Data("r".utf8))
+            } catch {
+                self.stop(process)
+                throw error
+            }
             return process
         }
 

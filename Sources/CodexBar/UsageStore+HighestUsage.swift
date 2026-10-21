@@ -3,25 +3,42 @@ import Foundation
 
 @MainActor
 extension UsageStore {
-    /// Returns the enabled candidate provider with the highest usage percentage (closest to rate limit).
+    /// Returns the enabled candidate closest to depletion, using the same forecast as Auto.
     /// Excludes providers that are fully rate-limited.
     func providerWithHighestUsage(candidateProviders: [UsageProvider]? = nil, now: Date = Date())
         -> (provider: UsageProvider, usedPercent: Double)?
     {
         let candidateSet = candidateProviders.map(Set.init)
-        var highest: (provider: UsageProvider, usedPercent: Double)?
+        var highest: (provider: UsageProvider, selection: AutomaticQuotaSelection.Selection)?
         for instanceID in self.enabledProviders() {
             guard let provider = instanceID.firstPartyProvider,
                   candidateSet?.contains(provider) ?? true,
                   let snapshot = self.menuBarSnapshot(for: instanceID)
             else { continue }
-            guard let window = self.menuBarMetricWindowForHighestUsage(
+            let automatic = self.settings.menuBarMetricPreference(for: provider, snapshot: snapshot) == .automatic
+            // Provider-specific by design: Codex projection retains source pace slots after lane reclassification.
+            let selection: AutomaticQuotaSelection.Selection? = if provider == .codex, automatic {
+                self.codexConsumerProjection(
+                    surface: .menuBar,
+                    snapshotOverride: snapshot,
+                    now: now).automaticMenuBarSelection()
+            } else if let window = self.menuBarMetricWindowForHighestUsage(
                 provider: provider,
                 snapshot: snapshot,
                 now: now)
-            else {
-                continue
+            {
+                AutomaticQuotaSelection.selection(
+                    candidate: .init(
+                        window: window,
+                        paceSlot: automatic ? AutomaticQuotaSelection.paceSlot(for: window, in: snapshot) : nil),
+                    provider: provider,
+                    now: now,
+                    dataConfidence: snapshot.dataConfidence)
+            } else {
+                nil
             }
+            guard let selection else { continue }
+            let window = selection.window
             let percent = window.usedPercent
             guard !self.shouldExcludeFromHighestUsage(
                 provider: provider,
@@ -31,11 +48,14 @@ extension UsageStore {
             else {
                 continue
             }
-            if highest == nil || percent > highest!.usedPercent {
-                highest = (provider, percent)
+            let priority = automatic
+                ? selection
+                : AutomaticQuotaSelection.Selection(candidate: selection.candidate, eta: nil)
+            if highest.map({ AutomaticQuotaSelection.precedes($0.selection, priority) }) ?? true {
+                highest = (provider, priority)
             }
         }
-        return highest
+        return highest.map { ($0.provider, $0.selection.window.usedPercent) }
     }
 
     private func menuBarMetricWindowForHighestUsage(

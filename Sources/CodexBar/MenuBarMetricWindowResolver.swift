@@ -23,6 +23,12 @@ enum MenuBarMetricWindowResolver {
         {
         case let .resolved(window):
             return window
+        case let .automaticCandidates(windows):
+            return AutomaticQuotaSelection.select(
+                candidates: AutomaticQuotaSelection.candidates(windows: windows, snapshot: snapshot),
+                provider: provider,
+                now: now,
+                dataConfidence: snapshot.dataConfidence)?.window
         case .unhandled:
             break
         }
@@ -43,9 +49,11 @@ enum MenuBarMetricWindowResolver {
         case .average:
             return Self.averageWindow(snapshot: snapshot, supportsAverage: supportsAverage)
         case .automatic:
-            return Self.automaticWindow(
-                presentation: presentation,
-                snapshot: snapshot)
+            return AutomaticQuotaSelection.select(
+                candidates: AutomaticQuotaSelection.candidates(snapshot: snapshot),
+                provider: provider,
+                now: now,
+                dataConfidence: snapshot.dataConfidence)?.window
         }
     }
 
@@ -68,20 +76,6 @@ enum MenuBarMetricWindowResolver {
 
         let usedPercent = (primary.usedPercent + secondary.usedPercent) / 2
         return RateWindow(usedPercent: usedPercent, windowMinutes: nil, resetsAt: nil, resetDescription: nil)
-    }
-
-    private static func automaticWindow(
-        presentation: ProviderUsagePresentation,
-        snapshot: UsageSnapshot)
-        -> RateWindow?
-    {
-        if presentation.automaticSelectionPrioritizesExhaustedWindow,
-           let exhausted = [snapshot.primary, snapshot.secondary, snapshot.tertiary]
-               .compactMap(\.self).first(where: { $0.usedPercent >= 100 })
-        {
-            return exhausted
-        }
-        return snapshot.primary ?? snapshot.secondary ?? snapshot.tertiary
     }
 
     private static let antigravityQuotaSummaryWindowIDPrefix = "antigravity-quota-summary-"
@@ -170,15 +164,14 @@ enum MenuBarMetricWindowResolver {
     }
 
     /// The Claude spend-limit window when the account only exposes an enterprise/extra-usage spend limit
-    /// and has no real session/weekly quota lanes (`primary` nil, a `.spendLimit` window, or an explicitly
-    /// marked placeholder). Lets the automatic and combined metrics surface the spend limit instead of an empty
+    /// and has no real session/weekly quota lanes (`primary` nil or an explicitly marked placeholder). Lets the
+    /// automatic and combined metrics surface the spend limit instead of an empty
     /// or 0% placeholder lane. Returns nil for accounts that expose genuine quota lanes.
     static func claudeSpendLimitWindow(snapshot: UsageSnapshot) -> RateWindow? {
         guard snapshot.primary == nil || snapshot.primary?.isSyntheticPlaceholder == true,
               snapshot.secondary == nil, snapshot.tertiary == nil,
-              snapshot.claudeScopedWeeklyWindow == nil,
-              let cost = snapshot.providerCost, cost.limit > 0
+              snapshot.claudeScopedWeeklyWindow == nil
         else { return nil }
-        return cost.spendLimitWindow
+        return snapshot.claudeMonthlySpendWindow?.window
     }
 }

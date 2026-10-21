@@ -14,8 +14,12 @@ extension StatusItemController {
             switchingAccountID: self.store.claudeSwapTransientState.switchingAccountID,
             errorAccountID: self.store.claudeSwapTransientState.lastErrorAccountID,
             inspectedAccountID: self.claudeSwapInspectedAccountID)
+        // tcr picks the account for each request, so it never switches and never reports an active account.
+        // Keyed on the rows being drawn, not the setting, so a list read before a source change keeps its wording.
+        let readsFromTcr = accounts.contains { ClaudeSwapAccountSource(identitySource: $0.id.source) == .tcr }
         if display.showsSwitcher {
-            let switcherHeading = NSMenuItem(title: L("Switch Claude Code account"), action: nil, keyEquivalent: "")
+            let headingTitle = readsFromTcr ? L("Claude accounts in tcr") : L("Switch Claude Code account")
+            let switcherHeading = NSMenuItem(title: headingTitle, action: nil, keyEquivalent: "")
             switcherHeading.isEnabled = false
             menu.addItem(switcherHeading)
             let item = NSMenuItem()
@@ -29,7 +33,7 @@ extension StatusItemController {
             item.isEnabled = false
             menu.addItem(item)
             menu.addItem(.separator())
-            if !accounts.contains(where: \.isActive) {
+            if !readsFromTcr, !accounts.contains(where: \.isActive) {
                 let notice = NSMenuItem(title: L("No active account"), action: nil, keyEquivalent: "")
                 notice.isEnabled = false
                 menu.addItem(notice)
@@ -118,6 +122,7 @@ extension StatusItemController {
                 guard let self, let menu else { return false }
                 return self.store.isCurrentClaudeSwapConfiguration(
                     executablePath: executablePath,
+                    source: .claudeSwap,
                     configurationGeneration: configurationGeneration) &&
                     self.menuSession.isCurrentMenuInteraction(interactionGeneration, for: ObjectIdentifier(menu)) &&
                     self.claudeSwapInspectedAccountID == nil &&
@@ -157,7 +162,8 @@ extension StatusItemController {
                 adapterError: self.store.claudeSwapLastError,
                 switchError: self.store.claudeSwapTransientState.lastErrorAccountID == account.id
                     ? self.store.claudeSwapTransientState.lastError
-                    : nil))
+                    : nil,
+                historySelection: self.store.claudeSwapPlanUtilizationHistorySelection(for: account)))
     }
 
     private func claudeSwapAccountActionLabel(_ account: ProviderAccountUsageSnapshot) -> String? {

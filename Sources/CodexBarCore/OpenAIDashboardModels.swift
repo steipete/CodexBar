@@ -415,10 +415,11 @@ public enum OpenAIDashboardCacheStore {
         try? FileManager.default.removeItem(at: url)
     }
 
-    private static var cacheURL: URL? {
+    static var cacheURL: URL? {
         if let cacheURLOverride {
             return cacheURLOverride
         }
+        guard !CodexCredentialFileAccess.isTestContext else { return nil }
         guard let root = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
             return nil
         }

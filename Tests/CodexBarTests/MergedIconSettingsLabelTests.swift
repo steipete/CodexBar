@@ -58,18 +58,19 @@ struct MergedIconSettingsLabelTests {
                             label: { SettingsRowLabel(L("switcher_rows_title")) },
                             optionLabel: { Text($0.label) })
                             .disabled(!merged)
-                        Toggle(isOn: .constant(false)) {
-                            SettingsRowLabel(
-                                L("show_most_used_provider_title"), subtitle: L("show_most_used_provider_subtitle"))
-                        }
-                        .disabled(!merged || presentation.effectiveStyle == .stacked)
+                        UnifiedIconSourcePicker(selection: .constant(.frontmostApp))
+                            .disabled(!merged || presentation.effectiveStyle == .stacked)
                         SettingsRowLabel(
                             L("overview_tab_providers_title"),
                             subtitle: merged ? "Codex, Claude" : L("overview_enable_merge_icons_hint"))
                             .disabled(!merged)
                         Divider()
                         MenuBarLayoutDisplayOptions(
-                            size: .constant(.small), gap: .constant(.tight), verticalAdjustment: .constant(0))
+                            size: .constant(.small),
+                            gap: .constant(.tight),
+                            verticalAdjustment: .constant(0),
+                            monospacedDigits: .constant(false),
+                            showWindowLabels: .constant(true))
                     }
                     .toggleStyle(.switch)
                     .padding(24)
@@ -84,7 +85,7 @@ struct MergedIconSettingsLabelTests {
                     let text = MenuLayoutScreenshotRenderTests.accessibilityText(hosting)
                     for key in [
                         "merge_icons_title", "merged_icon_style_title", "switcher_rows_title",
-                        "show_most_used_provider_title", "overview_tab_providers_title",
+                        "merged_icon_source_title", "merged_icon_source_frontmost_app", "overview_tab_providers_title",
                         "menu_bar_layout_size", "menu_bar_layout_gap",
                     ] {
                         #expect(text.contains(L(key)), "Missing accessible label: \(key) in \(mode)")

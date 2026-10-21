@@ -11,36 +11,33 @@ struct LangdockProfileScreenshotTests {
     func `render selected profile settings with synthetic data when requested`() throws {
         guard let path = ProcessInfo.processInfo.environment["CODEXBAR_LANGDOCK_PROOF_DIR"] else { return }
         let fixture = try ProviderSettingsDescriptorTests().makeSettingsFixture(suite: #function)
-        fixture.settings.updateProviderConfig(provider: .langdock) { $0.browserProfileID = "/synthetic/Edge/Profile 2" }
-        let picker = PluginCookieProviderImplementation(spec: LangdockProviderDescriptor.spec).browserProfilePicker(
-            browser: "edge",
-            context: fixture.settingsContext(provider: .langdock),
-            profiles: [.init(id: "/synthetic/Edge/Profile 2", name: "Personal (synthetic)")])
+        let implementation = PluginCookieProviderImplementation(spec: LangdockProviderDescriptor.spec)
+        let context = fixture.settingsContext(provider: .langdock)
+        let browsers = try #require(LangdockProviderDescriptor.descriptor.settingsSection.selectedProfileBrowsers)
         let output = URL(fileURLWithPath: path)
         try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
-        for before in [true, false] {
+        for profile in LangdockPluginTests.profiles {
+            fixture.settings.updateProviderConfig(provider: .langdock) {
+                $0.browserID = profile.browserID
+                $0.browserProfileID = profile.profileID
+            }
+            let browserPicker = implementation.browserPicker(browsers: browsers, context: context)
+            let picker = implementation.browserProfilePicker(
+                browser: profile.browserID,
+                context: context,
+                profiles: [.init(
+                    id: profile.profileID,
+                    name: profile.browserID == "safari" ? "synthetic-personal" : "Personal (synthetic)")])
             let view = NSHostingView(rootView: VStack(alignment: .leading, spacing: 12) {
                 Text("Langdock · synthetic settings").font(.headline).padding(.horizontal, 20)
                 Form {
                     Section("Connection") {
-                        if before {
-                            ProviderSettingsFieldRowView(field: .init(
-                                id: "langdock-edge-profile-id",
-                                title: "Edge profile ID",
-                                subtitle: "Enter the Edge profile directory path for your Langdock account. " +
-                                    "CodexBar reads only that profile and never switches accounts automatically.",
-                                kind: .plain,
-                                placeholder: "/synthetic/Edge/Profile 2",
-                                binding: .constant("/synthetic/Edge/Profile 2"),
-                                actions: [],
-                                isVisible: nil))
-                        } else {
-                            ProviderSettingsPickerRowView(picker: picker)
-                        }
+                        ProviderSettingsPickerRowView(picker: browserPicker)
+                        ProviderSettingsPickerRowView(picker: picker)
                     }
                 }.formStyle(.grouped)
-            }.padding(.vertical, 16).frame(width: 620, height: 240).background(Color(nsColor: .windowBackgroundColor)))
-            view.frame = NSRect(x: 0, y: 0, width: 620, height: 240)
+            }.padding(.vertical, 16).frame(width: 620, height: 280).background(Color(nsColor: .windowBackgroundColor)))
+            view.frame = NSRect(x: 0, y: 0, width: 620, height: 280)
             let window = NSWindow(contentRect: view.frame, styleMask: [.borderless], backing: .buffered, defer: false)
             window.appearance = NSAppearance(named: .aqua)
             window.contentView = view
@@ -50,7 +47,7 @@ struct LangdockProfileScreenshotTests {
             let bitmap = try #require(view.bitmapImageRepForCachingDisplay(in: view.bounds))
             view.cacheDisplay(in: view.bounds, to: bitmap)
             try #require(bitmap.representation(using: .png, properties: [:]))
-                .write(to: output.appendingPathComponent("langdock-settings-\(before ? "before" : "after").png"))
+                .write(to: output.appendingPathComponent("langdock-settings-\(profile.browserID).png"))
         }
     }
 }

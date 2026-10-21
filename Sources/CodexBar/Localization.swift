@@ -188,7 +188,7 @@ func L(_ key: String) -> String {
 }
 
 func L(_ key: String, _ arguments: CVarArg...) -> String {
-    String(format: L(key), arguments: arguments)
+    String(format: L(key), locale: codexBarLocalizedResourceLocale(), arguments: arguments)
 }
 
 func L(_ key: String, language: String) -> String {

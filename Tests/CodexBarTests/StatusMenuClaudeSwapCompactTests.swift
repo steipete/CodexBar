@@ -49,10 +49,11 @@ final class StatusMenuClaudeSwapCompactTests: XCTestCase {
         isActive: Bool = false,
         sessionUsed: Double,
         weeklyUsed: Double,
-        canActivate: Bool = true) -> ProviderAccountUsageSnapshot
+        canActivate: Bool = true,
+        source: String = "claude-swap") -> ProviderAccountUsageSnapshot
     {
         ProviderAccountUsageSnapshot(
-            id: ProviderAccountIdentity(source: "claude-swap", opaqueID: String(slot)),
+            id: ProviderAccountIdentity(source: source, opaqueID: String(slot)),
             provider: .claude,
             displayLabel: email,
             isActive: isActive,
@@ -169,6 +170,32 @@ final class StatusMenuClaudeSwapCompactTests: XCTestCase {
         controller.menuWillOpen(menu)
         XCTAssertTrue(menu.items.contains { $0.title == "No active account" })
         XCTAssertFalse(self.representedIDs(in: menu).contains { $0.hasPrefix("menuCard") })
+    }
+
+    func test_segmentedClaudeSwapMenuKeepsSwitchHeadingAndNoActiveNotice() {
+        let inactive = self.account(slot: 7, email: "inactive@example.com", sessionUsed: 10, weeklyUsed: 20)
+        let other = self.account(slot: 9, email: "other@example.com", sessionUsed: 30, weeklyUsed: 40)
+        let (controller, _) = self.makeController(accounts: [inactive, other], layout: .segmented)
+        defer { controller.releaseStatusItemsForTesting() }
+        let menu = controller.makeMenu(for: .claude)
+        controller.menuWillOpen(menu)
+        XCTAssertTrue(menu.items.contains { $0.title == "Switch Claude Code account" })
+        XCTAssertFalse(menu.items.contains { $0.title == "Claude accounts in tcr" })
+        XCTAssertTrue(menu.items.contains { $0.title == "No active account" })
+    }
+
+    func test_segmentedTcrMenuNamesThePoolWithoutSwitchOrNoActiveNotice() {
+        let first = self.account(
+            slot: 1, email: "alice@example.com", sessionUsed: 10, weeklyUsed: 20, canActivate: false, source: "tcr")
+        let second = self.account(
+            slot: 2, email: "bob@example.com", sessionUsed: 30, weeklyUsed: 40, canActivate: false, source: "tcr")
+        let (controller, _) = self.makeController(accounts: [first, second], layout: .segmented)
+        defer { controller.releaseStatusItemsForTesting() }
+        let menu = controller.makeMenu(for: .claude)
+        controller.menuWillOpen(menu)
+        XCTAssertTrue(menu.items.contains { $0.title == "Claude accounts in tcr" })
+        XCTAssertFalse(menu.items.contains { $0.title == "Switch Claude Code account" })
+        XCTAssertFalse(menu.items.contains { $0.title == "No active account" })
     }
 
     func test_segmentedInspectionPreservesNoActiveAccountNotice() {

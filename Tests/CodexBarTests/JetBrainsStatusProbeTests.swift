@@ -433,6 +433,57 @@ struct JetBrainsStatusProbeTests {
         #expect(snapshot.quotaInfo.available == 654_000)
         #expect(abs(snapshot.quotaInfo.usedPercent - 34.6) < 0.001)
         #expect(abs(snapshot.quotaInfo.remainingPercent - 65.4) < 0.001)
+        #expect(snapshot.quotaInfo.topUp == JetBrainsTopUpQuota(maximum: 5_489_986.397, available: 5_489_986.397))
+    }
+
+    @Test
+    func `quota XML with top-up credits shows the remaining balance beside the monthly window`() throws {
+        let quotaInfo = [
+            "{&quot;type&quot;:&quot;Available&quot;,&quot;current&quot;:&quot;353265.849&quot;,",
+            "&quot;maximum&quot;:&quot;6489986.397&quot;,",
+            "&quot;tariffQuota&quot;:{&quot;current&quot;:&quot;353265.849&quot;,",
+            "&quot;maximum&quot;:&quot;1000000&quot;,&quot;available&quot;:&quot;646734.151&quot;},",
+            "&quot;topUpQuota&quot;:{&quot;current&quot;:&quot;0&quot;,",
+            "&quot;maximum&quot;:&quot;5489986.397&quot;,&quot;available&quot;:&quot;5489986.397&quot;}}",
+        ].joined()
+        let xml = """
+        <application><component name="AIAssistantQuotaManager2">
+          <option name="quotaInfo" value="\(quotaInfo)" />
+        </component></application>
+        """
+
+        let usage = try JetBrainsStatusProbe.parseXMLData(Data(xml.utf8), detectedIDE: nil).toUsageSnapshot()
+
+        #expect(abs((usage.primary?.remainingPercent ?? 0) - 64.6734151) < 0.0001)
+        #expect(usage.secondary == nil)
+        #expect(usage.details.first?.title == "Top-up credits")
+        #expect(usage.detailRow(label: "Remaining")?.value == "54.90 credits")
+    }
+
+    @Test(arguments: [
+        [String: String](),
+        ["current": "0", "maximum": "0", "available": "0"],
+        ["current": "0", "maximum": "abc", "available": "0"],
+        ["current": "0", "maximum": "100", "available": "-1"],
+    ])
+    func `missing or empty top-up quota hides the top-up credits`(topUp: [String: String]) throws {
+        var json: [String: Any] = [
+            "type": "Available",
+            "tariffQuota": ["current": "250000", "maximum": "1000000", "available": "750000"],
+        ]
+        if !topUp.isEmpty { json["topUpQuota"] = topUp }
+        let encoded = try #require(String(bytes: JSONSerialization.data(withJSONObject: json), encoding: .utf8))
+            .replacingOccurrences(of: "\"", with: "&quot;")
+        let xml = """
+        <application><component name="AIAssistantQuotaManager2">
+          <option name="quotaInfo" value="\(encoded)" />
+        </component></application>
+        """
+
+        let snapshot = try JetBrainsStatusProbe.parseXMLData(Data(xml.utf8), detectedIDE: nil)
+
+        #expect(snapshot.quotaInfo.topUp == nil)
+        #expect(try snapshot.toUsageSnapshot().details.isEmpty)
     }
 
     @Test

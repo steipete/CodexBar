@@ -110,6 +110,108 @@ struct OpenCodeGoWebOverlayTests {
     }
 
     @Test
+    func `missing and rejected discovered sessions preserve the marked local estimate`() async throws {
+        try await self.withEmptyCookieCache {
+            let missing = OpenCodeGoLocalUsageFetchStrategy(
+                cookieHeaderResolver: { _, _ in throw OpenCodeGoSettingsError.missingCookie },
+                localSnapshotLoader: { _ in Self.localEstimate() },
+                webUsageOverlayFetcher: { _, _ in
+                    Issue.record("Missing cookies must not reach the server")
+                    return nil
+                })
+            let missingResult = try await missing.fetch(self.makeContext(includeOptionalUsage: false))
+            #expect(missingResult.sourceLabel == "local")
+            #expect(missingResult.usage.dataConfidence == .estimated)
+
+            let rejected = OpenCodeGoLocalUsageFetchStrategy(
+                cookieHeaderResolver: { _, _ in
+                    CookieHeaderCache.store(provider: .opencodego, cookieHeader: "auth=expired", sourceLabel: "fixture")
+                    return "auth=expired"
+                },
+                localSnapshotLoader: { _ in Self.localEstimate() },
+                webUsageOverlayFetcher: { _, _ in throw OpenCodeGoUsageError.invalidCredentials })
+            let rejectedResult = try await rejected.fetch(self.makeContext(includeOptionalUsage: false))
+            #expect(rejectedResult.sourceLabel == "local")
+            #expect(rejectedResult.usage.dataConfidence == .estimated)
+            #expect(CookieHeaderCache.load(provider: .opencodego) == nil)
+        }
+    }
+
+    @Test
+    func `rejected discovery does not clear a concurrently replaced session`() async throws {
+        try await self.withEmptyCookieCache {
+            let strategy = OpenCodeGoLocalUsageFetchStrategy(
+                cookieHeaderResolver: { _, _ in
+                    CookieHeaderCache.store(provider: .opencodego, cookieHeader: "auth=expired", sourceLabel: "fixture")
+                    return "auth=expired"
+                },
+                localSnapshotLoader: { _ in Self.localEstimate() },
+                webUsageOverlayFetcher: { _, _ in
+                    CookieHeaderCache.store(
+                        provider: .opencodego,
+                        cookieHeader: "auth=replacement",
+                        sourceLabel: "fixture")
+                    throw OpenCodeGoUsageError.invalidCredentials
+                })
+            _ = try await strategy.fetch(self.makeContext(includeOptionalUsage: false))
+            #expect(CookieHeaderCache.load(provider: .opencodego)?.cookieHeader == "auth=replacement")
+        }
+    }
+
+    @Test
+    func `cookie discovery preserves cancellation`() async throws {
+        try await self.withEmptyCookieCache {
+            let strategy = OpenCodeGoLocalUsageFetchStrategy(
+                cookieHeaderResolver: { _, _ in throw URLError(.cancelled) },
+                localSnapshotLoader: { _ in Self.localEstimate() })
+            await #expect(throws: CancellationError.self) {
+                try await strategy.fetch(self.makeContext(includeOptionalUsage: false))
+            }
+        }
+    }
+
+    @Test
+    func `authoritative API quota does not trigger fresh cookie discovery`() async throws {
+        try await self.withEmptyCookieCache {
+            let strategy = OpenCodeGoLocalUsageFetchStrategy(
+                cookieHeaderResolver: { _, _ in
+                    Issue.record("API quota must not trigger fresh browser discovery")
+                    throw OpenCodeGoSettingsError.missingCookie
+                },
+                localSnapshotLoader: { _ in Self.localEstimate() },
+                apiUsageOverlayFetcher: { _, _ in Self.webUsage() })
+            let result = try await strategy.fetch(self.makeContext(
+                includeOptionalUsage: false,
+                env: [OpenCodeGoSettingsReader.apiKeyEnvironmentKey: "synthetic-api-key"]))
+            #expect(result.sourceLabel == "local+api")
+            #expect(result.usage.tertiary?.usedPercent == 64)
+            #expect(result.usage.dataConfidence != .estimated)
+        }
+    }
+
+    @Test
+    func `auto discovers a session before returning local estimates`() async throws {
+        try await self.withEmptyCookieCache {
+            let discoveries = Recorder<Bool>()
+            let strategy = OpenCodeGoLocalUsageFetchStrategy(
+                cookieHeaderResolver: { _, allowCached in
+                    discoveries.append(allowCached)
+                    return "auth=discovered"
+                },
+                localSnapshotLoader: { _ in Self.localEstimate() },
+                webUsageOverlayFetcher: { _, header in
+                    #expect(header == "auth=discovered")
+                    return Self.webUsage()
+                })
+            let result = try await strategy.fetch(self.makeContext(includeOptionalUsage: false))
+            #expect(discoveries.values == [false])
+            #expect(result.sourceLabel == "local+web")
+            #expect(result.usage.tertiary?.usedPercent == 64)
+            #expect(result.usage.dataConfidence != .estimated)
+        }
+    }
+
+    @Test
     func `overlay replaces estimated windows with server values and keeps local daily`() {
         let merged = Self.localEstimate().applyingWebUsage(Self.webUsage(zenBalanceUSD: 42.5))
 
@@ -322,6 +424,10 @@ struct OpenCodeGoWebOverlayTests {
     func `local strategy does not consult web usage when cookies are disabled`() async throws {
         let webCalls = Recorder<String>()
         let strategy = OpenCodeGoLocalUsageFetchStrategy(
+            cookieHeaderResolver: { _, _ in
+                Issue.record("Disabled cookies must not trigger discovery")
+                throw OpenCodeGoSettingsError.missingCookie
+            },
             localSnapshotLoader: { _ in Self.localEstimate() },
             webUsageOverlayFetcher: { _, cookieHeader in
                 webCalls.append(cookieHeader)

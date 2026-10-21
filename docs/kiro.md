@@ -63,6 +63,8 @@ Kiro uses the AWS `kiro-cli` tool to fetch usage data. No browser cookies or OAu
     totals and zero allowances do not replace the CLI plan metrics or invent a missing plan gauge.
   - `usedPercent`: extracted from `███...█ X%` pattern, or `planUsed / planLimit` when the API answered.
   - `resetsAt`: parsed from `resets on MM/DD` (assumes current or next year), or `nextDateReset` from the API.
+  - `windowMinutes`: the monthly sentinel when a reset date is known, so the gauge gets calendar-month pace,
+    a Plan Usage history series, and the recorded quota burndown.
 - **Secondary window**: Bonus credits (when present).
   - Parsed from `Bonus credits: X.XX/Y credits used`. Always CLI-sourced. When `GetUsageLimits` includes a
     non-empty `bonuses[]` array, CodexBar keeps the CLI plan gauge instead of treating bonus spend as plan
@@ -74,8 +76,22 @@ Kiro uses the AWS `kiro-cli` tool to fetch usage data. No browser cookies or OAu
   (`N of M credits left`).
 - **Provider cost**: `overageCharges` against `overageCap × overageRate` (API only).
 - **Identity**:
-  - `accountOrganization`: plan name (e.g., "KIRO FREE").
-  - `loginMethod`: plan name (used for menu display).
+  - `accountEmail`: the CLI-reported account email, when available.
+  - `loginMethod`: the CLI-reported authentication method. The plan remains a provider detail row.
+
+### Monthly pace and history
+
+When the monthly credit reset is known, the card shows calendar-month pace alongside the credits bar;
+the remaining-credit count stays below it. The menu bar honors the global Pace or Both display mode
+while preserving Kiro's Hidden choice. Missing or expired resets do not produce a forecast.
+
+With historical tracking enabled, Plan Usage records monthly plan utilization in the shared local
+`history/kiro.json` store. The series key is `monthly:43200`; the duration is resolved from the actual
+calendar month for pace and the burndown chart, including February and 31-day months. Bonus and overage
+credits stay separate and are not recorded as monthly plan usage. The store coalesces observations by
+hour and retains at most 17,520 samples per series (730 days at one sample per hour). Identified accounts
+use a hash of the normalized provider/email identity; reports without identity follow the shared
+unscoped/last-selected-account behavior. No separate Kiro history setting or storage migration is needed.
 
 ### Plan vs overage split
 

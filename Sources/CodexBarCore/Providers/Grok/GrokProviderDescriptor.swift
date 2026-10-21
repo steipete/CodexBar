@@ -70,8 +70,7 @@ public enum GrokProviderDescriptor {
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
                 debugLogUnavailableMessage: "Grok debug log not yet implemented",
-                browserCookieOrder: BrowserCookieImportSupport.chromeOnly(
-                    reason: "Avoid unrelated browser Keychain prompts"),
+                browserCookieOrder: ProviderBrowserCookieDefaults.defaultImportOrder,
                 dashboardURL: "https://grok.com/?_s=usage",
                 changelogURL: "https://x.ai/news",
                 statusPageURL: nil,
@@ -368,16 +367,11 @@ struct GrokOAuthFetchStrategy: ProviderFetchStrategy {
             try await GrokWebBillingFetcher.fetch(credentials: $0)
         }) async throws -> GrokWebBillingResult
     {
-        guard proxySnapshot.usedPercent == nil else {
-            return GrokWebBillingResult(
-                snapshot: proxySnapshot,
-                sourceLabel: "grok-cli-proxy",
-                authContext: .oauth(credentials))
-        }
         let proxyAnswer = GrokWebBillingResult(
             snapshot: proxySnapshot,
             sourceLabel: "grok-cli-proxy",
             authContext: .oauth(credentials))
+        guard proxySnapshot.usedPercent == nil else { return proxyAnswer }
         let join = BoundedTaskJoin(sourceTask: Task { try await grpcBilling(credentials) })
         switch await join.value(joinGrace: budget) {
         case let .value(grpcSnapshot):
@@ -633,7 +627,7 @@ struct GrokWebFetchStrategy: ProviderFetchStrategy {
            Self.canImportBrowserCookies(runtime: context.runtime, env: context.env)
         {
             do {
-                let sessions = try GrokCookieImporter.importSessions(
+                let sessions = try GrokCookieImporter.sessionCandidates(
                     browserDetection: context.browserDetection)
                 let (snapshot, sourceLabel, cookieHeader) = try await Self.fetchFirstValidCookieSession(
                     sessions,
@@ -666,7 +660,7 @@ struct GrokWebFetchStrategy: ProviderFetchStrategy {
 
     #if os(macOS)
     static func fetchFirstValidCookieSession(
-        _ sessions: [GrokCookieImporter.SessionInfo],
+        _ sessions: some Sequence<GrokCookieImporter.SessionInfo>,
         credentials: GrokCredentials? = nil,
         cacheObservation: CookieHeaderCache.ConditionalMutationObservation? = nil,
         fetch: ((String, GrokCredentials?) async throws -> GrokWebBillingSnapshot)? = nil) async throws

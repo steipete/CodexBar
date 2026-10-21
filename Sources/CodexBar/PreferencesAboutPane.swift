@@ -4,6 +4,8 @@ import SwiftUI
 @MainActor
 struct AboutPane: View {
     let updater: UpdaterProviding
+    var rootRequests = 0
+    @State private var path: [AboutRoute] = []
     @State private var iconHover = false
     @AppStorage("autoUpdateEnabled") private var autoUpdateEnabled: Bool = true
     @AppStorage(UpdateChannel.userDefaultsKey)
@@ -24,6 +26,23 @@ struct AboutPane: View {
     }
 
     var body: some View {
+        NavigationStack(path: self.$path) {
+            // Pushed pages retitle the window; the root title restores it when they pop.
+            self.form
+                .navigationTitle(SettingsPane.about.title)
+                .navigationDestination(for: AboutRoute.self) { route in
+                    switch route {
+                    case .acknowledgements:
+                        AcknowledgementsView(acknowledgements: Acknowledgement.load())
+                    }
+                }
+        }
+        .onChange(of: self.rootRequests) { _, _ in
+            self.path = []
+        }
+    }
+
+    private var form: some View {
         Form {
             Section {
                 self.hero
@@ -38,9 +57,18 @@ struct AboutPane: View {
                     icon: "chevron.left.slash.chevron.right",
                     title: L("link_github"),
                     url: "https://github.com/steipete/CodexBar")
-                AboutLinkRow(icon: "globe", title: L("link_website"), url: "https://steipete.me")
+                AboutLinkRow(icon: "globe", title: L("link_website"), url: "https://codexbar.app")
                 AboutLinkRow(icon: "bird", title: L("link_twitter"), url: "https://twitter.com/steipete")
                 AboutLinkRow(icon: "envelope", title: L("link_email"), url: "mailto:peter@steipete.me")
+                NavigationLink(value: AboutRoute.acknowledgements) {
+                    Label {
+                        Text(L("link_acknowledgements"))
+                    } icon: {
+                        Image(systemName: "heart.text.square")
+                            .frame(width: 18)
+                            .foregroundStyle(.secondary)
+                    }
+                }
             } header: {
                 Text(L("section_links"))
             } footer: {
@@ -95,8 +123,7 @@ struct AboutPane: View {
                 AboutHomebrewUpdateStatusView(updater: homebrewUpdater)
             } else if !self.updater.isAvailable {
                 AboutUpdatesUnavailableView(
-                    reason: self.updater.unavailableReason ?? L("updates_unavailable"),
-                    command: self.updater.manualUpdateCommand)
+                    reason: self.updater.unavailableReason ?? L("updates_unavailable"))
             }
         } header: {
             Text(L("section_updates"))
@@ -160,6 +187,10 @@ struct AboutPane: View {
     }
 }
 
+enum AboutRoute: Hashable {
+    case acknowledgements
+}
+
 @MainActor
 struct AboutHomebrewUpdateStatusView: View {
     let updater: HomebrewUpdaterController
@@ -183,8 +214,8 @@ struct AboutHomebrewUpdateStatusView: View {
             Self.progressRow(L("Updating with Homebrew…"))
         case let .failed(message):
             AboutUpdatesUnavailableView(
-                reason: L("Homebrew update failed. You can run this command in Terminal instead:") + "\n" + message,
-                command: .homebrew)
+                reason: L("Managed by Homebrew") + "\n" + message,
+                command: self.updater.manualUpdateCommand)
         }
     }
 
@@ -201,13 +232,13 @@ struct AboutUpdatesUnavailableView: View {
     typealias CopyAction = @MainActor @Sendable (String, @escaping @MainActor @Sendable (Bool) -> Void) -> Void
 
     let reason: String
-    let command: ManualUpdateCommand?
+    let command: String?
     let copyAction: CopyAction
     @State private var didCopy = false
 
     init(
         reason: String,
-        command: ManualUpdateCommand? = nil,
+        command: String? = nil,
         copyAction: @escaping CopyAction = Self.copyCommand)
     {
         self.reason = reason
@@ -222,14 +253,14 @@ struct AboutUpdatesUnavailableView: View {
                 .textSelection(.enabled)
             if let command {
                 HStack(spacing: 12) {
-                    Text(command.command)
+                    Text(command)
                         .font(.system(.callout, design: .monospaced))
                         .foregroundStyle(.primary)
                         .textSelection(.enabled)
                         .fixedSize(horizontal: false, vertical: true)
                         .frame(maxWidth: .infinity, alignment: .leading)
                     Button {
-                        self.copyAction(command.command) { self.didCopy = $0 }
+                        self.copyAction(command) { self.didCopy = $0 }
                     } label: {
                         Label(
                             self.didCopy ? L("Copied") : L("Copy update command"),

@@ -131,6 +131,13 @@ struct CLIServeRouterTests {
     func `routes web UI health usage cost and dashboard endpoints`() throws {
         #expect(try CLIServeRouter.route(method: "GET", path: "/", queryItems: [:]) == .webUI)
         #expect(try CLIServeRouter.route(method: "GET", path: "/health", queryItems: [:]) == .health)
+        #expect(try CLIServeRouter.route(method: "GET", path: "/accounts", queryItems: [:]) == .accounts(id: nil))
+        #expect(
+            try CLIServeRouter.route(
+                method: "GET",
+                path: "/accounts/token-account:claude:aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+                queryItems: [:]) ==
+                .accounts(id: "token-account:claude:aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"))
         #expect(try CLIServeRouter.route(method: "GET", path: "/usage", queryItems: [:]) == .usage(provider: nil))
         #expect(
             try CLIServeRouter.route(
@@ -301,6 +308,10 @@ struct CLIServeRouterTests {
 
         #expect(serve.contains("--request-timeout <seconds>"))
         #expect(serve.contains("codexbar serve --port 8080 --refresh-interval 60 --request-timeout 30"))
+        #expect(serve.contains("GET /accounts"))
+        #expect(serve.contains("GET /accounts/<id>"))
+        #expect(serve.contains("Account IDs are stable opaque identifiers"))
+        #expect(serve.contains("never returns credentials or refreshes usage"))
         #expect(root.contains("--request-timeout <seconds>"))
     }
 

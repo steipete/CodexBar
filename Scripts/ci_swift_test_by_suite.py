@@ -458,7 +458,7 @@ def containment_support_error(capabilities: object = os) -> str | None:
     )
 
 
-def run_command(command: list[str], timeout: int | None = None) -> int:
+def run_command(command: list[str], timeout: int | None = None, environment: dict[str, str] | None = None) -> int:
     error = containment_support_error()
     if error is not None:
         raise RuntimeError(error)
@@ -467,7 +467,7 @@ def run_command(command: list[str], timeout: int | None = None) -> int:
     ownership = None
     process = None
     try:
-        process = subprocess.Popen(command, start_new_session=True)
+        process = subprocess.Popen(command, start_new_session=True, env=environment)
         root = test_process(process.pid)
         if root is None:
             exited = unreaped_exit_code(process) is not None
@@ -535,11 +535,12 @@ def sparkle_runtime_matches_source(destination: Path, source: Path) -> bool:
         return False
 
 
-def repair_sparkle_test_runtime(swift_command: list[str]) -> bool:
+def repair_sparkle_test_runtime(swift_command: list[str], environment: dict[str, str] | None = None) -> bool:
     result = subprocess.run(
         [*swift_command, "build", "--show-bin-path"],
         capture_output=True,
         text=True,
+        env=environment,
     )
     if result.returncode != 0:
         return False
@@ -579,11 +580,14 @@ def repair_sparkle_test_runtime(swift_command: list[str]) -> bool:
 
 def swift_test_list(swift_command: list[str], inventory: list[str] | None = None) -> list[TestSelection]:
     command = [*swift_command, "test", "list"]
-    result = subprocess.run(command, capture_output=True, text=True)
-    if result.returncode != 0 and is_missing_sparkle_runtime_failure(result):
-        if repair_sparkle_test_runtime(swift_command):
-            print("Recovered SwiftPM Sparkle test runtime; retrying discovery once.", flush=True)
-            result = subprocess.run(command, capture_output=True, text=True)
+    # Listing loads test products, so it gets a private home like test execution.
+    with tempfile.TemporaryDirectory(prefix="codexbar-test-discovery-") as home:
+        environment = os.environ | {"HOME": home, "CFFIXED_USER_HOME": home}
+        result = subprocess.run(command, capture_output=True, text=True, env=environment)
+        if result.returncode != 0 and is_missing_sparkle_runtime_failure(result):
+            if repair_sparkle_test_runtime(swift_command, environment=environment):
+                print("Recovered SwiftPM Sparkle test runtime; retrying discovery once.", flush=True)
+                result = subprocess.run(command, capture_output=True, text=True, env=environment)
     if result.returncode != 0:
         print(f"+ {swift_command[0]} test list", flush=True)
         if result.stdout:
@@ -704,10 +708,13 @@ def filter_for(suites: list[TestSelection]) -> str:
 
 
 def run_group(suites: list[TestSelection], timeout: int, swift_command: list[str]) -> int:
-    return run_command(
-        [*swift_command, "test", "--skip-build", "--no-parallel", "--filter", filter_for(suites)],
-        timeout=timeout,
-    )
+    # Like direct workers, each group gets a temporary HOME and CFFIXED_USER_HOME instead of the caller's.
+    with tempfile.TemporaryDirectory(prefix="codexbar-test-group-") as home:
+        return run_command(
+            [*swift_command, "test", "--skip-build", "--no-parallel", "--filter", filter_for(suites)],
+            timeout=timeout,
+            environment=os.environ | {"HOME": home, "CFFIXED_USER_HOME": home},
+        )
 
 
 def retry_selections_individually(

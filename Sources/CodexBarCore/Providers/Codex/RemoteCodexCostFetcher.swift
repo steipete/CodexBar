@@ -110,11 +110,11 @@ public enum RemoteCodexCostError: LocalizedError {
 
 public struct RemoteCodexCostFetcher: Sendable {
     package typealias Runner = @Sendable ([String], [String: String]) async throws -> String
-    private let runner: Runner
+    private let runner: @Sendable ([String], [String: String], Int) async throws -> String
     package static let maximumOutputBytes = 16 * 1024
 
     public init() {
-        self.runner = { arguments, environment in
+        self.runner = { arguments, environment, maximumOutputBytes in
             let binary = ["/usr/bin/ssh", "/bin/ssh"].first {
                 FileManager.default.isExecutableFile(atPath: $0)
             }
@@ -124,7 +124,7 @@ public struct RemoteCodexCostFetcher: Sendable {
                 arguments: arguments,
                 environment: environment,
                 timeout: 60,
-                maxOutputBytes: Self.maximumOutputBytes,
+                maxOutputBytes: maximumOutputBytes,
                 standardInput: FileHandle.nullDevice,
                 label: "fetch remote Codex costs")
             return result.stdout
@@ -132,7 +132,7 @@ public struct RemoteCodexCostFetcher: Sendable {
     }
 
     package init(runner: @escaping Runner) {
-        self.runner = runner
+        self.runner = { arguments, environment, _ in try await runner(arguments, environment) }
     }
 
     public static func validateHost(_ host: String) throws {
@@ -144,11 +144,15 @@ public struct RemoteCodexCostFetcher: Sendable {
     }
 
     package static func arguments(host: String, historyDays: Int, force: Bool) throws -> [String] {
-        try self.validateHost(host)
         guard (1...365).contains(historyDays) else { throw RemoteCodexCostError.invalidReport }
         let options =
             "cost --provider codex --format json --summary-only --provider-native-only --days \(historyDays)" +
             (force ? " --refresh" : "")
+        return try self.arguments(host: host, options: options)
+    }
+
+    private static func arguments(host: String, options: String) throws -> [String] {
+        try self.validateHost(host)
         // Select the executable before scanning: a failed scan must never invoke a fallback scan.
         let command = "if command -v codexbar >/dev/null 2>&1; then exec codexbar \(options); " +
             "else exec /Applications/CodexBar.app/Contents/Helpers/CodexBarCLI \(options); fi"
@@ -168,18 +172,8 @@ public struct RemoteCodexCostFetcher: Sendable {
     {
         try Task.checkCancellation()
         let arguments = try Self.arguments(host: host, historyDays: historyDays, force: force)
-        let allowedEnvironment = Set(["PATH", "HOME", "USER", "LOGNAME", "LANG", "LC_ALL", "SSH_AUTH_SOCK"])
-        let output: String
-        do {
-            output = try await self.runner(arguments, environment.filter { allowedEnvironment.contains($0.key) })
-        } catch is CancellationError {
-            throw CancellationError()
-        } catch {
-            try Task.checkCancellation()
-            throw RemoteCodexCostError.unavailable
-        }
-        try Task.checkCancellation()
-        guard output.utf8.count <= Self.maximumOutputBytes else { throw RemoteCodexCostError.invalidReport }
+        let output = try await self.output(
+            arguments: arguments, maximumOutputBytes: Self.maximumOutputBytes, environment: environment)
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         guard let reports = try? decoder.decode([CodexCostSummary].self, from: Data(output.utf8)),
@@ -187,5 +181,50 @@ public struct RemoteCodexCostFetcher: Sendable {
         else { throw RemoteCodexCostError.invalidReport }
         try report.validate(historyDays: historyDays)
         return report
+    }
+
+    /// Uses the same one-shot SSH boundary, with an explicit UTC window and a bounded per-request export.
+    public func fetchIdentifiedUsage(
+        host: String,
+        historyDays: Int,
+        startUnixMs: Int64,
+        endUnixMs: Int64,
+        environment: [String: String] = ProcessInfo.processInfo.environment) async throws -> CodexRequestLedger
+    {
+        guard (1...365).contains(historyDays), startUnixMs >= 0, endUnixMs >= startUnixMs,
+              endUnixMs <= 253_402_300_799_999
+        else { throw RemoteCodexCostError.invalidReport }
+        let options = "cost --provider codex --format json --identified-only --days \(historyDays)" +
+            " --identified-end \(endUnixMs)"
+        let output = try await self.output(
+            arguments: Self.arguments(host: host, options: options),
+            maximumOutputBytes: CodexRequestLedger.maximumOutputBytes,
+            environment: environment)
+        guard let ledger = try? JSONDecoder().decode(CodexRequestLedger.self, from: Data(output.utf8))
+        else { throw RemoteCodexCostError.invalidReport }
+        try ledger.validate(startUnixMs: startUnixMs, endUnixMs: endUnixMs)
+        return ledger
+    }
+
+    private func output(
+        arguments: [String], maximumOutputBytes: Int, environment: [String: String]) async throws -> String
+    {
+        try Task.checkCancellation()
+        let allowedEnvironment = Set(["PATH", "HOME", "USER", "LOGNAME", "LANG", "LC_ALL", "SSH_AUTH_SOCK"])
+        let output: String
+        do {
+            output = try await self.runner(
+                arguments,
+                environment.filter { allowedEnvironment.contains($0.key) },
+                maximumOutputBytes)
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch {
+            try Task.checkCancellation()
+            throw RemoteCodexCostError.unavailable
+        }
+        try Task.checkCancellation()
+        guard output.utf8.count <= maximumOutputBytes else { throw RemoteCodexCostError.invalidReport }
+        return output
     }
 }

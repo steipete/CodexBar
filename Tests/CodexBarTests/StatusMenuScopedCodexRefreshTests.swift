@@ -41,7 +41,7 @@ private final class ScopedRefreshGate {
 }
 
 @MainActor
-@Suite(.serialized)
+@Suite(.serialized, CodexCredentialFixtures())
 struct StatusMenuScopedCodexRefreshTests {
     @Test
     func `scoped refresh publishes compatible quota before dashboard enrichment completes`() async throws {

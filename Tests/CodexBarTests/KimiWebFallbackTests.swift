@@ -9,10 +9,10 @@ struct KimiWebFallbackTests {
         let strategy = KimiWebFetchStrategy(
             fetchUsage: { token, selected in
                 #expect(selected == region)
-                calls.add(token)
+                calls.add(token.token)
                 return Self.usage()
             },
-            desktopToken: { selected in
+            desktopCredential: { selected in
                 #expect(selected == region)
                 return nil
             },
@@ -120,8 +120,8 @@ struct KimiWebFallbackTests {
         fetch: @escaping @Sendable (String) async throws -> KimiUsageSnapshot) -> KimiWebFetchStrategy
     {
         KimiWebFetchStrategy(
-            fetchUsage: { token, _ in calls.add("fetch:\(token)"); return try await fetch(token) },
-            desktopToken: { _ in calls.add("desktop"); return "desktop" },
+            fetchUsage: { token, _ in calls.add("fetch:\(token.token)"); return try await fetch(token.token) },
+            desktopCredential: { _ in calls.add("desktop"); return KimiWebCredential(token: "desktop") },
             browserTokens: { _ in calls.add("browser"); return ["desktop", "browser-old", "browser-current"] })
     }
 

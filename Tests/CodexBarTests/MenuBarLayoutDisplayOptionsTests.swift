@@ -16,6 +16,8 @@ struct MenuBarLayoutDisplayOptionsTests {
         #expect(text.contains(L("menu_bar_layout_size")))
         #expect(text.contains(L("menu_bar_layout_gap")))
         #expect(text.contains(size.label))
+        #expect(text.contains(L("menu_bar_layout_monospaced_digits")))
+        #expect(text.contains(L("menu_bar_layout_show_window_labels")))
         #expect(text.contains(gap.label))
     }
 
@@ -58,7 +60,9 @@ struct MenuBarLayoutDisplayOptionsTests {
             MenuBarLayoutDisplayOptions(
                 size: .constant(size),
                 gap: .constant(gap),
-                verticalAdjustment: .constant(0))
+                verticalAdjustment: .constant(0),
+                monospacedDigits: .constant(false),
+                showWindowLabels: .constant(true))
             SettingsSectionFooter(L("menu_bar_layout_footer"))
         }
         .padding(16)

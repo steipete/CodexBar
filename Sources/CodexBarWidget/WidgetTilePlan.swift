@@ -142,7 +142,7 @@ enum WidgetLaneCopy {
     /// "Weekly left" / "Weekly used" — the bare percentages the tiles used to show never said
     /// which of the two the user was looking at, and the preference silently flips it.
     static func caption(title: String, showUsed: Bool) -> String {
-        "\(title) \(showUsed ? "used" : "left")"
+        W(showUsed ? "%@ used" : "%@ left", W(title))
     }
 
     /// Compact, human reset text. Counts down from the reset date when there is one — that form is
@@ -158,26 +158,26 @@ enum WidgetLaneCopy {
             // than falling through to cached wording that would still read "Resets in 4h".
             let interval = resetsAt.timeIntervalSince(now)
             guard interval > 0 else { return nil }
-            return "Resets in \(self.duration(interval))"
+            return W("Resets in %@", String(describing: self.duration(interval)))
         }
         // Provider wording is the fallback. Some providers emit a bare timestamp
         // ("tomorrow, 12:28 PM") that says nothing about what the time refers to, so label it.
         guard let text = resetDescription?.trimmingCharacters(in: .whitespacesAndNewlines),
               !text.isEmpty
         else { return nil }
-        return text.lowercased().hasPrefix("reset") ? text : "Resets \(text)"
+        return text.lowercased().hasPrefix("reset") ? W(text) : W("Resets %@", text)
     }
 
     /// Rounds to the nearest whole unit rather than truncating: 47h59m is "2d" to a reader, not
     /// the "1d" that flooring produces.
     static func duration(_ interval: TimeInterval) -> String {
         if interval < 3600 {
-            return "\(max(1, Int((interval / 60).rounded())))m"
+            return W("%@m", String(describing: max(1, Int((interval / 60).rounded()))))
         }
         if interval < 86400 {
             let hours = Int((interval / 3600).rounded())
-            return hours >= 24 ? "1d" : "\(max(1, hours))h"
+            return hours >= 24 ? W("%@d", "1") : W("%@h", String(max(1, hours)))
         }
-        return "\(max(1, Int((interval / 86400).rounded())))d"
+        return W("%@d", String(describing: max(1, Int((interval / 86400).rounded()))))
     }
 }

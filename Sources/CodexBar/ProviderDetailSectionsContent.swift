@@ -18,6 +18,15 @@ struct ProviderDetailSectionsContent: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    private static func progressColor(_ severity: ProviderDetailSection.Row.Severity?, fallback: Color) -> Color {
+        switch severity {
+        case .normal: Color(nsColor: .systemGreen)
+        case .warning: Color(nsColor: .systemOrange)
+        case .critical: Color(nsColor: .systemRed)
+        case nil: fallback
+        }
+    }
+
     private func section(_ section: ProviderDetailSection) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             if let title = section.title {
@@ -34,9 +43,21 @@ struct ProviderDetailSectionsContent: View {
                             .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
                         Spacer(minLength: 8)
                         VStack(alignment: .trailing, spacing: 1) {
-                            Text(row.value)
-                                .foregroundStyle(MenuHighlightStyle.primary(self.isHighlighted))
-                                .fontWeight(.medium)
+                            HStack(spacing: 4) {
+                                if let severity = row.severity, severity != .normal {
+                                    Label(
+                                        severity == .critical ? L("quota_warning_critical") :
+                                            L("quota_warning_warning"),
+                                        systemImage: severity == .critical
+                                            ? "exclamationmark.octagon.fill" : "exclamationmark.triangle.fill")
+                                        .labelStyle(.iconOnly)
+                                        .foregroundStyle(self.isHighlighted
+                                            ? .white : Self.progressColor(severity, fallback: self.chartColor))
+                                }
+                                Text(row.value)
+                                    .foregroundStyle(MenuHighlightStyle.primary(self.isHighlighted))
+                                    .fontWeight(.medium)
+                            }
                             if let secondaryValue = row.secondaryValue {
                                 Text(secondaryValue)
                                     .font(.caption2)
@@ -51,7 +72,7 @@ struct ProviderDetailSectionsContent: View {
                         // is clamped here, the "used / total" caption keeps the raw numbers.
                         UsageProgressBar(
                             percent: min(100, max(0, progress.usedPercent)),
-                            tint: self.chartColor,
+                            tint: Self.progressColor(row.severity, fallback: self.chartColor),
                             accessibilityLabel: row.label)
                     }
                 }
@@ -101,23 +122,11 @@ private struct ProviderDetailChartContent: View {
     }
 
     private var bars: some View {
-        GeometryReader { geometry in
-            let scale = UsageChartScale(values: self.chart.points.map(\.value))
-            HStack(alignment: .bottom, spacing: 2) {
-                ForEach(Array(self.chart.points.enumerated()), id: \.offset) { _, point in
-                    RoundedRectangle(cornerRadius: 1.5, style: .continuous)
-                        .fill(self.fillColor(value: point.value, scale: scale))
-                        .frame(maxWidth: .infinity)
-                        .frame(height: Self.height(value: point.value, scale: scale, available: geometry.size.height))
-                }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-            .overlay(alignment: .bottomLeading) {
-                Rectangle()
-                    .fill(MenuHighlightStyle.secondary(self.isHighlighted).opacity(0.22))
-                    .frame(height: 1)
-            }
-        }
+        MenuUsageBarStrip(
+            points: self.chart.points.enumerated().map { index, point in
+                .init(id: String(index), value: point.value)
+            },
+            baseColor: self.color)
     }
 
     private var line: some View {
@@ -160,19 +169,5 @@ private struct ProviderDetailChartContent: View {
         let unit = self.chart.unit.map { " \($0)" } ?? ""
         let points = self.chart.points.map { "\($0.label) \($0.value)\(unit)" }.joined(separator: ", ")
         return title + points
-    }
-
-    private func fillColor(value: Double, scale: UsageChartScale) -> Color {
-        let ratio = max(0.18, scale.fraction(for: value))
-        if self.isHighlighted {
-            return Color.white.opacity(0.55 + ratio * 0.35)
-        }
-        return self.color.opacity(0.42 + ratio * 0.58)
-    }
-
-    private static func height(value: Double, scale: UsageChartScale, available: CGFloat) -> CGFloat {
-        let ratio = scale.fraction(for: value)
-        guard ratio > 0 else { return 1 }
-        return max(3, CGFloat(ratio) * available)
     }
 }

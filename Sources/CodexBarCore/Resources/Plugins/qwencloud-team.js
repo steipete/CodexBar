@@ -117,8 +117,8 @@ defineProvider({
         params.Nbid = nbid;
       }
       const summary = await rpc("BssOpenAPI-V3", "GetSeatSubscriptionSummary", params, "cn-hangzhou");
-      if (summary.Data === null) return { empty: true };
-      const data = _nullishCoalesce(record(summary.Data), () => fail("subscription"));
+      const data = _nullishCoalesce(record(summary.Data === null ? {} : summary.Data), () => fail("subscription"));
+      if (Object.keys(data).length === 0) return { empty: true };
       const groups = data.SubscriptionGroupList;
       if (!Array.isArray(groups)) return fail("subscription groups");
       if (!groups.length) return { empty: true };

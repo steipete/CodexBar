@@ -70,7 +70,6 @@ struct SpendDashboardLocalHistoryTests {
         let group = try #require(model.groups.first)
         CodexBarLocalizationOverride.$appLanguage.withValue("en") {
             #expect(spendDashboardProviderCountTitle(group) == "Sources")
-            #expect(spendDashboardProviderPanelTitle(group) == "By source")
             #expect(spendDashboardPartialSourceCoverageText(group) == "1 of 1 sources have spend")
         }
     }

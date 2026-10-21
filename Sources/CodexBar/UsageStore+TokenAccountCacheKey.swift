@@ -39,7 +39,7 @@ extension UsageStore {
         encoder.outputFormatting = [.sortedKeys]
         var material = Data(provider.rawValue.utf8)
         material.append((try? encoder.encode(config)) ?? Data())
-        material.append((try? encoder.encode(account)) ?? Data())
+        material.append((try? encoder.encode(account.withModelRateLimits(nil))) ?? Data())
         if Self.tokenCostRequiresProviderSnapshot(provider) {
             material.append(Data(self.tokenSnapshotScopeSignature(for: provider).utf8))
         }

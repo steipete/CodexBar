@@ -855,7 +855,7 @@ struct StatusItemBalanceDisplayTests {
         #expect(StatusItemController.statusItemAccessibilityTitle(isDebugApp: false) == "CodexBar")
     }
 
-    private func makeSettings(suiteName: String, provider: UsageProvider) -> SettingsStore {
+    func makeSettings(suiteName: String, provider: UsageProvider) -> SettingsStore {
         let settings = testSettingsStore(suiteName: suiteName, userDefaults: InMemoryUserDefaults())
         settings.statusChecksEnabled = false
         settings.refreshFrequency = .manual
@@ -871,7 +871,7 @@ struct StatusItemBalanceDisplayTests {
         return settings
     }
 
-    private func makeStoreAndController(settings: SettingsStore) -> (UsageStore, StatusItemController) {
+    func makeStoreAndController(settings: SettingsStore) -> (UsageStore, StatusItemController) {
         let fetcher = UsageFetcher()
         let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
         let controller = StatusItemController(
@@ -953,7 +953,7 @@ extension StatusItemBalanceDisplayTests {
             details: [ProviderDetailSection(title: "Billing", rows: [.init(label: "Balance", value: "$2.57")])],
             updatedAt: Date())
         store._setSnapshotForTesting(snapshot, provider: .lithosai)
-        let selected = controller.primaryProviderForUnifiedIcon()
+        let selected = try #require(controller.primaryProviderForUnifiedIcon().firstPartyProvider)
         #expect(selected == .lithosai)
         #expect(controller.menuBarDisplayText(for: selected, snapshot: snapshot) == "$2.57")
         let data = controller.menuBarLayoutRenderData(provider: selected, snapshot: snapshot, warningFlash: false)
@@ -1677,5 +1677,27 @@ extension StatusItemBalanceDisplayTests {
         #expect(statusItemData.automatic != nil)
         #expect(statusItemData.automaticText == nil)
         #expect(rendered.attributedTitle.string.hasSuffix("25%"))
+    }
+}
+
+extension StatusItemBalanceDisplayTests {
+    @Test(arguments: AppLanguage.allCases.filter { $0 != .system })
+    func `kiro overage menu text is localized in every supported language`(language: AppLanguage) {
+        let settings = self.makeSettings(
+            suiteName: "StatusItemBalanceDisplayTests-kiro-overage-localized-\(language.rawValue)",
+            provider: .kiro)
+        settings.kiroMenuBarDisplayMode = .overageCostWhenExhausted
+        let (store, controller) = self.makeStoreAndController(settings: settings)
+        defer { controller.releaseStatusItemsForTesting() }
+        let snapshot = Self.exhaustedKiroSnapshot()
+
+        store._setSnapshotForTesting(snapshot, provider: .kiro)
+        store._setErrorForTesting(nil, provider: .kiro)
+
+        CodexBarLocalizationOverride.$appLanguage.withValue(language.rawValue) {
+            let displayText = controller.menuBarDisplayText(for: .kiro, snapshot: snapshot)
+            #expect(displayText == L("%@ over", "$1.61"))
+            if language != .english { #expect(displayText != "$1.61 over") }
+        }
     }
 }

@@ -160,7 +160,6 @@ extension UsageMenuCardView.Model {
                 resetStyle: input.resetTimeDisplayStyle,
                 now: input.now)
         case .claude:
-            guard input.showOptionalCreditsAndExtraUsage else { return nil }
             guard let resetCredits = input.snapshot?.claudeResetCredits else { return nil }
             return LimitResetCreditsPresentation.make(
                 expirations: resetCredits.availableExpirations(at: input.now),

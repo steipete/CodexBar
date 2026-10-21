@@ -156,14 +156,23 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
         let plan = Self.resolvePlan(response: codeAssist, claims: claims)
         do {
             let response: AntigravityQuotaSummaryResponse = try await Self.fetchQuotaResponse(
-                method: "retrieveUserQuotaSummary",
+                endpoint: "https://daily-cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary",
                 accessToken: accessToken,
                 projectId: projectId,
                 timeout: min(self.timeout, 2),
                 dataLoader: self.dataLoader)
             try Task.checkCancellation()
             let summary = try response.snapshot(accountEmail: claims.email, accountPlan: plan, source: .remote)
-            if summary.hasKnownQuotaSummary { return summary }
+            if summary.hasKnownQuotaSummary {
+                if plan?.lowercased() == "free",
+                   try summary.toUsageSnapshot().extraRateWindows?.contains(where: {
+                       $0.usageKnown && $0.window.windowMinutes == 300
+                   }) == true
+                {
+                    return try response.snapshot(accountEmail: claims.email, source: .remote)
+                }
+                return summary
+            }
         } catch {
             if error is CancellationError || (error as? URLError)?.code == .cancelled ||
                 (error as? AntigravityRemoteFetchError) == .notLoggedIn
@@ -200,20 +209,16 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
     }
 
     private static func fetchQuotaResponse<Response: Decodable>(
-        method: String,
+        endpoint: String,
         accessToken: String,
         projectId: String?,
         timeout: TimeInterval,
         dataLoader: @escaping @Sendable (URLRequest) async throws -> (Data, URLResponse)) async throws
         -> Response
     {
-        let body: [String: Any] = if let projectId = projectId?.trimmedNonEmpty {
-            ["project": projectId]
-        } else {
-            [:]
-        }
+        let body: [String: Any] = (projectId?.trimmedNonEmpty).map { ["project": $0] } ?? [:]
         return try await Self.sendRequest(
-            endpoint: "\(Self.baseURL)/v1internal:\(method)",
+            endpoint: endpoint,
             accessToken: accessToken,
             body: body,
             timeout: timeout,
@@ -229,7 +234,7 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
     {
         do {
             let response: FetchAvailableModelsResponse = try await Self.fetchQuotaResponse(
-                method: "fetchAvailableModels",
+                endpoint: "\(Self.baseURL)/v1internal:fetchAvailableModels",
                 accessToken: accessToken,
                 projectId: projectId,
                 timeout: timeout,
@@ -292,11 +297,7 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
     }
 
     private static func shouldVerifyFullRemoteQuotas(_ quotas: [AntigravityModelQuota]) -> Bool {
-        guard !quotas.isEmpty else { return false }
-        return quotas.allSatisfy { quota in
-            guard let remaining = quota.remainingFraction else { return false }
-            return remaining >= 0.999
-        }
+        !quotas.isEmpty && quotas.allSatisfy { ($0.remainingFraction ?? 0) >= 0.999 }
     }
 
     private static func fetchQuotaBucketsIfPermitted(
@@ -308,7 +309,7 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
     {
         do {
             let response: RetrieveUserQuotaResponse = try await Self.fetchQuotaResponse(
-                method: "retrieveUserQuota",
+                endpoint: "\(Self.baseURL)/v1internal:retrieveUserQuota",
                 accessToken: accessToken,
                 projectId: projectId,
                 timeout: timeout,
@@ -330,11 +331,7 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
         context: FetchContext) async throws
         -> String?
     {
-        if let storedProjectID {
-            return storedProjectID
-        }
-
-        if let projectID = initialResponse.projectID {
+        if let projectID = storedProjectID ?? initialResponse.projectID {
             return projectID
         }
 
@@ -441,7 +438,6 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
         guard let buckets = response.buckets else {
             throw AntigravityRemoteFetchError.parseFailed("No quota buckets in response")
         }
-        guard !buckets.isEmpty else { return [] }
 
         var modelQuotaMap: [String: (fraction: Double?, resetTime: String?)] = [:]
         for bucket in buckets {
@@ -467,18 +463,21 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
     }
 
     private static func resolvePlan(response: CodeAssistResponse, claims: TokenClaims) -> String? {
+        if let tier = response.paidTier,
+           tier.name?.trimmedNonEmpty != nil || tier.id?.trimmedNonEmpty != nil
+        {
+            return tier.name?.trimmedNonEmpty ?? "Paid"
+        }
         if let planType = response.planInfo?.planType?.trimmedNonEmpty {
             return planType
         }
 
-        switch (response.currentTier?.id?.trimmedNonEmpty, claims.hostedDomain) {
-        case ("standard-tier", _):
+        switch response.currentTier?.id?.trimmedNonEmpty {
+        case "standard-tier":
             return "Paid"
-        case ("free-tier", .some):
-            return "Workspace"
-        case ("free-tier", .none):
-            return "Free"
-        case ("legacy-tier", _):
+        case "free-tier":
+            return claims.hostedDomain == nil ? "Free" : "Workspace"
+        case "legacy-tier":
             return "Legacy"
         default:
             return response.currentTier?.name?.trimmedNonEmpty

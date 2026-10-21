@@ -65,6 +65,7 @@ struct MenuPane: View {
 
             Section {
                 Toggle(L("show_provider_changelog_links_title"), isOn: self.$settings.providerChangelogLinksEnabled)
+                Toggle(L("highlight_menu_cards_on_hover_title"), isOn: self.$settings.highlightMenuCardsOnHover)
 
                 SettingsMenuPicker(
                     selection: self.$settings.mergedOverviewLayout,
@@ -127,9 +128,9 @@ struct AgentSessionsSettingsSection: View {
         Section {
             Toggle(isOn: self.$settings.stayAwakeEnabled) {
                 SettingsRowLabel(
-                    "Stay Awake",
-                    subtitle: "Prevent idle system sleep while a local agent process is running, even when idle. " +
-                        "Uses battery power; does not prevent lid-close or display sleep.")
+                    L("Stay Awake"),
+                    subtitle: L("Prevent idle system sleep while a local agent process is running, even when idle. " +
+                        "Uses battery power; does not prevent lid-close or display sleep."))
             }
 
             Toggle(isOn: self.$settings.agentSessionsEnabled) {
@@ -151,18 +152,21 @@ struct AgentSessionsSettingsSection: View {
                 })
                 .disabled(!self.settings.agentSessionsMonitoringEnabled)
 
+            Toggle(isOn: self.$settings.agentSessionsRemoteEnabled) {
+                SettingsRowLabel(L("agent_sessions_remote_title"), subtitle: L("agent_sessions_remote_subtitle"))
+            }
+            .disabled(!self.settings.agentSessionsMonitoringEnabled)
+
             Toggle(isOn: self.$settings.agentSessionsHideUnreachableHosts) {
                 SettingsRowLabel(
                     L("agent_sessions_hide_unreachable_title"),
                     subtitle: L("agent_sessions_hide_unreachable_subtitle"))
             }
-            .disabled(!self.settings.agentSessionsMonitoringEnabled)
+            .disabled(!self.settings.agentSessionsMonitoringEnabled || !self.settings.agentSessionsRemoteEnabled)
 
             AgentSessionHostsEditor(settings: self.settings)
         } header: {
             Text(L("section_agent_sessions"))
-        } footer: {
-            SettingsSectionFooter(L("agent_sessions_footer"))
         }
     }
 }
@@ -184,8 +188,8 @@ struct AgentSessionHostsEditor: View {
                 .frame(minWidth: 220, idealWidth: 280)
                 .accessibilityLabel(L("agent_sessions_hosts_title"))
         }
-        .disabled(!self.settings.agentSessionsMonitoringEnabled)
-        .help(L("agent_sessions_footer"))
+        .disabled(!self.settings.agentSessionsMonitoringEnabled || !self.settings.agentSessionsRemoteEnabled)
+        .help(L("agent_sessions_remote_subtitle"))
     }
 }
 

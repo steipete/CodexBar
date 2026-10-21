@@ -119,8 +119,7 @@ final class TypeSafeWebFetchStrategy: ProviderFetchStrategy, @unchecked Sendable
 
     private func fetchUsage(cookieHeader: String) async throws -> UsageSnapshot {
         if let usageLoader = self.usageLoader { return try await usageLoader(cookieHeader) }
-        let runtime = try self.loadedRuntime()
-        return try await runtime.fetchUsage(cookieResolver: { provider, domain in
+        return try await self.loadedRuntime().fetchUsage(cookieResolver: { provider, domain in
             guard provider == .typesafe, domain == "typesafe.ai" else {
                 throw TypeSafeCredentialError.invalidCookie
             }
@@ -172,7 +171,8 @@ enum TypeSafeCredentialError: LocalizedError, Equatable {
     var errorDescription: String? {
         switch self {
         case .missingCookie:
-            "No TypeSafe session cookies found. Sign in at console.typesafe.ai/settings/billing or paste a Cookie header."
+            "No TypeSafe session cookies found. Sign in at console.typesafe.ai/settings/billing "
+                + "or paste a Cookie header."
         case .invalidCookie:
             "TypeSafe needs a nonempty Cookie header from the billing page."
         case .disabled:

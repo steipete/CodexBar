@@ -21,23 +21,35 @@ struct HomebrewUpdaterControllerTests {
         var installedVersion = "0.65.0"
         var caskSource = HomebrewUpdaterControllerTests.caskSource
         var fetchError: Error?
+        var fetchCount = 0
         var upgradeError: Error?
         var versionAfterUpgrade: String?
         var upgradeCount = 0
+        var requestedVersion: String?
         var upgradeWait: CheckedContinuation<Void, Never>?
         var suspendUpgrade = false
         var relaunchCount = 0
+        var notificationVersions: [String] = []
+        var submittedVersion: String?
+        var removedVersions: [String] = []
+        var notificationIsCurrent: (@MainActor () -> Bool)?
+        var notificationCompletion: (@MainActor (Bool) -> Void)?
 
-        func makeController() -> HomebrewUpdaterController {
+        func makeController(
+            savedAutoCheck: Bool = false,
+            cask: HomebrewCask = .tap) -> HomebrewUpdaterController
+        {
             HomebrewUpdaterController(
-                savedAutoCheck: false,
+                savedAutoCheck: savedAutoCheck,
                 dependencies: HomebrewUpdaterController.Dependencies(
                     installedVersion: { self.installedVersion },
                     fetchCaskSource: { @MainActor in
+                        self.fetchCount += 1
                         if let error = self.fetchError { throw error }
                         return self.caskSource
                     },
-                    runUpgrade: { @MainActor in
+                    runUpgrade: { @MainActor targetVersion in
+                        self.requestedVersion = targetVersion
                         self.upgradeCount += 1
                         if self.suspendUpgrade, self.upgradeCount == 1 {
                             await withCheckedContinuation { self.upgradeWait = $0 }
@@ -45,9 +57,93 @@ struct HomebrewUpdaterControllerTests {
                         if let error = self.upgradeError { throw error }
                         if let version = self.versionAfterUpgrade { self.installedVersion = version }
                     },
-                    relaunch: { self.relaunchCount += 1 }),
+                    relaunch: { self.relaunchCount += 1 },
+                    cask: { cask }),
+                notifier: HomebrewUpdateNotifier(dependencies: .init(
+                    lastSubmittedVersion: { self.submittedVersion },
+                    saveSubmittedVersion: { self.submittedVersion = $0 },
+                    post: { version, isCurrent, completion in
+                        self.notificationVersions.append(version)
+                        self.notificationIsCurrent = isCurrent
+                        self.notificationCompletion = completion
+                    },
+                    remove: { self.removedVersions.append($0) })),
                 startScheduledChecks: false)
         }
+    }
+
+    @Test
+    func `automatic checks announce newer releases while manual checks stay in the page`() async {
+        let fixture = Fixture()
+        let controller = fixture.makeController(savedAutoCheck: true)
+        await controller.performCheck()
+        #expect(fixture.notificationVersions.isEmpty)
+        await controller.performCheck(source: .automatic)
+        #expect(fixture.notificationVersions == ["0.66.0"])
+    }
+
+    @Test
+    func `disabled automatic checks and up to date versions do not notify`() async {
+        let fixture = Fixture()
+        let disabled = fixture.makeController()
+        await disabled.performCheck(source: .automatic)
+        #expect(fixture.fetchCount == 0)
+        #expect(fixture.notificationVersions.isEmpty)
+        await disabled.performCheck()
+        #expect(fixture.fetchCount == 1)
+        #expect(fixture.upgradeCount == 0)
+        #expect(fixture.notificationVersions.isEmpty)
+        fixture.installedVersion = "0.66.0"
+        let current = fixture.makeController(savedAutoCheck: true)
+        await current.performCheck(source: .automatic)
+        #expect(fixture.notificationVersions.isEmpty)
+    }
+
+    @Test
+    func `starting with automatic checks disabled retires a notice from the previous launch`() {
+        let fixture = Fixture()
+        fixture.submittedVersion = "0.66.0"
+        let controller = fixture.makeController(savedAutoCheck: false)
+        #expect(!controller.automaticallyChecksForUpdates)
+        #expect(fixture.removedVersions == ["0.66.0"])
+        #expect(fixture.submittedVersion == "0.66.0")
+        #expect(fixture.fetchCount == 0)
+        #expect(fixture.upgradeCount == 0)
+    }
+
+    @Test
+    func `failed background checks do not announce a previously found version`() async {
+        let fixture = Fixture()
+        let controller = fixture.makeController(savedAutoCheck: true)
+        await controller.performCheck()
+        fixture.fetchError = HomebrewUpdateError.invalidCaskResponse
+        await controller.performCheck(source: .automatic)
+        #expect(fixture.notificationVersions.isEmpty)
+        #expect(controller.updateStatus.availableVersion == "0.66.0")
+    }
+
+    @Test
+    func `disabling checks invalidates an update notice awaiting submission`() async {
+        let fixture = Fixture()
+        let controller = fixture.makeController(savedAutoCheck: true)
+        await controller.performCheck(source: .automatic)
+        #expect(fixture.notificationIsCurrent?() == true)
+        controller.automaticallyChecksForUpdates = false
+        #expect(fixture.notificationIsCurrent?() == false)
+        fixture.notificationCompletion?(false)
+    }
+
+    @Test
+    func `starting an upgrade invalidates an update notice even when the upgrade fails`() async {
+        let fixture = Fixture()
+        let controller = fixture.makeController(savedAutoCheck: true)
+        await controller.performCheck(source: .automatic)
+        #expect(fixture.notificationIsCurrent?() == true)
+        fixture.upgradeError = HomebrewUpdateError.brewNotFound
+        await controller.performInstall()
+        #expect(fixture.notificationIsCurrent?() == false)
+        #expect(controller.updateStatus.availableVersion == "0.66.0")
+        fixture.notificationCompletion?(false)
     }
 
     @Test
@@ -55,6 +151,42 @@ struct HomebrewUpdaterControllerTests {
         #expect(HomebrewCaskVersion.parse(caskSource: Self.caskSource) == "0.66.0")
         #expect(HomebrewCaskVersion.parse(caskSource: "cask \"codexbar\" do\nend") == nil)
         #expect(HomebrewCaskVersion.parse(caskSource: "  version \"\"") == nil)
+    }
+
+    @Test
+    func `version parsing preserves whitespace and ignores unrelated declarations`() {
+        #expect(HomebrewCaskVersion.parse(caskSource: "# version \"99.0.0\"\n  version \" 0.66.0 \"\r\n") == "0.66.0")
+        #expect(HomebrewCaskVersion.parse(caskSource: "\tversion  \"0.66.0-beta.1\"") == "0.66.0-beta.1")
+        #expect(HomebrewCaskVersion.parse(caskSource: "version \t\"0.66.0\"") == "0.66.0")
+        #expect(HomebrewCaskVersion.parse(caskSource: "version :latest") == nil)
+        #expect(HomebrewCaskVersion.parse(caskSource: "version \"   \"") == nil)
+        #expect(HomebrewCaskVersion.parse(caskSource: "version \"unterminated") == nil)
+    }
+
+    @Test(arguments: [HomebrewCask.official, .tap])
+    func `recovery command follows the selected cask`(cask: HomebrewCask) {
+        let controller = Fixture().makeController(cask: cask)
+        let expected = cask == .official
+            ? "brew upgrade --cask homebrew/cask/codexbar"
+            : "brew upgrade --cask steipete/tap/codexbar"
+        #expect(controller.manualUpdateCommand == expected)
+    }
+
+    @Test
+    func `unknown cask ownership fails without inventing a recovery target`() async {
+        let controller = HomebrewUpdaterController(
+            savedAutoCheck: false,
+            dependencies: .init(
+                installedVersion: { "0.65.0" },
+                fetchCaskSource: { throw HomebrewUpdateError.invalidCaskResponse },
+                runUpgrade: { _ in },
+                relaunch: {},
+                cask: { throw HomebrewUpdateError.invalidCaskResponse }),
+            startScheduledChecks: false)
+        await controller.performCheck()
+        #expect(controller.manualUpdateCommand == nil)
+        #expect(controller.updateStatus.availableVersion == nil)
+        #expect(controller.phase == .failed(HomebrewUpdateError.invalidCaskResponse.localizedDescription))
     }
 
     @Test
@@ -142,6 +274,7 @@ struct HomebrewUpdaterControllerTests {
 
         #expect(fixture.upgradeCount == 1)
         #expect(fixture.relaunchCount == 1)
+        #expect(fixture.requestedVersion == "0.66.0")
         #expect(controller.updateStatus.availableVersion == nil)
         #expect(controller.updateStatus.isInstalling == false)
     }

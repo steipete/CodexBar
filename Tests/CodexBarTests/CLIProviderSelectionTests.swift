@@ -31,6 +31,19 @@ struct CLIProviderSelectionTests {
             "|museai|",
             "|lithosai|",
             "|workbuddy|",
+            "|tavily|",
+            "|linkup|",
+            "|tinyapi|",
+            "|exa|",
+            "|cosmic|",
+            "|aerostack|",
+            "|sailresearch|",
+            "|sofya|",
+            "|fal|",
+            "|flora|",
+            "|parallel|",
+            "|claudeplatform|",
+            "|munito|",
             "|both|",
             "|all]",
         ]
@@ -123,6 +136,12 @@ struct CLIProviderSelectionTests {
     func `provider selection accepts kiro alias`() {
         let selection = CodexBarCLI.providerSelection(rawOverride: "kiro-cli", enabled: [.codex])
         #expect(selection.asList == [.kiro])
+    }
+
+    @Test
+    func `provider selection accepts claude platform alias`() {
+        let selection = CodexBarCLI.providerSelection(rawOverride: "claude-platform", enabled: [.claude])
+        #expect(selection.asList == [.claudeplatform])
     }
 
     @Test

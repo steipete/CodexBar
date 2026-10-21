@@ -9,13 +9,15 @@ import SwiftUI
 struct ProviderMenuBarPercentWindowSettingsView: View {
     let provider: UsageProvider
     @Bindable var settings: SettingsStore
+    var snapshot: UsageSnapshot?
 
     var body: some View {
         ProviderMenuBarPercentWindowPicker(
             provider: self.provider,
             iconStyle: self.settings.menuBarIconStyle,
             layout: self.layoutBinding,
-            metric: self.metricBinding)
+            metric: self.metricBinding,
+            snapshot: self.snapshot)
     }
 
     var layoutBinding: Binding<MenuBarLayout> {
@@ -37,6 +39,7 @@ struct ProviderMenuBarPercentWindowPicker: View {
     let iconStyle: MenuBarIconStyle
     @Binding var layout: MenuBarLayout
     var metric: Binding<MenuBarMetricPreference> = .constant(.automatic)
+    var snapshot: UsageSnapshot?
 
     var body: some View {
         let layout = self.layout
@@ -56,7 +59,8 @@ struct ProviderMenuBarPercentWindowPicker: View {
                             .tag(MenuBarPercentWindowPreference?.none)
                     }
                     ForEach(available) { preference in
-                        Text(preference.label(for: self.provider)).tag(MenuBarPercentWindowPreference?.some(preference))
+                        Text(preference.label(for: self.provider, snapshot: self.snapshot))
+                            .tag(MenuBarPercentWindowPreference?.some(preference))
                     }
                 }
                 .pickerStyle(.menu)

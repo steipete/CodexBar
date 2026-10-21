@@ -356,7 +356,63 @@ struct CLIServeRawHTTPTests {
     }
 
     @Test
-    func `non-loopback binds gate usage and cost behind the token`() async throws {
+    func `accounts routes return metadata only with no-store and unknown ids return 404`() async throws {
+        let accountID = try #require(UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE"))
+        let config = CodexBarConfig(providers: [
+            ProviderConfig(
+                id: .claude,
+                enabled: true,
+                tokenAccounts: ProviderTokenAccountData(
+                    version: 1,
+                    accounts: [ProviderTokenAccount(
+                        id: accountID,
+                        label: "Local Claude",
+                        token: "must-not-leak",
+                        addedAt: 1,
+                        lastUsed: nil)],
+                    activeIndex: 0)),
+        ])
+        let wireID = "token-account:claude:\(accountID.uuidString.lowercased())"
+        try await Self.withServeRuntime(token: nil, config: config, body: { port in
+            let list = try await Self.rawExchange(
+                port: port,
+                request: "GET /accounts HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n")
+            #expect(list.statusLine == "HTTP/1.1 200 OK")
+            #expect(list.headerValue("Cache-Control") == "no-store")
+            #expect(!list.body.contains("must-not-leak"))
+            let listObject = try #require(
+                JSONSerialization.jsonObject(with: Data(list.body.utf8)) as? [String: Any])
+            let accounts = try #require(listObject["accounts"] as? [[String: Any]])
+            #expect(accounts.count == 1)
+            #expect(accounts.first?["id"] as? String == wireID)
+            #expect(accounts.first?["provider"] as? String == "claude")
+            #expect(accounts.first?["active"] as? Bool == true)
+
+            let detail = try await Self.rawExchange(
+                port: port,
+                request: "GET /accounts/\(wireID) HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n")
+            #expect(detail.statusLine == "HTTP/1.1 200 OK")
+            #expect(detail.headerValue("Cache-Control") == "no-store")
+            let detailObject = try #require(
+                JSONSerialization.jsonObject(with: Data(detail.body.utf8)) as? [String: Any])
+            #expect(detailObject["id"] as? String == wireID)
+
+            let missing = try await Self.rawExchange(
+                port: port,
+                request: "GET /accounts/unknown HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n")
+            #expect(missing.statusLine == "HTTP/1.1 404 Not Found")
+            #expect(missing.headerValue("Cache-Control") == "no-store")
+
+            let methodNotAllowed = try await Self.rawExchange(
+                port: port,
+                request: "POST /accounts HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Length: 0\r\n\r\n")
+            #expect(methodNotAllowed.statusLine == "HTTP/1.1 405 Method Not Allowed")
+            #expect(methodNotAllowed.headerValue("Cache-Control") == "no-store")
+        })
+    }
+
+    @Test
+    func `non-loopback binds gate account usage and cost data behind the token`() async throws {
         try await Self.withServeRuntime(token: "secret", bindHost: "0.0.0.0", body: { port in
             let usageDenied = try await Self.rawExchange(
                 port: port,
@@ -364,9 +420,16 @@ struct CLIServeRawHTTPTests {
             let costDenied = try await Self.rawExchange(
                 port: port,
                 request: "GET /cost HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n")
+            let accountsDenied = try await Self.rawExchange(
+                port: port,
+                request: "GET /accounts HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n")
             let usageAllowed = try await Self.rawExchange(
                 port: port,
                 request: "GET /usage HTTP/1.1\r\nHost: 127.0.0.1\r\n"
+                    + "Authorization: Bearer secret\r\n\r\n")
+            let accountsAllowed = try await Self.rawExchange(
+                port: port,
+                request: "GET /accounts HTTP/1.1\r\nHost: 127.0.0.1\r\n"
                     + "Authorization: Bearer secret\r\n\r\n")
             let health = try await Self.rawExchange(
                 port: port,
@@ -377,11 +440,37 @@ struct CLIServeRawHTTPTests {
             #expect(usageDenied.headerValue("Cache-Control") == "no-store")
             #expect(costDenied.statusLine == "HTTP/1.1 401 Unauthorized")
             #expect(costDenied.headerValue("Cache-Control") == "no-store")
+            #expect(accountsDenied.statusLine == "HTTP/1.1 401 Unauthorized")
+            #expect(accountsDenied.headerValue("Cache-Control") == "no-store")
             #expect(usageAllowed.statusLine == "HTTP/1.1 200 OK")
             #expect(usageAllowed.headerValue("Cache-Control") == "no-store")
+            #expect(accountsAllowed.statusLine == "HTTP/1.1 200 OK")
+            #expect(accountsAllowed.headerValue("Cache-Control") == "no-store")
             // /health carries no account data and stays open for liveness probes.
             #expect(health.statusLine == "HTTP/1.1 200 OK")
         })
+    }
+
+    @Test
+    func `account authentication precedes config reads and errors do not expose storage details`() async throws {
+        try await Self.withServeRuntime(
+            token: "secret", bindHost: "0.0.0.0", rawConfigJSON: "{not json", body: { port in
+                for path in ["/accounts", "/accounts/unknown"] {
+                    let denied = try await Self.rawExchange(
+                        port: port,
+                        request: "GET \(path) HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n")
+                    #expect(denied.statusLine == "HTTP/1.1 401 Unauthorized")
+                    #expect(denied.headerValue("Cache-Control") == "no-store")
+
+                    let allowed = try await Self.rawExchange(
+                        port: port,
+                        request: "GET \(path) HTTP/1.1\r\nHost: 127.0.0.1\r\n"
+                            + "Authorization: Bearer secret\r\n\r\n")
+                    #expect(allowed.statusLine == "HTTP/1.1 500 Internal Server Error")
+                    #expect(allowed.headerValue("Cache-Control") == "no-store")
+                    #expect(allowed.body == #"{"error":"could not load accounts"}"#)
+                }
+            })
     }
 
     @Test

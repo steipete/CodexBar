@@ -48,15 +48,20 @@ defineProvider({
   async fetchUsage(ctx) {
     const object = (value) =>
       value !== null && typeof value === "object" && !Array.isArray(value) ? value : undefined;
+    const table = (value, key) =>
+      _nullishCoalesce(
+        object(_optionalChain([object, "call", (_) => _(value), "optionalAccess", (_2) => _2[key]])),
+        () => ({}),
+      );
     const text = (value) => (typeof value === "string" ? value : undefined);
     const invalid = (message) => {
       throw ctx.fail.parseFailure(`Could not parse Notion usage: ${message}`);
     };
     const unwrap = (value) => {
       const outer = object(value);
-      const inner = object(_optionalChain([outer, "optionalAccess", (_) => _.value]));
+      const inner = object(_optionalChain([outer, "optionalAccess", (_3) => _3.value]));
       return _nullishCoalesce(
-        _nullishCoalesce(object(_optionalChain([inner, "optionalAccess", (_2) => _2.value])), () => inner),
+        _nullishCoalesce(object(_optionalChain([inner, "optionalAccess", (_4) => _4.value])), () => inner),
         () => outer,
       );
     };
@@ -83,8 +88,12 @@ defineProvider({
     const window = (raw, rolling, resets) => {
       if (raw === undefined || raw === null) return undefined;
       const value = _nullishCoalesce(object(raw), () => invalid("window is not an object"));
+      for (const field of ["creditType", "scope", "window", "cadence"]) {
+        if (value[field] != null && typeof value[field] !== "string") return invalid(`invalid ${field}`);
+      }
       const used = numeric(value.used),
-        limit = numeric(value.limit);
+        limit = numeric(value.limit),
+        end = numeric(value.periodEndMs);
       if (used === undefined || limit === undefined || limit <= 0) return undefined;
       let windowMinutes;
       let resetsAt;
@@ -92,32 +101,30 @@ defineProvider({
         const token = _optionalChain([
           text,
           "call",
-          (_3) => _3(value.window),
+          (_5) => _5(value.window),
           "optionalAccess",
-          (_4) => _4.trim,
-          "call",
-          (_5) => _5(),
-          "access",
-          (_6) => _6.toLowerCase,
+          (_6) => _6.trim,
           "call",
           (_7) => _7(),
+          "access",
+          (_8) => _8.toLowerCase,
+          "call",
+          (_9) => _9(),
         ]);
         const parts = _optionalChain([
           token,
           "optionalAccess",
-          (_8) => _8.match,
+          (_10) => _10.match,
           "call",
-          (_9) => _9(/^([1-9][0-9]*)([mhdw])$/),
+          (_11) => _11(/^([1-9][0-9]*)([mhdw])$/),
         ]);
         if (parts) {
           const minutes = Number(parts[1]) * _nullishCoalesce({ m: 1, h: 60, d: 1440, w: 10080 }[parts[2]], () => 0);
           if (Number.isSafeInteger(minutes) && minutes !== 43200) windowMinutes = minutes;
         }
-        const seconds = numeric(resets);
-        if (seconds !== undefined && seconds >= 0) resetsAt = new Date(ctx.date.now().getTime() + seconds * 1000);
+        if (resets !== undefined && resets >= 0) resetsAt = new Date(ctx.date.now().getTime() + resets * 1000);
       } else {
         windowMinutes = 43200;
-        const end = numeric(value.periodEndMs);
         if (end !== undefined && end > 0) resetsAt = new Date(end);
       }
       return { usedPercent: Math.max(0, (used / limit) * 100), windowMinutes, resetsAt };
@@ -144,99 +151,88 @@ defineProvider({
         return _nullishCoalesce(object(parsed), () => invalid(`${endpoint} response is not an object`));
       };
       try {
-        const spaces = await post("getSpaces", {});
-        const ids = Object.keys(spaces).filter(
-          (id) =>
-            _optionalChain([
-              unwrap,
-              "call",
-              (_10) =>
-                _10(
-                  _optionalChain([
-                    object,
-                    "call",
-                    (_11) =>
-                      _11(
-                        _optionalChain([
-                          object,
-                          "call",
-                          (_12) => _12(spaces[id]),
-                          "optionalAccess",
-                          (_13) => _13.notion_user,
-                        ]),
-                      ),
-                    "optionalAccess",
-                    (_14) => _14[id],
-                  ]),
-                ),
-              "optionalAccess",
-              (_15) => _15.id,
-            ]) === id,
-        );
-        const userID =
-          ids.length === 1
-            ? ids[0]
-            : ids.length === 0 && Object.keys(spaces).length === 1
-              ? Object.keys(spaces)[0]
-              : undefined;
-        if (!userID) return invalid("getSpaces response did not identify a single user");
-        const container = _nullishCoalesce(object(spaces[userID]), () => invalid("getSpaces user is not an object"));
-        const users = _nullishCoalesce(object(container.notion_user), () => ({}));
-        const user = _nullishCoalesce(unwrap(users[userID]), () => Object.values(users).map(unwrap).find(Boolean));
-        const records = _nullishCoalesce(object(container.space), () => ({}));
-        const workspaces = Object.keys(records)
-          .sort()
-          .flatMap((key) => {
-            const record = unwrap(records[key]);
-            return record ? [{ ...record, id: _nullishCoalesce(text(record.id), () => key) }] : [];
-          });
-        const preferred = ctx.settings.get("WORKSPACE_ID");
-        const workspace = _nullishCoalesce(
-          _nullishCoalesce(
-            preferred ? workspaces.find((space) => normalize(space.id) === normalize(preferred)) : undefined,
-            () =>
-              workspaces.find((space) =>
-                ["business", "enterprise"].includes(
-                  _nullishCoalesce(
-                    _optionalChain([
-                      text,
-                      "call",
-                      (_16) => _16(space.subscription_tier),
-                      "optionalAccess",
-                      (_17) => _17.toLowerCase,
-                      "call",
-                      (_18) => _18(),
-                    ]),
-                    () => "",
+        const preferred = normalize(ctx.settings.get("WORKSPACE_ID") || "");
+        let userID;
+        let user;
+        let workspace;
+        try {
+          const spaces = await post("getSpaces", {});
+          const ids = Object.keys(spaces).filter(
+            (id) =>
+              _optionalChain([
+                unwrap,
+                "call",
+                (_12) => _12(table(spaces[id], "notion_user")[id]),
+                "optionalAccess",
+                (_13) => _13.id,
+              ]) === id,
+          );
+          userID =
+            ids.length === 1
+              ? ids[0]
+              : ids.length === 0 && Object.keys(spaces).length === 1
+                ? Object.keys(spaces)[0]
+                : undefined;
+          if (!userID) return invalid("getSpaces response did not identify a single user");
+          const container = _nullishCoalesce(object(spaces[userID]), () => invalid("getSpaces user is not an object"));
+          const users = table(container, "notion_user");
+          user = _nullishCoalesce(unwrap(users[userID]), () => Object.values(users).map(unwrap).find(Boolean));
+          const records = table(container, "space");
+          const workspaces = Object.keys(records)
+            .sort()
+            .flatMap((key) => {
+              const record = unwrap(records[key]);
+              return record ? [{ ...record, id: _nullishCoalesce(text(record.id), () => key) }] : [];
+            });
+          workspace = _nullishCoalesce(
+            _nullishCoalesce(
+              preferred ? workspaces.find((space) => normalize(space.id) === preferred) : undefined,
+              () =>
+                workspaces.find((space) =>
+                  ["business", "enterprise"].includes(
+                    _nullishCoalesce(
+                      _optionalChain([
+                        text,
+                        "call",
+                        (_14) => _14(space.subscription_tier),
+                        "optionalAccess",
+                        (_15) => _15.toLowerCase,
+                        "call",
+                        (_16) => _16(),
+                      ]),
+                      () => "",
+                    ),
                   ),
                 ),
-              ),
-          ),
-          () => workspaces[0],
-        );
+            ),
+            () => workspaces[0],
+          );
+        } catch (error) {
+          // A pinned workspace can fetch allowances without the oversized identity record map.
+          if (!/Provider plugin HTTP error: response exceeded the \d+-byte limit/.test(String(error))) throw error;
+          if (!/^[a-f0-9]{32}$/.test(preferred))
+            throw ctx.fail.apiFailure(
+              "Notion workspace discovery is too large. Set Workspace ID to a valid workspace UUID in Notion AI settings.",
+            );
+          workspace = { id: preferred.replace(/^(.{8})(.{4})(.{4})(.{4})(.{12})$/, "$1-$2-$3-$4-$5") };
+        }
         if (!workspace) throw ctx.fail.apiFailure("No Notion workspace found for this account.");
         const usage = await post("getCreditRateLimitStatus", { spaceId: workspace.id });
         for (const field of ["status", "enforcement"]) {
           if (usage[field] != null && typeof usage[field] !== "string") return invalid(`invalid ${field}`);
         }
-        numeric(usage.resetsInSeconds);
-        for (const raw of [usage.window, usage.billingPeriodWindow]) {
-          if (raw == null) continue;
-          const value = _nullishCoalesce(object(raw), () => invalid("window is not an object"));
-          for (const field of ["creditType", "scope", "window", "cadence"]) {
-            if (value[field] != null && typeof value[field] !== "string") return invalid(`invalid ${field}`);
-          }
-          for (const field of ["used", "limit", "periodEndMs"]) numeric(value[field]);
-        }
+        const resets = numeric(usage.resetsInSeconds);
+        const primary = window(usage.window, true, resets);
+        const secondary = window(usage.billingPeriodWindow, false, undefined);
         if (
           _optionalChain([
             text,
             "call",
-            (_19) => _19(usage.status),
+            (_17) => _17(usage.status),
             "optionalAccess",
-            (_20) => _20.toLowerCase,
+            (_18) => _18.toLowerCase,
             "call",
-            (_21) => _21(),
+            (_19) => _19(),
           ]) === "not_applicable"
         )
           throw ctx.fail.apiFailure(
@@ -244,23 +240,21 @@ defineProvider({
           );
         if (usage.window == null && usage.billingPeriodWindow == null)
           return invalid("getCreditRateLimitStatus returned no usage windows");
-        const primary = window(usage.window, true, usage.resetsInSeconds);
-        const secondary = window(usage.billingPeriodWindow, false, undefined);
         const tier = _optionalChain([
           text,
           "call",
-          (_22) => _22(workspace.subscription_tier),
+          (_20) => _20(workspace.subscription_tier),
           "optionalAccess",
-          (_23) => _23.trim,
+          (_21) => _21.trim,
           "call",
-          (_24) => _24(),
+          (_22) => _22(),
         ]);
         const result = {
           primary,
           secondary,
           empty: !primary && !secondary,
           identity: {
-            email: text(_optionalChain([user, "optionalAccess", (_25) => _25.email])),
+            email: text(_optionalChain([user, "optionalAccess", (_23) => _23.email])),
             accountID: userID,
             organization: text(workspace.name),
             loginMethod: tier ? tier[0].toUpperCase() + tier.slice(1) : undefined,

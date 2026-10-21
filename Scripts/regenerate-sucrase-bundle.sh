@@ -17,7 +17,12 @@ trap 'rm -rf "$WORK_DIR"' EXIT
 cd "$WORK_DIR"
 
 npm init -y >/dev/null 2>&1
-npm install --ignore-scripts --no-audit --no-fund "sucrase@${SUCRASE_VERSION}" >/dev/null
+# Pin the transitive modules actually linked into this bundle; acknowledgements.py
+# records their corresponding license texts.
+npm install --ignore-scripts --no-audit --no-fund "sucrase@${SUCRASE_VERSION}" \
+  @jridgewell/gen-mapping@0.3.13 @jridgewell/resolve-uri@3.1.2 \
+  @jridgewell/sourcemap-codec@1.5.5 @jridgewell/trace-mapping@0.3.31 \
+  lines-and-columns@1.2.4 ts-interface-checker@0.1.13 >/dev/null
 npx --yes "esbuild@${ESBUILD_VERSION}" node_modules/sucrase/dist/index.js \
   --bundle --minify --platform=browser --format=iife --global-name=sucrase \
   --banner:js="/*! Sucrase v${SUCRASE_VERSION} | MIT License | Copyright (c) 2012-present various contributors | https://github.com/alangpierce/sucrase */" \

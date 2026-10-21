@@ -207,10 +207,10 @@ enum DevinSessionImporter {
             for: self.storageOrigin,
             in: levelDBURL,
             logger: logger)
-        let textEntries = SweetCookieKit.ChromiumLocalStorageReader.readTextEntries(
-            in: levelDBURL,
-            logger: logger)
-        let storage = self.localStorageValues(from: entries, textEntries: textEntries)
+        var storage: [String: String] = [:]
+        for entry in entries {
+            storage[entry.key] = self.decodedStorageValue(entry.value)
+        }
         if self.accessToken(from: storage) == nil {
             // The best-effort reader swallows I/O errors; distinguish an inaccessible store from a sign-out.
             let files = try FileManager.default.contentsOfDirectory(
@@ -223,34 +223,6 @@ enum DevinSessionImporter {
             }
         }
         return storage
-    }
-
-    static func localStorageValues(
-        from entries: [SweetCookieKit.ChromiumLocalStorageEntry],
-        textEntries: [SweetCookieKit.ChromiumLevelDBTextEntry]) -> [String: String]
-    {
-        var storage: [String: String] = [:]
-        for entry in entries {
-            storage[entry.key] = self.decodedStorageValue(entry.value)
-        }
-        for entry in textEntries {
-            guard let key = self.localStorageKey(fromRawKey: entry.key),
-                  self.isUsefulStorageKey(key), storage[key] == nil
-            else { continue }
-            storage[key] = self.decodedStorageValue(entry.value)
-        }
-
-        return storage
-    }
-
-    private static func localStorageKey(fromRawKey raw: String) -> String? {
-        guard let separator = raw.firstIndex(of: "\u{0000}") else { return nil }
-        var origin = String(raw[..<separator])
-        if origin.hasPrefix("_") { origin.removeFirst() }
-        origin = String(origin.split(separator: "^", maxSplits: 1).first ?? "")
-            .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-        guard origin == self.storageOrigin || origin == "app.devin.ai" else { return nil }
-        return String(raw[raw.index(after: separator)...]).trimmingCharacters(in: .controlCharacters)
     }
 
     private static func jsonObject(from raw: String) -> Any? {
@@ -310,16 +282,6 @@ enum DevinSessionImporter {
 
     private static func isExternalOrgStorageKey(_ key: String) -> Bool {
         key.contains(self.externalOrgPrefix)
-    }
-
-    private static func isUsefulStorageKey(_ key: String) -> Bool {
-        self.isAuth1StorageKey(key) ||
-            self.isAuth0StorageKey(key) ||
-            self.isExternalOrgStorageKey(key) ||
-            key.contains("post-auth-v") ||
-            key.contains("member-info-v") ||
-            key.contains("feature-flags-cache:org-") ||
-            key.contains("feature-flags-cache:org_")
     }
 
     private static func inferredOrganizationInfo(

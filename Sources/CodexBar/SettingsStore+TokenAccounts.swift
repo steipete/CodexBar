@@ -34,6 +34,13 @@ extension SettingsStore {
         return self.selectedTokenAccount(for: provider)
     }
 
+    func modelRateLimitScope(for provider: UsageProvider) -> ProviderModelRateLimitScope {
+        if let account = self.effectiveSelectedTokenAccount(for: provider) {
+            return .tokenAccount(account.id)
+        }
+        return .provider
+    }
+
     func setActiveTokenAccountIndex(_ index: Int, for provider: UsageProvider) {
         guard let data = self.tokenAccountsData(for: provider), !data.accounts.isEmpty else { return }
         let clamped = min(max(index, 0), data.accounts.count - 1)
@@ -60,7 +67,8 @@ extension SettingsStore {
         externalIdentifier: String? = nil,
         usageScope: String? = nil,
         organizationID: String? = nil,
-        workspaceID: String? = nil)
+        workspaceID: String? = nil,
+        claudeConfigDirectory: String? = nil)
     {
         guard TokenAccountSupportCatalog.support(for: provider) != nil else { return }
         let trimmedToken = token.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -78,7 +86,8 @@ extension SettingsStore {
             externalIdentifier: Self.normalizedConfigField(externalIdentifier),
             usageScope: Self.normalizedConfigField(usageScope),
             organizationID: Self.normalizedConfigField(organizationID),
-            workspaceID: Self.normalizedConfigField(workspaceID))
+            workspaceID: Self.normalizedConfigField(workspaceID),
+            claudeConfigDirectory: Self.normalizedConfigField(claudeConfigDirectory))
         let updated = ProviderTokenAccountData(
             version: existing?.version ?? 1,
             accounts: accounts + [account],
@@ -107,6 +116,7 @@ extension SettingsStore {
         usageScope: String?? = nil,
         organizationID: String?? = nil,
         workspaceID: String?? = nil,
+        claudeConfigDirectory: String?? = nil,
         seatCreditEntitlement: String?? = nil)
     {
         guard let data = self.tokenAccountsData(for: provider), !data.accounts.isEmpty else { return }
@@ -119,6 +129,7 @@ extension SettingsStore {
         }
 
         let existing = data.accounts[index]
+        let updatesEffectiveAccount = self.effectiveSelectedTokenAccount(for: provider)?.id == accountID
         let updatedAccount = ProviderTokenAccount(
             id: existing.id,
             label: (trimmedLabel?.isEmpty == false) ? trimmedLabel! : existing.label,
@@ -129,8 +140,11 @@ extension SettingsStore {
             usageScope: usageScope.map(Self.normalizedConfigField) ?? existing.usageScope,
             organizationID: organizationID.map(Self.normalizedConfigField) ?? existing.organizationID,
             workspaceID: workspaceID.map(Self.normalizedConfigField) ?? existing.workspaceID,
+            claudeConfigDirectory: claudeConfigDirectory.map(Self.normalizedConfigField)
+                ?? existing.claudeConfigDirectory,
             seatCreditEntitlement: seatCreditEntitlement.map(Self.normalizedConfigField)
-                ?? existing.seatCreditEntitlement)
+                ?? existing.seatCreditEntitlement,
+            modelRateLimits: existing.modelRateLimits)
 
         var accounts = data.accounts
         accounts[index] = updatedAccount
@@ -144,13 +158,31 @@ extension SettingsStore {
                 entry.apiKey = nil
             }
         }
-        self.applyTokenAccountCookieSourceIfNeeded(provider: provider)
+        // Editing a dormant saved account must not switch the provider away from its live source.
+        if updatesEffectiveAccount {
+            self.applyTokenAccountCookieSourceIfNeeded(provider: provider)
+        }
         CodexBarLog.logger(LogCategories.tokenAccounts).info(
             "Token account updated",
             metadata: [
                 "provider": provider.rawValue,
                 "count": "\(updated.accounts.count)",
             ])
+    }
+
+    func moveTokenAccount(provider: UsageProvider, accountID: UUID, to destination: Int) {
+        guard let data = self.tokenAccountsData(for: provider),
+              data.accounts.indices.contains(destination),
+              let source = data.accounts.firstIndex(where: { $0.id == accountID }),
+              source != destination else { return }
+        let activeID = data.accounts[data.clampedActiveIndex()].id
+        var accounts = data.accounts
+        accounts.insert(accounts.remove(at: source), at: destination)
+        guard let activeIndex = accounts.firstIndex(where: { $0.id == activeID }) else { return }
+        self.updateProviderConfig(provider: provider) { entry in
+            entry.tokenAccounts = ProviderTokenAccountData(
+                version: data.version, accounts: accounts, activeIndex: activeIndex)
+        }
     }
 
     func removeTokenAccount(provider: UsageProvider, accountID: UUID) {
@@ -192,26 +224,18 @@ extension SettingsStore {
     }
 
     func reloadTokenAccounts() {
-        let log = CodexBarLog.logger(LogCategories.tokenAccounts)
-        let accounts: [UsageProvider: ProviderTokenAccountData]
-        do {
-            guard let loaded = try self.configStore.load() else { return }
-            accounts = Dictionary(uniqueKeysWithValues: loaded.providers.compactMap { entry in
-                guard let provider = entry.id.firstPartyProvider,
-                      let data = entry.tokenAccounts
-                else { return nil }
-                return (provider, data)
-            })
-        } catch {
-            log.error("Failed to reload token accounts: \(error)")
-            return
-        }
-        self.updateProviderTokenAccounts(accounts)
+        self.reloadConfig(reason: "token-accounts", origin: .localFile)
     }
 
     func openTokenAccountsFile() {
         do {
-            try Self.writeConfig(self.config, to: self.configStore, watcher: self.configFileWatcher)
+            if !self.configNeedsReload {
+                try Self.writeConfig(
+                    self.config,
+                    to: self.configStore,
+                    watcher: self.configFileWatcher,
+                    permit: self.configPersistenceCoordinator.makeWritePermit())
+            }
         } catch {
             CodexBarLog.logger(LogCategories.tokenAccounts).error("Failed to persist config: \(error)")
             return

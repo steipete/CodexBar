@@ -37,7 +37,8 @@ struct BrowserCookieAccessGateTests {
     @Test
     func `the gate reports suppression without changing its access decision`() {
         let failures = LockIsolated<[Browser]>([])
-        BrowserCookieAccessGate.withAccessFailureObserver { browser in
+        BrowserCookieAccessGate.withAccessFailureObserver { browser, profileDenied in
+            #expect(!profileDenied)
             failures.setValue(failures.value + [browser])
         } operation: {
             BrowserCookieAccessGate.withShouldAttemptOverrideForTesting(false) {
@@ -51,15 +52,13 @@ struct BrowserCookieAccessGateTests {
     }
 
     @Test
-    func `explicit retry permits only one denied Chromium read and keeps background suppressed`() {
+    func `manual retry respects browser and family denial cooldowns`() {
         BrowserCookieAccessGate.resetForTesting()
         defer { BrowserCookieAccessGate.resetForTesting() }
         BrowserCookieAccessGate.recordDenied(for: .chrome)
         ProviderInteractionContext.$current.withValue(.userInitiated) {
             KeychainAccessGate.withTaskOverrideForTesting(false) {
                 BrowserCookieAccessGate.withExplicitRetry {
-                    #expect(BrowserCookieAccessGate.shouldAttempt(.chrome))
-                    #expect(BrowserCookieAccessGate.claimExplicitRetryCookieReadIfNeeded(for: .chrome))
                     #expect(!BrowserCookieAccessGate.shouldAttempt(.chrome))
                     #expect(!BrowserCookieAccessGate.shouldAttempt(.brave))
                 }
@@ -185,10 +184,12 @@ struct BrowserCookieAccessGateTests {
         // Safari does not decrypt cookies via the Keychain, so the gate short-circuits to true before
         // any preflight or interaction check — in the background just as in a user-initiated refresh.
         #expect(self.evaluate(.safari, preflight: .interactionRequired, interaction: .background))
+        #expect(self.evaluate(.firefox, preflight: .interactionRequired, interaction: .background))
+        #expect(self.evaluate(.zen, preflight: .interactionRequired, interaction: .background))
     }
 
     @Test
-    func `record reads suppress SweetCookieKit interaction only in the background`() {
+    func `record reads start without SweetCookieKit interaction in every context`() {
         let backgroundDisallowed = ProviderInteractionContext.$current.withValue(.background) {
             BrowserCookieAccessGate.withRecordReadInteractionPolicy {
                 BrowserCookieKeychainAccessGate.isUserInteractionDisallowed
@@ -201,7 +202,7 @@ struct BrowserCookieAccessGateTests {
         }
 
         #expect(backgroundDisallowed)
-        #expect(userInitiatedDisallowed == false)
+        #expect(userInitiatedDisallowed)
     }
 
     @Test

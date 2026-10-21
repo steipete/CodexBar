@@ -36,15 +36,13 @@ read_when:
 
 ## Swift Toolchain Compatibility
 
-The package supports Swift 6.2, including Xcode 26.3 on macOS 15. CI's
-`swift-build-macos-compatibility` job builds the app, CLI, and all test targets
-with that Xcode version using `swift build --build-tests`, without running them.
-It uses the existing macOS path gate, including every Swift change, and runs on
-draft PRs too. The aggregate `lint-build-test` gate requires a successful build
-when applicable; docs-only changes may skip it. Runtime tests remain on newer Xcode.
+CI builds and tests with Xcode 27 only, on GitHub's `xcode-27` image. Older
+toolchains (the former Xcode 26.3 / macOS 15 compatibility build) are no longer
+verified; the package manifest still declares Swift tools 6.2, but builds with
+older Xcode releases are best effort.
 
 Keep large initializer and `#expect` expressions simple: bind intermediate values
-to explicitly typed locals when the Swift 6.2 type checker struggles. Use
+to explicitly typed locals when the type checker struggles. Use
 `ProviderColor(hex:)` for provider colors instead of arithmetic inside spec initializers.
 
 ## Keychain Prompts (Development)
@@ -117,6 +115,13 @@ CodexBar/
 └── Scripts/                   # Build and packaging scripts
 ```
 
+## Linux CLI linkage
+
+The glibc CLI must not depend on `libxml2`: newer distributions use an incompatible SONAME. Keep
+`FoundationXML` imports and XML parsing under `#if os(macOS)`. Plugin SVG icons fall back to their monogram
+on Linux. CI and release builds run `bash Scripts/check-linux-cli-linkage.sh <CodexBarCLI>` against each glibc
+binary; static musl builds do not have a dynamic dependency table.
+
 ## Common Tasks
 
 ### Add a New Provider
@@ -182,6 +187,10 @@ their `_PATH` suffix otherwise matches `_PAT`. Other matching variables, includi
 Use synthetic dictionaries or set synthetic sentinels inside fixtures; never depend on inherited real credentials.
 For direct `swift test`, source the script in a Bash subshell first. This does not authorize live account tests.
 
+`make test`, `make test-fast`, and `make test-skip-build` also give test discovery and execution a temporary
+`HOME` and `CFFIXED_USER_HOME`, removed when the invocation ends. This keeps incidental default cost-store
+access out of the developer's cache. Direct `swift test` callers must provide their own isolated home.
+
 `@ProcessEnvironment` provides count-only descriptions and reflection for stored process-environment dictionaries
 throughout the app, CLI, provider contexts, and session scanners. Use it on every stored environment, including
 captured configuration structs and optional dictionaries. Optional storage preserves `nil` versus an empty map;
@@ -220,6 +229,9 @@ existing binaries. No framework search-path override is added.
 `make test` remains the complete sharded path. Measured expensive suites run in their own groups, retaining all
 selections and their deadlines while avoiding whole-batch retries. Apple-Silicon macOS CI includes the CLI entry suite;
 the former Intel-runner exclusion is retired.
+
+Ordinary settings fixtures use an instance-owned Keychain access policy, including direct `SettingsStore`
+initializers. Tests that deliberately exercise the process-wide gate must explicitly inject `.live` and restore it.
 
 Claude OAuth gate tests use `ClaudeOAuthDefaultsFixtures()` so each test case owns an in-memory preferences store.
 Keep reset, expiry, and persisted-key assertions inside that scope; nested tasks inherit it, detached tasks do not.
@@ -311,6 +323,14 @@ already-correct config entries. The real setter still handles changed flags and 
 provider-toggle actions under test on the production setter; the fixture helper is for setup before observing changes.
 
 ### Cost scanner CPU regressions
+
+Cost marker searches compare exact UTF-8 bytes with bounded libc `memchr` and `memcmp` calls.
+Both buffers remain borrowed during the search, and candidate starts stop at the last position
+where the complete needle fits. Empty needles retain Foundation's `Data.range(of:)` behavior.
+`CostUsageAsciiSearchTests` compares results with Foundation, including nonzero-index data views,
+binary bytes, Unicode, repeated prefixes, and matches at the buffer boundary.
+JSON decoding, parser classification, and resumable scan state keep their existing paths.
+The parser-hash change retains `3f88178bf03ad704` as a tested compatible native-store predecessor.
 
 `CostUsageJsonl` finds complete physical LF spans with bounded libc `memchr` on Darwin, Glibc, and
 Musl, using the same span algorithm with scalar LF search elsewhere. Borrowed pointers stay inside
@@ -538,14 +558,17 @@ The check names each drifted package and prints this repair command before packa
 resolved file when automatic resolution is disabled.
 
 The `lint-build-test` check in `.github/workflows/ci.yml` keeps its existing name and requires successful lint,
-change detection, and the full `build-linux-cli` glibc matrix (x86_64 and ARM64 build, tests, and smoke checks).
-Glibc Linux has no path or draft skip: failure, cancellation, skipped, empty, missing, or unknown matrix results
-fail verification. macOS tests and the musl build may skip only when their path gates allow it; required macOS
+change detection, and the full `build-linux-cli` glibc matrix (x86_64 and ARM64 build, tests, and smoke checks)
+when the shared macOS/Linux path gate requires it. Both platforms use the same docs/site allowlist; source,
+test, widget, and workflow paths always require builds, including Markdown resources and fixtures. Linux has
+no draft deferral. Only `required=true / result=success` or `required=false / result=skipped` passes; failure,
+cancellation, missing or unknown values, and unexpected skips or executions fail verification.
+The musl build retains its separate path gate; required macOS
 tests deferred for a draft still leave the aggregate incomplete. Whole-workflow cancellation retains the existing
 `always() && !cancelled()` condition, so the verifier does not run in that case.
 
-`Scripts/test_ci_path_gate.sh` checks these result combinations and the workflow's Linux dependency and eighth
-verifier argument. `CodexBarLinuxTests` includes the portable `AntigravityLocalhostSessionLifetimeTests` suite on
+`Scripts/test_ci_path_gate.sh` checks these result combinations, shared path decisions, and the workflow's Linux
+dependency, condition, and verifier arguments. `CodexBarLinuxTests` includes the portable `AntigravityLocalhostSessionLifetimeTests` suite on
 both macOS and Linux. It checks session reuse and concurrent synthetic loopback failures without credentials;
 this coverage does not establish or fix the cause of Linux dispatch crashes.
 
@@ -666,21 +689,45 @@ group executes. Local runs with missing helpers, unsupported toolchains, or Linu
 SwiftPM path with a diagnostic. On CI, requesting direct workers requires a verified direct runtime:
 capability failures also fail the job instead of falling back to serial execution.
 
-Hosted macOS CI explicitly uses two serial SwiftPM shards, retaining the 75-minute test step and
-90-minute job limits. This avoids a third cold build while direct execution on Xcode 26.6 remains
-unverified after a helper SIGTRAP. A five-minute, nonblocking direct smoke test runs one group on
-shard zero after the complete serial shard passes; it is diagnostic evidence, not coverage or
-throughput proof. Both modes print ordered selection groups and timing summaries.
+Hosted macOS CI runs the complete inventory with two direct workers on one `xcode-27` (Xcode 27)
+runner, retaining the 75-minute test step and 90-minute job limits. All groups are required:
+discovery, admission, helper crashes, unrecovered timeouts and test failures fail the job. Group size remains
+eight with a 120-second suite timeout and no retries for ordinary test failures. Timed-out groups retain
+the existing isolated-selection retry policy; each retry has its own deadline. Three independent
+hosted complete-inventory runs validated this mode before enabling it.
+Both serial and direct modes print ordered selection groups and timing summaries.
+
+Each macOS job restores a compiled SwiftPM cache bound to its toolchain, SDK, architecture,
+package state and build scripts/options. The helper verifies tracked input contents and permissions
+before restoring unchanged file timestamps. Changed contents invalidate preserved or backdated
+timestamps; added/deleted package paths or changed package symlink targets require clean products.
+Missing, invalid or unverifiable metadata also cleans products before rebuilding. Symlink payloads
+are checked without following them; reuse requires each package link to name a regular tracked file
+in both snapshots, whose contents are verified separately. External, untracked, chained and directory
+targets, including noncanonical paths that could conceal a symlink ancestor, require clean products
+without reading or modifying the target. Only successful main jobs with a clean tracked tree
+save new snapshots, and cleanup keeps one snapshot per active lane and deletes retired lanes. The first main run seeds the cache;
+a cache miss or a changed input graph still requires a cold build.
 
 The adapter includes both public and private platform framework search paths and disables Swift
 Testing during XCTest discovery, matching SwiftPM's launcher. Probe failures print the helper,
 exit status or signal, and redacted stdout/stderr. On CI, signal failures also wait up to five
 seconds for fresh helper crash reports in the original and temporary homes. The workflow collects
-fresh test crash reports again after failures, including nonblocking smoke failures. Credential
+fresh test crash reports again after failures in the required full test job. Credential
 values and local home identities are redacted; unrelated process reports are excluded.
 
 Each group has a fresh process and temporary `HOME` and `CFFIXED_USER_HOME`, with the existing credential
 and session-file isolation, Keychain suppression, timeout, retry, and descendant cleanup.
+Async process fixtures should use `ProcessExitRelease.afterExit` after signaling a Foundation child,
+instead of blocking a cooperative executor in `waitUntilExit()`. PTY setup tests should keep the child
+alive until its output is observed; Darwin can discard unread output when the last slave descriptor closes.
+The TTY runner retains its slave descriptor until it has harvested output after child exit, then closes it
+before checking EOF. The fast-exit regression waits for child exit before the first read, without a timed delay.
+Compare working directories after resolving symlinks.
+
+Detached SIGTERM-ignoring fixtures use `KiroProcessTestSupport` to watch the test process with kqueue
+`NOTE_EXIT`, with a 120-second backstop. Watch the test process rather than a short-lived fixture parent;
+heartbeat loops also retain an absolute deadline so they cannot wait forever while the owner remains alive.
 Test output is buffered per group. A direct runtime failure after execution begins fails the run;
 it does not silently rerun the suite through a different runtime. This opt-in adapter depends on
 SwiftPM's toolchain helper contract and needs compatibility validation when updating Xcode.

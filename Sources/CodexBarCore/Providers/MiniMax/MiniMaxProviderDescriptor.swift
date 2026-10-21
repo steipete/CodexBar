@@ -102,10 +102,11 @@ public enum MiniMaxProviderDescriptor {
                 automaticSelectionPrioritizesExhaustedWindow: false,
                 menuBarWindowResolver: { context in
                     guard context.metric == .automatic else { return .unhandled }
-                    return .resolved(ProviderUsagePresentation.mostConstrained(
+                    return .automaticCandidates([
                         context.snapshot.primary,
                         context.snapshot.secondary,
-                        context.snapshot.tertiary))
+                        context.snapshot.tertiary,
+                    ].compactMap(\.self))
                 },
                 optionalDetails: ProviderOptionalDetailsPresentation(
                     hiddenTitlesWithoutOptionalUsage: ["Billing history"],
@@ -269,14 +270,8 @@ struct MiniMaxCodingPlanFetchStrategy: ProviderFetchStrategy {
             throw MiniMaxSettingsError.missingCookie
         }
 
-        let sessions = (try? MiniMaxCookieImporter.importSessions(
-            browserDetection: context.browserDetection)) ?? []
-        guard !sessions.isEmpty else {
-            if let lastError {
-                throw lastError
-            }
-            throw MiniMaxSettingsError.missingCookie
-        }
+        let sessions = (try? MiniMaxCookieImporter.sessionCandidates(
+            browserDetection: context.browserDetection)) ?? AnySequence([])
 
         for session in sessions {
             switch await Self.attemptFetch(

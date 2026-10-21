@@ -39,8 +39,7 @@ public enum HelmcodeProviderDescriptor {
                         manualCookieHeader: cookies.manualCookieHeader,
                         manualTenant: context.config?.sanitizedRegion)
                 }),
-            browserCookieOrder: BrowserCookieImportSupport.chromeOnly(
-                reason: "Preserve Chrome dashboard sign-in without probing unrelated stores"),
+            browserCookieOrder: ProviderBrowserCookieDefaults.defaultImportOrder,
             strategySuffix: .web,
             resolveValues: { context in
                 .init(settings: ["TENANT": context.settings?[HelmcodeProviderSettingsKey.self]?.manualTenant
@@ -55,7 +54,7 @@ public enum HelmcodeProviderDescriptor {
             picker: .init(
                 id: "helmcode-cookie-source",
                 allowsOff: true,
-                auto: .literal("Imports Chrome sessions for Helmcode Cloud or NaN Builders; Cloud is preferred."),
+                auto: .literal("Imports browser sessions for Helmcode Cloud or NaN Builders; Cloud is preferred."),
                 manual: .literal("Paste a Cookie header and select its tenant below."),
                 off: .literal("Helmcode dashboard cookies are disabled."))))
 

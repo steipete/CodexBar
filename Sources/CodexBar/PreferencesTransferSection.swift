@@ -11,20 +11,22 @@ struct PreferencesTransferSection: View {
     var body: some View {
         Section {
             HStack {
-                Button("Export Preferences…") { self.transfer(importing: false) }
-                Button("Import Preferences…") { self.transfer(importing: true) }
+                Button(L("Export Preferences…")) { self.transfer(importing: false) }
+                Button(L("Import Preferences…")) { self.transfer(importing: true) }
             }
-            Button("Provider Switcher Shortcuts…") { self.editingShortcuts = true }
+            Button(L("Provider Switcher Shortcuts…")) { self.editingShortcuts = true }
         } header: {
-            Text("Portable preferences")
+            Text(L("Portable preferences"))
         } footer: {
-            Text("Save display and notification preferences for your dotfiles. Accounts, credentials, login, " +
-                "local paths and consent stay on this Mac.")
+            Text(
+                L(
+                    "Save display and notification preferences for your dotfiles. "
+                        + "Accounts, credentials, login, local paths and consent stay on this Mac."))
         }
-        .alert("Preferences could not be transferred", isPresented: Binding(
+        .alert(L("Preferences could not be transferred"), isPresented: Binding(
             get: { self.failure != nil }, set: { if !$0 { self.failure = nil } }))
         {
-            Button("OK") { self.failure = nil }
+            Button(L("OK")) { self.failure = nil }
         } message: {
             Text(self.failure ?? "")
         }
@@ -59,9 +61,12 @@ struct ProviderSwitcherShortcutEditor: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Provider Switcher Shortcuts").font(.headline)
-            Text("These shortcuts work while the provider switcher menu is open. " +
-                "Use ctrl, alt, shift and cmd with a letter, digit, left or right; use none to disable an action.")
+            Text(L("Provider Switcher Shortcuts")).font(.headline)
+            Text(
+                L(
+                    "These shortcuts work while the provider switcher menu is open. "
+                        + "Use ctrl, alt, shift and cmd with a letter, digit, left or right; "
+                        + "use none to disable an action."))
                 .font(.callout).foregroundStyle(.secondary)
             Form {
                 ForEach(ProviderSwitcherShortcuts.actions, id: \.self) { action in
@@ -70,14 +75,18 @@ struct ProviderSwitcherShortcutEditor: View {
                         set: { self.shortcuts[action] = $0 }))
                 }
             }
-            Text("Examples: alt+cmd+2, shift+right. Refresh (cmd+r), Settings (cmd+,) and Quit (cmd+q) are reserved.")
+            Text(
+                L("Examples: alt+cmd+2, shift+right. Refresh (cmd+r), Settings (cmd+,) and Quit (cmd+q) are reserved."))
                 .font(.caption).foregroundStyle(.secondary)
-            if let failure { Text(failure).foregroundStyle(.red).accessibilityLabel("Error: \(failure)") }
+            if let failure { Text(failure).foregroundStyle(.red).accessibilityLabel(L(
+                "Error: %@",
+                String(describing: failure))) }
             HStack {
-                Button("Restore Defaults") { self.shortcuts = ProviderSwitcherShortcuts.defaults; self.failure = nil }
+                Button(L("Restore Defaults")) { self.shortcuts = ProviderSwitcherShortcuts.defaults; self.failure = nil
+                }
                 Spacer()
-                Button("Cancel") { self.dismiss() }.keyboardShortcut(.cancelAction)
-                Button("Save") {
+                Button(L("Cancel")) { self.dismiss() }.keyboardShortcut(.cancelAction)
+                Button(L("Save")) {
                     do {
                         try self.settings.setProviderSwitcherShortcuts(self.shortcuts)
                         self.dismiss()
@@ -91,9 +100,9 @@ struct ProviderSwitcherShortcutEditor: View {
 
     private func label(_ action: String) -> String {
         switch action {
-        case "previous": "Previous provider"
-        case "next": "Next provider"
-        default: "Select position \(action.dropFirst(6))"
+        case "previous": L("Previous provider")
+        case "next": L("Next provider")
+        default: L("Select position %@", String(action.dropFirst(6)))
         }
     }
 }

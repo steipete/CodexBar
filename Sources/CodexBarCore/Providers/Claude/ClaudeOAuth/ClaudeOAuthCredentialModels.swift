@@ -133,15 +133,6 @@ public struct ClaudeOAuthCredentials: Sendable {
         let scopes: [String]?
         let rateLimitTier: String?
         let subscriptionType: String?
-
-        enum CodingKeys: String, CodingKey {
-            case accessToken
-            case refreshToken
-            case expiresAt
-            case scopes
-            case rateLimitTier
-            case subscriptionType
-        }
     }
 }
 
@@ -254,6 +245,7 @@ public enum ClaudeOAuthCredentialsError: LocalizedError, Sendable {
     case mcpOAuthOnlyKeychain
     case missingAccessToken
     case notFound
+    case credentialsChanged(Date)
     case keychainAccessRevoked
     case keychainError(Int)
     case readFailed(String)
@@ -276,6 +268,9 @@ public enum ClaudeOAuthCredentialsError: LocalizedError, Sendable {
             return "Claude OAuth access token missing. Run `claude` to authenticate."
         case .notFound:
             return "Claude OAuth credentials not found. Run `claude` to authenticate."
+        case let .credentialsChanged(date):
+            return "Claude Code credentials changed (\(UsageFormatter.updatedString(from: date))). "
+                + "Click Refresh to re-grant CodexBar access."
         case .keychainAccessRevoked:
             return "Claude Keychain access was revoked by Claude Code's token rotation. "
                 + "Click Refresh to re-grant access, or switch Claude Usage source to CLI/Web."

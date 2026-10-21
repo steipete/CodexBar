@@ -10,7 +10,7 @@ Replicate shows **spend this month** and, when available, **prepaid credit balan
 
 ## Authentication
 
-Automatic mode imports existing Chrome cookies for exactly `replicate.com`. It first tries the cached session, then imports candidates once if that session expires. Only authentication failures advance to another candidate; pinned cached accounts prohibit fallback. A temporarily unreadable Keychain cache stops automatic recovery until it can be read. Unrecognized HTML or changed JSON props are parsing failures and retain the selected credential. The successful candidate is cached conditionally so a late refresh cannot overwrite newer credentials. The read-only billing endpoints need a nonempty `sessionid`; a CSRF cookie is optional.
+Automatic mode imports existing cookies for exactly `replicate.com` in the shared browser order. It first tries the cached session, then imports candidates once if that session expires. Only authentication failures advance to another candidate; pinned cached accounts prohibit fallback. A temporarily unreadable Keychain cache stops automatic recovery until it can be read. Unrecognized HTML or changed JSON props are parsing failures and retain the selected credential. The successful candidate is cached conditionally so a late refresh cannot overwrite newer credentials. The read-only billing endpoints need a nonempty `sessionid`; a CSRF cookie is optional.
 
 Manual mode accepts a Cookie header captured from a request to `https://replicate.com/account/billing`. It bypasses browser import and the automatic cookie cache, works on Linux, and supports named token accounts. The separate Replicate API token is not a website session credential.
 

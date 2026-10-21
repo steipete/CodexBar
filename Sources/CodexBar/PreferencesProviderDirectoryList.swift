@@ -50,3 +50,47 @@ struct ProviderSettingsDirectoryListRowView: View {
         }
     }
 }
+
+@MainActor
+struct TokenAccountDirectoryPicker: View {
+    @Binding var path: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(L("Claude config directory"))
+                Spacer(minLength: 8)
+                Button(L("Add folder…")) {
+                    Task { @MainActor in
+                        let panel = NSOpenPanel()
+                        panel.title = L("Claude config directory")
+                        panel.canChooseDirectories = true
+                        panel.canChooseFiles = false
+                        panel.allowsMultipleSelection = false
+                        panel.showsHiddenFiles = true
+                        guard await panel.begin() == .OK, let url = panel.url else { return }
+                        self.path = url.path
+                    }
+                }
+                if self.path != nil {
+                    Button(L("Remove")) { self.path = nil }
+                }
+            }
+            if let path = self.path {
+                Text(path).lineLimit(1).truncationMode(.middle).help(path)
+                if !Self.isAvailable(path) {
+                    Text(L("Unavailable")).foregroundStyle(.orange)
+                }
+            }
+        }
+        .font(.footnote)
+        .controlSize(.small)
+        .help(L("cost_estimate_hint"))
+    }
+
+    static func isAvailable(_ path: String) -> Bool {
+        var directory: ObjCBool = false
+        return FileManager.default.fileExists(atPath: path, isDirectory: &directory)
+            && directory.boolValue && FileManager.default.isReadableFile(atPath: path)
+    }
+}

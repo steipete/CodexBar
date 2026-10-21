@@ -142,7 +142,8 @@ struct CodexThreadMetadataReaderTests {
             atomically: true,
             encoding: .utf8)
 
-        let metadata = CodexThreadMetadataReader(codexHomeDirectory: root).metadata(for: ["main", "subagent"])
+        let metadata = CodexThreadMetadataReader(codexHomeDirectory: root, environment: [:])
+            .metadata(for: ["main", "subagent"])
 
         #expect(metadata["main"]?.title == "Chosen name")
         #expect(metadata["subagent"]?.title == "Inherited parent title")
@@ -161,9 +162,66 @@ struct CodexThreadMetadataReaderTests {
                 atomically: true,
                 encoding: .utf8)
 
-        let metadata = CodexThreadMetadataReader(codexHomeDirectory: root).metadata(for: ["main"])
+        let metadata = CodexThreadMetadataReader(codexHomeDirectory: root, environment: [:])
+            .metadata(for: ["main"])
 
         #expect(metadata["main"] == CodexThreadMetadata(title: "Chosen name", agentPath: nil))
+    }
+
+    @Test(arguments: [
+        "CREATE TABLE threads (id TEXT PRIMARY KEY, title TEXT, agent_path TEXT)",
+        "CREATE TABLE threads (id TEXT PRIMARY KEY, title TEXT)",
+    ])
+    func `reader bounds prompt sized sqlite titles but keeps explicit names`(schema: String) throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codex-thread-metadata-bound-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        // Codex copies the whole first prompt into threads.title; multi-byte scalars check character counting.
+        let prompt = String(repeating: "é🙂", count: 50000)
+        let explicitName = String(repeating: "n", count: 300)
+        try Self.createDatabase(at: root.appendingPathComponent("state_5.sqlite"), schema: schema, titles: [
+            "prompt": prompt,
+            "padded": "  Short title \n",
+            "named": prompt,
+        ])
+        try "{\"id\":\"named\",\"thread_name\":\"\(explicitName)\",\"updated_at\":\"now\"}\n"
+            .write(
+                to: root.appendingPathComponent("session_index.jsonl"),
+                atomically: true,
+                encoding: .utf8)
+
+        let metadata = CodexThreadMetadataReader(codexHomeDirectory: root, environment: [:])
+            .metadata(for: ["prompt", "padded", "named"])
+
+        let promptTitle = try #require(metadata["prompt"]?.title)
+        #expect(promptTitle.unicodeScalars.count == 256)
+        if promptTitle.unicodeScalars.count == 256 {
+            #expect(promptTitle == String(repeating: "é🙂", count: 128))
+        }
+        #expect(metadata["padded"]?.title == "Short title")
+        #expect(metadata["named"]?.title == explicitName)
+    }
+
+    private static func createDatabase(at url: URL, schema: String, titles: [String: String]) throws {
+        var database: OpaquePointer?
+        guard sqlite3_open(url.path, &database) == SQLITE_OK, let database else {
+            throw SQLiteError.open
+        }
+        defer { sqlite3_close(database) }
+        guard sqlite3_exec(database, schema, nil, nil, nil) == SQLITE_OK else { throw SQLiteError.exec }
+        var statement: OpaquePointer?
+        guard sqlite3_prepare_v2(database, "INSERT INTO threads (id, title) VALUES (?1, ?2)", -1, &statement, nil)
+            == SQLITE_OK, let statement
+        else { throw SQLiteError.exec }
+        defer { sqlite3_finalize(statement) }
+        let transient = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
+        for (id, title) in titles {
+            sqlite3_reset(statement)
+            sqlite3_bind_text(statement, 1, id, -1, transient)
+            sqlite3_bind_text(statement, 2, title, -1, transient)
+            guard sqlite3_step(statement) == SQLITE_DONE else { throw SQLiteError.exec }
+        }
     }
 
     private static func createDatabase(at url: URL) throws {

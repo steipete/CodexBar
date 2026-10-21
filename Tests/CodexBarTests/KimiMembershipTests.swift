@@ -105,12 +105,12 @@ struct KimiMembershipTests {
     func `rejected desktop session falls through stale browser profiles`() async throws {
         var attempted: [String] = []
         let snapshot = try await KimiWebFetchStrategy.fetchWithFallback(
-            desktopToken: "desktop",
+            desktopCredential: KimiWebCredential(token: "desktop"),
             browserTokens: { ["desktop", "old-browser", "current-browser"] },
             environmentToken: nil,
             fetchUsage: { token in
-                attempted.append(token)
-                guard token == "current-browser" else { throw KimiAPIError.invalidToken }
+                attempted.append(token.token)
+                guard token.token == "current-browser" else { throw KimiAPIError.invalidToken }
                 return KimiUsageSnapshot(
                     weekly: .init(limit: "100", used: "25", remaining: "75", resetTime: nil),
                     rateLimit: nil,
@@ -124,7 +124,7 @@ struct KimiMembershipTests {
     func `working desktop session does not import browser cookies`() async throws {
         var imported = false
         _ = try await KimiWebFetchStrategy.fetchWithFallback(
-            desktopToken: "desktop",
+            desktopCredential: KimiWebCredential(token: "desktop"),
             browserTokens: { imported = true; return [] },
             environmentToken: nil,
             fetchUsage: { _ in
@@ -141,7 +141,7 @@ struct KimiMembershipTests {
         var imported = false
         do {
             _ = try await KimiWebFetchStrategy.fetchWithFallback(
-                desktopToken: "desktop",
+                desktopCredential: KimiWebCredential(token: "desktop"),
                 browserTokens: { imported = true; return [] },
                 environmentToken: nil,
                 fetchUsage: { _ in throw URLError(.notConnectedToInternet) })

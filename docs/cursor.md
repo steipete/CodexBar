@@ -8,16 +8,18 @@ read_when:
 
 # Cursor provider
 
+The opt-in **Frontmost provider app** merged-icon source recognizes Cursor.app (`com.todesktop.230313mzl4w4u92`) when Cursor is enabled. It changes only the collapsed icon, preserving menu and account selection.
+
 Cursor can reuse Cursor.app's local session or a cursor.com browser session. On macOS, automatic mode prefers a usable
 Cursor.app session and falls back to cookies when the app token is missing, expired, invalid, or rejected. On Linux,
-automatic mode uses cached or stored cookies when available, then falls back to the signed-in Cursor app token because
-browser import is unavailable.
+automatic mode uses cached or stored cookies when available, then falls back to the signed-in Cursor app token, then to
+`cursor-agent`'s, because browser import is unavailable.
 
 ## Data sources + fallback order
 
 Manual cookie configuration is always the explicit override. The automatic order is Cursor.app → cached cookie → browser
-cookie import → stored session on macOS, and cached cookie → stored session → Cursor.app token on Linux. Explicit `web`
-mode never reads Cursor.app credentials; macOS uses its cookie ladder, while Linux requires a configured manual cookie.
+cookie import → stored session on macOS, and cached cookie → stored session → Cursor.app token → `cursor-agent` token on
+Linux. Explicit `web` mode never reads local Cursor credentials; macOS uses its cookie ladder, while Linux requires a configured manual cookie.
 
 1) **Cursor.app local auth** (first automatic source on macOS; Linux fallback)
    - Reads Cursor.app's VS Code-style global state DB for `ItemTable` key `cursorAuth/accessToken`.
@@ -45,7 +47,7 @@ mode never reads Cursor.app credentials; macOS uses its cookie ladder, while Lin
    - Keychain cache: `com.steipete.codexbar.cache` (account `cookie.cursor`).
 
 3) **Browser cookie import** (macOS only)
-   - Cookie order from provider metadata, falling back to SweetCookieKit's default browser catalog, including Aside, Opera, and Opera Neon.
+   - Cookie order from provider metadata, falling back to SweetCookieKit's default browser catalog, including Aside, Opera, Opera Neon, and Ego Lite.
    - Domain filters: `cursor.com`, `cursor.sh`.
    - Cookie names required (any one counts):
      - `WorkosCursorSessionToken`
@@ -68,6 +70,7 @@ Manual option:
 ## Add and switch account
 - **Add Account** opens `https://authenticator.cursor.sh/` in a supported browser.
 - Aside, Opera, and Opera Neon are supported with SweetCookieKit 0.5.5. The selected application's bundle identifier pins login to that browser's cookie store.
+- SweetCookieKit 0.5.6 adds Ego Lite cookie imports. Add/Switch Account does not offer Ego Lite until its application has a verified, unambiguous bundle-identifier mapping; display names and storage paths are insufficient for interactive login.
 - **Switch Account** opens the same authenticator and waits for a different stable account ID when available, falling back to normalized email when IDs are unavailable.
 - When the system's HTTPS handler is a supported browser, CodexBar opens the route there automatically. When the handler is an intermediary app, CodexBar asks the user to choose a concrete supported browser before opening the route.
 - CodexBar pins the original HTTPS route to that concrete browser and polls cookies only from the same application. Interactive login never falls back to another browser, a stored session, or Cursor.app; cancelling browser selection or the absence of a supported browser stops before login opens.
@@ -85,6 +88,8 @@ Manual option:
   - Stable user ID, email, and name.
 - `GET https://cursor.com/api/usage?user=ID`
   - Legacy request-based plan usage (request counts + limits).
+- `GET https://cursor.com/api/dashboard/v2/usage-status?scope=user`
+  - Optional monthly additional spend for unified personal memberships; failures retain usage-summary data.
 - `POST https://cursor.com/api/dashboard/get-sand-usage-status`
   - Grok Bot weekly included usage (`usagePercent`, `nextResetTimestampUtc`). Same session cookie;
     requires `Origin: https://cursor.com`. Best-effort: a failure leaves Cursor's monthly bars intact.
@@ -95,9 +100,19 @@ Manual option:
 - Firefox: `~/Library/Application Support/Firefox/Profiles/*/cookies.sqlite`
 
 ## Linux CLI
-- Automatic usage (`codexbar usage --provider cursor`) supports the signed-in Cursor app on Linux after manual, cached, and
-  stored sessions have been considered.
-- Authentication order: manual cookie header → cached session → stored session → Cursor app access token.
+- Automatic usage (`codexbar usage --provider cursor`) supports the signed-in Cursor app and `cursor-agent` on Linux after
+  manual, cached, and stored sessions have been considered.
+- Authentication order: manual cookie header → cached session → stored session → Cursor app access token →
+  `cursor-agent` access token.
+- The `cursor-agent` token is the `accessToken` that `cursor-agent login` keeps in `cursor/auth.json` under the same
+  config home as the app database (absolute `$XDG_CONFIG_HOME`, else `~/.config`). It is used when the app has no usable
+  token or cursor.com rejects that token with HTTP 401/403, so a machine with only the Cursor CLI gets usage too. A missing,
+  unreadable, or malformed local store does not hide the next login. Other API failures stop the fetch without switching
+  accounts. The file is read-only; CodexBar never refreshes tokens, changes permissions, or writes either credential store.
+  Owner-readable files (including mode 0600) and symlinked auth files are supported. Missing or empty `accessToken` values
+  provide no session; agent tokens use the same JWT identity and expiration checks as desktop tokens. Expired or invalid
+  tokens are not sent, and exhausted local logins retain the existing missing-session error; run `cursor-agent login` to
+  replace an expired agent login.
 - Linux requests use a reusable HTTP session with automatic cookie storage disabled, so a long-running `serve` process cannot replace the selected credential with cookies left by earlier responses.
 - The app token is read from absolute `$XDG_CONFIG_HOME/Cursor/User/globalStorage/state.vscdb`, then `$HOME/.config/...` when `HOME` is absolute, then the account home’s `.config/...`. Relative `XDG_CONFIG_HOME` / `HOME` values are ignored. The database is read-only; expired app tokens are not refreshed by CodexBar.
 - Cursor usage includes the Grok Bot weekly allowance and reset time when the account exposes it. Grok Bot endpoint failures do not hide Cursor usage.
@@ -160,10 +175,12 @@ If Auto fetches usage with a cookie that the app still cannot confirm for the cu
 In Icon and Percent mode, choose **Providers → Cursor → Menu bar metric → Grok Bot** to replace the
 ordinary percentage in Cursor's layout. This saves a Cursor-only override. The layout editor also offers
 **Grok Bot %** in the usage palette when an allowance is available, for layouts with multiple percentages.
-Both paths show the allowance's own label, for example `Grok Bot 42%`, and follow the used/remaining
-preference. A saved selection displays `Grok Bot –` when the reading is missing or unknown; a real zero
-displays `Grok Bot 0%` in used mode. Auto % continues to use Cursor's standard windows. Balance tokens
-remain independent, and the dropdown keeps its existing reset countdown and paid-weekly pace display.
+Both paths show the allowance's short tag, for example `GB 42%`, and follow the used/remaining
+preference. A saved selection displays `GB –` when the reading is missing or unknown; a real zero
+displays `GB 0%` in used mode. Lane percentages are tagged `T` (Total), `C` (Cursor), and `TP` (Third Party);
+menus and VoiceOver keep the full names. Auto % ranks usable allowances, including Grok Bot, by depletion
+forecast and then used percentage; an exhausted total or exhaustion of every subquota still takes priority.
+Balance tokens remain independent, and the dropdown keeps its existing reset countdown and paid-weekly pace display.
 
 Named-extra selections are stored in V4 layout keys. A V3 projection omits them while preserving explicit
 reset-window selections for 0.60.x; V2/V1 projections remain available for older releases. An unchanged
@@ -200,3 +217,16 @@ team response dates and other members' details are not retained. Caller cancella
 ## Cost reporting period
 
 The shared [cost reporting period](cost-reporting-periods.md) supports month-to-date in the pinned cost time zone. Cursor-metered spend and daily estimates use the same event window. Quota bars continue to follow Cursor’s billing-cycle start/end dates, which can fall mid-month.
+
+## Unified Cursor/Grok additional spend
+
+Unified personal memberships with `limitType: "user"` read monthly additional spend from
+`GET /api/dashboard/v2/usage-status?scope=user`, using the existing Cursor session. The legacy usage summary can
+report zero after account unification. A valid, available monthly response supplies `usedCents`, `limitCents`,
+`periodStart`, and `resetsAt`; amounts convert from cents to USD. Separate `creditsUsedCents` consumption is not
+added to additional spend. See the [affected-account response](https://github.com/steipete/CodexBar/pull/4593#issuecomment-6261700483).
+
+The optional lookup replaces the legacy request-quota lookup for these personal memberships and has a five-second
+request budget. Unavailable, failed, incomplete, malformed, or out-of-period responses retain the summary's spend,
+cap, and reset. Valid zero spend remains zero. Team budgets, legacy plans, weekly Grok allowance, account identity,
+and the normal refresh scheduler retain their existing behavior.

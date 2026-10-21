@@ -111,12 +111,9 @@ package struct CodexDisplacedLivePreservationExecutor {
                     updatedAt: now,
                     lastAuthenticatedAt: now),
                 homeURL: importedHomeURL)
-        } catch let error as CodexAccountPromotionError {
-            try? self.removeManagedHomeIfSafe(importedHomeURL)
-            throw error
         } catch {
             try? self.removeManagedHomeIfSafe(importedHomeURL)
-            throw CodexAccountPromotionError.displacedLiveImportFailed
+            throw error as? CodexAccountPromotionError ?? .displacedLiveImportFailed
         }
     }
 
@@ -133,12 +130,9 @@ package struct CodexDisplacedLivePreservationExecutor {
             return try self.resolveImportedAccountAfterCommit(
                 importedAccount,
                 excludingTargetID: excludingTargetID)
-        } catch let error as CodexAccountPromotionError {
-            try? self.removeManagedHomeIfSafe(importedAccount.homeURL)
-            throw error
         } catch {
             try? self.removeManagedHomeIfSafe(importedAccount.homeURL)
-            throw CodexAccountPromotionError.managedStoreCommitFailed
+            throw error as? CodexAccountPromotionError ?? .managedStoreCommitFailed
         }
     }
 
@@ -185,9 +179,13 @@ package struct CodexDisplacedLivePreservationExecutor {
                 guard account.id == existingManagedAccount.id else { return account }
                 return repairedManagedAccount
             }))
-        if existingManagedAccount.managedHomePath != importedAccount.homeURL.path {
+        let replacedHomePath = existingManagedAccount.managedHomePath
+        let replacedHomeStillReferenced = persistedManagedAccounts.accounts.contains {
+            $0.id != existingManagedAccount.id && $0.managedHomePath == replacedHomePath
+        }
+        if replacedHomePath != importedAccount.homeURL.path, replacedHomeStillReferenced == false {
             try? self.removeManagedHomeIfSafe(
-                URL(fileURLWithPath: existingManagedAccount.managedHomePath, isDirectory: true))
+                URL(fileURLWithPath: replacedHomePath, isDirectory: true))
         }
 
         return .alreadyManaged(managedAccountID: existingManagedAccount.id)

@@ -1,0 +1,231 @@
+name: Release
+run-name: Release ${{ inputs.tag || github.ref_name }}${{ inputs.dry_run && ' (dry run)' || '' }}
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Build, sign, notarize and verify without publishing
+        type: boolean
+        default: true
+      tag:
+        description: Existing signed version tag (leave empty for a main dry run)
+        type: string
+        default: ''
+
+permissions: {}
+concurrency:
+  group: release-${{ inputs.tag || github.ref }}
+  cancel-in-progress: false
+
+env:
+  DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || false }}
+  RELEASE_TAG: ${{ github.event_name == 'push' && github.ref_name || inputs.tag }}
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      sha: ${{ steps.validate.outputs.sha }}
+      version: ${{ steps.validate.outputs.version }}
+      tag: ${{ steps.validate.outputs.tag }}
+      dry_run: ${{ steps.validate.outputs.dry_run }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Test release policy
+        run: python3 -m unittest discover -s .github/scripts -p 'test_*.py' -v
+      - name: Validate immutable source and exact-commit push CI
+        id: validate
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 .github/scripts/release.py validate
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: payload-notes
+          path: release-notes.md
+          if-no-files-found: error
+
+  availability:
+    needs: validate
+    if: needs.validate.outputs.dry_run == 'false'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write # Includes private drafts in the availability check.
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.validate.outputs.sha }}
+          persist-credentials: false
+      - name: Refuse existing releases, including drafts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 .github/scripts/release.py availability
+
+  macos:
+    needs: [validate, availability]
+    if: always() && needs.validate.result == 'success' && (needs.availability.result == 'success' || needs.validate.outputs.dry_run == 'true')
+    runs-on: xcode-27
+    timeout-minutes: 120
+    env:
+      MACOSX_DEPLOYMENT_TARGET: "14.0"
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.validate.outputs.sha }}
+          persist-credentials: false
+      - name: Select Xcode 27 and verify Rosetta
+        run: |
+          set -euo pipefail
+          sudo xcode-select -s /Applications/Xcode_27.0.app/Contents/Developer
+          echo "DEVELOPER_DIR=/Applications/Xcode_27.0.app/Contents/Developer" >> "$GITHUB_ENV"
+          [[ "$(/usr/bin/xcodebuild -version)" == Xcode\ 27* ]]
+          if ! arch -x86_64 /usr/bin/true; then
+            sudo softwareupdate --install-rosetta --agree-to-license
+          fi
+          arch -x86_64 /usr/bin/true
+      - name: Install widget project generator
+        run: brew install xcodegen
+      - name: Install checksum-pinned Sparkle signing tool
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location https://github.com/sparkle-project/Sparkle/releases/download/2.10.0/Sparkle-2.10.0.tar.xz -o "$RUNNER_TEMP/sparkle.tar.xz"
+          printf '%s  %s\n' c2bf58aa8387266ac179357b1415d6f2635f044da8be41042af32425dae6da0c "$RUNNER_TEMP/sparkle.tar.xz" | shasum -a 256 -c -
+          mkdir "$RUNNER_TEMP/sparkle-bin"
+          tar -xf "$RUNNER_TEMP/sparkle.tar.xz" -C "$RUNNER_TEMP/sparkle-bin" ./bin/sign_update
+      - name: Import Developer ID into an ephemeral keychain
+        env:
+          MACOS_SIGNING_P12: ${{ secrets.MACOS_SIGNING_P12 }}
+          MACOS_SIGNING_P12_PASSWORD: ${{ secrets.MACOS_SIGNING_P12_PASSWORD }}
+        run: bash .github/scripts/setup-signing.sh
+      - name: Retry dropped Apple ticket-service connections
+        run: |
+          mkdir -p "$RUNNER_TEMP/apple-tools"
+          ln -s "$GITHUB_WORKSPACE/.github/scripts/apple-tool.py" "$RUNNER_TEMP/apple-tools/xcrun"
+          ln -s "$GITHUB_WORKSPACE/.github/scripts/apple-tool.py" "$RUNNER_TEMP/apple-tools/stapler"
+          echo "$RUNNER_TEMP/apple-tools" >> "$GITHUB_PATH"
+      - name: Build, sign, notarize, and staple
+        env:
+          # Cold universal widget builds compile CodexBarCore again in Xcode.
+          CODEXBAR_WIDGET_EXTENSION_TIMEOUT_SECONDS: "3600"
+          APP_STORE_CONNECT_API_KEY_P8: ${{ secrets.ASC_PRIVATE_KEY_P8 }}
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: bash Scripts/sign-and-notarize.sh
+      - name: Verify app and dSYM, smoke, and sign the Sparkle feed
+        env:
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          source version.env
+          mkdir -p release-assets "$RUNNER_TEMP/extracted"
+          cp "CodexBar-macos-universal-${MARKETING_VERSION}.zip" "CodexBar-macos-universal-${MARKETING_VERSION}.dSYM.zip" release-assets/
+          ditto -x -k "release-assets/CodexBar-macos-universal-${MARKETING_VERSION}.zip" "$RUNNER_TEMP/extracted"
+          python3 .github/scripts/verify-macos.py "$RUNNER_TEMP/extracted/CodexBar.app"
+          export APP_BUNDLE="$RUNNER_TEMP/extracted/CodexBar.app"
+          export SPARKLE_SIGN_UPDATE="$RUNNER_TEMP/sparkle-bin/bin/sign_update"
+          test -x "$SPARKLE_SIGN_UPDATE"
+          python3 .github/scripts/release.py appcast
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: payload-macos
+          path: release-assets/*
+          if-no-files-found: error
+      - name: Remove signing credentials
+        if: always()
+        run: |
+          if [[ -f "$RUNNER_TEMP/original-keychains" ]]; then
+            python3 - "$RUNNER_TEMP/original-keychains" <<'PYCODE'
+          import pathlib, shlex, subprocess, sys
+          subprocess.run(['security', 'list-keychains', '-d', 'user', '-s', *shlex.split(pathlib.Path(sys.argv[1]).read_text())], check=True)
+          PYCODE
+          fi
+          security delete-keychain "$RUNNER_TEMP/release.keychain-db" || true
+          rm -f "$RUNNER_TEMP/signing.p12"
+
+  cli:
+    needs: [validate, availability]
+    if: always() && needs.validate.result == 'success' && (needs.availability.result == 'success' || needs.validate.outputs.dry_run == 'true')
+    permissions:
+      contents: read
+    uses: ./.github/workflows/release-cli.yml
+    with:
+      ref: ${{ needs.validate.outputs.sha }}
+      tag: ${{ needs.validate.outputs.tag }}
+
+  desktop:
+    needs: [validate, availability]
+    if: always() && needs.validate.result == 'success' && (needs.availability.result == 'success' || needs.validate.outputs.dry_run == 'true')
+    permissions:
+      contents: read
+    uses: ./.github/workflows/release-linux-desktop.yml
+    with:
+      ref: ${{ needs.validate.outputs.sha }}
+      version: ${{ needs.validate.outputs.version }}
+
+  assemble:
+    needs: [validate, macos, cli, desktop]
+    if: always() && needs.validate.result == 'success' && needs.macos.result == 'success' && needs.cli.result == 'success' && needs.desktop.result == 'success'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.validate.outputs.sha }}
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: payload-*
+          merge-multiple: true
+          path: release-assets
+      - name: Verify complete shipping inventory and checksums
+        run: |
+          mv release-assets/release-notes.md release-assets/RELEASE-NOTES.md
+          python3 .github/scripts/release.py inventory
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: verified-release-${{ needs.validate.outputs.sha }}
+          path: release-assets/*
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    needs: [validate, assemble]
+    if: needs.validate.outputs.dry_run == 'false'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.validate.outputs.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: verified-release-${{ needs.validate.outputs.sha }}
+          path: release-assets
+      - name: Publish verified release and Sparkle feed exactly once
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_SHA: ${{ needs.validate.outputs.sha }}
+        run: python3 .github/scripts/release.py publish
+      - name: Update Homebrew from the verified release
+        if: ${{ !contains(needs.validate.outputs.version, '-') }}
+        env:
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: python3 .github/scripts/homebrew.py

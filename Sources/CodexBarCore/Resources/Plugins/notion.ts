@@ -21,6 +21,7 @@ defineProvider({
     type ObjectValue = Record<string, unknown>;
     const object = (value: unknown): ObjectValue | undefined =>
       value !== null && typeof value === "object" && !Array.isArray(value) ? (value as ObjectValue) : undefined;
+    const table = (value: unknown, key: string): ObjectValue => object(object(value)?.[key]) ?? {};
     const text = (value: unknown): string | undefined => (typeof value === "string" ? value : undefined);
     const invalid = (message: string): never => {
       throw ctx.fail.parseFailure(`Could not parse Notion usage: ${message}`);
@@ -50,11 +51,15 @@ defineProvider({
       if (value === undefined || value === null) return undefined;
       return typeof value === "number" && Number.isFinite(value) ? value : invalid("invalid numeric field");
     };
-    const window = (raw: unknown, rolling: boolean, resets: unknown): CodexBarRateWindow | undefined => {
+    const window = (raw: unknown, rolling: boolean, resets: number | undefined): CodexBarRateWindow | undefined => {
       if (raw === undefined || raw === null) return undefined;
       const value = object(raw) ?? invalid("window is not an object");
+      for (const field of ["creditType", "scope", "window", "cadence"]) {
+        if (value[field] != null && typeof value[field] !== "string") return invalid(`invalid ${field}`);
+      }
       const used = numeric(value.used),
-        limit = numeric(value.limit);
+        limit = numeric(value.limit),
+        end = numeric(value.periodEndMs);
       if (used === undefined || limit === undefined || limit <= 0) return undefined;
       let windowMinutes: number | undefined;
       let resetsAt: Date | undefined;
@@ -65,11 +70,9 @@ defineProvider({
           const minutes = Number(parts[1]) * ({ m: 1, h: 60, d: 1440, w: 10080 }[parts[2]] ?? 0);
           if (Number.isSafeInteger(minutes) && minutes !== 43200) windowMinutes = minutes;
         }
-        const seconds = numeric(resets);
-        if (seconds !== undefined && seconds >= 0) resetsAt = new Date(ctx.date.now().getTime() + seconds * 1000);
+        if (resets !== undefined && resets >= 0) resetsAt = new Date(ctx.date.now().getTime() + resets * 1000);
       } else {
         windowMinutes = 43200;
-        const end = numeric(value.periodEndMs);
         if (end !== undefined && end > 0) resetsAt = new Date(end);
       }
       return { usedPercent: Math.max(0, (used / limit) * 100), windowMinutes, resetsAt };
@@ -96,56 +99,59 @@ defineProvider({
         return object(parsed) ?? invalid(`${endpoint} response is not an object`);
       };
       try {
-        const spaces = await post("getSpaces", {});
-        const ids = Object.keys(spaces).filter(
-          (id) => unwrap(object(object(spaces[id])?.notion_user)?.[id])?.id === id,
-        );
-        const userID =
-          ids.length === 1
-            ? ids[0]
-            : ids.length === 0 && Object.keys(spaces).length === 1
-              ? Object.keys(spaces)[0]
-              : undefined;
-        if (!userID) return invalid("getSpaces response did not identify a single user");
-        const container = object(spaces[userID]) ?? invalid("getSpaces user is not an object");
-        const users = object(container.notion_user) ?? {};
-        const user = unwrap(users[userID]) ?? Object.values(users).map(unwrap).find(Boolean);
-        const records = object(container.space) ?? {};
-        const workspaces: Array<ObjectValue & { id: string }> = Object.keys(records)
-          .sort()
-          .flatMap((key) => {
-            const record = unwrap(records[key]);
-            return record ? [{ ...record, id: text(record.id) ?? key }] : [];
-          });
-        const preferred = ctx.settings.get("WORKSPACE_ID");
-        const workspace =
-          (preferred ? workspaces.find((space) => normalize(space.id) === normalize(preferred)) : undefined) ??
-          workspaces.find((space) =>
-            ["business", "enterprise"].includes(text(space.subscription_tier)?.toLowerCase() ?? ""),
-          ) ??
-          workspaces[0];
+        const preferred = normalize(ctx.settings.get("WORKSPACE_ID") || "");
+        let userID: string | undefined;
+        let user: ObjectValue | undefined;
+        let workspace: (ObjectValue & { id: string }) | undefined;
+        try {
+          const spaces = await post("getSpaces", {});
+          const ids = Object.keys(spaces).filter((id) => unwrap(table(spaces[id], "notion_user")[id])?.id === id);
+          userID =
+            ids.length === 1
+              ? ids[0]
+              : ids.length === 0 && Object.keys(spaces).length === 1
+                ? Object.keys(spaces)[0]
+                : undefined;
+          if (!userID) return invalid("getSpaces response did not identify a single user");
+          const container = object(spaces[userID]) ?? invalid("getSpaces user is not an object");
+          const users = table(container, "notion_user");
+          user = unwrap(users[userID]) ?? Object.values(users).map(unwrap).find(Boolean);
+          const records = table(container, "space");
+          const workspaces: Array<ObjectValue & { id: string }> = Object.keys(records)
+            .sort()
+            .flatMap((key) => {
+              const record = unwrap(records[key]);
+              return record ? [{ ...record, id: text(record.id) ?? key }] : [];
+            });
+          workspace =
+            (preferred ? workspaces.find((space) => normalize(space.id) === preferred) : undefined) ??
+            workspaces.find((space) =>
+              ["business", "enterprise"].includes(text(space.subscription_tier)?.toLowerCase() ?? ""),
+            ) ??
+            workspaces[0];
+        } catch (error) {
+          // A pinned workspace can fetch allowances without the oversized identity record map.
+          if (!/Provider plugin HTTP error: response exceeded the \d+-byte limit/.test(String(error))) throw error;
+          if (!/^[a-f0-9]{32}$/.test(preferred))
+            throw ctx.fail.apiFailure(
+              "Notion workspace discovery is too large. Set Workspace ID to a valid workspace UUID in Notion AI settings.",
+            );
+          workspace = { id: preferred.replace(/^(.{8})(.{4})(.{4})(.{4})(.{12})$/, "$1-$2-$3-$4-$5") };
+        }
         if (!workspace) throw ctx.fail.apiFailure("No Notion workspace found for this account.");
         const usage = await post("getCreditRateLimitStatus", { spaceId: workspace.id });
         for (const field of ["status", "enforcement"]) {
           if (usage[field] != null && typeof usage[field] !== "string") return invalid(`invalid ${field}`);
         }
-        numeric(usage.resetsInSeconds);
-        for (const raw of [usage.window, usage.billingPeriodWindow]) {
-          if (raw == null) continue;
-          const value = object(raw) ?? invalid("window is not an object");
-          for (const field of ["creditType", "scope", "window", "cadence"]) {
-            if (value[field] != null && typeof value[field] !== "string") return invalid(`invalid ${field}`);
-          }
-          for (const field of ["used", "limit", "periodEndMs"]) numeric(value[field]);
-        }
+        const resets = numeric(usage.resetsInSeconds);
+        const primary = window(usage.window, true, resets);
+        const secondary = window(usage.billingPeriodWindow, false, undefined);
         if (text(usage.status)?.toLowerCase() === "not_applicable")
           throw ctx.fail.apiFailure(
             "Notion AI usage allowance is not tracked for this workspace. Allowances apply to Business and Enterprise workspaces.",
           );
         if (usage.window == null && usage.billingPeriodWindow == null)
           return invalid("getCreditRateLimitStatus returned no usage windows");
-        const primary = window(usage.window, true, usage.resetsInSeconds);
-        const secondary = window(usage.billingPeriodWindow, false, undefined);
         const tier = text(workspace.subscription_tier)?.trim();
         const result = {
           primary,

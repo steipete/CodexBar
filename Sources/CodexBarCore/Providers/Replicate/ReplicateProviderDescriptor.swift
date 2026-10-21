@@ -31,8 +31,7 @@ public enum ReplicateProviderDescriptor {
                 widgetSelectable: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
-                browserCookieOrder: BrowserCookieImportSupport.chromeOnly(
-                    reason: "Other browsers use Manual to avoid extra permission prompts"),
+                browserCookieOrder: ProviderBrowserCookieDefaults.defaultImportOrder,
                 dashboardURL: "https://replicate.com/account/billing",
                 statusPageURL: nil),
             branding: ProviderBranding(

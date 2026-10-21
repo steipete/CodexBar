@@ -3,7 +3,61 @@ import Testing
 @testable import CodexBar
 
 @MainActor
+@Suite(.serialized)
 struct PlaceholderSettingsWindowGuardTests {
+    @Test
+    func `waits for presentation to finish before closing the placeholder`() async {
+        _ = NSApplication.shared
+        let placeholder = self.makeWindow(identifier: "com_apple_SwiftUI_Settings_window")
+        let state = PlaceholderWindowCollection([])
+        var isOrdering = true
+        var isVisible = false
+        var closedDuringOrdering = false
+        var closeCount = 0
+        let guardian = PlaceholderSettingsWindowGuard(
+            windows: { state.windows },
+            isVisible: { _ in isVisible },
+            closeWindow: { window in
+                closeCount += 1
+                // AppKit's close during makeKeyAndOrderFront poisons later close attempts (#4407).
+                closedDuringOrdering = closedDuringOrdering || isOrdering
+                if !closedDuringOrdering { isVisible = false }
+                NotificationCenter.default.post(name: NSWindow.didUpdateNotification, object: window)
+            })
+        guardian.start()
+        state.windows = [placeholder]
+        // makeKeyAndOrderFront posts an update before the window becomes visible.
+        NotificationCenter.default.post(name: NSWindow.didUpdateNotification, object: placeholder)
+        #expect(closeCount == 0)
+        isVisible = true
+        isOrdering = false
+        NotificationCenter.default.post(name: NSWindow.didBecomeKeyNotification, object: placeholder)
+        await self.drainMainQueue()
+        #expect(!isVisible)
+        #expect(!closedDuringOrdering)
+        #expect(closeCount == 1)
+        #expect(!placeholder.isRestorable)
+
+        for _ in 0..<100 {
+            NotificationCenter.default.post(name: NSWindow.didUpdateNotification, object: placeholder)
+        }
+        await self.drainMainQueue()
+        #expect(closeCount == 1)
+
+        isVisible = true
+        NotificationCenter.default.post(name: NSWindow.didBecomeMainNotification, object: placeholder)
+        await self.drainMainQueue()
+        #expect(!isVisible)
+        #expect(closeCount == 2)
+        #expect(guardian.sweep() == 0)
+    }
+
+    private func drainMainQueue() async {
+        await withCheckedContinuation { continuation in
+            DispatchQueue.main.async { continuation.resume() }
+        }
+    }
+
     @Test
     func `closes the empty SwiftUI Settings placeholder window`() {
         _ = NSApplication.shared
@@ -156,7 +210,7 @@ struct PlaceholderSettingsWindowGuardTests {
     }
 
     @Test(.enabled(if: ProcessInfo.processInfo.environment["CODEXBAR_SETTINGS_CLOSE_NATIVE_PROOF"] == "1"))
-    func `native close notifications settle and a retained window can be dismissed again`() {
+    func `native close notifications settle and a retained window can be dismissed again`() async {
         _ = NSApplication.shared
         let placeholder = PlaceholderCloseCountingWindow(
             contentRect: NSRect(x: 0, y: 0, width: 240, height: 120),
@@ -172,19 +226,24 @@ struct PlaceholderSettingsWindowGuardTests {
             settings.close()
             unrelated.close()
         }
+        let state = PlaceholderWindowCollection([settings, unrelated])
         let guardian = PlaceholderSettingsWindowGuard(
-            windows: { [placeholder, settings, unrelated] },
+            windows: { state.windows },
             isKnownSettingsWindow: { $0 === settings })
         guardian.start()
+        state.windows.append(placeholder)
+        placeholder.makeKeyAndOrderFront(nil)
         for _ in 0..<100 {
             NotificationCenter.default.post(name: NSWindow.didUpdateNotification, object: placeholder)
         }
+        await self.drainMainQueue()
         let settledCloseCount = placeholder.closeCount
         #expect(settledCloseCount == 1)
         #expect(!placeholder.isVisible)
 
-        placeholder.orderFront(nil)
+        placeholder.makeKeyAndOrderFront(nil)
         NotificationCenter.default.post(name: NSWindow.didUpdateNotification, object: placeholder)
+        await self.drainMainQueue()
         let representedCloseCount = placeholder.closeCount
         #expect(representedCloseCount == 2)
         #expect(!placeholder.isVisible)

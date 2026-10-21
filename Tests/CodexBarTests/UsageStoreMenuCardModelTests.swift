@@ -1,10 +1,70 @@
-import CodexBarCore
 import Foundation
 import Testing
 @testable import CodexBar
+@testable import CodexBarCore
 
 @MainActor
 struct UsageStoreMenuCardModelTests {
+    @Test
+    func `Claude menu separates stale usage from its error while settings retain the notice`() throws {
+        try KeychainAccessGate.withTaskOverrideForTesting(false) {
+            try CodexBarLocalizationOverride.$appLanguage.withValue("en") {
+                let store = self.makeStore()
+                let snapshot = self.snapshot()
+                let raw = ClaudeOAuthCredentialsError.missingAccessToken.localizedDescription
+                store.snapshots[.claude] = snapshot
+                store.errors[.claude] = raw
+
+                let menu = store.menuCardModel(for: .claude, now: snapshot.updatedAt.addingTimeInterval(3600))
+                #expect(menu.subtitleText == raw)
+                #expect(menu.subtitleStyle == .error)
+                #expect(menu.lastKnownUsageText?.hasPrefix("Showing last-known usage captured ") == true)
+                #expect(!menu.subtitleText.contains("Showing last-known usage"))
+
+                let settings = store.menuCardModel(for: .claude, context: .settings)
+                let message = try #require(store.userFacingError(for: .claude))
+                let pane = ProvidersPane(settings: store.settings, store: store)
+                let preview = try #require(pane._test_providerErrorDisplay(for: .claude)?.preview)
+                for text in [settings.subtitleText, message, preview] {
+                    #expect(text.components(separatedBy: "Showing last-known usage").count == 2)
+                }
+                #expect(settings.lastKnownUsageText == nil)
+            }
+        }
+    }
+
+    @Test
+    func `Claude error without a snapshot has no stale line`() {
+        let store = self.makeStore()
+        store.errors[.claude] = "Claude request failed"
+        let model = store.menuCardModel(for: .claude)
+        #expect(model.subtitleText == "Claude request failed")
+        #expect(model.lastKnownUsageText == nil)
+    }
+
+    @Test
+    func `non Claude errors retain their existing presentation`() {
+        let store = self.makeStore()
+        store.snapshots[.mistral] = self.snapshot()
+        store.errors[.mistral] = "Mistral request failed"
+        let model = store.menuCardModel(for: .mistral)
+        #expect(model.subtitleText == store.userFacingError(for: .mistral))
+        #expect(model.subtitleText == "Mistral request failed")
+        #expect(model.lastKnownUsageText == nil)
+    }
+
+    @Test
+    func `Claude account card keeps its own stale timestamp and error`() {
+        let store = self.makeStore()
+        let snapshot = self.snapshot()
+        let model = store.menuCardModel(for: .claude, context: .account(.init(
+            snapshot: snapshot,
+            error: "Account request failed",
+            lastKnownUsageCapturedAt: snapshot.updatedAt)))
+        #expect(model.subtitleText == "Account request failed")
+        #expect(model.lastKnownUsageText != nil)
+    }
+
     @Test(arguments: [UsageProvider.claude, .grok])
     func `empty account context cannot borrow live usage identity or cost`(provider: UsageProvider) {
         let store = self.makeStore()
@@ -28,6 +88,67 @@ struct UsageStoreMenuCardModelTests {
         #expect(model.subtitleStyle != .error)
         #expect(!model.usesLiveSubtitle)
         #expect(store.menuCardModel(for: provider).subtitleStyle == .error)
+    }
+
+    @Test
+    func `settings catalogue exposes globally gated extra usage without changing rendered preferences`() {
+        let store = self.makeStore()
+        store.settings.showOptionalCreditsAndExtraUsage = false
+        store.snapshots[.claude] = self.snapshot().with(providerCost: ProviderCostSnapshot(
+            used: 12, limit: 100, currencyCode: "USD", updatedAt: Date()))
+
+        let displayed = store.menuCardModel(for: .claude, context: .settings)
+        let catalogue = UsageMenuCardView.Model.make(store.menuCardInput(
+            for: .claude, context: .settings, optionalUsageOverride: true))
+        #expect(displayed.providerCost == nil)
+        #expect(!displayed.metrics.contains { $0.id == "claude-extra-usage" })
+        #expect(catalogue.usageItemDescriptors.contains { $0.id == .claudeExtraUsage && $0.requiresOptionalUsage })
+        #expect(!store.settings.showOptionalCreditsAndExtraUsage)
+
+        store.settings.setUsageItemVisible(false, itemID: .claudeExtraUsage, for: .claude)
+        store.settings.showOptionalCreditsAndExtraUsage = true
+        #expect(store.menuCardModel(for: .claude).providerCost == nil)
+        #expect(store.menuCardModel(for: .claude, context: .settings).providerCost == nil)
+        store.settings.setUsageItemVisible(true, itemID: .claudeExtraUsage, for: .claude)
+        #expect(store.menuCardModel(for: .claude).providerCost != nil)
+    }
+
+    @Test
+    func `settings catalogue keeps the Codex credit lane while optional usage is off`() {
+        let store = self.makeStore()
+        store.settings.showOptionalCreditsAndExtraUsage = false
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let snapshot = UsageSnapshot(primary: nil, secondary: nil, updatedAt: now)
+        let credits = CreditsSnapshot(
+            remaining: 0,
+            events: [],
+            updatedAt: now,
+            codexCreditLimit: CodexCreditLimitSnapshot(
+                used: 27, limit: 100, remainingPercent: 73, resetsAt: nil, updatedAt: now))
+        let context = UsageMenuCardContext.settingsAccount(.init(snapshot: snapshot, credits: credits))
+        let rendered = UsageMenuCardView.Model.make(store.menuCardInput(for: .codex, context: context))
+        let catalogue = UsageMenuCardView.Model.make(store.menuCardInput(
+            for: .codex, context: context, optionalUsageOverride: true))
+        #expect(!rendered.metrics.contains { $0.id == "monthly" })
+        #expect(catalogue.usageItemDescriptors.contains {
+            $0.id == .metric("monthly") && $0.requiresOptionalUsage
+        })
+        #expect(!store.settings.showOptionalCreditsAndExtraUsage)
+    }
+
+    @Test
+    func `real monthly Codex quota is not marked as optional credits`() {
+        let store = self.makeStore()
+        store.settings.showOptionalCreditsAndExtraUsage = false
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 27, windowMinutes: 43200, resetsAt: nil, resetDescription: nil),
+            secondary: nil,
+            updatedAt: Date())
+        let model = UsageMenuCardView.Model.make(store.menuCardInput(
+            for: .codex, context: .settingsAccount(.init(snapshot: snapshot))))
+        #expect(model.usageItemDescriptors.contains {
+            $0.id == .metric("monthly") && !$0.requiresOptionalUsage
+        })
     }
 
     @Test
@@ -139,7 +260,8 @@ struct UsageStoreMenuCardModelTests {
     private func makeStore() -> UsageStore {
         let settings = testSettingsStore(
             suiteName: "UsageStoreMenuCardModelTests",
-            userDefaults: InMemoryUserDefaults())
+            userDefaults: InMemoryUserDefaults(),
+            keychainAccessPolicy: .init(setDisabled: { _ in }, isExplicitlyDisabled: { false }))
         let store = UsageStore(
             fetcher: UsageFetcher(environment: [:]),
             browserDetection: BrowserDetection(cacheTTL: 0),

@@ -42,6 +42,9 @@ struct SpendActivitySeries {
     let rangeStart: Date
     let today: Date
     let calendar: Calendar
+    let dates: [Date?]
+    let visibleIndices: [Int]
+    let coveredDayCount: Int
 
     static func make(
         from points: [SpendDashboardModel.TokenActivityPoint],
@@ -79,11 +82,12 @@ struct SpendActivitySeries {
         var daily = [Int](repeating: 0, count: cellCount)
         var isCovered = [Bool](repeating: false, count: cellCount)
         var isScanned = [Bool](repeating: false, count: cellCount)
+        let dates = (0..<cellCount).map { index in
+            calendar.date(byAdding: .day, value: index, to: start).map { calendar.startOfDay(for: $0) }
+        }
         for index in 0..<cellCount {
             // Midnight DST transitions can leave the aligned start at 01:00. Match the day keys above.
-            guard let date = calendar.date(byAdding: .day, value: index, to: start)
-                .map({ calendar.startOfDay(for: $0) }),
-                rangeStart...today ~= date
+            guard let date = dates[index], rangeStart...today ~= date
             else {
                 continue
             }
@@ -92,6 +96,9 @@ struct SpendActivitySeries {
             daily[index] = total
             isCovered[index] = true
         }
+        let visible = dates.indices.filter { index in
+            dates[index].map { rangeStart...today ~= $0 } ?? false
+        }
         return Self(
             daily: daily,
             isCovered: isCovered,
@@ -99,11 +106,15 @@ struct SpendActivitySeries {
             start: start,
             rangeStart: rangeStart,
             today: today,
-            calendar: calendar)
+            calendar: calendar,
+            dates: dates,
+            visibleIndices: visible,
+            coveredDayCount: visible.count(where: { isCovered[$0] }))
     }
 
     func date(at index: Int) -> Date? {
-        self.calendar.date(byAdding: .day, value: index, to: self.start)
+        if self.dates.indices.contains(index) { return self.dates[index] }
+        return self.calendar.date(byAdding: .day, value: index, to: self.start)
             .map { self.calendar.startOfDay(for: $0) }
     }
 
@@ -112,11 +123,7 @@ struct SpendActivitySeries {
     }
 
     var visibleDayCount: Int {
-        self.daily.indices.filter(self.isVisible).count
-    }
-
-    var coveredDayCount: Int {
-        self.daily.indices.count(where: { self.isVisible($0) && self.isCovered[$0] })
+        self.visibleIndices.count
     }
 
     var hasUnknownCoverage: Bool {
@@ -291,15 +298,34 @@ enum SpendActivityGridNavigation {
 }
 
 enum SpendActivityDateFormatting {
+    private struct Context: Hashable {
+        let calendar: Calendar
+        let locale: Locale
+        let timeZone: TimeZone
+    }
+
+    private static let formatterLock = NSLock()
+    private nonisolated(unsafe) static var formatters: [Context: DateFormatter] = [:]
+
     static func mediumDateString(_ date: Date, calendar: Calendar? = nil, locale: Locale? = nil) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = locale ?? codexBarLocalizedResourceLocale()
-        formatter.calendar = calendar ?? Calendar.current
-        if let calendar, let timeZone = calendar.timeZone as TimeZone? {
-            formatter.timeZone = timeZone
+        let context = Context(
+            calendar: calendar ?? .current,
+            locale: locale ?? codexBarLocalizedResourceLocale(),
+            timeZone: calendar?.timeZone ?? NSTimeZone.default)
+        let formatter = self.formatterLock.withLock {
+            if let formatter = self.formatters[context] { return formatter }
+            let formatter = DateFormatter()
+            formatter.locale = context.locale
+            formatter.calendar = context.calendar
+            formatter.timeZone = context.timeZone
+            formatter.dateStyle = .medium
+            formatter.timeStyle = .none
+            // Bound retained contexts when users change language or reporting time zone.
+            if self.formatters.count >= 16 { self.formatters.removeAll(keepingCapacity: true) }
+            self.formatters[context] = formatter
+            return formatter
         }
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .none
+        // Published formatters are immutable; DateFormatter supports concurrent string formatting.
         return formatter.string(from: date)
     }
 }
@@ -340,11 +366,10 @@ struct SpendActivityHeatmapView: View {
     var body: some View {
         let hasActivity = (self.series.daily.max() ?? 0) > 0
         let hasUnknownCoverage = self.series.hasUnknownCoverage
-        let totalTokens = Self.saturatingTotal(self.series.daily)
+        let totalTokens = self.series.daily.reduce(0, SpendActivitySeries.saturatingAdd)
         let coverageText = spendDashboardCoverageText(
             covered: self.series.coveredDayCount,
             requested: self.series.visibleDayCount)
-        let weekly = self.series.weeklyActivity()
         let heading = self.heading(hasActivity: hasActivity, totalTokens: totalTokens, coverageText: coverageText)
         VStack(alignment: .leading, spacing: 8) {
             ViewThatFits(in: .horizontal) {
@@ -367,20 +392,16 @@ struct SpendActivityHeatmapView: View {
                         selectedDay: self.selectedDay,
                         onSelectDay: self.onSelectDay)
                     self.dailyLegend
-                case .weekly:
+                case .weekly, .cumulative:
+                    let weekly = self.series.weeklyActivity()
+                    let cumulative = self.mode == .cumulative
                     SpendActivityWeekGrid(
                         series: self.series,
-                        activity: weekly,
-                        cumulative: false)
+                        activity: cumulative ? weekly.cumulative() : weekly,
+                        cumulative: cumulative)
                     self.caption(
-                        L("Each column = 1 week"),
-                        showsUnavailable: weekly.isCovered.contains(false))
-                case .cumulative:
-                    SpendActivityWeekGrid(
-                        series: self.series,
-                        activity: weekly.cumulative(),
-                        cumulative: true)
-                    self.caption(L("Running total"), showsUnavailable: hasUnknownCoverage)
+                        cumulative ? L("Running total") : L("Each column = 1 week"),
+                        showsUnavailable: cumulative ? hasUnknownCoverage : weekly.isCovered.contains(false))
                 }
             } else {
                 Text(L("No activity in the last 12 months"))
@@ -465,13 +486,6 @@ struct SpendActivityHeatmapView: View {
             ? "\(total) · \(coverageText)"
             : "\(total) \(L("in the last year"))"
     }
-
-    private static func saturatingTotal(_ values: [Int]) -> Int {
-        values.reduce(0) { total, value in
-            let result = total.addingReportingOverflow(value)
-            return result.overflow ? Int.max : result.partialValue
-        }
-    }
 }
 
 private struct SpendActivityDailyGrid: View {
@@ -504,7 +518,7 @@ private struct SpendActivityDailyGrid: View {
                     ZStack(alignment: .topLeading) {
                         Canvas { context, _ in
                             let corner = min(cell * 0.22, 2.5)
-                            for index in 0..<(self.columns * self.rows) where self.isVisibleCell(index) {
+                            for index in 0..<(self.columns * self.rows) where self.series.isVisible(index) {
                                 let col = index / self.rows
                                 let row = index % self.rows
                                 let rect = CGRect(
@@ -543,7 +557,7 @@ private struct SpendActivityDailyGrid: View {
             .accessibilityLabel(L("Token activity"))
             .accessibilityValue(self.accessibilityValue)
             .accessibilityChildren {
-                ForEach(self.series.daily.indices.filter(self.series.isVisible), id: \.self) { index in
+                ForEach(self.series.visibleIndices, id: \.self) { index in
                     if let date = self.series.date(at: index) {
                         Text(self.accessibilityDescription(at: index, date: date))
                     }
@@ -566,7 +580,7 @@ private struct SpendActivityDailyGrid: View {
         .onMoveCommand(perform: self.moveKeyboardSelection)
         .onChange(of: self.isKeyboardFocused) { _, isFocused in
             if isFocused, self.keyboardIndex == nil {
-                self.keyboardIndex = self.lastVisibleIndex
+                self.keyboardIndex = self.series.visibleIndices.last
             }
         }
     }
@@ -643,7 +657,7 @@ private struct SpendActivityDailyGrid: View {
         let row = Int(location.y / pitch)
         guard col >= 0, col < self.columns, row >= 0, row < self.rows else { return nil }
         let index = col * self.rows + row
-        return self.isVisibleCell(index) ? index : nil
+        return self.series.isVisible(index) ? index : nil
     }
 
     private func handleTap(at location: CGPoint, pitch: CGFloat) {
@@ -652,24 +666,13 @@ private struct SpendActivityDailyGrid: View {
         onSelectDay(SpendActivityDaySelection.day(from: self.series, at: index, selectedDay: self.selectedDay))
     }
 
-    private func isVisibleCell(_ index: Int) -> Bool {
-        self.series.isVisible(index)
-    }
-
     private var activeIndex: Int? {
-        if let hoveredIndex {
-            return hoveredIndex
-        }
-        return self.keyboardIndex
-    }
-
-    private var lastVisibleIndex: Int? {
-        self.series.daily.indices.last(where: self.series.isVisible)
+        self.hoveredIndex ?? self.keyboardIndex
     }
 
     private func moveKeyboardSelection(_ direction: MoveCommandDirection) {
         self.hoveredIndex = nil
-        guard let current = self.keyboardIndex ?? self.lastVisibleIndex else { return }
+        guard let current = self.keyboardIndex ?? self.series.visibleIndices.last else { return }
         self.keyboardIndex = current
         let move: SpendActivityGridMove? = switch direction {
         case .left:
@@ -685,18 +688,18 @@ private struct SpendActivityDailyGrid: View {
         }
         guard let move else { return }
         let candidate = SpendActivityGridNavigation.candidate(from: current, move: move, rows: self.rows)
-        guard let candidate, self.isVisibleCell(candidate) else { return }
+        guard let candidate, self.series.isVisible(candidate) else { return }
         self.keyboardIndex = candidate
     }
 
     private func moveKeyboardSelectionChronologically(by offset: Int) {
         self.hoveredIndex = nil
         guard let current = self.keyboardIndex else {
-            self.keyboardIndex = self.lastVisibleIndex
+            self.keyboardIndex = self.series.visibleIndices.last
             return
         }
         let candidate = current + offset
-        guard self.isVisibleCell(candidate) else { return }
+        guard self.series.isVisible(candidate) else { return }
         self.keyboardIndex = candidate
     }
 
@@ -726,18 +729,11 @@ private struct SpendActivityDailyGrid: View {
         return markers
     }
 
-    private static func saturatingTotal(_ values: [Int]) -> Int {
-        values.reduce(0) { total, value in
-            let result = total.addingReportingOverflow(value)
-            return result.overflow ? Int.max : result.partialValue
-        }
-    }
-
     private var accessibilityValue: String {
         if let index = self.activeIndex, let date = self.series.date(at: index) {
             return self.accessibilityDescription(at: index, date: date)
         }
-        let total = UsageFormatter.tokenCountString(Self.saturatingTotal(self.series.daily))
+        let total = UsageFormatter.tokenCountString(self.series.daily.reduce(0, SpendActivitySeries.saturatingAdd))
         guard self.series.hasUnknownCoverage else { return total }
         let coverage = spendDashboardCoverageText(
             covered: self.series.coveredDayCount,
@@ -883,10 +879,7 @@ private struct SpendActivityWeekGrid: View {
         if self.cumulative {
             return self.activity.values.last ?? 0
         }
-        return self.activity.values.reduce(0) { total, value in
-            let result = total.addingReportingOverflow(value)
-            return result.overflow ? Int.max : result.partialValue
-        }
+        return self.activity.values.reduce(0, SpendActivitySeries.saturatingAdd)
     }
 
     private var accessibilityValue: String {

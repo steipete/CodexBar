@@ -134,13 +134,16 @@ extension SettingsStore {
     {
         guard !self.configLoading else { return }
         do {
-            guard let loaded = try self.configStore.load() else { return }
+            guard let loaded = try self.configPersistenceCoordinator.load(self.configStore, reload: true)
+            else { return }
+            self.configNeedsReload = false
             self.applyExternalConfig(
                 loaded,
                 reason: "reload-\(reason)",
                 affectsBackgroundWork: affectsBackgroundWork,
                 origin: origin)
         } catch {
+            self.configNeedsReload = true
             CodexBarLog.logger(LogCategories.configStore).error("Failed to reload config: \(error)")
         }
     }
@@ -231,9 +234,15 @@ extension SettingsStore {
             await pending.value
             if self.configPersistTask == pending { break }
         }
-        guard !Task.isCancelled, !self.configLoading, isCurrent() else { return .stale }
+        guard !Task.isCancelled, !self.configLoading, !self.configNeedsReload, isCurrent() else { return .stale }
+        var config: CodexBarConfig
         do {
-            var config = try self.configStore.load() ?? self.config
+            config = try self.configPersistenceCoordinator.load(self.configStore) ?? self.config
+        } catch {
+            self.configNeedsReload = true
+            return .failed
+        }
+        do {
             let original = self.config
                 .providerConfig(for: provider.instanceID) ?? ProviderConfig(id: provider.instanceID)
             guard ProviderPluginResultPolicy.matches(
@@ -243,7 +252,11 @@ extension SettingsStore {
                 .applying(values, to: original)
             guard !ProviderPluginResultPolicy.matches(updated, original) else { return .unchanged }
             config.setProviderConfig(updated)
-            try Self.writeConfig(config, to: self.configStore, watcher: self.configFileWatcher)
+            try Self.writeConfig(
+                config,
+                to: self.configStore,
+                watcher: self.configFileWatcher,
+                permit: self.configPersistenceCoordinator.makeWritePermit())
             self.config = config.normalized()
             self.updateProviderState(config: self.config)
             self.bumpConfigRevision(reason: "plugin-settings", affectsBackgroundWork: false)
@@ -254,7 +267,8 @@ extension SettingsStore {
     }
 
     func schedulePersistConfig() {
-        guard !self.configLoading else { return }
+        // Defaults or stale settings must not replace a repaired file before its reload arrives.
+        guard !self.configLoading, !self.configNeedsReload else { return }
         self.configPersistTask?.cancel()
         #if DEBUG
         let persistSynchronously = Self.isRunningTests && !self._test_configPersistenceUsesDebounce
@@ -262,12 +276,16 @@ extension SettingsStore {
         let persistSynchronously = Self.isRunningTests
         #endif
         if persistSynchronously {
-            Self.persistConfig(self.config, to: self.configStore, watcher: self.configFileWatcher)
+            Self.persistConfig(
+                self.config,
+                to: self.configStore,
+                watcher: self.configFileWatcher,
+                permit: self.configPersistenceCoordinator.makeWritePermit())
             return
         }
         self.configPersistTask = Task { @MainActor in
             do { try await Task.sleep(for: .milliseconds(350)) } catch { return }
-            guard !Task.isCancelled else { return }
+            guard !Task.isCancelled, !self.configNeedsReload else { return }
             let write = self.persistConfigInBackground()
             await write.value
             if self.configPersistWriteTask == write { self.configPersistWriteTask = nil }
@@ -276,7 +294,7 @@ extension SettingsStore {
     }
 
     func persistPendingConfigForTermination() -> Task<Void, Never>? {
-        guard let pending = self.configPersistTask else { return nil }
+        guard !self.configNeedsReload, let pending = self.configPersistTask else { return nil }
         pending.cancel()
         let save = self.persistConfigInBackground()
         self.configPersistTask = save
@@ -287,29 +305,91 @@ extension SettingsStore {
         let previousWrite = self.configPersistWriteTask
         let store = self.configStore
         let watcher = self.configFileWatcher
+        let permit = self.configPersistenceCoordinator.makeWritePermit()
         // Drain physical writes without needing the main actor, which may be in AppKit's quit loop.
         let write = Task.detached(priority: .utility) { [snapshot = self.config] in
             await previousWrite?.value
-            Self.persistConfig(snapshot, to: store, watcher: watcher)
+            guard !Task.isCancelled else { return }
+            Self.persistConfig(snapshot, to: store, watcher: watcher, permit: permit)
         }
         self.configPersistWriteTask = write
         return write
     }
 
     private nonisolated static func persistConfig(
-        _ config: CodexBarConfig, to store: CodexBarConfigStore, watcher: ConfigFileWatcher?)
+        _ config: CodexBarConfig,
+        to store: CodexBarConfigStore,
+        watcher: ConfigFileWatcher?,
+        permit: SettingsConfigPersistenceCoordinator.WritePermit)
     {
         do {
-            try self.writeConfig(config, to: store, watcher: watcher)
+            try self.writeConfig(config, to: store, watcher: watcher, permit: permit)
+        } catch is CancellationError {
+            // A failed read or reload made this snapshot unsafe to publish.
         } catch {
             CodexBarLog.logger(LogCategories.configStore).error("Failed to persist config: \(error)")
         }
     }
 
     nonisolated static func writeConfig(
-        _ config: CodexBarConfig, to store: CodexBarConfigStore, watcher: ConfigFileWatcher?) throws
+        _ config: CodexBarConfig,
+        to store: CodexBarConfigStore,
+        watcher: ConfigFileWatcher?,
+        permit: SettingsConfigPersistenceCoordinator.WritePermit) throws
     {
         let data = try store.encodedData(for: config)
-        try ConfigFileWatcher.withAppWrite(data, watcher: watcher) { try store.saveEncodedData(data) }
+        var publicationLocked = false
+        defer { if publicationLocked { permit.endPublication() } }
+        try ConfigFileWatcher.withAppWrite(data, watcher: watcher) {
+            try store.saveEncodedData(data) {
+                try permit.beginPublication(validating: store)
+                publicationLocked = true
+            }
+        }
+    }
+}
+
+/// Reloads invalidate every older snapshot. Only the final publication and reload read share
+/// this lock; staging and fsync never hold it or need the main actor.
+final class SettingsConfigPersistenceCoordinator: @unchecked Sendable {
+    struct WritePermit: Sendable {
+        fileprivate let coordinator: SettingsConfigPersistenceCoordinator
+        fileprivate let generation: UInt64
+
+        func beginPublication(validating store: CodexBarConfigStore) throws {
+            self.coordinator.lock.lock()
+            guard !self.coordinator.readFailed, self.generation == self.coordinator.generation else {
+                self.coordinator.lock.unlock()
+                throw CancellationError()
+            }
+            do {
+                _ = try store.load()
+            } catch {
+                self.coordinator.readFailed = true
+                self.coordinator.lock.unlock()
+                throw error
+            }
+        }
+
+        func endPublication() {
+            self.coordinator.lock.unlock()
+        }
+    }
+
+    private let lock = NSLock()
+    private var generation: UInt64 = 0
+    private var readFailed = false
+
+    func makeWritePermit() -> WritePermit {
+        self.lock.withLock { WritePermit(coordinator: self, generation: self.generation) }
+    }
+
+    func load(_ store: CodexBarConfigStore, reload: Bool = false) throws -> CodexBarConfig? {
+        try self.lock.withLock {
+            self.generation &+= 1
+            let config = try store.load()
+            if reload, config != nil { self.readFailed = false }
+            return config
+        }
     }
 }

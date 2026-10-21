@@ -179,7 +179,10 @@ enum ClaudeOAuthUsageFetcher {
 
     static func decodeUsageResponse(_ data: Data) throws -> OAuthUsageResponse {
         let decoder = JSONDecoder()
-        return try decoder.decode(OAuthUsageResponse.self, from: data)
+        var usage = try decoder.decode(OAuthUsageResponse.self, from: data)
+        let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        usage.limits = json.map(ClaudeWebExtraRateWindowParser.scopedWeeklyLimits)
+        return usage
     }
 
     private static func retryAfterDate(from response: HTTPURLResponse, now: Date = Date()) -> Date? {
@@ -292,7 +295,8 @@ struct OAuthUsageResponse: Decodable {
     /// Newer shape (superseding the flat `seven_day_*` fields above for scoped weekly
     /// windows): a flat list of limit entries, each optionally naming the model it scopes
     /// to via `scope.model.display_name` (e.g. "Fable" during a promotional access window).
-    let limits: [OAuthLimitEntry]?
+    /// Filled by `ClaudeOAuthUsageFetcher.decodeUsageResponse` with the Web path's entry parser.
+    fileprivate(set) var limits: [ClaudeScopedWeeklyLimitMapper.Limit]?
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: DynamicCodingKey.self)
@@ -314,7 +318,6 @@ struct OAuthUsageResponse: Decodable {
         self.sevenDayRoutinesSourceKey = routines.sourceKey
         self.cloudCredits = Self.decodeValue(in: container, keys: ["iguana_necktie"])
         self.extraUsage = Self.decodeValue(in: container, keys: ["extra_usage"])
-        self.limits = Self.decodeValue(in: container, keys: ["limits"])
         self.resetStatus = Self.decodeValue(in: container, keys: ["cedar_ember"])
     }
 
@@ -374,41 +377,6 @@ struct OAuthUsageWindow: Decodable {
     enum CodingKeys: String, CodingKey {
         case utilization
         case resetsAt = "resets_at"
-    }
-}
-
-/// A single entry from the `limits` array. `kind`/`group` classify the limit
-/// (e.g. `kind: "weekly_scoped"`, `group: "weekly"`); `scope.model.display_name` names the
-/// model it applies to when the limit is scoped to one, rather than the whole account.
-struct OAuthLimitEntry: Decodable {
-    let kind: String?
-    let group: String?
-    let percent: Double?
-    let resetsAt: String?
-    let scope: OAuthLimitScope?
-    let isActive: Bool?
-
-    enum CodingKeys: String, CodingKey {
-        case kind
-        case group
-        case percent
-        case resetsAt = "resets_at"
-        case scope
-        case isActive = "is_active"
-    }
-}
-
-struct OAuthLimitScope: Decodable {
-    let model: OAuthLimitScopeModel?
-}
-
-struct OAuthLimitScopeModel: Decodable {
-    let id: String?
-    let displayName: String?
-
-    enum CodingKeys: String, CodingKey {
-        case id
-        case displayName = "display_name"
     }
 }
 

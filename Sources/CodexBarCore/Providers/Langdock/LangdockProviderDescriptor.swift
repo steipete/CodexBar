@@ -14,7 +14,9 @@ public enum LangdockProviderDescriptor {
         history: .unavailable,
         burnDownWidgetSelectable: false,
         webSource: .init(
-            settingsSection: .init(LangdockProviderSettingsKey.self, selectedProfileBrowser: "edge"),
+            settingsSection: .init(
+                LangdockProviderSettingsKey.self,
+                selectedProfileBrowsers: ["edge", "chrome", "safari"]),
             field: .init(id: "langdock-session", title: "", subtitle: ""),
             detailLine: "Selected browser profile",
             showsVersionInSettings: false))

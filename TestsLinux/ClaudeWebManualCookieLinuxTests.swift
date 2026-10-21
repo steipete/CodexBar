@@ -153,8 +153,8 @@ struct ClaudeWebManualCookieLinuxTests {
                 await ProviderDescriptorRegistry.descriptor(for: .claude).fetchOutcome(context: context)
             }
         }
-        #expect(outcome.attempts.map(\.strategyID) == ["claude.web", "claude.cli"])
-        #expect(outcome.attempts.map(\.wasAvailable) == [true, true])
+        #expect(outcome.attempts.map(\.strategyID) == ["claude.web", "claude.oauth", "claude.cli"])
+        #expect(outcome.attempts.map(\.wasAvailable) == [true, false, true])
         #expect(outcome.attempts.first?.errorDescription != nil)
         let result = try outcome.result.get()
         #expect(result.strategyID == "claude.cli")

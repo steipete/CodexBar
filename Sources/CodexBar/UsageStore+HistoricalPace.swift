@@ -85,11 +85,11 @@ extension UsageStore {
                     minimumExpectedPercent: minimumExpectedPercent,
                     minimumElapsedPercent: minimumElapsedPercent)
             }
-            .flatMap { MenuBarDisplayText.paceText(pace: $0) }
+            .flatMap { MenuBarDisplayText.paceText(pace: $0, reservePositive: self.settings.menuBarPaceReservePositive)
+            }
     }
 
-    /// Numeric twin of `menuBarLayoutPaceText`, rounded to whole percentage points like the text so a
-    /// conditional predicate always compares exactly the value the menu bar shows.
+    /// Rounded usage-ahead delta for colors and conditional predicates, independent of the display sign.
     func menuBarLayoutPaceDelta(
         provider: UsageProvider,
         window: RateWindow?,

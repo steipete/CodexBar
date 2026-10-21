@@ -925,9 +925,11 @@ extension StatusMenuTests {
         #expect(await blocker.startedCount() == 1)
         #expect(refreshInteractions == [.background])
 
+        let dashboardTask = store.openAIDashboardRefreshTask
         await blocker.resumeNext(with: .success(self.makeOpenAIDashboard(
             dailyBreakdown: [],
             updatedAt: Date())))
+        await dashboardTask?.value
     }
 
     @Test
@@ -976,9 +978,11 @@ extension StatusMenuTests {
         await blocker.waitUntilStarted(count: 1)
         #expect(await blocker.startedCount() == 1)
 
+        let dashboardTask = store.openAIDashboardRefreshTask
         await blocker.resumeNext(with: .success(self.makeOpenAIDashboard(
             dailyBreakdown: [],
             updatedAt: Date())))
+        await dashboardTask?.value
     }
 
     @Test
@@ -1026,9 +1030,11 @@ extension StatusMenuTests {
         await blocker.waitUntilStarted(count: 1)
         #expect(await blocker.startedCount() == 1)
 
+        let dashboardTask = store.openAIDashboardRefreshTask
         await blocker.resumeNext(with: .success(self.makeOpenAIDashboard(
             dailyBreakdown: [],
             updatedAt: Date())))
+        await dashboardTask?.value
     }
 
     @Test
@@ -1083,9 +1089,11 @@ extension StatusMenuTests {
         await dashboardBlocker.waitUntilStarted(count: 1)
         #expect(await dashboardBlocker.startedCount() == 1)
 
+        let dashboardTask = store.openAIDashboardRefreshTask
         await dashboardBlocker.resumeNext(with: .success(self.makeOpenAIDashboard(
             dailyBreakdown: [],
             updatedAt: Date())))
+        await dashboardTask?.value
     }
 
     @Test
@@ -1145,9 +1153,11 @@ extension StatusMenuTests {
         await dashboardBlocker.waitUntilStarted(count: 1)
         #expect(await dashboardBlocker.startedCount() == 1)
 
+        let dashboardTask = store.openAIDashboardRefreshTask
         await dashboardBlocker.resumeNext(with: .success(self.makeOpenAIDashboard(
             dailyBreakdown: [],
             updatedAt: Date())))
+        await dashboardTask?.value
     }
 
     @Test
@@ -1198,11 +1208,13 @@ extension StatusMenuTests {
         await blocker.waitUntilStarted(count: 1)
         #expect(await blocker.startedCount() == 1)
 
+        let dashboardTask = store.openAIDashboardRefreshTask
         await blocker.resumeNext(with: .success(self.makeOpenAIDashboard(
             dailyBreakdown: [
                 OpenAIDashboardDailyBreakdown(day: "2026-05-24", services: [], totalCreditsUsed: 12),
             ],
             updatedAt: Date())))
+        await dashboardTask?.value
     }
 
     @Test

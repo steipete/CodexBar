@@ -28,6 +28,8 @@ public struct ProviderAccountUsageSnapshot: Identifiable, Sendable {
     /// Display-only source email, kept separate from `displayLabel` so aliases and
     /// `email · org` disambiguation cannot leak into identity.
     public let accountEmail: String?
+    /// Opaque, source-owned history scope; independent of the activation slot and sync identity.
+    public let historyAccountKey: String?
     public let isActive: Bool
     /// Whether the source can activate this slot or explicitly repair its selected credential state.
     /// Activation remains source-owned; CodexBar never handles credential material.
@@ -45,6 +47,7 @@ public struct ProviderAccountUsageSnapshot: Identifiable, Sendable {
         provider: UsageProvider,
         displayLabel: String,
         accountEmail: String? = nil,
+        historyAccountKey: String? = nil,
         isActive: Bool,
         canActivate: Bool = false,
         usesLastKnownUsage: Bool = false,
@@ -56,6 +59,7 @@ public struct ProviderAccountUsageSnapshot: Identifiable, Sendable {
         self.provider = provider
         self.displayLabel = displayLabel
         self.accountEmail = accountEmail
+        self.historyAccountKey = historyAccountKey
         self.isActive = isActive
         self.canActivate = canActivate
         self.usesLastKnownUsage = usesLastKnownUsage

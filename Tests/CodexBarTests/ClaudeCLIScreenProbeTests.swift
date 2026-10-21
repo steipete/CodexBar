@@ -25,6 +25,18 @@ struct ClaudeCLIScreenProbeTests {
     }
 
     @Test
+    func `panel taller than fifty rows keeps the session quota on screen`() throws {
+        let text = try Self.capture("usage-pty-2.1.294-tall-panel")
+        let snapshot = try ClaudeStatusProbe.parse(text: text)
+        #expect(snapshot.sessionPercentLeft == 93)
+        #expect(snapshot.primaryResetDescription == "Resets 2:30pm (Europe/Malta)")
+        #expect(snapshot.weeklyPercentLeft == 80)
+        #expect(snapshot.secondaryResetDescription == "Resets Oct 14, 10pm (Europe/Malta)")
+        let fable = try #require(snapshot.extraRateWindows.first { $0.id == "claude-weekly-scoped-fable" })
+        #expect(fable.window.usedPercent == 2)
+    }
+
+    @Test
     func `identity uses the final status frame with cursor positioned spaces`() throws {
         let status = try Self.capture("status-pty-differential-redraw")
         let identity = ClaudeStatusProbe.parseIdentity(usageText: nil, statusText: status)
@@ -49,7 +61,7 @@ struct ClaudeCLIScreenProbeTests {
 
     @Test
     func `styled plain reports are not clipped or wrapped to PTY geometry`() throws {
-        let padding = String(repeating: "report detail\n", count: 55)
+        let padding = String(repeating: "report detail\n", count: ClaudeCLIScreen.rows + 5)
         let organization = String(repeating: "Example", count: 30)
         let text = "\u{1b}[32mCurrent session\n3% used\n" + padding
             + "Org: \(organization)\nEmail: fixture@example.com\u{1b}[0m"

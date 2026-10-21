@@ -9,6 +9,7 @@ import Security
 public struct KeychainPromptContext: Sendable {
     public enum Kind: Sendable {
         case claudeOAuth
+        case museToken
         case codexCookie
         case claudeCookie
         case cursorCookie
@@ -37,9 +38,9 @@ public struct KeychainPromptContext: Sendable {
 
 public enum KeychainPromptHandler {
     final class HandlerStore: @unchecked Sendable {
-        let handler: (KeychainPromptContext) -> Void
+        let handler: ((KeychainPromptContext) -> Void)?
 
-        init(handler: @escaping (KeychainPromptContext) -> Void) {
+        init(handler: ((KeychainPromptContext) -> Void)?) {
             self.handler = handler
         }
     }
@@ -47,17 +48,22 @@ public enum KeychainPromptHandler {
     @TaskLocal private static var taskHandlerStore: HandlerStore?
     public nonisolated(unsafe) static var handler: ((KeychainPromptContext) -> Void)?
 
+    private static var currentHandler: ((KeychainPromptContext) -> Void)? {
+        if let taskHandlerStore { return taskHandlerStore.handler }
+        return self.handler
+    }
+
+    static var isInstalled: Bool {
+        self.currentHandler != nil
+    }
+
     public static func notify(_ context: KeychainPromptContext) {
         _ = self.notifyIfHandled(context)
     }
 
     @discardableResult
     static func notifyIfHandled(_ context: KeychainPromptContext) -> Bool {
-        if let taskHandlerStore {
-            taskHandlerStore.handler(context)
-            return true
-        }
-        guard let handler else { return false }
+        guard let handler = self.currentHandler else { return false }
         handler(context)
         return true
     }
@@ -67,18 +73,14 @@ public enum KeychainPromptHandler {
         _ handler: ((KeychainPromptContext) -> Void)?,
         operation: () throws -> T) rethrows -> T
     {
-        try self.$taskHandlerStore.withValue(handler.map(HandlerStore.init(handler:))) {
-            try operation()
-        }
+        try self.$taskHandlerStore.withValue(HandlerStore(handler: handler), operation: operation)
     }
 
     static func withHandlerForTesting<T>(
         _ handler: ((KeychainPromptContext) -> Void)?,
         operation: () async throws -> T) async rethrows -> T
     {
-        try await self.$taskHandlerStore.withValue(handler.map(HandlerStore.init(handler:))) {
-            try await operation()
-        }
+        try await self.$taskHandlerStore.withValue(HandlerStore(handler: handler), operation: operation)
     }
     #endif
 }
@@ -355,7 +357,9 @@ public enum KeychainAccessPreflight {
         else { return .indeterminate }
 
         var access: SecAccess?
-        guard copyItemAccess(item, &access) == errSecSuccess,
+        let accessStatus = copyItemAccess(item, &access)
+        KeychainLockWitness.note(accessStatus)
+        guard accessStatus == errSecSuccess,
               let access,
               let rawACLs = copyMatchingACLs(access, kSecACLAuthorizationDecrypt)?.takeRetainedValue(),
               let acls = rawACLs as? [SecACL],
