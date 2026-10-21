@@ -112,6 +112,15 @@ public enum UsageFormatter {
     }
 
     public static func resetCountdownDescription(from date: Date, now: Date = .init()) -> String {
+        self.countdownDescription(from: date, now: now, relative: true)
+    }
+
+    /// The countdown without a leading preposition, for sentences that supply their own ("Runs out in %@").
+    public static func resetCountdownDuration(from date: Date, now: Date = .init()) -> String {
+        self.countdownDescription(from: date, now: now, relative: false)
+    }
+
+    private static func countdownDescription(from date: Date, now: Date, relative: Bool) -> String {
         guard let totalMinutes = self.resetCountdownMinutes(from: date, now: now) else {
             return self.localized("Unknown")
         }
@@ -119,17 +128,23 @@ public enum UsageFormatter {
         let days = totalMinutes / (24 * 60)
         let hours = (totalMinutes / 60) % 24
         let minutes = totalMinutes % 60
+        let prefix = relative ? "in " : ""
 
         if days > 0 {
-            if hours > 0 { return self.countdownText("in %@d %@h", "\(days)", "\(hours)") }
-            if minutes > 0 { return self.countdownText("in %@d %@m", "\(days)", "\(minutes)") }
-            return self.countdownText("in %@d", "\(days)")
+            if hours > 0 { return self.countdownText("\(prefix)%@d %@h", "\(days)", "\(hours)") }
+            if minutes > 0 {
+                guard relative else {
+                    return "\(self.countdownText("%@d", "\(days)")) \(self.countdownText("%@m", "\(minutes)"))"
+                }
+                return self.countdownText("in %@d %@m", "\(days)", "\(minutes)")
+            }
+            return self.countdownText("\(prefix)%@d", "\(days)")
         }
         if hours > 0 {
-            if minutes > 0 { return self.countdownText("in %@h %@m", "\(hours)", "\(minutes)") }
-            return self.countdownText("in %@h", "\(hours)")
+            if minutes > 0 { return self.countdownText("\(prefix)%@h %@m", "\(hours)", "\(minutes)") }
+            return self.countdownText("\(prefix)%@h", "\(hours)")
         }
-        return self.countdownText("in %@m", "\(totalMinutes)")
+        return self.countdownText("\(prefix)%@m", "\(totalMinutes)")
     }
 
     /// Countdown renders run on every menu-bar refresh, so the localized template is cached per key.
@@ -181,14 +196,11 @@ public enum UsageFormatter {
     {
         if let date = window.resetsAt, self.resetCountdownMinutes(from: date, now: now) != nil {
             if style == .countdown {
-                let countdown = self.resetCountdownDescription(from: date, now: now)
-                if countdown == "now" {
+                let duration = self.resetCountdownDuration(from: date, now: now)
+                if duration == "now" {
                     return self.localized("Resets now")
                 }
-                if countdown.hasPrefix("in ") {
-                    return self.localized("Resets in %@", String(countdown.dropFirst(3)))
-                }
-                return self.localized("Resets %@", countdown)
+                return self.localized("Resets in %@", duration)
             }
             let text = self.resetDescription(from: date, now: now)
             return self.localized("Resets %@", text)

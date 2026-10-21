@@ -92,11 +92,7 @@ enum PredictivePaceWarningNotificationLogic {
     }
 
     private static func durationText(seconds: TimeInterval, now: Date) -> String {
-        let countdown = UsageFormatter.resetCountdownDescription(from: now.addingTimeInterval(seconds), now: now)
-        if countdown.hasPrefix("in ") {
-            return String(countdown.dropFirst(3))
-        }
-        return countdown
+        UsageFormatter.resetCountdownDuration(from: now.addingTimeInterval(seconds), now: now)
     }
 }
 
