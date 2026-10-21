@@ -971,7 +971,7 @@
 "%@ / %@ (%@ remaining)" = "%@ / %@（剩余 %@）";
 "%@/%@ left" = "剩余 %@ / %@";
 "Gemini Flash" = "Gemini Flash";
-"Regenerates %@" = "%@后恢复";
+"Regenerates %@" = "%@恢复";
 "used after next regen" = "下次恢复后已使用";
 "after next regen" = "下次恢复后";
 "Near full" = "接近全满";

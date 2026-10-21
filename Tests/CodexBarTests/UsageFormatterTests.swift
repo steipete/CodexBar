@@ -777,4 +777,34 @@ struct UsageFormatterTests {
             #expect(UsageFormatter.resetCountdownDescription(from: reset, now: now) == "in 2h")
         }
     }
+
+    @Test
+    @MainActor
+    func `relative time labels do not repeat localized time particles`() throws {
+        UsageFormatter.setLocalizationProvider { L($0) }
+        defer { UsageFormatter.clearLocalizationProvider() }
+        let now = Date(timeIntervalSince1970: 1_000_000)
+        let reset = now.addingTimeInterval(2 * 3600)
+        let window = RateWindow(
+            usedPercent: 50,
+            windowMinutes: nil,
+            resetsAt: reset,
+            resetDescription: nil,
+            nextRegenPercent: 10)
+        let credits = GrokRateLimitResetCreditsSnapshot(expirations: [reset], updatedAt: now)
+        for (language, expectedRegen, expectedExpiry) in [
+            ("zh-Hans", "2 小时后恢复", "2 小时后 到期"),
+            ("ja", "2時間後に再生成", "2時間後に期限切れ"),
+            ("ko", "2시간 후에 재생성", "2시간 후에 만료"),
+        ] {
+            try CodexBarLocalizationOverride.$appLanguage.withValue(language) {
+                let detail = try #require(UsageMenuCardView.Model.syntheticRollingRegenDetail(
+                    window: window, now: now, showUsed: true))
+                #expect(detail.resetText == expectedRegen)
+                let presentation = try #require(LimitResetCreditsPresentation.make(
+                    snapshot: credits, resetStyle: .countdown, now: now))
+                #expect(presentation.items.map(\.expiryText) == [expectedExpiry])
+            }
+        }
+    }
 }

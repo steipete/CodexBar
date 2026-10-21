@@ -1004,7 +1004,7 @@
 "%@ / %@ (%@ remaining)" = "%@ / %@（残り %@）";
 "%@/%@ left" = "残り %@/%@";
 "Gemini Flash" = "Gemini Flash";
-"Regenerates %@" = "%@ に再生成";
+"Regenerates %@" = "%@に再生成";
 "used after next regen" = "次回再生成後の使用率";
 "after next regen" = "次回再生成後";
 "Near full" = "ほぼ満タン";
@@ -1305,7 +1305,7 @@
 "1 available" = "1件利用可能";
 "%d available" = "%d件利用可能";
 "Next expires %@" = "次回の有効期限：%@";
-"Expires %@" = "%@ に期限切れ";
+"Expires %@" = "%@に期限切れ";
 "No expiry" = "有効期限なし";
 "Other (%d items)" = "その他（%d項目）";
 "Expand" = "展開";
@@ -2057,12 +2057,12 @@
 "gsk_..." = "gsk_...";
 "https://openrouter.ai/api/v1" = "https://openrouter.ai/api/v1";
 "https://resource.openai.azure.com" = "https://resource.openai.azure.com";
-"in %@d" = "%@日で";
-"in %@d %@h" = "%1$@日 %2$@時間 で";
-"in %@d %@m" = "%1$@日 %2$@分 で";
-"in %@h" = "%@hで";
-"in %@h %@m" = "%1$@時間 %2$@分";
-"in %@m" = "%@mで";
+"in %@d" = "%@日後";
+"in %@d %@h" = "%1$@日%2$@時間後";
+"in %@d %@m" = "%1$@日%2$@分後";
+"in %@h" = "%@時間後";
+"in %@h %@m" = "%1$@時間%2$@分後";
+"in %@m" = "%@分後";
 "kilo_..." = "kilo_...";
 "left" = "残り";
 "now" = "今";

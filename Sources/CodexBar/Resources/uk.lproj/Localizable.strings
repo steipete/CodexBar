@@ -2016,8 +2016,6 @@
 "Top models:" = "Найуживаніші моделі:";
 "Two quota burn-down charts in one tile." = "Два графіки вичерпання квоти в одному віджеті.";
 "Usage & spend come from your console.groq.com browser session automatically. An API key is optional and only adds Enterprise Prometheus metrics." = "Дані про використання та витрати автоматично зчитуються із сеансу console.groq.com у браузері. Ключ API не обов’язковий; він лише додає показники Enterprise Prometheus.";
-"Usage data appears after a refresh." = "Дані про використання з’являються після оновлення.";
-"Usage data will appear once the app refreshes." = "Дані про використання з’являться, коли програма оновиться.";
 "Usage history chart with recent totals." = "Графік історії використання з останніми підсумками.";
 "Usage limit" = "Ліміт використання";
 "Usage limits and reset countdowns for one saved account." = "Ліміти використання та зворотний відлік до їх скидання для одного збереженого облікового запису.";
