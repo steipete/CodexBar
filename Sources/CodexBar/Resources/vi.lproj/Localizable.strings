@@ -617,7 +617,6 @@
 
 /* Display Pane */
 "menu_bar_style_title" = "Kiểu thanh menu";
-"menu_bar_style_subtitle" = "Cách hiển thị mục trên thanh menu.";
 "menu_bar_inactive_display_contrast_title" = "Cải thiện khả năng hiển thị trên màn hình không hoạt động";
 "menu_bar_inactive_display_contrast_subtitle" = "Sử dụng hiển thị tương phản cao để biểu tượng và chỉ số vẫn dễ đọc trên các màn hình khác.";
 "menu_bar_style_critters" = "Sinh vật";
@@ -1218,6 +1217,7 @@
 "Password" = "Mật khẩu";
 "%@ authentication is disabled." = "%@ xác thực bị tắt. Cookie";
 "%@ cookies are disabled." = "%@ bị tắt. Quyền truy cập";
+"%@ is unavailable. Edit the widget to choose a provider." = "%@ không khả dụng. Chỉnh sửa widget để chọn một nhà cung cấp.";
 "%@ web API access is disabled." = "%@ web API bị vô hiệu hóa.";
 "Disable %@ dashboard cookie usage." = "Tắt %@ cookie trang tổng quan Mức sử dụng . Quyền truy cập";
 "Keychain access is disabled in Advanced, so browser cookie import is unavailable." = "Keychain bị vô hiệu hóa trong Nâng cao, do đó, tính năng nhập cookie trình duyệt không khả dụng.";
@@ -1411,6 +1411,7 @@
 /* Menu bar layout editor */
 "menu_bar_layout_title" = "Bố cục";
 "menu_bar_layout_footer" = "Kéo các thẻ để sắp xếp thanh menu. Bấm vào thẻ để thêm; chọn thẻ đã đặt rồi nhấn Delete để xóa.";
+"menu_bar_layout_footer_requires_icon_and_percent" = "Bố cục chỉ áp dụng cho kiểu thanh menu “%@”. Chọn kiểu đó ở trên để chỉnh sửa.";
 "menu_bar_layout_group_identity" = "Danh tính";
 "menu_bar_layout_group_usage" = "Mức sử dụng";
 "menu_bar_layout_group_time" = "Thời gian";
@@ -1801,6 +1802,7 @@
 "Details for %@" = "Thông tin chi tiết về %@";
 "EST. %@" = "Ước tính %@";
 "Enable Antigravity provider" = "Kích hoạt nhà cung cấp Antigravity";
+"Enable a provider in CodexBar → Settings → Providers." = "Bật một nhà cung cấp trong CodexBar → Cài đặt → Nhà cung cấp.";
 "Enable account widgets in CodexBar → Settings → Menu → Widgets. Then edit this widget to choose an account." = "Kích hoạt tiện ích tài khoản trong CodexBar → Cài đặt → Menu → Tiện ích. Sau đó chỉnh sửa tiện ích này để chọn tài khoản.";
 "Error: %@" = "Lỗi: %@";
 "Examples: alt+cmd+2, shift+right. Refresh (cmd+r), Settings (cmd+,) and Quit (cmd+q) are reserved." = "Ví dụ: alt+cmd+2, shift+right. Làm mới (cmd+r), Cài đặt (cmd+,) và Thoát (cmd+q) được bảo lưu.";
@@ -2015,10 +2017,7 @@
 "Top models:" = "Những mẫu hàng đầu:";
 "Two quota burn-down charts in one tile." = "Hai biểu đồ ghi lại Hạn mức trong một ô.";
 "Usage & spend come from your console.groq.com browser session automatically. An API key is optional and only adds Enterprise Prometheus metrics." = "Việc sử dụng và chi tiêu tự động đến từ phiên trình duyệt console.groq.com của bạn. Khóa API là tùy chọn và chỉ thêm Enterprise Prometheus Chỉ số.";
-"Usage data appears after a refresh." = "Dữ liệu sử dụng xuất hiện sau khi làm mới.";
-"Usage data will appear once the app refreshes." = "Dữ liệu sử dụng sẽ xuất hiện sau khi ứng dụng được làm mới.";
 "Usage history chart with recent totals." = "Biểu đồ lịch sử sử dụng với tổng số gần đây.";
-"Usage history will appear after a refresh." = "Lịch sử sử dụng sẽ xuất hiện sau khi làm mới.";
 "Usage limit" = "Giới hạn sử dụng";
 "Usage limits and reset countdowns for one saved account." = "Giới hạn sử dụng và đặt lại đếm ngược cho một tài khoản đã lưu.";
 "Usage widget with a provider switcher." = "Tiện ích sử dụng với trình chuyển đổi nhà cung cấp.";

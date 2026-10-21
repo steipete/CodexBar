@@ -2,6 +2,7 @@
 "%@ %@" = "%@ %@";
 "%@ API est. · not billed" = "%@ API uppskattning · faktureras inte";
 "%@ cost" = "Kostnad %@";
+"%@ is unavailable. Edit the widget to choose a provider." = "%@ är inte tillgänglig. Redigera widgeten för att välja en leverantör.";
 "%@ left" = "%@ kvar";
 "%@ tokens" = "%@ token";
 "%@ used" = "%@ använt";
@@ -75,6 +76,7 @@
 "Daily usage" = "Daglig användning";
 "Deployment" = "Distribution";
 "Edit predictions" = "Redigera förutsägelser";
+"Enable a provider in CodexBar → Settings → Providers." = "Aktivera en leverantör i CodexBar → Inställningar → Leverantörer.";
 "Enable account widgets in CodexBar → Settings → Menu → Widgets. Then edit this widget to choose an account." = "Aktivera kontowidgetar i CodexBar → Inställningar → Meny → Widgets. Redigera sedan denna widget för att välja ett konto.";
 "Extra usage" = "Extra användning";
 "Extra usage balance" = "Extra användningsbalans";
@@ -164,10 +166,7 @@
 "Two quota burn-down charts in one tile." = "Två Kvot nedbränningsdiagram i en bricka.";
 "Unavailable account" = "Konto: Inte tillgänglig";
 "Usage" = "Användning";
-"Usage data appears after a refresh." = "Användningsdata visas efter en uppdatering.";
-"Usage data will appear once the app refreshes." = "Användningsdata visas när appen uppdateras.";
 "Usage history chart with recent totals." = "Användningshistorikdiagram med senaste summor.";
-"Usage history will appear after a refresh." = "Användningshistorik kommer att visas efter en uppdatering.";
 "Usage limit" = "Användningsgräns";
 "Usage limits and reset countdowns for one saved account." = "Användningsgränser och återställ nedräkningar för ett sparat konto.";
 "Usage widget with a provider switcher." = "Användningswidget med en leverantörsväxlare.";

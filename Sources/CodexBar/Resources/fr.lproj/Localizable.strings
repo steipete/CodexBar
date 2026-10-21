@@ -621,7 +621,6 @@
 
 /* Display Pane */
 "menu_bar_style_title" = "Style de la barre de menus";
-"menu_bar_style_subtitle" = "Définit l’apparence de l’élément dans la barre de menus.";
 "menu_bar_inactive_display_contrast_title" = "Améliorer la visibilité sur les écrans inactifs";
 "menu_bar_inactive_display_contrast_subtitle" = "Utilise un rendu à contraste élevé pour que l’icône et la mesure restent lisibles sur les autres écrans.";
 "menu_bar_style_critters" = "Créatures";
@@ -1222,6 +1221,7 @@
 "Password" = "Mot de passe";
 "%@ authentication is disabled." = "L'authentification %@ est désactivée.";
 "%@ cookies are disabled." = "Les cookies %@ sont désactivés.";
+"%@ is unavailable. Edit the widget to choose a provider." = "%@ n’est pas disponible. Modifiez le widget pour choisir un fournisseur.";
 "%@ web API access is disabled." = "L'accès à l'API Web %@ est désactivé.";
 "Disable %@ dashboard cookie usage." = "Désactivez l'utilisation des cookies du tableau de bord %@.";
 "Keychain access is disabled in Advanced, so browser cookie import is unavailable." = "L'accès au Trousseau est désactivé dans Advanced, donc l'importation des cookies du navigateur n'est pas disponible.";
@@ -1410,6 +1410,7 @@
 /* Menu bar layout editor */
 "menu_bar_layout_title" = "Disposition";
 "menu_bar_layout_footer" = "Faites glisser les jetons pour organiser la barre des menus. Cliquez sur un jeton pour l’ajouter ; sélectionnez un jeton placé et appuyez sur Supprimer pour le retirer.";
+"menu_bar_layout_footer_requires_icon_and_percent" = "La disposition s’applique uniquement au style de la barre de menus « %@ ». Choisissez ce style ci-dessus pour la modifier.";
 "menu_bar_layout_group_identity" = "Identité";
 "menu_bar_layout_group_usage" = "Utilisation";
 "menu_bar_layout_group_time" = "Temps";
@@ -1799,6 +1800,7 @@
 "Details for %@" = "Détails pour %@";
 "EST. %@" = "Estimation %@";
 "Enable Antigravity provider" = "Activer le fournisseur Antigravity";
+"Enable a provider in CodexBar → Settings → Providers." = "Activez un fournisseur dans CodexBar → Réglages → Fournisseurs.";
 "Enable account widgets in CodexBar → Settings → Menu → Widgets. Then edit this widget to choose an account." = "Activez les widgets de compte dans CodexBar → Paramètres → Menu → Widgets. Modifiez ensuite ce widget pour choisir un compte.";
 "Error: %@" = "Erreur : %@";
 "Examples: alt+cmd+2, shift+right. Refresh (cmd+r), Settings (cmd+,) and Quit (cmd+q) are reserved." = "Exemples : alt+cmd+2, shift+right. Actualiser (cmd+r), Paramètres (cmd+,) et Quitter (cmd+q) sont réservés.";
@@ -2013,10 +2015,7 @@
 "Top models:" = "Top modèles :";
 "Two quota burn-down charts in one tile." = "Deux graphiques de réduction des quotas dans une seule vignette.";
 "Usage & spend come from your console.groq.com browser session automatically. An API key is optional and only adds Enterprise Prometheus metrics." = "L'utilisation et les dépenses proviennent automatiquement de votre session de navigateur console.groq.com. Une clé API est facultative et ajoute uniquement Enterprise Prometheus Indicateur.";
-"Usage data appears after a refresh." = "Les données d'utilisation apparaissent après une actualisation.";
-"Usage data will appear once the app refreshes." = "Les données d'utilisation apparaîtront une fois l'application actualisée.";
 "Usage history chart with recent totals." = "Graphique de l'historique d'utilisation avec les totaux récents.";
-"Usage history will appear after a refresh." = "L'historique d'utilisation apparaîtra après une actualisation.";
 "Usage limit" = "Limite d'utilisation";
 "Usage limits and reset countdowns for one saved account." = "Limites d'utilisation et réinitialisation des comptes à rebours pour un compte enregistré.";
 "Usage widget with a provider switcher." = "Widget d'utilisation avec un sélecteur de fournisseur.";

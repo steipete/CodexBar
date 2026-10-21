@@ -627,7 +627,6 @@
 
 /* Display Pane */
 "menu_bar_style_title" = "نمط شريط القوائم";
-"menu_bar_style_subtitle" = "كيفية رسم عنصر شريط القوائم.";
 "menu_bar_inactive_display_contrast_title" = "تحسين الوضوح على الشاشات غير النشطة";
 "menu_bar_inactive_display_contrast_subtitle" = "استخدم عرضًا عالي التباين لإبقاء الأيقونة والمقياس قابلين للقراءة على الشاشات الأخرى.";
 "menu_bar_style_critters" = "الكائنات الصغيرة";
@@ -1239,6 +1238,7 @@
 "Password" = "كلمة المرور";
 "%@ authentication is disabled." = "%@ المصادقة معطلة.";
 "%@ cookies are disabled." = "%@ ملفات تعريف الارتباط معطلة.";
+"%@ is unavailable. Edit the widget to choose a provider." = "%@ غير متاح. حرِّر الأداة لاختيار مزوِّد.";
 "%@ web API access is disabled." = "%@ الوصول إلى API الويب معطل.";
 "Disable %@ dashboard cookie usage." = "قم بتعطيل استخدام ملفات تعريف الارتباط %@ لوحة التحكم.";
 "Keychain access is disabled in Advanced, so browser cookie import is unavailable." = "Keychain الوصول معطل في القسم المتقدم، لذا فإن استيراد ملفات تعريف الارتباط من المتصفح غير متاح.";
@@ -1414,6 +1414,7 @@
 /* Menu bar layout editor */
 "menu_bar_layout_title" = "التخطيط";
 "menu_bar_layout_footer" = "اسحب العناصر لترتيب شريط القوائم. انقر على عنصر لإضافته؛ حدّد عنصراً موضوعاً واضغط Delete لإزالته.";
+"menu_bar_layout_footer_requires_icon_and_percent" = "لا ينطبق التخطيط إلا على نمط شريط القوائم «%@». اختر هذا النمط أعلاه لتحريره.";
 "menu_bar_layout_group_identity" = "الهوية";
 "menu_bar_layout_group_usage" = "الاستخدام";
 "menu_bar_layout_group_time" = "الوقت";
@@ -1804,6 +1805,7 @@
 "Details for %@" = "تفاصيل عن %@";
 "EST. %@" = "تقدير: %@";
 "Enable Antigravity provider" = "تمكين مزود Antigravity";
+"Enable a provider in CodexBar → Settings → Providers." = "فعِّل مزوِّدًا في CodexBar → الإعدادات → المزوِّدين.";
 "Enable account widgets in CodexBar → Settings → Menu → Widgets. Then edit this widget to choose an account." = "قم بتمكين أدوات الحساب في CodexBar → الإعدادات → القائمة → الأدوات. ثم قم بتحرير هذه القطعة لاختيار حساب.";
 "Error: %@" = "خطأ: %@";
 "Examples: alt+cmd+2, shift+right. Refresh (cmd+r), Settings (cmd+,) and Quit (cmd+q) are reserved." = "أمثلة: alt+cmd+2، shift+right. التحديث (cmd+r)، والإعدادات (cmd+،) والخروج (cmd+q) محجوزة.";
@@ -2018,10 +2020,7 @@
 "Top models:" = "أعلى النماذج:";
 "Two quota burn-down charts in one tile." = "مخططان محترقان الحصة في لوحة واحدة.";
 "Usage & spend come from your console.groq.com browser session automatically. An API key is optional and only adds Enterprise Prometheus metrics." = "يأتي الاستخدام والإنفاق من جلسة متصفح console.groq.com تلقائيًا. يعد مفتاح API اختياريًا ويضيف فقط Enterprise Prometheus المؤشر.";
-"Usage data appears after a refresh." = "تظهر بيانات الاستخدام بعد التحديث.";
-"Usage data will appear once the app refreshes." = "ستظهر بيانات الاستخدام بمجرد تحديث التطبيق.";
 "Usage history chart with recent totals." = "مخطط تاريخ الاستخدام مع الإجماليات الأخيرة.";
-"Usage history will appear after a refresh." = "سيظهر سجل الاستخدام بعد التحديث.";
 "Usage limit" = "حد الاستخدام";
 "Usage limits and reset countdowns for one saved account." = "حدود الاستخدام وإعادة ضبط العد التنازلي لحساب محفوظ واحد.";
 "Usage widget with a provider switcher." = "أداة لعرض الاستخدام مع مبدّل لموفري الخدمة.";

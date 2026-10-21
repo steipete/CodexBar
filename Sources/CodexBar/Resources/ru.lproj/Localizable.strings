@@ -622,7 +622,6 @@
 
 /* Display Pane */
 "menu_bar_style_title" = "Стиль строки меню";
-"menu_bar_style_subtitle" = "Как выглядит элемент строки меню.";
 "menu_bar_inactive_display_contrast_title" = "Повысить видимость на неактивных дисплеях";
 "menu_bar_inactive_display_contrast_subtitle" = "Использует высококонтрастную отрисовку, чтобы значок и показатель оставались читаемыми на других дисплеях.";
 "menu_bar_style_critters" = "Декоративные индикаторы";
@@ -1227,6 +1226,7 @@
 "Password" = "Пароль";
 "%@ authentication is disabled." = "Аутентификация %@ отключена.";
 "%@ cookies are disabled." = "Cookie %@ отключены.";
+"%@ is unavailable. Edit the widget to choose a provider." = "%@ недоступен. Отредактируйте виджет, чтобы выбрать провайдера.";
 "%@ web API access is disabled." = "Доступ к веб-API %@ отключён.";
 "Disable %@ dashboard cookie usage." = "Отключить использование cookie дашборда %@.";
 "Keychain access is disabled in Advanced, so browser cookie import is unavailable." = "Доступ к Keychain отключён на вкладке «Расширенные», поэтому импорт cookie браузера недоступен.";
@@ -1412,6 +1412,7 @@
 /* Menu bar layout editor */
 "menu_bar_layout_title" = "Компоновка";
 "menu_bar_layout_footer" = "Перетаскивайте элементы, чтобы настроить строку меню. Нажмите элемент, чтобы добавить его; выберите размещённый элемент и нажмите Delete, чтобы удалить его.";
+"menu_bar_layout_footer_requires_icon_and_percent" = "Компоновка применяется только к стилю строки меню «%@». Выберите этот стиль выше, чтобы изменить её.";
 "menu_bar_layout_group_identity" = "Идентификация";
 "menu_bar_layout_group_usage" = "Использование";
 "menu_bar_layout_group_time" = "Время";
@@ -1801,6 +1802,7 @@
 "Details for %@" = "Подробности для %@";
 "EST. %@" = "Расчетное %@";
 "Enable Antigravity provider" = "Включить провайдера Antigravity";
+"Enable a provider in CodexBar → Settings → Providers." = "Включите провайдера в CodexBar → Настройки → Провайдеры.";
 "Enable account widgets in CodexBar → Settings → Menu → Widgets. Then edit this widget to choose an account." = "Включите виджеты аккаунта в CodexBar → Настройки → Меню → Виджеты. Затем отредактируйте этот виджет, чтобы выбрать учетную запись.";
 "Error: %@" = "Ошибка: %@.";
 "Examples: alt+cmd+2, shift+right. Refresh (cmd+r), Settings (cmd+,) and Quit (cmd+q) are reserved." = "Примеры: alt+cmd+2, shift+right. «Обновить» (cmd+r), «Настройки» (cmd+,) и «Выйти» (cmd+q) зарезервированы.";
@@ -2015,10 +2017,7 @@
 "Top models:" = "Лучшие модели:";
 "Two quota burn-down charts in one tile." = "Две диаграммы сгорания Квота в одной плитке.";
 "Usage & spend come from your console.groq.com browser session automatically. An API key is optional and only adds Enterprise Prometheus metrics." = "Информация об использовании и расходах автоматически определяется сеансом вашего браузера console.groq.com. Ключ API является необязательным и добавляет только Enterprise Prometheus Показатель.";
-"Usage data appears after a refresh." = "Данные об использовании появляются после обновления.";
-"Usage data will appear once the app refreshes." = "Данные об использовании появятся после обновления приложения.";
 "Usage history chart with recent totals." = "Диаграмма истории использования с последними итогами.";
-"Usage history will appear after a refresh." = "История использования появится после обновления.";
 "Usage limit" = "Лимит использования";
 "Usage limits and reset countdowns for one saved account." = "Ограничения использования и сброс обратного отсчета для одной сохраненной учетной записи.";
 "Usage widget with a provider switcher." = "Виджет использования с переключателем провайдера.";

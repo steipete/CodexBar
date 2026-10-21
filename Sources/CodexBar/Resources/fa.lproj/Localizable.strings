@@ -627,7 +627,6 @@
 
 /* Display Pane */
 "menu_bar_style_title" = "سبک نوار منو";
-"menu_bar_style_subtitle" = "نحوه نمایش آیتم نوار منو.";
 "menu_bar_inactive_display_contrast_title" = "بهبود خوانایی در نمایشگرهای غیرفعال";
 "menu_bar_inactive_display_contrast_subtitle" = "از نمایش با کنتراست بالا استفاده می‌کند تا نماد و معیار در نمایشگرهای دیگر خوانا بمانند.";
 "menu_bar_style_critters" = "موجودات";
@@ -1239,6 +1238,7 @@
 "Password" = "رمز عبور";
 "%@ authentication is disabled." = "%@ احراز هویت غیرفعال است.";
 "%@ cookies are disabled." = "%@ کوکی ها غیرفعال هستند.";
+"%@ is unavailable. Edit the widget to choose a provider." = "%@ در دسترس نیست. ویجت را ویرایش کنید تا ارائه‌دهنده را انتخاب کنید.";
 "%@ web API access is disabled." = "دسترسی %@ وب API غیرفعال است.";
 "Disable %@ dashboard cookie usage." = "استفاده %@ از کوکی داشبورد را غیرفعال کنید.";
 "Keychain access is disabled in Advanced, so browser cookie import is unavailable." = "دسترسی Keychain در حالت پیشرفته غیرفعال است، بنابراین وارد کردن کوکی مرورگر در دسترس نیست.";
@@ -1414,6 +1414,7 @@
 /* Menu bar layout editor */
 "menu_bar_layout_title" = "چیدمان";
 "menu_bar_layout_footer" = "نشانه‌ها را برای چیدمان نوار منو بکشید. برای افزودن روی نشانه کلیک کنید؛ نشانهٔ قرارگرفته را انتخاب کنید و برای حذف Delete را بزنید.";
+"menu_bar_layout_footer_requires_icon_and_percent" = "چیدمان فقط برای سبک نوار منو «%@» اعمال می‌شود. برای ویرایش آن، آن سبک را از بالا انتخاب کنید.";
 "menu_bar_layout_group_identity" = "هویت";
 "menu_bar_layout_group_usage" = "کاربرد";
 "menu_bar_layout_group_time" = "زمان";
@@ -1804,6 +1805,7 @@
 "Details for %@" = "جزئیات %@";
 "EST. %@" = "تخمینی %@";
 "Enable Antigravity provider" = "ارائه دهنده Antigravity را فعال کنید";
+"Enable a provider in CodexBar → Settings → Providers." = "یک ارائه‌دهنده را در CodexBar → تنظیمات → ارائه‌دهندگان فعال کنید.";
 "Enable account widgets in CodexBar → Settings → Menu → Widgets. Then edit this widget to choose an account." = "ویجت های حساب را در CodexBar → تنظیمات → منو → ابزارک ها فعال کنید. سپس این ویجت را ویرایش کنید تا یک حساب کاربری انتخاب کنید.";
 "Error: %@" = "خطا: %@";
 "Examples: alt+cmd+2, shift+right. Refresh (cmd+r), Settings (cmd+,) and Quit (cmd+q) are reserved." = "مثال: alt+cmd+2، shift+right. بازخوانی (cmd+r)، تنظیمات (cmd+،) و خروج (cmd+q) رزرو شده است.";
@@ -2018,10 +2020,7 @@
 "Top models:" = "مدل های برتر:";
 "Two quota burn-down charts in one tile." = "دو نمودار سوختگی سهمیه در یک کاشی.";
 "Usage & spend come from your console.groq.com browser session automatically. An API key is optional and only adds Enterprise Prometheus metrics." = "استفاده و هزینه از جلسه مرورگر console.groq.com شما به طور خودکار انجام می شود. یک کلید API اختیاری است و فقط Enterprise Prometheus معیار را اضافه می کند.";
-"Usage data appears after a refresh." = "داده‌های استفاده پس از به‌روزرسانی ظاهر می‌شوند.";
-"Usage data will appear once the app refreshes." = "پس از به‌روزرسانی برنامه، داده‌های استفاده ظاهر می‌شوند.";
 "Usage history chart with recent totals." = "نمودار تاریخچه استفاده با مجموع اخیر.";
-"Usage history will appear after a refresh." = "سابقه استفاده پس از به‌روزرسانی ظاهر می‌شود.";
 "Usage limit" = "محدودیت استفاده";
 "Usage limits and reset countdowns for one saved account." = "محدودیت های استفاده و بازنشانی شمارش معکوس برای یک حساب ذخیره شده.";
 "Usage widget with a provider switcher." = "استفاده از ویجت با تغییر دهنده ارائه دهنده.";

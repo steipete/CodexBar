@@ -57,7 +57,8 @@ public enum OpenAIAPIProviderDescriptor {
                 noDataMessage: { "OpenAI usage needs an Admin API key for organization usage." },
                 showsCostMenuSection: false,
                 // The KPI grid already shows requests; the source label sits in the card header.
-                showsRequestHistory: false),
+                showsRequestHistory: false,
+                chartCalendar: CostUsageBucketTimeZone.calendar(identifier: "UTC")),
             presentation: ProviderUsagePresentation(
                 costPresenter: { snapshot in
                     let style: ProviderCostMenuCardStyle = (snapshot.providerCost?.limit ?? 1) <= 0

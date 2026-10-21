@@ -2,6 +2,7 @@
 "%@ %@" = "%@ %@";
 "%@ API est. · not billed" = "Perkiraan %@ API · tidak ditagih";
 "%@ cost" = "Biaya %@";
+"%@ is unavailable. Edit the widget to choose a provider." = "%@ tidak tersedia. Edit widget untuk memilih penyedia.";
 "%@ left" = "%@ tersisa";
 "%@ tokens" = "%@ token";
 "%@ used" = "%@ terpakai";
@@ -75,6 +76,7 @@
 "Daily usage" = "Penggunaan sehari-hari";
 "Deployment" = "Penempatan";
 "Edit predictions" = "Sunting prediksi";
+"Enable a provider in CodexBar → Settings → Providers." = "Aktifkan penyedia di CodexBar → Pengaturan → Penyedia.";
 "Enable account widgets in CodexBar → Settings → Menu → Widgets. Then edit this widget to choose an account." = "Aktifkan widget akun di CodexBar → Pengaturan → Menu → Widget. Kemudian edit widget ini untuk memilih akun.";
 "Extra usage" = "Penggunaan ekstra";
 "Extra usage balance" = "Saldo penggunaan ekstra";
@@ -164,10 +166,7 @@
 "Two quota burn-down charts in one tile." = "Dua grafik burn-down Kuota dalam satu ubin.";
 "Unavailable account" = "Akun: Tidak tersedia";
 "Usage" = "Penggunaan";
-"Usage data appears after a refresh." = "Data penggunaan muncul setelah penyegaran.";
-"Usage data will appear once the app refreshes." = "Data penggunaan akan muncul setelah aplikasi disegarkan.";
 "Usage history chart with recent totals." = "Bagan riwayat penggunaan dengan total terkini.";
-"Usage history will appear after a refresh." = "Riwayat penggunaan akan muncul setelah penyegaran.";
 "Usage limit" = "Batas penggunaan";
 "Usage limits and reset countdowns for one saved account." = "Batas penggunaan dan setel ulang hitungan mundur untuk satu akun tersimpan.";
 "Usage widget with a provider switcher." = "Widget penggunaan dengan pengalih penyedia.";

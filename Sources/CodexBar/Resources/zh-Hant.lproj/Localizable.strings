@@ -620,7 +620,6 @@
 "automatic" = "自動";
 "primary_api_key_limit" = "主要（API 金鑰限制）";
 "menu_bar_style_title" = "選單列樣式";
-"menu_bar_style_subtitle" = "選單列項目的繪製方式。";
 "menu_bar_inactive_display_contrast_title" = "改善非使用中顯示器上的可見度";
 "menu_bar_inactive_display_contrast_subtitle" = "使用高對比顯示，讓其他顯示器上的圖示與指標保持清晰可讀。";
 "menu_bar_style_critters" = "小動物";
@@ -1089,6 +1088,7 @@
 "Password" = "密碼";
 "%@ authentication is disabled." = "%@ 認證已停用。";
 "%@ cookies are disabled." = "%@ Cookie 已停用。";
+"%@ is unavailable. Edit the widget to choose a provider." = "%@ 無法使用。編輯小工具以選擇供應商。";
 "%@ web API access is disabled." = "%@ Web API 存取已停用。";
 "Disable %@ dashboard cookie usage." = "停用 %@ 儀表板 Cookie。";
 "Keychain access is disabled in Advanced, so browser cookie import is unavailable." = "進階設定中已停用鑰匙圈存取，因此無法匯入瀏覽器 Cookie。";
@@ -1441,6 +1441,7 @@
 /* Menu bar layout editor */
 "menu_bar_layout_title" = "佈局";
 "menu_bar_layout_footer" = "拖曳項目以排列選單列。點按項目可附加；選取已放置的項目並按 Delete 鍵可將其移除。";
+"menu_bar_layout_footer_requires_icon_and_percent" = "佈局僅適用於「%@」選單列樣式。請在上方選擇該樣式以進行編輯。";
 "menu_bar_layout_group_identity" = "身分";
 "menu_bar_layout_group_usage" = "使用量";
 "menu_bar_layout_group_time" = "時間";
@@ -1818,6 +1819,7 @@
 "Details for %@" = "%@ 的詳細信息";
 "EST. %@" = "預計 %@";
 "Enable Antigravity provider" = "啟用 Antigravity 提供程序";
+"Enable a provider in CodexBar → Settings → Providers." = "在 CodexBar → 設定 → 供應商中啟用一個供應商。";
 "Enable account widgets in CodexBar → Settings → Menu → Widgets. Then edit this widget to choose an account." = "在 CodexBar → 設定 → 選單 → 小工具中啟用帳號小工具。然後編輯此小部件以選擇帳戶。";
 "Error: %@" = "錯誤：%@";
 "Examples: alt+cmd+2, shift+right. Refresh (cmd+r), Settings (cmd+,) and Quit (cmd+q) are reserved." = "例：alt+cmd+2、shift+right。刷新（cmd+r）、設定（cmd+,）和退出（cmd+q）被保留。";
@@ -2000,10 +2002,7 @@
 "Top models:" = "最常用模型：";
 "Two quota burn-down charts in one tile." = "一張圖塊中包含兩個 配額 燃盡圖。";
 "Usage & spend come from your console.groq.com browser session automatically. An API key is optional and only adds Enterprise Prometheus metrics." = "使用情況和支出自動來自您的 console.groq.com 瀏覽器會話。 API 金鑰是可選的，僅添加 Enterprise Prometheus 指標。";
-"Usage data appears after a refresh." = "刷新後會顯示使用情況資料。";
-"Usage data will appear once the app refreshes." = "應用程式刷新後，將顯示使用資料。";
 "Usage history chart with recent totals." = "使用歷史記錄圖表以及最近的總計。";
-"Usage history will appear after a refresh." = "刷新後會出現使用歷史記錄。";
 "Usage limit" = "使用限制";
 "Usage limits and reset countdowns for one saved account." = "一個已儲存帳戶的使用限制和重設倒數。";
 "Usage widget with a provider switcher." = "可切換提供商的用量小工具。";

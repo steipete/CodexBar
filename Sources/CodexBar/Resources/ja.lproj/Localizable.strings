@@ -618,7 +618,6 @@
 
 /* Display Pane */
 "menu_bar_style_title" = "メニューバーのスタイル";
-"menu_bar_style_subtitle" = "メニューバー項目の表示方法です。";
 "menu_bar_inactive_display_contrast_title" = "非アクティブなディスプレイでの視認性を向上";
 "menu_bar_inactive_display_contrast_subtitle" = "高コントラスト表示を使用し、ほかのディスプレイでもアイコンと指標を読みやすくします。";
 "menu_bar_style_critters" = "クリッター";
@@ -1219,6 +1218,7 @@
 "Password" = "パスワード";
 "%@ authentication is disabled." = "%@ の認証は無効になっています。";
 "%@ cookies are disabled." = "%@ の Cookie は無効になっています。";
+"%@ is unavailable. Edit the widget to choose a provider." = "%@ は利用できません。ウィジェットを編集してプロバイダーを選択してください。";
 "%@ web API access is disabled." = "%@ のウェブ API アクセスは無効になっています。";
 "Disable %@ dashboard cookie usage." = "%@ ダッシュボードの Cookie 使用を無効にします。";
 "Keychain access is disabled in Advanced, so browser cookie import is unavailable." = "詳細設定でキーチェーンへのアクセスが無効になっているため、ブラウザ Cookie の読み込みは利用できません。";
@@ -1411,6 +1411,7 @@
 /* Menu bar layout editor */
 "menu_bar_layout_title" = "レイアウト";
 "menu_bar_layout_footer" = "トークンをドラッグしてメニューバーを並べます。クリックすると追加でき、配置済みのトークンを選択して Delete キーを押すと削除できます。";
+"menu_bar_layout_footer_requires_icon_and_percent" = "レイアウトは「%@」メニューバーのスタイルにのみ適用されます。編集するには、上でそのスタイルを選択してください。";
 "menu_bar_layout_group_identity" = "識別情報";
 "menu_bar_layout_group_usage" = "使用量";
 "menu_bar_layout_group_time" = "時間";
@@ -1800,6 +1801,7 @@
 "Details for %@" = "%@の詳細";
 "EST. %@" = "推定%@";
 "Enable Antigravity provider" = "Antigravityプロバイダーを有効にする";
+"Enable a provider in CodexBar → Settings → Providers." = "CodexBar → 設定 → プロバイダーでプロバイダーを有効にしてください。";
 "Enable account widgets in CodexBar → Settings → Menu → Widgets. Then edit this widget to choose an account." = "CodexBar → 設定 → メニュー → ウィジェットでアカウント ウィジェットを有効にします。次に、このウィジェットを編集してアカウントを選択します。";
 "Error: %@" = "エラー: %@";
 "Examples: alt+cmd+2, shift+right. Refresh (cmd+r), Settings (cmd+,) and Quit (cmd+q) are reserved." = "例: alt+cmd+2、shift+right。更新 (cmd+r)、設定 (cmd+,)、および終了 (cmd+q) は予約されています。";
@@ -2014,10 +2016,7 @@
 "Top models:" = "トップモデル:";
 "Two quota burn-down charts in one tile." = "1 つのタイルに 2 つの クォータ バーンダウン チャート。";
 "Usage & spend come from your console.groq.com browser session automatically. An API key is optional and only adds Enterprise Prometheus metrics." = "使用量と支出は、console.groq.com ブラウザ セッションから自動的に取得されます。 API キーはオプションで、Enterprise Prometheus 指標 を追加するだけです。";
-"Usage data appears after a refresh." = "使用状況データは更新後に表示されます。";
-"Usage data will appear once the app refreshes." = "アプリが更新されると、使用状況データが表示されます。";
 "Usage history chart with recent totals." = "最近の合計を含む使用履歴グラフ。";
-"Usage history will appear after a refresh." = "更新後に使用履歴が表示されます。";
 "Usage limit" = "利用制限";
 "Usage limits and reset countdowns for one saved account." = "保存された 1 つのアカウントの使用制限とカウントダウンのリセット。";
 "Usage widget with a provider switcher." = "プロバイダースイッチャーを使用した使用状況ウィジェット。";

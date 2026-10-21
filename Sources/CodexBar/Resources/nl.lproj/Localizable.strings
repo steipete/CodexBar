@@ -621,7 +621,6 @@
 
 /* Display Pane */
 "menu_bar_style_title" = "Menubalkstijl";
-"menu_bar_style_subtitle" = "Hoe het menubalkitem wordt weergegeven.";
 "menu_bar_inactive_display_contrast_title" = "Zichtbaarheid op inactieve beeldschermen verbeteren";
 "menu_bar_inactive_display_contrast_subtitle" = "Gebruikt weergave met hoog contrast zodat het pictogram en de metriek leesbaar blijven op andere beeldschermen.";
 "menu_bar_style_critters" = "Beestjes";
@@ -1222,6 +1221,7 @@
 "Password" = "Wachtwoord";
 "%@ authentication is disabled." = "%@-authenticatie is uitgeschakeld.";
 "%@ cookies are disabled." = "%@ cookies zijn uitgeschakeld.";
+"%@ is unavailable. Edit the widget to choose a provider." = "%@ is niet beschikbaar. Bewerk de widget om een provider te kiezen.";
 "%@ web API access is disabled." = "%@ web-API-toegang is uitgeschakeld.";
 "Disable %@ dashboard cookie usage." = "Schakel het gebruik van %@ dashboardcookies uit.";
 "Keychain access is disabled in Advanced, so browser cookie import is unavailable." = "De sleutelhangertoegang is uitgeschakeld in Geavanceerd, dus het importeren van browsercookies is niet beschikbaar.";
@@ -1410,6 +1410,7 @@
 /* Menu bar layout editor */
 "menu_bar_layout_title" = "Indeling";
 "menu_bar_layout_footer" = "Sleep tokens om de menubalk in te delen. Klik op een token om deze toe te voegen; selecteer een geplaatst token en druk op Delete om het te verwijderen.";
+"menu_bar_layout_footer_requires_icon_and_percent" = "De indeling is alleen van toepassing op de menubalkstijl ‘%@’. Kies die stijl hierboven om deze te bewerken.";
 "menu_bar_layout_group_identity" = "Identiteit";
 "menu_bar_layout_group_usage" = "Gebruik";
 "menu_bar_layout_group_time" = "Tijd";
@@ -1799,6 +1800,7 @@
 "Details for %@" = "Details voor %@";
 "EST. %@" = "Geschatte %@";
 "Enable Antigravity provider" = "Schakel de Antigravity-provider in";
+"Enable a provider in CodexBar → Settings → Providers." = "Schakel een provider in via CodexBar → Instellingen → Providers.";
 "Enable account widgets in CodexBar → Settings → Menu → Widgets. Then edit this widget to choose an account." = "Schakel accountwidgets in CodexBar → Instellingen → Menu → Widgets in. Bewerk vervolgens deze widget om een ​​account te kiezen.";
 "Error: %@" = "Fout: %@";
 "Examples: alt+cmd+2, shift+right. Refresh (cmd+r), Settings (cmd+,) and Quit (cmd+q) are reserved." = "Voorbeelden: alt+cmd+2, shift+right. Vernieuwen (cmd+r), Instellingen (cmd+,) en Afsluiten (cmd+q) zijn gereserveerd.";
@@ -2013,10 +2015,7 @@
 "Top models:" = "Topmodellen:";
 "Two quota burn-down charts in one tile." = "Twee Quotum burn-down charts in één tegel.";
 "Usage & spend come from your console.groq.com browser session automatically. An API key is optional and only adds Enterprise Prometheus metrics." = "Gebruik en uitgaven komen automatisch uit uw console.groq.com-browsersessie. Een API-sleutel is optioneel en voegt alleen Enterprise Prometheus Metriek toe.";
-"Usage data appears after a refresh." = "Gebruiksgegevens verschijnen na een vernieuwing.";
-"Usage data will appear once the app refreshes." = "Gebruiksgegevens verschijnen zodra de app is vernieuwd.";
 "Usage history chart with recent totals." = "Gebruiksgeschiedenisgrafiek met recente totalen.";
-"Usage history will appear after a refresh." = "De gebruiksgeschiedenis verschijnt na een vernieuwing.";
 "Usage limit" = "Gebruikslimiet";
 "Usage limits and reset countdowns for one saved account." = "Gebruikslimieten en reset-countdowns voor één opgeslagen account.";
 "Usage widget with a provider switcher." = "Gebruikswidget met een providerwisselaar.";

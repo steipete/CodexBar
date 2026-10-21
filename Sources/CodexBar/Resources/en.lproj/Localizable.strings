@@ -609,7 +609,6 @@
 
 /* Display Pane */
 "menu_bar_style_title" = "Menu bar style";
-"menu_bar_style_subtitle" = "How the menu bar item is drawn.";
 "menu_bar_inactive_display_contrast_title" = "Improve visibility on inactive displays";
 "menu_bar_inactive_display_contrast_subtitle" = "Use high-contrast rendering to keep the icon and metric readable on other displays.";
 "menu_bar_style_critters" = "Critters";
@@ -1223,6 +1222,7 @@
 "Password" = "Password";
 "%@ authentication is disabled." = "%@ authentication is disabled.";
 "%@ cookies are disabled." = "%@ cookies are disabled.";
+"%@ is unavailable. Edit the widget to choose a provider." = "%@ is unavailable. Edit the widget to choose a provider.";
 "%@ web API access is disabled." = "%@ web API access is disabled.";
 "Disable %@ dashboard cookie usage." = "Disable %@ dashboard cookie usage.";
 "Keychain access is disabled in Advanced, so browser cookie import is unavailable." = "Keychain access is disabled in Advanced, so browser cookie import is unavailable.";
@@ -1422,6 +1422,7 @@
 /* Menu bar layout editor */
 "menu_bar_layout_title" = "Layout";
 "menu_bar_layout_footer" = "Drag tokens to arrange the menu bar. Click a token to append it; select a placed token and press Delete to remove it.";
+"menu_bar_layout_footer_requires_icon_and_percent" = "Layout applies only to the “%@” menu bar style. Choose that style above to edit it.";
 "menu_bar_layout_group_identity" = "Identity";
 "menu_bar_layout_group_usage" = "Usage";
 "menu_bar_layout_group_time" = "Time";
@@ -1804,6 +1805,7 @@
 "Details for %@" = "Details for %@";
 "EST. %@" = "EST. %@";
 "Enable Antigravity provider" = "Enable Antigravity provider";
+"Enable a provider in CodexBar → Settings → Providers." = "Enable a provider in CodexBar → Settings → Providers.";
 "Enable account widgets in CodexBar → Settings → Menu → Widgets. Then edit this widget to choose an account." = "Enable account widgets in CodexBar → Settings → Menu → Widgets. Then edit this widget to choose an account.";
 "Error: %@" = "Error: %@";
 "Examples: alt+cmd+2, shift+right. Refresh (cmd+r), Settings (cmd+,) and Quit (cmd+q) are reserved." = "Examples: alt+cmd+2, shift+right. Refresh (cmd+r), Settings (cmd+,) and Quit (cmd+q) are reserved.";
@@ -2018,10 +2020,7 @@
 "Top models:" = "Top models:";
 "Two quota burn-down charts in one tile." = "Two quota burn-down charts in one tile.";
 "Usage & spend come from your console.groq.com browser session automatically. An API key is optional and only adds Enterprise Prometheus metrics." = "Usage & spend come from your console.groq.com browser session automatically. An API key is optional and only adds Enterprise Prometheus metrics.";
-"Usage data appears after a refresh." = "Usage data appears after a refresh.";
-"Usage data will appear once the app refreshes." = "Usage data will appear once the app refreshes.";
 "Usage history chart with recent totals." = "Usage history chart with recent totals.";
-"Usage history will appear after a refresh." = "Usage history will appear after a refresh.";
 "Usage limit" = "Usage limit";
 "Usage limits and reset countdowns for one saved account." = "Usage limits and reset countdowns for one saved account.";
 "Usage widget with a provider switcher." = "Usage widget with a provider switcher.";

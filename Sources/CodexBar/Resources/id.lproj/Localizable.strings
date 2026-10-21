@@ -629,7 +629,6 @@
 
 /* Display Pane */
 "menu_bar_style_title" = "Gaya menu bar";
-"menu_bar_style_subtitle" = "Cara item menu bar digambar.";
 "menu_bar_inactive_display_contrast_title" = "Tingkatkan visibilitas di layar tidak aktif";
 "menu_bar_inactive_display_contrast_subtitle" = "Gunakan rendering kontras tinggi agar ikon dan metrik tetap terbaca di layar lain.";
 "menu_bar_style_critters" = "Critter";
@@ -1242,6 +1241,7 @@
 "Password" = "Kata sandi";
 "%@ authentication is disabled." = "Autentikasi %@ dinonaktifkan.";
 "%@ cookies are disabled." = "Cookie %@ dinonaktifkan.";
+"%@ is unavailable. Edit the widget to choose a provider." = "%@ tidak tersedia. Edit widget untuk memilih penyedia.";
 "%@ web API access is disabled." = "Akses web API %@ dinonaktifkan.";
 "Disable %@ dashboard cookie usage." = "Nonaktifkan penggunaan cookie dasbor %@.";
 "Keychain access is disabled in Advanced, so browser cookie import is unavailable." = "Akses Keychain dinonaktifkan di Lanjutan, jadi impor cookie browser tidak tersedia.";
@@ -1415,6 +1415,7 @@
 /* Menu bar layout editor */
 "menu_bar_layout_title" = "Tata letak";
 "menu_bar_layout_footer" = "Seret token untuk mengatur bar menu. Klik token untuk menambahkannya; pilih token yang sudah ditempatkan lalu tekan Delete untuk menghapusnya.";
+"menu_bar_layout_footer_requires_icon_and_percent" = "Tata letak hanya berlaku untuk gaya menu bar “%@”. Pilih gaya tersebut di atas untuk mengeditnya.";
 "menu_bar_layout_group_identity" = "Identitas";
 "menu_bar_layout_group_usage" = "Penggunaan";
 "menu_bar_layout_group_time" = "Waktu";
@@ -1804,6 +1805,7 @@
 "Details for %@" = "Detail untuk %@";
 "EST. %@" = "Perkiraan %@";
 "Enable Antigravity provider" = "Aktifkan penyedia Antigravity";
+"Enable a provider in CodexBar → Settings → Providers." = "Aktifkan penyedia di CodexBar → Pengaturan → Penyedia.";
 "Enable account widgets in CodexBar → Settings → Menu → Widgets. Then edit this widget to choose an account." = "Aktifkan widget akun di CodexBar → Pengaturan → Menu → Widget. Kemudian edit widget ini untuk memilih akun.";
 "Error: %@" = "Kesalahan: %@";
 "Examples: alt+cmd+2, shift+right. Refresh (cmd+r), Settings (cmd+,) and Quit (cmd+q) are reserved." = "Contoh: alt+cmd+2, shift+right. Refresh (cmd+r), Pengaturan (cmd+,) dan Keluar (cmd+q) dicadangkan.";
@@ -2018,10 +2020,7 @@
 "Top models:" = "Model teratas:";
 "Two quota burn-down charts in one tile." = "Dua grafik burn-down Kuota dalam satu ubin.";
 "Usage & spend come from your console.groq.com browser session automatically. An API key is optional and only adds Enterprise Prometheus metrics." = "Penggunaan & pembelanjaan berasal dari sesi browser console.groq.com Anda secara otomatis. Kunci API bersifat opsional dan hanya menambahkan Enterprise Prometheus Metrik.";
-"Usage data appears after a refresh." = "Data penggunaan muncul setelah penyegaran.";
-"Usage data will appear once the app refreshes." = "Data penggunaan akan muncul setelah aplikasi disegarkan.";
 "Usage history chart with recent totals." = "Bagan riwayat penggunaan dengan total terkini.";
-"Usage history will appear after a refresh." = "Riwayat penggunaan akan muncul setelah penyegaran.";
 "Usage limit" = "Batas penggunaan";
 "Usage limits and reset countdowns for one saved account." = "Batas penggunaan dan setel ulang hitungan mundur untuk satu akun tersimpan.";
 "Usage widget with a provider switcher." = "Widget penggunaan dengan pengalih penyedia.";

@@ -627,7 +627,6 @@
 
 /* Display Pane */
 "menu_bar_style_title" = "รูปแบบแถบเมนู";
-"menu_bar_style_subtitle" = "รูปแบบการแสดงรายการในแถบเมนู";
 "menu_bar_inactive_display_contrast_title" = "เพิ่มการมองเห็นบนจอแสดงผลที่ไม่ได้ใช้งาน";
 "menu_bar_inactive_display_contrast_subtitle" = "ใช้การแสดงผลแบบคอนทราสต์สูงเพื่อให้ไอคอนและค่าชี้วัดอ่านได้บนจออื่น";
 "menu_bar_style_critters" = "ตัวการ์ตูน";
@@ -1239,6 +1238,7 @@
 "Password" = "รหัสผ่าน";
 "%@ authentication is disabled." = "%@ การตรวจสอบสิทธิ์ถูกปิดใช้งาน";
 "%@ cookies are disabled." = "คุกกี้ %@ ถูกปิดใช้งาน";
+"%@ is unavailable. Edit the widget to choose a provider." = "%@ ไม่พร้อมใช้งาน แก้ไขวิดเจ็ตเพื่อเลือกผู้ให้บริการ";
 "%@ web API access is disabled." = "%@ การเข้าถึง API เว็บถูกปิดใช้งาน";
 "Disable %@ dashboard cookie usage." = "ปิดใช้งานการใช้คุกกี้แดชบอร์ด %@";
 "Keychain access is disabled in Advanced, so browser cookie import is unavailable." = "การเข้าถึง Keychain ถูกปิดใช้งานในขั้นสูง ดังนั้นการนําเข้าคุกกี้ของเบราว์เซอร์จึงไม่พร้อมใช้งาน";
@@ -1414,6 +1414,7 @@
 /* Menu bar layout editor */
 "menu_bar_layout_title" = "เค้าโครง";
 "menu_bar_layout_footer" = "ลากโทเค็นเพื่อจัดเรียงแถบเมนู คลิกโทเค็นเพื่อเพิ่ม เลือกโทเค็นที่วางแล้วและกด Delete เพื่อลบ";
+"menu_bar_layout_footer_requires_icon_and_percent" = "เค้าโครงใช้ได้เฉพาะกับรูปแบบแถบเมนู “%@” เท่านั้น เลือกรูปแบบนั้นด้านบนเพื่อแก้ไข";
 "menu_bar_layout_group_identity" = "ข้อมูลระบุตัวตน";
 "menu_bar_layout_group_usage" = "การใช้";
 "menu_bar_layout_group_time" = "เวลา";
@@ -1804,6 +1805,7 @@
 "Details for %@" = "รายละเอียดสำหรับ %@";
 "EST. %@" = "ประมาณการ %@";
 "Enable Antigravity provider" = "เปิดใช้งานผู้ให้บริการ Antigravity";
+"Enable a provider in CodexBar → Settings → Providers." = "เปิดใช้งานผู้ให้บริการใน CodexBar → การตั้งค่า → ผู้ให้บริการ";
 "Enable account widgets in CodexBar → Settings → Menu → Widgets. Then edit this widget to choose an account." = "เปิดใช้งานวิดเจ็ตบัญชีใน CodexBar → การตั้งค่า → เมนู → วิดเจ็ต จากนั้นแก้ไขวิดเจ็ตนี้เพื่อเลือกบัญชี";
 "Error: %@" = "ข้อผิดพลาด: %@";
 "Examples: alt+cmd+2, shift+right. Refresh (cmd+r), Settings (cmd+,) and Quit (cmd+q) are reserved." = "ตัวอย่าง: alt+cmd+2, shift+right รีเฟรช (cmd+r), การตั้งค่า (cmd+,) และออก (cmd+q) สงวนไว้";
@@ -2018,10 +2020,7 @@
 "Top models:" = "รุ่นยอดนิยม:";
 "Two quota burn-down charts in one tile." = "แผนภูมิเบิร์นดาวน์ โควต้า สองแผนภูมิในไทล์เดียว";
 "Usage & spend come from your console.groq.com browser session automatically. An API key is optional and only adds Enterprise Prometheus metrics." = "การใช้งานและการใช้จ่ายมาจากเซสชันเบราว์เซอร์ console.groq.com ของคุณโดยอัตโนมัติ คีย์ API เป็นทางเลือก และเพิ่มเฉพาะ Enterprise Prometheus เมตริก เท่านั้น";
-"Usage data appears after a refresh." = "ข้อมูลการใช้งานจะปรากฏขึ้นหลังจากการรีเฟรช";
-"Usage data will appear once the app refreshes." = "ข้อมูลการใช้งานจะปรากฏขึ้นเมื่อแอปรีเฟรช";
 "Usage history chart with recent totals." = "แผนภูมิประวัติการใช้งานพร้อมผลรวมล่าสุด";
-"Usage history will appear after a refresh." = "ประวัติการใช้งานจะปรากฏขึ้นหลังจากการรีเฟรช";
 "Usage limit" = "ขีดจำกัดการใช้งาน";
 "Usage limits and reset countdowns for one saved account." = "ขีดจำกัดการใช้งานและรีเซ็ตการนับถอยหลังสำหรับบัญชีที่บันทึกไว้หนึ่งบัญชี";
 "Usage widget with a provider switcher." = "วิดเจ็ตการใช้งานพร้อมตัวสลับผู้ให้บริการ";

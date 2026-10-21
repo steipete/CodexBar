@@ -629,7 +629,6 @@
 
 /* Display Pane */
 "menu_bar_style_title" = "Styl paska menu";
-"menu_bar_style_subtitle" = "Sposób rysowania elementu paska menu.";
 "menu_bar_inactive_display_contrast_title" = "Popraw widoczność na nieaktywnych ekranach";
 "menu_bar_inactive_display_contrast_subtitle" = "Używa renderowania o wysokim kontraście, aby ikona i wskaźnik pozostały czytelne na innych ekranach.";
 "menu_bar_style_critters" = "Stworki";
@@ -1241,6 +1240,7 @@
 "Password" = "Hasło";
 "%@ authentication is disabled." = "Uwierzytelnianie %@ jest wyłączone.";
 "%@ cookies are disabled." = "Pliki cookie %@ są wyłączone.";
+"%@ is unavailable. Edit the widget to choose a provider." = "%@ jest niedostępny. Edytuj widżet, aby wybrać dostawcę.";
 "%@ web API access is disabled." = "Dostęp do web API %@ jest wyłączony.";
 "Disable %@ dashboard cookie usage." = "Wyłącz użycie plików cookie panelu %@.";
 "Keychain access is disabled in Advanced, so browser cookie import is unavailable." = "Dostęp do pęku kluczy jest wyłączony w Zaawansowanych, więc import plików cookie przeglądarki jest niedostępny.";
@@ -1414,6 +1414,7 @@
 /* Menu bar layout editor */
 "menu_bar_layout_title" = "Układ";
 "menu_bar_layout_footer" = "Przeciągaj elementy, aby ułożyć pasek menu. Kliknij element, aby go dodać; zaznacz umieszczony element i naciśnij Delete, aby go usunąć.";
+"menu_bar_layout_footer_requires_icon_and_percent" = "Układ ma zastosowanie tylko do stylu paska menu „%@”. Wybierz ten styl powyżej, aby go edytować.";
 "menu_bar_layout_group_identity" = "Tożsamość";
 "menu_bar_layout_group_usage" = "Zużycie";
 "menu_bar_layout_group_time" = "Czas";
@@ -1803,6 +1804,7 @@
 "Details for %@" = "Szczegóły dotyczące %@";
 "EST. %@" = "Szacowany %@";
 "Enable Antigravity provider" = "Włącz dostawcę Antigravity";
+"Enable a provider in CodexBar → Settings → Providers." = "Włącz dostawcę w CodexBar → Ustawienia → Dostawcy.";
 "Enable account widgets in CodexBar → Settings → Menu → Widgets. Then edit this widget to choose an account." = "Włącz widżety konta w CodexBar → Ustawienia → Menu → Widżety. Następnie edytuj ten widget, aby wybrać konto.";
 "Error: %@" = "Błąd: %@";
 "Examples: alt+cmd+2, shift+right. Refresh (cmd+r), Settings (cmd+,) and Quit (cmd+q) are reserved." = "Przykłady: alt+cmd+2, shift+right. Odśwież (cmd+r), Ustawienia (cmd+,) i Zakończ (cmd+q) są zarezerwowane.";
@@ -2017,10 +2019,7 @@
 "Top models:" = "Najlepsze modele:";
 "Two quota burn-down charts in one tile." = "Dwa wykresy spalania Limit na jednym kafelku.";
 "Usage & spend come from your console.groq.com browser session automatically. An API key is optional and only adds Enterprise Prometheus metrics." = "Użycie i wydatki pochodzą automatycznie z sesji przeglądarki console.groq.com. Klucz API jest opcjonalny i dodaje tylko Enterprise Prometheus Wskaźnik.";
-"Usage data appears after a refresh." = "Dane dotyczące użytkowania pojawiają się po odświeżeniu.";
-"Usage data will appear once the app refreshes." = "Dane dotyczące użytkowania pojawią się po odświeżeniu aplikacji.";
 "Usage history chart with recent totals." = "Wykres historii użytkowania z ostatnimi sumami.";
-"Usage history will appear after a refresh." = "Historia użytkowania pojawi się po odświeżeniu.";
 "Usage limit" = "Limit użytkowania";
 "Usage limits and reset countdowns for one saved account." = "Limity wykorzystania i resetowanie odliczania dla jednego zapisanego konta.";
 "Usage widget with a provider switcher." = "Widżet użytkowania z przełącznikiem dostawców.";

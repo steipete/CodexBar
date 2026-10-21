@@ -604,7 +604,6 @@
 
 /* Display Pane */
 "menu_bar_style_title" = "Estil de la barra de menús";
-"menu_bar_style_subtitle" = "Com es dibuixa l'element de la barra de menús.";
 "menu_bar_inactive_display_contrast_title" = "Millora la visibilitat a les pantalles inactives";
 "menu_bar_inactive_display_contrast_subtitle" = "Utilitza una representació d'alt contrast perquè la icona i la mètrica siguin llegibles a les altres pantalles.";
 "menu_bar_style_critters" = "Bestioles";
@@ -1076,6 +1075,7 @@
 "Password" = "Contrasenya";
 "%@ authentication is disabled." = "L'autenticació de %@ està desactivada.";
 "%@ cookies are disabled." = "Les galetes de %@ estan desactivades.";
+"%@ is unavailable. Edit the widget to choose a provider." = "%@ no està disponible. Editeu el giny per triar un proveïdor.";
 "%@ web API access is disabled." = "L'accés a l'API web de %@ està desactivat.";
 "Disable %@ dashboard cookie usage." = "Desactiveu l'ús de galetes del tauler de %@.";
 "Keychain access is disabled in Advanced, so browser cookie import is unavailable." = "L'accés al Clauer està desactivat a Avançat, així que la importació de galetes del navegador no està disponible.";
@@ -1417,6 +1417,7 @@
 /* Menu bar layout editor */
 "menu_bar_layout_title" = "Disposició";
 "menu_bar_layout_footer" = "Arrossegueu les fitxes per ordenar la barra de menús. Feu clic en una fitxa per afegir-la; seleccioneu una fitxa col·locada i premeu Supr per eliminar-la.";
+"menu_bar_layout_footer_requires_icon_and_percent" = "La disposició només s'aplica a l'estil de la barra de menús «%@». Trieu aquest estil a dalt per editar-la.";
 "menu_bar_layout_group_identity" = "Identitat";
 "menu_bar_layout_group_usage" = "Ús";
 "menu_bar_layout_group_time" = "Temps";
@@ -1804,6 +1805,7 @@
 "Details for %@" = "Detalls de %@";
 "EST. %@" = "%@ estimat";
 "Enable Antigravity provider" = "Activa el proveïdor Antigravity";
+"Enable a provider in CodexBar → Settings → Providers." = "Activeu un proveïdor a CodexBar → Configuració → Proveïdors.";
 "Enable account widgets in CodexBar → Settings → Menu → Widgets. Then edit this widget to choose an account." = "Activa els ginys del compte a CodexBar → Configuració → Menú → Ginys. A continuació, editeu aquest widget per triar un compte.";
 "Error: %@" = "Error: %@";
 "Examples: alt+cmd+2, shift+right. Refresh (cmd+r), Settings (cmd+,) and Quit (cmd+q) are reserved." = "Exemples: alt+cmd+2, shift+right. Actualitzar (cmd+r), Configuració (cmd+,) i Surt (cmd+q) estan reservats.";
@@ -2018,10 +2020,7 @@
 "Top models:" = "Top models:";
 "Two quota burn-down charts in one tile." = "Dos gràfics de desgast de quotes en una fitxa.";
 "Usage & spend come from your console.groq.com browser session automatically. An API key is optional and only adds Enterprise Prometheus metrics." = "L'ús i la despesa provenen de la sessió del navegador console.groq.com automàticament. Una clau API és opcional i només afegeix Enterprise Prometheus Mètrica.";
-"Usage data appears after a refresh." = "Les dades d'ús apareixen després d'una actualització.";
-"Usage data will appear once the app refreshes." = "Les dades d'ús apareixeran un cop s'actualitzi l'aplicació.";
 "Usage history chart with recent totals." = "Gràfic d'historial d'ús amb totals recents.";
-"Usage history will appear after a refresh." = "L'historial d'ús apareixerà després d'una actualització.";
 "Usage limit" = "Límit d'ús";
 "Usage limits and reset countdowns for one saved account." = "Límits d'ús i restabliment del compte enrere per a un compte desat.";
 "Usage widget with a provider switcher." = "Giny d'ús amb un commutador de proveïdors.";

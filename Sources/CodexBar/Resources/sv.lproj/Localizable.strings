@@ -620,7 +620,6 @@
 
 /* Display Pane */
 "menu_bar_style_title" = "Menyradsstil";
-"menu_bar_style_subtitle" = "Hur menyradsobjektet visas.";
 "menu_bar_inactive_display_contrast_title" = "Förbättra synligheten på inaktiva skärmar";
 "menu_bar_inactive_display_contrast_subtitle" = "Använder kontrastrik rendering så att ikonen och mätvärdet förblir läsbara på andra skärmar.";
 "menu_bar_style_critters" = "Figurer";
@@ -1091,6 +1090,7 @@
 "Kiro menu bar value" = "Kiro-värde i menyraden";
 "CodexBar could not read managed account storage. Recover the store before adding another account." = "CodexBar kunde inte läsa hanterad kontolagring. Återställ lagringen innan du lägger till ett konto till.";
 "Using CLI fallback" = "Använder CLI-reserv";
+"%@ is unavailable. Edit the widget to choose a provider." = "%@ är inte tillgänglig. Redigera widgeten för att välja en leverantör.";
 "%@ web API access is disabled." = "%@-åtkomst till webb-API är inaktiverad.";
 "tokens" = "token";
 "%@ / %@ (%@ remaining)" = "%@ / %@ (%@ kvar)";
@@ -1409,6 +1409,7 @@
 /* Menu bar layout editor */
 "menu_bar_layout_title" = "Layout";
 "menu_bar_layout_footer" = "Dra brickor för att ordna menyraden. Klicka på en bricka för att lägga till den; markera en placerad bricka och tryck Delete för att ta bort den.";
+"menu_bar_layout_footer_requires_icon_and_percent" = "Layouten gäller endast för menyradsstilen ”%@”. Välj den stilen ovan för att redigera den.";
 "menu_bar_layout_group_identity" = "Identitet";
 "menu_bar_layout_group_usage" = "Användning";
 "menu_bar_layout_group_time" = "Tid";
@@ -1799,6 +1800,7 @@
 "Details for %@" = "Detaljer för %@";
 "EST. %@" = "Uppskattad %@";
 "Enable Antigravity provider" = "Aktivera Antigravity-leverantör";
+"Enable a provider in CodexBar → Settings → Providers." = "Aktivera en leverantör i CodexBar → Inställningar → Leverantörer.";
 "Enable account widgets in CodexBar → Settings → Menu → Widgets. Then edit this widget to choose an account." = "Aktivera kontowidgetar i CodexBar → Inställningar → Meny → Widgets. Redigera sedan denna widget för att välja ett konto.";
 "Error: %@" = "Fel: %@";
 "Examples: alt+cmd+2, shift+right. Refresh (cmd+r), Settings (cmd+,) and Quit (cmd+q) are reserved." = "Exempel: alt+cmd+2, shift+right. Uppdatera (cmd+r), Inställningar (cmd+,) och Avsluta (cmd+q) är reserverade.";
@@ -2013,10 +2015,7 @@
 "Top models:" = "Toppmodeller:";
 "Two quota burn-down charts in one tile." = "Två Kvot nedbränningsdiagram i en bricka.";
 "Usage & spend come from your console.groq.com browser session automatically. An API key is optional and only adds Enterprise Prometheus metrics." = "Användning och utgifter kommer automatiskt från din console.groq.com webbläsarsession. En API-nyckel är valfri och lägger endast till Enterprise Prometheus Mått.";
-"Usage data appears after a refresh." = "Användningsdata visas efter en uppdatering.";
-"Usage data will appear once the app refreshes." = "Användningsdata visas när appen uppdateras.";
 "Usage history chart with recent totals." = "Användningshistorikdiagram med senaste summor.";
-"Usage history will appear after a refresh." = "Användningshistorik kommer att visas efter en uppdatering.";
 "Usage limit" = "Användningsgräns";
 "Usage limits and reset countdowns for one saved account." = "Användningsgränser och återställ nedräkningar för ett sparat konto.";
 "Usage widget with a provider switcher." = "Användningswidget med en leverantörsväxlare.";

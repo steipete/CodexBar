@@ -135,9 +135,35 @@ struct PreferencesPaneSmokeTests {
 
     @Test
     func `inactive display contrast is available only for icon and percent`() {
-        #expect(!MenuBarPane.inactiveDisplayContrastAvailable(for: .critters))
-        #expect(!MenuBarPane.inactiveDisplayContrastAvailable(for: .bars))
-        #expect(MenuBarPane.inactiveDisplayContrastAvailable(for: .iconAndPercent))
+        #expect(!MenuBarPane.layoutEditorEnabled(for: .critters))
+        #expect(!MenuBarPane.layoutEditorEnabled(for: .bars))
+        #expect(MenuBarPane.layoutEditorEnabled(for: .iconAndPercent))
+    }
+
+    @Test
+    func `menu bar layout footer follows the selected style`() {
+        #expect(MenuBarPane.layoutEditorEnabled(for: .iconAndPercent))
+        #expect(!MenuBarPane.layoutEditorEnabled(for: .critters))
+        #expect(!MenuBarPane.layoutEditorEnabled(for: .bars))
+
+        CodexBarLocalizationOverride.$appLanguage.withValue("en") {
+            let enabledFooter = MenuBarPane.layoutFooterText(for: .iconAndPercent)
+            let disabledFooter = MenuBarPane.layoutFooterText(for: .critters)
+
+            #expect(enabledFooter.contains("Drag tokens"))
+            #expect(!enabledFooter.contains("Icon & percent"))
+            #expect(disabledFooter.contains("Icon & percent"))
+            #expect(!disabledFooter.contains("Drag tokens"))
+            #expect(!disabledFooter.contains("%@"))
+            #expect(MenuBarPane.layoutFooterText(for: .bars) == disabledFooter)
+        }
+
+        CodexBarLocalizationOverride.$appLanguage.withValue("de") {
+            let footer = MenuBarPane.layoutFooterText(for: .bars)
+
+            #expect(footer.contains(MenuBarIconStyle.iconAndPercent.label))
+            #expect(!footer.contains("%@"))
+        }
     }
 
     @Test
