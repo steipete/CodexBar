@@ -5,6 +5,7 @@ import SwiftUI
 @Observable
 final class NotchUsageOverlayViewState {
     var isExpanded = false
+    var notchFrameInHeader: CGRect = .zero
     /// Height the provider grid wants at the panel's current width, reported from inside its
     /// scroll view where nothing clamps it. Zero until the first report.
     var gridContentHeight: CGFloat = 0
@@ -61,7 +62,7 @@ struct NotchUsageOverlayContent {
         if let band = self.model.sessionsBand {
             VStack(alignment: .leading, spacing: 10) {
                 if self.model.sessionsAbove {
-                    self.sessionsTile(title: band.title, rows: band.rows, columns: self.model.columnCount)
+                    self.sessionsTile(band)
                     if !self.model.items.isEmpty {
                         Divider()
                     }
@@ -69,7 +70,7 @@ struct NotchUsageOverlayContent {
                     if !self.model.items.isEmpty {
                         Divider()
                     }
-                    self.sessionsTile(title: band.title, rows: band.rows, columns: self.model.columnCount)
+                    self.sessionsTile(band)
                 }
             }
         }
@@ -167,24 +168,23 @@ struct NotchUsageOverlayContent {
         .accessibilityLabel(row.accessibilitySummary)
     }
 
-    private func sessionsTile(
-        title: String,
-        rows: [NotchUsageOverlayModel.SessionRow],
-        columns: Int) -> some View
-    {
+    private func sessionsTile(_ band: NotchUsageOverlayModel.SessionsBand) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("\(title) (\(rows.count))")
+            Text("\(band.title) (\(band.rows.count))")
                 .font(.headline)
                 .lineLimit(1)
-            if rows.isEmpty {
+            if band.rows.isEmpty {
                 Text(L("No agent sessions found"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else {
                 HStack(alignment: .top, spacing: Self.columnSpacing) {
-                    let sliced = NotchUsageOverlayModel.distribute(rows, into: columns)
-                    ForEach(Array(sliced.enumerated()), id: \.offset) { _, column in
+                    ForEach(Array(band.columns.enumerated()), id: \.offset) { _, column in
                         VStack(alignment: .leading, spacing: 6) {
+                            if band.groupedByHarness, let harness = column.first?.harness {
+                                Text(harness)
+                                    .font(.caption.weight(.semibold))
+                            }
                             ForEach(column) { session in
                                 self.sessionRow(session)
                             }
@@ -228,7 +228,8 @@ struct NotchUsageOverlayView: View {
                     agentSessions: self.agentSessions)
                 self.expanded(content: NotchUsageOverlayContent(model: model))
                     .padding(.top, NotchUsageOverlayContent.topPadding)
-                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    .background(.regularMaterial, in: UnevenRoundedRectangle(
+                        bottomLeadingRadius: 18, bottomTrailingRadius: 18, style: .continuous))
                     .padding(.horizontal, 4)
                     .padding(.bottom, 4)
                     .transition(.scale(scale: 0.4, anchor: .top).combined(with: .opacity))
@@ -305,6 +306,66 @@ struct NotchUsageOverlayView: View {
     private func heightReporter<K: PreferenceKey>(_ key: K.Type) -> some View where K.Value == CGFloat {
         GeometryReader { proxy in
             Color.clear.preference(key: key, value: proxy.size.height)
+        }
+    }
+}
+
+/// Display-only wings beside the camera; the owning window passes every mouse event through.
+struct NotchUsageHeaderView: View {
+    static let minimumSideWidth: CGFloat = 160
+
+    let store: UsageStore
+    let settings: SettingsStore
+    let viewState: NotchUsageOverlayViewState
+
+    var body: some View {
+        ZStack {
+            if self.viewState.isExpanded {
+                let model = NotchUsageOverlayModel.make(store: self.store, settings: self.settings)
+                HStack(spacing: 0) {
+                    self.summary(model.headerItems.first, style: model.iconStyle)
+                        .frame(width: max(0, self.viewState.notchFrameInHeader.minX - 4))
+                    Color.clear.frame(width: self.viewState.notchFrameInHeader.width)
+                    self.summary(model.headerItems.dropFirst().first, style: model.iconStyle)
+                        .frame(maxWidth: .infinity)
+                }
+                .background(.regularMaterial, in: UnevenRoundedRectangle(
+                    topLeadingRadius: 18, topTrailingRadius: 18, style: .continuous))
+                .padding(.horizontal, 4)
+                .transition(.opacity)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .animation(.easeInOut(duration: 0.2), value: self.viewState.isExpanded)
+    }
+
+    @ViewBuilder
+    private func summary(_ item: NotchUsageOverlayModel.HeaderItem?, style: ProviderBrandIcon.Style) -> some View {
+        if let item {
+            HStack(spacing: 8) {
+                if let provider = item.provider.firstPartyProvider,
+                   let icon = ProviderBrandIcon.image(for: provider, style: style)
+                {
+                    Image(nsImage: icon)
+                        .resizable()
+                        .renderingMode(icon.isTemplate ? .template : .original)
+                        .scaledToFit()
+                        .frame(width: 16, height: 16)
+                        .accessibilityHidden(true)
+                }
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(item.title).font(.caption2).foregroundStyle(.secondary)
+                    Text(item.value).font(.caption.weight(.semibold)).monospacedDigit()
+                }
+                .lineLimit(1)
+            }
+            .padding(.horizontal, 12)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .clipped()
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(item.accessibilityLabel)
+        } else {
+            Color.clear
         }
     }
 }

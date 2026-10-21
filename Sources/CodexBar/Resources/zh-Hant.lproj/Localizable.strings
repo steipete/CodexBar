@@ -1702,7 +1702,6 @@
 "tab_notch" = "瀏海";
 "section_notch_overlay" = "瀏海浮層";
 "notch_no_display_hint" = "這台 Mac 沒有具備瀏海的內建顯示器，因此浮層不會顯示。";
-"notch_agent_sessions_requires_menu" = "請先在「選單」面板啟用代理工作階段。";
 "Agent Sessions" = "代理工作階段";
 "No agent sessions found" = "找不到代理工作階段";
 "now" = "剛剛";
@@ -1732,3 +1731,5 @@
 "notch_sessions_placement_below" = "下方";
 "notch_autosize_footer" = "寬度會自動跟隨欄數。下方每個區段都有自己的最大高度。";
 "notch_items_footer" = "拖曳以重新排序。圖磚會依此順序填入各欄；關閉某一列即可將其排除。";
+"Match providers" = "與服務供應商一致";
+"Column per harness" = "每種代理工具一欄";

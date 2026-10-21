@@ -136,7 +136,7 @@ struct NotchUsageSettingsTests {
     }
 
     @Test
-    func `agent session band is omitted until both switches are on`() throws {
+    func `agent session band can be enabled independently of the menu`() throws {
         let settings = testSettingsStore(
             suiteName: "NotchUsageSettingsTests-sessions",
             userDefaults: InMemoryUserDefaults())
@@ -147,7 +147,8 @@ struct NotchUsageSettingsTests {
         let sessions = AgentSessionsStore(settings: settings)
         let now = Date(timeIntervalSince1970: 1_800_000_000)
 
-        settings.agentSessionsEnabled = true
+        settings.notchUsageSummaryEnabled = true
+        settings.notchShowsAgentSessions = true
         sessions.applyLocalScanResult([
             AgentSession(
                 id: "session-1",
@@ -163,6 +164,7 @@ struct NotchUsageSettingsTests {
                 host: "local"),
         ])
 
+        settings.notchShowsAgentSessions = false
         let hidden = NotchUsageOverlayModel.make(
             store: usageStore,
             settings: settings,
@@ -180,6 +182,7 @@ struct NotchUsageSettingsTests {
         let band = try #require(shown.sessionsBand)
         let rows = band.rows
         let row = try #require(rows.first)
+        #expect(!settings.agentSessionsEnabled)
         #expect(rows.count == 1)
         #expect(row.title == "demo")
         #expect(row.isActive)
@@ -268,7 +271,12 @@ struct NotchUsageSettingsTests {
     @Test
     func `a session band spreads its rows over the grid column count`() {
         let rows = (1...5).map {
-            NotchUsageOverlayModel.SessionRow(id: "s\($0)", title: "s\($0)", detail: "", isActive: true)
+            NotchUsageOverlayModel.SessionRow(
+                id: "s\($0)",
+                title: "s\($0)",
+                detail: "",
+                isActive: true,
+                harness: "Codex")
         }
 
         // Same round-robin the tile grid uses, so the band reads across rather than down one side.
@@ -423,6 +431,120 @@ struct NotchUsageSettingsTests {
             .items.first { $0.id == .claude })
         #expect(row.bars.map(\.title) == expected.metrics.map(\.title))
         #expect(row.bars.map(\.resetText) == expected.metrics.map(\.resetText))
+    }
+
+    @Test
+    func `notch header prioritizes available reset credits and respects hidden providers and usage items`() {
+        let settings = testSettingsStore(
+            suiteName: "NotchUsageSettingsTests-header",
+            userDefaults: InMemoryUserDefaults(),
+            config: CodexBarConfig(providers: [
+                ProviderConfig(id: .claude, enabled: true),
+                ProviderConfig(id: .codex, enabled: true),
+            ]))
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings)
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let window = RateWindow(usedPercent: 25, windowMinutes: 10080, resetsAt: nil, resetDescription: nil)
+        let credits = [3600.0, -1.0].enumerated().map { index, expiry in
+            CodexRateLimitResetCredit(
+                id: "fixture-\(index)",
+                resetType: "codex_rate_limits",
+                status: .available,
+                grantedAt: now.addingTimeInterval(-7200),
+                expiresAt: now.addingTimeInterval(expiry),
+                redeemStartedAt: nil,
+                redeemedAt: nil,
+                title: nil,
+                description: nil)
+        }
+        store._setSnapshotForTesting(UsageSnapshot(
+            primary: nil,
+            secondary: window,
+            codexResetCredits: CodexRateLimitResetCreditsSnapshot(
+                credits: credits, availableCount: 1, updatedAt: now),
+            updatedAt: now), provider: .codex)
+        store._setSnapshotForTesting(UsageSnapshot(primary: nil, secondary: window, updatedAt: now), provider: .claude)
+        settings.setNotchItemOrder(["claude", "codex"])
+
+        let header = NotchUsageOverlayModel.make(store: store, settings: settings, now: now).headerItems
+        #expect(header.map(\.id) == ["codex:reset-credits", "claude:quota"])
+        #expect(header[0].value == "1 available")
+        #expect(header[0].accessibilityLabel.contains("Codex"))
+        #expect(header[1].value == "75% left")
+
+        settings.setUsageItemVisible(false, itemID: .codexResetCredits, for: .codex)
+        let hiddenCredits = NotchUsageOverlayModel.make(store: store, settings: settings, now: now).headerItems
+        #expect(hiddenCredits.map(\.id) == ["claude:quota", "codex:quota"])
+        settings.setNotchProviderVisible(.codex, visible: false)
+        #expect(NotchUsageOverlayModel.make(store: store, settings: settings, now: now).headerItems
+            .map(\.provider) == [.claude])
+        settings.setUsageItemVisible(false, itemID: .metric("secondary"), for: .claude)
+        #expect(NotchUsageOverlayModel.make(store: store, settings: settings, now: now).headerItems.isEmpty)
+    }
+
+    @Test
+    func `session columns follow providers by default and persist independent choices`() throws {
+        let fixture = try Self.makeFixture("session-columns")
+        #expect(fixture.store.notchSessionsColumns == .matchProviders)
+        fixture.store.notchSessionsColumns = .three
+        fixture.store.notchColumnCount = 2
+        #expect(try Self.reload(fixture).notchSessionsColumns == .three)
+        fixture.store.notchSessionsColumns = .perHarness
+        #expect(try Self.reload(fixture).notchSessionsColumns == .perHarness)
+        fixture.defaults.set(99, forKey: "notchSessionsColumns")
+        #expect(try Self.reload(fixture).notchSessionsColumns == .matchProviders)
+    }
+
+    @Test
+    func `session columns group by harness or use independent counts`() throws {
+        let settings = try Self.makeFixture("session-grouping").store
+        settings.notchUsageSummaryEnabled = true
+        settings.notchShowsAgentSessions = true
+        settings.notchColumnCount = 2
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            startupBehavior: .testing)
+        let sessions = AgentSessionsStore(settings: settings)
+        let now = Date()
+        let local = [AgentSession.Provider.codex, .claude, .pi, .pi].enumerated().map { index, provider in
+            AgentSession(
+                id: "session-\(index)",
+                provider: provider,
+                dialect: index == 3 ? .omp : nil,
+                source: .cli,
+                state: .active,
+                pid: nil,
+                cwd: nil,
+                projectName: "Fixture \(index)",
+                startedAt: now,
+                lastActivityAt: now,
+                transcriptPath: nil,
+                host: "local")
+        }
+        sessions.applyLocalScanResult(local)
+        let model = { NotchUsageOverlayModel.make(store: store, settings: settings, agentSessions: sessions) }
+        #expect(model().sessionsBand?.columns.map(\.count) == [2, 2])
+        settings.notchColumnCount = 1
+        #expect(model().sessionsBand?.columns.count == 1)
+        settings.notchSessionsColumns = .three
+        #expect(model().sessionsBand?.columns.map(\.count) == [2, 1, 1])
+        settings.notchColumnCount = 4
+        #expect(model().sessionsBand?.columns.count == 3)
+        settings.notchSessionsColumns = .perHarness
+        let grouped = try #require(model().sessionsBand)
+        #expect(grouped.groupedByHarness)
+        #expect(grouped.columns.map { $0.map(\.harness) } == [["Claude"], ["Codex"], ["OMP"], ["Pi"]])
+        var secondCodex = local[0]
+        secondCodex.id = "another-codex"
+        sessions.applyLocalScanResult([local[0], secondCodex])
+        #expect(model().sessionsBand?.columns.count == 1)
+        sessions.applyLocalScanResult([])
+        #expect(model().sessionsBand?.columns.isEmpty == true)
     }
 
     private static func row(_ id: ProviderInstanceID) -> NotchUsageOverlayModel.ProviderRow {

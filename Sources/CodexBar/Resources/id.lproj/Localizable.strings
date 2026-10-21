@@ -1674,7 +1674,6 @@
 "tab_notch" = "Notch";
 "section_notch_overlay" = "Overlay notch";
 "notch_no_display_hint" = "Mac ini tidak punya layar bawaan bernotch, jadi overlay tetap tersembunyi.";
-"notch_agent_sessions_requires_menu" = "Aktifkan Sesi Agen di panel Menu terlebih dahulu.";
 "Agent Sessions" = "Sesi Agen";
 "No agent sessions found" = "Tidak ada sesi agen ditemukan";
 "now" = "sekarang";
@@ -1704,3 +1703,5 @@
 "notch_sessions_placement_below" = "Di bawah";
 "notch_autosize_footer" = "Lebar otomatis — mengikuti kolom. Setiap bagian di bawah punya tinggi maksimum sendiri.";
 "notch_items_footer" = "Seret untuk mengurutkan. Kartu mengisi kolom dalam urutan ini; matikan satu baris untuk mengecualikannya.";
+"Match providers" = "Sama dengan penyedia";
+"Column per harness" = "Kolom per alat";

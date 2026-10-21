@@ -7,7 +7,7 @@ read_when:
 
 # Notch usage summary
 
-Opt-in overlay that expands a usage dashboard under the camera notch of a built-in display.
+Opt-in overlay that expands around the camera notch of a built-in display, with the main dashboard below it.
 Everything is configured in its own settings page: **Settings → Notch**.
 
 Synthetic provider tiles in brand and monochrome styles:
@@ -30,9 +30,13 @@ Synthetic provider tiles in brand and monochrome styles:
   natural position, so a newly enabled provider appears without the user re-sorting anything.
 - `notchHiddenProviders` — providers are **opt-out**: a newly enabled provider joins the overlay
   without the user revisiting the pane.
-- `notchShowsAgentSessions` — shows the agent-session list; requires Agent Sessions (Menu pane).
+- `notchShowsAgentSessions` — shows the agent-session list independently of the Menu pane toggle.
+  The shared scanner runs while either the menu or enabled notch requests sessions.
   The overlay reads `StatusItemController`'s `AgentSessionsStore` rather than running a second
   scanner, wired in `AppDelegate.ensureStatusController()`.
+- `notchSessionsColumns` — defaults to matching provider columns; choose 1–4 independently or
+  **Column per harness** to group sessions by tool (Codex, Claude, Pi, or OMP). Empty harnesses
+  consume no column; local and remote sessions for the same tool share one column.
 - `notchSessionsPlacement` (`above`/`below`, default `below`) — which side of the grid the band sits
   on. The list is always a full-width band with its own height budget, never a tile in the grid, so
   it takes no slot in `notchItemOrder`.
@@ -64,12 +68,19 @@ Synthetic provider tiles in brand and monochrome styles:
   the panel keeps its opening size and late-arriving bars are stuck behind a scroll.
 - The panel's hosting view sets `sizingOptions = []`. Without it the hosting view installs its
   content's ideal size as window constraints and a long provider list grows the panel off-screen.
+- A display-only header extends from the content's top edge to the top of the screen, joining the
+  dashboard to the camera housing. It reserves the camera's actual position, including on shifted
+  displays and when width clamping makes the side spaces unequal. The two side summaries prioritise
+  available reset credits, then visible provider quotas, using the same provider logos and account-scoped
+  menu presentation as the tiles. Hidden providers and hidden usage items stay hidden. The minimum
+  width allows 160pt on either side of the camera; the display still bounds the total width.
 
 ## Hover and hotkey
-- Two borderless, non-activating `NSPanel` windows share one controller. A camera-housing-sized
+- Three borderless, non-activating `NSPanel` windows share one controller. A camera-housing-sized
   tracking trigger stays in the notch; the wider interactive content window starts below the menu
-  strip and is hidden while collapsed. Neither becomes key or main. Expanding never widens the
-  notch trigger or covers neighboring menu extras.
+  strip and is hidden while collapsed. A display-only header sits behind status items and always
+  has `ignoresMouseEvents = true`, so its side summaries cannot intercept menu-extra clicks.
+  None becomes key or main. Expanding never widens the interactive notch trigger.
 - Hover is detected by an `NSTrackingArea` (`.activeAlways`, `.inVisibleRect`,
   `.mouseEnteredAndExited`) on the hosting view — no global event monitor, so no Accessibility
   permission.
@@ -83,7 +94,8 @@ Synthetic provider tiles in brand and monochrome styles:
   collapse it.
 - `NotchUsageOverlayController` observes the setting and
   `NSApplication.didChangeScreenParametersNotification`; turning the setting off or losing the
-  notched screen cancels all pending transitions and tears both windows down without a relaunch.
+  notched screen cancels all pending transitions and tears all three windows down without a relaunch.
+  The display-only side summaries do not own hover; the notch trigger and main content retain that role.
 
 ## Provider presentation
 `NotchUsageOverlayModel.make(store:settings:agentSessions:)` walks

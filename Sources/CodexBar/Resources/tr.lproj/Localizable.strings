@@ -1673,7 +1673,6 @@
 "tab_notch" = "Çentik";
 "section_notch_overlay" = "Çentik yerleşimi";
 "notch_no_display_hint" = "Bu Mac'te çentikli dahili ekran yok, bu yüzden yerleşim gizli kalır.";
-"notch_agent_sessions_requires_menu" = "Önce Menü panelinde Aracı Oturumları'nı etkinleştirin.";
 "Agent Sessions" = "Aracı Oturumları";
 "No agent sessions found" = "Aracı oturumu bulunamadı";
 "now" = "şimdi";
@@ -1703,3 +1702,5 @@
 "notch_sessions_placement_below" = "Altta";
 "notch_autosize_footer" = "Genişlik otomatiktir — sütunları izler. Aşağıdaki her bölümün kendi en fazla yüksekliği vardır.";
 "notch_items_footer" = "Sıralamak için sürükleyin. Kutucuklar sütunları bu sırayla doldurur; bir satırı dışarıda bırakmak için kapatın.";
+"Match providers" = "Sağlayıcılarla eşleştir";
+"Column per harness" = "Araç başına sütun";

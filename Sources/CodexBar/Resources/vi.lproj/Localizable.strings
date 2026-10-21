@@ -1672,7 +1672,6 @@
 "tab_notch" = "Notch";
 "section_notch_overlay" = "Lớp phủ notch";
 "notch_no_display_hint" = "Mac này không có màn hình tích hợp với notch, nên lớp phủ vẫn bị ẩn.";
-"notch_agent_sessions_requires_menu" = "Hãy bật Phiên tác nhân trong bảng Menu trước.";
 "Agent Sessions" = "Phiên tác nhân";
 "No agent sessions found" = "Không tìm thấy phiên tác nhân";
 "now" = "vừa xong";
@@ -1702,3 +1701,5 @@
 "notch_sessions_placement_below" = "Phía dưới";
 "notch_autosize_footer" = "Chiều rộng tự động — theo số cột. Mỗi phần bên dưới có chiều cao tối đa riêng.";
 "notch_items_footer" = "Kéo để sắp xếp lại. Các ô lấp đầy cột theo thứ tự này; tắt một hàng để loại nó ra.";
+"Match providers" = "Giống nhà cung cấp";
+"Column per harness" = "Mỗi công cụ một cột";

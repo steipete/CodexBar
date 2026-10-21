@@ -1670,7 +1670,6 @@
 "tab_notch" = "Flik";
 "section_notch_overlay" = "Fliköverlägg";
 "notch_no_display_hint" = "Den här Macen har ingen inbyggd skärm med flik, så överlägget förblir dolt.";
-"notch_agent_sessions_requires_menu" = "Aktivera Agentsessioner i Meny-panelen först.";
 "Agent Sessions" = "Agentsessioner";
 "No agent sessions found" = "Inga agentsessioner hittades";
 "now" = "nu";
@@ -1700,3 +1699,5 @@
 "notch_sessions_placement_below" = "Nedanför";
 "notch_autosize_footer" = "Bredden är automatisk — den följer kolumnerna. Varje sektion nedan har sin egen största höjd.";
 "notch_items_footer" = "Dra för att ändra ordning. Brickorna fyller kolumnerna i denna ordning; stäng av en rad för att utesluta den.";
+"Match providers" = "Samma som leverantörer";
+"Column per harness" = "Kolumn per agentverktyg";

@@ -13,3 +13,20 @@ enum NotchSessionsPlacement: String, CaseIterable, Sendable {
         }
     }
 }
+
+enum NotchSessionsColumns: Int, CaseIterable, Sendable {
+    case matchProviders = 0
+    case perHarness = -1
+    case one = 1
+    case two = 2
+    case three = 3
+    case four = 4
+
+    var label: String {
+        switch self {
+        case .matchProviders: L("Match providers")
+        case .perHarness: L("Column per harness")
+        case .one, .two, .three, .four: String(self.rawValue)
+        }
+    }
+}

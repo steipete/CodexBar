@@ -59,7 +59,17 @@ struct NotchPane: View {
                         L("notch_agent_sessions_title"),
                         subtitle: L("notch_agent_sessions_subtitle"))
                 }
-                .disabled(!self.isEnabled || !self.settings.agentSessionsEnabled)
+                .disabled(!self.isEnabled)
+
+                Picker(selection: self.$settings.notchSessionsColumns) {
+                    ForEach(NotchSessionsColumns.allCases, id: \.self) { columns in
+                        Text(columns.label).tag(columns)
+                    }
+                } label: {
+                    SettingsRowLabel(L("notch_columns_title"))
+                }
+                .pickerStyle(.menu)
+                .disabled(!self.sessionsControlsEnabled)
 
                 Picker(selection: self.$settings.notchSessionsPlacement) {
                     ForEach(NotchSessionsPlacement.allCases, id: \.self) { placement in
@@ -80,10 +90,6 @@ struct NotchPane: View {
                     enabled: self.sessionsControlsEnabled)
             } header: {
                 Text(L("section_notch_sessions"))
-            } footer: {
-                if !self.settings.agentSessionsEnabled {
-                    SettingsSectionFooter(L("notch_agent_sessions_requires_menu"))
-                }
             }
 
             Section {
@@ -126,7 +132,7 @@ struct NotchPane: View {
     }
 
     private var sessionsControlsEnabled: Bool {
-        self.isEnabled && self.settings.agentSessionsEnabled && self.settings.notchShowsAgentSessions
+        self.isEnabled && self.settings.notchShowsAgentSessions
     }
 
     private struct Provider: Identifiable {

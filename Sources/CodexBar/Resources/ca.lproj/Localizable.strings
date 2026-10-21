@@ -1673,7 +1673,6 @@
 "tab_notch" = "Osca";
 "section_notch_overlay" = "Superposició de l'osca";
 "notch_no_display_hint" = "Aquest Mac no té pantalla integrada amb osca, així que la superposició queda oculta.";
-"notch_agent_sessions_requires_menu" = "Activeu primer Sessions d'agent al plafó Menú.";
 "Agent Sessions" = "Sessions d'agent";
 "No agent sessions found" = "No s'han trobat sessions d'agent";
 "now" = "ara";
@@ -1703,3 +1702,5 @@
 "notch_sessions_placement_below" = "A baix";
 "notch_autosize_footer" = "L'amplada és automàtica: segueix les columnes. Cada secció de sota té la seva pròpia alçada màxima.";
 "notch_items_footer" = "Arrossega per reordenar. Els mosaics omplen les columnes en aquest ordre; desactiva una fila per excloure-la.";
+"Match providers" = "Com els proveïdors";
+"Column per harness" = "Columna per eina";

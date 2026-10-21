@@ -577,6 +577,7 @@ extension SettingsStore {
             notchProvidersMaxHeight: notchProvidersMaxHeight,
             notchSessionsMaxHeight: notchSessionsMaxHeight,
             notchShowsAgentSessions: notchShowsAgentSessions,
+            notchSessionsColumnsRaw: userDefaults.integer(forKey: "notchSessionsColumns"),
             notchSessionsPlacementRaw: notchSessionsPlacementRaw,
             notchHotkeyModeRaw: notchHotkeyModeRaw,
             launchAtLogin: userDefaults.object(forKey: "launchAtLogin") as? Bool ?? false,

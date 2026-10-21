@@ -1674,7 +1674,6 @@
 "tab_notch" = "Tacca";
 "section_notch_overlay" = "Overlay della tacca";
 "notch_no_display_hint" = "Questo Mac non ha un display integrato con tacca, quindi l'overlay resta nascosto.";
-"notch_agent_sessions_requires_menu" = "Attiva prima Sessioni agente nel pannello Menu.";
 "Agent Sessions" = "Sessioni agente";
 "No agent sessions found" = "Nessuna sessione agente trovata";
 "now" = "ora";
@@ -1704,3 +1703,5 @@
 "notch_sessions_placement_below" = "Sotto";
 "notch_autosize_footer" = "La larghezza è automatica: segue le colonne. Ogni sezione qui sotto ha la propria altezza massima.";
 "notch_items_footer" = "Trascina per riordinare. I riquadri riempiono le colonne in quest'ordine; disattiva una riga per escluderla.";
+"Match providers" = "Come i fornitori";
+"Column per harness" = "Colonna per strumento";

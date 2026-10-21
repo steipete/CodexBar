@@ -13,6 +13,7 @@ struct SettingsDefaultsState {
     var notchProvidersMaxHeight: Double
     var notchSessionsMaxHeight: Double
     var notchShowsAgentSessions: Bool
+    var notchSessionsColumnsRaw: Int
     var notchSessionsPlacementRaw: String
     var notchHotkeyModeRaw: String
     var launchAtLogin: Bool

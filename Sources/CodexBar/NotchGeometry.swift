@@ -25,6 +25,15 @@ enum NotchGeometry {
         return CGRect(x: x, y: y, width: width, height: height)
     }
 
+    /// A separate, click-through surface joins the content to the top of the display.
+    static func headerFrame(contentFrame: CGRect, notchRect: CGRect) -> CGRect {
+        CGRect(x: contentFrame.minX, y: notchRect.minY, width: contentFrame.width, height: notchRect.height)
+    }
+
+    static func notchFrameInHeader(headerFrame: CGRect, notchRect: CGRect) -> CGRect {
+        notchRect.intersection(headerFrame).offsetBy(dx: -headerFrame.minX, dy: -headerFrame.minY)
+    }
+
     /// Computes the camera housing rectangle in global screen coordinates.
     static func notchRect(
         screenFrame: CGRect,

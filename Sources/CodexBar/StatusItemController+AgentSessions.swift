@@ -71,7 +71,7 @@ extension StatusItemController {
 
     func synchronizeAgentSessionsForSettingsChange() {
         let remoteConfigurationChanged =
-            self.settings.agentSessionsEnabled != self.lastAgentSessionsEnabled ||
+            self.settings.agentSessionsMonitoringEnabled != self.lastAgentSessionsMonitoringEnabled ||
             self.settings.agentSessionsManualHosts != self.lastAgentSessionsManualHosts
         let monitoringChanged =
             self.settings.stayAwakeEnabled != self.lastStayAwakeEnabled ||
@@ -80,7 +80,7 @@ extension StatusItemController {
         guard remoteConfigurationChanged || monitoringChanged else { return }
 
         self.lastStayAwakeEnabled = self.settings.stayAwakeEnabled
-        self.lastAgentSessionsEnabled = self.settings.agentSessionsEnabled
+        self.lastAgentSessionsMonitoringEnabled = self.settings.agentSessionsMonitoringEnabled
         self.lastAgentSessionsManualHosts = self.settings.agentSessionsManualHosts
         self.lastAgentSessionsRefreshFrequency = self.settings.refreshFrequency
         self.lastAdaptiveActivityScanningEnabled = self.settings.adaptiveActivityScanningEnabled

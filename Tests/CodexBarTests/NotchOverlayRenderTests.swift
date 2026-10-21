@@ -18,14 +18,14 @@ final class NotchOverlayRenderTests: XCTestCase {
             userDefaults: InMemoryUserDefaults(),
             config: CodexBarConfig(providers: [
                 ProviderConfig(id: .claude, enabled: true),
-                ProviderConfig(id: .gemini, enabled: true),
+                ProviderConfig(id: .codex, enabled: true),
             ]))
         let store = UsageStore(
             fetcher: UsageFetcher(environment: [:]),
             browserDetection: BrowserDetection(cacheTTL: 0),
             settings: settings)
         let now = Date()
-        for provider in [UsageProvider.claude, .gemini] {
+        for provider in [UsageProvider.claude, .codex] {
             store._setSnapshotForTesting(UsageSnapshot(
                 primary: RateWindow(
                     usedPercent: 20,
@@ -37,6 +37,19 @@ final class NotchOverlayRenderTests: XCTestCase {
                     windowMinutes: 10080,
                     resetsAt: now.addingTimeInterval(86400),
                     resetDescription: nil),
+                codexResetCredits: provider == .codex ? CodexRateLimitResetCreditsSnapshot(
+                    credits: [CodexRateLimitResetCredit(
+                        id: "synthetic-reset-credit",
+                        resetType: "codex_rate_limits",
+                        status: .available,
+                        grantedAt: now,
+                        expiresAt: now.addingTimeInterval(86400),
+                        redeemStartedAt: nil,
+                        redeemedAt: nil,
+                        title: nil,
+                        description: nil)],
+                    availableCount: 1,
+                    updatedAt: now) : nil,
                 updatedAt: now), provider: provider)
         }
         settings.notchColumnCount = 2
@@ -64,14 +77,29 @@ final class NotchOverlayRenderTests: XCTestCase {
             .frame(width: 700, height: 220)
             .background(Color(nsColor: .windowBackgroundColor)))
         try Self.render(overlay, appearance: .darkAqua, to: output.appendingPathComponent("overlay.png"))
-        settings.agentSessionsEnabled = true
+        settings.menuBarShowsBrandIconWithPercent = true
+        state.notchFrameInHeader = CGRect(x: 240, y: 0, width: 220, height: 40)
+        let joined = AnyView(VStack(spacing: 0) {
+            NotchUsageHeaderView(store: store, settings: settings, viewState: state)
+                .frame(width: 700, height: 40)
+                .overlay(alignment: .top) {
+                    UnevenRoundedRectangle(bottomLeadingRadius: 10, bottomTrailingRadius: 10)
+                        .fill(.black)
+                        .frame(width: 220, height: 40)
+                }
+            NotchUsageOverlayView(store: store, settings: settings, agentSessions: nil, viewState: state)
+                .frame(width: 700, height: 220)
+        }
+        .background(Color(nsColor: .windowBackgroundColor)))
+        try Self.render(joined, appearance: .darkAqua, to: output.appendingPathComponent("notch-header-synthetic.png"))
+        settings.notchUsageSummaryEnabled = true
         settings.notchShowsAgentSessions = true
         settings.notchSessionsMaxHeight = 1600
         let sessions = AgentSessionsStore(settings: settings)
         sessions.applyLocalScanResult((1...80).map { index in
             AgentSession(
                 id: "fixture-\(index)",
-                provider: .codex,
+                provider: index.isMultiple(of: 2) ? .codex : .claude,
                 source: .cli,
                 state: .active,
                 pid: Int32(index),
@@ -87,6 +115,8 @@ final class NotchOverlayRenderTests: XCTestCase {
             .frame(width: 700, height: 400)
             .background(Color(nsColor: .windowBackgroundColor)))
         try Self.render(tall, appearance: .darkAqua, to: output.appendingPathComponent("tall-sessions.png"))
+        settings.notchSessionsColumns = .perHarness
+        try Self.render(tall, appearance: .darkAqua, to: output.appendingPathComponent("harness-columns.png"))
         let pane = AnyView(NotchPane(settings: settings, store: store)
             .frame(width: 650, height: 920))
         try Self.render(pane, appearance: .darkAqua, to: output.appendingPathComponent("settings.png"))

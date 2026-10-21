@@ -20,6 +20,7 @@ struct NotchUsageOverlayModel: Equatable {
         let tint: Color
         let bars: [Bar]
         let statusText: String?
+        var resetCredits: LimitResetCreditsPresentation?
 
         /// VoiceOver summary for the whole tile. The tile is one combined accessibility element,
         /// so the label has to carry the bar details itself — overriding it with just the name
@@ -39,6 +40,15 @@ struct NotchUsageOverlayModel: Equatable {
         let title: String
         let detail: String
         let isActive: Bool
+        let harness: String
+    }
+
+    struct HeaderItem: Equatable, Identifiable {
+        let id: String
+        let provider: ProviderInstanceID
+        let title: String
+        let value: String
+        let accessibilityLabel: String
     }
 
     /// The agent-session list, rendered as a full-width band above or below the provider grid.
@@ -46,6 +56,8 @@ struct NotchUsageOverlayModel: Equatable {
     struct SessionsBand: Equatable {
         let title: String
         let rows: [SessionRow]
+        let columns: [[SessionRow]]
+        let groupedByHarness: Bool
     }
 
     /// Provider tiles, in display order.
@@ -58,6 +70,29 @@ struct NotchUsageOverlayModel: Equatable {
     /// Which side of the grid the band sits on; ignored when `sessionsBand` is nil.
     var sessionsAbove = false
     var iconStyle: ProviderBrandIcon.Style = .monochrome
+
+    /// Reuse the account-scoped menu presentation, including hidden-item and expiry filtering.
+    var headerItems: [HeaderItem] {
+        let credits = self.items.compactMap { row -> HeaderItem? in
+            guard let credits = row.resetCredits else { return nil }
+            return HeaderItem(
+                id: "\(row.id.rawValue):reset-credits",
+                provider: row.id,
+                title: L("Limit Reset Credits"),
+                value: credits.text,
+                accessibilityLabel: "\(row.name), \(credits.accessibilityLabel)")
+        }
+        let quotas = self.items.compactMap { row -> HeaderItem? in
+            guard let bar = row.bars.first else { return nil }
+            return HeaderItem(
+                id: "\(row.id.rawValue):quota",
+                provider: row.id,
+                title: bar.title,
+                value: bar.percentText,
+                accessibilityLabel: "\(row.name), \(bar.accessibilityLabel)")
+        }
+        return Array((credits + quotas).prefix(2))
+    }
 
     /// Round-robin placement shared by the tile grid and the full-width session band: element `i`
     /// goes to column `i % count`, so reading across a row follows list order.
@@ -150,13 +185,20 @@ struct NotchUsageOverlayModel: Equatable {
         }
 
         var sessionsBand: SessionsBand?
-        if settings.notchShowsAgentSessions, settings.agentSessionsEnabled, let agentSessions {
+        if settings.notchShowsAgentSessions, let agentSessions {
+            let rows = self.sessionRows(
+                agentSessions: agentSessions,
+                labelStyle: settings.agentSessionLabelStyle,
+                now: now)
+            let grouped = settings.notchSessionsColumns == .perHarness
+            let columns = grouped
+                ? Dictionary(grouping: rows, by: \.harness).sorted { $0.key < $1.key }.map(\.value)
+                : Self.distribute(
+                    rows,
+                    into: settings.notchSessionsColumns == .matchProviders
+                        ? settings.notchColumnCount : settings.notchSessionsColumns.rawValue)
             sessionsBand = SessionsBand(
-                title: L("Agent Sessions"),
-                rows: self.sessionRows(
-                    agentSessions: agentSessions,
-                    labelStyle: settings.agentSessionLabelStyle,
-                    now: now))
+                title: L("Agent Sessions"), rows: rows, columns: columns, groupedByHarness: grouped)
         }
 
         let items: [ProviderRow] = settings.notchOrderedItemKeys(availableKeys).compactMap { key in
@@ -238,7 +280,8 @@ struct NotchUsageOverlayModel: Equatable {
             name: card.providerName,
             tint: card.progressColor,
             bars: bars,
-            statusText: card.subtitleStyle == .error ? card.subtitleText : (bars.isEmpty ? card.placeholder : nil))
+            statusText: card.subtitleStyle == .error ? card.subtitleText : (bars.isEmpty ? card.placeholder : nil),
+            resetCredits: card.limitResetCredits)
     }
 
     @MainActor
@@ -273,7 +316,9 @@ struct NotchUsageOverlayModel: Equatable {
             id: [host, session.id].compactMap(\.self).joined(separator: "@"),
             title: labelStyle.label(for: session),
             detail: detailParts.joined(separator: " · "),
-            isActive: session.state == .active)
+            isActive: session.state == .active,
+            harness: session.dialect == .omp ? "OMP" : (session.dialect?.rawValue ?? session.provider.rawValue)
+                .capitalized)
     }
 
     private static func sessionAge(_ session: AgentSession, now: Date) -> String {

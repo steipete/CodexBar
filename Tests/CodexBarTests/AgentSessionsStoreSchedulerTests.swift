@@ -141,6 +141,40 @@ private actor AgentSessionRefreshSpy {
 @MainActor
 struct AgentSessionsStoreSchedulerTests {
     @Test
+    func `notch sessions own scanning independently of menu visibility`() async {
+        let settings = testSettingsStore(suiteName: "AgentSessionsStoreSchedulerTests-notch")
+        settings.refreshFrequency = .manual
+        let spy = AgentSessionRefreshSpy()
+        let store = Self.makeStore(settings: settings, spy: spy)
+        defer { store.stop() }
+        store.start()
+
+        settings.notchShowsAgentSessions = true
+        store.settingsDidChange()
+        #expect(!store.localMonitoringEnabled)
+        settings.notchUsageSummaryEnabled = true
+        store.settingsDidChange()
+        await spy.waitForLocalCallCount(1)
+        await spy.waitForRemoteCallCount(1)
+        #expect(!settings.agentSessionsEnabled)
+        #expect(store.schedulerState.hasLocalPeriodicTask)
+        #expect(store.schedulerState.hasRemotePeriodicTask)
+        #expect(await spy.localCalls == [true])
+
+        settings.notchUsageSummaryEnabled = false
+        store.settingsDidChange()
+        #expect(!store.schedulerState.hasLocalPeriodicTask)
+        #expect(!store.schedulerState.hasRemotePeriodicTask)
+        #expect(store.localSessions.isEmpty)
+        #expect(store.remoteHosts.isEmpty)
+
+        settings.agentSessionsEnabled = true
+        store.settingsDidChange()
+        #expect(store.localMonitoringEnabled)
+        #expect(store.schedulerState.hasRemotePeriodicTask)
+    }
+
+    @Test
     func `periodic schedulers match all lifecycle and settings states`() {
         let settings = testSettingsStore(suiteName: "AgentSessionsStoreSchedulerTests-states")
         let store = Self.makeStore(settings: settings)

@@ -1685,7 +1685,6 @@
 "tab_notch" = "刘海";
 "section_notch_overlay" = "刘海浮层";
 "notch_no_display_hint" = "此 Mac 没有带刘海的内置显示屏，因此浮层不会显示。";
-"notch_agent_sessions_requires_menu" = "请先在“菜单”面板中启用代理会话。";
 "Agent Sessions" = "代理会话";
 "No agent sessions found" = "未找到代理会话";
 "No usage fetched yet" = "尚未获取用量";
@@ -1714,3 +1713,5 @@
 "notch_sessions_placement_below" = "下方";
 "notch_autosize_footer" = "宽度自动跟随列数。下面每个部分都有自己的最大高度。";
 "notch_items_footer" = "拖动以重新排序。磁贴按此顺序填充各列；关闭某一行即可将其排除。";
+"Match providers" = "与服务商一致";
+"Column per harness" = "每种代理工具一列";

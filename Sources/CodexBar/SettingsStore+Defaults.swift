@@ -183,6 +183,11 @@ extension SettingsStore {
         }
     }
 
+    var notchSessionsColumns: NotchSessionsColumns {
+        get { NotchSessionsColumns(rawValue: self.defaultsState.notchSessionsColumnsRaw) ?? .matchProviders }
+        set { self.setDefault(\.notchSessionsColumnsRaw, newValue.rawValue, key: "notchSessionsColumns") }
+    }
+
     var notchSessionsPlacement: NotchSessionsPlacement {
         get { NotchSessionsPlacement(rawValue: self.defaultsState.notchSessionsPlacementRaw) ?? .below }
         set {
@@ -1218,6 +1223,10 @@ extension SettingsStore {
     var agentSessionsEnabled: Bool {
         get { self.defaultsState.agentSessionsEnabled }
         set { self.setDefault(\.agentSessionsEnabled, newValue, key: "agentSessionsEnabled") }
+    }
+
+    var agentSessionsMonitoringEnabled: Bool {
+        self.agentSessionsEnabled || (self.notchUsageSummaryEnabled && self.notchShowsAgentSessions)
     }
 
     var agentSessionLabelStyle: AgentSessionLabelStyle {

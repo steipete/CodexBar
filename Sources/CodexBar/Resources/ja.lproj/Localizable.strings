@@ -1671,7 +1671,6 @@
 "tab_notch" = "ノッチ";
 "section_notch_overlay" = "ノッチオーバーレイ";
 "notch_no_display_hint" = "この Mac にはノッチ付きの内蔵ディスプレイがないため、オーバーレイは表示されません。";
-"notch_agent_sessions_requires_menu" = "先にメニュー画面でエージェントセッションを有効にしてください。";
 "Agent Sessions" = "エージェントセッション";
 "No agent sessions found" = "エージェントセッションが見つかりません";
 "now" = "たった今";
@@ -1701,3 +1700,5 @@
 "notch_sessions_placement_below" = "下";
 "notch_autosize_footer" = "幅は自動で、列数に従います。以下の各セクションには独自の最大の高さがあります。";
 "notch_items_footer" = "ドラッグして並べ替えます。タイルはこの順序で列に配置されます。除外するには行をオフにします。";
+"Match providers" = "プロバイダに合わせる";
+"Column per harness" = "ツールごとに列を分ける";

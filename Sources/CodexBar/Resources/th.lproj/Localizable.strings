@@ -1675,7 +1675,6 @@
 "tab_notch" = "รอยบาก";
 "section_notch_overlay" = "การซ้อนทับรอยบาก";
 "notch_no_display_hint" = "Mac นี้ไม่มีจอในตัวที่มีรอยบาก จึงไม่แสดงการซ้อนทับ";
-"notch_agent_sessions_requires_menu" = "เปิดเซสชันเอเจนต์ในแผงเมนูก่อน";
 "Agent Sessions" = "เซสชันเอเจนต์";
 "No agent sessions found" = "ไม่พบเซสชันเอเจนต์";
 "now" = "เมื่อสักครู่";
@@ -1705,3 +1704,5 @@
 "notch_sessions_placement_below" = "ด้านล่าง";
 "notch_autosize_footer" = "ความกว้างปรับอัตโนมัติตามคอลัมน์ แต่ละส่วนด้านล่างมีความสูงสูงสุดของตัวเอง";
 "notch_items_footer" = "ลากเพื่อจัดลำดับใหม่ ไทล์จะเรียงลงคอลัมน์ตามลำดับนี้ ปิดแถวเพื่อไม่ให้แสดง";
+"Match providers" = "เหมือนผู้ให้บริการ";
+"Column per harness" = "หนึ่งคอลัมน์ต่อเครื่องมือ";

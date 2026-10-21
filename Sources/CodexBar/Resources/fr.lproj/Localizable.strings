@@ -1670,7 +1670,6 @@
 "tab_notch" = "Encoche";
 "section_notch_overlay" = "Superposition de l'encoche";
 "notch_no_display_hint" = "Ce Mac n'a pas d'écran intégré avec encoche, la superposition reste donc masquée.";
-"notch_agent_sessions_requires_menu" = "Activez d'abord les sessions d'agent dans le volet Menu.";
 "Agent Sessions" = "Sessions d'agent";
 "No agent sessions found" = "Aucune session d'agent trouvée";
 "now" = "maintenant";
@@ -1700,3 +1699,5 @@
 "notch_sessions_placement_below" = "En dessous";
 "notch_autosize_footer" = "La largeur est automatique — elle suit les colonnes. Chaque section ci-dessous a sa propre hauteur maximale.";
 "notch_items_footer" = "Faites glisser pour réordonner. Les tuiles remplissent les colonnes dans cet ordre ; désactivez une ligne pour l'exclure.";
+"Match providers" = "Comme les fournisseurs";
+"Column per harness" = "Colonne par outil";

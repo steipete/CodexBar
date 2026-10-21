@@ -49,6 +49,34 @@ struct NotchGeometryTests {
         #expect(!frame.intersects(rightMenu))
         #expect(screen.contains(frame))
         #expect(frame.size == CGSize(width: 875, height: 283))
+
+        let header = NotchGeometry.headerFrame(contentFrame: frame, notchRect: notch)
+        let cutout = NotchGeometry.notchFrameInHeader(headerFrame: header, notchRect: notch)
+        #expect(header.minY == frame.maxY)
+        #expect(header.maxY == screen.maxY)
+        #expect(header.minX == frame.minX)
+        #expect(header.width == frame.width)
+        #expect(screen.contains(header))
+        #expect(cutout.offsetBy(dx: header.minX, dy: header.minY) == notch)
+    }
+
+    @Test
+    func `header reserves the real camera position when the display clamps its width`() throws {
+        let screen = CGRect(x: -1512, y: 100, width: 1512, height: 982)
+        let notch = try #require(NotchGeometry.notchRect(
+            screenFrame: screen,
+            topInset: 32,
+            auxiliaryTopLeftWidth: 500,
+            auxiliaryTopRightWidth: 812))
+        let content = NotchGeometry.expandedContentFrame(
+            screenFrame: screen, notchRect: notch, contentSize: CGSize(width: 10000, height: 500))
+        let header = NotchGeometry.headerFrame(contentFrame: content, notchRect: notch)
+        let cutout = NotchGeometry.notchFrameInHeader(headerFrame: header, notchRect: notch)
+        #expect(cutout.minX == 500)
+        #expect(cutout.width == 200)
+        #expect(cutout.midX != header.width / 2)
+        #expect(header.maxY == screen.maxY)
+        #expect(content.maxY == header.minY)
     }
 
     @Test

@@ -1670,7 +1670,6 @@
 "tab_notch" = "Muesca";
 "section_notch_overlay" = "Superposición da muesca";
 "notch_no_display_hint" = "Este Mac non ten pantalla integrada con muesca, así que a superposición queda oculta.";
-"notch_agent_sessions_requires_menu" = "Activa primeiro Sesións de axente no panel Menú.";
 "Agent Sessions" = "Sesións de axente";
 "No agent sessions found" = "Non se atoparon sesións de axente";
 "now" = "agora";
@@ -1700,3 +1699,5 @@
 "notch_sessions_placement_below" = "Abaixo";
 "notch_autosize_footer" = "O ancho é automático: segue as columnas. Cada sección de abaixo ten a súa propia altura máxima.";
 "notch_items_footer" = "Arrastra para reordenar. Os mosaicos enchen as columnas nesta orde; desactiva unha fila para excluíla.";
+"Match providers" = "Igual ca os provedores";
+"Column per harness" = "Columna por ferramenta";
