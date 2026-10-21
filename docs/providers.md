@@ -122,6 +122,7 @@ complete when the available scan window covers fewer days.
 | OpenRouter | API token (config, overrides env) → key quota and credits APIs; a management key enables account Activity on the official API (`api`). |
 | Perplexity | Browser cookies/manual cookie/env session token → credits API (`web`). |
 | Xiaomi MiMo | Browser cookies → balance/token plan endpoints (`web`). |
+| Trae CN | Manual `Cookie:` header → plan credits entitlement endpoint (`web`). |
 | Doubao | API key from config/env → Volcengine Ark chat-completions probe (`api`). |
 | Sakana AI | Manual Cookie header → billing page parser for 5-hour/weekly quota windows plus a best-effort pay-as-you-go credit balance (`web`). |
 | Abacus AI | Browser cookies → compute points + billing API (`web`). |
@@ -516,6 +517,14 @@ provider-specific cookie validation, endpoints, login detection, and error trans
 - Local MiMo token accounting is available only when the opt-in cache file exists.
 - Status: none yet.
 - Details: `docs/mimo.md`.
+
+## Trae CN
+- Manual `Cookie:` header from `www.trae.cn` (DevTools → Network → any `api.trae.cn` request); no automatic
+  browser import.
+- Reads the plan entitlement endpoint for total/used credits and the monthly reset date.
+- Optional testing override via `TRAECN_API_URL`; overrides must be HTTPS or bare hosts normalized to HTTPS.
+- Status: none yet.
+- Details: `docs/traecn.md`.
 
 ## Doubao
 - API key via `ARK_API_KEY`, `VOLCENGINE_API_KEY`, `DOUBAO_API_KEY`, or provider config.

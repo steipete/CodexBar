@@ -111,5 +111,6 @@ public enum ProviderManifest {
         ParallelProviderDescriptor.descriptor,
         ClaudePlatformProviderDescriptor.descriptor,
         MunitoProviderDescriptor.descriptor,
+        TraeCNProviderDescriptor.descriptor,
     ]
 }
