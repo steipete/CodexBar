@@ -2112,6 +2112,8 @@
 "Poe usage history is unavailable." = "O historial de uso de Poe non está dispoñible.";
 "Stored in ~/.codexbar/config.json. Get your key from poe.com/api/keys." = "Almacenado en ~/.codexbar/config.json. Obtén a túa chave de poe.com/api/keys.";
 "Billing" = "Facturación";
+"Invoice billing" = "Pagamento mediante factura";
+"Prepaid" = "Prepago";
 "Rate limit" = "Límite de taxa";
 "Billing and rate-limit data from the v0 Platform API" = "Datos de facturación e límite de tarifa da plataforma v0 API";
 "v0 cost history is not available via the Platform API." = "O historial de custos v0 non está dispoñible a través da plataforma API.";
@@ -2744,3 +2746,11 @@
 "No personal budget configured" = "Non hai ningún orzamento persoal configurado";
 
 "monthly_daily_target_format" = "≈ %@ / día para que dure ata o restablecemento";
+
+"Trae CN" = "Trae CN";
+"Show Trae CN usage" = "Amosar o uso de Trae CN";
+"Sign in to Trae CN at trae.cn, then refresh CodexBar." = "Inicia sesión en Trae CN en trae.cn e despois actualiza CodexBar.";
+"Trae CN usage response format changed." = "Cambiou o formato da resposta de uso de Trae CN.";
+"Trae CN request failed. Try refreshing later." = "Fallou a solicitude a Trae CN. Tenta actualizar máis tarde.";
+"Use --provider copilot." = "Usa --provider copilot.";
+"Config changed during login. Please try again." = "A configuración cambiou durante o inicio de sesión. Téntao de novo.";

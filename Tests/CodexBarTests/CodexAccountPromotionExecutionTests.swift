@@ -522,6 +522,84 @@ struct CodexAccountPromotionExecutionTests {
         }
     }
 
+    @Test
+    func `promotion import keeps saved accounts with a different email`() async throws {
+        let container = try CodexAccountPromotionTestContainer(
+            suiteName: "CodexAccountPromotionExecutionTests-import-sibling-retention")
+        defer { container.tearDown() }
+
+        let target = try container.createManagedAccount(
+            persistedEmail: "target@example.com",
+            authAccountID: "acct-target")
+        let sibling = try container.createManagedAccount(
+            persistedEmail: "sibling@example.com",
+            authAccountID: "acct-sibling")
+        try container.persistAccounts([target, sibling])
+        let siblingAuthBefore = try container.managedAuthData(for: sibling)
+        _ = try container.writeLiveOAuthAuthFile(email: "displaced@example.com", accountID: "acct-displaced")
+        let context = try await self.makeContext(container: container, targetID: target.id)
+        let executor = CodexDisplacedLivePreservationExecutor(
+            store: container.fileStore,
+            homeFactory: container.homeFactory,
+            fileManager: .default)
+
+        let result = try executor.execute(
+            plan: .importNew(reason: .noExistingManagedDestination),
+            context: context)
+
+        let importedID: UUID? = if case let .imported(managedAccountID) = result {
+            managedAccountID
+        } else {
+            nil
+        }
+        let persistedImportedID = try #require(importedID)
+        let persisted = try container.loadAccounts()
+        #expect(persisted.accounts.count == 3)
+        let preservedSibling = try #require(persisted.account(id: sibling.id))
+        #expect(preservedSibling.email == "sibling@example.com")
+        #expect(preservedSibling.managedHomePath == sibling.managedHomePath)
+        #expect(try container.managedAuthData(for: preservedSibling) == siblingAuthBefore)
+        #expect(FileManager.default.fileExists(atPath: sibling.managedHomePath))
+        #expect(persisted.account(id: target.id) != nil)
+        #expect(persisted.account(id: persistedImportedID) != nil)
+    }
+
+    @Test
+    func `promotion refresh keeps saved accounts with a different email`() async throws {
+        let container = try CodexAccountPromotionTestContainer(
+            suiteName: "CodexAccountPromotionExecutionTests-refresh-sibling-retention")
+        defer { container.tearDown() }
+
+        let target = try container.createManagedAccount(
+            persistedEmail: "target@example.com",
+            authAccountID: "acct-target")
+        let sibling = try container.createManagedAccount(
+            persistedEmail: "sibling@example.com",
+            authAccountID: "acct-sibling")
+        try container.persistAccounts([target, sibling])
+        let targetAuthBefore = try container.managedAuthData(for: target)
+        _ = try container.writeLiveOAuthAuthFile(email: "sibling@example.com", accountID: "acct-sibling")
+        let context = try await self.makeContext(container: container, targetID: target.id)
+        let destination = try #require(context.storedManagedAccounts.first { $0.persisted.id == sibling.id })
+        let executor = CodexDisplacedLivePreservationExecutor(
+            store: container.fileStore,
+            homeFactory: container.homeFactory,
+            fileManager: .default)
+
+        let result = try executor.execute(
+            plan: .refreshExisting(destination: destination, reason: .readableHomeIdentityMatch),
+            context: context)
+
+        #expect(result == .alreadyManaged(managedAccountID: sibling.id))
+        let persisted = try container.loadAccounts()
+        #expect(persisted.accounts.count == 2)
+        let preservedTarget = try #require(persisted.account(id: target.id))
+        #expect(preservedTarget.email == "target@example.com")
+        #expect(preservedTarget.managedHomePath == target.managedHomePath)
+        #expect(try container.managedAuthData(for: preservedTarget) == targetAuthBefore)
+        #expect(FileManager.default.fileExists(atPath: target.managedHomePath))
+    }
+
     private func makeContext(
         container: CodexAccountPromotionTestContainer,
         targetID: UUID)

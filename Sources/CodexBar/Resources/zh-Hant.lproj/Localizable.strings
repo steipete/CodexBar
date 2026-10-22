@@ -2095,6 +2095,8 @@
 "Poe usage history is unavailable." = "Poe 使用歷史記錄不可用。";
 "Stored in ~/.codexbar/config.json. Get your key from poe.com/api/keys." = "儲存在~/.codexbar/config.json中。從 poe.com/api/keys 取得金鑰。";
 "Billing" = "計費";
+"Invoice billing" = "帳單付款";
+"Prepaid" = "預付";
 "Rate limit" = "速率限制";
 "Billing and rate-limit data from the v0 Platform API" = "來自 v0 平台 API 的計費和速率限制數據";
 "v0 cost history is not available via the Platform API." = "v0 成本歷史記錄無法透過平台 API 取得。";
@@ -2723,3 +2725,11 @@
 "No personal budget configured" = "尚未設定個人預算";
 
 "monthly_daily_target_format" = "每天約 %@，可用至重置";
+
+"Trae CN" = "Trae CN";
+"Show Trae CN usage" = "顯示 Trae CN 用量";
+"Sign in to Trae CN at trae.cn, then refresh CodexBar." = "請在 trae.cn 登入 Trae CN，然後重新整理 CodexBar。";
+"Trae CN usage response format changed." = "Trae CN 用量回應格式已變更。";
+"Trae CN request failed. Try refreshing later." = "Trae CN 請求失敗。請稍後嘗試重新整理。";
+"Use --provider copilot." = "請使用 --provider copilot。";
+"Config changed during login. Please try again." = "登入期間設定已變更。請重試。";

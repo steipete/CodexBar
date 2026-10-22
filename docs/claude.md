@@ -627,7 +627,7 @@ Model-scoped weekly-window proof (synthetic data, no real accounts or credential
   - Claude/Vertex filtering checks raw lines for possible metadata markers before walking decoded metadata. IDs and model names are checked in their decoded fields, so `@` and `_vrtx_` in tool content do not trigger that walk. Vertex-only scans skip decoding lines without any possible marker; escaped markers retain the full classifier and existing attribution rules.
   - Uses per-model token counts (input, cache read/create, output).
   - Oversized local token or cost values cannot crash history scanning. An overflowing token total stays unavailable while independent counts and finite dollar estimates remain visible; raw rows are retained for later repricing.
-  - Deduplicates cumulative streaming chunks by `message.id + requestId`. When `requestId` is absent,
+  - Deduplicates cumulative streaming chunks by `message.id + requestId`, accepting Cowork's `request_id` alias so audit and embedded transcript copies count once. When both request fields are absent,
     exact, nonblank `sessionId + message.id` (or Cowork's `session_id`) identifies repeated response snapshots. Distinct explicit request
     IDs and distinct fallback sessions remain separate. Rows without sufficient identity are counted individually.
     Within a file, the final complete cumulative chunk wins, including later appends. Copied records retain the
@@ -638,6 +638,7 @@ Model-scoped weekly-window proof (synthetic data, no real accounts or credential
   - Claude-swap history contributes to the combined Claude total, including when an explicit `$CLAUDE_CONFIG_DIR` is set. Shared-history symlinks are scanned once, copied responses use the same deduplication as native logs, and missing profile directories do not prevent other homes from contributing. Local cost records do not establish per-account attribution.
 - Quota-week menu cards reuse the immutable snapshot’s day projection, warmed in the background. New snapshots and changed bucket time zones rebuild it; reset observations and the current time remain live on every card build.
 - Cache:
+  - Bundled fallback pricing includes Claude Mythos 5.1 and Mythos 5 at [Anthropic's published rates](https://platform.claude.com/docs/en/about-claude/pricing). The report-semantics update reprices retained usage without rereading unchanged transcripts.
   - GPT usage recorded through Claude Code uses the bundled OpenAI model's long-context boundary (272K for supported models), while retaining catalog rates. Uncached input and cache-read/create tokens all contribute to the prompt length. Saved reports are recalculated after pricing corrections without discarding retained Codex history.
   - Native provider cache: `~/Library/Caches/CodexBar/cost-usage/claude-v6.json`. This is a small manifest; its sibling `claude-v6.json.fragments` directory holds immutable JSON shards grouped by transcript project/directory, including source identities and empty-file parse offsets.
   - Report memo: `~/Library/Caches/CodexBar/cost-usage/claude-v6.report-memo.json` stores the daily report and references project shards for source stamps. It is reused only while transcript inventory, cache/pricing artifacts, requested window, and report-semantics revision still match.

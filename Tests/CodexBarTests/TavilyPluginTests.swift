@@ -79,6 +79,36 @@ struct TavilyPluginTests {
     }
 
     @Test(arguments: BundledPluginTestSupport.engines)
+    func `null paygo limit keeps plan and usage and leaves the cap unspecified`(
+        engine: ProviderPluginEngineKind) async throws
+    {
+        let free = try await Self.fetch(
+            engine: engine,
+            body: #"""
+            {"key":{"usage":3,"limit":null},"account":{"current_plan":"Researcher",
+            "plan_usage":10,"plan_limit":1000,"paygo_usage":0,"paygo_limit":null}}
+            """#)
+        #expect(free.primary?.usedPercent == 1)
+        #expect(free.identity?.loginMethod == "Researcher")
+        #expect(free.details.map(\.title) == ["Account plan", "API key", "Pay as you go"])
+        #expect(free.details[0].rows.map(\.value) == ["10 credits", "1,000 credits", "990 credits"])
+        #expect(free.details[2].rows.map(\.label) == ["Used"])
+        #expect(free.details[2].rows.map(\.value) == ["0 credits"])
+        let numeric = try await Self.fetch(engine: engine)
+        #expect(numeric.details[2].rows.map(\.value) == ["25 credits", "100 credits", "75 credits"])
+        for bad in [#""100""#, "-1", "true"] {
+            do {
+                _ = try await Self.fetch(
+                    engine: engine,
+                    body: Self.fixture.replacingOccurrences(of: #""paygo_limit":100"#, with: #""paygo_limit":\#(bad)"#))
+                Issue.record("Expected a classified parse failure")
+            } catch let error as ProviderFetchClassifiedError {
+                #expect(error.kind == .parseFailure)
+            }
+        }
+    }
+
+    @Test(arguments: BundledPluginTestSupport.engines)
     func `malformed numeric fields and payloads fail without response disclosure`(
         engine: ProviderPluginEngineKind) async throws
     {

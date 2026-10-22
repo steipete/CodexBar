@@ -237,7 +237,7 @@ extension SettingsStore {
             return Set(storedIDs.map(ProviderUsageItemID.init(rawValue:)))
         }
 
-        var hiddenIDs = Set<ProviderUsageItemID>()
+        var hiddenIDs = Self.defaultHiddenUsageItemIDs(for: provider)
         // Provider-specific by design: migrate the legacy Codex Spark and Claude Daily Routines visibility toggles.
         if provider == .codex, !self.codexSparkUsageVisible {
             hiddenIDs.insert(.metric("codex-spark"))
@@ -251,6 +251,15 @@ extension SettingsStore {
 
     func isUsageItemVisible(_ itemID: ProviderUsageItemID, for provider: UsageProvider) -> Bool {
         !self.hiddenUsageItemIDs(for: provider).contains(itemID)
+    }
+
+    func hasCustomUsageItemVisibility(for provider: UsageProvider) -> Bool {
+        self.hiddenUsageItemIDs(for: provider) != Self.defaultHiddenUsageItemIDs(for: provider)
+    }
+
+    private static func defaultHiddenUsageItemIDs(for provider: UsageProvider) -> Set<ProviderUsageItemID> {
+        Set(ProviderDescriptorRegistry.descriptor(for: provider).presentation.menuCard.defaultHiddenUsageItemIDs
+            .map(ProviderUsageItemID.init(rawValue:)))
     }
 
     func setUsageItemVisible(
@@ -271,12 +280,13 @@ extension SettingsStore {
     }
 
     func restoreDefaultUsageItemVisibility(for provider: UsageProvider) {
-        guard !self.hiddenUsageItemIDs(for: provider).isEmpty ||
+        guard self.hasCustomUsageItemVisibility(for: provider) ||
             self.providerConfig(for: provider)?.hiddenUsageItemIDs == nil
         else { return }
 
-        self.persistHiddenUsageItemIDs([], for: provider)
-        self.updateLegacyUsageVisibility(provider: provider, hiddenItemIDs: [])
+        let defaultIDs = Self.defaultHiddenUsageItemIDs(for: provider)
+        self.persistHiddenUsageItemIDs(defaultIDs, for: provider)
+        self.updateLegacyUsageVisibility(provider: provider, hiddenItemIDs: defaultIDs)
     }
 
     private func persistHiddenUsageItemIDs(

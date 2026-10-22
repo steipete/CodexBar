@@ -17,8 +17,8 @@ script. Settings-derived origins include the private-network HTTP policy for LLM
 
 `converted` means the bundled conversion is present behind `CODEXBAR_JS_PROVIDERS=1`. `cut-over` means the script is
 authoritative on its supported engines; each row states whether a Linux native core remains. Totals count only the
-69 audit rows below, excluding the separately listed plugin-first additions. The registry now contains 106 providers:
-69 audit rows, 28 additional plugin-first rows, and 9 providers not yet classified in this matrix (CodeRabbit,
+69 audit rows below, excluding the separately listed plugin-first additions. The registry now contains 108 providers:
+69 audit rows, 30 additional plugin-first rows, and 9 providers not yet classified in this matrix (CodeRabbit,
 Hugging Face, IBM Bob, Muse, Nous, Pi, Replicate, TypeSafe, and v0).
 
 `needs-cookie-import` now means **additional cookie/session capability**, not absence of cookie import. The current
@@ -57,9 +57,9 @@ Abacus, Muse, LongCat, Replicate, and TypeSafe unchanged.
 | `needs-pty/webview/native` | 8 |
 | `needs-host-extension` | 4 |
 | **Audit total** | **69** |
-| Additional plugin-first providers | 28 |
+| Additional plugin-first providers | 30 |
 | Registered providers not yet classified here | 9 |
-| **Registry total** | **106** |
+| **Registry total** | **108** |
 
 ## Matrix
 
@@ -154,6 +154,7 @@ Abacus, Muse, LongCat, Replicate, and TypeSafe unchanged.
 | Provider | Status | Engines | Scope |
 |---|---|---|---|
 | langdock | `cut-over` | QuickJS + JavaScriptCore | Host-owned selected browser profile, live session revalidation, and personal tRPC limits on both engines; no quota history or widgets. |
+| soniox | `cut-over` | QuickJS + JavaScriptCore | Read-only organization balance and monthly usage through the official API on both engines. |
 | xapi | `cut-over` | QuickJS + JavaScriptCore | Same-session account discovery and dollar balances through host-owned cookies and CSRF header echo on both engines. |
 | futureagi | `cut-over` | QuickJS + JavaScriptCore | Required usage-overview GET; API-key pair; no cookies or inference calls. |
 | lithosai | `cut-over` | QuickJS + JavaScriptCore | Opaque session cookies with same-origin host CSRF echo; active-organization balance and optional spend on both engines. |
@@ -171,5 +172,6 @@ Abacus, Muse, LongCat, Replicate, and TypeSafe unchanged.
 | parallel | `cut-over` | QuickJS + JavaScriptCore | Fixed-origin session-cookie POST to the platform dashboard's internal balance endpoint on both engines; no API key, allowance, usage history, or reset. |
 | claudeplatform | `cut-over` | QuickJS + JavaScriptCore | Opaque sessionKey cookie; API-organization credit balance, grants, and optional spend on both engines. |
 | munito | `cut-over` | QuickJS + JavaScriptCore | Fixed-origin bearer GET for the spend limits and organization on both engines; no guessed reset time. |
+| traecn | `cut-over` | QuickJS + JavaScriptCore | Trae CN session token exchange and entitlement summary through the shared cookie broker. |
 
 <!-- End generated provider additions -->

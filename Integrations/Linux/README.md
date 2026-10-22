@@ -196,7 +196,7 @@ Ordinary launch and `--usage` open the full Usage & Spend window. Quick View ope
 with `--quick-view`, from the tray menu, or by clicking the tray icon after enabling
 "Use compact Quick View from the tray" in Settings (off by default). It presents
 an Overview and provider tabs with the same provider icons used by the macOS menu, compact quota meters,
-reset times, pace, and optional local cost. The footer opens the full Usage & Spend
+reset times, pace, and optional local cost. Providers without a bundled logo use a contrasting initial instead of an empty icon slot. The footer opens the full Usage & Spend
 window, Settings, About, or Quit. `--spending` opens its Spending tab. The full Usage & Spend window retains
 generic provider details and charts. Unknown values stay unknown. Identity is hidden by default. Display preferences control reset countdowns,
 absolute times, pace visibility, the Omarchy bar's detail, per-model caps and provider
@@ -286,6 +286,8 @@ python3 Integrations/Linux/tests/test_desktop.py
 python3 Integrations/Linux/tests/test_package.py
 # With qml6-module-qttest installed (Ubuntu/Debian):
 QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software /usr/lib/qt6/bin/qmltestrunner -input Integrations/Linux/tests/qml
+# Icon test: qmake6 Integrations/Linux/tests/icons.pro in a build directory,
+# then make and run QT_QPA_PLATFORM=offscreen ./tst_icons.
 # Account-action test: qmake6 Integrations/Linux/tests/accounts.pro in a build directory,
 # then make and run ./tst_accounts. Uses a fake terminal and fake provider CLIs.
 ```

@@ -2117,6 +2117,8 @@
 "Poe usage history is unavailable." = "Riwayat penggunaan Poe tidak tersedia.";
 "Stored in ~/.codexbar/config.json. Get your key from poe.com/api/keys." = "Disimpan di ~/.codexbar/config.json. Dapatkan kunci Anda dari poe.com/api/keys.";
 "Billing" = "Penagihan";
+"Invoice billing" = "Pembayaran dengan faktur";
+"Prepaid" = "Prabayar";
 "Rate limit" = "Batas frekuensi permintaan";
 "Billing and rate-limit data from the v0 Platform API" = "Data penagihan dan batas frekuensi permintaan dari Platform v0 API";
 "v0 cost history is not available via the Platform API." = "Riwayat biaya v0 tidak tersedia melalui Platform API.";
@@ -2747,3 +2749,11 @@
 "No personal budget configured" = "Belum ada anggaran pribadi yang dikonfigurasi";
 
 "monthly_daily_target_format" = "≈ %@ / hari agar cukup hingga reset";
+
+"Trae CN" = "Trae CN";
+"Show Trae CN usage" = "Tampilkan penggunaan Trae CN";
+"Sign in to Trae CN at trae.cn, then refresh CodexBar." = "Masuk ke Trae CN di trae.cn, lalu segarkan CodexBar.";
+"Trae CN usage response format changed." = "Format respons penggunaan Trae CN telah berubah.";
+"Trae CN request failed. Try refreshing later." = "Permintaan Trae CN gagal. Coba segarkan lagi nanti.";
+"Use --provider copilot." = "Gunakan --provider copilot.";
+"Config changed during login. Please try again." = "Konfigurasi berubah saat masuk. Silakan coba lagi.";

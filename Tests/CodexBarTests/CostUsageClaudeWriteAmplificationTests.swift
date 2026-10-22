@@ -383,7 +383,7 @@ struct CostUsageClaudeWriteAmplificationTests {
         #expect(upgraded.quotaSlices == initial.quotaSlices)
         #expect(recorder.snapshot().transcriptParses == 1)
         #expect(recorder.snapshot().incrementalTranscriptParses == 0)
-        #expect(CostUsageClaudeCacheIO.load(provider: .claude, cacheRoot: fixture.env.cacheRoot).usage.version == 4)
+        #expect(CostUsageClaudeCacheIO.load(provider: .claude, cacheRoot: fixture.env.cacheRoot).usage.version == 5)
     }
 
     @Test

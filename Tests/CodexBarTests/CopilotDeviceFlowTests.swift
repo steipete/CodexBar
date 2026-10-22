@@ -3,6 +3,57 @@ import Foundation
 import Testing
 
 struct CopilotDeviceFlowTests {
+    @Test
+    func `slow down persists across subsequent pending responses`() async throws {
+        let probe = CopilotPollingProbe()
+        let flow = CopilotDeviceFlow(transport: ProviderHTTPTransportHandler { request in
+            let body = await probe.nextResponse()
+            let url = try #require(request.url)
+            return try (Data(body.utf8), #require(HTTPURLResponse(
+                url: url, statusCode: 200, httpVersion: nil, headerFields: nil)))
+        })
+        let token = try await flow.pollForToken(deviceCode: "synthetic", interval: 1)
+        #expect(token == "synthetic-token")
+        let times = await probe.times
+        #expect(times.count == 3)
+        #expect(times[1].duration(to: times[2]) >= .seconds(6))
+    }
+
+    @Test
+    func `expired device code stops without polling`() async {
+        let flow = CopilotDeviceFlow(transport: ProviderHTTPTransportHandler { _ in
+            Issue.record("Expired device code must not be sent")
+            throw URLError(.badURL)
+        })
+        await #expect(throws: URLError(.timedOut)) {
+            try await flow.pollForToken(deviceCode: "expired", interval: 5, expiresIn: 0)
+        }
+    }
+
+    @Test
+    func `cancelling device login interrupts polling sleep`() async {
+        let flow = CopilotDeviceFlow(transport: ProviderHTTPTransportHandler { _ in
+            Issue.record("Cancelled login must not poll")
+            throw URLError(.badURL)
+        })
+        let task = Task { try await flow.pollForToken(deviceCode: "cancelled", interval: 300) }
+        task.cancel()
+        await #expect(throws: CancellationError.self) { try await task.value }
+    }
+
+    @Test
+    func `malformed token response fails instead of polling forever`() async {
+        let flow = CopilotDeviceFlow(transport: ProviderHTTPTransportHandler { request in
+            let url = try #require(request.url)
+            let response = try #require(HTTPURLResponse(
+                url: url, statusCode: 200, httpVersion: nil, headerFields: nil))
+            return (Data("{}".utf8), response)
+        })
+        await #expect(throws: URLError(.cannotParseResponse)) {
+            try await flow.pollForToken(deviceCode: "synthetic", interval: 1)
+        }
+    }
+
     @Test(arguments: ["github.com", "GITHUB.COM.", "https://github.com:443/login"])
     func `default https issuer spellings remain public GitHub`(_ host: String) {
         #expect(CopilotDeviceFlow(enterpriseHost: host).deviceCodeURL?.absoluteString ==
@@ -100,5 +151,18 @@ struct CopilotDeviceFlowTests {
         #expect(defaultURL.absoluteString == "https://api.github.com/copilot_internal/user")
         #expect(enterpriseURL.absoluteString == "https://api.octocorp.ghe.com/copilot_internal/user")
         #expect(enterprisePortURL.absoluteString == "https://api.octocorp.ghe.com:8443/copilot_internal/user")
+    }
+}
+
+private actor CopilotPollingProbe {
+    var times: [ContinuousClock.Instant] = []
+
+    func nextResponse() -> String {
+        self.times.append(.now)
+        switch self.times.count {
+        case 1: return #"{"error":"slow_down"}"#
+        case 2: return #"{"error":"authorization_pending"}"#
+        default: return #"{"access_token":"synthetic-token","token_type":"bearer","scope":"read:user"}"#
+        }
     }
 }

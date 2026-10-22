@@ -2,11 +2,59 @@ import Commander
 import Foundation
 import Testing
 @testable import CodexBarCLI
+@testable import CodexBarCore
 
 /// `codexbar serve` resolves dashboard identity per request: an explicit `--identity` pins the
 /// mode, and an absent flag follows the app's "Hide personal information" setting. The resolved
 /// mode also joins the cache key so a body cached before a toggle cannot be replayed after it.
 struct CLIServeDashboardIdentityTests {
+    @Test
+    func `returning to an expired fill mode rebuilds the dashboard before responding`() async throws {
+        let store = testConfigStore(suiteName: "CLIServeDashboardIdentityTests-\(UUID().uuidString)")
+        defer { try? store.deleteIfPresent() }
+        let config = CodexBarConfig(providers: UsageProvider.allCases.map {
+            ProviderConfig(id: $0.instanceID, enabled: false)
+        })
+        try store.save(config)
+        let (clock, cache) = makeServeTestCache()
+        let showUsed = CodexBarCLI.usageBarsShowUsedFromDefaults()
+        let token = try CodexBarCLI.serveConfigCacheToken(for: config)
+        // The requested mode was last collected five minutes ago; the opposite mode is fresh.
+        for mode in [showUsed, !showUsed] {
+            let key = try CodexBarCLI.serveDashboardOperationKey(
+                identityMode: .redacted, usageBarsShowUsed: mode, provider: nil)
+            _ = await CodexBarCLI.cachedServeResponse(
+                key: key, cache: cache, refreshInterval: 60, configFingerprint: token)
+            {
+                CLILocalHTTPResponse(status: .ok, body: Data("old-mode-snapshot".utf8))
+            }
+            if mode == showUsed { clock.advance(by: 300) }
+        }
+        let runtime = ServeRuntime(
+            configStore: store,
+            cache: cache,
+            providerOperations: CLIServeOperationCoordinator(),
+            costOperations: CLIServeOperationCoordinator(),
+            refreshInterval: 60,
+            requestTimeout: 5,
+            healthVersion: "0.0.0-test",
+            dashboardAuth: CLIServeDashboardAuth(bearer: "fixture-token"),
+            dashboardIdentityMode: .redacted,
+            bindHost: "127.0.0.1")
+        let response = await CodexBarCLI.handleServeRequest(CLILocalHTTPRequest(
+            method: "GET",
+            target: "/dashboard/v1/snapshot",
+            host: "localhost",
+            path: "/dashboard/v1/snapshot",
+            queryItems: [:],
+            authorization: "Bearer fixture-token"), runtime: runtime)
+        #expect(response.status == .ok)
+        #expect(response.body != Data("old-mode-snapshot".utf8))
+        await cache.operations.shutdown()
+        await runtime.providerOperations.shutdown()
+        await runtime.costOperations.shutdown()
+    }
+
     @Test
     func `dashboard identity follows the app privacy setting without a flag`() {
         #expect(CodexBarCLI.resolveDashboardIdentityMode(

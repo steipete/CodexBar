@@ -3,8 +3,10 @@ import Commander
 import Foundation
 
 extension CodexBarCLI {
-    static func runConfig(path: [String], values: ParsedValues) {
+    static func runConfig(path: [String], values: ParsedValues) async {
         switch path {
+        case ["config", "login"]:
+            await self.runConfigLogin(values)
         case ["config", "preferences", "export"]:
             self.runConfigPreferences(values, importing: false)
         case ["config", "preferences", "import"]:

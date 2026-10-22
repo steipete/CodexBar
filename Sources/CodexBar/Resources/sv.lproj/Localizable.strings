@@ -2112,6 +2112,8 @@
 "Poe usage history is unavailable." = "Användningshistoriken för Poe är inte tillgänglig.";
 "Stored in ~/.codexbar/config.json. Get your key from poe.com/api/keys." = "Lagrat i ~/.codexbar/config.json. Få din nyckel från poe.com/api/keys.";
 "Billing" = "Fakturering";
+"Invoice billing" = "Fakturabetalning";
+"Prepaid" = "Förbetalt";
 "Rate limit" = "Gräns för anropsfrekvens";
 "Billing and rate-limit data from the v0 Platform API" = "Faktureringsdata och gränser för anropsfrekvens från v0-plattformens API";
 "v0 cost history is not available via the Platform API." = "v0 kostnadshistorik är inte tillgänglig via plattformen API.";
@@ -2744,3 +2746,11 @@
 "No personal budget configured" = "Ingen personlig budget har konfigurerats";
 
 "monthly_daily_target_format" = "≈ %@ / dag för att räcka till återställningen";
+
+"Trae CN" = "Trae CN";
+"Show Trae CN usage" = "Visa Trae CN-användning";
+"Sign in to Trae CN at trae.cn, then refresh CodexBar." = "Logga in på Trae CN på trae.cn och uppdatera sedan CodexBar.";
+"Trae CN usage response format changed." = "Formatet på användningssvaret från Trae CN har ändrats.";
+"Trae CN request failed. Try refreshing later." = "Trae CN-förfrågan misslyckades. Försök uppdatera senare.";
+"Use --provider copilot." = "Använd --provider copilot.";
+"Config changed during login. Please try again." = "Konfigurationen ändrades under inloggningen. Försök igen.";

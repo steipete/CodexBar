@@ -573,6 +573,9 @@ are never erased. User plugins have no persistent cookie cache, so rejection is 
 
 ## Bundled provider examples
 
+[Trae CN](traecn.md) uses the shared browser-session broker and two read-only JSON POSTs. Its short-lived
+service token stays within one refresh; no native fetcher or parallel credential store is needed.
+
 Bundled scripts own requests, error classification, and snapshot mapping; Swift supplies registration, settings, and credential/origin validation. These examples illustrate contracts that differ from the minimal plugin:
 
 | Provider | Contract |

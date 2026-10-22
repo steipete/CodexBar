@@ -27,6 +27,18 @@ public struct FileManagedCodexAccountStore: ManagedCodexAccountStoring, ManagedC
 {
     public static let currentVersion = 3
 
+    package enum Mutation: String, Sendable {
+        case addOrReauth = "add-or-reauth"
+        case remove
+        case promotionAppend = "promotion-append"
+        case promotionRepair = "promotion-repair"
+        case promotionRefresh = "promotion-refresh"
+        case registryWrite = "registry-write"
+    }
+
+    @TaskLocal package static var mutation: Mutation = .registryWrite
+    var logger = CodexBarLog.logger(LogCategories.codexAccounts)
+
     private let fileURL: URL
     private let fileManager: FileManager
 
@@ -73,9 +85,25 @@ public struct FileManagedCodexAccountStore: ManagedCodexAccountStoring, ManagedC
     }
 
     private func storeAccountsLocked(_ accounts: ManagedCodexAccountSet) throws {
+        let previous = try? self.readAccountSet()
         let normalizedAccounts = ManagedCodexAccountSet(
             version: Self.currentVersion,
             accounts: accounts.accounts)
+        var succeeded = false
+        defer {
+            let metadata = [
+                "operation": Self.mutation.rawValue,
+                "rows.before": previous.map { String($0.accounts.count) } ?? "unknown",
+                "rows.requested": String(accounts.accounts.count),
+                "rows.written": succeeded ? String(normalizedAccounts.accounts.count) : "unknown",
+                "result": succeeded ? "success" : "failed",
+            ]
+            if succeeded {
+                self.logger.info("Managed Codex account registry write", metadata: metadata)
+            } else {
+                self.logger.error("Managed Codex account registry write failed", metadata: metadata)
+            }
+        }
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         let data = try encoder.encode(normalizedAccounts)
@@ -87,6 +115,12 @@ public struct FileManagedCodexAccountStore: ManagedCodexAccountStoring, ManagedC
         // the same staged 0600 writer as auth.json so a newly-created file is never briefly
         // readable under a permissive umask.
         try CredentialFileWriter.writePrivate(data, to: self.fileURL)
+        succeeded = true
+    }
+
+    package static func logHomeDeletion(mutation: Mutation) {
+        CodexBarLog.logger(LogCategories.codexAccounts).info(
+            "Managed Codex account home deleted", metadata: ["operation": mutation.rawValue])
     }
 
     public func ensureFileExists() throws -> URL {

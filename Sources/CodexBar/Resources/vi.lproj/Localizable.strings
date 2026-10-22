@@ -2114,6 +2114,8 @@
 "Poe usage history is unavailable." = "Lịch sử sử dụng Poe không khả dụng.";
 "Stored in ~/.codexbar/config.json. Get your key from poe.com/api/keys." = "Được lưu trữ trong ~/.codexbar/config.json. Nhận khóa của bạn từ poe.com/api/keys.";
 "Billing" = "Thanh toán";
+"Invoice billing" = "Thanh toán theo hóa đơn";
+"Prepaid" = "Trả trước";
 "Rate limit" = "Giới hạn tỷ lệ";
 "Billing and rate-limit data from the v0 Platform API" = "Dữ liệu thanh toán và giới hạn tỷ lệ từ Nền tảng v0 API";
 "v0 cost history is not available via the Platform API." = "Lịch sử chi phí v0 không có sẵn thông qua Nền tảng API.";
@@ -2746,3 +2748,11 @@
 "No personal budget configured" = "Chưa thiết lập ngân sách cá nhân";
 
 "monthly_daily_target_format" = "≈ %@ / ngày để đủ dùng đến khi đặt lại";
+
+"Trae CN" = "Trae CN";
+"Show Trae CN usage" = "Hiển thị mức sử dụng Trae CN";
+"Sign in to Trae CN at trae.cn, then refresh CodexBar." = "Đăng nhập vào Trae CN tại trae.cn, rồi làm mới CodexBar.";
+"Trae CN usage response format changed." = "Định dạng phản hồi mức sử dụng Trae CN đã thay đổi.";
+"Trae CN request failed. Try refreshing later." = "Yêu cầu Trae CN không thành công. Hãy thử làm mới sau.";
+"Use --provider copilot." = "Dùng --provider copilot.";
+"Config changed during login. Please try again." = "Cấu hình đã thay đổi trong khi đăng nhập. Vui lòng thử lại.";

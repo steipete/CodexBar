@@ -1034,7 +1034,7 @@ extension CodexBarCLI {
                 configFingerprint: snapshot.cacheToken,
                 refreshInterval: runtime.refreshInterval,
                 deadline: requestDeadline,
-                allowsStaleWhileRevalidate: true),
+                allowsStaleWhileRevalidate: false),
             cache: runtime.cache,
             makeResponse: {
                 await Self.serveDashboardSnapshot(

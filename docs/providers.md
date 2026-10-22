@@ -8,7 +8,7 @@ read_when:
 
 # Providers
 
-CodexBar currently registers 106 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
+CodexBar currently registers 108 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
 OpenCode vs OpenCode Go, because the auth source and quota shape differ.
 
 ## Fetch strategies (current)
@@ -167,6 +167,7 @@ complete when the available scan window covers fewer days.
 | Provider | Source |
 |---|---|
 | [Langdock](langdock.md) | Selected Edge, Chrome, or Safari profile → personal included session and weekly limits (`web`, macOS). |
+| [Soniox](soniox.md) | Organization API key for prepaid USD balance and monthly spend against the organization budget. |
 | [X API](xapi.md) | Browser or manual console.x.com cookies for prepaid and free credits, including negative balances. |
 | [Future AGI](futureagi.md) | API key and secret key (billing-period usage, allowances, and estimated cost). |
 | [LithosAI](lithosai.md) | Browser or manual console cookies for prepaid USD balance and optional UTC spend. |
@@ -184,6 +185,7 @@ complete when the available scan window covers fewer days.
 | [Parallel](parallel.md) | Browser session on platform.parallel.ai for the prepaid credit balance and pending debit. |
 | [Claude Platform](claudeplatform.md) | Browser or manual platform.claude.com session cookies for Console API credit balance, expiring credit grants, and month-to-date spend. |
 | [Munito](munito.md) | Admin API key with Read account data permission for today's and this month's spend against the organization's spend limits. |
+| [Trae CN](traecn.md) | Browser session for account credit usage. |
 
 <!-- End generated provider additions -->
 

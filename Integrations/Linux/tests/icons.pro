@@ -1,0 +1,10 @@
+QT += core gui quick svg testlib
+CONFIG += c++17 testcase console
+CONFIG -= app_bundle
+TARGET = tst_icons
+SOURCES += tst_icons.cpp
+HEADERS += ../ProviderIconProvider.h
+RESOURCES += provider_icons
+provider_icons.files = $$files($$PWD/../../../Sources/CodexBar/Resources/ProviderIcon-*.svg)
+provider_icons.prefix = /logos
+provider_icons.base = $$PWD/../../../Sources/CodexBar/Resources
