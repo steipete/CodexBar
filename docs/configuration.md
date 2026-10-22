@@ -360,12 +360,24 @@ unless explicitly exported and imported. Import does not modify `config.json` or
 
 ### Menu bar controls
 
+**Settings → Menu Bar → Show all accounts in Overview** is off by default. When enabled, each selected
+multi-account provider expands into account rows labeled with its account name or email. The provider’s
+current account source stays in use: claude-swap/tcr, managed Codex accounts, or saved token accounts,
+independently of the provider tab’s stacked/segmented layout. The six-provider cap, provider order, and
+Overview selection still apply to providers before expansion; account rows do not use extra provider
+slots. Rows keep each account’s cached usage and errors; missing usage stays unavailable instead of
+borrowing another account’s quota. The setting adds no fetches and does not change refresh limits.
+Clicking a row opens its provider tab without selecting another credential. The local additive defaults
+key is `mergedOverviewAllAccounts`; older versions ignore it.
+
 **Auto** ranks each provider's eligible quota windows from the current snapshot. An exhausted quota comes
 first; otherwise a supported lane’s pace forecast that runs out before reset takes priority, with the shortest time to
 depletion first. Without such a forecast, Auto chooses the highest used percentage. Ties keep provider order.
 The unified highest-usage icon uses the same priority for providers set to Auto and displays the selected
 window's actual percentage. Explicit metric choices and provider-specific credit-pool ordering are preserved.
 This uses reported usage, duration, and reset time; it adds no observation history or background timer.
+
+The **Layout** editor applies only to **Icon & percent**. With **Critters** or **Meter bars** selected, its footer explains which style to choose before editing.
 
 The layout editor includes an optional **Tokens / min** value token (for example `49M/min`) using the provider’s latest reported complete minute. OpenAI supplies it through the **Tokens per minute** provider setting. It uses the same unavailable placeholder as other value tokens when no throughput is available. The optional **Tokens / min graph** token shows the last hour as a compact graph, using the maximum minute in each column and excluding minutes that are still reporting. Drag either token into your layout to enable it; default layouts include neither. The graph uses the status item’s own provider data and the standard unavailable placeholder when there are no reported minutes.
 

@@ -25,6 +25,7 @@ The bundled `typesafe.ts` plugin owns the billing requests and parsing. It disco
 ID from the billing page's static chunks, caches it for 12 hours, and rediscovers it once when the server reports a
 stale action ID. The read-only action sends `Origin`, `Next-Action`, `Cookie`, and a JSON `[]` body, then parses the
 `text/x-component` result.
+Billing-page discovery, script fetches, and the billing action all send a browser-style User-Agent so Cloudflare does not reject Linux URLSession requests that otherwise identify as curl.
 Discovery stops at the first matching chunk and preserves transient request errors when no action is found. Large credit lists show a bounded set of rows plus an additional-credit count; the reported balance and spending totals stay unchanged.
 
 Like other balance-only providers, the header and menu bar show the balance (`Balance $x` and `$x`). The menu bar's

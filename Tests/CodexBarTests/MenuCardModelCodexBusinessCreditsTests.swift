@@ -177,7 +177,7 @@ struct MenuCardModelCodexBusinessCreditsTests {
                 used: 27,
                 limit: 1000,
                 remainingPercent: 73,
-                resetsAt: nil,
+                resetsAt: now.addingTimeInterval(24 * 86400),
                 updatedAt: now))
         let projection = CodexConsumerProjection.make(
             surface: .overrideCard,
@@ -224,6 +224,8 @@ struct MenuCardModelCodexBusinessCreditsTests {
         #expect(extraUsage.spendLine == "Monthly credit limit: 27 / 1000")
         #expect(extraUsage.percentLine == "3% used")
         #expect(extraUsage.percentUsed == 2.7)
+        #expect(monthly.dailyTargetText == nil)
+        #expect(extraUsage.dailyTargetText?.contains("credits / day") == true)
     }
 
     @Test

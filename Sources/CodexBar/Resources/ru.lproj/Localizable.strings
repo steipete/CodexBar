@@ -622,7 +622,6 @@
 
 /* Display Pane */
 "menu_bar_style_title" = "Стиль строки меню";
-"menu_bar_style_subtitle" = "Как выглядит элемент строки меню.";
 "menu_bar_inactive_display_contrast_title" = "Повысить видимость на неактивных дисплеях";
 "menu_bar_inactive_display_contrast_subtitle" = "Использует высококонтрастную отрисовку, чтобы значок и показатель оставались читаемыми на других дисплеях.";
 "menu_bar_style_critters" = "Декоративные индикаторы";
@@ -676,6 +675,8 @@
 "overview_rows_follow_order" = "Строки обзора всегда следуют порядку провайдеров.";
 "overview_no_providers_selected" = "Провайдеры не выбраны";
 "agent_sessions_title" = "Сеансы агентов";
+"agent_sessions_remote_title" = "Удалённые сеансы (Tailscale / SSH)";
+"agent_sessions_remote_subtitle" = "Обнаружение удалённых узлов и подключение к ним. Отключите, чтобы отслеживать только этот Mac.";
 "agent_sessions_subtitle" = "Показывать в меню локальные и обнаруженные по SSH сеансы Codex и Claude Code.";
 "agent_sessions_hosts_title" = "Дополнительные SSH-хосты";
 "agent_sessions_footer" = "Компьютеры Mac в вашей сети tailnet обнаруживаются автоматически. Локальные сеансы обновляются каждые 30 секунд, удалённые хосты — каждые 60 секунд и при открытии меню.";
@@ -1225,6 +1226,7 @@
 "Password" = "Пароль";
 "%@ authentication is disabled." = "Аутентификация %@ отключена.";
 "%@ cookies are disabled." = "Cookie %@ отключены.";
+"%@ is unavailable. Edit the widget to choose a provider." = "%@ недоступен. Отредактируйте виджет, чтобы выбрать провайдера.";
 "%@ web API access is disabled." = "Доступ к веб-API %@ отключён.";
 "Disable %@ dashboard cookie usage." = "Отключить использование cookie дашборда %@.";
 "Keychain access is disabled in Advanced, so browser cookie import is unavailable." = "Доступ к Keychain отключён на вкладке «Расширенные», поэтому импорт cookie браузера недоступен.";
@@ -1410,6 +1412,7 @@
 /* Menu bar layout editor */
 "menu_bar_layout_title" = "Компоновка";
 "menu_bar_layout_footer" = "Перетаскивайте элементы, чтобы настроить строку меню. Нажмите элемент, чтобы добавить его; выберите размещённый элемент и нажмите Delete, чтобы удалить его.";
+"menu_bar_layout_footer_requires_icon_and_percent" = "Компоновка применяется только к стилю строки меню «%@». Выберите этот стиль выше, чтобы изменить её.";
 "menu_bar_layout_group_identity" = "Идентификация";
 "menu_bar_layout_group_usage" = "Использование";
 "menu_bar_layout_group_time" = "Время";
@@ -1442,6 +1445,7 @@
 "menu_bar_layout_size_regular" = "Обычный";
 "menu_bar_layout_size_large" = "Большой";
 "menu_bar_layout_monospaced_digits" = "Моноширинные цифры";
+"menu_bar_layout_show_window_labels" = "Показывать метки периодов";
 "menu_bar_layout_gap" = "Интервал";
 "menu_bar_layout_gap_tight" = "Узкий";
 "menu_bar_layout_gap_regular" = "Обычный";
@@ -1798,6 +1802,7 @@
 "Details for %@" = "Подробности для %@";
 "EST. %@" = "Расчетное %@";
 "Enable Antigravity provider" = "Включить провайдера Antigravity";
+"Enable a provider in CodexBar → Settings → Providers." = "Включите провайдера в CodexBar → Настройки → Провайдеры.";
 "Enable account widgets in CodexBar → Settings → Menu → Widgets. Then edit this widget to choose an account." = "Включите виджеты аккаунта в CodexBar → Настройки → Меню → Виджеты. Затем отредактируйте этот виджет, чтобы выбрать учетную запись.";
 "Error: %@" = "Ошибка: %@.";
 "Examples: alt+cmd+2, shift+right. Refresh (cmd+r), Settings (cmd+,) and Quit (cmd+q) are reserved." = "Примеры: alt+cmd+2, shift+right. «Обновить» (cmd+r), «Настройки» (cmd+,) и «Выйти» (cmd+q) зарезервированы.";
@@ -2012,10 +2017,7 @@
 "Top models:" = "Лучшие модели:";
 "Two quota burn-down charts in one tile." = "Две диаграммы сгорания Квота в одной плитке.";
 "Usage & spend come from your console.groq.com browser session automatically. An API key is optional and only adds Enterprise Prometheus metrics." = "Информация об использовании и расходах автоматически определяется сеансом вашего браузера console.groq.com. Ключ API является необязательным и добавляет только Enterprise Prometheus Показатель.";
-"Usage data appears after a refresh." = "Данные об использовании появляются после обновления.";
-"Usage data will appear once the app refreshes." = "Данные об использовании появятся после обновления приложения.";
 "Usage history chart with recent totals." = "Диаграмма истории использования с последними итогами.";
-"Usage history will appear after a refresh." = "История использования появится после обновления.";
 "Usage limit" = "Лимит использования";
 "Usage limits and reset countdowns for one saved account." = "Ограничения использования и сброс обратного отсчета для одной сохраненной учетной записи.";
 "Usage widget with a provider switcher." = "Виджет использования с переключателем провайдера.";
@@ -2202,6 +2204,10 @@
 "Stored in ~/.codexbar/config.json. Create one at console.x.ai under Settings > Management Keys; inference API keys are not accepted." = "Хранится в ~/.codexbar/config.json. Создайте его по адресу console.x.ai в разделе «Настройки» > «Ключи управления»; Ключи вывода API не принимаются.";
 "xai-..." = "xai-...";
 "Team ID" = "Команда ID";
+"Vercel access token" = "Токен доступа Vercel";
+"Optional. Shows your personal budget instead of team credits. Saved in CodexBar's local config file. Or set VERCEL_ACCESS_TOKEN." = "Необязательно. Показывает ваш личный бюджет вместо кредитов команды. Сохраняется в локальном файле конфигурации CodexBar. Или задайте VERCEL_ACCESS_TOKEN.";
+"Open Vercel tokens" = "Открыть токены Vercel";
+"Required with a Vercel access token. Or set VERCEL_TEAM_ID." = "Требуется вместе с токеном доступа Vercel. Или задайте VERCEL_TEAM_ID.";
 "Required. Shown in the xAI Console URL and team settings." = "Обязательно. Отображается в консоли xAI URL и настройках команды.";
 "Sakana AI cost summary is not supported." = "Сводка затрат Sakana AI не поддерживается.";
 "Stored in ~/.codexbar/config.json. Copy the Sakana AI console Cookie request header." = "Хранится в ~/.codexbar/config.json. Скопируйте заголовок запроса консоли Sakana AI Cookie.";
@@ -2460,7 +2466,7 @@
 "spend_performance_cache_help" = "Кэшированный ввод, делённый на весь ввод по подходящим ходам диалога. Значение взвешено по входным токенам; показан охват замеров.";
 "spend_performance_metric_help" = "Об этих наблюдениях";
 "merged_icon_source_title" = "Источник объединённого значка";
-"merged_icon_source_subtitle" = "Выберите провайдера для свёрнутого объединённого значка.";
+"merged_icon_source_subtitle" = "«Наибольшее использование» сравнивает только квоты. Для провайдеров без квот используйте «Текущий выбор».";
 "merged_icon_source_current_selection" = "Текущий выбор";
 "merged_icon_source_highest_usage" = "Наибольшее использование";
 "merged_icon_source_frontmost_app" = "Приложение провайдера на переднем плане";
@@ -2559,7 +2565,7 @@
 "Clear filters" = "Сбросить фильтры";
 "Change provider order" = "Изменить порядок провайдеров";
 "Provider sorting" = "Сортировка провайдеров";
-"Only enabled providers" = "Только активные провайдеры";
+"Only show enabled providers" = "Показывать только активных провайдеров";
 "Restore default order" = "Восстановить исходный порядок";
 "Also restores the provider order in the menu bar. Can be undone." = "Также восстанавливает порядок провайдеров в строке меню. Действие можно отменить.";
 "Local Codex details; excluded from combined totals." = "Локальные данные Codex; не учитываются в общих итогах.";
@@ -2684,3 +2690,15 @@
 /* Munito provider credentials */
 "Key with Read account data (Admin API) permission. Or set MUNITO_API_KEY." = "Ключ с правом чтения данных аккаунта (Admin API). Или задайте MUNITO_API_KEY.";
 "Munito reports Admin API spend and limits, not local token cost history." = "Munito сообщает о расходах и лимитах Admin API, а не о локальной истории затрат на токены.";
+
+"Show all accounts in Overview" = "Показывать все аккаунты в обзоре";
+
+"Expand cached account usage. The six-provider limit still applies." = "Разворачивать выбранных провайдеров, используя сохранённые данные об использовании аккаунтов. Ограничение в шесть провайдеров сохраняется.";
+"Edit" = "Изменить";
+"Move up" = "Переместить вверх";
+"Move down" = "Переместить вниз";
+"Leave blank to keep the saved credential." = "Оставьте поле пустым, чтобы сохранить текущие учётные данные.";
+
+"No personal budget configured" = "Личный бюджет не настроен";
+
+"monthly_daily_target_format" = "≈ %@ в день, чтобы хватило до сброса";

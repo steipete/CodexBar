@@ -205,10 +205,10 @@ public struct AntigravityStatusSnapshot: Sendable {
         }
 
         let primary = Self.quotaSummaryRepresentative(
-            matching: { $0.lowercased().contains("gemini") },
+            matching: .gemini,
             in: namedWindows)
         let secondary = Self.quotaSummaryRepresentative(
-            matching: { $0.lowercased().contains("claude") || $0.lowercased().contains("gpt") },
+            matching: .claudeGPT,
             in: namedWindows)
 
         let identity = ProviderIdentitySnapshot(
@@ -226,11 +226,23 @@ public struct AntigravityStatusSnapshot: Sendable {
     }
 
     private static func quotaSummaryRepresentative(
-        matching predicate: (String) -> Bool,
+        matching family: AntigravityQuotaFamilyVisibility.KnownFamily,
         in windows: [NamedRateWindow]) -> RateWindow?
     {
-        windows
-            .filter { $0.usageKnown && predicate($0.title) }
+        let known = windows.filter {
+            $0.usageKnown && AntigravityQuotaFamilyVisibility.knownFamily(windowID: $0.id, title: $0.title) == family
+        }
+        let ordinaryIDs = Set(Self.sessionCadenceAliases.union(["weekly"]).map {
+            Self.quotaSummaryWindowIDPrefix + "gemini-" + $0
+        })
+        let ordinary = known.filter { window in
+            var id = window.id.lowercased().replacingOccurrences(of: "_", with: "-")
+            if id.hasSuffix(" limit") {
+                id.removeLast(" limit".count)
+            }
+            return ordinaryIDs.contains(id)
+        }
+        return (ordinary.isEmpty ? known : ordinary)
             .max { lhs, rhs in
                 if lhs.window.usedPercent != rhs.window.usedPercent {
                     return lhs.window.usedPercent < rhs.window.usedPercent
@@ -241,25 +253,15 @@ public struct AntigravityStatusSnapshot: Sendable {
     }
 
     private static func quotaSummaryWindows(from quotaSummary: AntigravityQuotaSummary) -> [NamedRateWindow] {
-        let sortedGroups = quotaSummary.groups.enumerated().sorted { lhs, rhs in
-            let lhsRank = Self.quotaGroupSortRank(lhs.element)
-            let rhsRank = Self.quotaGroupSortRank(rhs.element)
-            if lhsRank != rhsRank {
-                return lhsRank < rhsRank
-            }
-            return lhs.offset < rhs.offset
-        }.map(\.element)
+        let sortedGroups = quotaSummary.groups.sorted {
+            Self.quotaGroupSortRank($0) < Self.quotaGroupSortRank($1)
+        }
 
         return sortedGroups.flatMap { group in
             let groupTitle = Self.displayTitle(forQuotaGroup: group)
-            let sortedBuckets = group.buckets.enumerated().sorted { lhs, rhs in
-                let lhsRank = Self.quotaBucketSortRank(lhs.element)
-                let rhsRank = Self.quotaBucketSortRank(rhs.element)
-                if lhsRank != rhsRank {
-                    return lhsRank < rhsRank
-                }
-                return lhs.offset < rhs.offset
-            }.map(\.element)
+            let sortedBuckets = group.buckets.sorted {
+                Self.quotaBucketSortRank($0) < Self.quotaBucketSortRank($1)
+            }
 
             return sortedBuckets.map { bucket in
                 let bucketTitle = Self.displayTitle(forQuotaBucket: bucket)
@@ -271,7 +273,7 @@ public struct AntigravityStatusSnapshot: Sendable {
                     resetsAt: bucket.resetTime,
                     resetDescription: bucket.resetDescription)
                 return NamedRateWindow(
-                    id: Self.quotaSummaryWindowID(for: bucket),
+                    id: Self.quotaSummaryWindowIDPrefix + bucket.bucketId,
                     title: "\(groupTitle) \(bucketTitle)",
                     window: window,
                     usageKnown: !bucket.disabled && bucket.remainingFraction != nil)
@@ -284,10 +286,6 @@ public struct AntigravityStatusSnapshot: Sendable {
     }
 
     private static let quotaSummaryWindowIDPrefix = "antigravity-quota-summary-"
-
-    private static func quotaSummaryWindowID(for bucket: AntigravityQuotaSummaryBucket) -> String {
-        self.quotaSummaryWindowIDPrefix + bucket.bucketId
-    }
 
     private static func remainingPercent(from remainingFraction: Double?) -> Double? {
         guard let remainingFraction else { return nil }

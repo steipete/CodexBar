@@ -75,7 +75,7 @@ struct CostUsageClaudePersistenceBenchmarkTests {
             let bytes = try #require(CostUsageClaudeFileStamp.read(at: url)).size
             print("[persistence-benchmark] rows=200000 bytes=\(bytes) phase=\(phase) " +
                 "seconds=\(times) median=\(times.sorted()[1]) encodes=\(recorder.snapshot().cacheEncodes) " +
-                "fragments=\(recorder.snapshot().fragmentEncodes) fallbacks=\(recorder.snapshot().fragmentFallbacks) " +
+                "fragments=\(recorder.snapshot().fragmentEncodes) " +
                 "cpuSeconds=\(cpuTimes) medianCPU=\(cpuTimes.sorted()[1]) peakRSSBytes=\(usage.ru_maxrss)")
         }
     }

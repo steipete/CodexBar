@@ -2,6 +2,7 @@
 "%@ %@" = "%@ %@";
 "%@ API est. · not billed" = "%@ API Приблизно · рахунок не виставлено";
 "%@ cost" = "Вартість %@";
+"%@ is unavailable. Edit the widget to choose a provider." = "%@ недоступний. Відредагуйте віджет, щоб вибрати постачальника.";
 "%@ left" = "Залишилося %@";
 "%@ tokens" = "%@ токенів";
 "%@ used" = "%@ використано";
@@ -75,6 +76,7 @@
 "Daily usage" = "Щоденне використання";
 "Deployment" = "Розгортання";
 "Edit predictions" = "Редагувати прогнози";
+"Enable a provider in CodexBar → Settings → Providers." = "Увімкніть постачальника в CodexBar → Налаштування → Постачальники.";
 "Enable account widgets in CodexBar → Settings → Menu → Widgets. Then edit this widget to choose an account." = "Увімкніть віджети облікового запису в CodexBar → Налаштування → Меню → Віджети. Потім відредагуйте цей віджет, щоб вибрати обліковий запис.";
 "Extra usage" = "Додаткове використання";
 "Extra usage balance" = "Залишок додаткового використання";
@@ -164,10 +166,7 @@
 "Two quota burn-down charts in one tile." = "Дві діаграми вигорання Квота на одній плитці.";
 "Unavailable account" = "Обліковий запис: Недоступний";
 "Usage" = "Використання";
-"Usage data appears after a refresh." = "Дані про використання з’являються після оновлення.";
-"Usage data will appear once the app refreshes." = "Дані про використання з’являться, коли програма оновиться.";
 "Usage history chart with recent totals." = "Графік історії використання з останніми підсумками.";
-"Usage history will appear after a refresh." = "Історія використання з’явиться після оновлення.";
 "Usage limit" = "Ліміт використання";
 "Usage limits and reset countdowns for one saved account." = "Обмеження використання та скидання зворотного відліку для одного збереженого облікового запису.";
 "Usage widget with a provider switcher." = "Віджет використання з перемикачем провайдерів.";

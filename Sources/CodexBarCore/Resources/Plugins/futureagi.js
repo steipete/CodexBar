@@ -106,6 +106,8 @@ defineProvider({
           usedPercent: ctx.pct(used, allowance),
           windowMinutes: Math.round((end.getTime() - start.getTime()) / 60000),
           resetsAt: end,
+          quotaLimit: allowance,
+          quotaUnit: meter.display_unit,
         };
       }
       rows.push({

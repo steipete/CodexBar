@@ -156,7 +156,7 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
         let plan = Self.resolvePlan(response: codeAssist, claims: claims)
         do {
             let response: AntigravityQuotaSummaryResponse = try await Self.fetchQuotaResponse(
-                method: "retrieveUserQuotaSummary",
+                endpoint: "https://daily-cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary",
                 accessToken: accessToken,
                 projectId: projectId,
                 timeout: min(self.timeout, 2),
@@ -209,7 +209,7 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
     }
 
     private static func fetchQuotaResponse<Response: Decodable>(
-        method: String,
+        endpoint: String,
         accessToken: String,
         projectId: String?,
         timeout: TimeInterval,
@@ -218,7 +218,7 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
     {
         let body: [String: Any] = (projectId?.trimmedNonEmpty).map { ["project": $0] } ?? [:]
         return try await Self.sendRequest(
-            endpoint: "\(Self.baseURL)/v1internal:\(method)",
+            endpoint: endpoint,
             accessToken: accessToken,
             body: body,
             timeout: timeout,
@@ -234,7 +234,7 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
     {
         do {
             let response: FetchAvailableModelsResponse = try await Self.fetchQuotaResponse(
-                method: "fetchAvailableModels",
+                endpoint: "\(Self.baseURL)/v1internal:fetchAvailableModels",
                 accessToken: accessToken,
                 projectId: projectId,
                 timeout: timeout,
@@ -309,7 +309,7 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
     {
         do {
             let response: RetrieveUserQuotaResponse = try await Self.fetchQuotaResponse(
-                method: "retrieveUserQuota",
+                endpoint: "\(Self.baseURL)/v1internal:retrieveUserQuota",
                 accessToken: accessToken,
                 projectId: projectId,
                 timeout: timeout,

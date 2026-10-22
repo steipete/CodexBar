@@ -617,7 +617,6 @@
 
 /* Display Pane */
 "menu_bar_style_title" = "Kiểu thanh menu";
-"menu_bar_style_subtitle" = "Cách hiển thị mục trên thanh menu.";
 "menu_bar_inactive_display_contrast_title" = "Cải thiện khả năng hiển thị trên màn hình không hoạt động";
 "menu_bar_inactive_display_contrast_subtitle" = "Sử dụng hiển thị tương phản cao để biểu tượng và chỉ số vẫn dễ đọc trên các màn hình khác.";
 "menu_bar_style_critters" = "Sinh vật";
@@ -671,6 +670,8 @@
 "overview_rows_follow_order" = "Các hàng tổng quan luôn tuân theo thứ tự Nhà cung cấp.";
 "overview_no_providers_selected" = "Không có nhà cung cấp nào được chọn";
 "agent_sessions_title" = "Phiên tác nhân";
+"agent_sessions_remote_title" = "Phiên từ xa (Tailscale / SSH)";
+"agent_sessions_remote_subtitle" = "Tìm và kết nối với máy từ xa. Tắt để chỉ theo dõi máy Mac này.";
 "agent_sessions_subtitle" = "Hiển thị các phiên Codex và Claude Code cục bộ cùng các phiên được phát hiện qua SSH trong menu.";
 "agent_sessions_hosts_title" = "Máy chủ SSH bổ sung";
 "agent_sessions_footer" = "Các máy Mac trên tailnet của bạn được tự động phát hiện. Các phiên cục bộ được làm mới 30 giây một lần; các máy chủ từ xa được làm mới 60 giây một lần và khi menu mở.";
@@ -1216,6 +1217,7 @@
 "Password" = "Mật khẩu";
 "%@ authentication is disabled." = "%@ xác thực bị tắt. Cookie";
 "%@ cookies are disabled." = "%@ bị tắt. Quyền truy cập";
+"%@ is unavailable. Edit the widget to choose a provider." = "%@ không khả dụng. Chỉnh sửa widget để chọn một nhà cung cấp.";
 "%@ web API access is disabled." = "%@ web API bị vô hiệu hóa.";
 "Disable %@ dashboard cookie usage." = "Tắt %@ cookie trang tổng quan Mức sử dụng . Quyền truy cập";
 "Keychain access is disabled in Advanced, so browser cookie import is unavailable." = "Keychain bị vô hiệu hóa trong Nâng cao, do đó, tính năng nhập cookie trình duyệt không khả dụng.";
@@ -1409,6 +1411,7 @@
 /* Menu bar layout editor */
 "menu_bar_layout_title" = "Bố cục";
 "menu_bar_layout_footer" = "Kéo các thẻ để sắp xếp thanh menu. Bấm vào thẻ để thêm; chọn thẻ đã đặt rồi nhấn Delete để xóa.";
+"menu_bar_layout_footer_requires_icon_and_percent" = "Bố cục chỉ áp dụng cho kiểu thanh menu “%@”. Chọn kiểu đó ở trên để chỉnh sửa.";
 "menu_bar_layout_group_identity" = "Danh tính";
 "menu_bar_layout_group_usage" = "Mức sử dụng";
 "menu_bar_layout_group_time" = "Thời gian";
@@ -1441,6 +1444,7 @@
 "menu_bar_layout_size_regular" = "Thường";
 "menu_bar_layout_size_large" = "Lớn";
 "menu_bar_layout_monospaced_digits" = "Chữ số có độ rộng cố định";
+"menu_bar_layout_show_window_labels" = "Hiển thị nhãn khoảng thời gian";
 "menu_bar_layout_gap" = "Khoảng cách";
 "menu_bar_layout_gap_tight" = "Hẹp";
 "menu_bar_layout_gap_regular" = "Thường";
@@ -1798,6 +1802,7 @@
 "Details for %@" = "Thông tin chi tiết về %@";
 "EST. %@" = "Ước tính %@";
 "Enable Antigravity provider" = "Kích hoạt nhà cung cấp Antigravity";
+"Enable a provider in CodexBar → Settings → Providers." = "Bật một nhà cung cấp trong CodexBar → Cài đặt → Nhà cung cấp.";
 "Enable account widgets in CodexBar → Settings → Menu → Widgets. Then edit this widget to choose an account." = "Kích hoạt tiện ích tài khoản trong CodexBar → Cài đặt → Menu → Tiện ích. Sau đó chỉnh sửa tiện ích này để chọn tài khoản.";
 "Error: %@" = "Lỗi: %@";
 "Examples: alt+cmd+2, shift+right. Refresh (cmd+r), Settings (cmd+,) and Quit (cmd+q) are reserved." = "Ví dụ: alt+cmd+2, shift+right. Làm mới (cmd+r), Cài đặt (cmd+,) và Thoát (cmd+q) được bảo lưu.";
@@ -2012,10 +2017,7 @@
 "Top models:" = "Những mẫu hàng đầu:";
 "Two quota burn-down charts in one tile." = "Hai biểu đồ ghi lại Hạn mức trong một ô.";
 "Usage & spend come from your console.groq.com browser session automatically. An API key is optional and only adds Enterprise Prometheus metrics." = "Việc sử dụng và chi tiêu tự động đến từ phiên trình duyệt console.groq.com của bạn. Khóa API là tùy chọn và chỉ thêm Enterprise Prometheus Chỉ số.";
-"Usage data appears after a refresh." = "Dữ liệu sử dụng xuất hiện sau khi làm mới.";
-"Usage data will appear once the app refreshes." = "Dữ liệu sử dụng sẽ xuất hiện sau khi ứng dụng được làm mới.";
 "Usage history chart with recent totals." = "Biểu đồ lịch sử sử dụng với tổng số gần đây.";
-"Usage history will appear after a refresh." = "Lịch sử sử dụng sẽ xuất hiện sau khi làm mới.";
 "Usage limit" = "Giới hạn sử dụng";
 "Usage limits and reset countdowns for one saved account." = "Giới hạn sử dụng và đặt lại đếm ngược cho một tài khoản đã lưu.";
 "Usage widget with a provider switcher." = "Tiện ích sử dụng với trình chuyển đổi nhà cung cấp.";
@@ -2202,6 +2204,10 @@
 "Stored in ~/.codexbar/config.json. Create one at console.x.ai under Settings > Management Keys; inference API keys are not accepted." = "Được lưu trữ trong ~/.codexbar/config.json. Tạo một cái tại console.x.ai trong Cài đặt > Khóa quản lý; suy luận khóa API không được chấp nhận.";
 "xai-..." = "xai-...";
 "Team ID" = "Đội ID";
+"Vercel access token" = "Mã truy cập Vercel";
+"Optional. Shows your personal budget instead of team credits. Saved in CodexBar's local config file. Or set VERCEL_ACCESS_TOKEN." = "Tùy chọn. Hiển thị ngân sách cá nhân của bạn thay vì tín dụng của nhóm. Được lưu trong tệp cấu hình cục bộ của CodexBar. Hoặc đặt VERCEL_ACCESS_TOKEN.";
+"Open Vercel tokens" = "Mở mã Vercel";
+"Required with a Vercel access token. Or set VERCEL_TEAM_ID." = "Bắt buộc khi dùng mã truy cập Vercel. Hoặc đặt VERCEL_TEAM_ID.";
 "Required. Shown in the xAI Console URL and team settings." = "Bắt buộc. Hiển thị trong Bảng điều khiển xAI URL và cài đặt nhóm.";
 "Sakana AI cost summary is not supported." = "Tóm tắt chi phí Sakana AI không được hỗ trợ.";
 "Stored in ~/.codexbar/config.json. Copy the Sakana AI console Cookie request header." = "Được lưu trữ trong ~/.codexbar/config.json. Sao chép tiêu đề yêu cầu Cookie của bảng điều khiển Sakana AI.";
@@ -2460,7 +2466,7 @@
 "spend_performance_cache_help" = "Lượng đầu vào được lưu trong bộ nhớ đệm chia cho tổng đầu vào của các lượt đủ điều kiện. Được tính trọng số theo số token đầu vào, kèm phạm vi bao phủ của mẫu.";
 "spend_performance_metric_help" = "Về các số liệu quan sát này";
 "merged_icon_source_title" = "Nguồn biểu tượng kết hợp";
-"merged_icon_source_subtitle" = "Chọn nhà cung cấp hiển thị trên biểu tượng kết hợp khi thu gọn.";
+"merged_icon_source_subtitle" = "“Mức sử dụng cao nhất” chỉ so sánh hạn mức. Với nhà cung cấp không có hạn mức, hãy dùng “Lựa chọn hiện tại”.";
 "merged_icon_source_current_selection" = "Lựa chọn hiện tại";
 "merged_icon_source_highest_usage" = "Mức sử dụng cao nhất";
 "merged_icon_source_frontmost_app" = "Ứng dụng nhà cung cấp ở phía trước";
@@ -2559,7 +2565,7 @@
 "Clear filters" = "Xóa bộ lọc";
 "Change provider order" = "Đổi thứ tự nhà cung cấp";
 "Provider sorting" = "Sắp xếp nhà cung cấp";
-"Only enabled providers" = "Chỉ nhà cung cấp đã bật";
+"Only show enabled providers" = "Chỉ hiển thị nhà cung cấp đã bật";
 "Restore default order" = "Khôi phục thứ tự mặc định";
 "Also restores the provider order in the menu bar. Can be undone." = "Cũng khôi phục thứ tự nhà cung cấp trên thanh menu. Có thể hoàn tác.";
 "Local Codex details; excluded from combined totals." = "Chi tiết Codex cục bộ; không được tính vào tổng kết hợp.";
@@ -2684,3 +2690,15 @@
 /* Munito provider credentials */
 "Key with Read account data (Admin API) permission. Or set MUNITO_API_KEY." = "Khoá có quyền đọc dữ liệu tài khoản (Admin API). Hoặc đặt MUNITO_API_KEY.";
 "Munito reports Admin API spend and limits, not local token cost history." = "Munito báo cáo chi tiêu và giới hạn của Admin API, không phải lịch sử chi phí token cục bộ.";
+
+"Show all accounts in Overview" = "Hiển thị tất cả tài khoản trong Tổng quan";
+
+"Expand cached account usage. The six-provider limit still applies." = "Mở rộng các nhà cung cấp đã chọn bằng dữ liệu sử dụng tài khoản trong bộ nhớ đệm. Giới hạn sáu nhà cung cấp vẫn áp dụng.";
+"Edit" = "Sửa";
+"Move up" = "Di chuyển lên";
+"Move down" = "Di chuyển xuống";
+"Leave blank to keep the saved credential." = "Để trống để giữ thông tin xác thực đã lưu.";
+
+"No personal budget configured" = "Chưa thiết lập ngân sách cá nhân";
+
+"monthly_daily_target_format" = "≈ %@ / ngày để đủ dùng đến khi đặt lại";

@@ -20,6 +20,28 @@ enum UsagePaceText {
         case weekly
     }
 
+    static func dailyTarget(
+        _ target: Double?,
+        unit: String?,
+        preferredCurrency: String) -> String?
+    {
+        guard let target else { return nil }
+        let number = target.formatted(.number.precision(.fractionLength(0...2)).locale(codexBarLocalizedLocale()))
+        let amount: String
+        switch unit?.lowercased() {
+        case "%": amount = "\(number)%"
+        case "credits": amount = L("%@ %@", number, L("credits"))
+        case "requests": amount = L("%@ requests", number)
+        default:
+            guard let unit,
+                  Locale.Currency.isoCurrencies.contains(where: { $0.identifier == unit.uppercased() })
+            else { return nil }
+            amount = UsageFormatter.convertedCostString(
+                target, preferredCurrency: preferredCurrency, providerCurrency: unit.uppercased())
+        }
+        return L("monthly_daily_target_format", amount)
+    }
+
     static func weeklySummary(provider: UsageProvider, pace: UsagePace, now: Date = .init()) -> String {
         let detail = self.weeklyDetail(provider: provider, pace: pace, now: now)
         if let rightLabel = detail.rightLabel {

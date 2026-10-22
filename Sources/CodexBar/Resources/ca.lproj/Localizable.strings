@@ -604,7 +604,6 @@
 
 /* Display Pane */
 "menu_bar_style_title" = "Estil de la barra de menús";
-"menu_bar_style_subtitle" = "Com es dibuixa l'element de la barra de menús.";
 "menu_bar_inactive_display_contrast_title" = "Millora la visibilitat a les pantalles inactives";
 "menu_bar_inactive_display_contrast_subtitle" = "Utilitza una representació d'alt contrast perquè la icona i la mètrica siguin llegibles a les altres pantalles.";
 "menu_bar_style_critters" = "Bestioles";
@@ -658,6 +657,8 @@
 "overview_rows_follow_order" = "Les files del Resum sempre segueixen l'ordre dels proveïdors.";
 "overview_no_providers_selected" = "No hi ha cap proveïdor seleccionat";
 "agent_sessions_title" = "Sessions d'agents";
+"agent_sessions_remote_title" = "Sessions remotes (Tailscale / SSH)";
+"agent_sessions_remote_subtitle" = "Descobreix servidors remots i connecta-t’hi. Desactiva-ho per supervisar només aquest Mac.";
 "agent_sessions_subtitle" = "Mostra al menú les sessions locals i descobertes per SSH de Codex i Claude Code.";
 "agent_sessions_hosts_title" = "Amfitrions SSH addicionals";
 "agent_sessions_footer" = "Els Mac de la vostra tailnet es descobreixen automàticament. Les sessions locals s'actualitzen cada 30 segons; els amfitrions remots, cada 60 segons i quan s'obre el menú.";
@@ -1074,6 +1075,7 @@
 "Password" = "Contrasenya";
 "%@ authentication is disabled." = "L'autenticació de %@ està desactivada.";
 "%@ cookies are disabled." = "Les galetes de %@ estan desactivades.";
+"%@ is unavailable. Edit the widget to choose a provider." = "%@ no està disponible. Editeu el giny per triar un proveïdor.";
 "%@ web API access is disabled." = "L'accés a l'API web de %@ està desactivat.";
 "Disable %@ dashboard cookie usage." = "Desactiveu l'ús de galetes del tauler de %@.";
 "Keychain access is disabled in Advanced, so browser cookie import is unavailable." = "L'accés al Clauer està desactivat a Avançat, així que la importació de galetes del navegador no està disponible.";
@@ -1415,6 +1417,7 @@
 /* Menu bar layout editor */
 "menu_bar_layout_title" = "Disposició";
 "menu_bar_layout_footer" = "Arrossegueu les fitxes per ordenar la barra de menús. Feu clic en una fitxa per afegir-la; seleccioneu una fitxa col·locada i premeu Supr per eliminar-la.";
+"menu_bar_layout_footer_requires_icon_and_percent" = "La disposició només s'aplica a l'estil de la barra de menús «%@». Trieu aquest estil a dalt per editar-la.";
 "menu_bar_layout_group_identity" = "Identitat";
 "menu_bar_layout_group_usage" = "Ús";
 "menu_bar_layout_group_time" = "Temps";
@@ -1447,6 +1450,7 @@
 "menu_bar_layout_size_regular" = "Normal";
 "menu_bar_layout_size_large" = "Gran";
 "menu_bar_layout_monospaced_digits" = "Dígits monoespaiats";
+"menu_bar_layout_show_window_labels" = "Mostra les etiquetes dels períodes";
 "menu_bar_layout_gap" = "Espaiat";
 "menu_bar_layout_gap_tight" = "Estret";
 "menu_bar_layout_gap_regular" = "Normal";
@@ -1801,6 +1805,7 @@
 "Details for %@" = "Detalls de %@";
 "EST. %@" = "%@ estimat";
 "Enable Antigravity provider" = "Activa el proveïdor Antigravity";
+"Enable a provider in CodexBar → Settings → Providers." = "Activeu un proveïdor a CodexBar → Configuració → Proveïdors.";
 "Enable account widgets in CodexBar → Settings → Menu → Widgets. Then edit this widget to choose an account." = "Activa els ginys del compte a CodexBar → Configuració → Menú → Ginys. A continuació, editeu aquest widget per triar un compte.";
 "Error: %@" = "Error: %@";
 "Examples: alt+cmd+2, shift+right. Refresh (cmd+r), Settings (cmd+,) and Quit (cmd+q) are reserved." = "Exemples: alt+cmd+2, shift+right. Actualitzar (cmd+r), Configuració (cmd+,) i Surt (cmd+q) estan reservats.";
@@ -2015,10 +2020,7 @@
 "Top models:" = "Top models:";
 "Two quota burn-down charts in one tile." = "Dos gràfics de desgast de quotes en una fitxa.";
 "Usage & spend come from your console.groq.com browser session automatically. An API key is optional and only adds Enterprise Prometheus metrics." = "L'ús i la despesa provenen de la sessió del navegador console.groq.com automàticament. Una clau API és opcional i només afegeix Enterprise Prometheus Mètrica.";
-"Usage data appears after a refresh." = "Les dades d'ús apareixen després d'una actualització.";
-"Usage data will appear once the app refreshes." = "Les dades d'ús apareixeran un cop s'actualitzi l'aplicació.";
 "Usage history chart with recent totals." = "Gràfic d'historial d'ús amb totals recents.";
-"Usage history will appear after a refresh." = "L'historial d'ús apareixerà després d'una actualització.";
 "Usage limit" = "Límit d'ús";
 "Usage limits and reset countdowns for one saved account." = "Límits d'ús i restabliment del compte enrere per a un compte desat.";
 "Usage widget with a provider switcher." = "Giny d'ús amb un commutador de proveïdors.";
@@ -2205,6 +2207,10 @@
 "Stored in ~/.codexbar/config.json. Create one at console.x.ai under Settings > Management Keys; inference API keys are not accepted." = "Emmagatzemat a ~/.codexbar/config.json. Creeu-ne un a console.x.ai a Configuració > Claus de gestió; Les claus d'inferència API no s'accepten.";
 "xai-..." = "xai-...";
 "Team ID" = "Equip ID";
+"Vercel access token" = "Testimoni d'accés de Vercel";
+"Optional. Shows your personal budget instead of team credits. Saved in CodexBar's local config file. Or set VERCEL_ACCESS_TOKEN." = "Opcional. Mostra el vostre pressupost personal en lloc dels crèdits de l'equip. Es desa al fitxer de configuració local de CodexBar. O definiu VERCEL_ACCESS_TOKEN.";
+"Open Vercel tokens" = "Obre els testimonis de Vercel";
+"Required with a Vercel access token. Or set VERCEL_TEAM_ID." = "Obligatori amb un testimoni d'accés de Vercel. O definiu VERCEL_TEAM_ID.";
 "Required. Shown in the xAI Console URL and team settings." = "Obligatori. Es mostra a la consola xAI URL i a la configuració de l'equip.";
 "Sakana AI cost summary is not supported." = "El resum de costos Sakana AI no s'admet.";
 "Stored in ~/.codexbar/config.json. Copy the Sakana AI console Cookie request header." = "Emmagatzemat a ~/.codexbar/config.json. Copieu la capçalera de sol·licitud de la consola Sakana AI Cookie.";
@@ -2463,7 +2469,7 @@
 "spend_performance_cache_help" = "Entrada en memòria cau dividida per l’entrada total dels torns vàlids. Ponderada pels tokens d’entrada, amb la cobertura de les mostres indicada.";
 "spend_performance_metric_help" = "Sobre aquestes observacions";
 "merged_icon_source_title" = "Origen de la icona combinada";
-"merged_icon_source_subtitle" = "Trieu quin proveïdor mostra la icona combinada quan està plegada.";
+"merged_icon_source_subtitle" = "«Ús més alt» només compara quotes. Per als proveïdors sense quota, feu servir «Selecció actual».";
 "merged_icon_source_current_selection" = "Selecció actual";
 "merged_icon_source_highest_usage" = "Ús més alt";
 "merged_icon_source_frontmost_app" = "Aplicació del proveïdor en primer pla";
@@ -2562,7 +2568,7 @@
 "Clear filters" = "Esborrar filtres";
 "Change provider order" = "Canviar l’ordre dels proveïdors";
 "Provider sorting" = "Ordenació dels proveïdors";
-"Only enabled providers" = "Només proveïdors actius";
+"Only show enabled providers" = "Mostra només els proveïdors actius";
 "Restore default order" = "Restablir l’ordre per defecte";
 "Also restores the provider order in the menu bar. Can be undone." = "També restableix l’ordre dels proveïdors a la barra de menús. Es pot desfer.";
 "Local Codex details; excluded from combined totals." = "Detalls locals de Codex; exclosos dels totals combinats.";
@@ -2685,3 +2691,15 @@
 /* Munito provider credentials */
 "Key with Read account data (Admin API) permission. Or set MUNITO_API_KEY." = "Clau amb permís de lectura de dades del compte (Admin API). O defineix MUNITO_API_KEY.";
 "Munito reports Admin API spend and limits, not local token cost history." = "Munito informa de la despesa i els límits de l'Admin API, no de l'historial de costos de fitxes local.";
+
+"Show all accounts in Overview" = "Mostra tots els comptes a la vista general";
+
+"Expand cached account usage. The six-provider limit still applies." = "Desplega els proveïdors seleccionats amb les dades d’ús dels comptes en memòria cau. Es manté el límit de sis proveïdors.";
+"Edit" = "Edita";
+"Move up" = "Mou amunt";
+"Move down" = "Mou avall";
+"Leave blank to keep the saved credential." = "Deixeu-ho en blanc per conservar la credencial desada.";
+
+"No personal budget configured" = "No hi ha cap pressupost personal configurat";
+
+"monthly_daily_target_format" = "≈ %@ / dia perquè duri fins al reinici";

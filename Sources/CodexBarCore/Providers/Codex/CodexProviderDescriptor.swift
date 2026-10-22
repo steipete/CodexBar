@@ -59,7 +59,7 @@ public enum CodexProviderDescriptor {
                     errorSimulationOrder: 0),
                 browserCookieOrder: self.browserCookieOrder
                     ?? ProviderBrowserCookieDefaults.defaultImportOrder,
-                dashboardURL: "https://chatgpt.com/codex/cloud/settings/analytics#usage",
+                dashboardURL: "https://chatgpt.com/settings/usage?tab=overview",
                 changelogURL: "https://github.com/openai/codex/releases",
                 statusPageURL: "https://status.openai.com/"),
             branding: ProviderBranding(
@@ -81,8 +81,7 @@ public enum CodexProviderDescriptor {
                 showsHintInProviderDetails: true,
                 historyTitleStyle: .compact,
                 hintPlacement: .beforeRequestHistory,
-                chartEstimateDisclaimer: .localized("codex_api_estimate_hint"),
-                preservesCalendarDaysInCharts: true),
+                chartEstimateDisclaimer: .localized("codex_api_estimate_hint")),
             pace: ProviderPaceCapability(
                 primary: .session(maximumMinutes: 300),
                 secondary: .weekly,

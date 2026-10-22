@@ -48,7 +48,12 @@ struct WidgetLocalizationTests {
             #expect(bundle.bundleURL.lastPathComponent.caseInsensitiveCompare("\(language.rawValue).lproj") ==
                 .orderedSame)
             try WidgetLocalizationOverride.$language.withValue(language.rawValue) {
-                for key in ["Choose an account", "Usage data will appear once the app refreshes.", "Credits left"] {
+                for key in [
+                    "Choose an account",
+                    "Enable a provider in CodexBar → Settings → Providers.",
+                    "Credits left",
+                    "No data",
+                ] {
                     #expect(W(key) == app[key])
                     if language != .english {
                         #expect(W(key) != key, "Untranslated widget text in \(language.rawValue): \(key)")

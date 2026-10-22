@@ -138,6 +138,7 @@ struct MenuBarLayoutRenderExtra: Hashable {
 struct MenuBarLayoutRenderOptions: Hashable {
     let size: MenuBarLayoutSize
     let monospacedDigits: Bool
+    let showWindowLabels: Bool
     let colorPace: Bool
     let colorByProvider: Bool
     let highContrast: Bool
@@ -175,10 +176,12 @@ struct MenuBarLayoutRenderOptions: Hashable {
         colorPace: Bool = false,
         colorByProvider: Bool = false,
         forceStackedStyle: Bool = false,
-        monospacedDigits: Bool = false)
+        monospacedDigits: Bool = false,
+        showWindowLabels: Bool = true)
     {
         self.size = size
         self.monospacedDigits = monospacedDigits
+        self.showWindowLabels = showWindowLabels
         self.colorPace = colorPace
         self.colorByProvider = colorByProvider
         self.highContrast = highContrast
@@ -199,6 +202,7 @@ struct MenuBarLayoutRenderKey: Hashable {
     let data: MenuBarLayoutRenderData
     let size: MenuBarLayoutSize
     let monospacedDigits: Bool
+    let showWindowLabels: Bool
     let colorPace: Bool
     let colorByProvider: Bool
     let highContrast: Bool
@@ -340,6 +344,7 @@ final class MenuBarLayoutRenderer {
             data: data,
             size: options.size,
             monospacedDigits: options.monospacedDigits,
+            showWindowLabels: options.showWindowLabels,
             colorPace: options.colorPace,
             colorByProvider: options.colorByProvider,
             highContrast: options.highContrast,
@@ -853,7 +858,7 @@ final class MenuBarLayoutRenderer {
             automaticText: data.automaticText,
             estimated: data.quotaIsEstimated,
             showUsed: options.showUsed)
-        let prefix = self.windowPrefix(window, data: data)
+        let prefix = self.windowPrefix(window, data: data, showWindowLabels: options.showWindowLabels)
         let accessibilityPrefix = Self.windowAccessibilityLabel(window, data: data)
         let display = prefix.isEmpty ? resolvedValue.text : "\(prefix) \(resolvedValue.text)"
         let accessibility = resolvedValue.isAvailable
@@ -862,20 +867,25 @@ final class MenuBarLayoutRenderer {
         return self.textToken(display, accessibilityText: accessibility, attributes: style.attributes)
     }
 
-    private static func windowPrefix(_ window: PercentWindow, data: MenuBarLayoutRenderData) -> String {
+    private static func windowPrefix(
+        _ window: PercentWindow,
+        data: MenuBarLayoutRenderData,
+        showWindowLabels: Bool = true) -> String
+    {
         let rateWindow = self.window(window, data: data)
         let prefix: String
         let taggedPrefix = Self.taggedSemanticLane(window, provider: data.provider)
             .flatMap { Self.laneShortLabel($0, provider: data.provider) }
+        // Named lanes identify distinct allowances; Spend's currency is not a window label.
+        if let taggedPrefix { return taggedPrefix }
+        guard showWindowLabels || window == .spend else { return "" }
         switch window {
         case .session:
-            prefix = taggedPrefix
-                ?? self.primaryLabel(data: data).flatMap(\.first).map { String($0).uppercased() }
+            prefix = self.primaryLabel(data: data).flatMap(\.first).map { String($0).uppercased() }
                 ?? Self.sessionPrefix(rateWindow)
         case .weekly:
             let secondaryLabel = Self.secondaryLabel(data: data)
-            prefix = taggedPrefix
-                ?? secondaryLabel.flatMap(\.first).map { String($0).uppercased() } ?? "W"
+            prefix = secondaryLabel.flatMap(\.first).map { String($0).uppercased() } ?? "W"
         case .scopedWeekly:
             prefix = data.scopedWeeklyTitle.map { String($0.prefix(1)).uppercased() } ?? "F"
         case .automatic:

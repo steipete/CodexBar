@@ -40,6 +40,23 @@ public struct UsagePace: Sendable {
         self.speedMultiplierToReset = speedMultiplierToReset
     }
 
+    package static func dailyTarget(
+        remaining: Double,
+        resetsAt: Date?,
+        now: Date,
+        calendar: Calendar = .current) -> Double?
+    {
+        guard remaining.isFinite, remaining >= 0,
+              let resetsAt, resetsAt.timeIntervalSince1970.isFinite, resetsAt > now,
+              let resetDay = calendar.dateInterval(of: .day, for: resetsAt),
+              let days = calendar.dateComponents(
+                  [.day], from: calendar.startOfDay(for: now), to: resetDay.start).day
+        else { return nil }
+        // Today counts even when almost over. A midnight reset starts the next allowance.
+        let dayCount = max(1, days + (resetsAt > resetDay.start ? 1 : 0))
+        return remaining / Double(dayCount)
+    }
+
     public static func weekly(
         window: RateWindow,
         now: Date = .init(),

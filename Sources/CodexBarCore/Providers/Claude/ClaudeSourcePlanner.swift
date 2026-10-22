@@ -32,6 +32,7 @@ public enum ClaudeSourcePlanReason: String, Equatable, Sendable {
     case appAutoFallbackCLI = "app-auto-fallback-cli"
     case appAutoFallbackWeb = "app-auto-fallback-web"
     case cliAutoPreferredWeb = "cli-auto-preferred-web"
+    case cliAutoFallbackOAuth = "cli-auto-fallback-oauth"
     case cliAutoFallbackCLI = "cli-auto-fallback-cli"
 }
 
@@ -182,10 +183,12 @@ public enum ClaudeSourcePlanner {
                     self.step(.web, reason: .appAutoFallbackWeb, input: input),
                 ]
             case .cli:
-                [
-                    self.step(.web, reason: .cliAutoPreferredWeb, input: input),
-                    self.step(.cli, reason: .cliAutoFallbackCLI, input: input),
-                ]
+                // OAuth is only planned where CLI Auto attempts it (Linux); macOS keeps web → cli.
+                [self.step(.web, reason: .cliAutoPreferredWeb, input: input)]
+                    + (input.hasOAuthCredentials
+                        ? [self.step(.oauth, reason: .cliAutoFallbackOAuth, input: input)]
+                        : [])
+                    + [self.step(.cli, reason: .cliAutoFallbackCLI, input: input)]
             }
         case .api:
             [self.step(.api, reason: .explicitSourceSelection, input: input)]

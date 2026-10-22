@@ -9,6 +9,10 @@ read_when:
 
 # Claude provider
 
+Enable **Settings → Menu Bar → Show all accounts in Overview** to include this provider’s cached account
+cards in Overview. The existing account source and provider selection remain unchanged; see
+[Overview account rows](configuration.md#menu-bar-controls).
+
 The **Plan Usage** submenu includes recorded remaining-quota burndown above utilization history,
 using the same Session, Weekly, and Sonnet labels. See [recorded quota burndown](widgets/burndown-proof.md)
 for capture-age semantics and the existing history retention/privacy behavior.
@@ -37,7 +41,9 @@ Incomplete proxy records with an explicit null `stop_reason`, positive input, ze
 ### Default selection (debug menu disabled)
 - If an Admin API key is configured, the Admin API strategy is used for Claude API spend/usage.
 - App runtime main pipeline: OAuth API → CLI PTY → Web API.
-- CLI runtime main pipeline: Web API → CLI PTY.
+- CLI runtime main pipeline: Web API → CLI PTY (Linux: Web API → OAuth API → CLI PTY).
+  Since 0.78.0, Auto `usage` first uses the active slot when the claude-swap integration is enabled;
+  explicit source/account selection bypasses it. See [CLI precedence](cli.md#command).
 - Explicit picker modes (OAuth/Web/CLI) bypass automatic fallback.
 - Explicit OAuth retains the last successful quota measurement through recognized temporary network failures,
   including localized DNS/offline errors. Its original timestamp remains visible; authentication rejection still
@@ -209,6 +215,7 @@ This cleanup applies to the reusable PTY session, not the separate one-shot usag
   - `seven_day` → weekly window; also becomes the primary fallback when `five_hour` is absent or has no utilization.
   - `seven_day_sonnet` / `seven_day_opus` → model-specific weekly window.
   - `limits[].weekly_scoped` → model-specific weekly windows; generic `All models` scopes stay in the main weekly row.
+    OAuth and Web share per-entry parsing: malformed siblings or optional fields do not hide valid model rows. Boolean and string percentages are ignored.
   - The menu localizes scoped titles as a model name plus weekly duration; canonical snapshot and CLI titles remain unchanged.
   - Automatic and Session + Weekly menu bar metrics fall back to the most constrained known scoped weekly window when the regular quota windows are missing. Unknown scoped measurements remain unavailable; Extra usage stays a spend-only fallback.
   - `seven_day_routines` / `seven_day_cowork` → Daily Routines extra window.
@@ -295,6 +302,12 @@ is stored on the token account in the config file and does not change quota fetc
 
 - Multi-account manual tokens: add entries to `~/.codexbar/config.json` (`tokenAccounts`) and set Claude cookies to
   Manual. The menu can show all accounts stacked or a switcher bar (Preferences → Advanced → Display).
+- In Settings → Providers → Claude, **Edit** changes a saved account’s label and credential in place.
+  The credential field is masked and starts empty; leave it blank to keep the saved credential, or enter a
+  replacement and choose **Save**. **Cancel** discards the draft. Up/down controls persist account order in
+  the existing config file and menu switcher. Edits and moves preserve the selected account and account ID,
+  including its Claude config directory. Other providers with manual token accounts share the editor; editing
+  a dormant account does not select it.
 - Claude token accounts accept either `sessionKey` cookies or OAuth access tokens (`sk-ant-oat...`). OAuth-token
   accounts route to the OAuth path and disable cookie mode; session-key or cookie-header accounts stay in manual
   cookie mode. The exact edge-routing rules are documented in
@@ -312,6 +325,10 @@ is stored on the token account in the config file and does not change quota fetc
   Web success returns without launching Claude Code; authentication rejection or a Cloudflare challenge falls
   back to an available CLI using the existing Auto policy. Cancellation stops without launching the CLI.
   Explicit Web mode does not fall back. Use explicit OAuth mode for passive polling that must not launch the CLI.
+- Linux CLI Auto mode: the plan is Web → OAuth → CLI PTY. OAuth runs when Claude Code OAuth credentials
+  (`~/.claude/.credentials.json`) are usable without a prompt, so a logged-in user does not launch an interactive
+  `claude` session. Without usable OAuth credentials, the OAuth step is skipped and CLI remains the fallback.
+  OAuth request failures such as 401 or 429 also fall back to the CLI; cancellation stops without launching it.
 - Cookie name required:
   - `sessionKey` (value prefix `sk-ant-...`).
 - Cached cookies: Keychain cache `com.steipete.codexbar.cache` (account `cookie.claude`, source + timestamp).
@@ -481,9 +498,12 @@ The accepted multi-account design in
   rule. Successful list refreshes and clearing the adapter publish a widget snapshot even with account widgets off.
   Retained quota keeps its original measurement time and is bound to the slot's opaque owner fingerprint; unavailable
   or replaced accounts never borrow another account's quota. Local cost history remains combined across Claude homes.
-- Terminal scope: this automatic precedence is cards-only and works on every supported CLI platform. An explicit
+- Terminal scope: cards expands the account list, while Auto `codexbar usage` follows its active slot on every
+  supported CLI platform (including single-slot lists). An explicit
   Claude provider or `--source auto` remains eligible, while `--account`, `--account-index`, `--all-accounts`, and
-  explicit non-auto source flags bypass the adapter. `codexbar usage` and serve `/usage`/`/cost` remain unchanged,
+  explicit non-auto source flags bypass the adapter. A configured non-auto source also bypasses it for `usage`.
+  Unavailable active-slot usage falls back to ordinary source selection with an explicit adapter fallback source label;
+  the returned identity belongs to that fallback source. Serve `/usage`/`/cost` remain unchanged,
   while `codexbar dashboard` and `GET /dashboard/v1/snapshot` additionally nest one entry per swap account in the
   Claude provider row, with full identity by default or redacted email local parts when `--identity redacted` is set.
 - Isolation: CodexBar never reads claude-swap or Claude Code credential storage for this feature; the
@@ -588,6 +608,7 @@ Model-scoped weekly-window proof (synthetic data, no real accounts or credential
       - Additional embedded Claude Desktop project stores, when present:
         - `~/Library/Application Support/Claude/local-agent-mode-sessions/**/.claude/projects`
         - `~/Library/Application Support/Claude/claude-code-sessions/**/.claude/projects`
+      - Cowork `audit.jsonl` files within those Desktop session stores are also scanned, without traversing workspace outputs or dependencies.
     - Current Claude Desktop metadata under `claude-code-sessions` points to shared CLI session JSONL by
       `cliSessionId`; metadata-only directories are not treated as usage sources.
   - Supported pi-compatible sessions:
@@ -601,7 +622,7 @@ Model-scoped weekly-window proof (synthetic data, no real accounts or credential
   - Uses per-model token counts (input, cache read/create, output).
   - Oversized local token or cost values cannot crash history scanning. An overflowing token total stays unavailable while independent counts and finite dollar estimates remain visible; raw rows are retained for later repricing.
   - Deduplicates cumulative streaming chunks by `message.id + requestId`. When `requestId` is absent,
-    exact, nonblank `sessionId + message.id` identifies repeated response snapshots. Distinct explicit request
+    exact, nonblank `sessionId + message.id` (or Cowork's `session_id`) identifies repeated response snapshots. Distinct explicit request
     IDs and distinct fallback sessions remain separate. Rows without sufficient identity are counted individually.
     Within a file, the final complete cumulative chunk wins, including later appends. Copied records retain the
     existing preference for parent and non-sidechain records.
@@ -612,14 +633,14 @@ Model-scoped weekly-window proof (synthetic data, no real accounts or credential
 - Quota-week menu cards reuse the immutable snapshot’s day projection, warmed in the background. New snapshots and changed bucket time zones rebuild it; reset observations and the current time remain live on every card build.
 - Cache:
   - GPT usage recorded through Claude Code uses the bundled OpenAI model's long-context boundary (272K for supported models), while retaining catalog rates. Uncached input and cache-read/create tokens all contribute to the prompt length. Saved reports are recalculated after pricing corrections without discarding retained Codex history.
-  - Native provider cache: `~/Library/Caches/CodexBar/cost-usage/claude-v6.json`
-  - Report memo: `~/Library/Caches/CodexBar/cost-usage/claude-v6.report-memo.json` stores source stamps and the daily report across launches. It is reused only while transcript inventory, cache/pricing artifacts, requested window, and report-semantics revision still match.
+  - Native provider cache: `~/Library/Caches/CodexBar/cost-usage/claude-v6.json`. This is a small manifest; its sibling `claude-v6.json.fragments` directory holds immutable JSON shards grouped by transcript project/directory, including source identities and empty-file parse offsets.
+  - Report memo: `~/Library/Caches/CodexBar/cost-usage/claude-v6.report-memo.json` stores the daily report and references project shards for source stamps. It is reused only while transcript inventory, cache/pricing artifacts, requested window, and report-semantics revision still match.
+  - An unreadable transcript root or directory fails the refresh without replacing the last valid cache or report memo. Restoring access allows the next refresh to reuse that history; genuinely missing paths still count as removed sources.
   - A pricing catalog replacement during a refresh preserves certification of the parsed transcript window. The next refresh applies the replacement prices to cached rows without reparsing unchanged transcripts, including after a restart. Externally replaced transcript caches still require window certification again.
-  - Unchanged sources reuse the memo even when a menu refresh bypasses the scan debounce. Explicit rescans still reparse transcripts, but identical cache and report-memo content is not rewritten; an unchanged rebuild retains its previous scan timestamp. Existing artifacts may be rewritten once to establish deterministic key ordering. Changed transcripts or report metadata still replace the corresponding complete JSON artifacts.
-  - Persistence keeps at most eight lightweight artifact identities independently of the decoded-row cache. An unchanged cache identity plus matching device/inode, size, and nanosecond mtime skips encoding; otherwise sorted JSON fingerprints avoid full-file read-back while preserving identical rebuilds. External replacement invalidates reuse, and changed files still use temporary-file rename. Evicted identities are re-established on load or the next save.
-  - On clone-capable macOS volumes, changed Claude/Vertex cache and report-memo artifacts clone the previous file into a private temporary sibling and write only different blocks before atomic replacement. Linux and unsupported volumes use full writes. JSON schemas and filenames stay unchanged; serialized length changes can still rewrite large suffixes. See the [synthetic write-amplification proof](research/cost-history-write-amplification-2026-10-09.md).
-  - Decoded cache artifacts can be reused in memory while their canonical path, file identity, size, and nanosecond modification time match. Schema and time-zone checks still run on every load; report-level source, window, filter, and pricing checks still run separately. Atomic replacements invalidate this reuse, and explicit rescans still reparse source transcripts.
-  - Successful cache saves retain the just-written decoded value, avoiding another full row decode on the next changed refresh. Unmodified loaded values skip encoding and writing while the artifact stamp still matches; external replacements, deleted files, and failed or cancelled saves cannot establish this reuse. Changed content still replaces the complete JSON artifact. Compact row field names reduce its size; schema 3 artifacts rebuild from transcripts once when the rows are next needed. Report memos and user-facing JSON retain their existing formats.
+  - Unchanged sources reuse the memo even when a menu refresh bypasses the scan debounce. Explicit rescans still reparse transcripts, but byte-identical cache and report-memo content is not rewritten; an unchanged rebuild retains its previous scan timestamp.
+  - Changed refreshes write only affected project shards and the manifests. Loaded usage dictionaries reserve capacity for their source files, and unchanged immutable file records are reused across refreshes to reduce peak memory on large histories. Report aggregates remain in the memo header; a large individual project or report can still require larger writes. Unchanged shards are neither read nor re-encoded while their snapshot remains in the bounded memory memo. The memo retains at most eight snapshots under a conservative encoded-size budget; schema, time-zone, source, window, filter, and pricing checks remain independent.
+  - Writers commit shards before atomically replacing the manifest, then remove unreferenced shards under the same cross-process lock used by readers. A process interrupted before the manifest replacement leaves the previous snapshot intact. Missing or corrupt referenced shards reject the snapshot rather than returning partial totals. Clone-capable macOS volumes reuse unchanged blocks within a changed shard; other volumes use full shard writes.
+  - Existing single-file JSON caches load and migrate on their next save. Migration itself does not require rereading transcripts, and compact row fields and parser revisions are unchanged. Older CodexBar builds can rebuild these caches from the original logs if downgraded. Public report JSON is unchanged.
   - The app's Usage & Spend refresh uses `claude-history-v6.json` and its own report memo. The two app refreshes do not replace each other's retained rows or restart each other's transcript scans. Once both have established their windows, same-day append refreshes read changed tails once per cache.
   - App memos record whether every file's rows were selected for their scan window. Older or externally replaced caches without that proof rebuild once, even if their stored bounds already match; app window changes also rebuild to preserve cold-scan duplicate selection. The regular cache filename and row schema remain compatible, and standalone CLI range behavior is unchanged.
   - The Claude/Vertex cache artifact retains source file identities independently of the shared Codex parser fingerprint. Replacing a transcript rebuilds its rows rather than merging an old prefix into a new suffix; genuine appends still use the saved parse offset. Older entries without identity are rebuilt once before reuse, including during the normal refresh debounce.

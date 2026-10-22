@@ -64,12 +64,7 @@ struct CodexBarAccountTimelineProvider: AppIntentTimelineProvider {
                 usedPercent: 60,
                 windowMinutes: 10080,
                 resetsAt: nil,
-                resetDescription: "Resets in 3d"),
-            tertiary: nil,
-            creditsRemaining: nil,
-            codeReviewRemainingPercent: nil,
-            tokenUsage: nil,
-            dailyUsage: [])
+                resetDescription: "Resets in 3d"))
         return Self.makeEntry(
             snapshot: WidgetSnapshot(
                 entries: [],
@@ -118,17 +113,12 @@ struct CodexBarAccountTimelineProvider: AppIntentTimelineProvider {
         accountID: String?,
         now: Date) -> CodexBarAccountWidgetEntry
     {
-        let selected: WidgetSnapshot = if let accountID {
-            snapshot.selectingAccount(accountID, for: provider)
+        var selected = snapshot
+        if let accountID {
+            selected = snapshot.selectingAccount(accountID, for: provider)
         } else {
             // An unconfigured account widget must not inherit the provider's active account.
-            WidgetSnapshot(
-                entries: [],
-                accounts: snapshot.accounts,
-                accountOverflowCounts: snapshot.accountOverflowCounts,
-                enabledProviders: snapshot.enabledProviders,
-                usageBarsShowUsed: snapshot.usageBarsShowUsed,
-                generatedAt: snapshot.generatedAt)
+            selected.entries = []
         }
         return CodexBarAccountWidgetEntry(
             usageEntry: CodexBarWidgetEntry(date: now, provider: provider, snapshot: selected),

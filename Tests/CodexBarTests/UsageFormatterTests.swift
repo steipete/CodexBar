@@ -397,6 +397,8 @@ struct UsageFormatterTests {
     @Test(arguments: [
         (54.72, "USD", "$54.72"),
         (54.72, "NZD", "NZ$54.72"),
+        (1234.56, "ILS", "₪1,234.56"),
+        (-54.72, "ILS", "-₪54.72"),
         (1234.56, "USD", "$1,234.56"),
         (1_234_567.89, "USD", "$1,234,567.89"),
         (-54.72, "USD", "-$54.72"),
@@ -577,6 +579,7 @@ struct UsageFormatterTests {
             ("NZD", "NZ$", 2), ("SEK", "SEK", 2), ("NOK", "NOK", 2), ("DKK", "DKK", 2),
             ("PLN", "PLN", 2), ("BRL", "R$", 2), ("MXN", "MX$", 2), ("ZAR", "ZAR", 2),
             ("THB", "THB", 2), ("IDR", "IDR", 0), ("VND", "₫", 0), ("UAH", "UAH", 2),
+            ("ILS", "₪", 2),
         ]
         for currency in addedCurrencies {
             let rate = try #require(exchange.rate(for: currency.code))
@@ -632,7 +635,7 @@ struct UsageFormatterTests {
         #expect(CurrencyExchange.requiresLiveRates(preferredCurrencyCode: " try "))
         #expect(CurrencyExchange.requiresLiveRates(preferredCurrencyCode: "NZD"))
         #expect(CurrencyExchange.requiresLiveRates(preferredCurrencyCode: " nzd "))
-        for code in ["SEK", "NOK", "DKK", "PLN", "BRL", "MXN", "ZAR", "THB", "IDR", "VND", "UAH"] {
+        for code in ["SEK", "NOK", "DKK", "PLN", "BRL", "MXN", "ZAR", "THB", "IDR", "VND", "UAH", "ILS"] {
             #expect(CurrencyExchange.requiresLiveRates(preferredCurrencyCode: code))
             #expect(CurrencyExchange.requiresLiveRates(preferredCurrencyCode: " \(code.lowercased()) "))
         }
@@ -648,7 +651,7 @@ struct UsageFormatterTests {
         #expect(exchange.convert(usdAmount: 10, to: "XYZ") == nil)
     }
 
-    @Test(arguments: ["NZD", "SEK", "NOK", "DKK", "PLN", "BRL", "MXN", "ZAR", "THB", "IDR", "VND", "UAH"])
+    @Test(arguments: ["NZD", "SEK", "NOK", "DKK", "PLN", "BRL", "MXN", "ZAR", "THB", "IDR", "VND", "UAH", "ILS"])
     func `additional currencies have offline rates and normalized conversions`(_ code: String) throws {
         let exchange = CurrencyExchange(defaults: InMemoryUserDefaults())
         #expect(CurrencyExchange.supportedCurrencies.contains(code))
@@ -661,7 +664,7 @@ struct UsageFormatterTests {
     @Test
     func `cached currency rates override only supplied fallbacks and keep the USD pivot`() {
         let defaults = InMemoryUserDefaults()
-        defaults.set(["TRY": 60.0, "USD": 42.0, "NZD": 2.0], forKey: "CodexBar.CurrencyExchangeRates")
+        defaults.set(["TRY": 60.0, "USD": 42.0, "NZD": 2.0, "ILS": 4.0], forKey: "CodexBar.CurrencyExchangeRates")
         let exchange = CurrencyExchange(defaults: defaults)
         #expect(exchange.rate(for: " try ") == 60)
         #expect(exchange.rate(for: "EUR") == 0.92)
@@ -670,6 +673,8 @@ struct UsageFormatterTests {
         #expect(exchange.convert(usdAmount: 10, to: "USD") == 10)
         #expect(exchange.convert(usdAmount: 10, to: "NZD") == 20)
         #expect(exchange.convert(amount: 20, from: "NZD", to: "USD") == 10)
+        #expect(exchange.convert(usdAmount: 10, to: "ILS") == 40)
+        #expect(exchange.convert(amount: 40, from: "ILS", to: "USD") == 10)
         #expect(exchange.rate(for: "UAH") == 44.86)
     }
 

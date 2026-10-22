@@ -106,7 +106,7 @@ struct TypeSafeCookieStrategyTests {
         let strategy = TypeSafeWebFetchStrategy(
             transport: ProviderHTTPTransportHandler { request in
                 await requests.append(request)
-                return try Self.pluginResponse(for: request)
+                return try TypeSafeTestFixture.pluginResponse(for: request)
             },
             sessionLoader: { _ in [.init(cookieHeader: header, sourceLabel: "Chrome")] },
             cacheLoader: { .authoritative(nil) },
@@ -147,7 +147,7 @@ struct TypeSafeCookieStrategyTests {
         let log = Log()
         let cached = CookieHeaderCache.Entry(
             cookieHeader: "session=stale",
-            storedAt: TypeSafePluginTests.now,
+            storedAt: TypeSafeTestFixture.now,
             sourceLabel: "old")
         let strategy = TypeSafeWebFetchStrategy(
             usageLoader: { cookie in
@@ -179,15 +179,15 @@ struct TypeSafeCookieStrategyTests {
         let log = Log()
         let cached = CookieHeaderCache.Entry(
             cookieHeader: "session=stale",
-            storedAt: TypeSafePluginTests.now,
+            storedAt: TypeSafeTestFixture.now,
             sourceLabel: "old")
         let strategy = TypeSafeWebFetchStrategy(
             transport: ProviderHTTPTransportHandler { request in
                 await requests.append(request)
                 if request.value(forHTTPHeaderField: "Cookie") == "session=stale" {
-                    return try Self.response(request, status: 307, body: "", contentType: "text/html")
+                    return try TypeSafeTestFixture.response(request, status: 307, body: "", contentType: "text/html")
                 }
-                return try Self.pluginResponse(for: request)
+                return try TypeSafeTestFixture.pluginResponse(for: request)
             },
             sessionLoader: { _ in [.init(cookieHeader: "session=fresh", sourceLabel: "Chrome")] },
             cacheLoader: { .authoritative(cached) },
@@ -214,7 +214,7 @@ struct TypeSafeCookieStrategyTests {
             sessionLoader: { _ in Issue.record("unexpected import"); return [] },
             cacheLoader: { .authoritative(.init(
                 cookieHeader: "session=cached",
-                storedAt: TypeSafePluginTests.now,
+                storedAt: TypeSafeTestFixture.now,
                 sourceLabel: "Chrome")) },
             cacheClearer: { _ in Issue.record("unexpected clear"); return false },
             cacheWriter: { _, _ in Issue.record("unexpected write") })
@@ -244,7 +244,7 @@ struct TypeSafeCookieStrategyTests {
             sessionLoader: { _ in Issue.record("unexpected fallback"); return [] },
             cacheLoader: { .authoritative(.init(
                 cookieHeader: "session=pinned",
-                storedAt: TypeSafePluginTests.now,
+                storedAt: TypeSafeTestFixture.now,
                 sourceLabel: "pinned",
                 authenticationFailurePolicy: .stopFallback)) },
             cacheClearer: { _ in Issue.record("unexpected clear"); return false },
@@ -257,7 +257,7 @@ struct TypeSafeCookieStrategyTests {
     func `concurrent cache replacement is not overwritten`() async throws {
         let cached = CookieHeaderCache.Entry(
             cookieHeader: "session=old",
-            storedAt: TypeSafePluginTests.now,
+            storedAt: TypeSafeTestFixture.now,
             sourceLabel: "old")
         let strategy = TypeSafeWebFetchStrategy(
             usageLoader: { header in
@@ -287,17 +287,6 @@ struct TypeSafeCookieStrategyTests {
         await #expect(throws: CancellationError.self) { try await task.value }
     }
 
-    private static let actionID = String(repeating: "b", count: 40)
-    private static let html = #"<script src="/_next/static/chunks/app.js"></script>"#
-    private static let chunk = "\"" + Self.actionID
-        + "\",c.callServer,void 0,c.findSourceMapURL,\"getBillingOverviewResult\""
-    // swiftlint:disable line_length
-    private static let body = #"""
-    0:{"a":"$@1"}
-    1:{"ok":true,"data":{"billing":{"plan":"free_plan","spent":0.01,"freeCreditsRemaining":4.98,"balance":4.98,"purchased":0,"resetsInDays":12,"cycleLabel":"September 2026","credits":[]}}}
-    """#
-    // swiftlint:enable line_length
-
     private static func record(
         _ domain: String,
         scope: BrowserCookieScope,
@@ -316,36 +305,8 @@ struct TypeSafeCookieStrategyTests {
             scope: scope)
     }
 
-    private static func pluginResponse(for request: URLRequest) throws -> (Data, URLResponse) {
-        switch (request.httpMethod, request.url?.path) {
-        case ("GET", "/settings/billing"):
-            try self.response(request, body: self.html, contentType: "text/html")
-        case ("GET", "/_next/static/chunks/app.js"):
-            try self.response(request, body: self.chunk, contentType: "application/javascript")
-        case ("POST", "/settings/billing"):
-            try self.response(request, body: self.body, contentType: "text/x-component")
-        default:
-            try self.response(request, status: 404, body: "not found")
-        }
-    }
-
-    private static func response(
-        _ request: URLRequest,
-        status: Int = 200,
-        body: String,
-        contentType: String = "application/json") throws -> (Data, URLResponse)
-    {
-        let url = try #require(request.url)
-        let response = try #require(HTTPURLResponse(
-            url: url,
-            statusCode: status,
-            httpVersion: nil,
-            headerFields: ["Content-Type": contentType]))
-        return (Data(body.utf8), response)
-    }
-
     private static func usage() -> UsageSnapshot {
-        UsageSnapshot(primary: nil, secondary: nil, updatedAt: TypeSafePluginTests.now)
+        UsageSnapshot(primary: nil, secondary: nil, updatedAt: TypeSafeTestFixture.now)
     }
 
     private static func context(_ source: ProviderCookieSource, header: String? = nil) -> ProviderFetchContext {

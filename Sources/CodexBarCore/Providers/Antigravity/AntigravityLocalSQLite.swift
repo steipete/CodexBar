@@ -85,50 +85,18 @@ extension AntigravityLocalReader {
         // whose -wal and -shm sidecars are absent, because a read-only connection may not create them.
         // A cleanly closed conversation is exactly that file. An absent -wal also means no WAL connection
         // holds the database, so the main file alone carries the checkpointed state.
-        guard attempt.cannotOpen, let before = self.idleDatabaseState(url) else { return attempt.source }
+        guard attempt.cannotOpen, let before = SQLiteIdleDatabaseState.read(at: url) else { return attempt.source }
         budget.statistics.immutableFallbacks += 1
         var source = try self.readDatabase(url, budget: budget, mode: .immutable).source
         // An immutable connection neither locks nor detects changes. A writer that appeared during the read
         // could have checkpointed pages into the main file, so the result is trusted only when the file and
         // its sidecar state are unchanged afterwards. Anything else stays incomplete, as before.
-        guard self.idleDatabaseState(url) == before else {
+        guard SQLiteIdleDatabaseState.read(at: url) == before else {
             source.isComplete = false
             source.evidenceIsUnstable = true
             return source
         }
         return source
-    }
-
-    /// Identity of an idle WAL database: no `-wal` sidecar, plus the main file's size, modification time,
-    /// file system number, and 100-byte header. Nil when a `-wal` sidecar exists or the file cannot be examined.
-    private struct IdleDatabaseState: Equatable {
-        let size: UInt64
-        let modified: Date
-        let fileNumber: UInt64
-        let header: Data
-    }
-
-    private static func idleDatabaseState(_ url: URL) -> IdleDatabaseState? {
-        // SQLite places sidecars next to the resolved database file, not next to a symlink.
-        let resolved = url.resolvingSymlinksInPath()
-        guard !FileManager.default.fileExists(atPath: resolved.path + "-wal"),
-              let attributes = try? FileManager.default.attributesOfItem(atPath: resolved.path),
-              let size = (attributes[.size] as? NSNumber)?.uint64Value,
-              let modified = attributes[.modificationDate] as? Date,
-              let fileNumber = (attributes[.systemFileNumber] as? NSNumber)?.uint64Value,
-              let handle = try? FileHandle(forReadingFrom: resolved)
-        else { return nil }
-        defer { try? handle.close() }
-        guard let header = try? handle.read(upToCount: 100) else { return nil }
-        return IdleDatabaseState(size: size, modified: modified, fileNumber: fileNumber, header: header)
-    }
-
-    /// The `immutable=1` query parameter is only reachable through a URI filename.
-    private static func immutableURI(for url: URL) -> String? {
-        var allowed = CharacterSet.urlPathAllowed
-        allowed.remove(charactersIn: "%?#")
-        guard let path = url.path.addingPercentEncoding(withAllowedCharacters: allowed) else { return nil }
-        return "file:\(path)?immutable=1"
     }
 
     #if canImport(SQLite3) || canImport(CSQLite3)
@@ -143,7 +111,7 @@ extension AntigravityLocalReader {
         case .readOnly:
             sqlite3_open_v2(url.path, &database, SQLITE_OPEN_READONLY, nil)
         case .immutable:
-            if let uri = self.immutableURI(for: url) {
+            if let uri = SQLiteIdleDatabaseState.immutableURI(for: url) {
                 sqlite3_open_v2(uri, &database, SQLITE_OPEN_READONLY | SQLITE_OPEN_URI, nil)
             } else {
                 SQLITE_CANTOPEN

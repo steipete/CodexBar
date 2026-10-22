@@ -18,6 +18,9 @@ struct TypeSafePluginTests {
     1:{"ok":true,"data":{"billing":{"plan":"free_plan","spent":0.01,"freeCreditsRemaining":4.98,"balance":4.98,"purchased":0,"resetsInDays":12,"cycleLabel":"September 2026","credits":[{"id":"00000000-0000-4000-8000-000000000001","amount":5,"remaining":4.98,"expiresAt":"2026-10-19T00:00:00Z"},{"id":"00000000-0000-4000-8000-000000000002","amount":2,"remaining":0,"expiresAt":"2026-10-19T00:00:00Z"}]}}}
     """#
     // swiftlint:enable line_length
+    private static let browserUserAgent =
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) "
+            + "Chrome/143.0.0.0 Safari/537.36"
 
     @Test(arguments: BundledPluginTestSupport.engines)
     func `billing maps spend balance plan and active credits`(engine: ProviderPluginEngineKind) async throws {
@@ -55,6 +58,24 @@ struct TypeSafePluginTests {
         #expect(post.value(forHTTPHeaderField: "Content-Type") == "application/json")
         #expect(post.httpBody == Data("[]".utf8))
         #expect(recorded.filter { $0.url?.path == "/_next/static/chunks/app.js" }.count == 1)
+    }
+
+    @Test(arguments: BundledPluginTestSupport.engines)
+    func `billing requests carry a browser style user agent`(engine: ProviderPluginEngineKind) async throws {
+        let requests = RequestLog()
+        _ = try await Self.fetch(engine: engine) { request in
+            await requests.append(request)
+            return try await Self.defaultHandler(html: Self.html, chunk: Self.chunk, body: Self.body)(request)
+        }
+
+        let recorded = await requests.all
+        #expect(recorded.filter { $0.httpMethod == "GET" && $0.url?.path == "/settings/billing" }.count == 1)
+        #expect(recorded.filter { $0.url?.path == "/_next/static/chunks/app.js" }.count == 1)
+        #expect(recorded.filter { $0.httpMethod == "POST" }.count == 1)
+        // Cloudflare blocks the Linux default UA (it contains "curl/"), so every request sends the browser-style one.
+        let userAgents = recorded.map { $0.value(forHTTPHeaderField: "User-Agent") ?? "" }
+        #expect(userAgents.allSatisfy { !$0.isEmpty && !$0.contains("curl/") } == true)
+        #expect(userAgents.allSatisfy { $0 == Self.browserUserAgent } == true)
     }
 
     @Test(arguments: BundledPluginTestSupport.engines)

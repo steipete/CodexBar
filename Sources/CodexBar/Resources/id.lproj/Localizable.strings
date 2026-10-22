@@ -629,7 +629,6 @@
 
 /* Display Pane */
 "menu_bar_style_title" = "Gaya menu bar";
-"menu_bar_style_subtitle" = "Cara item menu bar digambar.";
 "menu_bar_inactive_display_contrast_title" = "Tingkatkan visibilitas di layar tidak aktif";
 "menu_bar_inactive_display_contrast_subtitle" = "Gunakan rendering kontras tinggi agar ikon dan metrik tetap terbaca di layar lain.";
 "menu_bar_style_critters" = "Critter";
@@ -683,6 +682,8 @@
 "overview_rows_follow_order" = "Baris ikhtisar selalu mengikuti urutan penyedia.";
 "overview_no_providers_selected" = "Tidak ada penyedia dipilih";
 "agent_sessions_title" = "Sesi agen";
+"agent_sessions_remote_title" = "Sesi jarak jauh (Tailscale / SSH)";
+"agent_sessions_remote_subtitle" = "Temukan dan hubungkan ke host jarak jauh. Nonaktifkan untuk memantau Mac ini saja.";
 "agent_sessions_subtitle" = "Tampilkan sesi Codex dan Claude Code lokal serta yang ditemukan melalui SSH di menu.";
 "agent_sessions_hosts_title" = "Host SSH tambahan";
 "agent_sessions_footer" = "Mac di tailnet Anda ditemukan secara otomatis. Sesi lokal disegarkan setiap 30 detik; host jarak jauh setiap 60 detik dan saat menu dibuka.";
@@ -1240,6 +1241,7 @@
 "Password" = "Kata sandi";
 "%@ authentication is disabled." = "Autentikasi %@ dinonaktifkan.";
 "%@ cookies are disabled." = "Cookie %@ dinonaktifkan.";
+"%@ is unavailable. Edit the widget to choose a provider." = "%@ tidak tersedia. Edit widget untuk memilih penyedia.";
 "%@ web API access is disabled." = "Akses web API %@ dinonaktifkan.";
 "Disable %@ dashboard cookie usage." = "Nonaktifkan penggunaan cookie dasbor %@.";
 "Keychain access is disabled in Advanced, so browser cookie import is unavailable." = "Akses Keychain dinonaktifkan di Lanjutan, jadi impor cookie browser tidak tersedia.";
@@ -1413,6 +1415,7 @@
 /* Menu bar layout editor */
 "menu_bar_layout_title" = "Tata letak";
 "menu_bar_layout_footer" = "Seret token untuk mengatur bar menu. Klik token untuk menambahkannya; pilih token yang sudah ditempatkan lalu tekan Delete untuk menghapusnya.";
+"menu_bar_layout_footer_requires_icon_and_percent" = "Tata letak hanya berlaku untuk gaya menu bar “%@”. Pilih gaya tersebut di atas untuk mengeditnya.";
 "menu_bar_layout_group_identity" = "Identitas";
 "menu_bar_layout_group_usage" = "Penggunaan";
 "menu_bar_layout_group_time" = "Waktu";
@@ -1445,6 +1448,7 @@
 "menu_bar_layout_size_regular" = "Reguler";
 "menu_bar_layout_size_large" = "Besar";
 "menu_bar_layout_monospaced_digits" = "Digit lebar tetap";
+"menu_bar_layout_show_window_labels" = "Tampilkan label periode";
 "menu_bar_layout_gap" = "Jarak";
 "menu_bar_layout_gap_tight" = "Rapat";
 "menu_bar_layout_gap_regular" = "Reguler";
@@ -1801,6 +1805,7 @@
 "Details for %@" = "Detail untuk %@";
 "EST. %@" = "Perkiraan %@";
 "Enable Antigravity provider" = "Aktifkan penyedia Antigravity";
+"Enable a provider in CodexBar → Settings → Providers." = "Aktifkan penyedia di CodexBar → Pengaturan → Penyedia.";
 "Enable account widgets in CodexBar → Settings → Menu → Widgets. Then edit this widget to choose an account." = "Aktifkan widget akun di CodexBar → Pengaturan → Menu → Widget. Kemudian edit widget ini untuk memilih akun.";
 "Error: %@" = "Kesalahan: %@";
 "Examples: alt+cmd+2, shift+right. Refresh (cmd+r), Settings (cmd+,) and Quit (cmd+q) are reserved." = "Contoh: alt+cmd+2, shift+right. Refresh (cmd+r), Pengaturan (cmd+,) dan Keluar (cmd+q) dicadangkan.";
@@ -2015,10 +2020,7 @@
 "Top models:" = "Model teratas:";
 "Two quota burn-down charts in one tile." = "Dua grafik burn-down Kuota dalam satu ubin.";
 "Usage & spend come from your console.groq.com browser session automatically. An API key is optional and only adds Enterprise Prometheus metrics." = "Penggunaan & pembelanjaan berasal dari sesi browser console.groq.com Anda secara otomatis. Kunci API bersifat opsional dan hanya menambahkan Enterprise Prometheus Metrik.";
-"Usage data appears after a refresh." = "Data penggunaan muncul setelah penyegaran.";
-"Usage data will appear once the app refreshes." = "Data penggunaan akan muncul setelah aplikasi disegarkan.";
 "Usage history chart with recent totals." = "Bagan riwayat penggunaan dengan total terkini.";
-"Usage history will appear after a refresh." = "Riwayat penggunaan akan muncul setelah penyegaran.";
 "Usage limit" = "Batas penggunaan";
 "Usage limits and reset countdowns for one saved account." = "Batas penggunaan dan setel ulang hitungan mundur untuk satu akun tersimpan.";
 "Usage widget with a provider switcher." = "Widget penggunaan dengan pengalih penyedia.";
@@ -2205,6 +2207,10 @@
 "Stored in ~/.codexbar/config.json. Create one at console.x.ai under Settings > Management Keys; inference API keys are not accepted." = "Disimpan di ~/.codexbar/config.json. Buat satu di console.x.ai di bawah Pengaturan > Kunci Manajemen; kesimpulan kunci API tidak diterima.";
 "xai-..." = "xai-...";
 "Team ID" = "Tim ID";
+"Vercel access token" = "Token akses Vercel";
+"Optional. Shows your personal budget instead of team credits. Saved in CodexBar's local config file. Or set VERCEL_ACCESS_TOKEN." = "Opsional. Menampilkan anggaran pribadi Anda, bukan kredit tim. Disimpan di file konfigurasi lokal CodexBar. Atau atur VERCEL_ACCESS_TOKEN.";
+"Open Vercel tokens" = "Buka token Vercel";
+"Required with a Vercel access token. Or set VERCEL_TEAM_ID." = "Wajib bersama token akses Vercel. Atau atur VERCEL_TEAM_ID.";
 "Required. Shown in the xAI Console URL and team settings." = "Diperlukan. Ditampilkan di Konsol xAI URL dan pengaturan tim.";
 "Sakana AI cost summary is not supported." = "Ringkasan biaya Sakana AI tidak didukung.";
 "Stored in ~/.codexbar/config.json. Copy the Sakana AI console Cookie request header." = "Disimpan di ~/.codexbar/config.json. Salin header permintaan Sakana AI konsol Cookie.";
@@ -2463,7 +2469,7 @@
 "spend_performance_cache_help" = "Input yang di-cache dibagi total input dari giliran yang memenuhi syarat. Dibobot berdasarkan token input, dengan cakupan sampel ditampilkan.";
 "spend_performance_metric_help" = "Tentang pengamatan ini";
 "merged_icon_source_title" = "Sumber ikon gabungan";
-"merged_icon_source_subtitle" = "Pilih penyedia yang ditampilkan ikon gabungan saat diciutkan.";
+"merged_icon_source_subtitle" = "“Penggunaan tertinggi” hanya membandingkan kuota. Untuk penyedia tanpa kuota, gunakan “Pilihan saat ini”.";
 "merged_icon_source_current_selection" = "Pilihan saat ini";
 "merged_icon_source_highest_usage" = "Penggunaan tertinggi";
 "merged_icon_source_frontmost_app" = "Aplikasi penyedia di depan";
@@ -2562,7 +2568,7 @@
 "Clear filters" = "Hapus filter";
 "Change provider order" = "Ubah urutan penyedia";
 "Provider sorting" = "Pengurutan penyedia";
-"Only enabled providers" = "Hanya penyedia aktif";
+"Only show enabled providers" = "Tampilkan hanya penyedia aktif";
 "Restore default order" = "Pulihkan urutan bawaan";
 "Also restores the provider order in the menu bar. Can be undone." = "Juga memulihkan urutan penyedia di bar menu. Dapat diurungkan.";
 "Local Codex details; excluded from combined totals." = "Detail Codex lokal; tidak termasuk dalam total gabungan.";
@@ -2685,3 +2691,15 @@
 /* Munito provider credentials */
 "Key with Read account data (Admin API) permission. Or set MUNITO_API_KEY." = "Kunci dengan izin Baca data akun (Admin API). Atau setel MUNITO_API_KEY.";
 "Munito reports Admin API spend and limits, not local token cost history." = "Munito melaporkan pengeluaran dan batasan Admin API, bukan riwayat biaya token lokal.";
+
+"Show all accounts in Overview" = "Tampilkan semua akun di Ringkasan";
+
+"Expand cached account usage. The six-provider limit still applies." = "Perluas penyedia yang dipilih menggunakan data penggunaan akun yang tersimpan dalam cache. Batas enam penyedia tetap berlaku.";
+"Edit" = "Edit";
+"Move up" = "Pindah ke atas";
+"Move down" = "Pindah ke bawah";
+"Leave blank to keep the saved credential." = "Biarkan kosong untuk mempertahankan kredensial tersimpan.";
+
+"No personal budget configured" = "Belum ada anggaran pribadi yang dikonfigurasi";
+
+"monthly_daily_target_format" = "≈ %@ / hari agar cukup hingga reset";

@@ -109,26 +109,6 @@ extension CostUsageScanner {
             workingDirectory: workingDirectory)
     }
 
-    static func parseClaudeFile(
-        fileURL: URL,
-        range: CostUsageDayRange,
-        providerFilter: ClaudeLogProviderFilter,
-        startOffset: Int64 = 0,
-        modelsDevCatalog: ModelsDevCatalog? = nil,
-        modelsDevCacheRoot: URL? = nil) -> ClaudeParseResult
-    {
-        let pricingResolver = modelsDevCatalog.map { CostUsagePricing.ClaudeResolver(catalog: $0) }
-            ?? CostUsagePricing.ClaudeResolver(now: Date(), cacheRoot: modelsDevCacheRoot)
-        return (
-            try? self.parseClaudeFileCancellable(
-                fileURL: fileURL,
-                range: range,
-                providerFilter: providerFilter,
-                startOffset: startOffset,
-                pricingResolver: pricingResolver,
-                checkCancellation: nil)) ?? ClaudeParseResult(rows: [], parsedBytes: startOffset)
-    }
-
     static func parseClaudeFileCancellable(
         fileURL: URL,
         range: CostUsageDayRange,
@@ -580,6 +560,16 @@ extension CostUsageScanner {
         return lower.contains("vertex") || (includeGCP && lower.contains("gcp"))
     }
 
+    private static func claudeRootExists(atPath path: String) throws -> Bool {
+        var info = stat()
+        guard path.withCString({ fstatat(AT_FDCWD, $0, &info, 0) }) == 0 else {
+            let code = errno
+            if code == ENOENT || code == ENOTDIR { return false }
+            throw NSError(domain: NSPOSIXErrorDomain, code: Int(code), userInfo: [NSFilePathErrorKey: path])
+        }
+        return true
+    }
+
     private static func claudeRootCandidates(for rootPath: String) -> [String] {
         if rootPath.hasPrefix("/var/") {
             return ["/private" + rootPath, rootPath]
@@ -589,19 +579,6 @@ extension CostUsageScanner {
             return [rootPath, trimmed]
         }
         return [rootPath]
-    }
-
-    private struct ClaudeSourceFile {
-        let url: URL
-        let stamp: CostUsageClaudeFileStamp
-    }
-
-    private struct ClaudeSourceInventory {
-        var files: [String: ClaudeSourceFile] = [:]
-
-        var stamps: [String: CostUsageClaudeFileStamp] {
-            self.files.mapValues(\.stamp)
-        }
     }
 
     private struct ClaudeScanState {
@@ -616,12 +593,11 @@ extension CostUsageScanner {
     }
 
     private static func processClaudeFile(
-        source: ClaudeSourceFile,
+        path: String,
+        stamp: CostUsageClaudeFileStamp,
         state: inout ClaudeScanState) throws
     {
         try state.checkCancellation?()
-        let path = source.url.path
-        let stamp = source.stamp
         let cached = state.cache.files[path]
         let sameFile = state.sourceFileIDs[path] == stamp.fileID
 
@@ -649,7 +625,7 @@ extension CostUsageScanner {
         Self.recordClaudeScanWork(.transcriptParse(startOffset: startOffset))
         #endif
         let parsed = try Self.parseClaudeFileCancellable(
-            fileURL: source.url,
+            fileURL: URL(fileURLWithPath: path),
             range: state.range,
             providerFilter: state.providerFilter,
             startOffset: startOffset,
@@ -670,29 +646,50 @@ extension CostUsageScanner {
 
     private static func inventoryClaudeRoots(
         _ roots: [URL],
-        checkCancellation: CancellationCheck?) throws -> ClaudeSourceInventory
+        checkCancellation: CancellationCheck?) throws -> [String: CostUsageClaudeFileStamp]
     {
-        var inventory = ClaudeSourceInventory()
+        var inventory: [String: CostUsageClaudeFileStamp] = [:]
 
         for root in roots {
             try checkCancellation?()
             let rootPath = root.path
             let rootCandidates = Self.claudeRootCandidates(for: rootPath)
-            guard let existingRootPath = rootCandidates.first(where: { FileManager.default.fileExists(atPath: $0) })
+            // A root that exists but cannot be inspected must fail the scan, not silently drop its sources.
+            guard let existingRootPath = try rootCandidates.first(where: { try Self.claudeRootExists(atPath: $0) })
             else { continue }
             let existingRoot = existingRootPath == rootPath ? root : URL(fileURLWithPath: existingRootPath)
+            if existingRoot.pathExtension == "jsonl",
+               let stamp = try CostUsageClaudeFileStamp.readIfPresent(at: existingRoot)
+            {
+                inventory[existingRoot.path] = stamp
+                continue
+            }
+            var enumerationError: Error?
             guard let enumerator = FileManager.default.enumerator(
                 at: existingRoot,
                 includingPropertiesForKeys: nil,
-                options: [.skipsHiddenFiles, .skipsPackageDescendants])
-            else { continue }
+                options: [.skipsHiddenFiles, .skipsPackageDescendants],
+                errorHandler: { _, error in
+                    // Files removed mid-walk are ordinary churn; unreadable directories would undercount.
+                    if CostUsageClaudeFileStamp.isMissingFileError(error) { return true }
+                    enumerationError = error
+                    return false
+                })
+            else {
+                guard try Self.claudeRootExists(atPath: existingRootPath) else { continue }
+                throw NSError(
+                    domain: NSCocoaErrorDomain,
+                    code: NSFileReadUnknownError,
+                    userInfo: [NSFilePathErrorKey: existingRootPath])
+            }
 
             for case let url as URL in enumerator {
                 try checkCancellation?()
                 guard url.pathExtension.lowercased() == "jsonl" else { continue }
-                guard let stamp = CostUsageClaudeFileStamp.read(at: url), stamp.size > 0 else { continue }
-                inventory.files[url.path] = ClaudeSourceFile(url: url, stamp: stamp)
+                guard let stamp = try CostUsageClaudeFileStamp.readIfPresent(at: url), stamp.size > 0 else { continue }
+                inventory[url.path] = stamp
             }
+            if let enumerationError { throw enumerationError }
         }
         return inventory
     }
@@ -706,7 +703,7 @@ extension CostUsageScanner {
         checkCancellation: CancellationCheck?) throws -> CostUsageDailyReport
     {
         let roots = self.defaultClaudeProjectsRoots(options: options)
-        let inventory = try Self.inventoryClaudeRoots(roots, checkCancellation: checkCancellation)
+        let sourceInventory = try Self.inventoryClaudeRoots(roots, checkCancellation: checkCancellation)
         try checkCancellation?()
 
         let cacheContext = reportContext ?? .regular
@@ -726,7 +723,6 @@ extension CostUsageScanner {
             artifactStamps: (cache: cacheArtifactStamp, pricing: pricingArtifactStamp))
         let memo = CostUsageClaudeReportMemo.shared
         let priorMemo = memo.entry(provider: provider, canonicalCachePath: canonicalCachePath)
-        let sourceInventory = inventory.stamps
 
         if !options.forceRescan,
            let priorMemo,
@@ -782,7 +778,7 @@ extension CostUsageScanner {
                 artifact.sourceFileIDs = [:]
             }
             let changedPaths: Set<String> = if let priorMemo {
-                Set(inventory.files.keys.filter { path in
+                Set(sourceInventory.keys.filter { path in
                     priorMemo.sourceInventory[path] != sourceInventory[path]
                 })
             } else {
@@ -798,9 +794,9 @@ extension CostUsageScanner {
                 pricingResolver: pricingResolver,
                 checkCancellation: checkCancellation)
 
-            for path in inventory.files.keys.sorted() {
-                guard let source = inventory.files[path] else { continue }
-                try Self.processClaudeFile(source: source, state: &scanState)
+            for path in sourceInventory.keys.sorted() {
+                guard let stamp = sourceInventory[path] else { continue }
+                try Self.processClaudeFile(path: path, stamp: stamp, state: &scanState)
             }
             try checkCancellation?()
 
@@ -894,19 +890,6 @@ extension CostUsageScanner {
     }
 
     static func buildClaudeReportFromCache(
-        cache: CostUsageCache,
-        range: CostUsageDayRange,
-        now: Date = Date(),
-        modelsDevCacheRoot: URL? = nil) -> CostUsageDailyReport
-    {
-        self.buildClaudeReportFromCache(
-            cache: cache,
-            rows: self.reconciledClaudeRows(cache: cache),
-            range: range,
-            pricingResolver: CostUsagePricing.ClaudeResolver(now: now, cacheRoot: modelsDevCacheRoot))
-    }
-
-    private static func buildClaudeReportFromCache(
         cache: CostUsageCache,
         rows: [ClaudeUsageRow],
         range: CostUsageDayRange,

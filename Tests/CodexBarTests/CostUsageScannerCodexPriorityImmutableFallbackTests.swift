@@ -26,10 +26,12 @@ struct CostUsageScannerCodexPriorityImmutableFallbackTests {
             body: Self.priorityBody)
         try Self.removeSidecars(of: dbURL)
 
+        let original = try Data(contentsOf: dbURL)
         let resolution = CostUsageScanner.resolveCodexPriorityTurns(databaseURL: dbURL)
 
         #expect(resolution.validationPending == false)
         #expect(resolution.turns.keys.sorted() == ["turn-a"])
+        #expect(try Data(contentsOf: dbURL) == original)
     }
 
     @Test
@@ -69,7 +71,9 @@ struct CostUsageScannerCodexPriorityImmutableFallbackTests {
         #expect(sqlite3_prepare_v2(opened.db, "select count(*) from logs", -1, &stmt, nil) == SQLITE_OK)
         sqlite3_finalize(stmt)
         if opened.idleState != nil {
-            #expect(opened.idleState == CostUsageScanner.codexPriorityIdleDatabaseState(at: dbURL))
+            #expect(opened.idleState == SQLiteIdleDatabaseState.read(at: dbURL))
+            #expect(!FileManager.default.fileExists(atPath: dbURL.path + "-wal"))
+            #expect(!FileManager.default.fileExists(atPath: dbURL.path + "-shm"))
         }
     }
 
@@ -81,20 +85,20 @@ struct CostUsageScannerCodexPriorityImmutableFallbackTests {
         try Self.createWALLogsDatabase(at: dbURL)
         try Self.removeSidecars(of: dbURL)
 
-        let before = try #require(CostUsageScanner.codexPriorityIdleDatabaseState(at: dbURL))
-        #expect(CostUsageScanner.codexPriorityIdleDatabaseState(at: dbURL) == before)
+        let before = try #require(SQLiteIdleDatabaseState.read(at: dbURL))
+        #expect(SQLiteIdleDatabaseState.read(at: dbURL) == before)
 
         try CostUsageScannerCodexPriorityTests.insertTestLog(
             dbURL: dbURL,
             timestamp: "2026-05-10T12:00:00Z",
             body: Self.priorityBody)
         try Self.removeSidecars(of: dbURL)
-        let after = try #require(CostUsageScanner.codexPriorityIdleDatabaseState(at: dbURL))
+        let after = try #require(SQLiteIdleDatabaseState.read(at: dbURL))
         #expect(after != before)
 
         // A live writer leaves a -wal sidecar; the file is no longer idle.
         try Data().write(to: URL(fileURLWithPath: dbURL.path + "-wal"))
-        #expect(CostUsageScanner.codexPriorityIdleDatabaseState(at: dbURL) == nil)
+        #expect(SQLiteIdleDatabaseState.read(at: dbURL) == nil)
     }
 
     @Test
@@ -134,6 +138,70 @@ struct CostUsageScannerCodexPriorityImmutableFallbackTests {
 
         #expect(resolution.validationPending == false)
         #expect(resolution.turns.keys.sorted() == ["turn-a"])
+    }
+
+    @Test
+    func `older immutable invalidation preserves a newer validated cursor`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let dbURL = env.root.appendingPathComponent("logs_2.sqlite")
+        defer {
+            CostUsageScanner._test_setCodexPriorityBeforeFallbackColdScanHook(databaseURL: dbURL, nil)
+            CostUsageScanner.dropCodexPriorityTurnsMemo(databaseURL: dbURL)
+        }
+        try Self.createWALLogsDatabase(at: dbURL)
+        let epoch = Int64(Date().timeIntervalSince1970)
+        var rows = [(epochSeconds: epoch, body: Self.priorityBody)]
+        rows.append(contentsOf: (1..<8).map { _ in (epochSeconds: epoch, body: "routine trace row") })
+        try CostUsageScannerCodexPriorityTests.insertTestLogs(dbURL: dbURL, rows: rows)
+        try Self.removeSidecars(of: dbURL)
+
+        let probe = try #require(CostUsageScanner.openCodexPriorityDatabase(at: dbURL))
+        let usesImmutable = probe.idleState != nil
+        sqlite3_close(probe.db)
+        // SQLite libraries that support ordinary read-only access do not take this invalidation path.
+        guard usesImmutable else { return }
+        let initial = CostUsageScanner.resolveCodexPriorityTurns(databaseURL: dbURL)
+        #expect(!initial.validationPending)
+        #expect(initial.turns.keys.sorted() == ["turn-a"])
+
+        // Row 1 is retained priority evidence but is outside the distributed anchors (2, 4, 6, 8).
+        do {
+            var writer: OpaquePointer?
+            guard sqlite3_open(dbURL.path, &writer) == SQLITE_OK else { throw FixtureError.open }
+            defer { sqlite3_close(writer) }
+            guard sqlite3_exec(
+                writer, "update logs set feedback_log_body='routine trace row' where rowid=1", nil, nil, nil) ==
+                SQLITE_OK
+            else { throw FixtureError.exec }
+        }
+        try Self.removeSidecars(of: dbURL)
+        let attributes = try FileManager.default.attributesOfItem(atPath: dbURL.path)
+        let modified = try #require(attributes[.modificationDate] as? Date)
+        var newerCursor: CostUsageScanner.CodexPriorityTurnsPersistedCursor?
+        CostUsageScanner._test_setCodexPriorityBeforeFallbackColdScanHook(databaseURL: dbURL) { _ in
+            CostUsageScanner._test_setCodexPriorityBeforeFallbackColdScanHook(databaseURL: dbURL, nil)
+            do {
+                try CostUsageScannerCodexPriorityTests.insertTestLog(
+                    dbURL: dbURL,
+                    timestamp: "2026-05-10T12:00:00Z",
+                    body: Self.priorityBody.replacingOccurrences(of: "turn-a", with: "turn-b"))
+                try Self.removeSidecars(of: dbURL)
+                try FileManager.default.setAttributes(
+                    [.modificationDate: modified.addingTimeInterval(2)], ofItemAtPath: dbURL.path)
+                let newer = CostUsageScanner.resolveCodexPriorityTurns(databaseURL: dbURL)
+                #expect(!newer.validationPending)
+                #expect(newer.turns.keys.sorted() == ["turn-b"])
+                newerCursor = CostUsageScanner.codexPriorityTurnsPersistedCursor(databaseURL: dbURL)
+            } catch {
+                Issue.record(error)
+            }
+        }
+
+        let older = CostUsageScanner.resolveCodexPriorityTurns(databaseURL: dbURL)
+        let expected = try #require(newerCursor)
+        #expect(older.validationPending)
+        #expect(CostUsageScanner.codexPriorityTurnsPersistedCursor(databaseURL: dbURL) == expected)
     }
 
     // MARK: - Fixtures

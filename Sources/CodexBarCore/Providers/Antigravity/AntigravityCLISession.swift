@@ -1119,15 +1119,7 @@ struct AntigravityProcessIdentityProvider: AntigravityCLIProcessIdentityProvidin
 
     func ownerUserID(for pid: pid_t) -> UInt32? {
         #if canImport(Darwin)
-        var info = proc_bsdinfo()
-        let size = proc_pidinfo(
-            pid,
-            PROC_PIDTBSDINFO,
-            0,
-            &info,
-            Int32(MemoryLayout<proc_bsdinfo>.stride))
-        guard size == Int32(MemoryLayout<proc_bsdinfo>.stride) else { return nil }
-        return info.pbi_uid
+        return DarwinProcessEnumerator.processInfo(pid: pid)?.pbi_uid
         #else
         guard let status = try? String(contentsOfFile: "/proc/\(pid)/status", encoding: .utf8),
               let uidLine = status.split(separator: "\n").first(where: { $0.hasPrefix("Uid:") }),
@@ -1142,23 +1134,8 @@ struct AntigravityProcessIdentityProvider: AntigravityCLIProcessIdentityProvidin
 
     func identity(for pid: pid_t) -> AntigravityCLIProcessIdentity? {
         #if canImport(Darwin)
-        var pathBuffer = [CChar](repeating: 0, count: 4096)
-        let pathLength = proc_pidpath(pid, &pathBuffer, UInt32(pathBuffer.count))
-        guard pathLength > 0 else { return nil }
-        let executablePath = pathBuffer.withUnsafeBufferPointer { buffer -> String? in
-            let rawBytes = UnsafeRawBufferPointer(start: buffer.baseAddress, count: Int(pathLength))
-            return String(bytes: rawBytes.prefix { $0 != 0 }, encoding: .utf8)
-        }
-        guard let executablePath, !executablePath.isEmpty else { return nil }
-
-        var info = proc_bsdinfo()
-        let size = proc_pidinfo(
-            pid,
-            PROC_PIDTBSDINFO,
-            0,
-            &info,
-            Int32(MemoryLayout<proc_bsdinfo>.stride))
-        guard size == Int32(MemoryLayout<proc_bsdinfo>.stride) else { return nil }
+        guard let executablePath = DarwinProcessEnumerator.executablePath(pid: pid),
+              let info = DarwinProcessEnumerator.processInfo(pid: pid) else { return nil }
         let startEpoch = TimeInterval(info.pbi_start_tvsec) + (TimeInterval(info.pbi_start_tvusec) / 1_000_000)
         return AntigravityCLIProcessIdentity(executablePath: executablePath, startEpoch: startEpoch)
         #else

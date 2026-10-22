@@ -55,11 +55,7 @@ final class FileWidgetAccountSnapshotStore: WidgetAccountSnapshotStoring {
                         primary: usage.primary,
                         secondary: usage.secondary,
                         tertiary: usage.tertiary,
-                        usageRows: usage.usageRows,
-                        creditsRemaining: nil,
-                        codeReviewRemainingPercent: nil,
-                        tokenUsage: nil,
-                        dailyUsage: []))
+                        usageRows: usage.usageRows))
             }
             if !valid.isEmpty { result[provider] = valid }
         }

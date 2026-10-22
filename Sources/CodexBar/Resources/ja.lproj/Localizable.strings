@@ -618,7 +618,6 @@
 
 /* Display Pane */
 "menu_bar_style_title" = "メニューバーのスタイル";
-"menu_bar_style_subtitle" = "メニューバー項目の表示方法です。";
 "menu_bar_inactive_display_contrast_title" = "非アクティブなディスプレイでの視認性を向上";
 "menu_bar_inactive_display_contrast_subtitle" = "高コントラスト表示を使用し、ほかのディスプレイでもアイコンと指標を読みやすくします。";
 "menu_bar_style_critters" = "クリッター";
@@ -672,6 +671,8 @@
 "overview_rows_follow_order" = "概要の行は常にプロバイダの並び順に従います。";
 "overview_no_providers_selected" = "プロバイダが選択されていません";
 "agent_sessions_title" = "エージェントセッション";
+"agent_sessions_remote_title" = "リモートセッション（Tailscale / SSH）";
+"agent_sessions_remote_subtitle" = "リモートホストを検出して接続します。このMacのみを監視するにはオフにしてください。";
 "agent_sessions_subtitle" = "ローカルおよび SSH で検出された Codex と Claude Code のセッションをメニューに表示します。";
 "agent_sessions_hosts_title" = "追加の SSH ホスト";
 "agent_sessions_footer" = "tailnet 上の Mac は自動的に検出されます。ローカルセッションは 30 秒ごと、リモートホストは 60 秒ごと、およびメニューを開いたときに更新されます。";
@@ -1217,6 +1218,7 @@
 "Password" = "パスワード";
 "%@ authentication is disabled." = "%@ の認証は無効になっています。";
 "%@ cookies are disabled." = "%@ の Cookie は無効になっています。";
+"%@ is unavailable. Edit the widget to choose a provider." = "%@ は利用できません。ウィジェットを編集してプロバイダーを選択してください。";
 "%@ web API access is disabled." = "%@ のウェブ API アクセスは無効になっています。";
 "Disable %@ dashboard cookie usage." = "%@ ダッシュボードの Cookie 使用を無効にします。";
 "Keychain access is disabled in Advanced, so browser cookie import is unavailable." = "詳細設定でキーチェーンへのアクセスが無効になっているため、ブラウザ Cookie の読み込みは利用できません。";
@@ -1409,6 +1411,7 @@
 /* Menu bar layout editor */
 "menu_bar_layout_title" = "レイアウト";
 "menu_bar_layout_footer" = "トークンをドラッグしてメニューバーを並べます。クリックすると追加でき、配置済みのトークンを選択して Delete キーを押すと削除できます。";
+"menu_bar_layout_footer_requires_icon_and_percent" = "レイアウトは「%@」メニューバーのスタイルにのみ適用されます。編集するには、上でそのスタイルを選択してください。";
 "menu_bar_layout_group_identity" = "識別情報";
 "menu_bar_layout_group_usage" = "使用量";
 "menu_bar_layout_group_time" = "時間";
@@ -1441,6 +1444,7 @@
 "menu_bar_layout_size_regular" = "標準";
 "menu_bar_layout_size_large" = "大";
 "menu_bar_layout_monospaced_digits" = "等幅数字";
+"menu_bar_layout_show_window_labels" = "期間ラベルを表示";
 "menu_bar_layout_gap" = "間隔";
 "menu_bar_layout_gap_tight" = "狭い";
 "menu_bar_layout_gap_regular" = "標準";
@@ -1797,6 +1801,7 @@
 "Details for %@" = "%@の詳細";
 "EST. %@" = "推定%@";
 "Enable Antigravity provider" = "Antigravityプロバイダーを有効にする";
+"Enable a provider in CodexBar → Settings → Providers." = "CodexBar → 設定 → プロバイダーでプロバイダーを有効にしてください。";
 "Enable account widgets in CodexBar → Settings → Menu → Widgets. Then edit this widget to choose an account." = "CodexBar → 設定 → メニュー → ウィジェットでアカウント ウィジェットを有効にします。次に、このウィジェットを編集してアカウントを選択します。";
 "Error: %@" = "エラー: %@";
 "Examples: alt+cmd+2, shift+right. Refresh (cmd+r), Settings (cmd+,) and Quit (cmd+q) are reserved." = "例: alt+cmd+2、shift+right。更新 (cmd+r)、設定 (cmd+,)、および終了 (cmd+q) は予約されています。";
@@ -2011,10 +2016,7 @@
 "Top models:" = "トップモデル:";
 "Two quota burn-down charts in one tile." = "1 つのタイルに 2 つの クォータ バーンダウン チャート。";
 "Usage & spend come from your console.groq.com browser session automatically. An API key is optional and only adds Enterprise Prometheus metrics." = "使用量と支出は、console.groq.com ブラウザ セッションから自動的に取得されます。 API キーはオプションで、Enterprise Prometheus 指標 を追加するだけです。";
-"Usage data appears after a refresh." = "使用状況データは更新後に表示されます。";
-"Usage data will appear once the app refreshes." = "アプリが更新されると、使用状況データが表示されます。";
 "Usage history chart with recent totals." = "最近の合計を含む使用履歴グラフ。";
-"Usage history will appear after a refresh." = "更新後に使用履歴が表示されます。";
 "Usage limit" = "利用制限";
 "Usage limits and reset countdowns for one saved account." = "保存された 1 つのアカウントの使用制限とカウントダウンのリセット。";
 "Usage widget with a provider switcher." = "プロバイダースイッチャーを使用した使用状況ウィジェット。";
@@ -2201,6 +2203,10 @@
 "Stored in ~/.codexbar/config.json. Create one at console.x.ai under Settings > Management Keys; inference API keys are not accepted." = "~/.codexbar/config.json に保存されます。 [設定] > [管理キー] の console.x.ai で作成します。推論 API キーは受け入れられません。";
 "xai-..." = "xai-...";
 "Team ID" = "チームID";
+"Vercel access token" = "Vercel アクセストークン";
+"Optional. Shows your personal budget instead of team credits. Saved in CodexBar's local config file. Or set VERCEL_ACCESS_TOKEN." = "任意。チームのクレジットの代わりに個人予算を表示します。CodexBar のローカル設定ファイルに保存されます。または VERCEL_ACCESS_TOKEN を設定してください。";
+"Open Vercel tokens" = "Vercel トークンを開く";
+"Required with a Vercel access token. Or set VERCEL_TEAM_ID." = "Vercel アクセストークンと併せて必要です。または VERCEL_TEAM_ID を設定してください。";
 "Required. Shown in the xAI Console URL and team settings." = "必須。 xAI コンソール URL およびチーム設定に表示されます。";
 "Sakana AI cost summary is not supported." = "Sakana AI コスト概要はサポートされていません。";
 "Stored in ~/.codexbar/config.json. Copy the Sakana AI console Cookie request header." = "~/.codexbar/config.json に保存されます。 Sakana AI コンソールの Cookie リクエスト ヘッダーをコピーします。";
@@ -2459,7 +2465,7 @@
 "spend_performance_cache_help" = "対象ターンのキャッシュ済み入力を総入力で割った値です。入力トークン数で重み付けし、サンプルの対象範囲も表示します。";
 "spend_performance_metric_help" = "観測値について";
 "merged_icon_source_title" = "結合アイコンの表示元";
-"merged_icon_source_subtitle" = "折りたたまれた結合アイコンに表示するプロバイダーを選択します。";
+"merged_icon_source_subtitle" = "「使用率が最も高いプロバイダー」はクォータのみを比較します。クォータのないプロバイダーには「現在の選択」を使用してください。";
 "merged_icon_source_current_selection" = "現在の選択";
 "merged_icon_source_highest_usage" = "使用率が最も高いプロバイダー";
 "merged_icon_source_frontmost_app" = "最前面のプロバイダーアプリ";
@@ -2558,7 +2564,7 @@
 "Clear filters" = "フィルターを解除";
 "Change provider order" = "プロバイダーの順序を変更";
 "Provider sorting" = "プロバイダーの並べ替え";
-"Only enabled providers" = "有効なプロバイダーのみ";
+"Only show enabled providers" = "有効なプロバイダーのみ表示";
 "Restore default order" = "既定の順序に戻す";
 "Also restores the provider order in the menu bar. Can be undone." = "メニューバーのプロバイダー順序も戻します。取り消し可能です。";
 "Local Codex details; excluded from combined totals." = "ローカルの Codex 詳細。合計には含まれません。";
@@ -2683,3 +2689,15 @@
 /* Munito provider credentials */
 "Key with Read account data (Admin API) permission. Or set MUNITO_API_KEY." = "アカウントデータの読み取り（Admin API）権限を持つキー。または MUNITO_API_KEY を設定してください。";
 "Munito reports Admin API spend and limits, not local token cost history." = "Munito は Admin API の支出と上限を報告します。ローカルのトークンコスト履歴ではありません。";
+
+"Show all accounts in Overview" = "概要にすべてのアカウントを表示";
+
+"Expand cached account usage. The six-provider limit still applies." = "選択したプロバイダーを、キャッシュ済みのアカウント使用量で展開します。プロバイダーは引き続き最大6つです。";
+"Edit" = "編集";
+"Move up" = "上へ移動";
+"Move down" = "下へ移動";
+"Leave blank to keep the saved credential." = "保存済みの認証情報を維持するには空欄にしてください。";
+
+"No personal budget configured" = "個人予算が設定されていません";
+
+"monthly_daily_target_format" = "リセットまで持たせる目安：1日あたり約 %@";

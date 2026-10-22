@@ -126,6 +126,60 @@ struct ProviderIconResourcesTests {
     }
 
     @Test
+    func `typesafe keeps its proportions across app website and serve`() throws {
+        let root = try Self.repoRoot()
+        let svg = try String(
+            contentsOf: root.appending(path: "Sources/CodexBar/Resources/ProviderIcon-typesafe.svg"),
+            encoding: .utf8)
+        #expect(svg.contains("fill=\"currentColor\""))
+        #expect(svg.contains("viewBox=\"24.68 24.68 350.65 350.65\""))
+        #expect(svg.contains("M256.407 86.5946V138.33L303.032 168.589"))
+        let website = try String(contentsOf: root.appending(path: "docs/logos/typesafe.svg"), encoding: .utf8)
+        #expect(website == svg)
+        let cli = try String(
+            contentsOf: root.appending(path: "Sources/CodexBarCLI/CLIServeProviderIcons.swift"), encoding: .utf8)
+        #expect(cli.contains("\"ProviderIcon-typesafe\": \"\(Data(svg.utf8).base64EncodedString())\""))
+
+        ProviderBrandIcon.resetCacheForTesting()
+        defer { ProviderBrandIcon.resetCacheForTesting() }
+        let image = try #require(ProviderBrandIcon.image(for: .typesafe))
+        #expect(image.size == NSSize(width: 18, height: 18))
+        #expect(image.isTemplate)
+
+        // The old 206×300 viewBox was stretched to fill the square slot edge to edge.
+        let bitmap = try #require(NSBitmapImageRep(
+            bitmapDataPlanes: nil,
+            pixelsWide: 36,
+            pixelsHigh: 36,
+            bitsPerSample: 8,
+            samplesPerPixel: 4,
+            hasAlpha: true,
+            isPlanar: false,
+            colorSpaceName: .deviceRGB,
+            bytesPerRow: 0,
+            bitsPerPixel: 0))
+        let context = try #require(NSGraphicsContext(bitmapImageRep: bitmap))
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = context
+        context.cgContext.clear(CGRect(x: 0, y: 0, width: 36, height: 36))
+        image.draw(in: NSRect(x: 0, y: 0, width: 36, height: 36))
+        NSGraphicsContext.restoreGraphicsState()
+
+        var columns = Set<Int>()
+        var rows = Set<Int>()
+        for y in 0..<bitmap.pixelsHigh {
+            for x in 0..<bitmap.pixelsWide
+                where (bitmap.colorAt(x: x, y: y)?.alphaComponent ?? 0) > 0.5
+            {
+                columns.insert(x)
+                rows.insert(y)
+            }
+        }
+        #expect(rows.count < 36)
+        #expect(columns.count < rows.count * 4 / 5)
+    }
+
+    @Test
     func `pi provider icon is a transparent vector template`() throws {
         let root = try Self.repoRoot()
         let resourceURL = root

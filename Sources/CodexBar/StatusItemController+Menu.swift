@@ -553,14 +553,7 @@ extension StatusItemController {
         // interaction closures must always reference the live menu they end up serving.
         let interactionMenu = captureMenu ?? menu
         let providerScopes = self.overviewProviderScopes(enabledProviders: enabledProviders)
-        let rows: [(id: ProviderInstanceID, model: UsageMenuCardView.Model?)] = providerScopes.visible
-            .compactMap { instanceID in
-                guard let provider = instanceID.firstPartyProvider else {
-                    return UserProviderPluginRegistry.plugin(for: instanceID) == nil ? nil : (instanceID, nil)
-                }
-                guard let model = self.menuCardModel(for: provider), !model.isOverviewErrorOnly else { return nil }
-                return (instanceID, model)
-            }
+        let rows = self.store.mergedOverviewRows(for: providerScopes.visible)
         guard !rows.isEmpty else { return false }
 
         let t0 = CACurrentMediaTime()
@@ -602,9 +595,9 @@ extension StatusItemController {
         }
 
         for (index, row) in rows.enumerated() {
-            let instanceID = row.id
+            let instanceID = row.provider
             if index > 0 { menu.addItem(.separator()) }
-            let identifier = "\(Self.overviewRowIdentifierPrefix)\(instanceID.rawValue)"
+            let identifier = "\(Self.overviewRowIdentifierPrefix)\(row.id)"
             guard let provider = instanceID.firstPartyProvider,
                   let model = row.model
             else {
@@ -625,11 +618,11 @@ extension StatusItemController {
                 }
                 continue
             }
-            let storageText = self.store.storageFootprintText(for: provider)
-            let submenu = self.makeOverviewRowSubmenu(
+            let storageText = row.accountID == nil ? self.store.storageFootprintText(for: provider) : nil
+            let submenu = row.accountID == nil ? self.makeOverviewRowSubmenu(
                 provider: provider,
                 model: model,
-                width: menuWidth)
+                width: menuWidth) : nil
             let item = self.makeMenuCardItem(
                 OverviewMenuCardRowView(
                     model: model,
@@ -729,7 +722,7 @@ extension StatusItemController {
             let cards = accountSnapshots.isEmpty
                 ? []
                 : accountSnapshots.compactMap { accountSnapshot in
-                    self.tokenAccountMenuCardModel(
+                    self.store.tokenAccountMenuCardModel(
                         for: context.currentProvider,
                         accountSnapshot: accountSnapshot)
                 }

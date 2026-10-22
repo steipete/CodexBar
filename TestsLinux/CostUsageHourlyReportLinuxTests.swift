@@ -346,3 +346,18 @@ struct CostUsageHourlyReportLinuxTests {
         return calendar
     }
 }
+
+extension CostUsageScanner {
+    static func buildClaudeReportFromCache(
+        cache: CostUsageCache,
+        range: CostUsageDayRange,
+        now: Date = Date(),
+        modelsDevCacheRoot: URL? = nil) -> CostUsageDailyReport
+    {
+        self.buildClaudeReportFromCache(
+            cache: cache,
+            rows: self.reconciledClaudeRows(cache: cache),
+            range: range,
+            pricingResolver: CostUsagePricing.ClaudeResolver(now: now, cacheRoot: modelsDevCacheRoot))
+    }
+}

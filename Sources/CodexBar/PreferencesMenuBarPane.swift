@@ -13,8 +13,14 @@ struct MenuBarPane: View {
         L("overview_choose_providers", String(limit))
     }
 
-    static func inactiveDisplayContrastAvailable(for style: MenuBarIconStyle) -> Bool {
+    static func layoutEditorEnabled(for style: MenuBarIconStyle) -> Bool {
         style == .iconAndPercent
+    }
+
+    static func layoutFooterText(for style: MenuBarIconStyle) -> String {
+        self.layoutEditorEnabled(for: style)
+            ? L("menu_bar_layout_footer")
+            : L("menu_bar_layout_footer_requires_icon_and_percent", MenuBarIconStyle.iconAndPercent.label)
     }
 
     var body: some View {
@@ -32,11 +38,7 @@ struct MenuBarPane: View {
                 SettingsMenuPicker(
                     selection: self.$settings.menuBarIconStyle,
                     options: MenuBarSettingsMenuOptions.iconStyles,
-                    label: {
-                        SettingsRowLabel(
-                            L("menu_bar_style_title"),
-                            subtitle: L("menu_bar_style_subtitle"))
-                    },
+                    label: { Text(L("menu_bar_style_title")) },
                     optionLabel: { style in
                         Text(style.label)
                     })
@@ -47,7 +49,7 @@ struct MenuBarPane: View {
                         subtitle: "\(MenuBarIconStyle.iconAndPercent.label): "
                             + L("menu_bar_inactive_display_contrast_subtitle"))
                 }
-                .disabled(!Self.inactiveDisplayContrastAvailable(for: self.settings.menuBarIconStyle))
+                .disabled(!Self.layoutEditorEnabled(for: self.settings.menuBarIconStyle))
 
                 Toggle(isOn: self.$settings.menuBarColorPace) {
                     SettingsRowLabel(
@@ -74,11 +76,11 @@ struct MenuBarPane: View {
 
             Section {
                 MenuBarLayoutEditor(settings: self.settings, store: self.store)
-                    .disabled(self.settings.menuBarIconStyle != .iconAndPercent)
+                    .disabled(!Self.layoutEditorEnabled(for: self.settings.menuBarIconStyle))
             } header: {
                 Text(L("menu_bar_layout_title"))
             } footer: {
-                SettingsSectionFooter(L("menu_bar_layout_footer"))
+                SettingsSectionFooter(Self.layoutFooterText(for: self.settings.menuBarIconStyle))
             }
 
             Section {
@@ -130,6 +132,13 @@ struct MenuBarPane: View {
 
                 self.overviewProviderRow
                     .disabled(!self.settings.mergeIcons)
+                Toggle(isOn: self.$settings.mergedOverviewAllAccounts) {
+                    SettingsRowLabel(
+                        L("Show all accounts in Overview"),
+                        subtitle: L(
+                            "Expand cached account usage. The six-provider limit still applies."))
+                }
+                .disabled(!self.settings.mergeIcons)
             } header: {
                 Text(L("section_combined_icon"))
             }
@@ -167,7 +176,7 @@ struct MenuBarPane: View {
 
     private var overviewProviderRow: some View {
         LabeledContent {
-            if self.showsOverviewConfigureButton {
+            if self.settings.mergeIcons, !self.activeProvidersInOrder.isEmpty {
                 Button(L("configure")) {
                     self.isOverviewProviderPopoverPresented = true
                 }
@@ -251,10 +260,6 @@ struct MenuBarPane: View {
         self.settings.resolvedMergedOverviewProviders(
             activeProviders: self.activeProvidersInOrder,
             maxVisibleProviders: Self.maxOverviewProviders)
-    }
-
-    private var showsOverviewConfigureButton: Bool {
-        self.settings.mergeIcons && !self.activeProvidersInOrder.isEmpty
     }
 
     private var overviewProviderSelectionSummary: String {

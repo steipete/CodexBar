@@ -147,6 +147,14 @@ struct DarwinProcessEnumeratorTests {
 
     #if canImport(Darwin)
     @Test
+    func `filtered process enumeration includes this user and process group`() {
+        #expect(DarwinProcessEnumerator.allPIDs(type: UInt32(PROC_UID_ONLY), typeInfo: getuid()).contains(getpid()))
+        #expect(DarwinProcessEnumerator.allPIDs(
+            type: UInt32(PROC_PGRP_ONLY),
+            typeInfo: UInt32(bitPattern: getpgrp())).contains(getpid()))
+    }
+
+    @Test
     func `self executable path is absolute and nonempty`() throws {
         let path = try #require(DarwinProcessEnumerator.executablePath(pid: getpid()))
 

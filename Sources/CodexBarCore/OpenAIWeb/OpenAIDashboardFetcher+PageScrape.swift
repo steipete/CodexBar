@@ -202,7 +202,6 @@ extension OpenAIDashboardFetcher {
     {
         let apiData = context.apiData
         let verifiedSignedInEmail = context.verifiedSignedInEmail
-        let webView = context.webView
         let log = context.log
         if let apiData, apiData.hasUsageData, let verifiedSignedInEmail {
             log("usage api snapshot returned after WebView deadline")
@@ -213,9 +212,6 @@ extension OpenAIDashboardFetcher {
                 previous: context.previousSnapshot)
         }
 
-        if context.debugDumpHTML, let html = try? await self.fetchDebugHTML(webView: webView) {
-            Self.writeDebugArtifacts(html: html, bodyText: lastBody, logger: log)
-        }
         throw FetchError.noDashboardData(body: lastError ?? lastBody ?? "")
     }
 

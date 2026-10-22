@@ -194,9 +194,9 @@ struct InlineCostHistoryDashboardLabelTests {
 
         #expect(model.inlineUsageDashboard?.kpis.first?.title == "Today")
         #expect(model.inlineUsageDashboard?.kpis.first?.value == "$0.00")
-        #expect(model.inlineUsageDashboard?.points.first?.accessibilityValue ==
+        #expect(model.inlineUsageDashboard?.points.first { $0.id == "2023-11-15" }?.accessibilityValue ==
             "Nov 15, 2023: $0.25 · 275 tokens")
-        let hoverDetail = try #require(model.inlineUsageDashboard?.points.first?.hoverDetail)
+        let hoverDetail = try #require(model.inlineUsageDashboard?.points.first { $0.id == "2023-11-15" }?.hoverDetail)
         #expect(hoverDetail == .init(
             dateLabel: "Nov 15, 2023",
             cost: 0.25,
@@ -260,10 +260,10 @@ struct InlineCostHistoryDashboardLabelTests {
             providerCurrency: "EUR").value
         #expect(model.inlineUsageDashboard?.currencyCode == "USD")
         #expect(model.inlineUsageDashboard?.kpis.first?.value == expected)
-        #expect(model.inlineUsageDashboard?.points.first?.value == expectedValue)
-        #expect(model.inlineUsageDashboard?.points.first?.accessibilityValue ==
+        #expect(model.inlineUsageDashboard?.points.first { $0.id == "2023-11-15" }?.value == expectedValue)
+        #expect(model.inlineUsageDashboard?.points.first { $0.id == "2023-11-15" }?.accessibilityValue ==
             "Nov 15, 2023: \(expected) · 100 tokens")
-        #expect(model.inlineUsageDashboard?.points.first?.hoverDetail == .init(
+        #expect(model.inlineUsageDashboard?.points.first { $0.id == "2023-11-15" }?.hoverDetail == .init(
             dateLabel: "Nov 15, 2023",
             cost: expectedValue,
             tokenCount: 100,

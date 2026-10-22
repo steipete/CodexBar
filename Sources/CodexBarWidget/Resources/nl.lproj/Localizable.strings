@@ -2,6 +2,7 @@
 "%@ %@" = "%@ %@";
 "%@ API est. · not billed" = "%@ API schatting · niet gefactureerd";
 "%@ cost" = "%@ kosten";
+"%@ is unavailable. Edit the widget to choose a provider." = "%@ is niet beschikbaar. Bewerk de widget om een provider te kiezen.";
 "%@ left" = "%@ over";
 "%@ tokens" = "%@-tokens";
 "%@ used" = "%@ gebruikt";
@@ -75,6 +76,7 @@
 "Daily usage" = "Dagelijks gebruik";
 "Deployment" = "Inzet";
 "Edit predictions" = "Voorspellingen bewerken";
+"Enable a provider in CodexBar → Settings → Providers." = "Schakel een provider in via CodexBar → Instellingen → Providers.";
 "Enable account widgets in CodexBar → Settings → Menu → Widgets. Then edit this widget to choose an account." = "Schakel accountwidgets in CodexBar → Instellingen → Menu → Widgets in. Bewerk vervolgens deze widget om een ​​account te kiezen.";
 "Extra usage" = "Extra gebruik";
 "Extra usage balance" = "Extra gebruikssaldo";
@@ -164,10 +166,7 @@
 "Two quota burn-down charts in one tile." = "Twee Quotum burn-down charts in één tegel.";
 "Unavailable account" = "Account: Niet beschikbaar";
 "Usage" = "Gebruik";
-"Usage data appears after a refresh." = "Gebruiksgegevens verschijnen na een vernieuwing.";
-"Usage data will appear once the app refreshes." = "Gebruiksgegevens verschijnen zodra de app is vernieuwd.";
 "Usage history chart with recent totals." = "Gebruiksgeschiedenisgrafiek met recente totalen.";
-"Usage history will appear after a refresh." = "De gebruiksgeschiedenis verschijnt na een vernieuwing.";
 "Usage limit" = "Gebruikslimiet";
 "Usage limits and reset countdowns for one saved account." = "Gebruikslimieten en reset-countdowns voor één opgeslagen account.";
 "Usage widget with a provider switcher." = "Gebruikswidget met een providerwisselaar.";

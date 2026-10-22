@@ -47,6 +47,7 @@ struct LocalizationLanguageCatalogTests {
             "merged_icon_source_highest_usage",
             "merged_icon_source_subtitle",
             "merged_icon_source_title",
+            "menu_bar_layout_show_window_labels",
             "spend_performance_cache_help",
             "spend_performance_cached_input",
             "spend_performance_coverage",
@@ -1028,7 +1029,7 @@ extension LocalizationLanguageCatalogTests {
     @Test
     func `settings sharing and sync prose do not fall back to English in supported languages`() {
         let keys = [
-            "Usage data will appear once the app refreshes.",
+            "%@ is unavailable. Edit the widget to choose a provider.",
             "No synced Macs yet.",
             "Sync settings and providers across your Macs via iCloud",
             "Hide native Codex when OpenCodex is present",

@@ -2,6 +2,7 @@
 "%@ %@" = "%@ %@";
 "%@ API est. · not billed" = "%@ API 估算 · 非實際帳單";
 "%@ cost" = "%@費用";
+"%@ is unavailable. Edit the widget to choose a provider." = "%@ 無法使用。編輯小工具以選擇供應商。";
 "%@ left" = "剩餘 %@";
 "%@ tokens" = "%@ token";
 "%@ used" = "%@ 已用";
@@ -75,6 +76,7 @@
 "Daily usage" = "每日用量";
 "Deployment" = "部署";
 "Edit predictions" = "編輯預測";
+"Enable a provider in CodexBar → Settings → Providers." = "在 CodexBar → 設定 → 供應商中啟用一個供應商。";
 "Enable account widgets in CodexBar → Settings → Menu → Widgets. Then edit this widget to choose an account." = "在 CodexBar → 設定 → 選單 → 小工具中啟用帳號小工具。然後編輯此小部件以選擇帳戶。";
 "Extra usage" = "額外使用量";
 "Extra usage balance" = "額外用量餘額";
@@ -164,10 +166,7 @@
 "Two quota burn-down charts in one tile." = "一張圖塊中包含兩個 配額 燃盡圖。";
 "Unavailable account" = "帳號: 無法使用";
 "Usage" = "使用量";
-"Usage data appears after a refresh." = "刷新後會顯示使用情況資料。";
-"Usage data will appear once the app refreshes." = "應用程式刷新後，將顯示使用資料。";
 "Usage history chart with recent totals." = "使用歷史記錄圖表以及最近的總計。";
-"Usage history will appear after a refresh." = "刷新後會出現使用歷史記錄。";
 "Usage limit" = "使用限制";
 "Usage limits and reset countdowns for one saved account." = "一個已儲存帳戶的使用限制和重設倒數。";
 "Usage widget with a provider switcher." = "可切換提供商的用量小工具。";

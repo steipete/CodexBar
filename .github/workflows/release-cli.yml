@@ -66,7 +66,7 @@ jobs:
             swift-sdk-arch: aarch64
             file-arch-pattern: aarch64
           - name: macos-arm64
-            runs-on: macos-15
+            runs-on: xcode-27
             platform: macos
             asset-platform: macos
             asset-arch: arm64
@@ -77,7 +77,7 @@ jobs:
             swift-sdk-arch: ""
             file-arch-pattern: ""
           - name: macos-x86_64
-            runs-on: macos-15-intel
+            runs-on: xcode-27
             platform: macos
             asset-platform: macos
             asset-arch: x86_64
@@ -103,20 +103,23 @@ jobs:
           ref: ${{ inputs.ref }}
           persist-credentials: false
 
-      - name: Select Xcode 26.3 or 26.2
+      - name: Select Xcode 27
         if: matrix.platform == 'macos'
         run: |
           set -euo pipefail
-          # Both versions are part of the official macOS 15 runner image.
-          for candidate in /Applications/Xcode_26.3.app /Applications/Xcode_26.2.app; do
-            if [[ -d "$candidate" ]]; then
-              sudo xcode-select -s "${candidate}/Contents/Developer"
-              echo "DEVELOPER_DIR=${candidate}/Contents/Developer" >> "$GITHUB_ENV"
-              break
-            fi
-          done
-          [[ "$(/usr/bin/xcodebuild -version)" == Xcode\ 26.* ]]
+          sudo xcode-select -s /Applications/Xcode_27.0.app/Contents/Developer
+          echo "DEVELOPER_DIR=/Applications/Xcode_27.0.app/Contents/Developer" >> "$GITHUB_ENV"
+          echo "MACOSX_DEPLOYMENT_TARGET=14.0" >> "$GITHUB_ENV"
+          [[ "$(/usr/bin/xcodebuild -version)" == Xcode\ 27* ]]
           /usr/bin/xcodebuild -version
+
+      - name: Ensure Rosetta for x86_64 execution
+        if: matrix.platform == 'macos' && matrix.asset-arch == 'x86_64'
+        run: |
+          if ! arch -x86_64 /usr/bin/true; then
+            sudo softwareupdate --install-rosetta --agree-to-license
+          fi
+          arch -x86_64 /usr/bin/true
 
       - name: Runner info
         run: |
@@ -315,6 +318,14 @@ jobs:
 
           echo "bin_dir=$("${SHOW_BIN_ARGS[@]}")" >> "$GITHUB_OUTPUT"
 
+      - name: Verify CodexBarCLI does not link libxml2
+        if: ${{ matrix.asset-platform == 'linux' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          BIN="${{ steps.build.outputs.bin_dir }}/CodexBarCLI"
+          bash Scripts/check-linux-cli-linkage.sh "$BIN"
+
       - name: Smoke test CodexBarCLI
         timeout-minutes: 5
         shell: bash
@@ -323,6 +334,10 @@ jobs:
 
           BIN_DIR="${{ steps.build.outputs.bin_dir }}"
           BIN="$BIN_DIR/CodexBarCLI"
+          CLI_COMMAND=("$BIN")
+          if [[ "${{ matrix.platform }}" == "macos" ]]; then
+            CLI_COMMAND=(arch "-${{ matrix.asset-arch }}" "$BIN")
+          fi
           run_with_timeout() {
             local output="$1"
             shift
@@ -355,19 +370,19 @@ jobs:
           file "$BIN"
           if [[ "${{ matrix.platform }}" == "macos" ]]; then
             lipo -archs "$BIN" | tr ' ' '\n' | grep -Fx "${{ matrix.asset-arch }}"
-            run_with_timeout "$RUNNER_TEMP/codexbar-cli-smoke-${{ matrix.name }}.txt" "$BIN" config validate --format json
+            run_with_timeout "$RUNNER_TEMP/codexbar-cli-smoke-${{ matrix.name }}.txt" "${CLI_COMMAND[@]}" config validate --format json
           elif [[ -n "${{ matrix.swift-sdk }}" ]]; then
-            run_with_timeout "$RUNNER_TEMP/codexbar-cli-help-${{ matrix.name }}.txt" "$BIN" --help
-            run_with_timeout "$RUNNER_TEMP/codexbar-cli-config-${{ matrix.name }}.json" "$BIN" config validate --format json
+            run_with_timeout "$RUNNER_TEMP/codexbar-cli-help-${{ matrix.name }}.txt" "${CLI_COMMAND[@]}" --help
+            run_with_timeout "$RUNNER_TEMP/codexbar-cli-config-${{ matrix.name }}.json" "${CLI_COMMAND[@]}" config validate --format json
             file "$BIN" | grep -q "${{ matrix.file-arch-pattern }}"
             file "$BIN" | grep -q "statically linked"
           else
-            run_with_timeout "$RUNNER_TEMP/codexbar-cli-help-${{ matrix.name }}.txt" "$BIN" --help
+            run_with_timeout "$RUNNER_TEMP/codexbar-cli-help-${{ matrix.name }}.txt" "${CLI_COMMAND[@]}" --help
             file "$BIN" | grep -q "${{ matrix.file-arch-pattern }}"
           fi
           printf '%s\n' "${RELEASE_TAG#v}" > "$BIN_DIR/VERSION"
           VERSION_OUTPUT="$RUNNER_TEMP/codexbar-cli-version-${{ matrix.name }}.txt"
-          run_with_timeout "$VERSION_OUTPUT" "$BIN" --version
+          run_with_timeout "$VERSION_OUTPUT" "${CLI_COMMAND[@]}" --version
           grep -Fx "CodexBar ${RELEASE_TAG#v}" "$VERSION_OUTPUT"
           rm "$BIN_DIR/VERSION"
 
@@ -405,11 +420,17 @@ jobs:
             exit 1
           fi
           cp -R "$CORE_RESOURCE_SOURCE" "$OUT_DIR/CodexBar_CodexBarCore.bundle"
+          CLI_COMMAND=("$OUT_DIR/CodexBarCLI")
+          SYMLINK_COMMAND=("$OUT_DIR/codexbar")
+          if [[ "${{ matrix.platform }}" == "macos" ]]; then
+            CLI_COMMAND=(arch "-${{ matrix.asset-arch }}" "$OUT_DIR/CodexBarCLI")
+            SYMLINK_COMMAND=(arch "-${{ matrix.asset-arch }}" "$OUT_DIR/codexbar")
+          fi
           DIRECT_RESOURCE_SMOKE_OUTPUT="$RUNNER_TEMP/codexbar-cli-resource-smoke-direct-${{ matrix.name }}.txt"
-          CODEXBAR_RESOURCE_SMOKE=1 "$OUT_DIR/CodexBarCLI" > "$DIRECT_RESOURCE_SMOKE_OUTPUT"
+          CODEXBAR_RESOURCE_SMOKE=1 "${CLI_COMMAND[@]}" > "$DIRECT_RESOURCE_SMOKE_OUTPUT"
           grep -Fx "CODEXBAR_RESOURCE_SMOKE_OK" "$DIRECT_RESOURCE_SMOKE_OUTPUT"
           SYMLINK_RESOURCE_SMOKE_OUTPUT="$RUNNER_TEMP/codexbar-cli-resource-smoke-symlink-${{ matrix.name }}.txt"
-          CODEXBAR_RESOURCE_SMOKE=1 "$OUT_DIR/codexbar" > "$SYMLINK_RESOURCE_SMOKE_OUTPUT"
+          CODEXBAR_RESOURCE_SMOKE=1 "${SYMLINK_COMMAND[@]}" > "$SYMLINK_RESOURCE_SMOKE_OUTPUT"
           grep -Fx "CODEXBAR_RESOURCE_SMOKE_OK" "$SYMLINK_RESOURCE_SMOKE_OUTPUT"
 
           ASSET="CodexBarCLI-${SAFE_REF_NAME}-${{ matrix.asset-platform }}-${{ matrix.asset-arch }}.tar.gz"

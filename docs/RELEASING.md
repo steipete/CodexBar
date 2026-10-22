@@ -33,9 +33,13 @@ Prereleases (`alpha.N`, `beta.N`, or `rc.N`) are marked as GitHub prereleases an
 
 The release is complete only after the release assets, live appcast, and tap agree. The pipeline preserves a failed draft as a version reservation and never clobbers assets. If feed or tap handoff fails after publication, inspect the retained payload and repair that handoff from the verified bytes; do not rerun packaging or recreate the tag. After a successful release, open the next Unreleased changelog section.
 
-Local read-only helpers remain: `Scripts/check-release-assets.sh`, `Scripts/verify_appcast.sh`, and `Scripts/generate-release-notes.sh` (where present). Local packaging and development scripts remain available, but publication belongs to CI. When installing a ZIP manually, use `ditto -x -k` or Finder to preserve the signed bundle and avoid AppleDouble files.
+Local read-only helpers remain: `Scripts/check-release-assets.sh`, `Scripts/verify_appcast.sh`, and `Scripts/generate-release-notes.sh` (where present). They need the shared `agent-scripts` helper but no signing credentials: `Scripts/verify_appcast.sh <version>` downloads that appcast entry's enclosure, checks its length and EdDSA signature against `SUPublicEDKey`, then verifies the app's code signature, Gatekeeper assessment, and stapled notarization. Local packaging and development scripts remain available, but publication belongs to CI. When installing a ZIP manually, use `ditto -x -k` or Finder to preserve the signed bundle and avoid AppleDouble files.
 
 The app and dSYM are universal arm64/x86_64. The release also contains both architectures of the macOS CLI, Linux glibc CLI, Linux musl CLI, and Linux desktop. Homebrew receives both the app cask and CLI formula updates.
+
+All macOS release jobs use Apple Silicon `xcode-27` runners and Xcode 27 while
+retaining the macOS 14 deployment target. The x86_64 CLI is cross-built and
+executed under Rosetta. Signed app verification launches both architectures.
 
 ## iCloud sync (CloudKit)
 Upstream-team identity-signed release builds embed `Scripts/profiles/CodexBar-DeveloperID.provisionprofile` at `Contents/embedded.provisionprofile` and claim the iCloud entitlements (`Scripts/package_app.sh` does both automatically; it fails hard if the profile file is missing). Packaging derives the team from the selected `APP_IDENTITY`; other teams omit upstream CloudKit resources. `sign-and-notarize.sh` honors that same identity, with required timestamping and hardened runtime. The profile expires 2044-07-29; Gatekeeper re-validates it at every launch.

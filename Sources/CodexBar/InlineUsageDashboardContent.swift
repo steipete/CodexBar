@@ -297,11 +297,12 @@ extension UsageMenuCardView.Model {
                 providerCurrency: snapshot.currencyCode)
         }
 
-        let historyDays = snapshot.displayHistoryDays(calendar: input.costUsageBucketCalendar)
+        let tokenCost = ProviderDescriptorRegistry.descriptor(for: input.provider).tokenCost
+        let calendar = tokenCost.chartCalendar ?? input.costUsageBucketCalendar
+        let historyDays = snapshot.displayHistoryDays(calendar: calendar)
         let explicitLabel = snapshot.historyLabel.map { L($0) }
         let period = explicitLabel ?? (historyDays == 1 ? L("Today") : String(format: L("Last %d days"), historyDays))
         let legacyMonth = explicitLabel == nil && historyDays == 30
-        let tokenCost = ProviderDescriptorRegistry.descriptor(for: input.provider).tokenCost
         let historyTitle = tokenCost.historyTitleStyle == .compact
             ? (legacyMonth ? "30d" : period)
             :
@@ -314,8 +315,7 @@ extension UsageMenuCardView.Model {
             days: Self.inlineCostHistoryDays(
                 snapshot: snapshot,
                 historyDays: historyDays,
-                preservesCalendarDays: tokenCost.preservesCalendarDaysInCharts,
-                calendar: input.costUsageBucketCalendar),
+                calendar: calendar),
             displayCurrencyCode: displayCurrencyCode,
             convertedValue: convertedValue)
         let latest = CostUsageTokenSnapshot.latestEntry(in: snapshot.daily)
@@ -486,7 +486,6 @@ extension UsageMenuCardView.Model {
         comparisonPeriodsEnabled: Bool,
         calendar: Calendar) -> InlineUsageDashboardModel
     {
-        let config = ProviderDescriptorRegistry.descriptor(for: provider).tokenCost
         let historyDays = snapshot.displayHistoryDays(calendar: calendar)
         let historyLabel = snapshot.historyLabel.map { L($0) } ?? Self.costHistoryWindowLabel(days: historyDays)
         var kpis = [InlineUsageDashboardModel.KPI(
@@ -511,7 +510,6 @@ extension UsageMenuCardView.Model {
             days: Self.inlineCostHistoryDays(
                 snapshot: snapshot,
                 historyDays: historyDays,
-                preservesCalendarDays: config.preservesCalendarDaysInCharts,
                 calendar: calendar),
             displayCurrencyCode: "USD",
             convertedValue: { $0 },
@@ -572,23 +570,17 @@ extension UsageMenuCardView.Model {
     private static func inlineCostHistoryDays(
         snapshot: CostUsageTokenSnapshot,
         historyDays: Int,
-        preservesCalendarDays: Bool,
         calendar sourceCalendar: Calendar)
         -> [(date: String, costUSD: Double?, totalTokens: Int?, incompleteRequestCount: Int)]
     {
-        let existingDays = snapshot.daily.suffix(historyDays)
-            .compactMap { entry -> (date: String, costUSD: Double?, totalTokens: Int?, incompleteRequestCount: Int)? in
-                guard entry.costUSD != nil || entry.totalTokens != nil || entry.incompleteRequestCount > 0
-                else { return nil }
-                return (entry.date, entry.costUSD, entry.totalTokens, entry.incompleteRequestCount)
-            }
-        guard preservesCalendarDays else { return existingDays }
-
+        guard !snapshot.daily.isEmpty || snapshot.last30DaysTokens != nil || snapshot.last30DaysCostUSD != nil else {
+            return []
+        }
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = sourceCalendar.timeZone
         let endDate = calendar.startOfDay(for: snapshot.updatedAt)
         guard let startDate = calendar.date(byAdding: .day, value: -(historyDays - 1), to: endDate) else {
-            return existingDays
+            return []
         }
 
         let entriesByDay = Dictionary(snapshot.daily.map { ($0.date, $0) }, uniquingKeysWith: { _, newer in newer })

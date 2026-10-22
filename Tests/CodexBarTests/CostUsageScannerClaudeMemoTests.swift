@@ -191,7 +191,7 @@ struct CostUsageScannerClaudeMemoTests {
         let initial = self.load(day: day, options: options)
         let sourceStamp = CostUsageClaudeFileStamp.read(at: sourceURL)
         let memoURL = CostUsageClaudeReportMemo.reportMemoFileURL(cacheFileURL: self.cacheURL(env: env))
-        var envelope = try #require(JSONSerialization.jsonObject(with: Data(contentsOf: memoURL)) as? [String: Any])
+        var envelope = try claudeMemoObjectForTesting(at: memoURL)
         envelope["reportSemanticsVersion"] = revision
         envelope["report"] = [
             "type": "codexbar-claude-report-memo", "data": [],
@@ -210,7 +210,7 @@ struct CostUsageScannerClaudeMemoTests {
         #expect(metrics.cacheDecodes == 0)
         #expect(metrics.transcriptParses == 0)
         #expect(CostUsageClaudeFileStamp.read(at: sourceURL) == sourceStamp)
-        let rewritten = try #require(JSONSerialization.jsonObject(with: Data(contentsOf: memoURL)) as? [String: Any])
+        let rewritten = try claudeMemoObjectForTesting(at: memoURL)
         #expect(rewritten["reportSemanticsVersion"] as? Int == CostUsageClaudeReportMemo.reportSemanticsVersion)
     }
 
@@ -519,7 +519,7 @@ struct CostUsageScannerClaudeMemoTests {
         let options = self.options(env: env)
         let original = self.load(day: day, options: options)
         let memoURL = CostUsageClaudeReportMemo.reportMemoFileURL(cacheFileURL: self.cacheURL(env: env))
-        var memo = try #require(JSONSerialization.jsonObject(with: Data(contentsOf: memoURL)) as? [String: Any])
+        var memo = try claudeMemoObjectForTesting(at: memoURL)
         var report = try #require(memo["report"] as? [String: Any])
         var days = try #require(report["data"] as? [[String: Any]])
         var models = try #require(days[0]["modelBreakdowns"] as? [[String: Any]])

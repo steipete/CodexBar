@@ -611,7 +611,6 @@
 "automatic" = "자동";
 "primary_api_key_limit" = "기본 (API 키 한도)";
 "menu_bar_style_title" = "메뉴 막대 스타일";
-"menu_bar_style_subtitle" = "메뉴 막대 항목의 표시 방식을 선택합니다.";
 "menu_bar_inactive_display_contrast_title" = "비활성 디스플레이에서 가시성 향상";
 "menu_bar_inactive_display_contrast_subtitle" = "고대비 렌더링을 사용하여 다른 디스플레이에서도 아이콘과 지표를 읽기 쉽게 유지합니다.";
 "menu_bar_style_critters" = "크리터";
@@ -665,6 +664,8 @@
 "overview_rows_follow_order" = "개요 행은 항상 공급자 순서를 따릅니다.";
 "overview_no_providers_selected" = "선택된 공급자 없음";
 "agent_sessions_title" = "에이전트 세션";
+"agent_sessions_remote_title" = "원격 세션 (Tailscale / SSH)";
+"agent_sessions_remote_subtitle" = "원격 호스트를 검색하고 연결합니다. 이 Mac만 모니터링하려면 끄세요.";
 "agent_sessions_subtitle" = "메뉴에 로컬 및 SSH로 검색된 Codex 및 Claude Code 세션을 표시합니다.";
 "agent_sessions_hosts_title" = "추가 SSH 호스트";
 "agent_sessions_footer" = "tailnet의 Mac은 자동으로 검색됩니다. 로컬 세션은 30초마다, 원격 호스트는 60초마다 그리고 메뉴를 열 때 새로 고칩니다.";
@@ -1186,6 +1187,7 @@
 "Password" = "암호";
 "%@ authentication is disabled." = "%@ 인증이 사용 안 함으로 설정되어 있습니다.";
 "%@ cookies are disabled." = "%@ 쿠키가 사용 안 함으로 설정되어 있습니다.";
+"%@ is unavailable. Edit the widget to choose a provider." = "%@을(를) 사용할 수 없습니다. 위젯을 편집하여 제공자를 선택하세요.";
 "%@ web API access is disabled." = "%@ 웹 API 접근이 사용 안 함으로 설정되어 있습니다.";
 "Disable %@ dashboard cookie usage." = "%@ 대시보드 쿠키 사용을 사용 안 함으로 설정합니다.";
 "Keychain access is disabled in Advanced, so browser cookie import is unavailable." = "고급에서 키체인 접근이 사용 안 함으로 설정되어 있어 브라우저 쿠키 가져오기를 사용할 수 없습니다.";
@@ -1378,6 +1380,7 @@
 /* Menu bar layout editor */
 "menu_bar_layout_title" = "레이아웃";
 "menu_bar_layout_footer" = "토큰을 드래그해 메뉴 막대를 배치하세요. 토큰을 클릭하면 추가되고, 배치된 토큰을 선택한 뒤 Delete 키를 누르면 제거됩니다.";
+"menu_bar_layout_footer_requires_icon_and_percent" = "레이아웃은 “%@” 메뉴 막대 스타일에만 적용됩니다. 편집하려면 위에서 해당 스타일을 선택하세요.";
 "menu_bar_layout_group_identity" = "식별 정보";
 "menu_bar_layout_group_usage" = "사용량";
 "menu_bar_layout_group_time" = "시간";
@@ -1410,6 +1413,7 @@
 "menu_bar_layout_size_regular" = "보통";
 "menu_bar_layout_size_large" = "크게";
 "menu_bar_layout_monospaced_digits" = "고정폭 숫자";
+"menu_bar_layout_show_window_labels" = "기간 레이블 표시";
 "menu_bar_layout_gap" = "간격";
 "menu_bar_layout_gap_tight" = "좁게";
 "menu_bar_layout_gap_regular" = "보통";
@@ -1766,6 +1770,7 @@
 "Details for %@" = "%@에 대한 세부 정보";
 "EST. %@" = "추정 %@";
 "Enable Antigravity provider" = "Antigravity 공급자 활성화";
+"Enable a provider in CodexBar → Settings → Providers." = "CodexBar → 설정 → 제공자에서 제공자를 활성화하세요.";
 "Enable account widgets in CodexBar → Settings → Menu → Widgets. Then edit this widget to choose an account." = "CodexBar → 설정 → 메뉴 → 위젯에서 계정 위젯을 활성화하세요. 그런 다음 이 위젯을 편집하여 계정을 선택하세요.";
 "Error: %@" = "오류: %@";
 "Examples: alt+cmd+2, shift+right. Refresh (cmd+r), Settings (cmd+,) and Quit (cmd+q) are reserved." = "예: alt+cmd+2, shift+right. 새로 고침(cmd+r), 설정(cmd+,) 및 종료(cmd+q)는 예약되어 있습니다.";
@@ -1979,10 +1984,7 @@
 "Top models:" = "상위 모델:";
 "Two quota burn-down charts in one tile." = "하나의 타일에 두 개의 할당량 번다운 차트가 있습니다.";
 "Usage & spend come from your console.groq.com browser session automatically. An API key is optional and only adds Enterprise Prometheus metrics." = "사용량 및 지출은 console.groq.com 브라우저 세션에서 자동으로 이루어집니다. API 키는 선택 사항이며 Enterprise Prometheus 지표만 추가합니다.";
-"Usage data appears after a refresh." = "새로 고침 후에 사용량 데이터가 표시됩니다.";
-"Usage data will appear once the app refreshes." = "앱을 새로 고치면 사용 데이터가 표시됩니다.";
 "Usage history chart with recent totals." = "최근 합계가 포함된 사용 내역 차트입니다.";
-"Usage history will appear after a refresh." = "새로고침 후 사용 내역이 표시됩니다.";
 "Usage limit" = "사용량 한도";
 "Usage limits and reset countdowns for one saved account." = "저장된 하나의 계정에 대한 사용 제한 및 카운트다운 재설정.";
 "Usage widget with a provider switcher." = "공급자 전환기가 있는 사용 위젯.";
@@ -2169,6 +2171,10 @@
 "Stored in ~/.codexbar/config.json. Create one at console.x.ai under Settings > Management Keys; inference API keys are not accepted." = "~/.codexbar/config.json에 저장됩니다. 설정 > 관리 키 아래 console.x.ai에서 하나를 생성합니다. 추론 API 키는 허용되지 않습니다.";
 "xai-..." = "xai-...";
 "Team ID" = "팀 ID";
+"Vercel access token" = "Vercel 액세스 토큰";
+"Optional. Shows your personal budget instead of team credits. Saved in CodexBar's local config file. Or set VERCEL_ACCESS_TOKEN." = "선택 사항입니다. 팀 크레딧 대신 개인 예산을 표시합니다. CodexBar의 로컬 구성 파일에 저장됩니다. 또는 VERCEL_ACCESS_TOKEN을 설정하세요.";
+"Open Vercel tokens" = "Vercel 토큰 열기";
+"Required with a Vercel access token. Or set VERCEL_TEAM_ID." = "Vercel 액세스 토큰과 함께 필요합니다. 또는 VERCEL_TEAM_ID를 설정하세요.";
 "Required. Shown in the xAI Console URL and team settings." = "필수입니다. xAI 콘솔 URL 및 팀 설정에 표시됩니다.";
 "Sakana AI cost summary is not supported." = "Sakana AI 비용 요약은 지원되지 않습니다.";
 "Stored in ~/.codexbar/config.json. Copy the Sakana AI console Cookie request header." = "~/.codexbar/config.json에 저장됩니다. Sakana AI 콘솔 Cookie 요청 헤더를 복사합니다.";
@@ -2427,7 +2433,7 @@
 "spend_performance_cache_help" = "대상 턴의 캐시된 입력을 전체 입력으로 나눈 값입니다. 입력 토큰 수로 가중치를 적용하며 표본 범위도 표시합니다.";
 "spend_performance_metric_help" = "관측값 안내";
 "merged_icon_source_title" = "통합 아이콘 표시 기준";
-"merged_icon_source_subtitle" = "접힌 통합 아이콘에 표시할 공급자를 선택합니다.";
+"merged_icon_source_subtitle" = "‘사용량이 가장 높음’은 할당량만 비교합니다. 할당량이 없는 공급자는 ‘현재 선택’을 사용하세요.";
 "merged_icon_source_current_selection" = "현재 선택";
 "merged_icon_source_highest_usage" = "사용량이 가장 높음";
 "merged_icon_source_frontmost_app" = "전면의 공급자 앱";
@@ -2526,7 +2532,7 @@
 "Clear filters" = "필터 지우기";
 "Change provider order" = "공급자 순서 변경";
 "Provider sorting" = "공급자 정렬";
-"Only enabled providers" = "활성 공급자만 표시";
+"Only show enabled providers" = "활성 공급자만 표시";
 "Restore default order" = "기본 순서 복원";
 "Also restores the provider order in the menu bar. Can be undone." = "메뉴 막대의 공급자 순서도 복원합니다. 실행 취소할 수 있습니다.";
 "Local Codex details; excluded from combined totals." = "로컬 Codex 세부 정보, 합산 총계에서 제외됩니다.";
@@ -2651,3 +2657,15 @@
 /* Munito provider credentials */
 "Key with Read account data (Admin API) permission. Or set MUNITO_API_KEY." = "계정 데이터 읽기(Admin API) 권한이 있는 키입니다. 또는 MUNITO_API_KEY를 설정하세요.";
 "Munito reports Admin API spend and limits, not local token cost history." = "Munito는 Admin API 지출 및 한도를 보고하며, 로컬 토큰 비용 기록은 아닙니다.";
+
+"Show all accounts in Overview" = "개요에 모든 계정 표시";
+
+"Expand cached account usage. The six-provider limit still applies." = "캐시된 계정 사용량으로 선택한 제공업체를 펼칩니다. 제공업체는 최대 6개까지 표시됩니다.";
+"Edit" = "편집";
+"Move up" = "위로 이동";
+"Move down" = "아래로 이동";
+"Leave blank to keep the saved credential." = "저장된 인증 정보를 유지하려면 비워 두세요.";
+
+"No personal budget configured" = "개인 예산이 설정되지 않았습니다";
+
+"monthly_daily_target_format" = "재설정까지 사용할 수 있는 하루 목표: 약 %@";

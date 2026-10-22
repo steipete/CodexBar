@@ -2587,7 +2587,7 @@ enum CostUsageScanner {
         return CostUsageDayRange.dayKey(from: shifted, calendar: calendar)
     }
 
-    private static func localStartOfDay(_ dayKey: String, calendar: Calendar) -> Date? {
+    static func localStartOfDay(_ dayKey: String, calendar: Calendar) -> Date? {
         let calendar = CostUsageDayRange.localGregorianCalendar(matching: calendar)
         return self.parseDayKey(dayKey, calendar: calendar).map { calendar.startOfDay(for: $0) }
     }

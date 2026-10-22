@@ -204,14 +204,7 @@ enum TTYProcessTreeTerminator {
         guard pid > 0 else { return nil }
 
         #if canImport(Darwin)
-        var info = proc_bsdinfo()
-        let size = proc_pidinfo(
-            pid,
-            PROC_PIDTBSDINFO,
-            0,
-            &info,
-            Int32(MemoryLayout<proc_bsdinfo>.stride))
-        guard size == Int32(MemoryLayout<proc_bsdinfo>.stride) else { return nil }
+        guard let info = DarwinProcessEnumerator.processInfo(pid: pid) else { return nil }
         let startToken = UInt64(info.pbi_start_tvsec) * 1_000_000 + UInt64(info.pbi_start_tvusec)
         return ProcessIdentity(pid: pid, startToken: startToken)
         #else

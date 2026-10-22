@@ -41,8 +41,7 @@ public struct ProviderTokenCostConfig: Sendable {
     public let showsRequestHistory: Bool
     public let hintPlacement: ProviderTokenCostHintPlacement
     public let chartEstimateDisclaimer: ProviderTokenCostHint?
-    /// Keep calendar slots for missing dates; coverage determines whether their costs are known.
-    public let preservesCalendarDaysInCharts: Bool
+    public let chartCalendar: Calendar?
     public let presentation: ProviderTokenHistoryPresentation
 
     public init(
@@ -59,7 +58,7 @@ public struct ProviderTokenCostConfig: Sendable {
         showsRequestHistory: Bool = true,
         hintPlacement: ProviderTokenCostHintPlacement = .afterRequestHistory,
         chartEstimateDisclaimer: ProviderTokenCostHint? = nil,
-        preservesCalendarDaysInCharts: Bool = false,
+        chartCalendar: Calendar? = nil,
         presentation: ProviderTokenHistoryPresentation = .costAndTokens)
     {
         self.supportsTokenCost = supportsTokenCost
@@ -75,7 +74,7 @@ public struct ProviderTokenCostConfig: Sendable {
         self.showsRequestHistory = showsRequestHistory
         self.hintPlacement = hintPlacement
         self.chartEstimateDisclaimer = chartEstimateDisclaimer
-        self.preservesCalendarDaysInCharts = preservesCalendarDaysInCharts
+        self.chartCalendar = chartCalendar
         self.presentation = presentation
     }
 }
@@ -300,6 +299,8 @@ public struct ProviderPaceCapability: Sendable {
             windowMinutes: minutes,
             resetsAt: window.resetsAt,
             resetDescription: window.resetDescription,
+            quotaLimit: window.quotaLimit,
+            quotaUnit: window.quotaUnit,
             nextRegenPercent: window.nextRegenPercent,
             isSyntheticPlaceholder: window.isSyntheticPlaceholder)
     }
@@ -459,7 +460,7 @@ public enum ProviderDescriptorRegistry {
     }
 
     public static var cliNameMap: [String: UsageProvider] {
-        var map: [String: UsageProvider] = [:]
+        var map = Dictionary(uniqueKeysWithValues: self.all.map { ($0.id.rawValue, $0.id) })
         for descriptor in self.all {
             map[descriptor.cli.name] = descriptor.id
             for alias in descriptor.cli.aliases {

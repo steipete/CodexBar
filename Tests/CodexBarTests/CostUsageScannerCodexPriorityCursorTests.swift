@@ -166,7 +166,7 @@ struct CostUsageScannerCodexPriorityCursorTests {
         CostUsageScanner._test_resetCodexPriorityTurnsMemo(forPath: dbURL.path)
 
         let replacementIdentity = try #require(
-            CostUsageScanner._test_codexPriorityDatabaseFileIdentity(at: dbURL))
+            CostUsageScanner.codexPriorityDatabaseFileIdentity(at: dbURL))
         var stale = persisted
         stale.fileIdentity = replacementIdentity
         CostUsageScanner.seedCodexPriorityTurnsMemoIfEmpty(stale, databaseURL: dbURL)

@@ -621,7 +621,6 @@
 
 /* Display Pane */
 "menu_bar_style_title" = "Стиль рядка меню";
-"menu_bar_style_subtitle" = "Визначає вигляд елемента рядка меню.";
 "menu_bar_inactive_display_contrast_title" = "Покращити видимість на неактивних дисплеях";
 "menu_bar_inactive_display_contrast_subtitle" = "Використовує висококонтрастне відтворення, щоб піктограма й показник залишалися читабельними на інших дисплеях.";
 "menu_bar_style_critters" = "Тварини";
@@ -675,6 +674,8 @@
 "overview_rows_follow_order" = "Оглядові рядки завжди відповідають порядку постачальника.";
 "overview_no_providers_selected" = "Не вибрано жодного постачальника";
 "agent_sessions_title" = "Сеанси агентів";
+"agent_sessions_remote_title" = "Віддалені сеанси (Tailscale / SSH)";
+"agent_sessions_remote_subtitle" = "Виявляйте віддалені вузли та підключайтеся до них. Вимкніть, щоб відстежувати лише цей Mac.";
 "agent_sessions_subtitle" = "Показувати в меню локальні й виявлені через SSH сеанси Codex і Claude Code.";
 "agent_sessions_hosts_title" = "Додаткові хости SSH";
 "agent_sessions_footer" = "Комп’ютери Mac у вашій мережі tailnet виявляються автоматично. Локальні сеанси оновлюються кожні 30 секунд; віддалені хости — кожні 60 секунд і під час відкриття меню.";
@@ -1220,6 +1221,7 @@
 "Password" = "Пароль";
 "%@ authentication is disabled." = "Автентифікацію %@ вимкнено.";
 "%@ cookies are disabled." = "Файли cookie %@ вимкнено.";
+"%@ is unavailable. Edit the widget to choose a provider." = "%@ недоступний. Відредагуйте віджет, щоб вибрати постачальника.";
 "%@ web API access is disabled." = "Доступ до веб-API %@ вимкнено.";
 "Disable %@ dashboard cookie usage." = "Вимкнути використання файлів cookie панелі інструментів %@.";
 "Keychain access is disabled in Advanced, so browser cookie import is unavailable." = "Доступ Keychain вимкнено в Advanced, тому імпорт файлів cookie браузера недоступний.";
@@ -1408,6 +1410,7 @@
 /* Menu bar layout editor */
 "menu_bar_layout_title" = "Компонування";
 "menu_bar_layout_footer" = "Перетягуйте елементи, щоб упорядкувати смугу меню. Натисніть елемент, щоб додати його; виберіть розміщений елемент і натисніть Delete, щоб видалити його.";
+"menu_bar_layout_footer_requires_icon_and_percent" = "Компонування застосовується лише до стилю рядка меню «%@». Виберіть цей стиль вище, щоб змінити його.";
 "menu_bar_layout_group_identity" = "Ідентифікація";
 "menu_bar_layout_group_usage" = "Використання";
 "menu_bar_layout_group_time" = "Час";
@@ -1440,6 +1443,7 @@
 "menu_bar_layout_size_regular" = "Звичайний";
 "menu_bar_layout_size_large" = "Великий";
 "menu_bar_layout_monospaced_digits" = "Моноширинні цифри";
+"menu_bar_layout_show_window_labels" = "Показувати мітки періодів";
 "menu_bar_layout_gap" = "Інтервал";
 "menu_bar_layout_gap_tight" = "Вузький";
 "menu_bar_layout_gap_regular" = "Звичайний";
@@ -1797,6 +1801,7 @@
 "Details for %@" = "Деталі для %@";
 "EST. %@" = "Приблизно %@";
 "Enable Antigravity provider" = "Увімкнути постачальника Antigravity";
+"Enable a provider in CodexBar → Settings → Providers." = "Увімкніть постачальника в CodexBar → Налаштування → Постачальники.";
 "Enable account widgets in CodexBar → Settings → Menu → Widgets. Then edit this widget to choose an account." = "Увімкніть віджети облікового запису в CodexBar → Налаштування → Меню → Віджети. Потім відредагуйте цей віджет, щоб вибрати обліковий запис.";
 "Error: %@" = "Помилка: %@";
 "Examples: alt+cmd+2, shift+right. Refresh (cmd+r), Settings (cmd+,) and Quit (cmd+q) are reserved." = "Приклади: alt+cmd+2, shift+right. Оновлення (cmd+r), налаштування (cmd+,) і вихід (cmd+q) зарезервовані.";
@@ -2011,10 +2016,7 @@
 "Top models:" = "Топ моделей:";
 "Two quota burn-down charts in one tile." = "Дві діаграми вигорання Квота на одній плитці.";
 "Usage & spend come from your console.groq.com browser session automatically. An API key is optional and only adds Enterprise Prometheus metrics." = "Використання та витрати надходять із вашого сеансу браузера console.groq.com автоматично. Ключ API є необов’язковим і додає лише Enterprise Prometheus Показник.";
-"Usage data appears after a refresh." = "Дані про використання з’являються після оновлення.";
-"Usage data will appear once the app refreshes." = "Дані про використання з’являться, коли програма оновиться.";
 "Usage history chart with recent totals." = "Графік історії використання з останніми підсумками.";
-"Usage history will appear after a refresh." = "Історія використання з’явиться після оновлення.";
 "Usage limit" = "Ліміт використання";
 "Usage limits and reset countdowns for one saved account." = "Обмеження використання та скидання зворотного відліку для одного збереженого облікового запису.";
 "Usage widget with a provider switcher." = "Віджет використання з перемикачем провайдерів.";
@@ -2201,6 +2203,10 @@
 "Stored in ~/.codexbar/config.json. Create one at console.x.ai under Settings > Management Keys; inference API keys are not accepted." = "Зберігається в ~/.codexbar/config.json. Створіть його на console.x.ai у меню «Параметри» > «Ключі керування»; висновок Ключі API не приймаються.";
 "xai-..." = "xai-...";
 "Team ID" = "Команда ID";
+"Vercel access token" = "Токен доступу Vercel";
+"Optional. Shows your personal budget instead of team credits. Saved in CodexBar's local config file. Or set VERCEL_ACCESS_TOKEN." = "Необов'язково. Показує ваш особистий бюджет замість кредитів команди. Зберігається в локальному файлі конфігурації CodexBar. Або задайте VERCEL_ACCESS_TOKEN.";
+"Open Vercel tokens" = "Відкрити токени Vercel";
+"Required with a Vercel access token. Or set VERCEL_TEAM_ID." = "Потрібен разом із токеном доступу Vercel. Або задайте VERCEL_TEAM_ID.";
 "Required. Shown in the xAI Console URL and team settings." = "Обов'язковий. Показано в налаштуваннях xAI Console URL і команди.";
 "Sakana AI cost summary is not supported." = "Підсумок вартості Sakana AI не підтримується.";
 "Stored in ~/.codexbar/config.json. Copy the Sakana AI console Cookie request header." = "Зберігається в ~/.codexbar/config.json. Скопіюйте заголовок запиту Cookie консолі Sakana AI.";
@@ -2459,7 +2465,7 @@
 "spend_performance_cache_help" = "Кешовані вхідні дані, поділені на всі вхідні дані за придатними ходами діалогу. Значення зважено за вхідними токенами; показано охоплення вимірювань.";
 "spend_performance_metric_help" = "Про ці спостереження";
 "merged_icon_source_title" = "Джерело об’єднаної іконки";
-"merged_icon_source_subtitle" = "Виберіть провайдера для згорнутої об’єднаної іконки.";
+"merged_icon_source_subtitle" = "«Найбільше використання» порівнює лише квоти. Для провайдерів без квот виберіть «Поточний вибір».";
 "merged_icon_source_current_selection" = "Поточний вибір";
 "merged_icon_source_highest_usage" = "Найбільше використання";
 "merged_icon_source_frontmost_app" = "Застосунок провайдера на передньому плані";
@@ -2558,7 +2564,7 @@
 "Clear filters" = "Очистити фільтри";
 "Change provider order" = "Змінити порядок провайдерів";
 "Provider sorting" = "Сортування провайдерів";
-"Only enabled providers" = "Лише активні провайдери";
+"Only show enabled providers" = "Показувати лише активних провайдерів";
 "Restore default order" = "Відновити типовий порядок";
 "Also restores the provider order in the menu bar. Can be undone." = "Також відновлює порядок провайдерів у рядку меню. Дію можна скасувати.";
 "Local Codex details; excluded from combined totals." = "Локальні дані Codex; не враховуються в загальних підсумках.";
@@ -2683,3 +2689,15 @@
 /* Munito provider credentials */
 "Key with Read account data (Admin API) permission. Or set MUNITO_API_KEY." = "Ключ із правом читання даних облікового запису (Admin API). Або встановіть MUNITO_API_KEY.";
 "Munito reports Admin API spend and limits, not local token cost history." = "Munito звітує про витрати та ліміти Admin API, а не локальну історію витрат на токени.";
+
+"Show all accounts in Overview" = "Показувати всі облікові записи в огляді";
+
+"Expand cached account usage. The six-provider limit still applies." = "Розгортати вибраних постачальників, використовуючи кешовані дані про використання облікових записів. Обмеження в шість постачальників зберігається.";
+"Edit" = "Редагувати";
+"Move up" = "Перемістити вгору";
+"Move down" = "Перемістити вниз";
+"Leave blank to keep the saved credential." = "Залиште порожнім, щоб зберегти поточні облікові дані.";
+
+"No personal budget configured" = "Особистий бюджет не налаштовано";
+
+"monthly_daily_target_format" = "≈ %@ на день, щоб вистачило до скидання";

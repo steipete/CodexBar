@@ -96,3 +96,23 @@ test('families reporting equal values keep their own titles', () => {
     const low = model.transition(baseline.state, antigravity(5, 0, 5), 10);
     assert.deepEqual(Array.from(low.events, event => event.message), ['Claude/GPT 5-hour: 5% quota remaining.']);
 });
+
+test('a stable-ID representative with a general title emits one alert per allowance crossing', () => {
+    const entries = usedPercent => {
+        const window = {usedPercent, windowMinutes: 10080, resetsAt: '2030-01-01T00:00:00Z'};
+        return usage.rows(JSON.stringify([{provider: 'antigravity', usage: {
+            primary: window, extraRateWindows: [
+                {id: 'antigravity-quota-summary-gemini-weekly', title: 'General models weekly', window},
+                {id: 'antigravity-quota-summary-gemini-synthetic-limited-weekly', title: 'General models weekly',
+                    window: {...window, usedPercent: 100}}
+            ]}}]));
+    };
+    const baseline = model.transition({}, entries(80), 10);
+    assert.equal(baseline.events.length, 0);
+    const low = model.transition(baseline.state, entries(95), 10);
+    assert.deepEqual(Array.from(low.events, event => event.message), ['General models weekly: 5% quota remaining.']);
+    assert.deepEqual(Object.keys(low.state), [
+        'antigravity/extra:antigravity-quota-summary-gemini-weekly',
+        'antigravity/extra:antigravity-quota-summary-gemini-synthetic-limited-weekly']);
+    assert.equal(model.transition(low.state, entries(95), 10).events.length, 0);
+});

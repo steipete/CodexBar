@@ -14,6 +14,8 @@ struct SpawnedProcessGroupTests {
         func makePipe() throws -> (read: Int32, write: Int32) {
             var descriptors = [Int32](repeating: -1, count: 2)
             try #require(pipe(&descriptors) == 0)
+            // Concurrent test children must not keep this fixture's writer alive.
+            try #require(fcntl(descriptors[1], F_SETFD, FD_CLOEXEC) == 0)
             return (descriptors[0], descriptors[1])
         }
 
@@ -88,6 +90,7 @@ struct SpawnedProcessGroupTests {
         let readDescriptor = descriptors[0]
         let leasedWriteDescriptor = descriptors[1]
         defer { _ = close(readDescriptor) }
+        try #require(fcntl(leasedWriteDescriptor, F_SETFD, FD_CLOEXEC) == 0)
 
         let now = DispatchTime(uptimeNanoseconds: 1_000_000_000)
         let result = SpawnedProcessGroup._test_outputHolderCleanupLeaseExpiry(

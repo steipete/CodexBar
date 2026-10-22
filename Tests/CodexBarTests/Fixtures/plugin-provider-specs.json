@@ -46,14 +46,14 @@
     "cliResolution": {"VERCEL": ["vercel"]},
     "enterpriseHost": false,
     "environmentAvailability": [[true, false], [true, true], [true, true], [true, true]],
-    "fields": ["secure"],
+    "fields": ["secure", "secure", "plain"],
     "id": "vercel",
     "projectToken": "",
-    "projections": {"AI_GATEWAY_API_KEY": "fixture-key"},
+    "projections": {"AI_GATEWAY_API_KEY": "fixture-key", "VERCEL_TEAM_ID": "fixture-project"},
     "sourceModes": ["api", "auto"],
     "strategies": ["vercel.js"],
     "supportsTokenCost": false,
-    "workspaceOrder": null
+    "workspaceOrder": 9
   },
   {
     "availability": [true, true, true],

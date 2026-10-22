@@ -152,18 +152,21 @@ struct AgentSessionsSettingsSection: View {
                 })
                 .disabled(!self.settings.agentSessionsEnabled)
 
+            Toggle(isOn: self.$settings.agentSessionsRemoteEnabled) {
+                SettingsRowLabel(L("agent_sessions_remote_title"), subtitle: L("agent_sessions_remote_subtitle"))
+            }
+            .disabled(!self.settings.agentSessionsEnabled)
+
             Toggle(isOn: self.$settings.agentSessionsHideUnreachableHosts) {
                 SettingsRowLabel(
                     L("agent_sessions_hide_unreachable_title"),
                     subtitle: L("agent_sessions_hide_unreachable_subtitle"))
             }
-            .disabled(!self.settings.agentSessionsEnabled)
+            .disabled(!self.settings.agentSessionsEnabled || !self.settings.agentSessionsRemoteEnabled)
 
             AgentSessionHostsEditor(settings: self.settings)
         } header: {
             Text(L("section_agent_sessions"))
-        } footer: {
-            SettingsSectionFooter(L("agent_sessions_footer"))
         }
     }
 }
@@ -185,8 +188,8 @@ struct AgentSessionHostsEditor: View {
                 .frame(minWidth: 220, idealWidth: 280)
                 .accessibilityLabel(L("agent_sessions_hosts_title"))
         }
-        .disabled(!self.settings.agentSessionsEnabled)
-        .help(L("agent_sessions_footer"))
+        .disabled(!self.settings.agentSessionsEnabled || !self.settings.agentSessionsRemoteEnabled)
+        .help(L("agent_sessions_remote_subtitle"))
     }
 }
 

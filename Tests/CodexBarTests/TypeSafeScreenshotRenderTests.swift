@@ -7,7 +7,7 @@ import XCTest
 @MainActor
 final class TypeSafeScreenshotRenderTests: XCTestCase {
     func test_billingUsesPayAsYouGoCardWithoutAnInventedQuota() async throws {
-        let snapshot = try await TypeSafePluginTests.fetch(engine: .quickJS)
+        let snapshot = try await TypeSafeTestFixture.fetch(engine: .quickJS)
         let model = try Self.model(snapshot, costSummaryInline: true)
         let cost = try XCTUnwrap(model.providerCost)
         XCTAssertNil(cost.percentUsed)
@@ -29,7 +29,7 @@ final class TypeSafeScreenshotRenderTests: XCTestCase {
         }
         let directory = URL(fileURLWithPath: path, isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        let snapshot = try await TypeSafePluginTests.fetch(engine: .quickJS)
+        let snapshot = try await TypeSafeTestFixture.fetch(engine: .quickJS)
         let model = try Self.model(snapshot)
         try CodexBarLocalizationOverride.$appLanguage.withValue("en") {
             let view = AnyView(UsageMenuCardView(model: model, width: 360)
@@ -67,6 +67,6 @@ final class TypeSafeScreenshotRenderTests: XCTestCase {
             showOptionalCreditsAndExtraUsage: true,
             hidePersonalInfo: true,
             usesLiveSubtitle: false,
-            now: TypeSafePluginTests.now))
+            now: TypeSafeTestFixture.now))
     }
 }
