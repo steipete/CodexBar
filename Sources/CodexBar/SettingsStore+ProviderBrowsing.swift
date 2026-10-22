@@ -19,6 +19,18 @@ extension SettingsStore {
         return self.configSnapshot.providers.map(\.id) == undo.after
     }
 
+    var canRestoreDefaultProviderOrder: Bool {
+        guard let order = self.defaultProviderOrder else { return false }
+        return self.providersSortedAlphabetically || order != self.configSnapshot.providers.map(\.id)
+    }
+
+    private var defaultProviderOrder: [ProviderInstanceID]? {
+        let current = self.configSnapshot.providers.map(\.id)
+        let present = Set(current)
+        let defaults = UsageProvider.allCases.map(\.instanceID).filter { present.contains($0) }
+        return ProviderOrderMutation.merging(visibleOrder: defaults, into: current)
+    }
+
     @discardableResult
     func moveVisibleProviders(
         _ visibleOrder: [ProviderInstanceID],
@@ -40,10 +52,8 @@ extension SettingsStore {
     @discardableResult
     func restoreDefaultProviderOrder() -> Bool {
         let before = self.configSnapshot.providers.map(\.id)
-        let present = Set(before)
-        let defaults = UsageProvider.allCases.map(\.instanceID).filter { present.contains($0) }
         let alphabetical = self.providersSortedAlphabetically
-        guard let after = ProviderOrderMutation.merging(visibleOrder: defaults, into: before),
+        guard let after = self.defaultProviderOrder,
               after != before || alphabetical
         else { return false }
         self.setProviderOrder(after)

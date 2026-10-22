@@ -25,6 +25,7 @@ read_when:
   session or weekly quota data.
 - **Preferences → Providers → Claude → Show model-specific weekly usage in widgets** adds every known scoped weekly quota (including Fable when available) after Session, Weekly, and Opus. It defaults off, affects no other surface or fetching, and removes even previously saved scoped rows when turned off without fresh data.
 - If no snapshot is available, widgets fall back to preview/empty data.
+- Provider-pinned widgets (Usage, History, Metric) retain their configured provider. If it is absent from a nonempty snapshot's `enabledProviders`, the empty state names it as unavailable and points at Edit Widget. That list records enabled, available, widget-capable providers; missing credentials can therefore produce this state too. With no available providers or no saved snapshot, widgets point at provider setup in Settings. Enabled providers awaiting a measurement show **No data**. The Switcher has no provider editor, so its recovery always points at app settings. Burn Down uses the same **No data** label in its own empty-state layout; account widgets keep their own setup guidance.
 
 Persistence must finish before requesting a timeline reload. Tests opt in with an in-memory save override or test-owned snapshot URL; neither reloads WidgetKit. Use the helper's explicit test-mode decision and per-store reload callback to verify ordering without changing process-wide isolation or calling WidgetKit.
 
@@ -133,17 +134,26 @@ registration, signing, or daemon caching (not SwiftUI code).
 
 ### What happens after an app update
 
-The first launch of a new version uses the normal startup refresh: the app publishes a
-snapshot, waits for the save attempt to finish, then requests `reloadAllTimelines()`.
-Later refreshes repeat that request. There is no separate version-change reload or
-extension-process restart. The widget kinds are declared in `CodexBarWidgetBundle`;
-macOS discovers the embedded extension, rather than the app registering kinds on launch.
-Packaging assigns the same version and build number to the app and extension, but the
-app does not compare the installed extension with an already-running executable.
+On the first launch after the app's build number changes, CodexBar checks for surviving
+widget extension processes owned by the current user. Their code-signing designated
+requirement must match the installed extension, whose bundle identifier and signing team
+must belong to this app. CodexBar sends SIGTERM only if the process started before the
+installed extension executable's latest modification/change time, or its executable path
+has disappeared. It then requests `reloadAllTimelines()` once. Processes started after
+installation, other users' processes, and processes with a different or unreadable
+designated requirement are left alone. There is no polling or recovery scan on subsequent
+launches of the same build.
+
+The normal startup refresh also publishes a snapshot, waits for the save attempt, and
+requests a timeline reload. Later refreshes repeat that request. The widget kinds are
+declared in `CodexBarWidgetBundle`; macOS discovers the embedded extension. Packaging
+assigns the same version and build number to the app and extension. Recovery uses process
+age because the plist at a replaced pathname does not identify the running executable's
+version.
 
 The shared snapshot has no app-build handshake. New snapshot fields must preserve older
 readers: keep additions optional/defaulted and retain existing field names and types.
-The snapshot schema is unchanged between 0.75.0 and the current 0.76.1 development version.
+Automatic extension recovery does not change the shared snapshot schema.
 A fresh snapshot and a reload request cannot make an old running extension use the
 replacement executable or prove that `chronod` accepted its output.
 
@@ -195,7 +205,8 @@ restored `chronod` acceptance and timeline-file updates. The old executable mapp
 failing snapshot were not captured, so this does not establish their exact identity or
 rule out every payload-dependent failure covered by error 1050.
 
-After collecting those diagnostics, a manual recovery for this stale-timeline failure is:
+Automatic post-update recovery covers verified old extension processes. If widgets remain
+stale, collect those diagnostics first; the manual fallback for this failure is:
 
 ```sh
 killall -TERM CodexBarWidget
@@ -206,9 +217,8 @@ all processes with that name, including any other CodexBar installation's widget
 it does not terminate the main app. In the Homebrew report, recovery needed no restart of
 `chronod`, Dock or NotificationCenter, cache deletion, or widget reconfiguration. Check for
 `chronod` **Reload success**, updated timeline files, and current visible values afterward;
-extension-side request success alone is insufficient. This is a manual workaround, not a
-guaranteed fix or an automatic process-termination policy, and it cannot restore deleted
-widget placements.
+extension-side request success alone is insufficient. Neither automatic recovery nor this
+manual fallback guarantees recovery from every error 1050 or restores deleted placements.
 
 ### 1) Verify the extension bundle exists where macOS expects it
 ```

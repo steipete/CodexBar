@@ -22,7 +22,10 @@ struct CostUsageClaudeReportWireTests {
         defer { fixture.cleanup() }
         let expected = try fixture.encoded()
         fixture.store()
-        #expect(try Data(contentsOf: fixture.memoURL) == expected)
+        let manifest = try #require(JSONSerialization
+            .jsonObject(with: Data(contentsOf: fixture.memoURL)) as? [String: Any])
+        let encoded = try #require(manifest["header"] as? String)
+        #expect(Data(base64Encoded: encoded) == expected)
         let loaded = try #require(fixture.load())
         #expect(loaded.reportKey == fixture.envelope.reportKey)
         #expect(loaded.sourceInventory == fixture.envelope.sourceInventory)
@@ -93,7 +96,7 @@ struct CostUsageClaudeReportWireTests {
     }
 
     @Test
-    func `retained report survives atomic replacement and unchanged save does not rewrite`() throws {
+    func `retained report survives migration and atomic replacement`() throws {
         let fixture = try Fixture(count: 4096)
         defer { fixture.cleanup() }
         try fixture.encoded().write(to: fixture.memoURL, options: .atomic)
@@ -101,7 +104,10 @@ struct CostUsageClaudeReportWireTests {
         let loaded = try #require(memo.entry(provider: .claude, canonicalCachePath: fixture.cacheURL.path))
         let stamp = CostUsageClaudeFileStamp.read(at: fixture.memoURL)
         fixture.store(report: loaded.report)
-        #expect(CostUsageClaudeFileStamp.read(at: fixture.memoURL) == stamp)
+        #expect(CostUsageClaudeFileStamp.read(at: fixture.memoURL) != stamp)
+        let migrated = CostUsageClaudeFileStamp.read(at: fixture.memoURL)
+        fixture.store(report: loaded.report)
+        #expect(CostUsageClaudeFileStamp.read(at: fixture.memoURL) == migrated)
         try Data("invalid".utf8).write(to: fixture.memoURL, options: .atomic)
         #expect(loaded.report.quotaSlices == fixture.envelope.quotaSlices?.map(\.timedValue))
         #expect(memo.entry(provider: .claude, canonicalCachePath: fixture.cacheURL.path)?.report.quotaSlices
@@ -136,6 +142,7 @@ struct CostUsageClaudeReportWireTests {
             fixture.store()
             #expect(counter.snapshot() == [4096, 1])
             counter.reset()
+            CostUsageClaudeFragments.shared.evict(at: fixture.memoURL)
             let loaded = try #require(fixture.load())
             #expect(loaded.report.quotaSlices.count == 4096)
             #expect(counter.snapshot() == [4096, 1])

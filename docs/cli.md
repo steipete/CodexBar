@@ -74,6 +74,17 @@ sources and setup guide. The [provider ID list](provider-ids.md) is generated fr
     no denormalization — intended for agents that want a token-cheaper alternative to parsing JSON. `usage --format
     toon` is the only command that supports it; every other command still advertises and accepts only
     `--format text|json`, and treats `toon` like any other unrecognized value.
+  - Since 0.78.0, Claude usage in Auto follows the active claude-swap slot when the integration is enabled,
+    including a single configured slot regardless of `claudeSwapShowSingleAccount`. Earlier versions always used
+    the ordinary CLI source order (Web → CLI on macOS), so a browser signed into another account could supply usage.
+    The result remains one Claude payload: `source` names the adapter and `usage.accountEmail` / `usage.identity.accountID`
+    identify the active slot. Measurement timestamps and any last-known usage diagnostic are preserved.
+  - Explicit non-auto `--source` modes, a configured non-auto source, and `--account`, `--account-index`, or
+    `--all-accounts` bypass this precedence. Without the integration, source selection is unchanged.
+  - If the adapter fails, returns no active slot, or has no usable usage for that slot, the ordinary source order
+    still applies. The actual winning source gains ` (claude-swap fallback)` (or ` (tcr fallback)`) in text and JSON,
+    and the identity remains that of the fallback account. Another swap slot is never substituted. Pooled tcr
+    adapters normally report no active slot and therefore use the labeled fallback.
 - `codexbar cost` prints token cost usage for Claude, Codex, Cursor, Antigravity, Muse Code, and Pi.
   - Claude and Codex are scanned from local session logs without web/CLI access.
   - [Pi](pi.md) reads supported Pi/OMP local assistant history. Selecting Pi alongside Claude/Codex keeps those providers native-only so combined totals count each source once.
@@ -129,7 +140,8 @@ sources and setup guide. The [provider ID list](provider-ids.md) is generated fr
   - claude-swap sentinel accounts remain successful cards with their problem text and no fabricated usage metrics.
     A list adapter, parser, or timeout failure retains useful ambient Claude output, adds a distinct
     `Claude (claude-swap)` failure footer entry, and makes the command exit non-zero.
-  - This precedence is cards-only: `codexbar usage` and `codexbar serve` keep their existing output cardinality.
+  - Cards expands swap accounts; `codexbar usage` returns only the active slot as described above.
+    `codexbar serve` keeps its existing `/usage` behavior.
   - Honors `$COLUMNS` for layout; falls back to 80 columns. Use `--no-color` for plain output.
   - Kitty, Ghostty, WezTerm, and other truecolor terminals auto-enable enhanced gradients/outlines.
   - Force enhanced mode elsewhere with `CODEXBAR_CARDS_ENHANCED=1`.
@@ -185,6 +197,7 @@ sources and setup guide. The [provider ID list](provider-ids.md) is generated fr
   - Stable guard exit codes: `0` means safe, `1` means below threshold, `64` (`EX_USAGE`) means invalid arguments, and `69` (`EX_UNAVAILABLE`) means the quota could not be checked or the selected window is unavailable. `--fail-open` changes only unavailable results from `69` to `0`; JSON still reports `decision: "unknown"` and the reason.
   - Guard fetches are read-only and use background interaction policy, matching `codexbar usage`; they never request interactive Keychain access.
 - `--provider <id|both|all>` (default: enabled providers in config; falls back to defaults when missing).
+  - Accepts raw IDs from `codexbar config providers --format json` as well as CLI names and aliases. For example, `alibabatokenplan` and `alibaba-token-plan` select the same provider; existing CLI names and aliases take precedence if names overlap.
   - Use a registered [provider ID](provider-ids.md) or CLI alias. Enabled providers and ordering live in the config file.
   - With three or more providers enabled, the default stays scoped to enabled providers; use `--provider all` to query
     every registered provider.
@@ -199,13 +212,14 @@ sources and setup guide. The [provider ID list](provider-ids.md) is generated fr
     - `cli`: CLI/local-helper source where the provider exposes one (for example Codex RPC/PTy, Claude PTY, Kilo CLI fallback, Kiro CLI, local probes).
     - `oauth`: OAuth-backed source where supported (Codex, Claude, Vertex AI).
     - `api`: API-backed flow where supported; credentials may be API keys or existing tokens. See the complete [provider source table](providers.md#fetch-strategies-current) and each provider's guide for supported modes.
-    - Output `source` reflects the strategy actually used (`openai-web`, `web`, `oauth`, `api`, `local`, `cli`, or provider CLI label; `codexbar-app` with `ageSeconds` when SSH falls back to the app's cache, see [SSH sessions](#ssh-sessions-macos)).
+    - Output `source` reflects the strategy actually used (`openai-web`, `web`, `oauth`, `api`, `local`, `cli`, `claude-swap`, `tcr`, or provider CLI label; `codexbar-app` with `ageSeconds` when SSH falls back to the app's cache, see [SSH sessions](#ssh-sessions-macos)).
     - Codex web: OpenAI web dashboard (usage limits, credits remaining, code review remaining, usage breakdown).
         - `--web-timeout <seconds>` (default: 60)
         - `--web-debug-dump-html` (writes HTML snapshots to `/tmp` when data is missing)
     - Claude web: claude.ai API (session + weekly usage, account metadata, and prepaid Usage credits balance when
       available).
-      CLI Auto falls back to the installed Claude executable when web credentials are unavailable. This foreground
+      CLI Auto falls back to the installed Claude executable when web credentials are unavailable (on Linux, readable
+      Claude Code OAuth credentials are tried first). This foreground
       command delegates authentication to Claude Code; the app keeps its stricter prompt-free background availability
       gate for scheduled refreshes.
     - Command Code auto: `COMMAND_CODE_API_KEY`/config `apiKey` when set, otherwise commandcode.ai browser session cookies on macOS or a configured manual cookie on Linux. Explicit `api`/`web` pins that source.

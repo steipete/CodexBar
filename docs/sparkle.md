@@ -14,13 +14,11 @@ read_when:
 - Key: `SUPublicEDKey` set to `AGCY8w5vHirVfGGDGc8Szc5iuOqupZSh9pMj/Qs67XI=`. Keep the Ed25519 private key safe; use it when generating the appcast.
 - UI: auto-check toggle (About) enables auto-downloads; menu shows “Check for Updates…” when no update is staged, or “Update ready, restart now?” once an update is downloaded. These actions and About → Check for Updates open Sparkle's update UI, including its install confirmation for a staged update.
 - LSUIElement: works; updater window will show when checking. App is non-sandboxed.
-- Channels: stable vs beta are served from the same appcast. Beta items are tagged with `sparkle:channel="beta"`; About → Update Channel controls `allowedChannels`.
+- Channels: stable vs beta are served from the same appcast. Prerelease items contain a `<sparkle:channel>beta</sparkle:channel>` element; About → Update Channel controls `allowedChannels`.
 
 ## Release flow
-1) Build & notarize as usual (`./Scripts/sign-and-notarize.sh`), producing notarized `CodexBar-macos-universal-<ver>.zip`.
-2) Generate appcast entry with Sparkle `generate_appcast` using the Ed25519 private key; HTML release notes come from `CHANGELOG.md` via `Scripts/changelog-to-html.sh`. For beta releases: set `SPARKLE_CHANNEL=beta` to tag the entry.
-3) Upload `appcast.xml` + zip to GitHub Releases (feed URL stays stable).
-4) Tag/release.
+
+The [CI release workflow](https://github.com/steipete/CodexBar/blob/main/.github/workflows/release.yml) builds and notarizes the app, signs and verifies its appcast entry, publishes the verified assets, and updates the existing feed on main. See [the release process](RELEASING.md) for signed tags and no-publish dry runs. Prerelease versions such as `X.Y.Z-beta.N` stay on the opt-in beta channel and do not replace stable Homebrew packages.
 
 ## Notes
 - HTML release notes are embedded in the appcast entry; the Sparkle update dialog should show formatted bullets (not raw tags).

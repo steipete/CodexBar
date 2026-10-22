@@ -484,6 +484,18 @@ jobs:
           --swift-sdk "$SWIFT_STATIC_LINUX_SDK"
           --triple "$SWIFT_STATIC_LINUX_SDK_TRIPLE"
 
+      - name: Smoke test Codex cost scan (Linux musl x86_64, #4672)
+        shell: bash
+        run: |
+          set -euo pipefail
+          BIN_DIR="$(swift build -c release --product CodexBarCLI \
+            --swift-sdk "$SWIFT_STATIC_LINUX_SDK" \
+            --triple "$SWIFT_STATIC_LINUX_SDK_TRIPLE" \
+            --show-bin-path)"
+          BIN="$BIN_DIR/CodexBarCLI"
+          file "$BIN"
+          bash Scripts/check-linux-cli-codex-cost-smoke.sh "$BIN"
+
   build-linux-cli:
     needs: changes
     if: ${{ needs.changes.outputs.linux-cli-build == 'true' }}
@@ -591,6 +603,15 @@ jobs:
           fi
           "$BIN" usage --provider codex --web 2>&1 | tee /tmp/codexbarcli-stderr.txt >/dev/null || true
           grep -q "macOS" /tmp/codexbarcli-stderr.txt
+          bash Scripts/check-linux-cli-codex-cost-smoke.sh "$BIN"
+
+      - name: Verify CodexBarCLI does not link libxml2
+        shell: bash
+        run: |
+          set -euo pipefail
+          BIN_DIR="$(swift build -c release --product CodexBarCLI --static-swift-stdlib --show-bin-path)"
+          BIN="$BIN_DIR/CodexBarCLI"
+          bash Scripts/check-linux-cli-linkage.sh "$BIN"
 
       - name: Summarize Linux CLI build
         if: ${{ always() }}

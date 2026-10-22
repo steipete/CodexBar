@@ -241,6 +241,8 @@ struct ProviderSettingsTokenAccountsDescriptor: Identifiable {
     let openConfigFile: () -> Void
     let reloadFromDisk: () -> Void
     var claudeConfigDirectory: ((UUID) -> Binding<String?>)?
+    var editAccount: ((_ accountID: UUID, _ label: String, _ token: String?) -> Void)?
+    var moveAccount: ((_ accountID: UUID, _ destination: Int) -> Void)?
 }
 
 /// Shared organizations descriptor rendered in the Providers settings pane.

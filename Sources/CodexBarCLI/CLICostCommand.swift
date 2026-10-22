@@ -258,9 +258,9 @@ extension CodexBarCLI {
             lines.append("Partial estimate: \(unpriced) recorded request\(unpriced == 1 ? "" : "s") had no price.")
         }
         lines.append(historyNotice)
-        // Provider-specific by design: only Claude local history currently guarantees model attribution.
-        if includeBreakdown, provider == .claude, !snapshot.daily.isEmpty {
-            lines.append(contentsOf: Self.claudeTokenDetailLines(
+        // Provider-specific by design: Claude and OpenCode Go local history retain model attribution.
+        if includeBreakdown, provider == .claude || provider == .opencodego, !snapshot.daily.isEmpty {
+            lines.append(contentsOf: Self.tokenDetailLines(
                 snapshot: snapshot,
                 calendar: calendar,
                 useColor: useColor))
@@ -269,23 +269,23 @@ extension CodexBarCLI {
         return lines.compactMap(\.self).joined(separator: "\n")
     }
 
-    // MARK: - Tokscale-inspired Claude token detail (daily + model breakdown)
+    // MARK: - Local token detail (daily + model breakdown)
 
-    private static func claudeTokenDetailLines(
+    private static func tokenDetailLines(
         snapshot: CostUsageTokenSnapshot,
         calendar: Calendar,
         useColor: Bool) -> [String]
     {
         // Single shared selection: daily and top-model sections describe the same window.
-        let selection = Self.claudeRecentEntries(snapshot: snapshot, calendar: calendar)
+        let selection = Self.recentCostEntries(snapshot: snapshot, calendar: calendar)
         guard !selection.entries.isEmpty else { return [] }
         var out: [String] = []
-        out.append(contentsOf: Self.claudeDailyLines(
+        out.append(contentsOf: Self.dailyCostLines(
             entries: selection.entries,
             snapshot: snapshot,
             periodLabel: selection.periodLabel,
             useColor: useColor))
-        out.append(contentsOf: Self.claudeTopModelsLines(
+        out.append(contentsOf: Self.topCostModelLines(
             entries: selection.entries,
             snapshot: snapshot,
             periodLabel: selection.periodLabel,
@@ -293,7 +293,7 @@ extension CodexBarCLI {
         return out
     }
 
-    private static func claudeRecentEntries(
+    private static func recentCostEntries(
         snapshot: CostUsageTokenSnapshot,
         calendar: Calendar) -> (entries: [CostUsageDailyReport.Entry], periodLabel: String)
     {
@@ -322,7 +322,7 @@ extension CodexBarCLI {
         return (Array(recorded), label)
     }
 
-    private static func claudeDailyLines(
+    private static func dailyCostLines(
         entries: [CostUsageDailyReport.Entry],
         snapshot: CostUsageTokenSnapshot,
         periodLabel: String,
@@ -360,7 +360,7 @@ extension CodexBarCLI {
         return out
     }
 
-    private static func claudeTopModelsLines(
+    private static func topCostModelLines(
         entries: [CostUsageDailyReport.Entry],
         snapshot: CostUsageTokenSnapshot,
         periodLabel: String,

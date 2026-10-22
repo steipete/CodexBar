@@ -49,7 +49,8 @@ public enum MistralProviderDescriptor {
                 noDataMessage: { "Mistral cost history needs a billing web session." },
                 menuHintLines: [.literal("Reported by Mistral billing usage.")],
                 showsCostMenuSection: false,
-                primaryValue: .latestDaily),
+                primaryValue: .latestDaily,
+                chartCalendar: CostUsageBucketTimeZone.calendar(identifier: "UTC")),
             presentation: ProviderUsagePresentation(
                 rateWindowLabeler: { metadata, snapshot, _ in
                     ProviderRateWindowLabels(

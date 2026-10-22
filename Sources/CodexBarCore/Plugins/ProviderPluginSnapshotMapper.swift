@@ -144,11 +144,23 @@ enum ProviderPluginSnapshotMapper {
                     value: self.requiredDetailString(row, property: "value", path: rowPath),
                     secondaryValue: self.optionalDetailString(row, property: "secondaryValue", path: rowPath),
                     progress: self.detailProgress(row, path: rowPath),
+                    severity: self.detailSeverity(row, path: rowPath),
                     usageValue: self.optionalFiniteNumber(row, property: "usageValue", path: rowPath))
             }
             let chart = try self.detailChart(section, path: path)
             return try ProviderDetailSection(title: title, rows: rows, chart: chart)
         }
+    }
+
+    private static func detailSeverity(
+        _ row: any ProviderPluginValue,
+        path: String) throws -> ProviderDetailSection.Row.Severity?
+    {
+        guard let value = row.property("severity"), !value.isUndefined, !value.isNull else { return nil }
+        guard value.isString, let severity = ProviderDetailSection.Row.Severity(rawValue: value.stringValue()) else {
+            throw ProviderPluginError.invalidSnapshot("\(path).severity must be normal, warning, or critical")
+        }
+        return severity
     }
 
     private static func detailProgress(
@@ -250,11 +262,17 @@ enum ProviderPluginSnapshotMapper {
         let resetsAt = try self.optionalDate(value, property: "resetsAt", path: path)
         let resetDescription = try self.optionalString(value, property: "resetDescription", path: path)
         let nextRegenPercent = try self.optionalFiniteNumber(value, property: "nextRegenPercent", path: path)
-        return RateWindow(
+        let quotaLimit = try self.optionalFiniteNumber(value, property: "quotaLimit", path: path)
+        if let quotaLimit, quotaLimit <= 0 {
+            throw ProviderPluginError.invalidSnapshot("\(path).quotaLimit must be positive")
+        }
+        return try RateWindow(
             usedPercent: usedPercent,
             windowMinutes: windowMinutes,
             resetsAt: resetsAt,
             resetDescription: resetDescription,
+            quotaLimit: quotaLimit,
+            quotaUnit: self.optionalString(value, property: "quotaUnit", path: path),
             nextRegenPercent: nextRegenPercent.map { min(100, max(0, $0)) })
     }
 

@@ -5,34 +5,26 @@ import Foundation
 final class CostUsageClaudeArtifactWriter {
     private let descriptor: Int32
     private var offset: Int64 = 0
-    private var usesClone: Bool
+    private let usesClone: Bool
     private var comparison = [UInt8](repeating: 0, count: 64 * 1024)
 
     #if DEBUG
-    @TaskLocal static var disableCloningForTesting = false
     @TaskLocal static var observeWrittenBytesForTesting: (@Sendable (Int) -> Void)?
     #endif
 
     init?(temporaryURL: URL, replacing url: URL) {
         var cloned = false
         #if os(macOS)
-        #if DEBUG
-        let allowClone = !Self.disableCloningForTesting
-        #else
-        let allowClone = true
-        #endif
-        if allowClone {
-            let source = open(url.path, O_RDONLY | O_NOFOLLOW | O_NONBLOCK)
-            if source >= 0 {
-                defer { close(source) }
-                // Pin the source inode so another atomic replacement cannot change what is cloned.
-                var metadata = stat()
-                if fstat(source, &metadata) == 0,
-                   metadata.st_mode & mode_t(S_IFMT) == mode_t(S_IFREG),
-                   metadata.st_mode & mode_t(S_IWUSR) != 0, metadata.st_flags == 0
-                {
-                    cloned = fclonefileat(source, AT_FDCWD, temporaryURL.path, UInt32(CLONE_NOOWNERCOPY)) == 0
-                }
+        let source = open(url.path, O_RDONLY | O_NOFOLLOW | O_NONBLOCK)
+        if source >= 0 {
+            defer { close(source) }
+            // Pin the source inode so another atomic replacement cannot change what is cloned.
+            var metadata = stat()
+            if fstat(source, &metadata) == 0,
+               metadata.st_mode & mode_t(S_IFMT) == mode_t(S_IFREG),
+               metadata.st_mode & mode_t(S_IWUSR) != 0, metadata.st_flags == 0
+            {
+                cloned = fclonefileat(source, AT_FDCWD, temporaryURL.path, UInt32(CLONE_NOOWNERCOPY)) == 0
             }
         }
         #endif
@@ -91,12 +83,6 @@ final class CostUsageClaudeArtifactWriter {
             #endif
             return written
         }
-    }
-
-    func reset() throws {
-        guard ftruncate(self.descriptor, 0) == 0 else { throw CocoaError(.fileWriteUnknown) }
-        self.offset = 0
-        self.usesClone = false
     }
 
     func finish() throws {

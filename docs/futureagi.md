@@ -28,6 +28,10 @@ clamp at 100%, while the original usage amounts remain visible. A zero allowance
 a percentage bar. Billing-period dates come from the response; no monthly dates or plan amounts
 are hardcoded. Platform subscription fees are not included in the estimated usage cost.
 
+For monthly billing periods with a known reset, the menu card shows daily targets in credits and requests
+to spread the remaining free allowances over the remaining local calendar days, including today. These
+targets follow pace visibility and do not measure today's consumption or limit paid usage.
+
 Missing credentials, rejected keys, rate limits, service failures, and malformed responses report
 errors rather than invented usage. No real-account verification was performed.
 

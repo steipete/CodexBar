@@ -81,15 +81,16 @@ enum DarwinProcessEnumerator {
 import Darwin
 
 extension DarwinProcessEnumerator {
-    static func allPIDs() -> [Int32] {
-        let requiredCount = proc_listallpids(nil, 0)
-        guard requiredCount > 0 else { return [] }
-        var pids = [Int32](repeating: 0, count: Int(requiredCount) + 32)
-        let actualCount = pids.withUnsafeMutableBytes { buffer in
-            proc_listallpids(buffer.baseAddress, Int32(buffer.count))
+    static func allPIDs(type: UInt32 = UInt32(PROC_ALL_PIDS), typeInfo: UInt32 = 0) -> [Int32] {
+        let requiredBytes = proc_listpids(type, typeInfo, nil, 0)
+        guard requiredBytes > 0 else { return [] }
+        let stride = MemoryLayout<Int32>.stride
+        var pids = [Int32](repeating: 0, count: Int(requiredBytes) / stride + 32)
+        let actualBytes = pids.withUnsafeMutableBytes { buffer in
+            proc_listpids(type, typeInfo, buffer.baseAddress, Int32(buffer.count))
         }
-        guard actualCount > 0 else { return [] }
-        return Array(pids.prefix(Int(actualCount))).filter { $0 > 0 }
+        guard actualBytes > 0 else { return [] }
+        return Array(pids.prefix(Int(actualBytes) / stride)).filter { $0 > 0 }
     }
 
     static func executablePath(pid: Int32) -> String? {
@@ -107,7 +108,7 @@ extension DarwinProcessEnumerator {
         }
     }
 
-    static func bsdInfo(pid: Int32) -> (ppid: Int32, startTime: Date)? {
+    static func processInfo(pid: Int32) -> proc_bsdinfo? {
         var info = proc_bsdinfo()
         let byteCount = proc_pidinfo(
             pid,
@@ -116,6 +117,11 @@ extension DarwinProcessEnumerator {
             &info,
             Int32(MemoryLayout<proc_bsdinfo>.size))
         guard byteCount == MemoryLayout<proc_bsdinfo>.size else { return nil }
+        return info
+    }
+
+    static func bsdInfo(pid: Int32) -> (ppid: Int32, startTime: Date)? {
+        guard let info = self.processInfo(pid: pid) else { return nil }
         let startInterval = TimeInterval(info.pbi_start_tvsec) +
             TimeInterval(info.pbi_start_tvusec) / 1_000_000
         return (Int32(bitPattern: info.pbi_ppid), Date(timeIntervalSince1970: startInterval))
@@ -180,7 +186,7 @@ extension DarwinProcessEnumerator {
         }
     }
 
-    static func listeningTCPPorts(pid: Int32) -> [Int] {
+    static func fileDescriptors(pid: Int32) -> [proc_fdinfo] {
         let requiredBytes = proc_pidinfo(pid, PROC_PIDLISTFDS, 0, nil, 0)
         guard requiredBytes > 0 else { return [] }
         let descriptorStride = MemoryLayout<proc_fdinfo>.stride
@@ -197,8 +203,12 @@ extension DarwinProcessEnumerator {
         }
         guard actualBytes > 0 else { return [] }
 
+        return Array(descriptors.prefix(Int(actualBytes) / descriptorStride))
+    }
+
+    static func listeningTCPPorts(pid: Int32) -> [Int] {
         var ports: Set<Int> = []
-        for descriptor in descriptors.prefix(Int(actualBytes) / descriptorStride)
+        for descriptor in self.fileDescriptors(pid: pid)
             where descriptor.proc_fdtype == PROX_FDTYPE_SOCKET
         {
             var info = socket_fdinfo()

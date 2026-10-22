@@ -6,8 +6,8 @@ import Testing
 struct OpenAIAPIMenuCardModelTests {
     @Test
     func `admin usage model shows summaries and spend without fake quota bars`() throws {
-        let now = try Self.localNoon(year: 2023, month: 11, day: 17)
-        let bucketDay = try Self.localNoon(year: 2023, month: 11, day: 14)
+        let now = try #require(ISO8601DateFormatter().date(from: "2023-11-14T01:00:00Z"))
+        let bucketDay = try #require(ISO8601DateFormatter().date(from: "2023-11-14T00:00:00Z"))
         let metadata = try #require(ProviderDefaults.metadata[.openai])
         let apiUsage = OpenAIAPIUsageSnapshot(
             daily: [
@@ -54,19 +54,22 @@ struct OpenAIAPIMenuCardModelTests {
             costSummaryInlineEnabled: true,
             showOptionalCreditsAndExtraUsage: true,
             hidePersonalInfo: false,
+            costUsageBucketCalendar: CostUsageBucketTimeZone.calendar(identifier: "America/Los_Angeles"),
             now: now))
 
         #expect(model.metrics.isEmpty)
         #expect(model.openAIAPIUsage != nil)
-        #expect(model.inlineUsageDashboard?.kpis.first?.value == "$0.00")
+        #expect(model.inlineUsageDashboard?.kpis.first?.value == "$12.50")
         #expect(model.inlineUsageDashboard?.kpis.last?.title == "Requests")
         #expect(model.inlineUsageDashboard?.kpis.last?.value == "40")
-        #expect(model.inlineUsageDashboard?.points.count == 1)
+        #expect(model.inlineUsageDashboard?.points.count == 30)
+        #expect(model.inlineUsageDashboard?.points.last?.id == "2023-11-14")
+        #expect(model.inlineUsageDashboard?.points.last?.value == 12.5)
         // Requests already appear as a KPI; the dashboard must not repeat them or add a source footer.
         #expect(model.inlineUsageDashboard?.detailLines.contains { $0.contains("requests") } == false)
         #expect(model.inlineUsageDashboard?.detailLines.contains { $0.contains("Reported by") } == false)
         #expect(model.providerCost == nil)
-        #expect(model.usageNotes.contains { $0.contains("Today: $0.00") })
+        #expect(model.usageNotes.contains { $0.contains("Today: $12.50") })
         #expect(model.usageNotes.contains("Top model: gpt-5.2"))
         #expect(model.creditsText == nil)
         #expect(model.planText == "Admin API")

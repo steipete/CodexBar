@@ -92,7 +92,7 @@ enum ProviderImplementationManifest {
         FutureAGIProviderImplementation(),
         PluginAPIKeyProviderImplementation(spec: DevPassProviderDescriptor.spec),
         PluginAPIKeyProviderImplementation(spec: AtlasCloudProviderDescriptor.spec),
-        PluginAPIKeyProviderImplementation(spec: VercelProviderDescriptor.spec),
+        VercelProviderImplementation(),
         PluginAPIKeyProviderImplementation(spec: LLMManProviderDescriptor.spec),
         PluginAPIKeyProviderImplementation(spec: XKiroProviderDescriptor.spec),
         PluginCookieProviderImplementation(spec: MuseAIProviderDescriptor.spec),
@@ -110,5 +110,6 @@ enum ProviderImplementationManifest {
         PluginAPIKeyProviderImplementation(spec: FloraProviderDescriptor.spec),
         PluginCookieProviderImplementation(spec: ParallelProviderDescriptor.spec),
         PluginCookieProviderImplementation(spec: ClaudePlatformProviderDescriptor.spec),
+        PluginAPIKeyProviderImplementation(spec: MunitoProviderDescriptor.spec),
     ]
 }

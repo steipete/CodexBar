@@ -6,6 +6,16 @@ import Testing
 struct UserPluginQuotaPresentationTests {
     @MainActor
     @Test
+    func `current selection retains a plugin even before its first snapshot`() throws {
+        let plugin = try #require(ProviderInstanceID(rawValue: "fixture-meter"))
+        let selected = StatusItemController.resolvedSwitcherProviderID(
+            providerIDs: [.codex, plugin], selectedProviderID: plugin, fallbackProviderID: .codex)
+        #expect(UnifiedIconContext.currentSelectionProvider(selected: selected, enabled: [.codex, plugin]) == plugin)
+        #expect(UnifiedIconContext.currentSelectionProvider(selected: plugin, enabled: [.codex]) == nil)
+    }
+
+    @MainActor
+    @Test
     func `plugin selection shares the six provider budget`() throws {
         let settings = testSettingsStore(suiteName: "plugin-overview-limit", userDefaults: InMemoryUserDefaults())
         let plugin = try #require(ProviderInstanceID(rawValue: "fixture-meter"))

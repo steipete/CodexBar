@@ -115,6 +115,13 @@ CodexBar/
 └── Scripts/                   # Build and packaging scripts
 ```
 
+## Linux CLI linkage
+
+The glibc CLI must not depend on `libxml2`: newer distributions use an incompatible SONAME. Keep
+`FoundationXML` imports and XML parsing under `#if os(macOS)`. Plugin SVG icons fall back to their monogram
+on Linux. CI and release builds run `bash Scripts/check-linux-cli-linkage.sh <CodexBarCLI>` against each glibc
+binary; static musl builds do not have a dynamic dependency table.
+
 ## Common Tasks
 
 ### Add a New Provider

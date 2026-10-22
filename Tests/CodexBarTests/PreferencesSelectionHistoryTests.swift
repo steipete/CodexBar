@@ -105,11 +105,11 @@ struct PreferencesSelectionHistoryTests {
 
         selection.goBack()
         #expect(selection.pane == .about)
-        #expect(selection.aboutRoute == nil)
+        #expect(selection.destination.aboutRoute == nil)
         #expect(selection.canGoForward)
 
         selection.goForward()
-        #expect(selection.aboutRoute == .acknowledgements)
+        #expect(selection.destination.aboutRoute == .acknowledgements)
         #expect(!selection.canGoForward)
 
         selection.goBack()
@@ -117,9 +117,9 @@ struct PreferencesSelectionHistoryTests {
         #expect(selection.pane == .general)
         #expect(!selection.canGoBack)
         selection.goForward()
-        #expect(selection.aboutRoute == nil)
+        #expect(selection.destination.aboutRoute == nil)
         selection.goForward()
-        #expect(selection.aboutRoute == .acknowledgements)
+        #expect(selection.destination.aboutRoute == .acknowledgements)
     }
 
     @Test
@@ -131,10 +131,10 @@ struct PreferencesSelectionHistoryTests {
 
         selection.goBack()
         #expect(selection.pane == .about)
-        #expect(selection.aboutRoute == .acknowledgements)
+        #expect(selection.destination.aboutRoute == .acknowledgements)
         selection.goForward()
         #expect(selection.pane == .advanced)
-        #expect(selection.aboutRoute == nil)
+        #expect(selection.destination.aboutRoute == nil)
     }
 
     @Test
@@ -147,10 +147,10 @@ struct PreferencesSelectionHistoryTests {
 
         selection.requestAboutRoot()
         #expect(selection.pane == .about)
-        #expect(selection.aboutRoute == nil)
+        #expect(selection.destination.aboutRoute == nil)
         #expect(!selection.canGoForward)
         selection.goBack()
-        #expect(selection.aboutRoute == .acknowledgements)
+        #expect(selection.destination.aboutRoute == .acknowledgements)
     }
 
     @Test
@@ -163,10 +163,10 @@ struct PreferencesSelectionHistoryTests {
         selection.removeFromHistory { $0 == .debug }
 
         selection.goBack()
-        #expect(selection.aboutRoute == .acknowledgements)
+        #expect(selection.destination.aboutRoute == .acknowledgements)
         selection.goBack()
         #expect(selection.pane == .about)
-        #expect(selection.aboutRoute == nil)
+        #expect(selection.destination.aboutRoute == nil)
     }
 
     @Test
@@ -177,7 +177,7 @@ struct PreferencesSelectionHistoryTests {
 
         let restored = PreferencesSelection(userDefaults: defaults)
         #expect(restored.pane == .about)
-        #expect(restored.aboutRoute == nil)
+        #expect(restored.destination.aboutRoute == nil)
         #expect(!restored.canGoBack)
     }
 

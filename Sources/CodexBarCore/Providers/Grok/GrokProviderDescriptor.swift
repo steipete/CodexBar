@@ -367,16 +367,11 @@ struct GrokOAuthFetchStrategy: ProviderFetchStrategy {
             try await GrokWebBillingFetcher.fetch(credentials: $0)
         }) async throws -> GrokWebBillingResult
     {
-        guard proxySnapshot.usedPercent == nil else {
-            return GrokWebBillingResult(
-                snapshot: proxySnapshot,
-                sourceLabel: "grok-cli-proxy",
-                authContext: .oauth(credentials))
-        }
         let proxyAnswer = GrokWebBillingResult(
             snapshot: proxySnapshot,
             sourceLabel: "grok-cli-proxy",
             authContext: .oauth(credentials))
+        guard proxySnapshot.usedPercent == nil else { return proxyAnswer }
         let join = BoundedTaskJoin(sourceTask: Task { try await grpcBilling(credentials) })
         switch await join.value(joinGrace: budget) {
         case let .value(grpcSnapshot):

@@ -60,9 +60,7 @@ struct ProcessOwnershipReaper: Sendable {
     private func owns(_ pid: pid_t) -> Bool {
         guard pid > 0, pid != getpid() else { return false }
         #if canImport(Darwin)
-        var info = proc_bsdinfo()
-        guard proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &info, Int32(MemoryLayout<proc_bsdinfo>.size)) ==
-            MemoryLayout<proc_bsdinfo>.size, info.pbi_uid == getuid() else { return false }
+        guard DarwinProcessEnumerator.processInfo(pid: pid)?.pbi_uid == getuid() else { return false }
         let environment = DarwinProcessEnumerator.environment(pid: pid, names: [Self.environmentKey])
         #else
         guard let attributes = try? FileManager.default.attributesOfItem(atPath: "/proc/\(pid)"),

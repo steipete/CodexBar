@@ -2,6 +2,7 @@
 "%@ %@" = "%@ %@";
 "%@ API est. · not billed" = "%@ API تخمین زده شده · صورتحساب نشده است";
 "%@ cost" = "هزینه %@";
+"%@ is unavailable. Edit the widget to choose a provider." = "%@ در دسترس نیست. ویجت را ویرایش کنید تا ارائه‌دهنده را انتخاب کنید.";
 "%@ left" = "%@ باقی مانده";
 "%@ tokens" = "توکن های %@";
 "%@ used" = "%@ مصرف‌شده";
@@ -75,6 +76,7 @@
 "Daily usage" = "استفاده روزانه";
 "Deployment" = "استقرار";
 "Edit predictions" = "ویرایش پیش بینی ها";
+"Enable a provider in CodexBar → Settings → Providers." = "یک ارائه‌دهنده را در CodexBar → تنظیمات → ارائه‌دهندگان فعال کنید.";
 "Enable account widgets in CodexBar → Settings → Menu → Widgets. Then edit this widget to choose an account." = "ویجت های حساب را در CodexBar → تنظیمات → منو → ابزارک ها فعال کنید. سپس این ویجت را ویرایش کنید تا یک حساب کاربری انتخاب کنید.";
 "Extra usage" = "استفاده اضافی";
 "Extra usage balance" = "موجودی استفاده اضافی";
@@ -164,10 +166,7 @@
 "Two quota burn-down charts in one tile." = "دو نمودار سوختگی سهمیه در یک کاشی.";
 "Unavailable account" = "حساب: در دسترس نیست";
 "Usage" = "کاربرد";
-"Usage data appears after a refresh." = "داده‌های استفاده پس از به‌روزرسانی ظاهر می‌شوند.";
-"Usage data will appear once the app refreshes." = "پس از به‌روزرسانی برنامه، داده‌های استفاده ظاهر می‌شوند.";
 "Usage history chart with recent totals." = "نمودار تاریخچه استفاده با مجموع اخیر.";
-"Usage history will appear after a refresh." = "سابقه استفاده پس از به‌روزرسانی ظاهر می‌شود.";
 "Usage limit" = "محدودیت استفاده";
 "Usage limits and reset countdowns for one saved account." = "محدودیت های استفاده و بازنشانی شمارش معکوس برای یک حساب ذخیره شده.";
 "Usage widget with a provider switcher." = "استفاده از ویجت با تغییر دهنده ارائه دهنده.";

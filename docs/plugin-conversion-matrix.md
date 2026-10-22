@@ -17,8 +17,8 @@ script. Settings-derived origins include the private-network HTTP policy for LLM
 
 `converted` means the bundled conversion is present behind `CODEXBAR_JS_PROVIDERS=1`. `cut-over` means the script is
 authoritative on its supported engines; each row states whether a Linux native core remains. Totals count only the
-69 audit rows below, excluding the separately listed plugin-first additions. The registry now contains 105 providers:
-69 audit rows, 27 additional plugin-first rows, and 9 providers not yet classified in this matrix (CodeRabbit,
+69 audit rows below, excluding the separately listed plugin-first additions. The registry now contains 106 providers:
+69 audit rows, 28 additional plugin-first rows, and 9 providers not yet classified in this matrix (CodeRabbit,
 Hugging Face, IBM Bob, Muse, Nous, Pi, Replicate, TypeSafe, and v0).
 
 `needs-cookie-import` now means **additional cookie/session capability**, not absence of cookie import. The current
@@ -57,9 +57,9 @@ Abacus, Muse, LongCat, Replicate, and TypeSafe unchanged.
 | `needs-pty/webview/native` | 8 |
 | `needs-host-extension` | 4 |
 | **Audit total** | **69** |
-| Additional plugin-first providers | 27 |
+| Additional plugin-first providers | 28 |
 | Registered providers not yet classified here | 9 |
-| **Registry total** | **105** |
+| **Registry total** | **106** |
 
 ## Matrix
 
@@ -143,7 +143,7 @@ Abacus, Muse, LongCat, Replicate, and TypeSafe unchanged.
 | hyper | `cut-over` | QuickJS + JavaScriptCore | Signed-in dashboard GET with supported-browser/manual session preference and API-key fallback to a fixed credits GET; native HC balance, no invented quotas or resets. |
 | devpass | `cut-over` | QuickJS + JavaScriptCore | Documented bearer GET for billing-cycle and premium weekly credits plus separate all-time key spend; API-only. |
 | atlascloud | `cut-over` | QuickJS + JavaScriptCore | Public billing API bearer GET for the account-wide available USD balance; no invented quota or Coding Plan allowance. |
-| vercel | `cut-over` | QuickJS + JavaScriptCore | Public credits API bearer GET for team USD balance and lifetime spend; no CLI discovery or metered reporting. |
+| vercel | `cut-over` | QuickJS + JavaScriptCore | Public credits API bearer GET for team USD balance and lifetime spend; a second bundled script reads the personal budget with an optional Vercel access token. No CLI discovery or metered reporting. |
 | llmman | `cut-over` | QuickJS + JavaScriptCore | Configured loopback/private-network daemon origin with an optional bearer key; `/llmman/node` memory and model summaries, best-effort version. |
 | xkiro | `cut-over` | QuickJS + JavaScriptCore | Documented, unmetered bearer GET for daily free-token counters; separate from paid spend and wallet balances. |
 | aixy | `cut-over` | QuickJS + JavaScriptCore | Plugin-first key-scoped usage and overlapping budgets via bearer GET; both engines preserve reservations and zero-versus-unavailable spend. |
@@ -170,5 +170,6 @@ Abacus, Muse, LongCat, Replicate, and TypeSafe unchanged.
 | flora | `cut-over` | QuickJS + JavaScriptCore | Fixed-origin bearer GET for one configured workspace's balance, member limit, and UTC month-to-date spend on both engines; no inferred allowance or reset. |
 | parallel | `cut-over` | QuickJS + JavaScriptCore | Fixed-origin session-cookie POST to the platform dashboard's internal balance endpoint on both engines; no API key, allowance, usage history, or reset. |
 | claudeplatform | `cut-over` | QuickJS + JavaScriptCore | Opaque sessionKey cookie; API-organization credit balance, grants, and optional spend on both engines. |
+| munito | `cut-over` | QuickJS + JavaScriptCore | Fixed-origin bearer GET for the spend limits and organization on both engines; no guessed reset time. |
 
 <!-- End generated provider additions -->

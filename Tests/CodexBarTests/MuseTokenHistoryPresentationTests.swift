@@ -23,10 +23,10 @@ struct MuseTokenHistoryPresentationTests {
         #expect(dashboard.valueStyle == .tokens)
         #expect(dashboard.currencyCode == nil)
         #expect(dashboard.kpis.allSatisfy { !$0.value.contains("$") && !$0.title.lowercased().contains("cost") })
-        #expect(dashboard.points.first?.value == 300)
-        #expect(dashboard.points.first?.hoverDetail?.tokensOnly == true)
-        #expect(dashboard.points.first?.hoverDetail?.cost == nil)
-        #expect(dashboard.points.first?.accessibilityValue.contains("300 tokens") == true)
+        #expect(dashboard.points.first { $0.id == "2026-08-31" }?.value == 300)
+        #expect(dashboard.points.first { $0.id == "2026-08-31" }?.hoverDetail?.tokensOnly == true)
+        #expect(dashboard.points.first { $0.id == "2026-08-31" }?.hoverDetail?.cost == nil)
+        #expect(dashboard.points.first { $0.id == "2026-08-31" }?.accessibilityValue.contains("300 tokens") == true)
         #expect(dashboard.detailLines.contains { $0.contains("dollar costs unavailable") })
     }
 

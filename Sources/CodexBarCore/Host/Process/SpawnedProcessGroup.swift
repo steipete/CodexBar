@@ -148,23 +148,7 @@ package final class SpawnedProcessGroup: @unchecked Sendable {
 
         #if canImport(Darwin)
         private static func process(pid: pid_t, holdsAny pipes: Set<OutputPipeIdentity>) -> Bool {
-            let requiredBytes = proc_pidinfo(pid, PROC_PIDLISTFDS, 0, nil, 0)
-            guard requiredBytes > 0 else { return false }
-            let stride = MemoryLayout<proc_fdinfo>.stride
-            var descriptors = [proc_fdinfo](
-                repeating: proc_fdinfo(),
-                count: Int(requiredBytes) / stride + 8)
-            let actualBytes = descriptors.withUnsafeMutableBytes { buffer in
-                proc_pidinfo(
-                    pid,
-                    PROC_PIDLISTFDS,
-                    0,
-                    buffer.baseAddress,
-                    Int32(buffer.count))
-            }
-            guard actualBytes > 0 else { return false }
-
-            for descriptor in descriptors.prefix(Int(actualBytes) / stride)
+            for descriptor in DarwinProcessEnumerator.fileDescriptors(pid: pid)
                 where descriptor.proc_fdtype == PROX_FDTYPE_PIPE
             {
                 var info = pipe_fdinfo()
@@ -233,23 +217,7 @@ package final class SpawnedProcessGroup: @unchecked Sendable {
 
         #if canImport(Darwin)
         private static func process(pid: pid_t, holdsAny terminals: Set<OutputTTYIdentity>) -> Bool {
-            let requiredBytes = proc_pidinfo(pid, PROC_PIDLISTFDS, 0, nil, 0)
-            guard requiredBytes > 0 else { return false }
-            let stride = MemoryLayout<proc_fdinfo>.stride
-            var descriptors = [proc_fdinfo](
-                repeating: proc_fdinfo(),
-                count: Int(requiredBytes) / stride + 8)
-            let actualBytes = descriptors.withUnsafeMutableBytes { buffer in
-                proc_pidinfo(
-                    pid,
-                    PROC_PIDLISTFDS,
-                    0,
-                    buffer.baseAddress,
-                    Int32(buffer.count))
-            }
-            guard actualBytes > 0 else { return false }
-
-            for descriptor in descriptors.prefix(Int(actualBytes) / stride)
+            for descriptor in DarwinProcessEnumerator.fileDescriptors(pid: pid)
                 where descriptor.proc_fdtype == PROX_FDTYPE_VNODE
             {
                 var info = vnode_fdinfo()
@@ -276,7 +244,7 @@ package final class SpawnedProcessGroup: @unchecked Sendable {
 
     private static func allProcessIDs() -> [pid_t] {
         #if canImport(Darwin)
-        return self.processIDs(type: UInt32(PROC_ALL_PIDS), typeInfo: 0)
+        return DarwinProcessEnumerator.allPIDs()
         #else
         guard let entries = try? FileManager.default.contentsOfDirectory(atPath: "/proc") else { return [] }
         return entries.compactMap(pid_t.init)
@@ -292,29 +260,11 @@ package final class SpawnedProcessGroup: @unchecked Sendable {
 
     private static func processIDs(inProcessGroup processGroup: pid_t) -> [pid_t] {
         #if canImport(Darwin)
-        return self.processIDs(type: UInt32(PROC_PGRP_ONLY), typeInfo: UInt32(bitPattern: processGroup))
+        return DarwinProcessEnumerator.allPIDs(type: UInt32(PROC_PGRP_ONLY), typeInfo: UInt32(bitPattern: processGroup))
         #else
         return self.allProcessIDs().filter { getpgid($0) == processGroup }
         #endif
     }
-
-    #if canImport(Darwin)
-    private static func processIDs(type: UInt32, typeInfo: UInt32) -> [pid_t] {
-        let requiredBytes = proc_listpids(type, typeInfo, nil, 0)
-        guard requiredBytes > 0 else { return [] }
-        let stride = MemoryLayout<pid_t>.stride
-        var pids = [pid_t](repeating: 0, count: Int(requiredBytes) / stride + 32)
-        let actualBytes = pids.withUnsafeMutableBytes { buffer in
-            proc_listpids(
-                type,
-                typeInfo,
-                buffer.baseAddress,
-                Int32(buffer.count))
-        }
-        guard actualBytes > 0 else { return [] }
-        return Array(pids.prefix(Int(actualBytes) / stride)).filter { $0 > 0 }
-    }
-    #endif
 
     package let pid: pid_t
     package let processGroup: pid_t

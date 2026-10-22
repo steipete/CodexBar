@@ -1,171 +1,233 @@
+import Crypto
 import Foundation
 
-/// Memoizes encoded file locations, never filesystem metadata alone. All state is scoped to one cache URL.
+/// Immutable project shards; the manifest rename is the only commit point.
 final class CostUsageClaudeFragments: @unchecked Sendable {
     #if DEBUG
     @TaskLocal static var shared = CostUsageClaudeFragments()
+    @TaskLocal static var beforeManifestForTesting: (@Sendable () throws -> Void)?
     #else
     static let shared = CostUsageClaudeFragments()
     #endif
-    private struct Fragment {
-        let metadata: Data
-        let rows: [CostUsageScanner.ClaudeUsageRow]?
-        let range: Range<Int>
+
+    private struct Manifest: Codable {
+        var format = 1
+        var header: Data
+        var shards: [String: Shard]
+    }
+
+    private struct Shard: Codable, Equatable {
+        let digest: String
+        let bytes: Int
+    }
+
+    private struct Snapshot {
+        let stamp: CostUsageClaudeFileStamp
+        let manifest: Manifest
+        let values: Any
+        let header: Any
+        var cost: Int {
+            self.manifest.header.count + self.manifest.shards.values.reduce(0) { $0 + $1.bytes }
+        }
+
+        let contentID: UUID?
     }
 
     private let lock = NSLock()
     private let byteLimit: Int
-    private var entries: [(url: URL, stamp: CostUsageClaudeFileStamp, files: [Data: Fragment], cost: Int)] = []
+    private var entries: [(url: URL, snapshot: Snapshot)] = []
 
-    init(byteLimit: Int = 512 * 1024 * 1024) {
-        self.byteLimit = byteLimit
-    }
+    init(byteLimit: Int = 512 * 1024 * 1024) { self.byteLimit = byteLimit }
 
     func evict(at url: URL) {
         let url = url.standardizedFileURL.resolvingSymlinksInPath()
         self.lock.withLock { self.entries.removeAll { $0.url == url } }
     }
 
-    func write(
-        _ cache: CostUsageClaudeCache,
+    func currentStamp(contentID: UUID, at url: URL) -> CostUsageClaudeFileStamp? {
+        self.lock.withLock {
+            guard let snapshot = self.entries.last(where: { $0.url == url })?.snapshot,
+                  snapshot.contentID == contentID, snapshot.stamp == CostUsageClaudeFileStamp.read(at: url)
+            else { return nil }
+            return snapshot.stamp
+        }
+    }
+
+    func load<Header: Codable, Value: Codable>(
         at url: URL,
-        encoder: JSONEncoder,
-        output: (Data?) throws -> Void,
-        commit: () throws -> CostUsageClaudeFileStamp?) rethrows -> CostUsageClaudeFileStamp?
+        legacy: (Data) throws -> (Header, [String: Value])) throws -> (Header, [String: Value])
     {
         try self.lock.withLock {
-            var files: [Data: Fragment] = [:]
-            var cost = 0
-            do {
-                guard encoder.outputFormatting == [.sortedKeys] else { throw CocoaError(.fileWriteUnknown) }
-                let previous = self.entries.last { $0.url == url }
-                // Writers replace by rename, so the mapped old inode stays valid throughout this save.
-                let mapped = previous?.stamp == CostUsageClaudeFileStamp.read(at: url)
-                    ? try? Data(contentsOf: url, options: .alwaysMapped) : nil
-                let reusable = previous?.stamp == CostUsageClaudeFileStamp.read(at: url) ? mapped : nil
-                // Encoder-owned templates preserve Foundation's key ordering and escaping.
-                let keys = try encoder.encode(cache.usage.files.mapValues { _ in 0 })
-                var header = cache
-                header.usage.files = [:]
-                let envelope = try encoder.encode(header)
-                let fileKey = try encoder.encode("files")
-                var offset = 0
-                func append(_ data: Data) throws {
-                    try output(data)
-                    offset += data.count
+            if let snapshot = self.entries.last(where: { $0.url == url })?.snapshot,
+               snapshot.stamp == CostUsageClaudeFileStamp.read(at: url),
+               let header = snapshot.header as? Header, let values = snapshot.values as? [String: Value]
+            {
+                return (header, values)
+            }
+            return try Self.withFileLock(at: url) {
+                guard let data = CostUsageClaudeCacheIO.read(at: url, options: .mappedIfSafe) else {
+                    throw CocoaError(.fileReadNoSuchFile)
                 }
-                try Self.substitute(envelope, output: append) { key in
-                    guard key == fileKey else { return false }
-                    try Self.substitute(keys, output: append) { key in
-                        let path = try JSONDecoder().decode(String.self, from: key)
-                        guard let file = cache.usage.files[path] else { throw CocoaError(.fileWriteUnknown) }
-                        var metadata = file
-                        metadata.claudeRows = nil
-                        let identity = try encoder.encode(metadata)
-                        let start = offset
-                        if let reusable, let old = previous?.files[key], old.metadata == identity,
-                           old.range.upperBound <= reusable.count, Self.sameRows(old.rows, file.claudeRows)
-                        {
-                            try append(reusable[old.range])
-                        } else {
-                            let data = try encoder.encode(file)
-                            #if DEBUG
-                            CostUsageScanner.recordClaudeScanWork(.fragmentEncode)
-                            Self.observeBytesForTesting?(
-                                data.count,
-                                keys.count + envelope.count + fileKey.count)
-                            #endif
-                            try append(data)
-                        }
-                        files[key] = Fragment(metadata: identity, rows: file.claudeRows, range: start..<offset)
-                        // Preserve the conservative retention budget, including row string storage.
-                        cost += (offset - start) * 2 + identity.count + key.count + 512
-                            + (file.claudeRows?.count ?? 0) * MemoryLayout<CostUsageScanner.ClaudeUsageRow>.stride
-                        return true
-                    }
-                    return true
-                }
-            } catch {
                 #if DEBUG
-                CostUsageScanner.recordClaudeScanWork(.fragmentFallback)
+                if Header.self == CostUsageClaudeCache.self { CostUsageScanner.recordClaudeScanWork(.cacheDecode) }
                 #endif
-                files = [:]
-                cost = 0
-                guard let data = try? encoder.encode(cache), (try? output(nil)) != nil,
-                      (try? output(data)) != nil else { return nil }
-            }
-            guard let stamp = try commit() else { return nil }
-            self.entries.removeAll { $0.url == url }
-            if cost <= self.byteLimit, files.count <= 16384 {
-                self.entries.append((url, stamp, files, cost))
-            }
-            while self.entries.count > 4 || self.entries.reduce(0, { $0 + $1.cost }) > self.byteLimit {
-                self.entries.removeFirst()
-            }
-            return stamp
-        }
-    }
-
-    #if DEBUG
-    @TaskLocal static var observeBytesForTesting: (@Sendable (Int, Int) -> Void)?
-    #endif
-
-    private static func sameRows(
-        _ lhs: [CostUsageScanner.ClaudeUsageRow]?, _ rhs: [CostUsageScanner.ClaudeUsageRow]?) -> Bool
-    {
-        guard let lhs, let rhs else { return lhs == nil && rhs == nil }
-        guard lhs.count == rhs.count else { return false }
-        // Array value semantics make shared, retained storage an exact identity, including Unicode bytes.
-        if lhs.withUnsafeBufferPointer({ left in
-            rhs.withUnsafeBufferPointer { left.baseAddress == $0.baseAddress }
-        }) { return true }
-        // Equatable covers scalar fields; every String field also needs a byte-exact check.
-        return zip(lhs, rhs).allSatisfy { left, right in
-            left == right
-                && Self.sameString(left.dayKey, right.dayKey)
-                && Self.sameString(left.model, right.model)
-                && Self.sameString(left.sessionId, right.sessionId)
-                && Self.sameString(left.messageId, right.messageId)
-                && Self.sameString(left.requestId, right.requestId)
-        }
-    }
-
-    private static func sameString(_ lhs: String?, _ rhs: String?) -> Bool {
-        guard let lhs, let rhs else { return lhs == nil && rhs == nil }
-        return lhs.utf8.elementsEqual(rhs.utf8)
-    }
-
-    /// Replace only top-level values in encoder-produced compact objects, retaining every other byte.
-    private static func substitute(
-        _ data: Data, output: (Data) throws -> Void, value: (Data) throws -> Bool) throws
-    {
-        enum InvalidTemplate: Error { case shape }
-        guard data.first == 123, data.last == 125 else { throw InvalidTemplate.shape }
-        var depth = 0, start = 1, colon = 0, copied = 0
-        var quoted = false, escaped = false
-        for (index, byte) in data.enumerated() {
-            if quoted {
-                switch byte {
-                case _ where escaped: escaped = false
-                case 92: escaped = true
-                case 34: quoted = false
-                default: break
+                let decoder = JSONDecoder()
+                decoder.userInfo[CostUsageRowStringPool.key] = CostUsageRowStringPool()
+                guard let manifest = try? decoder.decode(Manifest.self, from: data) else {
+                    return try legacy(data)
                 }
-                continue
-            }
-            if byte == 34 { quoted = true }
-            if byte == 58, depth == 1 { colon = index }
-            if depth == 1, byte == 44 || byte == 125 {
-                if colon >= start {
-                    try output(data[copied..<(colon + 1)])
-                    copied = try value(data.subdata(in: start..<colon)) ? index : colon + 1
+                guard manifest.format == 1 else { throw CocoaError(.fileReadCorruptFile) }
+                let header = try decoder.decode(Header.self, from: manifest.header)
+                var values: [String: Value] = [:]
+                for descriptor in manifest.shards.values {
+                    let reference = descriptor.digest
+                    guard reference.count == 64, reference.allSatisfy(\.isHexDigit),
+                          let shard = CostUsageClaudeCacheIO.read(
+                              at: Self.directory(at: url).appendingPathComponent(reference + ".json"),
+                              options: .mappedIfSafe), shard.count == descriptor.bytes, Self.digest(shard) == reference
+                    else { throw CocoaError(.fileReadCorruptFile) }
+                    let decoded = try decoder.decode([String: Value].self, from: shard)
+                    for (path, value) in decoded {
+                        guard values.updateValue(value, forKey: path) == nil else {
+                            throw CocoaError(.fileReadCorruptFile)
+                        }
+                    }
                 }
-                start = index + 1
+                if let stamp = CostUsageClaudeFileStamp.read(at: url) {
+                    self.remember(
+                        url,
+                        Snapshot(
+                            stamp: stamp,
+                            manifest: manifest,
+                            values: values,
+                            header: header,
+                            contentID: (header as? CostUsageClaudeCache)?.contentID))
+                }
+                return (header, values)
             }
-            if byte == 123 || byte == 91 { depth += 1 }
-            if byte == 125 || byte == 93 { depth -= 1 }
         }
-        guard depth == 0, !quoted else { throw InvalidTemplate.shape }
-        try output(data[copied..<data.count])
+    }
+
+    func save<Value: Codable & Equatable>(
+        header: some Encodable,
+        values: [String: Value],
+        at url: URL,
+        contentID: UUID? = nil,
+        checkCancellation: CostUsageScanner.CancellationCheck? = nil) throws -> CostUsageClaudeFileStamp?
+    {
+        try self.lock.withLock {
+            try Self.withFileLock(at: url) {
+                try checkCancellation?()
+                let encoder = JSONEncoder()
+                encoder.outputFormatting = [.sortedKeys]
+                let previous = self.entries.last { $0.url == url }?.snapshot
+                let current = previous?.stamp == CostUsageClaudeFileStamp.read(at: url) ? previous : nil
+                let oldValues = current?.values as? [String: Value] ?? [:]
+                var groups: [Data: [String]] = [:]
+                var oldCounts: [Data: Int] = [:]
+                func parent(_ path: String) -> Data {
+                    let end = path.lastIndex(of: "/") ?? path.startIndex
+                    return Data(path[..<end].utf8)
+                }
+                for path in oldValues.keys {
+                    oldCounts[parent(path), default: 0] += 1
+                }
+                // Group only by lexical parent; this must never change source discovery or follow symlinks.
+                for path in values.keys {
+                    groups[parent(path), default: []].append(path)
+                }
+                var manifest = try Manifest(header: encoder.encode(header), shards: [:])
+                for (parent, paths) in groups {
+                    let key = Self.digest(parent)
+                    let same = oldCounts[parent] == paths.count && paths.allSatisfy { path in
+                        guard let index = oldValues.index(forKey: path) else { return false }
+                        return oldValues[index].key.utf8.elementsEqual(path.utf8)
+                            && oldValues[index].value == values[path]
+                    }
+                    if same, let reference = current?.manifest.shards[key] {
+                        manifest.shards[key] = reference
+                    } else {
+                        let group = paths.reduce(into: [String: Value]()) { $0[$1] = values[$1] }
+                        let data = try encoder.encode(group)
+                        let reference = Self.digest(data)
+                        let target = Self.directory(at: url).appendingPathComponent(reference + ".json")
+                        let old = (current?.manifest.shards[key]).map {
+                            Self.directory(at: url).appendingPathComponent($0.digest + ".json")
+                        }
+                        try Self.write(data, at: target, replacing: old)
+                        manifest.shards[key] = Shard(digest: reference, bytes: data.count)
+                        #if DEBUG
+                        for _ in paths {
+                            CostUsageScanner.recordClaudeScanWork(.fragmentEncode)
+                        }
+                        #endif
+                    }
+                }
+                let data = try encoder.encode(manifest)
+                try checkCancellation?()
+                #if DEBUG
+                try Self.beforeManifestForTesting?()
+                #endif
+                if current?.manifest.header != manifest.header || current?.manifest.shards != manifest.shards {
+                    try Self.write(data, at: url)
+                    #if DEBUG
+                    CostUsageScanner.recordClaudeScanWork(.artifactWrite)
+                    #endif
+                }
+                guard let stamp = CostUsageClaudeFileStamp.read(at: url) else { return nil }
+                self.remember(url, Snapshot(
+                    stamp: stamp, manifest: manifest, values: values, header: header, contentID: contentID))
+                // Readers hold the same lock, so no reader can still need the previous manifest's shards.
+                let retained = Set(manifest.shards.values.map { $0.digest + ".json" })
+                for name in (try? FileManager.default.contentsOfDirectory(atPath: Self.directory(at: url).path)) ?? []
+                    where name.count == 69 && name.hasSuffix(".json") && name.dropLast(5).allSatisfy(\.isHexDigit)
+                    && !retained.contains(name)
+                {
+                    try? FileManager.default.removeItem(at: Self.directory(at: url).appendingPathComponent(name))
+                }
+                return stamp
+            }
+        }
+    }
+
+    private func remember(_ url: URL, _ snapshot: Snapshot) {
+        self.entries.removeAll { $0.url == url }
+        self.entries.append((url, snapshot))
+        while self.entries.count > 8 || self.entries.reduce(0, { $0 + $1.snapshot.cost * 3 }) > self.byteLimit {
+            self.entries.removeFirst()
+        }
+    }
+
+    private static func directory(at url: URL) -> URL { url.appendingPathExtension("fragments") }
+
+    private static func withFileLock<T>(at url: URL, _ body: () throws -> T) throws -> T {
+        let directory = Self.directory(at: url)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let descriptor = open(
+            directory.appendingPathComponent("lock").path,
+            O_CREAT | O_RDWR | O_NOFOLLOW | O_CLOEXEC,
+            mode_t(0o600))
+        guard descriptor >= 0 else { throw CocoaError(.fileWriteUnknown) }
+        defer { close(descriptor) }
+        while flock(descriptor, LOCK_EX) != 0 {
+            guard errno == EINTR else { throw CocoaError(.fileWriteUnknown) }
+        }
+        defer { _ = flock(descriptor, LOCK_UN) }
+        return try body()
+    }
+
+    private static func digest(_ data: Data) -> String {
+        SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+    }
+
+    private static func write(_ data: Data, at url: URL, replacing source: URL? = nil) throws {
+        let temporary = url.deletingLastPathComponent().appendingPathComponent(".claude-cache-\(UUID()).tmp")
+        defer { try? FileManager.default.removeItem(at: temporary) }
+        guard let writer = CostUsageClaudeArtifactWriter(temporaryURL: temporary, replacing: source ?? url) else {
+            throw CocoaError(.fileWriteUnknown)
+        }
+        _ = try writer.append(data)
+        try writer.finish()
+        guard rename(temporary.path, url.path) == 0 else { throw CocoaError(.fileWriteUnknown) }
     }
 }

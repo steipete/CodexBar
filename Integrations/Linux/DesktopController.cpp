@@ -226,17 +226,24 @@ void DesktopController::probe(QProcess &process, const QStringList &command, boo
             if (invalid) m_costError = "Local spending could not be refreshed. Previous data may be stale.";
             else { m_spending = parsed.toVariant().toList(); m_costError.clear(); m_costUpdated = QDateTime::currentMSecsSinceEpoch(); }
         } else {
-            if (invalid) {
+            const bool custom = m_settings.value("provider") == "custom";
+            auto rows = invalid ? QVariantList{} : parsed.toVariant().toList();
+            // A CLI that does not recognise the requested ID may answer for other providers; never
+            // show their usage under this one.
+            if (custom)
+                rows.erase(std::remove_if(rows.begin(), rows.end(), [this](const QVariant &row) {
+                    return row.toMap().value("provider") != m_currentProvider; }), rows.end());
+            if (invalid || (custom && rows.isEmpty())) {
                 m_batchFailed = true;
                 for (const auto &entry : m_entries) {
-                    if (m_settings.value("provider") != "custom" || entry.toMap().value("provider") == m_currentProvider)
+                    if (!custom || entry.toMap().value("provider") == m_currentProvider)
                         m_batchEntries.append(entry);
                 }
-                if (m_settings.value("provider") == "custom" && !std::any_of(m_batchEntries.begin(), m_batchEntries.end(),
+                if (custom && !std::any_of(m_batchEntries.begin(), m_batchEntries.end(),
                     [this](const QVariant &entry) { return entry.toMap().value("provider") == m_currentProvider; }))
                     m_batchEntries.append(QVariantMap{{"provider", m_currentProvider}, {"windows", QVariantList{}},
                         {"error", "Usage unavailable"}, {"failed", true}});
-            } else m_batchEntries.append(parsed.toVariant().toList());
+            } else m_batchEntries.append(rows);
             if (!m_pendingProviders.isEmpty()) {
                 QTimer::singleShot(0, this, &DesktopController::nextProvider);
                 return;

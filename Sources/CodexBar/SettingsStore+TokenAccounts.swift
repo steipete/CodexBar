@@ -129,6 +129,7 @@ extension SettingsStore {
         }
 
         let existing = data.accounts[index]
+        let updatesEffectiveAccount = self.effectiveSelectedTokenAccount(for: provider)?.id == accountID
         let updatedAccount = ProviderTokenAccount(
             id: existing.id,
             label: (trimmedLabel?.isEmpty == false) ? trimmedLabel! : existing.label,
@@ -157,13 +158,31 @@ extension SettingsStore {
                 entry.apiKey = nil
             }
         }
-        self.applyTokenAccountCookieSourceIfNeeded(provider: provider)
+        // Editing a dormant saved account must not switch the provider away from its live source.
+        if updatesEffectiveAccount {
+            self.applyTokenAccountCookieSourceIfNeeded(provider: provider)
+        }
         CodexBarLog.logger(LogCategories.tokenAccounts).info(
             "Token account updated",
             metadata: [
                 "provider": provider.rawValue,
                 "count": "\(updated.accounts.count)",
             ])
+    }
+
+    func moveTokenAccount(provider: UsageProvider, accountID: UUID, to destination: Int) {
+        guard let data = self.tokenAccountsData(for: provider),
+              data.accounts.indices.contains(destination),
+              let source = data.accounts.firstIndex(where: { $0.id == accountID }),
+              source != destination else { return }
+        let activeID = data.accounts[data.clampedActiveIndex()].id
+        var accounts = data.accounts
+        accounts.insert(accounts.remove(at: source), at: destination)
+        guard let activeIndex = accounts.firstIndex(where: { $0.id == activeID }) else { return }
+        self.updateProviderConfig(provider: provider) { entry in
+            entry.tokenAccounts = ProviderTokenAccountData(
+                version: data.version, accounts: accounts, activeIndex: activeIndex)
+        }
     }
 
     func removeTokenAccount(provider: UsageProvider, accountID: UUID) {

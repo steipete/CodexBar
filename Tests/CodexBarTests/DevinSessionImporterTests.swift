@@ -6,7 +6,7 @@ import Testing
 
 struct DevinSessionImporterTests {
     @Test
-    func `repeated imports reuse storage decoding and observe session replacement`() throws {
+    func `repeated imports avoid whole store decoding and observe session replacement`() throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent("devin-cache-\(UUID())")
         defer { try? FileManager.default.removeItem(at: directory) }
         try Self.writeLog([
@@ -17,46 +17,40 @@ struct DevinSessionImporterTests {
             readData: { url in
                 work.recordRead()
                 return try Data(contentsOf: url)
-            },
-            onDerivation: { _ in work.recordDerivation() })
+            })
 
         try ChromiumLocalStorageReader.$levelDBCache.withValue(cache) {
             let first = try DevinSessionImporter.readLocalStorage(from: directory)
             #expect(DevinSessionImporter.accessToken(from: first) == "auth1_synthetic-first")
-            #expect(work.counts == [1, 6])
+            #expect(work.fullStoreReads == 0)
             #expect(try DevinSessionImporter.readLocalStorage(from: directory) == first)
-            #expect(work.counts == [1, 6])
+            #expect(work.fullStoreReads == 0)
 
             try Self.writeLog([
                 StorageEntry(key: "auth1_session", value: #"{"token":"auth1_synthetic-replacement"}"#),
             ], to: directory)
             let replacement = try DevinSessionImporter.readLocalStorage(from: directory)
             #expect(DevinSessionImporter.accessToken(from: replacement) == "auth1_synthetic-replacement")
-            #expect(work.counts == [2, 12])
+            #expect(work.fullStoreReads == 0)
             #expect(try DevinSessionImporter.readLocalStorage(from: directory) == replacement)
-            #expect(work.counts == [2, 12])
+            #expect(work.fullStoreReads == 0)
 
             ChromiumLocalStorageReader.invalidateCache()
             #expect(try DevinSessionImporter.readLocalStorage(from: directory) == replacement)
-            #expect(work.counts == [3, 18])
+            #expect(work.fullStoreReads == 0)
         }
     }
 
     private final class StorageWork: @unchecked Sendable {
         private let lock = NSLock()
         private var reads = 0
-        private var derivations = 0
 
-        var counts: [Int] {
-            self.lock.withLock { [self.reads, self.derivations] }
+        var fullStoreReads: Int {
+            self.lock.withLock { self.reads }
         }
 
         func recordRead() {
             self.lock.withLock { self.reads += 1 }
-        }
-
-        func recordDerivation() {
-            self.lock.withLock { self.derivations += 1 }
         }
     }
 
@@ -198,37 +192,17 @@ struct DevinSessionImporterTests {
         #expect(session?.internalOrganizationID == (hasDevinSession ? "org_example12345" : nil))
     }
 
-    @Test
-    func `structured session takes precedence over stale raw entries`() throws {
-        let currentToken = "auth1_current-synthetic-session"
-        let current = #"{"token":"\#(currentToken)"}"#
-        let storage = DevinSessionImporter.localStorageValues(from: [
-            ChromiumLocalStorageEntry(
-                origin: "https://app.devin.ai",
-                key: "auth1_session",
-                value: current,
-                rawValueLength: current.utf8.count),
-        ], textEntries: [
-            ChromiumLevelDBTextEntry(
-                key: "_https://app.devin.ai\u{0000}\u{0001}auth1_session",
-                value: #"{"token":"auth1_stale-synthetic-session"}"#),
-        ])
-
-        let session = try #require(DevinSessionImporter.session(from: storage, sourceLabel: "Synthetic Chrome"))
-
-        #expect(session.accessToken == currentToken)
-        #expect(storage.count == 1)
-    }
-
     @Test(arguments: ["https://app.devin.ai", "https://app.devin.ai/^0https://example.org", "app.devin.ai"])
-    func `raw session fallback keeps the newest value for its Devin origin`(_ origin: String) throws {
+    func `origin scoped import keeps the current session`(_ origin: String) throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("devin-storage-\(UUID())")
+        defer { try? FileManager.default.removeItem(at: directory) }
         let currentToken = "auth1_current-synthetic-session"
-        let key = "_\(origin)\u{0000}\u{0001}auth1_session"
-        let storage = DevinSessionImporter.localStorageValues(from: [], textEntries: [
-            ChromiumLevelDBTextEntry(key: key, value: #"{"token":"\#(currentToken)"}"#),
-            ChromiumLevelDBTextEntry(key: key, value: #"{"token":"auth1_stale-synthetic-session"}"#),
-        ])
+        try Self.writeLog([
+            StorageEntry(origin: origin, key: "auth1_session", value: #"{"token":"auth1_stale-synthetic-session"}"#),
+            StorageEntry(origin: origin, key: "auth1_session", value: #"{"token":"\#(currentToken)"}"#),
+        ], to: directory)
 
+        let storage = try DevinSessionImporter.readLocalStorage(from: directory)
         let session = try #require(DevinSessionImporter.session(from: storage, sourceLabel: "Synthetic Chrome"))
 
         #expect(session.accessToken == currentToken)
@@ -240,14 +214,17 @@ struct DevinSessionImporterTests {
         "https://app.devin.ai.unrelated.example",
         "https://app.devin.ai@evil",
     ])
-    func `raw session fallback rejects other origins`(_ origin: String) {
-        let storage = DevinSessionImporter.localStorageValues(from: [], textEntries: [
-            ChromiumLevelDBTextEntry(
-                key: "_\(origin)\u{0000}\u{0001}auth1_session",
+    func `origin scoped import rejects other origins`(_ origin: String) throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("devin-storage-\(UUID())")
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try Self.writeLog([
+            StorageEntry(
+                origin: origin,
+                key: "auth1_session",
                 value: #"{"token":"auth1_unrelated-synthetic-session"}"#),
-        ])
+        ], to: directory)
 
-        #expect(storage.isEmpty)
+        #expect(try DevinSessionImporter.readLocalStorage(from: directory).isEmpty)
     }
 
     @Test

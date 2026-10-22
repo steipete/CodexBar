@@ -20,8 +20,4 @@ extension StatusItemController {
         let target = provider ?? self.store.enabledFirstPartyProvidersForDisplay().first ?? .codex
         return self.store.menuCardModel(for: target, context: context)
     }
-
-    func accountInfo(for account: CodexVisibleAccount) -> AccountInfo {
-        AccountInfo(email: account.email, plan: account.workspaceLabel)
-    }
 }

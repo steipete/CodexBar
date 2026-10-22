@@ -127,6 +127,7 @@ extension UsageMenuCardView.Model.Metric {
             MenuCardHeightFingerprint.field("reset", presentation.resetText),
             MenuCardHeightFingerprint.field("meta", presentation.metaText),
             self.detailText == nil ? "detail=0" : "detail=1",
+            MenuCardHeightFingerprint.field("dailyTarget", self.dailyTargetText),
             self.pacePercent == nil ? "pace=0" : "pace=1",
             self.paceOnTop ? "paceTop=1" : "paceTop=0",
             self.cardStyle ? "card=1" : "card=0",
@@ -143,6 +144,7 @@ extension UsageMenuCardView.Model.ProviderCostSection {
             MenuCardHeightFingerprint.field("spend", self.spendLine),
             MenuCardHeightFingerprint.field("percentLine", self.percentLine),
             MenuCardHeightFingerprint.field("personalSpend", self.personalSpendLine),
+            MenuCardHeightFingerprint.field("dailyTarget", self.dailyTargetText),
             self.percentUsed == nil ? "percent=0" : "percent=1",
         ])
     }

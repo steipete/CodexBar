@@ -9,6 +9,10 @@ read_when:
 
 # Codex provider
 
+Enable **Settings → Menu Bar → Show all accounts in Overview** to include this provider’s cached account
+cards in Overview. The existing account source and provider selection remain unchanged; see
+[Overview account rows](configuration.md#menu-bar-controls).
+
 The **Plan Usage** submenu includes recorded remaining-quota burndown above utilization history,
 including saved Monthly windows. See [recorded quota burndown](widgets/burndown-proof.md)
 for capture-age semantics and the existing history retention/privacy behavior.
@@ -236,6 +240,7 @@ and stable account numbers distinguish rows while usable workspace labels remain
 - Uses an off-screen `WKWebView` with a per-account `WKWebsiteDataStore`.
   - Store key: deterministic UUID from the normalized email.
 - WebKit store can hold multiple accounts concurrently.
+- Active page preparation and JavaScript evaluations share the refresh deadline. Expired pages are terminated and discarded; verified API usage remains available. Timeout diagnostics do not start new JavaScript after the deadline.
 - A browser session rejected for an account mismatch or a login requirement is removed only from the affected store. Imports into the same store finish validation and cleanup before the next import writes cookies; other accounts remain independent.
 - WebView acquisitions retain ownership during page preparation. Store eviction invalidates its pending preparations; evict-all invalidates all. Stale success/failure/timeout retries cannot displace replacements. Ordinary lease release leaves concurrent temporary views valid. Leases retain their cleanup owner independently of the cache and release once: validated pages allow brief reuse; other releases schedule deferred cleanup, including temporary views.
 - Cookie import (Automatic mode, when WebKit store has no matching session or login required):
@@ -325,6 +330,7 @@ and stable account numbers distinguish rows while usable workspace labels remain
 4) Last imported browser cookie email (cached).
 
 ## Credits
+- Monthly caps with a reported reset show a daily target using the remaining allowance and local calendar days. The target follows pace visibility; prepaid balances without a monthly cap do not get a target.
 - Background credits refreshes coalesce for the same account. Cancelling and replacing a refresh keeps the replacement tracked until it finishes; retired credits and history-backfill tasks cannot clear newer work.
 - Web dashboard fills credits only when OAuth/CLI do not provide them. Account-matched extra usage reconciles monthly caps and purchased balances separately; the optional credits setting controls visibility.
 - When usage reports limited workspace credits without an amount, an optional read of the account's `remaining_balance` endpoint uses the same OAuth or browser session. Access depends on workspace permissions. Failure preserves ordinary usage and monthly-limit data.
@@ -358,6 +364,9 @@ Usage & Spend includes this Mac's Codex session home even when the CLI keeps cre
 there is no `auth.json`. Local cost estimates do not require account identity or a successful quota refresh.
 Managed and profile homes retain their separate history scopes; a home already represented by a visible account
 is not added again as a local source. This does not read the CLI's keyring credentials.
+
+The static musl Linux CLI reserves an 8 MiB thread stack so scanning non-empty Codex session logs
+does not exhaust musl's smaller default stack. The scanner and cache format stay shared with glibc and macOS.
 
 For a manual comparison with another development machine, run `codexbar cost --provider codex --remote <ssh-host>`.
 Both hosts scan their own native Codex logs once and return separate summaries, retaining their own day boundaries,

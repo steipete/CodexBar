@@ -900,7 +900,7 @@ struct SettingsStoreCoverageTests {
         let reloadedAED = Self.makeSettingsStore(userDefaults: defaults, configStore: configStore)
         #expect(reloadedAED.preferredCurrencyCode == "AED")
 
-        for code in ["NZD", "SEK", "NOK", "DKK", "PLN", "BRL", "MXN", "ZAR", "THB", "IDR", "VND", "UAH"] {
+        for code in ["NZD", "SEK", "NOK", "DKK", "PLN", "BRL", "MXN", "ZAR", "THB", "IDR", "VND", "UAH", "ILS"] {
             reloadedAED.preferredCurrencyCode = code
             let reloadedCurrency = Self.makeSettingsStore(userDefaults: defaults, configStore: configStore)
             #expect(reloadedCurrency.preferredCurrencyCode == code)
@@ -917,7 +917,7 @@ struct SettingsStoreCoverageTests {
             "USD ($)", "GBP (£)", "EUR (€)", "CZK (Kč)", "CNY (¥)", "JPY (¥)", "KRW (₩)", "CAD ($)",
             "AUD ($)", "HKD ($)", "TWD (NT$)", "SGD ($)", "INR (₹)", "CHF (Fr.)", "AED (د.إ)", "TRY (₺)",
             "NZD ($)", "SEK (kr)", "NOK (kr)", "DKK (kr)", "PLN (zł)", "BRL (R$)", "MXN ($)", "ZAR (R)",
-            "THB (฿)", "IDR (Rp)", "VND (₫)", "UAH (₴)",
+            "THB (฿)", "IDR (Rp)", "VND (₫)", "UAH (₴)", "ILS (₪)",
         ])
         #expect(PreferredCurrencyOption.label(for: "auto") == L("currency_auto"))
         #expect(PreferredCurrencyOption.label(for: "XYZ") == "XYZ")

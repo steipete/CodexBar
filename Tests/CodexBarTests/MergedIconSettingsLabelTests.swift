@@ -69,7 +69,8 @@ struct MergedIconSettingsLabelTests {
                             size: .constant(.small),
                             gap: .constant(.tight),
                             verticalAdjustment: .constant(0),
-                            monospacedDigits: .constant(false))
+                            monospacedDigits: .constant(false),
+                            showWindowLabels: .constant(true))
                     }
                     .toggleStyle(.switch)
                     .padding(24)

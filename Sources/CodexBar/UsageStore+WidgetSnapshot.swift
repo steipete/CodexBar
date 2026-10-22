@@ -252,14 +252,14 @@ extension UsageStore {
         } else {
             nil
         }
-        let preservedClaudeUsage: PreservedClaudeWidgetUsage? = if provider == .claude,
-                                                                   snapshot == nil,
-                                                                   !self.widgetUsagePreservationBlockedProviders
-                                                                       .contains(provider.instanceID),
-                                                                       self
-                                                                           .knownLimitsAvailabilityByProvider[provider
-                                                                               .instanceID]?
-                                                                           .isUnavailable != true
+        let preservedClaudeUsage: WidgetSnapshot.ProviderEntry? = if provider == .claude,
+                                                                     snapshot == nil,
+                                                                     !self.widgetUsagePreservationBlockedProviders
+                                                                         .contains(provider.instanceID),
+                                                                         self
+                                                                             .knownLimitsAvailabilityByProvider[provider
+                                                                                 .instanceID]?
+                                                                             .isUnavailable != true
         {
             Self.preservedClaudeWidgetUsage(
                 from: previousEntry,
@@ -340,15 +340,6 @@ extension UsageStore {
             details: snapshot.flatMap { $0.details.isEmpty ? nil : $0.details })
     }
 
-    private struct PreservedClaudeWidgetUsage {
-        let updatedAt: Date
-        let primary: RateWindow?
-        let secondary: RateWindow?
-        let tertiary: RateWindow?
-        let usageRows: [WidgetSnapshot.WidgetUsageRowSnapshot]?
-        let quotaOwnerKey: String?
-    }
-
     private func claudeWidgetQuotaOwnerKey() -> String {
         if let account = self.settings.effectiveSelectedTokenAccount(for: .claude) {
             return self.tokenAccountSnapshotCacheKey(provider: .claude, account: account)
@@ -364,12 +355,11 @@ extension UsageStore {
     private nonisolated static func preservedClaudeWidgetUsage(
         from entry: WidgetSnapshot.ProviderEntry?,
         expectedQuotaOwnerKey: String?,
-        includesModelScopedWeeklyRows: Bool) -> PreservedClaudeWidgetUsage?
+        includesModelScopedWeeklyRows: Bool) -> WidgetSnapshot.ProviderEntry?
     {
-        guard let entry, entry.provider == .claude else { return nil }
+        guard var entry, entry.provider == .claude else { return nil }
         guard let expectedQuotaOwnerKey,
-              let quotaOwnerKey = entry.quotaOwnerKey,
-              quotaOwnerKey == expectedQuotaOwnerKey
+              entry.quotaOwnerKey == expectedQuotaOwnerKey
         else {
             return nil
         }
@@ -396,13 +386,11 @@ extension UsageStore {
         guard primary != nil || secondary != nil || tertiary != nil || usageRows?.isEmpty == false else {
             return nil
         }
-        return PreservedClaudeWidgetUsage(
-            updatedAt: entry.updatedAt,
-            primary: primary,
-            secondary: secondary,
-            tertiary: tertiary,
-            usageRows: usageRows,
-            quotaOwnerKey: quotaOwnerKey)
+        entry.primary = primary
+        entry.secondary = secondary
+        entry.tertiary = tertiary
+        entry.usageRows = usageRows
+        return entry
     }
 
     nonisolated static func widgetTokenUsageSummary(
@@ -598,20 +586,8 @@ extension UsageStore {
               ProviderDescriptorRegistry.descriptor(for: provider).presentation.widgetRowsFollowMenuBarMetric,
               let snapshot = self.lastWidgetSourceSnapshots[entry.provider]
         else { return entry }
-        return WidgetSnapshot.ProviderEntry(
-            instanceID: entry.provider,
-            updatedAt: entry.updatedAt,
-            primary: entry.primary,
-            secondary: entry.secondary,
-            tertiary: entry.tertiary,
-            usageRows: self.widgetUsageRows(provider: provider, snapshot: snapshot, now: entry.updatedAt),
-            creditsRemaining: entry.creditsRemaining,
-            codeReviewRemainingPercent: entry.codeReviewRemainingPercent,
-            tokenUsage: entry.tokenUsage,
-            dailyUsage: entry.dailyUsage,
-            providerCost: entry.providerCost,
-            quotaOwnerKey: entry.quotaOwnerKey,
-            balanceText: entry.balanceText,
-            details: entry.details)
+        var entry = entry
+        entry.usageRows = self.widgetUsageRows(provider: provider, snapshot: snapshot, now: entry.updatedAt)
+        return entry
     }
 }

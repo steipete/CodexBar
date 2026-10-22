@@ -132,7 +132,7 @@ struct MenuBarLayoutProviderBalanceTests {
 
     @Test
     func `TypeSafe plugin balance reaches automatic and explicit layout tokens`() async throws {
-        let snapshot = try await TypeSafePluginTests.fetch(engine: .quickJS)
+        let snapshot = try await TypeSafeTestFixture.fetch(engine: .quickJS)
         let data = self.data(provider: .typesafe, snapshot: snapshot)
         #expect(data.balance == "$4.98")
         #expect(data.automaticText == "$4.98")

@@ -25,7 +25,7 @@ struct AboutPane: View {
     }
 
     var body: some View {
-        if self.selection.aboutRoute == .acknowledgements {
+        if self.selection.destination.aboutRoute == .acknowledgements {
             AcknowledgementsView(acknowledgements: Acknowledgement.load())
         } else {
             self.form
@@ -53,22 +53,20 @@ struct AboutPane: View {
                 Button {
                     self.selection.showAcknowledgements()
                 } label: {
-                    HStack {
-                        Label {
-                            Text(L("link_acknowledgements"))
-                        } icon: {
-                            Image(systemName: "heart.text.square")
-                                .frame(width: 18)
-                                .foregroundStyle(.secondary)
-                        }
+                    HStack(spacing: 8) {
+                        Image(systemName: "heart.text.square")
+                            .frame(width: 18)
+                            .foregroundStyle(.secondary)
+                        Text(L("link_acknowledgements"))
                         Spacer()
-                        Image(systemName: "chevron.right")
+                        Image(systemName: "chevron.forward")
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(.tertiary)
                     }
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel(L("link_acknowledgements"))
             } header: {
                 Text(L("section_links"))
             } footer: {

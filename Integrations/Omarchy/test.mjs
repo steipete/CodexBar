@@ -213,6 +213,47 @@ test('a pool reported as a quota summary is listed once, in its representative s
         'extra:antigravity-quota-summary-claude-weekly Claude/GPT weekly 100']);
 });
 
+test('stable Gemini bucket IDs deduplicate representatives with general display titles', () => {
+    const ordinary = pool(80, 10080, '2030-01-01T00:00:00Z');
+    const [row] = model.rows(JSON.stringify([{provider: 'antigravity', usage: {
+        primary: ordinary, extraRateWindows: [
+            quotaSummary('gemini-weekly', 'General models weekly', ordinary),
+            quotaSummary('gemini-synthetic-limited-weekly', 'General models weekly', {...ordinary, usedPercent: 100})]}}]));
+    assert.deepEqual(Array.from(row.windows, window => [window.key, window.label, window.remaining, !!window.scoped]), [
+        ['extra:antigravity-quota-summary-gemini-weekly', 'General models weekly', 20, false],
+        ['extra:antigravity-quota-summary-gemini-synthetic-limited-weekly', 'General models weekly', 0, true]]);
+});
+
+test('representative families prefer stable IDs and fall back to legacy titles', () => {
+    const window = pool(50, 10080, '2030-01-01T00:00:00Z');
+    for (const [geminiID, geminiTitle, thirdPartyID, thirdPartyTitle] of [
+        ['gemini-weekly', 'General models weekly', '3p-weekly', 'General models weekly'],
+        ['GeMiNi-weekly', 'Claude/GPT weekly', '3P-weekly', 'Gemini weekly'],
+        ['gemini-weekly', 'Claude/GPT weekly', 'third-party-weekly', 'Gemini weekly'],
+        ['legacy-a', 'Gemini weekly', 'claude-weekly', 'Claude/GPT weekly'],
+        ['legacy-b', 'Gemini and GPT weekly', 'legacy-c', 'GPT weekly']
+    ]) {
+        const [row] = model.rows(JSON.stringify([{provider: 'antigravity', usage: {
+            primary: window, secondary: window, extraRateWindows: [
+                quotaSummary(thirdPartyID, thirdPartyTitle, window),
+                quotaSummary(geminiID, geminiTitle, window)]}}]));
+        assert.deepEqual(Array.from(row.windows, item => item.key), [
+            'extra:antigravity-quota-summary-' + geminiID, 'extra:antigravity-quota-summary-' + thirdPartyID]);
+        assert.deepEqual(Array.from(row.windows, item => item.label), [geminiTitle, thirdPartyTitle]);
+    }
+});
+
+test('equal-valued Gemini buckets keep the ordinary representative identity', () => {
+    const window = pool(50, 10080, '2030-01-01T00:00:00Z');
+    const [row] = model.rows(JSON.stringify([{provider: 'antigravity', usage: {
+        primary: window, extraRateWindows: [
+            quotaSummary('gemini-synthetic-special-weekly', 'Gemini special weekly', window),
+            quotaSummary('gemini-weekly', 'Gemini weekly', window)]}}]));
+    assert.deepEqual(Array.from(row.windows, item => item.key), [
+        'extra:antigravity-quota-summary-gemini-weekly',
+        'extra:antigravity-quota-summary-gemini-synthetic-special-weekly']);
+});
+
 test('family representatives still lead, so the summary and tray report the binding pools', () => {
     const geminiWeekly = pool(95, 10080, '2026-09-23T00:00:00Z');
     const claudeSession = pool(100, 300, '2026-09-21T01:00:00Z');

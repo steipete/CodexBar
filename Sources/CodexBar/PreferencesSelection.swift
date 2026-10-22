@@ -66,30 +66,22 @@ final class PreferencesSelection {
         get { self.destination.pane }
         set {
             guard newValue != self.pane else { return }
-            self.destination = Destination(pane: newValue)
+            self.select(Destination(pane: newValue))
         }
     }
 
-    var aboutRoute: AboutRoute? {
-        self.destination.aboutRoute
-    }
-
     var title: String {
-        self.aboutRoute == .acknowledgements ? L("link_acknowledgements") : self.pane.title
+        self.destination.aboutRoute == .acknowledgements ? L("link_acknowledgements") : self.pane.title
     }
 
-    private var destination: Destination {
+    private(set) var destination: Destination {
         didSet {
             self.userDefaults.set(self.pane.persistenceToken, forKey: Self.paneDefaultsKey)
-            guard !self.isTraversingHistory, oldValue != self.destination else { return }
-            self.backStack.append(oldValue)
-            self.forwardStack.removeAll()
         }
     }
 
     private(set) var backStack: [Destination] = []
     private(set) var forwardStack: [Destination] = []
-    @ObservationIgnored private var isTraversingHistory = false
 
     var canGoBack: Bool {
         !self.backStack.isEmpty
@@ -102,18 +94,19 @@ final class PreferencesSelection {
     func goBack() {
         guard let previous = self.backStack.popLast() else { return }
         self.forwardStack.append(self.destination)
-        self.traverseHistory(to: previous)
+        self.destination = previous
     }
 
     func goForward() {
         guard let next = self.forwardStack.popLast() else { return }
         self.backStack.append(self.destination)
-        self.traverseHistory(to: next)
+        self.destination = next
     }
 
-    private func traverseHistory(to destination: Destination) {
-        self.isTraversingHistory = true
-        defer { self.isTraversingHistory = false }
+    private func select(_ destination: Destination) {
+        guard self.destination != destination else { return }
+        self.backStack.append(self.destination)
+        self.forwardStack.removeAll()
         self.destination = destination
     }
 
@@ -146,10 +139,10 @@ final class PreferencesSelection {
     }
 
     func requestAboutRoot() {
-        self.destination = Destination(pane: .about)
+        self.select(Destination(pane: .about))
     }
 
     func showAcknowledgements() {
-        self.destination = Destination(pane: .about, aboutRoute: .acknowledgements)
+        self.select(Destination(pane: .about, aboutRoute: .acknowledgements))
     }
 }

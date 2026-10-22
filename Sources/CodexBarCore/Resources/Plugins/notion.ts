@@ -75,7 +75,13 @@ defineProvider({
         windowMinutes = 43200;
         if (end !== undefined && end > 0) resetsAt = new Date(end);
       }
-      return { usedPercent: Math.max(0, (used / limit) * 100), windowMinutes, resetsAt };
+      return {
+        usedPercent: Math.max(0, (used / limit) * 100),
+        windowMinutes,
+        resetsAt,
+        quotaLimit: limit,
+        quotaUnit: "credits",
+      };
     };
     for await (const session of ctx.browser.sessions(domain)) {
       const post = async (endpoint: string, body: Record<string, string>): Promise<ObjectValue> => {
