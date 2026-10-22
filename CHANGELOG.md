@@ -3,6 +3,14 @@
 ## 0.79.1 — Unreleased
 
 - Claude cost history: price Mythos 5.1 and Mythos 5 from published Anthropic rates and refresh cached estimates without rereading unchanged transcripts (#4578). Thanks @urda!
+- Kiro: skip background CLI probes when the usage service is unreachable, preventing repeated offline sign-in tabs while retaining last-good usage (#4589). Thanks @dnicolson!
+- Linux: link the community CodexBar GTK front-end using the shared CLI (#4697). Thanks @SaahiilM!
+- Cursor: show the X Subscription weekly pool as the main meter while preserving legacy plans and separate on-demand spend (#4545, #4695). Thanks @Abelo9996 and @ViDtje!
+- Kimi: show promotional gift balances and expiry dates even when the monthly subscription allowance is exhausted (#4691). Thanks @codertesla!
+- Antigravity: preserve separate versioned Gemini quota names, including Gemini 4 Argon, instead of repeating the generic Gemini label (#4585). Thanks @jangisaac-dev!
+- Claude: explain how to recover a temporarily unavailable macOS Keychain cache, with translated guidance (#4576). Thanks @mpses!
+- Plugins: release each user-plugin network session when its request completes, avoiding retained clients after plugins reload (#4584). Thanks @SebTardif!
+
 - Pace: show how much of a monthly allowance can be used per day until reset, using the remaining allowance and local calendar days. (#4677) Thanks @anthonybvila!
 - Settings: explain that Highest usage compares quotas only and recommend Current selection for providers without quotas (#4666). Thanks @oryband!
 - Settings: include Acknowledgements in shared Back and Forward history, keeping About navigation and the window title consistent. (#4590) Thanks @elijahfriedman!
@@ -12,6 +20,7 @@
 - Menu bar: align leading window labels so stacked meters and percentages share a column, including stacked provider rows. (#4581) Thanks @happut!
 - Widgets: explain when the configured provider is unavailable instead of promising refreshed usage data (#4669, #4671). Thanks @vincent-peng!
 - Menu cost charts: preserve zero-usage calendar days for every provider, including Claude and Pi, while keeping incomplete and unpriced history unknown (#4664).
+- iCloud Sync: show last-known fleet usage in the menu bar for enabled providers without local usage, while keeping open menus stable and local accounts and derived costs separate. (#4582) Thanks @seasonhuang!
 
 ### Fixed
 

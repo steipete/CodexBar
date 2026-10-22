@@ -23,7 +23,7 @@ enum ClaudeUIErrorMapper {
         } else if trimmed == ClaudeOAuthCredentialsError.keychainAccessRevoked.localizedDescription {
             localize("claude_oauth_keychain_access_revoked")
         } else {
-            trimmed
+            localize(trimmed)
         }
         guard let staleSnapshotUpdatedAt else { return message }
         return message + " " + LastKnownUsagePresentation.message(

@@ -2,6 +2,37 @@ import CodexBarCore
 import Foundation
 import SwiftUI
 
+enum MenuBarUsageSource {
+    case local(UsageSnapshot?)
+    case fleet(AccountSnapshotSyncPayload)
+
+    var snapshot: UsageSnapshot? {
+        switch self {
+        case let .local(snapshot): snapshot
+        case let .fleet(snapshot): snapshot.usage
+        }
+    }
+
+    var fleetSnapshot: AccountSnapshotSyncPayload? {
+        guard case let .fleet(snapshot) = self else { return nil }
+        return snapshot
+    }
+
+    var isFleet: Bool {
+        self.fleetSnapshot != nil
+    }
+
+    static func resolve(
+        localSnapshot: UsageSnapshot?,
+        fleetFallback: AccountSnapshotSyncPayload?) -> Self
+    {
+        guard localSnapshot == nil, let fleetFallback else {
+            return .local(localSnapshot)
+        }
+        return .fleet(fleetFallback)
+    }
+}
+
 struct FleetAccountMenuProjection {
     let fallback: AccountSnapshotSyncPayload?
     let additionalAccounts: [AccountSnapshotSyncPayload]

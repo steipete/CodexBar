@@ -23,6 +23,17 @@ struct ClaudeUIErrorMapperTests {
     }
 
     @Test
+    func `cache read guidance passes through the app localizer`() {
+        let raw = ClaudeOAuthCredentialsError.readFailed("Synthetic cache guidance").localizedDescription
+        let message = ClaudeUIErrorMapper.userFacingMessage(
+            raw,
+            staleSnapshotUpdatedAt: nil,
+            keychainAccessDisabled: false,
+            localize: { key in key == raw ? "Localized cache guidance" : key })
+        #expect(message == "Localized cache guidance")
+    }
+
+    @Test
     func `disabled Keychain preserves unrelated errors and appends stale notice once`() throws {
         let raw = ClaudeOAuthCredentialsError.refreshFailed("Synthetic server failure").localizedDescription
         #expect(ClaudeUIErrorMapper.userFacingMessage(raw, staleSnapshotUpdatedAt: nil, keychainAccessDisabled: true)

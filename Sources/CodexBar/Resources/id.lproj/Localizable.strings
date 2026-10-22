@@ -151,7 +151,7 @@
 "Local token history is unavailable or incomplete." = "Riwayat token lokal tidak tersedia atau tidak lengkap.";
 "Could not add Codex account" = "Tidak dapat menambahkan akun Codex";
 "Could not open Terminal for Gemini" = "Tidak dapat membuka Terminal untuk Gemini";
-"Could not start claude /login" = "Tidak dapat memulai claude /login";
+"Claude OAuth credentials read failed: CodexBar's Claude OAuth cache is temporarily unavailable in macOS Keychain. Check that the login keychain is unlocked in Keychain Access, then retry Refresh." = "Gagal membaca kredensial Claude OAuth: cache Claude OAuth CodexBar untuk sementara tidak tersedia di Rantai Kunci macOS. Pastikan rantai kunci masuk sudah dibuka di Akses Rantai Kunci, lalu coba segarkan lagi.";
 "Could not start codex login" = "Tidak dapat memulai codex login";
 "Could not switch system account" = "Tidak dapat beralih akun sistem";
 "Credits" = "Kredit";
@@ -1307,7 +1307,6 @@
 "Windsurf session JSON bundle" = "Bundel JSON sesi Windsurf";
 "Workspace ID" = "ID Workspace";
 "Your StepFun platform password. Used to login and obtain a session token." = "Kata sandi platform StepFun Anda. Digunakan untuk login dan mendapatkan token sesi.";
-"claude /login exited with status %d." = "claude /login keluar dengan status %d.";
 "codex login exited with status %d." = "codex login keluar dengan status %d.";
 "Cookie: …\n\nor paste a cURL capture from the Abacus AI dashboard" = "Cookie: …\n\natau tempel tangkapan cURL dari dasbor Abacus AI";
 "Cookie: …\n\nor paste the __Secure-next-auth.session-token value" = "Cookie: …\n\natau tempel nilai __Secure-next-auth.session-token";

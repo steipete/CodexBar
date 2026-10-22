@@ -16,6 +16,8 @@ public struct CursorSandUsageStatus: Decodable, Sendable, Equatable {
     public let hasNonZeroIncludedLimit: Bool?
     public let includedLimitZero: Bool?
     public let sandTrialExpiresAt: String?
+    /// The X Subscription accounts share this weekly pool across Cursor and Grok products.
+    public let isUnified: Bool?
 
     public init(
         currentPeriodStart: String?,
@@ -24,7 +26,8 @@ public struct CursorSandUsageStatus: Decodable, Sendable, Equatable {
         hasAvailableUsage: Bool?,
         hasNonZeroIncludedLimit: Bool? = nil,
         includedLimitZero: Bool? = nil,
-        sandTrialExpiresAt: String? = nil)
+        sandTrialExpiresAt: String? = nil,
+        isUnified: Bool? = nil)
     {
         self.currentPeriodStart = currentPeriodStart
         self.nextResetTimestampUtc = nextResetTimestampUtc
@@ -33,6 +36,7 @@ public struct CursorSandUsageStatus: Decodable, Sendable, Equatable {
         self.hasNonZeroIncludedLimit = hasNonZeroIncludedLimit
         self.includedLimitZero = includedLimitZero
         self.sandTrialExpiresAt = sandTrialExpiresAt
+        self.isUnified = isUnified
     }
 
     /// Included or unexpired trial allowance; trial expiry is not a recurring quota reset.

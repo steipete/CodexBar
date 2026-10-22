@@ -62,8 +62,7 @@ private struct AntigravityModelVersion: Comparable {
     let minor: Int
 
     static func < (lhs: AntigravityModelVersion, rhs: AntigravityModelVersion) -> Bool {
-        if lhs.major != rhs.major { return lhs.major < rhs.major }
-        return lhs.minor < rhs.minor
+        (lhs.major, lhs.minor) < (rhs.major, rhs.minor)
     }
 }
 
@@ -295,7 +294,8 @@ public struct AntigravityStatusSnapshot: Sendable {
     private static func displayTitle(forQuotaGroup group: AntigravityQuotaSummaryGroup) -> String {
         let title = group.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
         let lowercasedTitle = title.lowercased()
-        if lowercasedTitle.contains("gemini") {
+        // A versioned group such as "Gemini 4 Argon" is a separate quota; keep its own name.
+        if lowercasedTitle.contains("gemini"), !title.contains(where: \.isNumber) {
             return "Gemini"
         }
         if lowercasedTitle.contains("claude") || lowercasedTitle.contains("gpt") {

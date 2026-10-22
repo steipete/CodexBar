@@ -137,6 +137,10 @@ This cleanup applies to the reusable PTY session, not the separate one-shot usag
 
 ## Keychain prompt policy (Claude OAuth)
 
+If CodexBar reports that its Claude OAuth cache is temporarily unavailable in macOS Keychain, check
+that the login keychain is unlocked in Keychain Access, then retry Refresh. This guidance does not
+change the existing prompt policy or switch to another credential source.
+
 - Preferences → Providers → Claude → Keychain prompt policy.
 - Options:
   - `Never prompt`: never attempts interactive Claude OAuth Keychain prompts.

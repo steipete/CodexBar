@@ -93,6 +93,9 @@ Manual option:
 - `POST https://cursor.com/api/dashboard/get-sand-usage-status`
   - Grok Bot weekly included usage (`usagePercent`, `nextResetTimestampUtc`). Same session cookie;
     requires `Origin: https://cursor.com`. Best-effort: a failure leaves Cursor's monthly bars intact.
+  - `isUnified: true` marks The X Subscription's shared weekly pool. When no valid request quota is present,
+    a usable pool with a current reset becomes the primary **Weekly** bar and replaces the stale monthly
+    Total/Cursor/Third Party bars; on-demand spend stays in the cost section.
 
 ## Cookie file paths
 - Safari: `~/Library/Cookies/Cookies.binarycookies`
@@ -163,8 +166,8 @@ An HTTP 403 from the cost endpoint records a failed cost source with an in-memor
 If Auto fetches usage with a cookie that the app still cannot confirm for the current account, the result stays unpublished. An unchanged account scope waits for the next normal or manual refresh instead of repeatedly forcing another request. Real account, history-window, provider, or cost-timezone changes still request a replacement; a successful fetch that confirms its own cookie can publish immediately.
 
 ## Snapshot mapping
-- Primary: plan usage percent (included plan).
-- Secondary: Cursor (Cursor models) usage percent.
+- Primary: a valid legacy request quota takes precedence. Otherwise, use plan usage percent (included plan), or the shared weekly pool for `isUnified: true` accounts with a current weekly reset. Missing or expired timing retains the prior monthly layout.
+- Secondary: Cursor (Cursor models) usage percent on legacy plans; unified weekly accounts omit the stale monthly breakdown.
 - Tertiary: Third Party usage percent.
 - Extra: Grok Bot usage from `get-sand-usage-status` when the account has a paid allowance or an unexpired trial. The current `includedLimitZero` field takes precedence over the older allowance flag. Exhausted active trials remain visible; missing, malformed, or expired trial dates do not grant an allowance. Grok Bot is not the semantic weekly window, so monthly Cursor Auto pace stays on the Cursor bar when this extra 7-day window is present. Paid 7-day Grok Bot extras still show weekly pace on that extra bar; trial extras without a recurring reset do not. Paid Grok Bot allowances with a valid reset use the documented 7-day cadence regardless of `currentPeriodStart`, so pace covers the full week even when that field starts mid-week or is missing. Missing or malformed reset dates leave pace unavailable.
 - Provider cost: Extra usage USD. A capped individual budget wins; team accounts without a user cap use the shared team on-demand budget.
@@ -175,6 +178,7 @@ If Auto fetches usage with a cookie that the app still cannot confirm for the cu
 In Icon and Percent mode, choose **Providers → Cursor → Menu bar metric → Grok Bot** to replace the
 ordinary percentage in Cursor's layout. This saves a Cursor-only override. The layout editor also offers
 **Grok Bot %** in the usage palette when an allowance is available, for layouts with multiple percentages.
+Saved Grok Bot selections continue to read the same allowance after it becomes the unified primary pool.
 Both paths show the allowance's short tag, for example `GB 42%`, and follow the used/remaining
 preference. A saved selection displays `GB –` when the reading is missing or unknown; a real zero
 displays `GB 0%` in used mode. Lane percentages are tagged `T` (Total), `C` (Cursor), and `TP` (Third Party);

@@ -169,7 +169,7 @@
 "Local token history is unavailable or incomplete." = "Локальная история токенов недоступна или неполна.";
 "Could not add Codex account" = "Не удалось добавить аккаунт Codex";
 "Could not open Terminal for Gemini" = "Не удалось открыть Terminal для Gemini.";
-"Could not start claude /login" = "Не удалось запустить claude /login";
+"Claude OAuth credentials read failed: CodexBar's Claude OAuth cache is temporarily unavailable in macOS Keychain. Check that the login keychain is unlocked in Keychain Access, then retry Refresh." = "Не удалось прочитать учётные данные Claude OAuth: кэш Claude OAuth в CodexBar временно недоступен в связке ключей macOS. Убедитесь, что связка ключей входа разблокирована в приложении «Связка ключей», затем повторите обновление.";
 "Could not start codex login" = "Не удалось запустить вход в Codex";
 "Could not switch system account" = "Не удалось переключить системный аккаунт";
 "Credits" = "Кредиты";
@@ -1292,7 +1292,6 @@
 "Windsurf session JSON bundle" = "JSON-пакет сеанса Windsurf";
 "Workspace ID" = "Идентификатор рабочей области";
 "Your StepFun platform password. Used to login and obtain a session token." = "Ваш пароль платформы StepFun. Используется для входа и получения токена сеанса.";
-"claude /login exited with status %d." = "claude /login завершился со статусом %d.";
 "codex login exited with status %d." = "codex login завершился со статусом %d.";
 "Cookie: …\n\nor paste a cURL capture from the Abacus AI dashboard" = "Cookie: …\n\nили вставьте снимок cURL из дашборда Abacus AI.";
 "Cookie: …\n\nor paste the __Secure-next-auth.session-token value" = "Cookie: …\n\nили вставьте значение __Secure-next-auth.session-token";

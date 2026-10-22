@@ -9,9 +9,8 @@ extension StatusItemController {
     }
 
     var fallbackProvider: UsageProvider? {
-        // Intentionally uses availability-filtered list: fallback activates when no provider
-        // can actually work, ensuring at least a codex icon is always visible.
-        self.store.enabledProviders().isEmpty ? .codex : nil
+        // A configured fleet-backed provider counts as real content, not an empty local installation.
+        self.store.enabledProviders().isEmpty && self.menuBarEligibleProviders().isEmpty ? .codex : nil
     }
 }
 

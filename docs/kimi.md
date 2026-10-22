@@ -18,6 +18,7 @@ Code subscription credentials.
 
 - Displays weekly request quota (from membership tier)
 - Shows current 5-hour rate limit usage
+- Shows promotional gift balances and expiry dates from web membership statistics, including Code API enrichment. Gift balances remain separate from recurring quota windows and monthly blocking limits. Server-provided gift names follow Chinese UI settings; other UI languages request English names.
 - Displays membership from the API/CLI usage response, with the active web subscription title as a fallback
 - Detects the installed Kimi CLI version, including standalone installs outside the GUI app PATH
 - Enriches Code API/CLI usage with the monthly membership pool when a web session is available

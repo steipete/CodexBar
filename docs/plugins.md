@@ -477,6 +477,9 @@ error and can also be deleted.
 
 ## Security and limitations
 
+User-plugin HTTP sessions are scoped to a single request and released after success or failure.
+Reloading or removing plugins does not leave inactive sessions retained by their delegates. Redirect and credential-isolation rules remain unchanged.
+
 Treat a plugin like code you run locally, even though its host capabilities are narrow. Read the manifest and source,
 verify every origin, and avoid installing files from untrusted repositories. Approval grants the listed origin network
 authority; DNS changes after approval are outside CodexBar's threat model. Secrets are never placed in URLs or logged,

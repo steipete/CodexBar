@@ -3,40 +3,13 @@ import Foundation
 public struct KimiUsageSnapshot: Sendable {
     public let weekly: KimiUsageDetail?
     public let rateLimit: KimiUsageDetail?
+    var rateLimitWindow: KimiWindow?
+    var subscriptionBalance: KimiCreditBalance?
+    var subscriptionCodeWeeklyLimit: KimiSubscriptionRateLimit?
+    var giftBalances: [KimiCreditBalance]?
+    var codeUsagePools: KimiCodeUsagePools?
+    public internal(set) var planName: String?
     public let updatedAt: Date
-    public let planName: String?
-    let rateLimitWindow: KimiWindow?
-    let subscriptionBalance: KimiSubscriptionBalance?
-    let subscriptionCodeWeeklyLimit: KimiSubscriptionRateLimit?
-    let codeUsagePools: KimiCodeUsagePools?
-
-    public init(weekly: KimiUsageDetail?, rateLimit: KimiUsageDetail?, updatedAt: Date) {
-        self.init(weekly: weekly, rateLimit: rateLimit, subscriptionBalance: nil, updatedAt: updatedAt)
-    }
-
-    init(
-        weekly: KimiUsageDetail?,
-        rateLimit: KimiUsageDetail?,
-        rateLimitWindow: KimiWindow? = nil,
-        subscriptionBalance: KimiSubscriptionBalance?,
-        subscriptionCodeWeeklyLimit: KimiSubscriptionRateLimit? = nil,
-        codeUsagePools: KimiCodeUsagePools? = nil,
-        planName: String? = nil,
-        updatedAt: Date)
-    {
-        self.weekly = weekly
-        self.rateLimit = rateLimit
-        self.rateLimitWindow = rateLimitWindow
-        self.subscriptionBalance = subscriptionBalance
-        self.subscriptionCodeWeeklyLimit = subscriptionCodeWeeklyLimit
-        self.planName = planName
-        self.codeUsagePools = codeUsagePools
-        self.updatedAt = updatedAt
-    }
-
-    private static func clampedPercent(_ value: Double) -> Double {
-        min(100, max(0, value))
-    }
 
     private static func usageCounts(_ detail: KimiUsageDetail) -> (used: Int, limit: Int, isReliable: Bool)? {
         guard let limit = Int(detail.limit), limit > 0 else { return nil }
@@ -72,7 +45,7 @@ public struct KimiUsageSnapshot: Sendable {
         if countWindowMinutes == minutes,
            let detail,
            let counts = Self.usageCounts(detail), counts.isReliable,
-           Self.clampedPercent(Double(counts.used) / Double(counts.limit) * 100) > window.usedPercent,
+           (Double(counts.used) / Double(counts.limit) * 100).clamped(to: 0...100) > window.usedPercent,
            let countReset = ISO8601DateParser.parse(detail.resetTime),
            let ratioReset = window.resetsAt,
            abs(countReset.timeIntervalSince(ratioReset)) <= 2
@@ -93,6 +66,10 @@ public struct KimiUsageSnapshot: Sendable {
 }
 
 extension KimiUsageSnapshot {
+    public init(weekly: KimiUsageDetail?, rateLimit: KimiUsageDetail?, updatedAt: Date) {
+        self.init(weekly: weekly, rateLimit: rateLimit, subscriptionBalance: nil, updatedAt: updatedAt)
+    }
+
     public func toUsageSnapshot() -> UsageSnapshot {
         // Prefer ratio pools unless matching counters report more usage.
         let weeklyWindow = self.resolvedRatioWindow(
@@ -103,7 +80,7 @@ extension KimiUsageSnapshot {
             ?? self.weekly.flatMap { weekly -> RateWindow? in
                 guard let counts = Self.usageCounts(weekly) else { return nil }
                 return RateWindow(
-                    usedPercent: Self.clampedPercent(Double(counts.used) / Double(counts.limit) * 100),
+                    usedPercent: (Double(counts.used) / Double(counts.limit) * 100).clamped(to: 0...100),
                     windowMinutes: counts.isReliable ? KimiProviderDescriptor.weeklyWindowMinutes : nil,
                     resetsAt: ISO8601DateParser.parse(weekly.resetTime),
                     resetDescription: "\(counts.used)/\(counts.limit) requests")
@@ -118,14 +95,11 @@ extension KimiUsageSnapshot {
                 ?? KimiProviderDescriptor.sessionWindowMinutes)
             ?? self.rateLimit.flatMap { rateLimit -> RateWindow? in
                 guard let counts = Self.usageCounts(rateLimit) else { return nil }
-                let apiWindowMinutes: Int? = if let apiWindow = self.rateLimitWindow {
-                    apiWindow.durationMinutes
-                } else {
-                    KimiProviderDescriptor.sessionWindowMinutes
-                }
+                let apiWindowMinutes = self.rateLimitWindow.map(\.durationMinutes)
+                    ?? KimiProviderDescriptor.sessionWindowMinutes
                 let windowMinutes = counts.isReliable ? apiWindowMinutes : nil
                 return RateWindow(
-                    usedPercent: Self.clampedPercent(Double(counts.used) / Double(counts.limit) * 100),
+                    usedPercent: (Double(counts.used) / Double(counts.limit) * 100).clamped(to: 0...100),
                     windowMinutes: windowMinutes,
                     resetsAt: ISO8601DateParser.parse(rateLimit.resetTime),
                     resetDescription: Self.rateLimitDescription(
@@ -145,7 +119,7 @@ extension KimiUsageSnapshot {
                 guard balance.type == nil || balance.type == "SUBSCRIPTION" else { return nil }
                 guard let ratio = balance.amountUsedRatio, ratio.isFinite else { return nil }
                 let window = RateWindow(
-                    usedPercent: Self.clampedPercent(ratio * 100),
+                    usedPercent: (ratio * 100).clamped(to: 0...100),
                     windowMinutes: ProviderPaceCapability.monthlyWindowSentinelMinutes,
                     resetsAt: ISO8601DateParser.parse(balance.expireTime),
                     resetDescription: nil)
@@ -156,7 +130,7 @@ extension KimiUsageSnapshot {
             guard limit.enabled != false else { return nil }
             guard let ratio = limit.ratio, ratio.isFinite else { return nil }
             let window = RateWindow(
-                usedPercent: Self.clampedPercent(ratio * 100),
+                usedPercent: (ratio * 100).clamped(to: 0...100),
                 windowMinutes: KimiProviderDescriptor.weeklyWindowMinutes,
                 resetsAt: ISO8601DateParser.parse(limit.resetTime),
                 resetDescription: nil)
@@ -179,12 +153,32 @@ extension KimiUsageSnapshot {
             primary: weeklyWindow,
             secondary: rateLimitWindow,
             extraRateWindows: extraRateWindows.isEmpty ? nil : extraRateWindows,
+            details: self.giftDetails(),
             updatedAt: self.updatedAt,
             identity: ProviderIdentitySnapshot(
                 providerID: .kimi,
                 accountEmail: nil,
                 accountOrganization: nil,
                 loginMethod: self.planName))
+    }
+
+    /// Gifts expire without replenishing and are independent of the monthly blocking quota.
+    private func giftDetails() -> [ProviderDetailSection] {
+        let rows = (self.giftBalances ?? []).compactMap { balance -> ProviderDetailSection.Row? in
+            guard balance.feature == nil || balance.feature == "FEATURE_OMNI",
+                  balance.type == nil || balance.type == "GIFT",
+                  let ratio = balance.amountUsedRatio, ratio.isFinite, ratio >= 0 else { return nil }
+            let expiresAt = ISO8601DateParser.parse(balance.expireTime)
+            if let expiresAt, expiresAt <= self.updatedAt { return nil }
+            let name = balance.displayName?.trimmingCharacters(in: .whitespacesAndNewlines)
+            return .makeRow(
+                label: name.flatMap { $0.isEmpty ? nil : $0 } ?? "Bonus credits",
+                value: UsageFormatter.usageLine(remaining: (1 - ratio) * 100, used: ratio * 100, showUsed: false),
+                secondaryValue: expiresAt
+                    .map { "Expires \($0.formatted(date: .abbreviated, time: .shortened))" },
+                progress: try? .init(used: ratio, total: 1))
+        }
+        return rows.isEmpty ? [] : [.makeSection(title: "Bonus credits", rows: rows)]
     }
 
     private static func isEquivalentToWeeklyWindow(_ window: RateWindow, weeklyWindow: RateWindow?) -> Bool {

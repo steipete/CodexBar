@@ -171,7 +171,7 @@
 "Local token history is unavailable or incomplete." = "本地 Token 历史不可用或不完整。";
 "Could not add Codex account" = "无法添加 Codex 账户";
 "Could not open Terminal for Gemini" = "无法为 Gemini 打开终端";
-"Could not start claude /login" = "无法启动 claude /login";
+"Claude OAuth credentials read failed: CodexBar's Claude OAuth cache is temporarily unavailable in macOS Keychain. Check that the login keychain is unlocked in Keychain Access, then retry Refresh." = "无法读取 Claude OAuth 凭据：CodexBar 的 Claude OAuth 缓存在 macOS 钥匙串中暂时不可用。请在“钥匙串访问”中确认登录钥匙串已解锁，然后重试刷新。";
 "Could not start codex login" = "无法启动 codex login";
 "Could not switch system account" = "无法切换系统账户";
 "Credits" = "额度";
@@ -1265,7 +1265,6 @@
 "Windsurf session JSON bundle" = "Windsurf 会话 JSON 包";
 "Workspace ID" = "工作区 ID";
 "Your StepFun platform password. Used to login and obtain a session token." = "你的 StepFun 平台密码。用于登录并获取会话 token。";
-"claude /login exited with status %d." = "claude /login 以状态 %d 结束。";
 "codex login exited with status %d." = "codex login 以状态 %d 结束。";
 "Cookie: …\n\nor paste a cURL capture from the Abacus AI dashboard" = "Cookie: …\n\n或粘贴 Abacus AI 仪表盘的 cURL 捕获内容";
 "Cookie: …\n\nor paste the __Secure-next-auth.session-token value" = "Cookie: …\n\n或粘贴 __Secure-next-auth.session-token 值";
