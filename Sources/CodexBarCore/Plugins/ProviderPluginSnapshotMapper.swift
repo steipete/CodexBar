@@ -262,11 +262,17 @@ enum ProviderPluginSnapshotMapper {
         let resetsAt = try self.optionalDate(value, property: "resetsAt", path: path)
         let resetDescription = try self.optionalString(value, property: "resetDescription", path: path)
         let nextRegenPercent = try self.optionalFiniteNumber(value, property: "nextRegenPercent", path: path)
-        return RateWindow(
+        let quotaLimit = try self.optionalFiniteNumber(value, property: "quotaLimit", path: path)
+        if let quotaLimit, quotaLimit <= 0 {
+            throw ProviderPluginError.invalidSnapshot("\(path).quotaLimit must be positive")
+        }
+        return try RateWindow(
             usedPercent: usedPercent,
             windowMinutes: windowMinutes,
             resetsAt: resetsAt,
             resetDescription: resetDescription,
+            quotaLimit: quotaLimit,
+            quotaUnit: self.optionalString(value, property: "quotaUnit", path: path),
             nextRegenPercent: nextRegenPercent.map { min(100, max(0, $0)) })
     }
 

@@ -124,6 +124,10 @@ Custom Agents and Workers are **not** covered by this allowance — Notion meter
 
 ### Pace
 
+The monthly card also shows a daily credit target from the reported remaining allowance and the local
+calendar days until reset, including today. This does not estimate credits consumed today; Notion does
+not report that breakdown. Hiding pace hides the target as well.
+
 Both bars carry an expected-usage estimate on the card and in `codexbar usage`, reading `n% in deficit`
 when you are ahead of an even burn and `n% in reserve` when behind.
 

@@ -123,17 +123,17 @@ struct CostUsageScannerCodexPriorityTests {
         }
         defer { sqlite3_close(db) }
 
-        let coldQuery = CostUsageScanner._test_codexPriorityAccumulationQuery(
+        let coldQuery = CostUsageScanner.codexPriorityAccumulationPlan(
             db,
             lastRowID: 0,
-            coverageSinceEpoch: 1)
+            coverageSinceEpoch: 1).query
         let coldPlan = try Self.queryPlan(db: db, query: coldQuery, bindings: [1])
         #expect(coldPlan.contains { $0.contains("USING INDEX idx_logs_ts") })
 
-        let unboundedColdQuery = CostUsageScanner._test_codexPriorityAccumulationQuery(
+        let unboundedColdQuery = CostUsageScanner.codexPriorityAccumulationPlan(
             db,
             lastRowID: 0,
-            coverageSinceEpoch: 0)
+            coverageSinceEpoch: 0).query
         let unboundedColdPlan = try Self.queryPlan(
             db: db,
             query: unboundedColdQuery,
@@ -141,28 +141,28 @@ struct CostUsageScannerCodexPriorityTests {
         #expect(unboundedColdPlan.contains { $0.contains("USING INTEGER PRIMARY KEY") })
         #expect(!unboundedColdPlan.contains { $0.contains("USE TEMP B-TREE") })
 
-        let warmQuery = CostUsageScanner._test_codexPriorityAccumulationQuery(
+        let warmQuery = CostUsageScanner.codexPriorityAccumulationPlan(
             db,
             lastRowID: 1,
-            coverageSinceEpoch: 0)
+            coverageSinceEpoch: 0).query
         let warmPlan = try Self.queryPlan(db: db, query: warmQuery, bindings: [1, 0])
         #expect(warmPlan.contains { $0.contains("USING INTEGER PRIMARY KEY") })
 
         let anchorSelectionPlan = try Self.queryPlan(
             db: db,
-            query: CostUsageScanner._test_codexPriorityAnchorSelectionQuery(),
+            query: CostUsageScanner.codexPriorityAnchorSelectionQuery,
             bindings: [1])
         #expect(anchorSelectionPlan.contains { $0.contains("USING INTEGER PRIMARY KEY") })
 
         let anchorMinimumPlan = try Self.queryPlan(
             db: db,
-            query: CostUsageScanner._test_codexPriorityAnchorMinimumQuery(),
+            query: CostUsageScanner.codexPriorityAnchorMinimumQuery,
             bindings: [1])
         #expect(anchorMinimumPlan.contains { $0.contains("USING INTEGER PRIMARY KEY") })
 
         let anchorLookupPlan = try Self.queryPlan(
             db: db,
-            query: CostUsageScanner._test_codexPriorityAnchorLookupQuery(),
+            query: CostUsageScanner.codexPriorityAnchorLookupQuery,
             bindings: [1])
         #expect(anchorLookupPlan.contains { $0.contains("USING INTEGER PRIMARY KEY") })
     }
@@ -445,7 +445,7 @@ struct CostUsageScannerCodexPriorityTests {
             completedTurnIDInsertionOrder: [],
             completedTurnIDInsertionOrderStartIndex: 0)
 
-        #expect(!CostUsageScanner._test_accumulateCodexPriorityTurns(db, into: &state))
+        #expect(!CostUsageScanner.accumulateCodexPriorityTurns(db, into: &state))
     }
 
     @Test
@@ -746,6 +746,19 @@ struct CostUsageScannerCodexPriorityTests {
         case prepare
         case step
         case exec
+    }
+}
+
+extension CostUsageScanner {
+    static func codexPriorityTurns(
+        databaseURL: URL? = nil,
+        sinceDayKey: String? = nil,
+        untilDayKey: String? = nil) -> [String: CodexPriorityTurnMetadata]
+    {
+        self.resolveCodexPriorityTurns(
+            databaseURL: databaseURL,
+            sinceDayKey: sinceDayKey,
+            untilDayKey: untilDayKey).turns
     }
 }
 #endif

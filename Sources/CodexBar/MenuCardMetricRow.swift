@@ -49,6 +49,9 @@ struct MetricRow: View {
                         layoutText: layoutDetailText,
                         lineLimit: 1)
                 }
+                if !self.compact, let layoutTarget = self.layoutMetric.dailyTargetText {
+                    self.layoutPreservingText(self.metric.dailyTargetText, layoutText: layoutTarget, lineLimit: 2)
+                }
             }
         }
         .help(self.metric.helpText ?? "")

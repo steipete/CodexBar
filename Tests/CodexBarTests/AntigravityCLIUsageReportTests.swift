@@ -94,6 +94,50 @@ extension AntigravityCLIHTTPSFetchStrategyTests {
         #expect(usage.extraRateWindows?.count == 4)
     }
 
+    @Test
+    func `CLI report keeps a model-specific Gemini group name`() throws {
+        let json = """
+        {
+          "status": "SUCCESS",
+          "command": {
+            "name": "usage",
+            "data": {
+              "groups": [
+                {
+                  "name": "Gemini Models",
+                  "buckets": [
+                    {
+                      "id": "gemini-weekly",
+                      "name": "Weekly Limit Remaining",
+                      "window": "weekly",
+                      "remaining_fraction": 0.99
+                    }
+                  ]
+                },
+                {
+                  "name": "Gemini 4 Argon",
+                  "description": "For paid Pro plans, Argon quota is separate.",
+                  "buckets": [
+                    {
+                      "id": "gemini-argon-wtu-weekly",
+                      "name": "Gemini 4 Argon Weekly Limit",
+                      "window": "weekly",
+                      "remaining_fraction": 0.53,
+                      "reset_time": "2026-10-23T10:24:14Z"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+        """
+
+        let usage = try AntigravityStatusProbe.parseCLIUsageReport(Data(json.utf8)).toUsageSnapshot()
+
+        #expect(usage.extraRateWindows?.map(\.title) == ["Gemini weekly", "Gemini 4 Argon weekly"])
+    }
+
     @Test(arguments: ["ERROR", "PENDING", "success"])
     func `CLI report requires successful command status`(status: String) throws {
         let report = try Self.reportJSON(status: status)

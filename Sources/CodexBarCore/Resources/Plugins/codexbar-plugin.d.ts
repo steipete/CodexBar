@@ -35,6 +35,9 @@ interface CodexBarRateWindow {
   windowMinutes?: number | null;
   resetsAt?: Date | string | null;
   resetDescription?: string | null;
+  /** Absolute allowance; unit is credits, requests, or an ISO currency code. */
+  quotaLimit?: number | null;
+  quotaUnit?: string | null;
   nextRegenPercent?: number | null;
 }
 

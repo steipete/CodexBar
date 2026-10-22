@@ -299,6 +299,8 @@ public struct ProviderPaceCapability: Sendable {
             windowMinutes: minutes,
             resetsAt: window.resetsAt,
             resetDescription: window.resetDescription,
+            quotaLimit: window.quotaLimit,
+            quotaUnit: window.quotaUnit,
             nextRegenPercent: window.nextRegenPercent,
             isSyntheticPlaceholder: window.isSyntheticPlaceholder)
     }

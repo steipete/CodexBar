@@ -652,7 +652,9 @@ enum MenuBarLayoutNamedExtra {
     static func windows(provider: UsageProvider?, snapshot: UsageSnapshot?) -> [NamedRateWindow] {
         guard let provider else { return [] }
         let definitions = ProviderDescriptorRegistry.descriptor(for: provider).menuBarMetrics.namedExtras
-        return (snapshot?.extraRateWindows ?? []).filter {
+        let windows = provider == .cursor
+            ? snapshot.map(CursorProviderDescriptor.menuBarExtras) ?? [] : snapshot?.extraRateWindows ?? []
+        return windows.filter {
             definitions[$0.id] != nil && $0.usageKnown && !$0.window.isSyntheticPlaceholder
         }
     }

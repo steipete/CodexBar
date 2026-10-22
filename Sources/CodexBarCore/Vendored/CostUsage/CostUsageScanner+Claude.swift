@@ -952,17 +952,16 @@ extension CostUsageScanner {
 
                 let incompleteCount = repricedCost?.incompleteRequestCount ?? 0
                 dayIncompleteCount += incompleteCount
-                let currentPricingCost: Double? = if let repricedCost,
-                                                     sampleCount > 0,
-                                                     repricedCost.sampleCount == sampleCount,
-                                                     !repricedCost.unresolved,
-                                                     repricedCost.total.isFinite
+                let cost: Double? = if let repricedCost,
+                                       sampleCount > 0,
+                                       repricedCost.sampleCount == sampleCount,
+                                       !repricedCost.unresolved,
+                                       repricedCost.total.isFinite
                 {
                     repricedCost.total
                 } else {
                     nil
                 }
-                let cost = currentPricingCost
                 breakdown.append(
                     CostUsageDailyReport.ModelBreakdown(
                         modelName: model,
@@ -976,30 +975,30 @@ extension CostUsageScanner {
                 }
             }
 
-            let sortedBreakdown = Self.sortedModelBreakdowns(breakdown)
-
             var dayTokens = dayInput
             dayTokens.merge(dayCacheRead)
             dayTokens.merge(dayCacheCreate)
             dayTokens.merge(dayOutput)
-            let dayTotal = dayTokens.value
             let entryCost = dayCostSeen && dayCost.isFinite ? dayCost : nil
             let unpricedCount = daySampleCount.value.flatMap { samples in
                 dayPricedCount.value.map { samples - $0 }
             }
+            // With request rows, completed requests for models without a price are known unpriced coverage,
+            // not missing history. Row-less legacy caches cannot prove that, so they keep the old shape.
+            let hasCoverageGap = dayIncompleteCount > 0 || (hasCompleteRows && (unpricedCount ?? 0) > 0)
             entries.append(CostUsageDailyReport.Entry(
                 date: day,
                 inputTokens: dayHasTokens ? dayInput.value : nil,
                 outputTokens: dayHasTokens ? dayOutput.value : nil,
                 cacheReadTokens: dayHasTokens ? dayCacheRead.value : nil,
                 cacheCreationTokens: dayHasTokens ? dayCacheCreate.value : nil,
-                totalTokens: dayHasTokens ? dayTotal : nil,
+                totalTokens: dayHasTokens ? dayTokens.value : nil,
                 costUSD: entryCost,
                 modelsUsed: modelNames,
-                modelBreakdowns: sortedBreakdown,
-                unpricedRequestCount: dayIncompleteCount > 0 ? unpricedCount : nil,
+                modelBreakdowns: Self.sortedModelBreakdowns(breakdown),
+                unpricedRequestCount: hasCoverageGap ? unpricedCount : nil,
                 unmeteredRequestCount: dayIncompleteCount > 0 ? dayIncompleteCount : nil,
-                estimatedRequestCount: dayIncompleteCount > 0 ? dayPricedCount.value : nil))
+                estimatedRequestCount: hasCoverageGap ? dayPricedCount.value : nil))
 
             hasTokens = hasTokens || dayHasTokens
             totalInput.merge(dayInput)

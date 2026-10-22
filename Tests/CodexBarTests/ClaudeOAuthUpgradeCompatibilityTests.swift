@@ -704,6 +704,7 @@ struct ClaudeOAuthUpgradeCompatibilityTests {
         switch outcome.result {
         case let .failure(error):
             #expect(error.localizedDescription.contains("temporarily unavailable"))
+            #expect(error.localizedDescription.contains("Keychain Access"))
         case let .success(result):
             Issue.record("Unavailable direct OAuth cache unexpectedly produced \(result.strategyID)")
         }

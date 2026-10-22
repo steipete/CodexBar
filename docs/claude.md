@@ -36,6 +36,8 @@ same inline dashboard pattern used by the OpenAI API provider.
 
 Incomplete proxy records with an explicit null `stop_reason`, positive input, zero output, and no cache counters are excluded from token and cost totals until a completed record arrives. Their day and model stay visible with an **Incomplete** marker and an excluded-request count. Known usage remains a partial subtotal; an incomplete-only period stays unavailable rather than becoming zero. Older caches are rebuilt once to apply this distinction. Missing `stop_reason` alone retains compatibility with older complete logs.
 
+Completed requests for models without a known price keep their token usage and report unpriced coverage. Usage & Spend retains the priced subtotal from the other requests and days as a lower bound; unknown prices do not become zero. Fully priced history keeps its usual estimated totals.
+
 ## Data sources + selection order
 
 ### Default selection (debug menu disabled)
@@ -134,6 +136,10 @@ later requests. There is no recurring process scan; other process groups and oth
 This cleanup applies to the reusable PTY session, not the separate one-shot usage or auth-status commands.
 
 ## Keychain prompt policy (Claude OAuth)
+
+If CodexBar reports that its Claude OAuth cache is temporarily unavailable in macOS Keychain, check
+that the login keychain is unlocked in Keychain Access, then retry Refresh. This guidance does not
+change the existing prompt policy or switch to another credential source.
 
 - Preferences → Providers → Claude → Keychain prompt policy.
 - Options:

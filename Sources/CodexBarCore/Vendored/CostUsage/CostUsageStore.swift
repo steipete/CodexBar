@@ -122,6 +122,7 @@ actor CostUsageStore {
         parserHash: CodexParserHash.value)
     static let cacheGeneration = "sqlite:\(CostUsageStore.schemaVersion)"
     static let compatiblePredecessorParserHashes: Set<String> = [
+        "a47b70abaf8ad86c", // Immutable trace-database reads leave native rows, checkpoints, and reports unchanged.
         "3f88178bf03ad704", // Exact byte-marker searches preserve native rows, checkpoints, and reports.
         "fc698834d6329beb", // Opt-in request observation defaults to nil; saved rows and cursors are unchanged.
         "f406dae284de4a55", // Revision 13 reparses rows to record the session creator account for Auto-review.

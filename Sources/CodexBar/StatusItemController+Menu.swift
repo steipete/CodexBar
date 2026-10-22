@@ -1139,7 +1139,7 @@ extension StatusItemController {
         }
         // Prefer an available provider so the default menu content matches the status icon.
         // Falls back to first display provider when all lack credentials.
-        return enabled.first(where: { self.store.isProviderAvailable($0) }) ?? enabled.first
+        return enabled.first(where: self.isEnabled) ?? enabled.first
     }
 
     func menuProvider(for menu: NSMenu) -> UsageProvider? {

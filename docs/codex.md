@@ -330,6 +330,7 @@ and stable account numbers distinguish rows while usable workspace labels remain
 4) Last imported browser cookie email (cached).
 
 ## Credits
+- Monthly caps with a reported reset show a daily target using the remaining allowance and local calendar days. The target follows pace visibility; prepaid balances without a monthly cap do not get a target.
 - Background credits refreshes coalesce for the same account. Cancelling and replacing a refresh keeps the replacement tracked until it finishes; retired credits and history-backfill tasks cannot clear newer work.
 - Web dashboard fills credits only when OAuth/CLI do not provide them. Account-matched extra usage reconciles monthly caps and purchased balances separately; the optional credits setting controls visibility.
 - When usage reports limited workspace credits without an amount, an optional read of the account's `remaining_balance` endpoint uses the same OAuth or browser session. Access depends on workspace permissions. Failure preserves ordinary usage and monthly-limit data.
@@ -524,6 +525,8 @@ unavailable (`costUSD: null`). This opt-in CLI mode does not change ordinary cos
     Priority trace scans resume after ordinary log pruning when enough distributed content anchors still match;
     changed source rows, replaced databases, or insufficient matching anchors require a fresh scan. Temporary
     trace-database failures retain the last validated report pricing and leave scan freshness unchanged for retry.
+    Idle WAL trace databases without sidecars use a read-only immutable fallback when ordinary reads fail.
+    The fallback leaves the database and sidecars untouched; a file change during the read keeps validation pending for retry.
     Successful historical queries update their own pricing window independently of the live scan cursor, including
     results with no priority turns; validated pricing outside that window remains intact.
 - Window: configurable 1-365 day rolling history.

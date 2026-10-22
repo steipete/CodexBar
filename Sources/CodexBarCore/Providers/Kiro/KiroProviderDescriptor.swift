@@ -60,13 +60,28 @@ struct KiroCLIFetchStrategy: ProviderFetchStrategy {
     let id: String = "kiro.cli"
     let kind: ProviderFetchKind = .cli
 
+    private let checkConnectivity: @Sendable () async throws -> Void
+    private let makeProbe: @Sendable () -> KiroStatusProbe
+
+    init(
+        checkConnectivity: @escaping @Sendable () async throws -> Void = {
+            try await KiroUsageLimitsAPI.ensureReachable()
+        },
+        makeProbe: @escaping @Sendable () -> KiroStatusProbe = { KiroStatusProbe() })
+    {
+        self.checkConnectivity = checkConnectivity
+        self.makeProbe = makeProbe
+    }
+
     func isAvailable(_: ProviderFetchContext) async -> Bool {
         TTYCommandRunner.which("kiro-cli") != nil
     }
 
     func fetch(_: ProviderFetchContext) async throws -> ProviderFetchResult {
-        let probe = KiroStatusProbe()
-        let snap = try await probe.fetch()
+        if ProviderInteractionContext.current == .background {
+            try await self.checkConnectivity()
+        }
+        let snap = try await self.makeProbe().fetch()
         return self.makeResult(
             usage: snap.toUsageSnapshot(),
             sourceLabel: "cli")

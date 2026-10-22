@@ -309,6 +309,11 @@ shared OAuth file can still be used as a fallback credential source.
   - `ideVersion: unknown`
 
 ## Parsing and model mapping
+
+Versioned Gemini quota groups retain the name supplied by the usage response. For example, a separate
+Gemini 4 Argon group is shown as **Gemini 4 Argon weekly**, alongside the ordinary **Gemini weekly** quota.
+Quota values, account ownership, and family selection remain unchanged.
+
 - Preferred source fields:
   - `response.groups[].displayName`
   - `response.groups[].buckets[].bucketId`

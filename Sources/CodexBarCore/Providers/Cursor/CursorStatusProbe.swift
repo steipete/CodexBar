@@ -446,6 +446,7 @@ public struct CursorStatusSnapshot: Sendable {
 
     /// Convert to UsageSnapshot for the common provider interface
     public func toUsageSnapshot(now: Date = Date()) -> UsageSnapshot {
+        let sandWindow = self.sandUsage?.extraRateWindow(now: now, resetDescription: Self.formatResetDate)
         let cursorRequests: CursorRequestUsage? = if let used = self.requestsUsed,
                                                      let limit = self.requestsLimit,
                                                      limit > 0
@@ -455,75 +456,48 @@ public struct CursorStatusSnapshot: Sendable {
             nil
         }
 
-        // Primary: For usable legacy request quotas, use request usage; otherwise preserve plan percentage.
-        let primaryUsedPercent = cursorRequests?.usedPercent ?? self.planPercentUsed
+        // Keep explicit request quotas. Unified token plans use the shared weekly pool;
+        // usage-summary still reports their old monthly cycle.
+        let sharedWeeklyPool = cursorRequests == nil && self.sandUsage?.isUnified == true
+            && sandWindow?.window.windowMinutes == 10080
+            && sandWindow?.window.resetsAt.map { $0 > now } == true ? sandWindow?.window : nil
+        let hidesMonthlyBreakdown = cursorRequests != nil || sharedWeeklyPool != nil
 
         let billingCycleWindowMinutes = CursorSandUsageStatus.windowMinutes(
             start: self.billingCycleStart,
             end: self.billingCycleEnd)
 
-        let primary = RateWindow(
-            usedPercent: primaryUsedPercent,
-            windowMinutes: billingCycleWindowMinutes,
-            resetsAt: self.billingCycleEnd,
-            resetDescription: cursorRequests.map { "\($0.used) / \($0.limit) requests" }
-                ?? self.billingCycleEnd.map { Self.formatResetDate($0) })
-
-        // Secondary: Auto + Composer usage (shown as its own bar below Total).
-        // Legacy request-based plans don't have the token-based Auto/API breakdown — those percentages
-        // come from the new usage-based pricing and are meaningless next to a request quota, so hide them.
-        let secondary: RateWindow? = cursorRequests != nil ? nil : self.autoPercentUsed.map { pct in
-            RateWindow(
-                usedPercent: pct,
-                windowMinutes: billingCycleWindowMinutes,
-                resetsAt: self.billingCycleEnd,
-                resetDescription: self.billingCycleEnd.map { Self.formatResetDate($0) })
+        func monthlyWindow(_ percent: Double?, description: String? = nil) -> RateWindow? {
+            percent.map {
+                RateWindow(
+                    usedPercent: $0,
+                    windowMinutes: billingCycleWindowMinutes,
+                    resetsAt: self.billingCycleEnd,
+                    resetDescription: description ?? self.billingCycleEnd.map(Self.formatResetDate))
+            }
         }
-
-        // Tertiary: API (named model) usage — hidden for legacy request-based plans (see above).
-        let tertiary: RateWindow? = cursorRequests != nil ? nil : self.apiPercentUsed.map { pct in
-            RateWindow(
-                usedPercent: pct,
-                windowMinutes: billingCycleWindowMinutes,
-                resetsAt: self.billingCycleEnd,
-                resetDescription: self.billingCycleEnd.map { Self.formatResetDate($0) })
-        }
-
-        // Grok Bot is a weekly included allowance on the same Cursor account, not the monthly
-        // Total/Cursor/Third Party bars. Hide it on legacy request plans so it cannot sit next
-        // to a request quota that does not share that token-based breakdown.
-        let extraRateWindows: [NamedRateWindow]? = if cursorRequests != nil {
-            nil
-        } else {
-            self.sandUsage?.extraRateWindow(now: now, resetDescription: Self.formatResetDate).map { [$0] }
-        }
+        // Primary: For usable legacy request quotas, use request usage; otherwise preserve plan percentage.
+        let primary = sharedWeeklyPool ?? monthlyWindow(
+            cursorRequests?.usedPercent ?? self.planPercentUsed,
+            description: cursorRequests.map { "\($0.used) / \($0.limit) requests" })
+        // Request quotas and unified weekly pools have no monthly Auto/API breakdown.
+        let secondary = hidesMonthlyBreakdown ? nil : monthlyWindow(self.autoPercentUsed)
+        let tertiary = hidesMonthlyBreakdown ? nil : monthlyWindow(self.apiPercentUsed)
 
         // Prefer authoritative personal billing, then a personal cap or the shared team budget.
         let monthly = self.unifiedUsage?.currentMonthlyUsage(at: now)
-        let resolvedOnDemandUsed: Double
-        let resolvedOnDemandLimit: Double?
-        if let monthly {
-            resolvedOnDemandUsed = monthly.usedCents / 100
-            resolvedOnDemandLimit = monthly.limitCents / 100
-        } else if (self.onDemandLimitUSD ?? 0) > 0 {
-            resolvedOnDemandUsed = self.onDemandUsedUSD
-            resolvedOnDemandLimit = self.onDemandLimitUSD
-        } else if (self.teamOnDemandLimitUSD ?? 0) > 0 {
-            resolvedOnDemandUsed = self.teamOnDemandUsedUSD ?? 0
-            resolvedOnDemandLimit = self.teamOnDemandLimitUSD
+        let usesTeamBudget = monthly == nil && !((self.onDemandLimitUSD ?? 0) > 0)
+            && (self.teamOnDemandLimitUSD ?? 0) > 0
+        let (resolvedOnDemandUsed, resolvedOnDemandLimit): (Double, Double?) = if let monthly {
+            (monthly.usedCents / 100, monthly.limitCents / 100)
+        } else if usesTeamBudget {
+            (self.teamOnDemandUsedUSD ?? 0, self.teamOnDemandLimitUSD)
         } else {
-            resolvedOnDemandUsed = self.onDemandUsedUSD
-            resolvedOnDemandLimit = self.onDemandLimitUSD
+            (self.onDemandUsedUSD, self.onDemandLimitUSD)
         }
 
-        // Your own on-demand spend to surface alongside a shared team pool (nil when the budget is personal).
-        let personalOnDemandUsed: Double? = if monthly != nil || (self.onDemandLimitUSD ?? 0) > 0 {
-            nil
-        } else if (self.teamOnDemandLimitUSD ?? 0) > 0 {
-            self.onDemandUsedUSD > 0 ? self.onDemandUsedUSD : nil
-        } else {
-            nil
-        }
+        // Your own on-demand spend is separate only when the displayed budget is shared.
+        let personalOnDemandUsed = usesTeamBudget && self.onDemandUsedUSD > 0 ? self.onDemandUsedUSD : nil
 
         // Provider cost snapshot for on-demand usage (include budget before first spend)
         let providerCost: ProviderCostSnapshot? = if monthly != nil || resolvedOnDemandUsed > 0
@@ -551,7 +525,7 @@ public struct CursorStatusSnapshot: Sendable {
             primary: primary,
             secondary: secondary,
             tertiary: tertiary,
-            extraRateWindows: extraRateWindows,
+            extraRateWindows: hidesMonthlyBreakdown ? nil : sandWindow.map { [$0] },
             providerCost: providerCost,
             details: cursorRequests.map { requests in
                 [.makeSection(title: "Usage", rows: [
@@ -570,29 +544,19 @@ public struct CursorStatusSnapshot: Sendable {
     }
 
     private static func formatMembershipType(_ type: String) -> String {
-        let planName = switch type.lowercased() {
-        case "enterprise":
-            "Enterprise"
-        case "express":
-            "Start"
-        case "free":
-            "Free"
-        case "free_trial":
-            "Pro Trial"
-        case "hobby":
-            "Hobby"
-        case "pro", "pro_student":
-            "Pro"
-        case "pro_plus":
-            "Pro+"
-        case "team":
-            "Team"
-        case "ultra":
-            "Ultra"
-        default:
-            type
-        }
-        return "Cursor \(planName)"
+        let planNames = [
+            "enterprise": "Enterprise",
+            "express": "Start",
+            "free": "Free",
+            "free_trial": "Pro Trial",
+            "hobby": "Hobby",
+            "pro": "Pro",
+            "pro_student": "Pro",
+            "pro_plus": "Pro+",
+            "team": "Team",
+            "ultra": "Ultra",
+        ]
+        return "Cursor \(planNames[type.lowercased()] ?? type)"
     }
 }
 
@@ -1030,15 +994,9 @@ public struct CursorStatusProbe: Sendable {
     }
 
     private static func hasAccountIdentity(_ snapshot: CursorStatusSnapshot) -> Bool {
-        self.normalizedAccountIdentityValue(snapshot.accountID) != nil ||
-            self.normalizedAccountIdentityValue(snapshot.accountEmail) != nil
-    }
-
-    private static func normalizedAccountIdentityValue(_ value: String?) -> String? {
-        guard let value = value?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else {
-            return nil
+        [snapshot.accountID, snapshot.accountEmail].contains {
+            $0?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
         }
-        return value
     }
     #endif
 

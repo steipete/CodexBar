@@ -251,6 +251,11 @@ extension StatusItemController {
         {
             return true
         }
+        defer {
+            let providers = self.stackedMergeIconProvidersIfActive().map { [$0.top, $0.bottom] }
+                ?? self.primaryProviderForUnifiedIcon().firstPartyProvider.map { [$0] } ?? []
+            self.updateMenuBarSourceDescription(for: button, providers: providers)
+        }
 
         if let rows = self.stackedMergeIconProvidersIfActive(),
            let result = self.applyStoredStackedMenuBarLayoutIfNeeded(top: rows.top, bottom: rows.bottom)
@@ -337,12 +342,15 @@ extension StatusItemController {
         merged: Bool) -> Bool
     {
         guard let button = statusItem.button else { return false }
+        if !merged {
+            self.updateMenuBarSourceDescription(for: button, providers: [provider])
+        }
         let shouldSkipRender: (String) -> Bool = { signature in
             merged ? self.shouldSkipMergedIconRender(signature)
                 : self.shouldSkipProviderIconRender(provider: provider, signature: signature)
         }
         let providerTint = self.providerTintColor(for: provider, button: button)
-        let snapshot = self.store.menuBarSnapshot(for: provider.instanceID)
+        let snapshot = self.menuBarUsageSource(for: provider).snapshot
         // IconRenderer treats these values as a left-to-right "progress fill" percentage; depending on the
         // user setting we pass either "percent left" or "percent used".
         let showUsed = self.settings.usageBarsShowUsed
@@ -398,7 +406,7 @@ extension StatusItemController {
         var primary = resolved?.primary
         var weekly = resolved?.secondary
         var credits = self.menuBarCreditsRemainingForIcon(provider: provider, snapshot: snapshot)
-        var stale = self.store.isStale(provider: provider)
+        var stale = self.menuBarIsStale(for: provider)
         var morphProgress: Double?
 
         let needsAnimation = merged ? self.needsMenuBarIconAnimation() : self.shouldAnimate(provider: provider)
@@ -575,13 +583,14 @@ extension StatusItemController {
         // source of truth — a hand-rolled approximation can silently drift from the projection
         // as its fallback logic evolves.
         // Provider-specific by design: only Codex projects credits into the menu-bar icon fallback.
-        guard provider == .codex else { return nil }
+        guard provider == .codex, !self.menuBarUsageSource(for: provider).isFleet else { return nil }
         return self.store.codexMenuBarCreditsRemaining(
             snapshotOverride: snapshot,
             now: now)
     }
 
     func quotaWarningFlashActive(provider: UsageProvider, now: Date = Date()) -> Bool {
+        guard !self.menuBarUsageSource(for: provider).isFleet else { return false }
         guard let until = self.quotaWarningFlashUntil[provider.instanceID] else { return false }
         if until > now {
             return true
@@ -767,7 +776,8 @@ extension StatusItemController {
         }
 
         let percentWindow = self.menuBarMetricWindow(for: provider, snapshot: snapshot, now: now)
-        let codexProjection = self.store.codexConsumerProjectionIfNeeded(
+        let isFleet = self.menuBarUsageSource(for: provider).isFleet
+        let codexProjection = isFleet ? nil : self.store.codexConsumerProjectionIfNeeded(
             for: provider,
             surface: .menuBar,
             snapshotOverride: snapshot,
@@ -789,7 +799,7 @@ extension StatusItemController {
                 projection: codexProjection,
                 combinedLanes: combinedLanes,
                 percentWindow: percentWindow)
-            pace = paceWindow.flatMap { window in
+            pace = isFleet ? nil : paceWindow.flatMap { window in
                 self.store.weeklyPace(
                     provider: provider,
                     window: window,
@@ -881,7 +891,8 @@ extension StatusItemController {
             snapshot: snapshot,
             mode: self.settings.kiroMenuBarDisplayMode,
             showUsed: self.settings.usageBarsShowUsed)
-        guard mode == .pace || mode == .both, let text else { return text }
+        guard !self.menuBarUsageSource(for: provider).isFleet,
+              mode == .pace || mode == .both, let text else { return text }
         guard let paceText = self.store.menuBarLayoutPaceText(
             provider: provider,
             window: snapshot?.primary,
@@ -1030,7 +1041,7 @@ extension StatusItemController {
     /// while pace/both render the one lane chosen by `combinedDisplayPercentWindow` — mirror that presentation
     /// here rather than scheduling whichever lane happened to drive the icon.
     func menuBarDisplayedResetDates(for provider: UsageProvider, now: Date) -> [Date] {
-        let snapshot = self.store.menuBarSnapshot(for: provider.instanceID)
+        let snapshot = self.menuBarUsageSource(for: provider).snapshot
         let layoutResolution = self.renderedMenuBarLayoutResolution(for: provider)
         if !layoutResolution.usesLegacyRendering,
            self.settings.menuBarIconStyle == .iconAndPercent
@@ -1039,11 +1050,12 @@ extension StatusItemController {
         }
         let mode = self.settings.menuBarDisplayMode
 
-        let projection = self.store.codexConsumerProjectionIfNeeded(
-            for: provider,
-            surface: .menuBar,
-            snapshotOverride: snapshot,
-            now: now)
+        let projection = self.menuBarUsageSource(for: provider).isFleet
+            ? nil : self.store.codexConsumerProjectionIfNeeded(
+                for: provider,
+                surface: .menuBar,
+                snapshotOverride: snapshot,
+                now: now)
         if let lanes = self.combinedSessionWeeklyLanes(
             for: provider, snapshot: snapshot, projection: projection),
             lanes.session != nil || lanes.weekly != nil
@@ -1168,14 +1180,21 @@ extension StatusItemController {
             activeProviders: self.overviewProviderIDs(enabledProviders: active),
             maxVisibleProviders: SettingsStore.mergedOverviewProviderLimit)
         let allowsPlugins = self.shouldMergeIcons && self.settings.unifiedIconSource == .currentSelection
-        let enabled = self.store.enabledProviders().filter { allowsPlugins || $0.firstPartyProvider != nil }
+        let localEnabled = Set(self.store.enabledProviders())
+        let enabled = self.store.enabledProvidersForDisplay().filter { instanceID in
+            if let provider = instanceID.firstPartyProvider { return self.isEnabled(provider) }
+            return allowsPlugins && localEnabled.contains(instanceID)
+        }
         if self.settings.unifiedIconSource == .highestUsage, self.shouldMergeIcons {
             let candidates = overview.compactMap(\.firstPartyProvider)
-            if let highest = self.store.providerWithHighestUsage(candidateProviders: candidates) {
+            if let highest = self.store.providerWithHighestUsage(
+                candidateProviders: candidates,
+                usageSource: self.menuBarUsageSource)
+            {
                 return highest.provider.instanceID
             }
             // Keep the Overview subset authoritative while its quotas are unavailable or exhausted.
-            if let fallback = candidates.first(where: { self.store.isEnabled($0) }) {
+            if let fallback = candidates.first(where: self.isEnabled) {
                 return fallback.instanceID
             }
         }
@@ -1190,7 +1209,10 @@ extension StatusItemController {
             return selected
         }
         // Provider-specific by design: Codex remains the placeholder when no provider is available.
-        return enabled.first(where: { self.store.menuBarSnapshot(for: $0) != nil }) ?? enabled.first ?? .codex
+        return enabled.first(where: {
+            self.store.menuBarSnapshot(for: $0) != nil
+                || $0.firstPartyProvider.map { self.menuBarUsageSource(for: $0).isFleet } == true
+        }) ?? enabled.first ?? .codex
     }
 
     @objc func handleDebugBlinkNotification() {
@@ -1228,6 +1250,7 @@ extension StatusItemController {
     }
 
     func shouldAnimate(provider: UsageProvider, mergeIcons: Bool? = nil) -> Bool {
+        guard !self.menuBarUsageSource(for: provider).isFleet else { return false }
         if self.store.debugForceAnimation {
             return true
         }
@@ -1244,7 +1267,7 @@ extension StatusItemController {
             return false
         }
 
-        let isStale = self.store.isStale(provider: provider)
+        let isStale = self.menuBarIsStale(for: provider)
         let hasSatisfiedUsageFetch = self.store.hasSatisfiedUsageFetch(for: provider)
         // Provider-specific by design: Warp animates while its first remote refresh is still in flight.
         if provider == .warp, !hasSatisfiedUsageFetch, self.store.refreshingProviders.contains(provider.instanceID) {
