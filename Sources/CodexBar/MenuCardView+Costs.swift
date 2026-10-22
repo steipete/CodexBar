@@ -291,7 +291,7 @@ extension UsageMenuCardView.Model {
         let todayIncompleteCount = snapshot.summary(forLastDays: 1, calendar: calendar).incompleteRequestCount
         let err = (error?.isEmpty ?? true) ? nil : error
         let hints = [
-            Self.tokenUsageHint(provider: provider),
+            Self.tokenUsageHint(provider: provider, provenance: snapshot.costProvenance),
             UsageFormatter.incompleteUsageNote(incompleteCount),
             tokensOnly ? Self.tokenHistoryCoverageHint(snapshot) : nil,
         ]
@@ -339,8 +339,10 @@ extension UsageMenuCardView.Model {
             UsageFormatter.tokenCountString(totalTokens)) + suffix
     }
 
-    static func tokenUsageHint(provider: UsageProvider) -> String? {
-        let lines = Self.tokenUsageHintLines(provider: provider)
+    static func tokenUsageHint(
+        provider: UsageProvider,
+        provenance: CostProvenance = .listPriceEstimate) -> String? {
+        let lines = Self.tokenUsageHintLines(provider: provider, provenance: provenance)
         return lines.isEmpty ? nil : lines.joined(separator: "\n")
     }
 
@@ -361,8 +363,18 @@ extension UsageMenuCardView.Model {
             : L("Local token history is unavailable or incomplete.")
     }
 
-    static func tokenUsageHintLines(provider: UsageProvider) -> [String] {
-        ProviderDescriptorRegistry.descriptor(for: provider).tokenCost.menuHintLines.map { hint in
+    static func tokenUsageHintLines(
+        provider: UsageProvider,
+        provenance: CostProvenance = .listPriceEstimate) -> [String]
+    {
+        // Provider-specific by design: only Codex history can mix source-recorded OpenCode
+        // costs into an otherwise list-price estimate, so only that hint follows provenance.
+        if provider == .codex, provenance == .sourceRecorded || provenance == .mixed {
+            return [provenance == .mixed
+                ? L("Estimated from token usage plus source-recorded OpenCode cost · not a subscription bill")
+                : L("Source-recorded cost from OpenCode local history · not a subscription bill")]
+        }
+        return ProviderDescriptorRegistry.descriptor(for: provider).tokenCost.menuHintLines.map { hint in
             switch hint {
             case let .localized(key): L(key)
             case .estimate: UsageFormatter.costEstimateHint(provider: provider)

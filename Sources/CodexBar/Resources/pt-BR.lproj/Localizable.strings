@@ -1650,6 +1650,8 @@
 "Usage snapshot unavailable" = "Resumo de uso indisponível";
 "CodexBar couldn't prepare a shareable usage snapshot. Refresh Usage & Spend and try again." = "O CodexBar não conseguiu preparar um resumo de uso para compartilhar. Atualize Uso e gastos e tente novamente.";
 "Incomplete" = "Incompleto";
+"Recorded total (%@): %@" = "Total registrado (%@): %@";
+"Recorded subtotal (%@): %@" = "Subtotal registrado (%@): %@";
 "Est. subtotal (%@): %@" = "Subtotal estimado (%@): %@";
 "Excluded requests with missing final usage: %d" = "Solicitações excluídas sem dados finais de uso: %d";
 

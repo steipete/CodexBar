@@ -1653,6 +1653,8 @@
 "CodexBar couldn't prepare a shareable usage snapshot. Refresh Usage & Spend and try again." = "CodexBar couldn't prepare a shareable usage snapshot. Refresh Usage & Spend and try again.";
 "Incomplete" = "Incomplete";
 
+"Recorded total (%@): %@" = "Recorded total (%@): %@";
+"Recorded subtotal (%@): %@" = "Recorded subtotal (%@): %@";
 "Est. subtotal (%@): %@" = "Est. subtotal (%@): %@";
 
 "Excluded requests with missing final usage: %d" = "Excluded requests with missing final usage: %d";

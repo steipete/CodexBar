@@ -160,11 +160,14 @@ struct ProviderDetailView<SupplementaryContent: View>: View {
                     Section {
                         ProviderTokenUsageInlineView(provider: self.provider, tokenUsage: tokenUsage)
                     } header: {
-                        Text(L(self.store.settings.codexLocalSessionCostLedgerEnabled ? "This Mac" : "Local usage"))
+                        Text(L(self.store.settings.codexLocalSessionCostLedgerEnabled
+                                || self.store.settings.codexIncludeOpenCodeLocalHistory
+                            ? "This Mac" : "Local usage"))
                     } footer: {
                         SettingsSectionFooter(L(self.store.settings.codexLocalSessionCostLedgerEnabled
-                                ? "Local usage is shared across accounts on this Mac."
-                                : "Local usage comes from the current Codex profile."))
+                                || self.store.settings.codexIncludeOpenCodeLocalHistory
+                            ? "Local usage is shared across accounts on this Mac."
+                            : "Local usage comes from the current Codex profile."))
                     }
                 }
                 if let diagnostic = self.openAIWebDiagnostic {

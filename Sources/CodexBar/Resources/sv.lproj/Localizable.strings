@@ -1649,6 +1649,8 @@
 "Usage snapshot unavailable" = "Användningsöversikt är inte tillgänglig";
 "CodexBar couldn't prepare a shareable usage snapshot. Refresh Usage & Spend and try again." = "CodexBar kunde inte förbereda en delbar användningsöversikt. Uppdatera Användning och utgifter och försök igen.";
 "Incomplete" = "Ofullständigt";
+"Recorded total (%@): %@" = "Registrerad total (%@): %@";
+"Recorded subtotal (%@): %@" = "Registrerad delsumma (%@): %@";
 "Est. subtotal (%@): %@" = "Uppskattad delsumma (%@): %@";
 "Excluded requests with missing final usage: %d" = "Uteslutna förfrågningar utan slutliga användningsdata: %d";
 

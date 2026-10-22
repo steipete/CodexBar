@@ -6,7 +6,11 @@ public enum CostProvenance: String, Sendable, Equatable, Codable {
     case listPriceEstimate
     /// Vendor-reported metered spend (for example Cursor plan deductions).
     case vendorMetered
-    /// Window mixes list-price rows with vendor-metered rows.
+    /// Cost recorded by the source client (for example OpenCode's local history) and
+    /// surfaced as-is; no list-price estimation was applied to these rows.
+    case sourceRecorded
+    /// Window mixes list-price rows with rows that carry non-estimated costs
+    /// (vendor-metered or source-recorded).
     case mixed
     case unknown
 
@@ -16,29 +20,29 @@ public enum CostProvenance: String, Sendable, Equatable, Codable {
 
     /// Narrow a snapshot-level provenance to the costs actually present in a window.
     /// Daily vendor-reported rows stay vendor-metered even when `meteredCostUSD` is absent.
+    /// `hasListPricedCosts` distinguishes list-priced cost from source-recorded cost inside
+    /// the window; when absent the window-cost bit is used as a legacy approximation.
     public static func forWindow(
         snapshot: CostProvenance,
         hasWindowCosts: Bool,
-        includesMetered: Bool) -> CostProvenance
+        includesMetered: Bool,
+        includesSourceRecorded: Bool = false,
+        hasListPricedCosts: Bool? = nil) -> CostProvenance
     {
+        let windowHasListPricedCosts = hasListPricedCosts ?? hasWindowCosts
         switch snapshot {
         case .vendorMetered:
-            includesMetered || hasWindowCosts ? .vendorMetered : .unknown
+            return includesMetered || hasWindowCosts ? .vendorMetered : .unknown
         case .mixed:
-            switch (includesMetered, hasWindowCosts) {
-            case (true, true):
-                .mixed
-            case (true, false):
-                .vendorMetered
-            case (false, true):
-                .listPriceEstimate
-            case (false, false):
-                .unknown
-            }
+            if includesMetered { return hasWindowCosts ? .mixed : .vendorMetered }
+            if includesSourceRecorded { return windowHasListPricedCosts ? .mixed : .sourceRecorded }
+            return hasWindowCosts ? .listPriceEstimate : .unknown
         case .listPriceEstimate:
-            hasWindowCosts ? .listPriceEstimate : .unknown
+            return hasWindowCosts ? .listPriceEstimate : .unknown
+        case .sourceRecorded:
+            return hasWindowCosts ? .sourceRecorded : .unknown
         case .unknown:
-            .unknown
+            return .unknown
         }
     }
 }

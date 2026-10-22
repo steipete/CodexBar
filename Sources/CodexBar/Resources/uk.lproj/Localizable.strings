@@ -1650,6 +1650,8 @@
 "Usage snapshot unavailable" = "Огляд використання недоступний";
 "CodexBar couldn't prepare a shareable usage snapshot. Refresh Usage & Spend and try again." = "CodexBar не вдалося підготувати огляд використання для поширення. Оновіть розділ «Використання й витрати» та повторіть спробу.";
 "Incomplete" = "Неповні дані";
+"Recorded total (%@): %@" = "Записаний підсумок (%@): %@";
+"Recorded subtotal (%@): %@" = "Записаний проміжний підсумок (%@): %@";
 "Est. subtotal (%@): %@" = "Орієнтовний підсумок (%@): %@";
 "Excluded requests with missing final usage: %d" = "Виключено запити без остаточних даних про використання: %d";
 

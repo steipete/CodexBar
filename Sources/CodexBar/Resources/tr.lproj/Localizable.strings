@@ -1653,6 +1653,8 @@
 "Usage snapshot unavailable" = "Kullanım özeti kullanılamıyor";
 "CodexBar couldn't prepare a shareable usage snapshot. Refresh Usage & Spend and try again." = "CodexBar paylaşılabilir bir kullanım özeti hazırlayamadı. Kullanım ve harcamayı yenileyip tekrar deneyin.";
 "Incomplete" = "Eksik";
+"Recorded total (%@): %@" = "Kaydedilen toplam (%@): %@";
+"Recorded subtotal (%@): %@" = "Kaydedilen ara toplam (%@): %@";
 "Est. subtotal (%@): %@" = "Tahmini ara toplam (%@): %@";
 "Excluded requests with missing final usage: %d" = "Nihai kullanım verileri eksik olduğu için hariç tutulan istekler: %d";
 

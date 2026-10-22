@@ -3,16 +3,27 @@ import Foundation
 
 extension SettingsStore {
     func costSummaryShowsInline(for provider: UsageProvider) -> Bool {
-        // Provider-specific by design: Codex's local ledger can enable its summary without the global scanner.
+        // Provider-specific by design: Codex's local ledger and OpenCode local history can
+        // enable its summary without the global scanner.
         let isEnabled = self.costUsageEnabled ||
-            (provider == .codex && self.codexLocalSessionCostLedgerEnabled)
+            (provider == .codex &&
+                (self.codexLocalSessionCostLedgerEnabled || self.codexIncludeOpenCodeLocalHistory))
         return isEnabled &&
             self.costSummaryDisplayStyle.showsInlineSummary
     }
 
     func costSummaryShowsSubmenu(for provider: UsageProvider) -> Bool {
-        self.isCostUsageEffectivelyEnabled(for: provider) &&
+        self.isHistoryLaneEffectivelyEnabled(for: provider) &&
             self.costSummaryDisplayStyle.showsCostSubmenu
+    }
+
+    /// Opt-in OpenCode local history activates the ambient Codex menu-history lane on its
+    /// own, so users whose only source is OpenCode need no second toggle to see the merged
+    /// history. Spend Dashboard gating never consults this lane (#3273 contract).
+    func isHistoryLaneEffectivelyEnabled(for provider: UsageProvider) -> Bool {
+        // Provider-specific by design: the OpenCode opt-in enables Codex's ambient history lane alone.
+        self.isCostUsageEffectivelyEnabled(for: provider) ||
+            (provider == .codex && self.codexIncludeOpenCodeLocalHistory)
     }
 
     func applyTokenCostDefaultIfNeeded() {

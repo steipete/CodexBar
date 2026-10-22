@@ -305,7 +305,7 @@ extension UsageStore {
             && self.settings.providerConfigRevision(for: .codex) == context.providerConfigRevision
             && self.settings.costUsageSettingsRevision == context.costUsageSettingsRevision
             && self.settings.costUsageHistoryDays == context.historyDays
-            && self.settings.isCostUsageEffectivelyEnabled(for: .codex)
+            && self.settings.isHistoryLaneEffectivelyEnabled(for: .codex)
             && self.isEnabled(.codex)
             && self.tokenCostScope(for: .codex).codexHomePath == context.codexHomePath
             && self.tokenSnapshotScopeSignature(for: .codex) == context.scopeSignature

@@ -1654,6 +1654,8 @@
 "Usage snapshot unavailable" = "ملخص الاستخدام غير متاح";
 "CodexBar couldn't prepare a shareable usage snapshot. Refresh Usage & Spend and try again." = "تعذر على CodexBar إعداد ملخص استخدام قابل للمشاركة. حدّث الاستخدام والإنفاق ثم حاول مرة أخرى.";
 "Incomplete" = "غير مكتمل";
+"Recorded total (%@): %@" = "إجمالي مسجل (%@): %@";
+"Recorded subtotal (%@): %@" = "إجمالي فرعي مسجل (%@): %@";
 "Est. subtotal (%@): %@" = "الإجمالي الفرعي التقديري (%@): %@";
 "Excluded requests with missing final usage: %d" = "الطلبات المستبعدة لعدم توفر بيانات الاستخدام النهائية: %d";
 

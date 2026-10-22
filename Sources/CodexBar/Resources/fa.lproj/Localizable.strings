@@ -1654,6 +1654,8 @@
 "Usage snapshot unavailable" = "نمای کلی استفاده در دسترس نیست";
 "CodexBar couldn't prepare a shareable usage snapshot. Refresh Usage & Spend and try again." = "CodexBar نتوانست نمای کلی استفاده قابل اشتراک‌گذاری را آماده کند. استفاده و هزینه را تازه‌سازی کنید و دوباره امتحان کنید.";
 "Incomplete" = "ناقص";
+"Recorded total (%@): %@" = "مجموع ثبت‌شده (%@): %@";
+"Recorded subtotal (%@): %@" = "جمع جزئی ثبت‌شده (%@): %@";
 "Est. subtotal (%@): %@" = "جمع جزئی تخمینی (%@): %@";
 "Excluded requests with missing final usage: %d" = "درخواست‌های حذف‌شده به دلیل نبود داده‌های مصرف نهایی: %d";
 

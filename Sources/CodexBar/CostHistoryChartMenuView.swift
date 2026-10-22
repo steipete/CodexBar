@@ -67,6 +67,7 @@ struct CostHistoryChartMenuView: View {
     }
 
     private let provider: UsageProvider
+    private let costProvenance: CostProvenance
     private let daily: [DailyEntry]
     private let totalCostUSD: Double?
     private let currencyCode: String
@@ -96,9 +97,11 @@ struct CostHistoryChartMenuView: View {
         sessions: [CostUsageSessionBreakdown] = [],
         hidePersonalInfo: Bool,
         width: CGFloat,
+        costProvenance: CostProvenance = .listPriceEstimate,
         onMetricChanged: (@MainActor (ChartMetric) -> Void)? = nil)
     {
         self.provider = provider
+        self.costProvenance = costProvenance
         self.daily = daily
         self.totalCostUSD = totalCostUSD
         self.currencyCode = currencyCode
@@ -338,7 +341,7 @@ struct CostHistoryChartMenuView: View {
             if self.totalCostUSD != nil || incompleteCount > 0 {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(String(
-                        format: incompleteCount > 0 ? L("Est. subtotal (%@): %@") : L("Est. total (%@): %@"),
+                        format: self.costTotalLabelKey(incompleteCount: incompleteCount),
                         self.windowLabel,
                         self.totalCostUSD.map(self.costString) ?? "—")
                         + UsageFormatter.incompleteUsageSuffix(incompleteCount))
@@ -348,7 +351,7 @@ struct CostHistoryChartMenuView: View {
                         .truncationMode(.head)
                         .frame(height: Self.detailPrimaryLineHeight, alignment: .leading)
                     if let disclaimer = UsageFormatter.incompleteUsageNote(incompleteCount)
-                        ?? Self.estimateDisclaimer(provider: self.provider)
+                        ?? Self.estimateDisclaimer(provider: self.provider, provenance: self.costProvenance)
                     {
                         Text(disclaimer)
                             .help(disclaimer)
@@ -410,7 +413,22 @@ struct CostHistoryChartMenuView: View {
         }
     }
 
-    static func estimateDisclaimer(provider: UsageProvider) -> String? {
+    // Provider-specific by design: only Codex history can carry source-recorded OpenCode
+    // costs, so only its chart total label and disclaimer follow provenance like the
+    // menu-card hint does.
+    private func costTotalLabelKey(incompleteCount: Int) -> String {
+        guard self.provider == .codex, self.costProvenance == .sourceRecorded else {
+            return incompleteCount > 0 ? "Est. subtotal (%@): %@" : "Est. total (%@): %@"
+        }
+        return incompleteCount > 0 ? "Recorded subtotal (%@): %@" : "Recorded total (%@): %@"
+    }
+
+    static func estimateDisclaimer(provider: UsageProvider, provenance: CostProvenance = .listPriceEstimate) -> String? {
+        if provider == .codex, provenance == .sourceRecorded || provenance == .mixed {
+            return provenance == .mixed
+                ? L("Estimated from token usage plus source-recorded OpenCode cost · not a subscription bill")
+                : L("Source-recorded cost from OpenCode local history · not a subscription bill")
+        }
         guard let hint = ProviderDescriptorRegistry.descriptor(for: provider).tokenCost.chartEstimateDisclaimer else {
             return nil
         }

@@ -652,6 +652,10 @@ struct SpendDashboardModel: Equatable, Sendable {
                     sawVendorMeteredProvenance = true
                 case .listPriceEstimate:
                     sawEstimate = true
+                case .sourceRecorded:
+                    // OpenCode local history never reaches the Spend Dashboard; treat any
+                    // such snapshot conservatively like legacy unknown provenance.
+                    sawEstimate = true
                 case .mixed:
                     sawVendorMeteredProvenance = true
                     sawEstimate = true

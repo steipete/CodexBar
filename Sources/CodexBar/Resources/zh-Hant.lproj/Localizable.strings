@@ -1681,6 +1681,8 @@
 "Usage snapshot unavailable" = "用量總覽無法使用";
 "CodexBar couldn't prepare a shareable usage snapshot. Refresh Usage & Spend and try again." = "CodexBar 無法準備可分享的用量總覽。請重新整理「使用量與支出」後再試一次。";
 "Incomplete" = "不完整";
+"Recorded total (%@): %@" = "記錄總額 (%@): %@";
+"Recorded subtotal (%@): %@" = "記錄小計 (%@): %@";
 "Est. subtotal (%@): %@" = "估算小計（%@）：%@";
 "Excluded requests with missing final usage: %d" = "因缺少最終用量而排除的請求：%d";
 

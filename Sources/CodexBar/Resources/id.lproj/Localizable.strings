@@ -1654,6 +1654,8 @@
 "Usage snapshot unavailable" = "Ringkasan penggunaan tidak tersedia";
 "CodexBar couldn't prepare a shareable usage snapshot. Refresh Usage & Spend and try again." = "CodexBar tidak dapat menyiapkan ringkasan penggunaan untuk dibagikan. Segarkan Penggunaan & pengeluaran, lalu coba lagi.";
 "Incomplete" = "Tidak lengkap";
+"Recorded total (%@): %@" = "Total tercatat (%@): %@";
+"Recorded subtotal (%@): %@" = "Subtotal tercatat (%@): %@";
 "Est. subtotal (%@): %@" = "Subtotal perkiraan (%@): %@";
 "Excluded requests with missing final usage: %d" = "Permintaan yang dikecualikan karena data penggunaan akhir tidak tersedia: %d";
 

@@ -1654,6 +1654,8 @@
 "Usage snapshot unavailable" = "Instantània d'ús no disponible";
 "CodexBar couldn't prepare a shareable usage snapshot. Refresh Usage & Spend and try again." = "CodexBar no ha pogut preparar una instantània d'ús per compartir. Actualitza Ús i despesa i torna-ho a provar.";
 "Incomplete" = "Incomplet";
+"Recorded total (%@): %@" = "Total registrat (%@): %@";
+"Recorded subtotal (%@): %@" = "Subtotal registrat (%@): %@";
 "Est. subtotal (%@): %@" = "Subtotal estimat (%@): %@";
 "Excluded requests with missing final usage: %d" = "Sol·licituds excloses sense dades d’ús finals: %d";
 

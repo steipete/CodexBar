@@ -1202,7 +1202,7 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This provider-owned integration passes its fixed identity to a shared helper."),
         SuppressedProviderReference(
             path: "Sources/CodexBar/UsageStore+CodexCostCatchUp.swift",
-            anchor: "&& self.settings.isCostUsageEffectivelyEnabled(for: .codex)",
+            anchor: "&& self.settings.isHistoryLaneEffectivelyEnabled(for: .codex)",
             expectedProviderIDs: ["codex"],
             reason: "This provider-owned integration passes its fixed identity to a shared helper."),
         SuppressedProviderReference(
@@ -1357,7 +1357,7 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "The Codex-only cache hydration path passes its fixed provider identity to shared state helpers."),
         SuppressedProviderReference(
             path: "Sources/CodexBar/UsageStore+TokenCost.swift",
-            anchor: "self.settings.isCostUsageEffectivelyEnabled(for: .codex),",
+            anchor: "self.settings.isHistoryLaneEffectivelyEnabled(for: .codex),",
             expectedProviderIDs: ["codex"],
             reason: "This provider-specific app branch passes its already-selected identity to a shared helper."),
         SuppressedProviderReference(

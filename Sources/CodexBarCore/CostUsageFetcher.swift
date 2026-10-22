@@ -129,6 +129,7 @@ public struct CostUsageFetcher: Sendable {
         codexHomePath: String? = nil,
         historyDays: Int = 30,
         includePiSessions: Bool = true,
+        includeOpenCodeLocalHistory: Bool = false,
         calendar: Calendar? = nil,
         requireCompleteHistory: Bool = false,
         environment: [String: String] = ProcessInfo.processInfo.environment) async -> CachedCodexTokenSnapshotResult?
@@ -139,6 +140,7 @@ public struct CostUsageFetcher: Sendable {
             historyDays: historyDays,
             allowScopedCodexHome: requireCompleteHistory,
             includePiSessions: includePiSessions,
+            includeOpenCodeLocalHistory: includeOpenCodeLocalHistory,
             requireCompleteHistory: requireCompleteHistory,
             scannerOptions: self.scannerOptions(calendar: calendar),
             environment: environment)
@@ -214,6 +216,7 @@ public struct CostUsageFetcher: Sendable {
         allowPricingRefresh: Bool = true,
         refreshPricingInBackground: Bool = true,
         includePiSessions: Bool = true,
+        includeOpenCodeLocalHistory: Bool = false,
         piWorkingDirectories: [URL] = [],
         piSessionProcessContexts: [PiSessionProcessContext] = [],
         bypassScannerDebounce: Bool = false,
@@ -232,6 +235,7 @@ public struct CostUsageFetcher: Sendable {
             allowPricingRefresh: allowPricingRefresh,
             refreshPricingInBackground: refreshPricingInBackground,
             includePiSessions: includePiSessions,
+            includeOpenCodeLocalHistory: includeOpenCodeLocalHistory,
             bypassScannerDebounce: bypassScannerDebounce,
             piWorkingDirectories: piWorkingDirectories,
             piSessionProcessContexts: piSessionProcessContexts,
@@ -252,6 +256,7 @@ public struct CostUsageFetcher: Sendable {
         allowPricingRefresh: Bool = true,
         refreshPricingInBackground: Bool = true,
         includePiSessions: Bool = true,
+        includeOpenCodeLocalHistory: Bool = false,
         piWorkingDirectories: [URL] = [],
         piSessionProcessContexts: [PiSessionProcessContext] = [],
         bypassScannerDebounce: Bool,
@@ -282,10 +287,11 @@ public struct CostUsageFetcher: Sendable {
             allowPricingRefresh: allowPricingRefresh,
             refreshPricingInBackground: refreshPricingInBackground,
             includePiSessions: includePiSessions,
+            includeOpenCodeLocalHistory: includeOpenCodeLocalHistory,
             bypassScannerDebounce: bypassScannerDebounce,
             piWorkingDirectories: piWorkingDirectories,
             piSessionProcessContexts: piSessionProcessContexts,
-            scannerOptions: options,
+            scannerOptions: self.scannerOptions(calendar: calendar),
             reportContext: reportContext)
     }
 
@@ -431,6 +437,7 @@ public struct CostUsageFetcher: Sendable {
         allowPricingRefresh: Bool = true,
         refreshPricingInBackground: Bool = true,
         includePiSessions: Bool = true,
+        includeOpenCodeLocalHistory: Bool = false,
         bypassScannerDebounce: Bool = false,
         piWorkingDirectories: [URL] = [],
         piSessionProcessContexts: [PiSessionProcessContext] = [],
@@ -453,6 +460,7 @@ public struct CostUsageFetcher: Sendable {
             allowPricingRefresh: allowPricingRefresh,
             refreshPricingInBackground: refreshPricingInBackground,
             includePiSessions: includePiSessions,
+            includeOpenCodeLocalHistory: includeOpenCodeLocalHistory,
             bypassScannerDebounce: bypassScannerDebounce,
             piWorkingDirectories: piWorkingDirectories,
             piSessionProcessContexts: piSessionProcessContexts,
@@ -476,6 +484,7 @@ public struct CostUsageFetcher: Sendable {
         allowPricingRefresh: Bool = true,
         refreshPricingInBackground: Bool = true,
         includePiSessions: Bool = true,
+        includeOpenCodeLocalHistory: Bool = false,
         bypassScannerDebounce: Bool = false,
         piWorkingDirectories: [URL] = [],
         piSessionProcessContexts: [PiSessionProcessContext] = [],
@@ -687,6 +696,7 @@ public struct CostUsageFetcher: Sendable {
                         allowPricingRefresh: allowPricingRefresh,
                         refreshPricingInBackground: false,
                         includePiSessions: includePiSessions,
+                        includeOpenCodeLocalHistory: includeOpenCodeLocalHistory,
                         piWorkingDirectories: piWorkingDirectories,
                         piSessionProcessContexts: piSessionProcessContexts,
                         scannerOptions: overrideScannerOptions,
@@ -722,6 +732,10 @@ public struct CostUsageFetcher: Sendable {
         let scopedCodexHomePath = codexHomePath?.trimmingCharacters(in: .whitespacesAndNewlines)
         // Provider-specific by design: scoped Codex homes exclude ambient Pi sessions from managed-profile totals.
         let shouldMergePiUsage = provider != .codex || scopedCodexHomePath?.isEmpty != false
+        // Provider-specific by design: machine-local OpenCode history only joins the ambient
+        // Codex ledger; scoped homes and non-Codex providers never merge it (#3273 contract).
+        let shouldMergeOpenCodeLocalUsage = includeOpenCodeLocalHistory &&
+            provider == .codex && Self.codexHistoryIsAmbient(codexHomePath: codexHomePath, environment: environment)
         await Self.refreshPricingIfAllowed(
             options: PricingRefreshOptions(
                 provider: provider,
@@ -763,6 +777,7 @@ public struct CostUsageFetcher: Sendable {
             allowVertexClaudeFallback: allowVertexClaudeFallback,
             includePiSessions: includePiSessions,
             shouldMergePiUsage: shouldMergePiUsage,
+            shouldMergeOpenCodeLocalUsage: shouldMergeOpenCodeLocalUsage,
             scanOptions: scanOptions,
             environment: environment,
             piOptions: piOptions,
@@ -795,6 +810,7 @@ public struct CostUsageFetcher: Sendable {
                 allowPricingRefresh: allowPricingRefresh,
                 refreshPricingInBackground: false,
                 includePiSessions: includePiSessions,
+                includeOpenCodeLocalHistory: includeOpenCodeLocalHistory,
                 piWorkingDirectories: piWorkingDirectories,
                 piSessionProcessContexts: piSessionProcessContexts,
                 scannerOptions: options,
@@ -812,7 +828,7 @@ public struct CostUsageFetcher: Sendable {
             historyCoverageIsEstablished: scanResult.inclusive.historyCoverageIsEstablished,
             historyScanIsPartial: scanResult.native.historyCoverageIsEstablished
                 && !scanResult.inclusive.historyCoverageIsEstablished,
-            costProvenance: .listPriceEstimate,
+            costProvenance: scanResult.costProvenance,
             projects: scanResult.inclusive.projects,
             sessions: scanResult.inclusive.sessions,
             detailsAreComplete: scanResult.inclusive.detailsAreComplete,
@@ -851,12 +867,26 @@ public struct CostUsageFetcher: Sendable {
         let inclusive: LocalTokenScanReport
         let native: LocalTokenScanReport
         let piScope: String?
+        /// Provenance of the inclusive report's costs; the native projection stays list-price.
+        let costProvenance: CostProvenance
+    }
+
+    /// Provider-specific by design: machine-local OpenCode history joins only scans whose
+    /// Codex home was not explicitly selected, whether through the `codexHomePath` argument
+    /// or the process `CODEX_HOME` the native scanner honors. Managed profiles, scoped CLI
+    /// homes, and other providers never see machine-wide OpenCode rows (#3273 contract).
+    static func codexHistoryIsAmbient(codexHomePath: String?, environment: [String: String]) -> Bool {
+        if let path = codexHomePath?.trimmingCharacters(in: .whitespacesAndNewlines), !path.isEmpty {
+            return false
+        }
+        return environment["CODEX_HOME"]?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false
     }
 
     private struct LocalTokenScanOptions: Sendable {
         let allowVertexClaudeFallback: Bool
         let includePiSessions: Bool
         let shouldMergePiUsage: Bool
+        let shouldMergeOpenCodeLocalUsage: Bool
         let scanOptions: CostUsageScanner.Options
         @ProcessEnvironment private(set) var environment: [String: String]
         let piOptions: PiSessionCostScanner.Options
@@ -989,9 +1019,43 @@ public struct CostUsageFetcher: Sendable {
                     [daily, piScanResult.report],
                     calendar: options.scanOptions.calendar)
             }
+            var openCodeLocalReport: CostUsageDailyReport?
+            // Mixed provenance claims a list-price estimate is included, so it must rest on an
+            // actual native cost — unpriced native rows (unknown model) contribute tokens only.
+            let listPriceHistoryPresent = daily.data.contains { $0.costUSD != nil }
+            if options.shouldMergeOpenCodeLocalUsage {
+                // Provider-specific by design: this optional merge reads machine-local OpenCode
+                // history for OpenAI-provider assistant records into the ambient Codex ledger.
+                // Scoped homes never reach this branch, and read failures skip the merge so a
+                // damaged OpenCode database cannot break the native Codex scan.
+                if let openCode = try? OpenCodeLocalHistoryStore(
+                    cacheRoot: options.scanOptions.cacheRoot,
+                    environment: options.environment)
+                    .loadDailyReport(since: since, until: now, calendar: options.scanOptions.calendar)
+                {
+                    daily = CostUsageDailyReport.merged(
+                        [daily, openCode],
+                        calendar: options.scanOptions.calendar)
+                    openCodeLocalReport = openCode
+                }
+            }
+            if let openCodeLocalReport {
+                // Provider-specific by design: OpenCode rows carry no Codex project or session
+                // attribution, so they join the unattributed bucket the Pi merge established.
+                // Session breakdowns stay native (they cannot attribute these rows).
+                if let project = Self.unknownProjectBreakdown(from: openCodeLocalReport) {
+                    projects.append(project)
+                    sessions = []
+                }
+            }
             if provider == .codex {
                 projects = Self.mergedProjectBreakdowns(projects)
             }
+            // Recorded OpenCode costs must not surface under a pure list-price claim:
+            // mixed when estimated rows coexist, sourceRecorded when only OpenCode rows exist.
+            let inclusiveCostProvenance: CostProvenance = openCodeLocalReport != nil
+                ? (listPriceHistoryPresent ? .mixed : .sourceRecorded)
+                : .listPriceEstimate
             return LocalTokenScanResult(
                 inclusive: LocalTokenScanReport(
                     daily: daily,
@@ -1001,7 +1065,8 @@ public struct CostUsageFetcher: Sendable {
                     historyCoverageIsEstablished: native.historyCoverageIsEstablished && piScanIsComplete,
                     detailsAreComplete: native.detailsAreComplete && piScanIsComplete && piScope == nil),
                 native: native,
-                piScope: piScope)
+                piScope: piScope,
+                costProvenance: inclusiveCostProvenance)
         }
     }
 
@@ -1372,6 +1437,7 @@ public struct CostUsageFetcher: Sendable {
         historyDays: Int = 30,
         allowScopedCodexHome: Bool = false,
         includePiSessions: Bool = true,
+        includeOpenCodeLocalHistory: Bool = false,
         includeProjectAndSessionBreakdowns: Bool = true,
         requireCompleteHistory: Bool = false,
         scannerOptions overrideScannerOptions: CostUsageScanner.Options? = nil,
@@ -1382,6 +1448,11 @@ public struct CostUsageFetcher: Sendable {
         let scopedCodexHomePath = codexHomePath?.trimmingCharacters(in: .whitespacesAndNewlines)
         guard scopedCodexHomePath?.isEmpty != false || allowScopedCodexHome else { return nil }
         let piHistoryRequested = includePiSessions && scopedCodexHomePath?.isEmpty != false
+        // Provider-specific by design: machine-local OpenCode history only joins the ambient
+        // Codex cache publication; explicitly scoped homes (argument or CODEX_HOME) never
+        // request it.
+        let openCodeLocalHistoryRequested = includeOpenCodeLocalHistory &&
+            Self.codexHistoryIsAmbient(codexHomePath: codexHomePath, environment: environment)
         let processContexts: [PiSessionProcessContext] = if piHistoryRequested, piScannerOptions == nil {
             await LocalAgentSessionScanner().piSessionProcessContexts(environment: environment)
         } else {
@@ -1525,6 +1596,26 @@ public struct CostUsageFetcher: Sendable {
                 }
             }
 
+            // Mirror the foreground scan: only a native row with an actual cost carries the
+            // list-price half of a mixed provenance claim.
+            let listPriceReportsPresent = reports.contains { report in
+                report.data.contains { $0.costUSD != nil }
+            }
+            var openCodeLocalReport: CostUsageDailyReport?
+            if openCodeLocalHistoryRequested {
+                // Provider-specific by design: this optional merge reads machine-local OpenCode
+                // history for OpenAI-provider assistant records into the cached ambient Codex
+                // publication so catch-up converges on the same rows the foreground scan shows.
+                if let openCode = OpenCodeLocalHistoryStore(
+                    cacheRoot: options.cacheRoot,
+                    environment: environment)
+                    .cachedDailyReport(since: since, until: now, calendar: options.calendar)
+                {
+                    reports.append(openCode)
+                    openCodeLocalReport = openCode
+                }
+            }
+
             try check()
             guard !reports.isEmpty else { return nil }
             // `previous` is an exact report captured before the current bounded refresh became
@@ -1536,6 +1627,21 @@ public struct CostUsageFetcher: Sendable {
             // would let stale token rows inherit app-start freshness (#1964). lastRefreshAt
             // drives TTL suppression and stays native-only: a merged load must never delay a
             // rescan on the strength of another source's scan.
+            if let openCodeLocalReport {
+                // Provider-specific by design: OpenCode rows carry no Codex project or session
+                // attribution, so they join the unattributed bucket the Pi merge established.
+                if let project = Self.unknownProjectBreakdown(from: openCodeLocalReport) {
+                    projects.append(project)
+                    sessions = []
+                }
+            }
+            // Recorded OpenCode costs must not surface under a pure list-price claim;
+            // mirror the foreground scan's provenance so cache and live views agree.
+            let cachedCostProvenance: CostProvenance = if openCodeLocalReport != nil {
+                listPriceReportsPresent ? .mixed : .sourceRecorded
+            } else {
+                .listPriceEstimate
+            }
             return CachedCodexTokenSnapshotResult(
                 snapshot: Self.tokenSnapshot(
                     from: CostUsageDailyReport.merged(reports, calendar: options.calendar),
@@ -1543,7 +1649,7 @@ public struct CostUsageFetcher: Sendable {
                     historyDays: clampedHistoryDays,
                     calendar: options.calendar,
                     historyCoverageIsEstablished: displayedHistoryCoverageIsEstablished,
-                    costProvenance: .listPriceEstimate,
+                    costProvenance: cachedCostProvenance,
                     projects: Self.mergedProjectBreakdowns(projects),
                     sessions: sessions,
                     detailsAreComplete: nativeDetailsAreComplete && !piHistoryRequested,

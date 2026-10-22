@@ -95,6 +95,23 @@ struct CodexProviderImplementation: ProviderImplementation {
                 onAppDidBecomeActive: nil,
                 onAppearWhenEnabled: nil),
             ProviderSettingsToggleDescriptor(
+                id: "codex-opencode-local-history",
+                title: "Include OpenCode local history (OpenAI)",
+                subtitle: [
+                    "Optional, off by default.",
+                    "Merges machine-local OpenCode usage for OpenAI-provider assistant records from ~/.local/share/opencode/opencode.db into this Mac's ambient Codex history.",
+                    "Reads usage metadata only (read-only SQLite: model, tokens, recorded cost); prompts, responses and auth state are never read.",
+                    "OpenCode records $0 cost for subscription usage; recorded dollars are shown as-is and never treated as billing.",
+                    "Rows are attributed to the model only, never to an account, and are excluded from managed accounts, scoped CODEX_HOME scans and the Spend Dashboard.",
+                ].joined(separator: " "),
+                binding: context.binding(\.codexIncludeOpenCodeLocalHistory),
+                statusText: nil,
+                actions: [],
+                isVisible: nil,
+                onChange: nil,
+                onAppDidBecomeActive: nil,
+                onAppearWhenEnabled: nil),
+            ProviderSettingsToggleDescriptor(
                 id: "codex-historical-tracking",
                 title: "Historical tracking",
                 subtitle: historicalTrackingSubtitle,

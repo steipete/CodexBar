@@ -31,7 +31,20 @@ struct CodexAccountScopedRefreshGuard: Equatable {
 @MainActor
 extension UsageStore {
     func accountScopedTokenSnapshot(for provider: UsageProvider) -> CostUsageTokenSnapshot? {
-        guard provider == .codex, !self.settings.codexLocalSessionCostLedgerEnabled else {
+        guard provider == .codex else {
+            return self.tokenSnapshotPublications[provider.instanceID]?.snapshot
+        }
+        if self.settings.codexIncludeOpenCodeLocalHistory {
+            // Ambient history is account-agnostic: an ambient publication stays valid across
+            // account switches (config-revision churn) as long as the ambient scope itself is
+            // still selected — but a pre-toggle scoped publication must not leak account rows
+            // into the machine-local lane, so the scope signature has to match.
+            guard let publication = self.tokenSnapshotPublications[provider.instanceID],
+                  publication.scopeSignature == self.tokenSnapshotScopeSignature(for: provider)
+            else { return nil }
+            return publication.snapshot
+        }
+        guard !self.settings.codexLocalSessionCostLedgerEnabled else {
             return self.tokenSnapshotPublications[provider.instanceID]?.snapshot
         }
         return self.tokenSnapshotForCurrentProviderConfig(for: provider)?.snapshot
