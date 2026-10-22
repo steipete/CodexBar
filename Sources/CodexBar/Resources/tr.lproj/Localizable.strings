@@ -2116,6 +2116,8 @@
 "Poe usage history is unavailable." = "Poe kullanım geçmişi mevcut değil.";
 "Stored in ~/.codexbar/config.json. Get your key from poe.com/api/keys." = "~/.codexbar/config.json konumunda saklanır. Anahtarınızı poe.com/api/keys adresinden alın.";
 "Billing" = "Faturalandırma";
+"Invoice billing" = "Faturalı ödeme";
+"Prepaid" = "Ön ödemeli";
 "Rate limit" = "Oran sınırı";
 "Billing and rate-limit data from the v0 Platform API" = "v0 Platformu API'den faturalandırma ve ücret sınırı verileri";
 "v0 cost history is not available via the Platform API." = "v0 maliyet geçmişi, API Platformu aracılığıyla mevcut değildir.";

@@ -2117,6 +2117,8 @@
 "Poe usage history is unavailable." = "Riwayat penggunaan Poe tidak tersedia.";
 "Stored in ~/.codexbar/config.json. Get your key from poe.com/api/keys." = "Disimpan di ~/.codexbar/config.json. Dapatkan kunci Anda dari poe.com/api/keys.";
 "Billing" = "Penagihan";
+"Invoice billing" = "Pembayaran dengan faktur";
+"Prepaid" = "Prabayar";
 "Rate limit" = "Batas frekuensi permintaan";
 "Billing and rate-limit data from the v0 Platform API" = "Data penagihan dan batas frekuensi permintaan dari Platform v0 API";
 "v0 cost history is not available via the Platform API." = "Riwayat biaya v0 tidak tersedia melalui Platform API.";

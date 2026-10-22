@@ -2117,6 +2117,8 @@
 "Poe usage history is unavailable." = "ประวัติการใช้งาน Poe ไม่พร้อมใช้งาน";
 "Stored in ~/.codexbar/config.json. Get your key from poe.com/api/keys." = "เก็บไว้ใน ~/.codexbar/config.json รับรหัสของคุณจาก poe.com/api/keys";
 "Billing" = "การเรียกเก็บเงิน";
+"Invoice billing" = "การชำระเงินตามใบแจ้งหนี้";
+"Prepaid" = "ชำระเงินล่วงหน้า";
 "Rate limit" = "ขีดจำกัดอัตรา";
 "Billing and rate-limit data from the v0 Platform API" = "ข้อมูลการเรียกเก็บเงินและการจำกัดอัตราจากแพลตฟอร์ม v0 API";
 "v0 cost history is not available via the Platform API." = "ไม่มีประวัติต้นทุน v0 ผ่านทางแพลตฟอร์ม API";

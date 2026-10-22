@@ -39,6 +39,7 @@ the property of their owners. Colors are not sampled from screenshots or chosen 
 
 | Asset | Primary source | Local transformation |
 | --- | --- | --- |
+| Soniox (monochrome) | [Official Soniox homepage](https://soniox.com/) header wordmark | Kept the leading S path, unchanged, with a square padded viewBox and `currentColor` for adaptive template rendering. The website logo shares the same SVG bytes. |
 | Codex | [Official Codex app](https://openai.com/codex/), signed by OpenAI OpCo, LLC (`2DC432GLL2`), version `26.928.31416` / build `12553` | Unmodified transparent PNG from `Contents/Resources/app.asar`, `webview/assets/codex-app-ga-logo-3e5209898ca3.png`. Verified the extracted bytes against the archive's SHA-256 integrity record. Preserved the blue/purple gradient and white terminal mark; no cropping, tracing or recoloring. The shared desktop app identifies itself as `com.openai.codex`. |
 | Claude | [Anthropic brand guidelines](https://github.com/anthropics/skills/blob/8a1541c4a3ffa5a20a5a91de0dcf3f0bab1d1ef4/skills/brand-guidelines/SKILL.md) | Existing bundled silhouette, replacing white with the documented primary accent `#D97757`. This is a palette-backed variant, not an unmodified logo download. |
 | Antigravity | [Official homepage PNG](https://antigravity.google/assets/image/antigravity-logo.png) | Unmodified transparent PNG. Native SVG decoding flattens the homepage's blurred gradient, so use the official raster asset. |

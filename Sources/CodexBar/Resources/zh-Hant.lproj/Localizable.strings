@@ -2095,6 +2095,8 @@
 "Poe usage history is unavailable." = "Poe 使用歷史記錄不可用。";
 "Stored in ~/.codexbar/config.json. Get your key from poe.com/api/keys." = "儲存在~/.codexbar/config.json中。從 poe.com/api/keys 取得金鑰。";
 "Billing" = "計費";
+"Invoice billing" = "帳單付款";
+"Prepaid" = "預付";
 "Rate limit" = "速率限制";
 "Billing and rate-limit data from the v0 Platform API" = "來自 v0 平台 API 的計費和速率限制數據";
 "v0 cost history is not available via the Platform API." = "v0 成本歷史記錄無法透過平台 API 取得。";

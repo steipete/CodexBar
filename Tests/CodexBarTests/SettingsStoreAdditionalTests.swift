@@ -241,6 +241,7 @@ struct SettingsStoreAdditionalTests {
             .xkiro: [.automatic, .primary],
             .raycast: [.automatic, .primary],
             .museai: [.automatic, .primary],
+            .soniox: [.automatic, .primary],
             .coderabbit: [.automatic],
             .replicate: [.automatic],
             .lithosai: [.automatic],

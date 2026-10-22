@@ -63,6 +63,7 @@ public enum ProviderManifest {
         BifrostProviderDescriptor.descriptor,
         AixyProviderDescriptor.descriptor,
         DeepgramProviderDescriptor.descriptor,
+        SonioxProviderDescriptor.descriptor,
         PoeProviderDescriptor.descriptor,
         ChutesProviderDescriptor.descriptor,
         NeuralWattProviderDescriptor.descriptor,
