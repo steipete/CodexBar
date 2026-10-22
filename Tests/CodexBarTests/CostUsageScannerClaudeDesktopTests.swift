@@ -49,6 +49,99 @@ struct CostUsageScannerClaudeDesktopTests {
         }
     }
 
+    @Test(arguments: [nil, .regular, .spendDashboard] as [CostUsageReportContext?])
+    func `Cowork audit request_id matches the transcript copy of the same response`(
+        context: CostUsageReportContext?) throws
+    {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let day = try env.makeLocalNoon(year: 2026, month: 10, day: 16)
+        let files = try Self.writeCoworkAuditAndTranscript(env: env, day: day)
+        let roots = CostUsageScanner.defaultClaudeProjectsRoots(
+            options: .init(cacheRoot: env.cacheRoot), environment: [:], homeDirectory: env.root)
+        var options = CostUsageScanner.Options(claudeProjectsRoots: roots, cacheRoot: env.cacheRoot)
+        options.refreshMinIntervalSeconds = 0
+        func load() throws -> CostUsageDailyReport {
+            try CostUsageScanner.loadDailyReportCancellable(
+                provider: .claude,
+                since: day,
+                until: day,
+                now: day,
+                options: options,
+                reportContext: context,
+                checkCancellation: nil)
+        }
+        for _ in 0..<2 {
+            let report = try load()
+            #expect(report.data.first?.inputTokens == 100)
+            #expect(report.data.first?.cacheReadTokens == 2000)
+            #expect(report.data.first?.outputTokens == 150)
+        }
+
+        // Cowork appends the next response to both files.
+        let next = Self.coworkLines(
+            env: env,
+            day: day,
+            request: "req-2",
+            usage: (input: 30, cacheRead: 0),
+            outputs: (1, 40))
+        for (url, line) in [(files.audit, next.audit), (files.transcript, next.transcript)] {
+            let handle = try FileHandle(forWritingTo: url)
+            try handle.seekToEnd()
+            try handle.write(contentsOf: Data(env.jsonl([line]).utf8))
+            try handle.close()
+        }
+        let appended = try load()
+        #expect(appended.data.first?.inputTokens == 130)
+        #expect(appended.data.first?.cacheReadTokens == 2000)
+        #expect(appended.data.first?.outputTokens == 190)
+    }
+
+    static func writeCoworkAuditAndTranscript(
+        env: CostUsageTestEnvironment,
+        day: Date) throws -> (audit: URL, transcript: URL)
+    {
+        let lines = Self.coworkLines(
+            env: env,
+            day: day,
+            request: "req-1",
+            usage: (input: 100, cacheRead: 2000),
+            outputs: (2, 150))
+        return try (
+            env.writeClaudeDesktopLocalAgentFile(relativePath: "audit.jsonl", contents: env.jsonl([lines.audit])),
+            env.writeClaudeDesktopLocalAgentProjectFile(
+                relativePath: "project/session.jsonl",
+                contents: env.jsonl([lines.transcript])))
+    }
+
+    /// The audit copy carries the early-stream output and snake_case IDs; the transcript copy has the final output.
+    static func coworkLines(
+        env: CostUsageTestEnvironment,
+        day: Date,
+        request: String,
+        usage: (input: Int, cacheRead: Int),
+        outputs: (audit: Int, transcript: Int)) -> (audit: [String: Any], transcript: [String: Any])
+    {
+        func line(ids: [String: String], output: Int) -> [String: Any] {
+            var line: [String: Any] = [
+                "type": "assistant", "timestamp": env.isoString(for: day),
+                "message": [
+                    "id": "cowork-\(request)", "model": "claude-sonnet-4-20250514",
+                    "usage": [
+                        "input_tokens": usage.input,
+                        "cache_read_input_tokens": usage.cacheRead,
+                        "output_tokens": output,
+                    ],
+                ],
+            ]
+            line.merge(ids) { $1 }
+            return line
+        }
+        return (
+            line(ids: ["session_id": "cowork", "request_id": request], output: outputs.audit),
+            line(ids: ["sessionId": "cowork", "requestId": request], output: outputs.transcript))
+    }
+
     @Test
     func `claude daily report includes nested desktop local agent projects`() throws {
         let env = try CostUsageTestEnvironment()

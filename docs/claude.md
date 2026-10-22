@@ -627,7 +627,7 @@ Model-scoped weekly-window proof (synthetic data, no real accounts or credential
   - Claude/Vertex filtering checks raw lines for possible metadata markers before walking decoded metadata. IDs and model names are checked in their decoded fields, so `@` and `_vrtx_` in tool content do not trigger that walk. Vertex-only scans skip decoding lines without any possible marker; escaped markers retain the full classifier and existing attribution rules.
   - Uses per-model token counts (input, cache read/create, output).
   - Oversized local token or cost values cannot crash history scanning. An overflowing token total stays unavailable while independent counts and finite dollar estimates remain visible; raw rows are retained for later repricing.
-  - Deduplicates cumulative streaming chunks by `message.id + requestId`. When `requestId` is absent,
+  - Deduplicates cumulative streaming chunks by `message.id + requestId` (or Cowork's `request_id`). When neither is present,
     exact, nonblank `sessionId + message.id` (or Cowork's `session_id`) identifies repeated response snapshots. Distinct explicit request
     IDs and distinct fallback sessions remain separate. Rows without sufficient identity are counted individually.
     Within a file, the final complete cumulative chunk wins, including later appends. Copied records retain the
@@ -652,6 +652,7 @@ Model-scoped weekly-window proof (synthetic data, no real accounts or credential
   - App memos record whether every file's rows were selected for their scan window. Older or externally replaced caches without that proof rebuild once, even if their stored bounds already match; app window changes also rebuild to preserve cold-scan duplicate selection. The regular cache filename and row schema remain compatible, and standalone CLI range behavior is unchanged.
   - The Claude/Vertex cache artifact retains source file identities independently of the shared Codex parser fingerprint. Replacing a transcript rebuilds its rows rather than merging an old prefix into a new suffix; genuine appends still use the saved parse offset. Older entries without identity are rebuilt once before reuse, including during the normal refresh debounce.
   - Older Claude/Vertex native caches and report memos are rebuilt once from unchanged transcripts to apply the corrected response deduplication. Corrected reports remain eligible for memo reuse across launches.
+  - Schema 5 rebuilds once so Cowork audit rows recorded before `request_id` was read share the transcript copy's response key.
   - pi-compatible session cache: `~/Library/Caches/CodexBar/cost-usage/pi-sessions-v9.json`. Version 8 rebuilds once from transcripts to establish source scope and completeness. Enabling the standalone [Pi provider](pi.md) keeps Claude history native-only in combined views.
 
 ## Key files

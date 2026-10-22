@@ -103,7 +103,7 @@ final class CostUsageClaudeReportMemo: @unchecked Sendable {
     #endif
     static let persistedVersion = 1
     /// Bump when bundled pricing, model aliases, or daily-report aggregation changes without new artifact stamps.
-    static let reportSemanticsVersion = 8
+    static let reportSemanticsVersion = 9
 
     private struct PersistedEnvelope: Codable {
         var version: Int
@@ -410,7 +410,7 @@ extension CostUsageScanner.ClaudeUsageRow {
 /// through this JSON I/O boundary; its only persistence authority is `CostUsageStore`.
 enum CostUsageClaudeCacheIO {
     /// Compact row keys; older artifacts rebuild from their source transcripts.
-    private static let schemaVersion = 4
+    private static let schemaVersion = 5
 
     #if DEBUG
     @TaskLocal static var readForTesting: (@Sendable (URL, Data.ReadingOptions) -> Data?)?
