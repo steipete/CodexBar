@@ -2701,3 +2701,9 @@
 "No personal budget configured" = "Chưa thiết lập ngân sách cá nhân";
 
 "monthly_daily_target_format" = "≈ %@ / ngày để đủ dùng đến khi đặt lại";
+
+/* Trae CN provider credentials */
+"Cookie" = "Cookie";
+"Open Trae CN Dashboard" = "Mở bảng điều khiển Trae CN";
+"Paste a Cookie header from %@ (DevTools → Network → any api.trae.cn request)." = "Dán tiêu đề Cookie từ %@ (DevTools → Network → bất kỳ yêu cầu api.trae.cn nào).";
+"Trae CN plan credits usage." = "Mức sử dụng tín dụng gói Trae CN.";

@@ -2702,3 +2702,9 @@
 "No personal budget configured" = "Belum ada anggaran pribadi yang dikonfigurasi";
 
 "monthly_daily_target_format" = "≈ %@ / hari agar cukup hingga reset";
+
+/* Trae CN provider credentials */
+"Cookie" = "Cookie";
+"Open Trae CN Dashboard" = "Buka Dasbor Trae CN";
+"Paste a Cookie header from %@ (DevTools → Network → any api.trae.cn request)." = "Tempel header Cookie dari %@ (DevTools → Network → permintaan api.trae.cn apa pun).";
+"Trae CN plan credits usage." = "Penggunaan kredit paket Trae CN.";

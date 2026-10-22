@@ -2704,3 +2704,9 @@
 "No personal budget configured" = "لم يتم إعداد ميزانية شخصية";
 
 "monthly_daily_target_format" = "≈ %@ يوميًا ليكفي حتى إعادة التعيين";
+
+/* Trae CN provider credentials */
+"Cookie" = "Cookie";
+"Open Trae CN Dashboard" = "فتح لوحة تحكم Trae CN";
+"Paste a Cookie header from %@ (DevTools → Network → any api.trae.cn request)." = "الصق ترويسة Cookie من %@ (DevTools → Network → أي طلب api.trae.cn).";
+"Trae CN plan credits usage." = "استخدام أرصدة باقة Trae CN.";

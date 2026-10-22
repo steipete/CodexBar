@@ -2700,3 +2700,9 @@
 "No personal budget configured" = "Nenhum orçamento pessoal configurado";
 
 "monthly_daily_target_format" = "≈ %@ / dia para durar até a renovação";
+
+/* Trae CN provider credentials */
+"Cookie" = "Cookie";
+"Open Trae CN Dashboard" = "Abrir o painel do Trae CN";
+"Paste a Cookie header from %@ (DevTools → Network → any api.trae.cn request)." = "Cole um cabeçalho Cookie de %@ (DevTools → Network → qualquer requisição api.trae.cn).";
+"Trae CN plan credits usage." = "Uso de créditos do plano Trae CN.";

@@ -132,4 +132,81 @@ struct TraeCNProviderTests {
         #expect(usage.identity?.loginMethod == "会员 Pro+ 连续包月")
         #expect(usage.detailRow(label: "Remaining") != nil)
     }
+
+    // MARK: Cookie consent
+
+    @Test
+    func strategyUnavailableWhenCookieSourceOff() async {
+        let context = Self.context(cookieSource: .off, header: "session=abc")
+        #expect(await TraeCNWebFetchStrategy().isAvailable(context) == false)
+    }
+
+    @Test
+    func strategyUnavailableWhenCookieSourceAuto() async {
+        // Trae CN has no browser import; a retained header must not leak into auto mode.
+        let context = Self.context(cookieSource: .auto, header: "session=abc")
+        #expect(await TraeCNWebFetchStrategy().isAvailable(context) == false)
+    }
+
+    @Test
+    func strategyAvailableWhenManualWithHeader() async {
+        let context = Self.context(cookieSource: .manual, header: "session=abc")
+        #expect(await TraeCNWebFetchStrategy().isAvailable(context))
+    }
+
+    @Test
+    func strategyUnavailableWhenManualWithoutHeader() async {
+        let context = Self.context(cookieSource: .manual, header: nil)
+        #expect(await TraeCNWebFetchStrategy().isAvailable(context) == false)
+    }
+
+    @Test
+    func fetchThrowsMissingCookieWhenDisabledWithoutNetwork() async {
+        // Behavior proof: with cookies off, fetch fails before any network I/O can start.
+        let context = Self.context(cookieSource: .off, header: "session=abc")
+        await #expect(throws: TraeCNSettingsError.self) {
+            try await TraeCNWebFetchStrategy().fetch(context)
+        }
+    }
+
+    @Test
+    func browserSupportExemptionRequiresManualSourceWithHeader() {
+        let cli = TraeCNProviderDescriptor.descriptor.cli
+        let manual = Self.settings(cookieSource: .manual, header: "session=abc")
+        let off = Self.settings(cookieSource: .off, header: "session=abc")
+        let empty = Self.settings(cookieSource: .manual, header: nil)
+        #expect(cli.isBrowserSupportExempt(sourceMode: .web, environment: nil, settings: manual))
+        #expect(cli.isBrowserSupportExempt(sourceMode: .auto, environment: nil, settings: manual))
+        #expect(cli.isBrowserSupportExempt(sourceMode: .web, environment: nil, settings: off) == false)
+        #expect(cli.isBrowserSupportExempt(sourceMode: .web, environment: nil, settings: empty) == false)
+        #expect(cli.isBrowserSupportExempt(sourceMode: .web, environment: nil, settings: nil) == false)
+    }
+
+    private static func settings(
+        cookieSource: ProviderCookieSource,
+        header: String?) -> ProviderSettingsSnapshot
+    {
+        ProviderSettingsSnapshot.make(traecn: TraeCNProviderSettings(
+            cookieSource: cookieSource,
+            manualCookieHeader: header))
+    }
+
+    private static func context(
+        cookieSource: ProviderCookieSource,
+        header: String?) -> ProviderFetchContext
+    {
+        let browserDetection = BrowserDetection(cacheTTL: 0)
+        return ProviderFetchContext(
+            runtime: .app,
+            sourceMode: .auto,
+            includeCredits: false,
+            webTimeout: 1,
+            webDebugDumpHTML: false,
+            verbose: false,
+            env: [:],
+            settings: Self.settings(cookieSource: cookieSource, header: header),
+            fetcher: UsageFetcher(environment: [:]),
+            claudeFetcher: ClaudeUsageFetcher(browserDetection: browserDetection),
+            browserDetection: browserDetection)
+    }
 }

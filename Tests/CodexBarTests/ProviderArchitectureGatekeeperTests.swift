@@ -156,7 +156,7 @@ struct ProviderArchitectureGatekeeperTests {
             Self.hash(descriptor.branding.burnDownWidgetColor, into: &burnDownFingerprint)
         }
 
-        // Pi uses its official blue accent; the burn-down palette is unchanged.
+        // Pi, Future AGI, Munito, and Trae CN extend the palette without changing existing provider colors.
         #expect(widgetFingerprint == 4_251_215_947_296_770_734)
         #expect(burnDownFingerprint == 3_084_140_234_155_981_949)
     }
@@ -170,8 +170,8 @@ struct ProviderArchitectureGatekeeperTests {
             try Self.hash(#require(descriptor.metadata.debugLogUnavailableMessage?.utf8), into: &fingerprint)
         }
 
-        #expect(descriptors.count == 40)
-        #expect(fingerprint == 7_407_379_265_387_303_386)
+        #expect(descriptors.count == 41)
+        #expect(fingerprint == 16_220_649_441_669_097_270)
     }
 
     @Test
@@ -203,7 +203,7 @@ struct ProviderArchitectureGatekeeperTests {
         #expect(Set(descriptors.filter(\.metadata.usesDetailBackedWindow).map(\.id)) == [
             .perplexity,
             .warp, .kilo, .mistral, .deepseek, .deepinfra, .qoder, .chutes, .longcat, .litellm, .bifrost, .manus,
-            .mimo, .neuralwatt, .abacus, .v0, .llmman, .aixy, .raycast, .workbuddy, .claudeplatform,
+            .mimo, .neuralwatt, .abacus, .v0, .llmman, .aixy, .raycast, .workbuddy, .claudeplatform, .traecn,
         ])
         #if os(macOS)
         // Antigravity and Muse use bounded local usage readers.

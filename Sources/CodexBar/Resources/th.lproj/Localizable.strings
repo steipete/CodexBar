@@ -2702,3 +2702,9 @@
 "No personal budget configured" = "ยังไม่ได้กำหนดงบประมาณส่วนตัว";
 
 "monthly_daily_target_format" = "≈ %@ / วัน เพื่อให้ใช้ได้จนถึงการรีเซ็ต";
+
+/* Trae CN provider credentials */
+"Cookie" = "Cookie";
+"Open Trae CN Dashboard" = "เปิดแดชบอร์ด Trae CN";
+"Paste a Cookie header from %@ (DevTools → Network → any api.trae.cn request)." = "วางส่วนหัว Cookie จาก %@ (DevTools → Network → คำขอ api.trae.cn ใดก็ได้)";
+"Trae CN plan credits usage." = "การใช้งานเครดิตแพ็กเกจ Trae CN";

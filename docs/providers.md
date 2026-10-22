@@ -8,7 +8,7 @@ read_when:
 
 # Providers
 
-CodexBar currently registers 106 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
+CodexBar currently registers 107 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
 OpenCode vs OpenCode Go, because the auth source and quota shape differ.
 
 ## Fetch strategies (current)
@@ -185,6 +185,7 @@ complete when the available scan window covers fewer days.
 | [Parallel](parallel.md) | Browser session on platform.parallel.ai for the prepaid credit balance and pending debit. |
 | [Claude Platform](claudeplatform.md) | Browser or manual platform.claude.com session cookies for Console API credit balance, expiring credit grants, and month-to-date spend. |
 | [Munito](munito.md) | Admin API key with Read account data permission for today's and this month's spend against the organization's spend limits. |
+| [Trae CN](traecn.md) | Manual cookie paste from trae.cn for the plan credit total/usage and the monthly reset countdown. |
 
 <!-- End generated provider additions -->
 
@@ -522,7 +523,7 @@ provider-specific cookie validation, endpoints, login detection, and error trans
 - Manual `Cookie:` header from `www.trae.cn` (DevTools → Network → any `api.trae.cn` request); no automatic
   browser import.
 - Reads the plan entitlement endpoint for total/used credits and the monthly reset date.
-- Optional testing override via `TRAECN_API_URL`; overrides must be HTTPS or bare hosts normalized to HTTPS.
+- The cookie is only ever sent to the fixed `api.trae.cn` origin; there is no endpoint override.
 - Status: none yet.
 - Details: `docs/traecn.md`.
 

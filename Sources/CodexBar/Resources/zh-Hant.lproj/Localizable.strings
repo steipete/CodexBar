@@ -2678,3 +2678,9 @@
 "No personal budget configured" = "尚未設定個人預算";
 
 "monthly_daily_target_format" = "每天約 %@，可用至重置";
+
+/* Trae CN provider credentials */
+"Cookie" = "Cookie";
+"Open Trae CN Dashboard" = "打開 Trae CN 控制台";
+"Paste a Cookie header from %@ (DevTools → Network → any api.trae.cn request)." = "從 %@ 貼上 Cookie 標頭(DevTools → Network → 任一 api.trae.cn 請求)。";
+"Trae CN plan credits usage." = "Trae CN 方案積分用量。";

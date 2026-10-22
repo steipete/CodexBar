@@ -49,7 +49,7 @@ for (const entry of entries) {
   const descriptor = descriptors.find((source) => source.includes(`id: .${entry.id},`));
   entry.color = descriptor?.match(/color: (?:ProviderColor|\.init)\(hex: 0x([A-Fa-f0-9]{6})\)/u)?.[1];
   assert(entry.color, `Missing hex branding for ${entry.id}`);
-  entry.auth = descriptor.includes("webSource:") ? "cookies" : "apiKey";
+  entry.auth = descriptor.includes("webSource:") || descriptor.includes("cookieSettings:") ? "cookies" : "apiKey";
   update(`docs/logos/${entry.id}.svg`, () => read(`Sources/CodexBar/Resources/ProviderIcon-${entry.id}.svg`));
 }
 const html = (value) => value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll('"', "&quot;");

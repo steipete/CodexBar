@@ -2668,3 +2668,9 @@
 "No personal budget configured" = "개인 예산이 설정되지 않았습니다";
 
 "monthly_daily_target_format" = "재설정까지 사용할 수 있는 하루 목표: 약 %@";
+
+/* Trae CN provider credentials */
+"Cookie" = "Cookie";
+"Open Trae CN Dashboard" = "Trae CN 대시보드 열기";
+"Paste a Cookie header from %@ (DevTools → Network → any api.trae.cn request)." = "%@에서 Cookie 헤더를 붙여넣으세요(DevTools → Network → 아무 api.trae.cn 요청).";
+"Trae CN plan credits usage." = "Trae CN 플랜 크레딧 사용량.";

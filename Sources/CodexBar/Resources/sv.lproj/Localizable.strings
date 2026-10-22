@@ -2699,3 +2699,9 @@
 "No personal budget configured" = "Ingen personlig budget har konfigurerats";
 
 "monthly_daily_target_format" = "≈ %@ / dag för att räcka till återställningen";
+
+/* Trae CN provider credentials */
+"Cookie" = "Cookie";
+"Open Trae CN Dashboard" = "Öppna Trae CN-instrumentpanelen";
+"Paste a Cookie header from %@ (DevTools → Network → any api.trae.cn request)." = "Klistra in en Cookie-rubrik från %@ (DevTools → Network → valfri api.trae.cn-begäran).";
+"Trae CN plan credits usage." = "Användning av Trae CN-planens krediter.";

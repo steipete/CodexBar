@@ -21,7 +21,7 @@ public enum TraeCNProviderDescriptor {
                 cliName: "traecn",
                 defaultEnabled: false,
                 widgetSelectable: false,
-                burnDownWidgetSelectable: false,
+                burnDownWidgetSelectable: true,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
                 debugLogUnavailableMessage: "Trae CN debug log not yet implemented",
@@ -32,7 +32,7 @@ public enum TraeCNProviderDescriptor {
             branding: ProviderBranding(
                 iconStyle: .init(provider: .traecn),
                 iconResourceName: "ProviderIcon-traecn",
-                color: ProviderColor(red: 77 / 255, green: 124 / 255, blue: 254 / 255),
+                color: ProviderColor(hex: 0x4D7CFE),
                 confettiPalette: [
                     ProviderColor(hex: 0x1F2937),
                     ProviderColor(hex: 0x6B7280),
@@ -64,7 +64,12 @@ public enum TraeCNProviderDescriptor {
                 name: "traecn",
                 aliases: ["trae-cn"],
                 versionDetector: nil,
-                browserSupportExemption: { _, _, _ in false }))
+                browserSupportExemption: { _, _, settings in
+                    // Manual cookie paste needs no browser; honor it (CLI/Linux) only while
+                    // the cookie source stays enabled and a usable header is configured.
+                    guard settings?.traecn?.cookieSource == .manual else { return false }
+                    return TraeCNCookieHeader.normalizedHeader(from: settings?.traecn?.manualCookieHeader) != nil
+                }))
     }
 }
 
@@ -80,14 +85,15 @@ struct TraeCNWebFetchStrategy: ProviderFetchStrategy {
         guard let manualCookie = Self.resolveManualCookieHeader(context: context) else {
             throw TraeCNSettingsError.missingCookie()
         }
-        let snapshot = try await TraeCNUsageFetcher.fetchUsage(
-            cookieHeader: manualCookie,
-            environment: context.env)
+        let snapshot = try await TraeCNUsageFetcher.fetchUsage(cookieHeader: manualCookie)
         return self.makeResult(usage: snapshot.toUsageSnapshot(), sourceLabel: "web")
     }
 
     private static func resolveManualCookieHeader(context: ProviderFetchContext) -> String? {
-        TraeCNCookieHeader.normalizedHeader(from: context.settings?.traecn?.manualCookieHeader)
+        // Consent gate: only an explicitly manual cookie source may resolve credentials;
+        // a retained header must not be used once cookies are switched off (or set to auto).
+        guard let settings = context.settings?.traecn, settings.cookieSource == .manual else { return nil }
+        return TraeCNCookieHeader.normalizedHeader(from: settings.manualCookieHeader)
     }
 
     func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {

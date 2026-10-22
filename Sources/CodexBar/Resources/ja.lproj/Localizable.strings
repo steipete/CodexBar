@@ -2700,3 +2700,9 @@
 "No personal budget configured" = "個人予算が設定されていません";
 
 "monthly_daily_target_format" = "リセットまで持たせる目安：1日あたり約 %@";
+
+/* Trae CN provider credentials */
+"Cookie" = "Cookie";
+"Open Trae CN Dashboard" = "Trae CN ダッシュボードを開く";
+"Paste a Cookie header from %@ (DevTools → Network → any api.trae.cn request)." = "%@ から Cookie ヘッダーを貼り付けます(DevTools → Network → 任意の api.trae.cn リクエスト)。";
+"Trae CN plan credits usage." = "Trae CN プランのクレジット使用状況。";

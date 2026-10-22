@@ -6,7 +6,6 @@ import FoundationNetworking
 public enum TraeCNSettingsError: LocalizedError, Sendable, Equatable {
     case missingCookie(details: String? = nil)
     case invalidCookie
-    case invalidEndpointOverride(String)
 
     public var errorDescription: String? {
         switch self {
@@ -19,8 +18,6 @@ public enum TraeCNSettingsError: LocalizedError, Sendable, Equatable {
                 .joined(separator: " ")
         case .invalidCookie:
             "Trae CN requires a valid Cookie header copied from trae.cn."
-        case let .invalidEndpointOverride(key):
-            "Trae CN endpoint override \(key) must use HTTPS or a bare host."
         }
     }
 }
@@ -45,34 +42,12 @@ public enum TraeCNUsageError: LocalizedError, Sendable {
     }
 }
 
-public enum TraeCNSettingsReader {
-    public static let apiURLKey = "TRAECN_API_URL"
-
-    public static func apiURL(environment: [String: String] = ProcessInfo.processInfo.environment) -> URL {
-        if let override = self.cleaned(environment[self.apiURLKey]),
-           let url = ProviderEndpointOverrideValidator.normalizedHTTPSURL(from: override)
-        {
-            return url
-        }
-        return URL(string: "https://api.trae.cn")!
-    }
-
-    public static func validateEndpointOverrides(
-        environment: [String: String] = ProcessInfo.processInfo.environment) throws
-    {
-        guard let override = self.cleaned(environment[self.apiURLKey]),
-              ProviderEndpointOverrideValidator.normalizedHTTPSURL(from: override) == nil else { return }
-        throw TraeCNSettingsError.invalidEndpointOverride(self.apiURLKey)
-    }
-
-    private static func cleaned(_ raw: String?) -> String? {
-        guard let value = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else { return nil }
-        return value
-    }
-}
-
 public enum TraeCNUsageFetcher {
     private static let requestTimeout: TimeInterval = 15
+
+    /// Session cookies are only ever sent to the fixed Trae CN API origin; there is no
+    /// endpoint override, so a pasted cookie can never be exfiltrated to another host.
+    private static let baseURL = URL(string: "https://api.trae.cn")!
 
     private static let userAgent =
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) " +
@@ -80,15 +55,13 @@ public enum TraeCNUsageFetcher {
 
     public static func fetchUsage(
         cookieHeader: String,
-        environment: [String: String] = ProcessInfo.processInfo.environment,
         now: Date = Date(),
         session transport: any ProviderHTTPTransport = ProviderHTTPClient.shared) async throws -> TraeCNUsageSnapshot
     {
         guard let normalizedCookie = TraeCNCookieHeader.normalizedHeader(from: cookieHeader) else {
             throw TraeCNSettingsError.invalidCookie
         }
-        try TraeCNSettingsReader.validateEndpointOverrides(environment: environment)
-        let baseURL = TraeCNSettingsReader.apiURL(environment: environment)
+        let baseURL = Self.baseURL
 
         // Session cookies are long-lived, but the entitlement API requires a short-lived
         // (~8h) Cloud-IDE-JWT exchanged via GetUserToken. Cache it until expiry.

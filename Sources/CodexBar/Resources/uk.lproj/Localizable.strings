@@ -2701,3 +2701,9 @@
 "No personal budget configured" = "Особистий бюджет не налаштовано";
 
 "monthly_daily_target_format" = "≈ %@ на день, щоб вистачило до скидання";
+
+/* Trae CN provider credentials */
+"Cookie" = "Cookie";
+"Open Trae CN Dashboard" = "Відкрити панель Trae CN";
+"Paste a Cookie header from %@ (DevTools → Network → any api.trae.cn request)." = "Вставте заголовок Cookie з %@ (DevTools → Network → будь-який запит api.trae.cn).";
+"Trae CN plan credits usage." = "Використання кредитів тарифу Trae CN.";
