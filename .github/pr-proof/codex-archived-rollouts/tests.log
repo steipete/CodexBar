@@ -1,0 +1,32 @@
+# swift test --filter CodexArchivedRolloutMirrorTests
+# Xcode 27.0 (Swift 6.4), macOS 26.6 arm64
+◇ Suite CodexArchivedRolloutMirrorTests started.
+✔ Test "forks in the window decode their archived parent from before the window" passed after 0.062 seconds.
+✔ Test "a fork resolves a parent archived after its plain rollout was cached" passed after 0.056 seconds.
+✔ Test "decoded transcripts and their folders are private to the owner" passed after 0.037 seconds.
+✔ Test "mirrors and slices left readable by an earlier build are made private" passed after 0.037 seconds.
+✔ Test "decodes a compressed zstd archive with checksum" passed after 0.001 seconds.
+✔ Test "decodes multi block frames and rejects truncated archives" passed after 0.022 seconds.
+✔ Test "archived rollouts keep counting after codex removes the plain jsonl" passed after 0.023 seconds.
+✔ Test "rollouts without archives leave the root set unchanged" passed after 0.001 seconds.
+✔ Test "budget decodes archives in resumable slices across refreshes" passed after 0.036 seconds.
+✔ Test "decoding pauses when the refresh deadline passes and resumes" passed after 0.135 seconds.
+✔ Test "an underestimated content size still decodes in budget sized slices" passed after 0.053 seconds.
+✔ Test "an exhausted estimate under an uncapped timed budget does not overflow" passed after 0.022 seconds.
+✔ Test "a slice locked by another process is deferred" passed after 0.022 seconds.
+✔ Test "parked decoders are capped" passed after 0.108 seconds.
+✔ Test "the scanner counts a large archive once after slicing it across refreshes" with 2 test cases passed after 1.343 seconds.
+✔ Test "paused slices resume from disk with or without the in memory decoder" with 2 test cases passed after 0.099 seconds.
+✔ Test "a changed archive restarts its slice" passed after 0.066 seconds.
+✔ Test "a slice longer than its archive restarts in the same refresh" passed after 0.015 seconds.
+✔ Test "an unavailable slice is retried next refresh without recording a failure" passed after 0.009 seconds.
+✔ Test "a small archive near the end of the budget is not counted as partial" passed after 0.002 seconds.
+✔ Test "cancellation keeps the slice and a later refresh finishes it" passed after 0.042 seconds.
+✔ Test "failed archives keep catch up pending until they decode" passed after 0.028 seconds.
+✔ Test "failed archives back off until the retry interval passes" passed after 0.004 seconds.
+✔ Test "a replay paused by the deadline continues after a relaunch" passed after 0.067 seconds.
+✔ Test "an admitted archive decodes a step even when its deadline has passed" passed after 0.041 seconds.
+✔ Test "archives keep decoding when listing them uses up every refresh deadline" passed after 0.073 seconds.
+✔ Test "cancellation interrupts the archive walks" passed after 0.055 seconds.
+✔ Suite CodexArchivedRolloutMirrorTests passed after 2.476 seconds.
+✔ Test run with 27 tests in 1 suite passed after 2.476 seconds.

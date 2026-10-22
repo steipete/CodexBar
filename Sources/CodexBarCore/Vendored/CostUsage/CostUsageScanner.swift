@@ -2160,6 +2160,11 @@ enum CostUsageScanner {
         // Provider-specific by design: Codex JSONL and Claude/Vertex transcripts have distinct parsers and caches.
         switch provider {
         case .codex:
+            // A mirror root has to exist before roots are fingerprinted for its archives to be scanned this refresh.
+            try CodexArchivedRolloutMirror.ensureMirrorRoots(
+                sourceRoots: self.codexSourceSessionsRoots(options: options),
+                cacheRoot: options.cacheRoot,
+                checkCancellation: checkCancellation)
             return try self.loadCodexDaily(
                 range: range,
                 now: now,
@@ -2245,11 +2250,39 @@ enum CostUsageScanner {
     }
 
     static func codexSessionsRoots(options: Options) -> [URL] {
+        let sourceRoots = self.codexSourceSessionsRoots(options: options)
+        return sourceRoots + CodexArchivedRolloutMirror.existingMirrorRoots(
+            for: sourceRoots,
+            cacheRoot: options.cacheRoot)
+    }
+
+    /// Codex-owned roots only. `codexSessionsRoots` adds CodexBar's decoded mirror of `*.jsonl.zst` archives.
+    private static func codexSourceSessionsRoots(options: Options) -> [URL] {
         let root = self.defaultCodexSessionsRoot(options: options)
         if let archived = self.codexArchivedSessionsRoot(sessionsRoot: root) {
             return [root, archived]
         }
         return [root]
+    }
+
+    /// Parent session ids of forks whose baseline is still missing. Archived parents are decoded on demand,
+    /// outside the report window, so these forks can settle like forks with older plain parents.
+    static func codexMissingForkParentIds(cache: CostUsageCache) -> Set<String> {
+        let candidates = Set(cache.files.values.compactMap { usage -> String? in
+            guard let parentId = usage.forkedFromId?.lowercased(), self.isUnresolvedMissingParentFork(usage)
+            else { return nil }
+            return parentId
+        })
+        guard !candidates.isEmpty else { return [] }
+        // Like the session index, a cached row only provides a parent while its file exists; Codex may have
+        // archived the plain file after it was cached.
+        let available = Set(cache.files.compactMap { path, usage -> String? in
+            guard let sessionId = usage.sessionId?.lowercased(), candidates.contains(sessionId),
+                  FileManager.default.fileExists(atPath: path)
+            else { return nil }
+            return sessionId
+        })
+        return candidates.subtracting(available)
     }
 
     private static func codexArchivedSessionsRoot(sessionsRoot: URL) -> URL? {
@@ -6083,6 +6116,23 @@ enum CostUsageScanner {
                 maxBytesPerRefresh: options.maxCodexScanBytesPerRefresh,
                 maxDuration: options.maxCodexScanDurationPerRefresh)
             defer { options.codexScanDidYieldBeforeFileAttempt?(scanBudget.yieldedBeforeFileAttempt) }
+            // Archived rollouts are listed only when a refresh runs, and share its budget and cancellation
+            // before files are listed. A mirror root created here (normally by ensureMirrorRoots) joins next time.
+            let archivedRollouts = try CodexArchivedRolloutMirror.prepare(
+                sourceRoots: Self.codexSourceSessionsRoots(options: options),
+                cacheRoot: options.cacheRoot,
+                checkCancellation: checkCancellation)
+            let archiveSync = archivedRollouts.isEmpty ? CodexArchivedRolloutMirror.SyncResult() :
+                try CodexArchivedRolloutMirror.materialize(
+                    archivedRollouts,
+                    modifiedSince: Self.parseDayKey(scanRange.scanSinceKey, calendar: scanRange.calendar),
+                    requiredSessionIds: Self.codexMissingForkParentIds(cache: cache),
+                    budget: scanBudget,
+                    checkCancellation: checkCancellation)
+            let scannedRootPaths = Set(plan.roots.map(\.standardizedFileURL.path))
+            let mirrorsAwaitingRoot = archivedRollouts.roots.contains { root in
+                !root.archives.isEmpty && !scannedRootPaths.contains(root.mirrorRoot.standardizedFileURL.path)
+            }
             var activeLookbackState = Self.codexActiveLookbackState(
                 cache: cache,
                 roots: plan.roots,
@@ -6492,11 +6542,20 @@ enum CostUsageScanner {
             cache.codexScanProcessedBytes = scanProgress.processedBytes
             cache.codexScanTotalBytes = scanProgress.totalBytes
             cache.codexScanCompletedFiles = scanProgress.completedFiles
-            cache.codexScanTotalFiles = scanProgress.totalFiles
+            // Deferred or failed archives, and archived parents still needed by forks, are files this scan has
+            // not counted yet. Including them in the total keeps catch-up pending through completion reconciliation.
+            let pendingArchiveFiles = archivedRollouts.isEmpty ? 0 :
+                archiveSync.failed + archiveSync.deferred
+                + (mirrorsAwaitingRoot ? archiveSync.materialized : 0)
+                + archivedRollouts.unmirroredArchiveCount(
+                    forSessionIds: Self.codexMissingForkParentIds(cache: cache),
+                    excluding: archiveSync)
+            cache.codexScanTotalFiles = scanProgress.totalFiles + pendingArchiveFiles
             cache.codexSessionDiscovery = fileIndex.persistedState
             let catchUpPending = !canValidateExactInventory
                 || scanProgress.completedFiles < scanProgress.totalFiles
                 || cache.files.values.contains(where: \.hasPendingCodexScanWork)
+                || pendingArchiveFiles > 0
             cache.codexScanCatchUpPending = catchUpPending
             cache.codexPreviousReport = catchUpPending ? previousReport : nil
             if plan.inspectedPriorityTurns {

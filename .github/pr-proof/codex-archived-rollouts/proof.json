@@ -1,0 +1,155 @@
+{
+  "fixture": [
+    {
+      "case": "plain rollout",
+      "daysAgo": 3,
+      "form": "plain",
+      "root": "sessions"
+    },
+    {
+      "case": "archive only (sessions)",
+      "daysAgo": 8,
+      "form": "archive",
+      "root": "sessions"
+    },
+    {
+      "case": "archive only (archived_sessions)",
+      "daysAgo": 9,
+      "form": "archive",
+      "root": "archived_sessions"
+    },
+    {
+      "case": "plain and archive both present",
+      "daysAgo": 12,
+      "form": "both",
+      "root": "sessions"
+    },
+    {
+      "case": "fork parent, archived 60 days ago",
+      "daysAgo": 60,
+      "form": "archive",
+      "root": "sessions"
+    },
+    {
+      "case": "fork child in window",
+      "daysAgo": 14,
+      "form": "plain",
+      "root": "sessions"
+    },
+    {
+      "case": "corrupt archive",
+      "daysAgo": 16,
+      "form": "corrupt",
+      "root": "sessions"
+    }
+  ],
+  "head mirror permissions (fixture run)": {
+    "entries": 14,
+    "entriesAccessibleToOtherUsers": 0,
+    "modesByKind": {
+      "decoded transcript": [
+        "0o600"
+      ],
+      "directory": [
+        "0o700"
+      ],
+      "failure ledger": [
+        "0o600"
+      ]
+    },
+    "umask": "0o22"
+  },
+  "scenarios": {
+    "base 0.75.0, every archive decompressed in place (reference)": {
+      "daily": {
+        "2026-10-01": 20,
+        "2026-10-03": 330,
+        "2026-10-06": 330,
+        "2026-10-07": 330,
+        "2026-10-12": 330
+      },
+      "days": 5,
+      "historyCoverageIsEstablished": true,
+      "totalTokens": 1340
+    },
+    "base 0.75.0, fixture": {
+      "daily": {
+        "2026-10-01": null,
+        "2026-10-03": 330,
+        "2026-10-12": 330
+      },
+      "days": 3,
+      "historyCoverageIsEstablished": false,
+      "totalTokens": 660
+    },
+    "head, fixture": {
+      "daily": {
+        "2026-10-01": 20,
+        "2026-10-03": 330,
+        "2026-10-06": 330,
+        "2026-10-07": 330,
+        "2026-10-12": 330
+      },
+      "days": 5,
+      "historyCoverageIsEstablished": false,
+      "totalTokens": 1340
+    },
+    "head, fixture without the corrupt archive": {
+      "daily": {
+        "2026-10-01": 20,
+        "2026-10-03": 330,
+        "2026-10-06": 330,
+        "2026-10-07": 330,
+        "2026-10-12": 330
+      },
+      "days": 5,
+      "historyCoverageIsEstablished": true,
+      "totalTokens": 1340
+    }
+  },
+  "upgrade from 0.75.0 cache": {
+    "parserHashAfter": "35071827332bd552",
+    "parserHashBefore": "3f88178bf03ad704",
+    "plainRowsRetainedUnchanged": {
+      "rollout-2026-10-01T12-00-00-0199f0a0-0000-7000-8000-000000000006.jsonl": true,
+      "rollout-2026-10-03T12-00-00-0199f0a0-0000-7000-8000-000000000004.jsonl": true,
+      "rollout-2026-10-12T12-00-00-0199f0a0-0000-7000-8000-000000000001.jsonl": true
+    },
+    "report": {
+      "daily": {
+        "2026-10-01": 20,
+        "2026-10-03": 330,
+        "2026-10-06": 330,
+        "2026-10-07": 330,
+        "2026-10-12": 330
+      },
+      "days": 5,
+      "historyCoverageIsEstablished": true,
+      "totalTokens": 1340
+    },
+    "sameDatabaseInode": true
+  },
+  "upgrade from 0.77.0 cache": {
+    "parserHashAfter": "2d6e5ef6073dc99b",
+    "parserHashBefore": "a47b70abaf8ad86c",
+    "plainRowsRetainedUnchanged": {
+      "rollout-2026-10-03T12-00-00-0199f0a0-0000-7000-8000-000000000006.jsonl": true,
+      "rollout-2026-10-05T12-00-00-0199f0a0-0000-7000-8000-000000000004.jsonl": true,
+      "rollout-2026-10-14T12-00-00-0199f0a0-0000-7000-8000-000000000001.jsonl": true
+    },
+    "report": {
+      "daily": {
+        "2026-10-03": 20,
+        "2026-10-05": 330,
+        "2026-10-08": 330,
+        "2026-10-09": 330,
+        "2026-10-14": 330
+      },
+      "days": 5,
+      "historyCoverageIsEstablished": true,
+      "totalTokens": 1340
+    },
+    "sameDatabaseInode": true
+  },
+  "window": "--days 30"
+}

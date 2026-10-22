@@ -85,6 +85,10 @@
 - Settings: disable Restore default order when provider order is already at its default, and clarify the enabled-provider filter (#4592). Thanks @elijahfriedman!
 - TypeSafe: stop stretching the provider icon in the menu bar and Settings, so it keeps its shape at the size of the other provider icons; the website and HTTP dashboard use the same padded icon (#4619). Thanks @lg!
 
+### Fixed
+
+- Codex: keep counting cost for sessions Codex archives as `.jsonl.zst`; they previously dropped out of every cost window once Codex removed the plain log.
+
 ## 0.77.0 — 2026-10-16
 
 ### Highlights
