@@ -3,6 +3,7 @@
 ## 0.79.1 — Unreleased
 
 - Claude cost history: count a Desktop Cowork response once when its audit copy carries `request_id`, and rebuild cached history once to remove existing double counts (fixes #4712). Thanks @Akagilnc and @devYRPauli!
+- Soniox: show prepaid balance and monthly spend using an organization API key, with an optional monthly budget meter. (#4678) Thanks @JiehoonKwak!
 - Linux desktop: show a readable provider initial when a bundled logo is unavailable (#4693). Thanks @SaahiilM!
 - Claude cost history: price Mythos 5.1 and Mythos 5 from published Anthropic rates and refresh cached estimates without rereading unchanged transcripts (#4578). Thanks @urda!
 - Kiro: skip background CLI probes when the usage service is unreachable, preventing repeated offline sign-in tabs while retaining last-good usage (#4589). Thanks @dnicolson!

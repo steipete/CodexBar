@@ -63,6 +63,7 @@ enum ProviderImplementationManifest {
         PluginAPIKeyProviderImplementation(spec: BifrostProviderDescriptor.spec),
         PluginAPIKeyProviderImplementation(spec: AixyProviderDescriptor.spec),
         PluginAPIKeyProviderImplementation(spec: DeepgramProviderDescriptor.spec),
+        PluginAPIKeyProviderImplementation(spec: SonioxProviderDescriptor.spec),
         PluginAPIKeyProviderImplementation(spec: PoeProviderDescriptor.spec),
         PluginAPIKeyProviderImplementation(spec: ChutesProviderDescriptor.spec),
         PluginAPIKeyProviderImplementation(spec: NeuralWattProviderDescriptor.spec),

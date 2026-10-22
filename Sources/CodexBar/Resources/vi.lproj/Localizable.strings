@@ -2114,6 +2114,8 @@
 "Poe usage history is unavailable." = "Lịch sử sử dụng Poe không khả dụng.";
 "Stored in ~/.codexbar/config.json. Get your key from poe.com/api/keys." = "Được lưu trữ trong ~/.codexbar/config.json. Nhận khóa của bạn từ poe.com/api/keys.";
 "Billing" = "Thanh toán";
+"Invoice billing" = "Thanh toán theo hóa đơn";
+"Prepaid" = "Trả trước";
 "Rate limit" = "Giới hạn tỷ lệ";
 "Billing and rate-limit data from the v0 Platform API" = "Dữ liệu thanh toán và giới hạn tỷ lệ từ Nền tảng v0 API";
 "v0 cost history is not available via the Platform API." = "Lịch sử chi phí v0 không có sẵn thông qua Nền tảng API.";

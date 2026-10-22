@@ -2117,6 +2117,8 @@
 "Poe usage history is unavailable." = "سجل استخدام Poe غير متاح.";
 "Stored in ~/.codexbar/config.json. Get your key from poe.com/api/keys." = "مخزنة في ~/.codexbar/config.json. احصل على مفتاحك من poe.com/api/keys.";
 "Billing" = "الفواتير";
+"Invoice billing" = "الدفع بالفاتورة";
+"Prepaid" = "الدفع المسبق";
 "Rate limit" = "حد المعدل";
 "Billing and rate-limit data from the v0 Platform API" = "بيانات الفوترة وحدود الأسعار من منصة v0 API";
 "v0 cost history is not available via the Platform API." = "سجل تكلفة v0 غير متاح عبر النظام الأساسي API.";

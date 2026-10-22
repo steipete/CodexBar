@@ -61,6 +61,7 @@ extension ProviderInstanceID {
     public static let bifrost = UsageProvider.bifrost.instanceID
     public static let aixy = UsageProvider.aixy.instanceID
     public static let deepgram = UsageProvider.deepgram.instanceID
+    public static let soniox = UsageProvider.soniox.instanceID
     public static let poe = UsageProvider.poe.instanceID
     public static let chutes = UsageProvider.chutes.instanceID
     public static let neuralwatt = UsageProvider.neuralwatt.instanceID

@@ -2112,6 +2112,8 @@
 "Poe usage history is unavailable." = "Poe-gebruiksgeschiedenis is niet beschikbaar.";
 "Stored in ~/.codexbar/config.json. Get your key from poe.com/api/keys." = "Opgeslagen in ~/.codexbar/config.json. Haal uw sleutel op bij poe.com/api/keys.";
 "Billing" = "Facturering";
+"Invoice billing" = "Betaling op factuur";
+"Prepaid" = "Vooruitbetaald";
 "Rate limit" = "Verzoeksnelheidslimiet";
 "Billing and rate-limit data from the v0 Platform API" = "Factureringsgegevens en verzoeksnelheidslimieten van de v0 Platform API";
 "v0 cost history is not available via the Platform API." = "De kostengeschiedenis van v0 is niet beschikbaar via het platform API.";

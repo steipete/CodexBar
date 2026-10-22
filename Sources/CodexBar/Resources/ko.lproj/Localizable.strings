@@ -2081,6 +2081,8 @@
 "Poe usage history is unavailable." = "Poe 사용 내역을 확인할 수 없습니다.";
 "Stored in ~/.codexbar/config.json. Get your key from poe.com/api/keys." = "~/.codexbar/config.json에 저장됩니다. poe.com/api/keys에서 키를 가져옵니다.";
 "Billing" = "청구";
+"Invoice billing" = "청구서 결제";
+"Prepaid" = "선불";
 "Rate limit" = "비율 제한";
 "Billing and rate-limit data from the v0 Platform API" = "v0 플랫폼 API의 청구 및 요금 제한 데이터";
 "v0 cost history is not available via the Platform API." = "v0 비용 내역은 플랫폼 API를 통해 확인할 수 없습니다.";

@@ -156,9 +156,9 @@ struct ProviderArchitectureGatekeeperTests {
             Self.hash(descriptor.branding.burnDownWidgetColor, into: &burnDownFingerprint)
         }
 
-        // Pi uses its official blue accent; the burn-down palette is unchanged.
-        #expect(widgetFingerprint == 4_251_215_947_296_770_734)
-        #expect(burnDownFingerprint == 3_084_140_234_155_981_949)
+        // Soniox extends the palette with Pi's official blue accent.
+        #expect(widgetFingerprint == 699_699_298_296_327_777)
+        #expect(burnDownFingerprint == 2_323_729_084_625_502_237)
     }
 
     @Test

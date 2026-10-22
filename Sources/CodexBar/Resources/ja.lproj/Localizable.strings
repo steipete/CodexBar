@@ -2113,6 +2113,8 @@
 "Poe usage history is unavailable." = "Poe の使用履歴は利用できません。";
 "Stored in ~/.codexbar/config.json. Get your key from poe.com/api/keys." = "~/.codexbar/config.json に保存されます。 poe.com/api/keys からキーを取得します。";
 "Billing" = "請求";
+"Invoice billing" = "請求書払い";
+"Prepaid" = "前払い";
 "Rate limit" = "レート制限";
 "Billing and rate-limit data from the v0 Platform API" = "v0 プラットフォーム API からの請求およびレート制限データ";
 "v0 cost history is not available via the Platform API." = "v0 のコスト履歴は、プラットフォーム API からは利用できません。";

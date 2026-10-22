@@ -2113,6 +2113,8 @@
 "Poe usage history is unavailable." = "O histórico de uso do Poe não está disponível.";
 "Stored in ~/.codexbar/config.json. Get your key from poe.com/api/keys." = "Armazenado em ~/.codexbar/config.json. Obtenha sua chave em poe.com/api/keys.";
 "Billing" = "Faturamento";
+"Invoice billing" = "Pagamento por fatura";
+"Prepaid" = "Pré-pago";
 "Rate limit" = "Limite de taxa";
 "Billing and rate-limit data from the v0 Platform API" = "Dados de faturamento e limite de taxa da plataforma v0 API";
 "v0 cost history is not available via the Platform API." = "O histórico de custos v0 não está disponível por meio da Plataforma API.";

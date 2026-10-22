@@ -2114,6 +2114,8 @@
 "Poe usage history is unavailable." = "История использования Poe недоступна.";
 "Stored in ~/.codexbar/config.json. Get your key from poe.com/api/keys." = "Хранится в ~/.codexbar/config.json. Получите ключ из poe.com/api/keys.";
 "Billing" = "Биллинг";
+"Invoice billing" = "Оплата по счёту";
+"Prepaid" = "Предоплата";
 "Rate limit" = "Ограничение скорости";
 "Billing and rate-limit data from the v0 Platform API" = "Данные о выставлении счетов и ограничениях скорости с платформы v0 API";
 "v0 cost history is not available via the Platform API." = "История затрат v0 недоступна через платформу API.";

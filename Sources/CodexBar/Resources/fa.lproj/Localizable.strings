@@ -2117,6 +2117,8 @@
 "Poe usage history is unavailable." = "سابقه استفاده Poe در دسترس نیست.";
 "Stored in ~/.codexbar/config.json. Get your key from poe.com/api/keys." = "ذخیره شده در ~/.codexbar/config.json. کلید خود را از poe.com/api/keys دریافت کنید.";
 "Billing" = "صورتحساب";
+"Invoice billing" = "پرداخت با صورتحساب";
+"Prepaid" = "پیش‌پرداخت";
 "Rate limit" = "محدودیت نرخ";
 "Billing and rate-limit data from the v0 Platform API" = "داده‌های صورت‌حساب و محدودیت نرخ از پلتفرم v0 API";
 "v0 cost history is not available via the Platform API." = "تاریخچه هزینه v0 از طریق پلتفرم API در دسترس نیست.";
