@@ -2705,3 +2705,5 @@
 "Open Trae CN Dashboard" = "Öppna Trae CN-instrumentpanelen";
 "Paste a Cookie header from %@ (DevTools → Network → any api.trae.cn request)." = "Klistra in en Cookie-rubrik från %@ (DevTools → Network → valfri api.trae.cn-begäran).";
 "Trae CN plan credits usage." = "Användning av Trae CN-planens krediter.";
+"Trae CN has no browser import. Select Manual to paste a Cookie header." = "Trae CN har ingen webbläsarimport. Välj ”Manual” för att klistra in ett Cookie-huvud.";
+"Uses the Cookie header pasted from a signed-in trae.cn session." = "Använder Cookie-huvudet som klistrats in från en inloggad trae.cn-session.";

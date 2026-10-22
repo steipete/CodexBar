@@ -2674,3 +2674,5 @@
 "Open Trae CN Dashboard" = "Trae CN 대시보드 열기";
 "Paste a Cookie header from %@ (DevTools → Network → any api.trae.cn request)." = "%@에서 Cookie 헤더를 붙여넣으세요(DevTools → Network → 아무 api.trae.cn 요청).";
 "Trae CN plan credits usage." = "Trae CN 플랜 크레딧 사용량.";
+"Trae CN has no browser import. Select Manual to paste a Cookie header." = "Trae CN은 브라우저 가져오기를 지원하지 않습니다. Cookie 헤더를 붙여넣으려면 “Manual”을 선택하세요.";
+"Uses the Cookie header pasted from a signed-in trae.cn session." = "로그인된 trae.cn 세션에서 붙여넣은 Cookie 헤더를 사용합니다.";

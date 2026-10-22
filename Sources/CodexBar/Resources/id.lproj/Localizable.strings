@@ -2708,3 +2708,5 @@
 "Open Trae CN Dashboard" = "Buka Dasbor Trae CN";
 "Paste a Cookie header from %@ (DevTools → Network → any api.trae.cn request)." = "Tempel header Cookie dari %@ (DevTools → Network → permintaan api.trae.cn apa pun).";
 "Trae CN plan credits usage." = "Penggunaan kredit paket Trae CN.";
+"Trae CN has no browser import. Select Manual to paste a Cookie header." = "Trae CN tidak memiliki impor browser. Pilih “Manual” untuk menempelkan header Cookie.";
+"Uses the Cookie header pasted from a signed-in trae.cn session." = "Menggunakan header Cookie yang ditempel dari sesi trae.cn yang sudah masuk.";

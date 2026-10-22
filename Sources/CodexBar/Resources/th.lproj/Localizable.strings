@@ -2708,3 +2708,5 @@
 "Open Trae CN Dashboard" = "เปิดแดชบอร์ด Trae CN";
 "Paste a Cookie header from %@ (DevTools → Network → any api.trae.cn request)." = "วางส่วนหัว Cookie จาก %@ (DevTools → Network → คำขอ api.trae.cn ใดก็ได้)";
 "Trae CN plan credits usage." = "การใช้งานเครดิตแพ็กเกจ Trae CN";
+"Trae CN has no browser import. Select Manual to paste a Cookie header." = "Trae CN ไม่มีการนำเข้าจากเบราว์เซอร์ เลือก “Manual” เพื่อวางส่วนหัว Cookie";
+"Uses the Cookie header pasted from a signed-in trae.cn session." = "ใช้ส่วนหัว Cookie ที่วางจากเซสชัน trae.cn ที่ลงชื่อเข้าใช้แล้ว";

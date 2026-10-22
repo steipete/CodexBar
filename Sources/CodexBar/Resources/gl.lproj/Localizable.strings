@@ -2705,3 +2705,5 @@
 "Open Trae CN Dashboard" = "Abrir o panel de Trae CN";
 "Paste a Cookie header from %@ (DevTools → Network → any api.trae.cn request)." = "Pega unha cabeceira Cookie de %@ (DevTools → Network → calquera solicitude a api.trae.cn).";
 "Trae CN plan credits usage." = "Uso de créditos do plan de Trae CN.";
+"Trae CN has no browser import. Select Manual to paste a Cookie header." = "Trae CN non ten importación do navegador. Escolle «Manual» para pegar unha cabeceira Cookie.";
+"Uses the Cookie header pasted from a signed-in trae.cn session." = "Usa a cabeceira Cookie pegada dunha sesión iniciada en trae.cn.";

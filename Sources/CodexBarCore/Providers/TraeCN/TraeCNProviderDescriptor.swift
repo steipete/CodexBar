@@ -76,6 +76,11 @@ public enum TraeCNProviderDescriptor {
 struct TraeCNWebFetchStrategy: ProviderFetchStrategy {
     let id: String = "traecn.web"
     let kind: ProviderFetchKind = .web
+    private let transport: any ProviderHTTPTransport
+
+    init(transport: any ProviderHTTPTransport = ProviderHTTPClient.shared) {
+        self.transport = transport
+    }
 
     func isAvailable(_ context: ProviderFetchContext) async -> Bool {
         Self.resolveManualCookieHeader(context: context) != nil
@@ -85,7 +90,9 @@ struct TraeCNWebFetchStrategy: ProviderFetchStrategy {
         guard let manualCookie = Self.resolveManualCookieHeader(context: context) else {
             throw TraeCNSettingsError.missingCookie()
         }
-        let snapshot = try await TraeCNUsageFetcher.fetchUsage(cookieHeader: manualCookie)
+        let snapshot = try await TraeCNUsageFetcher.fetchUsage(
+            cookieHeader: manualCookie,
+            session: self.transport)
         return self.makeResult(usage: snapshot.toUsageSnapshot(), sourceLabel: "web")
     }
 

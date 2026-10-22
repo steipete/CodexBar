@@ -5,6 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 // New providers opt into generated directory rows through their provider-owned documentation.
+// plugin_scope additionally opts a provider into the generated plugin conversion matrix rows.
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
 const check = process.argv.includes("--check");
@@ -36,7 +37,7 @@ const entries = fs
       source: field("provider_source"),
       scope: field("plugin_scope"),
     };
-    assert(entry.name && entry.source && entry.scope);
+    assert(entry.name && entry.source);
     return [entry];
   })
   .sort((a, b) => ids.indexOf(a.id) - ids.indexOf(b.id));
@@ -93,11 +94,12 @@ update("docs/site-locales.mjs", (text) =>
   ),
 );
 update("docs/plugin-conversion-matrix.md", (text) => {
+  const pluginEntries = entries.filter((entry) => entry.scope);
   text = section(text, [
     "",
     "| Provider | Status | Engines | Scope |",
     "|---|---|---|---|",
-    ...entries.map((entry) => `| ${entry.id} | \`cut-over\` | QuickJS + JavaScriptCore | ${entry.scope} |`),
+    ...pluginEntries.map((entry) => `| ${entry.id} | \`cut-over\` | QuickJS + JavaScriptCore | ${entry.scope} |`),
     "",
   ]);
   const additions = [...text.split("## Additional plugin-first providers")[1].matchAll(/^\| [a-z0-9]+ \|/gm)].length;

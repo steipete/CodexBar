@@ -2704,3 +2704,5 @@
 "Open Trae CN Dashboard" = "Trae CN-Dashboard öffnen";
 "Paste a Cookie header from %@ (DevTools → Network → any api.trae.cn request)." = "Füge einen Cookie-Header von %@ ein (DevTools → Network → beliebige api.trae.cn-Anfrage).";
 "Trae CN plan credits usage." = "Nutzung des Trae CN-Tarifguthabens.";
+"Trae CN has no browser import. Select Manual to paste a Cookie header." = "Trae CN bietet keinen Browser-Import. Wähle „Manual“, um einen Cookie-Header einzufügen.";
+"Uses the Cookie header pasted from a signed-in trae.cn session." = "Verwendet den Cookie-Header aus einer angemeldeten trae.cn-Sitzung.";

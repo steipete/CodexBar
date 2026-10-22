@@ -157,8 +157,8 @@ struct ProviderArchitectureGatekeeperTests {
         }
 
         // Pi, Future AGI, Munito, and Trae CN extend the palette without changing existing provider colors.
-        #expect(widgetFingerprint == 4_251_215_947_296_770_734)
-        #expect(burnDownFingerprint == 3_084_140_234_155_981_949)
+        #expect(widgetFingerprint == 6_255_042_164_805_757_336)
+        #expect(burnDownFingerprint == 14_385_594_926_364_387_828)
     }
 
     @Test

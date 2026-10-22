@@ -2707,3 +2707,5 @@
 "Open Trae CN Dashboard" = "Mở bảng điều khiển Trae CN";
 "Paste a Cookie header from %@ (DevTools → Network → any api.trae.cn request)." = "Dán tiêu đề Cookie từ %@ (DevTools → Network → bất kỳ yêu cầu api.trae.cn nào).";
 "Trae CN plan credits usage." = "Mức sử dụng tín dụng gói Trae CN.";
+"Trae CN has no browser import. Select Manual to paste a Cookie header." = "Trae CN không có nhập từ trình duyệt. Chọn “Manual” để dán tiêu đề Cookie.";
+"Uses the Cookie header pasted from a signed-in trae.cn session." = "Dùng tiêu đề Cookie được dán từ phiên trae.cn đã đăng nhập.";

@@ -2706,3 +2706,5 @@
 "Open Trae CN Dashboard" = "Trae CN ダッシュボードを開く";
 "Paste a Cookie header from %@ (DevTools → Network → any api.trae.cn request)." = "%@ から Cookie ヘッダーを貼り付けます(DevTools → Network → 任意の api.trae.cn リクエスト)。";
 "Trae CN plan credits usage." = "Trae CN プランのクレジット使用状況。";
+"Trae CN has no browser import. Select Manual to paste a Cookie header." = "Trae CN はブラウザーからの取り込みに対応していません。Cookie ヘッダーを貼り付けるには「Manual」を選択してください。";
+"Uses the Cookie header pasted from a signed-in trae.cn session." = "ログイン済みの trae.cn セッションから貼り付けた Cookie ヘッダーを使用します。";

@@ -3,7 +3,6 @@ summary: "Trae CN plan credit total/usage and monthly reset countdown through th
 provider_id: traecn
 provider_name: Trae CN
 provider_source: Manual cookie paste from trae.cn for the plan credit total/usage and the monthly reset countdown.
-plugin_scope: Fixed-origin cookie GET to api.trae.cn on both engines; no endpoint override and no guessed reset time.
 read_when:
   - Configuring Trae CN
   - Debugging Trae CN usage fetching
@@ -22,9 +21,10 @@ Trae CN uses a manual cookie paste; there is no automatic browser import.
 2. Open DevTools (`Cmd-Option-I` in Chrome/Edge/Safari) → **Network** tab.
 3. Filter by `api.trae.cn` and click any request (e.g. refresh the page if none appear).
 4. Right-click the request → **Copy as cURL**.
-5. In CodexBar → Settings → **Trae CN**, paste the whole cURL command into the cookie field.
-   The full `Cookie:` header is extracted automatically; pasting only the header value also
-   works.
+5. In CodexBar → Settings → **Trae CN**, set **Cookie source** to **Manual**. A fresh
+   configuration already starts in Manual; choose **Off** to disable fetching.
+6. Paste the whole cURL command into the cookie field. The full `Cookie:` header is
+   extracted automatically; pasting only the header value also works.
 
 The cookie is stored locally in `~/.codexbar/config.json` and is only ever sent to the fixed
 `api.trae.cn` origin (there is no endpoint override). When the session expires (the menu shows

@@ -2707,3 +2707,5 @@
 "Open Trae CN Dashboard" = "Відкрити панель Trae CN";
 "Paste a Cookie header from %@ (DevTools → Network → any api.trae.cn request)." = "Вставте заголовок Cookie з %@ (DevTools → Network → будь-який запит api.trae.cn).";
 "Trae CN plan credits usage." = "Використання кредитів тарифу Trae CN.";
+"Trae CN has no browser import. Select Manual to paste a Cookie header." = "Trae CN не має імпорту з браузера. Виберіть «Manual», щоб вставити заголовок Cookie.";
+"Uses the Cookie header pasted from a signed-in trae.cn session." = "Використовує заголовок Cookie, вставлений із сеансу trae.cn із виконаним входом.";

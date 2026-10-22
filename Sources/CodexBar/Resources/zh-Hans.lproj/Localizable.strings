@@ -2698,3 +2698,5 @@
 "Open Trae CN Dashboard" = "打开 Trae CN 控制台";
 "Paste a Cookie header from %@ (DevTools → Network → any api.trae.cn request)." = "从 %@ 粘贴 Cookie 请求头(DevTools → Network → 任意 api.trae.cn 请求)。";
 "Trae CN plan credits usage." = "Trae CN 套餐积分用量。";
+"Trae CN has no browser import. Select Manual to paste a Cookie header." = "Trae CN 不支持从浏览器导入，请选择 “Manual” 以粘贴 Cookie 请求头。";
+"Uses the Cookie header pasted from a signed-in trae.cn session." = "使用从已登录的 trae.cn 会话中粘贴的 Cookie 请求头。";
