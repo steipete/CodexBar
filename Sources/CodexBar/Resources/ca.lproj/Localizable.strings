@@ -2704,3 +2704,7 @@
 "No personal budget configured" = "No hi ha cap pressupost personal configurat";
 
 "monthly_daily_target_format" = "≈ %@ / dia perquè duri fins al reinici";
+
+"Use --provider copilot." = "Utilitza --provider copilot.";
+
+"Config changed during login. Please try again." = "La configuració ha canviat durant l’inici de sessió. Torna-ho a provar.";

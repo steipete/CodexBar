@@ -2670,3 +2670,7 @@
 "No personal budget configured" = "개인 예산이 설정되지 않았습니다";
 
 "monthly_daily_target_format" = "재설정까지 사용할 수 있는 하루 목표: 약 %@";
+
+"Use --provider copilot." = "--provider copilot을 사용하세요.";
+
+"Config changed during login. Please try again." = "로그인 중에 구성이 변경되었습니다. 다시 시도하세요.";

@@ -2700,3 +2700,7 @@
 "No personal budget configured" = "No hay ningún presupuesto personal configurado";
 
 "monthly_daily_target_format" = "≈ %@ / día para que dure hasta el restablecimiento";
+
+"Use --provider copilot." = "Usa --provider copilot.";
+
+"Config changed during login. Please try again." = "La configuración cambió durante el inicio de sesión. Inténtalo de nuevo.";

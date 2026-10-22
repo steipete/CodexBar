@@ -2706,3 +2706,7 @@
 "No personal budget configured" = "بودجهٔ شخصی تنظیم نشده است";
 
 "monthly_daily_target_format" = "≈ %@ در روز برای دوام تا زمان ریست";
+
+"Use --provider copilot." = "از --provider copilot استفاده کنید.";
+
+"Config changed during login. Please try again." = "پیکربندی هنگام ورود تغییر کرد. لطفاً دوباره تلاش کنید.";

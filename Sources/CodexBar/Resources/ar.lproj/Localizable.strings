@@ -2706,3 +2706,7 @@
 "No personal budget configured" = "لم يتم إعداد ميزانية شخصية";
 
 "monthly_daily_target_format" = "≈ %@ يوميًا ليكفي حتى إعادة التعيين";
+
+"Use --provider copilot." = "استخدم --provider copilot.";
+
+"Config changed during login. Please try again." = "تغيّر الإعداد أثناء تسجيل الدخول. يُرجى المحاولة مرة أخرى.";

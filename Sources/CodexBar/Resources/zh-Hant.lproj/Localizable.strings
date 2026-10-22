@@ -2680,3 +2680,7 @@
 "No personal budget configured" = "尚未設定個人預算";
 
 "monthly_daily_target_format" = "每天約 %@，可用至重置";
+
+"Use --provider copilot." = "請使用 --provider copilot。";
+
+"Config changed during login. Please try again." = "登入期間設定已變更。請重試。";

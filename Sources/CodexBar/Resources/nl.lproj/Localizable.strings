@@ -2699,3 +2699,7 @@
 "No personal budget configured" = "Geen persoonlijk budget ingesteld";
 
 "monthly_daily_target_format" = "≈ %@ / dag om tot de reset mee te gaan";
+
+"Use --provider copilot." = "Gebruik --provider copilot.";
+
+"Config changed during login. Please try again." = "De configuratie is gewijzigd tijdens het inloggen. Probeer het opnieuw.";

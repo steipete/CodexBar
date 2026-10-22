@@ -2701,3 +2701,7 @@
 "No personal budget configured" = "Ingen personlig budget har konfigurerats";
 
 "monthly_daily_target_format" = "≈ %@ / dag för att räcka till återställningen";
+
+"Use --provider copilot." = "Använd --provider copilot.";
+
+"Config changed during login. Please try again." = "Konfigurationen ändrades under inloggningen. Försök igen.";

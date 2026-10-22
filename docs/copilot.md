@@ -9,6 +9,10 @@ read_when:
 
 Copilot uses GitHub OAuth device flow and the Copilot internal usage API for primary usage. Optional budget extras use GitHub web cookies only when enabled.
 
+CLI-only setups can run `codexbar config login --provider copilot` (or add `--json` for a stream of login
+events). It uses the same device flow, issuer-aware account matching, and config-backed token accounts as
+the app, without opening a browser or prompting for Keychain access. See [CLI configuration](cli-configuration.md#copilot-device-login).
+
 ## Data sources + fallback order
 
 1) **GitHub OAuth device flow** (user initiated)

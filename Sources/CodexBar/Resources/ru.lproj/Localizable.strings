@@ -2703,3 +2703,7 @@
 "No personal budget configured" = "Личный бюджет не настроен";
 
 "monthly_daily_target_format" = "≈ %@ в день, чтобы хватило до сброса";
+
+"Use --provider copilot." = "Используйте --provider copilot.";
+
+"Config changed during login. Please try again." = "Конфигурация изменилась во время входа. Попробуйте ещё раз.";

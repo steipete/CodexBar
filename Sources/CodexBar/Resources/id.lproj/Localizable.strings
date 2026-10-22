@@ -2704,3 +2704,7 @@
 "No personal budget configured" = "Belum ada anggaran pribadi yang dikonfigurasi";
 
 "monthly_daily_target_format" = "≈ %@ / hari agar cukup hingga reset";
+
+"Use --provider copilot." = "Gunakan --provider copilot.";
+
+"Config changed during login. Please try again." = "Konfigurasi berubah saat masuk. Silakan coba lagi.";

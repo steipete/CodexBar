@@ -2703,3 +2703,7 @@
 "No personal budget configured" = "Chưa thiết lập ngân sách cá nhân";
 
 "monthly_daily_target_format" = "≈ %@ / ngày để đủ dùng đến khi đặt lại";
+
+"Use --provider copilot." = "Dùng --provider copilot.";
+
+"Config changed during login. Please try again." = "Cấu hình đã thay đổi trong khi đăng nhập. Vui lòng thử lại.";

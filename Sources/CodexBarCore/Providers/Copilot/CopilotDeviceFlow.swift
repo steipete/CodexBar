@@ -9,6 +9,7 @@ public struct CopilotDeviceFlow: Sendable {
     private let clientID = "Iv1.b507a08c87ecfe98" // VS Code Client ID
     private let scopes = "read:user"
     private let host: String
+    private let transport: any ProviderHTTPTransport
 
     public struct DeviceCodeResponse: Decodable, Sendable {
         public let deviceCode: String
@@ -44,7 +45,11 @@ public struct CopilotDeviceFlow: Sendable {
         }
     }
 
-    public init(enterpriseHost: String? = nil) {
+    public init(
+        enterpriseHost: String? = nil,
+        transport: any ProviderHTTPTransport = ProviderHTTPClient.shared)
+    {
+        self.transport = transport
         self.host = Self.normalizedHost(enterpriseHost)
     }
 
@@ -98,7 +103,7 @@ public struct CopilotDeviceFlow: Sendable {
         ]
         postRequest.httpBody = FormURLEncoding.body(body)
 
-        let response = try await ProviderHTTPClient.shared.response(for: postRequest)
+        let response = try await self.transport.response(for: postRequest)
 
         guard response.statusCode == 200 else {
             throw URLError(.badServerResponse)
@@ -107,7 +112,7 @@ public struct CopilotDeviceFlow: Sendable {
         return try JSONDecoder().decode(DeviceCodeResponse.self, from: response.data)
     }
 
-    public func pollForToken(deviceCode: String, interval: Int) async throws -> String {
+    public func pollForToken(deviceCode: String, interval: Int, expiresIn: Int = 900) async throws -> String {
         guard let accessTokenURL = self.accessTokenURL else {
             throw URLError(.badURL)
         }
@@ -123,11 +128,22 @@ public struct CopilotDeviceFlow: Sendable {
         ]
         request.httpBody = FormURLEncoding.body(body)
 
-        while true {
-            try await Task.sleep(nanoseconds: UInt64(interval) * 1_000_000_000)
+        let deadline = ContinuousClock.now.advanced(by: .seconds(max(0, expiresIn)))
+        var pollingInterval = max(1, interval)
+        while ContinuousClock.now < deadline {
+            try await Task.sleep(
+                until: min(ContinuousClock.now.advanced(by: .seconds(pollingInterval)), deadline), clock: .continuous)
             try Task.checkCancellation()
+            guard ContinuousClock.now < deadline else { throw URLError(.timedOut) }
 
-            let response = try await ProviderHTTPClient.shared.response(for: request)
+            request.timeoutInterval = min(
+                30,
+                max(1, Double(ContinuousClock.now.duration(to: deadline).components.seconds)))
+            let response = try await self.transport.response(for: request)
+
+            try Task.checkCancellation()
+            guard ContinuousClock.now < deadline else { throw URLError(.timedOut) }
+            guard response.statusCode == 200 else { throw URLError(.badServerResponse) }
 
             // Check for error in JSON
             if let json = try? JSONSerialization.jsonObject(with: response.data) as? [String: Any],
@@ -137,19 +153,22 @@ public struct CopilotDeviceFlow: Sendable {
                     continue
                 }
                 if error == "slow_down" {
-                    try await Task.sleep(nanoseconds: 5_000_000_000) // Add 5s
+                    pollingInterval += 5
                     continue
                 }
+                if error == "access_denied" { throw URLError(.userCancelledAuthentication) }
                 if error == "expired_token" {
                     throw URLError(.timedOut)
                 }
                 throw URLError(.userAuthenticationRequired) // Generic failure
             }
 
-            if let tokenResponse = try? JSONDecoder().decode(AccessTokenResponse.self, from: response.data) {
-                return tokenResponse.accessToken
-            }
+            guard let tokenResponse = try? JSONDecoder().decode(AccessTokenResponse.self, from: response.data),
+                  !tokenResponse.accessToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            else { throw URLError(.cannotParseResponse) }
+            return tokenResponse.accessToken
         }
+        throw URLError(.timedOut)
     }
 
     static func makeRequestURL(host: String, path: String) -> URL? {

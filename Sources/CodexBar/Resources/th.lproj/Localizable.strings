@@ -2704,3 +2704,7 @@
 "No personal budget configured" = "ยังไม่ได้กำหนดงบประมาณส่วนตัว";
 
 "monthly_daily_target_format" = "≈ %@ / วัน เพื่อให้ใช้ได้จนถึงการรีเซ็ต";
+
+"Use --provider copilot." = "ใช้ --provider copilot";
+
+"Config changed during login. Please try again." = "การกำหนดค่ามีการเปลี่ยนแปลงระหว่างเข้าสู่ระบบ โปรดลองอีกครั้ง";

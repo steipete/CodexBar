@@ -2702,3 +2702,7 @@
 "No personal budget configured" = "個人予算が設定されていません";
 
 "monthly_daily_target_format" = "リセットまで持たせる目安：1日あたり約 %@";
+
+"Use --provider copilot." = "--provider copilot を使用してください。";
+
+"Config changed during login. Please try again." = "ログイン中に設定が変更されました。もう一度お試しください。";
