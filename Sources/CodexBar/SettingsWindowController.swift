@@ -89,9 +89,7 @@ final class SettingsWindowController: NSWindowController {
                 defer: false)
             window.contentViewController = hostingController
             window.title = selection.title
-            window.titlebarAppearsTransparent = true
             SettingsWindowToolbar.configure(window)
-            window.titlebarSeparatorStyle = .none
             window.isReleasedWhenClosed = false
             SettingsWindowSizing.enforceMinimumSize(window)
             if !window.setFrameUsingName(SettingsWindowIdentity.frameAutosaveName) {
