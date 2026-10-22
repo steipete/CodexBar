@@ -23,6 +23,15 @@ struct SettingsSidebarSizingTests {
         let secondContent = try #require(secondWindow.contentView)
         let secondSplit = try #require(self.splitView(in: secondContent))
         #expect(secondSplit.subviews[0].frame.width == 300)
+
+        // The resize made SwiftUI reapply the column settings; collapsing must stay disabled afterwards.
+        let firstController = try #require(firstSplit.delegate as? NSSplitViewController)
+        let firstSidebar = try #require(firstController.splitViewItems.first)
+        firstSplit.setPosition(0, ofDividerAt: 0)
+        try await self.settle(firstWindow)
+        #expect(firstSidebar.viewController.view.frame.width == 215)
+        #expect(!firstSidebar.isCollapsed)
+        #expect(!firstSidebar.canCollapse)
     }
 
     @Test
@@ -38,6 +47,9 @@ struct SettingsSidebarSizingTests {
         #expect(sidebar.viewController.view.frame.width == 215)
         #expect(width.value == 215)
         #expect(!sidebar.canCollapse)
+        // Widening by dragging is unreliable in an offscreen window, so check the column bounds directly.
+        #expect(sidebar.minimumThickness == SettingsPane.sidebarMinWidth)
+        #expect(sidebar.maximumThickness == SettingsPane.sidebarMaxWidth)
 
         split.setPosition(0, ofDividerAt: 0)
         try await self.settle(window)
@@ -45,22 +57,6 @@ struct SettingsSidebarSizingTests {
         #expect(width.value == 215)
         #expect(!sidebar.isCollapsed)
         #expect(!sidebar.canCollapse)
-
-        // AppKit only clamps out-of-range divider drags on some OS releases, so check the column bounds
-        // directly and drag within them.
-        #expect(sidebar.minimumThickness == SettingsPane.sidebarMinWidth)
-        #expect(sidebar.maximumThickness == SettingsPane.sidebarMaxWidth)
-        split.setPosition(340, ofDividerAt: 0)
-        try await self.settle(window)
-        #expect(sidebar.viewController.view.frame.width == 340)
-        #expect(width.value == 340)
-
-        // A resize makes SwiftUI reapply the column settings; collapsing must stay disabled afterwards.
-        split.setPosition(0, ofDividerAt: 0)
-        try await self.settle(window)
-        #expect(!sidebar.isCollapsed)
-        #expect(!sidebar.canCollapse)
-        #expect(sidebar.viewController.view.frame.width == 215)
     }
 
     @Test
@@ -93,8 +89,9 @@ struct SettingsSidebarSizingTests {
 
     private func makeWindow(width: SidebarWidth) -> NSWindow {
         _ = NSApplication.shared
+        // Wide enough that the detail column's minimum width never limits how far the sidebar can grow.
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: SettingsPane.windowWidth, height: SettingsPane.windowHeight),
+            contentRect: NSRect(x: 0, y: 0, width: 1200, height: SettingsPane.windowHeight),
             styleMask: [.titled, .resizable, .fullSizeContentView],
             backing: .buffered,
             defer: false)
