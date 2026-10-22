@@ -2707,3 +2707,5 @@
 "Sign in to Trae CN at trae.cn, then refresh CodexBar." = "Inicia sesión en Trae CN en trae.cn e despois actualiza CodexBar.";
 "Trae CN usage response format changed." = "Cambiou o formato da resposta de uso de Trae CN.";
 "Trae CN request failed. Try refreshing later." = "Fallou a solicitude a Trae CN. Tenta actualizar máis tarde.";
+"Use --provider copilot." = "Usa --provider copilot.";
+"Config changed during login. Please try again." = "A configuración cambiou durante o inicio de sesión. Téntao de novo.";

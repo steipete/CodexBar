@@ -3,6 +3,9 @@
 ## 0.79.1 — Unreleased
 
 - Trae CN: show account credit usage from your signed-in dashboard (#4682). Thanks @liuyuplus!
+- Codex accounts: record bounded, identity-free registry mutation diagnostics in the existing debug log to help investigate saved-account loss (#4699, #4499). Thanks @LeoLin990405!
+
+- CLI: add `codexbar config login --provider copilot` with device-code sign-in, token-free JSON events, and safe reuse of existing GitHub accounts (#4706). Thanks @DreamyTalesPAN!
 - Soniox: show prepaid balance and monthly spend using an organization API key, with an optional monthly budget meter. (#4678) Thanks @JiehoonKwak!
 - Linux desktop: show a readable provider initial when a bundled logo is unavailable (#4693). Thanks @SaahiilM!
 - Claude cost history: price Mythos 5.1 and Mythos 5 from published Anthropic rates and refresh cached estimates without rereading unchanged transcripts (#4578). Thanks @urda!

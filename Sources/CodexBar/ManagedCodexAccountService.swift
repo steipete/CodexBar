@@ -296,20 +296,22 @@ final class ManagedCodexAccountService {
                 let updatedSnapshot = ManagedCodexAccountSet(
                     version: snapshot.version,
                     accounts: snapshot.accounts.filter { replacedAccountIDs.contains($0.id) == false } + [account])
-                try self.store.storeAccounts(updatedSnapshot)
+                try FileManagedCodexAccountStore.$mutation.withValue(.addOrReauth) {
+                    try self.store.storeAccounts(updatedSnapshot)
+                }
                 return (account, existingHomePathsToDelete)
             }
             account = committed.0
             existingHomePathsToDelete = committed.1
         } catch {
-            try? self.removeManagedHomeIfSafe(atPath: homeURL.path)
+            try? self.removeManagedHomeIfSafe(atPath: homeURL.path, mutation: .addOrReauth)
             throw error
         }
 
         try? ManagedCodexAccountLock.withLock(at: self.store.lockURL) {
             let referencedHomes = try Set(self.store.loadAccounts().accounts.map(\.managedHomePath))
             for path in existingHomePathsToDelete where path != homeURL.path && !referencedHomes.contains(path) {
-                try? self.removeManagedHomeIfSafe(atPath: path)
+                try? self.removeManagedHomeIfSafe(atPath: path, mutation: .addOrReauth)
             }
         }
         return account
@@ -326,21 +328,24 @@ final class ManagedCodexAccountService {
         guard let account = snapshot.account(id: id) else { return }
 
         let remaining = snapshot.accounts.filter { $0.id != id }
-        try self.store.storeAccounts(ManagedCodexAccountSet(
-            version: snapshot.version,
-            accounts: remaining))
+        try FileManagedCodexAccountStore.$mutation.withValue(.remove) {
+            try self.store.storeAccounts(ManagedCodexAccountSet(
+                version: snapshot.version,
+                accounts: remaining))
+        }
 
         let homeStillReferenced = remaining.contains { $0.managedHomePath == account.managedHomePath }
         if homeStillReferenced == false {
-            try? self.removeManagedHomeIfSafe(atPath: account.managedHomePath)
+            try? self.removeManagedHomeIfSafe(atPath: account.managedHomePath, mutation: .remove)
         }
     }
 
-    private func removeManagedHomeIfSafe(atPath path: String) throws {
+    private func removeManagedHomeIfSafe(atPath path: String, mutation: FileManagedCodexAccountStore.Mutation) throws {
         let homeURL = URL(fileURLWithPath: path, isDirectory: true)
         try self.homeFactory.validateManagedHomeForDeletion(homeURL)
         if self.fileManager.fileExists(atPath: homeURL.path) {
             try self.fileManager.removeItem(at: homeURL)
+            FileManagedCodexAccountStore.logHomeDeletion(mutation: mutation)
         }
     }
 

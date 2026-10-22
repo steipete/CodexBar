@@ -2709,3 +2709,5 @@
 "Sign in to Trae CN at trae.cn, then refresh CodexBar." = "Đăng nhập vào Trae CN tại trae.cn, rồi làm mới CodexBar.";
 "Trae CN usage response format changed." = "Định dạng phản hồi mức sử dụng Trae CN đã thay đổi.";
 "Trae CN request failed. Try refreshing later." = "Yêu cầu Trae CN không thành công. Hãy thử làm mới sau.";
+"Use --provider copilot." = "Dùng --provider copilot.";
+"Config changed during login. Please try again." = "Cấu hình đã thay đổi trong khi đăng nhập. Vui lòng thử lại.";

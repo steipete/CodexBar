@@ -2676,3 +2676,5 @@
 "Sign in to Trae CN at trae.cn, then refresh CodexBar." = "trae.cn에서 Trae CN에 로그인한 다음 CodexBar를 새로 고침하세요.";
 "Trae CN usage response format changed." = "Trae CN 사용량 응답 형식이 변경되었습니다.";
 "Trae CN request failed. Try refreshing later." = "Trae CN 요청에 실패했습니다. 나중에 다시 새로 고침하세요.";
+"Use --provider copilot." = "--provider copilot을 사용하세요.";
+"Config changed during login. Please try again." = "로그인 중에 구성이 변경되었습니다. 다시 시도하세요.";

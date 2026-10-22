@@ -2712,3 +2712,5 @@
 "Sign in to Trae CN at trae.cn, then refresh CodexBar." = "سجّل الدخول إلى Trae CN على trae.cn، ثم حدّث CodexBar.";
 "Trae CN usage response format changed." = "تغيّر تنسيق استجابة الاستخدام من Trae CN.";
 "Trae CN request failed. Try refreshing later." = "فشل طلب Trae CN. حاول التحديث لاحقًا.";
+"Use --provider copilot." = "استخدم --provider copilot.";
+"Config changed during login. Please try again." = "تغيّر الإعداد أثناء تسجيل الدخول. يُرجى المحاولة مرة أخرى.";

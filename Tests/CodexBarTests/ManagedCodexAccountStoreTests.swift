@@ -1,7 +1,112 @@
-import CodexBarCore
 import Foundation
+import Logging
 import Testing
 @testable import CodexBar
+@testable import CodexBarCore
+
+@Test
+func `FileManagedCodexAccountStore writes bounded diagnostics through the existing file log`() throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let logURL = root.appendingPathComponent("CodexBar.log")
+    let sink = FileLogSink()
+    sink.setEnabled(true, fileURL: logURL)
+    defer {
+        sink.setEnabled(false)
+        _ = sink.currentURL()
+    }
+    let handler = FileLogHandler(label: "codex-accounts", sink: sink)
+    let capture = ManagedAccountLogCapture()
+    let logger = CodexBarLogger(minimumLevel: .info) { level, message, metadata in
+        capture.append(level: level, message: message, metadata: metadata ?? [:])
+        handler.log(event: LogEvent(
+            level: level.asSwiftLogLevel,
+            message: Logger.Message(stringLiteral: message),
+            metadata: metadata?.mapValues { .string($0) },
+            source: "test",
+            file: #filePath,
+            function: #function,
+            line: #line))
+    }
+    var store = FileManagedCodexAccountStore(fileURL: root.appendingPathComponent("registry.json"))
+    store.logger = logger
+    let account = ManagedCodexAccount(
+        id: UUID(),
+        email: "private-person@example.com",
+        providerAccountID: "private-account-id",
+        managedHomePath: root.appendingPathComponent("private-home").path,
+        createdAt: 1,
+        updatedAt: 1,
+        lastAuthenticatedAt: nil)
+    let accounts = ManagedCodexAccountSet(version: FileManagedCodexAccountStore.currentVersion, accounts: [account])
+    try FileManagedCodexAccountStore.$mutation.withValue(.addOrReauth) {
+        try store.storeAccounts(accounts)
+    }
+    try FileManagedCodexAccountStore.$mutation.withValue(.remove) {
+        try store.storeAccounts(.init(version: FileManagedCodexAccountStore.currentVersion, accounts: []))
+    }
+    #expect(try store.loadAccountMetadata().accounts.isEmpty)
+    #expect(FileManagedCodexAccountStore.mutation == .registryWrite)
+
+    let captured = capture.lines
+    #expect(captured.count == 2)
+    #expect(captured.first?.metadata == [
+        "operation": "add-or-reauth", "rows.before": "0", "rows.requested": "1",
+        "rows.written": "1", "result": "success",
+    ])
+    #expect(captured.last?.metadata == [
+        "operation": "remove", "rows.before": "1", "rows.requested": "0",
+        "rows.written": "0", "result": "success",
+    ])
+    _ = sink.currentURL() // Drain the asynchronous sink before reading the synthetic file.
+    let text = try String(contentsOf: logURL, encoding: .utf8)
+    #expect(text.split(separator: "\n").count == 2)
+    #expect(text.contains("operation=add-or-reauth"))
+    #expect(text.contains("operation=remove"))
+    for privateValue in [account.email, account.id.uuidString, "private-account-id", root.path, "private-home"] {
+        #expect(!text.contains(privateValue))
+    }
+}
+
+@Test
+func `FileManagedCodexAccountStore reports failed writes without error descriptions`() throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let file = root.appendingPathComponent("registry.json")
+    try FileManager.default.createDirectory(at: file, withIntermediateDirectories: true)
+    let capture = ManagedAccountLogCapture()
+    var store = FileManagedCodexAccountStore(fileURL: file)
+    store.logger = CodexBarLogger(minimumLevel: .info) { level, message, metadata in
+        capture.append(level: level, message: message, metadata: metadata ?? [:])
+    }
+
+    #expect(throws: (any Error).self) {
+        try store.storeAccounts(.init(version: FileManagedCodexAccountStore.currentVersion, accounts: []))
+    }
+    let lines = capture.lines
+    #expect(lines.count == 1)
+    #expect(lines.first?.level == .error)
+    #expect(lines.first?.message == "Managed Codex account registry write failed")
+    #expect(lines.first?.metadata == [
+        "operation": "registry-write", "rows.before": "unknown", "rows.requested": "0",
+        "rows.written": "unknown", "result": "failed",
+    ])
+    #expect((try? file.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true)
+}
+
+private final class ManagedAccountLogCapture: @unchecked Sendable {
+    typealias Line = (level: CodexBarLog.Level, message: String, metadata: [String: String])
+    private let lock = NSLock()
+    private var storage: [Line] = []
+
+    var lines: [Line] {
+        self.lock.withLock { self.storage }
+    }
+
+    func append(level: CodexBarLog.Level, message: String, metadata: [String: String]) {
+        self.lock.withLock { self.storage.append((level, message, metadata)) }
+    }
+}
 
 @Test
 func `FileManagedCodexAccountStore round trip`() throws {

@@ -2710,3 +2710,5 @@
 "Sign in to Trae CN at trae.cn, then refresh CodexBar." = "Masuk ke Trae CN di trae.cn, lalu segarkan CodexBar.";
 "Trae CN usage response format changed." = "Format respons penggunaan Trae CN telah berubah.";
 "Trae CN request failed. Try refreshing later." = "Permintaan Trae CN gagal. Coba segarkan lagi nanti.";
+"Use --provider copilot." = "Gunakan --provider copilot.";
+"Config changed during login. Please try again." = "Konfigurasi berubah saat masuk. Silakan coba lagi.";
