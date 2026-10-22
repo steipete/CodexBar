@@ -289,6 +289,8 @@ public struct ProviderMenuCardPresentation: Sendable {
     public let creditsVisibility: ProviderCreditsVisibility
     public let showsCreditsSection: Bool
     public let providerCostIsRequiredUsage: Bool
+    /// Usage items hidden initially and when restoring provider defaults.
+    public let defaultHiddenUsageItemIDs: [String]
     public let usesProviderCostHistoryAsPrimaryDashboard: Bool
     public let supportsInlineTokenCostDashboard: Bool
     /// Codex and Claude local cost dashboards split spend by live Weekly quota windows.
@@ -320,6 +322,7 @@ public struct ProviderMenuCardPresentation: Sendable {
         showsCreditsSection: Bool = true,
         costVisibilityResolver: @escaping CostVisibilityResolver = { _ in true },
         providerCostIsRequiredUsage: Bool = false,
+        defaultHiddenUsageItemIDs: [String] = [],
         usesProviderCostHistoryAsPrimaryDashboard: Bool = false,
         primaryCostHistoryResolver: @escaping PrimaryCostHistoryResolver = { _, tokenSnapshot in tokenSnapshot },
         supportsInlineTokenCostDashboard: Bool = false,
@@ -345,6 +348,7 @@ public struct ProviderMenuCardPresentation: Sendable {
         self.showsCreditsSection = showsCreditsSection
         self.costVisibilityResolver = costVisibilityResolver
         self.providerCostIsRequiredUsage = providerCostIsRequiredUsage
+        self.defaultHiddenUsageItemIDs = defaultHiddenUsageItemIDs
         self.usesProviderCostHistoryAsPrimaryDashboard = usesProviderCostHistoryAsPrimaryDashboard
         self.primaryCostHistoryResolver = primaryCostHistoryResolver
         self.supportsInlineTokenCostDashboard = supportsInlineTokenCostDashboard

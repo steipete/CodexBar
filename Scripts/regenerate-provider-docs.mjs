@@ -5,7 +5,6 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 // New providers opt into generated directory rows through their provider-owned documentation.
-// plugin_scope additionally opts a provider into the generated plugin conversion matrix rows.
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
 const check = process.argv.includes("--check");
@@ -37,7 +36,7 @@ const entries = fs
       source: field("provider_source"),
       scope: field("plugin_scope"),
     };
-    assert(entry.name && entry.source);
+    assert(entry.name && entry.source && entry.scope);
     return [entry];
   })
   .sort((a, b) => ids.indexOf(a.id) - ids.indexOf(b.id));
@@ -50,7 +49,7 @@ for (const entry of entries) {
   const descriptor = descriptors.find((source) => source.includes(`id: .${entry.id},`));
   entry.color = descriptor?.match(/color: (?:ProviderColor|\.init)\(hex: 0x([A-Fa-f0-9]{6})\)/u)?.[1];
   assert(entry.color, `Missing hex branding for ${entry.id}`);
-  entry.auth = descriptor.includes("webSource:") || descriptor.includes("cookieSettings:") ? "cookies" : "apiKey";
+  entry.auth = descriptor.includes("webSource:") ? "cookies" : "apiKey";
   update(`docs/logos/${entry.id}.svg`, () => read(`Sources/CodexBar/Resources/ProviderIcon-${entry.id}.svg`));
 }
 const html = (value) => value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll('"', "&quot;");
@@ -94,12 +93,11 @@ update("docs/site-locales.mjs", (text) =>
   ),
 );
 update("docs/plugin-conversion-matrix.md", (text) => {
-  const pluginEntries = entries.filter((entry) => entry.scope);
   text = section(text, [
     "",
     "| Provider | Status | Engines | Scope |",
     "|---|---|---|---|",
-    ...pluginEntries.map((entry) => `| ${entry.id} | \`cut-over\` | QuickJS + JavaScriptCore | ${entry.scope} |`),
+    ...entries.map((entry) => `| ${entry.id} | \`cut-over\` | QuickJS + JavaScriptCore | ${entry.scope} |`),
     "",
   ]);
   const additions = [...text.split("## Additional plugin-first providers")[1].matchAll(/^\| [a-z0-9]+ \|/gm)].length;

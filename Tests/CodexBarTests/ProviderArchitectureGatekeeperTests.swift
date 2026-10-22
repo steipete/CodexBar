@@ -156,9 +156,9 @@ struct ProviderArchitectureGatekeeperTests {
             Self.hash(descriptor.branding.burnDownWidgetColor, into: &burnDownFingerprint)
         }
 
-        // Pi, Future AGI, Munito, and Trae CN extend the palette without changing existing provider colors.
-        #expect(widgetFingerprint == 6_255_042_164_805_757_336)
-        #expect(burnDownFingerprint == 14_385_594_926_364_387_828)
+        // Trae CN extends the merged palette without changing existing provider colors.
+        #expect(widgetFingerprint == 13_788_777_299_776_159_303)
+        #expect(burnDownFingerprint == 4_371_421_081_959_693_460)
     }
 
     @Test
@@ -170,8 +170,8 @@ struct ProviderArchitectureGatekeeperTests {
             try Self.hash(#require(descriptor.metadata.debugLogUnavailableMessage?.utf8), into: &fingerprint)
         }
 
-        #expect(descriptors.count == 41)
-        #expect(fingerprint == 16_220_649_441_669_097_270)
+        #expect(descriptors.count == 40)
+        #expect(fingerprint == 7_407_379_265_387_303_386)
     }
 
     @Test
@@ -203,7 +203,7 @@ struct ProviderArchitectureGatekeeperTests {
         #expect(Set(descriptors.filter(\.metadata.usesDetailBackedWindow).map(\.id)) == [
             .perplexity,
             .warp, .kilo, .mistral, .deepseek, .deepinfra, .qoder, .chutes, .longcat, .litellm, .bifrost, .manus,
-            .mimo, .neuralwatt, .abacus, .v0, .llmman, .aixy, .raycast, .workbuddy, .claudeplatform, .traecn,
+            .mimo, .neuralwatt, .abacus, .v0, .llmman, .aixy, .raycast, .workbuddy, .claudeplatform,
         ])
         #if os(macOS)
         // Antigravity and Muse use bounded local usage readers.
@@ -1725,6 +1725,27 @@ struct ProviderArchitectureGatekeeperTests {
     /// Anchors match trimmed source lines exactly; repeated text requires a 1-based occurrence.
     private static let allowedProviderConstructs: [AllowedProviderConstruct] = [
         AllowedProviderConstruct(
+            path: "Sources/CodexBar/MenuBarLayout.swift",
+            anchor: "let windows = provider == .cursor",
+            expectedProviderIDs: ["cursor"],
+            expectedReferenceCount: 1,
+            expectedReferenceFingerprint: ["cursor@0"],
+            reason: "Keeps the persisted Grok Bot layout token attached to the promoted Cursor weekly pool."),
+        AllowedProviderConstruct(
+            path: "Sources/CodexBar/MenuCardView.swift",
+            anchor: "input.provider == .cursor && input.snapshot",
+            expectedProviderIDs: ["cursor"],
+            expectedReferenceCount: 1,
+            expectedReferenceFingerprint: ["cursor@0"],
+            reason: "The promoted Cursor weekly pool uses weekly warning thresholds on its primary card."),
+        AllowedProviderConstruct(
+            path: "Sources/CodexBarCore/AccountMenuLayoutPlanner.swift",
+            anchor: "label: (account.provider == .cursor ? CursorProviderDescriptor.primaryLabel(snapshot: snapshot) : nil)",
+            expectedProviderIDs: ["cursor"],
+            expectedReferenceCount: 1,
+            expectedReferenceFingerprint: ["cursor@0"],
+            reason: "Compact Cursor account rows use the same verified weekly label as the full card."),
+        AllowedProviderConstruct(
             path: "Sources/CodexBar/MenuCardView+Costs.swift",
             anchor: "showsInProviderDetails: style != .claude,",
             expectedProviderIDs: ["claude"],
@@ -1958,11 +1979,11 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact shared renderer maps provider-owned presentation data into the generic UI model."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/MenuCardView+ProviderDetailLocalization.swift",
-            anchor: "if provider == .amp {",
-            expectedProviderIDs: ["amp", "openrouter"],
-            expectedReferenceCount: 2,
-            expectedReferenceFingerprint: ["amp@0", "openrouter@8"],
-            reason: "Localizes Amp's static unit/pool copy and OpenRouter's cap disclosure; balances stay canonical."),
+            anchor: "if provider == .kimi {",
+            expectedProviderIDs: ["amp", "kimi", "openrouter"],
+            expectedReferenceCount: 3,
+            expectedReferenceFingerprint: ["kimi@0", "amp@3", "openrouter@11"],
+            reason: "Kimi gift balance expiry uses the shared localized expiry phrase; server titles stay canonical."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/MenuCardView+ProviderDetailLocalization.swift",
             anchor: "case .deepseek:",
@@ -2767,10 +2788,10 @@ struct ProviderArchitectureGatekeeperTests {
         AllowedProviderConstruct(
             path: "Sources/CodexBar/UsageStore+QuotaWarnings.swift",
             anchor: "let source: SessionQuotaWindowSource? = if provider == .antigravity {",
-            expectedProviderIDs: ["amp", "antigravity", "claude", "mimo", "qoder"],
-            expectedReferenceCount: 7,
+            expectedProviderIDs: ["amp", "antigravity", "claude", "cursor", "mimo", "qoder"],
+            expectedReferenceCount: 8,
             expectedReferenceFingerprint: [
-                "antigravity@0", "antigravity@9", "mimo@13", "qoder@13", "amp@17", "amp@20", "claude@23",
+                "antigravity@0", "antigravity@9", "cursor@12", "mimo@16", "qoder@16", "amp@20", "amp@23", "claude@26",
             ],
             reason: "Warning windows retain provider-owned family, balance, label, and extra-window policies."),
         AllowedProviderConstruct(
@@ -3204,14 +3225,15 @@ struct ProviderArchitectureGatekeeperTests {
             path: "Sources/CodexBar/UsageStore+WidgetSnapshot.swift",
             anchor: "case .cursor where snapshot.detailRow(label: \"Request quota\") != nil: \"Requests\"",
             expectedProviderIDs: ["alibabatokenplan", "amp", "cursor", "doubao", "grok", "ollama"],
-            expectedReferenceCount: 6,
+            expectedReferenceCount: 7,
             expectedReferenceFingerprint: [
                 "cursor@0",
-                "grok@1",
-                "doubao@2",
-                "amp@3",
-                "alibabatokenplan@4",
-                "ollama@5",
+                "cursor@1",
+                "grok@2",
+                "doubao@3",
+                "amp@4",
+                "alibabatokenplan@5",
+                "ollama@6",
             ],
             reason: "This exact app-runtime bridge coordinates provider-owned state through the shared controller."),
         AllowedProviderConstruct(

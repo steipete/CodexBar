@@ -1002,6 +1002,7 @@ extension CostUsageStoreTests {
         "6366caa15c925349",
         "3f88178bf03ad704",
         "a47b70abaf8ad86c",
+        "d9542d1ef3ce1875",
         "4a593b5d59c7bcf3",
         "b77d4ec72e14ea63",
         "cfd84d13ad7d4cfa",

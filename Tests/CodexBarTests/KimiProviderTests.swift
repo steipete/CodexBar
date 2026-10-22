@@ -1169,7 +1169,7 @@ struct KimiUsageSnapshotConversionTests {
             used: "375",
             remaining: "1673",
             resetTime: "2026-01-09T15:23:13.373329235Z")
-        let subscriptionBalance = KimiSubscriptionBalance(
+        let subscriptionBalance = KimiCreditBalance(
             feature: "FEATURE_OMNI",
             type: "SUBSCRIPTION",
             amountUsedRatio: 1,
@@ -1213,7 +1213,7 @@ struct KimiUsageSnapshotConversionTests {
             resetTime: "2026-01-09T15:23:13.373329235Z")
         // A live, partially-used balance (not the fully-exhausted 1.0 fixture): amountUsedRatio is a
         // real consumption ratio, so the Monthly window must track it rather than pin to 100%.
-        let subscriptionBalance = KimiSubscriptionBalance(
+        let subscriptionBalance = KimiCreditBalance(
             feature: "FEATURE_OMNI",
             type: "SUBSCRIPTION",
             amountUsedRatio: 0.7716,
@@ -1357,7 +1357,7 @@ struct KimiUsageSnapshotConversionTests {
             let snapshot = KimiUsageSnapshot(
                 weekly: weeklyDetail,
                 rateLimit: nil,
-                subscriptionBalance: KimiSubscriptionBalance(
+                subscriptionBalance: KimiCreditBalance(
                     feature: "FEATURE_OMNI",
                     type: "SUBSCRIPTION",
                     amountUsedRatio: .nan,

@@ -164,7 +164,7 @@ struct ProviderPaceCapabilityTests {
         case .amp:
             return window.windowMinutes != nil && window.resetDescription?.hasPrefix("renews in ") == true
         case .alibaba, .alibabatokenplan, .claude, .commandcode, .doubao, .kiro, .mimo, .notion, .ollama,
-             .opencodego, .stepfun, .traecn:
+             .opencodego, .stepfun:
             return window.windowMinutes == self.monthlyWindowSentinelMinutes
         default:
             return false
@@ -182,7 +182,7 @@ struct ProviderPaceCapabilityTests {
             window.windowMinutes == self.monthlyWindowSentinelMinutes
                 && window.resetDescription == "MCP"
         case .alibaba, .alibabatokenplan, .claude, .commandcode, .doubao, .kiro, .mimo, .notion, .ollama,
-             .opencodego, .stepfun, .traecn:
+             .opencodego, .stepfun:
             window.windowMinutes == self.monthlyWindowSentinelMinutes
         default:
             false

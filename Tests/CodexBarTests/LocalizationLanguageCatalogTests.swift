@@ -772,6 +772,7 @@ struct LocalizationLanguageCatalogTests {
             "Pro",
             "SuperGrok OAuth",
             "Token",
+            "Trae CN",
             "Zed cookie",
             "ZeroGPU",
             "__raycast_session=…; csrf_token=…",

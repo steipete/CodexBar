@@ -2,6 +2,14 @@
 
 ## 0.79.1 — Unreleased
 
+- Trae CN: show account credit usage from your signed-in dashboard (#4682). Thanks @liuyuplus!
+- Soniox: show prepaid balance and monthly spend using an organization API key, with an optional monthly budget meter. (#4678) Thanks @JiehoonKwak!
+- Linux desktop: show a readable provider initial when a bundled logo is unavailable (#4693). Thanks @SaahiilM!
+- Claude cost history: price Mythos 5.1 and Mythos 5 from published Anthropic rates and refresh cached estimates without rereading unchanged transcripts (#4578). Thanks @urda!
+- Kiro: skip background CLI probes when the usage service is unreachable, preventing repeated offline sign-in tabs while retaining last-good usage (#4589). Thanks @dnicolson!
+- Linux: link the community CodexBar GTK front-end using the shared CLI (#4697). Thanks @SaahiilM!
+- Cursor: show the X Subscription weekly pool as the main meter while preserving legacy plans and separate on-demand spend (#4545, #4695). Thanks @Abelo9996 and @ViDtje!
+- Kimi: show promotional gift balances and expiry dates even when the monthly subscription allowance is exhausted (#4691). Thanks @codertesla!
 - Antigravity: preserve separate versioned Gemini quota names, including Gemini 4 Argon, instead of repeating the generic Gemini label (#4585). Thanks @jangisaac-dev!
 - Claude: explain how to recover a temporarily unavailable macOS Keychain cache, with translated guidance (#4576). Thanks @mpses!
 - Plugins: release each user-plugin network session when its request completes, avoiding retained clients after plugins reload (#4584). Thanks @SebTardif!

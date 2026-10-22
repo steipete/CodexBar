@@ -9,7 +9,7 @@ read_when:
 
 # Kiro provider
 
-Kiro uses the AWS `kiro-cli` tool to fetch usage data. No browser cookies or OAuth flow—authentication is handled by AWS Builder ID through the CLI.
+Kiro uses `kiro-cli` to fetch usage data. The CLI owns authentication; CodexBar does not import browser cookies or implement a separate OAuth flow.
 
 ## Data sources
 
@@ -19,6 +19,14 @@ Kiro uses the AWS `kiro-cli` tool to fetch usage data. No browser cookies or OAu
    - CodexBar tries ordinary stdout/stderr pipes first for current Kiro CLI releases. Incomplete or unusable
      pipe output falls back to a pseudo-terminal within the same overall command deadline for older releases.
    - Requires `kiro-cli` installed and logged in via AWS Builder ID.
+   - Background refreshes first make an unauthenticated, four-second `HEAD` request to the CLI profile's
+     usage host. Missing or unsupported private region state falls back to the default US East usage host.
+     A transport failure stops the refresh before any CLI command starts and preserves last-good usage
+     through the shared offline handling. Any HTTP response establishes reachability; manual refreshes
+     retain their existing CLI path.
+   - The [CLI command reference](https://kiro.dev/docs/reference/cli-commands/) describes `--no-interactive`
+     as disabling the chat loop, not browser authentication. CodexBar retains that flag and uses the
+     reachability check to contain offline background sign-in attempts.
    - Output is ANSI-decorated; CodexBar strips escape sequences before parsing.
    - Kiro CLI 2.20 summary output such as `Plan: KIRO PRO MAX | 1 usage breakdowns` is accepted
      as a plan-only report. A breakdown count does not imply zero usage or an available allowance.

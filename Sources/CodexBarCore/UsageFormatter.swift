@@ -36,7 +36,7 @@ public enum UsageFormatter {
         self.localizationLock.unlock()
     }
 
-    private static func currentLocale() -> Locale {
+    static func currentLocale() -> Locale {
         self.localizationLock.lock()
         let provider = self.localeProvider
         self.localizationLock.unlock()

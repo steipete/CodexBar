@@ -2112,6 +2112,8 @@
 "Poe usage history is unavailable." = "Användningshistoriken för Poe är inte tillgänglig.";
 "Stored in ~/.codexbar/config.json. Get your key from poe.com/api/keys." = "Lagrat i ~/.codexbar/config.json. Få din nyckel från poe.com/api/keys.";
 "Billing" = "Fakturering";
+"Invoice billing" = "Fakturabetalning";
+"Prepaid" = "Förbetalt";
 "Rate limit" = "Gräns för anropsfrekvens";
 "Billing and rate-limit data from the v0 Platform API" = "Faktureringsdata och gränser för anropsfrekvens från v0-plattformens API";
 "v0 cost history is not available via the Platform API." = "v0 kostnadshistorik är inte tillgänglig via plattformen API.";
@@ -2700,10 +2702,8 @@
 
 "monthly_daily_target_format" = "≈ %@ / dag för att räcka till återställningen";
 
-/* Trae CN provider credentials */
-"Cookie" = "Cookie";
-"Open Trae CN Dashboard" = "Öppna Trae CN-instrumentpanelen";
-"Paste a Cookie header from %@ (DevTools → Network → any api.trae.cn request)." = "Klistra in en Cookie-rubrik från %@ (DevTools → Network → valfri api.trae.cn-begäran).";
-"Trae CN plan credits usage." = "Användning av Trae CN-planens krediter.";
-"Trae CN has no browser import. Select Manual to paste a Cookie header." = "Trae CN har ingen webbläsarimport. Välj ”Manual” för att klistra in ett Cookie-huvud.";
-"Uses the Cookie header pasted from a signed-in trae.cn session." = "Använder Cookie-huvudet som klistrats in från en inloggad trae.cn-session.";
+"Trae CN" = "Trae CN";
+"Show Trae CN usage" = "Visa Trae CN-användning";
+"Sign in to Trae CN at trae.cn, then refresh CodexBar." = "Logga in på Trae CN på trae.cn och uppdatera sedan CodexBar.";
+"Trae CN usage response format changed." = "Formatet på användningssvaret från Trae CN har ändrats.";
+"Trae CN request failed. Try refreshing later." = "Trae CN-förfrågan misslyckades. Försök uppdatera senare.";

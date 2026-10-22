@@ -426,6 +426,7 @@ extension UsageStore {
         let dynamicTitle: String? = switch provider {
         // Legacy request-based Cursor plans track a request quota, not the token-based "Total" pool.
         case .cursor where snapshot.detailRow(label: "Request quota") != nil: "Requests"
+        case .cursor: CursorProviderDescriptor.primaryLabel(snapshot: snapshot)
         case .grok: GrokProviderDescriptor.displayLabel(window: snapshot.primary)
         case .doubao: DoubaoProviderDescriptor.primaryLabel(window: snapshot.primary)
         case .amp: AmpProviderDescriptor.primaryLabel(snapshot: snapshot)

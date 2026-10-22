@@ -10,7 +10,7 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-6e5aff?style=flat-square)](LICENSE)
 [![Site](https://img.shields.io/badge/site-codexbar.app-16d3b4?style=flat-square)](https://codexbar.app)
 
-<a href="https://codexbar.app"><img src="docs/social.png?v=00d86c5ddaad3fc8" alt="CodexBar — every AI coding limit in your menu bar. 107 providers." width="100%" /></a>
+<a href="https://codexbar.app"><img src="docs/social.png?v=ceab6881f7a26afe" alt="CodexBar — every AI coding limit in your menu bar. 108 providers." width="100%" /></a>
 
 Tiny macOS 14+ menu bar app that keeps **AI coding-provider limits visible** and shows when each window resets. See the [supported providers](#providers) below. One status item per provider, or Merge Icons mode with a provider switcher. No Dock icon, minimal UI, dynamic bar icons.
 
@@ -184,6 +184,7 @@ See [CLI configuration](docs/cli-configuration.md) for the full flow.
 
 <!-- Generated provider additions: Scripts/regenerate-provider-docs.mjs -->
 - [Langdock](docs/langdock.md) — Selected Edge, Chrome, or Safari profile → personal included session and weekly limits (`web`, macOS).
+- [Soniox](docs/soniox.md) — Organization API key for prepaid USD balance and monthly spend against the organization budget.
 - [X API](docs/xapi.md) — Browser or manual console.x.com cookies for prepaid and free credits, including negative balances.
 - [Future AGI](docs/futureagi.md) — API key and secret key (billing-period usage, allowances, and estimated cost).
 - [LithosAI](docs/lithosai.md) — Browser or manual console cookies for prepaid USD balance and optional UTC spend.
@@ -201,7 +202,7 @@ See [CLI configuration](docs/cli-configuration.md) for the full flow.
 - [Parallel](docs/parallel.md) — Browser session on platform.parallel.ai for the prepaid credit balance and pending debit.
 - [Claude Platform](docs/claudeplatform.md) — Browser or manual platform.claude.com session cookies for Console API credit balance, expiring credit grants, and month-to-date spend.
 - [Munito](docs/munito.md) — Admin API key with Read account data permission for today's and this month's spend against the organization's spend limits.
-- [Trae CN](docs/traecn.md) — Manual cookie paste from trae.cn for the plan credit total/usage and the monthly reset countdown.
+- [Trae CN](docs/traecn.md) — Browser session for account credit usage.
 <!-- End generated provider additions -->
 
 ## Icon & Screenshot
@@ -302,6 +303,7 @@ CLI install:
 ## Linux desktop integration?
 - [Linux desktop app](Integrations/Linux/README.md) — x86_64/ARM64 release archives with an installer; Qt 6 usage and spending windows, separate settings, optional system tray, and desktop notifications using the Linux CLI.
 - [Omarchy native widget](Integrations/Omarchy/README.md) — Compact Quickshell usage popup sharing the Linux desktop app’s backend.
+- [CodexBar GTK](https://github.com/SaahiilM/codexbar-gtk) — Community GTK4/libadwaita front-end with usage, spending, and agent sessions from the CodexBar Linux CLI.
 - [codexbar-waybar](https://github.com/Marouan-chak/codexbar-waybar) — Waybar custom module + GTK4 popover for Hyprland / Sway / other Wayland compositors, built on top of the bundled Linux CLI.
 - [codexbar-cosmic-applet](https://github.com/andrew-verde/codexbar-cosmic-applet) — Native COSMIC (System76) desktop panel applet with a tab per provider, pace projections, and cost/token stats, built on top of the bundled Linux CLI.
 - [Codexbar GNOME](https://extensions.gnome.org/extension/9841/codexbar/) — GNOME Shell extension that brings CodexBar usage into the desktop panel.

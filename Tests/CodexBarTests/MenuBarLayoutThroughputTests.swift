@@ -79,7 +79,6 @@ struct MenuBarLayoutThroughputTests {
 
     @Test
     func `sparkline buckets preserve peaks and stop at the reporting frontier`() {
-        // Explicit annotations keep the nested ternaries inside the type-checker budget.
         let minutes: [ProviderThroughputSnapshot.Minute] = (0..<60).map { (index: Int) in
             let totalTokens: Int = index == 41 ? 151_000_000 : index == 56 ? 49_000_000 : index * 1_000_000
             return ProviderThroughputSnapshot.Minute(

@@ -8,7 +8,7 @@ read_when:
 
 # Providers
 
-CodexBar currently registers 107 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
+CodexBar currently registers 108 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
 OpenCode vs OpenCode Go, because the auth source and quota shape differ.
 
 ## Fetch strategies (current)
@@ -122,7 +122,6 @@ complete when the available scan window covers fewer days.
 | OpenRouter | API token (config, overrides env) → key quota and credits APIs; a management key enables account Activity on the official API (`api`). |
 | Perplexity | Browser cookies/manual cookie/env session token → credits API (`web`). |
 | Xiaomi MiMo | Browser cookies → balance/token plan endpoints (`web`). |
-| Trae CN | Manual `Cookie:` header → plan credits entitlement endpoint (`web`). |
 | Doubao | API key from config/env → Volcengine Ark chat-completions probe (`api`). |
 | Sakana AI | Manual Cookie header → billing page parser for 5-hour/weekly quota windows plus a best-effort pay-as-you-go credit balance (`web`). |
 | Abacus AI | Browser cookies → compute points + billing API (`web`). |
@@ -168,6 +167,7 @@ complete when the available scan window covers fewer days.
 | Provider | Source |
 |---|---|
 | [Langdock](langdock.md) | Selected Edge, Chrome, or Safari profile → personal included session and weekly limits (`web`, macOS). |
+| [Soniox](soniox.md) | Organization API key for prepaid USD balance and monthly spend against the organization budget. |
 | [X API](xapi.md) | Browser or manual console.x.com cookies for prepaid and free credits, including negative balances. |
 | [Future AGI](futureagi.md) | API key and secret key (billing-period usage, allowances, and estimated cost). |
 | [LithosAI](lithosai.md) | Browser or manual console cookies for prepaid USD balance and optional UTC spend. |
@@ -185,7 +185,7 @@ complete when the available scan window covers fewer days.
 | [Parallel](parallel.md) | Browser session on platform.parallel.ai for the prepaid credit balance and pending debit. |
 | [Claude Platform](claudeplatform.md) | Browser or manual platform.claude.com session cookies for Console API credit balance, expiring credit grants, and month-to-date spend. |
 | [Munito](munito.md) | Admin API key with Read account data permission for today's and this month's spend against the organization's spend limits. |
-| [Trae CN](traecn.md) | Manual cookie paste from trae.cn for the plan credit total/usage and the monthly reset countdown. |
+| [Trae CN](traecn.md) | Browser session for account credit usage. |
 
 <!-- End generated provider additions -->
 
@@ -518,14 +518,6 @@ provider-specific cookie validation, endpoints, login detection, and error trans
 - Local MiMo token accounting is available only when the opt-in cache file exists.
 - Status: none yet.
 - Details: `docs/mimo.md`.
-
-## Trae CN
-- Manual `Cookie:` header from `www.trae.cn` (DevTools → Network → any `api.trae.cn` request); no automatic
-  browser import.
-- Reads the plan entitlement endpoint for total/used credits and the monthly reset date.
-- The cookie is only ever sent to the fixed `api.trae.cn` origin; there is no endpoint override.
-- Status: none yet.
-- Details: `docs/traecn.md`.
 
 ## Doubao
 - API key via `ARK_API_KEY`, `VOLCENGINE_API_KEY`, `DOUBAO_API_KEY`, or provider config.

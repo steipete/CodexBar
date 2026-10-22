@@ -70,6 +70,9 @@ extension UsageStore {
         if provider == .antigravity {
             primaryWindow = Self.antigravityWindow(snapshot: snapshot, windowMinutes: 5 * 60)
             secondaryWindow = Self.antigravityWindow(snapshot: snapshot, windowMinutes: 7 * 24 * 60)
+        } else if provider == .cursor, let weekly = CursorProviderDescriptor.sharedWeeklyPool(snapshot: snapshot) {
+            primaryWindow = nil
+            secondaryWindow = weekly
         } else {
             let suppressWindows = provider == .mimo || provider == .qoder
             primaryWindow = suppressWindows ? nil : snapshot.primary

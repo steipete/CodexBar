@@ -1,4 +1,5 @@
 #include "DesktopController.h"
+#include "ProviderIconProvider.h"
 
 #include <QApplication>
 #include <QColor>
@@ -8,7 +9,6 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QIcon>
-#include <QImage>
 #include <QJsonDocument>
 #include <QLocalSocket>
 #include <QLockFile>
@@ -17,40 +17,12 @@
 #include <QRegularExpression>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
-#include <QQuickImageProvider>
 #include <QQuickStyle>
 #include <QStandardPaths>
-#include <QSvgRenderer>
 #include <QSystemTrayIcon>
 #include <cstdio>
 #include <memory>
 #include <unistd.h>
-
-// The shared provider SVGs are white template assets on macOS. Tint them using the
-// active Qt palette so they stay legible in both light and dark Linux appearances.
-class ProviderIconProvider final : public QQuickImageProvider {
-public:
-    ProviderIconProvider() : QQuickImageProvider(QQuickImageProvider::Image) {}
-
-    QImage requestImage(const QString &id, QSize *size, const QSize &requestedSize) override {
-        const auto provider = id.section('?', 0, 0);
-        if (!QRegularExpression("^[a-z0-9-]{1,80}$").match(provider).hasMatch()) return {};
-        QFile icon(":/logos/ProviderIcon-" + provider + ".svg");
-        if (!icon.open(QIODevice::ReadOnly)) return {};
-        QSvgRenderer svg(icon.readAll());
-        if (!svg.isValid()) return {};
-        const auto color = QColor("#" + id.section("color=", 1, 1).section('&', 0, 0));
-        const auto dimensions = requestedSize.isValid() ? requestedSize : QSize(36, 36);
-        QImage image(dimensions, QImage::Format_ARGB32_Premultiplied);
-        image.fill(Qt::transparent);
-        QPainter painter(&image);
-        svg.render(&painter);
-        painter.setCompositionMode(QPainter::CompositionMode_SourceIn);
-        painter.fillRect(image.rect(), color.isValid() ? color : QColor(Qt::black));
-        if (size) *size = dimensions;
-        return image;
-    }
-};
 
 static QByteArray request(const QString &socketPath, const QJsonObject &message) {
     QLocalSocket socket;

@@ -150,14 +150,7 @@ public enum KiroUsageLimitsAPI: Sendable {
         transport: any ProviderHTTPTransport) async throws -> KiroUsageLimits
     {
         let identity = try self.readIdentity(databaseURL: databaseURL)
-        let arn = identity.profileARN.split(separator: ":", maxSplits: 5, omittingEmptySubsequences: false)
-        guard arn.count == 6, arn[0] == "arn", arn[1] == "aws", arn[2] == "codewhisperer",
-              arn[5].hasPrefix("profile/"), arn[5].count > "profile/".count,
-              identity.profileARN.rangeOfCharacter(from: .whitespacesAndNewlines.union(.controlCharacters)) == nil,
-              let endpoint = self.profileEndpoints[String(arn[3])]
-        else {
-            throw KiroUsageLimitsError.credentialsUnavailable("unsupported profile ARN")
-        }
+        let endpoint = try self.usageEndpoint(profileARN: identity.profileARN)
         var request = URLRequest(url: endpoint, timeoutInterval: self.requestTimeout)
         request.httpMethod = "POST"
         request.setValue(self.contentType, forHTTPHeaderField: "Content-Type")
@@ -182,6 +175,33 @@ public enum KiroUsageLimitsAPI: Sendable {
             throw KiroUsageLimitsError.requestFailed("HTTP \(http.statusCode)")
         }
         return try self.parse(data)
+    }
+
+    static func ensureReachable(
+        databaseURL: URL = stateDatabaseURL(),
+        transport: any ProviderHTTPTransport = isolatedTransport) async throws
+    {
+        try Task.checkCancellation()
+        // Missing private CLI state must not bypass the background sign-in guard.
+        let endpoint = (try? self.usageEndpoint(profileARN: self.readIdentity(databaseURL: databaseURL).profileARN))
+            ?? self.profileEndpoints["us-east-1"]!
+        var request = URLRequest(url: endpoint, timeoutInterval: 4)
+        request.httpMethod = "HEAD"
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+        // Any HTTP response proves reachability; propagate transport failures for shared snapshot preservation.
+        _ = try await transport.data(for: request)
+    }
+
+    private static func usageEndpoint(profileARN: String) throws -> URL {
+        let arn = profileARN.split(separator: ":", maxSplits: 5, omittingEmptySubsequences: false)
+        guard arn.count == 6, arn[0] == "arn", arn[1] == "aws", arn[2] == "codewhisperer",
+              arn[5].hasPrefix("profile/"), arn[5].count > "profile/".count,
+              profileARN.rangeOfCharacter(from: .whitespacesAndNewlines.union(.controlCharacters)) == nil,
+              let endpoint = self.profileEndpoints[String(arn[3])]
+        else {
+            throw KiroUsageLimitsError.credentialsUnavailable("unsupported profile ARN")
+        }
+        return endpoint
     }
 
     static func parse(_ data: Data) throws -> KiroUsageLimits {
@@ -275,6 +295,9 @@ public enum KiroUsageLimitsAPI: Sendable {
         configuration.httpCookieStorage = nil
         configuration.httpShouldSetCookies = false
         configuration.urlCache = nil
+        #if !os(Linux)
+        configuration.waitsForConnectivity = false
+        #endif
         configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
         return ProviderHTTPClient(session: ProviderHTTPClient.redirectGuardedSession(configuration: configuration))
     }()

@@ -2114,6 +2114,8 @@
 "Poe usage history is unavailable." = "Lịch sử sử dụng Poe không khả dụng.";
 "Stored in ~/.codexbar/config.json. Get your key from poe.com/api/keys." = "Được lưu trữ trong ~/.codexbar/config.json. Nhận khóa của bạn từ poe.com/api/keys.";
 "Billing" = "Thanh toán";
+"Invoice billing" = "Thanh toán theo hóa đơn";
+"Prepaid" = "Trả trước";
 "Rate limit" = "Giới hạn tỷ lệ";
 "Billing and rate-limit data from the v0 Platform API" = "Dữ liệu thanh toán và giới hạn tỷ lệ từ Nền tảng v0 API";
 "v0 cost history is not available via the Platform API." = "Lịch sử chi phí v0 không có sẵn thông qua Nền tảng API.";
@@ -2702,10 +2704,8 @@
 
 "monthly_daily_target_format" = "≈ %@ / ngày để đủ dùng đến khi đặt lại";
 
-/* Trae CN provider credentials */
-"Cookie" = "Cookie";
-"Open Trae CN Dashboard" = "Mở bảng điều khiển Trae CN";
-"Paste a Cookie header from %@ (DevTools → Network → any api.trae.cn request)." = "Dán tiêu đề Cookie từ %@ (DevTools → Network → bất kỳ yêu cầu api.trae.cn nào).";
-"Trae CN plan credits usage." = "Mức sử dụng tín dụng gói Trae CN.";
-"Trae CN has no browser import. Select Manual to paste a Cookie header." = "Trae CN không có nhập từ trình duyệt. Chọn “Manual” để dán tiêu đề Cookie.";
-"Uses the Cookie header pasted from a signed-in trae.cn session." = "Dùng tiêu đề Cookie được dán từ phiên trae.cn đã đăng nhập.";
+"Trae CN" = "Trae CN";
+"Show Trae CN usage" = "Hiển thị mức sử dụng Trae CN";
+"Sign in to Trae CN at trae.cn, then refresh CodexBar." = "Đăng nhập vào Trae CN tại trae.cn, rồi làm mới CodexBar.";
+"Trae CN usage response format changed." = "Định dạng phản hồi mức sử dụng Trae CN đã thay đổi.";
+"Trae CN request failed. Try refreshing later." = "Yêu cầu Trae CN không thành công. Hãy thử làm mới sau.";

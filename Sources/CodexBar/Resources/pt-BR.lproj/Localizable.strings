@@ -2113,6 +2113,8 @@
 "Poe usage history is unavailable." = "O histórico de uso do Poe não está disponível.";
 "Stored in ~/.codexbar/config.json. Get your key from poe.com/api/keys." = "Armazenado em ~/.codexbar/config.json. Obtenha sua chave em poe.com/api/keys.";
 "Billing" = "Faturamento";
+"Invoice billing" = "Pagamento por fatura";
+"Prepaid" = "Pré-pago";
 "Rate limit" = "Limite de taxa";
 "Billing and rate-limit data from the v0 Platform API" = "Dados de faturamento e limite de taxa da plataforma v0 API";
 "v0 cost history is not available via the Platform API." = "O histórico de custos v0 não está disponível por meio da Plataforma API.";
@@ -2701,10 +2703,8 @@
 
 "monthly_daily_target_format" = "≈ %@ / dia para durar até a renovação";
 
-/* Trae CN provider credentials */
-"Cookie" = "Cookie";
-"Open Trae CN Dashboard" = "Abrir o painel do Trae CN";
-"Paste a Cookie header from %@ (DevTools → Network → any api.trae.cn request)." = "Cole um cabeçalho Cookie de %@ (DevTools → Network → qualquer requisição api.trae.cn).";
-"Trae CN plan credits usage." = "Uso de créditos do plano Trae CN.";
-"Trae CN has no browser import. Select Manual to paste a Cookie header." = "O Trae CN não tem importação do navegador. Selecione “Manual” para colar um cabeçalho Cookie.";
-"Uses the Cookie header pasted from a signed-in trae.cn session." = "Usa o cabeçalho Cookie colado de uma sessão conectada do trae.cn.";
+"Trae CN" = "Trae CN";
+"Show Trae CN usage" = "Mostrar uso do Trae CN";
+"Sign in to Trae CN at trae.cn, then refresh CodexBar." = "Entre no Trae CN em trae.cn e atualize o CodexBar.";
+"Trae CN usage response format changed." = "O formato da resposta de uso do Trae CN mudou.";
+"Trae CN request failed. Try refreshing later." = "A solicitação ao Trae CN falhou. Tente atualizar mais tarde.";

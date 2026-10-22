@@ -386,7 +386,8 @@ extension UsageStore {
             primary: MenuBarLayoutRenderWindow(windows.primary),
             secondary: MenuBarLayoutRenderWindow(windows.secondary),
             tertiary: MenuBarLayoutRenderWindow(windows.tertiary),
-            extraRateWindows: (snapshot?.extraRateWindows ?? []).map(MenuBarLayoutRenderExtra.init),
+            extraRateWindows: MenuBarLayoutNamedExtra.windows(provider: provider, snapshot: snapshot)
+                .map(MenuBarLayoutRenderExtra.init),
             session: MenuBarLayoutRenderWindow(windows.session),
             weekly: MenuBarLayoutRenderWindow(windows.weekly),
             scopedWeekly: MenuBarLayoutRenderWindow(scopedNamed?.window),

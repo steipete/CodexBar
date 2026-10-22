@@ -2117,6 +2117,8 @@
 "Poe usage history is unavailable." = "Poe usage history is unavailable.";
 "Stored in ~/.codexbar/config.json. Get your key from poe.com/api/keys." = "Stored in ~/.codexbar/config.json. Get your key from poe.com/api/keys.";
 "Billing" = "Billing";
+"Invoice billing" = "Invoice billing";
+"Prepaid" = "Prepaid";
 "Rate limit" = "Rate limit";
 "Billing and rate-limit data from the v0 Platform API" = "Billing and rate-limit data from the v0 Platform API";
 "v0 cost history is not available via the Platform API." = "v0 cost history is not available via the Platform API.";
@@ -2706,10 +2708,8 @@
 
 "monthly_daily_target_format" = "≈ %@ / day to last until reset";
 
-/* Trae CN provider credentials */
-"Cookie" = "Cookie";
-"Open Trae CN Dashboard" = "Open Trae CN Dashboard";
-"Paste a Cookie header from %@ (DevTools → Network → any api.trae.cn request)." = "Paste a Cookie header from %@ (DevTools → Network → any api.trae.cn request).";
-"Trae CN plan credits usage." = "Trae CN plan credits usage.";
-"Trae CN has no browser import. Select Manual to paste a Cookie header." = "Trae CN has no browser import. Select Manual to paste a Cookie header.";
-"Uses the Cookie header pasted from a signed-in trae.cn session." = "Uses the Cookie header pasted from a signed-in trae.cn session.";
+"Trae CN" = "Trae CN";
+"Show Trae CN usage" = "Show Trae CN usage";
+"Sign in to Trae CN at trae.cn, then refresh CodexBar." = "Sign in to Trae CN at trae.cn, then refresh CodexBar.";
+"Trae CN usage response format changed." = "Trae CN usage response format changed.";
+"Trae CN request failed. Try refreshing later." = "Trae CN request failed. Try refreshing later.";

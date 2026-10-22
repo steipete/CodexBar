@@ -216,6 +216,111 @@ struct CostUsageScannerClaudeCacheUpgradeTests {
     }
 
     @Test
+    func `version seven reports price Mythos usage without rereading unchanged transcripts`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer {
+            CostUsageScanner.evictClaudeReportMemoForTesting(provider: .claude, cacheRoot: env.cacheRoot)
+            env.cleanup()
+        }
+        let day = try env.makeLocalNoon(year: 2026, month: 10, day: 16)
+        let model = "claude-mythos-5-1"
+        let source = try env.writeClaudeProjectFile(
+            relativePath: "project/mythos-session.jsonl",
+            contents: env.jsonl([[
+                "type": "assistant",
+                "timestamp": env.isoString(for: day),
+                "sessionId": "mythos-session",
+                "message": ["id": "mythos-response", "model": model, "usage": [
+                    "input_tokens": 100,
+                    "cache_read_input_tokens": 20,
+                    "output_tokens": 5,
+                ]],
+            ]]))
+        let sourceData = try Data(contentsOf: source)
+        let sourceStamp = CostUsageClaudeFileStamp.read(at: source)
+        var options = CostUsageScanner.Options(
+            claudeProjectsRoots: [env.claudeProjectsRoot],
+            cacheRoot: env.cacheRoot)
+        options.refreshMinIntervalSeconds = 60
+        let (fresh, _) = self.recordedLoad(provider: .claude, day: day, options: options)
+        // $10 input, $0.25 cache read, and $50 output per million tokens.
+        #expect(try abs(#require(fresh.summary?.totalCostUSD) - 0.001255) < 1e-12)
+        let dayKey = try #require(fresh.data.first?.date)
+        let cacheURL = CostUsageClaudeCacheIO.cacheFileURL(provider: .claude, cacheRoot: env.cacheRoot)
+        let memoURL = CostUsageClaudeReportMemo.reportMemoFileURL(cacheFileURL: cacheURL)
+
+        // Before the bundled Mythos prices, the cached row and the persisted report carried no cost.
+        var cache = CostUsageClaudeCacheIO.load(provider: .claude, cacheRoot: env.cacheRoot)
+        let path = try #require(cache.usage.files.keys.first)
+        let row = try #require(cache.usage.files[path]?.claudeRows?.first)
+        cache.usage.files[path]?.claudeRows = [CostUsageScanner.ClaudeUsageRow(
+            dayKey: row.dayKey,
+            model: row.model,
+            sessionId: row.sessionId,
+            messageId: row.messageId,
+            requestId: row.requestId,
+            timestampUnixMs: row.timestampUnixMs,
+            isSidechain: row.isSidechain,
+            pathRole: row.pathRole,
+            input: row.input,
+            cacheRead: row.cacheRead,
+            cacheCreate: row.cacheCreate,
+            cacheCreate1h: row.cacheCreate1h,
+            output: row.output,
+            costNanos: 0,
+            costPriced: false)]
+        cache.usage.days[dayKey]?[model]?[4] = 0
+        cache.usage.days[dayKey]?[model]?[6] = 0
+        try JSONEncoder().encode(cache).write(to: cacheURL)
+        let cacheStamp = try #require(CostUsageClaudeFileStamp.read(at: cacheURL))
+        var memo = try self.readMemo(at: memoURL)
+        memo.reportKey = self.replacingCacheStamp(in: memo.reportKey, with: cacheStamp)
+        memo.report = CostUsageDailyReport(
+            data: [CostUsageDailyReport.Entry(
+                date: dayKey,
+                inputTokens: 100,
+                outputTokens: 5,
+                cacheReadTokens: 20,
+                cacheCreationTokens: 0,
+                totalTokens: 125,
+                costUSD: nil,
+                modelsUsed: [model],
+                modelBreakdowns: [CostUsageDailyReport.ModelBreakdown(
+                    modelName: model,
+                    costUSD: nil,
+                    totalTokens: 125)])],
+            summary: CostUsageDailyReport.Summary(
+                totalInputTokens: 100,
+                totalOutputTokens: 5,
+                cacheReadTokens: 20,
+                cacheCreationTokens: 0,
+                totalTokens: 125,
+                totalCostUSD: nil))
+        try JSONEncoder().encode(memo).write(to: memoURL)
+        // A current-semantics control proves this exact inventory and key would serve the unpriced report.
+        CostUsageScanner.evictClaudeReportMemoForTesting(provider: .claude, cacheRoot: env.cacheRoot)
+        let (control, controlWork) = self.recordedLoad(provider: .claude, day: day, options: options)
+        #expect(control.summary?.totalCostUSD == nil)
+        #expect(controlWork == CostUsageScanner.ClaudeScanWorkMetrics())
+
+        memo.reportSemanticsVersion = 7
+        try JSONEncoder().encode(memo).write(to: memoURL)
+        CostUsageScanner.evictClaudeReportMemoForTesting(provider: .claude, cacheRoot: env.cacheRoot)
+        let (upgraded, work) = self.recordedLoad(provider: .claude, day: day, options: options)
+        #expect(upgraded.data == fresh.data)
+        #expect(upgraded.summary == fresh.summary)
+        #expect(work.cacheDecodes == 1)
+        #expect(work.transcriptParses == 0)
+        #expect(work.cacheEncodes == 0)
+        #expect(work.repricedRows == 1)
+        #expect(CostUsageClaudeFileStamp.read(at: cacheURL) == cacheStamp)
+        #expect(CostUsageClaudeFileStamp.read(at: source) == sourceStamp)
+        #expect(try Data(contentsOf: source) == sourceData)
+        let savedMemo = try self.readMemo(at: memoURL)
+        #expect(savedMemo.reportSemanticsVersion == CostUsageClaudeReportMemo.reportSemanticsVersion)
+    }
+
+    @Test
     func `schema two caches reparse preliminary proxy records once after a cold restart`() throws {
         let env = try CostUsageTestEnvironment()
         defer {
