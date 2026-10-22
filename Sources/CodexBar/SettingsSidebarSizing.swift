@@ -41,6 +41,9 @@ private struct SettingsSidebarCollapseGuard: NSViewRepresentable {
 }
 
 final class SettingsSidebarCollapseGuardView: NSView {
+    private weak var observedSidebar: NSSplitViewItem?
+    private var collapseObservation: NSKeyValueObservation?
+
     override func viewDidMoveToSuperview() {
         super.viewDidMoveToSuperview()
         self.preventCollapse()
@@ -68,9 +71,23 @@ final class SettingsSidebarCollapseGuardView: NSView {
                 if sidebar.canCollapse {
                     sidebar.canCollapse = false
                 }
+                self.observe(sidebar)
                 return
             }
             ancestor = view.superview
+        }
+    }
+
+    /// SwiftUI turns collapsing back on whenever it reapplies the column settings (for example after a
+    /// resize), at times this view is not laid out, so switch it off again as soon as that happens.
+    private func observe(_ sidebar: NSSplitViewItem) {
+        guard self.observedSidebar !== sidebar else { return }
+        self.observedSidebar = sidebar
+        self.collapseObservation = sidebar.observe(\.canCollapse, options: [.new]) { [weak self] _, change in
+            guard change.newValue == true else { return }
+            MainActor.assumeIsolated {
+                self?.preventCollapse()
+            }
         }
     }
 }

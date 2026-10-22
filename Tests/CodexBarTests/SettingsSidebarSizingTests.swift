@@ -46,10 +46,21 @@ struct SettingsSidebarSizingTests {
         #expect(!sidebar.isCollapsed)
         #expect(!sidebar.canCollapse)
 
-        split.setPosition(500, ofDividerAt: 0)
+        // AppKit only clamps out-of-range divider drags on some OS releases, so check the column bounds
+        // directly and drag within them.
+        #expect(sidebar.minimumThickness == SettingsPane.sidebarMinWidth)
+        #expect(sidebar.maximumThickness == SettingsPane.sidebarMaxWidth)
+        split.setPosition(340, ofDividerAt: 0)
         try await self.settle(window)
-        #expect(sidebar.viewController.view.frame.width == SettingsPane.sidebarMaxWidth)
-        #expect(width.value == SettingsPane.sidebarMaxWidth)
+        #expect(sidebar.viewController.view.frame.width == 340)
+        #expect(width.value == 340)
+
+        // A resize makes SwiftUI reapply the column settings; collapsing must stay disabled afterwards.
+        split.setPosition(0, ofDividerAt: 0)
+        try await self.settle(window)
+        #expect(!sidebar.isCollapsed)
+        #expect(!sidebar.canCollapse)
+        #expect(sidebar.viewController.view.frame.width == 215)
     }
 
     @Test
@@ -63,6 +74,8 @@ struct SettingsSidebarSizingTests {
         let detail = NSSplitViewItem(viewController: detailController)
         controller.addSplitViewItem(sidebar)
         controller.addSplitViewItem(detail)
+        // Load the controller so the item views sit inside its split view on every OS release.
+        controller.loadViewIfNeeded()
         sidebar.canCollapse = true
         detail.canCollapse = true
 
