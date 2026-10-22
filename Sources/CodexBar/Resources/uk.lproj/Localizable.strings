@@ -1287,10 +1287,10 @@
 "Windsurf session JSON bundle" = "Пакет даних сеансу Windsurf у форматі JSON";
 "Workspace ID" = "Ідентифікатор робочої області";
 "Your StepFun platform password. Used to login and obtain a session token." = "Ваш пароль платформи StepFun. Використовується для входу та отримання маркера сесії.";
-"codex login exited with status %d." = "вихід із входу в кодек із статусом %d.";
-"Cookie: …\n\nor paste a cURL capture from the Abacus AI dashboard" = "Файл cookie: …\n\nабо вставте запис cURL із інформаційної панелі Abacus AI";
-"Cookie: …\n\nor paste the __Secure-next-auth.session-token value" = "Файл cookie: …\n\nабо вставте значення __Secure-next-auth.session-token";
-"Cookie: …\n\nor paste the kimi-auth token value" = "Файл cookie: …\n\nабо вставте значення маркера kimi-auth";
+"codex login exited with status %d." = "Команда codex login завершилася з кодом %d.";
+"Cookie: …\n\nor paste a cURL capture from the Abacus AI dashboard" = "Cookie: …\n\nабо вставте cURL-запит із панелі керування Abacus AI";
+"Cookie: …\n\nor paste the __Secure-next-auth.session-token value" = "Cookie: …\n\nабо вставте значення __Secure-next-auth.session-token";
+"Cookie: …\n\nor paste the kimi-auth token value" = "Cookie: …\n\nабо вставте значення токена kimi-auth";
 "claude /login exited with status %d." = "Команда claude /login завершилася з кодом %d.";
 "session_id=...\n\nor paste just the session_id value" = "session_id=...\n\nабо вставте лише значення session_id";
 "Clear" = "Очистити";

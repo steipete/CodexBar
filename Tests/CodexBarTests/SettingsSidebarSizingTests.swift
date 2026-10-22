@@ -24,19 +24,20 @@ struct SettingsSidebarSizingTests {
         let secondSplit = try #require(self.splitView(in: secondContent))
         #expect(secondSplit.subviews[0].frame.width == 300)
 
-        // The resize made SwiftUI reapply the column settings; collapsing must stay disabled afterwards.
-        let firstController = try #require(firstSplit.delegate as? NSSplitViewController)
-        let firstSidebar = try #require(firstController.splitViewItems.first)
-        firstSplit.setPosition(0, ofDividerAt: 0)
+        let controller = try #require(firstSplit.delegate as? NSSplitViewController)
+        let sidebar = try #require(controller.splitViewItems.first)
+        #expect(sidebar.canCollapse)
+        sidebar.isCollapsed = true
         try await self.settle(firstWindow)
-        #expect(firstSidebar.viewController.view.frame.width == 215)
-        #expect(!firstSidebar.isCollapsed)
-        #expect(!firstSidebar.canCollapse)
+        #expect(sidebar.isCollapsed)
+        #expect(width.value == 300)
+        sidebar.isCollapsed = false
+        try await self.settle(firstWindow)
+        #expect(width.value == 300)
     }
 
     @Test
-    func `native sidebar clamps saved widths and divider drags without collapsing`() async throws {
-        // A width valid before the minimum changed must also restore safely.
+    func `native sidebar keeps the existing saved minimum width`() async throws {
         let width = SidebarWidth(value: 200)
         let window = self.makeWindow(width: width)
         try await self.settle(window)
@@ -44,47 +45,11 @@ struct SettingsSidebarSizingTests {
         let split = try #require(self.splitView(in: content))
         let controller = try #require(split.delegate as? NSSplitViewController)
         let sidebar = try #require(controller.splitViewItems.first)
-        #expect(sidebar.viewController.view.frame.width == 215)
-        #expect(width.value == 215)
-        #expect(!sidebar.canCollapse)
-        // Widening by dragging is unreliable in an offscreen window, so check the column bounds directly.
+        #expect(sidebar.viewController.view.frame.width == 200)
+        #expect(width.value == 200)
+        #expect(sidebar.canCollapse)
         #expect(sidebar.minimumThickness == SettingsPane.sidebarMinWidth)
         #expect(sidebar.maximumThickness == SettingsPane.sidebarMaxWidth)
-
-        split.setPosition(0, ofDividerAt: 0)
-        try await self.settle(window)
-        #expect(sidebar.viewController.view.frame.width == 215)
-        #expect(width.value == 215)
-        #expect(!sidebar.isCollapsed)
-        #expect(!sidebar.canCollapse)
-    }
-
-    @Test
-    func `collapse guard only changes its enclosing sidebar`() {
-        let controller = NSSplitViewController()
-        let sidebarController = NSViewController()
-        sidebarController.view = NSView()
-        let sidebar = NSSplitViewItem(sidebarWithViewController: sidebarController)
-        let detailController = NSViewController()
-        detailController.view = NSView()
-        let detail = NSSplitViewItem(viewController: detailController)
-        controller.addSplitViewItem(sidebar)
-        controller.addSplitViewItem(detail)
-        // Load the controller so the item views sit inside its split view on every OS release.
-        controller.loadViewIfNeeded()
-        sidebar.canCollapse = true
-        detail.canCollapse = true
-
-        let guardView = SettingsSidebarCollapseGuardView()
-        detailController.view.addSubview(guardView)
-        guardView.preventCollapse()
-        #expect(sidebar.canCollapse)
-        #expect(detail.canCollapse)
-
-        sidebarController.view.addSubview(guardView)
-        guardView.preventCollapse()
-        #expect(!sidebar.canCollapse)
-        #expect(detail.canCollapse)
     }
 
     private func makeWindow(width: SidebarWidth) -> NSWindow {
@@ -133,7 +98,6 @@ private struct SidebarHarness: View {
     var body: some View {
         NavigationSplitView {
             Color.clear
-                .toolbar(removing: .sidebarToggle)
                 .modifier(SettingsSidebarSizing(width: self.$width.value))
         } detail: {
             Color.clear

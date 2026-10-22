@@ -22,7 +22,7 @@ enum SettingsPane: Hashable {
     static let windowMinWidth: CGFloat = 800
     static let windowMinHeight: CGFloat = 540
     static let sidebarWidth: CGFloat = 260
-    static let sidebarMinWidth: CGFloat = 215
+    static let sidebarMinWidth: CGFloat = 200
     static let sidebarMaxWidth: CGFloat = 380
     static let sidebarWidthDefaultsKey = "settingsSidebarWidth"
     static let detailMaxWidth: CGFloat = 780
@@ -138,7 +138,6 @@ struct PreferencesView: View {
                 store: self.store,
                 selection: self.$selection.pane,
                 onSelectAbout: { self.selection.requestAboutRoot() })
-                .toolbar(removing: .sidebarToggle)
                 .modifier(SettingsSidebarSizing(width: self.$sidebarWidth))
         } detail: {
             self.detailView

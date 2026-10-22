@@ -5,6 +5,29 @@ import Testing
 
 struct KiroRegionalEnrichmentTests {
     @Test(arguments: ["us-east-1", "eu-central-1"])
+    func `background reachability uses the profile region without sending credentials`(region: String) async throws {
+        let database = try self.makeDatabase(
+            profileARN: "arn:aws:codewhisperer:\(region):123456789012:profile/test-profile")
+        defer { try? FileManager.default.removeItem(at: database.deletingLastPathComponent()) }
+        let original = try Data(contentsOf: database)
+        let transport = ProviderHTTPTransportStub { request in
+            let url = try #require(request.url)
+            let response = try #require(HTTPURLResponse(
+                url: url, statusCode: 403, httpVersion: nil, headerFields: nil))
+            return (Data(), response)
+        }
+        try await KiroUsageLimitsAPI.ensureReachable(databaseURL: database, transport: transport)
+        let request = try #require(await transport.requests().first)
+        #expect(request.url?.absoluteString == (region == "us-east-1"
+                ? "https://codewhisperer.us-east-1.amazonaws.com/"
+                : "https://q.eu-central-1.amazonaws.com/"))
+        #expect(request.httpMethod == "HEAD")
+        #expect(request.value(forHTTPHeaderField: "Authorization") == nil)
+        #expect(request.httpBody == nil)
+        #expect(try Data(contentsOf: database) == original)
+    }
+
+    @Test(arguments: ["us-east-1", "eu-central-1"])
     func `existing enrichment follows the CLI profile region`(region: String) async throws {
         let arn = "arn:aws:codewhisperer:\(region):123456789012:profile/test-profile"
         let database = try self.makeDatabase(profileARN: arn)
