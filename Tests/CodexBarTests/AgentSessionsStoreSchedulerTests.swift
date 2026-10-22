@@ -453,7 +453,8 @@ struct AgentSessionsStoreSchedulerTests {
             remoteFetch: { hosts in
                 guard let remote else { return [] }
                 return await remote.fetch(hosts: hosts)
-            })
+            },
+            powerState: { (false, .nominal) })
     }
 
     private static func makeStore(
@@ -468,7 +469,8 @@ struct AgentSessionsStoreSchedulerTests {
             remoteHostDiscovery: { [] },
             remoteFetch: { hosts in
                 await spy.fetch(hosts: hosts)
-            })
+            },
+            powerState: { (false, .nominal) })
     }
 
     private static func waitForImmediateTasksToFinish(_ store: AgentSessionsStore) async {
