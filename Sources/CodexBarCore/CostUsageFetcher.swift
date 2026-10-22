@@ -291,7 +291,7 @@ public struct CostUsageFetcher: Sendable {
             bypassScannerDebounce: bypassScannerDebounce,
             piWorkingDirectories: piWorkingDirectories,
             piSessionProcessContexts: piSessionProcessContexts,
-            scannerOptions: self.scannerOptions(calendar: calendar),
+            scannerOptions: options,
             reportContext: reportContext)
     }
 
