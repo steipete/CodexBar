@@ -34,10 +34,7 @@ public struct OpenCodeGoLocalUsageReader: Sendable {
     private let databaseURL: URL
 
     public init(homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser) {
-        let openCodeDirectory = homeDirectory
-            .appendingPathComponent(".local", isDirectory: true)
-            .appendingPathComponent("share", isDirectory: true)
-            .appendingPathComponent("opencode", isDirectory: true)
+        let openCodeDirectory = homeDirectory.appendingPathComponent(".local/share/opencode", isDirectory: true)
         self.cache = Self.sharedCache
         self.authURL = openCodeDirectory.appendingPathComponent("auth.json", isDirectory: false)
         self.databaseURL = openCodeDirectory.appendingPathComponent("opencode.db", isDirectory: false)
@@ -108,15 +105,21 @@ public struct OpenCodeGoLocalUsageReader: Sendable {
         defer { sqlite3_close(db) }
         sqlite3_busy_timeout(db, 250)
 
-        let hasParts = sqlite3_table_column_metadata(db, nil, "part", nil, nil, nil, nil, nil, nil) == SQLITE_OK
-        let hasSessionMessages = sqlite3_table_column_metadata(
-            db, nil, "session_message", nil, nil, nil, nil, nil, nil) == SQLITE_OK
-        let legacySQL = hasParts
-            ? Self.messageAndPartUsageSQL
-            : "SELECT createdMs, cost, modelID, tokens FROM (\(Self.providerMessagesSQL)) WHERE hasCost"
-        // OpenCode v2 writes new turns to `session_message` and copies older turns there under the same ids,
-        // so v2 rows only add turns the legacy `message` table does not already hold.
-        let sql = hasSessionMessages ? "\(legacySQL)\nUNION ALL\n\(Self.sessionMessageUsageSQL)" : legacySQL
+        let hasMessages = try Self.hasTable(named: "message", db: db)
+        let hasParts = try Self.hasTable(named: "part", db: db)
+        let hasV2 = try Self.hasTable(named: "session_message", db: db)
+        guard hasMessages || hasV2 else { throw Self.sqliteFailure(db: db, resultCode: SQLITE_ERROR) }
+        let legacySQL = hasMessages
+            ? (hasParts ? Self.messageAndPartUsageSQL
+                : "SELECT createdMs, cost, modelID, tokens, messageID FROM (\(Self.providerMessagesSQL)) WHERE hasCost")
+            : "SELECT NULL AS createdMs, NULL AS cost, NULL AS modelID, NULL AS tokens, NULL AS messageID WHERE 0"
+        // Deduplicate only usable legacy costs; malformed copies must not hide a valid v2 request.
+        // Let SQLite inline the shared queries instead of materializing another copy of the selected history.
+        let sql = """
+        WITH legacy_usage AS NOT MATERIALIZED (\(legacySQL))
+        SELECT * FROM legacy_usage
+        \(hasV2 ? Self.sessionMessageUsageSQL : "")
+        """
 
         var stmt: OpaquePointer?
         let prepareResult = sqlite3_prepare_v2(db, sql, -1, &stmt, nil)
@@ -126,15 +129,9 @@ public struct OpenCodeGoLocalUsageReader: Sendable {
         defer { sqlite3_finalize(stmt) }
 
         var rows: [UsageRow] = []
-        while true {
-            let step = sqlite3_step(stmt)
-            if step == SQLITE_DONE {
-                break
-            }
-            guard step == SQLITE_ROW else {
-                throw Self.sqliteFailure(db: db, resultCode: step)
-            }
-
+        var step = sqlite3_step(stmt)
+        while step == SQLITE_ROW {
+            defer { step = sqlite3_step(stmt) }
             let createdMs = sqlite3_column_int64(stmt, 0)
             let cost = sqlite3_column_double(stmt, 1)
             guard createdMs > 0, cost >= 0, cost.isFinite else { continue }
@@ -148,6 +145,7 @@ public struct OpenCodeGoLocalUsageReader: Sendable {
                 model: model,
                 tokens: tokens.flatMap { $0.isValid ? $0 : nil }))
         }
+        guard step == SQLITE_DONE else { throw Self.sqliteFailure(db: db, resultCode: step) }
         return rows
     }
 
@@ -160,6 +158,15 @@ public struct OpenCodeGoLocalUsageReader: Sendable {
         SQLiteReadFailure(
             code: db.map { sqlite3_errcode($0) } ?? resultCode,
             message: db.map { String(cString: sqlite3_errmsg($0)) } ?? "unknown error")
+    }
+
+    private static func hasTable(named name: String, db: OpaquePointer?) throws -> Bool {
+        let result = sqlite3_table_column_metadata(db, nil, name, nil, nil, nil, nil, nil, nil)
+        switch result {
+        case SQLITE_OK: return true
+        case SQLITE_ERROR: return false
+        default: throw Self.sqliteFailure(db: db, resultCode: result)
+        }
     }
 
     private static let providerMessagesSQL = """
@@ -178,46 +185,50 @@ public struct OpenCodeGoLocalUsageReader: Sendable {
     """
 
     private static let messageAndPartUsageSQL = """
-        WITH provider_messages AS (\(Self.providerMessagesSQL))
+        WITH provider_messages AS (\(Self.providerMessagesSQL)), provider_parts AS NOT MATERIALIZED (
         SELECT
           CAST(COALESCE(json_extract(p.data, '$.time.created'), p.time_created, m.createdMs) AS INTEGER)
             AS createdMs,
           CAST(json_extract(p.data, '$.cost') AS REAL) AS cost,
           m.modelID AS modelID,
           CASE WHEN json_type(p.data, '$.tokens') = 'object'
-            THEN json_extract(p.data, '$.tokens') END AS tokens
+            THEN json_extract(p.data, '$.tokens') END AS tokens,
+          m.messageID AS messageID
         FROM part p
         JOIN provider_messages m ON m.messageID = p.message_id
         WHERE json_valid(p.data)
           AND json_extract(p.data, '$.type') = 'step-finish'
           AND json_type(p.data, '$.cost') IN ('integer', 'real')
+        )
+        SELECT * FROM provider_parts
         UNION ALL
-        SELECT createdMs, cost, modelID, tokens
+        SELECT createdMs, cost, modelID, tokens, messageID
         FROM provider_messages m
         WHERE hasCost
           AND NOT EXISTS (
             SELECT 1
-            FROM part p
-            WHERE p.message_id = m.messageID
-              AND json_valid(p.data)
-              AND json_extract(p.data, '$.type') = 'step-finish'
-              AND json_type(p.data, '$.cost') IN ('integer', 'real')
+            FROM provider_parts p
+            WHERE p.messageID = m.messageID
           )
     """
 
     private static let sessionMessageUsageSQL = """
+        UNION ALL
         SELECT
           CAST(COALESCE(json_extract(s.data, '$.time.created'), s.time_created) AS INTEGER) AS createdMs,
           CAST(json_extract(s.data, '$.cost') AS REAL) AS cost,
           COALESCE(json_extract(s.data, '$.model.id'), '') AS modelID,
           CASE WHEN json_type(s.data, '$.tokens') = 'object'
-            THEN json_extract(s.data, '$.tokens') END AS tokens
+            THEN json_extract(s.data, '$.tokens') END AS tokens,
+          s.id AS messageID
         FROM session_message s
-        WHERE s.type = 'assistant'
+        WHERE s.type IN ('assistant', 'compaction')
           AND json_valid(s.data)
           AND json_extract(s.data, '$.model.providerID') = 'opencode-go'
           AND json_type(s.data, '$.cost') IN ('integer', 'real')
-          AND NOT EXISTS (SELECT 1 FROM message m WHERE m.id = s.id)
+          AND NOT EXISTS (
+            SELECT 1 FROM legacy_usage m WHERE m.messageID = s.id
+              AND m.createdMs > 0 AND m.cost BETWEEN 0 AND \(Double.greatestFiniteMagnitude))
     """
 
     private struct DatabaseFingerprint: Equatable {
@@ -327,11 +338,9 @@ public struct OpenCodeGoLocalUsageReader: Sendable {
     {
         let nowMs = Int64(now.timeIntervalSince1970 * 1000)
         let sessionStart = nowMs - Int64(Self.fiveHours * 1000)
-        let weekStart = self.startOfUTCWeek(now: now).timeIntervalSince1970 * 1000
-        let weekStartMs = Int64(weekStart)
+        let weekStartMs = Int64(self.startOfUTCWeek(now: now).timeIntervalSince1970 * 1000)
         let weekEndMs = weekStartMs + Int64(Self.week * 1000)
-        let earliestMs = rows.map(\.createdMs).min()
-        let monthBounds = self.monthBounds(now: now, anchorMs: earliestMs)
+        let monthBounds = self.monthBounds(now: now, anchorMs: rows.lazy.map(\.createdMs).min())
 
         var sessionCost = 0.0
         var weeklyCost = 0.0
@@ -370,8 +379,7 @@ public struct OpenCodeGoLocalUsageReader: Sendable {
         historyDays: Int,
         calendar: Calendar) -> [CostUsageDailyReport.Entry]
     {
-        let clampedHistoryDays = max(1, historyDays)
-        guard let since = calendar.date(byAdding: .day, value: -(clampedHistoryDays - 1), to: now) else {
+        guard let since = calendar.date(byAdding: .day, value: -(max(1, historyDays) - 1), to: now) else {
             return []
         }
         let sinceStartOfDay = calendar.startOfDay(for: since)
@@ -436,18 +444,10 @@ public struct OpenCodeGoLocalUsageReader: Sendable {
 
         let anchor = Date(timeIntervalSince1970: TimeInterval(anchorMs) / 1000)
         let anchorComponents = calendar.dateComponents([.day, .hour, .minute, .second, .nanosecond], from: anchor)
-        let nowComponents = calendar.dateComponents([.year, .month], from: now)
 
-        var startMonthComponents = nowComponents
+        var startMonthComponents = calendar.dateComponents([.year, .month], from: now)
         var start = self.anchoredMonth(calendar: calendar, month: startMonthComponents, anchor: anchorComponents)
-        if start > now {
-            guard let previous = calendar.date(byAdding: .month, value: -1, to: start) else {
-                let end = self.anchoredMonth(
-                    calendar: calendar,
-                    month: self.monthComponents(after: startMonthComponents, calendar: calendar),
-                    anchor: anchorComponents)
-                return (Int64(start.timeIntervalSince1970 * 1000), Int64(end.timeIntervalSince1970 * 1000))
-            }
+        if start > now, let previous = calendar.date(byAdding: .month, value: -1, to: start) {
             startMonthComponents = calendar.dateComponents([.year, .month], from: previous)
             start = self.anchoredMonth(calendar: calendar, month: startMonthComponents, anchor: anchorComponents)
         }

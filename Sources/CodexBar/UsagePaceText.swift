@@ -157,15 +157,7 @@ enum UsagePaceText {
     }
 
     private static func durationText(seconds: TimeInterval, now: Date) -> String {
-        let date = now.addingTimeInterval(seconds)
-        let countdown = UsageFormatter.resetCountdownDescription(from: date, now: now)
-        if countdown == "now" {
-            return "now"
-        }
-        if countdown.hasPrefix("in ") {
-            return String(countdown.dropFirst(3))
-        }
-        return countdown
+        UsageFormatter.resetCountdownDuration(from: now.addingTimeInterval(seconds), now: now)
     }
 
     private static func roundedRiskPercent(_ probability: Double) -> Int {

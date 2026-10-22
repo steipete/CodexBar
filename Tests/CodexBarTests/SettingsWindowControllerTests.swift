@@ -79,7 +79,7 @@ struct SettingsWindowControllerTests {
     }
 
     @Test
-    func `every explicit About open returns pushed About pages to the root`() {
+    func `reopening Settings preserves the About page until About is explicitly requested`() {
         _ = NSApplication.shared
         let selection = self.makeSelection()
         let window = self.makeWindow()
@@ -93,16 +93,19 @@ struct SettingsWindowControllerTests {
             presentationFailed: {})
 
         controller.open(pane: .about)
-        #expect(selection.aboutRootRequests == 1)
+        selection.showAcknowledgements()
+        #expect(selection.destination.aboutRoute == .acknowledgements)
 
-        // The window and its About navigation state survive close; reopening About must still reset them.
+        // Reopening Settings preserves its page; explicitly opening About resets it.
         window.close()
+        #expect(controller.open(pane: nil) == .reused)
+        #expect(selection.destination.aboutRoute == .acknowledgements)
         #expect(controller.open(pane: .about) == .reused)
-        #expect(selection.aboutRootRequests == 2)
+        #expect(selection.destination.aboutRoute == nil)
 
         controller.open(pane: nil)
         controller.open(pane: .general)
-        #expect(selection.aboutRootRequests == 2)
+        #expect(selection.destination.aboutRoute == nil)
     }
 
     @Test

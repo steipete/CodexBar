@@ -173,7 +173,7 @@ struct PreferencesView: View {
         .id(self.settings.appLanguage)
         .codexBarLocalized()
         .background {
-            SettingsWindowAppearanceBridge(colorScheme: self.colorScheme, windowTitle: self.selection.pane.title)
+            SettingsWindowAppearanceBridge(colorScheme: self.colorScheme, windowTitle: self.selection.title)
                 .allowsHitTesting(false)
         }
         .onAppear {
@@ -225,7 +225,7 @@ struct PreferencesView: View {
         case .plugins:
             PluginsPane(settings: self.settings, store: self.store)
         case .about:
-            AboutPane(updater: self.updater, rootRequests: self.selection.aboutRootRequests)
+            AboutPane(updater: self.updater, selection: self.selection)
         case .debug:
             DebugPane(settings: self.settings, store: self.store)
         case let .provider(instanceID):
@@ -482,7 +482,7 @@ struct SettingsDetailHeader: View {
         HStack(spacing: 12) {
             SettingsHistoryButtons(selection: self.selection)
             if self.showsTitle {
-                Text(self.selection.pane.title)
+                Text(self.selection.title)
                     .font(.system(size: 15, weight: .bold))
                     .lineLimit(1)
                     .truncationMode(.tail)

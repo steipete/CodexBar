@@ -181,7 +181,7 @@ struct CostUsageScannerClaudeMemoTests {
         #expect(metrics == CostUsageScanner.ClaudeScanWorkMetrics())
     }
 
-    @Test(arguments: [nil, 0, 4, 5, CostUsageClaudeReportMemo.reportSemanticsVersion + 1] as [Int?])
+    @Test(arguments: [nil, 0, 4, 5, 6, CostUsageClaudeReportMemo.reportSemanticsVersion + 1] as [Int?])
     func `cold process rejects reports from incompatible semantics`(revision: Int?) throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }

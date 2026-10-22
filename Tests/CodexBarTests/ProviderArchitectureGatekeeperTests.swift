@@ -156,8 +156,8 @@ struct ProviderArchitectureGatekeeperTests {
             Self.hash(descriptor.branding.burnDownWidgetColor, into: &burnDownFingerprint)
         }
 
-        // Future AGI and Munito extend the palette without changing existing provider colors.
-        #expect(widgetFingerprint == 6_735_779_563_872_487_318)
+        // Pi uses its official blue accent; the burn-down palette is unchanged.
+        #expect(widgetFingerprint == 4_251_215_947_296_770_734)
         #expect(burnDownFingerprint == 3_084_140_234_155_981_949)
     }
 
@@ -1666,11 +1666,6 @@ struct ProviderArchitectureGatekeeperTests {
             anchor: "if normalized.contains(\"migrate\"), normalized.contains(\"antigravity\"), normalized.contains(\"gemini\") {",
             expectedProviderIDs: ["antigravity"],
             reason: "Gemini's upstream deprecation response names the Antigravity migration destination."),
-        SuppressedProviderReference(
-            path: "Sources/CodexBarCore/Providers/OpenCodeGo/OpenCodeGoLocalUsageReader.swift",
-            anchor: ".appendingPathComponent(\"opencode\", isDirectory: true)",
-            expectedProviderIDs: ["opencode"],
-            reason: "OpenCode Go reads the upstream OpenCode shared storage directory by contract."),
         SuppressedProviderReference(
             path: "Sources/CodexBarCore/Providers/ProviderVersionDetector.swift",
             anchor: "return whichHook(\"claude\") != nil",
