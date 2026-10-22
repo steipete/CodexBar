@@ -2700,3 +2700,5 @@
 "Leave blank to keep the saved credential." = "Оставьте поле пустым, чтобы сохранить текущие учётные данные.";
 
 "No personal budget configured" = "Личный бюджет не настроен";
+
+"monthly_daily_target_format" = "≈ %@ в день, чтобы хватило до сброса";

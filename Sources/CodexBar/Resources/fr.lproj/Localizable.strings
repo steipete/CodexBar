@@ -2698,3 +2698,5 @@
 "Leave blank to keep the saved credential." = "Laissez ce champ vide pour conserver les identifiants enregistrés.";
 
 "No personal budget configured" = "Aucun budget personnel configuré";
+
+"monthly_daily_target_format" = "≈ %@ / jour pour tenir jusqu’à la réinitialisation";

@@ -2698,3 +2698,5 @@
 "Leave blank to keep the saved credential." = "Lämna tomt för att behålla de sparade inloggningsuppgifterna.";
 
 "No personal budget configured" = "Ingen personlig budget har konfigurerats";
+
+"monthly_daily_target_format" = "≈ %@ / dag för att räcka till återställningen";

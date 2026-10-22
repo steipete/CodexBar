@@ -2677,3 +2677,5 @@
 "Leave blank to keep the saved credential." = "留空以保留已儲存的憑證。";
 
 "No personal budget configured" = "尚未設定個人預算";
+
+"monthly_daily_target_format" = "每天約 %@，可用至重置";

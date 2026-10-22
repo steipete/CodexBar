@@ -20,16 +20,16 @@ public enum PiProviderDescriptor {
                 widgetSelectable: true,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
-                dashboardURL: "https://github.com/badlogic/pi-mono",
+                dashboardURL: "https://github.com/earendil-works/pi",
                 statusPageURL: nil),
             branding: ProviderBranding(
                 iconStyle: .init(provider: .pi),
                 iconResourceName: "ProviderIcon-pi",
-                color: ProviderColor(hex: 0x7C3AED),
+                color: ProviderColor(hex: 0x4D9ABF),
                 confettiPalette: [
-                    ProviderColor(hex: 0x7C3AED),
-                    ProviderColor(hex: 0xA78BFA),
-                    ProviderColor(hex: 0xEDE9FE),
+                    ProviderColor(hex: 0xF09082),
+                    ProviderColor(hex: 0x4D9ABF),
+                    ProviderColor(hex: 0xF1BE58),
                 ]),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: true,

@@ -2,9 +2,13 @@
 
 ## 0.79.1 — Unreleased
 
+- Pace: show how much of a monthly allowance can be used per day until reset, using the remaining allowance and local calendar days. (#4677) Thanks @anthonybvila!
 - Settings: explain that Highest usage compares quotas only and recommend Current selection for providers without quotas (#4666). Thanks @oryband!
+- Settings: include Acknowledgements in shared Back and Forward history, keeping About navigation and the window title consistent. (#4590) Thanks @elijahfriedman!
 - Linux: preserve autostart preferences on reinstall when desktop entries contain whitespace, comments, or other groups. (#4662) Thanks @Lucenx9!
+- Integrations: link ccx, a macOS companion that reads CodexBar usage to offer Claude Code/Codex task handoff near quota limits (#4685). Thanks @AaronWong1999!
 - Menu Bar settings: explain that the Layout editor requires the “Icon & percent” style instead of showing drag instructions for a disabled editor (#4665, #4680). Thanks @LeoLin990405!
+- Menu bar: align leading window labels so stacked meters and percentages share a column, including stacked provider rows. (#4581) Thanks @happut!
 - Widgets: explain when the configured provider is unavailable instead of promising refreshed usage data (#4669, #4671). Thanks @vincent-peng!
 - Menu cost charts: preserve zero-usage calendar days for every provider, including Claude and Pi, while keeping incomplete and unpriced history unknown (#4664).
 
@@ -13,6 +17,7 @@
 - Grok: restore the weekly Credits window on zero-usage weeks when ACP omits the percentage, while preserving prepaid balances and leaving unvalidated usage unknown (#4674, #4679). Thanks @LeoLin990405 and @psl75011!
 - Localization: correct Ukrainian quota labels, keep countdowns in the selected language, and fix Japanese and Korean countdown units and composed time labels. (#4676) Thanks @toxakara!
 - Linux CLI: prevent static musl builds from crashing when scanning non-empty Codex session files, with a regression check for musl and glibc builds (#4672, #4673). Thanks @harjothkhara and @psl75011!
+- Pi: use the official blue accent and coral/blue/yellow confetti palette, and open the current Pi repository from the dashboard link. (#4668) Thanks @oryband!
 
 ## 0.79.0 — 2026-10-20
 

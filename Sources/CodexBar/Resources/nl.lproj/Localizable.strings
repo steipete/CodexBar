@@ -2696,3 +2696,5 @@
 "Leave blank to keep the saved credential." = "Laat leeg om de opgeslagen inloggegevens te behouden.";
 
 "No personal budget configured" = "Geen persoonlijk budget ingesteld";
+
+"monthly_daily_target_format" = "≈ %@ / dag om tot de reset mee te gaan";

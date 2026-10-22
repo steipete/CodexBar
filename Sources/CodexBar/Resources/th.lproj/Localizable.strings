@@ -2701,3 +2701,5 @@
 "Leave blank to keep the saved credential." = "เว้นว่างไว้เพื่อใช้ข้อมูลรับรองที่บันทึกไว้ต่อไป";
 
 "No personal budget configured" = "ยังไม่ได้กำหนดงบประมาณส่วนตัว";
+
+"monthly_daily_target_format" = "≈ %@ / วัน เพื่อให้ใช้ได้จนถึงการรีเซ็ต";

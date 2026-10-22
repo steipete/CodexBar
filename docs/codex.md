@@ -330,6 +330,7 @@ and stable account numbers distinguish rows while usable workspace labels remain
 4) Last imported browser cookie email (cached).
 
 ## Credits
+- Monthly caps with a reported reset show a daily target using the remaining allowance and local calendar days. The target follows pace visibility; prepaid balances without a monthly cap do not get a target.
 - Background credits refreshes coalesce for the same account. Cancelling and replacing a refresh keeps the replacement tracked until it finishes; retired credits and history-backfill tasks cannot clear newer work.
 - Web dashboard fills credits only when OAuth/CLI do not provide them. Account-matched extra usage reconciles monthly caps and purchased balances separately; the optional credits setting controls visibility.
 - When usage reports limited workspace credits without an amount, an optional read of the account's `remaining_balance` endpoint uses the same OAuth or browser session. Access depends on workspace permissions. Failure preserves ordinary usage and monthly-limit data.

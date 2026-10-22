@@ -38,6 +38,7 @@ struct UsageMenuCardView: View {
             var statusText: String?
             var resetText: String?
             var detailText: String?
+            var dailyTargetText: String?
             var detailLeftText: String?
             var detailRightText: String?
             var pacePercent: Double?
@@ -162,6 +163,7 @@ struct UsageMenuCardView: View {
             let percentLine: String?
             var balanceLine: String?
             var personalSpendLine: String?
+            var dailyTargetText: String?
             var presentation: Presentation = .detail
             var showsInProviderDetails = true
             var percentStyle: PercentStyle = .used
@@ -875,7 +877,7 @@ struct UsageMenuCardExtraUsageSectionView: View {
 // MARK: - Model factory
 
 extension UsageMenuCardView.Model {
-    static func make(_ input: Input) -> UsageMenuCardView.Model {
+    static func make(_ input: Input, calendar: Calendar = .current) -> UsageMenuCardView.Model {
         let planText = Self.plan(
             for: input.provider,
             snapshot: input.snapshot,
@@ -884,8 +886,11 @@ extension UsageMenuCardView.Model {
             metadata: input.metadata)
         let paceVisible = input.paceVisible && ProviderDescriptorRegistry.descriptor(for: input.provider).pace
             .allowsPace(dataConfidence: input.snapshot?.dataConfidence ?? .unknown)
+        let rawMetrics = Self.metrics(input: input)
         let metrics = Self.redactedMetrics(
-            Self.paceGatedMetrics(Self.metrics(input: input), paceVisible: paceVisible),
+            Self.paceGatedMetrics(
+                paceVisible ? Self.monthlyTargetMetrics(rawMetrics, input: input, calendar: calendar) : rawMetrics,
+                paceVisible: paceVisible),
             provider: input.provider,
             hidePersonalInfo: input.hidePersonalInfo)
         let openAIAPIUsage = input.snapshot?.openAIAPIUsage
@@ -926,7 +931,7 @@ extension UsageMenuCardView.Model {
             cost: extraUsageCost,
             style: providerCostStyle,
             isClaudeAdminAPI: isClaudeAdminAPI) && !menuCard.providerCostIsRequiredUsage
-        let providerCost: ProviderCostSection? = if !showsProviderCost ||
+        var providerCost: ProviderCostSection? = if !showsProviderCost ||
             metrics.contains(where: { $0.id == "claude-extra-usage" }) ||
             (providerCostFollowsSummaryStyle && !input.costSummaryInlineEnabled)
         {
@@ -938,6 +943,10 @@ extension UsageMenuCardView.Model {
                 percentStyle: input.usageBarsShowUsed ? .used : .left,
                 isClaudeAdminAPI: isClaudeAdminAPI,
                 preferredCurrencyCode: input.preferredCurrencyCode)
+        }
+        if paceVisible, providerCost?.percentUsed != nil {
+            providerCost?.dailyTargetText = Self.monthlyCostTarget(
+                cost: extraUsageCost, input: input, calendar: calendar)
         }
         let tokenUsageSnapshot = Self.tokenUsageSnapshot(input: input)
         let tokenUsage = Self.tokenUsageSection(

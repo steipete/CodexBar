@@ -2667,3 +2667,5 @@
 "Leave blank to keep the saved credential." = "저장된 인증 정보를 유지하려면 비워 두세요.";
 
 "No personal budget configured" = "개인 예산이 설정되지 않았습니다";
+
+"monthly_daily_target_format" = "재설정까지 사용할 수 있는 하루 목표: 약 %@";

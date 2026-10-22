@@ -56,33 +56,21 @@ struct Acknowledgement: Equatable, Identifiable {
 @MainActor
 struct AcknowledgementsView: View {
     let acknowledgements: [Acknowledgement]
-    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            // The Settings window has no toolbar, so the stack's own back button has nowhere to render.
-            Button { self.dismiss() } label: {
-                Label(L("tab_about"), systemImage: "chevron.left")
-            }
-            .buttonStyle(.bordered)
-            .padding(.horizontal, 20)
-            .padding(.top, 12)
-
-            Form {
-                Section {
-                    ForEach(self.acknowledgements) { acknowledgement in
-                        AcknowledgementRow(acknowledgement: acknowledgement)
-                    }
-                } footer: {
-                    Text(L("acknowledgements_footer"))
-                        .frame(maxWidth: .infinity)
-                        .multilineTextAlignment(.center)
+        Form {
+            Section {
+                ForEach(self.acknowledgements) { acknowledgement in
+                    AcknowledgementRow(acknowledgement: acknowledgement)
                 }
+            } footer: {
+                Text(L("acknowledgements_footer"))
+                    .frame(maxWidth: .infinity)
+                    .multilineTextAlignment(.center)
             }
-            .formStyle(.grouped)
-            .scrollContentBackground(.hidden)
         }
-        .navigationTitle(L("link_acknowledgements"))
+        .formStyle(.grouped)
+        .scrollContentBackground(.hidden)
     }
 }
 

@@ -2699,3 +2699,5 @@
 "Leave blank to keep the saved credential." = "Deixe em branco para manter a credencial salva.";
 
 "No personal budget configured" = "Nenhum orçamento pessoal configurado";
+
+"monthly_daily_target_format" = "≈ %@ / dia para durar até a renovação";

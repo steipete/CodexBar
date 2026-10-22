@@ -376,6 +376,11 @@ Percentages must be finite and are clamped to 0–100. Window minutes are positi
 and a three-letter uppercase currency. Dates are JavaScript `Date` values or ISO-8601 strings. Snapshot identity is
 always scoped to the manifest's instance ID. Data confidence defaults to `unknown`. Details allow at most 8 sections, 24 rows per section, 120 chart points,
 and 120 characters per detail string. Wrong types and limit violations fail the whole fetch instead of truncating it.
+
+Rate windows may include `quotaLimit` (a positive finite number) and `quotaUnit` (`credits`, `requests`, or an
+ISO currency code) alongside `usedPercent`. Built-in provider cards use these units for monthly daily targets;
+without an absolute allowance it retains percentage units. Do not invent an allowance or reset date.
+
 Named extra windows accept an optional `usageKnown` boolean (default `true`). Set it to `false` for reset-only limits:
 the window remains visible as **Unavailable**, and its placeholder `usedPercent` is not presented as measured usage.
 Detail rows accept optional `progress` (a finite consumed fraction from 0 through 1) and `usageValue` (finite raw usage).

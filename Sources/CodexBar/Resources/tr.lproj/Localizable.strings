@@ -2702,3 +2702,5 @@
 "Leave blank to keep the saved credential." = "Kayıtlı kimlik bilgisini korumak için boş bırakın.";
 
 "No personal budget configured" = "Kişisel bütçe yapılandırılmadı";
+
+"monthly_daily_target_format" = "Sıfırlamaya kadar yetmesi için günde ≈ %@";

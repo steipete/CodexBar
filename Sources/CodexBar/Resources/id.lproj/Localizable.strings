@@ -2701,3 +2701,5 @@
 "Leave blank to keep the saved credential." = "Biarkan kosong untuk mempertahankan kredensial tersimpan.";
 
 "No personal budget configured" = "Belum ada anggaran pribadi yang dikonfigurasi";
+
+"monthly_daily_target_format" = "≈ %@ / hari agar cukup hingga reset";

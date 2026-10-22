@@ -819,6 +819,8 @@ struct MenuCardModelCodexProjectionTests {
         #expect(monthly.detailRightText == nil)
         #expect(monthly.warningMarkerPercents.isEmpty)
         #expect(monthly.resetText != nil)
+        #expect(monthly.dailyTargetText != nil)
+        #expect(model.metrics.first { $0.id == "secondary" }?.dailyTargetText == nil)
     }
 }
 

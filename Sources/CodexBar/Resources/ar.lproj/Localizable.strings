@@ -2703,3 +2703,5 @@
 "Leave blank to keep the saved credential." = "اتركه فارغًا للاحتفاظ ببيانات الاعتماد المحفوظة.";
 
 "No personal budget configured" = "لم يتم إعداد ميزانية شخصية";
+
+"monthly_daily_target_format" = "≈ %@ يوميًا ليكفي حتى إعادة التعيين";
