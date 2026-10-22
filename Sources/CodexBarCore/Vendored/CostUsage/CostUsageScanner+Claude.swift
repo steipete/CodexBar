@@ -214,7 +214,7 @@ extension CostUsageScanner {
                         let costNanos = cost.flatMap { Int(exactly: ($0 * costScale).rounded()) }
 
                         let messageId = message["id"] as? String
-                        let requestId = obj["requestId"] as? String
+                        let requestId = obj["requestId"] as? String ?? obj["request_id"] as? String
                         let sessionId = obj["sessionId"] as? String
                             ?? obj["session_id"] as? String
                             ?? obj.dictionary("metadata")?["sessionId"] as? String

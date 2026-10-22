@@ -238,6 +238,7 @@ struct SettingsStoreAdditionalTests {
             .mistral: [.automatic, .primary, .monthlyPlan],
             .openrouter: [.automatic, .primary],
             .nous: [.automatic, .primary],
+            .traecn: [.automatic, .primary],
             .xkiro: [.automatic, .primary],
             .raycast: [.automatic, .primary],
             .museai: [.automatic, .primary],

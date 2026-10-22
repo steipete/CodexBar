@@ -831,6 +831,60 @@ struct ManagedCodexAccountServiceTests {
         #expect(store.snapshot.accounts.isEmpty)
         #expect(FileManager.default.fileExists(atPath: outsideRoot.path))
     }
+
+    @Test
+    func `reauthentication preserves saved accounts with a different email`() async throws {
+        let root = CodexCredentialFixtures.root.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let firstHome = root.appendingPathComponent("accounts/first", isDirectory: true)
+        let secondHome = root.appendingPathComponent("accounts/second", isDirectory: true)
+        try FileManager.default.createDirectory(at: firstHome, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: secondHome, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let firstID = try #require(UUID(uuidString: "AAAAAAAA-3333-4444-5555-666666666666"))
+        let secondID = try #require(UUID(uuidString: "BBBBBBBB-3333-4444-5555-666666666666"))
+        let first = ManagedCodexAccount(
+            id: firstID,
+            email: "first@example.com",
+            providerAccountID: "account-first",
+            workspaceAccountID: "account-first",
+            managedHomePath: firstHome.path,
+            createdAt: 1,
+            updatedAt: 1,
+            lastAuthenticatedAt: 1)
+        let second = ManagedCodexAccount(
+            id: secondID,
+            email: "second@example.com",
+            providerAccountID: "account-second",
+            workspaceAccountID: "account-second",
+            managedHomePath: secondHome.path,
+            createdAt: 2,
+            updatedAt: 2,
+            lastAuthenticatedAt: 2)
+        let store = InMemoryManagedCodexAccountStore(
+            accounts: ManagedCodexAccountSet(
+                version: FileManagedCodexAccountStore.currentVersion,
+                accounts: [first, second]))
+        let service = ManagedCodexAccountService(
+            store: store,
+            homeFactory: TestManagedCodexHomeFactory(root: root),
+            loginRunner: StubManagedCodexLoginRunner.success,
+            identityReader: StubManagedCodexIdentityReader.accounts([
+                .init(identity: .providerAccount(id: "account-first"), email: "first@example.com", plan: "Pro"),
+            ]),
+            workspaceResolver: StubManagedCodexWorkspaceResolver())
+
+        let reauthenticated = try await service.authenticateManagedAccount(existingAccountID: first.id)
+
+        #expect(reauthenticated.id == firstID)
+        #expect(store.snapshot.accounts.count == 2)
+        let preserved = try #require(store.snapshot.account(id: secondID))
+        #expect(preserved.email == "second@example.com")
+        #expect(preserved.providerAccountID == "account-second")
+        #expect(preserved.managedHomePath == secondHome.path)
+        #expect(FileManager.default.fileExists(atPath: secondHome.path))
+        #expect(store.snapshot.account(id: firstID)?.managedHomePath == reauthenticated.managedHomePath)
+    }
 }
 
 private final class InMemoryManagedCodexAccountStore: ManagedCodexAccountStoring, @unchecked Sendable {

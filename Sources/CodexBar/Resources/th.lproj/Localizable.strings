@@ -2704,3 +2704,11 @@
 "No personal budget configured" = "ยังไม่ได้กำหนดงบประมาณส่วนตัว";
 
 "monthly_daily_target_format" = "≈ %@ / วัน เพื่อให้ใช้ได้จนถึงการรีเซ็ต";
+
+"Trae CN" = "Trae CN";
+"Show Trae CN usage" = "แสดงการใช้งาน Trae CN";
+"Sign in to Trae CN at trae.cn, then refresh CodexBar." = "ลงชื่อเข้าใช้ Trae CN ที่ trae.cn แล้วรีเฟรช CodexBar";
+"Trae CN usage response format changed." = "รูปแบบการตอบกลับข้อมูลการใช้งานของ Trae CN เปลี่ยนไป";
+"Trae CN request failed. Try refreshing later." = "คำขอ Trae CN ล้มเหลว ลองรีเฟรชอีกครั้งในภายหลัง";
+"Use --provider copilot." = "ใช้ --provider copilot";
+"Config changed during login. Please try again." = "การกำหนดค่ามีการเปลี่ยนแปลงระหว่างเข้าสู่ระบบ โปรดลองอีกครั้ง";

@@ -65,7 +65,7 @@ enum CodexBarCLI {
             case ["serve"]:
                 await self.runServe(invocation.parsedValues)
             case let path where path.first == "config":
-                self.runConfig(path: path, values: invocation.parsedValues)
+                await self.runConfig(path: path, values: invocation.parsedValues)
             case let path where path.first == "hooks":
                 await self.runHooks(path: path, values: invocation.parsedValues)
             case ["cache", "clear"]:
@@ -253,6 +253,11 @@ enum CodexBarCLI {
                     CommandDescriptor(
                         name: "disable",
                         abstract: "Disable a provider",
+                        discussion: nil,
+                        signature: configProviderToggleSignature),
+                    CommandDescriptor(
+                        name: "login",
+                        abstract: "GitHub Copilot Login",
                         discussion: nil,
                         signature: configProviderToggleSignature),
                     CommandDescriptor(

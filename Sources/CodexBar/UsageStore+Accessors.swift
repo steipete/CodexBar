@@ -168,7 +168,7 @@ extension UsageStore {
             case .ollama:
                 return OllamaUIErrorMapper.userFacingMessage(raw).map { ($0, nil) }
             default:
-                return (raw, nil)
+                return (L(raw), nil)
             }
         }
         if let diagnostic = self.diagnostics[provider.instanceID] {

@@ -597,8 +597,8 @@ struct KimiUsageResponseParsingTests {
 
         let response = try JSONDecoder().decode(KimiUsageResponse.self, from: Data(json.utf8))
 
-        #expect(response.usages.count == 1)
-        let usage = response.usages[0]
+        #expect(response.usages?.count == 1)
+        let usage = try #require(response.usages?.first)
         #expect(usage.scope == "FEATURE_CODING")
         #expect(usage.detail.limit == "2048")
         #expect(usage.detail.used == "375")
@@ -633,7 +633,7 @@ struct KimiUsageResponseParsingTests {
         """
 
         let response = try JSONDecoder().decode(KimiUsageResponse.self, from: Data(json.utf8))
-        #expect(response.usages.first?.limits?.isEmpty == true)
+        #expect(response.usages?.first?.limits?.isEmpty == true)
     }
 
     @Test
@@ -656,7 +656,7 @@ struct KimiUsageResponseParsingTests {
         """
 
         let response = try JSONDecoder().decode(KimiUsageResponse.self, from: Data(json.utf8))
-        #expect(response.usages.first?.limits == nil)
+        #expect(response.usages?.first?.limits == nil)
     }
 
     @Test
@@ -1116,7 +1116,7 @@ struct KimiUsageResponseParsingTests {
         """
 
         let response = try JSONDecoder().decode(KimiUsageResponse.self, from: Data(json.utf8))
-        let codingUsage = response.usages.first { $0.scope == "FEATURE_CODING" }
+        let codingUsage = response.usages?.first { $0.scope == "FEATURE_CODING" }
         #expect(codingUsage == nil)
     }
 }

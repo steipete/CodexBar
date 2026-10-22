@@ -2702,3 +2702,11 @@
 "No personal budget configured" = "Nenhum orçamento pessoal configurado";
 
 "monthly_daily_target_format" = "≈ %@ / dia para durar até a renovação";
+
+"Trae CN" = "Trae CN";
+"Show Trae CN usage" = "Mostrar uso do Trae CN";
+"Sign in to Trae CN at trae.cn, then refresh CodexBar." = "Entre no Trae CN em trae.cn e atualize o CodexBar.";
+"Trae CN usage response format changed." = "O formato da resposta de uso do Trae CN mudou.";
+"Trae CN request failed. Try refreshing later." = "A solicitação ao Trae CN falhou. Tente atualizar mais tarde.";
+"Use --provider copilot." = "Use --provider copilot.";
+"Config changed during login. Please try again." = "A configuração mudou durante o login. Tente novamente.";

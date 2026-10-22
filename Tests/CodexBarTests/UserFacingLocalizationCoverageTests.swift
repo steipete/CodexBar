@@ -4,6 +4,25 @@ import Testing
 @testable import CodexBar
 
 struct UserFacingLocalizationCoverageTests {
+    @MainActor
+    @Test
+    func `shared provider error presentation follows the app language`() {
+        let settings = testSettingsStore(
+            suiteName: "ProviderErrorLocalization",
+            userDefaults: InMemoryUserDefaults(),
+            config: CodexBarConfig(providers: []))
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            startupBehavior: .testing)
+        store.errors[.parallel] = "Login failed"
+        CodexBarLocalizationOverride.$appLanguage.withValue("de") {
+            #expect(store.userFacingError(for: .parallel) == L("Login failed"))
+            #expect(store.userFacingError(for: .parallel) != "Login failed")
+        }
+    }
+
     @Test
     func `OpenAI credential scope captions are translated and preserve the account label`() throws {
         let root = URL(fileURLWithPath: #filePath)

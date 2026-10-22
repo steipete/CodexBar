@@ -2706,3 +2706,11 @@
 "No personal budget configured" = "بودجهٔ شخصی تنظیم نشده است";
 
 "monthly_daily_target_format" = "≈ %@ در روز برای دوام تا زمان ریست";
+
+"Trae CN" = "Trae CN";
+"Show Trae CN usage" = "نمایش مصرف Trae CN";
+"Sign in to Trae CN at trae.cn, then refresh CodexBar." = "در trae.cn وارد Trae CN شوید، سپس CodexBar را تازه‌سازی کنید.";
+"Trae CN usage response format changed." = "قالب پاسخ مصرف Trae CN تغییر کرده است.";
+"Trae CN request failed. Try refreshing later." = "درخواست Trae CN ناموفق بود. بعداً دوباره تازه‌سازی کنید.";
+"Use --provider copilot." = "از --provider copilot استفاده کنید.";
+"Config changed during login. Please try again." = "پیکربندی هنگام ورود تغییر کرد. لطفاً دوباره تلاش کنید.";

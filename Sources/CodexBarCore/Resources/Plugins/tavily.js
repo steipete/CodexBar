@@ -26,29 +26,26 @@ defineProvider({
       return fail();
     }
     if (!record(data) || !record(data.account) || !record(data.key)) return fail();
-    const account = data.account;
-    const used = count(account.plan_usage);
-    const limit = count(account.plan_limit);
-    const keyUsed = count(data.key.usage);
-    const keyLimit = data.key.limit === null ? null : count(data.key.limit);
-    const format = (value) => `${ctx.format.number(value)} credits`;
-    const rows = (usage, cap) => [
-      { label: "Used", value: format(usage) },
-      { label: "Limit", value: cap === null ? "Unlimited" : format(cap) },
-      ...(cap === null ? [] : [{ label: "Remaining", value: format(Math.max(0, cap - usage)) }]),
-    ];
+    const { account, key } = data;
+    const format = (value) => `${ctx.format.number(count(value))} credits`;
+    const rows = (usage, cap, unlimited = false) =>
+      [
+        { label: "Used", value: format(usage) },
+        { label: "Limit", value: cap === null ? (unlimited ? "Unlimited" : null) : format(cap) },
+        { label: "Remaining", value: cap === null ? null : format(Math.max(0, cap - usage)) },
+      ].filter((row) => row.value !== null);
     const details = [
-      { title: "Account plan", rows: rows(used, limit) },
-      { title: "API key", rows: rows(keyUsed, keyLimit) },
+      { title: "Account plan", rows: rows(account.plan_usage, count(account.plan_limit)) },
+      { title: "API key", rows: rows(key.usage, key.limit, true) },
     ];
     if (account.paygo_usage !== undefined || account.paygo_limit !== undefined) {
-      details.push({ title: "Pay as you go", rows: rows(count(account.paygo_usage), count(account.paygo_limit)) });
+      details.push({ title: "Pay as you go", rows: rows(account.paygo_usage, account.paygo_limit) });
     }
     const plan = account.current_plan;
     if (plan !== undefined && (typeof plan !== "string" || !plan.trim() || plan.length > 120)) return fail();
     return {
-      primary: limit > 0 ? { usedPercent: ctx.pct(used, limit) } : undefined,
-      secondary: keyLimit > 0 ? { usedPercent: ctx.pct(keyUsed, keyLimit) } : undefined,
+      primary: account.plan_limit > 0 ? { usedPercent: ctx.pct(account.plan_usage, account.plan_limit) } : undefined,
+      secondary: key.limit > 0 ? { usedPercent: ctx.pct(key.usage, key.limit) } : undefined,
       details,
       identity: { loginMethod: plan === undefined ? "API key" : plan.trim() },
       dataConfidence: "exact",

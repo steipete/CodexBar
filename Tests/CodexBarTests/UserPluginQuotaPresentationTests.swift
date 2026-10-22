@@ -4,6 +4,37 @@ import Testing
 
 #if canImport(JavaScriptCore)
 struct UserPluginQuotaPresentationTests {
+    @Test
+    func `plugin meters preserve primary and secondary windows independently of the switcher metric`() {
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 20, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            secondary: RateWindow(usedPercent: 65, windowMinutes: 43200, resetsAt: nil, resetDescription: nil),
+            updatedAt: .distantPast)
+        for showUsed in [false, true] {
+            let lanes = StatusItemController.pluginMeterPercents(snapshot: snapshot, showUsed: showUsed)
+            #expect(lanes.primary == (showUsed ? 20 : 80))
+            #expect(lanes.secondary == (showUsed ? 65 : 35))
+        }
+        let missing = StatusItemController.pluginMeterPercents(snapshot: nil, showUsed: false)
+        #expect(missing.primary == nil)
+        #expect(missing.secondary == nil)
+        let extraOnly = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            tertiary: RateWindow(usedPercent: 75, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            updatedAt: .distantPast)
+        let fallback = StatusItemController.pluginMeterPercents(snapshot: extraOnly, showUsed: false)
+        #expect(fallback.primary == 25)
+        #expect(fallback.secondary == nil)
+        let overage = UsageSnapshot(
+            primary: RateWindow(usedPercent: 150, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            secondary: RateWindow(usedPercent: 250, windowMinutes: 43200, resetsAt: nil, resetDescription: nil),
+            updatedAt: .distantPast)
+        let capped = StatusItemController.pluginMeterPercents(snapshot: overage, showUsed: true)
+        #expect(capped.primary == 100)
+        #expect(capped.secondary == 100)
+    }
+
     @MainActor
     @Test
     func `current selection retains a plugin even before its first snapshot`() throws {

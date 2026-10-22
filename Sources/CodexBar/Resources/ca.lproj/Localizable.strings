@@ -2704,3 +2704,11 @@
 "No personal budget configured" = "No hi ha cap pressupost personal configurat";
 
 "monthly_daily_target_format" = "≈ %@ / dia perquè duri fins al reinici";
+
+"Trae CN" = "Trae CN";
+"Show Trae CN usage" = "Mostra l’ús de Trae CN";
+"Sign in to Trae CN at trae.cn, then refresh CodexBar." = "Inicieu sessió a Trae CN a trae.cn i després actualitzeu el CodexBar.";
+"Trae CN usage response format changed." = "El format de la resposta d’ús de Trae CN ha canviat.";
+"Trae CN request failed. Try refreshing later." = "La sol·licitud a Trae CN ha fallat. Torneu a actualitzar més tard.";
+"Use --provider copilot." = "Utilitza --provider copilot.";
+"Config changed during login. Please try again." = "La configuració ha canviat durant l’inici de sessió. Torna-ho a provar.";

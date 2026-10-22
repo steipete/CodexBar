@@ -148,12 +148,12 @@ struct CopilotExternalIdentifierTests {
             Self.makeAccount(
                 label: "same-login",
                 token: issuer,
-                externalIdentifier: CopilotLoginFlow.externalIdentifier(for: identity, issuer: issuer))
+                externalIdentifier: CopilotAccountIdentity.externalIdentifier(for: identity, issuer: issuer))
         }
         #expect(Set(accounts.compactMap(\.externalIdentifier)).count == 3)
         #expect(accounts[0].externalIdentifier == "github:user:42")
         for (index, issuer) in issuers.enumerated() {
-            let matched = await CopilotLoginFlow.matchExistingAccount(
+            let matched = await CopilotAccountIdentity.matchExistingAccount(
                 existingAccounts: accounts,
                 identity: identity,
                 label: "same-login",
@@ -171,7 +171,7 @@ struct CopilotExternalIdentifierTests {
         let accounts = ["github:user:42", "same-login", nil].map { identifier in
             Self.makeAccount(label: "same-login", token: "old-token", externalIdentifier: identifier)
         }
-        let matched = await CopilotLoginFlow.matchExistingAccount(
+        let matched = await CopilotAccountIdentity.matchExistingAccount(
             existingAccounts: accounts,
             identity: Self.identity(id: 42, login: "same-login"),
             label: "same-login",
@@ -352,7 +352,7 @@ struct CopilotExternalIdentifierTests {
     @Test(arguments: ["octocat", "different-user"])
     func `resolved different user cannot match a legacy account by login or label`(storedLogin: String) async {
         let legacy = Self.makeAccount(label: "octocat (Pro)", token: "old-token", externalIdentifier: nil)
-        let matched = await CopilotLoginFlow.matchExistingAccount(
+        let matched = await CopilotAccountIdentity.matchExistingAccount(
             existingAccounts: [legacy],
             identity: Self.identity(id: 123, login: "octocat"),
             label: "octocat (Pro)",
@@ -366,7 +366,7 @@ struct CopilotExternalIdentifierTests {
         let unresolved = Self.makeAccount(label: "octocat", token: "expired", externalIdentifier: nil)
         let identified = Self.makeAccount(label: "Renamed account", token: "known", externalIdentifier: nil)
         for accounts in [[unresolved, identified], [identified, unresolved]] {
-            let matched = await CopilotLoginFlow.matchExistingAccount(
+            let matched = await CopilotAccountIdentity.matchExistingAccount(
                 existingAccounts: accounts,
                 identity: Self.identity(id: 123, login: "octocat"),
                 label: "octocat (Pro)",
@@ -375,7 +375,7 @@ struct CopilotExternalIdentifierTests {
                 })
             #expect(matched?.id == identified.id)
         }
-        let fallback = await CopilotLoginFlow.matchExistingAccount(
+        let fallback = await CopilotAccountIdentity.matchExistingAccount(
             existingAccounts: [unresolved],
             identity: Self.identity(id: 123, login: "octocat"),
             label: "octocat (Pro)",
@@ -441,7 +441,7 @@ struct CopilotExternalIdentifierTests {
     @Test
     func `legacy Account N account matches reauth by stored token identity`() async {
         let legacy = Self.makeAccount(label: "Account 1", token: "old-token", externalIdentifier: nil)
-        let matched = await CopilotLoginFlow.matchExistingAccount(
+        let matched = await CopilotAccountIdentity.matchExistingAccount(
             existingAccounts: [legacy],
             identity: Self.identity(id: 123, login: "octocat"),
             label: "octocat (Pro)",
@@ -455,7 +455,7 @@ struct CopilotExternalIdentifierTests {
     @Test
     func `user renamed legacy account matches reauth by stored token identity`() async {
         let legacy = Self.makeAccount(label: "Work GitHub", token: "old-token", externalIdentifier: nil)
-        let matched = await CopilotLoginFlow.matchExistingAccount(
+        let matched = await CopilotAccountIdentity.matchExistingAccount(
             existingAccounts: [legacy],
             identity: Self.identity(id: 123, login: "octocat"),
             label: "octocat (Pro)",
@@ -473,7 +473,7 @@ struct CopilotExternalIdentifierTests {
             token: "identified",
             externalIdentifier: "github:user:123")
         let legacy = Self.makeAccount(label: "octocat", token: "legacy", externalIdentifier: nil)
-        let matched = await CopilotLoginFlow.matchExistingAccount(
+        let matched = await CopilotAccountIdentity.matchExistingAccount(
             existingAccounts: [legacy, identified],
             identity: Self.identity(id: 123, login: "octocat"),
             label: "octocat (Pro)",
@@ -488,7 +488,7 @@ struct CopilotExternalIdentifierTests {
     @Test
     func `legacy login external identifier still matches and can be backfilled`() async {
         let identified = Self.makeAccount(label: "Personal", token: "identified", externalIdentifier: "OctoCat")
-        let matched = await CopilotLoginFlow.matchExistingAccount(
+        let matched = await CopilotAccountIdentity.matchExistingAccount(
             existingAccounts: [identified],
             identity: Self.identity(id: 123, login: "octocat"),
             label: "octocat (Pro)",
@@ -498,7 +498,8 @@ struct CopilotExternalIdentifierTests {
             })
 
         #expect(matched?.id == identified.id)
-        #expect(CopilotLoginFlow.externalIdentifier(for: Self.identity(id: 123, login: "octocat")) == "github:user:123")
+        #expect(CopilotAccountIdentity
+            .externalIdentifier(for: Self.identity(id: 123, login: "octocat")) == "github:user:123")
     }
 
     @Test

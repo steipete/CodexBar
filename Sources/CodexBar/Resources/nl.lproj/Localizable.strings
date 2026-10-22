@@ -2699,3 +2699,11 @@
 "No personal budget configured" = "Geen persoonlijk budget ingesteld";
 
 "monthly_daily_target_format" = "≈ %@ / dag om tot de reset mee te gaan";
+
+"Trae CN" = "Trae CN";
+"Show Trae CN usage" = "Trae CN-gebruik tonen";
+"Sign in to Trae CN at trae.cn, then refresh CodexBar." = "Log in bij Trae CN op trae.cn en vernieuw daarna CodexBar.";
+"Trae CN usage response format changed." = "De indeling van het Trae CN-gebruiksantwoord is gewijzigd.";
+"Trae CN request failed. Try refreshing later." = "Het Trae CN-verzoek is mislukt. Probeer later opnieuw te vernieuwen.";
+"Use --provider copilot." = "Gebruik --provider copilot.";
+"Config changed during login. Please try again." = "De configuratie is gewijzigd tijdens het inloggen. Probeer het opnieuw.";

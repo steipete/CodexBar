@@ -2702,3 +2702,11 @@
 "No personal budget configured" = "個人予算が設定されていません";
 
 "monthly_daily_target_format" = "リセットまで持たせる目安：1日あたり約 %@";
+
+"Trae CN" = "Trae CN";
+"Show Trae CN usage" = "Trae CN の使用状況を表示";
+"Sign in to Trae CN at trae.cn, then refresh CodexBar." = "trae.cn で Trae CN にサインインし、CodexBar を更新してください。";
+"Trae CN usage response format changed." = "Trae CN の使用状況の応答形式が変更されました。";
+"Trae CN request failed. Try refreshing later." = "Trae CN へのリクエストに失敗しました。後でもう一度更新してください。";
+"Use --provider copilot." = "--provider copilot を使用してください。";
+"Config changed during login. Please try again." = "ログイン中に設定が変更されました。もう一度お試しください。";

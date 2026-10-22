@@ -13,6 +13,7 @@ public enum LogCategories {
     public static let app = "app"
     public static let auggieCLI = "auggie-cli"
     public static let browserCookieGate = "browser-cookie-gate"
+    public static let codexAccounts = "codex-accounts"
     public static let configMigration = "config-migration"
     public static let configStore = "config-store"
     public static let confetti = "confetti"

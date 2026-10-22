@@ -1,7 +1,7 @@
 import Foundation
 
 struct KimiUsageResponse: Codable {
-    let usages: [KimiUsage]
+    let usages: [KimiUsage]?
 }
 
 struct KimiCodeAPIUsageResponse: Codable {

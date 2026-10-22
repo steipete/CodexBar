@@ -265,14 +265,16 @@ extension StatusItemController {
         let selected = self.primaryProviderForUnifiedIcon()
         guard let provider = selected.firstPartyProvider else {
             guard let plugin = UserProviderPluginRegistry.plugin(for: selected) else { return false }
-            let percent = Self.pluginSwitcherMetricPercent(
-                snapshot: self.store.menuBarSnapshot(for: selected), showUsed: self.settings.usageBarsShowUsed)
+            let snapshot = self.store.menuBarSnapshot(for: selected)
+            let showUsed = self.settings.usageBarsShowUsed
+            let percent = Self.pluginSwitcherMetricPercent(snapshot: snapshot, showUsed: showUsed)
+            let lanes = Self.pluginMeterPercents(snapshot: snapshot, showUsed: showUsed)
             let showBrand = self.settings.menuBarShowsBrandIconWithPercent
             // Returning to a built-in provider must redraw even if its last quota is unchanged.
             self.lastAppliedMergedIconRenderSignature = nil
             let image = showBrand ? self.userPluginSwitcherIcon(for: plugin) : IconRenderer.makeIcon(
-                primaryRemaining: percent,
-                weeklyRemaining: nil,
+                primaryRemaining: lanes.primary,
+                weeklyRemaining: lanes.secondary,
                 creditsRemaining: nil,
                 stale: self.store.errors[selected] != nil,
                 style: .combined,

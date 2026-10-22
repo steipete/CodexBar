@@ -1196,6 +1196,24 @@ struct MenuBarLayoutRendererTests {
         #expect(cache.count == 1)
     }
 
+    @Test(arguments: [MenuBarLayoutToken.resetAbsolute, .percent(window: .automatic)])
+    func `unreferenced reset text does not invalidate cached titles`(token: MenuBarLayoutToken) {
+        let renderer = MenuBarLayoutRenderer()
+        let layout = MenuBarLayout(lines: [[token]])
+        let data = self.data()
+        let first = renderer.render(layout: layout, data: data, icon: nil, options: self.options())
+        let later = renderer.render(
+            layout: layout,
+            data: data,
+            icon: nil,
+            options: self.options(now: self.now.addingTimeInterval(60)))
+
+        #expect(first.attributedTitle.string == later.attributedTitle.string)
+        #expect(
+            first.attributedTitle === later.attributedTitle,
+            "An unreferenced countdown must not invalidate the title")
+    }
+
     @Test
     func `countdown uses the exact clock while caching an unchanged displayed minute`() {
         let renderer = MenuBarLayoutRenderer()

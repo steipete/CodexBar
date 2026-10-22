@@ -101,10 +101,10 @@ public struct KimiUsageFetcher: Sendable {
             transport: transport,
             grace: subscriptionGrace ?? .seconds(self.subscriptionGraceSeconds))
 
-        let codingUsage: KimiUsage
+        let codingUsage: KimiUsage?
         do {
             codingUsage = try await withTaskCancellationHandler {
-                try await self.fetchRequiredUsage(
+                try await self.fetchCodingUsage(
                     authToken: authToken,
                     region: region,
                     sessionInfo: sessionInfo,
@@ -120,9 +120,9 @@ public struct KimiUsageFetcher: Sendable {
 
         let subscription = try await enrichment.value()
 
-        let rateLimit = codingUsage.limits?.first
-        return KimiUsageSnapshot(
-            weekly: codingUsage.detail,
+        let rateLimit = codingUsage?.limits?.first
+        let snapshot = KimiUsageSnapshot(
+            weekly: codingUsage?.detail,
             rateLimit: rateLimit?.detail,
             rateLimitWindow: rateLimit?.window,
             subscriptionBalance: subscription.stats?.subscriptionBalance,
@@ -130,20 +130,24 @@ public struct KimiUsageFetcher: Sendable {
             giftBalances: subscription.stats?.giftBalances,
             planName: subscription.planName,
             updatedAt: now)
+        // A lapsed Code plan can still have a usable membership quota.
+        if codingUsage == nil, snapshot.toUsageSnapshot().extraRateWindows?.isEmpty != false {
+            throw KimiAPIError.parseFailed("FEATURE_CODING scope not found in response")
+        }
+        return snapshot
     }
 
-    private static func fetchRequiredUsage(
+    private static func fetchCodingUsage(
         authToken: String,
         region: KimiRegion = .china,
         sessionInfo: SessionInfo?,
-        transport: any ProviderHTTPTransport) async throws -> KimiUsage
+        transport: any ProviderHTTPTransport) async throws -> KimiUsage?
     {
         var request = self.webRequest(
             url: region.webBaseURL.appendingPathComponent("apiv2/kimi.gateway.billing.v1.BillingService/GetUsages"),
             authToken: authToken,
             sessionInfo: sessionInfo)
-        let requestBody = ["scope": ["FEATURE_CODING"]]
-        request.httpBody = try? JSONSerialization.data(withJSONObject: requestBody)
+        request.httpBody = try? JSONSerialization.data(withJSONObject: ["scope": ["FEATURE_CODING"]])
 
         let response = try await transport.response(for: request)
         let data = response.data
@@ -161,11 +165,7 @@ public struct KimiUsageFetcher: Sendable {
         }
 
         let usageResponse = try JSONDecoder().decode(KimiUsageResponse.self, from: data)
-        guard let codingUsage = usageResponse.usages.first(where: { $0.scope == "FEATURE_CODING" }) else {
-            throw KimiAPIError.parseFailed("FEATURE_CODING scope not found in response")
-        }
-
-        return codingUsage
+        return usageResponse.usages?.first(where: { $0.scope == "FEATURE_CODING" })
     }
 
     private static func enrichCodeAPIUsage(

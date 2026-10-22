@@ -2703,3 +2703,11 @@
 "No personal budget configured" = "Особистий бюджет не налаштовано";
 
 "monthly_daily_target_format" = "≈ %@ на день, щоб вистачило до скидання";
+
+"Trae CN" = "Trae CN";
+"Show Trae CN usage" = "Показувати використання Trae CN";
+"Sign in to Trae CN at trae.cn, then refresh CodexBar." = "Увійдіть у Trae CN на trae.cn, а потім оновіть CodexBar.";
+"Trae CN usage response format changed." = "Формат відповіді з даними про використання Trae CN змінився.";
+"Trae CN request failed. Try refreshing later." = "Запит до Trae CN не вдався. Спробуйте оновити пізніше.";
+"Use --provider copilot." = "Використовуйте --provider copilot.";
+"Config changed during login. Please try again." = "Конфігурація змінилася під час входу. Спробуйте ще раз.";

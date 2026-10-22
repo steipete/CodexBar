@@ -188,6 +188,7 @@ model-generic token label while the rendered menu-bar prefix and accessibility l
 - Ordinary, fresh monochrome token layouts use template images so AppKit supplies native highlighting and
   inactive-display dimming. Combined stacked rows support inline monochrome icons, percentages, and reset text.
   Individual layout content and appearance remain in the bounded renderer cache; memory-pressure cleanup clears it.
+  The cache tracks reset styles referenced by the layout, so absolute-only titles stay cached as countdowns advance.
   Stale data, high-contrast mode, colored glyphs or colored attachments, and layouts with a separate leading icon keep
   attributed text rendering. Critter and bar styles keep their existing renderers.
 

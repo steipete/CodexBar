@@ -227,7 +227,7 @@ Snapshot requests share the serve cache and coordination machinery used by `/usa
 
 ### Stale responses and background refresh
 
-After a fresh cache entry expires, `codexbar serve` may answer immediately with its last-good response while rebuilding that same route and configuration in the background. Concurrent refresh triggers still coalesce, and a slow rebuild commits even if it outlives the initiating request deadline. Clients can use `generatedAt` together with `staleAfterSeconds` to decide how to present freshness. This behavior is disabled when `--refresh-interval 0`.
+After a fresh usage or cost cache entry expires, `codexbar serve` may answer immediately with its last-good response while rebuilding that same route and configuration in the background. Dashboard snapshots instead wait for a rebuild after the normal refresh interval, including when returning to a previously cached used/remaining mode. Concurrent refresh triggers still coalesce, and a slow rebuild commits even if it outlives the initiating request deadline. Failed rebuilds retain the existing bounded last-good fallback. Clients can use `generatedAt` together with `staleAfterSeconds` to decide how to present freshness. Caching is disabled when `--refresh-interval 0`.
 
 ## Payload
 

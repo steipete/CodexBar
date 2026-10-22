@@ -717,7 +717,8 @@ public enum UsageLimitsAvailability: Equatable, Sendable {
         // whether a successful payload actually contains subscription limits.
         if provider == .claude {
             if let snapshot {
-                return snapshot.primary?.isSyntheticPlaceholder == true && snapshot.measuredRateWindows.isEmpty
+                return snapshot.measuredRateWindows.isEmpty
+                    && (snapshot.primary?.isSyntheticPlaceholder == true || snapshot.providerCost == nil)
                     ? .unavailable : .available
             }
             return ClaudeStatusProbe.isSubscriptionQuotaUnavailableDescription(lastErrorDescription)

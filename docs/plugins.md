@@ -145,7 +145,10 @@ defineProvider({
 - `topLevel` (optional, default `true`): gives an enabled plugin its own provider-switcher tab when Merge Icons is on. Set to `false` to keep an appended card.
   Plugin tabs show a quota gauge from the most constrained reported seven-day window, otherwise the first available
   primary, secondary, tertiary, or extra window. They follow the used/remaining display preference; unknown usage
-  stays unavailable. Enabled plugins can also be selected in **Settings → Menu Bar → Overview**; they share the
+  stays unavailable. Merged meter icons use the primary window for the thick lane and the secondary window for the
+  thin lane, following the used/remaining preference. When both are absent, the existing tertiary/extra-window
+  single-meter fallback remains. The switcher gauge and Icon & percent value retain their weekly-first selection.
+  Enabled plugins can also be selected in **Settings → Menu Bar → Overview**; they share the
   six-provider limit and render their existing usage card. Overview selections retain the same string-array format,
   so older builds can still read the built-in providers while ignoring unknown plugin IDs.
 - `endpoints`: 1–16 declared network origins. A fixed endpoint is a normalized HTTPS origin such as
@@ -572,6 +575,9 @@ evicts only the cached entry observed by that fetch (each domain is pinned for t
 are never erased. User plugins have no persistent cookie cache, so rejection is a validated no-op for them.
 
 ## Bundled provider examples
+
+[Trae CN](traecn.md) uses the shared browser-session broker and two read-only JSON POSTs. Its short-lived
+service token stays within one refresh; no native fetcher or parallel credential store is needed.
 
 Bundled scripts own requests, error classification, and snapshot mapping; Swift supplies registration, settings, and credential/origin validation. These examples illustrate contracts that differ from the minimal plugin:
 
