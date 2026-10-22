@@ -8,6 +8,7 @@ struct CostUsagePricingClaudeMythosTests {
     @Test
     func `claude cost supports mythos51 bundled fallback`() throws {
         let emptyCacheRoot = try Self.cacheRoot()
+        defer { try? FileManager.default.removeItem(at: emptyCacheRoot) }
         let cost = CostUsagePricing.claudeCostUSD(
             model: "claude-mythos-5-1",
             inputTokens: 100,
@@ -28,6 +29,7 @@ struct CostUsagePricingClaudeMythosTests {
     @Test
     func `claude cost supports mythos5 bundled fallback`() throws {
         let emptyCacheRoot = try Self.cacheRoot()
+        defer { try? FileManager.default.removeItem(at: emptyCacheRoot) }
         let cost = CostUsagePricing.claudeCostUSD(
             model: "claude-mythos-5",
             inputTokens: 100,

@@ -7,6 +7,10 @@ public struct ProviderDetailSection: Codable, Equatable, Sendable {
     public static let maximumStringLength = 120
 
     public struct Row: Codable, Equatable, Sendable {
+        public enum Severity: String, Codable, Equatable, Sendable {
+            case normal, warning, critical
+        }
+
         /// Numeric progress behind a row, when the provider knows both sides of a ratio.
         ///
         /// Rows are display strings by design; the bar needs real numbers, so a row that should
@@ -55,6 +59,7 @@ public struct ProviderDetailSection: Codable, Equatable, Sendable {
         public let value: String
         public let secondaryValue: String?
         public let progress: Progress?
+        public let severity: Severity?
         /// Numeric usage behind the row when known, so a cached row can be rebuilt into a ratio
         /// (or stripped back to plain text) without parsing the display string. Independent of
         /// `progress`, which only exists when both sides of a ratio are known.
@@ -66,6 +71,7 @@ public struct ProviderDetailSection: Codable, Equatable, Sendable {
             value: String,
             secondaryValue: String? = nil,
             progress: Progress? = nil,
+            severity: Severity? = nil,
             usageValue: Double? = nil) throws
         {
             self.id = try ProviderDetailSection.optionalString(id, path: "row.id")
@@ -73,6 +79,7 @@ public struct ProviderDetailSection: Codable, Equatable, Sendable {
             self.value = try ProviderDetailSection.requiredString(value, path: "row.value")
             self.secondaryValue = try ProviderDetailSection.optionalString(secondaryValue, path: "row.secondaryValue")
             self.progress = progress
+            self.severity = severity
             if let usageValue {
                 guard usageValue.isFinite else {
                     throw ValidationError("row.usageValue must be finite")
@@ -87,6 +94,7 @@ public struct ProviderDetailSection: Codable, Equatable, Sendable {
             case value
             case secondaryValue
             case progress
+            case severity
             case usageValue
         }
 
@@ -98,6 +106,7 @@ public struct ProviderDetailSection: Codable, Equatable, Sendable {
                 value: container.decode(String.self, forKey: .value),
                 secondaryValue: container.decodeIfPresent(String.self, forKey: .secondaryValue),
                 progress: container.decodeIfPresent(Progress.self, forKey: .progress),
+                severity: container.decodeIfPresent(Severity.self, forKey: .severity),
                 usageValue: container.decodeIfPresent(Double.self, forKey: .usageValue))
         }
     }

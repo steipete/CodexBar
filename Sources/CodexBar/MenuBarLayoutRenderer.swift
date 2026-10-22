@@ -138,6 +138,7 @@ struct MenuBarLayoutRenderExtra: Hashable {
 struct MenuBarLayoutRenderOptions: Hashable {
     let size: MenuBarLayoutSize
     let monospacedDigits: Bool
+    let showWindowLabels: Bool
     let colorPace: Bool
     let colorByProvider: Bool
     let highContrast: Bool
@@ -175,10 +176,12 @@ struct MenuBarLayoutRenderOptions: Hashable {
         colorPace: Bool = false,
         colorByProvider: Bool = false,
         forceStackedStyle: Bool = false,
-        monospacedDigits: Bool = false)
+        monospacedDigits: Bool = false,
+        showWindowLabels: Bool = true)
     {
         self.size = size
         self.monospacedDigits = monospacedDigits
+        self.showWindowLabels = showWindowLabels
         self.colorPace = colorPace
         self.colorByProvider = colorByProvider
         self.highContrast = highContrast
@@ -199,6 +202,7 @@ struct MenuBarLayoutRenderKey: Hashable {
     let data: MenuBarLayoutRenderData
     let size: MenuBarLayoutSize
     let monospacedDigits: Bool
+    let showWindowLabels: Bool
     let colorPace: Bool
     let colorByProvider: Bool
     let highContrast: Bool
@@ -301,6 +305,7 @@ final class MenuBarLayoutTitleCache {
 final class MenuBarLayoutRenderer {
     private static let missingValue = "–"
     private static let stackedBaselineOffset: CGFloat = -3 // Center multi-line NSStatusBarButton titles.
+    private static let windowPrefixKey = NSAttributedString.Key("CodexBarWindowPrefix")
     private static let singleLineBaselineOffset: CGFloat = -1 // Drop single-line titles slightly for optical centering.
 
     private struct TokenStyle {
@@ -340,6 +345,7 @@ final class MenuBarLayoutRenderer {
             data: data,
             size: options.size,
             monospacedDigits: options.monospacedDigits,
+            showWindowLabels: options.showWindowLabels,
             colorPace: options.colorPace,
             colorByProvider: options.colorByProvider,
             highContrast: options.highContrast,
@@ -395,6 +401,7 @@ final class MenuBarLayoutRenderer {
         let breakAttributes = top.attributedTitle.attributes(at: top.attributedTitle.length - 1, effectiveRange: nil)
         result.append(NSAttributedString(string: "\n", attributes: breakAttributes))
         result.append(bottom.attributedTitle)
+        self.alignWindowPrefixes(in: result)
         let secondLineLabel = L("menu_bar_layout_line", 2)
         let accessibilityLabel = "\(topProviderName), \(top.accessibilityLabel), " +
             "\(secondLineLabel), \(bottomProviderName), \(bottom.accessibilityLabel)"
@@ -540,6 +547,9 @@ final class MenuBarLayoutRenderer {
             accessibilityLines.append(accessibilityParts.joined(separator: ", "))
         }
 
+        if isStacked {
+            Self.alignWindowPrefixes(in: result, promotedIcon: leadingIcon != nil)
+        }
         if options.isDebugApp {
             result.append(NSAttributedString(string: " D", attributes: attributes))
             // Every line can collapse when a conditional hides the only token in the layout.
@@ -685,12 +695,9 @@ final class MenuBarLayoutRenderer {
         if let rendered = self.renderProviderTextItem(
             item,
             data: data,
-            showUsed: options.showUsed,
-            attributes: style.attributes)
+            style: style,
+            options: options)
         {
-            return rendered
-        }
-        if let rendered = self.renderThroughputItem(item, data: data, style: style, options: options) {
             return rendered
         }
         if let rendered = self.renderUsageMeterItem(
@@ -746,9 +753,10 @@ final class MenuBarLayoutRenderer {
                 attributes: attributes)
         case .resetCountdown, .resetAbsolute:
             let text = MenuBarLayoutResetText(window: data.automatic, provider: data.provider, now: options.now)
-            return self.resetToken(
+            return self.optionalTextToken(
                 item.resetIsAbsolute ? text.absolute : text.countdown,
                 unavailableLabel: item.resetIsAbsolute ? L("Reset time unavailable") : L("Reset countdown unavailable"),
+                accessibilityPrefix: L("Resets"),
                 attributes: style.attributes)
         case let .windowResetCountdown(window), let .windowResetAbsolute(window):
             let text = MenuBarLayoutResetText(
@@ -853,29 +861,75 @@ final class MenuBarLayoutRenderer {
             automaticText: data.automaticText,
             estimated: data.quotaIsEstimated,
             showUsed: options.showUsed)
-        let prefix = self.windowPrefix(window, data: data)
+        let prefix = self.windowPrefix(window, data: data, showWindowLabels: options.showWindowLabels)
         let accessibilityPrefix = Self.windowAccessibilityLabel(window, data: data)
-        let display = prefix.isEmpty ? resolvedValue.text : "\(prefix) \(resolvedValue.text)"
         let accessibility = resolvedValue.isAvailable
             ? L("%@ %@", accessibilityPrefix, resolvedValue.text)
             : L("%@ unavailable", accessibilityPrefix)
-        return self.textToken(display, accessibilityText: accessibility, attributes: style.attributes)
+        return (self.prefixedValue(
+            prefix,
+            value: NSAttributedString(string: resolvedValue.text, attributes: style.attributes),
+            attributes: style.attributes), accessibility)
     }
 
-    private static func windowPrefix(_ window: PercentWindow, data: MenuBarLayoutRenderData) -> String {
+    private static func prefixedValue(
+        _ prefix: String,
+        value: NSAttributedString,
+        attributes: [NSAttributedString.Key: Any]) -> NSAttributedString
+    {
+        guard !prefix.isEmpty else { return value }
+        let result = NSMutableAttributedString(string: "\(prefix) ", attributes: attributes)
+        result.addAttribute(self.windowPrefixKey, value: true, range: NSRange(location: 0, length: result.length))
+        result.append(value)
+        return result
+    }
+
+    private static func alignWindowPrefixes(in title: NSMutableAttributedString, promotedIcon: Bool = false) {
+        let text = title.string as NSString
+        var prefixes: [(range: NSRange, width: CGFloat)] = []
+        title.enumerateAttribute(self.windowPrefixKey, in: NSRange(
+            location: 0,
+            length: title.length))
+        { value, range, _ in
+            guard value != nil else { return }
+            let line = text.lineRange(for: range)
+            let leading = text.substring(with: NSRange(
+                location: line.location,
+                length: range.location - line.location))
+            guard leading.isEmpty || (promotedIcon && line.location == 0 && leading == "\u{2009}") else { return }
+            let prefix = NSMutableAttributedString(attributedString: title.attributedSubstring(from: NSRange(
+                location: line.location, length: NSMaxRange(range) - line.location)))
+            // Measure unpadded glyph advances, including whitespace, when composing previously rendered rows.
+            prefix.removeAttribute(.kern, range: NSRange(location: 0, length: prefix.length))
+            let width = CTLineGetTypographicBounds(CTLineCreateWithAttributedString(prefix), nil, nil, nil)
+            prefixes.append((NSRange(location: NSMaxRange(range) - 1, length: 1), CGFloat(width)))
+        }
+        guard prefixes.count == text.components(separatedBy: "\n").count,
+              let width = prefixes.map(\.width).max() else { return }
+        for prefix in prefixes {
+            title.addAttribute(.kern, value: width - prefix.width, range: prefix.range)
+        }
+    }
+
+    private static func windowPrefix(
+        _ window: PercentWindow,
+        data: MenuBarLayoutRenderData,
+        showWindowLabels: Bool = true) -> String
+    {
         let rateWindow = self.window(window, data: data)
         let prefix: String
         let taggedPrefix = Self.taggedSemanticLane(window, provider: data.provider)
             .flatMap { Self.laneShortLabel($0, provider: data.provider) }
+        // Named lanes identify distinct allowances; Spend's currency is not a window label.
+        if let taggedPrefix { return taggedPrefix }
+        guard showWindowLabels || window == .spend else { return "" }
         switch window {
         case .session:
-            prefix = taggedPrefix
-                ?? self.primaryLabel(data: data).flatMap(\.first).map { String($0).uppercased() }
+            prefix = self.primaryLabel(data: data).flatMap(\.first).map { String($0).uppercased() }
                 ?? Self.sessionPrefix(rateWindow)
         case .weekly:
-            let secondaryLabel = Self.secondaryLabel(data: data)
-            prefix = taggedPrefix
-                ?? secondaryLabel.flatMap(\.first).map { String($0).uppercased() } ?? "W"
+            let secondaryLabel = PercentWindow.weekly.providerLabel(provider: data.provider)
+            prefix = secondaryLabel.flatMap(\.first).map { String($0).uppercased() } ?? "W"
         case .scopedWeekly:
             prefix = data.scopedWeeklyTitle.map { String($0.prefix(1)).uppercased() } ?? "F"
         case .automatic:
@@ -893,7 +947,7 @@ final class MenuBarLayoutRenderer {
         }
         return switch window {
         case .session: self.primaryLabel(data: data) ?? L("Session")
-        case .weekly: self.secondaryLabel(data: data) ?? L("Weekly")
+        case .weekly: PercentWindow.weekly.providerLabel(provider: data.provider) ?? L("Weekly")
         case .scopedWeekly: data.scopedWeeklyTitle ?? L("Scoped weekly")
         case .automatic: L("Usage")
         case .spend: L("Spend")
@@ -907,11 +961,12 @@ final class MenuBarLayoutRenderer {
     private static func renderProviderTextItem(
         _ item: MenuBarLayoutToken,
         data: MenuBarLayoutRenderData,
-        showUsed: Bool,
-        attributes: [NSAttributedString.Key: Any])
+        style: TokenStyle,
+        options: MenuBarLayoutRenderOptions)
         -> (value: NSAttributedString, accessibilityText: String?)?
     {
-        switch item {
+        let attributes = style.attributes
+        return switch item {
         case .providerName:
             self.optionalTextToken(
                 data.providerName,
@@ -926,12 +981,23 @@ final class MenuBarLayoutRenderer {
             self.lanePercentToken(
                 lane,
                 data: data,
-                showUsed: showUsed,
+                showUsed: options.showUsed,
                 attributes: attributes)
         case let .extraPercent(id):
-            self.extraPercentToken(id, data: data, showUsed: showUsed, attributes: attributes)
+            self.extraPercentToken(id, data: data, showUsed: options.showUsed, attributes: attributes)
         case .spendAmount, .spendBudget:
-            self.spendMoneyToken(item, data: data, attributes: attributes)
+            self.optionalTextToken(
+                item == .spendBudget ? data.spendBudget : data.spendAmount,
+                unavailableLabel: L("%@ unavailable", item.editorLabel(provider: data.provider)),
+                accessibilityPrefix: L("Spend"),
+                attributes: attributes)
+        case .tokensPerMinute:
+            self.optionalTextToken(
+                data.tokensPerMinute.map { ProviderThroughputSection.count($0) + "/min" },
+                unavailableLabel: L("%@ unavailable", L("Tokens / min")),
+                attributes: attributes)
+        case .tokensSparkline:
+            self.sparklineToken(data: data, style: style, options: options)
         default:
             nil
         }
@@ -1099,19 +1165,6 @@ final class MenuBarLayoutRenderer {
         return 0.2126 * linear(color.red) + 0.7152 * linear(color.green) + 0.0722 * linear(color.blue)
     }
 
-    private static func resetToken(
-        _ value: String?,
-        unavailableLabel: String,
-        attributes: [NSAttributedString.Key: Any])
-        -> (value: NSAttributedString, accessibilityText: String?)
-    {
-        self.optionalTextToken(
-            value,
-            unavailableLabel: unavailableLabel,
-            accessibilityPrefix: L("Resets"),
-            attributes: attributes)
-    }
-
     private static func optionalTextToken(
         _ value: String?,
         unavailableLabel: String,
@@ -1197,10 +1250,6 @@ final class MenuBarLayoutRenderer {
             ? data.laneLabels.primary : data.laneLabels.secondary
     }
 
-    private static func secondaryLabel(data: MenuBarLayoutRenderData) -> String? {
-        PercentWindow.weekly.providerLabel(provider: data.provider)
-    }
-
     private static func sessionPrefix(_ window: MenuBarLayoutRenderWindow?) -> String {
         guard let minutes = window?.windowMinutes, minutes > 0 else { return "S" }
         guard minutes.isMultiple(of: 60) else { return "\(minutes)m" }
@@ -1210,17 +1259,10 @@ final class MenuBarLayoutRenderer {
 
 extension MenuBarLayoutRenderer {
     private static func fontSize(size: MenuBarLayoutSize, isStacked: Bool) -> CGFloat {
-        if isStacked {
-            return switch size {
-            case .small: 8
-            case .regular: 9
-            case .large: 10
-            }
-        }
-        return switch size {
-        case .small: 11
-        case .regular: NSFont.systemFontSize
-        case .large: 14
+        switch size {
+        case .small: isStacked ? 8 : 11
+        case .regular: isStacked ? 9 : NSFont.systemFontSize
+        case .large: isStacked ? 10 : 14
         }
     }
 
@@ -1229,40 +1271,6 @@ extension MenuBarLayoutRenderer {
             return size == .small ? 8 : 9
         }
         return size == .small ? 14 : 18
-    }
-
-    /// Tokens-per-minute text and graph, kept out of the class body's main switch.
-    private static func renderThroughputItem(
-        _ item: MenuBarLayoutToken,
-        data: MenuBarLayoutRenderData,
-        style: TokenStyle,
-        options: MenuBarLayoutRenderOptions)
-        -> (value: NSAttributedString, accessibilityText: String?)?
-    {
-        switch item {
-        case .tokensPerMinute:
-            self.optionalTextToken(
-                data.tokensPerMinute.map { ProviderThroughputSection.count($0) + "/min" },
-                unavailableLabel: L("%@ unavailable", L("Tokens / min")),
-                attributes: style.attributes)
-        case .tokensSparkline:
-            self.sparklineToken(data: data, style: style, options: options)
-        default:
-            nil
-        }
-    }
-
-    private static func spendMoneyToken(
-        _ item: MenuBarLayoutToken,
-        data: MenuBarLayoutRenderData,
-        attributes: [NSAttributedString.Key: Any])
-        -> (value: NSAttributedString, accessibilityText: String?)
-    {
-        self.optionalTextToken(
-            item == .spendBudget ? data.spendBudget : data.spendAmount,
-            unavailableLabel: L("%@ unavailable", item.editorLabel(provider: data.provider)),
-            accessibilityPrefix: L("Spend"),
-            attributes: attributes)
     }
 
     private static func sparklineToken(
@@ -1364,12 +1372,8 @@ extension MenuBarLayoutRenderer {
         // Keep the window label ("5h" / "W") beside the bar so stacked rows stay unambiguous.
         let prefix = self.windowPrefix(window, data: data)
 
-        let result = NSMutableAttributedString()
-        if !prefix.isEmpty {
-            let label = NSAttributedString(string: "\(prefix) ", attributes: style.attributes)
-            result.append(label)
-        }
-        result.append(self.attachmentText(attachment, style: style))
+        let result = self.prefixedValue(
+            prefix, value: self.attachmentText(attachment, style: style), attributes: style.attributes)
 
         let percentText = self.percentValue(
             window: window,

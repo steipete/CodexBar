@@ -13,7 +13,7 @@ struct PreferencesSelectionHistoryTests {
 
         selection.pane = .notifications
         selection.pane = .advanced
-        #expect(selection.backStack == [.general, .notifications])
+        #expect(selection.backStack.map(\.pane) == [.general, .notifications])
 
         selection.goBack()
         #expect(selection.pane == .notifications)
@@ -21,7 +21,7 @@ struct PreferencesSelectionHistoryTests {
 
         selection.pane = .about
         #expect(!selection.canGoForward)
-        #expect(selection.backStack == [.general, .notifications])
+        #expect(selection.backStack.map(\.pane) == [.general, .notifications])
     }
 
     @Test
@@ -39,7 +39,7 @@ struct PreferencesSelectionHistoryTests {
         selection.goForward()
         #expect(selection.pane == .advanced)
         #expect(!selection.canGoForward)
-        #expect(selection.backStack == [.general, .notifications])
+        #expect(selection.backStack.map(\.pane) == [.general, .notifications])
     }
 
     @Test
@@ -51,8 +51,8 @@ struct PreferencesSelectionHistoryTests {
         selection.pane = .advanced
         selection.goBack()
         selection.pane = .notifications
-        #expect(selection.forwardStack == [.advanced])
-        #expect(selection.backStack == [.general])
+        #expect(selection.forwardStack.map(\.pane) == [.advanced])
+        #expect(selection.backStack.map(\.pane) == [.general])
     }
 
     @Test
@@ -66,8 +66,8 @@ struct PreferencesSelectionHistoryTests {
         selection.pane = .general
         selection.removeFromHistory { $0 == .debug }
 
-        #expect(!selection.backStack.contains(.debug))
-        #expect(!selection.forwardStack.contains(.debug))
+        #expect(!selection.backStack.map(\.pane).contains(.debug))
+        #expect(!selection.forwardStack.map(\.pane).contains(.debug))
         selection.goBack()
         #expect(selection.pane != .debug)
     }
@@ -79,10 +79,10 @@ struct PreferencesSelectionHistoryTests {
         selection.pane = .general
         selection.pane = .debug
         selection.pane = .advanced
-        #expect(selection.backStack == [.general, .debug, .general, .debug])
+        #expect(selection.backStack.map(\.pane) == [.general, .debug, .general, .debug])
 
         selection.removeFromHistory { $0 == .debug }
-        #expect(selection.backStack == [.general])
+        #expect(selection.backStack.map(\.pane) == [.general])
 
         selection.pane = .general
         selection.pane = .debug
@@ -90,10 +90,95 @@ struct PreferencesSelectionHistoryTests {
         selection.goBack()
         selection.goBack()
         #expect(selection.pane == .general)
-        #expect(selection.forwardStack == [.advanced, .debug])
+        #expect(selection.forwardStack.map(\.pane) == [.advanced, .debug])
 
         selection.removeFromHistory { $0 == .debug }
-        #expect(selection.forwardStack == [.advanced])
+        #expect(selection.forwardStack.map(\.pane) == [.advanced])
+    }
+
+    @Test
+    func `acknowledgements uses shared back and forward history`() {
+        let selection = Self.makeSelection()
+        selection.pane = .about
+        selection.showAcknowledgements()
+        #expect(selection.title == L("link_acknowledgements"))
+
+        selection.goBack()
+        #expect(selection.pane == .about)
+        #expect(selection.destination.aboutRoute == nil)
+        #expect(selection.canGoForward)
+
+        selection.goForward()
+        #expect(selection.destination.aboutRoute == .acknowledgements)
+        #expect(!selection.canGoForward)
+
+        selection.goBack()
+        selection.goBack()
+        #expect(selection.pane == .general)
+        #expect(!selection.canGoBack)
+        selection.goForward()
+        #expect(selection.destination.aboutRoute == nil)
+        selection.goForward()
+        #expect(selection.destination.aboutRoute == .acknowledgements)
+    }
+
+    @Test
+    func `history restores acknowledgements after visiting another pane`() {
+        let selection = Self.makeSelection()
+        selection.pane = .about
+        selection.showAcknowledgements()
+        selection.pane = .advanced
+
+        selection.goBack()
+        #expect(selection.pane == .about)
+        #expect(selection.destination.aboutRoute == .acknowledgements)
+        selection.goForward()
+        #expect(selection.pane == .advanced)
+        #expect(selection.destination.aboutRoute == nil)
+    }
+
+    @Test
+    func `explicit About selection returns to root and clears forward history`() {
+        let selection = Self.makeSelection()
+        selection.pane = .about
+        selection.showAcknowledgements()
+        selection.pane = .advanced
+        selection.goBack()
+
+        selection.requestAboutRoot()
+        #expect(selection.pane == .about)
+        #expect(selection.destination.aboutRoute == nil)
+        #expect(!selection.canGoForward)
+        selection.goBack()
+        #expect(selection.destination.aboutRoute == .acknowledgements)
+    }
+
+    @Test
+    func `history pruning preserves distinct About destinations`() {
+        let selection = Self.makeSelection()
+        selection.pane = .about
+        selection.showAcknowledgements()
+        selection.pane = .debug
+        selection.requestAboutRoot()
+        selection.removeFromHistory { $0 == .debug }
+
+        selection.goBack()
+        #expect(selection.destination.aboutRoute == .acknowledgements)
+        selection.goBack()
+        #expect(selection.pane == .about)
+        #expect(selection.destination.aboutRoute == nil)
+    }
+
+    @Test
+    func `acknowledgements persists only the About pane`() {
+        let defaults = InMemoryUserDefaults()
+        let selection = PreferencesSelection(userDefaults: defaults)
+        selection.showAcknowledgements()
+
+        let restored = PreferencesSelection(userDefaults: defaults)
+        #expect(restored.pane == .about)
+        #expect(restored.destination.aboutRoute == nil)
+        #expect(!restored.canGoBack)
     }
 
     private static func makeSelection() -> PreferencesSelection {

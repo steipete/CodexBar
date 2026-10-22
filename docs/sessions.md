@@ -9,7 +9,7 @@ read_when:
 
 CodexBar can list live Codex, Claude Code, pi, and OMP sessions on this Mac and on macOS or Linux hosts reachable over SSH.
 
-Enable **Settings → Menu → Agent sessions**. Local sessions refresh every 30 seconds. Remote sessions refresh every 60 seconds and whenever the menu opens. Tailscale discovery includes online macOS and Linux peers; add extra SSH destinations as a comma-separated list, such as `user@host`.
+Enable **Settings → Menu → Agent sessions**. Local sessions refresh every 30 seconds. **Remote sessions (Tailscale / SSH)** independently controls discovery and SSH polling; it starts off for new users and preserves remote monitoring for users who already enabled Agent Sessions. Turning it off clears remote rows, cancels polling and leaves local monitoring and Stay Awake active. When enabled, remote sessions refresh every 60 seconds and whenever the menu opens. Tailscale discovery includes online macOS and Linux peers; add extra SSH destinations as a comma-separated list, such as `user@host`.
 
 On macOS, sessions remain discoverable from their running process arguments after a CLI update removes the old executable.
 This does not relax ChatGPT app-server trust: that check still requires the exact executable path and signed running code.
@@ -55,4 +55,4 @@ Remote fetching tries `sessions --json-v2` before the legacy `sessions --json`, 
 
 Remote hosts need key-based, non-interactive SSH and either `codexbar` on `PATH` or CodexBar installed in `/Applications`.
 
-Tailscale discovery forces the [documented CLI mode](https://tailscale.com/docs/reference/tailscale-cli?tab=macos) with `TAILSCALE_BE_CLI=1` for every local probe, including launchers or symlinks to the macOS app binary. This keeps discovery headless even when inherited terminal variables do not prevent the app binary from launching its GUI or crashing.
+Tailscale discovery runs `tailscale status --json` only through a standalone compiled CLI found on PATH, `/usr/local/bin`, or `/opt/homebrew/bin`. It never executes a macOS app-bundle binary, a symlink into a bundle, or a launcher script: those can start the VPN even for a status query. With only the App Store app or its CLI wrapper installed, discovery is skipped with a diagnostic in the debug log; explicitly configured SSH hosts still work when remote sessions are enabled. The standalone CLI's [status command](https://github.com/tailscale/tailscale/blob/v1.104.1/cmd/tailscale/cli/status.go) reads the daemon's [status endpoint](https://github.com/tailscale/tailscale/blob/v1.104.1/client/local/local.go#L805) without requesting a tunnel start.

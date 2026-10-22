@@ -66,8 +66,8 @@ struct PlatformGatingTests {
         let result = try outcome.result.get()
 
         #expect(result.strategyID == "claude.cli")
-        #expect(outcome.attempts.map(\.strategyID) == ["claude.web", "claude.cli"])
-        #expect(outcome.attempts.map(\.wasAvailable) == [false, true])
+        #expect(outcome.attempts.map(\.strategyID) == ["claude.web", "claude.oauth", "claude.cli"])
+        #expect(outcome.attempts.map(\.wasAvailable) == [false, false, true])
         #else
         #expect(Bool(true))
         #endif
@@ -98,8 +98,8 @@ struct PlatformGatingTests {
                 #expect(provider == .claude)
             }
         }
-        #expect(outcome.attempts.map(\.strategyID) == ["claude.web", "claude.cli"])
-        #expect(outcome.attempts.map(\.wasAvailable) == [false, false])
+        #expect(outcome.attempts.map(\.strategyID) == ["claude.web", "claude.oauth", "claude.cli"])
+        #expect(outcome.attempts.map(\.wasAvailable) == [false, false, false])
         #else
         #expect(Bool(true))
         #endif
@@ -144,7 +144,7 @@ struct PlatformGatingTests {
                 #expect(provider == .claude)
             }
         }
-        let expectedStrategyIDs = sourceMode == .auto ? ["claude.web", "claude.cli"] : ["claude.cli"]
+        let expectedStrategyIDs = sourceMode == .auto ? ["claude.web", "claude.oauth", "claude.cli"] : ["claude.cli"]
         #expect(outcome.attempts.map(\.strategyID) == expectedStrategyIDs)
         #expect(outcome.attempts.allSatisfy { !$0.wasAvailable })
         let invocations = try String(contentsOf: invocationLog, encoding: .utf8)

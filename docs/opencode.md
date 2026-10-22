@@ -61,7 +61,7 @@ reuse its `openai` OAuth entry for remote quota. Native Codex credentials take p
 API-key entries are ignored. See [Codex external OAuth sources](codex.md#optional-external-oauth-sources-off-by-default).
 
 This does not import OpenCode sessions into Codex token or spend totals. The base OpenCode provider tracks its web
-dashboard, while the local SQLite reader described here selects only `opencode-go` assistant records for OpenCode Go.
+dashboard, while the local SQLite reader described here selects only records attributed to `opencode-go` for OpenCode Go.
 Ordinary OpenCode sessions using OpenAI/Codex are not currently included in local cost history. OpenAI API-platform
 usage is a separate [OpenAI provider](openai.md), not Codex subscription quota.
 
@@ -98,10 +98,11 @@ usage is a separate [OpenAI provider](openai.md), not Codex subscription quota.
   this Console balance mapping. A failed optional balance read does not discard valid Go usage.
 - Cached cookies: Keychain cache `com.steipete.codexbar.cache` (account `cookie.opencode`, source + timestamp). Browser
   import only runs when the cached cookie fails.
-- OpenCode Go unscoped Auto mode tries daily cost history derived from local `opencode-go` assistant costs first,
+- OpenCode Go unscoped Auto mode tries daily cost history derived from local `opencode-go` request costs first,
   overlays authoritative API windows when an API key is configured, then falls back through the API and legacy web
   sources when local history is unavailable. Auto stays web-first when a Cookie token account, manual cookie, or workspace
   override scopes the request, because local history is device-wide.
+- The app honors an explicit API or Web source even when a manual Cookie is configured. Its source label shows the configured source before a successful fetch, then the source that actually supplied the result.
 - The local monthly window is an estimate anchored at the earliest local row and can drift from the real billing
   cycle. The local strategy prefers API-reported rolling/weekly/monthly percentages and reset timestamps. When no API
   key is configured, a cached, manual, or automatically discovered session can overlay Console quotas (plus Zen
@@ -116,11 +117,13 @@ usage is a separate [OpenAI provider](openai.md), not Codex subscription quota.
   custom layouts with both ordinary percentages and an independently placed Monthly percentage use the layout editor
   for that mixed selection.
 - OpenCode Go cost history chart: `opencode.ai` has no daily-granularity endpoint, so per-day cost/request buckets
-  come from local `opencode-go` assistant costs in `opencode.db`, keyed by device-local calendar day. Successful web
+  come from local `opencode-go` request costs in `opencode.db`, keyed by device-local calendar day. Successful web
   usage remains workspace-scoped and is never blended with device-wide local costs, so it does not show cost history.
   Explicit Web mode never reads the local database either.
-- Local history combines legacy `message`/`part` records with v2 `session_message` assistant records. A migrated
-  message already present in the legacy table keeps its legacy record and step-finish precedence, so it is not counted twice.
+- Local history combines legacy `message`/`part` records with v2 `session_message` assistant and compaction records.
+  V2-only databases work without legacy tables or `auth.json`. Requests need an explicit `opencode-go` model and
+  numeric cost. A migrated message with valid legacy usage keeps its legacy record and step-finish precedence, so
+  it is not counted twice. Invalid legacy costs do not hide valid v2 requests.
 - Each day's bucket also carries a per-model cost breakdown, read from `modelID` in legacy messages or `model.id`
   in v2 messages (the real model behind the `opencode-go` Zen proxy `providerID` or `model.providerID`). This lets the shared Cost history
   chart show a per-model breakdown for OpenCode Go the same way it already does for Claude (see the "Cost usage"
@@ -132,3 +135,4 @@ usage is a separate [OpenAI provider](openai.md), not Codex subscription quota.
   Missing, malformed, negative, or overflowing counts remain unknown rather than becoming zero. A day containing
   a row without usable tokens has no complete token total. These device-local counts add history detail only:
   they do not change account quota, and costs still come from the recorded `cost` field, never token pricing.
+- `codexbar cost --provider opencodego --format json` exports this same device-local daily and per-model history, honoring the selected cost time zone and All history period. Use `--format text --breakdown` for daily and per-model text tables. The cost command reads the local database independently of the app's usage source. It does not fetch remote account quotas or import cookies; the reader checks the existing local auth file only to classify missing history.

@@ -50,6 +50,47 @@ struct AntigravityLocalScanTests {
     }
 
     @Test
+    func `history beyond the former row cap produces a complete report`() async throws {
+        let fixture = try Fixture()
+        let blob = Fixture.blob().map { String(format: "%02x", $0) }.joined()
+        for file in 0..<6 {
+            let database = try Fixture.open(fixture.database("session-\(file)"))
+            defer { sqlite3_close(database) }
+            try Fixture.execute(database, """
+            WITH RECURSIVE rows(idx) AS (
+                SELECT 1
+                UNION ALL SELECT idx + 1 FROM rows WHERE idx < 10000
+            )
+            INSERT INTO gen_metadata (idx, data)
+            SELECT idx, X'\(blob)' FROM rows
+            """)
+        }
+
+        let report = try fixture.report()
+        #expect(report.coverage == .complete)
+        #expect(report.statistics.rows == 60000)
+        #expect(report.report.summary?.totalTokens == 60000 * 187)
+        #expect(report.statistics.sqliteHandlesOpened == report.statistics.sqliteHandlesClosed)
+        let snapshot = try await fixture.snapshot()
+        #expect(snapshot.historyCoverageIsEstablished)
+        #expect(snapshot.last30DaysTokens == 60000 * 187)
+    }
+
+    @Test
+    func `expanded payload and time allowances still stop at their boundaries`() throws {
+        var elapsed = 0.0
+        let limits = AntigravityLocalReader.Limits()
+        let budget = AntigravityLocalReader.Budget(limits: limits, clock: { elapsed }, cancellation: {})
+        try budget.chargeBytes(256 * 1024 * 1024)
+        elapsed = 10
+        try budget.check()
+        try budget.chargeBytes(limits.bytes - budget.statistics.attemptedBytes)
+        #expect(throws: AntigravityLocalReader.ScanFailure.self) { try budget.chargeBytes(1) }
+        elapsed = limits.duration
+        #expect(throws: AntigravityLocalReader.ScanFailure.self) { try budget.check() }
+    }
+
+    @Test
     func `the schema byte allowance applies to each database rather than the whole history`() throws {
         let fixture = try Fixture()
         try fixture.database("session-1", blobs: [Fixture.blob()])

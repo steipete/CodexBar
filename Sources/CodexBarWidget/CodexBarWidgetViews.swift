@@ -27,7 +27,9 @@ struct CodexBarUsageWidgetView: View {
                         size: WidgetTileSize(family: self.family))
                 }
             } else {
-                WidgetEmptyState(message: W("Usage data will appear once the app refreshes."))
+                WidgetEmptyState(message: WidgetEmptyStateCopy.message(
+                    provider: self.entry.provider,
+                    snapshot: self.entry.snapshot))
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -46,7 +48,9 @@ struct CodexBarHistoryWidgetView: View {
             if let providerEntry {
                 HistoryView(entry: providerEntry, isLarge: self.family == .systemLarge)
             } else {
-                WidgetEmptyState(message: W("Usage history will appear after a refresh."))
+                WidgetEmptyState(message: WidgetEmptyStateCopy.message(
+                    provider: self.entry.provider,
+                    snapshot: self.entry.snapshot))
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -63,7 +67,9 @@ struct CodexBarCompactWidgetView: View {
             if let providerEntry {
                 CompactMetricView(entry: providerEntry, metric: self.entry.metric)
             } else {
-                WidgetEmptyState(message: W("Usage data will appear once the app refreshes."))
+                WidgetEmptyState(message: WidgetEmptyStateCopy.message(
+                    provider: self.entry.provider,
+                    snapshot: self.entry.snapshot))
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -94,7 +100,9 @@ struct CodexBarSwitcherWidgetView: View {
                         selected: self.entry.provider,
                         updatedAt: Date(),
                         size: size)
-                    WidgetEmptyState(message: W("Usage data appears after a refresh."))
+                    WidgetEmptyState(message: WidgetEmptyStateCopy.switcherMessage(
+                        provider: self.entry.provider,
+                        snapshot: self.entry.snapshot))
                 }
             }
         }
@@ -206,6 +214,22 @@ enum CompactMetricFormatter {
             return W("%dd", days)
         }
         return W(label)
+    }
+}
+
+enum WidgetEmptyStateCopy {
+    static func message(provider: UsageProvider, snapshot: WidgetSnapshot) -> String {
+        guard !snapshot.enabledProviders.isEmpty else {
+            return W("Enable a provider in CodexBar → Settings → Providers.")
+        }
+        guard !snapshot.enabledProviders.contains(provider.instanceID) else { return W("No data") }
+        let name = ProviderDefaults.metadata[provider]?.displayName ?? provider.rawValue.capitalized
+        return W("%@ is unavailable. Edit the widget to choose a provider.", name)
+    }
+
+    static func switcherMessage(provider: UsageProvider, snapshot: WidgetSnapshot) -> String {
+        snapshot.enabledProviders.contains(provider.instanceID)
+            ? W("No data") : W("Enable a provider in CodexBar → Settings → Providers.")
     }
 }
 

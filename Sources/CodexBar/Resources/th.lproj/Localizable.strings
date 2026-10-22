@@ -627,7 +627,6 @@
 
 /* Display Pane */
 "menu_bar_style_title" = "รูปแบบแถบเมนู";
-"menu_bar_style_subtitle" = "รูปแบบการแสดงรายการในแถบเมนู";
 "menu_bar_inactive_display_contrast_title" = "เพิ่มการมองเห็นบนจอแสดงผลที่ไม่ได้ใช้งาน";
 "menu_bar_inactive_display_contrast_subtitle" = "ใช้การแสดงผลแบบคอนทราสต์สูงเพื่อให้ไอคอนและค่าชี้วัดอ่านได้บนจออื่น";
 "menu_bar_style_critters" = "ตัวการ์ตูน";
@@ -681,6 +680,8 @@
 "overview_rows_follow_order" = "แถวภาพรวมจะเป็นไปตามลําดับของผู้ให้บริการเสมอ";
 "overview_no_providers_selected" = "ไม่มีผู้ให้บริการที่เลือก";
 "agent_sessions_title" = "เซสชันเอเจนต์";
+"agent_sessions_remote_title" = "เซสชันระยะไกล (Tailscale / SSH)";
+"agent_sessions_remote_subtitle" = "ค้นหาและเชื่อมต่อกับโฮสต์ระยะไกล ปิดเพื่อตรวจสอบเฉพาะ Mac เครื่องนี้";
 "agent_sessions_subtitle" = "แสดงเซสชัน Codex และ Claude Code ที่ค้นพบในเครื่องและผ่าน SSH ในเมนู";
 "agent_sessions_hosts_title" = "โฮสต์ SSH เพิ่มเติม";
 "agent_sessions_footer" = "ระบบจะค้นหา Mac บน tailnet ของคุณโดยอัตโนมัติ เซสชันในเครื่องจะรีเฟรชทุก 30 วินาที ส่วนโฮสต์ระยะไกลจะรีเฟรชทุก 60 วินาทีและเมื่อเปิดเมนู";
@@ -1237,6 +1238,7 @@
 "Password" = "รหัสผ่าน";
 "%@ authentication is disabled." = "%@ การตรวจสอบสิทธิ์ถูกปิดใช้งาน";
 "%@ cookies are disabled." = "คุกกี้ %@ ถูกปิดใช้งาน";
+"%@ is unavailable. Edit the widget to choose a provider." = "%@ ไม่พร้อมใช้งาน แก้ไขวิดเจ็ตเพื่อเลือกผู้ให้บริการ";
 "%@ web API access is disabled." = "%@ การเข้าถึง API เว็บถูกปิดใช้งาน";
 "Disable %@ dashboard cookie usage." = "ปิดใช้งานการใช้คุกกี้แดชบอร์ด %@";
 "Keychain access is disabled in Advanced, so browser cookie import is unavailable." = "การเข้าถึง Keychain ถูกปิดใช้งานในขั้นสูง ดังนั้นการนําเข้าคุกกี้ของเบราว์เซอร์จึงไม่พร้อมใช้งาน";
@@ -1412,6 +1414,7 @@
 /* Menu bar layout editor */
 "menu_bar_layout_title" = "เค้าโครง";
 "menu_bar_layout_footer" = "ลากโทเค็นเพื่อจัดเรียงแถบเมนู คลิกโทเค็นเพื่อเพิ่ม เลือกโทเค็นที่วางแล้วและกด Delete เพื่อลบ";
+"menu_bar_layout_footer_requires_icon_and_percent" = "เค้าโครงใช้ได้เฉพาะกับรูปแบบแถบเมนู “%@” เท่านั้น เลือกรูปแบบนั้นด้านบนเพื่อแก้ไข";
 "menu_bar_layout_group_identity" = "ข้อมูลระบุตัวตน";
 "menu_bar_layout_group_usage" = "การใช้";
 "menu_bar_layout_group_time" = "เวลา";
@@ -1444,6 +1447,7 @@
 "menu_bar_layout_size_regular" = "ปกติ";
 "menu_bar_layout_size_large" = "ใหญ่";
 "menu_bar_layout_monospaced_digits" = "ตัวเลขความกว้างคงที่";
+"menu_bar_layout_show_window_labels" = "แสดงป้ายกำกับช่วงเวลา";
 "menu_bar_layout_gap" = "ระยะห่าง";
 "menu_bar_layout_gap_tight" = "ชิด";
 "menu_bar_layout_gap_regular" = "ปกติ";
@@ -1801,6 +1805,7 @@
 "Details for %@" = "รายละเอียดสำหรับ %@";
 "EST. %@" = "ประมาณการ %@";
 "Enable Antigravity provider" = "เปิดใช้งานผู้ให้บริการ Antigravity";
+"Enable a provider in CodexBar → Settings → Providers." = "เปิดใช้งานผู้ให้บริการใน CodexBar → การตั้งค่า → ผู้ให้บริการ";
 "Enable account widgets in CodexBar → Settings → Menu → Widgets. Then edit this widget to choose an account." = "เปิดใช้งานวิดเจ็ตบัญชีใน CodexBar → การตั้งค่า → เมนู → วิดเจ็ต จากนั้นแก้ไขวิดเจ็ตนี้เพื่อเลือกบัญชี";
 "Error: %@" = "ข้อผิดพลาด: %@";
 "Examples: alt+cmd+2, shift+right. Refresh (cmd+r), Settings (cmd+,) and Quit (cmd+q) are reserved." = "ตัวอย่าง: alt+cmd+2, shift+right รีเฟรช (cmd+r), การตั้งค่า (cmd+,) และออก (cmd+q) สงวนไว้";
@@ -2015,10 +2020,7 @@
 "Top models:" = "รุ่นยอดนิยม:";
 "Two quota burn-down charts in one tile." = "แผนภูมิเบิร์นดาวน์ โควต้า สองแผนภูมิในไทล์เดียว";
 "Usage & spend come from your console.groq.com browser session automatically. An API key is optional and only adds Enterprise Prometheus metrics." = "การใช้งานและการใช้จ่ายมาจากเซสชันเบราว์เซอร์ console.groq.com ของคุณโดยอัตโนมัติ คีย์ API เป็นทางเลือก และเพิ่มเฉพาะ Enterprise Prometheus เมตริก เท่านั้น";
-"Usage data appears after a refresh." = "ข้อมูลการใช้งานจะปรากฏขึ้นหลังจากการรีเฟรช";
-"Usage data will appear once the app refreshes." = "ข้อมูลการใช้งานจะปรากฏขึ้นเมื่อแอปรีเฟรช";
 "Usage history chart with recent totals." = "แผนภูมิประวัติการใช้งานพร้อมผลรวมล่าสุด";
-"Usage history will appear after a refresh." = "ประวัติการใช้งานจะปรากฏขึ้นหลังจากการรีเฟรช";
 "Usage limit" = "ขีดจำกัดการใช้งาน";
 "Usage limits and reset countdowns for one saved account." = "ขีดจำกัดการใช้งานและรีเซ็ตการนับถอยหลังสำหรับบัญชีที่บันทึกไว้หนึ่งบัญชี";
 "Usage widget with a provider switcher." = "วิดเจ็ตการใช้งานพร้อมตัวสลับผู้ให้บริการ";
@@ -2205,6 +2207,10 @@
 "Stored in ~/.codexbar/config.json. Create one at console.x.ai under Settings > Management Keys; inference API keys are not accepted." = "เก็บไว้ใน ~/.codexbar/config.json สร้างอันหนึ่งที่ console.x.ai ภายใต้การตั้งค่า > คีย์การจัดการ ไม่ยอมรับคีย์การอนุมาน API";
 "xai-..." = "xai-...";
 "Team ID" = "ทีม ID";
+"Vercel access token" = "โทเค็นการเข้าถึง Vercel";
+"Optional. Shows your personal budget instead of team credits. Saved in CodexBar's local config file. Or set VERCEL_ACCESS_TOKEN." = "ไม่บังคับ แสดงงบประมาณส่วนตัวของคุณแทนเครดิตของทีม บันทึกไว้ในไฟล์การกำหนดค่าภายในเครื่องของ CodexBar หรือตั้งค่า VERCEL_ACCESS_TOKEN";
+"Open Vercel tokens" = "เปิดโทเค็น Vercel";
+"Required with a Vercel access token. Or set VERCEL_TEAM_ID." = "จำเป็นเมื่อใช้โทเค็นการเข้าถึง Vercel หรือตั้งค่า VERCEL_TEAM_ID";
 "Required. Shown in the xAI Console URL and team settings." = "จำเป็น แสดงในคอนโซล xAI URL และการตั้งค่าทีม";
 "Sakana AI cost summary is not supported." = "ไม่รองรับการสรุปต้นทุน Sakana AI";
 "Stored in ~/.codexbar/config.json. Copy the Sakana AI console Cookie request header." = "เก็บไว้ใน ~/.codexbar/config.json คัดลอกส่วนหัวคำขอคอนโซล Sakana AI Cookie";
@@ -2463,7 +2469,7 @@
 "spend_performance_cache_help" = "อินพุตที่แคชไว้หารด้วยอินพุตทั้งหมดจากรอบที่เข้าเกณฑ์ ถ่วงน้ำหนักตามจำนวนโทเค็นอินพุต พร้อมแสดงความครอบคลุมของตัวอย่าง";
 "spend_performance_metric_help" = "เกี่ยวกับข้อมูลที่สังเกตได้เหล่านี้";
 "merged_icon_source_title" = "แหล่งที่มาของไอคอนรวม";
-"merged_icon_source_subtitle" = "เลือกผู้ให้บริการที่จะแสดงบนไอคอนรวมเมื่อยุบ";
+"merged_icon_source_subtitle" = "“การใช้งานสูงสุด” เปรียบเทียบเฉพาะโควตา สำหรับผู้ให้บริการที่ไม่มีโควตา ให้ใช้ “ตัวเลือกปัจจุบัน”";
 "merged_icon_source_current_selection" = "ตัวเลือกปัจจุบัน";
 "merged_icon_source_highest_usage" = "การใช้งานสูงสุด";
 "merged_icon_source_frontmost_app" = "แอปผู้ให้บริการที่อยู่ด้านหน้า";
@@ -2562,7 +2568,7 @@
 "Clear filters" = "ล้างตัวกรอง";
 "Change provider order" = "เปลี่ยนลำดับผู้ให้บริการ";
 "Provider sorting" = "การเรียงผู้ให้บริการ";
-"Only enabled providers" = "เฉพาะผู้ให้บริการที่เปิดใช้";
+"Only show enabled providers" = "แสดงเฉพาะผู้ให้บริการที่เปิดใช้";
 "Restore default order" = "คืนค่าลำดับเริ่มต้น";
 "Also restores the provider order in the menu bar. Can be undone." = "คืนค่าลำดับผู้ให้บริการในแถบเมนูด้วย สามารถเลิกทำได้";
 "Local Codex details; excluded from combined totals." = "รายละเอียด Codex ในเครื่อง ไม่รวมอยู่ในยอดรวม";
@@ -2685,3 +2691,15 @@
 /* Munito provider credentials */
 "Key with Read account data (Admin API) permission. Or set MUNITO_API_KEY." = "คีย์ที่มีสิทธิ์อ่านข้อมูลบัญชี (Admin API) หรือตั้งค่า MUNITO_API_KEY";
 "Munito reports Admin API spend and limits, not local token cost history." = "Munito รายงานการใช้จ่ายและขีดจำกัดของ Admin API ไม่ใช่ประวัติต้นทุนโทเคนภายในเครื่อง";
+
+"Show all accounts in Overview" = "แสดงทุกบัญชีในภาพรวม";
+
+"Expand cached account usage. The six-provider limit still applies." = "ขยายผู้ให้บริการที่เลือกโดยใช้ข้อมูลการใช้งานบัญชีที่แคชไว้ ยังคงจำกัดผู้ให้บริการสูงสุดหกราย";
+"Edit" = "แก้ไข";
+"Move up" = "เลื่อนขึ้น";
+"Move down" = "เลื่อนลง";
+"Leave blank to keep the saved credential." = "เว้นว่างไว้เพื่อใช้ข้อมูลรับรองที่บันทึกไว้ต่อไป";
+
+"No personal budget configured" = "ยังไม่ได้กำหนดงบประมาณส่วนตัว";
+
+"monthly_daily_target_format" = "≈ %@ / วัน เพื่อให้ใช้ได้จนถึงการรีเซ็ต";

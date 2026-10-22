@@ -107,34 +107,17 @@ enum CLIClaudeSwapCards {
         source: ClaudeSwapAccountSource = .claudeSwap,
         showSingleAccount: Bool = false,
         renderOptions: CLIClaudeSwapCardsRenderOptions,
-        ambientFetch: @escaping AmbientFetch) async -> UsageCommandOutput
-    {
-        await self.fetch(
-            eligible: eligible,
-            executablePath: executablePath,
-            source: source,
-            showSingleAccount: showSingleAccount,
-            renderOptions: renderOptions,
-            ambientFetch: ambientFetch,
-            accountListReader: { path in
-                try await ClaudeSwapAccountReader.readAccountList(executablePath: path, source: source)
-            })
-    }
-
-    static func fetch(
-        eligible: Bool,
-        executablePath: String,
-        source: ClaudeSwapAccountSource = .claudeSwap,
-        showSingleAccount: Bool = false,
-        renderOptions: CLIClaudeSwapCardsRenderOptions,
         ambientFetch: @escaping AmbientFetch,
-        accountListReader: @escaping AccountListReader,
+        accountListReader: AccountListReader? = nil,
         previousAccounts: [ProviderAccountUsageSnapshot] = []) async -> UsageCommandOutput
     {
         guard eligible else { return await ambientFetch() }
 
         do {
-            let list = try await accountListReader(executablePath)
+            let reader: AccountListReader = accountListReader ?? { path in
+                try await ClaudeSwapAccountReader.readAccountList(executablePath: path, source: source)
+            }
+            let list = try await reader(executablePath)
             let retained = ClaudeSwapRetainedUsageStore.previousAccounts(inMemory: previousAccounts)
             let accounts = ClaudeSwapAccountProjection.accountSnapshots(
                 from: list,

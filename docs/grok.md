@@ -9,7 +9,7 @@ read_when:
 # Grok provider
 
 Grok uses xAI's official Grok Build CLI (`grok`, released 2026-05-14). Usage data is
-fetched via the ACP JSON-RPC `x.ai/billing` extension method over `grok agent stdio`
+fetched via the ACP JSON-RPC `_x.ai/billing` extension method over `grok agent stdio`
 when available, then via the Grok CLI billing REST API using the local login token.
 The grok.com billing gRPC-web endpoint remains a best-effort fallback.
 
@@ -31,14 +31,22 @@ The grok.com billing gRPC-web endpoint remains a best-effort fallback.
      exposes a supported team usage surface, CodexBar keeps the identity row and
      reports that team usage is unavailable instead of exposing the personal-team
      rejection verbatim.
-2) **`grok agent stdio` ACP JSON-RPC** (best-effort, currently disabled in grok 0.1.210)
-   - We spawn `grok agent stdio` and call `initialize` + `x.ai/billing` (no params).
-   - **Known limitation:** in grok 0.1.210 the `x.ai/billing` extension method
-     is only wired in the interactive TUI; the agent-stdio surface returns
-     `-32601 Method not found`. Personal/unknown principals continue to the web
-     fallback, while a team principal degrades to identity-only with an explicit
-     unsupported-team-usage diagnostic. When xAI exposes billing on the agent
-     protocol, no code change is required.
+2) **`grok agent stdio` ACP JSON-RPC**
+   - We spawn `grok agent stdio` and call `initialize` + `_x.ai/billing` (no params).
+     ACP prefixes extension methods with `_` on the wire; the unprefixed method is not retried.
+   - Current responses use the shared CLI-proxy credits parser for nested `config` usage,
+     periods, product usage, and prepaid balance. The RPC wrapper's `subscription_tier` supplies the plan.
+     Older `monthlyLimit` / `usage.totalUsed` payloads remain supported. A prepaid balance remains
+     useful without a quota percentage; results with neither are unavailable instead of empty snapshots.
+   - An active period plus prepaid balance can omit `creditUsagePercent` at the start of a week.
+     The ACP snapshot alone has unknown usage, so the fetch applies the same bounded
+     grok.com bearer retry described for the CLI-proxy credits path (step 3) before accepting the
+     wallet-only answer. Only a wire-published percentage or a parser-validated implicit zero for an
+     active period can restore the weekly Credits window; the ACP period, plan, and prepaid balance
+     stay authoritative, and failed, slow, or absent enrichment leaves usage unknown without
+     dropping the wallet. Missing or expired `auth.json` tokens skip the retry entirely.
+   - If the extension returns `-32601`, personal/unknown principals continue to the web fallback,
+     while a team principal degrades to identity-only with the unsupported-team-usage diagnostic.
    - Missing methods are classified by JSON-RPC code `-32601`, independently of
      the error message. The team fallback retains local token history even when
      the CLI changes its wording; other RPC errors remain failures.
@@ -47,11 +55,7 @@ The grok.com billing gRPC-web endpoint remains a best-effort fallback.
      CodexBar still GETs `/v1/settings` for `subscription_tier_display` so the
      billed plan is not lost just because the CLI route succeeded first. The
      settings lookup is optional enrichment with a 2-second budget.
-   - One non-obvious quirk: grok's ACP parser does not unescape `\/` in method
-     names. `Foundation.JSONSerialization.data` defaults to escaping forward
-     slashes, so payloads must be re-encoded with `\/` → `/` before being
-     written to stdin or grok will silently drop them (12s client-side
-     timeout instead of the expected error response).
+   - Requests use `.withoutEscapingSlashes` so `_x.ai/billing` is written literally on the wire.
 3) **Grok CLI-proxy billing REST API** (primary web-path attempt)
    - When a non-expired `~/.grok/auth.json` token exists, GETs
      `https://cli-chat-proxy.grok.com/v1/billing?format=credits` with
@@ -205,7 +209,8 @@ The grok.com billing gRPC-web endpoint remains a best-effort fallback.
     }
   }
   ```
-- `x.ai/billing` result shape (all monetary values are `{ val: <cents> }`):
+- `_x.ai/billing` accepts the current nested `config` credits shape described above.
+  The older result shape is also supported (all monetary values are `{ val: <cents> }`):
   ```json
   {
     "billingCycle": {
@@ -225,14 +230,15 @@ The grok.com billing gRPC-web endpoint remains a best-effort fallback.
   ```
 - Auth errors surface as JSON-RPC errors with the message
   `"Authentication required to fetch billing data. Run 'grok login' to authenticate."`.
-- Timeouts: 8s for `initialize`, 12s for `x.ai/billing`. CodexBar terminates the
+- Timeouts: 4s for `initialize`, 3s for `_x.ai/billing`. CodexBar terminates the
   child `grok` process on timeout to avoid leaking subprocesses.
 
 ## Mapping to `UsageSnapshot`
 
 - **Primary window** = credit usage (against the subscription/included limit):
-  - CLI RPC: `usedPercent` = `usage.totalUsed.val / monthlyLimit.val * 100`;
-    `resetsAt` = `billingCycle.billingPeriodEnd`.
+  - CLI RPC: current nested credits use the same mapping as the CLI-proxy fallback below.
+    Older payloads use `usage.totalUsed.val / monthlyLimit.val * 100` and
+    `billingCycle.billingPeriodEnd` for the reset.
   - CLI-proxy fallback: `usedPercent` from the JSON percent or on-demand ratio;
     `resetsAt` from the current-period end or billing-period end.
   - grok.com fallback: `usedPercent` and `resetsAt` parsed from the gRPC-web

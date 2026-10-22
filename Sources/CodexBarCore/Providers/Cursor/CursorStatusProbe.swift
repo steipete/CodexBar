@@ -385,6 +385,9 @@ public struct CursorStatusSnapshot: Sendable {
     /// Grok Bot weekly included usage from `/api/dashboard/get-sand-usage-status`.
     public let sandUsage: CursorSandUsageStatus?
 
+    /// Authoritative monthly additional spend for unified Cursor/Grok accounts.
+    public let unifiedUsage: CursorUnifiedUsageStatus?
+
     // MARK: - Legacy Plan (Request-Based) Fields
 
     /// Requests used this billing cycle (legacy plans only)
@@ -415,6 +418,7 @@ public struct CursorStatusSnapshot: Sendable {
         accountName: String?,
         rawJSON: String?,
         sandUsage: CursorSandUsageStatus? = nil,
+        unifiedUsage: CursorUnifiedUsageStatus? = nil,
         requestsUsed: Int? = nil,
         requestsLimit: Int? = nil)
     {
@@ -435,6 +439,7 @@ public struct CursorStatusSnapshot: Sendable {
         self.accountName = accountName
         self.rawJSON = rawJSON
         self.sandUsage = sandUsage
+        self.unifiedUsage = unifiedUsage
         self.requestsUsed = requestsUsed
         self.requestsLimit = requestsLimit
     }
@@ -493,10 +498,14 @@ public struct CursorStatusSnapshot: Sendable {
             self.sandUsage?.extraRateWindow(now: now, resetDescription: Self.formatResetDate).map { [$0] }
         }
 
-        // Prefer a personal cap. Team accounts with no user cap expose only the shared on-demand budget.
+        // Prefer authoritative personal billing, then a personal cap or the shared team budget.
+        let monthly = self.unifiedUsage?.currentMonthlyUsage(at: now)
         let resolvedOnDemandUsed: Double
         let resolvedOnDemandLimit: Double?
-        if (self.onDemandLimitUSD ?? 0) > 0 {
+        if let monthly {
+            resolvedOnDemandUsed = monthly.usedCents / 100
+            resolvedOnDemandLimit = monthly.limitCents / 100
+        } else if (self.onDemandLimitUSD ?? 0) > 0 {
             resolvedOnDemandUsed = self.onDemandUsedUSD
             resolvedOnDemandLimit = self.onDemandLimitUSD
         } else if (self.teamOnDemandLimitUSD ?? 0) > 0 {
@@ -508,7 +517,7 @@ public struct CursorStatusSnapshot: Sendable {
         }
 
         // Your own on-demand spend to surface alongside a shared team pool (nil when the budget is personal).
-        let personalOnDemandUsed: Double? = if (self.onDemandLimitUSD ?? 0) > 0 {
+        let personalOnDemandUsed: Double? = if monthly != nil || (self.onDemandLimitUSD ?? 0) > 0 {
             nil
         } else if (self.teamOnDemandLimitUSD ?? 0) > 0 {
             self.onDemandUsedUSD > 0 ? self.onDemandUsedUSD : nil
@@ -517,7 +526,7 @@ public struct CursorStatusSnapshot: Sendable {
         }
 
         // Provider cost snapshot for on-demand usage (include budget before first spend)
-        let providerCost: ProviderCostSnapshot? = if resolvedOnDemandUsed > 0
+        let providerCost: ProviderCostSnapshot? = if monthly != nil || resolvedOnDemandUsed > 0
             || (resolvedOnDemandLimit ?? 0) > 0
         {
             ProviderCostSnapshot(
@@ -525,7 +534,7 @@ public struct CursorStatusSnapshot: Sendable {
                 limit: resolvedOnDemandLimit ?? 0,
                 currencyCode: "USD",
                 period: "Monthly",
-                resetsAt: self.billingCycleEnd,
+                resetsAt: monthly.flatMap { ISO8601DateParser.parse($0.resetsAt) } ?? self.billingCycleEnd,
                 personalUsed: personalOnDemandUsed,
                 updatedAt: now)
         } else {
@@ -1258,8 +1267,8 @@ public struct CursorStatusProbe: Sendable {
     {
         enum FetchPart: Sendable {
             case usageSummary((CursorUsageSummary, String))
-            case userInfo(Result<CursorUserInfo, Error>)
-            case sandUsage(Result<(CursorSandUsageStatus, String), Error>)
+            case userInfo(CursorUserInfo?)
+            case sandUsage((CursorSandUsageStatus, String)?)
         }
 
         try Self.checkBrowserLoginDeadline(deadline)
@@ -1271,25 +1280,22 @@ public struct CursorStatusProbe: Sendable {
 
         try await withThrowingTaskGroup(of: FetchPart.self) { group in
             group.addTask {
-                try await .usageSummary(self.fetchUsageSummary(cookieHeader: cookieHeader, deadline: deadline))
+                try await .usageSummary(self.fetchJSON(
+                    path: "/api/usage-summary",
+                    cookieHeader: cookieHeader,
+                    timeout: self.requestTimeout(deadline: deadline),
+                    decodingLabel: "JSON"))
             }
             group.addTask {
-                do {
-                    return try await .userInfo(.success(self.fetchUserInfo(
-                        cookieHeader: cookieHeader,
-                        deadline: deadline)))
-                } catch {
-                    return .userInfo(.failure(error))
-                }
+                let response: (CursorUserInfo, String)? = try? await self.fetchJSON(
+                    path: "/api/auth/me",
+                    cookieHeader: cookieHeader,
+                    timeout: self.requestTimeout(deadline: deadline),
+                    failureMessage: "Failed to fetch user info")
+                return .userInfo(response?.0)
             }
             group.addTask {
-                do {
-                    return try await .sandUsage(.success(self.fetchSandUsage(
-                        cookieHeader: cookieHeader,
-                        deadline: deadline)))
-                } catch {
-                    return .sandUsage(.failure(error))
-                }
+                await .sandUsage(try? self.fetchSandUsage(cookieHeader: cookieHeader, deadline: deadline))
             }
 
             while let result = try await group.next() {
@@ -1297,9 +1303,9 @@ public struct CursorStatusProbe: Sendable {
                 case let .usageSummary(value):
                     usageSummaryResult = value
                 case let .userInfo(value):
-                    userInfo = try? value.get()
+                    userInfo = value
                 case let .sandUsage(value):
-                    if let (status, rawJSON) = try? value.get() {
+                    if let (status, rawJSON) = value {
                         sandUsage = status
                         sandUsageRawJSON = rawJSON
                     }
@@ -1327,16 +1333,32 @@ public struct CursorStatusProbe: Sendable {
         }
         try Task.checkCancellation()
 
+        // Unified accounts replace the irrelevant legacy request-quota lookup with their billing read.
+        // If optional billing is unavailable or invalid, preserve the existing summary spend and cap.
+        var unifiedUsage: CursorUnifiedUsageStatus?
+        let isUnified = usageSummary.usesUnifiedPersonalBilling
+        if isUnified, let timeout = self.optionalRequestTimeout(deadline: deadline, budget: Self.sandUsageTimeout) {
+            let response: (CursorUnifiedUsageStatus, String)? = try? await self.fetchJSON(
+                path: CursorUnifiedUsageStatus.endpointPath,
+                query: [URLQueryItem(name: "scope", value: "user")],
+                cookieHeader: cookieHeader,
+                timeout: timeout,
+                failureMessage: "Unified additional spend is unavailable")
+            unifiedUsage = response?.0
+        }
+
         // Fetch legacy request usage only if user has a sub ID.
         // Uses try? to avoid breaking the flow for users where this endpoint fails or returns unexpected data.
         var requestUsage: CursorUsageResponse?
         var requestUsageRawJSON: String?
-        if teamBudget == nil, let userId = userInfo?.sub ?? identityFallback?.requestUsageUserID {
+        if !isUnified, teamBudget == nil, let userId = userInfo?.sub ?? identityFallback?.requestUsageUserID {
             do {
-                let (usage, usageRawJSON) = try await self.fetchRequestUsage(
-                    userId: userId,
+                let (usage, usageRawJSON): (CursorUsageResponse, String) = try await self.fetchJSON(
+                    path: "/api/usage",
+                    query: [URLQueryItem(name: "user", value: userId)],
                     cookieHeader: cookieHeader,
-                    deadline: deadline)
+                    timeout: self.requestTimeout(deadline: deadline),
+                    failureMessage: "Failed to fetch request usage")
                 requestUsage = usage
                 requestUsageRawJSON = usageRawJSON
             } catch {
@@ -1361,89 +1383,24 @@ public struct CursorStatusProbe: Sendable {
             rawJSON: combinedRawJSON,
             requestUsage: requestUsage,
             sandUsage: sandUsage,
+            unifiedUsage: unifiedUsage,
             identityFallback: identityFallback,
             teamBudget: teamBudget)
-    }
-
-    private func fetchUsageSummary(
-        cookieHeader: String,
-        deadline: Date?) async throws -> (CursorUsageSummary, String)
-    {
-        let url = self.baseURL.appendingPathComponent("/api/usage-summary")
-        var request = URLRequest(url: url)
-        request.timeoutInterval = try self.requestTimeout(deadline: deadline)
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
-
-        let (data, response) = try await self.urlSession.data(for: request)
-
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw CursorStatusProbeError.networkError("Invalid response")
-        }
-
-        if httpResponse.statusCode == 401 || httpResponse.statusCode == 403 {
-            throw CursorStatusProbeError.notLoggedIn
-        }
-
-        guard httpResponse.statusCode == 200 else {
-            throw CursorStatusProbeError.networkError("HTTP \(httpResponse.statusCode)")
-        }
-
-        let rawJSON = String(data: data, encoding: .utf8) ?? "<binary>"
-
-        do {
-            let decoder = JSONDecoder()
-            let summary = try decoder.decode(CursorUsageSummary.self, from: data)
-            return (summary, rawJSON)
-        } catch {
-            throw CursorStatusProbeError
-                .parseFailed("JSON decode failed: \(error.localizedDescription). Raw: \(rawJSON.prefix(200))")
-        }
     }
 
     private func fetchSandUsage(
         cookieHeader: String,
         deadline: Date?) async throws -> (CursorSandUsageStatus, String)
     {
-        let url = self.baseURL.appendingPathComponent(CursorSandUsageStatus.endpointPath)
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        // Best-effort: cap wait so a stalled Sand endpoint cannot consume the login deadline.
-        guard let sandTimeout = self.optionalRequestTimeout(
-            deadline: deadline,
-            budget: Self.sandUsageTimeout)
-        else {
+        guard let timeout = self.optionalRequestTimeout(deadline: deadline, budget: Self.sandUsageTimeout) else {
             throw CursorStatusProbeError.networkError("Sand usage skipped after login deadline")
         }
-        request.timeoutInterval = sandTimeout
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue(self.originHeader, forHTTPHeaderField: "Origin")
-        request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
-        request.httpBody = Data("{}".utf8)
-
-        let (data, response) = try await self.urlSession.data(for: request)
-
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw CursorStatusProbeError.networkError("Invalid response")
-        }
-
-        if httpResponse.statusCode == 401 || httpResponse.statusCode == 403 {
-            throw CursorStatusProbeError.notLoggedIn
-        }
-
-        guard httpResponse.statusCode == 200 else {
-            throw CursorStatusProbeError.networkError("HTTP \(httpResponse.statusCode)")
-        }
-
-        let rawJSON = String(data: data, encoding: .utf8) ?? "<binary>"
-        do {
-            let status = try JSONDecoder().decode(CursorSandUsageStatus.self, from: data)
-            return (status, rawJSON)
-        } catch {
-            throw CursorStatusProbeError
-                .parseFailed("Sand usage decode failed: \(error.localizedDescription). Raw: \(rawJSON.prefix(200))")
-        }
+        return try await self.fetchJSON(
+            path: CursorSandUsageStatus.endpointPath,
+            cookieHeader: cookieHeader,
+            timeout: timeout,
+            method: "POST",
+            decodingLabel: "Sand usage")
     }
 
     private var originHeader: String {
@@ -1453,45 +1410,45 @@ public struct CursorStatusProbe: Sendable {
         return "\(scheme)://\(host)"
     }
 
-    private func fetchUserInfo(cookieHeader: String, deadline: Date?) async throws -> CursorUserInfo {
-        let url = self.baseURL.appendingPathComponent("/api/auth/me")
-        var request = URLRequest(url: url)
-        request.timeoutInterval = try self.requestTimeout(deadline: deadline)
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
-
-        let (data, response) = try await self.urlSession.data(for: request)
-
-        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-            throw CursorStatusProbeError.networkError("Failed to fetch user info")
-        }
-
-        let decoder = JSONDecoder()
-        return try decoder.decode(CursorUserInfo.self, from: data)
-    }
-
-    private func fetchRequestUsage(
-        userId: String,
+    private func fetchJSON<Response: Decodable>(
+        path: String,
+        query: [URLQueryItem] = [],
         cookieHeader: String,
-        deadline: Date?) async throws -> (CursorUsageResponse, String)
+        timeout: TimeInterval,
+        method: String = "GET",
+        failureMessage: String? = nil,
+        decodingLabel: String? = nil) async throws -> (Response, String)
     {
-        let url = self.baseURL.appendingPathComponent("/api/usage")
-            .appending(queryItems: [URLQueryItem(name: "user", value: userId)])
-        var request = URLRequest(url: url)
-        request.timeoutInterval = try self.requestTimeout(deadline: deadline)
+        let url = self.baseURL.appendingPathComponent(path)
+        var request = URLRequest(url: query.isEmpty ? url : url.appending(queryItems: query))
+        request.timeoutInterval = timeout
+        request.httpMethod = method
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
-
-        let (data, response) = try await self.urlSession.data(for: request)
-
-        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-            throw CursorStatusProbeError.networkError("Failed to fetch request usage")
+        if method == "POST" {
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.setValue(self.originHeader, forHTTPHeaderField: "Origin")
+            request.httpBody = Data("{}".utf8)
         }
-
+        let (data, response) = try await self.urlSession.data(for: request)
+        if let failureMessage, (response as? HTTPURLResponse)?.statusCode != 200 {
+            throw CursorStatusProbeError.networkError(failureMessage)
+        }
+        guard let http = response as? HTTPURLResponse else {
+            throw CursorStatusProbeError.networkError("Invalid response")
+        }
+        if http.statusCode == 401 || http.statusCode == 403 { throw CursorStatusProbeError.notLoggedIn }
+        guard http.statusCode == 200 else {
+            throw CursorStatusProbeError.networkError("HTTP \(http.statusCode)")
+        }
         let rawJSON = String(data: data, encoding: .utf8) ?? "<binary>"
-        let decoder = JSONDecoder()
-        let usage = try decoder.decode(CursorUsageResponse.self, from: data)
-        return (usage, rawJSON)
+        do {
+            return try (JSONDecoder().decode(Response.self, from: data), rawJSON)
+        } catch {
+            guard let decodingLabel else { throw error }
+            throw CursorStatusProbeError.parseFailed(
+                "\(decodingLabel) decode failed: \(error.localizedDescription). Raw: \(rawJSON.prefix(200))")
+        }
     }
 
     private static let sandUsageTimeout: TimeInterval = 5

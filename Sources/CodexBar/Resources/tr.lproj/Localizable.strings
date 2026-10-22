@@ -627,7 +627,6 @@
 
 /* Display Pane */
 "menu_bar_style_title" = "Menü çubuğu stili";
-"menu_bar_style_subtitle" = "Menü çubuğu öğesinin nasıl çizileceğini belirler.";
 "menu_bar_inactive_display_contrast_title" = "Etkin olmayan ekranlarda görünürlüğü artır";
 "menu_bar_inactive_display_contrast_subtitle" = "Simge ve ölçümün diğer ekranlarda okunabilir kalması için yüksek kontrastlı işleme kullanır.";
 "menu_bar_style_critters" = "Canavarlar";
@@ -681,6 +680,8 @@
 "overview_rows_follow_order" = "Genel Bakış satırları her zaman sağlayıcı sırasını takip eder.";
 "overview_no_providers_selected" = "Sağlayıcı seçilmedi";
 "agent_sessions_title" = "Ajan oturumları";
+"agent_sessions_remote_title" = "Uzak oturumlar (Tailscale / SSH)";
+"agent_sessions_remote_subtitle" = "Uzak makineleri keşfedin ve bağlanın. Yalnızca bu Mac’i izlemek için kapatın.";
 "agent_sessions_subtitle" = "Menüde yerel ve SSH ile keşfedilen Codex ve Claude Code oturumlarını göster.";
 "agent_sessions_hosts_title" = "Ek SSH sunucuları";
 "agent_sessions_footer" = "Tailnet'inizdeki Mac'ler otomatik olarak keşfedilir. Yerel oturumlar 30 saniyede bir; uzak sunucular 60 saniyede bir ve menü açıldığında yenilenir.";
@@ -1232,6 +1233,7 @@
 "Password" = "Parola";
 "%@ authentication is disabled." = "%@ kimlik doğrulaması devre dışı.";
 "%@ cookies are disabled." = "%@ çerezleri devre dışı.";
+"%@ is unavailable. Edit the widget to choose a provider." = "%@ kullanılamıyor. Bir sağlayıcı seçmek için widget’ı düzenleyin.";
 "%@ web API access is disabled." = "%@ web API erişimi devre dışı.";
 "Disable %@ dashboard cookie usage." = "%@ panel çerez kullanımını devre dışı bırak.";
 "Keychain access is disabled in Advanced, so browser cookie import is unavailable." = "Anahtar Zinciri erişimi Gelişmiş bölümünde devre dışı bırakıldı, bu nedenle tarayıcı çerezleri içe aktarılamıyor.";
@@ -1410,6 +1412,7 @@
 /* Menu bar layout editor */
 "menu_bar_layout_title" = "Düzen";
 "menu_bar_layout_footer" = "Menü çubuğunu düzenlemek için öğeleri sürükleyin. Eklemek için bir öğeye tıklayın; yerleştirilmiş bir öğeyi seçip silmek için Delete tuşuna basın.";
+"menu_bar_layout_footer_requires_icon_and_percent" = "Düzen yalnızca “%@” menü çubuğu stili için geçerlidir. Düzenlemek için yukarıdan bu stili seçin.";
 "menu_bar_layout_group_identity" = "Kimlik";
 "menu_bar_layout_group_usage" = "Kullanım";
 "menu_bar_layout_group_time" = "Zaman";
@@ -1442,6 +1445,7 @@
 "menu_bar_layout_size_regular" = "Normal";
 "menu_bar_layout_size_large" = "Büyük";
 "menu_bar_layout_monospaced_digits" = "Eş aralıklı rakamlar";
+"menu_bar_layout_show_window_labels" = "Dönem etiketlerini göster";
 "menu_bar_layout_gap" = "Boşluk";
 "menu_bar_layout_gap_tight" = "Dar";
 "menu_bar_layout_gap_regular" = "Normal";
@@ -1800,6 +1804,7 @@
 "Details for %@" = "%@ için ayrıntılar";
 "EST. %@" = "Tahmini %@";
 "Enable Antigravity provider" = "Antigravity sağlayıcısını etkinleştirin";
+"Enable a provider in CodexBar → Settings → Providers." = "CodexBar → Ayarlar → Sağlayıcılar’da bir sağlayıcıyı etkinleştirin.";
 "Enable account widgets in CodexBar → Settings → Menu → Widgets. Then edit this widget to choose an account." = "CodexBar → Ayarlar → Menü → Widget'lar bölümünde hesap widget'larını etkinleştirin. Daha sonra bir hesap seçmek için bu widget'ı düzenleyin.";
 "Error: %@" = "Hata: %@";
 "Examples: alt+cmd+2, shift+right. Refresh (cmd+r), Settings (cmd+,) and Quit (cmd+q) are reserved." = "Örnekler: alt+cmd+2, shift+right. Yenile (cmd+r), Ayarlar (cmd+,) ve Çık (cmd+q) ayrılmıştır.";
@@ -2014,10 +2019,7 @@
 "Top models:" = "En iyi modeller:";
 "Two quota burn-down charts in one tile." = "Tek bir kutucukta iki Kota yanma grafiği.";
 "Usage & spend come from your console.groq.com browser session automatically. An API key is optional and only adds Enterprise Prometheus metrics." = "Kullanım ve harcama, console.groq.com tarayıcı oturumunuzdan otomatik olarak gelir. API anahtarı isteğe bağlıdır ve yalnızca Enterprise Prometheus Metrik'yi ekler.";
-"Usage data appears after a refresh." = "Kullanım verileri yenileme sonrasında görünür.";
-"Usage data will appear once the app refreshes." = "Uygulama yenilendiğinde kullanım verileri görünecektir.";
 "Usage history chart with recent totals." = "Son toplamları içeren kullanım geçmişi grafiği.";
-"Usage history will appear after a refresh." = "Kullanım geçmişi yenileme sonrasında görünecektir.";
 "Usage limit" = "Kullanım sınırı";
 "Usage limits and reset countdowns for one saved account." = "Kayıtlı bir hesap için kullanım sınırları ve geri sayımları sıfırlama.";
 "Usage widget with a provider switcher." = "Sağlayıcı değiştiricili kullanım widget'ı.";
@@ -2204,6 +2206,10 @@
 "Stored in ~/.codexbar/config.json. Create one at console.x.ai under Settings > Management Keys; inference API keys are not accepted." = "~/.codexbar/config.json konumunda saklanır. Ayarlar > Yönetim Anahtarları altında console.x.ai'de bir tane oluşturun; çıkarım API anahtarları kabul edilmez.";
 "xai-..." = "xai-...";
 "Team ID" = "Takım ID";
+"Vercel access token" = "Vercel erişim belirteci";
+"Optional. Shows your personal budget instead of team credits. Saved in CodexBar's local config file. Or set VERCEL_ACCESS_TOKEN." = "İsteğe bağlı. Ekip kredileri yerine kişisel bütçenizi gösterir. CodexBar'ın yerel yapılandırma dosyasına kaydedilir. Veya VERCEL_ACCESS_TOKEN ayarlayın.";
+"Open Vercel tokens" = "Vercel belirteçlerini aç";
+"Required with a Vercel access token. Or set VERCEL_TEAM_ID." = "Vercel erişim belirteciyle birlikte gereklidir. Veya VERCEL_TEAM_ID ayarlayın.";
 "Required. Shown in the xAI Console URL and team settings." = "Gerekli. xAI Konsolu URL ve ekip ayarlarında gösterilir.";
 "Sakana AI cost summary is not supported." = "Sakana AI maliyet özeti desteklenmiyor.";
 "Stored in ~/.codexbar/config.json. Copy the Sakana AI console Cookie request header." = "~/.codexbar/config.json konumunda saklanır. Sakana AI konsolu Cookie istek başlığını kopyalayın.";
@@ -2462,7 +2468,7 @@
 "spend_performance_cache_help" = "Uygun konuşma turlarındaki önbelleğe alınmış girdinin toplam girdiye oranı. Girdi tokenlarına göre ağırlıklandırılır ve ölçümlerin kapsamı gösterilir.";
 "spend_performance_metric_help" = "Bu gözlemler hakkında";
 "merged_icon_source_title" = "Birleşik simge kaynağı";
-"merged_icon_source_subtitle" = "Daraltılmış birleşik simgede gösterilecek sağlayıcıyı seçin.";
+"merged_icon_source_subtitle" = "“En yüksek kullanım” yalnızca kotaları karşılaştırır. Kotası olmayan sağlayıcılar için “Geçerli seçim” seçeneğini kullanın.";
 "merged_icon_source_current_selection" = "Geçerli seçim";
 "merged_icon_source_highest_usage" = "En yüksek kullanım";
 "merged_icon_source_frontmost_app" = "Öndeki sağlayıcı uygulaması";
@@ -2561,7 +2567,7 @@
 "Clear filters" = "Filtreleri temizle";
 "Change provider order" = "Sağlayıcı sırasını değiştir";
 "Provider sorting" = "Sağlayıcı sıralaması";
-"Only enabled providers" = "Yalnızca etkin sağlayıcılar";
+"Only show enabled providers" = "Yalnızca etkin sağlayıcıları göster";
 "Restore default order" = "Varsayılan sırayı geri yükle";
 "Also restores the provider order in the menu bar. Can be undone." = "Menü çubuğundaki sağlayıcı sırasını da geri yükler. Geri alınabilir.";
 "Local Codex details; excluded from combined totals." = "Yerel Codex ayrıntıları; birleşik toplamlara dahil edilmez.";
@@ -2686,3 +2692,15 @@
 /* Munito provider credentials */
 "Key with Read account data (Admin API) permission. Or set MUNITO_API_KEY." = "Hesap verilerini okuma (Admin API) iznine sahip anahtar. Ya da MUNITO_API_KEY ayarlayın.";
 "Munito reports Admin API spend and limits, not local token cost history." = "Munito, Admin API harcamalarını ve limitlerini raporlar; yerel token maliyet geçmişini raporlamaz.";
+
+"Show all accounts in Overview" = "Genel bakışta tüm hesapları göster";
+
+"Expand cached account usage. The six-provider limit still applies." = "Önbellekteki hesap kullanımını kullanarak seçili sağlayıcıları genişletir. Altı sağlayıcı sınırı geçerli kalır.";
+"Edit" = "Düzenle";
+"Move up" = "Yukarı taşı";
+"Move down" = "Aşağı taşı";
+"Leave blank to keep the saved credential." = "Kayıtlı kimlik bilgisini korumak için boş bırakın.";
+
+"No personal budget configured" = "Kişisel bütçe yapılandırılmadı";
+
+"monthly_daily_target_format" = "Sıfırlamaya kadar yetmesi için günde ≈ %@";

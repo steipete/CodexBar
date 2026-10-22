@@ -19,8 +19,9 @@ The Devin provider tracks included daily and weekly usage quotas from
 
 Automatic mode reads only the Devin session and organization metadata from supported Chromium browsers' localStorage,
 using the shared browser catalog and skipping browsers without profile data. It does not import other sites' sessions.
-Current decoded session values take precedence over raw storage fallback
-data. CodexBar sends the session token only to `https://app.devin.ai`.
+The origin-filtered reader streams the browser store and decodes only Devin values, avoiding retention of other sites'
+Local Storage data. Current values and deletions determine the session. CodexBar sends the session token only to
+`https://app.devin.ai`.
 
 For accounts with multiple organizations, set **Organization** to select one explicitly. An internal `org-...` or
 `org_...` ID takes precedence over the browser's cached organization metadata. A slug uses only its matching cached ID;

@@ -142,6 +142,10 @@ final class AgentSessionsStore {
             self.settings.stayAwakeEnabled
     }
 
+    var remoteMonitoringEnabled: Bool {
+        self.settings.agentSessionsEnabled && self.settings.agentSessionsRemoteEnabled
+    }
+
     var schedulerState: SchedulerState {
         SchedulerState(
             isStarted: self.isStarted,
@@ -200,8 +204,8 @@ final class AgentSessionsStore {
             // Adaptive keeps only the timestamp signal. Retained session paths and identities
             // remain scoped to the explicitly enabled Agent Sessions UI.
             self.localSessions = []
-            self.remoteHosts = []
         }
+        if !self.remoteMonitoringEnabled { self.remoteHosts = [] }
         if !self.localMonitoringEnabled {
             self.latestLocalActivityAt = nil
         }
@@ -226,6 +230,7 @@ final class AgentSessionsStore {
     func focus(_ session: AgentSession, remoteHost: String?) {
         if let remoteHost {
             Task {
+                guard self.remoteMonitoringEnabled else { return }
                 await self.remoteFetcher.focus(sessionID: session.id, host: remoteHost)
             }
         } else {
@@ -302,7 +307,7 @@ final class AgentSessionsStore {
             self.localImmediateTask?.cancel()
         }
 
-        let needsRemoteScheduler = self.isStarted && self.settings.agentSessionsEnabled
+        let needsRemoteScheduler = self.isStarted && self.remoteMonitoringEnabled
         if needsRemoteScheduler, self.remotePeriodicTask == nil {
             let periodicSleep = self.periodicSleep
             self.remotePeriodicTask = Task { [weak self] in
@@ -377,7 +382,7 @@ final class AgentSessionsStore {
     }
 
     private func requestRemoteRefresh() {
-        guard self.isStarted, self.settings.agentSessionsEnabled, self.remoteImmediateTask == nil else { return }
+        guard self.isStarted, self.remoteMonitoringEnabled, self.remoteImmediateTask == nil else { return }
         guard let generation = self.remoteRefreshGate.begin() else { return }
 
         let manualHosts = self.manualHosts
@@ -390,7 +395,7 @@ final class AgentSessionsStore {
             }
             var hosts = manualHosts
             await hosts.append(contentsOf: remoteHostDiscovery())
-            let results = await remoteFetch(hosts)
+            let results = Task.isCancelled ? [] : await remoteFetch(hosts)
             self?.completeRemoteRefresh(
                 generation: generation,
                 results: results,
@@ -408,7 +413,7 @@ final class AgentSessionsStore {
         if !wasCancelled,
            outcome.shouldPublish,
            self.isStarted,
-           self.settings.agentSessionsEnabled,
+           self.remoteMonitoringEnabled,
            let results,
            results != self.remoteHosts
         {
@@ -416,7 +421,7 @@ final class AgentSessionsStore {
             self.lastUpdatedAt = Date()
             self.onUpdate?()
         }
-        if outcome.shouldRetry, self.isStarted, self.settings.agentSessionsEnabled {
+        if outcome.shouldRetry, self.isStarted, self.remoteMonitoringEnabled {
             self.requestRemoteRefresh()
         }
     }

@@ -239,6 +239,46 @@ struct UsageFormatterTests {
         #expect(UsageFormatter.resetCountdownDescription(from: reset, now: now) == expected, "\(scenario)")
     }
 
+    @Test(arguments: [
+        (10 * 60 + 1, "11m"),
+        (3 * 3600 + 31 * 60, "3h 31m"),
+        (26 * 3600, "1d 2h"),
+        ((24 * 3600) + (5 * 60), "1d 5m"),
+        (2 * 24 * 3600, "2d"),
+        (-10, "now"),
+    ] as [(TimeInterval, String)])
+    func `reset countdown duration omits the leading preposition`(interval: TimeInterval, expected: String) {
+        let now = Date(timeIntervalSince1970: 1_000_000)
+        let reset = now.addingTimeInterval(interval)
+        #expect(UsageFormatter.resetCountdownDuration(from: reset, now: now) == expected)
+    }
+
+    @Test
+    func `localized countdown keeps its own preposition out of sentence wrappers`() {
+        UsageFormatter.setLocalizationProvider { key in
+            switch key {
+            case "in %@h": "через %@ год"
+            case "%@h": "%@ год"
+            case "%@d": "%@ дн."
+            case "%@m": "%@ хв"
+            case "Resets in %@": "Скидання через %@"
+            default: key
+            }
+        }
+        defer { UsageFormatter.clearLocalizationProvider() }
+
+        let now = Date(timeIntervalSince1970: 1_000_000)
+        let twoHours = now.addingTimeInterval(2 * 3600)
+        #expect(UsageFormatter.resetCountdownDescription(from: twoHours, now: now) == "через 2 год")
+        #expect(UsageFormatter.resetCountdownDuration(from: twoHours, now: now) == "2 год")
+
+        let window = RateWindow(usedPercent: 0, windowMinutes: nil, resetsAt: twoHours, resetDescription: nil)
+        #expect(UsageFormatter.resetLine(for: window, style: .countdown, now: now) == "Скидання через 2 год")
+
+        let dayAndMinutes = now.addingTimeInterval((24 * 3600) + (5 * 60))
+        #expect(UsageFormatter.resetCountdownDuration(from: dayAndMinutes, now: now) == "1 дн. 5 хв")
+    }
+
     @Test
     func `reset line uses countdown when resets at is available`() {
         let now = Date(timeIntervalSince1970: 1_000_000)
@@ -397,6 +437,8 @@ struct UsageFormatterTests {
     @Test(arguments: [
         (54.72, "USD", "$54.72"),
         (54.72, "NZD", "NZ$54.72"),
+        (1234.56, "ILS", "₪1,234.56"),
+        (-54.72, "ILS", "-₪54.72"),
         (1234.56, "USD", "$1,234.56"),
         (1_234_567.89, "USD", "$1,234,567.89"),
         (-54.72, "USD", "-$54.72"),
@@ -577,6 +619,7 @@ struct UsageFormatterTests {
             ("NZD", "NZ$", 2), ("SEK", "SEK", 2), ("NOK", "NOK", 2), ("DKK", "DKK", 2),
             ("PLN", "PLN", 2), ("BRL", "R$", 2), ("MXN", "MX$", 2), ("ZAR", "ZAR", 2),
             ("THB", "THB", 2), ("IDR", "IDR", 0), ("VND", "₫", 0), ("UAH", "UAH", 2),
+            ("ILS", "₪", 2),
         ]
         for currency in addedCurrencies {
             let rate = try #require(exchange.rate(for: currency.code))
@@ -632,7 +675,7 @@ struct UsageFormatterTests {
         #expect(CurrencyExchange.requiresLiveRates(preferredCurrencyCode: " try "))
         #expect(CurrencyExchange.requiresLiveRates(preferredCurrencyCode: "NZD"))
         #expect(CurrencyExchange.requiresLiveRates(preferredCurrencyCode: " nzd "))
-        for code in ["SEK", "NOK", "DKK", "PLN", "BRL", "MXN", "ZAR", "THB", "IDR", "VND", "UAH"] {
+        for code in ["SEK", "NOK", "DKK", "PLN", "BRL", "MXN", "ZAR", "THB", "IDR", "VND", "UAH", "ILS"] {
             #expect(CurrencyExchange.requiresLiveRates(preferredCurrencyCode: code))
             #expect(CurrencyExchange.requiresLiveRates(preferredCurrencyCode: " \(code.lowercased()) "))
         }
@@ -648,7 +691,7 @@ struct UsageFormatterTests {
         #expect(exchange.convert(usdAmount: 10, to: "XYZ") == nil)
     }
 
-    @Test(arguments: ["NZD", "SEK", "NOK", "DKK", "PLN", "BRL", "MXN", "ZAR", "THB", "IDR", "VND", "UAH"])
+    @Test(arguments: ["NZD", "SEK", "NOK", "DKK", "PLN", "BRL", "MXN", "ZAR", "THB", "IDR", "VND", "UAH", "ILS"])
     func `additional currencies have offline rates and normalized conversions`(_ code: String) throws {
         let exchange = CurrencyExchange(defaults: InMemoryUserDefaults())
         #expect(CurrencyExchange.supportedCurrencies.contains(code))
@@ -661,7 +704,7 @@ struct UsageFormatterTests {
     @Test
     func `cached currency rates override only supplied fallbacks and keep the USD pivot`() {
         let defaults = InMemoryUserDefaults()
-        defaults.set(["TRY": 60.0, "USD": 42.0, "NZD": 2.0], forKey: "CodexBar.CurrencyExchangeRates")
+        defaults.set(["TRY": 60.0, "USD": 42.0, "NZD": 2.0, "ILS": 4.0], forKey: "CodexBar.CurrencyExchangeRates")
         let exchange = CurrencyExchange(defaults: defaults)
         #expect(exchange.rate(for: " try ") == 60)
         #expect(exchange.rate(for: "EUR") == 0.92)
@@ -670,6 +713,8 @@ struct UsageFormatterTests {
         #expect(exchange.convert(usdAmount: 10, to: "USD") == 10)
         #expect(exchange.convert(usdAmount: 10, to: "NZD") == 20)
         #expect(exchange.convert(amount: 20, from: "NZD", to: "USD") == 10)
+        #expect(exchange.convert(usdAmount: 10, to: "ILS") == 40)
+        #expect(exchange.convert(amount: 40, from: "ILS", to: "USD") == 10)
         #expect(exchange.rate(for: "UAH") == 44.86)
     }
 
@@ -713,5 +758,53 @@ struct UsageFormatterTests {
         return regex
             .matches(in: value, options: [], range: nsRange)
             .compactMap { Range($0.range, in: value).map { String(value[$0]) } }
+    }
+
+    @Test
+    func `countdowns use the selected app catalog without retaining another language`() {
+        UsageFormatter.setLocalizationProvider { L($0) }
+        defer { UsageFormatter.clearLocalizationProvider() }
+        let now = Date(timeIntervalSince1970: 1_000_000)
+        let reset = now.addingTimeInterval(2 * 3600)
+        CodexBarLocalizationOverride.$appLanguage.withValue("uk") {
+            #expect(UsageFormatter.resetCountdownDescription(from: reset, now: now) == "через 2 год")
+            #expect(UsageFormatter.resetCountdownDescription(from: now, now: now) == "зараз")
+            #expect(L("usage_percent_suffix_left") == "залишилося")
+            #expect(L("full") == "повний")
+            #expect(L("%@m", "5") == "5 хв")
+        }
+        CodexBarLocalizationOverride.$appLanguage.withValue("en") {
+            #expect(UsageFormatter.resetCountdownDescription(from: reset, now: now) == "in 2h")
+        }
+    }
+
+    @Test
+    @MainActor
+    func `relative time labels do not repeat localized time particles`() throws {
+        UsageFormatter.setLocalizationProvider { L($0) }
+        defer { UsageFormatter.clearLocalizationProvider() }
+        let now = Date(timeIntervalSince1970: 1_000_000)
+        let reset = now.addingTimeInterval(2 * 3600)
+        let window = RateWindow(
+            usedPercent: 50,
+            windowMinutes: nil,
+            resetsAt: reset,
+            resetDescription: nil,
+            nextRegenPercent: 10)
+        let credits = GrokRateLimitResetCreditsSnapshot(expirations: [reset], updatedAt: now)
+        for (language, expectedRegen, expectedExpiry) in [
+            ("zh-Hans", "2 小时后恢复", "2 小时后 到期"),
+            ("ja", "2時間後に再生成", "2時間後に期限切れ"),
+            ("ko", "2시간 후에 재생성", "2시간 후에 만료"),
+        ] {
+            try CodexBarLocalizationOverride.$appLanguage.withValue(language) {
+                let detail = try #require(UsageMenuCardView.Model.syntheticRollingRegenDetail(
+                    window: window, now: now, showUsed: true))
+                #expect(detail.resetText == expectedRegen)
+                let presentation = try #require(LimitResetCreditsPresentation.make(
+                    snapshot: credits, resetStyle: .countdown, now: now))
+                #expect(presentation.items.map(\.expiryText) == [expectedExpiry])
+            }
+        }
     }
 }

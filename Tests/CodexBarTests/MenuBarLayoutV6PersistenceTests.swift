@@ -1,9 +1,44 @@
 import Foundation
+import Observation
 import Testing
 @testable import CodexBar
 
 @MainActor
 struct MenuBarLayoutV6PersistenceTests {
+    @Test
+    func `window label preference persists and refreshes menus without changing layout projections`() async {
+        let defaults = InMemoryUserDefaults()
+        let settings = testSettingsStore(suiteName: "window-labels", userDefaults: defaults)
+        #expect(settings.menuBarLayoutShowWindowLabels)
+        #expect(defaults.object(forKey: "menuBarLayoutShowWindowLabels") == nil)
+        settings.setMenuBarLayout(Self.spendLayout, for: nil)
+        settings.setMenuBarLayout(Self.spendLayout, for: .claude)
+        settings.menuBarLayoutConditionals = [.makeDefault()]
+        let keys = [
+            "menuBarLayoutV6", "menuBarLayoutV5", "menuBarLayoutOverridesV6", "menuBarLayoutOverridesV5",
+            "menuBarLayoutConditionalsV6", "menuBarLayoutConditionalsV5",
+        ]
+        let before = keys.map { defaults.data(forKey: $0) }
+        #expect(before.allSatisfy { $0 != nil })
+        await confirmation { changed in
+            withObservationTracking {
+                _ = settings.menuObservationToken
+            } onChange: {
+                changed()
+            }
+            settings.menuBarLayoutShowWindowLabels = false
+        }
+        #expect(keys.map { defaults.data(forKey: $0) } == before)
+        let reloaded = testSettingsStore(suiteName: "window-labels-reloaded", userDefaults: defaults)
+        #expect(!reloaded.menuBarLayoutShowWindowLabels)
+        #expect(reloaded.menuBarLayout == Self.spendLayout)
+        #expect(reloaded.menuBarLayoutOverrides[.claude] == Self.spendLayout)
+        reloaded.menuBarLayoutShowWindowLabels = true
+        #expect(testSettingsStore(suiteName: "window-labels-restored", userDefaults: defaults)
+            .menuBarLayoutShowWindowLabels)
+        #expect(keys.map { defaults.data(forKey: $0) } == before)
+    }
+
     private static let spendLayout = MenuBarLayout(lines: [[
         .icon,
         .percent(window: .spend),

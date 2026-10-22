@@ -2,6 +2,7 @@
 "%@ %@" = "%@ %@";
 "%@ API est. · not billed" = "%@ API stimato · non fatturato";
 "%@ cost" = "Costo %@";
+"%@ is unavailable. Edit the widget to choose a provider." = "%@ non è disponibile. Modifica il widget per scegliere un provider.";
 "%@ left" = "%@ rimasto";
 "%@ tokens" = "%@ token";
 "%@ used" = "%@ utilizzato";
@@ -75,6 +76,7 @@
 "Daily usage" = "Utilizzo quotidiano";
 "Deployment" = "Distribuzione";
 "Edit predictions" = "Modifica previsioni";
+"Enable a provider in CodexBar → Settings → Providers." = "Abilita un provider in CodexBar → Impostazioni → Provider.";
 "Enable account widgets in CodexBar → Settings → Menu → Widgets. Then edit this widget to choose an account." = "Abilita i widget dell'account in CodexBar → Impostazioni → Menu → Widget. Quindi modifica questo widget per scegliere un account.";
 "Extra usage" = "Utilizzo extra";
 "Extra usage balance" = "Saldo di utilizzo extra";
@@ -164,10 +166,7 @@
 "Two quota burn-down charts in one tile." = "Due grafici burn-down Limite in un unico riquadro.";
 "Unavailable account" = "Account: Non disponibile";
 "Usage" = "Utilizzo";
-"Usage data appears after a refresh." = "I dati sull'utilizzo vengono visualizzati dopo un aggiornamento.";
-"Usage data will appear once the app refreshes." = "I dati sull'utilizzo verranno visualizzati una volta aggiornata l'app.";
 "Usage history chart with recent totals." = "Grafico della cronologia di utilizzo con i totali recenti.";
-"Usage history will appear after a refresh." = "La cronologia di utilizzo verrà visualizzata dopo un aggiornamento.";
 "Usage limit" = "Limite di utilizzo";
 "Usage limits and reset countdowns for one saved account." = "Limiti di utilizzo e ripristino dei conti alla rovescia per un account salvato.";
 "Usage widget with a provider switcher." = "Widget di utilizzo con un cambio di provider.";

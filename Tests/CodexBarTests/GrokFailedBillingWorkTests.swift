@@ -7,9 +7,22 @@ struct GrokFailedBillingWorkTests {
         case personalUnavailable, teamUnauthorized, initializationFailure, expiredTeam, teamFallback, billingSuccess
         case expiresDuringScan, expiresDuringVersion, acceptedIdentity
         case methodUnavailableAlternateMessage, methodMessageWrongCode
+        case nestedBillingSuccess, nestedBillingPeriodFallback, prepaidOnlyBillingSuccess, unknownBillingResult
+
+        var hasCredits: Bool {
+            self == .nestedBillingSuccess || self == .nestedBillingPeriodFallback || self == .prepaidOnlyBillingSuccess
+        }
+
+        var hasBilling: Bool {
+            self == .billingSuccess || self.hasCredits
+        }
+
+        var returnsBillingResult: Bool {
+            self == .billingSuccess || self.hasCredits || self == .unknownBillingResult
+        }
 
         var acceptsSnapshot: Bool {
-            self == .teamFallback || self == .billingSuccess || self == .acceptedIdentity
+            self == .teamFallback || self.hasBilling || self == .acceptedIdentity
                 || self == .methodUnavailableAlternateMessage
         }
 
@@ -21,8 +34,32 @@ struct GrokFailedBillingWorkTests {
             switch self {
             case .teamUnauthorized: "Unauthorized"
             case .initializationFailure: "Initialize failed"
-            case .methodUnavailableAlternateMessage: "Unsupported RPC method: x.ai/billing"
+            case .methodUnavailableAlternateMessage: "Unsupported RPC method: _x.ai/billing"
             default: "Method not found"
+            }
+        }
+
+        var billingResult: [String: Any] {
+            if self.hasCredits {
+                var config: [String: Any] = [
+                    "creditUsagePercent": 5.0,
+                    "billingPeriodEnd": "2026-10-22T17:24:18.000000+00:00",
+                ]
+                if self == .nestedBillingSuccess {
+                    config["currentPeriod"] = [
+                        "type": "USAGE_PERIOD_TYPE_WEEKLY",
+                        "start": "2026-10-15T17:24:18.000000+00:00",
+                        "end": "2026-10-22T17:24:18.000000+00:00",
+                    ]
+                    config["billingPeriodEnd"] = "2026-11-15T17:24:18Z"
+                } else if self == .prepaidOnlyBillingSuccess {
+                    config = ["prepaidBalance": ["val": 123]]
+                }
+                return ["config": config, "subscription_tier": "SuperGrok Heavy"]
+            } else if self == .unknownBillingResult {
+                return ["subscription_tier": "SuperGrok", "config": [:]]
+            } else {
+                return ["monthlyLimit": ["val": 100], "usage": ["totalUsed": ["val": 25]]]
             }
         }
 
@@ -40,7 +77,7 @@ struct GrokFailedBillingWorkTests {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("grok-work-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
-        if scenario != .personalUnavailable, scenario != .billingSuccess {
+        if scenario != .personalUnavailable, !scenario.hasBilling {
             let auth = try JSONSerialization.data(withJSONObject: [
                 "https://auth.x.ai::fake-client": [
                     "key": "synthetic-token", "refresh_token": "synthetic-refresh",
@@ -67,8 +104,8 @@ struct GrokFailedBillingWorkTests {
             id: 1, result: [:], error: scenario == .initializationFailure ? scenario.errorMessage : nil)
         let billing = try reply(
             id: 2,
-            result: ["monthlyLimit": ["val": 100], "usage": ["totalUsed": ["val": 25]]],
-            error: scenario == .billingSuccess ? nil : scenario.errorMessage)
+            result: scenario.billingResult,
+            error: scenario.returnsBillingResult ? nil : scenario.errorMessage)
         let script = """
         #!/bin/sh
         if [ "$1" = "--version" ]; then
@@ -79,6 +116,7 @@ struct GrokFailedBillingWorkTests {
         IFS= read -r initialize_request
         printf '%s\\n' '\(initialize)'
         IFS= read -r billing_request || exit 0
+        printf '%s\\n' "$billing_request" >> "$GROK_HOME/billing-requests.jsonl"
         printf '%s\\n' '\(billing)'
         """
         try script.write(to: binary, atomically: true, encoding: .utf8)
@@ -131,22 +169,51 @@ struct GrokFailedBillingWorkTests {
             #expect(snapshot.localSummary?.daily == summary.daily)
             #expect(snapshot.toUsageSnapshot().costUsage?.last30DaysTokens == 42)
             #expect(snapshot.cliVersion == "synthetic-version")
-            if scenario != .billingSuccess {
+            if !scenario.hasBilling {
                 #expect(snapshot.billing == nil)
                 #expect(snapshot.credentials?.email == "team@example.com")
                 #expect(snapshot.diagnostic == GrokStatusProbe.teamUsageUnavailableMessage)
+            } else if scenario.hasCredits {
+                let usage = snapshot.toUsageSnapshot()
+                if scenario == .prepaidOnlyBillingSuccess {
+                    #expect(usage.primary == nil)
+                    #expect(usage.providerCost?.balance == 1.23)
+                } else {
+                    let primary = try #require(usage.primary)
+                    #expect(primary.usedPercent == 5)
+                    #expect(primary.resetsAt == ISO8601DateParser.parse("2026-10-22T17:24:18Z"))
+                }
+                #expect(usage.identity?.loginMethod == "SuperGrok Heavy")
+                #expect(snapshot.diagnostic == nil)
             } else {
                 #expect(snapshot.billing?.monthlyUsedPercent == 25)
                 #expect(snapshot.diagnostic == nil)
             }
         } catch let error as GrokRPCError {
             #expect(!scenario.acceptsSnapshot)
-            guard case let .requestFailed(message, code) = error else {
-                Issue.record("Unexpected RPC error: \(error)")
-                return
+            if scenario == .unknownBillingResult {
+                guard case .malformed = error else {
+                    Issue.record("Expected malformed billing error: \(error)")
+                    return
+                }
+            } else {
+                guard case let .requestFailed(message, code) = error else {
+                    Issue.record("Unexpected RPC error: \(error)")
+                    return
+                }
+                #expect(message == scenario.errorMessage)
+                #expect(code == scenario.errorCode)
             }
-            #expect(message == scenario.errorMessage)
-            #expect(code == scenario.errorCode)
+        }
+        if scenario != .initializationFailure {
+            let requests = try String(
+                contentsOf: root.appendingPathComponent("billing-requests.jsonl"), encoding: .utf8)
+            let methods = try requests.split(separator: "\n").map { line in
+                let request = try #require(
+                    JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any])
+                return try #require(request["method"] as? String)
+            }
+            #expect(methods == ["_x.ai/billing"])
         }
         #expect(await calls.scans == (scenario.scansBeforeResult ? 1 : 0))
         #expect(await calls

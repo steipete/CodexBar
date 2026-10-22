@@ -66,7 +66,6 @@ public enum AntigravityProviderDescriptor {
                 historyTitleStyle: .compact,
                 hintPlacement: .beforeRequestHistory,
                 chartEstimateDisclaimer: .localized(self.estimateHintKey),
-                preservesCalendarDaysInCharts: true,
                 presentation: .costAndTokens),
             pace: ProviderPaceCapability(sessionPaceWindowRule: .windowDuration(minutes: 300)),
             history: .alwaysTracked,

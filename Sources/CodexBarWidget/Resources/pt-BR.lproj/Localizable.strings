@@ -2,6 +2,7 @@
 "%@ %@" = "%@ %@";
 "%@ API est. · not billed" = "%@ API estimado · não faturado";
 "%@ cost" = "Custo %@";
+"%@ is unavailable. Edit the widget to choose a provider." = "%@ não está disponível. Edite o widget para escolher um provedor.";
 "%@ left" = "%@ restante";
 "%@ tokens" = "Tokens %@";
 "%@ used" = "%@ usado";
@@ -75,6 +76,7 @@
 "Daily usage" = "Uso diário";
 "Deployment" = "Implantação";
 "Edit predictions" = "Editar previsões";
+"Enable a provider in CodexBar → Settings → Providers." = "Ative um provedor em CodexBar → Ajustes → Provedores.";
 "Enable account widgets in CodexBar → Settings → Menu → Widgets. Then edit this widget to choose an account." = "Habilite widgets de conta em CodexBar → Configurações → Menu → Widgets. Em seguida, edite este widget para escolher uma conta.";
 "Extra usage" = "Uso extra";
 "Extra usage balance" = "Saldo de uso extra";
@@ -164,10 +166,7 @@
 "Two quota burn-down charts in one tile." = "Dois gráficos burn-down Cota em um bloco.";
 "Unavailable account" = "Conta: Indisponível";
 "Usage" = "Uso";
-"Usage data appears after a refresh." = "Os dados de uso aparecem após uma atualização.";
-"Usage data will appear once the app refreshes." = "Os dados de uso aparecerão assim que o aplicativo for atualizado.";
 "Usage history chart with recent totals." = "Gráfico de histórico de uso com totais recentes.";
-"Usage history will appear after a refresh." = "O histórico de uso aparecerá após uma atualização.";
 "Usage limit" = "Limite de uso";
 "Usage limits and reset countdowns for one saved account." = "Limites de uso e redefinição de contagens regressivas para uma conta salva.";
 "Usage widget with a provider switcher." = "Widget de uso com alternador de provedor.";

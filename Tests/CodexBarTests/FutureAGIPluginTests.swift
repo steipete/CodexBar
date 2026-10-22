@@ -23,6 +23,10 @@ struct FutureAGIPluginTests {
         let usage = try await Self.fetch(Self.fixture, engine: engine)
         #expect(usage.primary?.usedPercent == 25)
         #expect(usage.secondary?.usedPercent == 100)
+        #expect(usage.primary?.quotaLimit == 2000)
+        #expect(usage.primary?.quotaUnit == "credits")
+        #expect(usage.secondary?.quotaLimit == 100_000)
+        #expect(usage.secondary?.quotaUnit == "requests")
         #expect(usage.primary?.windowMinutes == 44640)
         #expect(usage.primary?.resetsAt == Date(timeIntervalSince1970: 1_793_491_200))
         #expect(usage.details[0].rows.map(\.value) == [

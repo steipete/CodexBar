@@ -4,7 +4,7 @@ import FoundationNetworking
 #endif
 
 /// Manages currency exchange rates for converting USD-denominated AI model token estimates
-/// into user-preferred currencies (GBP, EUR, CNY, JPY, CAD, AUD, NZD, etc.).
+/// into user-preferred currencies (GBP, EUR, CNY, JPY, CAD, AUD, NZD, ILS, etc.).
 ///
 /// Rates are sourced from the ExchangeRate-API (open.er-api.com), a free service
 /// aggregating data from central banks and market sources. Rates are updated daily
@@ -54,6 +54,7 @@ public final class CurrencyExchange: @unchecked Sendable {
         ("IDR", "Rp", 17836.0),
         ("VND", "₫", 25962.0),
         ("UAH", "₴", 44.86),
+        ("ILS", "₪", 3.109), // Rate from open.er-api.com on 2026-10-19.
     ]
     private let lock = NSLock()
     private let defaults: UserDefaults

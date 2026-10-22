@@ -27,6 +27,7 @@ struct UsageCommandContext {
     var persistCLISessions: Bool = false
     var persistentCLISessionIdleWindow: TimeInterval?
     var cardsLayout: Bool = false
+    var sourceLabelSuffix = ""
     /// Serves the menu bar app's cached usage after a locked-keychain fetch failure (SSH sessions, opt-in).
     var usageCacheFallback: (@Sendable (UsageProvider, _ lockedKeychainObserved: Bool, _ terminalError: Error)
         -> CLIUsageCache.Hit?)?
@@ -146,7 +147,7 @@ extension CodexBarCLI {
         }
     }
 
-    private static func fetchSingleProviderUsageOutput(
+    static func fetchSingleProviderUsageOutput(
         provider: UsageProvider,
         includeStatus: Bool,
         appAutoVerifier: Bool,
@@ -170,6 +171,47 @@ extension CodexBarCLI {
             if establishment.exitCode != .success {
                 return establishment
             }
+        }
+        var command = command
+        // Provider-specific by design: one-shot Claude Auto usage follows the adapter's active slot.
+        let config = tokenContext.config.providerConfig(for: .claude)
+        if !appAutoVerifier, CLIClaudeSwapCards.isEligible(
+            provider: provider,
+            integrationEnabled: config?.claudeSwapEnabled == true,
+            hasExplicitAccountSelection: tokenContext.selection.usesOverride,
+            sourceModeOverride: command.sourceModeOverride ?? tokenContext.preferredSourceMode(for: provider))
+        {
+            let source = config?.resolvedClaudeSwapSource ?? .claudeSwap
+            if let list = try? await ClaudeSwapAccountReader.readAccountList(
+                executablePath: CLIClaudeSwapCards.executablePath(from: config), source: source),
+                let active = ClaudeSwapAccountProjection.accountSnapshots(
+                    from: list,
+                    source: source,
+                    previousAccounts: ClaudeSwapRetainedUsageStore.load()).first(where: \.isActive),
+                let usage = active.snapshot
+            {
+                let diagnostic = active.error.map(CLIClaudeSwapText.sanitizeDiagnostic)
+                var result = UsageCommandOutput()
+                Self.appendSuccessRenderOutput(
+                    UsageSuccessRenderInput(
+                        provider: provider,
+                        accountLabel: CLIClaudeSwapText.sanitizeLabel(active.displayLabel),
+                        cacheAccountKey: nil,
+                        version: nil,
+                        source: source.label,
+                        status: status,
+                        usage: usage,
+                        credits: nil,
+                        antigravityPlanInfo: nil,
+                        dashboard: nil,
+                        effectiveSourceMode: .auto,
+                        command: command,
+                        diagnostic: diagnostic,
+                        notes: diagnostic.map { [$0] } ?? []),
+                    output: &result)
+                return result
+            }
+            command.sourceLabelSuffix = " (\(source.label) fallback)"
         }
         return await Self.fetchUsageOutputs(
             provider: provider,
@@ -270,7 +312,7 @@ extension CodexBarCLI {
                 error: error)
         }
 
-        let selections = Self.accountSelections(from: accounts)
+        let selections: [ProviderTokenAccount?] = accounts.isEmpty ? [nil] : accounts.map { Optional($0) }
         let data = tokenContext.accountsByProvider[provider]
         let activeID = data.flatMap { $0.accounts.isEmpty ? nil : $0.accounts[$0.clampedActiveIndex()].id }
         return await Self.collectAccountUsage(
@@ -290,13 +332,6 @@ extension CodexBarCLI {
         }
     }
 
-    private static func accountSelections(from accounts: [ProviderTokenAccount]) -> [ProviderTokenAccount?] {
-        if accounts.isEmpty {
-            return [nil]
-        }
-        return accounts.map { Optional($0) }
-    }
-
     private static func usageOutputForAccountResolutionError(
         provider: UsageProvider,
         status: ProviderStatusPayload?,
@@ -309,7 +344,7 @@ extension CodexBarCLI {
             output.payload.append(Self.makeProviderErrorPayload(
                 provider: provider,
                 account: nil,
-                source: command.sourceModeOverride?.rawValue ?? "auto",
+                source: (command.sourceModeOverride?.rawValue ?? "auto") + command.sourceLabelSuffix,
                 status: status,
                 error: error,
                 kind: .provider))
@@ -322,37 +357,6 @@ extension CodexBarCLI {
             Self.writeStderr("Error: \(error.localizedDescription)\n")
         }
         return output
-    }
-
-    // swiftlint:disable:next function_parameter_count
-    private static func makeUsagePayload(
-        provider: UsageProvider,
-        accountLabel: String?,
-        cacheAccountKey: String?,
-        version: String?,
-        source: String,
-        status: ProviderStatusPayload?,
-        usage: UsageSnapshot,
-        credits: CreditsSnapshot?,
-        antigravityPlanInfo: AntigravityPlanInfoSummary?,
-        dashboard: OpenAIDashboardSnapshot?,
-        diagnostic: String?,
-        weeklyWorkDays: Int?) -> ProviderPayload
-    {
-        ProviderPayload(
-            provider: provider,
-            account: accountLabel,
-            cacheAccountKey: cacheAccountKey,
-            version: version,
-            source: source,
-            status: status,
-            usage: usage,
-            credits: credits,
-            antigravityPlanInfo: antigravityPlanInfo,
-            openaiDashboard: dashboard,
-            error: nil,
-            diagnostic: diagnostic,
-            pace: CLIRenderer.providerPacePayload(provider: provider, snapshot: usage, weeklyWorkDays: weeklyWorkDays))
     }
 
     private static func appendSuccessRenderOutput(
@@ -395,9 +399,9 @@ extension CodexBarCLI {
                 output.sections.append(text)
             }
         case .json:
-            var usagePayload = self.makeUsagePayload(
+            var usagePayload = ProviderPayload(
                 provider: input.provider,
-                accountLabel: input.accountLabel,
+                account: input.accountLabel,
                 cacheAccountKey: input.cacheAccountKey,
                 version: input.version,
                 source: input.source,
@@ -405,9 +409,11 @@ extension CodexBarCLI {
                 usage: input.usage,
                 credits: input.credits,
                 antigravityPlanInfo: input.antigravityPlanInfo,
-                dashboard: input.dashboard,
+                openaiDashboard: input.dashboard,
+                error: nil,
                 diagnostic: input.diagnostic,
-                weeklyWorkDays: input.command.weeklyWorkDays)
+                pace: CLIRenderer.providerPacePayload(
+                    provider: input.provider, snapshot: input.usage, weeklyWorkDays: input.command.weeklyWorkDays))
             usagePayload.ageSeconds = input.ageSeconds
             output.payload.append(usagePayload)
         }
@@ -455,7 +461,7 @@ extension CodexBarCLI {
                 account: (
                     label: account?.label ?? codexVisibleAccount?.menuDisplayName,
                     cacheKey: cacheAccountKey),
-                source: effectiveSourceMode.rawValue,
+                source: effectiveSourceMode.rawValue + command.sourceLabelSuffix,
                 status: status,
                 command: command)
         }
@@ -521,7 +527,7 @@ extension CodexBarCLI {
                     ? (resolvedCLIVersion
                         ?? Self.detectVersion(for: provider, browserDetection: command.browserDetection))
                     : nil)
-            let source = result.sourceLabel
+            let source = result.sourceLabel + command.sourceLabelSuffix
             let notes = Self.usageTextNotes(
                 provider: provider,
                 sourceMode: effectiveSourceMode,
@@ -553,7 +559,7 @@ extension CodexBarCLI {
                let hit = command.usageCacheFallback?(provider, lockedKeychainObserved, error)
             {
                 let usage = hit.entry.usage.scoped(to: provider)
-                let source = "codexbar-app"
+                let source = "codexbar-app" + command.sourceLabelSuffix
                 let appNote = "Cached by the CodexBar app (the keychain was unavailable here). "
                     + UsageFormatter.updatedString(from: usage.updatedAt)
                 Self.appendSuccessRenderOutput(
@@ -586,7 +592,7 @@ extension CodexBarCLI {
                     provider: provider,
                     account: account?.label ?? codexVisibleAccount?.menuDisplayName,
                     cacheAccountKey: cacheAccountKey,
-                    source: effectiveSourceMode.rawValue,
+                    source: effectiveSourceMode.rawValue + command.sourceLabelSuffix,
                     status: status,
                     error: error,
                     kind: .provider))

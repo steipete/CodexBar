@@ -88,7 +88,7 @@ final class SettingsWindowController: NSWindowController {
                 backing: .buffered,
                 defer: false)
             window.contentViewController = hostingController
-            window.title = selection.pane.title
+            window.title = selection.title
             window.titlebarAppearsTransparent = true
             SettingsWindowToolbar.configure(window)
             window.titlebarSeparatorStyle = .none

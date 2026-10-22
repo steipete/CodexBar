@@ -620,7 +620,6 @@
 
 /* Display Pane */
 "menu_bar_style_title" = "Menyradsstil";
-"menu_bar_style_subtitle" = "Hur menyradsobjektet visas.";
 "menu_bar_inactive_display_contrast_title" = "Förbättra synligheten på inaktiva skärmar";
 "menu_bar_inactive_display_contrast_subtitle" = "Använder kontrastrik rendering så att ikonen och mätvärdet förblir läsbara på andra skärmar.";
 "menu_bar_style_critters" = "Figurer";
@@ -674,6 +673,8 @@
 "overview_rows_follow_order" = "Översiktsrader följer alltid leverantörsordningen.";
 "overview_no_providers_selected" = "Inga leverantörer valda";
 "agent_sessions_title" = "Agentsessioner";
+"agent_sessions_remote_title" = "Fjärrsessioner (Tailscale / SSH)";
+"agent_sessions_remote_subtitle" = "Hitta och anslut till fjärrvärdar. Stäng av för att bara övervaka denna Mac.";
 "agent_sessions_subtitle" = "Visa lokala och via SSH upptäckta Codex- och Claude Code-sessioner i menyn.";
 "agent_sessions_hosts_title" = "Ytterligare SSH-värdar";
 "agent_sessions_footer" = "Mac-datorer på ditt tailnet upptäcks automatiskt. Lokala sessioner uppdateras var 30:e sekund, fjärrvärdar var 60:e sekund och när menyn öppnas.";
@@ -1089,6 +1090,7 @@
 "Kiro menu bar value" = "Kiro-värde i menyraden";
 "CodexBar could not read managed account storage. Recover the store before adding another account." = "CodexBar kunde inte läsa hanterad kontolagring. Återställ lagringen innan du lägger till ett konto till.";
 "Using CLI fallback" = "Använder CLI-reserv";
+"%@ is unavailable. Edit the widget to choose a provider." = "%@ är inte tillgänglig. Redigera widgeten för att välja en leverantör.";
 "%@ web API access is disabled." = "%@-åtkomst till webb-API är inaktiverad.";
 "tokens" = "token";
 "%@ / %@ (%@ remaining)" = "%@ / %@ (%@ kvar)";
@@ -1407,6 +1409,7 @@
 /* Menu bar layout editor */
 "menu_bar_layout_title" = "Layout";
 "menu_bar_layout_footer" = "Dra brickor för att ordna menyraden. Klicka på en bricka för att lägga till den; markera en placerad bricka och tryck Delete för att ta bort den.";
+"menu_bar_layout_footer_requires_icon_and_percent" = "Layouten gäller endast för menyradsstilen ”%@”. Välj den stilen ovan för att redigera den.";
 "menu_bar_layout_group_identity" = "Identitet";
 "menu_bar_layout_group_usage" = "Användning";
 "menu_bar_layout_group_time" = "Tid";
@@ -1439,6 +1442,7 @@
 "menu_bar_layout_size_regular" = "Normal";
 "menu_bar_layout_size_large" = "Stor";
 "menu_bar_layout_monospaced_digits" = "Siffror med fast bredd";
+"menu_bar_layout_show_window_labels" = "Visa periodetiketter";
 "menu_bar_layout_gap" = "Mellanrum";
 "menu_bar_layout_gap_tight" = "Tätt";
 "menu_bar_layout_gap_regular" = "Normal";
@@ -1796,6 +1800,7 @@
 "Details for %@" = "Detaljer för %@";
 "EST. %@" = "Uppskattad %@";
 "Enable Antigravity provider" = "Aktivera Antigravity-leverantör";
+"Enable a provider in CodexBar → Settings → Providers." = "Aktivera en leverantör i CodexBar → Inställningar → Leverantörer.";
 "Enable account widgets in CodexBar → Settings → Menu → Widgets. Then edit this widget to choose an account." = "Aktivera kontowidgetar i CodexBar → Inställningar → Meny → Widgets. Redigera sedan denna widget för att välja ett konto.";
 "Error: %@" = "Fel: %@";
 "Examples: alt+cmd+2, shift+right. Refresh (cmd+r), Settings (cmd+,) and Quit (cmd+q) are reserved." = "Exempel: alt+cmd+2, shift+right. Uppdatera (cmd+r), Inställningar (cmd+,) och Avsluta (cmd+q) är reserverade.";
@@ -2010,10 +2015,7 @@
 "Top models:" = "Toppmodeller:";
 "Two quota burn-down charts in one tile." = "Två Kvot nedbränningsdiagram i en bricka.";
 "Usage & spend come from your console.groq.com browser session automatically. An API key is optional and only adds Enterprise Prometheus metrics." = "Användning och utgifter kommer automatiskt från din console.groq.com webbläsarsession. En API-nyckel är valfri och lägger endast till Enterprise Prometheus Mått.";
-"Usage data appears after a refresh." = "Användningsdata visas efter en uppdatering.";
-"Usage data will appear once the app refreshes." = "Användningsdata visas när appen uppdateras.";
 "Usage history chart with recent totals." = "Användningshistorikdiagram med senaste summor.";
-"Usage history will appear after a refresh." = "Användningshistorik kommer att visas efter en uppdatering.";
 "Usage limit" = "Användningsgräns";
 "Usage limits and reset countdowns for one saved account." = "Användningsgränser och återställ nedräkningar för ett sparat konto.";
 "Usage widget with a provider switcher." = "Användningswidget med en leverantörsväxlare.";
@@ -2200,6 +2202,10 @@
 "Stored in ~/.codexbar/config.json. Create one at console.x.ai under Settings > Management Keys; inference API keys are not accepted." = "Lagrat i ~/.codexbar/config.json. Skapa en på console.x.ai under Inställningar > Hanteringsnycklar; inferens API-nycklar accepteras inte.";
 "xai-..." = "xai-...";
 "Team ID" = "Team ID";
+"Vercel access token" = "Vercel-åtkomsttoken";
+"Optional. Shows your personal budget instead of team credits. Saved in CodexBar's local config file. Or set VERCEL_ACCESS_TOKEN." = "Valfritt. Visar din personliga budget i stället för teamets krediter. Sparas i CodexBars lokala konfigurationsfil. Eller ange VERCEL_ACCESS_TOKEN.";
+"Open Vercel tokens" = "Öppna Vercel-tokens";
+"Required with a Vercel access token. Or set VERCEL_TEAM_ID." = "Krävs tillsammans med en Vercel-åtkomsttoken. Eller ange VERCEL_TEAM_ID.";
 "Required. Shown in the xAI Console URL and team settings." = "Krävs. Visas i xAI-konsolen URL och teaminställningar.";
 "Sakana AI cost summary is not supported." = "Sakana AI kostnadsöversikt stöds inte.";
 "Stored in ~/.codexbar/config.json. Copy the Sakana AI console Cookie request header." = "Lagrat i ~/.codexbar/config.json. Kopiera Sakana AI-konsolens Cookie-förfrågningshuvud.";
@@ -2458,7 +2464,7 @@
 "spend_performance_cache_help" = "Cachade indata dividerade med totala indata för de samtalsturer som kan räknas med. Viktat efter indatatoken, med mätningarnas täckning angiven.";
 "spend_performance_metric_help" = "Om dessa observationer";
 "merged_icon_source_title" = "Källa för kombinerad ikon";
-"merged_icon_source_subtitle" = "Välj vilken leverantör den hopfällda kombinerade ikonen visar.";
+"merged_icon_source_subtitle" = "”Högsta användning” jämför endast kvoter. Använd ”Aktuellt val” för leverantörer utan kvoter.";
 "merged_icon_source_current_selection" = "Aktuellt val";
 "merged_icon_source_highest_usage" = "Högsta användning";
 "merged_icon_source_frontmost_app" = "Leverantörsapp i förgrunden";
@@ -2557,7 +2563,7 @@
 "Clear filters" = "Rensa filter";
 "Change provider order" = "Ändra leverantörsordning";
 "Provider sorting" = "Sortera leverantörer";
-"Only enabled providers" = "Endast aktiverade leverantörer";
+"Only show enabled providers" = "Visa endast aktiverade leverantörer";
 "Restore default order" = "Återställ standardordning";
 "Also restores the provider order in the menu bar. Can be undone." = "Återställer även leverantörsordningen i menyraden. Kan ångras.";
 "Local Codex details; excluded from combined totals." = "Lokala Codex-detaljer; ingår inte i de sammanlagda totalerna.";
@@ -2682,3 +2688,15 @@
 /* Munito provider credentials */
 "Key with Read account data (Admin API) permission. Or set MUNITO_API_KEY." = "Nyckel med behörighet att läsa kontodata (Admin API). Eller sätt MUNITO_API_KEY.";
 "Munito reports Admin API spend and limits, not local token cost history." = "Munito rapporterar Admin API:ts utgifter och gränser, inte den lokala token-kostnadshistoriken.";
+
+"Show all accounts in Overview" = "Visa alla konton i översikten";
+
+"Expand cached account usage. The six-provider limit still applies." = "Expandera valda leverantörer med cachad kontoanvändning. Gränsen på sex leverantörer gäller fortfarande.";
+"Edit" = "Redigera";
+"Move up" = "Flytta upp";
+"Move down" = "Flytta ned";
+"Leave blank to keep the saved credential." = "Lämna tomt för att behålla de sparade inloggningsuppgifterna.";
+
+"No personal budget configured" = "Ingen personlig budget har konfigurerats";
+
+"monthly_daily_target_format" = "≈ %@ / dag för att räcka till återställningen";

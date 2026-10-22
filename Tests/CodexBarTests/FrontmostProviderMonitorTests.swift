@@ -134,7 +134,7 @@ struct FrontmostProviderMonitorTests {
 
     @Test
     func `frontmost match overrides only the collapsed merged icon`() {
-        let fallback = UsageProvider.copilot
+        let fallback = ProviderInstanceID.copilot
         let enabled: Set<UsageProvider> = [.codex, .copilot]
         let active = UnifiedIconContext(
             source: .frontmostApp,

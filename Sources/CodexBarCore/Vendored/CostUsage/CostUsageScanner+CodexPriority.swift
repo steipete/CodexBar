@@ -69,9 +69,11 @@ extension CostUsageScanner {
         }
     }
 
-    /// Drops process-local accumulated state so the next scan rebuilds from row 0.
-    static func dropCodexPriorityTurnsMemo(databaseURL: URL) {
+    /// Drops accumulated state, optionally preserving newer observations.
+    static func dropCodexPriorityTurnsMemo(databaseURL: URL, through observationID: UInt64? = nil) {
         self.codexPriorityTurnsMemo.withLock { memo in
+            if let observationID, let existing = memo[databaseURL.path],
+               existing.observationID > observationID { return }
             _ = memo.removeValue(forKey: databaseURL.path)
         }
     }
@@ -192,51 +194,12 @@ extension CostUsageScanner {
         }
     }
 
-    static func _test_resetCodexPriorityTurnsMemo() {
-        self.codexPriorityTurnsMemo.withLock { $0.removeAll() }
-        self.codexPriorityTurnsObservationCounter.withLock { $0 = 0 }
-    }
-
     static func _test_resetCodexPriorityTurnsMemo(forPath path: String) {
         self.dropCodexPriorityTurnsMemo(databaseURL: URL(fileURLWithPath: path))
     }
 
     static func _test_codexPriorityTurnsMemoState(forPath path: String) -> CodexPriorityTurnsMemoState? {
         self.codexPriorityTurnsMemo.withLock { $0[path] }
-    }
-
-    static func _test_codexPriorityDatabaseFileIdentity(at url: URL) -> UInt64? {
-        self.codexPriorityDatabaseFileIdentity(at: url)
-    }
-
-    static func _test_accumulateCodexPriorityTurns(
-        _ db: OpaquePointer?,
-        into state: inout CodexPriorityTurnsMemoState) -> Bool
-    {
-        self.accumulateCodexPriorityTurns(db, into: &state)
-    }
-
-    static func _test_codexPriorityAccumulationQuery(
-        _ db: OpaquePointer?,
-        lastRowID: Int64,
-        coverageSinceEpoch: Int64) -> String
-    {
-        self.codexPriorityAccumulationPlan(
-            db,
-            lastRowID: lastRowID,
-            coverageSinceEpoch: coverageSinceEpoch).query
-    }
-
-    static func _test_codexPriorityAnchorSelectionQuery() -> String {
-        self.codexPriorityAnchorSelectionQuery
-    }
-
-    static func _test_codexPriorityAnchorMinimumQuery() -> String {
-        self.codexPriorityAnchorMinimumQuery
-    }
-
-    static func _test_codexPriorityAnchorLookupQuery() -> String {
-        self.codexPriorityAnchorLookupQuery
     }
 
     #if DEBUG
@@ -271,17 +234,6 @@ extension CostUsageScanner {
     /// being replaced, or the requested window expanding earlier than the accumulated
     /// coverage, triggers a full rescan. Windows that end before today keep the original
     /// bounded one-shot query so historical lookups never pay an open-ended scan.
-    static func codexPriorityTurns(
-        databaseURL: URL? = nil,
-        sinceDayKey: String? = nil,
-        untilDayKey: String? = nil) -> [String: CodexPriorityTurnMetadata]
-    {
-        self.resolveCodexPriorityTurns(
-            databaseURL: databaseURL,
-            sinceDayKey: sinceDayKey,
-            untilDayKey: untilDayKey).turns
-    }
-
     static func resolveCodexPriorityTurns(
         databaseURL: URL? = nil,
         sinceDayKey: String? = nil,
@@ -301,15 +253,37 @@ extension CostUsageScanner {
                 untilDayKey: untilDayKey)
         }
 
+        let observationID = self.nextCodexPriorityTurnsObservationID()
         guard let opened = self.openCodexPriorityDatabase(at: url) else {
             return CodexPriorityTurnsResolution(turns: [:], validationPending: true)
         }
-        let db = opened.db
-        let fileIdentity = opened.fileIdentity
-        defer { sqlite3_close(db) }
-        sqlite3_busy_timeout(db, 250)
+        defer { sqlite3_close(opened.db) }
 
-        let observationID = self.nextCodexPriorityTurnsObservationID()
+        let resolution = self.resolveCodexPriorityTurns(
+            opened: opened,
+            observationID: observationID,
+            url: url,
+            sinceDayKey: sinceDayKey,
+            untilDayKey: untilDayKey)
+        guard let idleState = opened.idleState else { return resolution }
+        // An immutable connection neither locks nor detects changes. A writer that appeared during
+        // the read could have checkpointed pages into the main file, so the result is trusted only
+        // when the file and its sidecar state are unchanged afterwards. Anything else stays pending.
+        guard SQLiteIdleDatabaseState.read(at: url) == idleState else {
+            self.dropCodexPriorityTurnsMemo(databaseURL: url, through: observationID)
+            return CodexPriorityTurnsResolution(turns: resolution.turns, validationPending: true)
+        }
+        return resolution
+    }
+
+    private static func resolveCodexPriorityTurns(
+        opened: OpenedCodexPriorityDatabase,
+        observationID: UInt64,
+        url: URL,
+        sinceDayKey: String?,
+        untilDayKey: String?) -> CodexPriorityTurnsResolution
+    {
+        let db = opened.db
         guard let maxRowID = self.maxCodexLogsRowID(db) else {
             return CodexPriorityTurnsResolution(turns: [:], validationPending: true)
         }
@@ -324,7 +298,7 @@ extension CostUsageScanner {
         if let memo = state,
            maxRowID < memo.lastRowID
            || requestedSinceEpoch < memo.coverageSinceEpoch
-           || memo.fileIdentity != fileIdentity
+           || memo.fileIdentity != opened.fileIdentity
         {
             state = nil
         }
@@ -342,7 +316,7 @@ extension CostUsageScanner {
                 observationID: observationID,
                 coverageSinceEpoch: requestedSinceEpoch,
                 lastRowID: 0,
-                fileIdentity: fileIdentity,
+                fileIdentity: opened.fileIdentity,
                 anchorRowID: 0,
                 anchorDigest: "",
                 anchors: [],
@@ -448,13 +422,11 @@ extension CostUsageScanner {
         sinceDayKey: String?,
         untilDayKey: String?) -> CodexPriorityTurnsResolution
     {
-        var db: OpaquePointer?
-        guard sqlite3_open_v2(databaseURL.path, &db, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else {
-            sqlite3_close(db)
+        guard let opened = self.openCodexPriorityDatabase(at: databaseURL) else {
             return CodexPriorityTurnsResolution(turns: [:], validationPending: true)
         }
+        let db = opened.db
         defer { sqlite3_close(db) }
-        sqlite3_busy_timeout(db, 250)
 
         let query = """
         select ts, feedback_log_body
@@ -500,9 +472,13 @@ extension CostUsageScanner {
                 turns[parsed.turnID] = parsed
             }
         }
-        return CodexPriorityTurnsResolution(
+        let resolution = CodexPriorityTurnsResolution(
             turns: turns,
             validationPending: stepResult != SQLITE_DONE)
+        guard let idleState = opened.idleState,
+              SQLiteIdleDatabaseState.read(at: databaseURL) != idleState
+        else { return resolution }
+        return CodexPriorityTurnsResolution(turns: turns, validationPending: true)
     }
 
     private static func maxCodexLogsRowID(_ db: OpaquePointer?) -> Int64? {
@@ -514,9 +490,19 @@ extension CostUsageScanner {
         return sqlite3_column_int64(stmt, 0)
     }
 
+    /// A read-only handle to one trace database. `idleState` is set when the ordinary read-only
+    /// open was declined and the handle reads the main file alone (`immutable=1`); callers compare
+    /// it against `SQLiteIdleDatabaseState.read(at:)` after reading, because an immutable
+    /// connection cannot detect a writer that appears mid-read.
+    struct OpenedCodexPriorityDatabase {
+        let db: OpaquePointer?
+        let fileIdentity: UInt64
+        let idleState: SQLiteIdleDatabaseState?
+    }
+
     static func openCodexPriorityDatabase(
         at url: URL,
-        afterOpen: (() -> Void)? = nil) -> (db: OpaquePointer?, fileIdentity: UInt64)?
+        afterOpen: (() -> Void)? = nil) -> OpenedCodexPriorityDatabase?
     {
         guard let fileIdentity = self.codexPriorityDatabaseFileIdentity(at: url) else { return nil }
         var db: OpaquePointer?
@@ -524,15 +510,50 @@ extension CostUsageScanner {
             sqlite3_close(db)
             return nil
         }
+        // The schema probe below is the first read, so it must already wait out a brief lock.
+        // An immutable fallback handle takes no locks and needs no timeout.
+        sqlite3_busy_timeout(db, 250)
+        var idleState: SQLiteIdleDatabaseState?
+        if !self.codexPriorityDatabaseIsReadable(db) {
+            // Some SQLite builds (Apple's system library among them) decline read-only access to a
+            // WAL database whose -wal and -shm sidecars are absent, because a read-only connection
+            // may not create them. Codex CLI leaves exactly that file behind when it exits. An
+            // absent -wal also means no WAL connection holds the database, so the main file alone
+            // carries the checkpointed state and an immutable connection can read it.
+            let cannotOpen = sqlite3_errcode(db) == SQLITE_CANTOPEN
+            sqlite3_close(db)
+            db = nil
+            guard cannotOpen,
+                  let before = SQLiteIdleDatabaseState.read(at: url),
+                  let uri = SQLiteIdleDatabaseState.immutableURI(for: url),
+                  sqlite3_open_v2(uri, &db, SQLITE_OPEN_READONLY | SQLITE_OPEN_URI, nil) == SQLITE_OK,
+                  self.codexPriorityDatabaseIsReadable(db)
+            else {
+                sqlite3_close(db)
+                return nil
+            }
+            idleState = before
+        }
         afterOpen?()
         guard self.codexPriorityDatabaseFileIdentity(at: url) == fileIdentity else {
             sqlite3_close(db)
             return nil
         }
-        return (db, fileIdentity)
+        return OpenedCodexPriorityDatabase(db: db, fileIdentity: fileIdentity, idleState: idleState)
     }
 
-    private static func codexPriorityDatabaseFileIdentity(at url: URL) -> UInt64? {
+    /// Forces SQLite to read the schema. A read-only open is lazy, so a WAL database without
+    /// sidecars fails here with `SQLITE_CANTOPEN`, not in `sqlite3_open_v2`.
+    private static func codexPriorityDatabaseIsReadable(_ db: OpaquePointer?) -> Bool {
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, "select max(rowid) from logs", -1, &stmt, nil) == SQLITE_OK else {
+            return false
+        }
+        sqlite3_finalize(stmt)
+        return true
+    }
+
+    static func codexPriorityDatabaseFileIdentity(at url: URL) -> UInt64? {
         (try? FileManager.default.attributesOfItem(atPath: url.path))?[.systemFileNumber]
             .flatMap { $0 as? UInt64 }
     }
@@ -548,7 +569,7 @@ extension CostUsageScanner {
         case failed
     }
 
-    private static let codexPriorityAnchorSelectionQuery = """
+    static let codexPriorityAnchorSelectionQuery = """
     select rowid, ts, feedback_log_body
     from logs
     where rowid <= ?
@@ -556,13 +577,13 @@ extension CostUsageScanner {
     limit 1
     """
 
-    private static let codexPriorityAnchorMinimumQuery = """
+    static let codexPriorityAnchorMinimumQuery = """
     select min(rowid)
     from logs
     where rowid <= ?
     """
 
-    private static let codexPriorityAnchorLookupQuery = """
+    static let codexPriorityAnchorLookupQuery = """
     select ts, feedback_log_body
     from logs
     where rowid = ?
@@ -904,7 +925,7 @@ extension CostUsageScanner {
         state.completedTurnIDInsertionOrderStartIndex = 0
     }
 
-    private static func accumulateCodexPriorityTurns(
+    static func accumulateCodexPriorityTurns(
         _ db: OpaquePointer?,
         into state: inout CodexPriorityTurnsMemoState) -> Bool
     {
@@ -955,38 +976,23 @@ extension CostUsageScanner {
         }
     }
 
-    private static func codexPriorityAccumulationPlan(
+    static func codexPriorityAccumulationPlan(
         _ db: OpaquePointer?,
         lastRowID: Int64,
         coverageSinceEpoch: Int64) -> (query: String, usesTimestampIndex: Bool)
     {
-        if lastRowID == 0,
-           coverageSinceEpoch > 0,
-           self.hasCodexLogsTimestampIndex(db)
-        {
-            return (
-                """
-                select rowid, ts, feedback_log_body
-                from logs indexed by idx_logs_ts
-                where ts >= ?
-                  and (feedback_log_body like '%websocket request:%'
-                       or feedback_log_body like '%response.completed%'
-                       or feedback_log_body like '%service_tier: Some(Some("priority"))%')
-                order by rowid
-                """,
-                true)
-        }
+        let usesTimestampIndex = lastRowID == 0 && coverageSinceEpoch > 0 && self.hasCodexLogsTimestampIndex(db)
         return (
             """
             select rowid, ts, feedback_log_body
-            from logs
-            where rowid > ? and ts >= ?
+            from logs \(usesTimestampIndex ? "indexed by idx_logs_ts" : "")
+            where \(usesTimestampIndex ? "" : "rowid > ? and ")ts >= ?
               and (feedback_log_body like '%websocket request:%'
                    or feedback_log_body like '%response.completed%'
                    or feedback_log_body like '%service_tier: Some(Some("priority"))%')
             order by rowid
             """,
-            false)
+            usesTimestampIndex)
     }
 
     private static func hasCodexLogsTimestampIndex(_ db: OpaquePointer?) -> Bool {
@@ -1120,7 +1126,7 @@ extension CostUsageScanner {
     }
 
     private static func nextDayKey(after dayKey: String) -> String {
-        guard let date = self.localDate(forDayKey: dayKey),
+        guard let date = self.localStartOfDay(dayKey, calendar: .current),
               let next = CostUsageScanner.CostUsageDayRange.localGregorianCalendar()
                   .date(byAdding: .day, value: 1, to: date)
         else { return dayKey }
@@ -1128,22 +1134,7 @@ extension CostUsageScanner {
     }
 
     private static func epochSeconds(forDayKey dayKey: String) -> Int64? {
-        guard let date = self.localDate(forDayKey: dayKey) else { return nil }
+        guard let date = self.localStartOfDay(dayKey, calendar: .current) else { return nil }
         return Int64(date.timeIntervalSince1970)
-    }
-
-    private static func localDate(forDayKey dayKey: String) -> Date? {
-        let parts = dayKey.split(separator: "-")
-        guard parts.count == 3,
-              let year = Int(parts[0]),
-              let month = Int(parts[1]),
-              let day = Int(parts[2])
-        else { return nil }
-        var components = DateComponents()
-        components.calendar = CostUsageScanner.CostUsageDayRange.localGregorianCalendar()
-        components.year = year
-        components.month = month
-        components.day = day
-        return components.date
     }
 }

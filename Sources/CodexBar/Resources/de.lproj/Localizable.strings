@@ -619,7 +619,6 @@
 
 /* Display Pane */
 "menu_bar_style_title" = "Menüleistenstil";
-"menu_bar_style_subtitle" = "Legt fest, wie das Menüleistenelement dargestellt wird.";
 "menu_bar_inactive_display_contrast_title" = "Sichtbarkeit auf inaktiven Displays verbessern";
 "menu_bar_inactive_display_contrast_subtitle" = "Verwendet eine kontrastreiche Darstellung, damit Symbol und Messwert auf anderen Displays lesbar bleiben.";
 "menu_bar_style_critters" = "Kreaturen";
@@ -675,6 +674,8 @@
 "overview_rows_follow_order" = "Übersichtszeilen folgen immer der Anbieterreihenfolge.";
 "overview_no_providers_selected" = "Keine Anbieter ausgewählt";
 "agent_sessions_title" = "Agenten-Sitzungen";
+"agent_sessions_remote_title" = "Entfernte Sitzungen (Tailscale / SSH)";
+"agent_sessions_remote_subtitle" = "Entfernte Hosts erkennen und verbinden. Deaktivieren, um nur diesen Mac zu überwachen.";
 "agent_sessions_subtitle" = "Lokale und über SSH erkannte Codex- und Claude-Code-Sitzungen im Menü anzeigen.";
 "agent_sessions_hosts_title" = "Zusätzliche SSH-Hosts";
 "agent_sessions_footer" = "Macs in deinem Tailnet werden automatisch erkannt. Lokale Sitzungen werden alle 30 Sekunden aktualisiert; Remote-Hosts alle 60 Sekunden und beim Öffnen des Menüs.";
@@ -1220,6 +1221,7 @@
 "Password" = "Passwort";
 "%@ authentication is disabled." = "Die %@-Authentifizierung ist deaktiviert.";
 "%@ cookies are disabled." = "%@ Cookies sind deaktiviert.";
+"%@ is unavailable. Edit the widget to choose a provider." = "%@ ist nicht verfügbar. Bearbeite das Widget, um einen Anbieter auszuwählen.";
 "%@ web API access is disabled." = "%@ Web-API-Zugriff ist deaktiviert.";
 "Disable %@ dashboard cookie usage." = "Deaktivieren Sie die Verwendung von Dashboard-Cookies für %@.";
 "Keychain access is disabled in Advanced, so browser cookie import is unavailable." = "Der Schlüsselbundzugriff ist in \"Erweitert\" deaktiviert, daher ist der Browser-Cookie-Import nicht verfügbar.";
@@ -1411,6 +1413,7 @@
 /* Menu bar layout editor */
 "menu_bar_layout_title" = "Layout";
 "menu_bar_layout_footer" = "Ziehe Bausteine, um die Menüleiste anzuordnen. Klicke einen Baustein zum Anhängen an; wähle einen platzierten Baustein und drücke die Löschtaste, um ihn zu entfernen.";
+"menu_bar_layout_footer_requires_icon_and_percent" = "Das Layout gilt nur für den Menüleistenstil „%@“. Wähle diesen Stil oben aus, um es zu bearbeiten.";
 "menu_bar_layout_group_identity" = "Identität";
 "menu_bar_layout_group_usage" = "Verwendung";
 "menu_bar_layout_group_time" = "Zeit";
@@ -1443,6 +1446,7 @@
 "menu_bar_layout_size_regular" = "Normal";
 "menu_bar_layout_size_large" = "Groß";
 "menu_bar_layout_monospaced_digits" = "Ziffern mit gleicher Breite";
+"menu_bar_layout_show_window_labels" = "Zeitfensterbeschriftungen anzeigen";
 "menu_bar_layout_gap" = "Abstand";
 "menu_bar_layout_gap_tight" = "Eng";
 "menu_bar_layout_gap_regular" = "Normal";
@@ -1799,6 +1803,7 @@
 "Details for %@" = "Details für %@";
 "EST. %@" = "GESCH. %@";
 "Enable Antigravity provider" = "Aktivieren Sie den Antigravity-Anbieter";
+"Enable a provider in CodexBar → Settings → Providers." = "Aktiviere einen Anbieter in CodexBar → Einstellungen → Anbieter.";
 "Enable account widgets in CodexBar → Settings → Menu → Widgets. Then edit this widget to choose an account." = "Aktivieren Sie Konto-Widgets unter CodexBar → Einstellungen → Menü → Widgets. Bearbeiten Sie dann dieses Widget, um ein Konto auszuwählen.";
 "Error: %@" = "Fehler: %@";
 "Examples: alt+cmd+2, shift+right. Refresh (cmd+r), Settings (cmd+,) and Quit (cmd+q) are reserved." = "Beispiele: alt+cmd+2, shift+right. Aktualisieren (cmd+r), Einstellungen (cmd+,) und Beenden (cmd+q) sind reserviert.";
@@ -2013,10 +2018,7 @@
 "Top models:" = "Top-Modelle:";
 "Two quota burn-down charts in one tile." = "Zwei Kontingent-Burndown-Diagramme in einer Kachel.";
 "Usage & spend come from your console.groq.com browser session automatically. An API key is optional and only adds Enterprise Prometheus metrics." = "Nutzung und Ausgaben erfolgen automatisch aus Ihrer console.groq.com-Browsersitzung. Ein API-Schlüssel ist optional und fügt nur Enterprise Prometheus Kennzahl hinzu.";
-"Usage data appears after a refresh." = "Nutzungsdaten werden nach einer Aktualisierung angezeigt.";
-"Usage data will appear once the app refreshes." = "Nutzungsdaten werden angezeigt, sobald die App aktualisiert wird.";
 "Usage history chart with recent totals." = "Nutzungsverlaufsdiagramm mit aktuellen Gesamtwerten.";
-"Usage history will appear after a refresh." = "Der Nutzungsverlauf wird nach einer Aktualisierung angezeigt.";
 "Usage limit" = "Nutzungsbeschränkung";
 "Usage limits and reset countdowns for one saved account." = "Nutzungsbeschränkungen und Reset-Countdowns für ein gespeichertes Konto.";
 "Usage widget with a provider switcher." = "Nutzungs-Widget mit Anbieterwechsel.";
@@ -2203,6 +2205,10 @@
 "Stored in ~/.codexbar/config.json. Create one at console.x.ai under Settings > Management Keys; inference API keys are not accepted." = "Gespeichert in ~/.codexbar/config.json. Erstellen Sie einen unter console.x.ai unter Einstellungen > Verwaltungsschlüssel. Inferenzschlüssel API werden nicht akzeptiert.";
 "xai-..." = "xai-...";
 "Team ID" = "Team ID";
+"Vercel access token" = "Vercel-Zugriffstoken";
+"Optional. Shows your personal budget instead of team credits. Saved in CodexBar's local config file. Or set VERCEL_ACCESS_TOKEN." = "Optional. Zeigt Ihr persönliches Budget statt der Team-Guthaben. Wird in der lokalen Konfigurationsdatei von CodexBar gespeichert. Alternativ VERCEL_ACCESS_TOKEN setzen.";
+"Open Vercel tokens" = "Vercel-Tokens öffnen";
+"Required with a Vercel access token. Or set VERCEL_TEAM_ID." = "Zusammen mit einem Vercel-Zugriffstoken erforderlich. Alternativ VERCEL_TEAM_ID setzen.";
 "Required. Shown in the xAI Console URL and team settings." = "Erforderlich. Wird in der xAI-Konsole URL und in den Teameinstellungen angezeigt.";
 "Sakana AI cost summary is not supported." = "Die Kostenübersicht Sakana AI wird nicht unterstützt.";
 "Stored in ~/.codexbar/config.json. Copy the Sakana AI console Cookie request header." = "Gespeichert in ~/.codexbar/config.json. Kopieren Sie den Anforderungsheader der Sakana AI-Konsole Cookie.";
@@ -2461,7 +2467,7 @@
 "spend_performance_cache_help" = "Zwischengespeicherte Eingabe geteilt durch die gesamte Eingabe aller berücksichtigten Gesprächsrunden. Gewichtet nach Eingabetokens; der Anteil der erfassten Runden wird angezeigt.";
 "spend_performance_metric_help" = "Zu diesen Beobachtungen";
 "merged_icon_source_title" = "Quelle des kombinierten Symbols";
-"merged_icon_source_subtitle" = "Wählen Sie, welchen Anbieter das eingeklappte kombinierte Symbol anzeigt.";
+"merged_icon_source_subtitle" = "„Höchste Nutzung“ vergleicht nur Kontingente. Wählen Sie für Anbieter ohne Kontingente „Aktuelle Auswahl“.";
 "merged_icon_source_current_selection" = "Aktuelle Auswahl";
 "merged_icon_source_highest_usage" = "Höchste Nutzung";
 "merged_icon_source_frontmost_app" = "Anbieter-App im Vordergrund";
@@ -2556,7 +2562,7 @@
 "Clear filters" = "Filter löschen";
 "Change provider order" = "Anbieterreihenfolge ändern";
 "Provider sorting" = "Anbietersortierung";
-"Only enabled providers" = "Nur aktivierte Anbieter";
+"Only show enabled providers" = "Nur aktivierte Anbieter anzeigen";
 "Restore default order" = "Standardreihenfolge wiederherstellen";
 "Also restores the provider order in the menu bar. Can be undone." = "Stellt auch die Anbieterreihenfolge in der Menüleiste wieder her. Kann rückgängig gemacht werden.";
 "Local Codex details; excluded from combined totals." = "Lokale Codex-Details; nicht in den kombinierten Summen enthalten.";
@@ -2681,3 +2687,15 @@
 /* Munito provider credentials */
 "Key with Read account data (Admin API) permission. Or set MUNITO_API_KEY." = "Schlüssel mit Berechtigung Kontodaten lesen (Admin API). Oder MUNITO_API_KEY setzen.";
 "Munito reports Admin API spend and limits, not local token cost history." = "Munito meldet Ausgaben und Limits der Admin API, nicht den lokalen Token-Kostenverlauf.";
+
+"Show all accounts in Overview" = "Alle Konten in der Übersicht anzeigen";
+
+"Expand cached account usage. The six-provider limit still applies." = "Ausgewählte Anbieter mit zwischengespeicherten Kontonutzungsdaten aufklappen. Es gilt weiterhin die Grenze von sechs Anbietern.";
+"Edit" = "Bearbeiten";
+"Move up" = "Nach oben";
+"Move down" = "Nach unten";
+"Leave blank to keep the saved credential." = "Leer lassen, um die gespeicherten Zugangsdaten beizubehalten.";
+
+"No personal budget configured" = "Kein persönliches Budget konfiguriert";
+
+"monthly_daily_target_format" = "≈ %@ / Tag, damit es bis zum Zurücksetzen reicht";

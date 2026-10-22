@@ -38,7 +38,8 @@ if args[0]=='cost':
 else:
  usage=state.get('usage',{'identity':{'accountEmail':'private@example.com'},
  'primary':{'usedPercent':40,'windowMinutes':300,'resetsAt':'2030-01-01T00:00:00Z'}})
- print(json.dumps([{'provider':provider,'usage':usage,'rateWindowLabels':state.get('rateWindowLabels'),'pace':state.get('pace'),'resetCredits':state.get('resetCredits'),'status':state.get('status')}]))
+ answered=state.get('answerAs',{}).get(provider,provider)
+ print(json.dumps([{'provider':answered,'usage':usage,'rateWindowLabels':state.get('rateWindowLabels'),'pace':state.get('pace'),'resetCredits':state.get('resetCredits'),'status':state.get('status')}]))
 ''')
         self.fake.chmod(0o755)
         self.log = (self.root / 'desktop.log').open('w+')
@@ -376,6 +377,15 @@ else:
         value = self.wait_for(lambda value: bool(value.get('error')) and not value['busy'])
         self.assertEqual([row['provider'] for row in value['entries']], ['claude', 'codex'])
         self.assertTrue(value['stale'])
+
+    def test_custom_provider_ignores_usage_answered_for_another_provider(self):
+        # An older CLI answers an unrecognised ID with its enabled providers instead of failing.
+        (self.root / 'state.json').write_text('{"answerAs":{"alibabatokenplan":"codex"}}')
+        self.client('--configure', '{"provider":"custom","providerOrder":["codex","alibabatokenplan"]}')
+        value = self.wait_for(lambda value: len(value.get('entries', [])) == 2 and not value['busy'])
+        self.assertEqual([row['provider'] for row in value['entries']], ['codex', 'alibabatokenplan'])
+        self.assertEqual(value['entries'][1]['windows'], [])
+        self.assertEqual(value['entries'][1]['error'], 'Usage unavailable')
 
     def test_selection_change_during_custom_batch(self):
         (self.root / 'state.json').write_text('{"delay":0.3}')

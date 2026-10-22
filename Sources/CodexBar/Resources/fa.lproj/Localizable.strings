@@ -627,7 +627,6 @@
 
 /* Display Pane */
 "menu_bar_style_title" = "سبک نوار منو";
-"menu_bar_style_subtitle" = "نحوه نمایش آیتم نوار منو.";
 "menu_bar_inactive_display_contrast_title" = "بهبود خوانایی در نمایشگرهای غیرفعال";
 "menu_bar_inactive_display_contrast_subtitle" = "از نمایش با کنتراست بالا استفاده می‌کند تا نماد و معیار در نمایشگرهای دیگر خوانا بمانند.";
 "menu_bar_style_critters" = "موجودات";
@@ -681,6 +680,8 @@
 "overview_rows_follow_order" = "ردیف های نمای کلی همیشه مطابق با ترتیب ارائه دهنده انجام می شوند.";
 "overview_no_providers_selected" = "هیچ ارائه دهنده ای انتخاب نشده است";
 "agent_sessions_title" = "جلسات عامل‌ها";
+"agent_sessions_remote_title" = "نشست‌های راه دور (Tailscale / SSH)";
+"agent_sessions_remote_subtitle" = "میزبان‌های راه دور را پیدا کنید و به آن‌ها متصل شوید. برای پایش فقط این Mac، این گزینه را خاموش کنید.";
 "agent_sessions_subtitle" = "جلسات محلی و جلسات Codex و Claude Code یافته‌شده از طریق SSH را در منو نمایش دهید.";
 "agent_sessions_hosts_title" = "میزبان‌های SSH اضافی";
 "agent_sessions_footer" = "مک‌های موجود در tailnet شما به‌طور خودکار شناسایی می‌شوند. جلسات محلی هر ۳۰ ثانیه و میزبان‌های راه دور هر ۶۰ ثانیه و هنگام باز شدن منو تازه‌سازی می‌شوند.";
@@ -1237,6 +1238,7 @@
 "Password" = "رمز عبور";
 "%@ authentication is disabled." = "%@ احراز هویت غیرفعال است.";
 "%@ cookies are disabled." = "%@ کوکی ها غیرفعال هستند.";
+"%@ is unavailable. Edit the widget to choose a provider." = "%@ در دسترس نیست. ویجت را ویرایش کنید تا ارائه‌دهنده را انتخاب کنید.";
 "%@ web API access is disabled." = "دسترسی %@ وب API غیرفعال است.";
 "Disable %@ dashboard cookie usage." = "استفاده %@ از کوکی داشبورد را غیرفعال کنید.";
 "Keychain access is disabled in Advanced, so browser cookie import is unavailable." = "دسترسی Keychain در حالت پیشرفته غیرفعال است، بنابراین وارد کردن کوکی مرورگر در دسترس نیست.";
@@ -1412,6 +1414,7 @@
 /* Menu bar layout editor */
 "menu_bar_layout_title" = "چیدمان";
 "menu_bar_layout_footer" = "نشانه‌ها را برای چیدمان نوار منو بکشید. برای افزودن روی نشانه کلیک کنید؛ نشانهٔ قرارگرفته را انتخاب کنید و برای حذف Delete را بزنید.";
+"menu_bar_layout_footer_requires_icon_and_percent" = "چیدمان فقط برای سبک نوار منو «%@» اعمال می‌شود. برای ویرایش آن، آن سبک را از بالا انتخاب کنید.";
 "menu_bar_layout_group_identity" = "هویت";
 "menu_bar_layout_group_usage" = "کاربرد";
 "menu_bar_layout_group_time" = "زمان";
@@ -1444,6 +1447,7 @@
 "menu_bar_layout_size_regular" = "معمولی";
 "menu_bar_layout_size_large" = "بزرگ";
 "menu_bar_layout_monospaced_digits" = "ارقام هم‌عرض";
+"menu_bar_layout_show_window_labels" = "نمایش برچسب بازه‌ها";
 "menu_bar_layout_gap" = "فاصله";
 "menu_bar_layout_gap_tight" = "فشرده";
 "menu_bar_layout_gap_regular" = "معمولی";
@@ -1801,6 +1805,7 @@
 "Details for %@" = "جزئیات %@";
 "EST. %@" = "تخمینی %@";
 "Enable Antigravity provider" = "ارائه دهنده Antigravity را فعال کنید";
+"Enable a provider in CodexBar → Settings → Providers." = "یک ارائه‌دهنده را در CodexBar → تنظیمات → ارائه‌دهندگان فعال کنید.";
 "Enable account widgets in CodexBar → Settings → Menu → Widgets. Then edit this widget to choose an account." = "ویجت های حساب را در CodexBar → تنظیمات → منو → ابزارک ها فعال کنید. سپس این ویجت را ویرایش کنید تا یک حساب کاربری انتخاب کنید.";
 "Error: %@" = "خطا: %@";
 "Examples: alt+cmd+2, shift+right. Refresh (cmd+r), Settings (cmd+,) and Quit (cmd+q) are reserved." = "مثال: alt+cmd+2، shift+right. بازخوانی (cmd+r)، تنظیمات (cmd+،) و خروج (cmd+q) رزرو شده است.";
@@ -2015,10 +2020,7 @@
 "Top models:" = "مدل های برتر:";
 "Two quota burn-down charts in one tile." = "دو نمودار سوختگی سهمیه در یک کاشی.";
 "Usage & spend come from your console.groq.com browser session automatically. An API key is optional and only adds Enterprise Prometheus metrics." = "استفاده و هزینه از جلسه مرورگر console.groq.com شما به طور خودکار انجام می شود. یک کلید API اختیاری است و فقط Enterprise Prometheus معیار را اضافه می کند.";
-"Usage data appears after a refresh." = "داده‌های استفاده پس از به‌روزرسانی ظاهر می‌شوند.";
-"Usage data will appear once the app refreshes." = "پس از به‌روزرسانی برنامه، داده‌های استفاده ظاهر می‌شوند.";
 "Usage history chart with recent totals." = "نمودار تاریخچه استفاده با مجموع اخیر.";
-"Usage history will appear after a refresh." = "سابقه استفاده پس از به‌روزرسانی ظاهر می‌شود.";
 "Usage limit" = "محدودیت استفاده";
 "Usage limits and reset countdowns for one saved account." = "محدودیت های استفاده و بازنشانی شمارش معکوس برای یک حساب ذخیره شده.";
 "Usage widget with a provider switcher." = "استفاده از ویجت با تغییر دهنده ارائه دهنده.";
@@ -2205,6 +2207,10 @@
 "Stored in ~/.codexbar/config.json. Create one at console.x.ai under Settings > Management Keys; inference API keys are not accepted." = "ذخیره شده در ~/.codexbar/config.json. یکی را در console.x.ai در زیر تنظیمات > کلیدهای مدیریت ایجاد کنید. کلیدهای استنتاج API پذیرفته نمی شوند.";
 "xai-..." = "xai-...";
 "Team ID" = "تیم ID";
+"Vercel access token" = "توکن دسترسی Vercel";
+"Optional. Shows your personal budget instead of team credits. Saved in CodexBar's local config file. Or set VERCEL_ACCESS_TOKEN." = "اختیاری. به‌جای اعتبار تیم، بودجهٔ شخصی شما را نشان می‌دهد. در فایل پیکربندی محلی CodexBar ذخیره می‌شود. یا VERCEL_ACCESS_TOKEN را تنظیم کنید.";
+"Open Vercel tokens" = "باز کردن توکن‌های Vercel";
+"Required with a Vercel access token. Or set VERCEL_TEAM_ID." = "همراه با توکن دسترسی Vercel لازم است. یا VERCEL_TEAM_ID را تنظیم کنید.";
 "Required. Shown in the xAI Console URL and team settings." = "مورد نیاز. در کنسول xAI URL و تنظیمات تیم نشان داده شده است.";
 "Sakana AI cost summary is not supported." = "خلاصه هزینه Sakana AI پشتیبانی نمی شود.";
 "Stored in ~/.codexbar/config.json. Copy the Sakana AI console Cookie request header." = "ذخیره شده در ~/.codexbar/config.json. هدر درخواست کنسول Sakana AI Cookie را کپی کنید.";
@@ -2463,7 +2469,7 @@
 "spend_performance_cache_help" = "ورودی ذخیره‌شده در حافظهٔ پنهان تقسیم بر کل ورودی در نوبت‌های واجد شرایط. نتیجه بر اساس تعداد توکن‌های ورودی وزن‌دهی می‌شود و پوشش نمونه‌ها نیز نمایش داده می‌شود.";
 "spend_performance_metric_help" = "دربارهٔ این مشاهدات";
 "merged_icon_source_title" = "منبع نماد ترکیبی";
-"merged_icon_source_subtitle" = "انتخاب کنید نماد ترکیبی در حالت جمع‌شده کدام ارائه‌دهنده را نشان دهد.";
+"merged_icon_source_subtitle" = "«بیشترین استفاده» فقط سهمیه‌ها را مقایسه می‌کند. برای ارائه‌دهندگان بدون سهمیه، از «انتخاب فعلی» استفاده کنید.";
 "merged_icon_source_current_selection" = "انتخاب فعلی";
 "merged_icon_source_highest_usage" = "بیشترین استفاده";
 "merged_icon_source_frontmost_app" = "برنامه ارائه‌دهنده در پیش‌زمینه";
@@ -2562,7 +2568,7 @@
 "Clear filters" = "پاک کردن فیلترها";
 "Change provider order" = "تغییر ترتیب ارائه‌دهندگان";
 "Provider sorting" = "مرتب‌سازی ارائه‌دهندگان";
-"Only enabled providers" = "فقط ارائه‌دهندگان فعال";
+"Only show enabled providers" = "نمایش فقط ارائه‌دهندگان فعال";
 "Restore default order" = "بازیابی ترتیب پیش‌فرض";
 "Also restores the provider order in the menu bar. Can be undone." = "ترتیب ارائه‌دهندگان در نوار منو را نیز بازیابی می‌کند. قابل واگرد است.";
 "Local Codex details; excluded from combined totals." = "جزئیات محلی Codex؛ از مجموع‌های ترکیبی مستثنا شده‌اند.";
@@ -2687,3 +2693,15 @@
 /* Munito provider credentials */
 "Key with Read account data (Admin API) permission. Or set MUNITO_API_KEY." = "کلید با مجوز خواندن داده‌های حساب (Admin API). یا MUNITO_API_KEY را تنظیم کنید.";
 "Munito reports Admin API spend and limits, not local token cost history." = "Munito هزینه و محدودیت‌های Admin API را گزارش می‌کند، نه تاریخچه هزینه توکن محلی را.";
+
+"Show all accounts in Overview" = "نمایش همهٔ حساب‌ها در نمای کلی";
+
+"Expand cached account usage. The six-provider limit still applies." = "ارائه‌دهندگان انتخاب‌شده را با داده‌های مصرف ذخیره‌شدهٔ حساب‌ها گسترش دهید. محدودیت شش ارائه‌دهنده همچنان برقرار است.";
+"Edit" = "ویرایش";
+"Move up" = "انتقال به بالا";
+"Move down" = "انتقال به پایین";
+"Leave blank to keep the saved credential." = "برای حفظ اطلاعات ورود ذخیره‌شده، خالی بگذارید.";
+
+"No personal budget configured" = "بودجهٔ شخصی تنظیم نشده است";
+
+"monthly_daily_target_format" = "≈ %@ در روز برای دوام تا زمان ریست";

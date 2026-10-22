@@ -57,6 +57,11 @@ struct ProviderCostContent: View {
                     Text(personalSpendLine)
                         .font(.footnote).foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted)).lineLimit(1)
                 }
+                if let target = self.section.dailyTargetText {
+                    Text(target)
+                        .font(.footnote).foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
+                        .lineLimit(2).fixedSize(horizontal: false, vertical: true)
+                }
             }
         }
     }

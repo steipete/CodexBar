@@ -621,7 +621,6 @@
 
 /* Display Pane */
 "menu_bar_style_title" = "Style de la barre de menus";
-"menu_bar_style_subtitle" = "Définit l’apparence de l’élément dans la barre de menus.";
 "menu_bar_inactive_display_contrast_title" = "Améliorer la visibilité sur les écrans inactifs";
 "menu_bar_inactive_display_contrast_subtitle" = "Utilise un rendu à contraste élevé pour que l’icône et la mesure restent lisibles sur les autres écrans.";
 "menu_bar_style_critters" = "Créatures";
@@ -675,6 +674,8 @@
 "overview_rows_follow_order" = "Les lignes de présentation suivent toujours l’ordre des fournisseurs.";
 "overview_no_providers_selected" = "Aucun fournisseur sélectionné";
 "agent_sessions_title" = "Sessions d’agents";
+"agent_sessions_remote_title" = "Sessions distantes (Tailscale / SSH)";
+"agent_sessions_remote_subtitle" = "Détectez les hôtes distants et connectez-vous à eux. Désactivez cette option pour surveiller uniquement ce Mac.";
 "agent_sessions_subtitle" = "Afficher dans le menu les sessions Codex et Claude Code locales et découvertes via SSH.";
 "agent_sessions_hosts_title" = "Hôtes SSH supplémentaires";
 "agent_sessions_footer" = "Les Mac de votre tailnet sont découverts automatiquement. Les sessions locales s’actualisent toutes les 30 secondes ; les hôtes distants toutes les 60 secondes et à l’ouverture du menu.";
@@ -1220,6 +1221,7 @@
 "Password" = "Mot de passe";
 "%@ authentication is disabled." = "L'authentification %@ est désactivée.";
 "%@ cookies are disabled." = "Les cookies %@ sont désactivés.";
+"%@ is unavailable. Edit the widget to choose a provider." = "%@ n’est pas disponible. Modifiez le widget pour choisir un fournisseur.";
 "%@ web API access is disabled." = "L'accès à l'API Web %@ est désactivé.";
 "Disable %@ dashboard cookie usage." = "Désactivez l'utilisation des cookies du tableau de bord %@.";
 "Keychain access is disabled in Advanced, so browser cookie import is unavailable." = "L'accès au Trousseau est désactivé dans Advanced, donc l'importation des cookies du navigateur n'est pas disponible.";
@@ -1408,6 +1410,7 @@
 /* Menu bar layout editor */
 "menu_bar_layout_title" = "Disposition";
 "menu_bar_layout_footer" = "Faites glisser les jetons pour organiser la barre des menus. Cliquez sur un jeton pour l’ajouter ; sélectionnez un jeton placé et appuyez sur Supprimer pour le retirer.";
+"menu_bar_layout_footer_requires_icon_and_percent" = "La disposition s’applique uniquement au style de la barre de menus « %@ ». Choisissez ce style ci-dessus pour la modifier.";
 "menu_bar_layout_group_identity" = "Identité";
 "menu_bar_layout_group_usage" = "Utilisation";
 "menu_bar_layout_group_time" = "Temps";
@@ -1440,6 +1443,7 @@
 "menu_bar_layout_size_regular" = "Normale";
 "menu_bar_layout_size_large" = "Grande";
 "menu_bar_layout_monospaced_digits" = "Chiffres à chasse fixe";
+"menu_bar_layout_show_window_labels" = "Afficher les libellés des périodes";
 "menu_bar_layout_gap" = "Espacement";
 "menu_bar_layout_gap_tight" = "Serré";
 "menu_bar_layout_gap_regular" = "Normale";
@@ -1796,6 +1800,7 @@
 "Details for %@" = "Détails pour %@";
 "EST. %@" = "Estimation %@";
 "Enable Antigravity provider" = "Activer le fournisseur Antigravity";
+"Enable a provider in CodexBar → Settings → Providers." = "Activez un fournisseur dans CodexBar → Réglages → Fournisseurs.";
 "Enable account widgets in CodexBar → Settings → Menu → Widgets. Then edit this widget to choose an account." = "Activez les widgets de compte dans CodexBar → Paramètres → Menu → Widgets. Modifiez ensuite ce widget pour choisir un compte.";
 "Error: %@" = "Erreur : %@";
 "Examples: alt+cmd+2, shift+right. Refresh (cmd+r), Settings (cmd+,) and Quit (cmd+q) are reserved." = "Exemples : alt+cmd+2, shift+right. Actualiser (cmd+r), Paramètres (cmd+,) et Quitter (cmd+q) sont réservés.";
@@ -2010,10 +2015,7 @@
 "Top models:" = "Top modèles :";
 "Two quota burn-down charts in one tile." = "Deux graphiques de réduction des quotas dans une seule vignette.";
 "Usage & spend come from your console.groq.com browser session automatically. An API key is optional and only adds Enterprise Prometheus metrics." = "L'utilisation et les dépenses proviennent automatiquement de votre session de navigateur console.groq.com. Une clé API est facultative et ajoute uniquement Enterprise Prometheus Indicateur.";
-"Usage data appears after a refresh." = "Les données d'utilisation apparaissent après une actualisation.";
-"Usage data will appear once the app refreshes." = "Les données d'utilisation apparaîtront une fois l'application actualisée.";
 "Usage history chart with recent totals." = "Graphique de l'historique d'utilisation avec les totaux récents.";
-"Usage history will appear after a refresh." = "L'historique d'utilisation apparaîtra après une actualisation.";
 "Usage limit" = "Limite d'utilisation";
 "Usage limits and reset countdowns for one saved account." = "Limites d'utilisation et réinitialisation des comptes à rebours pour un compte enregistré.";
 "Usage widget with a provider switcher." = "Widget d'utilisation avec un sélecteur de fournisseur.";
@@ -2200,6 +2202,10 @@
 "Stored in ~/.codexbar/config.json. Create one at console.x.ai under Settings > Management Keys; inference API keys are not accepted." = "Stocké dans ~/.codexbar/config.json. Créez-en un sur console.x.ai sous Paramètres > Clés de gestion ; Les clés d'inférence API ne sont pas acceptées.";
 "xai-..." = "xai-...";
 "Team ID" = "Équipe ID";
+"Vercel access token" = "Jeton d'accès Vercel";
+"Optional. Shows your personal budget instead of team credits. Saved in CodexBar's local config file. Or set VERCEL_ACCESS_TOKEN." = "Facultatif. Affiche votre budget personnel au lieu des crédits de l'équipe. Enregistré dans le fichier de configuration local de CodexBar. Ou définissez VERCEL_ACCESS_TOKEN.";
+"Open Vercel tokens" = "Ouvrir les jetons Vercel";
+"Required with a Vercel access token. Or set VERCEL_TEAM_ID." = "Requis avec un jeton d'accès Vercel. Ou définissez VERCEL_TEAM_ID.";
 "Required. Shown in the xAI Console URL and team settings." = "Obligatoire. Affiché dans la console xAI URL et les paramètres d'équipe.";
 "Sakana AI cost summary is not supported." = "Le récapitulatif des coûts Sakana AI n’est pas pris en charge.";
 "Stored in ~/.codexbar/config.json. Copy the Sakana AI console Cookie request header." = "Stocké dans ~/.codexbar/config.json. Copiez l'en-tête de requête Cookie de la console Sakana AI.";
@@ -2458,7 +2464,7 @@
 "spend_performance_cache_help" = "Entrée en cache divisée par l’entrée totale sur les tours de dialogue admissibles. Pondération par les tokens d’entrée, avec affichage de la couverture des échantillons.";
 "spend_performance_metric_help" = "À propos de ces observations";
 "merged_icon_source_title" = "Source de l’icône combinée";
-"merged_icon_source_subtitle" = "Choisissez le fournisseur affiché par l’icône combinée réduite.";
+"merged_icon_source_subtitle" = "« Utilisation la plus élevée » compare uniquement les quotas. Pour les fournisseurs sans quota, utilisez « Sélection actuelle ».";
 "merged_icon_source_current_selection" = "Sélection actuelle";
 "merged_icon_source_highest_usage" = "Utilisation la plus élevée";
 "merged_icon_source_frontmost_app" = "Application du fournisseur au premier plan";
@@ -2557,7 +2563,7 @@
 "Clear filters" = "Effacer les filtres";
 "Change provider order" = "Modifier l’ordre des fournisseurs";
 "Provider sorting" = "Tri des fournisseurs";
-"Only enabled providers" = "Fournisseurs activés uniquement";
+"Only show enabled providers" = "Afficher uniquement les fournisseurs activés";
 "Restore default order" = "Rétablir l’ordre par défaut";
 "Also restores the provider order in the menu bar. Can be undone." = "Rétablit aussi l’ordre des fournisseurs dans la barre des menus. Cette action peut être annulée.";
 "Local Codex details; excluded from combined totals." = "Détails Codex locaux ; exclus des totaux combinés.";
@@ -2682,3 +2688,15 @@
 /* Munito provider credentials */
 "Key with Read account data (Admin API) permission. Or set MUNITO_API_KEY." = "Clé avec la permission Lecture des données du compte (Admin API). Ou définissez MUNITO_API_KEY.";
 "Munito reports Admin API spend and limits, not local token cost history." = "Munito signale les dépenses et limites de l'API Admin, pas l'historique local des coûts de jetons.";
+
+"Show all accounts in Overview" = "Afficher tous les comptes dans la vue d’ensemble";
+
+"Expand cached account usage. The six-provider limit still applies." = "Développe les fournisseurs sélectionnés avec les données d’utilisation des comptes en cache. La limite de six fournisseurs reste applicable.";
+"Edit" = "Modifier";
+"Move up" = "Monter";
+"Move down" = "Descendre";
+"Leave blank to keep the saved credential." = "Laissez ce champ vide pour conserver les identifiants enregistrés.";
+
+"No personal budget configured" = "Aucun budget personnel configuré";
+
+"monthly_daily_target_format" = "≈ %@ / jour pour tenir jusqu’à la réinitialisation";

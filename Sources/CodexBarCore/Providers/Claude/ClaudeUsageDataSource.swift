@@ -22,17 +22,6 @@ public enum ClaudeUsageDataSource: String, CaseIterable, Identifiable, Sendable 
     }
 
     public var sourceLabel: String {
-        switch self {
-        case .auto:
-            "auto"
-        case .api:
-            "api"
-        case .oauth:
-            "oauth"
-        case .web:
-            "web"
-        case .cli:
-            "cli"
-        }
+        self.rawValue
     }
 }

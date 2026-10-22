@@ -31,16 +31,11 @@ extension WidgetSnapshot {
     /// Explicit selections fail closed on removal, disabled providers, or a mismatched provider.
     public func selectingAccount(_ accountID: String, for provider: UsageProvider) -> WidgetSnapshot {
         let account = self.account(id: accountID, provider: provider.instanceID)
-        var entries = self.entries.filter { $0.provider != provider.instanceID }
+        var selected = self
+        selected.entries.removeAll { $0.provider == provider.instanceID }
         if let usage = account?.usage, usage.provider == provider.instanceID {
-            entries.append(usage)
+            selected.entries.append(usage)
         }
-        return WidgetSnapshot(
-            entries: entries,
-            accounts: self.accounts,
-            accountOverflowCounts: self.accountOverflowCounts,
-            enabledProviders: self.enabledProviders,
-            usageBarsShowUsed: self.usageBarsShowUsed,
-            generatedAt: self.generatedAt)
+        return selected
     }
 }

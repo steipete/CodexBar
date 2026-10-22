@@ -609,7 +609,6 @@
 
 /* Display Pane */
 "menu_bar_style_title" = "Menu bar style";
-"menu_bar_style_subtitle" = "How the menu bar item is drawn.";
 "menu_bar_inactive_display_contrast_title" = "Improve visibility on inactive displays";
 "menu_bar_inactive_display_contrast_subtitle" = "Use high-contrast rendering to keep the icon and metric readable on other displays.";
 "menu_bar_style_critters" = "Critters";
@@ -663,6 +662,8 @@
 "overview_rows_follow_order" = "Overview rows always follow provider order.";
 "overview_no_providers_selected" = "No providers selected";
 "agent_sessions_title" = "Agent sessions";
+"agent_sessions_remote_title" = "Remote sessions (Tailscale / SSH)";
+"agent_sessions_remote_subtitle" = "Discover and connect to remote hosts. Turn off to monitor only this Mac.";
 "agent_sessions_subtitle" = "Show local and SSH-discovered Codex and Claude Code sessions in the menu.";
 "agent_sessions_hosts_title" = "Additional SSH hosts";
 "agent_sessions_hide_unreachable_title" = "Hide unreachable hosts";
@@ -1221,6 +1222,7 @@
 "Password" = "Password";
 "%@ authentication is disabled." = "%@ authentication is disabled.";
 "%@ cookies are disabled." = "%@ cookies are disabled.";
+"%@ is unavailable. Edit the widget to choose a provider." = "%@ is unavailable. Edit the widget to choose a provider.";
 "%@ web API access is disabled." = "%@ web API access is disabled.";
 "Disable %@ dashboard cookie usage." = "Disable %@ dashboard cookie usage.";
 "Keychain access is disabled in Advanced, so browser cookie import is unavailable." = "Keychain access is disabled in Advanced, so browser cookie import is unavailable.";
@@ -1420,6 +1422,7 @@
 /* Menu bar layout editor */
 "menu_bar_layout_title" = "Layout";
 "menu_bar_layout_footer" = "Drag tokens to arrange the menu bar. Click a token to append it; select a placed token and press Delete to remove it.";
+"menu_bar_layout_footer_requires_icon_and_percent" = "Layout applies only to the “%@” menu bar style. Choose that style above to edit it.";
 "menu_bar_layout_group_identity" = "Identity";
 "menu_bar_layout_group_usage" = "Usage";
 "menu_bar_layout_group_time" = "Time";
@@ -1452,6 +1455,7 @@
 "menu_bar_layout_size_regular" = "Regular";
 "menu_bar_layout_size_large" = "Large";
 "menu_bar_layout_monospaced_digits" = "Monospaced digits";
+"menu_bar_layout_show_window_labels" = "Show window labels";
 "menu_bar_layout_gap" = "Gap";
 "menu_bar_layout_gap_tight" = "Tight";
 "menu_bar_layout_gap_regular" = "Regular";
@@ -1801,6 +1805,7 @@
 "Details for %@" = "Details for %@";
 "EST. %@" = "EST. %@";
 "Enable Antigravity provider" = "Enable Antigravity provider";
+"Enable a provider in CodexBar → Settings → Providers." = "Enable a provider in CodexBar → Settings → Providers.";
 "Enable account widgets in CodexBar → Settings → Menu → Widgets. Then edit this widget to choose an account." = "Enable account widgets in CodexBar → Settings → Menu → Widgets. Then edit this widget to choose an account.";
 "Error: %@" = "Error: %@";
 "Examples: alt+cmd+2, shift+right. Refresh (cmd+r), Settings (cmd+,) and Quit (cmd+q) are reserved." = "Examples: alt+cmd+2, shift+right. Refresh (cmd+r), Settings (cmd+,) and Quit (cmd+q) are reserved.";
@@ -2015,10 +2020,7 @@
 "Top models:" = "Top models:";
 "Two quota burn-down charts in one tile." = "Two quota burn-down charts in one tile.";
 "Usage & spend come from your console.groq.com browser session automatically. An API key is optional and only adds Enterprise Prometheus metrics." = "Usage & spend come from your console.groq.com browser session automatically. An API key is optional and only adds Enterprise Prometheus metrics.";
-"Usage data appears after a refresh." = "Usage data appears after a refresh.";
-"Usage data will appear once the app refreshes." = "Usage data will appear once the app refreshes.";
 "Usage history chart with recent totals." = "Usage history chart with recent totals.";
-"Usage history will appear after a refresh." = "Usage history will appear after a refresh.";
 "Usage limit" = "Usage limit";
 "Usage limits and reset countdowns for one saved account." = "Usage limits and reset countdowns for one saved account.";
 "Usage widget with a provider switcher." = "Usage widget with a provider switcher.";
@@ -2205,6 +2207,10 @@
 "Stored in ~/.codexbar/config.json. Create one at console.x.ai under Settings > Management Keys; inference API keys are not accepted." = "Stored in ~/.codexbar/config.json. Create one at console.x.ai under Settings > Management Keys; inference API keys are not accepted.";
 "xai-..." = "xai-...";
 "Team ID" = "Team ID";
+"Vercel access token" = "Vercel access token";
+"Optional. Shows your personal budget instead of team credits. Saved in CodexBar's local config file. Or set VERCEL_ACCESS_TOKEN." = "Optional. Shows your personal budget instead of team credits. Saved in CodexBar's local config file. Or set VERCEL_ACCESS_TOKEN.";
+"Open Vercel tokens" = "Open Vercel tokens";
+"Required with a Vercel access token. Or set VERCEL_TEAM_ID." = "Required with a Vercel access token. Or set VERCEL_TEAM_ID.";
 "Required. Shown in the xAI Console URL and team settings." = "Required. Shown in the xAI Console URL and team settings.";
 "Sakana AI cost summary is not supported." = "Sakana AI cost summary is not supported.";
 "Stored in ~/.codexbar/config.json. Copy the Sakana AI console Cookie request header." = "Stored in ~/.codexbar/config.json. Copy the Sakana AI console Cookie request header.";
@@ -2463,7 +2469,7 @@
 "spend_performance_cache_help" = "Cached input divided by total input across eligible turns. Weighted by input tokens, with sample coverage shown.";
 "spend_performance_metric_help" = "About these observations";
 "merged_icon_source_title" = "Combined icon source";
-"merged_icon_source_subtitle" = "Choose which provider the collapsed combined icon shows.";
+"merged_icon_source_subtitle" = "Highest usage compares quotas only. For providers without quotas, use Current selection.";
 "merged_icon_source_current_selection" = "Current selection";
 "merged_icon_source_highest_usage" = "Highest usage";
 "merged_icon_source_frontmost_app" = "Frontmost provider app";
@@ -2561,7 +2567,7 @@
 "Clear filters" = "Clear filters";
 "Change provider order" = "Change provider order";
 "Provider sorting" = "Provider sorting";
-"Only enabled providers" = "Only enabled providers";
+"Only show enabled providers" = "Only show enabled providers";
 "Restore default order" = "Restore default order";
 "Also restores the provider order in the menu bar. Can be undone." = "Also restores the provider order in the menu bar. Can be undone.";
 "Local Codex details; excluded from combined totals." = "Local Codex details; excluded from combined totals.";
@@ -2688,3 +2694,15 @@
 /* Munito provider credentials */
 "Key with Read account data (Admin API) permission. Or set MUNITO_API_KEY." = "Key with Read account data (Admin API) permission. Or set MUNITO_API_KEY.";
 "Munito reports Admin API spend and limits, not local token cost history." = "Munito reports Admin API spend and limits, not local token cost history.";
+
+"Show all accounts in Overview" = "Show all accounts in Overview";
+
+"Expand cached account usage. The six-provider limit still applies." = "Expand cached account usage. The six-provider limit still applies.";
+"Edit" = "Edit";
+"Move up" = "Move up";
+"Move down" = "Move down";
+"Leave blank to keep the saved credential." = "Leave blank to keep the saved credential.";
+
+"No personal budget configured" = "No personal budget configured";
+
+"monthly_daily_target_format" = "≈ %@ / day to last until reset";

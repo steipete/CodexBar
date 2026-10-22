@@ -42,6 +42,25 @@ struct ClaudeSourcePlannerTests {
     }
 
     @Test
+    func `CLI auto plan prefers OAuth over CLI when web session is unavailable`() {
+        let plan = ClaudeSourcePlanner.resolve(input: ClaudeSourcePlanningInput(
+            runtime: .cli,
+            selectedDataSource: .auto,
+            webExtrasEnabled: false,
+            hasWebSession: false,
+            hasCLI: true,
+            hasOAuthCredentials: true))
+
+        #expect(plan.orderedSteps.map(\.inclusionReason) == [
+            .cliAutoPreferredWeb,
+            .cliAutoFallbackOAuth,
+            .cliAutoFallbackCLI,
+        ])
+        #expect(plan.availableSteps.map(\.dataSource) == [.oauth, .cli])
+        #expect(plan.preferredStep?.dataSource == .oauth)
+    }
+
+    @Test
     func `explicit mode plan is single step`() {
         let plan = ClaudeSourcePlanner.resolve(input: ClaudeSourcePlanningInput(
             runtime: .app,

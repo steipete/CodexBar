@@ -79,8 +79,8 @@ struct LimitResetCreditsPresentation: Equatable {
             return LimitResetCreditPresentationItem(expiryText: L("No expiry"), compactExpiryText: L("No expiry"))
         }
         let formattedTime = Self.formattedTime(expiresAt, resetStyle: resetStyle, now: now)
-        let compactExpiryText = resetStyle == .countdown && formattedTime.hasPrefix("in ")
-            ? String(formattedTime.dropFirst(3))
+        let compactExpiryText = resetStyle == .countdown
+            ? L(UsageFormatter.resetCountdownDuration(from: expiresAt, now: now))
             : formattedTime
         return LimitResetCreditPresentationItem(
             expiryText: String(format: L("Expires %@"), formattedTime),
@@ -94,10 +94,9 @@ struct LimitResetCreditsPresentation: Equatable {
     {
         switch resetStyle {
         case .absolute:
-            return UsageFormatter.resetDescription(from: expiresAt, now: now)
+            UsageFormatter.resetDescription(from: expiresAt, now: now)
         case .countdown:
-            let countdown = UsageFormatter.resetCountdownDescription(from: expiresAt, now: now)
-            return countdown == "now" ? L("now") : countdown
+            UsageFormatter.resetCountdownDescription(from: expiresAt, now: now)
         }
     }
 }

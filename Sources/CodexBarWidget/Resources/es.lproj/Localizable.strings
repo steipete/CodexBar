@@ -2,6 +2,7 @@
 "%@ %@" = "%@ %@";
 "%@ API est. · not billed" = "%@ API est. · no facturado";
 "%@ cost" = "Coste %@";
+"%@ is unavailable. Edit the widget to choose a provider." = "%@ no está disponible. Edita el widget para elegir un proveedor.";
 "%@ left" = "Queda %@";
 "%@ tokens" = "Fichas %@";
 "%@ used" = "%@ usado";
@@ -75,6 +76,7 @@
 "Daily usage" = "Uso diario";
 "Deployment" = "Despliegue";
 "Edit predictions" = "Editar predicciones";
+"Enable a provider in CodexBar → Settings → Providers." = "Activa un proveedor en CodexBar → Ajustes → Proveedores.";
 "Enable account widgets in CodexBar → Settings → Menu → Widgets. Then edit this widget to choose an account." = "Habilite los widgets de la cuenta en CodexBar → Configuración → Menú → Widgets. Luego edite este widget para elegir una cuenta.";
 "Extra usage" = "Uso adicional";
 "Extra usage balance" = "Saldo de uso adicional";
@@ -164,10 +166,7 @@
 "Two quota burn-down charts in one tile." = "Dos gráficos de evolución Cuota en un mosaico.";
 "Unavailable account" = "Cuenta: No disponible";
 "Usage" = "Uso";
-"Usage data appears after a refresh." = "Los datos de uso aparecen después de una actualización.";
-"Usage data will appear once the app refreshes." = "Los datos de uso aparecerán una vez que se actualice la aplicación.";
 "Usage history chart with recent totals." = "Cuadro de historial de uso con totales recientes.";
-"Usage history will appear after a refresh." = "El historial de uso aparecerá después de una actualización.";
 "Usage limit" = "Límite de uso";
 "Usage limits and reset countdowns for one saved account." = "Límites de uso y restablecimiento de cuentas regresivas para una cuenta guardada.";
 "Usage widget with a provider switcher." = "Widget de uso con un conmutador de proveedores.";

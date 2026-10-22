@@ -627,7 +627,6 @@
 
 /* Display Pane */
 "menu_bar_style_title" = "نمط شريط القوائم";
-"menu_bar_style_subtitle" = "كيفية رسم عنصر شريط القوائم.";
 "menu_bar_inactive_display_contrast_title" = "تحسين الوضوح على الشاشات غير النشطة";
 "menu_bar_inactive_display_contrast_subtitle" = "استخدم عرضًا عالي التباين لإبقاء الأيقونة والمقياس قابلين للقراءة على الشاشات الأخرى.";
 "menu_bar_style_critters" = "الكائنات الصغيرة";
@@ -681,6 +680,8 @@
 "overview_rows_follow_order" = "الصفوف العامة دائما تتبع ترتيب مقدم الخدمة.";
 "overview_no_providers_selected" = "لم يتم اختيار أي مقدمي خدمة";
 "agent_sessions_title" = "جلسات الوكلاء";
+"agent_sessions_remote_title" = "الجلسات البعيدة (Tailscale / SSH)";
+"agent_sessions_remote_subtitle" = "اكتشف الأجهزة البعيدة واتصل بها. عطّل الخيار لمراقبة هذا الـ Mac فقط.";
 "agent_sessions_subtitle" = "إظهار جلسات Codex وClaude Code المحلية والمكتشفة عبر SSH في القائمة.";
 "agent_sessions_hosts_title" = "مضيفو SSH إضافيون";
 "agent_sessions_footer" = "يتم اكتشاف أجهزة Mac على شبكة tailnet تلقائيًا. يتم تحديث الجلسات المحلية كل 30 ثانية؛ والمضيفون البعيدون كل 60 ثانية وعند فتح القائمة.";
@@ -1237,6 +1238,7 @@
 "Password" = "كلمة المرور";
 "%@ authentication is disabled." = "%@ المصادقة معطلة.";
 "%@ cookies are disabled." = "%@ ملفات تعريف الارتباط معطلة.";
+"%@ is unavailable. Edit the widget to choose a provider." = "%@ غير متاح. حرِّر الأداة لاختيار مزوِّد.";
 "%@ web API access is disabled." = "%@ الوصول إلى API الويب معطل.";
 "Disable %@ dashboard cookie usage." = "قم بتعطيل استخدام ملفات تعريف الارتباط %@ لوحة التحكم.";
 "Keychain access is disabled in Advanced, so browser cookie import is unavailable." = "Keychain الوصول معطل في القسم المتقدم، لذا فإن استيراد ملفات تعريف الارتباط من المتصفح غير متاح.";
@@ -1412,6 +1414,7 @@
 /* Menu bar layout editor */
 "menu_bar_layout_title" = "التخطيط";
 "menu_bar_layout_footer" = "اسحب العناصر لترتيب شريط القوائم. انقر على عنصر لإضافته؛ حدّد عنصراً موضوعاً واضغط Delete لإزالته.";
+"menu_bar_layout_footer_requires_icon_and_percent" = "لا ينطبق التخطيط إلا على نمط شريط القوائم «%@». اختر هذا النمط أعلاه لتحريره.";
 "menu_bar_layout_group_identity" = "الهوية";
 "menu_bar_layout_group_usage" = "الاستخدام";
 "menu_bar_layout_group_time" = "الوقت";
@@ -1444,6 +1447,7 @@
 "menu_bar_layout_size_regular" = "عادي";
 "menu_bar_layout_size_large" = "كبير";
 "menu_bar_layout_monospaced_digits" = "أرقام متساوية العرض";
+"menu_bar_layout_show_window_labels" = "إظهار تسميات الفترات";
 "menu_bar_layout_gap" = "المسافة";
 "menu_bar_layout_gap_tight" = "ضيّق";
 "menu_bar_layout_gap_regular" = "عادي";
@@ -1801,6 +1805,7 @@
 "Details for %@" = "تفاصيل عن %@";
 "EST. %@" = "تقدير: %@";
 "Enable Antigravity provider" = "تمكين مزود Antigravity";
+"Enable a provider in CodexBar → Settings → Providers." = "فعِّل مزوِّدًا في CodexBar → الإعدادات → المزوِّدين.";
 "Enable account widgets in CodexBar → Settings → Menu → Widgets. Then edit this widget to choose an account." = "قم بتمكين أدوات الحساب في CodexBar → الإعدادات → القائمة → الأدوات. ثم قم بتحرير هذه القطعة لاختيار حساب.";
 "Error: %@" = "خطأ: %@";
 "Examples: alt+cmd+2, shift+right. Refresh (cmd+r), Settings (cmd+,) and Quit (cmd+q) are reserved." = "أمثلة: alt+cmd+2، shift+right. التحديث (cmd+r)، والإعدادات (cmd+،) والخروج (cmd+q) محجوزة.";
@@ -2015,10 +2020,7 @@
 "Top models:" = "أعلى النماذج:";
 "Two quota burn-down charts in one tile." = "مخططان محترقان الحصة في لوحة واحدة.";
 "Usage & spend come from your console.groq.com browser session automatically. An API key is optional and only adds Enterprise Prometheus metrics." = "يأتي الاستخدام والإنفاق من جلسة متصفح console.groq.com تلقائيًا. يعد مفتاح API اختياريًا ويضيف فقط Enterprise Prometheus المؤشر.";
-"Usage data appears after a refresh." = "تظهر بيانات الاستخدام بعد التحديث.";
-"Usage data will appear once the app refreshes." = "ستظهر بيانات الاستخدام بمجرد تحديث التطبيق.";
 "Usage history chart with recent totals." = "مخطط تاريخ الاستخدام مع الإجماليات الأخيرة.";
-"Usage history will appear after a refresh." = "سيظهر سجل الاستخدام بعد التحديث.";
 "Usage limit" = "حد الاستخدام";
 "Usage limits and reset countdowns for one saved account." = "حدود الاستخدام وإعادة ضبط العد التنازلي لحساب محفوظ واحد.";
 "Usage widget with a provider switcher." = "أداة لعرض الاستخدام مع مبدّل لموفري الخدمة.";
@@ -2205,6 +2207,10 @@
 "Stored in ~/.codexbar/config.json. Create one at console.x.ai under Settings > Management Keys; inference API keys are not accepted." = "مخزنة في ~/.codexbar/config.json. أنشئ واحدًا على console.x.ai ضمن الإعدادات > مفاتيح الإدارة؛ لا يتم قبول مفاتيح الاستدلال API.";
 "xai-..." = "xai-...";
 "Team ID" = "فريق ID";
+"Vercel access token" = "رمز وصول Vercel";
+"Optional. Shows your personal budget instead of team credits. Saved in CodexBar's local config file. Or set VERCEL_ACCESS_TOKEN." = "اختياري. يعرض ميزانيتك الشخصية بدلاً من أرصدة الفريق. يُحفَظ في ملف الإعداد المحلي لـ CodexBar. أو عيّن VERCEL_ACCESS_TOKEN.";
+"Open Vercel tokens" = "فتح رموز Vercel";
+"Required with a Vercel access token. Or set VERCEL_TEAM_ID." = "مطلوب مع رمز وصول Vercel. أو عيّن VERCEL_TEAM_ID.";
 "Required. Shown in the xAI Console URL and team settings." = "مطلوب. يظهر في وحدة التحكم xAI URL وإعدادات الفريق.";
 "Sakana AI cost summary is not supported." = "ملخص تكلفة Sakana AI غير مدعوم.";
 "Stored in ~/.codexbar/config.json. Copy the Sakana AI console Cookie request header." = "مخزنة في ~/.codexbar/config.json. انسخ رأس طلب وحدة التحكم Sakana AI Cookie.";
@@ -2463,7 +2469,7 @@
 "spend_performance_cache_help" = "المدخلات المخزنة مؤقتًا مقسومة على إجمالي المدخلات في الجولات المؤهلة. تُرجّح النتيجة بعدد رموز الإدخال، مع عرض مدى تغطية العينات.";
 "spend_performance_metric_help" = "حول هذه الملاحظات";
 "merged_icon_source_title" = "مصدر الأيقونة المدمجة";
-"merged_icon_source_subtitle" = "اختر المزوّد الذي تعرضه الأيقونة المدمجة عند طيّها.";
+"merged_icon_source_subtitle" = "يقارن «أعلى استخدام» الحصص فقط. للمزوّدين الذين لا يفرضون حصصًا، استخدم «التحديد الحالي».";
 "merged_icon_source_current_selection" = "التحديد الحالي";
 "merged_icon_source_highest_usage" = "أعلى استخدام";
 "merged_icon_source_frontmost_app" = "تطبيق المزوّد في المقدمة";
@@ -2562,7 +2568,7 @@
 "Clear filters" = "مسح عوامل التصفية";
 "Change provider order" = "تغيير ترتيب المزوّدين";
 "Provider sorting" = "ترتيب المزوّدين";
-"Only enabled providers" = "المزوّدون المفعّلون فقط";
+"Only show enabled providers" = "عرض المزوّدين المفعّلين فقط";
 "Restore default order" = "استعادة الترتيب الافتراضي";
 "Also restores the provider order in the menu bar. Can be undone." = "يستعيد أيضاً ترتيب المزوّدين في شريط القوائم. يمكن التراجع عن هذا الإجراء.";
 "Local Codex details; excluded from combined totals." = "تفاصيل Codex المحلية؛ مستبعدة من الإجماليات المجمّعة.";
@@ -2687,3 +2693,15 @@
 /* Munito provider credentials */
 "Key with Read account data (Admin API) permission. Or set MUNITO_API_KEY." = "مفتاح بصلاحية قراءة بيانات الحساب (Admin API). أو اضبط MUNITO_API_KEY.";
 "Munito reports Admin API spend and limits, not local token cost history." = "تُبلغ Munito عن الإنفاق والحدود عبر Admin API، لا عن سجل تكاليف الرموز المحلي.";
+
+"Show all accounts in Overview" = "إظهار جميع الحسابات في النظرة العامة";
+
+"Expand cached account usage. The six-provider limit still applies." = "توسيع المزوّدين المحددين باستخدام بيانات الاستخدام المخزنة مؤقتًا للحسابات. يبقى الحد الأقصى ستة مزوّدين.";
+"Edit" = "تعديل";
+"Move up" = "نقل لأعلى";
+"Move down" = "نقل لأسفل";
+"Leave blank to keep the saved credential." = "اتركه فارغًا للاحتفاظ ببيانات الاعتماد المحفوظة.";
+
+"No personal budget configured" = "لم يتم إعداد ميزانية شخصية";
+
+"monthly_daily_target_format" = "≈ %@ يوميًا ليكفي حتى إعادة التعيين";
