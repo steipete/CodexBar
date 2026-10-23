@@ -199,6 +199,11 @@ struct UserPluginRefreshTests {
                     // enough.
                     #expect(height > usageOnly)
                     #expect(height > errorOnly)
+                    let error = try #require(fixture.store.errors[fixture.id])
+                    let errorHeight = NSHostingView(rootView: Text(error).font(.caption)
+                        .frame(width: 330 - 2 * UsageMenuCardLayout.horizontalPadding)).fittingSize.height
+                    // The capture-age line must add layout beyond the error and its stack spacing.
+                    #expect(height > usageOnly + errorHeight + 9)
                 } else {
                     failureOnlyHeight = height
                 }
@@ -208,6 +213,40 @@ struct UserPluginRefreshTests {
                 successHeight = height
             }
         }
+    }
+
+    @Test
+    func `retained plugin fingerprint includes capture age and app language`() {
+        let now = Date(timeIntervalSinceReferenceDate: 805_000_000)
+        let snapshot = UsageSnapshot(primary: nil, secondary: nil, updatedAt: now.addingTimeInterval(-600))
+        let error = "Fixture endpoint offline."
+        let english = CodexBarLocalizationOverride.$appLanguage.withValue("en") {
+            let fingerprint = UserPluginMenuCardView.fingerprint(
+                snapshot: snapshot, error: error, resetStyle: .countdown, now: now)
+            #expect(fingerprint.contains(LastKnownUsagePresentation.message(capturedAt: snapshot.updatedAt, now: now)))
+            #expect(fingerprint.hasPrefix(codexBarLocalizationSignature() + "|"))
+            return fingerprint
+        }
+        let german = CodexBarLocalizationOverride.$appLanguage.withValue("de") {
+            let fingerprint = UserPluginMenuCardView.fingerprint(
+                snapshot: snapshot, error: error, resetStyle: .countdown, now: now)
+            #expect(fingerprint.contains(LastKnownUsagePresentation.message(capturedAt: snapshot.updatedAt, now: now)))
+            #expect(fingerprint.hasPrefix(codexBarLocalizationSignature() + "|"))
+            return fingerprint
+        }
+        #expect(english != german)
+        let later = now.addingTimeInterval(3600)
+        let aged = UserPluginMenuCardView.fingerprint(
+            snapshot: snapshot, error: error, resetStyle: .countdown, now: later)
+        #expect(aged != english)
+        #expect(aged.contains(LastKnownUsagePresentation.message(capturedAt: snapshot.updatedAt, now: later)))
+        let recovered = UserPluginMenuCardView.fingerprint(
+            snapshot: snapshot, error: nil, resetStyle: .countdown, now: now)
+        #expect(recovered == UserPluginMenuCardView.fingerprint(
+            snapshot: snapshot, error: nil, resetStyle: .countdown, now: later))
+        #expect(!recovered.contains(LastKnownUsagePresentation.message(capturedAt: snapshot.updatedAt, now: now)))
+        #expect(UserPluginMenuCardView.fingerprint(snapshot: nil, error: error, resetStyle: .countdown, now: now) ==
+            UserPluginMenuCardView.fingerprint(snapshot: nil, error: error, resetStyle: .countdown, now: later))
     }
 
     @MainActor

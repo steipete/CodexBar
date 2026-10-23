@@ -15,6 +15,7 @@
 - Menu bar: improve stacked text legibility with medium weight while preserving regular weight for single-line layouts (#4713). Thanks @arnodirlam!
 - Linux desktop: fix launcher, Settings/Spending actions, and login startup when home paths contain quotes, dollar signs, backticks, backslashes, or percent signs (#4715). Thanks @Lucenx9!
 - Plugins: show refresh failures alongside last-good usage and clear the error after recovery (#4726). Thanks @coygeek!
+- Plugins: show how old retained usage is after a refresh fails, updating the card layout for capture age and app language (#4726, #4733). Thanks @LeoLin990405!
 - Plugins: identify missing endpoint settings as required configuration while preserving URL validation and approval (#4721, #4727). Thanks @harjothkhara and @coygeek!
 
 ## 0.80.0 — 2026-10-23

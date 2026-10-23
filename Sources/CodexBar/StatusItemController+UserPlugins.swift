@@ -312,6 +312,10 @@ struct UserPluginMenuCardView: View {
             }
             if let error {
                 Text(error).font(.caption).foregroundStyle(.red).textSelection(.enabled)
+                if let snapshot {
+                    Text(LastKnownUsagePresentation.message(capturedAt: snapshot.updatedAt))
+                        .font(.caption2).foregroundStyle(.secondary)
+                }
             }
             if let snapshot {
                 self.window("Primary", snapshot.primary)
@@ -399,18 +403,22 @@ struct UserPluginMenuCardView: View {
     }
 
     static func fingerprint(
-        snapshot: UsageSnapshot?, error: String?, resetStyle: ResetTimeDisplayStyle) -> String
+        snapshot: UsageSnapshot?, error: String?, resetStyle: ResetTimeDisplayStyle, now: Date = .now) -> String
     {
         let resets = [snapshot?.primary, snapshot?.secondary, snapshot?.tertiary].map { window in
-            window.flatMap { UsageFormatter.resetLine(for: $0, style: resetStyle) } ?? ""
+            window.flatMap { UsageFormatter.resetLine(for: $0, style: resetStyle, now: now) } ?? ""
         }
         return ([
+            codexBarLocalizationSignature(),
             snapshot?.updatedAt.timeIntervalSinceReferenceDate.description ?? "none",
             String(snapshot?.details.count ?? 0),
             snapshot?.primary?.title ?? "",
             snapshot?.secondary?.title ?? "",
             snapshot?.tertiary?.title ?? "",
             error ?? "",
+            error == nil ? "" : snapshot.map {
+                LastKnownUsagePresentation.message(capturedAt: $0.updatedAt, now: now)
+            } ?? "",
         ] + resets).joined(separator: "|")
     }
 }
