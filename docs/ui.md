@@ -105,7 +105,8 @@ Stacked rows with leading window labels align their values and meters after the 
   text and 10-point stacked text. Monospaced digits is independently optional and defaults off; labels remain
   proportional. These display preferences persist separately from layout tokens, preserving older-build decoding
   of saved layouts and their V4 projections. Tight/Regular controls status-item padding. Compact stacked uses two
-  tightly spaced lines sized to fit the menu bar.
+  tightly spaced lines sized to fit the menu bar. Stacked text, including combined-provider rows, uses medium
+  weight for legibility at every size and digit style; single-line text keeps regular weight.
 - Size, gap, and vertical adjustment share a compact options row. The Layout section footer keeps the token-editing
   instructions, including selecting a placed token and pressing Delete to remove it.
 
