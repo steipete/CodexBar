@@ -98,6 +98,78 @@ struct PreferencesView: View {
     }
 
     var body: some View {
+        Group {
+            if #available(macOS 26.0, *) {
+                self.splitViewLayout
+            } else {
+                self.legacyLayout
+            }
+        }
+        .frame(
+            minWidth: SettingsPane.windowMinWidth,
+            idealWidth: SettingsPane.windowWidth,
+            maxWidth: .infinity,
+            minHeight: SettingsPane.windowMinHeight,
+            idealHeight: SettingsPane.windowHeight,
+            maxHeight: .infinity)
+        .id(self.settings.appLanguage)
+        .codexBarLocalized()
+        .background {
+            SettingsWindowAppearanceBridge(colorScheme: self.colorScheme, windowTitle: self.selection.title)
+                .allowsHitTesting(false)
+        }
+        .onAppear {
+            self.ensureValidSelection()
+        }
+        .onChange(of: self.settings.debugMenuEnabled) { _, _ in
+            self.ensureValidSelection()
+        }
+        .onChange(of: self.settings.shouldRequestAdaptiveActivityScanConsent) { _, shouldRequest in
+            guard shouldRequest else { return }
+            AdaptiveActivityConsentPresenter.presentIfNeeded(settings: self.settings)
+        }
+    }
+
+    /// macOS 26+: a standard split view, so the sidebar, toolbar, search field and scroll edge
+    /// effects all come from the system and adopt Liquid Glass natively.
+    @available(macOS 26.0, *)
+    private var splitViewLayout: some View {
+        NavigationSplitView {
+            SettingsSidebarView(
+                settings: self.settings,
+                store: self.store,
+                selection: self.$selection.pane,
+                onSelectAbout: { self.selection.requestAboutRoot() })
+                .modifier(SettingsSidebarSizing(width: self.$sidebarWidth))
+        } detail: {
+            self.detailView
+                .frame(
+                    maxWidth: SettingsPane.detailMaxWidth,
+                    maxHeight: .infinity,
+                    alignment: .topLeading)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .navigationTitle(self.selection.title)
+                // Panes that draw their own heading keep the window title for accessibility and the
+                // Window menu, but drop it from the toolbar.
+                .toolbar(removing: self.showsToolbarTitle ? nil : .title)
+                .toolbar {
+                    ToolbarItem(placement: .navigation) {
+                        SettingsHistoryButtons(selection: self.selection)
+                    }
+                }
+        }
+    }
+
+    private var showsToolbarTitle: Bool {
+        switch self.selection.pane {
+        case .usageSpend: false
+        case let .provider(instanceID): instanceID.firstPartyProvider == nil
+        default: true
+        }
+    }
+
+    /// macOS 14/15: hand-built sidebar and titlebar backing.
+    private var legacyLayout: some View {
         HStack(spacing: 0) {
             // Golden Gate-style sidebar: edge-to-edge material with a hairline separator,
             // no floating card chrome. The material ignores the safe area so it runs up
@@ -146,47 +218,14 @@ struct PreferencesView: View {
                         .ignoresSafeArea(edges: .top)
                         .allowsHitTesting(false)
                 }
-                .overlay(alignment: .top) {
-                    if #available(macOS 26.0, *) {
-                        SettingsDetailHeader(selection: self.selection)
-                            .frame(height: self.detailTitlebarInset)
-                            .frame(maxWidth: .infinity)
-                            .ignoresSafeArea(edges: .top)
-                    }
-                }
                 .safeAreaInset(edge: .top, spacing: 0) {
-                    if #unavailable(macOS 26.0) {
-                        SettingsHistoryButtons(selection: self.selection)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(8)
-                    }
+                    SettingsHistoryButtons(selection: self.selection)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(8)
                 }
                 .overlay(alignment: .leading) {
                     self.sidebarResizeHandle
                 }
-        }
-        .frame(
-            minWidth: SettingsPane.windowMinWidth,
-            idealWidth: SettingsPane.windowWidth,
-            maxWidth: .infinity,
-            minHeight: SettingsPane.windowMinHeight,
-            idealHeight: SettingsPane.windowHeight,
-            maxHeight: .infinity)
-        .id(self.settings.appLanguage)
-        .codexBarLocalized()
-        .background {
-            SettingsWindowAppearanceBridge(colorScheme: self.colorScheme, windowTitle: self.selection.title)
-                .allowsHitTesting(false)
-        }
-        .onAppear {
-            self.ensureValidSelection()
-        }
-        .onChange(of: self.settings.debugMenuEnabled) { _, _ in
-            self.ensureValidSelection()
-        }
-        .onChange(of: self.settings.shouldRequestAdaptiveActivityScanConsent) { _, shouldRequest in
-            guard shouldRequest else { return }
-            AdaptiveActivityConsentPresenter.presentIfNeeded(settings: self.settings)
         }
     }
 
@@ -425,13 +464,7 @@ final class SettingsWindowAppearanceView: NSView {
         if !window.styleMask.contains(.miniaturizable) {
             window.styleMask.insert(.miniaturizable)
         }
-        if !window.titlebarAppearsTransparent {
-            window.titlebarAppearsTransparent = true
-        }
         SettingsWindowToolbar.configure(window)
-        if window.titlebarSeparatorStyle != .none {
-            window.titlebarSeparatorStyle = .none
-        }
         // Full-size content lets the sidebar material extend behind the titlebar so the
         // edge-to-edge sidebar reaches the top of the window; content stays below the
         // titlebar via the safe area.
@@ -443,59 +476,22 @@ final class SettingsWindowAppearanceView: NSView {
 
 @MainActor
 enum SettingsWindowToolbar {
-    static let identifier = NSToolbar.Identifier("com.steipete.codexbar.settings.toolbar")
-
     static func configure(_ window: NSWindow) {
-        if #available(macOS 26.0, *) {
-            // Keep the native title set for accessibility and the Window menu.
-            if window.titleVisibility != .hidden {
-                window.titleVisibility = .hidden
-            }
-            if window.toolbar?.identifier != self.identifier {
-                let toolbar = NSToolbar(identifier: self.identifier)
-                toolbar.allowsUserCustomization = false
-                toolbar.displayMode = .iconOnly
-                window.toolbar = toolbar
-            }
-            if window.toolbarStyle != .unified {
-                window.toolbarStyle = .unified
-            }
-        } else {
-            if window.titleVisibility != .visible {
-                window.titleVisibility = .visible
-            }
-            if window.toolbar != nil {
-                window.toolbar = nil
-            }
+        // On macOS 26+ the split view owns the toolbar and title through the hosting controller's
+        // scene bridging, so the titlebar keeps its native Liquid Glass and scroll edge behavior.
+        guard #unavailable(macOS 26.0) else { return }
+        if !window.titlebarAppearsTransparent {
+            window.titlebarAppearsTransparent = true
         }
-    }
-}
-
-@MainActor
-struct SettingsDetailHeader: View {
-    @Bindable var selection: PreferencesSelection
-    private var showsTitle: Bool {
-        switch self.selection.pane {
-        case .usageSpend: false
-        case let .provider(instanceID): instanceID.firstPartyProvider == nil
-        default: true
+        if window.titleVisibility != .visible {
+            window.titleVisibility = .visible
         }
-    }
-
-    var body: some View {
-        HStack(spacing: 12) {
-            SettingsHistoryButtons(selection: self.selection)
-            if self.showsTitle {
-                Text(self.selection.title)
-                    .font(.system(size: 15, weight: .bold))
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .accessibilityAddTraits(.isHeader)
-                    .allowsHitTesting(false)
-            }
+        if window.toolbar != nil {
+            window.toolbar = nil
         }
-        .padding(.horizontal, 8)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+        if window.titlebarSeparatorStyle != .none {
+            window.titlebarSeparatorStyle = .none
+        }
     }
 }
 

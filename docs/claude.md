@@ -354,6 +354,8 @@ is stored on the token account in the config file and does not change quota fetc
 - Outputs:
   - Session + weekly + model-specific percent used.
   - A missing Web session stays absent instead of becoming a synthetic 0% session; measured weekly and extra windows stay visible. Older cached placeholders remain readable.
+  - A successful usage response that reports no quota window at all (Claude Free accounts return null `five_hour` and
+    `seven_day`) is reported as limits unavailable instead of “No usage yet”; spend and credit rows stay visible.
   - Daily Routines extra window when returned by the usage API.
   - Extra usage spend/limit (if enabled). Compact Overview keeps this section when no measured quota bars exist, including Enterprise accounts with unavailable limits.
   - Remaining Usage credits balance (if enabled). Custom menu bar layouts can show it with the **Balance** element

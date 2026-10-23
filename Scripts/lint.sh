@@ -147,6 +147,7 @@ check_llms_index() {
 }
 
 run_portable_checks() {
+  bash "${ROOT_DIR}/Scripts/test_make_lint.sh"
   python3 "${ROOT_DIR}/Scripts/acknowledgements.py"
   python3 "${ROOT_DIR}/Scripts/test_acknowledgements.py"
   check_package_resolved

@@ -15,9 +15,10 @@ struct MistralMenuBarMetricTests {
             windowMinutes: nil,
             resetsAt: reset,
             resetDescription: "€10.00 / €50.00 · €40.00 left"))
-        let text = MenuBarLayoutResetText(window: window, provider: .mistral, now: now)
-        #expect(text.countdown == reset.map { UsageFormatter.resetCountdownDescription(from: $0, now: now) })
-        #expect(text.absolute == reset.map { UsageFormatter.resetDescription(from: $0, now: now) })
+        let countdown = MenuBarLayoutResetText(window: window, provider: .mistral, now: now, absolute: false)
+        let absolute = MenuBarLayoutResetText(window: window, provider: .mistral, now: now, absolute: true)
+        #expect(countdown.value == reset.map { UsageFormatter.resetCountdownDescription(from: $0, now: now) })
+        #expect(absolute.value == reset.map { UsageFormatter.resetDescription(from: $0, now: now) })
     }
 
     @Test(arguments: [

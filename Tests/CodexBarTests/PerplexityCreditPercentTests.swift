@@ -181,11 +181,16 @@ struct PerplexityCreditPercentTests {
                     windowMinutes: nil,
                     resetsAt: hasDate ? date : nil,
                     resetDescription: description))
-                let text = MenuBarLayoutResetText(window: window, provider: provider, now: self.now)
+                let countdown = MenuBarLayoutResetText(
+                    window: window,
+                    provider: provider,
+                    now: self.now,
+                    absolute: false)
+                let absolute = MenuBarLayoutResetText(window: window, provider: provider, now: self.now, absolute: true)
                 let fallback: String? = [.codex, .deepseek].contains(provider) ? description : nil
-                #expect(text.countdown == (hasDate ? "in 2h" : fallback))
-                #expect(text
-                    .absolute == (hasDate ? UsageFormatter.resetDescription(from: date, now: self.now) : fallback))
+                #expect(countdown.value == (hasDate ? "in 2h" : fallback))
+                #expect(absolute
+                    .value == (hasDate ? UsageFormatter.resetDescription(from: date, now: self.now) : fallback))
             }
         }
     }

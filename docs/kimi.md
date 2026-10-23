@@ -118,6 +118,10 @@ a membership lookup failure does not fail the quota query. Quota statistics and 
 load independently within a shared two-second enrichment budget; a slow title cannot discard completed
 monthly or Code 7-day statistics. Cancellation stops automatic retries before further browser reads.
 
+If a Code subscription lapses and the web response omits Code pools, valid membership quotas remain
+visible without inventing empty Code bars. A response with neither Code usage nor a usable membership
+quota still fails the refresh. The separate `totalQuota` field is not treated as a Code quota window.
+
 **Note**: Requires Full Disk Access to read browser cookies (System Settings → Privacy & Security → Full Disk Access → CodexBar).
 
 For China, Desktop discovery reads only the exact `https://www.kimi.com` / `access_token` record in

@@ -13,19 +13,38 @@ struct SettingsSidebarView: View {
     @Environment(\.undoManager) private var undoManager
 
     var body: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 6) {
-                SettingsSidebarSearchField(searchText: self.$searchText)
-                SettingsSidebarSortToggle(
-                    isOn: self.$settings.providersSortedAlphabetically,
-                    enabledOnly: self.$settings.providersEnabledOnly,
-                    canRestore: self.settings.canRestoreDefaultProviderOrder,
-                    onRestore: self.restoreProviderOrder)
+        if #available(macOS 26.0, *) {
+            self.content
+                .searchable(text: self.$searchText, placement: .sidebar, prompt: L("Search providers"))
+                .toolbar {
+                    SettingsSidebarSortToolbar(
+                        isOn: self.$settings.providersSortedAlphabetically,
+                        enabledOnly: self.$settings.providersEnabledOnly,
+                        canRestore: self.settings.canRestoreDefaultProviderOrder,
+                        onRestore: self.restoreProviderOrder)
+                }
+        } else {
+            VStack(spacing: 0) {
+                HStack(spacing: 6) {
+                    SettingsSidebarSearchField(searchText: self.$searchText)
+                    SettingsSidebarSortToggle(
+                        isOn: self.$settings.providersSortedAlphabetically,
+                        enabledOnly: self.$settings.providersEnabledOnly,
+                        canRestore: self.settings.canRestoreDefaultProviderOrder,
+                        onRestore: self.restoreProviderOrder)
+                }
+                .padding(.horizontal, 8)
+                .padding(.top, 16)
+                .padding(.bottom, 8)
+
+                self.content
             }
             .padding(.horizontal, 8)
-            .padding(.top, 16)
-            .padding(.bottom, 8)
+        }
+    }
 
+    private var content: some View {
+        VStack(spacing: 0) {
             List(selection: Binding(self.$selection)) {
                 self.appPanesSection
                 self.providersSection
@@ -46,7 +65,6 @@ struct SettingsSidebarView: View {
                 .accessibilityElement(children: .contain)
             }
         }
-        .padding(.horizontal, 8)
     }
 
     private var appPanesSection: some View {
@@ -315,6 +333,38 @@ private struct SettingsSidebarSearchField: View {
         .overlay(
             RoundedRectangle(cornerRadius: 6, style: .continuous)
                 .stroke(Color(nsColor: .separatorColor).opacity(0.6), lineWidth: 1))
+    }
+}
+
+/// macOS 26+ sidebar toolbar group: a standard toolbar toggle (which shows its own on state) and a
+/// sorting menu, so the toolbar supplies their shared Liquid Glass.
+private struct SettingsSidebarSortToolbar: ToolbarContent {
+    @Binding var isOn: Bool
+    @Binding var enabledOnly: Bool
+    let canRestore: Bool
+    let onRestore: () -> Void
+
+    var body: some ToolbarContent {
+        ToolbarItemGroup {
+            Toggle(isOn: self.$isOn) {
+                Label(L("Sort providers alphabetically"), systemImage: "arrow.up.arrow.down")
+            }
+            .help(self.isOn
+                ? L("Sorted alphabetically (enabled first) — click to use your custom order")
+                : L("Sort providers alphabetically (enabled first)"))
+
+            Menu {
+                Toggle(L("Only show enabled providers"), isOn: self.$enabledOnly)
+                Divider()
+                Button(L("Restore default order"), action: self.onRestore)
+                    .disabled(!self.canRestore)
+                    .help(L("Also restores the provider order in the menu bar. Can be undone."))
+            } label: {
+                Label(L("Provider sorting"), systemImage: "chevron.down")
+            }
+            .menuIndicator(.hidden)
+            .help(L("Provider sorting"))
+        }
     }
 }
 
