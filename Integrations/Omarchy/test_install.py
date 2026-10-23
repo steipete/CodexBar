@@ -1,12 +1,78 @@
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
+import sys
 import tempfile
+import time
 import unittest
 
 
 class InstallTests(unittest.TestCase):
+    @unittest.skipUnless(sys.platform == 'linux' and shutil.which('gio'),
+                         'Launching desktop entries requires Linux and GIO')
+    def test_desktop_entries_launch_the_installed_binary_with_special_home_characters(self):
+        for name in ['home $cash`tick"quote\\slash', 'home %f $cash`tick"quote\\slash',
+                     'home %f= $cash`tick"quote\\slash']:
+            with self.subTest(home=name), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                home = root / name
+                config, data = root / 'config', root / 'data'
+                binary = root / 'record-arguments'
+                binary.write_text('#!/bin/sh\nprintf \'%s\\n\' "$0" "$@" > "$HOME/receipt.tmp"\n'
+                                  'mv "$HOME/receipt.tmp" "$HOME/receipt"\n')
+                binary.chmod(0o755)
+                environment = dict(os.environ, HOME=str(home), XDG_CONFIG_HOME=str(config), XDG_DATA_HOME=str(data))
+                script = Path(__file__).resolve().parents[1] / 'Linux/install.py'
+                result = subprocess.run(['python3', str(script), '--binary', str(binary), '--cli', '/usr/bin/true'],
+                                        env=environment, capture_output=True, text=True, timeout=10)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                receipt = home / 'receipt'
+                entries = [(data / 'applications/com.steipete.CodexBar.desktop', '--usage'),
+                           (config / 'autostart/com.steipete.CodexBar.desktop', '--background')]
+                for entry, argument in entries:
+                    with self.subTest(argument=argument):
+                        receipt.unlink(missing_ok=True)
+                        result = subprocess.run(['gio', 'launch', str(entry)], env=environment,
+                                                capture_output=True, text=True, timeout=10)
+                        self.assertEqual(result.returncode, 0, result.stderr)
+                        deadline = time.monotonic() + 3
+                        while not receipt.exists() and time.monotonic() < deadline:
+                            time.sleep(0.01)
+                        self.assertTrue(receipt.exists(), 'The installed executable did not record its invocation')
+                        self.assertEqual(receipt.read_text().splitlines(),
+                                         [str(home / '.local/bin/codexbar-linux'), argument])
+
+    def test_desktop_commands_escape_special_characters_in_the_home_path(self):
+        cases = [
+            ('has space', 'has space'),
+            ('has$cash', r'has\\$cash'),
+            ('has`tick', r'has\\`tick'),
+            ('has"quote', r'has\\"quote'),
+            (r'has\slash', r'has\\\\slash'),
+            ('has%f', 'has%%f'),
+            ('has%f=path', 'has%%f=path'),
+        ]
+        for name, escaped in cases:
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                home = root / name
+                config, data = root / 'config', root / 'data'
+                environment = dict(os.environ, HOME=str(home), XDG_CONFIG_HOME=str(config), XDG_DATA_HOME=str(data))
+                script = Path(__file__).resolve().parents[1] / 'Linux/install.py'
+                result = subprocess.run(['python3', str(script), '--binary', '/usr/bin/true',
+                                         '--cli', '/usr/bin/true'], env=environment,
+                                        capture_output=True, text=True, timeout=10)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                executable = r'/bin/sh -c "exec \\"\\$@\\"" codexbar ' if '%' in name else ''
+                command = f'Exec={executable}"{root}/{escaped}/.local/bin/codexbar-linux"'
+                launcher = (data / 'applications/com.steipete.CodexBar.desktop').read_text()
+                self.assertEqual([line for line in launcher.splitlines() if line.startswith('Exec=')],
+                                 [command + ' --usage', command + ' --settings', command + ' --spending'])
+                startup = (config / 'autostart/com.steipete.CodexBar.desktop').read_text()
+                self.assertIn(command + ' --background', startup.splitlines())
+
     def test_reinstall_preserves_the_desktop_entry_hidden_setting(self):
         cases = [
             ('Hidden=true\n', True),

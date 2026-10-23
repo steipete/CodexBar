@@ -130,6 +130,10 @@ Unset, empty, or relative values use `~/.config` and `~/.local/share`, respectiv
 The executable always installs to `~/.local/bin/codexbar-linux`; `XDG_BIN_HOME`
 does not change that destination.
 
+Launcher actions and login startup support home paths containing spaces, quotes,
+dollar signs, backticks, backslashes, and percent signs. Rerun the installer to
+repair entries created by an older version in these paths.
+
 ## Build and install
 
 Requires Linux, C++17, make, qmake6, and Qt 6.4 or newer: Base, Declarative/Quick,

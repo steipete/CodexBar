@@ -1,10 +1,14 @@
 # Changelog
 
-## Unreleased
+## 0.80.1 — Unreleased
 
 ### Added
 
 - Menu bar: add an opt-in notch usage overlay with shared provider usage, agent-session summaries, and an optional shortcut. Opaque notch ears wrap the camera housing, with their own visibility switch, independent left/right summaries, and reset-credit expiry countdowns when space allows. Agent sessions can be shown independently of the menu, with separate column counts or one column per harness (#3164). Thanks @wdmitchelluk!
+
+### Fixed
+
+- Linux desktop: fix launcher, Settings/Spending actions, and login startup when home paths contain quotes, dollar signs, backticks, backslashes, or percent signs (#4715). Thanks @Lucenx9!
 
 ## 0.80.0 — 2026-10-23
 

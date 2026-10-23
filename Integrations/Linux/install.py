@@ -33,6 +33,8 @@ def quoted(path):
     text = str(path).replace('%', '%%')
     for character in ['\\', '"', '`', '$']:
         text = text.replace(character, '\\' + character)
+    # Desktop entries decode string escapes before interpreting Exec quoting.
+    text = text.replace('\\', '\\\\')
     return '"' + text + '"'
 
 
@@ -107,11 +109,16 @@ def main():
     atomic(destination, binary.read_bytes(), 0o755)
     icon = data / 'icons/hicolor/scalable/apps/codexbar.svg'
     atomic(icon, (REPO / 'Integrations/Linux/icon.svg').read_bytes(), 0o644)
+    command = quoted(destination)
+    if '%' in str(destination):
+        # Desktop launchers inspect the executable before expanding literal percent escapes.
+        # A constant shell program forwards the path literally, including '=' characters.
+        command = '/bin/sh -c ' + quoted('exec "$@"') + ' codexbar ' + command
     launcher = f'''[Desktop Entry]
 Type=Application
 Name=CodexBar
 Comment=AI usage, accounts and local spending
-Exec={quoted(destination)} --usage
+Exec={command} --usage
 Icon=codexbar
 Terminal=false
 Categories=Utility;Development;
@@ -120,11 +127,11 @@ Actions=Settings;Spending;
 
 [Desktop Action Settings]
 Name=Settings
-Exec={quoted(destination)} --settings
+Exec={command} --settings
 
 [Desktop Action Spending]
 Name=Usage & Spend
-Exec={quoted(destination)} --spending
+Exec={command} --spending
 '''
     atomic(data / f'applications/{APP_ID}.desktop', launcher.encode(), 0o644, follow_links=True)
     startup_path = config / f'autostart/{APP_ID}.desktop'
@@ -132,7 +139,7 @@ Exec={quoted(destination)} --spending
     startup = f'''[Desktop Entry]
 Type=Application
 Name=CodexBar
-Exec={quoted(destination)} --background
+Exec={command} --background
 Icon=codexbar
 Terminal=false
 Hidden={'true' if startup_disabled else 'false'}
