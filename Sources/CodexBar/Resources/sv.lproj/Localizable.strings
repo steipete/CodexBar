@@ -2778,3 +2778,12 @@
 "Primary" = "Primärt";
 "Secondary" = "Sekundärt";
 "Tertiary" = "Tertiärt";
+
+/* Chatbox AI */
+"Chatbox AI" = "Chatbox AI";
+"Show Chatbox AI usage" = "Visa Chatbox AI-användning";
+"Chatbox AI license key is invalid. Update it in Settings." = "Licensnyckeln för Chatbox AI är ogiltig. Uppdatera den i Inställningar.";
+"Chatbox AI denied access. Check your license." = "Chatbox AI nekade åtkomst. Kontrollera din licens.";
+"Chatbox AI is rate limiting requests. Try again later." = "Chatbox AI begränsar antalet förfrågningar. Försök igen senare.";
+"Chatbox AI request failed. Try refreshing later." = "Chatbox AI-förfrågan misslyckades. Försök uppdatera senare.";
+"Chatbox AI returned an unrecognized response. Update CodexBar and try again." = "Chatbox AI returnerade ett okänt svar. Uppdatera CodexBar och försök igen.";

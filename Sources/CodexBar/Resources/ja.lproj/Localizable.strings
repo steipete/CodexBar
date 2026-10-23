@@ -2779,3 +2779,12 @@
 "Primary" = "プライマリ";
 "Secondary" = "セカンダリ";
 "Tertiary" = "ターシャリ";
+
+/* Chatbox AI */
+"Chatbox AI" = "Chatbox AI";
+"Show Chatbox AI usage" = "Chatbox AI の使用状況を表示";
+"Chatbox AI license key is invalid. Update it in Settings." = "Chatbox AI のライセンスキーが無効です。設定で更新してください。";
+"Chatbox AI denied access. Check your license." = "Chatbox AI がアクセスを拒否しました。ライセンスを確認してください。";
+"Chatbox AI is rate limiting requests. Try again later." = "Chatbox AI がリクエストの頻度を制限しています。後でもう一度お試しください。";
+"Chatbox AI request failed. Try refreshing later." = "Chatbox AI へのリクエストに失敗しました。後でもう一度更新してください。";
+"Chatbox AI returned an unrecognized response. Update CodexBar and try again." = "Chatbox AI から認識できない応答が返されました。CodexBar を更新して、もう一度お試しください。";

@@ -2779,3 +2779,12 @@
 "Primary" = "Principal";
 "Secondary" = "Secundária";
 "Tertiary" = "Terciária";
+
+/* Chatbox AI */
+"Chatbox AI" = "Chatbox AI";
+"Show Chatbox AI usage" = "Mostrar uso do Chatbox AI";
+"Chatbox AI license key is invalid. Update it in Settings." = "A chave de licença do Chatbox AI é inválida. Atualize-a nos Ajustes.";
+"Chatbox AI denied access. Check your license." = "O Chatbox AI negou o acesso. Verifique sua licença.";
+"Chatbox AI is rate limiting requests. Try again later." = "O Chatbox AI está limitando a frequência das solicitações. Tente novamente mais tarde.";
+"Chatbox AI request failed. Try refreshing later." = "A solicitação ao Chatbox AI falhou. Tente atualizar mais tarde.";
+"Chatbox AI returned an unrecognized response. Update CodexBar and try again." = "O Chatbox AI retornou uma resposta desconhecida. Atualize o CodexBar e tente novamente.";

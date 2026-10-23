@@ -2783,3 +2783,12 @@
 "Primary" = "اصلی";
 "Secondary" = "ثانویه";
 "Tertiary" = "سوم";
+
+/* Chatbox AI */
+"Chatbox AI" = "Chatbox AI";
+"Show Chatbox AI usage" = "نمایش مصرف Chatbox AI";
+"Chatbox AI license key is invalid. Update it in Settings." = "کلید مجوز Chatbox AI نامعتبر است. آن را در تنظیمات به‌روز کنید.";
+"Chatbox AI denied access. Check your license." = "Chatbox AI دسترسی را رد کرد. مجوز خود را بررسی کنید.";
+"Chatbox AI is rate limiting requests. Try again later." = "Chatbox AI تعداد درخواست‌ها را محدود کرده است. بعداً دوباره امتحان کنید.";
+"Chatbox AI request failed. Try refreshing later." = "درخواست Chatbox AI ناموفق بود. بعداً دوباره تازه‌سازی کنید.";
+"Chatbox AI returned an unrecognized response. Update CodexBar and try again." = "Chatbox AI پاسخی ناشناخته برگرداند. CodexBar را به‌روز کنید و دوباره امتحان کنید.";

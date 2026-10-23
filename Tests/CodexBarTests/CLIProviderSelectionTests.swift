@@ -46,6 +46,7 @@ struct CLIProviderSelectionTests {
             "|munito|",
             "|soniox|",
             "|traecn|",
+            "|chatbox|",
             "|both|",
             "|all]",
         ]

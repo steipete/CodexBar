@@ -745,6 +745,7 @@ struct LocalizationLanguageCatalogTests {
             "Base",
             "Bearer eyJ...",
             "Bonus",
+            "Chatbox AI",
             "Chrome",
             "Cookie: ...",
             "Cookie: llama_dev_sess=...",

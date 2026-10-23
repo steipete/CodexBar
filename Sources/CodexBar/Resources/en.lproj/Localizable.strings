@@ -2784,3 +2784,12 @@
 "Primary" = "Primary";
 "Secondary" = "Secondary";
 "Tertiary" = "Tertiary";
+
+/* Chatbox AI */
+"Chatbox AI" = "Chatbox AI";
+"Show Chatbox AI usage" = "Show Chatbox AI usage";
+"Chatbox AI license key is invalid. Update it in Settings." = "Chatbox AI license key is invalid. Update it in Settings.";
+"Chatbox AI denied access. Check your license." = "Chatbox AI denied access. Check your license.";
+"Chatbox AI is rate limiting requests. Try again later." = "Chatbox AI is rate limiting requests. Try again later.";
+"Chatbox AI request failed. Try refreshing later." = "Chatbox AI request failed. Try refreshing later.";
+"Chatbox AI returned an unrecognized response. Update CodexBar and try again." = "Chatbox AI returned an unrecognized response. Update CodexBar and try again.";

@@ -156,9 +156,9 @@ struct ProviderArchitectureGatekeeperTests {
             Self.hash(descriptor.branding.burnDownWidgetColor, into: &burnDownFingerprint)
         }
 
-        // Trae CN extends the merged palette without changing existing provider colors.
-        #expect(widgetFingerprint == 13_788_777_299_776_159_303)
-        #expect(burnDownFingerprint == 4_371_421_081_959_693_460)
+        // Chatbox extends the audited palette without changing existing provider colors.
+        #expect(widgetFingerprint == 1_520_460_381_527_728_538)
+        #expect(burnDownFingerprint == 7_988_322_199_986_601_411)
     }
 
     @Test

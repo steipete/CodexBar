@@ -113,5 +113,6 @@ enum ProviderImplementationManifest {
         PluginCookieProviderImplementation(spec: ClaudePlatformProviderDescriptor.spec),
         PluginAPIKeyProviderImplementation(spec: MunitoProviderDescriptor.spec),
         PluginCookieProviderImplementation(spec: TraeCNProviderDescriptor.spec),
+        PluginAPIKeyProviderImplementation(spec: ChatboxProviderDescriptor.spec),
     ]
 }

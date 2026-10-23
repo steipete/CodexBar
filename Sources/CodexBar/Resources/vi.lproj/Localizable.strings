@@ -2780,3 +2780,12 @@
 "Primary" = "Chính";
 "Secondary" = "Phụ";
 "Tertiary" = "Thứ ba";
+
+/* Chatbox AI */
+"Chatbox AI" = "Chatbox AI";
+"Show Chatbox AI usage" = "Hiển thị mức sử dụng Chatbox AI";
+"Chatbox AI license key is invalid. Update it in Settings." = "Khóa giấy phép Chatbox AI không hợp lệ. Hãy cập nhật khóa trong Cài đặt.";
+"Chatbox AI denied access. Check your license." = "Chatbox AI đã từ chối truy cập. Hãy kiểm tra giấy phép của bạn.";
+"Chatbox AI is rate limiting requests. Try again later." = "Chatbox AI đang giới hạn tần suất yêu cầu. Hãy thử lại sau.";
+"Chatbox AI request failed. Try refreshing later." = "Yêu cầu Chatbox AI không thành công. Hãy thử làm mới sau.";
+"Chatbox AI returned an unrecognized response. Update CodexBar and try again." = "Chatbox AI trả về phản hồi không nhận dạng được. Hãy cập nhật CodexBar rồi thử lại.";

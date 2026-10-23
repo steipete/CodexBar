@@ -2781,3 +2781,12 @@
 "Primary" = "Utama";
 "Secondary" = "Sekunder";
 "Tertiary" = "Tersier";
+
+/* Chatbox AI */
+"Chatbox AI" = "Chatbox AI";
+"Show Chatbox AI usage" = "Tampilkan penggunaan Chatbox AI";
+"Chatbox AI license key is invalid. Update it in Settings." = "Kunci lisensi Chatbox AI tidak valid. Perbarui di Pengaturan.";
+"Chatbox AI denied access. Check your license." = "Chatbox AI menolak akses. Periksa lisensi Anda.";
+"Chatbox AI is rate limiting requests. Try again later." = "Chatbox AI membatasi frekuensi permintaan. Coba lagi nanti.";
+"Chatbox AI request failed. Try refreshing later." = "Permintaan Chatbox AI gagal. Coba segarkan lagi nanti.";
+"Chatbox AI returned an unrecognized response. Update CodexBar and try again." = "Chatbox AI mengembalikan respons yang tidak dikenali. Perbarui CodexBar dan coba lagi.";

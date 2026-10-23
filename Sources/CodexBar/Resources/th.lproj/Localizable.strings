@@ -2781,3 +2781,12 @@
 "Primary" = "หลัก";
 "Secondary" = "รอง";
 "Tertiary" = "ลำดับที่สาม";
+
+/* Chatbox AI */
+"Chatbox AI" = "Chatbox AI";
+"Show Chatbox AI usage" = "แสดงการใช้งาน Chatbox AI";
+"Chatbox AI license key is invalid. Update it in Settings." = "คีย์ใบอนุญาต Chatbox AI ไม่ถูกต้อง โปรดอัปเดตในการตั้งค่า";
+"Chatbox AI denied access. Check your license." = "Chatbox AI ปฏิเสธการเข้าถึง โปรดตรวจสอบใบอนุญาตของคุณ";
+"Chatbox AI is rate limiting requests. Try again later." = "Chatbox AI กำลังจำกัดความถี่ของคำขอ ลองอีกครั้งในภายหลัง";
+"Chatbox AI request failed. Try refreshing later." = "คำขอ Chatbox AI ล้มเหลว ลองรีเฟรชอีกครั้งในภายหลัง";
+"Chatbox AI returned an unrecognized response. Update CodexBar and try again." = "Chatbox AI ส่งการตอบกลับที่ไม่รู้จัก โปรดอัปเดต CodexBar แล้วลองอีกครั้ง";

@@ -5,6 +5,7 @@
 ### Added
 
 - Menu bar: add an opt-in notch usage overlay with shared provider usage, agent-session summaries, and an optional shortcut. Opaque notch ears wrap the camera housing, with their own visibility switch, independent left/right summaries, and reset-credit expiry countdowns when space allows. Agent sessions can be shown independently of the menu, with separate column counts or one column per harness (#3164). Thanks @wdmitchelluk!
+- Chatbox AI: track plan points, rewards, top-up credits, and image quotas with a pasted license key through the bundled plugin (#4736). Thanks @Andy115951!
 - Usage & Spend: search and sort session summaries, then inspect bounded request accounting for the selected native Codex session without retaining request details during ordinary refreshes (#4730). Thanks @PumpkinsLemon!
 - Plugins: support custom usage-window titles, shared reset text, and existing external usage/quota hooks for installed providers (#4722, #4723, #4724). Thanks @coygeek!
 

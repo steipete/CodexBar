@@ -2780,3 +2780,12 @@
 "Primary" = "Основное";
 "Secondary" = "Дополнительное";
 "Tertiary" = "Третье";
+
+/* Chatbox AI */
+"Chatbox AI" = "Chatbox AI";
+"Show Chatbox AI usage" = "Показывать использование Chatbox AI";
+"Chatbox AI license key is invalid. Update it in Settings." = "Ключ лицензии Chatbox AI недействителен. Обновите его в настройках.";
+"Chatbox AI denied access. Check your license." = "Chatbox AI отказал в доступе. Проверьте лицензию.";
+"Chatbox AI is rate limiting requests. Try again later." = "Chatbox AI ограничивает частоту запросов. Повторите попытку позже.";
+"Chatbox AI request failed. Try refreshing later." = "Запрос к Chatbox AI не выполнен. Попробуйте обновить позже.";
+"Chatbox AI returned an unrecognized response. Update CodexBar and try again." = "Chatbox AI вернул неизвестный ответ. Обновите CodexBar и повторите попытку.";
