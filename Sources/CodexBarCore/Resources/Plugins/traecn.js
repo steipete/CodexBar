@@ -4,7 +4,8 @@ defineProvider({
   endpoints: ["https://api.trae.cn"],
   settings: [],
   capabilities: ["browser-cookies", "http-status"],
-  cookieDomains: ["api.trae.cn"],
+  // Session cookies live on the parent domain (.trae.cn); api.trae.cn itself stores none.
+  cookieDomains: ["trae.cn", "api.trae.cn"],
   async fetchUsage(ctx) {
     const domain = "api.trae.cn";
     const signIn = "Sign in to Trae CN at trae.cn, then refresh CodexBar.";

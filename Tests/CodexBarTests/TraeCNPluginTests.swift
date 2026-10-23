@@ -117,6 +117,17 @@ struct TraeCNPluginTests {
         #expect(descriptor.fetchPlan.sourceModes == [.auto, .web])
     }
 
+    @Test(arguments: BundledPluginTestSupport.engines)
+    func `cookie domains include the parent domain holding the session cookies`(
+        engine: ProviderPluginEngineKind) async throws
+    {
+        // Trae CN stores session cookies on .trae.cn, not host-only on api.trae.cn;
+        // browser imports use exact matching, so the parent domain must be declared.
+        let runtime = try Self.runtime(engine: engine)
+        #expect(runtime.manifest.cookieDomains.contains("trae.cn"))
+        #expect(runtime.manifest.cookieDomains.contains("api.trae.cn"))
+    }
+
     private static func fetch(
         body: String = Self.fixture,
         engine: ProviderPluginEngineKind,
