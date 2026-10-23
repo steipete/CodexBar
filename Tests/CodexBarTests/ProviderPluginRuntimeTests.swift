@@ -7,6 +7,52 @@ import Testing
 
 extension ProviderPluginRuntimeTests {
     @Test(arguments: Self.labelValidationEngines)
+    func `standard plugin windows retain validated titles and reset metadata`(
+        engine: ProviderPluginEngineKind) async throws
+    {
+        let runtime = try ProviderPluginRuntime(source: Self.plugin(fetchBody: """
+        return {
+          primary: { title: "  Requests  ", usedPercent: 25, windowMinutes: 300,
+                     resetsAt: "2030-01-01T01:00:00Z", resetDescription: "at midnight" },
+          secondary: { title: "  ", usedPercent: 50 },
+          tertiary: { title: "Credits", usedPercent: 75 }
+        };
+        """), engine: engine)
+        let snapshot = try await runtime.fetchUsage(secrets: ["TEST_KEY": "fixture"])
+        let primary = try #require(snapshot.primary)
+        #expect(primary.title == "Requests")
+        #expect(primary.windowMinutes == 300)
+        #expect(primary.resetsAt != nil)
+        #expect(primary.resetDescription == "at midnight")
+        #expect(snapshot.secondary?.title == nil)
+        #expect(snapshot.tertiary?.title == "Credits")
+        let decoded = try JSONDecoder().decode(RateWindow.self, from: JSONEncoder().encode(primary))
+        #expect(decoded == primary)
+        let current = RateWindow(
+            usedPercent: 30,
+            windowMinutes: nil,
+            resetsAt: nil,
+            resetDescription: nil,
+            title: "Current title")
+        #expect(current.backfillingResetTime(from: primary, now: .distantPast).title == "Current title")
+        let old = try JSONDecoder().decode(RateWindow.self, from: Data(#"{"usedPercent":20}"#.utf8))
+        #expect(old.title == nil)
+    }
+
+    @Test(arguments: Self.labelValidationEngines)
+    func `standard plugin window titles reject nonstrings and oversized labels`(
+        engine: ProviderPluginEngineKind) async throws
+    {
+        for value in ["42", "{}", "'é'.repeat(129)"] {
+            let runtime = try ProviderPluginRuntime(source: Self.plugin(fetchBody:
+                "return {primary:{usedPercent:20,title:\(value)}};"), engine: engine)
+            await #expect(throws: ProviderPluginError.self) {
+                try await runtime.fetchUsage(secrets: ["TEST_KEY": "fixture"])
+            }
+        }
+    }
+
+    @Test(arguments: Self.labelValidationEngines)
     func `negative big integers wrap at limb boundaries`(engine: ProviderPluginEngineKind) async throws {
         let runtime = try ProviderPluginRuntime(source: Self.plugin(fetchBody: """
         for (const width of [64, 128, 192]) {

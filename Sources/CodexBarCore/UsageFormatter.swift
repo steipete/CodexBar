@@ -43,7 +43,7 @@ public enum UsageFormatter {
         return provider?() ?? Locale(identifier: "en_US_POSIX")
     }
 
-    private static func localized(_ key: String) -> String {
+    static func localized(_ key: String) -> String {
         self.localizationLock.lock()
         let provider = self.localizationProvider
         self.localizationLock.unlock()

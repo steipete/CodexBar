@@ -63,9 +63,10 @@ public struct SessionToolActivitySnapshot: Sendable, Equatable {
     /// Distinguishes a replaced file even when its size and modification date are preserved.
     public let fileNumber: UInt64
 
-    public func operations(in range: Range<Date>?) -> [SessionToolOperation] {
-        guard let range else { return self.operations }
-        return self.operations.filter { range.contains($0.completedAt) }
+    public func operations(in range: Range<Date>?, turnID: String? = nil) -> [SessionToolOperation] {
+        self.operations.filter {
+            (range?.contains($0.completedAt) ?? true) && (turnID == nil || $0.id.turnID == turnID)
+        }
     }
 }
 

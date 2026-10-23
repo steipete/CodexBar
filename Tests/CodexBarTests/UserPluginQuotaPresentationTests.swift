@@ -1,4 +1,5 @@
 import CodexBarCore
+import Foundation
 import Testing
 @testable import CodexBar
 
@@ -112,7 +113,11 @@ struct UserPluginQuotaPresentationTests {
 
     @Test
     func `remaining mode aligns plugin label and bar`() {
-        let presentation = UserPluginQuotaPresentation.make(usedPercent: 4, showUsed: false)
+        let presentation = UserPluginQuotaPresentation.make(
+            title: "Primary",
+            window: RateWindow(usedPercent: 4, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            showUsed: false,
+            resetStyle: .countdown)
 
         #expect(presentation.percent == 96)
         #expect(presentation.text == "96% left")
@@ -120,7 +125,11 @@ struct UserPluginQuotaPresentationTests {
 
     @Test
     func `used mode aligns plugin label and bar`() {
-        let presentation = UserPluginQuotaPresentation.make(usedPercent: 4, showUsed: true)
+        let presentation = UserPluginQuotaPresentation.make(
+            title: "Primary",
+            window: RateWindow(usedPercent: 4, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            showUsed: true,
+            resetStyle: .countdown)
 
         #expect(presentation.percent == 4)
         #expect(presentation.text == "4% used")
@@ -128,8 +137,81 @@ struct UserPluginQuotaPresentationTests {
 
     @Test
     func `plugin percentage is clamped before presentation`() {
-        #expect(UserPluginQuotaPresentation.make(usedPercent: -5, showUsed: true).percent == 0)
-        #expect(UserPluginQuotaPresentation.make(usedPercent: 105, showUsed: false).percent == 0)
+        #expect(UserPluginQuotaPresentation.make(
+            title: "Primary",
+            window: RateWindow(usedPercent: -5, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            showUsed: true,
+            resetStyle: .countdown).percent == 0)
+        #expect(UserPluginQuotaPresentation.make(
+            title: "Primary",
+            window: RateWindow(usedPercent: 105, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            showUsed: false,
+            resetStyle: .countdown).percent == 0)
+    }
+
+    @Test
+    func `plugin cards use custom titles and the shared reset formatter`() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let window = RateWindow(
+            usedPercent: 25,
+            windowMinutes: 300,
+            resetsAt: now.addingTimeInterval(3600),
+            resetDescription: nil,
+            title: "Requests")
+        for style in [ResetTimeDisplayStyle.countdown, .absolute] {
+            let presentation = UserPluginQuotaPresentation.make(
+                title: "Primary", window: window, showUsed: true, resetStyle: style, now: now)
+            #expect(presentation.title == "Requests")
+            #expect(presentation.resetText == UsageFormatter.resetLine(for: window, style: style, now: now))
+        }
+        let fallback = UserPluginQuotaPresentation.make(
+            title: "Secondary",
+            window: RateWindow(
+                usedPercent: 50,
+                windowMinutes: nil,
+                resetsAt: nil,
+                resetDescription: "tomorrow"),
+            showUsed: false,
+            resetStyle: .countdown,
+            now: now)
+        #expect(fallback.title == "Secondary")
+        #expect(fallback.resetText == "Resets tomorrow")
+        #expect(fallback.percent == 50)
+    }
+
+    @MainActor
+    @Test
+    func `plugin height fingerprint includes rendered titles and reset text`() {
+        let first = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 20,
+                windowMinutes: nil,
+                resetsAt: nil,
+                resetDescription: "tomorrow",
+                title: "Requests"),
+            secondary: nil,
+            updatedAt: .distantPast)
+        let second = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 20,
+                windowMinutes: nil,
+                resetsAt: nil,
+                resetDescription: "tomorrow",
+                title: "A longer allowance title"),
+            secondary: nil,
+            updatedAt: .distantPast)
+        let third = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 20,
+                windowMinutes: nil,
+                resetsAt: nil,
+                resetDescription: "on Monday",
+                title: "Requests"),
+            secondary: nil,
+            updatedAt: .distantPast)
+        let fingerprint = UserPluginMenuCardView.fingerprint(snapshot: first, error: nil, resetStyle: .countdown)
+        #expect(fingerprint != UserPluginMenuCardView.fingerprint(snapshot: second, error: nil, resetStyle: .countdown))
+        #expect(fingerprint != UserPluginMenuCardView.fingerprint(snapshot: third, error: nil, resetStyle: .countdown))
     }
 }
 #endif

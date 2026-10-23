@@ -122,6 +122,7 @@ struct SpendDashboardPane: View {
     @State private var userSelectedBackground = false
     @State private var isDataControlsExpanded = true
     @State private var detailSelections: [String: SpendDashboardDetailSection] = [:]
+    @State private var sessionNavigation = SessionUsageNavigation.shared
 
     init(settings: SettingsStore, store: UsageStore) {
         self.settings = settings
@@ -131,12 +132,26 @@ struct SpendDashboardPane: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                self.header
-                SpendTimeZoneControls(settings: self.settings)
-                self.refreshStatus
-                self.codexCostCatchUpPanel
-                self.content
-                self.dataControls
+                if let request = self.sessionNavigation.request {
+                    HStack {
+                        Text(L("Sessions")).font(.title2.weight(.semibold))
+                        Spacer()
+                        Button(L("Usage & Spend")) { self.sessionNavigation.request = nil }
+                    }
+                    SessionUsageBrowser(
+                        context: request.context,
+                        hidePersonalInfo: self.settings.hidePersonalInfo,
+                        selectedSessionID: request.sessionID)
+                        .id(request.id)
+                        .frame(height: 600)
+                } else {
+                    self.header
+                    SpendTimeZoneControls(settings: self.settings)
+                    self.refreshStatus
+                    self.codexCostCatchUpPanel
+                    self.content
+                    self.dataControls
+                }
             }
             .padding(24)
         }
@@ -1077,72 +1092,83 @@ private struct SpendDailyLedgerRow: View {
 struct SpendSessionRows: View {
     let group: SpendDashboardModel.CurrencyGroup
     let hidePersonalInfo: Bool
-    @State private var showsAllRows = false
+    @State private var selectedSourceID: String?
 
-    private static let collapsedRowCount = 8
+    private var sourceIDs: [String] {
+        Array(Set(self.group.sessions.map(\.sourceID))).sorted()
+    }
+
+    private var sourceID: String? {
+        self.selectedSourceID.flatMap { self.sourceIDs.contains($0) ? $0 : nil } ?? self.sourceIDs.first
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            ForEach(self.visibleRows) { row in
-                let identity = row.displayIdentity(hidePersonalInfo: self.hidePersonalInfo)
-                let subtitle = row.displaySubtitle(
-                    hidePersonalInfo: self.hidePersonalInfo,
-                    calendar: self.group.calendar)
-                if row.rank > 1 {
-                    Divider()
-                }
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack(alignment: .top, spacing: 10) {
-                        Text(spendDashboardRankText(row.rank))
-                            .font(.caption.monospacedDigit())
-                            .foregroundStyle(.tertiary)
-                            .frame(width: 26, alignment: .leading)
-                        SpendProviderIcon(provider: row.provider, sourceKind: .native)
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(identity.name)
-                                .fontWeight(.medium)
-                                .lineLimit(1)
-                                .help(identity.name)
-                            Text(subtitle)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                                .help(subtitle)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        Text(spendDashboardMetricText(
-                            cost: row.totalCost,
-                            tokens: row.totalTokens,
-                            currencyCode: self.group.currencyCode))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .monospacedDigit()
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    if let performance = row.turnPerformance {
-                        SpendSessionPerformanceView(summary: performance)
-                    }
-                    if let source = row.toolActivitySource {
-                        SpendSessionToolActivityView(
-                            source: source,
-                            lastActivity: row.lastActivity,
-                            range: spendToolActivityRange(group: self.group),
-                            timeZone: self.group.timeZone,
-                            hidePersonalInfo: self.hidePersonalInfo)
+        VStack(alignment: .leading, spacing: 12) {
+            if self.sourceIDs.count > 1 {
+                Picker(L("Sources"), selection: Binding(
+                    get: { self.sourceID ?? "" }, set: { self.selectedSourceID = $0 }))
+                {
+                    ForEach(self.sourceIDs, id: \.self) { id in
+                        Text(self.sourceName(id)).tag(id)
                     }
                 }
-                .padding(.vertical, 12)
             }
-            SpendPanelExpandButton(
-                rowCount: self.group.sessions.count,
-                collapsedRowCount: Self.collapsedRowCount,
-                showsAllRows: self.$showsAllRows)
+            if let id = self.sourceID, let context = self.context(for: id) {
+                SessionUsageBrowser(context: context, hidePersonalInfo: self.hidePersonalInfo)
+                    .id(id)
+                    .frame(height: 600)
+            } else {
+                Text(L("No data available")).foregroundStyle(.secondary)
+            }
         }
     }
 
-    private var visibleRows: ArraySlice<SpendDashboardModel.SessionRow> {
-        self.group.sessions.prefix(
-            self.showsAllRows ? self.group.sessions.count : Self.collapsedRowCount)
+    private func sourceName(_ id: String) -> String {
+        guard let row = self.group.sessions.first(where: { $0.sourceID == id }) else { return "" }
+        let provider = ProviderDescriptorRegistry.descriptor(for: row.provider).metadata.displayName
+        if self.hidePersonalInfo {
+            let index = (self.sourceIDs.firstIndex(of: id) ?? 0) + 1
+            return self.sourceIDs.count > 1 ? "\(provider) · \(codexBarLocalizedInteger(index))" : provider
+        }
+        return row.sourceName ?? provider
+    }
+
+    func context(for id: String) -> SessionUsageBrowserContext? {
+        let rows = self.group.sessions.filter { $0.sourceID == id }
+        guard let first = rows.first else { return nil }
+        // Session totals belong to the source snapshot's reporting period, independent of chart day selection.
+        let range = first.reportingRange ?? self.group.chartDomain.lowerBound..<self.group.chartDomain.upperBound
+        let format = Date.FormatStyle(
+            date: .abbreviated,
+            time: .omitted,
+            locale: codexBarLocalizedLocale(),
+            calendar: self.group.calendar,
+            timeZone: self.group.timeZone)
+        let label = first.reportingPeriod == .allTime ? L("All")
+            : range.lowerBound.formatted(format) + " – "
+            + range.upperBound.addingTimeInterval(-0.001).formatted(format)
+        return SessionUsageBrowserContext(
+            providerName: self.sourceName(id),
+            windowLabel: label,
+            sessions: rows.map { row in
+                row.usage ?? CostUsageSessionBreakdown(
+                    sessionID: row.sessionID,
+                    lastActivity: row.lastActivity,
+                    inputTokens: nil,
+                    cachedInputTokens: nil,
+                    outputTokens: nil,
+                    totalTokens: row.totalTokens,
+                    requestCount: nil,
+                    costUSD: row.totalCost.flatMap { cost in
+                        row.costMultiplier > 0 ? cost / row.costMultiplier : nil
+                    },
+                    modelBreakdowns: [],
+                    title: row.title)
+            },
+            currencyCode: self.group.currencyCode,
+            costMultiplier: first.costMultiplier,
+            timeZone: self.group.timeZone,
+            activityRange: range)
     }
 }
 

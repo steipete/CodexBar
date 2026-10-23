@@ -114,6 +114,7 @@ extension StatusItemController {
                 error: error,
                 isRefreshing: self.store.refreshingProviders.contains(plugin.manifest.id),
                 showUsed: self.settings.usageBarsShowUsed,
+                resetStyle: self.settings.resetTimeDisplayStyle,
                 width: width,
                 onRefresh: { [weak self] in
                     self?.startManualRefresh(
@@ -124,7 +125,8 @@ extension StatusItemController {
             id: id ?? "pluginCard:\(plugin.manifest.id.rawValue)",
             width: width,
             heightCacheScope: plugin.manifest.id.rawValue,
-            heightCacheFingerprint: UserPluginMenuCardView.fingerprint(snapshot: snapshot, error: error),
+            heightCacheFingerprint: UserPluginMenuCardView.fingerprint(
+                snapshot: snapshot, error: error, resetStyle: self.settings.resetTimeDisplayStyle),
             containsInteractiveControls: true,
             onClick: onClick)
     }
@@ -235,15 +237,25 @@ extension StatusItemController {
 }
 
 struct UserPluginQuotaPresentation: Equatable {
+    let title: String
     let percent: Double
     let text: String
+    let resetText: String?
 
-    static func make(usedPercent: Double, showUsed: Bool) -> Self {
-        let used = min(100, max(0, usedPercent))
+    static func make(
+        title: String,
+        window: RateWindow,
+        showUsed: Bool,
+        resetStyle: ResetTimeDisplayStyle,
+        now: Date = Date()) -> Self
+    {
+        let used = min(100, max(0, window.usedPercent))
         let remaining = 100 - used
         return Self(
+            title: window.title ?? L(title),
             percent: showUsed ? used : remaining,
-            text: UsageFormatter.usageLine(remaining: remaining, used: used, showUsed: showUsed))
+            text: UsageFormatter.usageLine(remaining: remaining, used: used, showUsed: showUsed),
+            resetText: UsageFormatter.resetLine(for: window, style: resetStyle, now: now))
     }
 }
 
@@ -258,12 +270,13 @@ extension ProviderSwitcherView {
     }
 }
 
-private struct UserPluginMenuCardView: View {
+struct UserPluginMenuCardView: View {
     let plugin: UserProviderPlugin
     let snapshot: UsageSnapshot?
     let error: String?
     let isRefreshing: Bool
     let showUsed: Bool
+    let resetStyle: ResetTimeDisplayStyle
     let width: CGFloat
     let onRefresh: () -> Void
 
@@ -297,6 +310,9 @@ private struct UserPluginMenuCardView: View {
                     .help(L("Refresh"))
                 }
             }
+            if let error {
+                Text(error).font(.caption).foregroundStyle(.red).textSelection(.enabled)
+            }
             if let snapshot {
                 self.window("Primary", snapshot.primary)
                 self.window("Secondary", snapshot.secondary)
@@ -317,9 +333,7 @@ private struct UserPluginMenuCardView: View {
                 if let identity = snapshot.identity(for: self.plugin.manifest.id) {
                     self.identity(identity)
                 }
-            } else if let error {
-                Text(error).font(.caption).foregroundStyle(.red).textSelection(.enabled)
-            } else {
+            } else if self.error == nil {
                 Text(L("No usage fetched yet")).font(.caption).foregroundStyle(.secondary)
             }
         }
@@ -357,11 +371,13 @@ private struct UserPluginMenuCardView: View {
     private func window(_ title: String, _ window: RateWindow?) -> some View {
         if let window {
             let presentation = UserPluginQuotaPresentation.make(
-                usedPercent: window.usedPercent,
-                showUsed: self.showUsed)
+                title: title,
+                window: window,
+                showUsed: self.showUsed,
+                resetStyle: self.resetStyle)
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
-                    Text(title).foregroundStyle(.secondary)
+                    Text(presentation.title).foregroundStyle(.secondary)
                     Spacer()
                     Text(presentation.text).monospacedDigit()
                 }
@@ -369,26 +385,33 @@ private struct UserPluginMenuCardView: View {
                 UsageProgressBar(
                     percent: presentation.percent,
                     tint: self.tint,
-                    accessibilityLabel: "\(title) usage")
+                    accessibilityLabel: presentation.title)
+                if let reset = presentation.resetText {
+                    Text(reset).font(.caption2).foregroundStyle(.secondary)
+                }
             }
         }
     }
 
     private var tint: Color {
-        let raw = self.plugin.manifest.icon.tint.dropFirst()
-        let value = UInt32(raw, radix: 16) ?? 0x6B7280
-        return Color(
-            red: Double((value >> 16) & 0xFF) / 255,
-            green: Double((value >> 8) & 0xFF) / 255,
-            blue: Double(value & 0xFF) / 255)
+        let color = ProviderColor(hexString: self.plugin.manifest.icon.tint) ?? ProviderColor(hex: 0x6B7280)
+        return Color(red: color.red, green: color.green, blue: color.blue)
     }
 
-    static func fingerprint(snapshot: UsageSnapshot?, error: String?) -> String {
-        [
+    static func fingerprint(
+        snapshot: UsageSnapshot?, error: String?, resetStyle: ResetTimeDisplayStyle) -> String
+    {
+        let resets = [snapshot?.primary, snapshot?.secondary, snapshot?.tertiary].map { window in
+            window.flatMap { UsageFormatter.resetLine(for: $0, style: resetStyle) } ?? ""
+        }
+        return ([
             snapshot?.updatedAt.timeIntervalSinceReferenceDate.description ?? "none",
             String(snapshot?.details.count ?? 0),
+            snapshot?.primary?.title ?? "",
+            snapshot?.secondary?.title ?? "",
+            snapshot?.tertiary?.title ?? "",
             error ?? "",
-        ].joined(separator: "|")
+        ] + resets).joined(separator: "|")
     }
 }
 #endif

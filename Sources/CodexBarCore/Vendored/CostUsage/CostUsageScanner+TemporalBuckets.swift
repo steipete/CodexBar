@@ -55,14 +55,16 @@ extension CostUsageScanner {
         pricing: CodexReportDayPricingContext,
         allowIncluded: Bool,
         calendar: Calendar,
-        into buckets: inout TemporalBuckets)
+        into buckets: inout TemporalBuckets,
+        onPricedRow: ((CodexUsageRow, Double?, Bool) -> Void)? = nil)
     {
         for row in rows {
-            guard let timestamp = self.date(fromUnixMs: row.timestampUnixMs) else { continue }
+            let timestamp = self.date(fromUnixMs: row.timestampUnixMs)
+            guard timestamp != nil || onPricedRow != nil else { continue }
             let group = CodexDayModelKey(day: row.day, model: row.model)
             let hasUnpricedTokens = (row.unpricedTokens ?? 0) > 0
                 || (row.isIncludedInPlan == true && !allowIncluded)
-            let hasStablePricing = !hasUnpricedTokens
+            let hasStablePricing = timestamp != nil && !hasUnpricedTokens
                 && !pricing.modeOwnershipMismatchGroups.contains(group)
                 && (row.eventIndex != nil || (row.input == 0 && row.output == 0))
             // An authoritative amount (including zero) survives incomplete request evidence.
@@ -76,6 +78,8 @@ extension CostUsageScanner {
                     customPricing: pricing.customPricing,
                     pricingResolver: pricing.pricingResolver)
                 : nil
+            onPricedRow?(row, cost, !hasUnpricedTokens)
+            guard let timestamp else { continue }
             let hour = self.hourStart(for: timestamp, calendar: calendar)
             var hourly = buckets.hourly[hour] ?? HourlyBucket()
             var timed = buckets.quotaSlices[timestamp] ?? HourlyBucket()

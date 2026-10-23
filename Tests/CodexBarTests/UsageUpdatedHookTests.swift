@@ -296,7 +296,7 @@ struct UsageUpdatedHookTests {
             settings: settings,
             environmentBase: ["PATH": "/usr/bin:/bin"])
 
-        store.emitUsageUpdatedHook(provider: provider, snapshot: snapshot)
+        store.emitUsageUpdatedHook(provider: provider.instanceID, snapshot: snapshot)
 
         return try await Self.waitForPayload(at: output)
     }

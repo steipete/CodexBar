@@ -295,6 +295,7 @@ final class SettingsStore {
     var providerEnablement: [ProviderInstanceID: Bool] = [:]
     @ObservationIgnored var providerEnablementRevisions: [ProviderInstanceID: UInt64] = [:]
     @ObservationIgnored var providerConfigRevisions: [ProviderInstanceID: UInt64] = [:]
+    @ObservationIgnored var onProviderFetchIdentityChange: ((ProviderInstanceID) -> Void)?
     @ObservationIgnored var providerConfigFingerprints: [ProviderInstanceID: Data] = [:]
 
     static func resolveSharedDefaults(
@@ -1076,6 +1077,7 @@ extension SettingsStore {
             let fingerprint = Self.providerConfigFingerprint(providerConfig)
             if let previous = self.providerConfigFingerprints[instanceID], previous != fingerprint {
                 self.providerConfigRevisions[instanceID, default: 0] &+= 1
+                self.onProviderFetchIdentityChange?(instanceID)
             }
             self.providerConfigFingerprints[instanceID] = fingerprint
             enablement[instanceID] = isEnabled

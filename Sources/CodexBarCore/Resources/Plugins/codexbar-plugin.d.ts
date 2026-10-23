@@ -31,6 +31,8 @@ interface CodexBarSetting {
 }
 
 interface CodexBarRateWindow {
+  /** Optional label for generic cards and CLI text; trimmed, at most 256 UTF-8 bytes. */
+  title?: string | null;
   usedPercent: number;
   windowMinutes?: number | null;
   resetsAt?: Date | string | null;

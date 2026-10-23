@@ -69,7 +69,7 @@ struct SessionQuotaTransitionEvaluation: Equatable {
 }
 
 struct SessionQuotaTransitionObservation: Equatable {
-    let provider: UsageProvider
+    let provider: ProviderInstanceID
     let remaining: Double
     let source: UsageStore.SessionQuotaWindowSource
     let resetBoundary: Date?

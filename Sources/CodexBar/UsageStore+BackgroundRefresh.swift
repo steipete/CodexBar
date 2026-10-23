@@ -69,7 +69,7 @@ extension UsageStore {
         self.clearSessionQuotaTransitionState(provider: provider)
         self.predictivePaceWarningNotifiedKeys = Set(
             self.predictivePaceWarningNotifiedKeys.filter { $0.provider != provider })
-        self.quotaWarningState = self.quotaWarningState.filter { $0.key.provider != provider }
+        self.quotaWarningState = self.quotaWarningState.filter { $0.key.provider != provider.instanceID }
         self.lastTokenFetchAt.removeValue(forKey: provider.instanceID)
         self.lastTokenFetchScope.removeValue(forKey: provider.instanceID)
         self.tokenFetchFailureCooldowns.removeValue(forKey: provider.instanceID)

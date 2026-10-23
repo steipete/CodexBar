@@ -25,9 +25,11 @@ public struct ProviderPluginApprovalBinding: Codable, Equatable, Sendable {
                 origins.insert(origin)
             case let .setting(key, policy):
                 guard let rawValue = settings[key]?.trimmingCharacters(in: .whitespacesAndNewlines),
-                      !rawValue.isEmpty,
-                      let url = URL(string: rawValue)
+                      !rawValue.isEmpty
                 else {
+                    throw ProviderPluginError.endpointNotConfigured(plugin: manifest.id.rawValue, setting: key)
+                }
+                guard let url = URL(string: rawValue) else {
                     throw ProviderPluginError.invalidManifest(
                         "endpoint setting '\(key)' must contain a valid URL before approval")
                 }
@@ -61,13 +63,8 @@ public struct ProviderPluginApprovalBinding: Codable, Equatable, Sendable {
     private static func requiresTypedConfirmation(_ origin: String) -> Bool {
         guard let host = URL(string: origin)?.host?.lowercased() else { return true }
         let normalizedHost = host.hasSuffix(".") ? String(host.dropLast()) : host
-        if normalizedHost == "localhost" || normalizedHost.hasSuffix(".local") {
-            return true
-        }
-        if self.isIPv4Literal(normalizedHost) || normalizedHost.contains(":") {
-            return true
-        }
-        return false
+        return normalizedHost == "localhost" || normalizedHost.hasSuffix(".local")
+            || self.isIPv4Literal(normalizedHost) || normalizedHost.contains(":")
     }
 
     private static func isIPv4Literal(_ host: String) -> Bool {

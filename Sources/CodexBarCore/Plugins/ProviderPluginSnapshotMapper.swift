@@ -273,7 +273,8 @@ enum ProviderPluginSnapshotMapper {
             resetDescription: resetDescription,
             quotaLimit: quotaLimit,
             quotaUnit: self.optionalString(value, property: "quotaUnit", path: path),
-            nextRegenPercent: nextRegenPercent.map { min(100, max(0, $0)) })
+            nextRegenPercent: nextRegenPercent.map { min(100, max(0, $0)) },
+            title: self.optionalString(value, property: "title", path: path))
     }
 
     private static func extraWindows(

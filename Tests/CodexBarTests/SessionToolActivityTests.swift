@@ -3,6 +3,24 @@ import Testing
 @testable import CodexBarCore
 
 struct SessionToolActivityTests {
+    @Test
+    func `turn activity excludes other turns and respects completion date boundaries`() async throws {
+        let fixture = try Fixture()
+        defer { fixture.remove() }
+        let original = Self.record(id: "first", type: "CommandExecution")
+        var other = Self.record(id: "second", type: "CommandExecution")
+        var payload = try #require(other["payload"] as? [String: Any])
+        payload["turn_id"] = "another-turn"
+        other["payload"] = payload
+        try fixture.write([original, other])
+        let snapshot = try await SessionToolActivityStore().load(source: fixture.source)
+        let now = try #require(ISO8601DateFormatter().date(from: "2026-05-10T20:00:00+08:00"))
+        #expect(snapshot.operations(in: nil).count == 2)
+        #expect(snapshot.operations(in: now..<now.addingTimeInterval(1), turnID: "turn").map(\.id.itemID) == ["first"])
+        #expect(snapshot.operations(in: now.addingTimeInterval(-1)..<now, turnID: "turn").isEmpty)
+        #expect(snapshot.operations(in: nil, turnID: "missing").isEmpty)
+    }
+
     @Test(arguments: ["ImageGeneration", "ImageView", "Extension", "WebSearch"])
     func `explicit failures remain visible for every supported operation`(type: String) async throws {
         let fixture = try Fixture()
