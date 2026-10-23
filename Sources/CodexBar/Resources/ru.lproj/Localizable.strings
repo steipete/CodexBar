@@ -2711,3 +2711,27 @@
 "Trae CN request failed. Try refreshing later." = "Запрос к Trae CN не выполнен. Попробуйте обновить позже.";
 "Use --provider copilot." = "Используйте --provider copilot.";
 "Config changed during login. Please try again." = "Конфигурация изменилась во время входа. Попробуйте ещё раз.";
+
+// Session usage browser
+"Search sessions" = "Поиск сеансов";
+"No matching sessions" = "Подходящие сеансы не найдены";
+"Select a session" = "Выберите сеанс";
+"Cached input is included in input; reasoning is included in output." = "Кэшированный ввод включён во ввод; токены рассуждений включены в вывод.";
+"Recent activity" = "Недавняя активность";
+"Sort by" = "Сортировать по";
+"Ascending" = "По возрастанию";
+"Descending" = "По убыванию";
+"Each turn includes its recorded model calls within this period. Messages sharing a turn cannot be priced separately." = "Каждый ход включает запросы к модели, записанные за этот период. Стоимость сообщений одного хода нельзя рассчитать отдельно.";
+"No turn-level usage records are available." = "Нет данных об использовании по ходам.";
+"Unattributed usage" = "Использование без привязки";
+"Turn %d" = "Ход %d";
+"Model requests" = "Запросы к модели";
+"Tool activity has no separate recorded token or monetary cost." = "Для вызовов инструментов отдельные расходы токенов или денежных средств не записаны.";
+"Request %d" = "Запрос %d";
+
+"Request details exceed the limit." = "Объём сведений о запросах превышает лимит.";
+
+"Request details are unavailable. Refresh usage and try again." = "Сведения о запросах недоступны. Обновите данные об использовании и попробуйте снова.";
+"Primary" = "Основное";
+"Secondary" = "Дополнительное";
+"Tertiary" = "Третье";

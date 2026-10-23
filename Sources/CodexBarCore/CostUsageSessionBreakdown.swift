@@ -1,7 +1,8 @@
 import Foundation
 
-/// An estimated local Codex conversation total derived from one session log.
+/// A conversation total supplied by a provider's session-usage adapter.
 /// This is intentionally distinct from account-level billing or quota data.
+/// Adapters normalize cached input into input, and reasoning into output.
 public struct CostUsageSessionBreakdown: Sendable, Equatable, Identifiable {
     public let sessionID: String
     public let lastActivity: Date
@@ -18,8 +19,11 @@ public struct CostUsageSessionBreakdown: Sendable, Equatable, Identifiable {
     public internal(set) var projectName: String?
     /// Thread name from Codex metadata, when one exists.
     public private(set) var title: String?
-    public let turnPerformanceSamples: [CostUsageTurnPerformanceSample]
-    public let toolActivitySource: SessionToolActivitySource?
+    public private(set) var turnPerformanceSamples: [CostUsageTurnPerformanceSample]
+    /// Empty on ordinary history summaries; populated only for the selected session's bounded detail view.
+    public private(set) var turns: [CostUsageSessionTurn]
+    public private(set) var requestDetailSource: CostUsageSessionDetailSource?
+    public private(set) var toolActivitySource: SessionToolActivitySource?
     /// Original rollout directory; relative SQLite homes must not use the canonical project path.
     var workingDirectory: String?
 
@@ -42,7 +46,9 @@ public struct CostUsageSessionBreakdown: Sendable, Equatable, Identifiable {
         projectName: String? = nil,
         title: String? = nil,
         turnPerformanceSamples: [CostUsageTurnPerformanceSample] = [],
-        toolActivitySource: SessionToolActivitySource? = nil)
+        turns: [CostUsageSessionTurn] = [],
+        toolActivitySource: SessionToolActivitySource? = nil,
+        requestDetailSource: CostUsageSessionDetailSource? = nil)
     {
         self.sessionID = sessionID
         self.lastActivity = lastActivity
@@ -58,12 +64,33 @@ public struct CostUsageSessionBreakdown: Sendable, Equatable, Identifiable {
         self.projectName = projectName
         self.title = title
         self.turnPerformanceSamples = turnPerformanceSamples
+        self.turns = turns
         self.toolActivitySource = toolActivitySource
+        self.requestDetailSource = requestDetailSource
     }
 
     public func withTitle(_ title: String?) -> CostUsageSessionBreakdown {
         var copy = self
         copy.title = title
+        return copy
+    }
+
+    public func withInspectionMetadata(
+        toolActivitySource: SessionToolActivitySource?,
+        turnPerformanceSamples: [CostUsageTurnPerformanceSample]) -> CostUsageSessionBreakdown
+    {
+        var copy = self
+        copy.toolActivitySource = toolActivitySource
+        copy.turnPerformanceSamples = turnPerformanceSamples
+        if self.requestDetailSource?.sessionSource != toolActivitySource {
+            copy.requestDetailSource = nil
+        }
+        return copy
+    }
+
+    public func withRequestDetails(_ turns: [CostUsageSessionTurn]) -> CostUsageSessionBreakdown {
+        var copy = self
+        copy.turns = turns
         return copy
     }
 }

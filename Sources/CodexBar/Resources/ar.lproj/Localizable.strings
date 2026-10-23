@@ -2714,3 +2714,27 @@
 "Trae CN request failed. Try refreshing later." = "فشل طلب Trae CN. حاول التحديث لاحقًا.";
 "Use --provider copilot." = "استخدم --provider copilot.";
 "Config changed during login. Please try again." = "تغيّر الإعداد أثناء تسجيل الدخول. يُرجى المحاولة مرة أخرى.";
+
+// Session usage browser
+"Search sessions" = "البحث في الجلسات";
+"No matching sessions" = "لا توجد جلسات مطابقة";
+"Select a session" = "اختر جلسة";
+"Cached input is included in input; reasoning is included in output." = "يتضمن الإدخال المدخلات المخزنة مؤقتًا، ويتضمن الإخراج رموز الاستدلال.";
+"Recent activity" = "النشاط الأخير";
+"Sort by" = "ترتيب حسب";
+"Ascending" = "تصاعدي";
+"Descending" = "تنازلي";
+"Each turn includes its recorded model calls within this period. Messages sharing a turn cannot be priced separately." = "تتضمن كل جولة طلبات النموذج المسجلة خلال هذه الفترة. لا يمكن تسعير الرسائل في الجولة نفسها بشكل منفصل.";
+"No turn-level usage records are available." = "لا تتوفر سجلات استخدام لكل جولة.";
+"Unattributed usage" = "استخدام غير منسوب";
+"Turn %d" = "الجولة %d";
+"Model requests" = "طلبات النموذج";
+"Tool activity has no separate recorded token or monetary cost." = "لا تُسجل تكلفة رموز أو تكلفة مالية منفصلة لاستدعاءات الأدوات.";
+"Request %d" = "الطلب %d";
+
+"Request details exceed the limit." = "تتجاوز تفاصيل الطلبات الحد المسموح به.";
+
+"Request details are unavailable. Refresh usage and try again." = "تفاصيل الطلبات غير متاحة. حدّث بيانات الاستخدام وحاول مرة أخرى.";
+"Primary" = "أساسية";
+"Secondary" = "ثانوية";
+"Tertiary" = "ثالثة";

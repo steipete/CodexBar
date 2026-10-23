@@ -2711,3 +2711,27 @@
 "Trae CN request failed. Try refreshing later." = "Yêu cầu Trae CN không thành công. Hãy thử làm mới sau.";
 "Use --provider copilot." = "Dùng --provider copilot.";
 "Config changed during login. Please try again." = "Cấu hình đã thay đổi trong khi đăng nhập. Vui lòng thử lại.";
+
+// Session usage browser
+"Search sessions" = "Tìm phiên";
+"No matching sessions" = "Không có phiên phù hợp";
+"Select a session" = "Chọn một phiên";
+"Cached input is included in input; reasoning is included in output." = "Đầu vào được lưu đệm đã nằm trong đầu vào; token suy luận đã nằm trong đầu ra.";
+"Recent activity" = "Hoạt động gần đây";
+"Sort by" = "Sắp xếp theo";
+"Ascending" = "Tăng dần";
+"Descending" = "Giảm dần";
+"Each turn includes its recorded model calls within this period. Messages sharing a turn cannot be priced separately." = "Mỗi lượt gồm các yêu cầu mô hình được ghi trong khoảng thời gian này. Không thể tính phí riêng từng tin nhắn trong cùng một lượt.";
+"No turn-level usage records are available." = "Không có bản ghi sử dụng theo lượt.";
+"Unattributed usage" = "Mức sử dụng chưa được quy thuộc";
+"Turn %d" = "Lượt %d";
+"Model requests" = "Yêu cầu mô hình";
+"Tool activity has no separate recorded token or monetary cost." = "Không ghi riêng chi phí token hoặc tiền cho các lệnh gọi công cụ.";
+"Request %d" = "Yêu cầu %d";
+
+"Request details exceed the limit." = "Chi tiết yêu cầu vượt quá giới hạn.";
+
+"Request details are unavailable. Refresh usage and try again." = "Không có chi tiết yêu cầu. Hãy làm mới mức sử dụng rồi thử lại.";
+"Primary" = "Chính";
+"Secondary" = "Phụ";
+"Tertiary" = "Thứ ba";

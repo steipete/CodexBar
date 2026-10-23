@@ -955,6 +955,9 @@ extension CostUsageStoreTests {
 
 extension CostUsageStoreTests {
     private static let testedPredecessorParserHashes = [
+        "54a95e8fe7bd6ee9", // Selected-session inspection before checkpoint validation.
+        "455876ace937d42a", // Current main before selected-session detail reads.
+        "4feea9e203d85529", // Previous inspector build; request details were never persisted.
         "fc698834d6329beb", // Before opt-in request observation; saved rows and cursors are unchanged.
         "f406dae284de4a55", // Current main before the Auto-review creator-account reparse.
         "379b799bb4b91683", // Current main before on-demand tool inspection.

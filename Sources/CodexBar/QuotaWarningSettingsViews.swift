@@ -132,7 +132,7 @@ struct ProviderQuotaWarningSettingsView: View {
                     self.shouldCommitThresholdEditorOnDisappear(for: window)
                 },
                 thresholds: {
-                    self.settings.resolvedQuotaWarningThresholds(provider: self.provider, window: window)
+                    self.settings.resolvedQuotaWarningThresholds(provider: self.provider.instanceID, window: window)
                 },
                 setThresholds: {
                     self.settings.setQuotaWarningThresholdsIfOverridden(

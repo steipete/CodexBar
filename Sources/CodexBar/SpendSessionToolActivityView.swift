@@ -2,9 +2,9 @@ import CodexBarCore
 import SwiftUI
 
 func spendToolActivityRange(group: SpendDashboardModel.CurrencyGroup) -> Range<Date> {
-    let start = group.selectedDay.map { group.calendar.startOfDay(for: $0) } ?? group.chartDomain.lowerBound
-    let last = group.selectedDay.map { group.calendar.startOfDay(for: $0) } ?? group.chartDomain.upperBound
-    let end = group.calendar.date(byAdding: .day, value: 1, to: last) ?? last.addingTimeInterval(86400)
+    guard let day = group.selectedDay else { return group.chartDomain.lowerBound..<group.chartDomain.upperBound }
+    let start = group.calendar.startOfDay(for: day)
+    let end = group.calendar.date(byAdding: .day, value: 1, to: start) ?? start.addingTimeInterval(86400)
     return start..<end
 }
 
@@ -14,6 +14,7 @@ struct SpendSessionToolActivityView: View {
     let range: Range<Date>
     let timeZone: TimeZone
     let hidePersonalInfo: Bool
+    var turnID: String?
     @State private var expanded = false
     @State private var snapshot: SessionToolActivitySnapshot?
     @State private var loading = false
@@ -40,7 +41,8 @@ struct SpendSessionToolActivityView: View {
                         snapshot: snapshot,
                         range: self.range,
                         hidePersonalInfo: self.hidePersonalInfo,
-                        timeZone: self.timeZone)
+                        timeZone: self.timeZone,
+                        turnID: self.turnID)
                 }
                 HStack {
                     Text(L("spend_tools_scope")).foregroundStyle(.secondary)
@@ -114,11 +116,12 @@ struct SpendToolActivityContent: View {
     let range: Range<Date>?
     let hidePersonalInfo: Bool
     var timeZone: TimeZone = .current
+    var turnID: String?
     @State var filter: SpendToolActivityFilter = .all
     @State private var rowLimit = 8
 
     private var operations: [SessionToolOperation] {
-        self.snapshot.operations(in: self.range)
+        self.snapshot.operations(in: self.range, turnID: self.turnID)
     }
 
     var body: some View {

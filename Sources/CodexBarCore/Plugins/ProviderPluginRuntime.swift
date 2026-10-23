@@ -351,6 +351,7 @@ public final class ProviderPluginRuntime: @unchecked Sendable {
             case .timedOut: return pluginError
             case .load: return ProviderPluginError.load(message.removingPluginErrorPrefix)
             case .invalidManifest: return ProviderPluginError.invalidManifest(message.removingPluginErrorPrefix)
+            case .endpointNotConfigured: return pluginError
             case .networkPolicy: return ProviderPluginError.networkPolicy(message.removingPluginErrorPrefix)
             case .http: return ProviderPluginError.http(message.removingPluginErrorPrefix)
             case .secretAccess: return ProviderPluginError.secretAccess(message.removingPluginErrorPrefix)

@@ -2714,3 +2714,27 @@
 "Trae CN request failed. Try refreshing later." = "درخواست Trae CN ناموفق بود. بعداً دوباره تازه‌سازی کنید.";
 "Use --provider copilot." = "از --provider copilot استفاده کنید.";
 "Config changed during login. Please try again." = "پیکربندی هنگام ورود تغییر کرد. لطفاً دوباره تلاش کنید.";
+
+// Session usage browser
+"Search sessions" = "جستجوی نشست‌ها";
+"No matching sessions" = "نشست منطبقی یافت نشد";
+"Select a session" = "یک نشست انتخاب کنید";
+"Cached input is included in input; reasoning is included in output." = "ورودی حافظهٔ نهان در ورودی محاسبه می‌شود؛ توکن‌های استدلال در خروجی محاسبه می‌شوند.";
+"Recent activity" = "فعالیت اخیر";
+"Sort by" = "مرتب‌سازی بر اساس";
+"Ascending" = "صعودی";
+"Descending" = "نزولی";
+"Each turn includes its recorded model calls within this period. Messages sharing a turn cannot be priced separately." = "هر نوبت شامل درخواست‌های مدل ثبت‌شده در این بازه است. پیام‌های یک نوبت را نمی‌توان جداگانه قیمت‌گذاری کرد.";
+"No turn-level usage records are available." = "داده‌ای از مصرف هر نوبت در دسترس نیست.";
+"Unattributed usage" = "مصرف بدون انتساب";
+"Turn %d" = "نوبت %d";
+"Model requests" = "درخواست‌های مدل";
+"Tool activity has no separate recorded token or monetary cost." = "هزینهٔ توکن یا هزینهٔ مالی جداگانه‌ای برای فراخوانی ابزار ثبت نشده است.";
+"Request %d" = "درخواست %d";
+
+"Request details exceed the limit." = "جزئیات درخواست‌ها از حد مجاز بیشتر است.";
+
+"Request details are unavailable. Refresh usage and try again." = "جزئیات درخواست‌ها در دسترس نیست. اطلاعات مصرف را تازه‌سازی کنید و دوباره تلاش کنید.";
+"Primary" = "اصلی";
+"Secondary" = "ثانویه";
+"Tertiary" = "سوم";

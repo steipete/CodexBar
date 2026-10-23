@@ -10,7 +10,7 @@ extension UsageStore {
     /// `usagePercent` is a 0...1 fraction.
     func emitHook(
         _ type: HookEventType,
-        provider: UsageProvider,
+        provider: ProviderInstanceID,
         window: String? = nil,
         usagePercent: Double? = nil,
         windowMinutes: Int? = nil,
@@ -59,7 +59,7 @@ extension UsageStore {
     /// repeated attempts are dropped by the rate limiter. The primary and secondary
     /// windows stay in one event so consumers can evaluate both without another fetch.
     func emitUsageUpdatedHook(
-        provider: UsageProvider,
+        provider: ProviderInstanceID,
         snapshot: UsageSnapshot,
         rateKey: String? = nil)
     {
@@ -76,7 +76,7 @@ extension UsageStore {
     }
 
     func emitQuotaReachedHook(
-        provider: UsageProvider,
+        provider: ProviderInstanceID,
         sessionWindow: (window: RateWindow, source: SessionQuotaWindowSource),
         snapshot: UsageSnapshot)
     {
@@ -92,7 +92,7 @@ extension UsageStore {
     /// Emits `quota_reset` when a session/weekly limit reset is detected. The
     /// account label is redacted when the user hides personal info.
     func emitQuotaResetHook(
-        provider: UsageProvider,
+        provider: ProviderInstanceID,
         window: QuotaWarningWindow,
         usedPercent: Double,
         accountLabel: String?)
@@ -123,7 +123,7 @@ extension UsageStore {
         self.providerStatusHadIssue[provider.instanceID] = isOutage
         self.emitHook(
             isOutage ? .providerUnavailable : .providerRecovered,
-            provider: provider,
+            provider: provider.instanceID,
             status: indicator.rawValue)
     }
 
@@ -143,7 +143,7 @@ extension UsageStore {
     /// as the notification path (including `accountDiscriminator`), so accounts that
     /// share a provider track their crossings independently.
     func dispatchQuotaLowHooks(
-        provider: UsageProvider,
+        provider: ProviderInstanceID,
         lane: QuotaLowHookLane,
         rateWindow: RateWindow?,
         accountDiscriminator: String?,
@@ -209,7 +209,7 @@ extension UsageStore {
     /// Drops baselines while no quota-low rule is active. A later re-enable must
     /// establish a fresh sample instead of firing for a crossing that happened
     /// while command execution was disabled.
-    func clearQuotaLowHookUsage(provider: UsageProvider) {
+    func clearQuotaLowHookUsage(provider: ProviderInstanceID) {
         self.quotaLowHookUsage = self.quotaLowHookUsage.filter { $0.key.provider != provider }
     }
 
@@ -226,7 +226,7 @@ extension UsageStore {
     /// Extra quota lanes can disappear between snapshots. Forget their baselines
     /// so a later reappearance starts fresh rather than reporting a stale crossing.
     func pruneQuotaLowHookUsage(
-        provider: UsageProvider,
+        provider: ProviderInstanceID,
         accountDiscriminator: String?,
         keepingExtraWindowIDs: Set<String>)
     {
@@ -245,7 +245,7 @@ extension UsageStore {
     /// preference is off, so hooks fire independently of notifications. Returns
     /// false for everyone who has not configured such a rule, so notification
     /// behavior is unchanged for them.
-    func hasQuotaHookRule(event: HookEventType, provider: UsageProvider) -> Bool {
+    func hasQuotaHookRule(event: HookEventType, provider: ProviderInstanceID) -> Bool {
         guard let hooks = self.settings.config.hooks, hooks.enabled else { return false }
         return hooks.events.contains { rule in
             rule.enabled
@@ -281,9 +281,9 @@ extension UsageStore {
     }
 
     /// Account label for a hook payload, redacted when the user hides personal info.
-    func hookAccountDisplayName(provider: UsageProvider, snapshot: UsageSnapshot) -> String? {
+    func hookAccountDisplayName(provider: ProviderInstanceID, snapshot: UsageSnapshot) -> String? {
         guard !self.settings.hidePersonalInfo else { return nil }
-        let account = snapshot.accountEmail(for: provider)?
+        let account = snapshot.identity(for: provider)?.accountEmail?
             .trimmingCharacters(in: .whitespacesAndNewlines)
         guard let account, !account.isEmpty else { return nil }
         return account
@@ -292,10 +292,10 @@ extension UsageStore {
     /// Private identity used only to keep rate-limit buckets account scoped. This
     /// value is never added to the hook payload or environment.
     nonisolated static func hookAccountDiscriminator(
-        provider: UsageProvider,
+        provider: ProviderInstanceID,
         snapshot: UsageSnapshot) -> String?
     {
-        let identity = snapshot.identity(for: provider.instanceID)
+        let identity = snapshot.identity(for: provider)
         if let accountID = identity?.accountID?.trimmingCharacters(in: .whitespacesAndNewlines),
            !accountID.isEmpty
         {

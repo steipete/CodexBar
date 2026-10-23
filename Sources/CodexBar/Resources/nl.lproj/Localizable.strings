@@ -2707,3 +2707,27 @@
 "Trae CN request failed. Try refreshing later." = "Het Trae CN-verzoek is mislukt. Probeer later opnieuw te vernieuwen.";
 "Use --provider copilot." = "Gebruik --provider copilot.";
 "Config changed during login. Please try again." = "De configuratie is gewijzigd tijdens het inloggen. Probeer het opnieuw.";
+
+// Session usage browser
+"Search sessions" = "Sessies zoeken";
+"No matching sessions" = "Geen overeenkomende sessies";
+"Select a session" = "Selecteer een sessie";
+"Cached input is included in input; reasoning is included in output." = "Invoer uit de cache is inbegrepen in invoer; redeneertokens zijn inbegrepen in uitvoer.";
+"Recent activity" = "Recente activiteit";
+"Sort by" = "Sorteren op";
+"Ascending" = "Oplopend";
+"Descending" = "Aflopend";
+"Each turn includes its recorded model calls within this period. Messages sharing a turn cannot be priced separately." = "Elke beurt bevat de modelverzoeken die in deze periode zijn vastgelegd. Berichten in dezelfde beurt kunnen niet apart worden geprijsd.";
+"No turn-level usage records are available." = "Geen gebruiksgegevens per beurt beschikbaar.";
+"Unattributed usage" = "Niet-toegewezen gebruik";
+"Turn %d" = "Beurt %d";
+"Model requests" = "Modelverzoeken";
+"Tool activity has no separate recorded token or monetary cost." = "Voor hulpmiddelaanroepen worden geen afzonderlijke token- of geldkosten vastgelegd.";
+"Request %d" = "Verzoek %d";
+
+"Request details exceed the limit." = "De aanvraagdetails overschrijden de limiet.";
+
+"Request details are unavailable. Refresh usage and try again." = "De aanvraagdetails zijn niet beschikbaar. Vernieuw het gebruik en probeer het opnieuw.";
+"Primary" = "Primair";
+"Secondary" = "Secundair";
+"Tertiary" = "Tertiair";

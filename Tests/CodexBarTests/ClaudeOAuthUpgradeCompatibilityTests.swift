@@ -276,6 +276,98 @@ struct ClaudeOAuthUpgradeCompatibilityTests {
         #expect(Self.cliInvocations(at: cli.invocationLog).isEmpty)
     }
 
+    @Test(arguments: [ProviderSourceMode.oauth, .auto])
+    func `manual refresh recovers from MCP-only Keychain through owner CLI`(
+        sourceMode: ProviderSourceMode) async throws
+    {
+        let root = try Self.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let cli = try Self.makeFakeClaudeCLI(in: root)
+        let environment = ["CLAUDE_CLI_PATH": cli.executable.path, "CLAUDE_CONFIG_DIR": root.path]
+        let context = try self.makePersistedOAuthContext(
+            suite: "ClaudeOAuthUpgradeCompatibilityTests-mcp-only",
+            environment: environment,
+            sourceMode: sourceMode)
+        let payload = Data(#"{"mcpOAuth":{"plugin:test":{"accessToken":"synthetic-mcp-token"}}}"#.utf8)
+        let calls = CallLog()
+        let cliUsage: @Sendable (String, TimeInterval, Bool) async throws -> ClaudeStatusSnapshot = { _, _, _ in
+            Self.makeCLIUsageSnapshot()
+        }
+        let outcome = try await Self.withIsolatedCredentialState(
+            credentialsURLOverride: root.appendingPathComponent("missing-credentials.json"))
+        {
+            await ClaudeOAuthDirectKeychainReadConsent.withTaskOverrideForTesting(true) {
+                await KeychainAccessGate.withTaskOverrideForTesting(false) {
+                    await ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.onlyOnUserAction) {
+                        await ClaudeOAuthKeychainReadStrategyPreference.withTaskOverrideForTesting(
+                            .securityFramework)
+                        {
+                            await ClaudeOAuthCredentialsStore.withClaudeKeychainOverridesForTesting(
+                                data: payload, fingerprint: nil)
+                            {
+                                await ClaudeOAuthCredentialsStore
+                                    .withInteractiveClaudeKeychainReadOverridesForTesting(
+                                        read: {
+                                            calls.recordForeignKeychainRead()
+                                            return payload
+                                        },
+                                        operation: {
+                                            await ProviderInteractionContext.$current.withValue(.userInitiated) {
+                                                await ProviderRefreshRequestContext.withNewRequest {
+                                                    await ClaudeStatusProbe.$fetchOverride.withValue(cliUsage) {
+                                                        await Self.withWebTripwires(calls: calls) {
+                                                            let outcome = await ClaudeProviderDescriptor
+                                                                .makeDescriptor()
+                                                                .fetchOutcome(context: context)
+                                                            #expect(ClaudeOAuthFetchStrategy()
+                                                                .directCredentialIsMissing(
+                                                                    environment: environment))
+                                                            return outcome
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        })
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        #expect(outcome.attempts.map(\.strategyID) == ["claude.oauth", "claude.cli"])
+        let result = try outcome.result.get()
+        #expect(result.strategyID == "claude.cli")
+        #expect(result.usage.primary?.usedPercent == 12)
+        #expect(calls.recordedForeignKeychainReads == 1)
+        #expect(calls.recordedWebCalls.isEmpty)
+        #expect(Self.cliInvocations(at: cli.invocationLog).isEmpty)
+
+        let settings = testSettingsStore(
+            suiteName: "ClaudeOAuthUpgradeCompatibilityTests-mcp-recovery",
+            userDefaults: InMemoryUserDefaults())
+        settings.claudeUsageDataSource = sourceMode == .oauth ? .oauth : .auto
+        settings.statusChecksEnabled = false
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: environment),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            startupBehavior: .testing,
+            environmentBase: environment)
+        store.snapshots[.claude] = UsageSnapshot(
+            primary: result.usage.primary,
+            secondary: result.usage.secondary,
+            updatedAt: Date(timeIntervalSinceNow: -6 * 86400))
+        store.errors[.claude] = ClaudeOAuthCredentialsError.mcpOAuthOnlyKeychain.localizedDescription
+        #expect(store.menuCardModel(for: .claude).lastKnownUsageText != nil)
+        store._test_providerFetchOutcomeOverride = { _ in outcome }
+        await ProviderInteractionContext.$current.withValue(.userInitiated) {
+            await store.refreshProvider(.claude, allowDisabled: true)
+        }
+        #expect(store.snapshot(for: .claude)?.updatedAt == result.usage.updatedAt)
+        #expect(store.userFacingError(for: .claude) == nil)
+        #expect(store.menuCardModel(for: .claude).lastKnownUsageText == nil)
+    }
+
     @Test
     func `explicit app OAuth uses owner mediated CLI without auth preflight`() async throws {
         let root = try Self.makeTemporaryDirectory()

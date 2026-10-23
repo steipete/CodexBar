@@ -3,7 +3,7 @@ import Foundation
 
 extension UsageStore {
     nonisolated static let sessionLimitResetDetectorDefaultsKey = "sessionLimitResetDetectorStates"
-    private nonisolated static let weeklyLimitResetDetectorDefaultsKey = "weeklyLimitResetDetectorStates"
+    nonisolated static let weeklyLimitResetDetectorDefaultsKey = "weeklyLimitResetDetectorStates"
     private nonisolated static let claudeOAuthAccountUuidMapDefaultsKey = "ClaudeOAuthHistoryOwnerAccountUuidMapV2"
     private nonisolated static let claudeOAuthAccountUuidMapLegacyDefaultsKey =
         "ClaudeOAuthHistoryOwnerAccountUuidMapV1"
@@ -545,7 +545,7 @@ extension UsageStore {
             observation: weeklyObservation)
     }
 
-    private static func isSemanticSessionResetWindow(
+    static func isSemanticSessionResetWindow(
         _ resolved: (window: RateWindow, source: SessionQuotaWindowSource)) -> Bool
     {
         guard !resolved.window.isSyntheticPlaceholder else { return false }
@@ -881,7 +881,7 @@ extension UsageStore {
     }
 
     nonisolated static func limitResetDetectorStateKey(
-        provider: UsageProvider,
+        provider: ProviderInstanceID,
         accountIdentifier: String) -> String
     {
         "\(provider.rawValue):\(accountIdentifier)"

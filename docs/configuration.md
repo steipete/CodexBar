@@ -89,6 +89,10 @@ between `0.1` and `300`. Hook processes receive only a small allowlist of genera
 event's `CODEXBAR_*` variables; CodexBar provider keys and tokens are not inherited. The same event is also encoded as
 JSON on stdin. Only configure executables you trust.
 
+Installed user plugins can be selected by manifest ID (or by an any-provider rule). Their successful, current app
+refreshes support `usage_updated`, `quota_low`, `quota_reached`, and `quota_reset` through the same command and payload
+contract. See [plugin hooks](plugins.md#external-hooks) for window semantics and lifecycle behavior.
+
 Events:
 
 - `quota_low`: a quota lane crosses the rule's `threshold` upward. Thresholds are usage fractions greater than `0`

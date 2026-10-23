@@ -2709,3 +2709,27 @@
 "Trae CN request failed. Try refreshing later." = "Trae CN-förfrågan misslyckades. Försök uppdatera senare.";
 "Use --provider copilot." = "Använd --provider copilot.";
 "Config changed during login. Please try again." = "Konfigurationen ändrades under inloggningen. Försök igen.";
+
+// Session usage browser
+"Search sessions" = "Sök sessioner";
+"No matching sessions" = "Inga matchande sessioner";
+"Select a session" = "Välj en session";
+"Cached input is included in input; reasoning is included in output." = "Cachelagrad indata ingår i indata; resonemangstoken ingår i utdata.";
+"Recent activity" = "Senaste aktivitet";
+"Sort by" = "Sortera efter";
+"Ascending" = "Stigande";
+"Descending" = "Fallande";
+"Each turn includes its recorded model calls within this period. Messages sharing a turn cannot be priced separately." = "Varje tur innehåller modellförfrågningar som registrerats under perioden. Meddelanden i samma tur kan inte prissättas separat.";
+"No turn-level usage records are available." = "Inga användningsdata per tur finns tillgängliga.";
+"Unattributed usage" = "Ej tilldelad användning";
+"Turn %d" = "Tur %d";
+"Model requests" = "Modellförfrågningar";
+"Tool activity has no separate recorded token or monetary cost." = "Inga separata token- eller penningkostnader registreras för verktygsanrop.";
+"Request %d" = "Förfrågan %d";
+
+"Request details exceed the limit." = "Förfrågningsdetaljerna överskrider gränsen.";
+
+"Request details are unavailable. Refresh usage and try again." = "Förfrågningsdetaljerna är inte tillgängliga. Uppdatera användningen och försök igen.";
+"Primary" = "Primärt";
+"Secondary" = "Sekundärt";
+"Tertiary" = "Tertiärt";

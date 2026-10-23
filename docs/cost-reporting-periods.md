@@ -1,5 +1,46 @@
 # Cost reporting periods
 
+## Conversation usage details
+
+In a cost submenu with session records, click a conversation to open the shared Sessions inspector in
+Usage & Spend and inspect its input, cached input, uncached input, output,
+reasoning, requests, estimated cost, and per-model breakdown. The search icon next to Conversations opens
+the same inspector for all conversations retained in that menu's current account and history window.
+The Sessions section in Usage & Spend reuses this component and selects providers/accounts separately;
+identical session IDs from different sources remain isolated. Sources provide `CostUsageSessionBreakdown`
+records with normalized token buckets; absent session data, turn records, and prices stay unavailable.
+A provider appearing in the app does not by itself mean its backend supplies session records.
+Search matches conversation names or IDs. Sort by recent activity, token count, or cost in either
+direction; unknown values stay last.
+
+Expand a turn to inspect the input, cache hits, output, reasoning, request count, and estimated spend
+recorded during that turn in the selected history window. Model requests expand into individual
+de-duplicated usage records with their recorded or estimated prices. Local native tool activity can
+also be expanded for that turn, including names, outcomes, durations, and available input/output.
+Tools have no separate token or monetary cost in this log; their content can contribute to later
+model requests. This view does not estimate a tool's price from its duration or output length.
+
+Messages sharing a turn cannot be priced separately. Missing turn ownership or older history without
+request records appears as unattributed usage; unavailable prices remain unknown. Requests outside the
+selected period and usage belonging to separate subagent sessions are not added to a parent's turn.
+For the Codex adapter, automatic approval-review sessions can appear alongside user-created
+conversations because its scanner reads local Codex session logs. A recorded zero-dollar amount does not imply zero tokens.
+
+The inspector uses the existing cost snapshot and preferred currency. Cached input is a subset of input;
+reasoning is a subset of output. Unavailable counters or prices remain unavailable rather than becoming
+zero. Hide personal information also masks the browser's names and prevents search from revealing them.
+
+Ordinary refreshes retain session summaries and a source handle, without building request-detail arrays.
+Selecting a native Codex session reads only that session's existing SQLite rows. The read is limited to
+5,000 requests, 8 MiB of request payload, 1 MiB of file metadata, and 5,000 day/model aggregates with
+1 MiB of model names. Persisted pricing metadata has a separate 1 MiB limit. If a limit is exceeded or
+the source or its catch-up checkpoint has changed, the summary stays visible and request details are unavailable; totals are never
+silently truncated. Changing selection cancels the previous read, and closing the inspector releases its
+request details. Session accounting keeps the source snapshot's reporting period even when a chart day
+is selected. No additional history store is created.
+
+## History windows
+
 The menu's **History window** supports rolling days, **Month to date**, and **All**. Usage & Spend uses the same period model and keeps its own range selection. Existing saved day counts retain their rolling windows; the dashboard's former All selection migrates to All available history.
 
 Usage & Spend groups ranges longer than 45 reporting days by week, and ranges longer than 180 days by month. Select a bucket to inspect its days, then a day with hourly records to inspect individual hours. Daily scrolling keeps whole reporting days visible across daylight-saving changes. Hour labels use a shared 24-hour clock and include UTC offsets in the inspector to distinguish repeated hours. The legend can isolate an account without changing dashboard totals. It shows sources with recorded amounts in the displayed range, drilled interval, or hourly day, including recorded zero-dollar amounts. Sources without priced records in that scope are omitted; account labels and colors stay stable. Legend chips and inspector amounts wrap in narrow windows. Daily inspection only selects existing buckets, so plot padding cannot produce an adjacent date with an empty inspector.

@@ -18,6 +18,8 @@ struct CostUsageCodexReportPricingWorkTests {
         #expect(reports.projects.first?.totalTokens == 4 * 16 * 13)
         #expect(reports.sessions.count == 4)
         #expect(reports.sessions.allSatisfy { $0.totalTokens == 16 * 13 })
+        #expect(reports.sessions.flatMap(\.turns).isEmpty)
+        #expect(reports.sessions.allSatisfy { $0.requestDetailSource != nil })
         #expect(work.snapshot().reportBuilds == 6)
     }
 

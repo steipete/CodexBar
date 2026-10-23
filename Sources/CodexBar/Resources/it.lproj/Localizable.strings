@@ -2714,3 +2714,27 @@
 "Trae CN request failed. Try refreshing later." = "La richiesta a Trae CN non è riuscita. Riprova ad aggiornare più tardi.";
 "Use --provider copilot." = "Usa --provider copilot.";
 "Config changed during login. Please try again." = "La configurazione è cambiata durante l’accesso. Riprova.";
+
+// Session usage browser
+"Search sessions" = "Cerca sessioni";
+"No matching sessions" = "Nessuna sessione corrispondente";
+"Select a session" = "Seleziona una sessione";
+"Cached input is included in input; reasoning is included in output." = "L’input nella cache è incluso nell’input; i token di ragionamento sono inclusi nell’output.";
+"Recent activity" = "Attività recente";
+"Sort by" = "Ordina per";
+"Ascending" = "Crescente";
+"Descending" = "Decrescente";
+"Each turn includes its recorded model calls within this period. Messages sharing a turn cannot be priced separately." = "Ogni turno include le richieste al modello registrate nel periodo. I messaggi nello stesso turno non possono essere valutati separatamente.";
+"No turn-level usage records are available." = "Nessun dato di utilizzo per turno disponibile.";
+"Unattributed usage" = "Utilizzo non attribuito";
+"Turn %d" = "Turno %d";
+"Model requests" = "Richieste al modello";
+"Tool activity has no separate recorded token or monetary cost." = "Per le chiamate agli strumenti non sono registrati costi separati in token o denaro.";
+"Request %d" = "Richiesta %d";
+
+"Request details exceed the limit." = "I dettagli delle richieste superano il limite.";
+
+"Request details are unavailable. Refresh usage and try again." = "I dettagli delle richieste non sono disponibili. Aggiorna l’utilizzo e riprova.";
+"Primary" = "Principale";
+"Secondary" = "Secondaria";
+"Tertiary" = "Terziaria";

@@ -2688,3 +2688,27 @@
 "Trae CN request failed. Try refreshing later." = "Trae CN 請求失敗。請稍後嘗試重新整理。";
 "Use --provider copilot." = "請使用 --provider copilot。";
 "Config changed during login. Please try again." = "登入期間設定已變更。請重試。";
+
+// Session usage browser
+"Search sessions" = "搜尋對話";
+"No matching sessions" = "沒有符合的對話";
+"Select a session" = "選擇一個對話";
+"Cached input is included in input; reasoning is included in output." = "快取輸入已包含在輸入中；推理 Token 已包含在輸出中。";
+"Recent activity" = "最近活動";
+"Sort by" = "排序依據";
+"Ascending" = "升冪";
+"Descending" = "降冪";
+"Each turn includes its recorded model calls within this period. Messages sharing a turn cannot be priced separately." = "每輪包含該時間範圍內記錄的模型請求；同一輪中的多則訊息無法分別計費。";
+"No turn-level usage records are available." = "沒有可用的輪次用量記錄。";
+"Unattributed usage" = "未歸屬的用量";
+"Turn %d" = "第 %d 輪";
+"Model requests" = "模型請求";
+"Tool activity has no separate recorded token or monetary cost." = "日誌未單獨記錄工具呼叫的 Token 或費用。";
+"Request %d" = "第 %d 次請求";
+
+"Request details exceed the limit." = "請求明細超過載入上限。";
+
+"Request details are unavailable. Refresh usage and try again." = "請求明細暫不可用，請重新整理用量後再試。";
+"Primary" = "主要";
+"Secondary" = "次要";
+"Tertiary" = "第三";

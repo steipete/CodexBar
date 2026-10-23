@@ -19,7 +19,7 @@ extension UsageStore {
         // whenever notifications OR a matching hook rule is active; gate the OS notification post
         // on the notification setting, but emit the hook on any depletion.
         let notificationsEnabled = self.settings.sessionQuotaNotificationsEnabled
-        let hooksActive = self.hasQuotaHookRule(event: .quotaReached, provider: provider)
+        let hooksActive = self.hasQuotaHookRule(event: .quotaReached, provider: provider.instanceID)
         let detectionEnabled = notificationsEnabled || hooksActive
         // Provider-specific by design: Codex owner-scoped baselines reject stale observations across account switches.
         if provider == .codex, !detectionEnabled {
@@ -69,7 +69,7 @@ extension UsageStore {
         let evaluation = SessionQuotaTransitionReducer.evaluate(
             previous: previousState,
             observation: SessionQuotaTransitionObservation(
-                provider: provider,
+                provider: provider.instanceID,
                 remaining: currentRemaining,
                 source: currentSource,
                 resetBoundary: currentResetBoundary,
@@ -122,7 +122,10 @@ extension UsageStore {
             }
             self.postSessionQuotaTransitionIfEnabled(transition, provider: provider)
             if transition == .depleted {
-                self.emitQuotaReachedHook(provider: provider, sessionWindow: sessionWindow, snapshot: snapshot)
+                self.emitQuotaReachedHook(
+                    provider: provider.instanceID,
+                    sessionWindow: sessionWindow,
+                    snapshot: snapshot)
             }
         }
         return false

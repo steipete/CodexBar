@@ -288,7 +288,7 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
                 }
                 // Metadata changes do not grant credential access; retain the same owner-CLI fallback as absence.
                 switch error {
-                case .notFound, .credentialsChanged:
+                case .notFound, .credentialsChanged, .mcpOAuthOnlyKeychain:
                     throw error
                 default:
                     throw ClaudeUsageError.oauthFailed(error.localizedDescription)

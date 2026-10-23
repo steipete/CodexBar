@@ -2713,3 +2713,27 @@
 "Trae CN request failed. Try refreshing later." = "Żądanie Trae CN nie powiodło się. Spróbuj odświeżyć później.";
 "Use --provider copilot." = "Użyj --provider copilot.";
 "Config changed during login. Please try again." = "Konfiguracja zmieniła się podczas logowania. Spróbuj ponownie.";
+
+// Session usage browser
+"Search sessions" = "Szukaj sesji";
+"No matching sessions" = "Brak pasujących sesji";
+"Select a session" = "Wybierz sesję";
+"Cached input is included in input; reasoning is included in output." = "Dane wejściowe z pamięci podręcznej są zawarte w danych wejściowych; tokeny rozumowania są zawarte w danych wyjściowych.";
+"Recent activity" = "Ostatnia aktywność";
+"Sort by" = "Sortuj według";
+"Ascending" = "Rosnąco";
+"Descending" = "Malejąco";
+"Each turn includes its recorded model calls within this period. Messages sharing a turn cannot be priced separately." = "Każda tura obejmuje żądania modelu zapisane w tym okresie. Wiadomości z tej samej tury nie można wycenić osobno.";
+"No turn-level usage records are available." = "Brak danych o użyciu według tur.";
+"Unattributed usage" = "Nieprzypisane użycie";
+"Turn %d" = "Tura %d";
+"Model requests" = "Żądania modelu";
+"Tool activity has no separate recorded token or monetary cost." = "Dla wywołań narzędzi nie zapisano oddzielnych kosztów tokenów ani pieniężnych.";
+"Request %d" = "Żądanie %d";
+
+"Request details exceed the limit." = "Szczegóły żądań przekraczają limit.";
+
+"Request details are unavailable. Refresh usage and try again." = "Szczegóły żądań są niedostępne. Odśwież użycie i spróbuj ponownie.";
+"Primary" = "Główne";
+"Secondary" = "Dodatkowe";
+"Tertiary" = "Trzecie";

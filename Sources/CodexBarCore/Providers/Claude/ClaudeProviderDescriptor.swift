@@ -633,7 +633,7 @@ struct ClaudeOAuthFetchStrategy: ProviderFetchStrategy {
                 allowClaudeKeychainRepairWithoutPrompt: false,
                 clearInvalidCache: false)
             return false
-        } catch ClaudeOAuthCredentialsError.notFound {
+        } catch ClaudeOAuthCredentialsError.notFound, ClaudeOAuthCredentialsError.mcpOAuthOnlyKeychain {
             return true
         } catch ClaudeOAuthCredentialsError.credentialsChanged {
             return true
@@ -784,7 +784,7 @@ struct ClaudeOAuthFetchStrategy: ProviderFetchStrategy {
            let credentialsError = error as? ClaudeOAuthCredentialsError
         {
             switch credentialsError {
-            case .notFound, .credentialsChanged, .refreshDelegatedToClaudeCLI:
+            case .notFound, .credentialsChanged, .mcpOAuthOnlyKeychain, .refreshDelegatedToClaudeCLI:
                 return true
             default:
                 break

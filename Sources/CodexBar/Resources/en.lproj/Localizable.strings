@@ -2715,3 +2715,27 @@
 "Trae CN request failed. Try refreshing later." = "Trae CN request failed. Try refreshing later.";
 "Use --provider copilot." = "Use --provider copilot.";
 "Config changed during login. Please try again." = "Config changed during login. Please try again.";
+
+// Session usage browser
+"Search sessions" = "Search sessions";
+"No matching sessions" = "No matching sessions";
+"Select a session" = "Select a session";
+"Cached input is included in input; reasoning is included in output." = "Cached input is included in input; reasoning is included in output.";
+"Recent activity" = "Recent activity";
+"Sort by" = "Sort by";
+"Ascending" = "Ascending";
+"Descending" = "Descending";
+"Each turn includes its recorded model calls within this period. Messages sharing a turn cannot be priced separately." = "Each turn includes its recorded model calls within this period. Messages sharing a turn cannot be priced separately.";
+"No turn-level usage records are available." = "No turn-level usage records are available.";
+"Unattributed usage" = "Unattributed usage";
+"Turn %d" = "Turn %d";
+"Model requests" = "Model requests";
+"Tool activity has no separate recorded token or monetary cost." = "Tool activity has no separate recorded token or monetary cost.";
+"Request %d" = "Request %d";
+
+"Request details exceed the limit." = "Request details exceed the limit.";
+
+"Request details are unavailable. Refresh usage and try again." = "Request details are unavailable. Refresh usage and try again.";
+"Primary" = "Primary";
+"Secondary" = "Secondary";
+"Tertiary" = "Tertiary";

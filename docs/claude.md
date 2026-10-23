@@ -46,7 +46,12 @@ Completed requests for models without a known price keep their token usage and r
 - CLI runtime main pipeline: Web API → CLI PTY (Linux: Web API → OAuth API → CLI PTY).
   Since 0.78.0, Auto `usage` first uses the active slot when the claude-swap integration is enabled;
   explicit source/account selection bypasses it. See [CLI precedence](cli.md#command).
-- Explicit picker modes (OAuth/Web/CLI) bypass automatic fallback.
+- Explicit Web/CLI modes use the selected source. Explicit OAuth can use Claude Code's own CLI on a manual
+  refresh when direct OAuth credentials are unavailable, including a Keychain item containing only MCP OAuth
+  state. MCP tokens cannot supply Claude subscription usage. This recovery never switches to browser credentials;
+  Auto retains its OAuth → CLI → Web order and existing background prompt and account checks.
+- A successful refresh replaces retained usage and clears its error and last-known capture notice. MCP-only
+  detection does not establish that another source is signed in or permitted to run in the background.
 - Explicit OAuth retains the last successful quota measurement through recognized temporary network failures,
   including localized DNS/offline errors. Its original timestamp remains visible; authentication rejection still
   follows the existing invalidation and credential-owner rules.

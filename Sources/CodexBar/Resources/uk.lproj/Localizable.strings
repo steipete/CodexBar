@@ -2711,3 +2711,27 @@
 "Trae CN request failed. Try refreshing later." = "Запит до Trae CN не вдався. Спробуйте оновити пізніше.";
 "Use --provider copilot." = "Використовуйте --provider copilot.";
 "Config changed during login. Please try again." = "Конфігурація змінилася під час входу. Спробуйте ще раз.";
+
+// Session usage browser
+"Search sessions" = "Пошук сеансів";
+"No matching sessions" = "Відповідних сеансів немає";
+"Select a session" = "Виберіть сеанс";
+"Cached input is included in input; reasoning is included in output." = "Кешований ввід включено до вводу; токени міркування включено до виводу.";
+"Recent activity" = "Нещодавня активність";
+"Sort by" = "Сортувати за";
+"Ascending" = "За зростанням";
+"Descending" = "За спаданням";
+"Each turn includes its recorded model calls within this period. Messages sharing a turn cannot be priced separately." = "Кожен хід містить запити до моделі, записані за цей період. Вартість повідомлень одного ходу не можна розрахувати окремо.";
+"No turn-level usage records are available." = "Немає даних про використання за ходами.";
+"Unattributed usage" = "Використання без прив’язки";
+"Turn %d" = "Хід %d";
+"Model requests" = "Запити до моделі";
+"Tool activity has no separate recorded token or monetary cost." = "Для викликів інструментів окремі витрати токенів чи коштів не записані.";
+"Request %d" = "Запит %d";
+
+"Request details exceed the limit." = "Обсяг відомостей про запити перевищує ліміт.";
+
+"Request details are unavailable. Refresh usage and try again." = "Відомості про запити недоступні. Оновіть дані про використання та спробуйте ще раз.";
+"Primary" = "Основне";
+"Secondary" = "Додаткове";
+"Tertiary" = "Третє";

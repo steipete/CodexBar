@@ -114,12 +114,16 @@ extension CostUsageScanner {
             }
             return lhs.name.localizedStandardCompare(rhs.name) == .orderedAscending
         }
+        let databaseURL = CostUsageStore.databaseURL(cacheRoot: modelsDevCacheRoot)
         let sessions = latestSessions.compactMap { id, file -> CostUsageSessionBreakdown? in
             let performanceSamples = Self.codexTurnPerformanceSamples(usage: file.usage, range: range)
             // A turn can complete after midnight with all billed requests on the previous day.
             guard !file.report.data.isEmpty || !performanceSamples.isEmpty else { return nil }
             return Self.codexSessionBreakdown(
-                source: SessionToolActivitySource(fileURL: URL(fileURLWithPath: file.path), sessionID: id),
+                detailSource: CostUsageSessionDetailSource(
+                    databaseURL: databaseURL,
+                    sessionSource: SessionToolActivitySource(fileURL: URL(fileURLWithPath: file.path), sessionID: id),
+                    parsedBytes: file.usage.parsedBytes),
                 usage: file.usage,
                 report: file.report,
                 projectPathResolver: projectPathResolver,
@@ -135,12 +139,13 @@ extension CostUsageScanner {
     }
 
     private static func codexSessionBreakdown(
-        source: SessionToolActivitySource,
+        detailSource: CostUsageSessionDetailSource,
         usage: CostUsageFileUsage,
         report: CostUsageDailyReport,
         projectPathResolver: CodexCanonicalProjectPathResolver,
         performanceSamples: [CostUsageTurnPerformanceSample]) -> CostUsageSessionBreakdown
     {
+        let source = detailSource.sessionSource
         let summary = report.summary
         let requestCounts = report.data.compactMap(\.requestCount)
         let resolvedProjectPath = usage.canonicalProjectPath
@@ -152,6 +157,7 @@ extension CostUsageScanner {
             inputTokens: summary?.totalInputTokens,
             cachedInputTokens: summary?.cacheReadTokens,
             outputTokens: summary?.totalOutputTokens,
+            reasoningTokens: summary?.reasoningTokens,
             totalTokens: summary?.totalTokens,
             requestCount: requestCounts.isEmpty ? nil : requestCounts.reduce(0, +),
             costUSD: summary?.totalCostUSD,
@@ -160,7 +166,8 @@ extension CostUsageScanner {
             projectName: projectPath.map { Self.codexProjectName(path: $0) },
             title: usage.codexSession?.title,
             turnPerformanceSamples: performanceSamples,
-            toolActivitySource: source)
+            toolActivitySource: source,
+            requestDetailSource: detailSource)
         session.workingDirectory = usage.projectPath
         return session
     }

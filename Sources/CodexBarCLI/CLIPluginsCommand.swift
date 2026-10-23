@@ -119,11 +119,12 @@ extension CodexBarCLI {
 
     static func pluginSnapshotLines(plugin: UserProviderPlugin, snapshot: UsageSnapshot) -> [String] {
         var lines = [plugin.manifest.name]
-        if let primary = snapshot.primary {
-            lines.append("Primary: \(Int(primary.usedPercent.rounded()))% used")
-        }
-        if let secondary = snapshot.secondary {
-            lines.append("Secondary: \(Int(secondary.usedPercent.rounded()))% used")
+        for (fallback, window) in [
+            ("Primary", snapshot.primary), ("Secondary", snapshot.secondary), ("Tertiary", snapshot.tertiary),
+        ] {
+            if let window {
+                lines.append("\(window.title ?? fallback): \(Int(window.usedPercent.rounded()))% used")
+            }
         }
         if let cost = snapshot.providerCost {
             lines.append("Cost: \(cost.used) \(cost.currencyCode)")

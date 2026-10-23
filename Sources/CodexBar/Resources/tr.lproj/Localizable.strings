@@ -2713,3 +2713,27 @@
 "Trae CN request failed. Try refreshing later." = "Trae CN isteği başarısız oldu. Daha sonra yeniden yenileyin.";
 "Use --provider copilot." = "--provider copilot kullanın.";
 "Config changed during login. Please try again." = "Giriş sırasında yapılandırma değişti. Lütfen tekrar deneyin.";
+
+// Session usage browser
+"Search sessions" = "Oturum ara";
+"No matching sessions" = "Eşleşen oturum yok";
+"Select a session" = "Bir oturum seçin";
+"Cached input is included in input; reasoning is included in output." = "Önbelleğe alınan girdi, girdiye dahildir; akıl yürütme tokenleri çıktıya dahildir.";
+"Recent activity" = "Son etkinlik";
+"Sort by" = "Sıralama ölçütü";
+"Ascending" = "Artan";
+"Descending" = "Azalan";
+"Each turn includes its recorded model calls within this period. Messages sharing a turn cannot be priced separately." = "Her tur, bu dönemde kaydedilen model isteklerini içerir. Aynı turdaki mesajlar ayrı ayrı fiyatlandırılamaz.";
+"No turn-level usage records are available." = "Tur düzeyinde kullanım kaydı yok.";
+"Unattributed usage" = "İlişkilendirilmemiş kullanım";
+"Turn %d" = "Tur %d";
+"Model requests" = "Model istekleri";
+"Tool activity has no separate recorded token or monetary cost." = "Araç çağrıları için ayrı token veya parasal maliyet kaydedilmez.";
+"Request %d" = "İstek %d";
+
+"Request details exceed the limit." = "İstek ayrıntıları sınırı aşıyor.";
+
+"Request details are unavailable. Refresh usage and try again." = "İstek ayrıntıları kullanılamıyor. Kullanımı yenileyip tekrar deneyin.";
+"Primary" = "Birincil";
+"Secondary" = "İkincil";
+"Tertiary" = "Üçüncül";

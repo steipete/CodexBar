@@ -2712,3 +2712,27 @@
 "Trae CN request failed. Try refreshing later." = "La sol·licitud a Trae CN ha fallat. Torneu a actualitzar més tard.";
 "Use --provider copilot." = "Utilitza --provider copilot.";
 "Config changed during login. Please try again." = "La configuració ha canviat durant l’inici de sessió. Torna-ho a provar.";
+
+// Session usage browser
+"Search sessions" = "Cerca sessions";
+"No matching sessions" = "No hi ha sessions coincidents";
+"Select a session" = "Selecciona una sessió";
+"Cached input is included in input; reasoning is included in output." = "L’entrada en memòria cau està inclosa en l’entrada; els tokens de raonament estan inclosos en la sortida.";
+"Recent activity" = "Activitat recent";
+"Sort by" = "Ordena per";
+"Ascending" = "Ascendent";
+"Descending" = "Descendent";
+"Each turn includes its recorded model calls within this period. Messages sharing a turn cannot be priced separately." = "Cada torn inclou les peticions al model registrades en aquest període. Els missatges del mateix torn no es poden valorar per separat.";
+"No turn-level usage records are available." = "No hi ha registres d’ús per torn disponibles.";
+"Unattributed usage" = "Ús sense atribuir";
+"Turn %d" = "Torn %d";
+"Model requests" = "Peticions al model";
+"Tool activity has no separate recorded token or monetary cost." = "No es registra cap cost independent en tokens o diners per a les crides a eines.";
+"Request %d" = "Petició %d";
+
+"Request details exceed the limit." = "Els detalls de les sol·licituds superen el límit.";
+
+"Request details are unavailable. Refresh usage and try again." = "Els detalls de les sol·licituds no estan disponibles. Actualitza l’ús i torna-ho a provar.";
+"Primary" = "Principal";
+"Secondary" = "Secundària";
+"Tertiary" = "Terciària";

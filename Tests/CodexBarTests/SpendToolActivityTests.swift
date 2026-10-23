@@ -81,6 +81,7 @@ struct SpendToolActivityTests {
             let row = try #require(group.sessions.first)
             #expect(row
                 .toolActivitySource == (provider == .codex && kind == .native ? source : nil))
+            #expect(row.usage?.toolActivitySource == row.toolActivitySource)
             let range = spendToolActivityRange(group: group)
             #expect(range.lowerBound == calendar.startOfDay(for: now))
             #expect(range.upperBound == calendar.date(

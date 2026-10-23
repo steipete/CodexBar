@@ -2678,3 +2678,27 @@
 "Trae CN request failed. Try refreshing later." = "Trae CN 요청에 실패했습니다. 나중에 다시 새로 고침하세요.";
 "Use --provider copilot." = "--provider copilot을 사용하세요.";
 "Config changed during login. Please try again." = "로그인 중에 구성이 변경되었습니다. 다시 시도하세요.";
+
+// Session usage browser
+"Search sessions" = "세션 검색";
+"No matching sessions" = "일치하는 세션 없음";
+"Select a session" = "세션 선택";
+"Cached input is included in input; reasoning is included in output." = "캐시 입력은 입력에 포함되고 추론 토큰은 출력에 포함됩니다.";
+"Recent activity" = "최근 활동";
+"Sort by" = "정렬 기준";
+"Ascending" = "오름차순";
+"Descending" = "내림차순";
+"Each turn includes its recorded model calls within this period. Messages sharing a turn cannot be priced separately." = "각 턴에는 이 기간에 기록된 모델 요청이 포함됩니다. 같은 턴의 메시지는 별도로 비용을 계산할 수 없습니다.";
+"No turn-level usage records are available." = "턴별 사용량 기록이 없습니다.";
+"Unattributed usage" = "귀속되지 않은 사용량";
+"Turn %d" = "턴 %d";
+"Model requests" = "모델 요청";
+"Tool activity has no separate recorded token or monetary cost." = "도구 호출의 토큰 사용량이나 비용은 별도로 기록되지 않습니다.";
+"Request %d" = "요청 %d";
+
+"Request details exceed the limit." = "요청 세부 정보가 한도를 초과합니다.";
+
+"Request details are unavailable. Refresh usage and try again." = "요청 세부 정보를 사용할 수 없습니다. 사용량을 새로고침한 후 다시 시도하세요.";
+"Primary" = "기본";
+"Secondary" = "보조";
+"Tertiary" = "세 번째";

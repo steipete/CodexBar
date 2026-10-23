@@ -584,6 +584,11 @@ final class UsageStore {
                 for: self.freshCodexVisibleAccountsForSnapshotHydration())
         }
         self.logStartupState()
+        self.settings.onProviderFetchIdentityChange = { [weak self] instanceID in
+            guard instanceID.firstPartyProvider == nil else { return }
+            self?.clearUserPluginHookState(instanceID)
+        }
+        self.pruneUserPluginHookState()
         self.observeSettingsChanges()
         self.pathDebugInfo = PathDebugSnapshot(
             codexBinary: nil,

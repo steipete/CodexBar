@@ -2712,3 +2712,27 @@
 "Trae CN request failed. Try refreshing later." = "คำขอ Trae CN ล้มเหลว ลองรีเฟรชอีกครั้งในภายหลัง";
 "Use --provider copilot." = "ใช้ --provider copilot";
 "Config changed during login. Please try again." = "การกำหนดค่ามีการเปลี่ยนแปลงระหว่างเข้าสู่ระบบ โปรดลองอีกครั้ง";
+
+// Session usage browser
+"Search sessions" = "ค้นหาเซสชัน";
+"No matching sessions" = "ไม่พบเซสชันที่ตรงกัน";
+"Select a session" = "เลือกเซสชัน";
+"Cached input is included in input; reasoning is included in output." = "อินพุตที่แคชรวมอยู่ในอินพุตแล้ว และโทเค็นการให้เหตุผลรวมอยู่ในเอาต์พุตแล้ว";
+"Recent activity" = "กิจกรรมล่าสุด";
+"Sort by" = "จัดเรียงตาม";
+"Ascending" = "น้อยไปมาก";
+"Descending" = "มากไปน้อย";
+"Each turn includes its recorded model calls within this period. Messages sharing a turn cannot be priced separately." = "แต่ละรอบรวมคำขอโมเดลที่บันทึกในช่วงเวลานี้ ไม่สามารถคำนวณค่าใช้จ่ายแยกสำหรับข้อความในรอบเดียวกันได้";
+"No turn-level usage records are available." = "ไม่มีบันทึกการใช้งานแยกตามรอบ";
+"Unattributed usage" = "การใช้งานที่ไม่ระบุรอบ";
+"Turn %d" = "รอบที่ %d";
+"Model requests" = "คำขอโมเดล";
+"Tool activity has no separate recorded token or monetary cost." = "ไม่มีการบันทึกโทเคนหรือค่าใช้จ่ายแยกสำหรับการเรียกเครื่องมือ";
+"Request %d" = "คำขอที่ %d";
+
+"Request details exceed the limit." = "รายละเอียดคำขอเกินขีดจำกัด";
+
+"Request details are unavailable. Refresh usage and try again." = "ไม่สามารถแสดงรายละเอียดคำขอได้ โปรดรีเฟรชข้อมูลการใช้งานแล้วลองอีกครั้ง";
+"Primary" = "หลัก";
+"Secondary" = "รอง";
+"Tertiary" = "ลำดับที่สาม";

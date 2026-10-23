@@ -4,6 +4,8 @@ public struct RateWindow: Codable, Equatable, Sendable {
     /// Provider usage value, intentionally not normalized globally. Pace and provider-specific diagnostics may
     /// preserve raw over-quota values; display-only projections should use `UsagePercent.displayClamped`.
     public let usedPercent: Double
+    /// Optional provider-supplied label for generic usage-window presentation.
+    public let title: String?
     public let windowMinutes: Int?
     public let resetsAt: Date?
     /// Optional textual reset description (used by Claude CLI UI scrape).
@@ -31,9 +33,11 @@ public struct RateWindow: Codable, Equatable, Sendable {
         quotaLimit: Double? = nil,
         quotaUnit: String? = nil,
         nextRegenPercent: Double? = nil,
-        isSyntheticPlaceholder: Bool = false)
+        isSyntheticPlaceholder: Bool = false,
+        title: String? = nil)
     {
         self.usedPercent = usedPercent
+        self.title = title
         self.windowMinutes = windowMinutes
         self.resetsAt = resetsAt
         self.resetDescription = resetDescription
@@ -45,6 +49,7 @@ public struct RateWindow: Codable, Equatable, Sendable {
 
     private enum CodingKeys: String, CodingKey {
         case usedPercent
+        case title
         case windowMinutes
         case resetsAt
         case resetDescription
@@ -57,6 +62,7 @@ public struct RateWindow: Codable, Equatable, Sendable {
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         self.usedPercent = try container.decode(Double.self, forKey: .usedPercent)
+        self.title = try container.decodeIfPresent(String.self, forKey: .title)
         self.windowMinutes = try container.decodeIfPresent(Int.self, forKey: .windowMinutes)
         self.resetsAt = try container.decodeIfPresent(Date.self, forKey: .resetsAt)
         self.resetDescription = try container.decodeIfPresent(String.self, forKey: .resetDescription)
@@ -70,6 +76,7 @@ public struct RateWindow: Codable, Equatable, Sendable {
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(self.usedPercent, forKey: .usedPercent)
+        try container.encodeIfPresent(self.title, forKey: .title)
         try container.encodeIfPresent(self.windowMinutes, forKey: .windowMinutes)
         try container.encodeIfPresent(self.resetsAt, forKey: .resetsAt)
         try container.encodeIfPresent(self.resetDescription, forKey: .resetDescription)
@@ -111,7 +118,8 @@ public struct RateWindow: Codable, Equatable, Sendable {
             nextRegenPercent: self.nextRegenPercent,
             // Preserve the placeholder marker: backfilling a stale reset onto Claude web's null-session
             // placeholder must not let it masquerade as a real session lane.
-            isSyntheticPlaceholder: self.isSyntheticPlaceholder)
+            isSyntheticPlaceholder: self.isSyntheticPlaceholder,
+            title: self.title)
     }
 }
 

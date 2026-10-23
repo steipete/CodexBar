@@ -2710,3 +2710,27 @@
 "Trae CN request failed. Try refreshing later." = "Trae CN へのリクエストに失敗しました。後でもう一度更新してください。";
 "Use --provider copilot." = "--provider copilot を使用してください。";
 "Config changed during login. Please try again." = "ログイン中に設定が変更されました。もう一度お試しください。";
+
+// Session usage browser
+"Search sessions" = "セッションを検索";
+"No matching sessions" = "一致するセッションがありません";
+"Select a session" = "セッションを選択";
+"Cached input is included in input; reasoning is included in output." = "キャッシュ入力は入力に、推論トークンは出力に含まれます。";
+"Recent activity" = "最近のアクティビティ";
+"Sort by" = "並べ替え";
+"Ascending" = "昇順";
+"Descending" = "降順";
+"Each turn includes its recorded model calls within this period. Messages sharing a turn cannot be priced separately." = "各ターンには、この期間に記録されたモデルリクエストが含まれます。同じターン内のメッセージを個別に料金計算することはできません。";
+"No turn-level usage records are available." = "ターン単位の使用量記録はありません。";
+"Unattributed usage" = "未割り当ての使用量";
+"Turn %d" = "ターン %d";
+"Model requests" = "モデルリクエスト";
+"Tool activity has no separate recorded token or monetary cost." = "ツール呼び出しのトークン数や料金は個別には記録されていません。";
+"Request %d" = "リクエスト %d";
+
+"Request details exceed the limit." = "リクエストの詳細が上限を超えています。";
+
+"Request details are unavailable. Refresh usage and try again." = "リクエストの詳細を取得できません。使用状況を更新して、もう一度お試しください。";
+"Primary" = "プライマリ";
+"Secondary" = "セカンダリ";
+"Tertiary" = "ターシャリ";

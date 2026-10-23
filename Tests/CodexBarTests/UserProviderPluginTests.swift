@@ -583,6 +583,85 @@ struct UserProviderPluginTests {
     }
 
     @Test
+    func `unset endpoint setting reports not configured and fails closed`() async throws {
+        let fixture = try Fixture()
+        defer { fixture.remove() }
+        let source = """
+        defineProvider({
+          id: "endpoint-config-demo",
+          name: "Endpoint Config Demo",
+          endpoints: [{ setting: "BASE_URL", policy: "https-or-loopback-http" }],
+          settings: [{ key: "BASE_URL", title: "Base URL", type: "plain" }],
+          fetchUsage() { return { primary: { usedPercent: 25 } }; },
+        });
+        """
+        let transport = RecordingTransport(responseJSON: "{}")
+        let plugin = try fixture.loader(transport: transport)
+            .load(fileURL: fixture.write(name: "unset.js", source: source))
+        let expected = "endpoint-config-demo: Configure endpoint settings (BASE_URL)"
+
+        for settings in [[:], ["BASE_URL": ""], ["BASE_URL": "  \n "]] as [[String: String]] {
+            do {
+                _ = try plugin.approvalBinding(settings: settings)
+                Issue.record("missing endpoint must fail closed")
+            } catch {
+                #expect(error.localizedDescription == expected)
+            }
+            do {
+                _ = try await plugin.fetchUsage(
+                    settings: settings,
+                    secrets: [:],
+                    environment: [:],
+                    approvalStore: fixture.approvals)
+                Issue.record("missing endpoint must fail closed")
+            } catch {
+                #expect(error.localizedDescription == expected)
+            }
+        }
+        #expect(transport.requestCount == 0)
+
+        #expect(throws: ProviderPluginError.self) {
+            _ = try plugin.approvalBinding(settings: ["BASE_URL": "http://gateway.example"])
+        }
+        do {
+            _ = try plugin.approvalBinding(settings: ["BASE_URL": "http://[bad"])
+            Issue.record("expected invalid URL error")
+        } catch let error as ProviderPluginError {
+            #expect(error == .invalidManifest(
+                "endpoint setting 'BASE_URL' must contain a valid URL before approval"))
+        }
+
+        let settings = ["BASE_URL": "https://example.com"]
+        await #expect(throws: UserProviderPluginError.self) {
+            _ = try await plugin.fetchUsage(settings: settings, secrets: [:], approvalStore: fixture.approvals)
+        }
+        #expect(transport.requestCount == 0)
+        try fixture.approvals.record(plugin.approvalBinding(settings: settings))
+        let snapshot = try await plugin.fetchUsage(
+            settings: settings,
+            secrets: [:],
+            environment: [:],
+            approvalStore: fixture.approvals)
+        #expect(snapshot.primary?.usedPercent == 25)
+        #expect(transport.requestCount == 0)
+    }
+
+    @MainActor
+    @Test
+    func `missing endpoint guidance follows the app language`() {
+        configureUsageFormatterLocalizationProvider()
+        defer {
+            UsageFormatter.clearLocalizationProvider()
+            UsageFormatter.clearLocaleProvider()
+        }
+        CodexBarLocalizationOverride.$appLanguage.withValue("it") {
+            let error = ProviderPluginError.endpointNotConfigured(plugin: "endpoint-config-demo", setting: "BASE_URL")
+            #expect(error.localizedDescription ==
+                "endpoint-config-demo: Configura le impostazioni degli endpoint (BASE_URL)")
+        }
+    }
+
+    @Test
     func `plugin CLI renders identity only snapshots`() throws {
         let fixture = try Fixture()
         defer { fixture.remove() }
@@ -1356,4 +1435,32 @@ extension UserProviderPluginTests {
     }
 }
 
+extension UserProviderPluginTests {
+    @Test
+    func `plugin CLI renders all standard window titles and JSON retains them`() async throws {
+        let fixture = try Fixture()
+        defer { fixture.remove() }
+        let plugin = try fixture.loader(transport: RecordingTransport(responseJSON: "{}"))
+            .load(fileURL: fixture.write(name: "titles.js", source: """
+            defineProvider({
+              id: "window-titles", name: "Window Titles", endpoints: ["https://example.test"], settings: [],
+              fetchUsage() { return {
+                primary: {title:"Requests",usedPercent:25},
+                secondary: {usedPercent:40},
+                tertiary: {title:"Credits",usedPercent:60}
+              }; }
+            });
+            """))
+        try fixture.approvals.record(plugin.approvalBinding(settings: [:]))
+        let snapshot = try await plugin.fetchUsage(
+            settings: [:], secrets: [:], environment: [:], approvalStore: fixture.approvals)
+        #expect(CodexBarCLI.pluginSnapshotLines(plugin: plugin, snapshot: snapshot) == [
+            "Window Titles", "Requests: 25% used", "Secondary: 40% used", "Credits: 60% used",
+        ])
+        let json = try #require(JSONSerialization.jsonObject(with: JSONEncoder().encode(snapshot)) as? [String: Any])
+        #expect((json["primary"] as? [String: Any])?["title"] as? String == "Requests")
+        #expect((json["secondary"] as? [String: Any])?["title"] == nil)
+        #expect((json["tertiary"] as? [String: Any])?["title"] as? String == "Credits")
+    }
+}
 #endif

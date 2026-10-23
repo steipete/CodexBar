@@ -2712,3 +2712,27 @@
 "Trae CN request failed. Try refreshing later." = "Permintaan Trae CN gagal. Coba segarkan lagi nanti.";
 "Use --provider copilot." = "Gunakan --provider copilot.";
 "Config changed during login. Please try again." = "Konfigurasi berubah saat masuk. Silakan coba lagi.";
+
+// Session usage browser
+"Search sessions" = "Cari sesi";
+"No matching sessions" = "Tidak ada sesi yang cocok";
+"Select a session" = "Pilih sesi";
+"Cached input is included in input; reasoning is included in output." = "Input cache sudah termasuk dalam input; token penalaran sudah termasuk dalam output.";
+"Recent activity" = "Aktivitas terbaru";
+"Sort by" = "Urutkan berdasarkan";
+"Ascending" = "Menaik";
+"Descending" = "Menurun";
+"Each turn includes its recorded model calls within this period. Messages sharing a turn cannot be priced separately." = "Setiap giliran mencakup permintaan model yang tercatat dalam periode ini. Pesan dalam giliran yang sama tidak dapat dihitung biayanya secara terpisah.";
+"No turn-level usage records are available." = "Tidak ada catatan penggunaan per giliran.";
+"Unattributed usage" = "Penggunaan tanpa atribusi";
+"Turn %d" = "Giliran %d";
+"Model requests" = "Permintaan model";
+"Tool activity has no separate recorded token or monetary cost." = "Panggilan alat tidak memiliki biaya token atau uang yang tercatat secara terpisah.";
+"Request %d" = "Permintaan %d";
+
+"Request details exceed the limit." = "Detail permintaan melebihi batas.";
+
+"Request details are unavailable. Refresh usage and try again." = "Detail permintaan tidak tersedia. Muat ulang penggunaan dan coba lagi.";
+"Primary" = "Utama";
+"Secondary" = "Sekunder";
+"Tertiary" = "Tersier";
