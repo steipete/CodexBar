@@ -10,7 +10,8 @@ plugin_scope: Trae CN session token exchange and entitlement summary through the
 
 Trae CN is ByteDance's China-region service at [trae.cn](https://www.trae.cn). Enable **Trae CN** in
 Settings → Providers after signing in to its dashboard. Automatic cookies use the shared browser order
-and prompt policy. Manual mode accepts the Cookie header from an `api.trae.cn` dashboard request;
+and prompt policy, importing sessions from the shared parent domain `trae.cn`. Requests remain on `api.trae.cn`.
+Manual mode accepts the Cookie header from an API dashboard request and preserves its origin;
 Off disables cookie access. No API key, endpoint override, or separate token store is needed.
 
 The bundled plugin makes two non-billable requests to `https://api.trae.cn`:

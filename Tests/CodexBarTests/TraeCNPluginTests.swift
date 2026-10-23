@@ -4,6 +4,9 @@ import FoundationNetworking
 #endif
 import Testing
 @testable import CodexBarCore
+#if os(macOS)
+@testable import SweetCookieKit
+#endif
 
 struct TraeCNPluginTests {
     private static let now = Date(timeIntervalSince1970: 1_800_000_000)
@@ -14,6 +17,77 @@ struct TraeCNPluginTests {
       {"group_type":0,"status":1,"display_desc":"Fixture Pro","expire_time":2000000000,"next_billing_time":1900000000},
       {"group_type":4,"status":1,"expire_time":1850000000}]}
     """#
+
+    #if os(macOS)
+    @Test(arguments: BundledPluginTestSupport.engines)
+    func `automatic import finds parent-domain-only sessions through the shared broker`(
+        engine: ProviderPluginEngineKind) async throws
+    {
+        let requests = LockIsolated<[String]>([])
+        let imports = LockIsolated<[String]>([])
+        let runtime = try Self.runtime(engine: engine, requests: requests)
+        let broker = ProviderPluginCookieBroker(
+            provider: .traecn,
+            domains: runtime.manifest.cookieDomains,
+            settings: .init(cookieSource: .auto, manualCookieHeader: nil),
+            batches: { domain, batch in
+                imports.setValue(imports.value + [domain])
+                guard batch == 0 else { return nil }
+                let query = ProviderPluginCookieBroker.cookieQuery(domain: domain)
+                guard BrowserCookieDomainMatcher.matches(
+                    domain: ".trae.cn", patterns: query.domains, match: query.domainMatch)
+                else { return [] }
+                let cookie = try #require(HTTPCookie(properties: [
+                    .domain: ".trae.cn", .path: "/", .name: "sessionid", .value: "fixture-session",
+                ]))
+                let cookies = ProviderPluginCookieBroker.cookiesForRequest([cookie], domain: domain)
+                let header = cookies.map { "\($0.name)=\($0.value)" }.joined(separator: "; ")
+                return header.isEmpty ? [] : [(header: header, source: "Synthetic parent-domain browser")]
+            })
+        let usage = try await Self.fetch(runtime: runtime, cookies: broker)
+        #expect(usage.primary?.usedPercent == 20)
+        #expect(imports.value == ["trae.cn"])
+        #expect(requests.value.count == 2)
+        #expect(requests.value.allSatisfy { $0.hasSuffix(" " + Self.cookie) })
+    }
+
+    @Test(arguments: BundledPluginTestSupport.engines)
+    func `manual API-origin cookies still use the shared broker`(engine: ProviderPluginEngineKind) async throws {
+        let runtime = try Self.runtime(engine: engine)
+        let broker = ProviderPluginCookieBroker(
+            provider: .traecn,
+            domains: runtime.manifest.cookieDomains,
+            settings: .init(
+                cookieSource: .manual,
+                manualCookieHeader: Self.cookie,
+                manualCookieOrigin: "https://api.trae.cn"),
+            batches: { _, _ in Issue.record("Manual cookies must not import a browser"); return nil })
+        let usage = try await Self.fetch(runtime: runtime, cookies: broker)
+        #expect(usage.primary?.usedPercent == 20)
+    }
+
+    private static func fetch(
+        runtime: ProviderPluginRuntime,
+        cookies: ProviderPluginCookieBroker) async throws -> UsageSnapshot
+    {
+        let service = "traecn-broker-\(UUID().uuidString)"
+        let legacy = FileManager.default.temporaryDirectory.appendingPathComponent(service)
+        defer { try? FileManager.default.removeItem(at: legacy) }
+        return try await runtime.fetchUsage(
+            now: Self.now,
+            cookieSource: cookies.cookieSource,
+            cookieSessionResolver: { domain, cachedOnly in
+                // QuickJS crosses a detached-task boundary; isolate cache access inside that callback.
+                try KeychainCacheStore.withImplicitTestStoreForTesting {
+                    try KeychainCacheStore.withServiceOverrideForTesting(service) {
+                        try CookieHeaderCache.withLegacyBaseURLOverrideForTesting(legacy) {
+                            try cookies.nextSession(domain: domain, cachedOnly: cachedOnly)
+                        }
+                    }
+                }
+            })
+    }
+    #endif
 
     @Test(arguments: BundledPluginTestSupport.engines)
     func `credit summary does not invent reset or renewal dates`(engine: ProviderPluginEngineKind) async throws {
@@ -63,13 +137,13 @@ struct TraeCNPluginTests {
             now: Self.now,
             cookieSource: .auto,
             cookieSessionResolver: { domain, _ in
-                #expect(domain == "api.trae.cn")
+                #expect(domain == "trae.cn")
                 let index = next.value
                 next.setValue(index + 1)
                 let headers = ["rejected=fixture", Self.cookie, "unused=fixture"]
                 guard index < headers.count else { return nil }
                 return ProviderPluginCookieSession(
-                    header: headers[index], source: "Fixture", origin: "https://api.trae.cn")
+                    header: headers[index], source: "Fixture", origin: "https://\(domain)")
             })
         #expect(next.value == 2)
         #expect(requests.value.count == 3)
