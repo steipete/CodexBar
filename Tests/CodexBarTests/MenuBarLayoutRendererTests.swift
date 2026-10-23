@@ -2632,13 +2632,13 @@ private final class MenuBarLayoutSizeCountingImage: NSImage {
 
 extension MenuBarLayoutRendererTests {
     @Test
-    func `default status item preserves the 0_65_0 width contract`() {
+    func `unlabelled default status item preserves the 0_65_0 width contract`() {
         let icon = NSImage(size: NSSize(width: 16, height: 16))
         let renderer = MenuBarLayoutRenderer()
         let output = renderer.render(
-            layout: .defaultLayout, data: self.data(), icon: icon, options: self.options())
+            layout: .defaultLayout, data: self.data(), icon: icon, options: self.options(showWindowLabels: false))
         #expect(output.attributedTitle.string == "\u{2009}50%")
-        // The renderer and sizing implementation are unchanged from v0.65.0.
+        // Hiding window labels preserves the compact width used by v0.65.0.
         #expect(output.statusItemWidth(gap: .tight) == 49)
         #expect(output.statusItemWidth(gap: .regular) == 56)
         let iconOnly = renderer.render(

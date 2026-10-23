@@ -141,10 +141,6 @@ struct PreferencesView: View {
                 .modifier(SettingsSidebarSizing(width: self.$sidebarWidth))
         } detail: {
             self.detailView
-                .frame(
-                    maxWidth: SettingsPane.detailMaxWidth,
-                    maxHeight: .infinity,
-                    alignment: .topLeading)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 .navigationTitle(self.selection.title)
                 // Panes that draw their own heading keep the window title for accessibility and the

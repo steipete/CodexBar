@@ -69,8 +69,7 @@ enum HomebrewUpdateError: LocalizedError, Equatable {
     }
 }
 
-/// Keeps Homebrew as the owner of cask installs: it only reads the tap's cask version and runs
-/// `brew upgrade` on request, leaving both the receipt and bundle installation to Homebrew.
+/// Keeps cask receipts and bundle installation owned by Homebrew.
 @MainActor
 @Observable
 final class HomebrewUpdaterController: UpdaterProviding {
@@ -280,33 +279,32 @@ extension HomebrewUpdaterController.Dependencies {
         // One explicit refresh per request; verification and upgrade must not repeat it.
         environment["HOMEBREW_NO_AUTO_UPDATE"] = "1"
         do {
-            if refreshFailure != nil {
-                let info = try await SubprocessRunner.run(
-                    binary: brew,
-                    arguments: ["info", "--json=v2", "--cask", cask.qualifiedName],
-                    environment: environment,
-                    timeout: 30,
-                    maxOutputBytes: 1024 * 1024,
-                    label: "homebrew-upgrade-availability")
-                try Self.verifyAvailability(json: info.stdout, cask: cask, targetVersion: targetVersion)
-            }
+            let info = try await SubprocessRunner.run(
+                binary: brew,
+                arguments: ["info", "--json=v2", "--cask", cask.qualifiedName],
+                environment: environment,
+                timeout: 30,
+                maxOutputBytes: 1024 * 1024,
+                label: "homebrew-upgrade-availability")
+            let command = try Self.upgradeCommand(json: info.stdout, cask: cask, targetVersion: targetVersion)
             return try await SubprocessRunner.runToCompletion(
                 binary: brew,
-                arguments: ["upgrade", "--cask", cask.qualifiedName],
+                arguments: [command, "--cask", cask.qualifiedName],
                 environment: environment,
-                label: "homebrew-upgrade")
+                label: "homebrew-\(command)")
         } catch {
             guard let refreshFailure else { throw error }
             throw HomebrewUpdateError.recoveryFailed(refreshFailure + "\n\n" + error.localizedDescription)
         }
     }
 
-    private static func verifyAvailability(json: String, cask: HomebrewCask, targetVersion: String) throws {
+    private static func upgradeCommand(json: String, cask: HomebrewCask, targetVersion: String) throws -> String {
         struct Response: Decodable {
             struct Cask: Decodable {
                 let token: String
                 let tap: String
                 let version: String
+                let installed: String?
                 let disabled: Bool
             }
 
@@ -319,6 +317,8 @@ extension HomebrewUpdaterController.Dependencies {
               candidate.version.wholeMatch(of: /[0-9]+(?:\.[0-9]+)*(?:[-.][A-Za-z0-9]+)*/) != nil,
               !HomebrewCaskVersion.isNewer(targetVersion, than: candidate.version)
         else { throw HomebrewUpdateError.invalidCaskResponse }
+        // A current receipt makes upgrade a no-op even when the app bundle is stale.
+        return candidate.installed == candidate.version ? "reinstall" : "upgrade"
     }
 
     static func bundleShortVersion(at bundleURL: URL) -> String? {

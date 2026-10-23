@@ -4,12 +4,15 @@
 
 ### Added
 
+- Menu bar: identify the selected quota in Auto percentage, pace, and reset tokens when multiple windows are available, using the existing Show window labels option (#4743). Thanks @arnodirlam!
 - Chatbox AI: track plan points, rewards, top-up credits, and image quotas with a pasted license key through the bundled plugin (#4736). Thanks @Andy115951!
 - Usage & Spend: search and sort session summaries, then inspect bounded request accounting for the selected native Codex session without retaining request details during ordinary refreshes (#4730). Thanks @PumpkinsLemon!
 - Plugins: support custom usage-window titles, shared reset text, and existing external usage/quota hooks for installed providers (#4722, #4723, #4724). Thanks @coygeek!
 
 ### Fixed
 
+- Updates: repair stale Homebrew app bundles when the cask receipt is already current, while keeping installation behind the Update action (#4745). Thanks @dnicolson!
+- Settings: let the native detail pane and frosted toolbar backing fill wide windows on macOS 26 and later (#4741). Thanks @elijahfriedman!
 - Antigravity: prevent passive agy version and usage probes from triggering CLI auto-update downloads (#4739). Thanks @thezelium!
 - CodeRabbit: disable CLI auto-updates during passive usage probes (#4739).
 - Trae CN: import automatic sessions from the parent domain while preserving API-origin manual cookies (#4732). Thanks @liuyuplus!

@@ -9,7 +9,7 @@ read_when:
 
 ## Settings
 
-On macOS 26 and later, Settings uses the system split-view sidebar, toolbar, search, and scroll-edge effects. The native sidebar toggle and divider can hide or restore the sidebar; its saved width is preserved. Earlier macOS versions keep the existing sidebar and titlebar layout.
+On macOS 26 and later, Settings uses the system split-view sidebar, toolbar, search, and scroll-edge effects. The native sidebar toggle and divider can hide or restore the sidebar; its saved width is preserved. The detail scroll view and frosted toolbar backing fill the available column even in wide windows. Earlier macOS versions keep the existing sidebar, titlebar layout, and detail reading-width cap.
 
 - Back and Forward revisit the panes you opened, using Command-[ and Command-] as in System Settings. Selecting a new pane after going back clears forward history; reselecting the current pane preserves it. The last pane still restores at launch, while navigation history lasts only for the current app session. Hidden Debug panes are removed from history. On macOS 26 and later, the controls use the native toolbar; macOS 14/15 retain the native window title and show the controls above the pane content. The native window title stays set on every version for accessibility and the Window menu. About and Acknowledgements share this history. Opening About explicitly returns to its root; reopening Settings preserves the current destination during the session. Only the pane, not a subpage or history, restores after relaunch.
 - Dock presence follows startup and actual window transitions instead of rescanning windows on every app update. Scheduled Sparkle alerts still request temporary Dock presence, including alerts shown behind another app.
@@ -42,7 +42,8 @@ On macOS 26 and later, Settings uses the system split-view sidebar, toolbar, sea
 - Calendar columns keep their chronological left-to-right order in right-to-left interfaces, so paging and keyboard date reveal follow the same coordinates as the drawn activity cells; surrounding controls retain the interface's layout direction.
 - Both the application menu and status menu open About in the Settings window. An existing Settings window is reused
   and switches to the About pane.
-- Homebrew-managed installs show an Updates section in About with the automatic-check toggle, Check for Updates, and the owning cask's status: checking, up to date, or "CodexBar x is available" with a prominent "Update to x" button. The menu shows the same "Update to x" action, then "Updating with Homebrew…" while `brew upgrade` runs; the app relaunches after verifying the installed version reached the offered update.
+- Homebrew-managed installs show an Updates section in About with the automatic-check toggle, Check for Updates, and the owning cask's status: checking, up to date, or "CodexBar x is available" with a prominent "Update to x" button. The menu shows the same "Update to x" action, then "Updating with Homebrew…" while Homebrew runs; the app relaunches after verifying the installed version reached the offered update.
+- The explicit Update action verifies the owning cask, then uses `brew reinstall --cask` if its receipt already matches the latest cask version, or `brew upgrade --cask` otherwise. This repairs an older app bundle behind a current receipt. Automatic and manual update checks never run `brew`; non-Homebrew installs retain Sparkle updates.
 - If a Homebrew check or update fails, About shows the error and, when the active receipt identifies the cask, a selectable monospaced upgrade command for that cask with a trailing copy control. The control confirms successful copies briefly; copying does not run an update.
 
 ## Menu bar
@@ -76,9 +77,12 @@ Stacked rows with leading window labels align their values and meters after the 
 - Display → Menu Bar → Layout provides presets plus a token editor. Tokens can be clicked to append, dragged from the
   palette, reordered between one or two lines, dragged out, or removed with Delete. Layouts can be global or overridden
   per provider. Manual edits select the Custom preset.
-- To hide Session, Weekly, and Scoped weekly percentage prefixes (such as `5h` and `W`), turn off **Show window labels**
-  next to **Monospaced digits**. It defaults on and applies to all layouts. Percentages keep their full VoiceOver
-  descriptions; named provider lanes, named allowances, Spend currency symbols, and progress-bar labels remain visible.
+- To hide Session, Weekly, Scoped weekly, and automatic window prefixes (such as `5h` and `W`), turn off **Show window labels**
+  next to **Monospaced digits**. It defaults on and applies to all layouts. Auto percentage, pace, and reset tokens identify
+  their selected window when multiple quotas are available and the selection is unambiguous. Each token keeps its own
+  label, including separate rows and the reset branch of **Auto % / Resets in**. Monthly and named allowances reuse their
+  existing labels; single-window and balance output stays bare. Full window names remain in VoiceOver descriptions.
+  Explicit named provider lanes, named allowances, Spend currency symbols, and progress-bar labels remain visible.
   The preference is stored separately as `menuBarLayoutShowWindowLabels`; saved layouts and V5/V6 projections are unchanged.
 - For a provider-specific bare Session percentage, select Codex or Claude in Layout, remove the existing percentage,
   and add the **second Session %** chip from Usage (the provider's primary lane). This works with window labels enabled.
