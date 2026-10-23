@@ -32,7 +32,7 @@ struct DevinCLISettingsTests {
         #expect(settings.organization == "org_fixture")
         #if os(Linux)
         for mode: ProviderSourceMode in [.auto, .web] {
-            #expect(!CodexBarCLI.sourceModeRequiresWebSupport(mode, provider: .devin, settings: snapshot))
+            #expect(await !CodexBarCLI.sourceModeRequiresWebSupport(mode, provider: .devin, settings: snapshot))
         }
         #endif
 
@@ -52,11 +52,11 @@ struct DevinCLISettingsTests {
     }
 
     @Test(arguments: ["auto", "off"])
-    func `environment token does not opt into manual auth`(source: String) throws {
+    func `environment token does not opt into manual auth`(source: String) async throws {
         let snapshot = try self.settings(source: source)
         #expect(snapshot.devin?.cookieSource.rawValue == source)
         #if os(Linux)
-        #expect(CodexBarCLI.sourceModeRequiresWebSupport(
+        #expect(await CodexBarCLI.sourceModeRequiresWebSupport(
             .web,
             provider: .devin,
             environment: ["DEVIN_BEARER_TOKEN": "environment-fixture"],
@@ -65,14 +65,14 @@ struct DevinCLISettingsTests {
     }
 
     @Test(arguments: ["environment-fixture", "", "  "])
-    func `manual gate and request token preserve environment precedence`(token: String) throws {
+    func `manual gate and request token preserve environment precedence`(token: String) async throws {
         let snapshot = try self.settings()
         let settings = try #require(snapshot.devin)
         let environment = ["DEVIN_BEARER_TOKEN": token, "DEVIN_AUTHORIZATION": "fallback-fixture"]
         #expect(settings.bearerToken(environment: environment) == token)
         #expect(settings.bearerToken(environment: ["DEVIN_AUTHORIZATION": "fallback-fixture"]) == "fallback-fixture")
         #if os(Linux)
-        #expect(CodexBarCLI.sourceModeRequiresWebSupport(
+        #expect(await CodexBarCLI.sourceModeRequiresWebSupport(
             .web,
             provider: .devin,
             environment: environment,
@@ -81,11 +81,11 @@ struct DevinCLISettingsTests {
     }
 
     @Test
-    func `blank configured manual token stays unavailable`() throws {
+    func `blank configured manual token stays unavailable`() async throws {
         let snapshot = try self.settings(token: "  ")
         #expect(DevinUsageFetcher.manualAuth(from: snapshot.devin?.bearerToken(environment: [:])) == nil)
         #if os(Linux)
-        #expect(CodexBarCLI.sourceModeRequiresWebSupport(.web, provider: .devin, settings: snapshot))
+        #expect(await CodexBarCLI.sourceModeRequiresWebSupport(.web, provider: .devin, settings: snapshot))
         #endif
     }
 }

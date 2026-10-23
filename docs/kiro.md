@@ -15,6 +15,11 @@ Kiro uses `kiro-cli` to fetch usage data. The CLI owns authentication; CodexBar 
 
 1) **CLI command** (primary)
    - Command: `kiro-cli chat --no-interactive "/usage"`
+   - A separate `kiro-cli chat --no-interactive "/context"` probe supplies context details; seeing
+     `/context` in the process tree is expected. Both commands start chat sessions. `--no-interactive`
+     does not promise session-free execution, and Kiro CLI 2.33.1 is reported to save empty session
+     pairs for these probes (#4746). The public command and headless references do not document a
+     no-save flag or a standalone usage command. CodexBar does not delete the CLI's session files.
    - Timeout: 20 seconds (idle cutoff after 4 seconds of no output once the CLI starts responding).
    - CodexBar tries ordinary stdout/stderr pipes first for current Kiro CLI releases. Incomplete or unusable
      pipe output falls back to a pseudo-terminal within the same overall command deadline for older releases.

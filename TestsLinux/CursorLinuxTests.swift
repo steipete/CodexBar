@@ -6,8 +6,8 @@ import Testing
 
 struct CursorLinuxTests {
     @Test
-    func `Cursor automatic source supports Linux app authentication`() {
-        #expect(!CodexBarCLI.sourceModeRequiresWebSupport(
+    func `Cursor automatic source supports Linux app authentication`() async {
+        #expect(await !CodexBarCLI.sourceModeRequiresWebSupport(
             .auto,
             provider: .cursor,
             settings: ProviderSettingsSnapshot.make(
@@ -76,8 +76,8 @@ struct CursorLinuxTests {
     }
 
     @Test
-    func `Cursor manual cookie does not require macOS web support`() {
-        #expect(!CodexBarCLI.sourceModeRequiresWebSupport(
+    func `Cursor manual cookie does not require macOS web support`() async {
+        #expect(await !CodexBarCLI.sourceModeRequiresWebSupport(
             .web,
             provider: .cursor,
             settings: ProviderSettingsSnapshot.make(
@@ -87,8 +87,8 @@ struct CursorLinuxTests {
     }
 
     @Test
-    func `empty Cursor manual cookie still requires macOS web support`() {
-        #expect(CodexBarCLI.sourceModeRequiresWebSupport(
+    func `empty Cursor manual cookie still requires macOS web support`() async {
+        #expect(await CodexBarCLI.sourceModeRequiresWebSupport(
             .web,
             provider: .cursor,
             settings: ProviderSettingsSnapshot.make(
@@ -98,8 +98,8 @@ struct CursorLinuxTests {
     }
 
     @Test
-    func `disabled Cursor web source still requires macOS web support`() {
-        #expect(CodexBarCLI.sourceModeRequiresWebSupport(
+    func `disabled Cursor web source still requires macOS web support`() async {
+        #expect(await CodexBarCLI.sourceModeRequiresWebSupport(
             .web,
             provider: .cursor,
             settings: ProviderSettingsSnapshot.make(

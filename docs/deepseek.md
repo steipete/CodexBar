@@ -16,6 +16,8 @@ endpoints.
 ## Data sources
 
 1. **Optional API key** supplied via `DEEPSEEK_API_KEY` / `DEEPSEEK_KEY`, or selected from DeepSeek token accounts in `~/.codexbar/config.json`.
+   Auto uses the API balance path when a key is configured, including on Linux. Explicit Web mode
+   still requires macOS browser support; an API key alone does not provide detailed website usage.
 2. **API-key balance endpoint**
    - `GET https://api.deepseek.com/user/balance`
    - Request headers: `Authorization: Bearer <api key>`, `Accept: application/json`
