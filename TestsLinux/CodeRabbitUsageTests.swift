@@ -93,6 +93,19 @@ struct CodeRabbitUsageTests {
     }
 
     @Test
+    func `passive usage disables automatic updates`() async throws {
+        let probe = CodeRabbitCLIProbe(usageArguments: [
+            "-c",
+            "[ \"$CODERABBIT_CLI_DISABLE_AUTO_UPDATE\" = true ] || exit 27; printf 'Your reviews: 10\\n'",
+        ])
+        let snapshot = try await probe.fetch(environment: [
+            "CODERABBIT_CLI_PATH": "/bin/sh",
+            "CODERABBIT_CLI_DISABLE_AUTO_UPDATE": "false",
+        ])
+        #expect(snapshot.reviewsCount == 10)
+    }
+
+    @Test
     func `nonzero commands cannot publish usage even when stdout looks valid`() async {
         let probe = CodeRabbitCLIProbe(usageArguments: ["-c", "printf 'Your reviews: 99\\n'; exit 9"])
         await #expect(throws: CodeRabbitUsageError.cliFailed(9)) {

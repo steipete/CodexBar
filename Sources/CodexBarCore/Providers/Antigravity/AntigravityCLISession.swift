@@ -921,7 +921,7 @@ struct AntigravityPTYProcessLauncher: AntigravityCLIProcessLaunching {
         posix_spawnattr_setflags(&attr, Int16(spawnFlags))
         posix_spawnattr_setpgroup(&attr, 0)
 
-        var env = TTYCommandRunner.enrichedEnvironment()
+        var env = AntigravityCLIHTTPSFetchStrategy.childEnvironment(TTYCommandRunner.enrichedEnvironment())
         env["PWD"] = NSHomeDirectory()
         env["TERM"] = "xterm-256color"
 

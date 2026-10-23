@@ -11,6 +11,8 @@
 
 ### Fixed
 
+- Antigravity: prevent passive agy version and usage probes from triggering CLI auto-update downloads (#4739). Thanks @thezelium!
+- CodeRabbit: disable CLI auto-updates during passive usage probes (#4739).
 - Trae CN: import automatic sessions from the parent domain while preserving API-origin manual cookies (#4732). Thanks @liuyuplus!
 - Claude: let a manual OAuth refresh recover through Claude Code's CLI when the readable Keychain item contains only MCP OAuth state (#4731). Thanks @ifangxiang!
 - Menu bar: improve stacked text legibility with medium weight while preserving regular weight for single-line layouts (#4713). Thanks @arnodirlam!

@@ -48,6 +48,7 @@ struct AntigravityScopedPrintFetchTests {
             "ANTHROPIC_API_KEY": "ambient-secret",
             AntigravityOAuthCredentialsStore.environmentCredentialsKey: "injected-creds",
             "AWS_PROFILE": "ambient-profile",
+            "AGY_CLI_DISABLE_AUTO_UPDATE": "false",
         ]
         let home = URL(fileURLWithPath: "/scoped/home", isDirectory: true)
         let child = AntigravityScopedAgyStaging.childEnvironment(from: parent, home: home)
@@ -55,6 +56,7 @@ struct AntigravityScopedPrintFetchTests {
         #expect(child["HOME"] == "/scoped/home")
         #expect(child["PWD"] == "/scoped/home")
         #expect(child["SSH_TTY"] == "codexbar-scoped")
+        #expect(child["AGY_CLI_DISABLE_AUTO_UPDATE"] == "true")
         #expect(child["TMPDIR"] == "/tmp/ambient")
         #expect(child["LANG"] == "en_US.UTF-8")
         #expect(child["HTTPS_PROXY"] == "http://proxy:8080")
@@ -326,6 +328,7 @@ struct AntigravityScopedPrintFetchTests {
     func `scoped print runs agy against the staged private home`() async throws {
         let report = try self.reportJSON()
         let fixture = try self.scopedPrintFixture(body: """
+        [ "${AGY_CLI_DISABLE_AUTO_UPDATE:-}" = true ] || exit 27
         [ -n "${SSH_TTY:-}" ] || exit 21
         [ -z "${ANTIGRAVITY_OAUTH_CREDENTIALS_JSON+x}" ] || exit 22
         [ -z "${LEAKED_PARENT_SECRET+x}" ] || exit 23

@@ -25,6 +25,13 @@ CodexBar keeps the signed-in `agy` local HTTPS server alive briefly
 after each refresh and stops it when idle, or reuses a signed-in `agy` you already have running
 without taking ownership of that process.
 
+Every CodexBar-owned `agy` child (version checks, ambient or account-scoped print reports, and managed PTY sessions)
+receives `AGY_CLI_DISABLE_AUTO_UPDATE=true`, preventing passive quota probes from starting CLI auto-updates.
+The lowercase literal `true` is required: upstream reports show that `1` is ignored
+([updater behavior](https://github.com/google-antigravity/antigravity-cli/issues/942),
+[macOS print-mode evidence](https://github.com/google-antigravity/antigravity-cli/issues/1046)).
+This per-child override leaves user-launched terminal sessions and saved updater settings unchanged.
+
 The menu bar also reuses an already-running, same-user `agy` that matches the resolved executable;
 this does not require the desktop app or a saved Google account in CodexBar. Selected accounts still
 require matching identity. CLI quota refresh and **Add Account...** are separate: starting a new OAuth

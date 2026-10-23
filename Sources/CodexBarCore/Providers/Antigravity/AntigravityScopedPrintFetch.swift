@@ -105,12 +105,10 @@ enum AntigravityScopedAgyStaging {
                 child[key] = value
             }
         }
-        child["PATH"] = PathBuilder.effectivePATH(
-            purposes: [.tty], env: child, loginPATH: LoginShellPathCache.shared.current)
         child["HOME"] = home.path
         child["PWD"] = home.path
         child["SSH_TTY"] = "codexbar-scoped"
-        return child
+        return AntigravityCLIHTTPSFetchStrategy.childEnvironment(child)
     }
 
     /// ID tokens are optional: CodexBar's OAuth scopes do not request `openid`.
