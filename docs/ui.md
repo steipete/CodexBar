@@ -9,7 +9,7 @@ read_when:
 
 ## Settings
 
-On macOS 26 and later, Settings uses the system split-view sidebar, toolbar, search, and scroll-edge effects. The native sidebar toggle and divider can hide or restore the sidebar; its saved width is preserved. Earlier macOS versions keep the existing sidebar and titlebar layout.
+On macOS 26 and later, Settings uses the system split-view sidebar, toolbar, search, and scroll-edge effects. The native sidebar toggle and divider can hide or restore the sidebar; its saved width is preserved. The detail scroll view and frosted toolbar backing fill the available column even in wide windows. Earlier macOS versions keep the existing sidebar, titlebar layout, and detail reading-width cap.
 
 - Back and Forward revisit the panes you opened, using Command-[ and Command-] as in System Settings. Selecting a new pane after going back clears forward history; reselecting the current pane preserves it. The last pane still restores at launch, while navigation history lasts only for the current app session. Hidden Debug panes are removed from history. On macOS 26 and later, the controls use the native toolbar; macOS 14/15 retain the native window title and show the controls above the pane content. The native window title stays set on every version for accessibility and the Window menu. About and Acknowledgements share this history. Opening About explicitly returns to its root; reopening Settings preserves the current destination during the session. Only the pane, not a subpage or history, restores after relaunch.
 - Dock presence follows startup and actual window transitions instead of rescanning windows on every app update. Scheduled Sparkle alerts still request temporary Dock presence, including alerts shown behind another app.
@@ -42,7 +42,8 @@ On macOS 26 and later, Settings uses the system split-view sidebar, toolbar, sea
 - Calendar columns keep their chronological left-to-right order in right-to-left interfaces, so paging and keyboard date reveal follow the same coordinates as the drawn activity cells; surrounding controls retain the interface's layout direction.
 - Both the application menu and status menu open About in the Settings window. An existing Settings window is reused
   and switches to the About pane.
-- Homebrew-managed installs show an Updates section in About with the automatic-check toggle, Check for Updates, and the owning cask's status: checking, up to date, or "CodexBar x is available" with a prominent "Update to x" button. The menu shows the same "Update to x" action, then "Updating with Homebrew…" while `brew upgrade` runs; the app relaunches after verifying the installed version reached the offered update.
+- Homebrew-managed installs show an Updates section in About with the automatic-check toggle, Check for Updates, and the owning cask's status: checking, up to date, or "CodexBar x is available" with a prominent "Update to x" button. The menu shows the same "Update to x" action, then "Updating with Homebrew…" while Homebrew runs; the app relaunches after verifying the installed version reached the offered update.
+- The explicit Update action verifies the owning cask, then uses `brew reinstall --cask` if its receipt already matches the latest cask version, or `brew upgrade --cask` otherwise. This repairs an older app bundle behind a current receipt. Automatic and manual update checks never run `brew`; non-Homebrew installs retain Sparkle updates.
 - If a Homebrew check or update fails, About shows the error and, when the active receipt identifies the cask, a selectable monospaced upgrade command for that cask with a trailing copy control. The control confirms successful copies briefly; copying does not run an update.
 
 ## Menu bar
