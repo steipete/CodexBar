@@ -452,8 +452,8 @@ final class MenuBarLayoutRenderer {
         let isStacked = options.forceStackedStyle || renderedLines.count == 2
         let fontSize = Self.fontSize(size: options.size, isStacked: isStacked)
         let font = options.monospacedDigits
-            ? NSFont.monospacedDigitSystemFont(ofSize: fontSize, weight: .regular)
-            : NSFont.systemFont(ofSize: fontSize)
+            ? NSFont.monospacedDigitSystemFont(ofSize: fontSize, weight: isStacked ? .medium : .regular)
+            : NSFont.systemFont(ofSize: fontSize, weight: isStacked ? .medium : .regular)
         let providerTintColor = Self.effectiveProviderTintColor(for: data.provider, options: options)
         let foregroundColor = providerTintColor ?? Self.neutralForegroundColor(options)
         let isTintActive = providerTintColor != nil

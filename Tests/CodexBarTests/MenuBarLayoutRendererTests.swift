@@ -1000,7 +1000,7 @@ struct MenuBarLayoutRendererTests {
         case .regular: stacked ? 9 : NSFont.systemFontSize
         case .large: stacked ? 10 : 14
         }
-        #expect(font == NSFont.systemFont(ofSize: expectedFontSize))
+        #expect(font == NSFont.systemFont(ofSize: expectedFontSize, weight: stacked ? .medium : .regular))
         if stacked {
             let attachment = try #require(output.attributedTitle.attribute(
                 .attachment, at: 0, effectiveRange: nil) as? NSTextAttachment)
@@ -1044,7 +1044,8 @@ struct MenuBarLayoutRendererTests {
             .font,
             at: 0,
             effectiveRange: nil) as? NSFont)
-        #expect(font == NSFont.monospacedDigitSystemFont(ofSize: originalFont.pointSize, weight: .regular))
+        #expect(font == NSFont.monospacedDigitSystemFont(
+            ofSize: originalFont.pointSize, weight: stacked ? .medium : .regular))
         #expect(monospaced.attributedTitle !== standard.attributedTitle)
         let digitWidths = (0...9).map { digit in
             NSAttributedString(string: String(digit), attributes: [.font: font]).size().width
@@ -1057,6 +1058,21 @@ struct MenuBarLayoutRendererTests {
             icon: nil,
             options: self.options(size: size, forceStackedStyle: stacked))
         #expect(restored.attributedTitle === standard.attributedTitle)
+    }
+
+    @Test
+    func `two line text uses medium weight and reuses its cached title`() throws {
+        let renderer = MenuBarLayoutRenderer()
+        let layout = MenuBarLayout(lines: [[.percent(window: .session)], [.percent(window: .weekly)]])
+        let data = self.data()
+        let options = self.options()
+        let output = renderer.render(layout: layout, data: data, icon: nil, options: options)
+        let title = output.attributedTitle
+        for index in [0, title.length - 1] {
+            let font = try #require(title.attribute(.font, at: index, effectiveRange: nil) as? NSFont)
+            #expect(font == NSFont.systemFont(ofSize: 9, weight: .medium))
+        }
+        #expect(renderer.render(layout: layout, data: data, icon: nil, options: options).attributedTitle === title)
     }
 
     @Test(arguments: MenuBarLayoutSize.allCases)
@@ -1699,6 +1715,7 @@ struct MenuBarLayoutRendererTests {
         let collapsedOffset = try #require(self.baselineOffset(in: leadingHidden.attributedTitle, at: 0))
         let controlOffset = try #require(self.baselineOffset(in: control.attributedTitle, at: 0))
         #expect(collapsedOffset == controlOffset)
+        #expect(leadingHidden.attributedTitle.isEqual(to: control.attributedTitle))
         #expect(leadingHidden.accessibilityLabel == control.accessibilityLabel)
     }
 
