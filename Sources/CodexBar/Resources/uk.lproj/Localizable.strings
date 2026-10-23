@@ -1449,6 +1449,9 @@
 "menu_bar_layout_gap" = "Інтервал";
 "menu_bar_layout_gap_tight" = "Вузький";
 "menu_bar_layout_gap_regular" = "Звичайний";
+"menu_bar_layout_bar_style" = "Стиль смуги";
+"menu_bar_layout_bar_style_segmented" = "Сегменти";
+"menu_bar_layout_bar_style_pill" = "Капсула";
 "menu_bar_layout_vertical_adjustment" = "Вертикальне налаштування";
 "menu_bar_layout_sample_account" = "обліковий запис";
 "menu_bar_layout_sample_runs_out" = "закінчиться пт.";

@@ -1449,6 +1449,9 @@
 "menu_bar_layout_gap" = "Khoảng cách";
 "menu_bar_layout_gap_tight" = "Hẹp";
 "menu_bar_layout_gap_regular" = "Thường";
+"menu_bar_layout_bar_style" = "Kiểu thanh";
+"menu_bar_layout_bar_style_segmented" = "Chia đoạn";
+"menu_bar_layout_bar_style_pill" = "Viên thuốc";
 "menu_bar_layout_vertical_adjustment" = "Điều chỉnh dọc";
 "menu_bar_layout_sample_account" = "tài khoản";
 "menu_bar_layout_sample_runs_out" = "hết vào T6";

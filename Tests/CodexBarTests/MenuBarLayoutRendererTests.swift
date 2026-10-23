@@ -2572,7 +2572,8 @@ struct MenuBarLayoutRendererTests {
         isHighlighted: Bool = false,
         forceStackedStyle: Bool = false,
         monospacedDigits: Bool = false,
-        showWindowLabels: Bool = true) -> MenuBarLayoutRenderOptions
+        showWindowLabels: Bool = true,
+        barStyle: MenuBarLayoutBarStyle = .segmented) -> MenuBarLayoutRenderOptions
     {
         MenuBarLayoutRenderOptions(
             size: size,
@@ -2589,7 +2590,8 @@ struct MenuBarLayoutRendererTests {
             colorByProvider: colorByProvider,
             forceStackedStyle: forceStackedStyle,
             monospacedDigits: monospacedDigits,
-            showWindowLabels: showWindowLabels)
+            showWindowLabels: showWindowLabels,
+            barStyle: barStyle)
     }
 
     private func averageBrightness(

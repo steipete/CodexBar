@@ -2,6 +2,10 @@
 
 ## 0.84.1 — Unreleased
 
+### Added
+
+- Menu bar: add a Bar style layout option that draws graphical progress bars as one continuous pill instead of five segments; segmented stays the default and saved layouts are unchanged. Thanks @Erik262!
+
 ### Fixed
 
 - Ollama: support legacy API session and weekly balances while preserving monthly credits. (#5005, #5006) Thanks @Colafornia!

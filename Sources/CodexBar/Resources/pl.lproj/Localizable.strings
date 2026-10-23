@@ -1452,6 +1452,9 @@
 "menu_bar_layout_gap" = "Odstęp";
 "menu_bar_layout_gap_tight" = "Wąski";
 "menu_bar_layout_gap_regular" = "Zwykły";
+"menu_bar_layout_bar_style" = "Styl paska";
+"menu_bar_layout_bar_style_segmented" = "Segmentowy";
+"menu_bar_layout_bar_style_pill" = "Kapsułka";
 "menu_bar_layout_vertical_adjustment" = "Regulacja pionowa";
 "menu_bar_layout_sample_account" = "konto";
 "menu_bar_layout_sample_runs_out" = "wyczerpie się pt.";

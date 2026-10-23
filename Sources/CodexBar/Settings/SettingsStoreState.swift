@@ -56,6 +56,7 @@ struct SettingsDefaultsState {
     var menuBarLayoutShowWindowLabels: Bool
     var menuBarLayoutSizeRaw: String
     var menuBarLayoutGapRaw: String
+    var menuBarLayoutBarStyleRaw: String
     var menuBarLayoutVerticalAdjustment: Int
     var copilotBudgetExtrasEnabled: Bool
     var copilotIconSecondaryWindowIDRaw: String

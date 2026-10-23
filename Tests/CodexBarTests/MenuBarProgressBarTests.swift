@@ -105,4 +105,39 @@ struct MenuBarProgressBarTests {
             try result.get()
         }
     }
+
+    @Test
+    func `pill bar style draws a continuous meter without changing text or accessibility`() throws {
+        let fixture = MenuBarLayoutRendererTests()
+        let renderer = MenuBarLayoutRenderer()
+        let layout = MenuBarLayout(lines: [[.progressBar(window: .weekly)]])
+
+        func render(_ style: MenuBarLayoutBarStyle, percent: Double = 50) throws
+            -> (output: MenuBarLayoutRenderedTitle, image: NSImage)
+        {
+            let output = renderer.render(
+                layout: layout,
+                data: fixture.data(weeklyUsedPercent: percent),
+                icon: nil,
+                options: fixture.options(barStyle: style))
+            let text = output.attributedTitle.string
+            let index = try #require(text.firstIndex(of: "\u{FFFC}"))
+            let attachment = try #require(output.attributedTitle.attribute(
+                .attachment,
+                at: text.distance(from: text.startIndex, to: index),
+                effectiveRange: nil) as? NSTextAttachment)
+            let image = try #require(attachment.image)
+            return (output, image)
+        }
+
+        let segmented = try render(.segmented)
+        let pill = try render(.pill)
+        #expect(pill.output.attributedTitle.string == segmented.output.attributedTitle.string)
+        #expect(pill.output.accessibilityLabel == segmented.output.accessibilityLabel)
+        #expect(pill.image.size == segmented.image.size)
+        #expect(pill.image.tiffRepresentation != segmented.image.tiffRepresentation)
+        #expect(try render(.pill, percent: 80).image.tiffRepresentation != pill.image.tiffRepresentation)
+        #expect(MenuBarLayoutBarStyle(rawValue: "pill") == .pill)
+        #expect(MenuBarLayoutBarStyle.allCases == [.segmented, .pill])
+    }
 }

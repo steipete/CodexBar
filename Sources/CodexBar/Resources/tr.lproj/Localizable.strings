@@ -1450,6 +1450,9 @@
 "menu_bar_layout_gap" = "Boşluk";
 "menu_bar_layout_gap_tight" = "Dar";
 "menu_bar_layout_gap_regular" = "Normal";
+"menu_bar_layout_bar_style" = "Çubuk stili";
+"menu_bar_layout_bar_style_segmented" = "Bölümlü";
+"menu_bar_layout_bar_style_pill" = "Kapsül";
 "menu_bar_layout_vertical_adjustment" = "Dikey ayar";
 "menu_bar_layout_sample_account" = "hesap";
 "menu_bar_layout_sample_runs_out" = "Cuma biter";

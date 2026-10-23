@@ -516,6 +516,11 @@ extension SettingsStore {
         set { self.setDefault(\.menuBarLayoutGapRaw, newValue.rawValue, key: "menuBarLayoutGap") }
     }
 
+    var menuBarLayoutBarStyle: MenuBarLayoutBarStyle {
+        get { MenuBarLayoutBarStyle(rawValue: self.defaultsState.menuBarLayoutBarStyleRaw) ?? .segmented }
+        set { self.setDefault(\.menuBarLayoutBarStyleRaw, newValue.rawValue, key: "menuBarLayoutBarStyle") }
+    }
+
     /// User-tunable vertical nudge for the menu bar title, clamped to -20...20.
     /// Positive moves content up, negative moves it down; 0 keeps the optical default.
     var menuBarLayoutVerticalAdjustment: Int {

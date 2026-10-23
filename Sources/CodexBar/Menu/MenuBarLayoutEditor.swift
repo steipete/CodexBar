@@ -335,6 +335,16 @@ struct MenuBarLayoutEditor: View {
             })
     }
 
+    private var barStyleBinding: Binding<MenuBarLayoutBarStyle> {
+        Binding(
+            get: { self.settings.menuBarLayoutBarStyle },
+            set: { style in
+                self.settings.menuBarLayoutBarStyle = style
+                MenuBarLayoutEditorPersistence.activate(
+                    self.layout, for: self.persistenceProvider, settings: self.settings)
+            })
+    }
+
     private var gapBinding: Binding<MenuBarLayoutGap> {
         Binding(
             get: { self.settings.menuBarLayoutGap },
@@ -767,7 +777,8 @@ struct MenuBarLayoutEditor: View {
             gap: self.gapBinding,
             verticalAdjustment: self.$settings.menuBarLayoutVerticalAdjustment,
             monospacedDigits: self.monospacedDigitsBinding,
-            showWindowLabels: self.showWindowLabelsBinding)
+            showWindowLabels: self.showWindowLabelsBinding,
+            barStyle: self.barStyleBinding)
     }
 
     private func applyPreset(_ preset: MenuBarLayoutPreset) {
@@ -965,7 +976,8 @@ struct MenuBarLayoutPreview: View {
                 colorPace: self.settings.menuBarColorPace,
                 colorByProvider: self.settings.menuBarColorByProvider,
                 monospacedDigits: self.settings.menuBarLayoutMonospacedDigits,
-                showWindowLabels: self.settings.menuBarLayoutShowWindowLabels))
+                showWindowLabels: self.settings.menuBarLayoutShowWindowLabels,
+                barStyle: self.settings.menuBarLayoutBarStyle))
         MenuBarLayoutPreviewText(rendered: rendered)
     }
 
@@ -1151,6 +1163,15 @@ extension MenuBarLayoutGap {
     }
 }
 
+extension MenuBarLayoutBarStyle {
+    var label: String {
+        switch self {
+        case .segmented: L("menu_bar_layout_bar_style_segmented")
+        case .pill: L("menu_bar_layout_bar_style_pill")
+        }
+    }
+}
+
 extension MenuBarLayoutToken {
     func editorLabel(provider: UsageProvider?, snapshot: UsageSnapshot? = nil) -> String {
         if case let .lanePercent(lane) = self {
@@ -1300,6 +1321,7 @@ struct MenuBarLayoutDisplayOptions: View {
     @Binding var verticalAdjustment: Int
     @Binding var monospacedDigits: Bool
     @Binding var showWindowLabels: Bool
+    @Binding var barStyle: MenuBarLayoutBarStyle
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -1361,6 +1383,20 @@ struct MenuBarLayoutDisplayOptions: View {
                 .toggleStyle(.checkbox)
             Toggle(L("menu_bar_layout_show_window_labels"), isOn: self.$showWindowLabels)
                 .toggleStyle(.checkbox)
+            HStack(spacing: 8) {
+                Text(L("menu_bar_layout_bar_style"))
+                    .lineLimit(1)
+                    .fixedSize()
+
+                Picker(L("menu_bar_layout_bar_style"), selection: self.$barStyle) {
+                    ForEach(MenuBarLayoutBarStyle.allCases) { style in
+                        Text(style.label).tag(style)
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
+                .fixedSize()
+            }
         }
     }
 }

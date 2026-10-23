@@ -1448,6 +1448,9 @@
 "menu_bar_layout_gap" = "Tussenruimte";
 "menu_bar_layout_gap_tight" = "Krap";
 "menu_bar_layout_gap_regular" = "Normaal";
+"menu_bar_layout_bar_style" = "Balkstijl";
+"menu_bar_layout_bar_style_segmented" = "Gesegmenteerd";
+"menu_bar_layout_bar_style_pill" = "Capsule";
 "menu_bar_layout_vertical_adjustment" = "Verticale aanpassing";
 "menu_bar_layout_sample_account" = "rekening";
 "menu_bar_layout_sample_runs_out" = "op vr.";

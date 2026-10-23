@@ -654,6 +654,8 @@ extension SettingsStore {
                 ?? MenuBarLayoutSize.regular.rawValue,
             menuBarLayoutGapRaw: userDefaults.string(forKey: "menuBarLayoutGap")
                 ?? MenuBarLayoutGap.regular.rawValue,
+            menuBarLayoutBarStyleRaw: userDefaults.string(forKey: "menuBarLayoutBarStyle")
+                ?? MenuBarLayoutBarStyle.segmented.rawValue,
             menuBarLayoutVerticalAdjustment: menuBarLayoutVerticalAdjustment,
             copilotBudgetExtrasEnabled: userDefaults.object(forKey: "copilotBudgetExtrasEnabled") as? Bool ?? false,
             copilotIconSecondaryWindowIDRaw: copilotIconSecondaryWindowIDRaw,

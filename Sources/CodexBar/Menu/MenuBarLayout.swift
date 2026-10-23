@@ -1028,6 +1028,17 @@ enum MenuBarLayoutGap: String, CaseIterable, Identifiable, Sendable {
     }
 }
 
+/// Drawing style for graphical `progressBar` tokens. Stored as its own preference, so saved layouts
+/// and their V5/V6 projections stay unchanged.
+enum MenuBarLayoutBarStyle: String, CaseIterable, Identifiable, Sendable {
+    case segmented
+    case pill
+
+    var id: String {
+        self.rawValue
+    }
+}
+
 struct MenuBarLayoutResolution: Equatable {
     let layout: MenuBarLayout
     let usesLegacyRendering: Bool

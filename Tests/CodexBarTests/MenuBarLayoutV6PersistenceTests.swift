@@ -40,6 +40,34 @@ struct MenuBarLayoutV6PersistenceTests {
         #expect(keys.map { defaults.data(forKey: $0) } == before)
     }
 
+    @Test
+    func `bar style preference persists and refreshes menus without changing layout projections`() async {
+        let defaults = InMemoryUserDefaults()
+        let settings = testSettingsStore(suiteName: "bar-style", userDefaults: defaults)
+        #expect(settings.menuBarLayoutBarStyle == .segmented)
+        #expect(defaults.object(forKey: "menuBarLayoutBarStyle") == nil)
+        settings.setMenuBarLayout(Self.spendLayout, for: nil)
+        settings.setMenuBarLayout(Self.spendLayout, for: .claude)
+        let keys = ["menuBarLayoutV6", "menuBarLayoutV5", "menuBarLayoutOverridesV6", "menuBarLayoutOverridesV5"]
+        let before = keys.map { defaults.data(forKey: $0) }
+        #expect(before.allSatisfy { $0 != nil })
+        await confirmation { changed in
+            withObservationTracking {
+                _ = settings.menuObservationToken
+            } onChange: {
+                changed()
+            }
+            settings.menuBarLayoutBarStyle = .pill
+        }
+        #expect(keys.map { defaults.data(forKey: $0) } == before)
+        let reloaded = testSettingsStore(suiteName: "bar-style-reloaded", userDefaults: defaults)
+        #expect(reloaded.menuBarLayoutBarStyle == .pill)
+        #expect(reloaded.menuBarLayout == Self.spendLayout)
+        defaults.set("unknown", forKey: "menuBarLayoutBarStyle")
+        #expect(testSettingsStore(suiteName: "bar-style-unknown", userDefaults: defaults)
+            .menuBarLayoutBarStyle == .segmented)
+    }
+
     private static let spendLayout = MenuBarLayout(lines: [[
         .icon,
         .percent(window: .spend),

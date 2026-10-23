@@ -95,6 +95,9 @@ Stacked rows with leading window labels align their values and meters after the 
   existing labels; single-window and balance output stays bare. Full window names remain in VoiceOver descriptions.
   Explicit named provider lanes, named allowances, Spend currency symbols, and progress-bar labels remain visible.
   The preference is stored separately as `menuBarLayoutShowWindowLabels`; saved layouts and V5/V6 projections are unchanged.
+- **Bar style** (below **Show window labels**) chooses how graphical progress bar tokens are drawn: **Segmented**
+  (five segments, the default) or **Pill** (one continuous rounded meter). It applies to all layouts and is stored
+  separately as `menuBarLayoutBarStyle`; saved layouts and V5/V6 projections are unchanged.
 - For a provider-specific bare Session percentage, select Codex or Claude in Layout, remove the existing percentage,
   and add the **second Session %** chip from Usage (the provider's primary lane). This works with window labels enabled.
 - For Codex or Claude weekly usage without a `W` prefix, select that provider in Layout, remove the existing percentage,

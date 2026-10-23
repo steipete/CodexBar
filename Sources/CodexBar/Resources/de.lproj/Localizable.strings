@@ -1451,6 +1451,9 @@
 "menu_bar_layout_gap" = "Abstand";
 "menu_bar_layout_gap_tight" = "Eng";
 "menu_bar_layout_gap_regular" = "Normal";
+"menu_bar_layout_bar_style" = "Balkenstil";
+"menu_bar_layout_bar_style_segmented" = "Segmentiert";
+"menu_bar_layout_bar_style_pill" = "Kapsel";
 "menu_bar_layout_vertical_adjustment" = "Vertikale Ausrichtung";
 "menu_bar_layout_sample_account" = "Konto";
 "menu_bar_layout_sample_runs_out" = "reicht bis Fr.";

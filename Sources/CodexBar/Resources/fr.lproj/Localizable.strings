@@ -1448,6 +1448,9 @@
 "menu_bar_layout_gap" = "Espacement";
 "menu_bar_layout_gap_tight" = "Serré";
 "menu_bar_layout_gap_regular" = "Normale";
+"menu_bar_layout_bar_style" = "Style de barre";
+"menu_bar_layout_bar_style_segmented" = "Segmentée";
+"menu_bar_layout_bar_style_pill" = "Capsule arrondie";
 "menu_bar_layout_vertical_adjustment" = "Ajustement vertical";
 "menu_bar_layout_sample_account" = "compte";
 "menu_bar_layout_sample_runs_out" = "épuisé ven.";

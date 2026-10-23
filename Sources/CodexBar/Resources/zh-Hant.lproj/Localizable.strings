@@ -1479,6 +1479,9 @@
 "menu_bar_layout_gap" = "間距";
 "menu_bar_layout_gap_tight" = "緊湊";
 "menu_bar_layout_gap_regular" = "一般";
+"menu_bar_layout_bar_style" = "進度列樣式";
+"menu_bar_layout_bar_style_segmented" = "分段";
+"menu_bar_layout_bar_style_pill" = "膠囊";
 "menu_bar_layout_vertical_adjustment" = "垂直調整";
 "menu_bar_layout_sample_account" = "帳號";
 "menu_bar_layout_sample_runs_out" = "週五用盡";

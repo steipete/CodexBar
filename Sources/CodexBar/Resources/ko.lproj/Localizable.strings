@@ -1418,6 +1418,9 @@
 "menu_bar_layout_gap" = "간격";
 "menu_bar_layout_gap_tight" = "좁게";
 "menu_bar_layout_gap_regular" = "보통";
+"menu_bar_layout_bar_style" = "막대 스타일";
+"menu_bar_layout_bar_style_segmented" = "분할형";
+"menu_bar_layout_bar_style_pill" = "알약형";
 "menu_bar_layout_vertical_adjustment" = "세로 조정";
 "menu_bar_layout_sample_account" = "계정";
 "menu_bar_layout_sample_runs_out" = "금요일 소진";
