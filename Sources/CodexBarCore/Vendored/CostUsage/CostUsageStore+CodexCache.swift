@@ -531,7 +531,11 @@ extension CostUsageStore {
         let accumulatorByPath = Dictionary(uniqueKeysWithValues: snapshot.accumulators.map { ($0.path, $0) })
 
         for file in snapshot.files {
-            guard let detailsData = file.scanState.detailsPayload,
+            // Source-aware dispatch (#4752 point 1): OpenCode adapter records are not
+            // Codex JSONL — they restore through the adapter's own checkpoint payload,
+            // never through the Codex details/resume decoders.
+            guard !file.belongsToOpenCodeLocalHistory,
+                  let detailsData = file.scanState.detailsPayload,
                   let details = try? decoder.decode(StoredFileDetails.self, from: detailsData)
             else { continue }
             let aggregates = (aggregatesByPath[file.path] ?? []).map(\.aggregate)
@@ -637,7 +641,7 @@ extension CostUsageStore {
         var completedIdentityValidationPaths: [String] = []
         var invalidatedIdentityValidationPaths: [String] = []
 
-        for file in persistence.files {
+        for file in persistence.files where !file.belongsToOpenCodeLocalHistory {
             guard var usage = cache.files[file.path] else { continue }
             let normalizedIdentity = Self.normalizedCodexFileIdentity(
                 file: file,
