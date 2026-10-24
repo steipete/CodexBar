@@ -52,17 +52,12 @@ struct SettingsSidebarView: View {
             .listStyle(.sidebar)
             .scrollContentBackground(.hidden)
 
-            if self.settings.canUndoProviderOrderChange {
-                HStack {
-                    Text(L("Provider order updated"))
-                    Spacer(minLength: 4)
-                    Button(L("Undo")) { self.settings.undoProviderOrderChange() }
-                        .buttonStyle(.plain)
-                        .foregroundStyle(Color.accentColor)
+            if self.settings.canUndoProviderOrderChange, let undoID = self.settings.providerOrderUndo?.id {
+                // A new reorder gets a fresh banner identity, so its fade timer restarts.
+                SettingsSidebarProviderOrderBanner {
+                    self.settings.undoProviderOrderChange()
                 }
-                .font(.caption)
-                .padding(8)
-                .accessibilityElement(children: .contain)
+                .id(undoID)
             }
         }
     }
@@ -296,6 +291,57 @@ struct SettingsSidebarProviderRow: View {
         case .major: .orange
         case .critical: .red
         case .maintenance, .unknown: .gray
+        }
+    }
+}
+
+private struct SettingsSidebarProviderOrderBanner: View {
+    private enum AccessibilityElement: Hashable {
+        case banner
+        case message
+        case undo
+    }
+
+    static let visibleDuration: Duration = .seconds(4)
+
+    let onUndo: () -> Void
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var isVisible = true
+    @State private var isHovering = false
+    @FocusState private var isUndoFocused: Bool
+    @AccessibilityFocusState private var accessibilityFocus: AccessibilityElement?
+
+    private var isInteracting: Bool {
+        self.isHovering || self.isUndoFocused || self.accessibilityFocus != nil
+    }
+
+    var body: some View {
+        ZStack {
+            if self.isVisible {
+                HStack {
+                    Text(L("Provider order updated"))
+                        .accessibilityFocused(self.$accessibilityFocus, equals: .message)
+                    Spacer(minLength: 4)
+                    Button(L("Undo"), action: self.onUndo)
+                        .buttonStyle(.plain)
+                        .foregroundStyle(Color.accentColor)
+                        .focused(self.$isUndoFocused)
+                        .accessibilityFocused(self.$accessibilityFocus, equals: .undo)
+                }
+                .font(.caption)
+                .padding(8)
+                .contentShape(Rectangle())
+                .onHover { self.isHovering = $0 }
+                .accessibilityElement(children: .contain)
+                .accessibilityFocused(self.$accessibilityFocus, equals: .banner)
+                .transition(.opacity)
+            }
+        }
+        .task(id: self.isInteracting) {
+            guard !self.isInteracting else { return }
+            try? await Task.sleep(for: Self.visibleDuration)
+            guard !Task.isCancelled, !self.isInteracting else { return }
+            withAnimation(self.reduceMotion ? nil : .easeOut(duration: 0.4)) { self.isVisible = false }
         }
     }
 }
