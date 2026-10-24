@@ -11,6 +11,7 @@
 
 ### Fixed
 
+- Updates: render release notes with Sparkle's native Markdown support and link GitHub references (#4751). Thanks @SaahiilM!
 - Reliability: close subprocess output captures only once, preventing reused-file-descriptor crashes during Antigravity CLI discovery and other probes (#4748). Thanks @nyan-mikan!
 - DeepSeek: allow Auto on Linux to use a configured API key instead of rejecting it for requiring web support (#4747). Thanks @johan456789!
 - Docs: explain Kiro's separate usage/context chat probes and the known empty-session persistence issue (#4746). Thanks @hcoronel1!
