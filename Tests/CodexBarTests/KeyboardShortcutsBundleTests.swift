@@ -12,16 +12,16 @@ struct KeyboardShortcutsBundleTests {
 
     @Test func `open menu recorder expands beyond dependency intrinsic width`() {
         let recorder = KeyboardShortcuts.RecorderCocoa(for: .init("test.keyboardshortcuts.width"))
-        let size = OpenMenuShortcutRecorder.fittedSize(intrinsicHeight: recorder.intrinsicContentSize.height)
+        let size = SettingsShortcutRecorder.fittedSize(intrinsicHeight: recorder.intrinsicContentSize.height)
 
-        #expect(size.width == OpenMenuShortcutRecorder.preferredWidth)
+        #expect(size.width == SettingsShortcutRecorder.preferredWidth)
         #expect(size.width > recorder.intrinsicContentSize.width)
         #expect(size.height == recorder.intrinsicContentSize.height)
     }
 
     @Test func `open menu recorder follows selected app language`() {
         let recorder = KeyboardShortcuts.RecorderCocoa(for: .init("test.keyboardshortcuts.localization"))
-        let coordinator = OpenMenuShortcutRecorder.Coordinator()
+        let coordinator = SettingsShortcutRecorder.Coordinator()
 
         CodexBarLocalizationOverride.$appLanguage.withValue("en") {
             coordinator.attach(to: recorder)
@@ -51,7 +51,7 @@ struct KeyboardShortcutsBundleTests {
 
     @Test func `localized prompts survive later recorder lifecycle writes`() async {
         let recorder = KeyboardShortcuts.RecorderCocoa(for: .init("test.keyboardshortcuts.lifecycle"))
-        let coordinator = OpenMenuShortcutRecorder.Coordinator()
+        let coordinator = SettingsShortcutRecorder.Coordinator()
 
         await CodexBarLocalizationOverride.$appLanguage.withValue("zh-Hans") {
             coordinator.attach(to: recorder)
@@ -76,7 +76,7 @@ struct KeyboardShortcutsBundleTests {
     @Test func `reattaching leaves the previous recorder placeholder alone`() {
         let previous = KeyboardShortcuts.RecorderCocoa(for: .init("test.keyboardshortcuts.previous"))
         let current = KeyboardShortcuts.RecorderCocoa(for: .init("test.keyboardshortcuts.current"))
-        let coordinator = OpenMenuShortcutRecorder.Coordinator()
+        let coordinator = SettingsShortcutRecorder.Coordinator()
 
         CodexBarLocalizationOverride.$appLanguage.withValue("zh-Hans") {
             coordinator.attach(to: previous)

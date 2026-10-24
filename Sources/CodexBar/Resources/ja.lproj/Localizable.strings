@@ -2436,6 +2436,51 @@
 "Models for this day" = "この日のモデル";
 
 "Click a bar to explore. Use the menu below for exact amounts." = "棒をクリックして詳しく確認できます。下のメニューで正確な金額を確認できます。";
+"notch_summary_title" = "ノッチにカーソルを合わせたときに使用状況の概要を表示";
+"notch_summary_caption" = "カメラノッチの下に有効なすべてのプロバイダの概要を表示します。ノッチ付きの内蔵ディスプレイが必要です。";
+"tab_notch" = "ノッチ";
+"section_notch_overlay" = "ノッチオーバーレイ";
+"notch_no_display_hint" = "この Mac にはノッチ付きの内蔵ディスプレイがないため、オーバーレイは表示されません。";
+"Agent Sessions" = "エージェントセッション";
+"No agent sessions found" = "エージェントセッションが見つかりません";
+"section_notch_hotkey" = "ショートカット";
+"notch_hotkey_title" = "オーバーレイを表示";
+"notch_hotkey_mode_title" = "ショートカットの動作";
+"notch_hotkey_mode_subtitle" = "ショートカットでオーバーレイを開いたままにするか、押している間だけ表示するか。";
+"notch_hotkey_footer" = "ホバーのみを使う場合はショートカットを空のままにします。";
+"notch_hotkey_mode_toggle" = "切り替え";
+"notch_hotkey_mode_hold" = "押している間";
+"notch_columns_title" = "列数";
+"section_notch_sessions" = "エージェントセッション";
+"section_notch_providers" = "プロバイダ";
+"notch_agent_sessions_title" = "エージェントセッションを表示";
+"notch_agent_sessions_subtitle" = "実行中のセッションをオーバーレイに表示します。";
+"notch_sessions_placement_title" = "配置";
+"notch_sessions_placement_subtitle" = "リストをプロバイダのどちら側に置くか。";
+"notch_sessions_height_title" = "最大の高さ";
+"notch_sessions_height_subtitle" = "これを超えるとリスト内でスクロールします。";
+"notch_providers_height_title" = "最大の高さ";
+"notch_providers_height_subtitle" = "これを超えるとプロバイダのタイルがスクロールします。";
+"notch_columns_subtitle" = "タイルは左から右へ、この数の列に配置されます。";
+"notch_match_rows_title" = "行の高さをそろえる";
+"notch_match_rows_subtitle" = "行内のすべてのタイルが最も高いタイルと同じ高さになります。";
+"notch_sessions_placement_above" = "上";
+"notch_sessions_placement_below" = "下";
+"notch_autosize_footer" = "幅は自動で、列数に従います。以下の各セクションには独自の最大の高さがあります。";
+"notch_items_footer" = "ドラッグして並べ替えます。タイルはこの順序で列に配置されます。除外するには行をオフにします。";
+"Match providers" = "プロバイダに合わせる";
+"Column per harness" = "ツールごとに列を分ける";
+
+// Notch ears
+"section_notch_ears" = "Notch ears";
+"notch_ears_title" = "Show notch ears";
+"notch_ears_subtitle" = "Opaque summaries beside the camera while the panel is expanded. They receive clicks in the menu-bar area they cover.";
+"notch_left_ear" = "Left ear";
+"notch_right_ear" = "Right ear";
+"notch_ear_unavailable" = "Selected item unavailable";
+
+"Limit Reset Credits + Expiry" = "上限リセットクレジット + 有効期限";
+
 
 "Store multiple ClinePass API keys. The selected key overrides the configured API key and the cline auth session." = "複数の ClinePass API キーを保存します。選択したキーは、設定済みの API キーと cline auth セッションよりも優先されます。";
 

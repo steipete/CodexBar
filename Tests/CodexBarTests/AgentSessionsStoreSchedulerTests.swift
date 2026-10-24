@@ -141,6 +141,41 @@ private actor AgentSessionRefreshSpy {
 @MainActor
 struct AgentSessionsStoreSchedulerTests {
     @Test
+    func `notch sessions own scanning independently of menu visibility`() async {
+        let settings = testSettingsStore(suiteName: "AgentSessionsStoreSchedulerTests-notch")
+        settings.refreshFrequency = .manual
+        settings.agentSessionsRemoteEnabled = true
+        let spy = AgentSessionRefreshSpy()
+        let store = Self.makeStore(settings: settings, spy: spy)
+        defer { store.stop() }
+        store.start()
+
+        settings.notchShowsAgentSessions = true
+        store.settingsDidChange()
+        #expect(!store.localMonitoringEnabled)
+        settings.notchUsageSummaryEnabled = true
+        store.settingsDidChange()
+        await spy.waitForLocalCallCount(1)
+        await spy.waitForRemoteCallCount(1)
+        #expect(!settings.agentSessionsEnabled)
+        #expect(store.schedulerState.hasLocalPeriodicTask)
+        #expect(store.schedulerState.hasRemotePeriodicTask)
+        #expect(await spy.localCalls == [true])
+
+        settings.notchUsageSummaryEnabled = false
+        store.settingsDidChange()
+        #expect(!store.schedulerState.hasLocalPeriodicTask)
+        #expect(!store.schedulerState.hasRemotePeriodicTask)
+        #expect(store.localSessions.isEmpty)
+        #expect(store.remoteHosts.isEmpty)
+
+        settings.agentSessionsEnabled = true
+        store.settingsDidChange()
+        #expect(store.localMonitoringEnabled)
+        #expect(store.schedulerState.hasRemotePeriodicTask)
+    }
+
+    @Test
     func `periodic schedulers match all lifecycle and settings states`() {
         let settings = testSettingsStore(suiteName: "AgentSessionsStoreSchedulerTests-states")
         let store = Self.makeStore(settings: settings)
@@ -326,10 +361,12 @@ struct AgentSessionsStoreSchedulerTests {
         #expect(updateCount == 0)
     }
 
-    @Test
-    func `local only sessions never discover or fetch even on menu open`() async {
+    @Test(arguments: [false, true])
+    func `local only sessions never discover or fetch even on menu open`(notchOnly: Bool) async {
         let settings = testSettingsStore(suiteName: "remote-local-only", userDefaults: InMemoryUserDefaults())
-        settings.agentSessionsEnabled = true
+        settings.agentSessionsEnabled = !notchOnly
+        settings.notchUsageSummaryEnabled = notchOnly
+        settings.notchShowsAgentSessions = notchOnly
         settings.agentSessionsManualHosts = "never.example.invalid"
         let spy = AgentSessionRefreshSpy()
         let store = AgentSessionsStore(
@@ -348,10 +385,12 @@ struct AgentSessionsStoreSchedulerTests {
         store.stop()
     }
 
-    @Test
-    func `disabling remote monitoring clears rows and rejects late results`() async {
+    @Test(arguments: [false, true])
+    func `disabling remote monitoring clears rows and rejects late results`(notchOnly: Bool) async {
         let settings = testSettingsStore(suiteName: "remote-disable", userDefaults: InMemoryUserDefaults())
-        settings.agentSessionsEnabled = true
+        settings.agentSessionsEnabled = !notchOnly
+        settings.notchUsageSummaryEnabled = notchOnly
+        settings.notchShowsAgentSessions = notchOnly
         settings.agentSessionsRemoteEnabled = true
         let remote = AgentSessionRemoteFetchHarness()
         let store = Self.makeStore(settings: settings, remote: remote)
@@ -414,7 +453,8 @@ struct AgentSessionsStoreSchedulerTests {
             remoteFetch: { hosts in
                 guard let remote else { return [] }
                 return await remote.fetch(hosts: hosts)
-            })
+            },
+            powerState: { (false, .nominal) })
     }
 
     private static func makeStore(
@@ -429,7 +469,8 @@ struct AgentSessionsStoreSchedulerTests {
             remoteHostDiscovery: { [] },
             remoteFetch: { hosts in
                 await spy.fetch(hosts: hosts)
-            })
+            },
+            powerState: { (false, .nominal) })
     }
 
     private static func waitForImmediateTasksToFinish(_ store: AgentSessionsStore) async {

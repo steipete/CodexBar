@@ -77,21 +77,25 @@ extension SettingsSectionFooter where Content == Text {
 }
 
 @MainActor
-struct OpenMenuShortcutRecorder: NSViewRepresentable {
+struct SettingsShortcutRecorder: NSViewRepresentable {
     static let preferredWidth: CGFloat = 170
+    var shortcutName: KeyboardShortcuts.Name = .openMenu
+    var isEnabled = true
 
     func makeCoordinator() -> Coordinator {
         Coordinator()
     }
 
     func makeNSView(context: Context) -> KeyboardShortcuts.RecorderCocoa {
-        let recorder = KeyboardShortcuts.RecorderCocoa(for: .openMenu)
+        let recorder = KeyboardShortcuts.RecorderCocoa(for: self.shortcutName)
+        recorder.isEnabled = self.isEnabled
         context.coordinator.attach(to: recorder)
         return recorder
     }
 
     func updateNSView(_ nsView: KeyboardShortcuts.RecorderCocoa, context: Context) {
-        nsView.shortcutName = .openMenu
+        nsView.shortcutName = self.shortcutName
+        nsView.isEnabled = self.isEnabled
         context.coordinator.attach(to: nsView)
     }
 

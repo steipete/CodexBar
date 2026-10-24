@@ -51,17 +51,7 @@ struct OpenAILiveUsageChart: View {
                     }
             }
             ForEach(Array(self.segments.enumerated()), id: \.offset) { _, segment in
-                if case let .model(name) = self.filter {
-                    if segment.label == L("Output") {
-                        self.bar(segment).foregroundStyle(.orange)
-                    } else {
-                        self.bar(segment)
-                            .foregroundStyle(by: .value(L("Model"), self.seriesName(name)))
-                            .opacity(segment.label == L("Cached input") ? 0.45 : 1)
-                    }
-                } else {
-                    self.bar(segment).foregroundStyle(by: .value(L("Model"), segment.label))
-                }
+                self.styledBar(segment)
             }
             if let limit = self.tpmLimit, self.showsLimitRule {
                 RuleMark(y: .value(L("Org TPM limit"), limit))
@@ -151,6 +141,22 @@ struct OpenAILiveUsageChart: View {
                         baseline: point.uncachedInputTokens + point.outputTokens),
                 ]
             }
+        }
+    }
+
+    /// Keep conditional marks in ChartContentBuilder for SDKs that also expose ViewBuilder chart overloads.
+    @ChartContentBuilder
+    private func styledBar(_ segment: Segment) -> some ChartContent {
+        if case let .model(name) = self.filter {
+            if segment.label == L("Output") {
+                self.bar(segment).foregroundStyle(.orange)
+            } else {
+                self.bar(segment)
+                    .foregroundStyle(by: .value(L("Model"), self.seriesName(name)))
+                    .opacity(segment.label == L("Cached input") ? 0.45 : 1)
+            }
+        } else {
+            self.bar(segment).foregroundStyle(by: .value(L("Model"), segment.label))
         }
     }
 

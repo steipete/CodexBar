@@ -150,19 +150,19 @@ struct AgentSessionsSettingsSection: View {
                 optionLabel: { style in
                     Text(style.label)
                 })
-                .disabled(!self.settings.agentSessionsEnabled)
+                .disabled(!self.settings.agentSessionsMonitoringEnabled)
 
             Toggle(isOn: self.$settings.agentSessionsRemoteEnabled) {
                 SettingsRowLabel(L("agent_sessions_remote_title"), subtitle: L("agent_sessions_remote_subtitle"))
             }
-            .disabled(!self.settings.agentSessionsEnabled)
+            .disabled(!self.settings.agentSessionsMonitoringEnabled)
 
             Toggle(isOn: self.$settings.agentSessionsHideUnreachableHosts) {
                 SettingsRowLabel(
                     L("agent_sessions_hide_unreachable_title"),
                     subtitle: L("agent_sessions_hide_unreachable_subtitle"))
             }
-            .disabled(!self.settings.agentSessionsEnabled || !self.settings.agentSessionsRemoteEnabled)
+            .disabled(!self.settings.agentSessionsMonitoringEnabled || !self.settings.agentSessionsRemoteEnabled)
 
             AgentSessionHostsEditor(settings: self.settings)
         } header: {
@@ -188,7 +188,7 @@ struct AgentSessionHostsEditor: View {
                 .frame(minWidth: 220, idealWidth: 280)
                 .accessibilityLabel(L("agent_sessions_hosts_title"))
         }
-        .disabled(!self.settings.agentSessionsEnabled || !self.settings.agentSessionsRemoteEnabled)
+        .disabled(!self.settings.agentSessionsMonitoringEnabled || !self.settings.agentSessionsRemoteEnabled)
         .help(L("agent_sessions_remote_subtitle"))
     }
 }

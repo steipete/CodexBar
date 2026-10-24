@@ -2,6 +2,10 @@
 
 ## 0.81.1 — Unreleased
 
+### Added
+
+- Menu bar: add an opt-in notch usage overlay with shared provider usage, agent-session summaries, and an optional shortcut. Opaque notch ears wrap the camera housing, with their own visibility switch, independent left/right summaries, and reset-credit expiry countdowns when space allows. Agent sessions can be shown independently of the menu, with separate column counts or one column per harness (#3164). Thanks @wdmitchelluk!
+
 ## 0.81.0 — 2026-10-24
 
 ### Highlights

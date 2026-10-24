@@ -1,0 +1,479 @@
+import CodexBarCore
+import SwiftUI
+
+struct NotchUsageOverlayModel: Equatable {
+    struct Bar: Equatable {
+        let title: String
+        let percent: Double
+        let percentText: String
+        let resetText: String?
+        var showsProgress = true
+        var id = ""
+
+        var accessibilityLabel: String {
+            [self.title, self.percentText, self.resetText].compactMap(\.self).joined(separator: ", ")
+        }
+    }
+
+    struct ProviderRow: Equatable, Identifiable {
+        let id: ProviderInstanceID
+        let name: String
+        let tint: Color
+        let bars: [Bar]
+        let statusText: String?
+        var resetCredits: LimitResetCreditsPresentation?
+        var earResetCredits: LimitResetCreditsPresentation?
+
+        /// VoiceOver summary for the whole tile. The tile is one combined accessibility element,
+        /// so the label has to carry the bar details itself — overriding it with just the name
+        /// would silence every usage figure.
+        var accessibilitySummary: String {
+            var parts = [self.name]
+            if let statusText = self.statusText {
+                parts.append(statusText)
+            }
+            parts.append(contentsOf: self.bars.map(\.accessibilityLabel))
+            return parts.joined(separator: ", ")
+        }
+    }
+
+    struct SessionRow: Equatable, Identifiable {
+        let id: String
+        let title: String
+        let detail: String
+        let isActive: Bool
+        let harness: String
+    }
+
+    struct HeaderItem: Equatable, Identifiable {
+        let id: String
+        let provider: ProviderInstanceID
+        let providerName: String
+        let title: String
+        let value: String
+        let accessibilityLabel: String
+        var expiryText: String?
+    }
+
+    struct EarChoice: Equatable, Identifiable {
+        let id: String
+        let provider: ProviderInstanceID
+        let title: String
+    }
+
+    /// The agent-session list, rendered as a full-width band above or below the provider grid.
+    /// Never a tile in the grid, so it cannot appear in ``items`` by construction.
+    struct SessionsBand: Equatable {
+        let title: String
+        let rows: [SessionRow]
+        let columns: [[SessionRow]]
+        let groupedByHarness: Bool
+    }
+
+    /// Provider tiles, in display order.
+    let items: [ProviderRow]
+    var columnCount: Int = 1
+    /// True when every tile in a grid row should be as tall as the tallest tile in that row.
+    var matchesRowHeights: Bool = false
+    /// The session list, when it is switched on.
+    var sessionsBand: SessionsBand?
+    /// Which side of the grid the band sits on; ignored when `sessionsBand` is nil.
+    var sessionsAbove = false
+    var iconStyle: ProviderBrandIcon.Style = .monochrome
+
+    /// Reuse the account-scoped menu presentation, including hidden-item and expiry filtering.
+    var headerItems: [HeaderItem] {
+        let credits = self.items.compactMap { row -> HeaderItem? in
+            guard let credits = row.resetCredits else { return nil }
+            return Self.resetCreditHeader(row: row, credits: credits, showsExpiry: false)
+        }
+        let quotas = self.items.map { row in
+            row.bars.map { bar in
+                HeaderItem(
+                    id: "\(row.id.rawValue):\(bar.id)",
+                    provider: row.id,
+                    providerName: row.name,
+                    title: bar.title,
+                    value: bar.percentText,
+                    accessibilityLabel: "\(row.name), \(bar.accessibilityLabel)")
+            }
+        }
+        return credits + quotas.compactMap(\.first) + quotas.flatMap { $0.dropFirst() }
+    }
+
+    var earChoices: [EarChoice] {
+        var choices = self.headerItems.map {
+            EarChoice(id: $0.id, provider: $0.provider, title: "\($0.providerName) — \($0.title)")
+        }
+        // Provider-specific by design: only these inventories support resets; expiry ears are Codex/Claude-only.
+        for row in self.items where [ProviderInstanceID.codex, .claude, .grok].contains(row.id) {
+            let id = "\(row.id.rawValue):reset-credits"
+            if !choices.contains(where: { $0.id == id }) {
+                choices.append(EarChoice(
+                    id: id, provider: row.id, title: "\(row.name) — \(L("Limit Reset Credits"))"))
+            }
+            if row.id == .codex || row.id == .claude {
+                choices.append(EarChoice(
+                    id: "\(id)-expiry",
+                    provider: row.id,
+                    title: "\(row.name) — \(L("Limit Reset Credits + Expiry"))"))
+            }
+        }
+        return choices
+    }
+
+    func earItem(selection: String, automaticIndex: Int) -> HeaderItem? {
+        for row in self.items where row.id == .codex || row.id == .claude {
+            let id = "\(row.id.rawValue):reset-credits"
+            if selection == id || selection == "\(id)-expiry" {
+                return Self.resetCreditHeader(
+                    row: row,
+                    credits: row.earResetCredits,
+                    showsExpiry: selection == "\(id)-expiry")
+            }
+        }
+        let items = self.headerItems
+        guard selection.isEmpty else { return items.first { $0.id == selection } }
+        return items.indices.contains(automaticIndex) ? items[automaticIndex] : nil
+    }
+
+    private static func resetCreditHeader(
+        row: ProviderRow,
+        credits: LimitResetCreditsPresentation?,
+        showsExpiry: Bool) -> HeaderItem
+    {
+        HeaderItem(
+            id: "\(row.id.rawValue):reset-credits\(showsExpiry ? "-expiry" : "")",
+            provider: row.id,
+            providerName: row.name,
+            title: L("Limit Reset Credits"),
+            value: credits?.text ?? L("Unavailable"),
+            accessibilityLabel: [
+                row.name,
+                credits?.accessibilityLabel ?? "\(L("Limit Reset Credits")), \(L("Unavailable"))",
+            ].joined(separator: ", "),
+            expiryText: showsExpiry ? credits?.items.compactMap(\.countdownExpiryText).first.map {
+                String(format: L("Expires %@"), $0)
+            } : nil)
+    }
+
+    /// Round-robin placement shared by the tile grid and the full-width session band: element `i`
+    /// goes to column `i % count`, so reading across a row follows list order.
+    static func distribute<T>(_ elements: [T], into count: Int) -> [[T]] {
+        let count = max(count, 1)
+        var columns = Array(repeating: [T](), count: count)
+        for (index, element) in elements.enumerated() {
+            columns[index % count].append(element)
+        }
+        return columns
+    }
+
+    /// Tiles flow into the columns in list order, left to right then down, so reordering in
+    /// settings moves a tile predictably and no column is left short by a balancing heuristic.
+    func columns() -> [[ProviderRow]] {
+        Self.distribute(self.items, into: self.columnCount)
+    }
+
+    /// The same placement as ``columns()``, sliced the other way: element `r` holds the tiles that
+    /// share grid row `r`. Only the last row can be short.
+    func rows() -> [[ProviderRow]] {
+        let count = max(self.columnCount, 1)
+        return stride(from: 0, to: self.items.count, by: count).map { start in
+            Array(self.items[start..<min(start + count, self.items.count)])
+        }
+    }
+
+    static func bars(
+        snapshot: UsageSnapshot,
+        labels: ProviderRateWindowLabels?,
+        showUsed: Bool,
+        now: Date = .now) -> [Bar]
+    {
+        var bars: [Bar] = []
+        bars.reserveCapacity(4)
+
+        if let primary = snapshot.primary {
+            bars.append(self.makeBar(
+                id: "primary",
+                title: labels.map { L($0.primary) } ?? L("metric_pref_primary"),
+                window: primary,
+                showUsed: showUsed))
+        }
+        if let secondary = snapshot.secondary {
+            bars.append(self.makeBar(
+                id: "secondary",
+                title: labels.map { L($0.secondary) } ?? L("metric_pref_secondary"),
+                window: secondary,
+                showUsed: showUsed))
+        }
+        if let tertiary = snapshot.tertiary {
+            bars.append(self.makeBar(
+                id: "tertiary",
+                title: labels.map { L($0.tertiary) } ?? L("metric_pref_tertiary"),
+                window: tertiary,
+                showUsed: showUsed))
+        }
+        if let extra = snapshot.extraRateWindows?.first(where: \.usageKnown) {
+            bars.append(self.makeBar(
+                id: "extra",
+                title: L(extra.title),
+                window: extra.window,
+                showUsed: showUsed))
+        } else if let cost = snapshot.providerCost, cost.limit > 0 {
+            bars.append(self.makeCostBar(cost: cost, showUsed: showUsed))
+        }
+
+        return Array(bars.prefix(4))
+    }
+
+    @MainActor
+    static func make(
+        store: UsageStore,
+        settings: SettingsStore,
+        agentSessions: AgentSessionsStore? = nil,
+        now: Date = .now) -> Self
+    {
+        let showUsed = settings.usageBarsShowUsed
+        var providerRows: [ProviderInstanceID: ProviderRow] = [:]
+        var availableKeys: [String] = []
+
+        for instanceID in store.enabledProvidersForDisplay()
+            where settings.isNotchProviderVisible(instanceID)
+        {
+            guard let row = self.providerRow(
+                instanceID: instanceID,
+                store: store,
+                settings: settings,
+                showUsed: showUsed,
+                now: now)
+            else { continue }
+            providerRows[instanceID] = row
+            availableKeys.append(instanceID.rawValue)
+        }
+
+        var sessionsBand: SessionsBand?
+        if settings.notchShowsAgentSessions, let agentSessions {
+            let rows = self.sessionRows(
+                agentSessions: agentSessions,
+                labelStyle: settings.agentSessionLabelStyle,
+                now: now)
+            let grouped = settings.notchSessionsColumns == .perHarness
+            let columns = grouped
+                ? Dictionary(grouping: rows, by: \.harness).sorted { $0.key < $1.key }.map(\.value)
+                : Self.distribute(
+                    rows,
+                    into: settings.notchSessionsColumns == .matchProviders
+                        ? settings.notchColumnCount : settings.notchSessionsColumns.rawValue)
+            sessionsBand = SessionsBand(
+                title: L("Agent Sessions"), rows: rows, columns: columns, groupedByHarness: grouped)
+        }
+
+        let items: [ProviderRow] = settings.notchOrderedItemKeys(availableKeys).compactMap { key in
+            guard let instanceID = ProviderInstanceID(rawValue: key) else { return nil }
+            return providerRows[instanceID]
+        }
+
+        return Self(
+            items: items,
+            columnCount: settings.notchColumnCount,
+            matchesRowHeights: settings.notchMatchesRowHeights,
+            sessionsBand: sessionsBand,
+            sessionsAbove: settings.notchSessionsPlacement == .above,
+            iconStyle: settings.menuBarShowsBrandIconWithPercent ? .brand : .monochrome)
+    }
+
+    @MainActor
+    private static func providerRow(
+        instanceID: ProviderInstanceID,
+        store: UsageStore,
+        settings: SettingsStore,
+        showUsed: Bool,
+        now: Date) -> ProviderRow?
+    {
+        if let provider = instanceID.firstPartyProvider {
+            return self.providerRow(provider: provider, store: store, settings: settings, now: now)
+        }
+
+        // User-provider plugins are macOS-only in the app target. Keep this branch guarded so the
+        // model remains source-compatible with builds that do not provide JavaScriptCore.
+        #if canImport(JavaScriptCore)
+        // `enabledProvidersForDisplay()` already filters on the same enablement flag, so the only
+        // real filter here is the registry lookup: a plugin can be enabled but no longer loaded.
+        guard let plugin = UserProviderPluginRegistry.plugin(for: instanceID) else { return nil }
+        let bars = store.snapshots[instanceID].map {
+            self.bars(snapshot: $0, labels: nil, showUsed: showUsed, now: now)
+        } ?? []
+        return ProviderRow(
+            id: instanceID,
+            name: plugin.manifest.name,
+            tint: Self.pluginTint(plugin),
+            bars: bars,
+            statusText: self.statusText(bars: bars, error: store.errors[instanceID]))
+        #else
+        return nil
+        #endif
+    }
+
+    @MainActor
+    private static func providerRow(
+        provider: UsageProvider,
+        store: UsageStore,
+        settings: SettingsStore,
+        now: Date) -> ProviderRow
+    {
+        let card = store.menuCardModel(for: provider, now: now)
+        var bars = card.metrics.prefix(4).map { metric in
+            Bar(
+                title: metric.title,
+                percent: metric.percent,
+                percentText: metric.statusText ?? metric.percentLabel,
+                resetText: metric.resetText,
+                showsProgress: metric.statusText == nil,
+                id: metric.id)
+        }
+        let hasExtraMetric = card.metrics.contains { !["primary", "secondary", "tertiary"].contains($0.id) }
+        if bars.count < 4, !hasExtraMetric {
+            if let cost = card.providerCost {
+                let used = cost.percentUsed ?? 0
+                bars.append(Bar(
+                    title: cost.title,
+                    percent: settings.usageBarsShowUsed ? used : 100 - used,
+                    percentText: cost.percentLine ?? cost.spendLine,
+                    resetText: cost.percentLine == nil ? nil : cost.spendLine,
+                    showsProgress: cost.percentUsed != nil,
+                    id: "cost"))
+            }
+        }
+        return ProviderRow(
+            id: provider.instanceID,
+            name: card.providerName,
+            tint: card.progressColor,
+            bars: bars,
+            statusText: card.subtitleStyle == .error ? card.subtitleText : (bars.isEmpty ? card.placeholder : nil),
+            resetCredits: card.limitResetCredits,
+            earResetCredits: self.resetCreditsForEars(provider: provider, store: store, settings: settings, now: now))
+    }
+
+    @MainActor
+    private static func resetCreditsForEars(
+        provider: UsageProvider,
+        store: UsageStore,
+        settings: SettingsStore,
+        now: Date) -> LimitResetCreditsPresentation?
+    {
+        // Provider-specific by design: explicit Codex/Claude ears retain zero from their account-scoped inventories.
+        guard provider == .codex || provider == .claude,
+              let snapshot = store.presentationSnapshot(for: provider)
+        else { return nil }
+        if provider == .codex, let credits = snapshot.codexResetCredits {
+            return LimitResetCreditsPresentation.make(
+                snapshot: credits,
+                resetStyle: settings.resetTimeDisplayStyle,
+                now: now,
+                includeEmpty: true)
+        }
+        if provider == .claude, let credits = snapshot.claudeResetCredits {
+            return LimitResetCreditsPresentation.make(
+                expirations: credits.availableExpirations(at: now),
+                resetStyle: settings.resetTimeDisplayStyle,
+                now: now,
+                includeEmpty: true)
+        }
+        return nil
+    }
+
+    @MainActor
+    private static func sessionRows(
+        agentSessions: AgentSessionsStore,
+        labelStyle: AgentSessionLabelStyle,
+        now: Date) -> [SessionRow]
+    {
+        let local = agentSessions.localSessions.map { session in
+            self.sessionRow(session, host: nil, labelStyle: labelStyle, now: now)
+        }
+        let remote = agentSessions.remoteHosts.flatMap { host in
+            host.sessions.map { session in
+                self.sessionRow(session, host: host.host, labelStyle: labelStyle, now: now)
+            }
+        }
+        return local + remote
+    }
+
+    private static func sessionRow(
+        _ session: AgentSession,
+        host: String?,
+        labelStyle: AgentSessionLabelStyle,
+        now: Date) -> SessionRow
+    {
+        var detailParts = [session.dialect?.rawValue ?? session.provider.rawValue]
+        if let host {
+            detailParts.append(host)
+        }
+        detailParts.append(self.sessionAge(session, now: now))
+        return SessionRow(
+            id: [host, session.id].compactMap(\.self).joined(separator: "@"),
+            title: labelStyle.label(for: session),
+            detail: detailParts.joined(separator: " · "),
+            isActive: session.state == .active,
+            harness: session.dialect == .omp ? "OMP" : (session.dialect?.rawValue ?? session.provider.rawValue)
+                .capitalized)
+    }
+
+    private static func sessionAge(_ session: AgentSession, now: Date) -> String {
+        guard let activity = session.lastActivityAt ?? session.startedAt else { return L("now") }
+        let seconds = max(0, Int(now.timeIntervalSince(activity)))
+        if seconds < 60 { return "\(seconds)s" }
+        if seconds < 3600 { return "\(seconds / 60)m" }
+        if seconds < 86400 { return "\(seconds / 3600)h" }
+        return "\(seconds / 86400)d"
+    }
+
+    private static func makeBar(id: String, title: String, window: RateWindow, showUsed: Bool) -> Bar {
+        let used = Self.clampedPercent(window.usedPercent)
+        let remaining = 100 - used
+        // Some providers describe the window itself (e.g. "5-hour"), which is already the row title here.
+        let resetText = window.resetDescription.flatMap { $0 == title ? nil : $0 }
+        let percentText = UsageFormatter.usageLine(remaining: remaining, used: used, showUsed: showUsed)
+        return Bar(
+            title: title,
+            percent: showUsed ? used : remaining,
+            percentText: percentText,
+            resetText: resetText,
+            id: id)
+    }
+
+    private static func makeCostBar(cost: ProviderCostSnapshot, showUsed: Bool) -> Bar {
+        let used = Self.clampedPercent(cost.used / cost.limit * 100)
+        let remaining = 100 - used
+        let title = L(cost.period ?? "Cost")
+        let percentText = UsageFormatter.usageLine(remaining: remaining, used: used, showUsed: showUsed)
+        let resetText = UsageFormatter.currencyString(cost.used, currencyCode: cost.currencyCode)
+        return Bar(
+            title: title,
+            percent: showUsed ? used : remaining,
+            percentText: percentText,
+            resetText: resetText,
+            id: "cost")
+    }
+
+    private static func clampedPercent(_ percent: Double) -> Double {
+        guard percent.isFinite else { return 0 }
+        return min(100, max(0, percent))
+    }
+
+    private static func statusText(bars: [Bar], error: String?) -> String? {
+        guard bars.isEmpty else { return nil }
+        return error ?? L("No usage fetched yet")
+    }
+
+    #if canImport(JavaScriptCore)
+    private static func pluginTint(_ plugin: UserProviderPlugin) -> Color {
+        let raw = plugin.manifest.icon.tint.dropFirst()
+        let value = UInt32(raw, radix: 16) ?? 0x6B7280
+        return Color(
+            red: Double((value >> 16) & 0xFF) / 255,
+            green: Double((value >> 8) & 0xFF) / 255,
+            blue: Double(value & 0xFF) / 255)
+    }
+    #endif
+}

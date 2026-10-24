@@ -136,14 +136,14 @@ final class AgentSessionsStore {
     }
 
     /// Adaptive refresh uses local metadata only after explicit consent. Remote sessions remain
-    /// behind the Agent Sessions setting because they can involve Tailscale discovery and SSH.
+    /// behind an enabled Agent Sessions view because they can involve Tailscale discovery and SSH.
     var localMonitoringEnabled: Bool {
-        self.settings.agentSessionsEnabled || self.settings.adaptiveActivityScanningEnabled ||
+        self.settings.agentSessionsMonitoringEnabled || self.settings.adaptiveActivityScanningEnabled ||
             self.settings.stayAwakeEnabled
     }
 
     var remoteMonitoringEnabled: Bool {
-        self.settings.agentSessionsEnabled && self.settings.agentSessionsRemoteEnabled
+        self.settings.agentSessionsMonitoringEnabled && self.settings.agentSessionsRemoteEnabled
     }
 
     var schedulerState: SchedulerState {
@@ -200,7 +200,7 @@ final class AgentSessionsStore {
 
         let hadVisibleSessions = !self.localSessions.isEmpty || !self.remoteHosts.isEmpty
         let hadActivity = self.latestLocalActivityAt != nil
-        if !self.settings.agentSessionsEnabled {
+        if !self.settings.agentSessionsMonitoringEnabled {
             // Adaptive keeps only the timestamp signal. Retained session paths and identities
             // remain scoped to the explicitly enabled Agent Sessions UI.
             self.localSessions = []
@@ -252,7 +252,7 @@ final class AgentSessionsStore {
         let latestActivityAt = Self.latestActivityAt(
             in: sessions,
             rolloutActivityAt: self.settings.adaptiveActivityScanningEnabled ? rolloutActivityAt : nil)
-        let effectiveSessions = self.settings.agentSessionsEnabled ? sessions : []
+        let effectiveSessions = self.settings.agentSessionsMonitoringEnabled ? sessions : []
         // Rescans that reproduce the current content must not publish: `onUpdate` invalidates
         // menus, and a redundant invalidation landing while the user hovers an Overview row's
         // chart submenu fed the open/close rebuild flicker loop in #2652.
@@ -343,14 +343,14 @@ final class AgentSessionsStore {
         guard self.isStarted, self.localMonitoringEnabled, self.localImmediateTask == nil else { return }
         let powerState = self.powerState()
         let activityScanAllowed = Self.shouldScanLocally(
-            agentSessionsEnabled: self.settings.agentSessionsEnabled,
+            agentSessionsEnabled: self.settings.agentSessionsMonitoringEnabled,
             adaptiveActivityScanningEnabled: self.settings.adaptiveActivityScanningEnabled,
             lowPowerModeEnabled: powerState.lowPowerModeEnabled,
             thermalState: powerState.thermalState)
         guard self.settings.stayAwakeEnabled || activityScanAllowed else { return }
         guard let generation = self.localRefreshGate.begin() else { return }
 
-        let includeFileOnlySessions = self.settings.agentSessionsEnabled
+        let includeFileOnlySessions = self.settings.agentSessionsMonitoringEnabled
         let includeRolloutActivity = self.settings.adaptiveActivityScanningEnabled && activityScanAllowed
         let localScan = self.localScan
         self.localImmediateTask = Task { [weak self] in

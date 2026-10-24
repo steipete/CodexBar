@@ -50,6 +50,11 @@ struct AgentSessionMenuDescriptorTests {
         let disabledEntries = buildDescriptor().sections.flatMap(\.entries)
         #expect(!Self.containsAgentSessions(in: disabledEntries))
 
+        settings.notchUsageSummaryEnabled = true
+        settings.notchShowsAgentSessions = true
+        #expect(settings.agentSessionsMonitoringEnabled)
+        #expect(!Self.containsAgentSessions(in: buildDescriptor().sections.flatMap(\.entries)))
+
         settings.agentSessionsEnabled = true
 
         let enabledEntries = buildDescriptor().sections.flatMap(\.entries)

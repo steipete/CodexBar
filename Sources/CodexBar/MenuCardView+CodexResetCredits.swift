@@ -4,6 +4,7 @@ import SwiftUI
 struct LimitResetCreditPresentationItem: Equatable {
     let expiryText: String
     let compactExpiryText: String
+    var countdownExpiryText: String?
 }
 
 struct LimitResetCreditsPresentation: Equatable {
@@ -32,14 +33,15 @@ struct LimitResetCreditsPresentation: Equatable {
     static func make(
         snapshot: CodexRateLimitResetCreditsSnapshot,
         resetStyle: ResetTimeDisplayStyle,
-        now: Date) -> LimitResetCreditsPresentation?
+        now: Date,
+        includeEmpty: Bool = false) -> LimitResetCreditsPresentation?
     {
         let inventory = snapshot.availableInventory(at: now)
-        guard !inventory.credits.isEmpty else { return nil }
         return Self.make(
             expirations: inventory.credits.map(\.expiresAt),
             resetStyle: resetStyle,
-            now: now)
+            now: now,
+            includeEmpty: includeEmpty)
     }
 
     static func make(
@@ -57,12 +59,13 @@ struct LimitResetCreditsPresentation: Equatable {
         count == 1 ? L("1 available") : String(format: L("%d available"), count)
     }
 
-    fileprivate static func make(
+    static func make(
         expirations: [Date?],
         resetStyle: ResetTimeDisplayStyle,
-        now: Date) -> LimitResetCreditsPresentation?
+        now: Date,
+        includeEmpty: Bool = false) -> LimitResetCreditsPresentation?
     {
-        guard !expirations.isEmpty else { return nil }
+        guard includeEmpty || !expirations.isEmpty else { return nil }
         return LimitResetCreditsPresentation(
             text: self.availableText(count: expirations.count),
             items: expirations.map { expiration in
@@ -84,7 +87,8 @@ struct LimitResetCreditsPresentation: Equatable {
             : formattedTime
         return LimitResetCreditPresentationItem(
             expiryText: String(format: L("Expires %@"), formattedTime),
-            compactExpiryText: compactExpiryText)
+            compactExpiryText: compactExpiryText,
+            countdownExpiryText: Self.formattedTime(expiresAt, resetStyle: .countdown, now: now))
     }
 
     private static func formattedTime(
