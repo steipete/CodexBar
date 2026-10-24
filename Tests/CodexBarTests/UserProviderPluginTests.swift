@@ -1004,7 +1004,7 @@ extension UserProviderPluginTests {
 
     @MainActor
     @Test
-    func `merged plugin icon appends the layout reset and schedules its countdown`() throws {
+    func `merged plugin icon appends the layout reset and schedules its countdown`() async throws {
         let fixture = try Fixture()
         defer { fixture.remove() }
         _ = try fixture.write(name: "reset.js", source: Self.menuPlugin(id: "reset-meter", name: "Reset Meter"))
@@ -1032,6 +1032,28 @@ extension UserProviderPluginTests {
         controller.updateIcons()
         let title = controller.statusItem.button?.title ?? ""
         #expect(title.hasSuffix("37% · \(UsageFormatter.resetCountdownDescription(from: resetsAt, now: now))"))
+        #expect(controller._test_isMenuBarCountdownRefreshScheduled())
+
+        // Reset-only refreshes keep the same percent, so the store observer must redraw them by itself.
+        for _ in 0..<20 {
+            await Task.yield()
+        }
+        store.snapshots[plugin.manifest.id] = UsageSnapshot(
+            primary: RateWindow(usedPercent: 63, windowMinutes: 10080, resetsAt: nil, resetDescription: "on Monday"),
+            secondary: nil,
+            updatedAt: now)
+        for _ in 0..<20 where controller.statusItem.button?.title.hasSuffix("37% · on Monday") != true {
+            await Task.yield()
+        }
+        #expect(controller.statusItem.button?.title.hasSuffix("37% · on Monday") == true)
+        #expect(!controller._test_isMenuBarCountdownRefreshScheduled())
+
+        store.snapshots[plugin.manifest.id] = snapshot
+        for _ in 0..<20 where !controller._test_isMenuBarCountdownRefreshScheduled() {
+            await Task.yield()
+        }
+        #expect(controller.statusItem.button?.title.hasSuffix(
+            "37% · \(UsageFormatter.resetCountdownDescription(from: resetsAt, now: now))") == true)
         #expect(controller._test_isMenuBarCountdownRefreshScheduled())
 
         settings.menuBarLayout = .defaultLayout
