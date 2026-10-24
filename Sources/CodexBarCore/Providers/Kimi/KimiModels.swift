@@ -59,11 +59,14 @@ struct KimiCodeUsagePools: Codable, Sendable {
     let session: KimiRatioPool?
     let weekly: KimiRatioPool?
     let monthly: KimiRatioPool?
+    /// Kimi Code's share of the shared `monthly` pool, not an independent limit.
+    let monthlyCode: KimiRatioPool?
 
     private enum CodingKeys: String, CodingKey {
         case session = "limit_5h"
         case weekly = "limit_7d"
         case monthly = "limit_month_total"
+        case monthlyCode = "limit_month_code"
     }
 }
 

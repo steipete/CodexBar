@@ -2,6 +2,10 @@
 
 ## 0.81.1 — Unreleased
 
+### Added
+
+- Kimi: break the monthly Total usage pool down into Kimi Code and other features in menu and CLI details.
+
 ## 0.81.0 — 2026-10-24
 
 ### Highlights
