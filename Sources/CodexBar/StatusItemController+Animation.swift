@@ -280,11 +280,8 @@ extension StatusItemController {
                 style: .combined,
                 hideCritters: true)
             self.statusItem.length = NSStatusItem.variableLength
-            self.setButtonContent(
-                image: image,
-                title: showBrand ? percent.map(UsageFormatter.percentString) ?? "—" : nil,
-                tint: nil,
-                for: button)
+            let title = showBrand ? self.userPluginMenuBarTitle(percent: percent, snapshot: snapshot) : nil
+            self.setButtonContent(image: image, title: title, tint: nil, for: button)
             self.noteIconPerfRender(skipped: false)
             return false
         }

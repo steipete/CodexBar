@@ -1004,6 +1004,44 @@ extension UserProviderPluginTests {
 
     @MainActor
     @Test
+    func `merged plugin icon appends the layout reset and schedules its countdown`() throws {
+        let fixture = try Fixture()
+        defer { fixture.remove() }
+        _ = try fixture.write(name: "reset.js", source: Self.menuPlugin(id: "reset-meter", name: "Reset Meter"))
+        let plugin = try #require(UserProviderPluginRegistry.refresh(
+            loader: fixture.loader(transport: RecordingTransport(responseJSON: "{}"))).first?.plugin)
+        let (controller, store, settings) = Self.makePluginMenuController(
+            suiteName: "UserProviderPluginTests.mergedReset",
+            selectedPluginID: plugin.manifest.id,
+            enabledPluginIDs: [plugin.manifest.id],
+            approvalStore: fixture.approvals)
+        defer { controller.releaseStatusItemsForTesting() }
+        settings.menuBarShowsBrandIconWithPercent = true
+        settings.menuBarLayout = MenuBarLayout(lines: [[
+            .icon, .percent(window: .automatic), .separatorDot, .resetCountdown,
+        ]])
+        let now = Date()
+        let resetsAt = now.addingTimeInterval(36 * 3600 + 30 * 60)
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 63, windowMinutes: 10080, resetsAt: resetsAt, resetDescription: nil),
+            secondary: nil,
+            updatedAt: now)
+        store.snapshots[plugin.manifest.id] = snapshot
+
+        #expect(controller.primaryProviderForUnifiedIcon() == plugin.manifest.id)
+        controller.updateIcons()
+        let title = controller.statusItem.button?.title ?? ""
+        #expect(title.hasSuffix("37% · \(UsageFormatter.resetCountdownDescription(from: resetsAt, now: now))"))
+        #expect(controller._test_isMenuBarCountdownRefreshScheduled())
+
+        settings.menuBarLayout = .defaultLayout
+        controller.updateIcons()
+        #expect(controller.statusItem.button?.title.hasSuffix("37%") == true)
+        #expect(!controller._test_isMenuBarCountdownRefreshScheduled())
+    }
+
+    @MainActor
+    @Test
     func `plugin svg icon is kept and rendered as a template image`() throws {
         let fixture = try Fixture()
         defer { fixture.remove() }

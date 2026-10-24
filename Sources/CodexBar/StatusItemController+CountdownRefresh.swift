@@ -46,6 +46,13 @@ extension StatusItemController {
                 absoluteResetDates.append(contentsOf: resetDates)
             }
         }
+        if let pluginReset = self.mergedUserPluginMenuBarReset() {
+            if pluginReset.absolute {
+                absoluteResetDates.append(pluginReset.date)
+            } else {
+                countdownResetDates.append(pluginReset.date)
+            }
+        }
 
         if let delay = Self.menuBarCountdownRefreshDelay(resetDates: countdownResetDates, now: now) {
             // Match the formatter's visible precision, then observe expiration for exhausted-lane transitions.

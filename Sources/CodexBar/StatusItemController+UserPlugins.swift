@@ -165,6 +165,29 @@ extension StatusItemController {
         return enabledPlugins.filter { !topLevelSwitcherVisible || !$0.manifest.topLevel }
     }
 
+    /// Percent title for a plugin's merged icon, followed by the stored layout's reset when it places one.
+    func userPluginMenuBarTitle(percent: Double?, snapshot: UsageSnapshot?, now: Date = .init()) -> String {
+        let percentText = percent.map(UsageFormatter.percentString) ?? "—"
+        guard let reset = Self.pluginMenuBarResetText(layout: self.settings.menuBarLayout, snapshot: snapshot, now: now)
+        else { return percentText }
+        return "\(percentText) · \(reset)"
+    }
+
+    /// The merged plugin icon's displayed reset, so the countdown refresh can tick it like built-in layouts.
+    func mergedUserPluginMenuBarReset() -> (date: Date, absolute: Bool)? {
+        guard self.shouldMergeIcons,
+              self.stackedMergeIconProvidersIfActive() == nil,
+              self.settings.menuBarShowsBrandIconWithPercent,
+              let token = Self.pluginMenuBarResetToken(layout: self.settings.menuBarLayout)
+        else { return nil }
+        let selected = self.primaryProviderForUnifiedIcon()
+        guard selected.firstPartyProvider == nil,
+              let resetsAt = Self.pluginSwitcherMetricWindow(snapshot: self.store.menuBarSnapshot(for: selected))?
+                  .resetsAt
+        else { return nil }
+        return (resetsAt, token == .resetAbsolute)
+    }
+
     func userPluginSwitcherIcon(for plugin: UserProviderPlugin) -> NSImage {
         if let image = Self.userPluginSVGImage(plugin) {
             return image

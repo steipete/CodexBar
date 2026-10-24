@@ -23,7 +23,9 @@ work to finish and reads the current configuration when its fetch starts. Displa
 When icons are merged and the source is **Current selection**, selecting a user plugin also selects its menu-bar
 quota. It uses the same quota as the switcher gauge: the most-used seven-day window, or the first available window.
 Before usage arrives, the plugin remains selected with unavailable usage. Other merged-icon sources retain their
-built-in provider behavior.
+built-in provider behavior. With **Icon & percent**, a layout containing **Resets in** or **Reset at** appends that
+quota's reset after the percent (for example `37% · in 1d 21h`), falling back to the window's reset description, and
+updates on the same schedule as built-in countdowns. Other layout tokens remain built-in provider features.
 
 ## Bundled provider registration
 

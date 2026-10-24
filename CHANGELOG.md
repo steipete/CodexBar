@@ -2,6 +2,10 @@
 
 ## 0.81.1 — Unreleased
 
+### Added
+
+- Plugins: show the selected plugin quota's reset after its percentage in the merged menu bar icon when the Icon & percent layout includes Resets in or Reset at, updating like built-in countdowns.
+
 ## 0.81.0 — 2026-10-24
 
 ### Highlights

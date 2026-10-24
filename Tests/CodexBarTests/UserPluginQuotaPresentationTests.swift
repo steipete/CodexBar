@@ -112,6 +112,37 @@ struct UserPluginQuotaPresentationTests {
     }
 
     @Test
+    func `plugin menu bar reset follows the layout reset token and switcher window`() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let weeklyReset = now.addingTimeInterval(36 * 3600 + 5 * 60)
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 20,
+                windowMinutes: 1440,
+                resetsAt: now.addingTimeInterval(3600),
+                resetDescription: nil),
+            secondary: RateWindow(usedPercent: 63, windowMinutes: 10080, resetsAt: weeklyReset, resetDescription: nil),
+            updatedAt: .distantPast)
+        let countdown = MenuBarLayout(lines: [[.icon, .percent(window: .automatic), .separatorDot, .resetCountdown]])
+        let absolute = MenuBarLayout(lines: [[.icon, .percent(window: .automatic), .resetAbsolute]])
+
+        #expect(StatusItemController.pluginMenuBarResetText(layout: countdown, snapshot: snapshot, now: now)
+            == UsageFormatter.resetCountdownDescription(from: weeklyReset, now: now))
+        #expect(StatusItemController.pluginMenuBarResetText(layout: absolute, snapshot: snapshot, now: now)
+            == UsageFormatter.resetDescription(from: weeklyReset, now: now))
+        #expect(StatusItemController.pluginMenuBarResetText(
+            layout: .defaultLayout, snapshot: snapshot, now: now) == nil)
+        #expect(StatusItemController.pluginMenuBarResetText(layout: countdown, snapshot: nil, now: now) == nil)
+
+        let described = UsageSnapshot(
+            primary: RateWindow(usedPercent: 20, windowMinutes: nil, resetsAt: nil, resetDescription: "on Monday"),
+            secondary: nil,
+            updatedAt: .distantPast)
+        #expect(StatusItemController.pluginMenuBarResetText(layout: countdown, snapshot: described, now: now)
+            == "on Monday")
+    }
+
+    @Test
     func `remaining mode aligns plugin label and bar`() {
         let presentation = UserPluginQuotaPresentation.make(
             title: "Primary",
