@@ -73,7 +73,7 @@ struct OpenCodeGoEstimatedPaceTests {
                 snapshot: OpenCodeGoPaceTestSupport.snapshot(confidence: .estimated)),
             icon: nil,
             options: options)
-        #expect(estimated.attributedTitle.string == "~95% ~95%")
+        #expect(estimated.attributedTitle.string == "M ~95% ~95%")
         let exact = renderer.render(
             layout: layout,
             data: preview.liveData(
@@ -81,7 +81,7 @@ struct OpenCodeGoEstimatedPaceTests {
                 snapshot: OpenCodeGoPaceTestSupport.snapshot(confidence: .exact)),
             icon: nil,
             options: options)
-        #expect(exact.attributedTitle.string == "95% 95%")
+        #expect(exact.attributedTitle.string == "M 95% 95%")
     }
 
     @Test

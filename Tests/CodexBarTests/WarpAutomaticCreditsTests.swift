@@ -7,17 +7,18 @@ import Testing
 @MainActor
 struct WarpAutomaticCreditsTests {
     @Test(arguments: [
-        (1500, 770, 1000, false, 77.0),
-        (375, 0, 1000, false, 75.0),
-        (1500, 1000, 1000, false, 100.0),
-        (1500, 0, 1000, false, 0.0),
-        (1500, 0, 0, false, 0.0),
-        (375, 770, 1000, false, 75.0),
-        (1500, 770, 1000, true, 100.0),
+        (1500, 770, 1000, false, (77.0, "A ")),
+        (375, 0, 1000, false, (75.0, "C ")),
+        (1500, 1000, 1000, false, (100.0, "A ")),
+        (1500, 0, 1000, false, (0.0, "C ")),
+        (1500, 0, 0, false, (0.0, "")),
+        (375, 770, 1000, false, (75.0, "C ")),
+        (1500, 770, 1000, true, (100.0, "C ")),
     ])
     func `automatic follows monthly then add-on credits`(
-        used: Int, bonus: Int, bonusTotal: Int, unlimited: Bool, remaining: Double) throws
+        used: Int, bonus: Int, bonusTotal: Int, unlimited: Bool, expectation: (Double, String)) throws
     {
+        let (remaining, prefix) = expectation
         let snapshot = WarpUsageSnapshot(
             requestLimit: 1500,
             requestsUsed: used,
@@ -92,7 +93,7 @@ struct WarpAutomaticCreditsTests {
                     .appendingPathComponent(showUsed ? "used.txt" : "remaining.txt")
                 try output.attributedTitle.string.write(to: file, atomically: true, encoding: .utf8)
             }
-            #expect(output.attributedTitle.string == "\(Int(showUsed ? 100 - remaining : remaining))%")
+            #expect(output.attributedTitle.string == "\(prefix)\(Int(showUsed ? 100 - remaining : remaining))%")
             if used == 1500, bonus == 770, !unlimited {
                 for (window, expected): (PercentWindow, String) in [
                     (.session, showUsed ? "C 100%" : "C 0%"),
