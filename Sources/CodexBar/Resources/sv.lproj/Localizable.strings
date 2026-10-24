@@ -2787,3 +2787,11 @@
 "Chatbox AI is rate limiting requests. Try again later." = "Chatbox AI begränsar antalet förfrågningar. Försök igen senare.";
 "Chatbox AI request failed. Try refreshing later." = "Chatbox AI-förfrågan misslyckades. Försök uppdatera senare.";
 "Chatbox AI returned an unrecognized response. Update CodexBar and try again." = "Chatbox AI returnerade ett okänt svar. Uppdatera CodexBar och försök igen.";
+
+/* abliteration.ai */
+"abliteration.ai" = "abliteration.ai";
+"Show abliteration.ai usage" = "Visa abliteration.ai-användning";
+"abliteration.ai is rate limiting requests. Try again later." = "abliteration.ai begränsar antalet förfrågningar. Försök igen senare.";
+"abliteration.ai request failed. Try refreshing later." = "abliteration.ai-förfrågan misslyckades. Försök uppdatera senare.";
+"abliteration.ai returned an unrecognized response. Update CodexBar and try again." = "abliteration.ai returnerade ett okänt svar. Uppdatera CodexBar och försök igen.";
+"Check your API key in Settings." = "Kontrollera din API-nyckel i Inställningar.";

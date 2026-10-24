@@ -2756,3 +2756,11 @@
 "Chatbox AI is rate limiting requests. Try again later." = "Chatbox AI가 요청 빈도를 제한하고 있습니다. 나중에 다시 시도하세요.";
 "Chatbox AI request failed. Try refreshing later." = "Chatbox AI 요청에 실패했습니다. 나중에 다시 새로 고침하세요.";
 "Chatbox AI returned an unrecognized response. Update CodexBar and try again." = "Chatbox AI가 알 수 없는 응답을 반환했습니다. CodexBar를 업데이트하고 다시 시도하세요.";
+
+/* abliteration.ai */
+"abliteration.ai" = "abliteration.ai";
+"Show abliteration.ai usage" = "abliteration.ai 사용량 표시";
+"abliteration.ai is rate limiting requests. Try again later." = "abliteration.ai가 요청 빈도를 제한하고 있습니다. 나중에 다시 시도하세요.";
+"abliteration.ai request failed. Try refreshing later." = "abliteration.ai 요청에 실패했습니다. 나중에 다시 새로 고침하세요.";
+"abliteration.ai returned an unrecognized response. Update CodexBar and try again." = "abliteration.ai가 알 수 없는 응답을 반환했습니다. CodexBar를 업데이트하고 다시 시도하세요.";
+"Check your API key in Settings." = "설정에서 API 키를 확인하세요.";

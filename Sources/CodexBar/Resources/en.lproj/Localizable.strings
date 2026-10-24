@@ -2793,3 +2793,11 @@
 "Chatbox AI is rate limiting requests. Try again later." = "Chatbox AI is rate limiting requests. Try again later.";
 "Chatbox AI request failed. Try refreshing later." = "Chatbox AI request failed. Try refreshing later.";
 "Chatbox AI returned an unrecognized response. Update CodexBar and try again." = "Chatbox AI returned an unrecognized response. Update CodexBar and try again.";
+
+/* abliteration.ai */
+"abliteration.ai" = "abliteration.ai";
+"Show abliteration.ai usage" = "Show abliteration.ai usage";
+"abliteration.ai is rate limiting requests. Try again later." = "abliteration.ai is rate limiting requests. Try again later.";
+"abliteration.ai request failed. Try refreshing later." = "abliteration.ai request failed. Try refreshing later.";
+"abliteration.ai returned an unrecognized response. Update CodexBar and try again." = "abliteration.ai returned an unrecognized response. Update CodexBar and try again.";
+"Check your API key in Settings." = "Check your API key in Settings.";

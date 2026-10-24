@@ -2787,3 +2787,11 @@
 "Chatbox AI is rate limiting requests. Try again later." = "Chatbox AI limite la fréquence des requêtes. Réessayez plus tard.";
 "Chatbox AI request failed. Try refreshing later." = "La requête Chatbox AI a échoué. Réessayez d’actualiser plus tard.";
 "Chatbox AI returned an unrecognized response. Update CodexBar and try again." = "Chatbox AI a renvoyé une réponse inconnue. Mettez CodexBar à jour et réessayez.";
+
+/* abliteration.ai */
+"abliteration.ai" = "abliteration.ai";
+"Show abliteration.ai usage" = "Afficher l’utilisation d’abliteration.ai";
+"abliteration.ai is rate limiting requests. Try again later." = "abliteration.ai limite la fréquence des requêtes. Réessayez plus tard.";
+"abliteration.ai request failed. Try refreshing later." = "La requête abliteration.ai a échoué. Réessayez d’actualiser plus tard.";
+"abliteration.ai returned an unrecognized response. Update CodexBar and try again." = "abliteration.ai a renvoyé une réponse inconnue. Mettez CodexBar à jour et réessayez.";
+"Check your API key in Settings." = "Vérifiez votre clé API dans les réglages.";

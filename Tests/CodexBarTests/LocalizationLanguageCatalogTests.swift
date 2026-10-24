@@ -777,6 +777,7 @@ struct LocalizationLanguageCatalogTests {
             "Zed cookie",
             "ZeroGPU",
             "__raycast_session=…; csrf_token=…",
+            "abliteration.ai",
             "ak_…",
             "antigravity-cli-usage",
             "antigravity-cli-version",

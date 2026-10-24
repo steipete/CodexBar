@@ -2789,3 +2789,11 @@
 "Chatbox AI is rate limiting requests. Try again later." = "Chatbox AI đang giới hạn tần suất yêu cầu. Hãy thử lại sau.";
 "Chatbox AI request failed. Try refreshing later." = "Yêu cầu Chatbox AI không thành công. Hãy thử làm mới sau.";
 "Chatbox AI returned an unrecognized response. Update CodexBar and try again." = "Chatbox AI trả về phản hồi không nhận dạng được. Hãy cập nhật CodexBar rồi thử lại.";
+
+/* abliteration.ai */
+"abliteration.ai" = "abliteration.ai";
+"Show abliteration.ai usage" = "Hiển thị mức sử dụng abliteration.ai";
+"abliteration.ai is rate limiting requests. Try again later." = "abliteration.ai đang giới hạn tần suất yêu cầu. Hãy thử lại sau.";
+"abliteration.ai request failed. Try refreshing later." = "Yêu cầu abliteration.ai không thành công. Hãy thử làm mới sau.";
+"abliteration.ai returned an unrecognized response. Update CodexBar and try again." = "abliteration.ai trả về phản hồi không nhận dạng được. Hãy cập nhật CodexBar rồi thử lại.";
+"Check your API key in Settings." = "Kiểm tra khóa API trong Cài đặt.";

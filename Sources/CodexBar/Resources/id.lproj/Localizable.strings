@@ -2790,3 +2790,11 @@
 "Chatbox AI is rate limiting requests. Try again later." = "Chatbox AI membatasi frekuensi permintaan. Coba lagi nanti.";
 "Chatbox AI request failed. Try refreshing later." = "Permintaan Chatbox AI gagal. Coba segarkan lagi nanti.";
 "Chatbox AI returned an unrecognized response. Update CodexBar and try again." = "Chatbox AI mengembalikan respons yang tidak dikenali. Perbarui CodexBar dan coba lagi.";
+
+/* abliteration.ai */
+"abliteration.ai" = "abliteration.ai";
+"Show abliteration.ai usage" = "Tampilkan penggunaan abliteration.ai";
+"abliteration.ai is rate limiting requests. Try again later." = "abliteration.ai membatasi frekuensi permintaan. Coba lagi nanti.";
+"abliteration.ai request failed. Try refreshing later." = "Permintaan abliteration.ai gagal. Coba segarkan lagi nanti.";
+"abliteration.ai returned an unrecognized response. Update CodexBar and try again." = "abliteration.ai mengembalikan respons yang tidak dikenali. Perbarui CodexBar dan coba lagi.";
+"Check your API key in Settings." = "Periksa kunci API Anda di Pengaturan.";

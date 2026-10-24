@@ -2766,3 +2766,11 @@
 "Chatbox AI is rate limiting requests. Try again later." = "Chatbox AI 正在限制請求頻率。請稍後再試。";
 "Chatbox AI request failed. Try refreshing later." = "Chatbox AI 請求失敗。請稍後嘗試重新整理。";
 "Chatbox AI returned an unrecognized response. Update CodexBar and try again." = "Chatbox AI 傳回了無法辨識的回應。請更新 CodexBar 後再試。";
+
+/* abliteration.ai */
+"abliteration.ai" = "abliteration.ai";
+"Show abliteration.ai usage" = "顯示 abliteration.ai 用量";
+"abliteration.ai is rate limiting requests. Try again later." = "abliteration.ai 正在限制請求頻率。請稍後再試。";
+"abliteration.ai request failed. Try refreshing later." = "abliteration.ai 請求失敗。請稍後嘗試重新整理。";
+"abliteration.ai returned an unrecognized response. Update CodexBar and try again." = "abliteration.ai 傳回了無法辨識的回應。請更新 CodexBar 後再試。";
+"Check your API key in Settings." = "請在設定中檢查你的 API 金鑰。";

@@ -114,5 +114,6 @@ public enum ProviderManifest {
         MunitoProviderDescriptor.descriptor,
         TraeCNProviderDescriptor.descriptor,
         ChatboxProviderDescriptor.descriptor,
+        AbliterationProviderDescriptor.descriptor,
     ]
 }

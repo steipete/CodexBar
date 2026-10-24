@@ -2792,3 +2792,11 @@
 "Chatbox AI is rate limiting requests. Try again later." = "Chatbox AI تعداد درخواست‌ها را محدود کرده است. بعداً دوباره امتحان کنید.";
 "Chatbox AI request failed. Try refreshing later." = "درخواست Chatbox AI ناموفق بود. بعداً دوباره تازه‌سازی کنید.";
 "Chatbox AI returned an unrecognized response. Update CodexBar and try again." = "Chatbox AI پاسخی ناشناخته برگرداند. CodexBar را به‌روز کنید و دوباره امتحان کنید.";
+
+/* abliteration.ai */
+"abliteration.ai" = "abliteration.ai";
+"Show abliteration.ai usage" = "نمایش مصرف abliteration.ai";
+"abliteration.ai is rate limiting requests. Try again later." = "abliteration.ai تعداد درخواست‌ها را محدود کرده است. بعداً دوباره امتحان کنید.";
+"abliteration.ai request failed. Try refreshing later." = "درخواست abliteration.ai ناموفق بود. بعداً دوباره تازه‌سازی کنید.";
+"abliteration.ai returned an unrecognized response. Update CodexBar and try again." = "abliteration.ai پاسخی ناشناخته برگرداند. CodexBar را به‌روز کنید و دوباره امتحان کنید.";
+"Check your API key in Settings." = "کلید API خود را در تنظیمات بررسی کنید.";

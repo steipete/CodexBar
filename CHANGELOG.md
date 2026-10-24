@@ -1,32 +1,48 @@
 # Changelog
 
-## 0.80.1 — Unreleased
+## Unreleased
 
 ### Added
 
 - Menu bar: add an opt-in notch usage overlay with shared provider usage, agent-session summaries, and an optional shortcut. Opaque notch ears wrap the camera housing, with their own visibility switch, independent left/right summaries, and reset-credit expiry countdowns when space allows. Agent sessions can be shown independently of the menu, with separate column counts or one column per harness (#3164). Thanks @wdmitchelluk!
-- Menu bar: identify the selected quota in Auto percentage, pace, and reset tokens when multiple windows are available, using the existing Show window labels option (#4743). Thanks @arnodirlam!
-- Chatbox AI: track plan points, rewards, top-up credits, and image quotas with a pasted license key through the bundled plugin (#4736). Thanks @Andy115951!
+
+## 0.81.0 — 2026-10-24
+
+### Highlights
+
+- New providers and Usage & Spend: abliteration.ai and Chatbox AI join the bundled providers (110 in total), and Usage & Spend can search and sort sessions and open one to inspect its requests.
+- Reliability: a guarded file-descriptor crash during CLI discovery is fixed, passive Antigravity (and CodeRabbit) probes no longer trigger multi-gigabyte background CLI updates, Claude OAuth recovers when the Keychain only holds MCP state, DeepSeek works under Auto on Linux, and stale Homebrew installs are repaired on update.
+- Menu bar and plugins: Auto tokens name the window they picked (`5h 84%`, `W +7%`), stacked text uses a heavier weight, and user plugins gain window titles, reset text, usage hooks, and visible refresh errors with the age of the last good data.
+- Updates: Sparkle release notes render as formatted Markdown with linked issues and contributors.
+
+### Added
+
+- abliteration.ai: show prepaid USD balance and credits usage through its read-only API, with API-key setup and no inferred resets (#4756).
 - Usage & Spend: search and sort session summaries, then inspect bounded request accounting for the selected native Codex session without retaining request details during ordinary refreshes (#4730). Thanks @PumpkinsLemon!
+- Chatbox AI: track plan points, rewards, top-up credits, and image quotas with a pasted license key through the bundled plugin (#4736). Thanks @Andy115951!
+- Menu bar: identify the selected quota in Auto percentage, pace, and reset tokens when multiple windows are available, using the existing Show window labels option (#4743). Thanks @arnodirlam!
 - Plugins: support custom usage-window titles, shared reset text, and existing external usage/quota hooks for installed providers (#4722, #4723, #4724). Thanks @coygeek!
+
+### Changed
+
+- Menu bar: improve stacked text legibility with medium weight while preserving regular weight for single-line layouts (#4713). Thanks @arnodirlam!
+- Updates: render release notes with Sparkle's native Markdown support and link GitHub references (#4751). Thanks @SaahiilM!
+- Docs: explain Kiro's separate usage/context chat probes and the known empty-session persistence issue (#4746). Thanks @hcoronel1!
 
 ### Fixed
 
-- Updates: render release notes with Sparkle's native Markdown support and link GitHub references (#4751). Thanks @SaahiilM!
 - Reliability: close subprocess output captures only once, preventing reused-file-descriptor crashes during Antigravity CLI discovery and other probes (#4748). Thanks @nyan-mikan!
-- DeepSeek: allow Auto on Linux to use a configured API key instead of rejecting it for requiring web support (#4747). Thanks @johan456789!
-- Docs: explain Kiro's separate usage/context chat probes and the known empty-session persistence issue (#4746). Thanks @hcoronel1!
-- Settings: let the native detail pane and frosted toolbar backing fill wide windows on macOS 26 and later (#4741). Thanks @elijahfriedman!
-- Updates: repair stale Homebrew app bundles when the cask receipt is already current, while keeping installation behind the Update action (#4745). Thanks @dnicolson!
 - Antigravity: prevent passive agy version and usage probes from triggering CLI auto-update downloads (#4739). Thanks @thezelium!
 - CodeRabbit: disable CLI auto-updates during passive usage probes (#4739).
-- Trae CN: import automatic sessions from the parent domain while preserving API-origin manual cookies (#4732). Thanks @liuyuplus!
 - Claude: let a manual OAuth refresh recover through Claude Code's CLI when the readable Keychain item contains only MCP OAuth state (#4731). Thanks @ifangxiang!
-- Menu bar: improve stacked text legibility with medium weight while preserving regular weight for single-line layouts (#4713). Thanks @arnodirlam!
+- DeepSeek: allow Auto on Linux to use a configured API key instead of rejecting it for requiring web support (#4747). Thanks @johan456789!
+- Updates: repair stale Homebrew app bundles when the cask receipt is already current, while keeping installation behind the Update action (#4745). Thanks @dnicolson!
+- Trae CN: import automatic sessions from the parent domain while preserving API-origin manual cookies (#4732). Thanks @liuyuplus!
 - Linux desktop: fix launcher, Settings/Spending actions, and login startup when home paths contain quotes, dollar signs, backticks, backslashes, or percent signs (#4715). Thanks @Lucenx9!
 - Plugins: show refresh failures alongside last-good usage and clear the error after recovery (#4726). Thanks @coygeek!
 - Plugins: show how old retained usage is after a refresh fails, updating the card layout for capture age and app language (#4726, #4733). Thanks @LeoLin990405!
 - Plugins: identify missing endpoint settings as required configuration while preserving URL validation and approval (#4721, #4727). Thanks @harjothkhara and @coygeek!
+- Settings: let the native detail pane and frosted toolbar backing fill wide windows on macOS 26 and later (#4741). Thanks @elijahfriedman!
 
 ## 0.80.0 — 2026-10-23
 
