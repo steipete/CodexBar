@@ -38,11 +38,6 @@ extension CostUsageStore {
             persistence: CodexPersistenceState(snapshot: loaded.snapshot, rowCounts: loaded.rows.rowCounts))
     }
 
-    struct DecodedCodexUsageRows {
-        var rowsByPath: [String: [CostUsageScanner.CodexUsageRow]] = [:]
-        var rowCounts: [String: Int] = [:]
-    }
-
     /// Decodes usage rows as SQLite returns them, so raw payloads never accumulate alongside decoded rows.
     static func readDecodedCodexUsageRows(
         _ database: OpaquePointer,
@@ -60,7 +55,7 @@ extension CostUsageStore {
         })
         var decodeAttempts = 0
         defer { recorder?.recordUsageRowDecodes(count: decodeAttempts) }
-        try self.forEachUsageRow(database, path: nil, recorder: recorder) { stored in
+        try self.forEachUsageRow(database, path: nil, recorder: recorder, nativeOnly: true) { stored in
             decoded.rowCounts[stored.path, default: 0] += 1
             guard readablePaths.contains(stored.path) else { return }
             decodeAttempts += 1
@@ -70,94 +65,6 @@ extension CostUsageStore {
             }
         }
         return decoded
-    }
-
-    func loadCodexReadView(calendar: Calendar, purpose: CostUsageStoreReadPurpose) -> CostUsageStoreReadView {
-        self.retainedCodexBaseline = nil
-        _ = self.removeLegacyCodexArtifactIfPresent()
-        return self.withDatabase(default: CostUsageStoreReadView(
-            cache: CostUsageCache(),
-            purpose: purpose))
-        { database in
-            let recorder = self.scopedReadWorkRecorderForTesting
-            guard let before = try self.databaseStamp(database) else {
-                self.retainedCodexRead = nil
-                self.requiresReadReopen = true
-                return CostUsageStoreReadView(cache: CostUsageCache(), purpose: purpose)
-            }
-            if let retained = self.retainedCodexRead,
-               retained.stamp == before,
-               retained.purpose.includes(purpose)
-            {
-                guard retained.decoded.timeZoneIdentifier == nil
-                    || retained.decoded.timeZoneIdentifier == calendar.timeZone.identifier
-                else { return CostUsageStoreReadView(cache: CostUsageCache(), purpose: purpose) }
-                recorder?.recordReadViewConversion(database: database)
-                return CostUsageStoreReadView(
-                    cache: Self.reconciledCodexCache(retained.decoded, persistence: retained.persistence),
-                    purpose: retained.purpose)
-            }
-            let (snapshot, usageRows, retryPresence) = try Self.inReadTransaction(database) {
-                let snapshot = try CostUsageStoreSnapshot(
-                    metadata: Self.readSingleton(
-                        CostUsageStoreMetadata.self, database: database, table: "scan_metadata") ?? .empty,
-                    files: Self.readFiles(database, recorder: recorder),
-                    tokenSnapshots: [],
-                    usageRows: [],
-                    fileDayAggregates: purpose != .status ? Self.readFileDayAggregates(database, path: nil) : [],
-                    dayAggregates: purpose != .status
-                        ? Self.readDayAggregates(database, sinceDay: nil, untilDay: nil) : [],
-                    forkLineage: Self.readForkLineage(database, path: nil),
-                    bufferedLines: [],
-                    discoveryState: Self.readSingleton(
-                        CostUsageStoreDiscoveryState.self, database: database, table: "discovery_state"),
-                    lookbackState: Self.readSingleton(
-                        CostUsageStoreLookbackState.self, database: database, table: "lookback_state"),
-                    accumulators: [])
-                let usageRows = purpose == .report
-                    ? try Self.readDecodedCodexUsageRows(database, files: snapshot.files, recorder: recorder)
-                    : nil
-                let retryPresence = try Self.readRetryBufferPresence(database, recorder: recorder)
-                #if DEBUG
-                try self.runCodexReadCheckpointForTesting()
-                #endif
-                return (snapshot, usageRows, retryPresence)
-            }
-            // A read transaction pins data_version. Cache only a snapshot that is still current
-            // after COMMIT so an external writer can never make a stale warm view authoritative.
-            let after = try self.databaseStamp(database)
-            guard let after, before == after else {
-                self.retainedCodexRead = nil
-                // Re-enter open-time compatibility validation on the next access, after this handle's use ends.
-                self.requiresReadReopen = after == nil
-                return CostUsageStoreReadView(cache: CostUsageCache(), purpose: purpose)
-            }
-            guard snapshot.metadata.timeZoneIdentifier == nil
-                || snapshot.metadata.timeZoneIdentifier == calendar.timeZone.identifier
-            else { return CostUsageStoreReadView(cache: CostUsageCache(), purpose: purpose) }
-            // Identity/anchor reconciliation touches the filesystem; do not pin a SQLite reader during it.
-            let decoded = Self.decodeCodexCache(
-                from: snapshot,
-                recorder: recorder,
-                retryPresence: retryPresence,
-                decodedUsageRows: usageRows?.rowsByPath,
-                // Only scanner reconciliation and report turn performance read the request ledger.
-                includesRequestLedgerState: purpose == .report)
-            let persistence = CodexPersistenceState(snapshot: snapshot, rowCounts: usageRows?.rowCounts)
-            // Activity is a superset of status and becomes the one bounded warm read state.
-            // Detailed reports keep their larger event history transient.
-            if purpose != .report {
-                self.retainedCodexRead = RetainedCodexRead(
-                    decoded: decoded,
-                    persistence: persistence,
-                    stamp: after,
-                    purpose: purpose)
-            }
-            recorder?.recordReadViewConversion(database: database)
-            return CostUsageStoreReadView(
-                cache: Self.reconciledCodexCache(decoded, persistence: persistence),
-                purpose: purpose)
-        }
     }
 
     @discardableResult
@@ -251,8 +158,23 @@ extension CostUsageStore {
             CostUsageStoreTestHooks.current.saveCycleCheckpoint?(index + 1)
             #endif
         }
-        _ = self.replaceDayAggregates(Self.globalAggregates(
-            cache: cache, recorder: self.scopedReadWorkRecorderForTesting))
+        if previous.files.contains(where: \.belongsToOpenCodeLocalHistory) {
+            // Replace only the native contribution; source-only buckets never participate in this save.
+            let before = Self.globalAggregates(cache: baseline.decoded, recorder: nil)
+            let after = Self.globalAggregates(cache: cache, recorder: self.scopedReadWorkRecorderForTesting)
+            guard self.withDatabase(default: false, { database in
+                if before != after {
+                    try Self.mergeDayAggregatesIn(database, deltas: before.map(Self.negatedAggregate) + after)
+                }
+                return true
+            }) else {
+                _ = self.rollbackSaveTransaction()
+                return retry
+            }
+        } else {
+            _ = self.replaceDayAggregates(Self.globalAggregates(
+                cache: cache, recorder: self.scopedReadWorkRecorderForTesting))
+        }
         _ = self.setMetadata(Self.metadata(cache: cache, calendar: calendar))
         _ = self.setDiscoveryState(Self.discoveryState(cache.codexSessionDiscovery))
         _ = self.setLookbackState(Self.lookbackState(cache.codexActiveLookbackState))
@@ -531,7 +453,11 @@ extension CostUsageStore {
         let accumulatorByPath = Dictionary(uniqueKeysWithValues: snapshot.accumulators.map { ($0.path, $0) })
 
         for file in snapshot.files {
-            guard let detailsData = file.scanState.detailsPayload,
+            // Source-aware dispatch (#4752 point 1): OpenCode adapter records are not
+            // Codex JSONL — they restore through the adapter's own checkpoint payload,
+            // never through the Codex details/resume decoders.
+            guard !file.belongsToOpenCodeLocalHistory,
+                  let detailsData = file.scanState.detailsPayload,
                   let details = try? decoder.decode(StoredFileDetails.self, from: detailsData)
             else { continue }
             let aggregates = (aggregatesByPath[file.path] ?? []).map(\.aggregate)
@@ -621,7 +547,19 @@ extension CostUsageStore {
                 codexParserRevision: details.parserRevision)
             cache.files[file.path] = usage
         }
-        cache.days = Self.days(from: snapshot.dayAggregates)
+        if snapshot.files.contains(where: \.belongsToOpenCodeLocalHistory) {
+            cache.days = [:]
+            for usage in cache.files.values {
+                for (day, models) in usage.days {
+                    for (model, packed) in models {
+                        cache.days[day, default: [:]][model] = CostUsageScanner.addPacked(
+                            a: cache.days[day]?[model] ?? [], b: packed, sign: 1)
+                    }
+                }
+            }
+        } else {
+            cache.days = Self.days(from: snapshot.dayAggregates)
+        }
         return cache
     }
 
@@ -637,7 +575,7 @@ extension CostUsageStore {
         var completedIdentityValidationPaths: [String] = []
         var invalidatedIdentityValidationPaths: [String] = []
 
-        for file in persistence.files {
+        for file in persistence.files where !file.belongsToOpenCodeLocalHistory {
             guard var usage = cache.files[file.path] else { continue }
             let normalizedIdentity = Self.normalizedCodexFileIdentity(
                 file: file,
@@ -1455,8 +1393,8 @@ extension CostUsageStore {
         previous: CodexPersistenceState,
         cache: CostUsageCache)
     {
-        for path in previous.files.map(\.path) where cache.files[path] == nil {
-            _ = self.deleteFile(path: path)
+        for file in previous.files where !file.belongsToOpenCodeLocalHistory && cache.files[file.path] == nil {
+            _ = self.deleteFile(path: file.path)
         }
     }
 
@@ -1537,10 +1475,18 @@ enum CostUsageStoreAccess {
     static func readView(
         cacheRoot: URL?,
         calendar: Calendar,
-        purpose: CostUsageStoreReadPurpose) -> CostUsageStoreReadView
+        purpose: CostUsageStoreReadPurpose,
+        sourceScope: OpenCodeLocalHistoryAdapter.ReadScope? = nil) -> CostUsageStoreReadView
     {
         self.sharedReadStores.store(cacheRoot: cacheRoot)
-            .syncLoadCodexReadView(calendar: calendar, purpose: purpose)
+            .syncLoadCodexReadView(calendar: calendar, purpose: purpose, sourceScope: sourceScope)
+    }
+
+    /// The scanner's shared store actor, for sibling writers that must commit through the
+    /// same persistence owner (e.g. the OpenCode local history adapter, #4752). Do not
+    /// construct a separate store against the same database: this registry is the writer.
+    static func sharedScanStore(cacheRoot: URL?) -> CostUsageStore {
+        self.sharedScanStores.store(cacheRoot: cacheRoot)
     }
 
     static func load(cacheRoot: URL?, calendar: Calendar) -> CostUsageStoreLoad {

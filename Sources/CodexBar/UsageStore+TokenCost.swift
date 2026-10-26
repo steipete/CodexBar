@@ -180,6 +180,11 @@ extension UsageStore {
         let shouldDiscoverPiSessionProcessContexts = provider == .pi ||
             (effectiveIncludePiSessions &&
                 (provider == .claude || (provider == .codex && scopedCodexHomePath?.isEmpty != false)))
+        // Provider-specific by design: only the ambient Codex ledger opts into local OpenCode history.
+        let includeOpenCodeLocalHistory = provider == .codex
+            && self.shouldIncludeOpenCodeLocalHistory
+            && scopedCodexHomePath?.isEmpty != false
+            && reportContext != .spendDashboard
         let piSessionProcessContexts: [PiSessionProcessContext] = if shouldDiscoverPiSessionProcessContexts {
             await LocalAgentSessionScanner().piSessionProcessContexts(environment: environment)
         } else {
@@ -200,6 +205,7 @@ extension UsageStore {
                     cursorCookieHeaderOverride: cursorCookieHeaderOverride,
                     allowPricingRefresh: allowPricingRefresh,
                     includePiSessions: effectiveIncludePiSessions,
+                    includeOpenCodeLocalHistory: includeOpenCodeLocalHistory,
                     piSessionProcessContexts: piSessionProcessContexts,
                     bypassScannerDebounce: true,
                     calendar: self.settings.costUsageBucketCalendar,
@@ -422,6 +428,7 @@ extension UsageStore {
                     codexHomePath: scope.codexHomePath,
                     historyDays: historyDays,
                     includePiSessions: includePiSessions,
+                    includeOpenCodeLocalHistory: self.shouldIncludeOpenCodeLocalHistory,
                     calendar: self.settings.costUsageBucketCalendar,
                     environment: self.environmentBase)
                     .map {
@@ -477,6 +484,11 @@ extension UsageStore {
             return true
         }
         return provider == .codex && self.codexCostCatchUpActivity?.phase == .indexing
+    }
+
+    var shouldIncludeOpenCodeLocalHistory: Bool {
+        self.settings.openCodeLocalHistoryEnabled && self.settings.codexActiveSource == .liveSystem
+            && self.environmentBase["CODEX_HOME"]?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false
     }
 
     func tokenCostScope(for provider: UsageProvider) -> (codexHomePath: String?, signature: String) {
@@ -552,6 +564,12 @@ extension UsageStore {
         }
         if let piRowsScope = self.piRowsScopeSignature(for: provider) {
             base += "|piRows=\(piRowsScope)"
+        }
+        // Provider-specific by design: source selection changes only the ambient Codex ledger.
+        if includeSettingsRevision, provider == .codex, self.shouldIncludeOpenCodeLocalHistory,
+           let path = CostUsageFetcher.openCodeHistorySourcePath(environment: self.environmentBase)
+        {
+            base += "|openCodeHistory=\(path)"
         }
         if includeSettingsRevision {
             base += "|settingsRevision=\(self.settings.costUsageSettingsRevision)|"

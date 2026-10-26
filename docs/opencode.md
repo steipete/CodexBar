@@ -60,10 +60,32 @@ reuse its `openai` OAuth entry for remote quota. Native Codex credentials take p
 `CODEX_HOME` prevents external fallback. External credentials stay read-only; stale credentials fail closed, and
 API-key entries are ignored. See [Codex external OAuth sources](codex.md#optional-external-oauth-sources-off-by-default).
 
-This does not import OpenCode sessions into Codex token or spend totals. The base OpenCode provider tracks its web
-dashboard, while the local SQLite reader described here selects only records attributed to `opencode-go` for OpenCode Go.
-Ordinary OpenCode sessions using OpenAI/Codex are not currently included in local cost history. OpenAI API-platform
-usage is a separate [OpenAI provider](openai.md), not Codex subscription quota.
+The separate **OpenCode local history** setting in Codex settings can include this device's recorded OpenAI-backed
+OpenCode usage in the ambient Codex cost history. It is off by default and does not require external OAuth sources.
+It never changes subscription quota or attributes device-local rows to a signed-in account. Explicit session roots,
+alternate `CODEX_HOME` locations, managed accounts, and Usage & Spend remain excluded.
+
+The importer reads one database, selected by OpenCode's `OPENCODE_DB` and absolute `XDG_DATA_HOME` conventions
+(default `~/.local/share/opencode/opencode.db`). It reads usage metadata through a read-only SQLite connection and
+stores its checkpoint, rows, and aggregates in the existing Codex cost store. It does not read authentication files,
+import browser cookies, or copy prompts, responses, and tool output into the cost store.
+
+Both legacy `message`/`part` and v2 `session_message` records are supported. Step-finish costs take precedence over
+message fallback costs; usable legacy usage takes precedence over its migrated v2 duplicate. Recorded dollars are
+authoritative, including a recorded **$0**. They are not replaced with model-list-price estimates. Model identifiers
+remain unchanged, and source-recorded breakdowns remain separate from native estimates for the same model, labeled
+**Recorded spend**. Partial refreshes retain valid cached costs; missing token counters remain unknown.
+
+Refreshes use bounded raw-row, byte, SQLite-instruction, and time budgets. Large histories converge over catch-up
+passes; mutations and deletions are reconciled, and incomplete source work keeps combined history marked partial.
+Cached publication reads the stored source summary without reopening OpenCode. Reporting uses the selected cost
+time zone. Replacing the database or changing the time zone restarts reconciliation without reusing old row progress;
+mixed old/new buckets stay unpublished until the rebuild settles.
+Oversized source rows are skipped without copying their content, and coverage stays partial when their usage cannot
+be established within the payload cap.
+
+The base OpenCode provider still tracks its web dashboard, and OpenCode Go's local reader selects only
+`opencode-go` usage. OpenAI API-platform usage is a separate [OpenAI provider](openai.md), not Codex subscription quota.
 
 ## Notes
 - OpenCode Go token accounts accept raw API keys as well as existing Cookie headers. Add each key with its own

@@ -88,7 +88,7 @@ struct SparkleUpdaterControllerTests {
     private func makeFixture(isUpdateReady: Bool = false)
         -> (subject: SparkleUpdaterController, updater: SPUUpdater)
     {
-        let subject = SparkleUpdaterController(savedAutoUpdate: false, startingUpdater: false)
+        let subject = SparkleUpdaterController(savedAutoCheck: false, startingUpdater: false)
         subject.updateStatus.isUpdateReady = isUpdateReady
         let sparkle = SPUStandardUpdaterController(
             startingUpdater: false,

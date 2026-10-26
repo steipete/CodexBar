@@ -38,6 +38,7 @@ import sys
 from pathlib import Path
 
 plist = plistlib.loads(Path(sys.argv[1]).read_bytes())
+assert plist.get("SUAutomaticallyUpdate") is True
 declarations = plist.get("UTExportedTypeDeclarations")
 assert declarations == [{
     "UTTypeIdentifier": "com.steipete.codexbar.menu-layout-item",

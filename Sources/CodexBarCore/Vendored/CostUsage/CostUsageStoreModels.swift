@@ -15,7 +15,23 @@ struct CostUsageStoreValidationAnchor: Codable, Equatable, Sendable {
     var sha256: String
 }
 
+/// Which adapter produced a `files` record and owns decoding of its `scan_state`
+/// payloads. The discriminator is an optional JSON field so every record written before
+/// the source seam existed decodes as native Codex — no schema migration or table rebuild
+/// is involved (#4752 point 1).
+enum CostUsageStoreSource: String, Codable, Sendable {
+    /// Native Codex JSONL session logs (the store's original and default content).
+    case nativeCodexSessionLogs
+    /// The OpenCode local history adapter feeding an external `opencode.db` into the
+    /// store behind the #3273 opt-in.
+    case opencodeLocalHistory
+}
+
 struct CostUsageStoreScanState: Codable, Equatable, Sendable {
+    /// Source discriminator; `nil` on records persisted before the source seam. The
+    /// default keeps the synthesized memberwise initializer source-compatible with every
+    /// existing call site.
+    var source: CostUsageStoreSource?
     var targetSize: Int64?
     var isComplete: Bool
     var resumePayload: Data?
@@ -25,6 +41,13 @@ struct CostUsageStoreScanState: Codable, Equatable, Sendable {
     var lastTurnID: String?
     var fileIdentity: String?
     var detailsPayload: Data?
+
+    /// The source this record actually belongs to: native Codex unless explicitly
+    /// registered otherwise. Restore paths must dispatch on this before touching the
+    /// Codex-JSONL-specific payloads.
+    var resolvedSource: CostUsageStoreSource {
+        self.source ?? .nativeCodexSessionLogs
+    }
 }
 
 struct CostUsageStoreFile: Codable, Equatable, Sendable {
@@ -39,6 +62,13 @@ struct CostUsageStoreFile: Codable, Equatable, Sendable {
     var coverageSinceDay: String?
     var coverageUntilDay: String?
     var updatedAtUnixMs: Int64
+
+    /// True when this record belongs to the OpenCode local history adapter — restore and
+    /// scanning code written for Codex JSONL logs must not decode its payloads as JSONL
+    /// state (#4752 point 1: source-aware dispatch).
+    var belongsToOpenCodeLocalHistory: Bool {
+        self.scanState.resolvedSource == .opencodeLocalHistory
+    }
 }
 
 struct CostUsageStoreTokenSnapshot: Codable, Equatable, Sendable {

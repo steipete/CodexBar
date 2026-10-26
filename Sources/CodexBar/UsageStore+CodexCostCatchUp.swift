@@ -254,6 +254,7 @@ extension UsageStore {
                 codexHomePath: context.codexHomePath,
                 historyDays: context.historyDays,
                 includePiSessions: context.includePiSessions,
+                includeOpenCodeLocalHistory: self.shouldIncludeOpenCodeLocalHistory,
                 calendar: self.settings.costUsageBucketCalendar,
                 requireCompleteHistory: true,
                 environment: context.environment)
@@ -319,7 +320,9 @@ extension UsageStore {
         }
         return await self.costUsageFetcher.codexScanCatchUpStatus(
             codexHomePath: codexHomePath,
-            calendar: self.settings.costUsageBucketCalendar)
+            calendar: self.settings.costUsageBucketCalendar,
+            includeOpenCodeLocalHistory: self.shouldIncludeOpenCodeLocalHistory,
+            environment: self.environmentBase)
     }
 
     private func advanceCodexCostCatchUp(
@@ -341,7 +344,9 @@ extension UsageStore {
             codexHomePath: codexHomePath,
             historyDays: historyDays,
             scanDurationPerRefresh: durationBudget,
-            calendar: self.settings.costUsageBucketCalendar)
+            calendar: self.settings.costUsageBucketCalendar,
+            includeOpenCodeLocalHistory: self.shouldIncludeOpenCodeLocalHistory,
+            environment: self.environmentBase)
     }
 
     func codexCostCatchUpDecision(

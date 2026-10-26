@@ -79,11 +79,40 @@ struct CodexLocalSessionCostSettingsTests {
         #expect(scope.signature.hasPrefix("codex:managed:"))
     }
 
-    private func makeSettingsFixture(suite: String) throws -> Fixture {
+    @Test
+    func `OpenCode opt in excludes managed accounts even with the ambient ledger enabled`() throws {
+        let fixture = try self.makeSettingsFixture(suite: "OpenCode-managed-scope", explicitHome: false)
+        fixture.settings.codexLocalSessionCostLedgerEnabled = true
+        fixture.settings.openCodeLocalHistoryEnabled = true
+        fixture.settings.codexActiveSource = .liveSystem
+        #expect(fixture.store.shouldIncludeOpenCodeLocalHistory)
+        let ambient = fixture.store.tokenSnapshotScopeSignature(for: .codex)
+        let dashboard = fixture.store.spendDashboardTokenSnapshotScopeSignature(for: .codex)
+        fixture.settings.codexActiveSource = .managedAccount(id: UUID())
+        #expect(!fixture.store.shouldIncludeOpenCodeLocalHistory)
+        #expect(fixture.store.tokenSnapshotScopeSignature(for: .codex) != ambient)
+        #expect(fixture.store.spendDashboardTokenSnapshotScopeSignature(for: .codex) == dashboard)
+        let scoped = try self.makeSettingsFixture(suite: "OpenCode-explicit-home")
+        scoped.settings.openCodeLocalHistoryEnabled = true
+        #expect(!scoped.store.shouldIncludeOpenCodeLocalHistory)
+    }
+
+    @Test
+    func `OpenCode toggle invalidates cost snapshot settings revision`() throws {
+        let fixture = try self.makeSettingsFixture(suite: "OpenCode-toggle", explicitHome: false)
+        let revision = fixture.settings.costUsageSettingsRevision
+        let before = fixture.store.tokenSnapshotScopeSignature(for: .codex)
+        fixture.settings.openCodeLocalHistoryEnabled = true
+        #expect(fixture.settings.costUsageSettingsRevision > revision)
+        #expect(fixture.store.tokenSnapshotScopeSignature(for: .codex) != before)
+    }
+
+    private func makeSettingsFixture(suite: String, explicitHome: Bool = true) throws -> Fixture {
         let settings = testSettingsStore(suiteName: suite)
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         settings._test_managedCodexAccountStoreURL = root.appendingPathComponent("accounts.json")
-        let environment = ["HOME": root.path, "CODEX_HOME": root.appendingPathComponent("codex").path]
+        var environment = ["HOME": root.path]
+        if explicitHome { environment["CODEX_HOME"] = root.appendingPathComponent("codex").path }
         let store = UsageStore(
             fetcher: UsageFetcher(environment: environment),
             browserDetection: BrowserDetection(homeDirectory: root.path, cacheTTL: 0),

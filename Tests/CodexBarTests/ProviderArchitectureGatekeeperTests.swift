@@ -3118,16 +3118,16 @@ struct ProviderArchitectureGatekeeperTests {
             expectedProviderIDs: ["antigravity", "claude", "codex", "vertexai"],
             expectedReferenceCount: 6,
             expectedReferenceFingerprint: [
-                "codex@0", "antigravity@5", "claude@10", "vertexai@13", "claude@14", "codex@16",
+                "codex@0", "antigravity@10", "claude@15", "vertexai@18", "claude@19", "codex@21",
             ],
             reason: "History scopes include Antigravity homes, mapped Claude roots, Vertex fallback, and Codex ownership."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/UsageStore+TokenCost.swift",
             anchor: "guard provider == .cursor else {",
-            expectedProviderIDs: ["cursor"],
-            expectedReferenceCount: 1,
-            expectedReferenceFingerprint: ["cursor@0"],
-            reason: "This exact app-runtime bridge coordinates provider-owned state through the shared controller."),
+            expectedProviderIDs: ["codex", "cursor"],
+            expectedReferenceCount: 2,
+            expectedReferenceFingerprint: ["codex@0", "cursor@11"],
+            reason: "Scope signatures isolate the opted-in ambient Codex source and Cursor credentials."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/UsageStore+TokenCost.swift",
             anchor: "if provider == .cursor,",

@@ -726,6 +726,17 @@ extension SettingsStore {
         }
     }
 
+    /// Opt-in (default off, #3273): include the machine-local OpenCode database beside the
+    /// ambient Codex token-cost history as "OpenCode local" recorded rows. Scoped or
+    /// managed CODEX_HOME scans and the Spend Dashboard never include it.
+    var openCodeLocalHistoryEnabled: Bool {
+        get { self.defaultsState.openCodeLocalHistoryEnabled }
+        set {
+            self.setCostDefault(\.openCodeLocalHistoryEnabled, newValue, key: "openCodeLocalHistoryEnabled")
+            self.noteBackgroundWorkSettingsChanged()
+        }
+    }
+
     var costUsageHistoryDays: Int {
         get { self.costReportingPeriod.days(now: Date(), calendar: self.costUsageBucketCalendar) }
         set { self.costReportingPeriod = .rolling(days: max(1, min(365, newValue))) }

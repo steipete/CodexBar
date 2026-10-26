@@ -56,6 +56,36 @@ extension CostUsageStore {
             let beforeAggregates = try self.scalarInt(database, "SELECT COUNT(*) FROM day_aggregates")
 
             let activeWindow = self.activeWindowMs(sinceDay: sinceDay, untilDay: untilDay, calendar: calendar)
+            if activeWindow != nil {
+                // Native rows retain their session-level policy. A registered database can
+                // contain both recent and expired turns, so prune its usage rows individually.
+                let source = "json_extract(CAST(scan_state AS TEXT), '$.source') = 'opencodeLocalHistory'"
+                let outside = """
+                (COALESCE(json_extract(CAST(r.payload AS TEXT), '$.day'),
+                   strftime('%Y-%m-%d', json_extract(CAST(r.payload AS TEXT), '$.createdMs') / 1000, 'unixepoch')) < ?
+                 OR COALESCE(json_extract(CAST(r.payload AS TEXT), '$.day'),
+                   strftime('%Y-%m-%d', json_extract(CAST(r.payload AS TEXT), '$.createdMs') / 1000, 'unixepoch')) > ?)
+                """
+                let statements = [
+                    """
+                    UPDATE files SET scan_complete = 0,
+                      scan_state = json_remove(CAST(scan_state AS TEXT), '$.resumePayload')
+                    WHERE \(source) AND EXISTS (
+                      SELECT 1 FROM usage_rows r WHERE r.file_id = files.id AND \(outside))
+                    """,
+                    """
+                    DELETE FROM usage_rows AS r WHERE r.file_id IN (SELECT id FROM files WHERE \(source))
+                    AND \(outside)
+                    """,
+                ]
+                for sql in statements {
+                    let statement = try Self.prepare(database, sql)
+                    defer { sqlite3_finalize(statement) }
+                    Self.bind(sinceDay, to: statement, at: 1)
+                    Self.bind(untilDay, to: statement, at: 2)
+                    try Self.stepDone(statement, database: database)
+                }
+            }
             let deleteFile = try self.prepare(database, "DELETE FROM files WHERE path = ?")
             defer { sqlite3_finalize(deleteFile) }
             var candidates: [RetentionCandidate] = []
@@ -385,7 +415,7 @@ extension CostUsageStore {
         try self.scalarInt(database, "SELECT COUNT(*) FROM files")
     }
 
-    private static func rebuildDayAggregates(_ database: OpaquePointer) throws {
+    static func rebuildDayAggregates(_ database: OpaquePointer) throws {
         try self.execute(database, "DELETE FROM day_aggregates")
         try self.execute(database, """
         INSERT INTO day_aggregates (
