@@ -33,6 +33,22 @@ struct ProviderPluginSnapshotContractTests {
     }
 
     @Test(arguments: ProviderPluginTransportTests.engines)
+    func `detail pace maps onto progress and is dropped without a bar`(engine: ProviderPluginEngineKind) async throws {
+        let runtime = try ProviderPluginTransportTests.runtime(engine, body: """
+        return { details: [{ rows: [
+          { label: 'Start', value: '0%', progress: 0, pace: 0 },
+          { label: 'Ahead', value: '60%', progress: 0.6, pace: 0.5 },
+          { label: 'End', value: '90%', progress: 0.9, pace: 1 },
+          { label: 'Null', value: '25%', progress: 0.25, pace: null },
+          { label: 'Text', value: 'No bar', pace: 0.5 }
+        ] }] };
+        """)
+        let rows = try await runtime.fetchUsage().details[0].rows
+        #expect(rows.map { $0.progress?.expectedUsedPercent } == [0, 50, 100, nil, nil])
+        #expect(rows.map { $0.progress?.usedPercent } == [0, 60, 90, 25, nil])
+    }
+
+    @Test(arguments: ProviderPluginTransportTests.engines)
     func `snapshot numeric and knowledge fields reject invalid types and ranges`(
         engine: ProviderPluginEngineKind) async throws
     {
@@ -45,6 +61,8 @@ struct ProviderPluginSnapshotContractTests {
         for (key, values) in [
             ("progress", ["true", "'0.5'", "{}", "[]", "NaN", "Infinity", "-0.1", "1.1"]),
             ("usageValue", ["false", "'25'", "{}", "[]", "NaN", "Infinity"]),
+            ("progress: 0.5, pace", ["true", "'0.5'", "{}", "[]", "NaN", "Infinity", "-0.1", "1.1"]),
+            ("pace", ["true", "'0.5'", "NaN", "1.1"]),
         ] {
             for value in values {
                 let runtime = try ProviderPluginTransportTests.runtime(engine, body: """

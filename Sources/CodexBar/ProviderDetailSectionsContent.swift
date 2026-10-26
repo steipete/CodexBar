@@ -4,6 +4,7 @@ import SwiftUI
 struct ProviderDetailSectionsContent: View {
     let sections: [ProviderDetailSection]
     let chartColor: Color
+    var paceVisible: Bool = true
     @Environment(\.menuItemHighlighted) private var isHighlighted
 
     var body: some View {
@@ -73,7 +74,9 @@ struct ProviderDetailSectionsContent: View {
                         UsageProgressBar(
                             percent: min(100, max(0, progress.usedPercent)),
                             tint: Self.progressColor(row.severity, fallback: self.chartColor),
-                            accessibilityLabel: row.label)
+                            accessibilityLabel: row.label,
+                            pacePercent: self.paceVisible ? progress.expectedUsedPercent : nil,
+                            paceOnTop: progress.usedPercent <= progress.expectedUsedPercent ?? .infinity)
                     }
                 }
             }

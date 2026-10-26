@@ -114,6 +114,7 @@ extension StatusItemController {
                 error: error,
                 isRefreshing: self.store.refreshingProviders.contains(plugin.manifest.id),
                 showUsed: self.settings.usageBarsShowUsed,
+                paceVisible: self.settings.paceVisible,
                 resetStyle: self.settings.resetTimeDisplayStyle,
                 width: width,
                 onRefresh: { [weak self] in
@@ -276,6 +277,7 @@ struct UserPluginMenuCardView: View {
     let error: String?
     let isRefreshing: Bool
     let showUsed: Bool
+    var paceVisible: Bool = true
     let resetStyle: ResetTimeDisplayStyle
     let width: CGFloat
     let onRefresh: () -> Void
@@ -332,7 +334,8 @@ struct UserPluginMenuCardView: View {
                 }
                 if !snapshot.details.isEmpty {
                     Divider()
-                    ProviderDetailSectionsContent(sections: snapshot.details, chartColor: self.tint)
+                    ProviderDetailSectionsContent(
+                        sections: snapshot.details, chartColor: self.tint, paceVisible: self.paceVisible)
                 }
                 if let identity = snapshot.identity(for: self.plugin.manifest.id) {
                     self.identity(identity)

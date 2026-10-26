@@ -18,6 +18,9 @@ public struct ProviderDetailSection: Codable, Equatable, Sendable {
         public struct Progress: Codable, Equatable, Sendable {
             public let used: Double
             public let total: Double
+            /// Usage expected at this point under even consumption, in the same units as `used`.
+            /// Drives the native pace marker on the row's bar; nil when the provider has no pace.
+            public let expectedUsed: Double?
 
             /// Percent of the total consumed.
             ///
@@ -28,27 +31,41 @@ public struct ProviderDetailSection: Codable, Equatable, Sendable {
                 (self.used / self.total) * 100
             }
 
-            public init(used: Double, total: Double) throws {
+            /// Percent of the total expected to be consumed under even consumption, when known.
+            public var expectedUsedPercent: Double? {
+                self.expectedUsed.map { ($0 / self.total) * 100 }
+            }
+
+            public init(used: Double, total: Double, expectedUsed: Double? = nil) throws {
                 guard used.isFinite, total.isFinite else {
                     throw ValidationError("row.progress values must be finite")
                 }
                 guard total > 0 else {
                     throw ValidationError("row.progress.total must be positive")
                 }
+                if let expectedUsed {
+                    // Even consumption never runs past the allowance, unlike `used` on overage plans.
+                    guard expectedUsed.isFinite, (0...total).contains(expectedUsed) else {
+                        throw ValidationError("row.progress.expectedUsed must be between 0 and total")
+                    }
+                }
                 self.used = used
                 self.total = total
+                self.expectedUsed = expectedUsed
             }
 
             private enum CodingKeys: String, CodingKey {
                 case used
                 case total
+                case expectedUsed
             }
 
             public init(from decoder: Decoder) throws {
                 let container = try decoder.container(keyedBy: CodingKeys.self)
                 try self.init(
                     used: container.decode(Double.self, forKey: .used),
-                    total: container.decode(Double.self, forKey: .total))
+                    total: container.decode(Double.self, forKey: .total),
+                    expectedUsed: container.decodeIfPresent(Double.self, forKey: .expectedUsed))
             }
         }
 
