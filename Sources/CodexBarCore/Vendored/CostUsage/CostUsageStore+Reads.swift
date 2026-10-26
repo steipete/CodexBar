@@ -80,19 +80,23 @@ extension CostUsageStore {
         _ database: OpaquePointer,
         loadTokenSnapshots: Bool = true,
         loadUsageRows: Bool = true,
+        nativeOnly: Bool = false,
         recorder: CostUsageStoreReadWorkRecorder?) throws -> CostUsageStoreSnapshot
     {
+        let files = try self.readFiles(database, recorder: recorder)
+        let hasSource = files.contains(where: \.belongsToOpenCodeLocalHistory)
         let snapshot = try CostUsageStoreSnapshot(
             metadata: self.readSingleton(
                 CostUsageStoreMetadata.self,
                 database: database,
                 table: "scan_metadata") ?? .empty,
-            files: self.readFiles(database, recorder: recorder),
+            files: files,
             tokenSnapshots: loadTokenSnapshots
                 ? self.readTokenSnapshots(database, path: nil, recorder: recorder) : [],
             usageRows: loadUsageRows ? self.readUsageRows(database, path: nil, recorder: recorder) : [],
-            fileDayAggregates: self.readFileDayAggregates(database, path: nil),
-            dayAggregates: self.readDayAggregates(database, sinceDay: nil, untilDay: nil),
+            fileDayAggregates: self.readFileDayAggregates(database, path: nil, nativeOnly: nativeOnly),
+            dayAggregates: nativeOnly && hasSource ? []
+                : self.readDayAggregates(database, sinceDay: nil, untilDay: nil),
             forkLineage: self.readForkLineage(database, path: nil),
             bufferedLines: self.readBufferedLines(database, path: nil, kind: nil, recorder: recorder),
             discoveryState: self.readSingleton(
@@ -134,6 +138,16 @@ extension CostUsageStore {
         }
         guard result == SQLITE_DONE else { throw StoreError.sqlite(result) }
         return values
+    }
+
+    static func readFile(_ database: OpaquePointer, path: String) throws -> CostUsageStoreFile? {
+        let statement = try self.prepare(database, self.fileSelectSQL + " WHERE path = ?")
+        defer { sqlite3_finalize(statement) }
+        self.bind(path, to: statement, at: 1)
+        let result = sqlite3_step(statement)
+        if result == SQLITE_DONE { return nil }
+        guard result == SQLITE_ROW else { throw StoreError.sqlite(result) }
+        return try self.decodeFile(statement)
     }
 
     static func decodeFile(_ statement: OpaquePointer) throws -> CostUsageStoreFile {
@@ -223,14 +237,20 @@ extension CostUsageStore {
         _ database: OpaquePointer,
         path: String?,
         recorder: CostUsageStoreReadWorkRecorder? = nil,
+        nativeOnly: Bool = false,
         visit: (CostUsageStoreUsageRow) -> Void) throws
     {
         var sql = """
         SELECT f.path, r.row_index, r.payload
-        FROM usage_rows r JOIN files f ON f.id = r.file_id
+        FROM files f CROSS JOIN usage_rows r ON f.id = r.file_id
         """
         if path != nil {
             sql += " WHERE f.path = ?"
+        }
+        if nativeOnly {
+            sql += (path == nil ? " WHERE " : " AND ")
+                + "COALESCE(json_extract(CAST(f.scan_state AS TEXT), '$.source'), 'nativeCodexSessionLogs')"
+                + " = 'nativeCodexSessionLogs'"
         }
         sql += " ORDER BY f.path, r.row_index"
         let statement = try self.prepare(database, sql)
@@ -303,9 +323,14 @@ extension CostUsageStore {
         return values
     }
 
+    /// Windowed file day aggregates for one registered source file. The adapter's
+    /// read-side summary (#4752 point 2) must stay bounded by the reporting window —
+    /// never a whole-history row array.
     static func readFileDayAggregates(
         _ database: OpaquePointer,
-        path: String?) throws -> [CostUsageStoreFileDayAggregate]
+        path: String,
+        sinceDay: String?,
+        untilDay: String) throws -> [CostUsageStoreFileDayAggregate]
     {
         var sql = """
         SELECT f.path, a.day, a.model, a.input_tokens, a.cached_tokens, a.output_tokens,
@@ -313,10 +338,129 @@ extension CostUsageStore {
                a.standard_input_tokens, a.standard_cached_tokens, a.standard_output_tokens,
                a.priority_input_tokens, a.priority_cached_tokens, a.priority_output_tokens,
                a.standard_tokens, a.priority_tokens
-        FROM file_day_aggregates a JOIN files f ON f.id = a.file_id
+        FROM files f CROSS JOIN file_day_aggregates a ON f.id = a.file_id
+        WHERE f.path = ? AND a.day <= ?
+        """
+        var boundValues: [String] = [path, untilDay]
+        if let sinceDay {
+            sql += " AND a.day >= ?"
+            boundValues.append(sinceDay)
+        }
+        sql += " ORDER BY a.day, a.model"
+        let statement = try Self.prepare(database, sql)
+        defer { sqlite3_finalize(statement) }
+        for (index, value) in boundValues.enumerated() {
+            Self.bind(value, to: statement, at: Int32(index + 1))
+        }
+        var values: [CostUsageStoreFileDayAggregate] = []
+        var result = sqlite3_step(statement)
+        while result == SQLITE_ROW {
+            guard let path = Self.columnText(statement, at: 0),
+                  let day = Self.columnText(statement, at: 1),
+                  let model = Self.columnText(statement, at: 2)
+            else { throw StoreError.invalidData }
+            values.append(CostUsageStoreFileDayAggregate(
+                path: path,
+                aggregate: CostUsageStoreDayAggregate(
+                    day: day,
+                    model: model,
+                    inputTokens: sqlite3_column_int64(statement, 3),
+                    cachedTokens: sqlite3_column_int64(statement, 4),
+                    outputTokens: sqlite3_column_int64(statement, 5),
+                    reasoningTokens: sqlite3_column_int64(statement, 6),
+                    requestCount: sqlite3_column_int64(statement, 7),
+                    authoritativeCostNanos: sqlite3_column_int64(statement, 8),
+                    standardInputTokens: sqlite3_column_int64(statement, 9),
+                    standardCachedTokens: sqlite3_column_int64(statement, 10),
+                    standardOutputTokens: sqlite3_column_int64(statement, 11),
+                    priorityInputTokens: sqlite3_column_int64(statement, 12),
+                    priorityCachedTokens: sqlite3_column_int64(statement, 13),
+                    priorityOutputTokens: sqlite3_column_int64(statement, 14),
+                    standardTokens: sqlite3_column_int64(statement, 15),
+                    priorityTokens: sqlite3_column_int64(statement, 16))))
+            result = sqlite3_step(statement)
+        }
+        guard result == SQLITE_DONE else { throw StoreError.sqlite(result) }
+        return values
+    }
+
+    /// Point-lookup of usage-row payloads for a replacement swap: the adapter re-evaluates
+    /// an updated source row and must negate the previously emitted contribution of the
+    /// row it is about to replace (#4752 point 4, mutation reconciliation).
+    static func readUsagePayloads(
+        _ database: OpaquePointer,
+        path: String,
+        rowIndices: [Int64]) throws -> [Int64: Data]
+    {
+        guard !rowIndices.isEmpty else { return [:] }
+        let placeholders = rowIndices.map { _ in "?" }.joined(separator: ",")
+        let statement = try Self.prepare(database, """
+        SELECT r.row_index, substr(r.payload, 1, 8193)
+        FROM usage_rows r
+        WHERE r.file_id = (SELECT id FROM files WHERE path = ?) AND r.row_index IN (\(placeholders))
+        """)
+        defer { sqlite3_finalize(statement) }
+        Self.bind(path, to: statement, at: 1)
+        for (index, value) in rowIndices.enumerated() {
+            sqlite3_bind_int64(statement, Int32(index + 2), Int64(value))
+        }
+        var values: [Int64: Data] = [:]
+        var result = sqlite3_step(statement)
+        while result == SQLITE_ROW {
+            let rowIndex = sqlite3_column_int64(statement, 0)
+            if let payload = self.columnData(statement, at: 1) {
+                values[rowIndex] = payload
+            }
+            result = sqlite3_step(statement)
+        }
+        guard result == SQLITE_DONE else { throw StoreError.sqlite(result) }
+        return values
+    }
+
+    static func readUsageRowsPage(
+        _ database: OpaquePointer, path: String, after: Int64, limit: Int) throws -> [CostUsageStoreUsageRow]
+    {
+        let statement = try Self.prepare(database, """
+        SELECT row_index, substr(payload, 1, 8193) FROM usage_rows
+        WHERE file_id = (SELECT id FROM files WHERE path = ?) AND row_index > ?
+        ORDER BY row_index LIMIT ?
+        """)
+        defer { sqlite3_finalize(statement) }
+        Self.bind(path, to: statement, at: 1)
+        sqlite3_bind_int64(statement, 2, after)
+        sqlite3_bind_int64(statement, 3, Int64(limit))
+        var rows: [CostUsageStoreUsageRow] = []
+        var code = sqlite3_step(statement)
+        while code == SQLITE_ROW {
+            if let payload = Self.columnData(statement, at: 1) {
+                rows.append(.init(path: path, rowIndex: Int(sqlite3_column_int64(statement, 0)), payload: payload))
+            }
+            code = sqlite3_step(statement)
+        }
+        guard code == SQLITE_DONE else { throw StoreError.sqlite(code) }
+        return rows
+    }
+
+    static func readFileDayAggregates(
+        _ database: OpaquePointer,
+        path: String?,
+        nativeOnly: Bool = false) throws -> [CostUsageStoreFileDayAggregate]
+    {
+        var sql = """
+        SELECT f.path, a.day, a.model, a.input_tokens, a.cached_tokens, a.output_tokens,
+               a.reasoning_tokens, a.request_count, a.authoritative_cost_nanos,
+               a.standard_input_tokens, a.standard_cached_tokens, a.standard_output_tokens,
+               a.priority_input_tokens, a.priority_cached_tokens, a.priority_output_tokens,
+               a.standard_tokens, a.priority_tokens
+        FROM files f CROSS JOIN file_day_aggregates a ON f.id = a.file_id
         """
         if path != nil {
             sql += " WHERE f.path = ?"
+        }
+        if nativeOnly {
+            sql += (path == nil ? " WHERE " : " AND ")
+                + "COALESCE(json_extract(CAST(f.scan_state AS TEXT), '$.source'), 'nativeCodexSessionLogs')"
+                + " = 'nativeCodexSessionLogs'"
         }
         sql += " ORDER BY f.path, a.day, a.model"
         let statement = try self.prepare(database, sql)

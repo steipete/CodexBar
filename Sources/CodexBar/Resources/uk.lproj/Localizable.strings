@@ -734,6 +734,8 @@
 "acknowledgements_authors" = "Автори";
 "acknowledgements_license" = "Ліцензія";
 "check_updates_auto" = "Автоматично перевіряти наявність оновлень";
+"install_updates_auto" = "Автоматично завантажувати та встановлювати оновлення";
+"install_updates_auto_subtitle" = "Якщо вимкнено, перед встановленням нової версії буде запит на підтвердження.";
 "update_channel" = "Канал оновлень";
 "check_for_updates" = "Перевірити наявність оновлень…";
 "updates_unavailable" = "Оновлення недоступні в цій збірці.";
@@ -2752,3 +2754,7 @@
 "abliteration.ai request failed. Try refreshing later." = "Запит до abliteration.ai не виконано. Спробуйте оновити пізніше.";
 "abliteration.ai returned an unrecognized response. Update CodexBar and try again." = "abliteration.ai повернув невідому відповідь. Оновіть CodexBar і спробуйте знову.";
 "Check your API key in Settings." = "Перевірте ключ API в налаштуваннях.";
+
+"OpenCode local history" = "Локальна історія OpenCode";
+
+"Show this Mac's recorded OpenCode usage in Codex history. Off by default; scoped or alternate CODEX_HOME locations always stay excluded." = "Показує використання OpenCode, записане на цьому Mac, в історії Codex. Типово вимкнено; розташування CODEX_HOME з обмеженою областю дії або альтернативні розташування завжди виключаються.";

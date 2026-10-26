@@ -730,6 +730,8 @@
 "acknowledgements_authors" = "Tác giả";
 "acknowledgements_license" = "Giấy phép";
 "check_updates_auto" = "Tự động kiểm tra các bản cập nhật";
+"install_updates_auto" = "Tự động tải về và cài đặt các bản cập nhật";
+"install_updates_auto_subtitle" = "Khi tắt, bạn sẽ được hỏi trước khi cài đặt phiên bản mới.";
 "update_channel" = "Kênh cập nhật";
 "check_for_updates" = "Kiểm tra các bản cập nhật…";
 "updates_unavailable" = "Các bản cập nhật không có sẵn trong bản dựng này.";
@@ -2752,3 +2754,7 @@
 "abliteration.ai request failed. Try refreshing later." = "Yêu cầu abliteration.ai không thành công. Hãy thử làm mới sau.";
 "abliteration.ai returned an unrecognized response. Update CodexBar and try again." = "abliteration.ai trả về phản hồi không nhận dạng được. Hãy cập nhật CodexBar rồi thử lại.";
 "Check your API key in Settings." = "Kiểm tra khóa API trong Cài đặt.";
+
+"OpenCode local history" = "Lịch sử OpenCode cục bộ";
+
+"Show this Mac's recorded OpenCode usage in Codex history. Off by default; scoped or alternate CODEX_HOME locations always stay excluded." = "Hiển thị mức sử dụng OpenCode được ghi lại trên máy Mac này trong lịch sử Codex. Mặc định tắt; luôn loại trừ các vị trí CODEX_HOME có phạm vi giới hạn hoặc vị trí thay thế.";

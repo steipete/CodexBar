@@ -159,6 +159,18 @@ protocol UpdaterProviding: AnyObject {
     func installUpdate()
 }
 
+/// Applies CodexBar's "Check for updates automatically" preference to an updater.
+///
+/// Automatic installs are a separate choice that Sparkle persists itself (`SUAutomaticallyUpdate`), whether it was
+/// made in Settings or in Sparkle's update alert. Launch and the About pane apply only the check preference through
+/// here, so applying it can never overwrite that choice.
+@MainActor
+enum UpdaterPreferenceSync {
+    static func applyAutomaticChecks(_ enabled: Bool, to updater: UpdaterProviding) {
+        updater.automaticallyChecksForUpdates = enabled
+    }
+}
+
 /// No-op updater used for debug builds and non-bundled runs to suppress Sparkle dialogs.
 final class DisabledUpdaterController: UpdaterProviding {
     var automaticallyChecksForUpdates: Bool = false
@@ -202,12 +214,10 @@ final class SparkleUpdaterController: NSObject, UpdaterProviding, SPUUpdaterDele
     let isAvailable = true
     private var dockPresentationAttemptID: DockIconPresentationAttemptID?
 
-    init(savedAutoUpdate: Bool, startingUpdater: Bool = true) {
+    init(savedAutoCheck: Bool, startingUpdater: Bool = true) {
         super.init()
         guard startingUpdater else { return }
-        let updater = self.controller.updater
-        updater.automaticallyChecksForUpdates = savedAutoUpdate
-        updater.automaticallyDownloadsUpdates = savedAutoUpdate
+        UpdaterPreferenceSync.applyAutomaticChecks(savedAutoCheck, to: self)
         self.controller.startUpdater()
     }
 
@@ -349,9 +359,9 @@ private func makeUpdaterController() -> UpdaterProviding {
         return DisabledUpdaterController(unavailableReason: "Updates unavailable in this build.")
     }
 
-    // Default to true for first launch; fall back to saved preference thereafter.
+    // Both choices default to on for first launch; Sparkle preserves the saved automatic-install choice.
     return SparkleUpdaterController(
-        savedAutoUpdate: (UserDefaults.standard.object(forKey: "autoUpdateEnabled") as? Bool) ?? true)
+        savedAutoCheck: (UserDefaults.standard.object(forKey: "autoUpdateEnabled") as? Bool) ?? true)
 }
 #else
 private func makeUpdaterController() -> UpdaterProviding {
@@ -572,8 +582,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func handleSessionLimitResetNotification(_ notification: Notification) {
-        guard let event = notification.object as? SessionLimitResetEvent else { return }
-        guard self.settings?.confettiOnSessionLimitResetsEnabled == true else { return }
+        guard let event = notification.object as? SessionLimitResetEvent,
+              self.settings?.confettiOnSessionLimitResetsEnabled == true else { return }
         self.playLimitResetConfetti(
             provider: event.provider,
             accountIdentifier: event.accountIdentifier,
@@ -581,8 +591,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func handleWeeklyLimitResetNotification(_ notification: Notification) {
-        guard let event = notification.object as? WeeklyLimitResetEvent else { return }
-        guard self.settings?.confettiOnWeeklyLimitResetsEnabled == true else { return }
+        guard let event = notification.object as? WeeklyLimitResetEvent,
+              self.settings?.confettiOnWeeklyLimitResetsEnabled == true else { return }
         self.playLimitResetConfetti(
             provider: event.provider,
             accountIdentifier: event.accountIdentifier,

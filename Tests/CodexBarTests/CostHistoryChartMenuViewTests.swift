@@ -8,6 +8,39 @@ import Testing
 // swiftlint:disable:next type_body_length
 struct CostHistoryChartMenuViewTests {
     @Test
+    func `recorded model costs do not claim token price estimation`() {
+        let entry = CostUsageDailyReport.Entry(
+            date: "2026-10-26",
+            inputTokens: nil,
+            outputTokens: nil,
+            totalTokens: nil,
+            costUSD: 3,
+            modelsUsed: ["fixture-model"],
+            modelBreakdowns: [
+                .init(modelName: "fixture-model", costUSD: 3, totalTokens: nil, sourceRecorded: true),
+            ])
+        #expect(CostHistoryChartMenuView.estimateDisclaimer(provider: .codex, daily: [entry]) == nil)
+        #expect(CostHistoryChartMenuView.estimateDisclaimer(provider: .codex) != nil)
+    }
+
+    @Test
+    func `source recorded spend has a visible label and invalidates its render fingerprint`() {
+        let native = CostUsageDailyReport.ModelBreakdown(modelName: "fixture-model", costUSD: 0, totalTokens: 10)
+        let recorded = CostUsageDailyReport.ModelBreakdown(
+            modelName: "fixture-model", costUSD: 0, totalTokens: 10, sourceRecorded: true)
+        let chart = CostHistoryChartMenuView(
+            provider: .codex,
+            daily: [],
+            totalCostUSD: 0,
+            hidePersonalInfo: false,
+            width: 320)
+        #expect(chart.modelBreakdownModeSubtitle(native) == nil)
+        #expect(chart.modelBreakdownModeSubtitle(recorded) == L("Recorded spend"))
+        #expect(CostHistoryChartMenuView.VisibleModelBreakdownFingerprint(native)
+            != CostHistoryChartMenuView.VisibleModelBreakdownFingerprint(recorded))
+    }
+
+    @Test
     func `privacy masks project and source identity without changing visible costs or grouping`() {
         let projects = Self.makeProjects(count: 6, sourcesPerProject: 3)
         let snapshot = Self.makeSnapshot(projects: projects)

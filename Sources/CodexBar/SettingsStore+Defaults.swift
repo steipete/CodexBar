@@ -455,17 +455,32 @@ extension SettingsStore {
             provider: provider)
     }
 
+    func menuBarLayout(forPlugin instanceID: ProviderInstanceID) -> MenuBarLayout {
+        // Plugins keep their automatic default independently of built-in/global layouts.
+        self.defaultsState.menuBarLayoutOverridesRaw[instanceID.rawValue]
+            ?? MenuBarLayout(lines: [[.percent(window: .automatic)]])
+    }
+
+    func setMenuBarLayout(_ layout: MenuBarLayout, forInstanceID instanceID: ProviderInstanceID) {
+        self.defaultsState.menuBarLayoutOverridesRaw[instanceID.rawValue] = layout
+        self.persistMenuBarLayoutOverrides()
+    }
+
     func setMenuBarLayout(_ layout: MenuBarLayout, for provider: UsageProvider?) {
         if let provider {
-            self.defaultsState.menuBarLayoutOverridesRaw[provider.rawValue] = layout
-            self.persistMenuBarLayoutOverrides()
+            self.setMenuBarLayout(layout, forInstanceID: provider.instanceID)
         } else {
             self.menuBarLayout = layout
         }
     }
 
     func removeMenuBarLayoutOverride(for provider: UsageProvider) {
-        guard self.defaultsState.menuBarLayoutOverridesRaw.removeValue(forKey: provider.rawValue) != nil else { return }
+        self.removeMenuBarLayoutOverride(forInstanceID: provider.instanceID)
+    }
+
+    func removeMenuBarLayoutOverride(forInstanceID instanceID: ProviderInstanceID) {
+        guard self.defaultsState.menuBarLayoutOverridesRaw.removeValue(forKey: instanceID.rawValue) != nil
+        else { return }
         self.persistMenuBarLayoutOverrides()
     }
 
@@ -552,6 +567,17 @@ extension SettingsStore {
         get { self.defaultsState.codexLocalSessionCostLedgerEnabled }
         set {
             self.setDefault(\.codexLocalSessionCostLedgerEnabled, newValue, key: "codexLocalSessionCostLedgerEnabled")
+            self.noteBackgroundWorkSettingsChanged()
+        }
+    }
+
+    /// Opt-in (default off, #3273): include the machine-local OpenCode database beside the
+    /// ambient Codex token-cost history as "OpenCode local" recorded rows. Scoped or
+    /// managed CODEX_HOME scans and the Spend Dashboard never include it.
+    var openCodeLocalHistoryEnabled: Bool {
+        get { self.defaultsState.openCodeLocalHistoryEnabled }
+        set {
+            self.setCostDefault(\.openCodeLocalHistoryEnabled, newValue, key: "openCodeLocalHistoryEnabled")
             self.noteBackgroundWorkSettingsChanged()
         }
     }

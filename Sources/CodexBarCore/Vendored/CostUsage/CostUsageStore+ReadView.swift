@@ -5,10 +5,16 @@ import Foundation
 struct CostUsageStoreReadView: Sendable {
     private let cache: CostUsageCache
     private let purpose: CostUsageStoreReadPurpose
+    private let source: OpenCodeLocalHistoryAdapter.StoredSummary?
 
-    init(cache: CostUsageCache, purpose: CostUsageStoreReadPurpose) {
+    init(
+        cache: CostUsageCache,
+        purpose: CostUsageStoreReadPurpose,
+        source: OpenCodeLocalHistoryAdapter.StoredSummary? = nil)
+    {
         self.cache = cache
         self.purpose = purpose
+        self.source = source
     }
 
     var roots: [String: Int64]? {
@@ -40,11 +46,20 @@ struct CostUsageStoreReadView: Sendable {
     }
 
     var hasPendingScan: Bool {
-        self.cache.codexScanCatchUpPending == true || self.cache.files.values.contains(where: \.hasPendingCodexScanWork)
+        self.source?.hasPendingWork == true || self.cache.codexScanCatchUpPending == true
+            || self.cache.files.values.contains(where: \.hasPendingCodexScanWork)
+    }
+
+    var hasHistory: Bool {
+        !self.cache.days.isEmpty || self.source?.hasRows == true
     }
 
     func scoped(to roots: [URL]) -> Self {
-        Self(cache: CostUsageScanner.codexCache(self.cache, scopedTo: roots), purpose: self.purpose)
+        let source = self.source?.scope.roots == roots.map(\.standardizedFileURL.path).sorted() ? self.source : nil
+        return Self(
+            cache: CostUsageScanner.codexCache(self.cache, scopedTo: roots),
+            purpose: self.purpose,
+            source: source)
     }
 
     func windowExpandsCache(_ range: CostUsageScanner.CostUsageDayRange) -> Bool {
@@ -55,7 +70,8 @@ struct CostUsageStoreReadView: Sendable {
         range: CostUsageScanner.CostUsageDayRange,
         rootsFingerprint: [String: Int64]) -> Bool
     {
-        guard self.lastScanUnixMs > 0,
+        guard self.source?.covers(range) != false,
+              self.lastScanUnixMs > 0,
               self.timeZoneIdentifier == range.calendar.timeZone.identifier,
               self.roots == rootsFingerprint,
               !self.windowExpandsCache(range)
@@ -147,7 +163,20 @@ struct CostUsageStoreReadView: Sendable {
     }
 
     func dailyReport(range: CostUsageScanner.CostUsageDayRange, cacheRoot: URL?) -> CostUsageDailyReport {
-        CostUsageScanner.buildCodexReportFromCache(cache: self.cache, range: range, modelsDevCacheRoot: cacheRoot)
+        self.mergingSource(
+            into: CostUsageScanner.buildCodexReportFromCache(
+                cache: self.cache,
+                range: range,
+                modelsDevCacheRoot: cacheRoot),
+            range: range)
+    }
+
+    func mergingSource(
+        into report: CostUsageDailyReport,
+        range: CostUsageScanner.CostUsageDayRange) -> CostUsageDailyReport
+    {
+        guard let source else { return report }
+        return report.merged(with: source.report(range), calendar: range.calendar)
     }
 
     func reports(
@@ -158,13 +187,14 @@ struct CostUsageStoreReadView: Sendable {
         includeProjects: Bool = true)
         -> (daily: CostUsageDailyReport, projects: [CostUsageProjectBreakdown], sessions: [CostUsageSessionBreakdown])
     {
-        CostUsageScanner.buildCodexReportProjectionsFromCache(
+        let result = CostUsageScanner.buildCodexReportProjectionsFromCache(
             cache: self.cache,
             range: range,
             modelsDevCacheRoot: cacheRoot,
             sessionRoots: roots,
             includeBreakdowns: includeBreakdowns,
             includeProjects: includeProjects)
+        return (self.mergingSource(into: result.daily, range: range), result.projects, result.sessions)
     }
 
     func projectSessionIDs(range: CostUsageScanner.CostUsageDayRange) -> [String: Set<String>] {
@@ -195,7 +225,8 @@ struct CostUsageStoreReadView: Sendable {
         let pending = scoped.hasPendingScan
         return .init(
             pending: pending,
-            progressKey: CostUsageFetcher.codexScanProgressKey(cache: self.cache, scopedFiles: scoped.cache.files),
+            progressKey: CostUsageFetcher.codexScanProgressKey(cache: self.cache, scopedFiles: scoped.cache.files)
+                + (scoped.source.map { ":" + $0.progressKey } ?? ""),
             processedBytes: self.cache.codexScanProcessedBytes ?? 0,
             totalBytes: self.cache.codexScanTotalBytes ?? 0,
             completedFiles: self.cache.codexScanCompletedFiles ?? 0,
@@ -215,5 +246,108 @@ enum CostUsageStoreReadPurpose: Sendable {
 
     func includes(_ requested: Self) -> Bool {
         self == requested || self == .report || (self == .activity && requested == .status)
+    }
+}
+
+extension CostUsageStore {
+    func loadCodexReadView(
+        calendar: Calendar,
+        purpose: CostUsageStoreReadPurpose,
+        sourceScope: OpenCodeLocalHistoryAdapter.ReadScope? = nil) -> CostUsageStoreReadView
+    {
+        self.retainedCodexBaseline = nil
+        _ = self.removeLegacyCodexArtifactIfPresent()
+        return self.withDatabase(default: CostUsageStoreReadView(
+            cache: CostUsageCache(),
+            purpose: purpose))
+        { database in
+            let recorder = self.scopedReadWorkRecorderForTesting
+            guard let before = try self.databaseStamp(database) else {
+                self.retainedCodexRead = nil
+                self.requiresReadReopen = true
+                return CostUsageStoreReadView(cache: CostUsageCache(), purpose: purpose)
+            }
+            if let retained = self.retainedCodexRead,
+               retained.stamp == before,
+               retained.purpose.includes(purpose),
+               retained.source?.scope == sourceScope
+            {
+                guard retained.decoded.timeZoneIdentifier == nil
+                    || retained.decoded.timeZoneIdentifier == calendar.timeZone.identifier
+                else { return CostUsageStoreReadView(cache: CostUsageCache(), purpose: purpose) }
+                recorder?.recordReadViewConversion(database: database)
+                return CostUsageStoreReadView(
+                    cache: Self.reconciledCodexCache(retained.decoded, persistence: retained.persistence),
+                    purpose: retained.purpose,
+                    source: retained.source)
+            }
+            let (snapshot, usageRows, retryPresence, source) = try Self.inReadTransaction(database) {
+                let files = try Self.readFiles(database, recorder: recorder)
+                let snapshot = try CostUsageStoreSnapshot(
+                    metadata: Self.readSingleton(
+                        CostUsageStoreMetadata.self, database: database, table: "scan_metadata") ?? .empty,
+                    files: files,
+                    tokenSnapshots: [],
+                    usageRows: [],
+                    fileDayAggregates: purpose != .status
+                        ? Self.readFileDayAggregates(database, path: nil, nativeOnly: true) : [],
+                    dayAggregates: purpose != .status && !files.contains(where: \.belongsToOpenCodeLocalHistory)
+                        ? Self.readDayAggregates(database, sinceDay: nil, untilDay: nil) : [],
+                    forkLineage: Self.readForkLineage(database, path: nil),
+                    bufferedLines: [],
+                    discoveryState: Self.readSingleton(
+                        CostUsageStoreDiscoveryState.self, database: database, table: "discovery_state"),
+                    lookbackState: Self.readSingleton(
+                        CostUsageStoreLookbackState.self, database: database, table: "lookback_state"),
+                    accumulators: [])
+                let usageRows = purpose == .report
+                    ? try Self.readDecodedCodexUsageRows(database, files: snapshot.files, recorder: recorder)
+                    : nil
+                let retryPresence = try Self.readRetryBufferPresence(database, recorder: recorder)
+                #if DEBUG
+                try self.runCodexReadCheckpointForTesting()
+                #endif
+                let source = try sourceScope.map {
+                    try OpenCodeLocalHistoryAdapter.StoredSummary.read(database, scope: $0, purpose: purpose)
+                }
+                return (snapshot, usageRows, retryPresence, source)
+            }
+            // A read transaction pins data_version. Cache only a snapshot that is still current
+            // after COMMIT so an external writer can never make a stale warm view authoritative.
+            let after = try self.databaseStamp(database)
+            guard let after, before == after else {
+                self.retainedCodexRead = nil
+                // Re-enter open-time compatibility validation on the next access, after this handle's use ends.
+                self.requiresReadReopen = after == nil
+                return CostUsageStoreReadView(cache: CostUsageCache(), purpose: purpose)
+            }
+            guard snapshot.metadata.timeZoneIdentifier == nil
+                || snapshot.metadata.timeZoneIdentifier == calendar.timeZone.identifier
+            else { return CostUsageStoreReadView(cache: CostUsageCache(), purpose: purpose) }
+            // Identity/anchor reconciliation touches the filesystem; do not pin a SQLite reader during it.
+            let decoded = Self.decodeCodexCache(
+                from: snapshot,
+                recorder: recorder,
+                retryPresence: retryPresence,
+                decodedUsageRows: usageRows?.rowsByPath,
+                // Only scanner reconciliation and report turn performance read the request ledger.
+                includesRequestLedgerState: purpose == .report)
+            let persistence = CodexPersistenceState(snapshot: snapshot, rowCounts: usageRows?.rowCounts)
+            // Activity is a superset of status and becomes the one bounded warm read state.
+            // Detailed reports keep their larger event history transient.
+            if purpose != .report {
+                self.retainedCodexRead = RetainedCodexRead(
+                    decoded: decoded,
+                    persistence: persistence,
+                    stamp: after,
+                    purpose: purpose,
+                    source: source)
+            }
+            recorder?.recordReadViewConversion(database: database)
+            return CostUsageStoreReadView(
+                cache: Self.reconciledCodexCache(decoded, persistence: persistence),
+                purpose: purpose,
+                source: source)
+        }
     }
 }

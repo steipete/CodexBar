@@ -7,6 +7,22 @@ import Testing
 @MainActor
 struct ProviderIconResourcesTests {
     @Test
+    func `workbuddy uses its mascot consistently across app website and serve`() throws {
+        let root = try Self.repoRoot()
+        let svg = try String(
+            contentsOf: root.appending(path: "Sources/CodexBar/Resources/ProviderIcon-workbuddy.svg"),
+            encoding: .utf8)
+        #expect(svg.contains("M18.777 1.647"))
+        #expect(svg.contains("fill=\"currentColor\""))
+        #expect(!svg.contains("<text"))
+        let website = try String(contentsOf: root.appending(path: "docs/logos/workbuddy.svg"), encoding: .utf8)
+        #expect(website == svg)
+        let cli = try String(
+            contentsOf: root.appending(path: "Sources/CodexBarCLI/CLIServeProviderIcons.swift"), encoding: .utf8)
+        #expect(cli.contains("\"ProviderIcon-workbuddy\": \"\(Data(svg.utf8).base64EncodedString())\""))
+    }
+
+    @Test
     func `groq and grok provider icons are distinct`() throws {
         let root = try Self.repoRoot()
         let resources = root.appending(path: "Sources/CodexBar/Resources", directoryHint: .isDirectory)
@@ -39,7 +55,7 @@ struct ProviderIconResourcesTests {
         #expect(first.isTemplate)
     }
 
-    @Test(arguments: [UsageProvider.ollama, .llmman, .replicate])
+    @Test(arguments: [UsageProvider.ollama, .llmman, .replicate, .workbuddy])
     func `provider icons use template rendering`(provider: UsageProvider) throws {
         ProviderBrandIcon.resetCacheForTesting()
         defer { ProviderBrandIcon.resetCacheForTesting() }

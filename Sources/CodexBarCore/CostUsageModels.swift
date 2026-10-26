@@ -437,6 +437,11 @@ public struct CostUsageDailyReport: Sendable, Codable {
         public let standardTokens: Int?
         public let priorityTokens: Int?
         public let incompleteRequestCount: Int?
+        /// Provenance marker (#4752 point 2): this breakdown's cost comes from a source
+        /// that **recorded** the amounts itself (e.g. the OpenCode local database), not
+        /// from CodexBar's per-model pricing. Report-model case only — never persisted in
+        /// the store's enums, resolved from the registration at read time.
+        public let sourceRecorded: Bool?
 
         private enum CodingKeys: String, CodingKey {
             case modelName
@@ -455,6 +460,7 @@ public struct CostUsageDailyReport: Sendable, Codable {
             case standardTokens
             case priorityTokens
             case incompleteRequestCount
+            case sourceRecorded
         }
 
         public init(from decoder: Decoder) throws {
@@ -477,6 +483,7 @@ public struct CostUsageDailyReport: Sendable, Codable {
             self.standardTokens = try container.decodeIfPresent(Int.self, forKey: .standardTokens)
             self.priorityTokens = try container.decodeIfPresent(Int.self, forKey: .priorityTokens)
             self.incompleteRequestCount = try container.decodeIfPresent(Int.self, forKey: .incompleteRequestCount)
+            self.sourceRecorded = try container.decodeIfPresent(Bool.self, forKey: .sourceRecorded)
         }
 
         public init(
@@ -493,7 +500,8 @@ public struct CostUsageDailyReport: Sendable, Codable {
             priorityCostUSD: Double? = nil,
             standardTokens: Int? = nil,
             priorityTokens: Int? = nil,
-            incompleteRequestCount: Int? = nil)
+            incompleteRequestCount: Int? = nil,
+            sourceRecorded: Bool? = nil)
         {
             self.modelName = modelName
             self.costUSD = costUSD
@@ -509,6 +517,7 @@ public struct CostUsageDailyReport: Sendable, Codable {
             self.standardTokens = standardTokens
             self.priorityTokens = priorityTokens
             self.incompleteRequestCount = incompleteRequestCount
+            self.sourceRecorded = sourceRecorded
         }
 
         public func encode(to encoder: Encoder) throws {
@@ -527,6 +536,14 @@ public struct CostUsageDailyReport: Sendable, Codable {
             try container.encodeIfPresent(self.standardTokens, forKey: .standardTokens)
             try container.encodeIfPresent(self.priorityTokens, forKey: .priorityTokens)
             try container.encodeIfPresent(self.incompleteRequestCount, forKey: .incompleteRequestCount)
+            try container.encodeIfPresent(self.sourceRecorded, forKey: .sourceRecorded)
+        }
+
+        /// Accumulation key keeping source-recorded and priced breakdowns of the SAME
+        /// model name apart (#4752 point 2): merging must never fold recorded $0
+        /// subscription usage into a same-named priced estimate, or vice versa.
+        var provenanceKey: String {
+            self.modelName + (self.sourceRecorded == true ? "␟source-recorded" : "")
         }
     }
 
@@ -864,12 +881,11 @@ extension CostUsageDailyReport {
         var accumulators: [String: BreakdownAccumulator] = [:]
         for entry in entries {
             for breakdown in entry.modelBreakdowns ?? [] {
-                accumulators[breakdown.modelName, default: BreakdownAccumulator()].add(breakdown)
+                accumulators[breakdown.provenanceKey, default: BreakdownAccumulator()].add(breakdown)
             }
         }
-        return accumulators.map { name, accumulator in
-            accumulator.build(modelName: name, includeActivity: false)
-        }
+        return accumulators
+            .map { _, accumulator in accumulator.build(includeActivity: false) }
     }
 
     struct OptionalCountAccumulator {
@@ -898,6 +914,8 @@ extension CostUsageDailyReport {
     }
 
     private struct BreakdownAccumulator {
+        var modelName = ""
+        var sourceRecorded = false
         var tokenMix = CostUsageTokenMix()
         var requestCount = OptionalCountAccumulator()
         var totalTokens = OptionalCountAccumulator()
@@ -914,6 +932,8 @@ extension CostUsageDailyReport {
         var incompleteRequestCount = 0
 
         mutating func add(_ breakdown: ModelBreakdown) {
+            self.modelName = breakdown.modelName
+            self.sourceRecorded = breakdown.sourceRecorded == true
             self.tokenMix.merge(CostUsageTokenMix(
                 inputTokens: breakdown.inputTokens,
                 outputTokens: breakdown.outputTokens,
@@ -955,9 +975,9 @@ extension CostUsageDailyReport {
             self.priorityTokens.add(breakdown.priorityTokens)
         }
 
-        func build(modelName: String, includeActivity: Bool = true) -> ModelBreakdown {
+        func build(modelName: String? = nil, includeActivity: Bool = true) -> ModelBreakdown {
             ModelBreakdown(
-                modelName: modelName,
+                modelName: modelName ?? self.modelName,
                 costUSD: self.sawCost && self.costIsValid ? self.costUSD : nil,
                 totalTokens: self.totalTokensAreComplete ? self.totalTokens.value : nil,
                 requestCount: includeActivity ? self.requestCount.value : nil,
@@ -970,7 +990,8 @@ extension CostUsageDailyReport {
                 priorityCostUSD: self.sawPriorityCost ? self.priorityCostUSD : nil,
                 standardTokens: self.standardTokens.value,
                 priorityTokens: self.priorityTokens.value,
-                incompleteRequestCount: self.incompleteRequestCount > 0 ? self.incompleteRequestCount : nil)
+                incompleteRequestCount: self.incompleteRequestCount > 0 ? self.incompleteRequestCount : nil,
+                sourceRecorded: self.sourceRecorded ? true : nil)
         }
     }
 
@@ -1041,9 +1062,9 @@ extension CostUsageDailyReport {
             }
             if let modelBreakdowns = entry.modelBreakdowns {
                 for breakdown in modelBreakdowns {
-                    var accumulator = self.breakdowns[breakdown.modelName] ?? BreakdownAccumulator()
+                    var accumulator = self.breakdowns[breakdown.provenanceKey] ?? BreakdownAccumulator()
                     accumulator.add(breakdown)
-                    self.breakdowns[breakdown.modelName] = accumulator
+                    self.breakdowns[breakdown.provenanceKey] = accumulator
                     self.modelsUsed.insert(breakdown.modelName)
                 }
             }
@@ -1058,8 +1079,8 @@ extension CostUsageDailyReport {
                 guard !self.breakdowns.isEmpty else { return nil }
                 return CostUsageDailyReport.sortedModelBreakdowns(
                     self.breakdowns
-                        .map { modelName, accumulator in
-                            accumulator.build(modelName: modelName)
+                        .map { _, accumulator in
+                            accumulator.build()
                         })
             }()
             let modelsUsed = self.modelsUsed.isEmpty ? nil : self.modelsUsed.sorted()

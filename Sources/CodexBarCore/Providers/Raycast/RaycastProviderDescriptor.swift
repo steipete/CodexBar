@@ -1,5 +1,3 @@
-import Foundation
-
 public enum RaycastProviderDescriptor {
     public static let descriptor: ProviderDescriptor = Self.spec.makeDescriptor()
     public static let spec = PluginProviderSpec(
@@ -47,5 +45,6 @@ public enum RaycastProviderDescriptor {
                 manual: .localized("Paste a Cookie header captured from %@.", argument: "the account settings page"),
                 off: .localized("%@ cookies are disabled.", argument: "Raycast"),
                 showsRefreshAction: true),
-            detailLine: "web"))
+            detailLine: "web",
+            showsVersionInSettings: false))
 }

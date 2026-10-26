@@ -351,7 +351,7 @@ struct CostHistoryChartMenuView: View {
                         .truncationMode(.head)
                         .frame(height: Self.detailPrimaryLineHeight, alignment: .leading)
                     if let disclaimer = UsageFormatter.incompleteUsageNote(incompleteCount)
-                        ?? Self.estimateDisclaimer(provider: self.provider)
+                        ?? Self.estimateDisclaimer(provider: self.provider, daily: self.daily)
                     {
                         Text(disclaimer)
                             .help(disclaimer)
@@ -413,8 +413,10 @@ struct CostHistoryChartMenuView: View {
         }
     }
 
-    static func estimateDisclaimer(provider: UsageProvider) -> String? {
-        guard let hint = ProviderDescriptorRegistry.descriptor(for: provider).tokenCost.chartEstimateDisclaimer else {
+    static func estimateDisclaimer(provider: UsageProvider, daily: [DailyEntry] = []) -> String? {
+        guard !daily.contains(where: { $0.modelBreakdowns?.contains(where: { $0.sourceRecorded == true }) == true }),
+              let hint = ProviderDescriptorRegistry.descriptor(for: provider).tokenCost.chartEstimateDisclaimer
+        else {
             return nil
         }
         return switch hint {
@@ -807,7 +809,7 @@ struct CostHistoryChartMenuView: View {
     }
 
     private static func hasModeSubtitle(_ item: CostUsageDailyReport.ModelBreakdown) -> Bool {
-        item.standardCostUSD != nil || item.priorityCostUSD != nil
+        item.sourceRecorded == true || item.standardCostUSD != nil || item.priorityCostUSD != nil
     }
 
     private static func detailRowsViewportHeight(rowCount: Int, rowHeight: CGFloat) -> CGFloat {
@@ -1060,7 +1062,8 @@ struct CostHistoryChartMenuView: View {
         return (detail ?? "—") + UsageFormatter.incompleteUsageSuffix(item.incompleteRequestCount ?? 0)
     }
 
-    private func modelBreakdownModeSubtitle(_ item: CostUsageDailyReport.ModelBreakdown) -> String? {
+    func modelBreakdownModeSubtitle(_ item: CostUsageDailyReport.ModelBreakdown) -> String? {
+        if item.sourceRecorded == true { return L("Recorded spend") }
         let parts = [
             (L("Std"), item.standardCostUSD, item.standardTokens),
             (L("Fast"), item.priorityCostUSD, item.priorityTokens),
@@ -1152,6 +1155,7 @@ extension CostHistoryChartMenuView {
     }
 
     struct VisibleModelBreakdownFingerprint: Equatable {
+        let sourceRecorded: Bool
         let modelName: String
         let costBitPattern: UInt64?
         let totalTokens: Int?
@@ -1162,6 +1166,7 @@ extension CostHistoryChartMenuView {
         let priorityTokens: Int?
 
         init(_ item: CostUsageDailyReport.ModelBreakdown) {
+            self.sourceRecorded = item.sourceRecorded == true
             self.modelName = item.modelName
             self.costBitPattern = item.costUSD.map(\.bitPattern)
             self.totalTokens = item.totalTokens

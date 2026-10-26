@@ -740,6 +740,8 @@
 "acknowledgements_authors" = "ผู้เขียน";
 "acknowledgements_license" = "สัญญาอนุญาต";
 "check_updates_auto" = "ตรวจสอบการอัปเดตโดยอัตโนมัติ";
+"install_updates_auto" = "ดาวน์โหลดและติดตั้งการอัปเดตโดยอัตโนมัติ";
+"install_updates_auto_subtitle" = "เมื่อปิดไว้ ระบบจะถามคุณก่อนติดตั้งเวอร์ชันใหม่";
 "update_channel" = "อัปเดตช่อง";
 "check_for_updates" = "ตรวจสอบการอัปเดต...";
 "updates_unavailable" = "การอัปเดตไม่พร้อมใช้งานในรุ่นนี้";
@@ -2753,3 +2755,7 @@
 "abliteration.ai request failed. Try refreshing later." = "คำขอ abliteration.ai ล้มเหลว ลองรีเฟรชอีกครั้งในภายหลัง";
 "abliteration.ai returned an unrecognized response. Update CodexBar and try again." = "abliteration.ai ส่งการตอบกลับที่ไม่รู้จัก โปรดอัปเดต CodexBar แล้วลองอีกครั้ง";
 "Check your API key in Settings." = "ตรวจสอบคีย์ API ของคุณในการตั้งค่า";
+
+"OpenCode local history" = "ประวัติ OpenCode ในเครื่อง";
+
+"Show this Mac's recorded OpenCode usage in Codex history. Off by default; scoped or alternate CODEX_HOME locations always stay excluded." = "แสดงการใช้งาน OpenCode ที่บันทึกไว้บน Mac เครื่องนี้ในประวัติ Codex ปิดอยู่ตามค่าเริ่มต้น โดยจะไม่รวมตำแหน่ง CODEX_HOME ที่จำกัดขอบเขตหรือตำแหน่งอื่นเสมอ";

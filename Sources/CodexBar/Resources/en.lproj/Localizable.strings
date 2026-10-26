@@ -724,6 +724,8 @@
 "acknowledgements_authors" = "Authors";
 "acknowledgements_license" = "License";
 "check_updates_auto" = "Check for updates automatically";
+"install_updates_auto" = "Download and install updates automatically";
+"install_updates_auto_subtitle" = "When off, you're asked before a new version is installed.";
 "update_channel" = "Update channel";
 "check_for_updates" = "Check for Updates…";
 "updates_unavailable" = "Updates unavailable in this build.";
@@ -2756,3 +2758,7 @@
 "abliteration.ai request failed. Try refreshing later." = "abliteration.ai request failed. Try refreshing later.";
 "abliteration.ai returned an unrecognized response. Update CodexBar and try again." = "abliteration.ai returned an unrecognized response. Update CodexBar and try again.";
 "Check your API key in Settings." = "Check your API key in Settings.";
+
+"OpenCode local history" = "OpenCode local history";
+
+"Show this Mac's recorded OpenCode usage in Codex history. Off by default; scoped or alternate CODEX_HOME locations always stay excluded." = "Show this Mac's recorded OpenCode usage in Codex history. Off by default; scoped or alternate CODEX_HOME locations always stay excluded.";

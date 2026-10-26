@@ -733,6 +733,8 @@
 "acknowledgements_authors" = "Upphovspersoner";
 "acknowledgements_license" = "Licens";
 "check_updates_auto" = "Sök efter uppdateringar automatiskt";
+"install_updates_auto" = "Hämta och installera uppdateringar automatiskt";
+"install_updates_auto_subtitle" = "När det är av tillfrågas du innan en ny version installeras.";
 "update_channel" = "Uppdateringskanal";
 "check_for_updates" = "Sök efter uppdateringar…";
 "updates_unavailable" = "Uppdateringar är inte tillgängliga i det här bygget.";
@@ -2750,3 +2752,7 @@
 "abliteration.ai request failed. Try refreshing later." = "abliteration.ai-förfrågan misslyckades. Försök uppdatera senare.";
 "abliteration.ai returned an unrecognized response. Update CodexBar and try again." = "abliteration.ai returnerade ett okänt svar. Uppdatera CodexBar och försök igen.";
 "Check your API key in Settings." = "Kontrollera din API-nyckel i Inställningar.";
+
+"OpenCode local history" = "Lokal OpenCode-historik";
+
+"Show this Mac's recorded OpenCode usage in Codex history. Off by default; scoped or alternate CODEX_HOME locations always stay excluded." = "Visar OpenCode-användningen som registrerats på den här Mac-datorn i Codex-historiken. Avstängt som standard; CODEX_HOME-platser med begränsad omfattning eller alternativa platser förblir alltid undantagna.";

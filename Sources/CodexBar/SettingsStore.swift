@@ -646,6 +646,8 @@ extension SettingsStore {
             costUsageEnabled: costUsageEnabled,
             codexLocalSessionCostLedgerEnabled: userDefaults.object(
                 forKey: "codexLocalSessionCostLedgerEnabled") as? Bool ?? false,
+            openCodeLocalHistoryEnabled: userDefaults.object(
+                forKey: "openCodeLocalHistoryEnabled") as? Bool ?? false,
             costReportingPeriod: costReportingPeriod,
             costUsageBucketTimeZoneIdentifier: costUsageBucketTimeZoneIdentifier,
             openCodexUsageLogsEnabled: userDefaults.object(forKey: "openCodexUsageLogsEnabled") as? Bool ?? false,

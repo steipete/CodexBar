@@ -8,7 +8,9 @@ extension StatusItemController {
         guard let provider = instanceID.firstPartyProvider else {
             return Self.pluginSwitcherMetricPercent(
                 snapshot: self.store.snapshot(for: instanceID),
-                showUsed: self.settings.usageBarsShowUsed)
+                showUsed: self.settings.usageBarsShowUsed,
+                preference: MenuBarPercentWindowPreference.current(
+                    in: self.settings.menuBarLayout(forPlugin: instanceID)) ?? .automatic)
         }
         // The switcher mini-bars mirror the menu-bar indicator, so route through the
         // same presentation snapshot (claude-swap active-account override, issue #2731).

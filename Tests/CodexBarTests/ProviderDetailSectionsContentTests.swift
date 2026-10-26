@@ -17,6 +17,18 @@ struct ProviderDetailSectionsContentTests {
         #expect(empty.providerDetails.isEmpty)
     }
 
+    @Test
+    func `detail pace follows the global preference without requiring automatic pace support`() throws {
+        let row = try ProviderDetailSection.Row(
+            label: "Weekly", value: "60%", progress: .init(used: 0.6, total: 1, expectedUsed: 0.5))
+        let details = try [ProviderDetailSection(rows: [row])]
+        let visible = UsageMenuCardView.Model.make(Self.input(details: details))
+        let hidden = UsageMenuCardView.Model.make(Self.input(details: details, paceVisible: false))
+        #expect(visible.detailPaceVisible)
+        #expect(!hidden.detailPaceVisible)
+        #expect(hidden.providerDetails == details)
+    }
+
     @Test(arguments: [ProviderDetailSection.Chart.Kind.bars, .line])
     func `generic detail renderer lays out rows and chart kinds`(kind: ProviderDetailSection.Chart.Kind) throws {
         let view = try ProviderDetailSectionsContent(sections: [Self.section(kind: kind)], chartColor: .blue)
@@ -30,7 +42,10 @@ struct ProviderDetailSectionsContentTests {
     @Test
     func `privacy redaction preserves detail severity and progress`() throws {
         let row = try ProviderDetailSection.Row(
-            label: "Pool user@example.com", value: "10%", progress: .init(used: 0.9, total: 1), severity: .critical)
+            label: "Pool user@example.com",
+            value: "10%",
+            progress: .init(used: 0.9, total: 1, expectedUsed: 0.5),
+            severity: .critical)
         let model = try UsageMenuCardView.Model.make(Self.input(
             details: [ProviderDetailSection(rows: [row])], hidePersonalInfo: true))
         let redacted = try #require(model.providerDetails.first?.rows.first)
@@ -55,7 +70,8 @@ struct ProviderDetailSectionsContentTests {
 
     private static func input(
         details: [ProviderDetailSection],
-        hidePersonalInfo: Bool = false) -> UsageMenuCardView.Model.Input
+        hidePersonalInfo: Bool = false,
+        paceVisible: Bool = true) -> UsageMenuCardView.Model.Input
     {
         let provider: UsageProvider = .synthetic
         return UsageMenuCardView.Model.Input(
@@ -79,6 +95,7 @@ struct ProviderDetailSectionsContentTests {
             tokenCostUsageEnabled: false,
             showOptionalCreditsAndExtraUsage: true,
             hidePersonalInfo: hidePersonalInfo,
+            paceVisible: paceVisible,
             now: Date())
     }
 }

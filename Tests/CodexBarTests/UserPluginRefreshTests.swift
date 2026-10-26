@@ -141,6 +141,8 @@ struct UserPluginRefreshTests {
         let request = Task { await fixture.store.refreshUserPlugin(fixture.id) }
         try await fixture.transport.waitForRequests(1)
         fixture.settings.updatePluginConfig(instanceID: fixture.id) { $0.accentColor = "#FF0000" }
+        fixture.settings.setMenuBarLayout(
+            MenuBarLayout(lines: [[.lanePercent(lane: .tertiary)]]), forInstanceID: fixture.id)
         await fixture.transport.finish(1, used: 42)
         await request.value
         #expect(fixture.store.snapshots[fixture.id]?.primary?.usedPercent == 42)

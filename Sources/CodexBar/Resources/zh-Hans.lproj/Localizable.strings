@@ -700,6 +700,8 @@
 "acknowledgements_authors" = "作者";
 "acknowledgements_license" = "许可证";
 "check_updates_auto" = "自动检查更新";
+"install_updates_auto" = "自动下载并安装更新";
+"install_updates_auto_subtitle" = "关闭时，安装新版本前会先征求你的确认。";
 "update_channel" = "更新频道";
 "check_for_updates" = "检查更新…";
 "updates_unavailable" = "此构建中更新不可用。";
@@ -2743,3 +2745,7 @@
 "abliteration.ai request failed. Try refreshing later." = "abliteration.ai 请求失败。请稍后尝试刷新。";
 "abliteration.ai returned an unrecognized response. Update CodexBar and try again." = "abliteration.ai 返回了无法识别的响应。请更新 CodexBar 后重试。";
 "Check your API key in Settings." = "请在设置中检查你的 API 密钥。";
+
+"OpenCode local history" = "OpenCode 本地历史记录";
+
+"Show this Mac's recorded OpenCode usage in Codex history. Off by default; scoped or alternate CODEX_HOME locations always stay excluded." = "在 Codex 历史记录中显示此 Mac 上记录的 OpenCode 用量。默认关闭；始终排除限定范围或其他 CODEX_HOME 位置。";

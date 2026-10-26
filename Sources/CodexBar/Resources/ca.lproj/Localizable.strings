@@ -717,6 +717,8 @@
 "acknowledgements_authors" = "Autors";
 "acknowledgements_license" = "Llicència";
 "check_updates_auto" = "Cerca actualitzacions automàticament";
+"install_updates_auto" = "Baixa i instal·la les actualitzacions automàticament";
+"install_updates_auto_subtitle" = "Si està desactivat, se't demanarà abans d'instal·lar una versió nova.";
 "update_channel" = "Canal d'actualitzacions";
 "check_for_updates" = "Cerca actualitzacions…";
 "updates_unavailable" = "Actualitzacions no disponibles en aquesta compilació.";
@@ -2753,3 +2755,7 @@
 "abliteration.ai request failed. Try refreshing later." = "La sol·licitud a abliteration.ai ha fallat. Torneu a actualitzar més tard.";
 "abliteration.ai returned an unrecognized response. Update CodexBar and try again." = "abliteration.ai ha retornat una resposta desconeguda. Actualitzeu CodexBar i torneu-ho a provar.";
 "Check your API key in Settings." = "Comprova la teva clau API a Configuració.";
+
+"OpenCode local history" = "Historial local de l’OpenCode";
+
+"Show this Mac's recorded OpenCode usage in Codex history. Off by default; scoped or alternate CODEX_HOME locations always stay excluded." = "Mostra l’ús de l’OpenCode registrat en aquest Mac a l’historial del Codex. Desactivat per defecte; les ubicacions de CODEX_HOME amb àmbit restringit o alternatives sempre en queden excloses.";

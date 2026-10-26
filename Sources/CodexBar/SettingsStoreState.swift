@@ -60,6 +60,7 @@ struct SettingsDefaultsState {
     var copilotSeatCreditEntitlementRaw: String
     var costUsageEnabled: Bool
     var codexLocalSessionCostLedgerEnabled: Bool
+    var openCodeLocalHistoryEnabled: Bool
     var costReportingPeriod: CostReportingPeriod
     var costUsageBucketTimeZoneIdentifier: String
     var openCodexUsageLogsEnabled: Bool

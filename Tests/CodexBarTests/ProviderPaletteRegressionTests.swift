@@ -55,6 +55,7 @@ struct ProviderPaletteRegressionTests {
         .init(.t3chat, 0xF56647, 0xF56647, 0xF56647),
         .init(.venice, 0x3399FF, 0x3C8FDD, 0x3C8FDD),
         .init(.warp, 0x938BB4, 0x938BB4, 0x938BB4),
+        .init(.workbuddy, 0x0DC8A6, 0x0DC8A6, 0x0DC8A6),
     ]
 
     @Test(arguments: Self.palettes)

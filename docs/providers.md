@@ -81,7 +81,7 @@ complete when the available scan window covers fewer days.
 | Antigravity | Local LSP/HTTP probe (`local`). |
 | Cursor | Web API via cookies → legacy stored session → Cursor.app local auth (`web`). |
 | OpenCode | Web dashboard via cookies (`web`). |
-| OpenCode Go | Unscoped Auto: local SQLite cost history with API overlay (`local+api`) → usage API (`api`) → web dashboard (`web`). Scoped Auto (selected account/manual cookie/workspace): web → local → API. Explicit API/Web: selected source only. |
+| OpenCode Go | Unscoped Auto: local SQLite history with configured API, browser, then CLI quotas (`local+api`/`local+web`/`local+cli`). Without history: configured API key first; otherwise web → CLI. Scoped Auto (selected account/manual cookie/workspace): web → local → API. Explicit API/Web: selected source only. |
 | Alibaba Coding Plan | Console RPC via web cookies (auto/manual) with API key fallback (`web`, `api`). |
 | Alibaba Token Plan | Signed-in Bailian CLI (`cli`) → subscription summary API via browser or manual cookies (`web`). |
 | Qwen Cloud | Qwen Cloud 5-hour/weekly Token Plan APIs via browser or manual cookies (`web`). |
@@ -314,10 +314,11 @@ complete when the available scan window covers fewer days.
 
 ## OpenCode Go
 - Preferred usage source: `GET https://opencode.ai/zen/go/v1/usage` with an API key from Settings,
-  `providers[].apiKey`, or `OPENCODE_API_KEY`.
+  `providers[].apiKey`, `OPENCODE_API_KEY`, or an existing active OpenCode CLI login.
 - Web dashboard via browser or manual cookies (`opencode.ai`).
 - Unscoped Auto mode prefers local cost history from `~/.local/share/opencode/opencode.db` on macOS and Linux,
-  enriches it with API quota windows when configured, then falls back to standalone API and legacy web sources.
+  enriches it with quota windows from a configured key, browser session, then active CLI login. Without local history,
+  the configured key stays first; otherwise web precedes the CLI login.
 - Auto mode stays web-first for selected token accounts, manual cookies, and workspace overrides; explicit Web mode does
   not include local fallback.
 - Uses the public usage API for rolling 5-hour, weekly, and monthly usage windows, with the workspace Go page/server

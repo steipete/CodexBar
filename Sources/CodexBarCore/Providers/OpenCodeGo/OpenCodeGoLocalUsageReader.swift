@@ -74,37 +74,39 @@ public struct OpenCodeGoLocalUsageReader: Sendable {
         #if DEBUG
         Self.scanObserverForTesting?()
         #endif
-        do {
-            return try self.readRows(immutable: false)
-        } catch let failure as SQLiteReadFailure {
-            // A clean WAL shutdown can remove both sidecars while leaving the database header in WAL mode.
-            // Immutable mode reads that idle main file without recreating sidecars; active WALs stay on the normal
-            // path.
-            guard failure.code == SQLITE_CANTOPEN, self.walSidecarsAreMissing else {
-                throw OpenCodeGoLocalUsageError.sqliteFailed(failure.message)
-            }
+        return try self.withDatabase { try self.readRows(db: $0) }
+    }
 
+    private func withDatabase<T>(_ read: (OpaquePointer?) throws -> T) throws -> T {
+        let url = self.databaseURL.resolvingSymlinksInPath()
+        func open(immutable: Bool) throws -> T {
+            var db: OpaquePointer?
+            let filename = immutable ? "\(url.absoluteURL.absoluteString)?immutable=1" : url.path
+            let flags = immutable ? SQLITE_OPEN_READONLY | SQLITE_OPEN_URI : SQLITE_OPEN_READONLY
+            let result = sqlite3_open_v2(filename, &db, flags, nil)
+            defer { sqlite3_close(db) }
+            guard result == SQLITE_OK else { throw Self.sqliteFailure(db: db, resultCode: result) }
+            sqlite3_busy_timeout(db, 250)
+            return try read(db)
+        }
+        do {
+            return try open(immutable: false)
+        } catch let failure as SQLiteReadFailure {
+            // A clean WAL shutdown can remove both sidecars while leaving the header in WAL mode.
+            // Never bypass an active or unreadable WAL, including when the database is a symlink.
+            guard failure.code == SQLITE_CANTOPEN,
+                  (try? Self.fileExists(at: URL(fileURLWithPath: url.path + "-wal"))) == false,
+                  (try? Self.fileExists(at: URL(fileURLWithPath: url.path + "-shm"))) == false
+            else { throw OpenCodeGoLocalUsageError.sqliteFailed(failure.message) }
             do {
-                return try self.readRows(immutable: true)
+                return try open(immutable: true)
             } catch let fallbackFailure as SQLiteReadFailure {
                 throw OpenCodeGoLocalUsageError.sqliteFailed(fallbackFailure.message)
             }
         }
     }
 
-    private func readRows(immutable: Bool) throws -> [UsageRow] {
-        var db: OpaquePointer?
-        let filename = immutable ? "\(self.databaseURL.absoluteURL.absoluteString)?immutable=1" : self.databaseURL.path
-        let flags = immutable ? SQLITE_OPEN_READONLY | SQLITE_OPEN_URI : SQLITE_OPEN_READONLY
-        let openResult = sqlite3_open_v2(filename, &db, flags, nil)
-        guard openResult == SQLITE_OK else {
-            let failure = Self.sqliteFailure(db: db, resultCode: openResult)
-            sqlite3_close(db)
-            throw failure
-        }
-        defer { sqlite3_close(db) }
-        sqlite3_busy_timeout(db, 250)
-
+    private func readRows(db: OpaquePointer?) throws -> [UsageRow] {
         let hasMessages = try Self.hasTable(named: "message", db: db)
         let hasParts = try Self.hasTable(named: "part", db: db)
         let hasV2 = try Self.hasTable(named: "session_message", db: db)
@@ -147,11 +149,6 @@ public struct OpenCodeGoLocalUsageReader: Sendable {
         }
         guard step == SQLITE_DONE else { throw Self.sqliteFailure(db: db, resultCode: step) }
         return rows
-    }
-
-    private var walSidecarsAreMissing: Bool {
-        !FileManager.default.fileExists(atPath: self.databaseURL.path + "-wal") &&
-            !FileManager.default.fileExists(atPath: self.databaseURL.path + "-shm")
     }
 
     private static func sqliteFailure(db: OpaquePointer?, resultCode: Int32) -> SQLiteReadFailure {
@@ -488,5 +485,114 @@ public struct OpenCodeGoLocalUsageReader: Sendable {
 
         components.day = calendar.range(of: .day, in: .month, for: calendar.date(from: month) ?? Date())?.count
         return calendar.date(from: components) ?? Date()
+    }
+}
+
+extension OpenCodeGoLocalUsageReader {
+    static func loadCLICredential(
+        environment: [String: String],
+        homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser,
+        now: Date = Date()) throws -> String?
+    {
+        let dataHome = environment["XDG_DATA_HOME"].flatMap { path in
+            path.hasPrefix("/") ? URL(fileURLWithPath: path, isDirectory: true) : nil
+        } ?? homeDirectory.appendingPathComponent(".local/share", isDirectory: true)
+        // Provider-specific by design: Go uses the OpenCode CLI's existing credential store.
+        let directory = dataHome.appendingPathComponent("opencode", isDirectory: true)
+        let filename = environment["OPENCODE_DB"] ?? "opencode.db"
+        guard filename != ":memory:" else { return nil }
+        let database = filename.hasPrefix("/") ? URL(fileURLWithPath: filename)
+            : directory.appendingPathComponent(filename)
+        return try Self(authURL: directory.appendingPathComponent("auth.json"), databaseURL: database)
+            .loadCLICredential(now: now)
+    }
+
+    func loadCLICredential(now: Date = Date()) throws -> String? {
+        do {
+            guard try Self.fileExists(at: self.databaseURL) else { return try self.legacyCredential() }
+            return try self.withDatabase { db in
+                guard try Self.hasTable(named: "credential", db: db) else {
+                    return try self.legacyCredential()
+                }
+                return try Self.activeCredential(db: db, now: now)
+            }
+        } catch {
+            // Do not expose database contents, tokens, or decoding diagnostics in a user-facing error.
+            throw OpenCodeGoUsageError.invalidCredentials
+        }
+    }
+
+    private static func activeCredential(db: OpaquePointer?, now: Date) throws -> String? {
+        let sql = """
+        SELECT integration_id, value FROM credential
+        WHERE active = 1 AND integration_id IN ('opencode-go', 'opencode')
+        ORDER BY CASE integration_id WHEN 'opencode-go' THEN 0 ELSE 1 END
+        LIMIT 2
+        """
+        var statement: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK else {
+            throw Self.sqliteFailure(db: db, resultCode: sqlite3_errcode(db))
+        }
+        defer { sqlite3_finalize(statement) }
+        let first = sqlite3_step(statement)
+        if first == SQLITE_DONE { return nil }
+        guard first == SQLITE_ROW, let integration = sqlite3_column_text(statement, 0),
+              sqlite3_column_type(statement, 1) == SQLITE_TEXT,
+              let bytes = sqlite3_column_blob(statement, 1)
+        else { throw OpenCodeGoUsageError.invalidCredentials }
+        let selectedIntegration = String(cString: integration)
+        let data = Data(bytes: bytes, count: Int(sqlite3_column_bytes(statement, 1)))
+        // Two active rows for the chosen integration are ambiguous; never pick an arbitrary account.
+        let next = sqlite3_step(statement)
+        guard next == SQLITE_DONE || (next == SQLITE_ROW &&
+            sqlite3_column_text(statement, 0).map { String(cString: $0) } != selectedIntegration)
+        else { throw OpenCodeGoUsageError.invalidCredentials }
+        let credential = try JSONDecoder().decode(CLICredential.self, from: data)
+        // Provider-specific by design: only OAuth can reuse the generic OpenCode login for Go quotas.
+        if selectedIntegration == "opencode", credential.type != "oauth" { return nil }
+        switch credential.type {
+        case "key":
+            return try Self.credentialToken(credential.key)
+        case "oauth":
+            guard let expires = credential.expires, expires.isFinite, expires >= 0,
+                  expires.rounded(.towardZero) == expires, expires / 1000 > now.timeIntervalSince1970
+            else { throw OpenCodeGoUsageError.invalidCredentials }
+            return try Self.credentialToken(credential.access)
+        default:
+            throw OpenCodeGoUsageError.invalidCredentials
+        }
+    }
+
+    private func legacyCredential() throws -> String? {
+        guard try Self.fileExists(at: self.authURL) else { return nil }
+        let object = try JSONSerialization.jsonObject(with: Data(contentsOf: self.authURL))
+        guard let entries = object as? [String: Any] else { throw OpenCodeGoUsageError.invalidCredentials }
+        guard let entry = entries["opencode-go"] else { return nil }
+        guard let value = entry as? [String: Any] else { throw OpenCodeGoUsageError.invalidCredentials }
+        guard value["type"] as? String == "api" else { return nil }
+        return try Self.credentialToken(value["key"] as? String)
+    }
+
+    private static func credentialToken(_ value: String?) throws -> String {
+        guard let value, !value.isEmpty,
+              value.rangeOfCharacter(from: .whitespacesAndNewlines.union(.controlCharacters)) == nil
+        else { throw OpenCodeGoUsageError.invalidCredentials }
+        return value
+    }
+
+    private static func fileExists(at url: URL) throws -> Bool {
+        do {
+            _ = try FileManager.default.attributesOfItem(atPath: url.path)
+            return true
+        } catch let error as CocoaError where error.code == .fileNoSuchFile || error.code == .fileReadNoSuchFile {
+            return false
+        }
+    }
+
+    private struct CLICredential: Decodable {
+        let type: String
+        let key: String?
+        let access: String?
+        let expires: Double?
     }
 }

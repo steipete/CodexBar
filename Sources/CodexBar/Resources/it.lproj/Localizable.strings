@@ -742,6 +742,8 @@
 "acknowledgements_authors" = "Autori";
 "acknowledgements_license" = "Licenza";
 "check_updates_auto" = "Controlla automaticamente gli aggiornamenti";
+"install_updates_auto" = "Scarica e installa automaticamente gli aggiornamenti";
+"install_updates_auto_subtitle" = "Se disattivato, ti verrà chiesto prima di installare una nuova versione.";
 "update_channel" = "Canale aggiornamenti";
 "check_for_updates" = "Controlla aggiornamenti…";
 "updates_unavailable" = "Aggiornamenti non disponibili in questa build.";
@@ -2755,3 +2757,7 @@
 "abliteration.ai request failed. Try refreshing later." = "La richiesta a abliteration.ai non è riuscita. Riprova ad aggiornare più tardi.";
 "abliteration.ai returned an unrecognized response. Update CodexBar and try again." = "abliteration.ai ha restituito una risposta sconosciuta. Aggiorna CodexBar e riprova.";
 "Check your API key in Settings." = "Controlla la chiave API nelle Impostazioni.";
+
+"OpenCode local history" = "Cronologia locale di OpenCode";
+
+"Show this Mac's recorded OpenCode usage in Codex history. Off by default; scoped or alternate CODEX_HOME locations always stay excluded." = "Mostra nella cronologia di Codex l’uso di OpenCode registrato su questo Mac. Disattivato per impostazione predefinita; le posizioni CODEX_HOME con ambito limitato o alternative restano sempre escluse.";

@@ -742,6 +742,8 @@
 "acknowledgements_authors" = "Penulis";
 "acknowledgements_license" = "Lisensi";
 "check_updates_auto" = "Periksa pembaruan secara otomatis";
+"install_updates_auto" = "Unduh dan instal pembaruan secara otomatis";
+"install_updates_auto_subtitle" = "Jika nonaktif, Anda akan ditanya sebelum versi baru diinstal.";
 "update_channel" = "Saluran Pembaruan";
 "check_for_updates" = "Periksa Pembaruan…";
 "updates_unavailable" = "Pembaruan tidak tersedia di build ini.";
@@ -2753,3 +2755,7 @@
 "abliteration.ai request failed. Try refreshing later." = "Permintaan abliteration.ai gagal. Coba segarkan lagi nanti.";
 "abliteration.ai returned an unrecognized response. Update CodexBar and try again." = "abliteration.ai mengembalikan respons yang tidak dikenali. Perbarui CodexBar dan coba lagi.";
 "Check your API key in Settings." = "Periksa kunci API Anda di Pengaturan.";
+
+"OpenCode local history" = "Riwayat lokal OpenCode";
+
+"Show this Mac's recorded OpenCode usage in Codex history. Off by default; scoped or alternate CODEX_HOME locations always stay excluded." = "Menampilkan penggunaan OpenCode yang tercatat di Mac ini dalam riwayat Codex. Nonaktif secara bawaan; lokasi CODEX_HOME dengan cakupan terbatas atau lokasi alternatif selalu dikecualikan.";

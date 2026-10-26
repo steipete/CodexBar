@@ -720,6 +720,8 @@
 "acknowledgements_authors" = "작성자";
 "acknowledgements_license" = "라이선스";
 "check_updates_auto" = "자동으로 업데이트 확인";
+"install_updates_auto" = "업데이트 자동 다운로드 및 설치";
+"install_updates_auto_subtitle" = "끄면 새 버전을 설치하기 전에 확인합니다.";
 "update_channel" = "업데이트 채널";
 "check_for_updates" = "업데이트 확인…";
 "updates_unavailable" = "이 빌드에서는 업데이트를 사용할 수 없습니다.";
@@ -2719,3 +2721,7 @@
 "abliteration.ai request failed. Try refreshing later." = "abliteration.ai 요청에 실패했습니다. 나중에 다시 새로 고침하세요.";
 "abliteration.ai returned an unrecognized response. Update CodexBar and try again." = "abliteration.ai가 알 수 없는 응답을 반환했습니다. CodexBar를 업데이트하고 다시 시도하세요.";
 "Check your API key in Settings." = "설정에서 API 키를 확인하세요.";
+
+"OpenCode local history" = "OpenCode 로컬 기록";
+
+"Show this Mac's recorded OpenCode usage in Codex history. Off by default; scoped or alternate CODEX_HOME locations always stay excluded." = "이 Mac에 기록된 OpenCode 사용량을 Codex 기록에 표시합니다. 기본적으로 꺼져 있으며, 범위가 제한된 CODEX_HOME 위치나 대체 위치는 항상 제외됩니다.";

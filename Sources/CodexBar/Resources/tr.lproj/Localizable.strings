@@ -740,6 +740,8 @@
 "acknowledgements_authors" = "Yazarlar";
 "acknowledgements_license" = "Lisans";
 "check_updates_auto" = "Güncellemeleri otomatik denetle";
+"install_updates_auto" = "Güncellemeleri otomatik indir ve yükle";
+"install_updates_auto_subtitle" = "Kapalıyken, yeni bir sürüm yüklenmeden önce size sorulur.";
 "update_channel" = "Güncelleme kanalı";
 "check_for_updates" = "Güncellemeleri denetle…";
 "updates_unavailable" = "Bu derlemede güncellemeler kullanılamıyor.";
@@ -2754,3 +2756,7 @@
 "abliteration.ai request failed. Try refreshing later." = "abliteration.ai isteği başarısız oldu. Daha sonra yeniden yenileyin.";
 "abliteration.ai returned an unrecognized response. Update CodexBar and try again." = "abliteration.ai tanınmayan bir yanıt döndürdü. CodexBar’ı güncelleyip tekrar deneyin.";
 "Check your API key in Settings." = "Ayarlar’dan API anahtarınızı kontrol edin.";
+
+"OpenCode local history" = "Yerel OpenCode geçmişi";
+
+"Show this Mac's recorded OpenCode usage in Codex history. Off by default; scoped or alternate CODEX_HOME locations always stay excluded." = "Bu Mac’te kaydedilen OpenCode kullanımını Codex geçmişinde gösterir. Varsayılan olarak kapalıdır; kapsamı sınırlandırılmış veya alternatif CODEX_HOME konumları her zaman hariç tutulur.";

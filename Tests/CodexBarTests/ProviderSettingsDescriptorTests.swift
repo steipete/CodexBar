@@ -563,19 +563,11 @@ struct ProviderSettingsDescriptorTests {
         #expect(fixture.settings.antigravityPrioritizeExhaustedQuotas)
         #expect(fixture.settings.providerConfig(for: .antigravity)?.antigravityPrioritizeExhaustedQuotas == true)
 
-        let reopened = try SettingsStore(
-            userDefaults: #require(UserDefaults(suiteName: suite)),
-            configStore: testConfigStore(suiteName: suite, reset: false),
-            zaiTokenStore: NoopZaiTokenStore(),
-            syntheticTokenStore: NoopSyntheticTokenStore())
+        let reopened = try self.makeSettingsFixture(suite: suite, resetConfig: false).settings
         #expect(reopened.antigravityPrioritizeExhaustedQuotas)
 
         reopened.antigravityPrioritizeExhaustedQuotas = false
-        let reopenedAfterDisabling = try SettingsStore(
-            userDefaults: #require(UserDefaults(suiteName: suite)),
-            configStore: testConfigStore(suiteName: suite, reset: false),
-            zaiTokenStore: NoopZaiTokenStore(),
-            syntheticTokenStore: NoopSyntheticTokenStore())
+        let reopenedAfterDisabling = try self.makeSettingsFixture(suite: suite, resetConfig: false).settings
         #expect(reopenedAfterDisabling.antigravityPrioritizeExhaustedQuotas == false)
     }
 
@@ -1631,14 +1623,27 @@ extension ProviderSettingsDescriptorTests {
 
     func makeSettingsFixture(
         suite: String,
+        resetConfig: Bool = true,
         environmentBase: [String: String] = [:]) throws -> ProviderSettingsFixture
     {
         let defaults = InMemoryUserDefaults()
         let settings = SettingsStore(
             userDefaults: defaults,
-            configStore: testConfigStore(suiteName: suite),
+            configStore: testConfigStore(suiteName: suite, reset: resetConfig),
             zaiTokenStore: NoopZaiTokenStore(),
             syntheticTokenStore: NoopSyntheticTokenStore(),
+            codexCookieStore: InMemoryCookieHeaderStore(),
+            claudeCookieStore: InMemoryCookieHeaderStore(),
+            cursorCookieStore: InMemoryCookieHeaderStore(),
+            opencodeCookieStore: InMemoryCookieHeaderStore(),
+            factoryCookieStore: InMemoryCookieHeaderStore(),
+            minimaxCookieStore: InMemoryMiniMaxCookieStore(),
+            minimaxAPITokenStore: InMemoryMiniMaxAPITokenStore(),
+            kimiTokenStore: InMemoryKimiTokenStore(),
+            augmentCookieStore: InMemoryCookieHeaderStore(),
+            ampCookieStore: InMemoryCookieHeaderStore(),
+            copilotTokenStore: InMemoryCopilotTokenStore(),
+            tokenAccountStore: InMemoryTokenAccountStore(),
             keychainAccessPolicy: .init(setDisabled: { _ in }, isExplicitlyDisabled: { false }))
         let store = UsageStore(
             fetcher: UsageFetcher(environment: [:]),

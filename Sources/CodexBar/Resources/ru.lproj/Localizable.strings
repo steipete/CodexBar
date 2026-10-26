@@ -735,6 +735,8 @@
 "acknowledgements_authors" = "Авторы";
 "acknowledgements_license" = "Лицензия";
 "check_updates_auto" = "Автоматическая проверка обновлений";
+"install_updates_auto" = "Автоматически загружать и устанавливать обновления";
+"install_updates_auto_subtitle" = "Если выключено, перед установкой новой версии будет запрошено подтверждение.";
 "update_channel" = "Канал обновлений";
 "check_for_updates" = "Проверить наличие обновлений…";
 "updates_unavailable" = "Обновления недоступны в этой сборке.";
@@ -2752,3 +2754,7 @@
 "abliteration.ai request failed. Try refreshing later." = "Запрос к abliteration.ai не выполнен. Попробуйте обновить позже.";
 "abliteration.ai returned an unrecognized response. Update CodexBar and try again." = "abliteration.ai вернул неизвестный ответ. Обновите CodexBar и повторите попытку.";
 "Check your API key in Settings." = "Проверьте ключ API в настройках.";
+
+"OpenCode local history" = "Локальная история OpenCode";
+
+"Show this Mac's recorded OpenCode usage in Codex history. Off by default; scoped or alternate CODEX_HOME locations always stay excluded." = "Показывает использование OpenCode, записанное на этом Mac, в истории Codex. По умолчанию выключено; каталоги CODEX_HOME с ограниченной областью действия и альтернативные каталоги всегда исключены.";

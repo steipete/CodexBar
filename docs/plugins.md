@@ -21,9 +21,24 @@ reconfiguring a plugin prevents an older refresh from publishing usage or errors
 work to finish and reads the current configuration when its fetch starts. Display-only preferences do not invalidate usage.
 
 When icons are merged and the source is **Current selection**, selecting a user plugin also selects its menu-bar
-quota. It uses the same quota as the switcher gauge: the most-used seven-day window, or the first available window.
+quota. Its Icon & percent number uses the same quota as the switcher gauge (see below).
 Before usage arrives, the plugin remains selected with unavailable usage. Other merged-icon sources retain their
 built-in provider behavior.
+
+## Menu-bar percentage
+
+In **Settings → Plugins**, each installed plugin has a **Menu bar metric** picker. **Auto** keeps the existing default:
+the most-used reported seven-day window, otherwise the first available primary, secondary, tertiary, or extra window.
+Choose **Primary**, **Secondary**, **Tertiary**, or a named extra window to use that quota for both the Icon & percent
+number and the provider-switcher gauge. Reported window titles replace the generic labels; named extras appear after
+the plugin reports them. For example, choosing a monthly window at 76.9% used displays **77%** even just after a weekly
+reset. Both surfaces honor the existing used/remaining display preference.
+
+The choice is saved per plugin using the existing menu-bar layout preferences and applies without another fetch.
+If the selected window is missing or has unknown usage, the display falls back to Auto and resumes the selected
+window when it returns. A selected extra remains in the picker while absent, using its ID until its title returns.
+The choice does not alter the two-lane meter icon, snapshot JSON, window order, durations, reset metadata, or hook
+payloads. Keep truthful `windowMinutes` values: display selection never requires removing cadence metadata.
 
 ## Bundled provider registration
 
@@ -146,11 +161,12 @@ defineProvider({
   positive `width`/`height` (numbers or `px`); partial dimensions and other canvas units fall back to the monogram.
   File icons are not supported.
 - `topLevel` (optional, default `true`): gives an enabled plugin its own provider-switcher tab when Merge Icons is on. Set to `false` to keep an appended card.
-  Plugin tabs show a quota gauge from the most constrained reported seven-day window, otherwise the first available
-  primary, secondary, tertiary, or extra window. They follow the used/remaining display preference; unknown usage
-  stays unavailable. Merged meter icons use the primary window for the thick lane and the secondary window for the
+  Plugin tabs show a quota gauge using the [menu-bar percentage preference](#menu-bar-percentage). With Auto, they
+  use the most constrained reported seven-day window, otherwise the first available primary, secondary, tertiary,
+  or extra window. They follow the used/remaining display preference; unknown usage stays unavailable.
+  Merged meter icons use the primary window for the thick lane and the secondary window for the
   thin lane, following the used/remaining preference. When both are absent, the existing tertiary/extra-window
-  single-meter fallback remains. The switcher gauge and Icon & percent value retain their weekly-first selection.
+  single-meter fallback remains.
   Enabled plugins can also be selected in **Settings → Menu Bar → Overview**; they share the
   six-provider limit and render their existing usage card. Overview selections retain the same string-array format,
   so older builds can still read the built-in providers while ignoring unknown plugin IDs.
@@ -401,6 +417,11 @@ Named extra windows accept an optional `usageKnown` boolean (default `true`). Se
 the window remains visible as **Unavailable**, and its placeholder `usedPercent` is not presented as measured usage.
 Detail rows accept optional `progress` (a finite consumed fraction from 0 through 1) and `usageValue` (finite raw usage).
 The host maps the fraction to native progress with `used: progress, total: 1`; `usageValue` is preserved independently.
+An optional `pace` (a finite expected consumed fraction from 0 through 1) marks even consumption, for example elapsed
+time divided by the window length. The bar uses the native pace tip: green while `progress` is at or below `pace`,
+red once it runs ahead. Row `severity` controls the fill independently and does not change this comparison.
+Omit `pace` to hide the tip. The app's existing **Show pace** preference also hides detail pace markers.
+`pace` is ignored on rows without `progress`; invalid values fail the fetch.
 An optional row `severity: "normal" | "warning" | "critical"` uses the system green, orange, or red accent;
 warning and critical rows also show a labeled warning symbol. The plugin computes its own thresholds independently
 of `progress`. Omit `severity` (or pass null) to keep the existing provider tint. Invalid values fail the fetch.
