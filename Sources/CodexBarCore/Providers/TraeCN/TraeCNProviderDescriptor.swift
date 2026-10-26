@@ -5,7 +5,7 @@ public enum TraeCNProviderDescriptor {
     public static let spec = PluginProviderSpec(
         id: .traecn,
         displayName: "Trae CN",
-        sessionLabel: "Credits",
+        sessionLabel: "Usage",
         weeklyLabel: "Window",
         toggleTitle: "Show Trae CN usage",
         dashboardURL: "https://www.trae.cn/dashboard#usage",

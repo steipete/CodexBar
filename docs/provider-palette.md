@@ -69,3 +69,4 @@ shows a subset of providers; regenerate its PNG and receipt together using [soci
 | t3chat | `#F56647` | `#A3004C` | `#F56647` | [Source](https://t3.chat/) | Unverified; retain. Not established |
 | venice | `#3399FF` | `#3C8FDD` | `#3C8FDD` | [Source](https://cdn.venice.ai/_next/static/immutable/chunks/1z9-rwfn_gg4b.css) | Adopt; light 2.94 → 3.41:1; dark 4.67:1. |
 | warp | `#938BB4` | `#01A4FF` | `#938BB4` | [Source](https://www.warp.dev/press) | Unverified; retain. #C7AEFF and #1C1A26 in official logo |
+| workbuddy | `#0DC8A6` | `#0EC8A9` | `#0DC8A6` | [Official logo](https://assets.workbuddy.cn/web/workbuddy/a5b2fb510f0e7b156f19d072fae0cd12ae1f2f19/assets/logo.svg) | Retain existing accent; this update changes only the monochrome mark. |

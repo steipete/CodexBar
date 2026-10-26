@@ -1,9 +1,9 @@
 import Foundation
+import Testing
+@testable import CodexBarCore
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
-import Testing
-@testable import CodexBarCore
 #if os(macOS)
 @testable import SweetCookieKit
 #endif
@@ -99,6 +99,7 @@ struct TraeCNPluginTests {
         #expect(usage.subscriptionExpiresAt == nil)
         #expect(usage.identity?.providerID == .traecn)
         #expect(usage.identity?.loginMethod == "Fixture Pro")
+        #expect(usage.details.first?.title == "Credits")
         #expect(usage.details.first?.rows.map(\.value) == ["2,000", "10,000", "8,000"])
     }
 

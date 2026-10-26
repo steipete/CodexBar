@@ -28,6 +28,9 @@ The primary gauge uses `usage_summary.consumed_amount / total_amount` across all
 Used, total, and remaining counts stay visible when the allowance is zero. Missing or invalid numbers
 and non-credit billing fail closed instead of becoming zero usage.
 
+The meter is labeled **Usage**, and its Used / Total / Remaining block is labeled **Credits**.
+These names distinguish the two **Visible usage items** controls without changing existing hidden choices.
+
 Credit packs can expire independently. Pack expiry and billing-attempt timestamps do not establish a
 single allowance reset or subscription renewal, so no countdown or monthly pacing window is inferred.
 The active membership pack supplies the plan label.

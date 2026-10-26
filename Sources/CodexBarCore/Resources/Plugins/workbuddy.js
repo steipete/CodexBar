@@ -91,7 +91,7 @@ defineProvider({
       return object(root.data, "data");
     };
 
-    // Cycle timestamps carry no zone. The billing cycle follows China Standard Time calendar months.
+    // Cycle timestamps carry no zone; WorkBuddy uses China Standard Time.
     const cycleEnd = (value) => {
       const raw = text(value);
       if (!raw) return undefined;
@@ -157,11 +157,11 @@ defineProvider({
             if (end && end.getTime() > now && (!earliest || end.getTime() < earliest.getTime())) earliest = end;
           }
         } catch (error) {
-          const failure = error;
-          if (failure.transportClass === "cancelled") throw error;
+          if (error.transportClass === "cancelled") throw error;
         }
+        // Paid cycles refill the allowance; free grants may expire earlier.
+        if (earliest) return earliest;
       }
-      return earliest;
     };
 
     let rejected = false;
