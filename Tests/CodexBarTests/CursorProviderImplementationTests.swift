@@ -36,8 +36,7 @@ struct CursorProviderImplementationTests {
         showOptionalUsage: Bool) throws -> [String]
     {
         let suite = "CursorProviderImplementationTests-\(UUID().uuidString)"
-        let defaults = try #require(UserDefaults(suiteName: suite))
-        defaults.removePersistentDomain(forName: suite)
+        let defaults = InMemoryUserDefaults()
         let settings = SettingsStore(
             userDefaults: defaults,
             configStore: testConfigStore(suiteName: suite),

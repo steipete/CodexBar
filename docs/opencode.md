@@ -12,7 +12,7 @@ read_when:
   functions) and `__Host-console_session` (the console). Both are forwarded, and either one alone is
   enough for an import to succeed, because a migrated workspace may carry only the console cookie.
 - OpenCode Go usage API at `GET https://opencode.ai/zen/go/v1/usage`, authenticated by `OPENCODE_API_KEY` or
-  `providers[].apiKey`, or a selected token account's API key.
+  `providers[].apiKey`, a selected token account's API key, or the active OpenCode CLI login.
 - OpenCode Go local history from `~/.local/share/opencode/opencode.db` on macOS and Linux.
 - OpenCode Console JSON, used first for OpenCode Go web reads:
   - `GET https://opencode.ai/console/api/orgs` lists workspaces (cookie auth only).
@@ -99,15 +99,19 @@ usage is a separate [OpenAI provider](openai.md), not Codex subscription quota.
 - Cached cookies: Keychain cache `com.steipete.codexbar.cache` (account `cookie.opencode`, source + timestamp). Browser
   import only runs when the cached cookie fails.
 - OpenCode Go unscoped Auto mode tries daily cost history derived from local `opencode-go` request costs first,
-  overlays authoritative API windows when an API key is configured, then falls back through the API and legacy web
-  sources when local history is unavailable. Auto stays web-first when a Cookie token account, manual cookie, or workspace
-  override scopes the request, because local history is device-wide.
+  overlays authoritative windows using a configured API key, a usable browser session, then the active CLI login.
+  Without local history, Auto keeps the configured API key first; otherwise it tries web before the CLI login.
+  Auto stays web-first when a Cookie token account, manual cookie, or workspace override scopes the request,
+  because local history is device-wide.
 - The app honors an explicit API or Web source even when a manual Cookie is configured. Its source label shows the configured source before a successful fetch, then the source that actually supplied the result.
 - The local monthly window is an estimate anchored at the earliest local row and can drift from the real billing
-  cycle. The local strategy prefers API-reported rolling/weekly/monthly percentages and reset timestamps. When no API
-  key is configured, a cached, manual, or automatically discovered session can overlay Console quotas (plus Zen
-  balance). Discovery uses the provider's default browser order and shared access gate; background Chromium reads
-  require existing prompt-free Safe Storage access. Cookie source Off disables discovery. Both overlay paths keep
+  cycle. The local strategy prefers API-reported rolling/weekly/monthly percentages and reset timestamps. Without an
+  explicit credential or account scope, it can reuse the CLI's active Go credential or OpenCode OAuth login. V2 stores
+  these in SQLite; a modern credential table takes precedence over stale legacy `auth.json`. CLI credentials stay
+  read-only, and expired OAuth logins must be renewed through OpenCode. Cached, manual, or automatically discovered
+  sessions overlay Console quotas (plus Zen balance) before an implicit CLI login is tried. CLI quotas never attach a
+  browser account's balance. Discovery uses the provider's default browser order and shared access gate; background
+  Chromium reads require existing prompt-free Safe Storage access. Cookie source Off disables discovery. All overlays keep
   local daily cost history. When no authoritative overlay is available, the menu and text CLI label the quota as
   estimated, and JSON includes `dataConfidence: "estimated"`.
   Estimated quota keeps its percentages and reset dates but does not show pace, reserve, or run-out advice in the

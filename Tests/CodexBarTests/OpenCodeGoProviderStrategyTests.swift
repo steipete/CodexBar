@@ -46,6 +46,14 @@ struct OpenCodeGoProviderStrategyTests {
         let descriptor = OpenCodeGoProviderDescriptor.makeDescriptor()
         let strategies = await descriptor.fetchPlan.pipeline.resolveStrategies(self.makeContext())
 
+        #expect(strategies.map(\.id) == ["opencodego.local", "opencodego.web", "opencodego.api"])
+    }
+
+    @Test
+    func `configured API key keeps precedence when local history is unavailable`() async {
+        let strategies = await OpenCodeGoProviderDescriptor.makeDescriptor().fetchPlan.pipeline
+            .resolveStrategies(self.makeContext(env: ["OPENCODE_API_KEY": "synthetic-key"]))
+
         #expect(strategies.map(\.id) == ["opencodego.local", "opencodego.api", "opencodego.web"])
     }
 
@@ -105,8 +113,24 @@ struct OpenCodeGoProviderStrategyTests {
         let environmentStrategies = await descriptor.fetchPlan.pipeline.resolveStrategies(
             self.makeContext(env: ["CODEXBAR_OPENCODEGO_WORKSPACE_ID": " \t "]))
 
-        #expect(settingsStrategies.map(\.id) == ["opencodego.local", "opencodego.api", "opencodego.web"])
-        #expect(environmentStrategies.map(\.id) == ["opencodego.local", "opencodego.api", "opencodego.web"])
+        #expect(settingsStrategies.map(\.id) == ["opencodego.local", "opencodego.web", "opencodego.api"])
+        #expect(environmentStrategies.map(\.id) == ["opencodego.local", "opencodego.web", "opencodego.api"])
+    }
+
+    @Test
+    func `blank workspace settings preserve an explicit environment workspace`() async {
+        let settings = ProviderSettingsSnapshot.make(opencodego: .init(
+            cookieSource: .auto,
+            manualCookieHeader: nil,
+            workspaceID: " \n "))
+        let context = self.makeContext(
+            env: ["CODEXBAR_OPENCODEGO_WORKSPACE_ID": "  wrk_selected  "],
+            settings: settings)
+        let strategies = await OpenCodeGoProviderDescriptor.makeDescriptor().fetchPlan.pipeline
+            .resolveStrategies(context)
+
+        #expect(OpenCodeGoSettingsReader.workspaceID(context: context) == "wrk_selected")
+        #expect(strategies.map(\.id) == ["opencodego.web", "opencodego.local", "opencodego.api"])
     }
 
     @Test
@@ -127,7 +151,7 @@ struct OpenCodeGoProviderStrategyTests {
 
     @Test
     func `local strategy falls through to web when local history is unavailable`() {
-        let strategy = OpenCodeGoLocalUsageFetchStrategy()
+        let strategy = OpenCodeGoLocalUsageFetchStrategy(cliCredentialLoader: { _ in nil })
         let context = self.makeContext()
 
         #expect(strategy.shouldFallback(on: OpenCodeGoLocalUsageError.notDetected, context: context))
@@ -169,6 +193,89 @@ struct OpenCodeGoProviderStrategyTests {
         #expect(!strategy.shouldFallback(
             on: OpenCodeGoUsageError.invalidCredentials,
             context: selectedAccountContext))
+    }
+
+    @Test
+    func `API source reuses the CLI login without local history`() async throws {
+        let strategy = OpenCodeGoAPIUsageFetchStrategy(
+            cliCredentialLoader: { _ in "cli-access" },
+            usageFetcher: { _, token in
+                #expect(token == "cli-access")
+                return try OpenCodeGoUsageFetcher.parseAPIUsage(
+                    text: #"{"usage":{"rolling":{"percent":100},"weekly":{"percent":80},"monthly":{"percent":90}}}"#,
+                    now: Date(timeIntervalSince1970: 1_800_000_000))
+            })
+
+        let result = try await strategy.fetch(self.makeContext(sourceMode: .api))
+
+        #expect(result.sourceLabel == "cli")
+        #expect(result.usage.primary?.usedPercent == 100)
+        #expect(result.usage.secondary?.usedPercent == 80)
+        #expect(result.usage.tertiary?.usedPercent == 90)
+        #expect(result.usage.dataConfidence != .estimated)
+    }
+
+    @Test(arguments: [false, true])
+    func `explicit API keys never borrow the CLI account`(rejected: Bool) async throws {
+        let strategy = OpenCodeGoAPIUsageFetchStrategy(
+            cliCredentialLoader: { _ in
+                Issue.record("An explicit API key must not read ambient CLI credentials")
+                return "another-account"
+            },
+            usageFetcher: { _, token in
+                #expect(token == "selected-key")
+                if rejected { throw OpenCodeGoUsageError.invalidCredentials }
+                return try OpenCodeGoUsageFetcher.parseAPIUsage(
+                    text: #"{"usage":{"rolling":{"percent":25}}}"#,
+                    now: Date(timeIntervalSince1970: 1_800_000_000))
+            })
+        let context = self.makeContext(sourceMode: .api, env: ["OPENCODE_API_KEY": "selected-key"])
+
+        if rejected {
+            await #expect(throws: OpenCodeGoUsageError.self) { try await strategy.fetch(context) }
+        } else {
+            let result = try await strategy.fetch(context)
+            #expect(result.sourceLabel == "api")
+            #expect(result.usage.primary?.usedPercent == 25)
+        }
+    }
+
+    @Test(arguments: ["account", "manual-cookie", "workspace", "environment-workspace", "web"])
+    func `explicit scopes never borrow the ambient CLI login`(scope: String) async {
+        let settings = ProviderSettingsSnapshot.make(opencodego: .init(
+            cookieSource: scope == "manual-cookie" ? .manual : .auto,
+            manualCookieHeader: scope == "manual-cookie" ? "auth=selected" : nil,
+            workspaceID: scope == "workspace" ? "wrk_selected" : nil))
+        let strategy = OpenCodeGoAPIUsageFetchStrategy(
+            cliCredentialLoader: { _ in
+                Issue.record("A scoped request must not read another CLI account")
+                return "another-account"
+            },
+            usageFetcher: { _, _ in
+                Issue.record("A scoped request without an API key must not send another account's token")
+                throw OpenCodeGoUsageError.invalidCredentials
+            })
+        let context = self.makeContext(
+            sourceMode: scope == "web" ? .web : .api,
+            env: scope == "environment-workspace" ? ["CODEXBAR_OPENCODEGO_WORKSPACE_ID": "wrk_selected"] : [:],
+            settings: settings,
+            selectedTokenAccountID: scope == "account" ? UUID() : nil)
+
+        await #expect(throws: OpenCodeGoSettingsError.self) { try await strategy.fetch(context) }
+    }
+
+    @Test
+    func `API source surfaces an expired CLI login`() async {
+        let strategy = OpenCodeGoAPIUsageFetchStrategy(
+            cliCredentialLoader: { _ in throw OpenCodeGoUsageError.invalidCredentials },
+            usageFetcher: { _, _ in
+                Issue.record("An expired login must not reach the usage endpoint")
+                throw OpenCodeGoUsageError.invalidCredentials
+            })
+
+        await #expect(throws: OpenCodeGoUsageError.self) {
+            try await strategy.fetch(self.makeContext(sourceMode: .api))
+        }
     }
 
     @Test

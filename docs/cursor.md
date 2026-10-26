@@ -15,6 +15,8 @@ Cursor.app session and falls back to cookies when the app token is missing, expi
 automatic mode uses cached or stored cookies when available, then falls back to the signed-in Cursor app token, then to
 `cursor-agent`'s, because browser import is unavailable.
 
+Settings omits the Version row because this provider reads web APIs and does not detect a local app or CLI version.
+
 ## Data sources + fallback order
 
 Manual cookie configuration is always the explicit override. The automatic order is Cursor.app → cached cookie → browser

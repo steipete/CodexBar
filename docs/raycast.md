@@ -33,6 +33,8 @@ Automatic mode tries the next session when a candidate lacks `__raycast_session`
 
 The plugin uses `ctx.browser.sessions("www.raycast.com")`, keeping only `__raycast_session` and optional `csrf_token`. The host owns browser import and the domain-scoped cache; the plugin owns candidate rejection and the GET, including site `Origin` / `Referer` headers. A positive total maps to one primary meter with the remaining balance in `resetDescription`.
 
+Settings omits the Version row because this provider reads the website API and does not detect the desktop app version.
+
 ## Data shown
 
 | Field | Display |

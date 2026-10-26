@@ -7,14 +7,15 @@ struct CursorProviderImplementation: ProviderImplementation {
 
     @MainActor
     func presentation(context _: ProviderPresentationContext) -> ProviderPresentation {
-        ProviderPresentation { _ in "web" }
+        // Cursor's source is always its web dashboard (versionDetector: nil), so a Version row could
+        // only ever read "not detected" and suggest a detection that never ran (#4769).
+        ProviderPresentation(showsVersionInSettings: false) { _ in "web" }
     }
 
     @MainActor
     func tokenAccountsVisibility(context: ProviderSettingsContext, support: TokenAccountSupport) -> Bool {
-        guard support.requiresManualCookieSource else { return true }
-        if !context.settings.tokenAccounts(for: context.provider).isEmpty { return true }
-        return context.settings.cursorCookieSource == .manual
+        !support.requiresManualCookieSource || !context.settings.tokenAccounts(for: context.provider).isEmpty
+            || context.settings.cursorCookieSource == .manual
     }
 
     @MainActor
