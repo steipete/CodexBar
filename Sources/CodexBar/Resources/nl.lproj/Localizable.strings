@@ -2362,6 +2362,7 @@
 "Core Monthly" = "Kern maandelijks";
 "Bobcoin usage" = "Bobcoin-gebruik";
 "Code 7-day" = "Codeer 7-daags Quotum";
+"Other features" = "Andere functies";
 "Quota services" = "Quotum-diensten";
 "Billing history" = "Factureringsgeschiedenis";
 "Renews" = "Vernieuwt";
@@ -2616,7 +2617,6 @@
 "Also restores the provider order in the menu bar. Can be undone." = "Herstelt ook de volgorde van aanbieders in de menubalk. Kan ongedaan worden gemaakt.";
 "Local Codex details; excluded from combined totals." = "Lokale Codex-details; niet opgenomen in de gecombineerde totalen.";
 
-"Auto uses the active saved session, otherwise an API key or browser cookies." = "Automatisch gebruikt de actieve opgeslagen sessie, anders een API-sleutel of browsercookies.";
 "Stored in the CodexBar config file. You can also set COMMAND_CODE_API_KEY." = "Stored in the CodexBar config file. You can also set COMMAND_CODE_API_KEY.";
 /* OpenAI organization rate limits and live usage */
 "%@ tokens · %@ requests" = "%@ tokens · %@ verzoeken";
@@ -2795,8 +2795,10 @@
 "abliteration.ai request failed. Try refreshing later." = "Het abliteration.ai-verzoek is mislukt. Probeer later opnieuw te vernieuwen.";
 "abliteration.ai returned an unrecognized response. Update CodexBar and try again." = "abliteration.ai heeft een onbekend antwoord teruggegeven. Werk CodexBar bij en probeer het opnieuw.";
 "Check your API key in Settings." = "Controleer je API-sleutel in Instellingen.";
-"Store multiple Command Code subscription sessions." = "Bewaar meerdere Command Code-abonnementssessies.";
+"Kimi Code" = "Kimi Code";
 
 "OpenCode local history" = "Lokale OpenCode-geschiedenis";
 
 "Show this Mac's recorded OpenCode usage in Codex history. Off by default; scoped or alternate CODEX_HOME locations always stay excluded." = "Toont het op deze Mac vastgelegde OpenCode-gebruik in de Codex-geschiedenis. Standaard uitgeschakeld; CODEX_HOME-locaties met een beperkt bereik en alternatieve locaties blijven altijd uitgesloten.";
+"Auto uses the active saved session, otherwise an API key or browser cookies." = "Automatisch gebruikt de actieve opgeslagen sessie, anders een API-sleutel of browsercookies.";
+"Store multiple Command Code subscription sessions." = "Bewaar meerdere Command Code-abonnementssessies.";

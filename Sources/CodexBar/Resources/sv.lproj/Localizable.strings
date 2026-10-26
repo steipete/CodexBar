@@ -2362,6 +2362,7 @@
 "Core Monthly" = "Core Monthly";
 "Bobcoin usage" = "Bobcoin användning";
 "Code 7-day" = "Kod 7-dagars Kvot";
+"Other features" = "Övriga funktioner";
 "Quota services" = "Kvot tjänster";
 "Billing history" = "Faktureringshistorik";
 "Renews" = "Förnyar";
@@ -2616,7 +2617,6 @@
 "Also restores the provider order in the menu bar. Can be undone." = "Återställer även leverantörsordningen i menyraden. Kan ångras.";
 "Local Codex details; excluded from combined totals." = "Lokala Codex-detaljer; ingår inte i de sammanlagda totalerna.";
 
-"Auto uses the active saved session, otherwise an API key or browser cookies." = "Automatiskt använder den aktiva sparade sessionen, annars en API-nyckel eller webbläsarcookies.";
 "Stored in the CodexBar config file. You can also set COMMAND_CODE_API_KEY." = "Stored in the CodexBar config file. You can also set COMMAND_CODE_API_KEY.";
 /* OpenAI organization rate limits and live usage */
 "%@ tokens · %@ requests" = "%@ token · %@ förfrågningar";
@@ -2797,8 +2797,10 @@
 "abliteration.ai request failed. Try refreshing later." = "abliteration.ai-förfrågan misslyckades. Försök uppdatera senare.";
 "abliteration.ai returned an unrecognized response. Update CodexBar and try again." = "abliteration.ai returnerade ett okänt svar. Uppdatera CodexBar och försök igen.";
 "Check your API key in Settings." = "Kontrollera din API-nyckel i Inställningar.";
-"Store multiple Command Code subscription sessions." = "Spara flera prenumerationssessioner för Command Code.";
+"Kimi Code" = "Kimi Code";
 
 "OpenCode local history" = "Lokal OpenCode-historik";
 
 "Show this Mac's recorded OpenCode usage in Codex history. Off by default; scoped or alternate CODEX_HOME locations always stay excluded." = "Visar OpenCode-användningen som registrerats på den här Mac-datorn i Codex-historiken. Avstängt som standard; CODEX_HOME-platser med begränsad omfattning eller alternativa platser förblir alltid undantagna.";
+"Auto uses the active saved session, otherwise an API key or browser cookies." = "Automatiskt använder den aktiva sparade sessionen, annars en API-nyckel eller webbläsarcookies.";
+"Store multiple Command Code subscription sessions." = "Spara flera prenumerationssessioner för Command Code.";

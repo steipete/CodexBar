@@ -2367,6 +2367,7 @@
 "Core Monthly" = "ماهنامه هسته";
 "Bobcoin usage" = "استفاده از باب کوین";
 "Code 7-day" = "کد 7 روزه سهمیه";
+"Other features" = "سایر قابلیت‌ها";
 "Quota services" = "خدمات سهمیه";
 "Billing history" = "سابقه صورتحساب";
 "Renews" = "تجدید می کند";
@@ -2621,7 +2622,6 @@
 "Also restores the provider order in the menu bar. Can be undone." = "ترتیب ارائه‌دهندگان در نوار منو را نیز بازیابی می‌کند. قابل واگرد است.";
 "Local Codex details; excluded from combined totals." = "جزئیات محلی Codex؛ از مجموع‌های ترکیبی مستثنا شده‌اند.";
 
-"Auto uses the active saved session, otherwise an API key or browser cookies." = "حالت خودکار از نشست ذخیره‌شدهٔ فعال استفاده می‌کند؛ در غیر این صورت از کلید API یا کوکی‌های مرورگر استفاده می‌کند.";
 "Stored in the CodexBar config file. You can also set COMMAND_CODE_API_KEY." = "Stored in the CodexBar config file. You can also set COMMAND_CODE_API_KEY.";
 /* OpenAI organization rate limits and live usage */
 "%@ tokens · %@ requests" = "%@ توکن · %@ درخواست";
@@ -2802,8 +2802,10 @@
 "abliteration.ai request failed. Try refreshing later." = "درخواست abliteration.ai ناموفق بود. بعداً دوباره تازه‌سازی کنید.";
 "abliteration.ai returned an unrecognized response. Update CodexBar and try again." = "abliteration.ai پاسخی ناشناخته برگرداند. CodexBar را به‌روز کنید و دوباره امتحان کنید.";
 "Check your API key in Settings." = "کلید API خود را در تنظیمات بررسی کنید.";
-"Store multiple Command Code subscription sessions." = "چندین نشست اشتراک Command Code را ذخیره کنید.";
+"Kimi Code" = "Kimi Code";
 
 "OpenCode local history" = "تاریخچهٔ محلی OpenCode";
 
 "Show this Mac's recorded OpenCode usage in Codex history. Off by default; scoped or alternate CODEX_HOME locations always stay excluded." = "مصرف ثبت‌شدهٔ OpenCode در این Mac را در تاریخچهٔ Codex نمایش می‌دهد. به‌طور پیش‌فرض خاموش است؛ مسیرهای CODEX_HOME با دامنهٔ محدود یا جایگزین همیشه مستثنا هستند.";
+"Auto uses the active saved session, otherwise an API key or browser cookies." = "حالت خودکار از نشست ذخیره‌شدهٔ فعال استفاده می‌کند؛ در غیر این صورت از کلید API یا کوکی‌های مرورگر استفاده می‌کند.";
+"Store multiple Command Code subscription sessions." = "چندین نشست اشتراک Command Code را ذخیره کنید.";

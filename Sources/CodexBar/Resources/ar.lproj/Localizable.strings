@@ -2367,6 +2367,7 @@
 "Core Monthly" = "الأساسية الشهرية";
 "Bobcoin usage" = "استخدام بوبكوين";
 "Code 7-day" = "كود 7 أيام الحصة";
+"Other features" = "ميزات أخرى";
 "Quota services" = "خدمات الحصة";
 "Billing history" = "تاريخ الفواتير";
 "Renews" = "يجدد";
@@ -2621,7 +2622,6 @@
 "Also restores the provider order in the menu bar. Can be undone." = "يستعيد أيضاً ترتيب المزوّدين في شريط القوائم. يمكن التراجع عن هذا الإجراء.";
 "Local Codex details; excluded from combined totals." = "تفاصيل Codex المحلية؛ مستبعدة من الإجماليات المجمّعة.";
 
-"Auto uses the active saved session, otherwise an API key or browser cookies." = "يستخدم الوضع التلقائي الجلسة المحفوظة النشطة، وإلا فيستخدم مفتاح API أو ملفات تعريف ارتباط المتصفح.";
 "Stored in the CodexBar config file. You can also set COMMAND_CODE_API_KEY." = "Stored in the CodexBar config file. You can also set COMMAND_CODE_API_KEY.";
 /* OpenAI organization rate limits and live usage */
 "%@ tokens · %@ requests" = "%@ رمز · %@ طلب";
@@ -2802,8 +2802,10 @@
 "abliteration.ai request failed. Try refreshing later." = "فشل طلب abliteration.ai. حاول التحديث لاحقًا.";
 "abliteration.ai returned an unrecognized response. Update CodexBar and try again." = "أعاد abliteration.ai استجابة غير معروفة. حدّث CodexBar وحاول مجددًا.";
 "Check your API key in Settings." = "تحقّق من مفتاح API في الإعدادات.";
-"Store multiple Command Code subscription sessions." = "احفظ عدة جلسات اشتراك في Command Code.";
+"Kimi Code" = "Kimi Code";
 
 "OpenCode local history" = "سجل OpenCode المحلي";
 
 "Show this Mac's recorded OpenCode usage in Codex history. Off by default; scoped or alternate CODEX_HOME locations always stay excluded." = "اعرض استخدام OpenCode المسجّل على جهاز Mac هذا في سجل Codex. معطّل افتراضيًا؛ تُستثنى دائمًا مواقع CODEX_HOME محددة النطاق أو البديلة.";
+"Auto uses the active saved session, otherwise an API key or browser cookies." = "يستخدم الوضع التلقائي الجلسة المحفوظة النشطة، وإلا فيستخدم مفتاح API أو ملفات تعريف ارتباط المتصفح.";
+"Store multiple Command Code subscription sessions." = "احفظ عدة جلسات اشتراك في Command Code.";

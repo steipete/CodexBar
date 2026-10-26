@@ -2365,6 +2365,7 @@
 "Core Monthly" = "Kern monatlich";
 "Bobcoin usage" = "Bobcoin-Nutzung";
 "Code 7-day" = "Code 7-Tage-Kontingent";
+"Other features" = "Andere Funktionen";
 "Quota services" = "Kontingent-Dienste";
 "Billing history" = "Abrechnungsverlauf";
 "Renews" = "Erneuert";
@@ -2615,7 +2616,6 @@
 "Also restores the provider order in the menu bar. Can be undone." = "Stellt auch die Anbieterreihenfolge in der Menüleiste wieder her. Kann rückgängig gemacht werden.";
 "Local Codex details; excluded from combined totals." = "Lokale Codex-Details; nicht in den kombinierten Summen enthalten.";
 
-"Auto uses the active saved session, otherwise an API key or browser cookies." = "Auto verwendet die aktive gespeicherte Sitzung, andernfalls einen API-Schlüssel oder Browser-Cookies.";
 "Stored in the CodexBar config file. You can also set COMMAND_CODE_API_KEY." = "Stored in the CodexBar config file. You can also set COMMAND_CODE_API_KEY.";
 /* OpenAI organization rate limits and live usage */
 "%@ tokens · %@ requests" = "%@ Token · %@ Anfragen";
@@ -2796,8 +2796,10 @@
 "abliteration.ai request failed. Try refreshing later." = "Die Anfrage an abliteration.ai ist fehlgeschlagen. Versuche es später erneut.";
 "abliteration.ai returned an unrecognized response. Update CodexBar and try again." = "abliteration.ai hat eine unbekannte Antwort zurückgegeben. Aktualisiere CodexBar und versuche es erneut.";
 "Check your API key in Settings." = "Prüfe deinen API-Schlüssel in den Einstellungen.";
-"Store multiple Command Code subscription sessions." = "Speichern Sie mehrere Command Code-Abonnementsitzungen.";
+"Kimi Code" = "Kimi Code";
 
 "OpenCode local history" = "Lokaler OpenCode-Verlauf";
 
 "Show this Mac's recorded OpenCode usage in Codex history. Off by default; scoped or alternate CODEX_HOME locations always stay excluded." = "Zeigt die auf diesem Mac erfasste OpenCode-Nutzung im Codex-Verlauf. Standardmäßig deaktiviert; CODEX_HOME-Verzeichnisse mit eingeschränktem Geltungsbereich sowie alternative Verzeichnisse bleiben immer ausgeschlossen.";
+"Auto uses the active saved session, otherwise an API key or browser cookies." = "Auto verwendet die aktive gespeicherte Sitzung, andernfalls einen API-Schlüssel oder Browser-Cookies.";
+"Store multiple Command Code subscription sessions." = "Speichern Sie mehrere Command Code-Abonnementsitzungen.";

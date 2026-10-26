@@ -59,11 +59,23 @@ struct KimiCodeUsagePools: Codable, Sendable {
     let session: KimiRatioPool?
     let weekly: KimiRatioPool?
     let monthly: KimiRatioPool?
+    /// Kimi Code's share of the shared `monthly` pool, not an independent limit.
+    let monthlyCode: KimiRatioPool?
+
+    init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.session = try container.decodeIfPresent(KimiRatioPool.self, forKey: .session)
+        self.weekly = try container.decodeIfPresent(KimiRatioPool.self, forKey: .weekly)
+        self.monthly = try container.decodeIfPresent(KimiRatioPool.self, forKey: .monthly)
+        // Optional breakdown drift must not discard valid quota windows.
+        self.monthlyCode = try? container.decodeIfPresent(KimiRatioPool.self, forKey: .monthlyCode)
+    }
 
     private enum CodingKeys: String, CodingKey {
         case session = "limit_5h"
         case weekly = "limit_7d"
         case monthly = "limit_month_total"
+        case monthlyCode = "limit_month_code"
     }
 }
 

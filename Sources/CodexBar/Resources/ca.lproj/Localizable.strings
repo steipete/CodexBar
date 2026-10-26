@@ -2367,6 +2367,7 @@
 "Core Monthly" = "Mensual bàsica";
 "Bobcoin usage" = "Ús de Bobcoin";
 "Code 7-day" = "Codi Quota de 7 dies";
+"Other features" = "Altres funcions";
 "Quota services" = "Serveis Quota";
 "Billing history" = "Historial de facturació";
 "Renews" = "Renova";
@@ -2621,7 +2622,6 @@
 "Also restores the provider order in the menu bar. Can be undone." = "També restableix l’ordre dels proveïdors a la barra de menús. Es pot desfer.";
 "Local Codex details; excluded from combined totals." = "Detalls locals de Codex; exclosos dels totals combinats.";
 
-"Auto uses the active saved session, otherwise an API key or browser cookies." = "Auto utilitza la sessió desada activa; si no n’hi ha, una clau API o les galetes del navegador.";
 "Stored in the CodexBar config file. You can also set COMMAND_CODE_API_KEY." = "Stored in the CodexBar config file. You can also set COMMAND_CODE_API_KEY.";
 /* OpenAI organization rate limits and live usage */
 "%@ tokens · %@ requests" = "%@ tokens · %@ sol·licituds";
@@ -2800,8 +2800,10 @@
 "abliteration.ai request failed. Try refreshing later." = "La sol·licitud a abliteration.ai ha fallat. Torneu a actualitzar més tard.";
 "abliteration.ai returned an unrecognized response. Update CodexBar and try again." = "abliteration.ai ha retornat una resposta desconeguda. Actualitzeu CodexBar i torneu-ho a provar.";
 "Check your API key in Settings." = "Comprova la teva clau API a Configuració.";
-"Store multiple Command Code subscription sessions." = "Deseu diverses sessions de subscripció de Command Code.";
+"Kimi Code" = "Kimi Code";
 
 "OpenCode local history" = "Historial local de l’OpenCode";
 
 "Show this Mac's recorded OpenCode usage in Codex history. Off by default; scoped or alternate CODEX_HOME locations always stay excluded." = "Mostra l’ús de l’OpenCode registrat en aquest Mac a l’historial del Codex. Desactivat per defecte; les ubicacions de CODEX_HOME amb àmbit restringit o alternatives sempre en queden excloses.";
+"Auto uses the active saved session, otherwise an API key or browser cookies." = "Auto utilitza la sessió desada activa; si no n’hi ha, una clau API o les galetes del navegador.";
+"Store multiple Command Code subscription sessions." = "Deseu diverses sessions de subscripció de Command Code.";

@@ -2345,6 +2345,7 @@
 "Core Monthly" = "核心額度 · 每月";
 "Bobcoin usage" = "Bobcoin 用量";
 "Code 7-day" = "編程額度 · 7 天";
+"Other features" = "其他功能";
 "Quota services" = "額度服務";
 "Billing history" = "帳單歷史";
 "Renews" = "續期時間";
@@ -2595,7 +2596,6 @@
 "Also restores the provider order in the menu bar. Can be undone." = "同時恢復選單列中的供應商順序。可以復原。";
 "Local Codex details; excluded from combined totals." = "本機 Codex 詳細資料；不計入合併總計。";
 
-"Auto uses the active saved session, otherwise an API key or browser cookies." = "自動使用目前啟用的已儲存工作階段，否則使用 API 金鑰或瀏覽器 Cookie。";
 "Stored in the CodexBar config file. You can also set COMMAND_CODE_API_KEY." = "Stored in the CodexBar config file. You can also set COMMAND_CODE_API_KEY.";
 /* OpenAI organization rate limits and live usage */
 "%@ tokens · %@ requests" = "%@ token · %@ 請求";
@@ -2776,8 +2776,10 @@
 "abliteration.ai request failed. Try refreshing later." = "abliteration.ai 請求失敗。請稍後嘗試重新整理。";
 "abliteration.ai returned an unrecognized response. Update CodexBar and try again." = "abliteration.ai 傳回了無法辨識的回應。請更新 CodexBar 後再試。";
 "Check your API key in Settings." = "請在設定中檢查你的 API 金鑰。";
-"Store multiple Command Code subscription sessions." = "儲存多個 Command Code 訂閱工作階段。";
+"Kimi Code" = "Kimi Code";
 
 "OpenCode local history" = "OpenCode 本機歷史記錄";
 
 "Show this Mac's recorded OpenCode usage in Codex history. Off by default; scoped or alternate CODEX_HOME locations always stay excluded." = "在 Codex 歷史記錄中顯示此 Mac 上記錄的 OpenCode 用量。預設關閉；一律排除限定範圍或其他 CODEX_HOME 位置。";
+"Auto uses the active saved session, otherwise an API key or browser cookies." = "自動使用目前啟用的已儲存工作階段，否則使用 API 金鑰或瀏覽器 Cookie。";
+"Store multiple Command Code subscription sessions." = "儲存多個 Command Code 訂閱工作階段。";

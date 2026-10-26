@@ -2363,6 +2363,7 @@
 "Core Monthly" = "Núcleo Mensal";
 "Bobcoin usage" = "Uso de Bobcoin";
 "Code 7-day" = "Código Cota de 7 dias";
+"Other features" = "Outros recursos";
 "Quota services" = "Serviços Cota";
 "Billing history" = "Histórico de cobrança";
 "Renews" = "Renova";
@@ -2617,7 +2618,6 @@
 "Also restores the provider order in the menu bar. Can be undone." = "Também restaura a ordem dos provedores na barra de menus. Pode ser desfeito.";
 "Local Codex details; excluded from combined totals." = "Detalhes locais do Codex; excluídos dos totais combinados.";
 
-"Auto uses the active saved session, otherwise an API key or browser cookies." = "Automático usa a sessão salva ativa; caso contrário, uma chave API ou cookies do navegador.";
 "Stored in the CodexBar config file. You can also set COMMAND_CODE_API_KEY." = "Stored in the CodexBar config file. You can also set COMMAND_CODE_API_KEY.";
 /* OpenAI organization rate limits and live usage */
 "%@ tokens · %@ requests" = "%@ tokens · %@ requisições";
@@ -2798,8 +2798,10 @@
 "abliteration.ai request failed. Try refreshing later." = "A solicitação ao abliteration.ai falhou. Tente atualizar mais tarde.";
 "abliteration.ai returned an unrecognized response. Update CodexBar and try again." = "O abliteration.ai retornou uma resposta desconhecida. Atualize o CodexBar e tente novamente.";
 "Check your API key in Settings." = "Verifique sua chave de API nos Ajustes.";
-"Store multiple Command Code subscription sessions." = "Armazena várias sessões de assinatura do Command Code.";
+"Kimi Code" = "Kimi Code";
 
 "OpenCode local history" = "Histórico local do OpenCode";
 
 "Show this Mac's recorded OpenCode usage in Codex history. Off by default; scoped or alternate CODEX_HOME locations always stay excluded." = "Mostra no histórico do Codex o uso do OpenCode registrado neste Mac. Desativado por padrão; locais CODEX_HOME com escopo restrito ou alternativos são sempre excluídos.";
+"Auto uses the active saved session, otherwise an API key or browser cookies." = "Automático usa a sessão salva ativa; caso contrário, uma chave API ou cookies do navegador.";
+"Store multiple Command Code subscription sessions." = "Armazena várias sessões de assinatura do Command Code.";

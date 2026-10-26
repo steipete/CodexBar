@@ -14,6 +14,16 @@ struct LocalizationFormattingTests {
         }
     }
 
+    @Test
+    func `Italian quota notifications preserve thresholds and window labels`() {
+        CodexBarLocalizationOverride.$appLanguage.withValue("it") {
+            #expect(L("quota_warning_notification_body", "20%", 15, "settimanale") ==
+                "Rimane 20%. Hai raggiunto la soglia di avviso del 15% per la quota settimanale.")
+            #expect(L("quota_warning_notification_title", "Codex", "settimanale") ==
+                "Quota settimanale di Codex quasi esaurita")
+        }
+    }
+
     @Test(arguments: ["ru", "pl", "ar"])
     func `generic formatter follows the plural rules of the selected resources`(language: String) {
         CodexBarLocalizationOverride.$appLanguage.withValue(language) {

@@ -2362,6 +2362,7 @@
 "Core Monthly" = "Mensuel de base";
 "Bobcoin usage" = "Utilisation du Bobcoin";
 "Code 7-day" = "Code 7 jours Quota";
+"Other features" = "Autres fonctionnalités";
 "Quota services" = "Services Quota";
 "Billing history" = "Historique de facturation";
 "Renews" = "Renouvelle";
@@ -2616,7 +2617,6 @@
 "Also restores the provider order in the menu bar. Can be undone." = "Rétablit aussi l’ordre des fournisseurs dans la barre des menus. Cette action peut être annulée.";
 "Local Codex details; excluded from combined totals." = "Détails Codex locaux ; exclus des totaux combinés.";
 
-"Auto uses the active saved session, otherwise an API key or browser cookies." = "Auto utilise la session enregistrée active, sinon une clé API ou les cookies du navigateur.";
 "Stored in the CodexBar config file. You can also set COMMAND_CODE_API_KEY." = "Stored in the CodexBar config file. You can also set COMMAND_CODE_API_KEY.";
 /* OpenAI organization rate limits and live usage */
 "%@ tokens · %@ requests" = "%@ jetons · %@ requêtes";
@@ -2797,8 +2797,10 @@
 "abliteration.ai request failed. Try refreshing later." = "La requête abliteration.ai a échoué. Réessayez d’actualiser plus tard.";
 "abliteration.ai returned an unrecognized response. Update CodexBar and try again." = "abliteration.ai a renvoyé une réponse inconnue. Mettez CodexBar à jour et réessayez.";
 "Check your API key in Settings." = "Vérifiez votre clé API dans les réglages.";
-"Store multiple Command Code subscription sessions." = "Stockez plusieurs sessions d’abonnement à Command Code.";
+"Kimi Code" = "Kimi Code";
 
 "OpenCode local history" = "Historique local d’OpenCode";
 
 "Show this Mac's recorded OpenCode usage in Codex history. Off by default; scoped or alternate CODEX_HOME locations always stay excluded." = "Affiche l’utilisation d’OpenCode enregistrée sur ce Mac dans l’historique de Codex. Désactivé par défaut ; les emplacements CODEX_HOME à portée restreinte ou alternatifs restent toujours exclus.";
+"Auto uses the active saved session, otherwise an API key or browser cookies." = "Auto utilise la session enregistrée active, sinon une clé API ou les cookies du navigateur.";
+"Store multiple Command Code subscription sessions." = "Stockez plusieurs sessions d’abonnement à Command Code.";

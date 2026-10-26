@@ -2366,6 +2366,7 @@
 "Core Monthly" = "Çekirdek Aylık";
 "Bobcoin usage" = "Bobcoin kullanımı";
 "Code 7-day" = "Kod 7 günlük Kota";
+"Other features" = "Diğer özellikler";
 "Quota services" = "Kota hizmetleri";
 "Billing history" = "Faturalandırma geçmişi";
 "Renews" = "Yeniler";
@@ -2620,7 +2621,6 @@
 "Also restores the provider order in the menu bar. Can be undone." = "Menü çubuğundaki sağlayıcı sırasını da geri yükler. Geri alınabilir.";
 "Local Codex details; excluded from combined totals." = "Yerel Codex ayrıntıları; birleşik toplamlara dahil edilmez.";
 
-"Auto uses the active saved session, otherwise an API key or browser cookies." = "Otomatik, etkin kayıtlı oturumu kullanır; yoksa bir API anahtarı veya tarayıcı çerezlerini kullanır.";
 "Stored in the CodexBar config file. You can also set COMMAND_CODE_API_KEY." = "Stored in the CodexBar config file. You can also set COMMAND_CODE_API_KEY.";
 /* OpenAI organization rate limits and live usage */
 "%@ tokens · %@ requests" = "%@ token · %@ istek";
@@ -2801,8 +2801,10 @@
 "abliteration.ai request failed. Try refreshing later." = "abliteration.ai isteği başarısız oldu. Daha sonra yeniden yenileyin.";
 "abliteration.ai returned an unrecognized response. Update CodexBar and try again." = "abliteration.ai tanınmayan bir yanıt döndürdü. CodexBar’ı güncelleyip tekrar deneyin.";
 "Check your API key in Settings." = "Ayarlar’dan API anahtarınızı kontrol edin.";
-"Store multiple Command Code subscription sessions." = "Birden fazla Command Code abonelik oturumunu depolayın.";
+"Kimi Code" = "Kimi Code";
 
 "OpenCode local history" = "Yerel OpenCode geçmişi";
 
 "Show this Mac's recorded OpenCode usage in Codex history. Off by default; scoped or alternate CODEX_HOME locations always stay excluded." = "Bu Mac’te kaydedilen OpenCode kullanımını Codex geçmişinde gösterir. Varsayılan olarak kapalıdır; kapsamı sınırlandırılmış veya alternatif CODEX_HOME konumları her zaman hariç tutulur.";
+"Auto uses the active saved session, otherwise an API key or browser cookies." = "Otomatik, etkin kayıtlı oturumu kullanır; yoksa bir API anahtarı veya tarayıcı çerezlerini kullanır.";
+"Store multiple Command Code subscription sessions." = "Birden fazla Command Code abonelik oturumunu depolayın.";

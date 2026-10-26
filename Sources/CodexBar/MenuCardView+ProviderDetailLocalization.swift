@@ -6,9 +6,10 @@ extension UsageMenuCardView.Model {
         _ details: [ProviderDetailSection],
         provider: UsageProvider) -> [ProviderDetailSection]
     {
-        // Provider-specific by design: DeepSeek, z.ai, Kiro, and Grok rewrite value phrasing.
+        // Provider-specific by design: DeepSeek, z.ai, Kiro, Grok, and Kimi rewrite value phrasing.
         // Other providers localize section titles and row labels through the shared catalog; values stay canonical.
-        guard provider == .deepseek || provider == .zai || provider == .kiro || provider == .grok else {
+        guard provider == .deepseek || provider == .zai || provider == .kiro || provider == .grok || provider == .kimi
+        else {
             return details.compactMap { section in
                 let rows = section.rows.compactMap { row in
                     try? ProviderDetailSection.Row(
@@ -57,9 +58,6 @@ extension UsageMenuCardView.Model {
         _ row: ProviderDetailSection.Row,
         provider: UsageProvider) -> String?
     {
-        if provider == .kimi {
-            return row.secondaryValue.map { self.localizedResetCreditValue($0) }
-        }
         if provider == .amp {
             switch row.secondaryValue {
             case "For agent and orb usage": return L("For agent and orb usage")
@@ -115,18 +113,20 @@ extension UsageMenuCardView.Model {
         return L("Resets every 5 hours")
     }
 
-    /// Provider-specific by design: DeepSeek, z.ai, Kiro, and Grok detail values carry provider-owned
+    /// Provider-specific by design: DeepSeek, z.ai, Kiro, Grok, and Kimi detail values carry provider-owned
     /// unit phrasing that localizes at the presentation boundary without touching other providers.
     private static func localizedProviderDetailValue(_ value: String, provider: UsageProvider) -> String {
         switch provider {
         case .deepseek:
             self.localizedTokenSuffix(value)
         case .zai:
-            self.localizedZaiValue(value)
+            self.localizedQuotaDetailValue(value)
         case .kiro:
             self.localizedKiroCapPhrase(value)
         case .grok:
             self.localizedResetCreditValue(value)
+        case .kimi:
+            self.localizedResetCreditValue(self.localizedQuotaDetailValue(value))
         default:
             value
         }
@@ -165,7 +165,7 @@ extension UsageMenuCardView.Model {
         return L("%@ tokens", String(value.dropLast(suffix.count)))
     }
 
-    private static func localizedZaiValue(_ value: String) -> String {
+    private static func localizedQuotaDetailValue(_ value: String) -> String {
         if value == "Peak" || value == "Off-peak" {
             return L(value)
         }

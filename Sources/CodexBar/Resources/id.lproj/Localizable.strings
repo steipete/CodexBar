@@ -2367,6 +2367,7 @@
 "Core Monthly" = "Inti Bulanan";
 "Bobcoin usage" = "Penggunaan Bobcoin";
 "Code 7-day" = "Kode 7 hari Kuota";
+"Other features" = "Fitur lainnya";
 "Quota services" = "Layanan Kuota";
 "Billing history" = "Riwayat penagihan";
 "Renews" = "Memperbarui";
@@ -2621,7 +2622,6 @@
 "Also restores the provider order in the menu bar. Can be undone." = "Juga memulihkan urutan penyedia di bar menu. Dapat diurungkan.";
 "Local Codex details; excluded from combined totals." = "Detail Codex lokal; tidak termasuk dalam total gabungan.";
 
-"Auto uses the active saved session, otherwise an API key or browser cookies." = "Otomatis menggunakan sesi tersimpan yang aktif, atau kunci API atau cookie browser jika tidak ada sesi yang aktif.";
 "Stored in the CodexBar config file. You can also set COMMAND_CODE_API_KEY." = "Stored in the CodexBar config file. You can also set COMMAND_CODE_API_KEY.";
 /* OpenAI organization rate limits and live usage */
 "%@ tokens · %@ requests" = "%@ token · %@ permintaan";
@@ -2800,8 +2800,10 @@
 "abliteration.ai request failed. Try refreshing later." = "Permintaan abliteration.ai gagal. Coba segarkan lagi nanti.";
 "abliteration.ai returned an unrecognized response. Update CodexBar and try again." = "abliteration.ai mengembalikan respons yang tidak dikenali. Perbarui CodexBar dan coba lagi.";
 "Check your API key in Settings." = "Periksa kunci API Anda di Pengaturan.";
-"Store multiple Command Code subscription sessions." = "Simpan beberapa sesi langganan Command Code.";
+"Kimi Code" = "Kimi Code";
 
 "OpenCode local history" = "Riwayat lokal OpenCode";
 
 "Show this Mac's recorded OpenCode usage in Codex history. Off by default; scoped or alternate CODEX_HOME locations always stay excluded." = "Menampilkan penggunaan OpenCode yang tercatat di Mac ini dalam riwayat Codex. Nonaktif secara bawaan; lokasi CODEX_HOME dengan cakupan terbatas atau lokasi alternatif selalu dikecualikan.";
+"Auto uses the active saved session, otherwise an API key or browser cookies." = "Otomatis menggunakan sesi tersimpan yang aktif, atau kunci API atau cookie browser jika tidak ada sesi yang aktif.";
+"Store multiple Command Code subscription sessions." = "Simpan beberapa sesi langganan Command Code.";

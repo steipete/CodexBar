@@ -30,7 +30,11 @@ struct KimiGiftBalanceTests {
         #expect(usage.details.isEmpty)
     }
 
-    static func fetch(api: Bool, stats: String) async throws -> UsageSnapshot {
+    static func fetch(
+        api: Bool,
+        stats: String,
+        codeAPI: String = #"{"usage":{"limit":"100","used":"25","remaining":"75"}}"#) async throws -> UsageSnapshot
+    {
         let now = try #require(ISO8601DateParser.parse("2026-10-21T15:00:00Z"))
         let transport = ProviderHTTPTransportHandler { request in
             let url = try #require(request.url)
@@ -40,7 +44,7 @@ struct KimiGiftBalanceTests {
             } else if url.path.hasSuffix("/GetSubscription") {
                 json = "{}"
             } else if url.path.hasSuffix("/usages") {
-                json = #"{"usage":{"limit":"100","used":"25","remaining":"75"}}"#
+                json = codeAPI
             } else {
                 #expect(url.path.hasSuffix("/GetUsages"))
                 json = #"{"usages":[{"scope":"FEATURE_CODING","detail":{"limit":"100","used":"25"}}]}"#

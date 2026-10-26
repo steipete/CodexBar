@@ -2364,6 +2364,7 @@
 "Core Monthly" = "Основна місячна квота";
 "Bobcoin usage" = "Використання Bobcoin";
 "Code 7-day" = "7-денна квота Code";
+"Other features" = "Інші функції";
 "Quota services" = "Сервіси з квотами";
 "Billing history" = "Історія платежів";
 "Renews" = "Поновлюється";
@@ -2618,7 +2619,6 @@
 "Also restores the provider order in the menu bar. Can be undone." = "Також відновлює порядок провайдерів у рядку меню. Дію можна скасувати.";
 "Local Codex details; excluded from combined totals." = "Локальні дані Codex; не враховуються в загальних підсумках.";
 
-"Auto uses the active saved session, otherwise an API key or browser cookies." = "Автоматичний режим використовує активний збережений сеанс, інакше — ключ API або файли cookie браузера.";
 "Stored in the CodexBar config file. You can also set COMMAND_CODE_API_KEY." = "Зберігається у файлі конфігурації CodexBar. Також можна задати COMMAND_CODE_API_KEY.";
 /* OpenAI organization rate limits and live usage */
 "%@ tokens · %@ requests" = "%@ токенів · %@ запитів";
@@ -2799,8 +2799,10 @@
 "abliteration.ai request failed. Try refreshing later." = "Запит до abliteration.ai не виконано. Спробуйте оновити пізніше.";
 "abliteration.ai returned an unrecognized response. Update CodexBar and try again." = "abliteration.ai повернув невідому відповідь. Оновіть CodexBar і спробуйте знову.";
 "Check your API key in Settings." = "Перевірте ключ API в налаштуваннях.";
-"Store multiple Command Code subscription sessions." = "Зберігати кілька сеансів передплати Command Code.";
+"Kimi Code" = "Kimi Code";
 
 "OpenCode local history" = "Локальна історія OpenCode";
 
 "Show this Mac's recorded OpenCode usage in Codex history. Off by default; scoped or alternate CODEX_HOME locations always stay excluded." = "Показує використання OpenCode, записане на цьому Mac, в історії Codex. Типово вимкнено; розташування CODEX_HOME з обмеженою областю дії або альтернативні розташування завжди виключаються.";
+"Auto uses the active saved session, otherwise an API key or browser cookies." = "Автоматичний режим використовує активний збережений сеанс, інакше — ключ API або файли cookie браузера.";
+"Store multiple Command Code subscription sessions." = "Зберігати кілька сеансів передплати Command Code.";

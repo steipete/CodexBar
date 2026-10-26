@@ -2368,6 +2368,7 @@
 "Core Monthly" = "Core Monthly";
 "Bobcoin usage" = "Bobcoin usage";
 "Code 7-day" = "Code 7-day";
+"Other features" = "Other features";
 "Quota services" = "Quota services";
 "Billing history" = "Billing history";
 "Renews" = "Renews";
@@ -2804,6 +2805,7 @@
 "abliteration.ai request failed. Try refreshing later." = "abliteration.ai request failed. Try refreshing later.";
 "abliteration.ai returned an unrecognized response. Update CodexBar and try again." = "abliteration.ai returned an unrecognized response. Update CodexBar and try again.";
 "Check your API key in Settings." = "Check your API key in Settings.";
+"Kimi Code" = "Kimi Code";
 
 "OpenCode local history" = "OpenCode local history";
 

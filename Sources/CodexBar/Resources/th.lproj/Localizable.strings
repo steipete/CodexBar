@@ -2367,6 +2367,7 @@
 "Core Monthly" = "หลักรายเดือน";
 "Bobcoin usage" = "การใช้งาน Bobcoin";
 "Code 7-day" = "รหัส 7 วัน โควต้า";
+"Other features" = "ฟีเจอร์อื่น ๆ";
 "Quota services" = "บริการ โควต้า";
 "Billing history" = "ประวัติการเรียกเก็บเงิน";
 "Renews" = "ต่ออายุ";
@@ -2621,7 +2622,6 @@
 "Also restores the provider order in the menu bar. Can be undone." = "คืนค่าลำดับผู้ให้บริการในแถบเมนูด้วย สามารถเลิกทำได้";
 "Local Codex details; excluded from combined totals." = "รายละเอียด Codex ในเครื่อง ไม่รวมอยู่ในยอดรวม";
 
-"Auto uses the active saved session, otherwise an API key or browser cookies." = "อัตโนมัติจะใช้เซสชันที่บันทึกไว้ซึ่งกำลังใช้งาน หากไม่มี จะใช้คีย์ API หรือคุกกี้ของเบราว์เซอร์";
 "Stored in the CodexBar config file. You can also set COMMAND_CODE_API_KEY." = "Stored in the CodexBar config file. You can also set COMMAND_CODE_API_KEY.";
 /* OpenAI organization rate limits and live usage */
 "%@ tokens · %@ requests" = "%@ โทเค็น · %@ คำขอ";
@@ -2800,8 +2800,10 @@
 "abliteration.ai request failed. Try refreshing later." = "คำขอ abliteration.ai ล้มเหลว ลองรีเฟรชอีกครั้งในภายหลัง";
 "abliteration.ai returned an unrecognized response. Update CodexBar and try again." = "abliteration.ai ส่งการตอบกลับที่ไม่รู้จัก โปรดอัปเดต CodexBar แล้วลองอีกครั้ง";
 "Check your API key in Settings." = "ตรวจสอบคีย์ API ของคุณในการตั้งค่า";
-"Store multiple Command Code subscription sessions." = "จัดเก็บเซสชันการสมัครสมาชิก Command Code หลายรายการ";
+"Kimi Code" = "Kimi Code";
 
 "OpenCode local history" = "ประวัติ OpenCode ในเครื่อง";
 
 "Show this Mac's recorded OpenCode usage in Codex history. Off by default; scoped or alternate CODEX_HOME locations always stay excluded." = "แสดงการใช้งาน OpenCode ที่บันทึกไว้บน Mac เครื่องนี้ในประวัติ Codex ปิดอยู่ตามค่าเริ่มต้น โดยจะไม่รวมตำแหน่ง CODEX_HOME ที่จำกัดขอบเขตหรือตำแหน่งอื่นเสมอ";
+"Auto uses the active saved session, otherwise an API key or browser cookies." = "อัตโนมัติจะใช้เซสชันที่บันทึกไว้ซึ่งกำลังใช้งาน หากไม่มี จะใช้คีย์ API หรือคุกกี้ของเบราว์เซอร์";
+"Store multiple Command Code subscription sessions." = "จัดเก็บเซสชันการสมัครสมาชิก Command Code หลายรายการ";
