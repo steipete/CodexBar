@@ -267,7 +267,11 @@ extension StatusItemController {
             guard let plugin = UserProviderPluginRegistry.plugin(for: selected) else { return false }
             let snapshot = self.store.menuBarSnapshot(for: selected)
             let showUsed = self.settings.usageBarsShowUsed
-            let percent = Self.pluginSwitcherMetricPercent(snapshot: snapshot, showUsed: showUsed)
+            let percent = Self.pluginSwitcherMetricPercent(
+                snapshot: snapshot,
+                showUsed: showUsed,
+                preference: MenuBarPercentWindowPreference.current(
+                    in: self.settings.menuBarLayout(forPlugin: selected)) ?? .automatic)
             let lanes = Self.pluginMeterPercents(snapshot: snapshot, showUsed: showUsed)
             let showBrand = self.settings.menuBarShowsBrandIconWithPercent
             // Returning to a built-in provider must redraw even if its last quota is unchanged.
