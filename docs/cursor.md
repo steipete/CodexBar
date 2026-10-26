@@ -206,9 +206,9 @@ downgrade preserves the full layout on return, while edits made in an older rele
 - `Sources/CodexBarCore/Providers/Cursor/CursorStatusProbe+UsageSummary.swift` (summary projection)
 - `Sources/CodexBarCore/Providers/Cursor/CursorTeamSpend.swift` (verified member budget)
 - `Sources/CodexBarCore/Providers/Cursor/CursorSandUsage.swift` (Grok Bot weekly included usage)
-- `Sources/CodexBar/CursorLoginRunner.swift` (login flow)
+- `Sources/CodexBar/Providers/Cursor/CursorLoginRunner.swift` (login flow)
 - `Sources/CodexBar/Providers/Cursor/CursorLoginFlow.swift` (menu integration)
-- `Sources/CodexBar/CursorLoginBrowserRouter.swift` (browser routing and selection)
+- `Sources/CodexBar/Providers/Cursor/CursorLoginBrowserRouter.swift` (browser routing and selection)
 
 ### Enterprise and Business member budgets
 

@@ -409,7 +409,7 @@ git cherry-pick <commit-1-hash>  # Only the core improvement
 
 Keep these files fork-specific (never upstream):
 - `Sources/CodexBar/About.swift` (your attribution)
-- `Sources/CodexBar/PreferencesAboutPane.swift` (fork sections)
+- `Sources/CodexBar/Settings/PreferencesAboutPane.swift` (fork sections)
 - `README.md` (fork notice)
 - `docs/FORK_*.md` (fork documentation)
 - `FORK_STATUS.md`

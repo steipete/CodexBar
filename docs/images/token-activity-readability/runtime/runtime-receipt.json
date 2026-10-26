@@ -125,9 +125,9 @@
     "spoken VoiceOver session"
   ],
   "sourceHashes": {
-    "Sources/CodexBar/SpendActivityHeatmap.swift": "be2ac8dbf1936352b487e3ed8e47b70585045c58c5173a0700b122f488ca4e50",
-    "Sources/CodexBar/SpendActivityScrollableGrid.swift": "10f60fbbe82a3de8c02052e0a7293ad2b941e534cd129c8a0da0b4eaa19103f9",
-    "Sources/CodexBar/SpendActivityPalette.swift": "924ed15ac2ab758bdc75f558eb21577d8ee6d73f34f167266071cfdc54d2f760"
+    "Sources/CodexBar/SpendDashboard/SpendActivityHeatmap.swift": "be2ac8dbf1936352b487e3ed8e47b70585045c58c5173a0700b122f488ca4e50",
+    "Sources/CodexBar/SpendDashboard/SpendActivityScrollableGrid.swift": "10f60fbbe82a3de8c02052e0a7293ad2b941e534cd129c8a0da0b4eaa19103f9",
+    "Sources/CodexBar/SpendDashboard/SpendActivityPalette.swift": "924ed15ac2ab758bdc75f558eb21577d8ee6d73f34f167266071cfdc54d2f760"
   },
   "screenshots": {
     "dark-recent.jpg": {

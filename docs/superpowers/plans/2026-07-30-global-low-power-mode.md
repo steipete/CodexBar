@@ -94,10 +94,10 @@ Expected: both policy tests pass.
 ### Task 2: Persist and expose the global setting
 
 **Files:**
-- Modify: `Sources/CodexBar/SettingsStoreState.swift`
-- Modify: `Sources/CodexBar/SettingsStore.swift`
-- Modify: `Sources/CodexBar/SettingsStore+Defaults.swift`
-- Modify: `Sources/CodexBar/SettingsStore+MenuObservation.swift`
+- Modify: `Sources/CodexBar/Settings/SettingsStoreState.swift`
+- Modify: `Sources/CodexBar/Settings/SettingsStore.swift`
+- Modify: `Sources/CodexBar/Settings/SettingsStore+Defaults.swift`
+- Modify: `Sources/CodexBar/Settings/SettingsStore+MenuObservation.swift`
 - Modify: `Tests/CodexBarTests/SettingsStoreCoverageTests.swift`
 
 **Interfaces:**
@@ -140,8 +140,8 @@ Expected: default, persistence, revision, and effective-web assertions pass.
 ### Task 3: Clamp provider and Adaptive refresh timers
 
 **Files:**
-- Modify: `Sources/CodexBar/UsageStore.swift`
-- Modify: `Sources/CodexBar/UsageStore+AdaptiveRefresh.swift`
+- Modify: `Sources/CodexBar/UsageStore/UsageStore.swift`
+- Modify: `Sources/CodexBar/UsageStore/UsageStore+AdaptiveRefresh.swift`
 - Modify: `Tests/CodexBarTests/AdaptiveRefreshTimerTests.swift`
 
 **Interfaces:**
@@ -167,8 +167,8 @@ Expected: existing timer behavior stays green and low-power cases resolve to 180
 ### Task 4: Clamp local cost and storage scans
 
 **Files:**
-- Modify: `Sources/CodexBar/UsageStore.swift`
-- Modify: `Sources/CodexBar/UsageStore+ProviderStorage.swift`
+- Modify: `Sources/CodexBar/UsageStore/UsageStore.swift`
+- Modify: `Sources/CodexBar/UsageStore/UsageStore+ProviderStorage.swift`
 - Modify: `Tests/CodexBarTests/UsageStoreTokenRefreshCadenceTests.swift`
 - Modify: `Tests/CodexBarTests/ProviderStorageFootprintTests.swift`
 
@@ -196,10 +196,10 @@ Expected: automatic cooldowns clamp and explicit refreshes remain immediate.
 ### Task 5: Apply global saver to OpenAI Web and expose UI
 
 **Files:**
-- Modify: `Sources/CodexBar/UsageStore+OpenAIWeb.swift`
-- Modify: `Sources/CodexBar/UsageStore+RefreshEnrichment.swift`
-- Modify: `Sources/CodexBar/UsageStore+Logging.swift`
-- Modify: `Sources/CodexBar/PreferencesGeneralPane.swift`
+- Modify: `Sources/CodexBar/Providers/Codex/UsageStore+OpenAIWeb.swift`
+- Modify: `Sources/CodexBar/UsageStore/UsageStore+RefreshEnrichment.swift`
+- Modify: `Sources/CodexBar/UsageStore/UsageStore+Logging.swift`
+- Modify: `Sources/CodexBar/Settings/PreferencesGeneralPane.swift`
 - Modify: `Sources/CodexBar/Providers/Codex/CodexProviderImplementation.swift`
 - Modify: `Sources/CodexBar/Resources/en.lproj/Localizable.strings`
 - Modify: `Sources/CodexBar/Resources/zh-Hans.lproj/Localizable.strings`

@@ -42,7 +42,8 @@ struct AboutWebsiteTests {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
             .deletingLastPathComponent().deletingLastPathComponent()
         let source = try String(
-            contentsOf: root.appendingPathComponent("Sources/CodexBar/PreferencesAboutPane.swift"), encoding: .utf8)
+            contentsOf: root.appendingPathComponent("Sources/CodexBar/Settings/PreferencesAboutPane.swift"),
+            encoding: .utf8)
         let pattern = #"title:\s*L\("link_website"\),\s*url:\s*"([^"]+)""#
         let regex = try NSRegularExpression(pattern: pattern)
         let match = try #require(regex.firstMatch(in: source, range: NSRange(source.startIndex..., in: source)))

@@ -70,7 +70,10 @@ const expectedCodes = [
   "sv",
 ];
 const catalogCodes = localeCatalog.map((locale) => locale.code);
-const appLanguageSource = fs.readFileSync(path.join(repoRoot, "Sources/CodexBar/PreferencesGeneralPane.swift"), "utf8");
+const appLanguageSource = fs.readFileSync(
+  path.join(repoRoot, "Sources/CodexBar/Settings/PreferencesGeneralPane.swift"),
+  "utf8",
+);
 
 assertEqual(catalogCodes, expectedCodes, "locale catalog");
 assertEqual(

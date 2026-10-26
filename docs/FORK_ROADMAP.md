@@ -60,7 +60,7 @@ This document outlines the development roadmap for the CodexBar fork maintained 
 **Files to Modify:**
 - `Sources/CodexBarCore/Providers/Augment/AugmentStatusProbe.swift`
 - `Sources/CodexBarCore/Providers/Augment/AugmentSessionKeepalive.swift`
-- `Sources/CodexBar/UsageStore.swift` (debug pane)
+- `Sources/CodexBar/UsageStore/UsageStore.swift` (debug pane)
 
 ---
 

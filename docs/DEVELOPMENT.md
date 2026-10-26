@@ -100,9 +100,11 @@ Key source, test, and packaging paths (not exhaustive):
 CodexBar/
 ├── Sources/CodexBar/          # Main app (SwiftUI + AppKit)
 │   ├── CodexbarApp.swift      # App entry point
-│   ├── StatusItemController*.swift  # Menu bar icon, menu rendering, and actions
-│   ├── UsageStore*.swift      # Usage refresh, caching, widgets, and history
-│   ├── SettingsStore*.swift   # User preferences and config persistence
+│   ├── StatusItem/            # Menu bar icon, menu rendering, and actions
+│   ├── UsageStore/            # Usage refresh, caching, widgets, and history
+│   ├── Settings/              # Preferences panes and config persistence
+│   ├── Menu/                  # Shared menu models, views, charts, and layout
+│   ├── SpendDashboard/        # Usage and spend dashboard
 │   ├── Providers/             # App-side provider settings/runtime glue
 │   └── Resources/             # Assets and localized strings
 ├── Sources/CodexBarCore/      # Shared business logic used by app, CLI, and widgets

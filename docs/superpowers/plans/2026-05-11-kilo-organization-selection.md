@@ -862,7 +862,7 @@ git commit -m "feat(kilo): settings accessors for known + enabled organizations"
 
 **Files:**
 - Modify: `Sources/CodexBarCore/Providers/Kilo/KiloProviderDescriptor.swift`
-- Modify: `Sources/CodexBar/UsageStore+Refresh.swift`
+- Modify: `Sources/CodexBar/UsageStore/UsageStore+Refresh.swift`
 - Create: `Sources/CodexBar/Providers/Kilo/UsageStore+KiloOrgRefresh.swift`
 
 The `ProviderFetchStrategy` returns one `UsageSnapshot`, so we keep the existing strategy returning the personal scope. Org snapshots are fanned out at the UsageStore layer, mirroring `refreshTokenAccounts`.
@@ -1003,7 +1003,7 @@ extension UsageSnapshot {
 
 - [ ] **Step 7.3: Add the `kiloScopeSnapshots` stored property to `UsageStore`**
 
-In `Sources/CodexBar/UsageStore.swift`, find the closest place where Codex-related published properties live (e.g. near `codexAccountSnapshots`) and add:
+In `Sources/CodexBar/UsageStore/UsageStore.swift`, find the closest place where Codex-related published properties live (e.g. near `codexAccountSnapshots`) and add:
 
 ```swift
     @Published var kiloScopeSnapshots: [KiloScopeSnapshot] = []
@@ -1013,7 +1013,7 @@ Choose a location adjacent to existing per-provider stacked snapshot arrays. The
 
 - [ ] **Step 7.4: Invoke fan-out from `refreshProvider`**
 
-In `Sources/CodexBar/UsageStore+Refresh.swift`, find the existing `tokenAccounts` fan-out block in `refreshProvider`:
+In `Sources/CodexBar/UsageStore/UsageStore+Refresh.swift`, find the existing `tokenAccounts` fan-out block in `refreshProvider`:
 
 ```swift
         let tokenAccounts = self.tokenAccounts(for: provider)
@@ -1063,8 +1063,8 @@ Expected: succeeds. If `UsageSnapshot.replacingIdentityOrganization` clashes wit
 - [ ] **Step 7.7: Commit**
 
 ```bash
-git add Sources/CodexBar/UsageStore.swift \
-        Sources/CodexBar/UsageStore+Refresh.swift \
+git add Sources/CodexBar/UsageStore/UsageStore.swift \
+        Sources/CodexBar/UsageStore/UsageStore+Refresh.swift \
         Sources/CodexBar/Providers/Kilo/UsageStore+KiloOrgRefresh.swift
 git commit -m "feat(kilo): fan out usage fetch per enabled scope"
 ```
@@ -1074,15 +1074,15 @@ git commit -m "feat(kilo): fan out usage fetch per enabled scope"
 ## Task 8: Surface scope snapshots in menu rendering
 
 **Files:**
-- Modify: `Sources/CodexBar/StatusItemController+MenuCardModel.swift` (or the file that produces Kilo menu rows)
-- Modify: `Sources/CodexBar/MenuDescriptor.swift` if needed
+- Modify: `Sources/CodexBar/StatusItem/StatusItemController+MenuCardModel.swift` (or the file that produces Kilo menu rows)
+- Modify: `Sources/CodexBar/Menu/MenuDescriptor.swift` if needed
 
 The menu currently renders one Kilo card. Add a branch: when `kiloScopeSnapshots` has 2+ entries, render one card per scope.
 
 - [ ] **Step 8.1: Locate the Kilo menu-row producer**
 
 ```bash
-grep -n "case \\.kilo" Sources/CodexBar/StatusItemController*.swift Sources/CodexBar/Menu*.swift 2>&1 | head -15
+grep -n "case \\.kilo" Sources/CodexBar/StatusItem/StatusItemController*.swift Sources/CodexBar/Menu/Menu*.swift 2>&1 | head -15
 ```
 
 This points at the rendering site. Open whichever file produces the per-provider row group for Kilo.
@@ -1125,8 +1125,8 @@ Expected: success.
 - [ ] **Step 8.5: Commit**
 
 ```bash
-git add Sources/CodexBar/StatusItemController+MenuCardModel.swift \
-        Sources/CodexBar/MenuDescriptor.swift
+git add Sources/CodexBar/StatusItem/StatusItemController+MenuCardModel.swift \
+        Sources/CodexBar/Menu/MenuDescriptor.swift
 git commit -m "feat(kilo): render one menu card per enabled scope"
 ```
 
@@ -1136,7 +1136,7 @@ git commit -m "feat(kilo): render one menu card per enabled scope"
 
 **Files:**
 - Modify: `Sources/CodexBar/Providers/Kilo/KiloProviderImplementation.swift`
-- Possibly modify: `Sources/CodexBar/PreferencesProviderDetailView.swift` and `Sources/CodexBarCore/Providers/ProviderDescriptor.swift` if a new descriptor variant is needed.
+- Possibly modify: `Sources/CodexBar/Settings/PreferencesProviderDetailView.swift` and `Sources/CodexBarCore/Providers/ProviderDescriptor.swift` if a new descriptor variant is needed.
 
 If a multi-toggle descriptor is not yet supported, surface the org list using a `ProviderSettingsFieldDescriptor.kind = .info`-style wrapper combined with action buttons, OR add a new descriptor variant. Pick the minimum needed.
 
@@ -1147,7 +1147,7 @@ Search first to see whether the existing `ProviderSettingsFieldDescriptor` alrea
 ```bash
 grep -n "enum Kind\|case info\|case toggleList\|case checkboxList" \
     Sources/CodexBarCore/Providers/ProviderDescriptor.swift \
-    Sources/CodexBar/PreferencesProviderDetailView.swift 2>&1 | head -20
+    Sources/CodexBar/Settings/PreferencesProviderDetailView.swift 2>&1 | head -20
 ```
 
 If a toggle-list kind exists, reuse it. Otherwise, add a new `ProviderSettingsOrganizationsDescriptor` in `Sources/CodexBarCore/Providers/ProviderDescriptor.swift`:
@@ -1276,7 +1276,7 @@ In `Sources/CodexBar/Providers/Kilo/KiloProviderImplementation.swift`:
 
 - [ ] **Step 9.3: Render the new descriptor in `PreferencesProviderDetailView`**
 
-In `Sources/CodexBar/PreferencesProviderDetailView.swift`, follow the existing pattern used by `settingsTokenAccounts`. Add a stored property `settingsOrganizations: ProviderSettingsOrganizationsDescriptor?`, source it from the provider implementation, and render it as a SwiftUI section under the API key:
+In `Sources/CodexBar/Settings/PreferencesProviderDetailView.swift`, follow the existing pattern used by `settingsTokenAccounts`. Add a stored property `settingsOrganizations: ProviderSettingsOrganizationsDescriptor?`, source it from the provider implementation, and render it as a SwiftUI section under the API key:
 
 ```swift
 if let descriptor = self.settingsOrganizations {
@@ -1334,7 +1334,7 @@ Expected: success. If type mismatches arise, follow them and align signatures.
 ```bash
 git add Sources/CodexBarCore/Providers/ProviderDescriptor.swift \
         Sources/CodexBar/Providers/Kilo/KiloProviderImplementation.swift \
-        Sources/CodexBar/PreferencesProviderDetailView.swift
+        Sources/CodexBar/Settings/PreferencesProviderDetailView.swift
 git commit -m "feat(kilo): Preferences organizations section with refresh + toggles"
 ```
 

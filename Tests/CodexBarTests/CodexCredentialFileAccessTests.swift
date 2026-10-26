@@ -311,7 +311,7 @@ struct CodexCredentialFileAccessTests {
         for path in [
             "Sources/CodexBarCore/Providers/Codex/CodexOAuth/CodexOAuthCredentials.swift",
             "Sources/CodexBarCore/CodexManagedAccounts.swift",
-            "Sources/CodexBar/CodexAccountPromotionService.swift",
+            "Sources/CodexBar/Providers/Codex/CodexAccountPromotionService.swift",
             "Sources/CodexBarCore/Providers/Codex/CodexAccountPromotionTransaction.swift",
         ] {
             let source = try String(contentsOf: root.appendingPathComponent(path), encoding: .utf8)

@@ -64,14 +64,14 @@ Relevant implementation seams:
 
 - `Sources/AdaptiveRefreshCore/AdaptiveRefreshPolicyCore.swift`: canonical package-internal policy table shared by the
   app adapter and offline replay tooling.
-- `Sources/CodexBar/SettingsStore.swift`: `RefreshFrequency` and fixed interval mapping.
-- `Sources/CodexBar/UsageStore.swift`: timer ownership and provider-batch refresh.
+- `Sources/CodexBar/Settings/SettingsStore.swift`: `RefreshFrequency` and fixed interval mapping.
+- `Sources/CodexBar/UsageStore/UsageStore.swift`: timer ownership and provider-batch refresh.
 - `Sources/CodexBar/AgentSessionsStore.swift`: 30-second local scan ownership and timestamp-only Adaptive projection.
 - `Sources/CodexBarCore/LocalAgentSessionScanner.swift`: existing local process/transcript correlation reused by
   Agent Sessions and Adaptive.
-- `Sources/CodexBar/UsageStore+Refresh.swift`: provider refresh coalescing and result application.
-- `Sources/CodexBar/StatusItemController+Menu.swift`: missing/error-only menu-open refresh.
-- `Sources/CodexBar/StatusItemController+MenuInteractionRefresh.swift`: deferred non-interactive refresh safety.
+- `Sources/CodexBar/UsageStore/UsageStore+Refresh.swift`: provider refresh coalescing and result application.
+- `Sources/CodexBar/StatusItem/StatusItemController+Menu.swift`: missing/error-only menu-open refresh.
+- `Sources/CodexBar/StatusItem/StatusItemController+MenuInteractionRefresh.swift`: deferred non-interactive refresh safety.
 - `Tests/CodexBarTests/StatusMenuInstantOpenTests.swift`: fresh, missing, in-flight, and close-during-refresh contracts.
 
 Adaptive changes only the first provider-refresh path. The local scanner supplies an in-memory scheduling signal; it

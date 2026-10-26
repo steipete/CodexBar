@@ -7,7 +7,7 @@ import Testing
 /// Antigravity's per-bucket quota-summary lanes (Sources/CodexBarCore/Providers/Antigravity/
 /// AntigravityStatusProbe.swift) instead of the collapsed legacy "Gemini Models"/"Claude and GPT"
 /// lanes, mirroring what the menu bar already does via `hasAntigravityQuotaSummaryWindows`
-/// (Sources/CodexBar/MenuCardView+ModelHelpers.swift). Idle families drop out of both surfaces the
+/// (Sources/CodexBar/Menu/MenuCardView+ModelHelpers.swift). Idle families drop out of both surfaces the
 /// same way the widget and the web dashboard drop them.
 struct AntigravityCLILaneParityTests {
     private static let now = Date(timeIntervalSince1970: 1_800_000_000)

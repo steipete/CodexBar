@@ -112,4 +112,4 @@ late successful response cannot restore a cleared default.
 - `Sources/CodexBarCore/Providers/Copilot/CopilotDeviceFlow.swift`
 - `Sources/CodexBarCore/Providers/Copilot/CopilotCreditEntitlementParser.swift`
 - `Sources/CodexBar/Providers/Copilot/CopilotLoginFlow.swift`
-- `Sources/CodexBar/CopilotTokenStore.swift` (legacy migration helper)
+- `Sources/CodexBar/Providers/Copilot/CopilotTokenStore.swift` (legacy migration helper)
