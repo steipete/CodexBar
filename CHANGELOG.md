@@ -2,6 +2,10 @@
 
 ## 0.81.1 — Unreleased
 
+### Changed
+
+- Settings: fade the provider reorder Undo banner after inactivity, pausing while hovered or focused and respecting Reduce Motion (#4760). Thanks @elijahfriedman!
+
 ## 0.81.0 — 2026-10-24
 
 ### Highlights

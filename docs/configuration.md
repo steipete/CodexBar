@@ -282,7 +282,9 @@ z.ai team accounts also use `usageScope`, `organizationId`, and `workspaceID`; s
 See the [generated provider ID list](provider-ids.md), sourced from `UsageProvider` in enum order.
 
 ## Ordering
-The order of `providers` controls display/order in the app and CLI. Reorder the array to change ordering.
+The order of `providers` controls display/order in the app and CLI. Reorder the array to change ordering. The Settings sidebar also supports dragging providers to reorder them.
+Its Undo banner dismisses after four seconds of inactivity. Hovering, keyboard focus, or VoiceOver focus pauses
+the timer, and a new reorder restarts it. Reduce Motion disables the fade animation.
 
 ## iCloud sync
 The three sync sub-options are disabled while the main sync switch is off, iCloud is unavailable, or a newer app version is required. Their saved choices are retained when sync is turned off and restored when it is enabled again.
