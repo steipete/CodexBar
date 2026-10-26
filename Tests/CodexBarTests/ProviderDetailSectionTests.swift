@@ -88,6 +88,33 @@ struct ProviderDetailSectionTests {
     }
 
     @Test
+    func `row progress pace maps to expected percent and rejects values outside the total`() throws {
+        let progress = try ProviderDetailSection.Row.Progress(used: 60, total: 200, expectedUsed: 50)
+        #expect(progress.expectedUsedPercent == 25)
+        #expect(try ProviderDetailSection.Row.Progress(used: 60, total: 200).expectedUsedPercent == nil)
+        for expectedUsed in [-1, 201, .infinity, .nan] {
+            #expect(throws: ProviderDetailSection.ValidationError.self) {
+                _ = try ProviderDetailSection.Row.Progress(used: 60, total: 200, expectedUsed: expectedUsed)
+            }
+        }
+    }
+
+    @Test
+    func `row progress pace round trips and cached progress without pace still decodes`() throws {
+        let row = try ProviderDetailSection.Row(
+            label: "Weekly",
+            value: "40%",
+            progress: ProviderDetailSection.Row.Progress(used: 0.4, total: 1, expectedUsed: 0.5))
+        let decoded = try JSONDecoder().decode(ProviderDetailSection.Row.self, from: JSONEncoder().encode(row))
+        #expect(decoded == row)
+
+        let legacy = #"{"label":"Weekly","value":"40%","progress":{"used":0.4,"total":1}}"#
+        let cached = try JSONDecoder().decode(ProviderDetailSection.Row.self, from: Data(legacy.utf8))
+        #expect(cached.progress?.usedPercent == 40)
+        #expect(cached.progress?.expectedUsed == nil)
+    }
+
+    @Test
     func `row id progress and usage value round trip through codable`() throws {
         let row = try ProviderDetailSection.Row(
             id: "copilot-seat-credits",

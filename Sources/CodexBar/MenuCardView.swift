@@ -183,6 +183,7 @@ struct UsageMenuCardView: View {
         var usageNotes: [String]
         var subscriptionNotes: [String] = []
         var providerDetails: [ProviderDetailSection] = []
+        var detailPaceVisible: Bool = true
         /// Provider-owned titles remain stable when the displayed sections are localized or redacted.
         var providerDetailRawTitles: [String?] = []
         var throughput: ProviderThroughputSection?
@@ -255,7 +256,8 @@ struct UsageMenuCardView: View {
                 if !liveModel.providerDetails.isEmpty {
                     ProviderDetailSectionsContent(
                         sections: liveModel.providerDetails,
-                        chartColor: liveModel.progressColor)
+                        chartColor: liveModel.progressColor,
+                        paceVisible: liveModel.detailPaceVisible)
                 }
             } else {
                 let hasUsage = liveModel.hasUsageContent
@@ -726,7 +728,8 @@ private struct UsageMenuCardUsageContentView: View {
         if !self.model.providerDetails.isEmpty {
             ProviderDetailSectionsContent(
                 sections: self.model.providerDetails,
-                chartColor: self.model.progressColor)
+                chartColor: self.model.progressColor,
+                paceVisible: self.model.detailPaceVisible)
         }
     }
 }
@@ -988,6 +991,7 @@ extension UsageMenuCardView.Model {
             usageNotes: usageNotes,
             subscriptionNotes: Self.subscriptionMetadataNotes(snapshot: input.snapshot, provider: input.provider),
             providerDetails: providerDetails.sections,
+            detailPaceVisible: input.paceVisible,
             providerDetailRawTitles: providerDetails.rawTitles,
             throughput: input.snapshot?.throughput.map {
                 ProviderThroughputSection(snapshot: $0, presentation: input.throughputPresentation)

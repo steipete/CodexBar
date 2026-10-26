@@ -4,6 +4,7 @@
 
 ### Added
 
+- Plugins: allow detail progress bars to display native pace markers, respecting Show pace (#4776). Thanks @KLIEBHAN!
 - Plugins: choose which reported quota window drives the menu-bar percentage and switcher gauge, with automatic fallback when that window is unavailable (#4781). Thanks @coygeek!
 
 ## 0.81.0 — 2026-10-24

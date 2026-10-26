@@ -588,7 +588,8 @@ struct ProviderMetricsInlineView: View {
             if contentState.hasProviderDetails {
                 ProviderDetailSectionsContent(
                     sections: self.model.providerDetails,
-                    chartColor: self.model.progressColor)
+                    chartColor: self.model.progressColor,
+                    paceVisible: self.model.detailPaceVisible)
             }
         }
     }
