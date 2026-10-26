@@ -1004,6 +1004,48 @@ extension UserProviderPluginTests {
 
     @MainActor
     @Test
+    func `merged plugin icon redraws when only its chosen menu bar metric window changes`() async throws {
+        let fixture = try Fixture()
+        defer { fixture.remove() }
+        _ = try fixture.write(name: "pool.js", source: Self.menuPlugin(id: "pool-meter", name: "Pool Meter"))
+        let plugin = try #require(UserProviderPluginRegistry.refresh(
+            loader: fixture.loader(transport: RecordingTransport(responseJSON: "{}"))).first?.plugin)
+        let (controller, store, settings) = Self.makePluginMenuController(
+            suiteName: "UserProviderPluginTests.metricObservation",
+            selectedPluginID: plugin.manifest.id,
+            enabledPluginIDs: [plugin.manifest.id],
+            approvalStore: fixture.approvals)
+        defer { controller.releaseStatusItemsForTesting() }
+        settings.menuBarShowsBrandIconWithPercent = true
+        settings.usageBarsShowUsed = true
+        settings.setMenuBarLayout(
+            MenuBarPercentWindowPreference.tertiary.applied(to: settings.menuBarLayout(forPlugin: plugin.manifest.id)),
+            forInstanceID: plugin.manifest.id)
+        func snapshot(monthlyUsed: Double) -> UsageSnapshot {
+            UsageSnapshot(
+                primary: RateWindow(usedPercent: 10, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+                secondary: RateWindow(usedPercent: 0, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
+                tertiary: RateWindow(
+                    usedPercent: monthlyUsed, windowMinutes: 43200, resetsAt: nil, resetDescription: nil),
+                updatedAt: Date())
+        }
+        store.snapshots[plugin.manifest.id] = snapshot(monthlyUsed: 40)
+        controller.updateIcons()
+        #expect(controller.statusItem.button?.title.hasSuffix("40%") == true)
+        for _ in 0..<20 {
+            await Task.yield()
+        }
+
+        // The automatic weekly window is unchanged, so only the chosen monthly window can trigger the redraw.
+        store.snapshots[plugin.manifest.id] = snapshot(monthlyUsed: 77)
+        for _ in 0..<20 where controller.statusItem.button?.title.hasSuffix("77%") != true {
+            await Task.yield()
+        }
+        #expect(controller.statusItem.button?.title.hasSuffix("77%") == true)
+    }
+
+    @MainActor
+    @Test
     func `plugin svg icon is kept and rendered as a template image`() throws {
         let fixture = try Fixture()
         defer { fixture.remove() }
