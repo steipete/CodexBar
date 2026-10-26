@@ -332,6 +332,7 @@
 "Store multiple Abacus AI Cookie headers." = "Store multiple Abacus AI Cookie headers.";
 "Store multiple Augment Cookie headers." = "Store multiple Augment Cookie headers.";
 "Store multiple Cursor Cookie headers." = "Store multiple Cursor Cookie headers.";
+"Store multiple Command Code subscription sessions." = "Store multiple Command Code subscription sessions.";
 "Store multiple Factory Cookie headers." = "Store multiple Factory Cookie headers.";
 "Store multiple MiniMax Cookie headers." = "Store multiple MiniMax Cookie headers.";
 "Store multiple Mistral Cookie headers." = "Store multiple Mistral Cookie headers.";
@@ -2620,7 +2621,7 @@
 "Also restores the provider order in the menu bar. Can be undone." = "Also restores the provider order in the menu bar. Can be undone.";
 "Local Codex details; excluded from combined totals." = "Local Codex details; excluded from combined totals.";
 
-"Auto uses an API key when configured, otherwise browser cookies." = "Auto uses an API key when configured, otherwise browser cookies.";
+"Auto uses the active saved session, otherwise an API key or browser cookies." = "Auto uses the active saved session, otherwise an API key or browser cookies.";
 "Stored in the CodexBar config file. You can also set COMMAND_CODE_API_KEY." = "Stored in the CodexBar config file. You can also set COMMAND_CODE_API_KEY.";
 /* OpenAI Live Usage */
 "%@ tokens · %@ requests" = "%@ tokens · %@ requests";

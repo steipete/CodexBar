@@ -4,7 +4,19 @@ public enum CommandCodeProviderDescriptor {
     public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
     private static let credentials = ProviderCredentialAdapter.apiKey(
         environmentKey: CommandCodeSettingsReader.apiKeyEnvironmentKey,
-        resolve: CommandCodeSettingsReader.apiKey)
+        resolve: CommandCodeSettingsReader.apiKey,
+        tokenAccountSupport: TokenAccountSupport(
+            title: "Session tokens",
+            subtitle: "Store multiple Command Code subscription sessions.",
+            placeholder: "Cookie: …",
+            injection: .cookieHeader,
+            requiresManualCookieSource: true,
+            cookieName: nil,
+            selectedAccountRequiresManualCookieSource: true,
+            passiveSourceModes: [.api]),
+        selectedAccountSourceModeResolver: { base, account, _ in
+            account == nil ? base : .web
+        })
 
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
@@ -119,7 +131,10 @@ struct CommandCodeWebFetchStrategy: ProviderFetchStrategy {
     }
 
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
-        if let manual = Self.manualCookieHeader(from: context) {
+        if context.settings?.commandcode?.cookieSource == .manual {
+            guard let manual = Self.manualCookieHeader(from: context) else {
+                throw CommandCodeUsageError.missingCredentials
+            }
             let snapshot = try await self.usageLoader(manual)
             return self.makeResult(usage: snapshot.toUsageSnapshot(), sourceLabel: "manual")
         }

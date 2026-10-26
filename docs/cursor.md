@@ -25,6 +25,14 @@ Linux. Explicit `web` mode never reads local Cursor credentials; macOS uses its 
 
 1) **Cursor.app local auth** (first automatic source on macOS; Linux fallback)
    - Reads Cursor.app's VS Code-style global state DB for `ItemTable` key `cursorAuth/accessToken`.
+   - On macOS, supports both plain JWTs and Cursor 3.27's `cursor-safe-storage:v1:` encrypted tokens. Encrypted
+     tokens use the `Cursor Safe Storage` Keychain item (account `Cursor`). Plain token decoding performs no
+     Keychain reads.
+     Background and settings refreshes never prompt. An explicit manual refresh may request access once, sharing
+     that action's prompt allowance with browser imports. Choose **Always Allow** to permit future refreshes without
+     another prompt; denying access keeps the six-hour cooldown, including subsequent manual refreshes.
+     Unreadable or malformed encrypted tokens fall through to the existing cookie sources without reusing an older
+     persisted Cursor.app identity. JWT user ID and expiry validation still run after decryption.
    - BLOB decoding recognizes BOM-less ASCII UTF-16LE tokens before UTF-8, which would otherwise keep interleaved
      NUL bytes. Other encodings retain the existing UTF-8/UTF-16LE fallback; tokens are not normalized, and malformed
      nonempty values remain distinct from a missing session so they cannot enable stale cached-account fallback.

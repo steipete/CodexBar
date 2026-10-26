@@ -54,6 +54,9 @@ Usage source picker:
 - The menu and provider settings list every still-available expiry, while the optional credits setting controls
   nearing-expiry notifications. CodexBar does not redeem or modify reset credits.
 - `rate_limit.primary_window` / `secondary_window` map to the session/weekly lanes.
+- When a response explicitly reports a fixed 30-day window (`limit_window_seconds: 2592000`),
+  pace uses those 43,200 minutes rather than inferring a calendar month from the reset date.
+  This also covers observed Free-plan responses; it does not assume every Free account has that window.
 - Suspicious weekly resets keep the last trusted usage while confirmation is pending. A successful refresh for the
   same account and workspace clears stale connectivity errors even when the reading is withheld; failed, cancelled,
   or superseded refreshes do not clear them. Cached usage, credits, and other accounts remain unchanged.

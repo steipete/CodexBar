@@ -19,7 +19,7 @@ struct CursorSessionIdentity: Equatable, Sendable {
     }
 
     var displayLabel: String? {
-        Self.normalizedEmail(self.email) ?? Self.normalizedSubject(self.subject)
+        Self.normalizedValue(self.email) ?? Self.normalizedSubject(self.subject)
     }
 
     func differs(from other: Self) -> Bool? {
@@ -28,8 +28,8 @@ struct CursorSessionIdentity: Equatable, Sendable {
         {
             return lhs != rhs
         }
-        if let lhs = Self.normalizedEmail(self.email),
-           let rhs = Self.normalizedEmail(other.email)
+        if let lhs = Self.normalizedValue(self.email),
+           let rhs = Self.normalizedValue(other.email)
         {
             return lhs != rhs
         }
@@ -37,15 +37,7 @@ struct CursorSessionIdentity: Equatable, Sendable {
     }
 
     static func from(cookieHeader: String) -> Self? {
-        for component in cookieHeader.split(separator: ";") {
-            let pair = component.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false)
-            guard pair.count == 2 else { continue }
-            let name = pair[0].trimmingCharacters(in: .whitespacesAndNewlines)
-            guard name == "WorkosCursorSessionToken" else { continue }
-
-            let encodedValue = pair[1].trimmingCharacters(in: .whitespacesAndNewlines)
-            let value = encodedValue.removingPercentEncoding ?? encodedValue
-            let parts = value.components(separatedBy: "::")
+        for parts in self.sessionTokenComponents(cookieHeader) {
             guard parts.count >= 2 else { continue }
             let token = parts.last ?? ""
             if let identity = try? Self(jwt: token) {
@@ -58,6 +50,17 @@ struct CursorSessionIdentity: Equatable, Sendable {
             }
         }
         return nil
+    }
+
+    fileprivate static func sessionTokenComponents(_ cookieHeader: String) -> [[String]] {
+        cookieHeader.split(separator: ";").compactMap { component in
+            let pair = component.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false)
+            guard pair.count == 2,
+                  pair[0].trimmingCharacters(in: .whitespacesAndNewlines) == "WorkosCursorSessionToken"
+            else { return nil }
+            let encoded = pair[1].trimmingCharacters(in: .whitespacesAndNewlines)
+            return (encoded.removingPercentEncoding ?? encoded).components(separatedBy: "::")
+        }
     }
 
     init(subject: String?, email: String?) {
@@ -90,13 +93,11 @@ struct CursorSessionIdentity: Equatable, Sendable {
     }
 
     private static func normalizedSubject(_ value: String?) -> String? {
-        guard let value = value?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else {
-            return nil
-        }
-        return value.split(separator: "|", omittingEmptySubsequences: true).last.map(String.init)?.lowercased()
+        self.normalizedValue(value)?.split(separator: "|", omittingEmptySubsequences: true).last
+            .map(String.init)
     }
 
-    private static func normalizedEmail(_ value: String?) -> String? {
+    private static func normalizedValue(_ value: String?) -> String? {
         guard let value = value?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else {
             return nil
         }
@@ -112,14 +113,7 @@ struct CursorAppAuthSession: Equatable, Sendable {
     let accessToken: String
 
     static func from(cookieHeader: String) -> Self? {
-        for component in cookieHeader.split(separator: ";") {
-            let pair = component.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false)
-            guard pair.count == 2,
-                  pair[0].trimmingCharacters(in: .whitespacesAndNewlines) == "WorkosCursorSessionToken"
-            else { continue }
-            let encodedValue = pair[1].trimmingCharacters(in: .whitespacesAndNewlines)
-            let value = encodedValue.removingPercentEncoding ?? encodedValue
-            let parts = value.components(separatedBy: "::")
+        for parts in CursorSessionIdentity.sessionTokenComponents(cookieHeader) {
             guard parts.count >= 2,
                   let token = parts.last,
                   token.split(separator: ".", omittingEmptySubsequences: false).count >= 2
@@ -148,7 +142,7 @@ struct CursorAppAuthSession: Equatable, Sendable {
     }
 
     func userID() throws -> String {
-        let json = try self.payload()
+        let json = try CursorSessionIdentity.payload(jwt: self.accessToken)
         guard let subject = json["sub"] as? String,
               let userID = subject.split(separator: "|", omittingEmptySubsequences: true).last.map(String.init),
               !userID.isEmpty
@@ -164,7 +158,7 @@ struct CursorAppAuthSession: Equatable, Sendable {
     }
 
     func expiresAt() throws -> Date {
-        let json = try self.payload()
+        let json = try CursorSessionIdentity.payload(jwt: self.accessToken)
         guard let expiration = json["exp"] as? NSNumber else {
             throw CursorStatusProbeError.parseFailed("Cursor.app access token is missing an expiration")
         }
@@ -190,10 +184,6 @@ struct CursorAppAuthSession: Equatable, Sendable {
     static func isPersistedCookie(_ cookie: HTTPCookie) -> Bool {
         cookie.name == "WorkosCursorSessionToken" && cookie.comment == self.persistedCookieMarker
     }
-
-    private func payload() throws -> [String: Any] {
-        try CursorSessionIdentity.payload(jwt: self.accessToken)
-    }
 }
 
 protocol CursorAppAuthSessionProviding: Sendable {
@@ -211,20 +201,13 @@ struct CursorAppAuthStore: CursorAppAuthSessionProviding {
 
     static func resolveDefaultDBPath(
         home: String? = nil,
-        environment: [String: String] = ProcessInfo.processInfo.environment,
-        fileManager: FileManager = .default) -> String
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> String
     {
         #if os(macOS)
         _ = environment
-        _ = fileManager
         return "\(home ?? NSHomeDirectory())/Library/Application Support/Cursor/User/globalStorage/state.vscdb"
         #elseif os(Linux)
         return "\(self.linuxConfigHome(home: home, environment: environment))/Cursor/User/globalStorage/state.vscdb"
-        #else
-        _ = home
-        _ = environment
-        _ = fileManager
-        return ""
         #endif
     }
 
@@ -264,18 +247,35 @@ struct CursorAppAuthStore: CursorAppAuthSessionProviding {
     #endif
 
     func loadSession() throws -> CursorAppAuthSession? {
-        guard FileManager.default.fileExists(atPath: self.dbPath) else { return nil }
-        guard let accessToken = try self.value(for: "cursorAuth/accessToken"),
+        guard FileManager.default.fileExists(atPath: self.dbPath),
+              let accessToken = try self.accessToken(),
               !accessToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         else {
             return nil
         }
-        return CursorAppAuthSession(accessToken: accessToken)
+        #if os(macOS)
+        let prefix = "cursor-safe-storage:v1:"
+        if accessToken.hasPrefix(prefix),
+           let encrypted = Data(base64Encoded: String(accessToken.dropFirst(prefix.count))),
+           encrypted.starts(with: Data("v10".utf8)), encrypted.count > 3,
+           (encrypted.count - 3).isMultiple(of: 16),
+           let password = ChromiumSafeStorage.password(
+               service: "Cursor Safe Storage",
+               account: "Cursor",
+               allowPrompt: true),
+           let plaintext = ChromiumSafeStorage.decrypt(encrypted, key: ChromiumSafeStorage.deriveKey(from: password)),
+           let decoded = String(data: plaintext, encoding: .utf8)
+        {
+            return CursorAppAuthSession(accessToken: decoded)
+        }
+        #endif
+        // Preserve an unusable session on decryption failure so stale persisted app auth cannot replace it.
+        return CursorAppAuthSession(accessToken: accessToken.hasPrefix("cursor-safe-storage:") ? "" : accessToken)
     }
 
-    private func value(for key: String) throws -> String? {
+    private func accessToken() throws -> String? {
         do {
-            return try self.value(for: key, immutable: false)
+            return try self.accessToken(immutable: false)
         } catch let failure as SQLiteReadFailure {
             // An idle WAL database can retain WAL mode in its header after both sidecars disappear.
             // Immutable mode reads that main file without recreating sidecars. Never use it while a WAL exists,
@@ -284,7 +284,7 @@ struct CursorAppAuthStore: CursorAppAuthSessionProviding {
                 throw CursorStatusProbeError.networkError("SQLite error reading Cursor app auth: \(failure.message)")
             }
             do {
-                return try self.value(for: key, immutable: true)
+                return try self.accessToken(immutable: true)
             } catch let fallbackFailure as SQLiteReadFailure {
                 throw CursorStatusProbeError.networkError(
                     "SQLite error reading Cursor app auth: \(fallbackFailure.message)")
@@ -292,7 +292,7 @@ struct CursorAppAuthStore: CursorAppAuthSessionProviding {
         }
     }
 
-    private func value(for key: String, immutable: Bool) throws -> String? {
+    private func accessToken(immutable: Bool) throws -> String? {
         var db: OpaquePointer?
         let databaseURL = URL(fileURLWithPath: self.dbPath, isDirectory: false).absoluteURL
         let filename = immutable ? "\(databaseURL.absoluteString)?immutable=1" : self.dbPath
@@ -306,7 +306,7 @@ struct CursorAppAuthStore: CursorAppAuthSessionProviding {
         defer { sqlite3_close(db) }
         sqlite3_busy_timeout(db, 250)
 
-        let query = "SELECT value FROM ItemTable WHERE key = ? LIMIT 1;"
+        let query = "SELECT value FROM ItemTable WHERE key = 'cursorAuth/accessToken' LIMIT 1;"
         var stmt: OpaquePointer?
         let prepareResult = sqlite3_prepare_v2(db, query, -1, &stmt, nil)
         guard prepareResult == SQLITE_OK else {
@@ -314,7 +314,6 @@ struct CursorAppAuthStore: CursorAppAuthSessionProviding {
         }
         defer { sqlite3_finalize(stmt) }
 
-        sqlite3_bind_text(stmt, 1, key, -1, SQLITE_TRANSIENT)
         let stepResult = sqlite3_step(stmt)
         guard stepResult == SQLITE_ROW else {
             if stepResult == SQLITE_DONE {
@@ -367,8 +366,6 @@ struct CursorAppAuthStore: CursorAppAuthSessionProviding {
         let message: String
     }
 }
-
-private let SQLITE_TRANSIENT = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
 #endif
 
 #if os(Linux)

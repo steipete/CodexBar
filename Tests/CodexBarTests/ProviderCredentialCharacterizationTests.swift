@@ -226,6 +226,7 @@ struct ProviderCredentialCharacterizationTests {
         let cookieProviders: [UsageProvider] = [
             .claude, .cursor, .opencode, .opencodego, .factory, .minimax, .manus,
             .augment, .ollama, .abacus, .mistral, .qoder, .stepfun, .replicate, .typesafe, .kimi,
+            .commandcode,
         ]
 
         for (provider, key) in environmentProviders {
@@ -265,6 +266,7 @@ struct ProviderCredentialCharacterizationTests {
             .replicate: "account-token",
             .typesafe: "account-token",
             .kimi: "kimi-auth=account-token",
+            .commandcode: "account-token",
         ]
         for provider in cookieProviders {
             #expect(TokenAccountSupportCatalog.normalizedCookieHeader(

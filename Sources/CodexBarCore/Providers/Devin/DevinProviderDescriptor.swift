@@ -17,6 +17,7 @@ public enum DevinProviderDescriptor {
             id: .devin,
             settingsSection: .init(
                 DevinProviderSettingsKey.self,
+                supportsConfigCookieHeader: true,
                 credentialSettings: { context in
                     let settings = context.cookieSettings(for: .devin)
                     return DevinProviderSettings(

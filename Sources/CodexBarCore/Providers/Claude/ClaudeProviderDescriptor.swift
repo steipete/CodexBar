@@ -85,41 +85,46 @@ public enum ClaudeProviderDescriptor {
             }
         })
 
+    private static let settingsSection = ProviderSettingsSectionRegistration(
+        ClaudeProviderSettingsKey.self,
+        supportsConfigCookieHeader: true,
+        credentialSettings: { context in
+            let manualCookieHeader = context.account == nil ? context.config?.sanitizedCookieHeader : nil
+            let routing = ClaudeCredentialRouting.resolve(
+                tokenAccountToken: context.account?.token,
+                manualCookieHeader: manualCookieHeader)
+            let source: ClaudeUsageDataSource = if context.account != nil {
+                switch routing {
+                case .adminAPIKey: .api
+                case .oauth: .oauth
+                case .webCookie: .web
+                case .none: .auto
+                }
+            } else if routing.adminAPIKey != nil {
+                .api
+            } else if routing.isOAuth {
+                .oauth
+            } else {
+                .auto
+            }
+            let cookieSource: ProviderCookieSource = routing.isOAuth || routing.adminAPIKey != nil
+                ? .off
+                : context.cookieSettings(for: .claude).cookieSource
+            return ClaudeProviderSettings(
+                usageDataSource: source,
+                webExtrasEnabled: false,
+                cookieSource: cookieSource,
+                manualCookieHeader: routing.manualCookieHeader,
+                organizationID: context.account?.sanitizedOrganizationID,
+                desktopCookiesEnabled: context.config?.claudeDesktopCookiesEnabled ?? false)
+        })
+
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
             id: .claude,
             menuBarMetrics: ProviderMenuBarMetricCapabilities(
                 supported: [.automatic, .primary, .secondary, .primaryAndSecondary, .extraUsage]),
-            settingsSection: .init(ClaudeProviderSettingsKey.self, credentialSettings: { context in
-                let manualCookieHeader = context.account == nil ? context.config?.sanitizedCookieHeader : nil
-                let routing = ClaudeCredentialRouting.resolve(
-                    tokenAccountToken: context.account?.token,
-                    manualCookieHeader: manualCookieHeader)
-                let source: ClaudeUsageDataSource = if context.account != nil {
-                    switch routing {
-                    case .adminAPIKey: .api
-                    case .oauth: .oauth
-                    case .webCookie: .web
-                    case .none: .auto
-                    }
-                } else if routing.adminAPIKey != nil {
-                    .api
-                } else if routing.isOAuth {
-                    .oauth
-                } else {
-                    .auto
-                }
-                let cookieSource: ProviderCookieSource = routing.isOAuth || routing.adminAPIKey != nil
-                    ? .off
-                    : context.cookieSettings(for: .claude).cookieSource
-                return ClaudeProviderSettings(
-                    usageDataSource: source,
-                    webExtrasEnabled: false,
-                    cookieSource: cookieSource,
-                    manualCookieHeader: routing.manualCookieHeader,
-                    organizationID: context.account?.sanitizedOrganizationID,
-                    desktopCookiesEnabled: context.config?.claudeDesktopCookiesEnabled ?? false)
-            }),
+            settingsSection: self.settingsSection,
             credentials: self.credentials,
             metadata: ProviderMetadata(
                 id: .claude,

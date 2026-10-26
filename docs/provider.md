@@ -74,6 +74,9 @@ Credential and config behavior follows the descriptor boundary too. Providers wi
 diagnose classification, validation, and missing-credential messaging; a missing adapter means the provider has no
 credential behavior. Typed settings-section registrations optionally expose cookie settings and a CLI credential
 contribution, so the app, CLI, and plugin cookie broker consume the same provider-owned settings shape.
+Manual config-cookie support is declared by the settings-section registration or its credential environment
+projection. Cookie settings opt in; selected-browser-profile settings do not. The CLI must not infer manual-cookie
+support from a web source, because that source may only consume a selected profile.
 
 Automatic cookie traversal reads one browser at a time in the provider's existing order. Fetchers validate
 its candidate sessions before requesting another browser; missing or rejected sessions retain fallback.

@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 @testable import CodexBar
+@testable import CodexBarCLI
 @testable import CodexBarCore
 
 @Suite(.serialized)
@@ -212,6 +213,184 @@ struct CommandCodeProviderTests {
         }
     }
 
+    @Test
+    func `saved sessions preserve their HTTP credentials and rejected selections never fall back`() async throws {
+        let service = "com.steipete.codexbar.tests.commandcode-accounts.\(UUID())"
+        try await KeychainCacheStore.withServiceOverrideForTesting(service) {
+            try await KeychainCacheStore.withImplicitTestStoreForTesting {
+                try await CommandCodeUsageFetcher.withIsolatedPlanCacheForTesting {
+                    CookieHeaderCache.store(
+                        provider: .commandcode, cookieHeader: "session=ambient", sourceLabel: "Cached account")
+                    let inputs = [
+                        ("\"fixture-a\"", "__Secure-commandcode_prod_.session_token=fixture-a"),
+                        (
+                            "Cookie: __Secure-commandcode_prod_.session_token=fixture-b; extra=keep",
+                            "__Secure-commandcode_prod_.session_token=fixture-b; extra=keep"),
+                        (
+                            "curl 'https://commandcode.ai' -H 'Cookie: session=fixture-c; extra=keep'",
+                            "session=fixture-c; extra=keep"),
+                    ]
+                    let accounts = inputs.enumerated().map { index, input in
+                        ProviderTokenAccount(
+                            id: UUID(), label: "Fixture \(index)", token: input.0, addedAt: 0, lastUsed: nil)
+                    }
+                    let cli = try TokenAccountCLIContext(
+                        selection: .init(label: nil, index: nil, allAccounts: true),
+                        config: CodexBarConfig(providers: [ProviderConfig(
+                            id: .commandcode,
+                            apiKey: "ambient-api-key",
+                            cookieHeader: "session=ambient",
+                            cookieSource: .auto,
+                            tokenAccounts: .init(version: 1, accounts: accounts, activeIndex: 0))]),
+                        verbose: false,
+                        baseEnvironment: [:])
+                    #expect(try cli.resolvedAccounts(for: .commandcode).map(\.id) == accounts.map(\.id))
+                    for (index, account) in accounts.enumerated() {
+                        let settings = try #require(cli.settingsSnapshot(for: .commandcode, account: account)?
+                            .commandcode)
+                        #expect(settings.cookieSource == .manual)
+                        #expect(cli.effectiveSourceMode(base: .auto, provider: .commandcode, account: account) == .web)
+                        let expected = inputs[index].1
+                        let recorder = CookieAttemptRecorder()
+                        let transport = ProviderHTTPTransportStub { request in
+                            let cookie = request.value(forHTTPHeaderField: "Cookie") ?? ""
+                            recorder.append(cookie)
+                            #expect(cookie == expected)
+                            #expect(request.value(forHTTPHeaderField: "Authorization") == nil)
+                            let url = try #require(request.url)
+                            let body = url.path.hasSuffix("/credits")
+                                ? #"{"credits":{"monthlyCredits":8,"purchasedCredits":0}}"#
+                                : """
+                                {"success":true,"data":{"id":"fixture-sub","status":"active",\
+                                "planId":"individual-go","currentPeriodEnd":"2096-10-02T07:06:40.000Z"}}
+                                """
+                            return try (Data(body.utf8), #require(HTTPURLResponse(
+                                url: url, statusCode: 200, httpVersion: nil, headerFields: nil)))
+                        }
+                        let strategy = CommandCodeWebFetchStrategy(
+                            usageLoader: { try await CommandCodeUsageFetcher.fetchUsage(
+                                cookieHeader: $0,
+                                session: transport) },
+                            sessionLoader: {
+                                Issue.record("A selected account must not import another browser session")
+                                return []
+                            })
+                        let context = self.makeContext(
+                            cookieSource: settings.cookieSource,
+                            manualCookieHeader: settings.manualCookieHeader,
+                            environment: cli.environment(
+                                base: ["COMMAND_CODE_API_KEY": "ambient-api-key"],
+                                provider: .commandcode,
+                                account: account))
+                        let strategies = await CommandCodeProviderDescriptor.descriptor.fetchPlan.pipeline
+                            .resolveStrategies(context)
+                        #expect(strategies.map(\.id) == ["commandcode.web"])
+                        let result = try await strategy.fetch(context)
+                        #expect(result.sourceLabel == "manual")
+                        #expect(!recorder.snapshot().isEmpty)
+                    }
+                    let rejected = try #require(cli.settingsSnapshot(for: .commandcode, account: accounts[1])?
+                        .commandcode)
+                    let recorder = CookieAttemptRecorder()
+                    let transport = ProviderHTTPTransportStub { request in
+                        recorder.append(request.value(forHTTPHeaderField: "Cookie") ?? "")
+                        #expect(request.value(forHTTPHeaderField: "Authorization") == nil)
+                        let url = try #require(request.url)
+                        return try (Data("{}".utf8), #require(HTTPURLResponse(
+                            url: url, statusCode: 401, httpVersion: nil, headerFields: nil)))
+                    }
+                    let strategy = CommandCodeWebFetchStrategy(
+                        usageLoader: {
+                            try await CommandCodeUsageFetcher.fetchUsage(cookieHeader: $0, session: transport)
+                        },
+                        sessionLoader: {
+                            Issue.record("Rejected selection must not import another browser session")
+                            return []
+                        })
+                    await #expect(throws: CommandCodeUsageError.invalidCredentials) {
+                        try await strategy.fetch(self.makeContext(
+                            cookieSource: .manual, manualCookieHeader: rejected.manualCookieHeader))
+                    }
+                    #expect(!recorder.snapshot().isEmpty)
+                    #expect(recorder.snapshot().allSatisfy { $0 == inputs[1].1 })
+                    #expect(CookieHeaderCache.load(provider: .commandcode)?.cookieHeader == "session=ambient")
+                }
+            }
+        }
+    }
+
+    @Test
+    func `empty manual sessions cannot use cached or browser accounts`() async throws {
+        let service = "com.steipete.codexbar.tests.commandcode-empty.\(UUID())"
+        try await KeychainCacheStore.withServiceOverrideForTesting(service) {
+            try await KeychainCacheStore.withImplicitTestStoreForTesting {
+                CookieHeaderCache.store(
+                    provider: .commandcode, cookieHeader: "session=ambient", sourceLabel: "Cached account")
+                let recorder = CookieAttemptRecorder()
+                let strategy = CommandCodeWebFetchStrategy(
+                    usageLoader: { header in
+                        recorder.append(header)
+                        return Self.snapshot()
+                    },
+                    sessionLoader: {
+                        recorder.append("browser discovery")
+                        return []
+                    })
+                await #expect(throws: CommandCodeUsageError.missingCredentials) {
+                    try await strategy.fetch(self.makeContext(cookieSource: .manual, manualCookieHeader: "Cookie: "))
+                }
+                #expect(recorder.snapshot().isEmpty)
+            }
+        }
+    }
+
+    @MainActor
+    @Test
+    func `Command Code can manage subscription session accounts`() throws {
+        let fixture = try ProviderSettingsDescriptorTests()
+            .makeSettingsFixture(suite: "CommandCodeProviderTests-accounts")
+        let implementation = CommandCodeProviderImplementation()
+        let support = try #require(TokenAccountSupportCatalog.support(for: .commandcode))
+
+        #expect(support.requiresManualCookieSource)
+        #expect(support.selectedAccountRequiresManualCookieSource)
+        #expect(implementation.tokenAccountsVisibility(
+            context: fixture.settingsContext(provider: .commandcode), support: support) == false)
+
+        fixture.settings.addTokenAccount(
+            provider: .commandcode,
+            label: "Personal",
+            token: "session-token")
+
+        #expect(fixture.settings.commandcodeCookieSource == .manual)
+        #expect(implementation.tokenAccountsVisibility(
+            context: fixture.settingsContext(provider: .commandcode), support: support))
+
+        let contribution = try #require(implementation.settingsSnapshot(context: .init(
+            settings: fixture.settings, tokenOverride: nil)))
+        let snapshot = ProviderSettingsSnapshot(contributions: [contribution])
+        #expect(snapshot.commandcode?.cookieSource == .manual)
+        #expect(snapshot.commandcode?.manualCookieHeader == "session-token")
+        let account = try #require(fixture.settings.selectedTokenAccount(for: .commandcode))
+        fixture.settings.commandcodeUsageDataSource = .api
+        #expect(fixture.settings.effectiveSelectedTokenAccount(for: .commandcode) == nil)
+        fixture.settings.commandcodeUsageDataSource = .auto
+        #expect(fixture.settings.effectiveSelectedTokenAccount(for: .commandcode)?.id == account.id)
+        fixture.settings.commandcodeCookieSource = .auto
+        #expect(fixture.settings.effectiveSelectedTokenAccount(for: .commandcode) == nil)
+        fixture.settings.setActiveTokenAccountIndex(0, for: .commandcode)
+        #expect(fixture.settings.commandcodeCookieSource == .manual)
+
+        fixture.settings.removeTokenAccount(provider: .commandcode, accountID: account.id)
+        #expect(fixture.settings.selectedTokenAccount(for: .commandcode) == nil)
+        #expect(fixture.settings.commandcodeCookieSource == .manual)
+        let cleared = try #require(implementation.settingsSnapshot(context: .init(
+            settings: fixture.settings, tokenOverride: nil)))
+        let clearedSettings = try #require(ProviderSettingsSnapshot(contributions: [cleared]).commandcode)
+        #expect(clearedSettings.cookieSource == .manual)
+        #expect((clearedSettings.manualCookieHeader ?? "").isEmpty)
+    }
+
     @MainActor
     @Test
     func `implementation is registered`() {
@@ -231,7 +410,8 @@ struct CommandCodeProviderTests {
 
     private func makeContext(
         cookieSource: ProviderCookieSource,
-        manualCookieHeader: String? = nil) -> ProviderFetchContext
+        manualCookieHeader: String? = nil,
+        environment: [String: String] = [:]) -> ProviderFetchContext
     {
         let browserDetection = BrowserDetection(cacheTTL: 0)
         let settings = ProviderSettingsSnapshot.make(
@@ -243,7 +423,7 @@ struct CommandCodeProviderTests {
             webTimeout: 1,
             webDebugDumpHTML: false,
             verbose: false,
-            env: [:],
+            env: environment,
             settings: settings,
             fetcher: UsageFetcher(),
             claudeFetcher: ClaudeUsageFetcher(browserDetection: browserDetection),

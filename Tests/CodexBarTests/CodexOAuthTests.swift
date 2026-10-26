@@ -488,8 +488,7 @@ struct CodexOAuthTests {
 
         let result = try CodexOAuthFetchStrategy._mapResultForTesting(
             Data(json.utf8),
-            credentials: creds,
-            sourceMode: .auto)
+            credentials: creds)
 
         #expect(result.usage.primary == nil)
         #expect(result.usage.secondary?.usedPercent == 43)
@@ -523,8 +522,7 @@ struct CodexOAuthTests {
 
         let result = try CodexOAuthFetchStrategy._mapResultForTesting(
             Data(json.utf8),
-            credentials: creds,
-            sourceMode: .oauth)
+            credentials: creds)
 
         #expect(result.usage.primary == nil)
         #expect(result.usage.secondary?.usedPercent == 43)
@@ -558,8 +556,7 @@ struct CodexOAuthTests {
 
         let result = try CodexOAuthFetchStrategy._mapResultForTesting(
             Data(json.utf8),
-            credentials: creds,
-            sourceMode: .auto)
+            credentials: creds)
 
         #expect(result.usage.primary?.usedPercent == 18)
         #expect(result.usage.primary?.windowMinutes == 300)
@@ -593,8 +590,7 @@ struct CodexOAuthTests {
 
         let result = try CodexOAuthFetchStrategy._mapResultForTesting(
             Data(json.utf8),
-            credentials: creds,
-            sourceMode: .auto)
+            credentials: creds)
 
         #expect(result.usage.primary == nil)
         #expect(result.usage.secondary?.usedPercent == 43)
@@ -628,8 +624,7 @@ struct CodexOAuthTests {
 
         let result = try CodexOAuthFetchStrategy._mapResultForTesting(
             Data(json.utf8),
-            credentials: creds,
-            sourceMode: .oauth)
+            credentials: creds)
 
         #expect(result.usage.primary == nil)
         #expect(result.usage.secondary?.usedPercent == 43)
@@ -723,8 +718,7 @@ struct CodexOAuthTests {
 
         let result = try CodexOAuthFetchStrategy._mapResultForTesting(
             Data(json.utf8),
-            credentials: creds,
-            sourceMode: .auto)
+            credentials: creds)
 
         #expect(result.usage.primary == nil)
         #expect(result.usage.secondary == nil)

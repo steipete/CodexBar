@@ -1,21 +1,10 @@
 import Foundation
 
 #if os(macOS)
-import CommonCrypto
-import Security
 import SQLite3
 import SweetCookieKit
 
 enum AliyunOneConsoleChromiumCookieFallbackImporter {
-    private struct ChromiumCookieRecord {
-        let domain: String
-        let name: String
-        let path: String
-        let value: String
-        let expires: Date?
-        let isSecure: Bool
-    }
-
     enum ImportError: LocalizedError {
         case keyUnavailable(browser: Browser)
         case keychainDenied(browser: Browser)
@@ -45,9 +34,18 @@ enum AliyunOneConsoleChromiumCookieFallbackImporter {
         guard !stores.isEmpty, BrowserCookieAccessGate.shouldAttempt(browser) else { return nil }
 
         logger?("Trying \(browser.displayName) Chromium fallback")
-        let keys = try self.derivedKeys(for: browser)
+        // Request keys only after a matching encrypted row, then reuse them across stores.
+        var cachedKeys: [Data]?
+        func keys() throws -> [Data] {
+            if let cachedKeys { return cachedKeys }
+            let derived = try self.derivedKeys(for: browser)
+            cachedKeys = derived
+            return derived
+        }
         for store in stores {
-            let cookies = try self.loadCookies(from: store, domains: domains, keys: keys)
+            guard let sourceDB = store.databaseURL else { continue }
+            let cookies = try self.readCookiesFromLockedDB(
+                sourceDB: sourceDB, domains: domains, keys: keys, label: store.label).compactMap(self.makeCookie)
             guard !cookies.isEmpty else { continue }
             if isAuthenticatedSession(cookies) {
                 logger?("Found \(cookies.count) \(sessionLabel) cookies via \(store.label) fallback")
@@ -57,25 +55,11 @@ enum AliyunOneConsoleChromiumCookieFallbackImporter {
         return nil
     }
 
-    private static func loadCookies(
-        from store: BrowserCookieStore,
-        domains: [String],
-        keys: [Data]) throws -> [HTTPCookie]
-    {
-        guard let sourceDB = store.databaseURL else { return [] }
-        let records = try self.readCookiesFromLockedDB(
-            sourceDB: sourceDB,
-            domains: domains,
-            keys: keys,
-            label: store.label)
-        return records.compactMap(self.makeCookie)
-    }
-
     private static func readCookiesFromLockedDB(
         sourceDB: URL,
         domains: [String],
-        keys: [Data],
-        label: String) throws -> [ChromiumCookieRecord]
+        keys: () throws -> [Data],
+        label: String) throws -> [BrowserCookieRecord]
     {
         let tempDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("aliyun-oneconsole-chromium-cookies-\(UUID().uuidString)", isDirectory: true)
@@ -98,8 +82,8 @@ enum AliyunOneConsoleChromiumCookieFallbackImporter {
     private static func readCookies(
         fromDB path: String,
         domains: [String],
-        keys: [Data],
-        label: String) throws -> [ChromiumCookieRecord]
+        keys: () throws -> [Data],
+        label: String) throws -> [BrowserCookieRecord]
     {
         var db: OpaquePointer?
         guard sqlite3_open_v2(path, &db, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else {
@@ -114,31 +98,33 @@ enum AliyunOneConsoleChromiumCookieFallbackImporter {
         }
         defer { sqlite3_finalize(stmt) }
 
-        var records: [ChromiumCookieRecord] = []
+        var records: [BrowserCookieRecord] = []
         while sqlite3_step(stmt) == SQLITE_ROW {
-            guard let hostKey = self.readText(stmt, index: 0), self.matches(domain: hostKey, patterns: domains) else {
-                continue
-            }
-            guard let name = self.readText(stmt, index: 1), let path = self.readText(stmt, index: 2) else {
+            guard let hostKey = self.readText(stmt, index: 0), AliyunOneConsoleCookieImporter.matchesCookieDomain(
+                hostKey,
+                patterns: domains), let name = self.readText(stmt, index: 1),
+                                    let path = self.readText(stmt, index: 2)
+            else {
                 continue
             }
 
             let value: String? = if let plain = self.readText(stmt, index: 5), !plain.isEmpty {
                 plain
             } else if let encrypted = self.readBlob(stmt, index: 6) {
-                self.decrypt(encrypted, usingAnyOf: keys)
+                try self.decrypt(encrypted, usingAnyOf: keys())
             } else {
                 nil
             }
             guard let value, !value.isEmpty else { continue }
 
-            records.append(ChromiumCookieRecord(
+            records.append(BrowserCookieRecord(
                 domain: AliyunOneConsoleCookieImporter.normalizeCookieDomain(hostKey),
                 name: name,
                 path: path,
                 value: value,
                 expires: self.chromiumExpiry(sqlite3_column_int64(stmt, 3)),
-                isSecure: sqlite3_column_int(stmt, 4) != 0))
+                isSecure: sqlite3_column_int(stmt, 4) != 0,
+                isHTTPOnly: false))
         }
 
         return records.filter { record in
@@ -160,8 +146,8 @@ enum AliyunOneConsoleChromiumCookieFallbackImporter {
                 break
             }
 
-            if let password = self.safeStoragePassword(service: label.service, account: label.account) {
-                keys.append(self.deriveKey(from: password))
+            if let password = ChromiumSafeStorage.password(service: label.service, account: label.account) {
+                keys.append(ChromiumSafeStorage.deriveKey(from: password))
             }
         }
 
@@ -174,112 +160,29 @@ enum AliyunOneConsoleChromiumCookieFallbackImporter {
         throw ImportError.keyUnavailable(browser: browser)
     }
 
-    private static func safeStoragePassword(service: String, account: String) -> String? {
-        // The preflight classifies prompt-requiring items as .interactionRequired, but its
-        // .notFound (gate disabled) and .failure outcomes still reach this read. Honor the
-        // access gate and keep the read strictly non-interactive so it can never prompt.
-        guard !KeychainAccessGate.isDisabled else { return nil }
-        var query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
-            kSecMatchLimit as String: kSecMatchLimitOne,
-            kSecReturnData as String: true,
-        ]
-        KeychainNoUIQuery.apply(to: &query)
-
-        var result: AnyObject?
-        let status = KeychainSecurity.copyMatching(query as CFDictionary, &result)
-        guard status == errSecSuccess, let data = result as? Data else { return nil }
-        return String(data: data, encoding: .utf8)
-    }
-
-    private static func deriveKey(from password: String) -> Data {
-        let salt = Data("saltysalt".utf8)
-        var key = Data(count: kCCKeySizeAES128)
-        let keyLength = key.count
-        _ = key.withUnsafeMutableBytes { keyBytes in
-            password.utf8CString.withUnsafeBytes { passBytes in
-                salt.withUnsafeBytes { saltBytes in
-                    CCKeyDerivationPBKDF(
-                        CCPBKDFAlgorithm(kCCPBKDF2),
-                        passBytes.bindMemory(to: Int8.self).baseAddress,
-                        passBytes.count - 1,
-                        saltBytes.bindMemory(to: UInt8.self).baseAddress,
-                        salt.count,
-                        CCPseudoRandomAlgorithm(kCCPRFHmacAlgSHA1),
-                        1003,
-                        keyBytes.bindMemory(to: UInt8.self).baseAddress,
-                        keyLength)
-                }
-            }
-        }
-        return key
-    }
-
     private static func decrypt(_ encryptedValue: Data, usingAnyOf keys: [Data]) -> String? {
         for key in keys {
-            if let value = self.decrypt(encryptedValue, key: key) {
+            guard let data = ChromiumSafeStorage.decrypt(encryptedValue, key: key) else { continue }
+            if let value = String(data: data, encoding: .utf8), !value.isEmpty {
+                return value
+            }
+            if data.count > 32,
+               let value = String(data: data.dropFirst(32), encoding: .utf8), !value.isEmpty
+            {
                 return value
             }
         }
         return nil
     }
 
-    private static func decrypt(_ encryptedValue: Data, key: Data) -> String? {
-        guard encryptedValue.count > 3 else { return nil }
-        let prefix = String(data: encryptedValue.prefix(3), encoding: .utf8)
-        guard prefix == "v10" else { return nil }
-
-        let payload = Data(encryptedValue.dropFirst(3))
-        let iv = Data(repeating: 0x20, count: kCCBlockSizeAES128)
-        var outLength = 0
-        var out = Data(count: payload.count + kCCBlockSizeAES128)
-        let outCapacity = out.count
-
-        let status = out.withUnsafeMutableBytes { outBytes in
-            payload.withUnsafeBytes { payloadBytes in
-                key.withUnsafeBytes { keyBytes in
-                    iv.withUnsafeBytes { ivBytes in
-                        CCCrypt(
-                            CCOperation(kCCDecrypt),
-                            CCAlgorithm(kCCAlgorithmAES),
-                            CCOptions(kCCOptionPKCS7Padding),
-                            keyBytes.baseAddress,
-                            key.count,
-                            ivBytes.baseAddress,
-                            payloadBytes.baseAddress,
-                            payload.count,
-                            outBytes.baseAddress,
-                            outCapacity,
-                            &outLength)
-                    }
-                }
-            }
-        }
-
-        guard status == kCCSuccess else { return nil }
-        out.count = outLength
-
-        if let value = String(data: out, encoding: .utf8), !value.isEmpty {
-            return value
-        }
-        if out.count > 32 {
-            let trimmed = out.dropFirst(32)
-            if let value = String(data: trimmed, encoding: .utf8), !value.isEmpty {
-                return value
-            }
-        }
-        return nil
-    }
-
-    private static func makeCookie(from record: ChromiumCookieRecord) -> HTTPCookie? {
+    private static func makeCookie(from record: BrowserCookieRecord) -> HTTPCookie? {
         var properties: [HTTPCookiePropertyKey: Any] = [
             .domain: record.domain,
             .path: record.path,
             .name: record.name,
             .value: record.value,
         ]
+        // Foundation treats the Secure attribute's presence as true, even when its value is false.
         if record.isSecure {
             properties[.secure] = true
         }
@@ -305,10 +208,6 @@ enum AliyunOneConsoleChromiumCookieFallbackImporter {
             return nil
         }
         return Data(bytes: bytes, count: Int(sqlite3_column_bytes(stmt, index)))
-    }
-
-    private static func matches(domain: String, patterns: [String]) -> Bool {
-        AliyunOneConsoleCookieImporter.matchesCookieDomain(domain, patterns: patterns)
     }
 
     private static func chromiumExpiry(_ expiresUTC: Int64) -> Date? {

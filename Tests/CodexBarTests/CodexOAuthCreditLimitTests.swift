@@ -211,8 +211,7 @@ struct CodexOAuthCreditLimitTests {
         """
         let result = try CodexOAuthFetchStrategy._mapResultForTesting(
             Data(json.utf8),
-            credentials: self.makeCredentials(),
-            sourceMode: .oauth)
+            credentials: self.makeCredentials())
 
         #expect(result.credits?.remaining == 0)
         #expect(result.credits?.codexCreditLimit == nil)
@@ -237,8 +236,7 @@ struct CodexOAuthCreditLimitTests {
         """
         let result = try CodexOAuthFetchStrategy._mapResultForTesting(
             Data(json.utf8),
-            credentials: self.makeCredentials(),
-            sourceMode: .oauth)
+            credentials: self.makeCredentials())
 
         #expect(result.credits?.remaining == 0)
         #expect(result.credits?.balanceReadSucceeded == false)
@@ -250,8 +248,7 @@ struct CodexOAuthCreditLimitTests {
     func `auto O auth zero credits preserves O auth usage while adding CLI monthly limit`() async throws {
         let mappedOAuth = try CodexOAuthFetchStrategy._mapResultForTesting(
             Data(self.oauthZeroCreditRateWindowJSON().utf8),
-            credentials: self.makeCredentials(),
-            sourceMode: .auto)
+            credentials: self.makeCredentials())
         let oauthResult = self.replacingIdentity(mappedOAuth, email: "owner@example.com")
         let cliResult = self.makeCLIResult(
             credits: self.makeMonthlyLimitCredits(),
@@ -275,8 +272,7 @@ struct CodexOAuthCreditLimitTests {
     func `usage-only O auth refresh does not launch CLI monthly limit enrichment`() async throws {
         let mappedOAuth = try CodexOAuthFetchStrategy._mapResultForTesting(
             Data(self.oauthZeroCreditRateWindowJSON().utf8),
-            credentials: self.makeCredentials(),
-            sourceMode: .auto)
+            credentials: self.makeCredentials())
         let oauthResult = self.replacingIdentity(mappedOAuth, email: "owner@example.com")
         let cliResult = self.makeCLIResult(
             credits: self.makeMonthlyLimitCredits(),
@@ -296,8 +292,7 @@ struct CodexOAuthCreditLimitTests {
     func `managed workspace O auth does not mix in unscoped CLI monthly limit`() async throws {
         let mappedOAuth = try CodexOAuthFetchStrategy._mapResultForTesting(
             Data(self.oauthZeroCreditRateWindowJSON().utf8),
-            credentials: self.makeCredentials(),
-            sourceMode: .auto)
+            credentials: self.makeCredentials())
         let oauthResult = self.replacingIdentity(mappedOAuth, email: "owner@example.com")
         let cliResult = self.makeCLIResult(
             credits: self.makeMonthlyLimitCredits(),
@@ -317,8 +312,7 @@ struct CodexOAuthCreditLimitTests {
     func `auto O auth zero credits rejects CLI monthly limit without verified identity`() async throws {
         let mappedOAuth = try CodexOAuthFetchStrategy._mapResultForTesting(
             Data(self.oauthZeroCreditRateWindowJSON().utf8),
-            credentials: self.makeCredentials(),
-            sourceMode: .auto)
+            credentials: self.makeCredentials())
         let oauthResult = self.replacingIdentity(mappedOAuth, email: "owner@example.com")
         let cliResult = self.makeCLIResult(credits: self.makeMonthlyLimitCredits())
 
@@ -336,8 +330,7 @@ struct CodexOAuthCreditLimitTests {
     func `auto O auth zero credits rejects CLI monthly limit from another account`() async throws {
         let mappedOAuth = try CodexOAuthFetchStrategy._mapResultForTesting(
             Data(self.oauthZeroCreditRateWindowJSON().utf8),
-            credentials: self.makeCredentials(),
-            sourceMode: .auto)
+            credentials: self.makeCredentials())
         let oauthResult = self.replacingIdentity(mappedOAuth, email: "owner@example.com")
         let cliResult = self.makeCLIResult(
             credits: self.makeMonthlyLimitCredits(),
@@ -357,8 +350,7 @@ struct CodexOAuthCreditLimitTests {
     func `auto O auth zero credits accepts matching CLI account case insensitively`() async throws {
         let mappedOAuth = try CodexOAuthFetchStrategy._mapResultForTesting(
             Data(self.oauthZeroCreditRateWindowJSON().utf8),
-            credentials: self.makeCredentials(),
-            sourceMode: .auto)
+            credentials: self.makeCredentials())
         let oauthResult = self.replacingIdentity(mappedOAuth, email: "Owner@Example.com")
         let cliResult = self.makeCLIResult(
             credits: self.makeMonthlyLimitCredits(),
@@ -378,8 +370,7 @@ struct CodexOAuthCreditLimitTests {
     func `auto O auth zero credits keeps partial result when CLI is unavailable`() async throws {
         let oauthResult = try CodexOAuthFetchStrategy._mapResultForTesting(
             Data(self.oauthZeroCreditRateWindowJSON().utf8),
-            credentials: self.makeCredentials(),
-            sourceMode: .auto)
+            credentials: self.makeCredentials())
 
         let result = try await CodexOAuthFetchStrategy._replaceWithCLIMonthlyLimitForTesting(
             oauthResult: oauthResult,
@@ -395,8 +386,7 @@ struct CodexOAuthCreditLimitTests {
     func `auto O auth zero credits keeps partial result when CLI lacks monthly limit`() async throws {
         let oauthResult = try CodexOAuthFetchStrategy._mapResultForTesting(
             Data(self.oauthZeroCreditRateWindowJSON().utf8),
-            credentials: self.makeCredentials(),
-            sourceMode: .auto)
+            credentials: self.makeCredentials())
         let cliResult = self.makeCLIResult(credits: CreditsSnapshot(
             remaining: 0,
             events: [],

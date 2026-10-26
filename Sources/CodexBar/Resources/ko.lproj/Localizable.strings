@@ -2585,7 +2585,7 @@
 "Also restores the provider order in the menu bar. Can be undone." = "메뉴 막대의 공급자 순서도 복원합니다. 실행 취소할 수 있습니다.";
 "Local Codex details; excluded from combined totals." = "로컬 Codex 세부 정보, 합산 총계에서 제외됩니다.";
 
-"Auto uses an API key when configured, otherwise browser cookies." = "Auto uses an API key when configured, otherwise browser cookies.";
+"Auto uses the active saved session, otherwise an API key or browser cookies." = "자동은 활성 저장된 세션을 사용하며, 활성 세션이 없으면 API 키 또는 브라우저 쿠키를 사용합니다.";
 "Stored in the CodexBar config file. You can also set COMMAND_CODE_API_KEY." = "Stored in the CodexBar config file. You can also set COMMAND_CODE_API_KEY.";
 /* OpenAI organization rate limits and live usage */
 "%@ tokens · %@ requests" = "토큰 %@ · 요청 %@";
@@ -2766,6 +2766,7 @@
 "abliteration.ai request failed. Try refreshing later." = "abliteration.ai 요청에 실패했습니다. 나중에 다시 새로 고침하세요.";
 "abliteration.ai returned an unrecognized response. Update CodexBar and try again." = "abliteration.ai가 알 수 없는 응답을 반환했습니다. CodexBar를 업데이트하고 다시 시도하세요.";
 "Check your API key in Settings." = "설정에서 API 키를 확인하세요.";
+"Store multiple Command Code subscription sessions." = "Command Code 구독 세션을 여러 개 저장합니다.";
 
 "OpenCode local history" = "OpenCode 로컬 기록";
 

@@ -1,6 +1,7 @@
-import CodexBarCore
 import Foundation
 import Testing
+@testable import CodexBarCLI
+@testable import CodexBarCore
 
 struct ProviderPaceCapabilityTests {
     private static let weeklyWindowMinutes = 7 * 24 * 60
@@ -93,6 +94,61 @@ struct ProviderPaceCapabilityTests {
     }
 
     @Test
+    func `codex paces its fixed 30 day window with the reported duration`() throws {
+        let now = Date(timeIntervalSince1970: 1_750_000_000)
+        let capability = CodexProviderDescriptor.descriptor.pace
+        let monthly = Self.window(
+            minutes: Self.monthlyWindowSentinelMinutes,
+            resetsAt: now.addingTimeInterval(20 * 24 * 60 * 60))
+        let session = Self.window(minutes: 5 * 60, resetsAt: now.addingTimeInterval(2 * 60 * 60))
+        let weekly = Self.window(
+            minutes: Self.weeklyWindowMinutes,
+            resetsAt: now.addingTimeInterval(4 * 24 * 60 * 60))
+
+        #expect(capability.supportsResetWindowPace(window: monthly, now: now))
+        #expect(!capability.usesInferredMonthlyDuration(window: monthly))
+        #expect(capability.resolvedKind(slot: .primary, window: monthly, now: now) == .weekly)
+        // The reported 43200 minutes is kept, not replaced by the calendar month ending at the reset.
+        #expect(capability.resolvedResetWindowForPace(monthly) == monthly)
+
+        // Session and weekly lanes are unchanged.
+        #expect(!capability.supportsResetWindowPace(window: session, now: now))
+        #expect(!capability.supportsResetWindowPace(window: weekly, now: now))
+        #expect(capability.resolvedKind(slot: .primary, window: session, now: now) == .session)
+        #expect(capability.resolvedKind(slot: .secondary, window: weekly, now: now) == .weekly)
+
+        // 20 of 30 days left means 10 days elapsed, so a third of the window is expected to be used.
+        let pace = try #require(UsagePace.weekly(
+            window: capability.resolvedResetWindowForPace(monthly),
+            now: now,
+            defaultWindowMinutes: Self.monthlyWindowSentinelMinutes))
+        #expect(abs(pace.expectedUsedPercent - 100.0 / 3.0) < 0.001)
+    }
+
+    @Test
+    func `reported fixed monthly OAuth window reaches CLI pace without calendar inference`() throws {
+        // A March reset makes accidental February calendar-month inference observable.
+        let reset = try #require(ISO8601DateParser.parse("2026-03-01T16:08:45Z"))
+        let now = reset.addingTimeInterval(-20 * 24 * 60 * 60)
+        let response = """
+        {"plan_type":"free","rate_limit":{"primary_window":{
+          "used_percent":11,"reset_at":\(Int(reset.timeIntervalSince1970)),
+          "limit_window_seconds":2592000},"secondary_window":null}}
+        """
+        let credentials = CodexOAuthCredentials(
+            accessToken: "fixture", refreshToken: "fixture", idToken: nil, accountId: nil, lastRefresh: now)
+        let snapshot = try #require(try CodexOAuthFetchStrategy._mapUsageForTesting(
+            Data(response.utf8), credentials: credentials))
+
+        #expect(snapshot.primary?.windowMinutes == 43200)
+        let pace = try #require(CLIRenderer.providerPacePayload(provider: .codex, snapshot: snapshot, now: now)?
+            .primary)
+        #expect(pace.expectedUsedPercent == 33)
+        #expect(pace.deltaPercent == -22)
+        #expect(pace.willLastToReset)
+    }
+
+    @Test
     func `zai pace maps only verified coding windows`() {
         let now = Date(timeIntervalSince1970: 1_750_000_000)
         let capability = ZaiProviderDescriptor.descriptor.pace
@@ -163,7 +219,7 @@ struct ProviderPaceCapabilityTests {
                 && window.resetDescription == "MCP"
         case .amp:
             return window.windowMinutes != nil && window.resetDescription?.hasPrefix("renews in ") == true
-        case .alibaba, .alibabatokenplan, .claude, .commandcode, .doubao, .kiro, .mimo, .notion, .ollama,
+        case .alibaba, .alibabatokenplan, .claude, .codex, .commandcode, .doubao, .kiro, .mimo, .notion, .ollama,
              .opencodego, .stepfun:
             return window.windowMinutes == self.monthlyWindowSentinelMinutes
         default:

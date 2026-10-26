@@ -25,6 +25,10 @@ extension CodexBarCLI {
             self.runConfigSetSource(values)
         case ["config", "set-api-key"]:
             self.runConfigSetAPIKey(values)
+        case ["config", "set-cookie"]:
+            self.runConfigSetCookie(values)
+        case ["config", "clear-credential"]:
+            self.runConfigClearCredential(values)
         default:
             self.exit(
                 code: .failure,

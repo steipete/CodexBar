@@ -6,6 +6,7 @@ struct CLICommonOptionsTests {
     private static let paths = [
         ["cache", "clear"], ["cost"], ["config", "validate"], ["config", "dump"],
         ["config", "providers"], ["config", "enable"], ["config", "disable"], ["config", "set-api-key"],
+        ["config", "set-cookie"], ["config", "clear-credential"],
     ]
 
     @Test(arguments: Self.paths)

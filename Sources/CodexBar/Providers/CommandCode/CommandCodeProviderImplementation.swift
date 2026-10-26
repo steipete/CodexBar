@@ -5,6 +5,20 @@ struct CommandCodeProviderImplementation: ProviderImplementation {
     let id: UsageProvider = .commandcode
 
     @MainActor
+    func tokenAccountsVisibility(context: ProviderSettingsContext, support: TokenAccountSupport) -> Bool {
+        guard support.requiresManualCookieSource else { return true }
+        if !context.settings.tokenAccounts(for: context.provider).isEmpty { return true }
+        return context.settings.commandcodeCookieSource == .manual
+    }
+
+    @MainActor
+    func applyTokenAccountCookieSource(settings: SettingsStore) {
+        if settings.commandcodeCookieSource != .manual {
+            settings.commandcodeCookieSource = .manual
+        }
+    }
+
+    @MainActor
     func observeSettings(_ settings: SettingsStore) {
         _ = settings.commandcodeUsageDataSource
         _ = settings.commandcodeAPIKey
@@ -23,7 +37,7 @@ struct CommandCodeProviderImplementation: ProviderImplementation {
             ProviderSettingsPickerDescriptor(
                 id: "commandcode-usage-source",
                 title: "Usage source",
-                subtitle: "Auto uses an API key when configured, otherwise browser cookies.",
+                subtitle: "Auto uses the active saved session, otherwise an API key or browser cookies.",
                 binding: context.rawValueBinding(\.commandcodeUsageDataSource, fallback: .auto),
                 options: [
                     ProviderSettingsPickerOption(id: ProviderSourceMode.auto.rawValue, title: "Auto"),

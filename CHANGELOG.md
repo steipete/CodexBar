@@ -7,13 +7,19 @@
 - Settings: fade the provider reorder Undo banner after inactivity, pausing while hovered or focused and respecting Reduce Motion (#4760). Thanks @elijahfriedman!
 ### Fixed
 
+- Cursor: read encrypted Cursor.app tokens without background Keychain prompts, preserving account validation and browser fallback (#4755). Thanks @micheltriana!
+- Browser cookies: skip Safe Storage lookups when the Alibaba/Qwen fallback has no matching encrypted cookies.
 - Trae CN: distinguish the Usage meter from the Credits details in Visible usage items while preserving hidden choices (#4764, #4780). Thanks @LeoLin990405 and @liuyuplus!
+- Codex: calculate pace for explicitly reported fixed 30-day usage windows using their actual duration (#4766). Thanks @johan456789!
 - WorkBuddy: use the official mascot instead of the placeholder letter icon (#4768). Thanks @codertesla!
 - WorkBuddy: keep resets on the paid subscription cycle instead of an earlier trial or reward expiry (#4767). Thanks @codertesla!
+
 ### Added
 
 - Menu bar: add an opt-in notch usage overlay with shared provider usage, agent-session summaries, and an optional shortcut. Opaque notch ears wrap the camera housing, with their own visibility switch, independent left/right summaries, and reset-credit expiry countdowns when space allows. Agent sessions can be shown independently of the menu, with separate column counts or one column per harness (#3164). Thanks @wdmitchelluk!
 - Updates: separate automatic checks from automatic installs, preserve saved choices across relaunches and Settings visits, and retain the existing default-on behavior (#4777, #4778). Thanks @harveyrandall!
+- CLI: add `config set-cookie` and `config clear-credential` for stored manual cookies and API keys, preserving saved accounts and unrelated provider settings (#4765). Thanks @johan456789!
+- Command Code: manage multiple saved subscription sessions in Settings and select them from the CLI (#4774). Thanks @JavaGT!
 - Plugins: allow detail progress bars to display native pace markers, respecting Show pace (#4776). Thanks @KLIEBHAN!
 - Codex: optionally include this device's recorded OpenCode usage in local cost history, preserving recorded $0 costs and keeping scoped accounts and Usage & Spend excluded (#4757, #4752). Thanks @Danielweng0902!
 - Plugins: choose which reported quota window drives the menu-bar percentage and switcher gauge, with automatic fallback when that window is unavailable (#4781). Thanks @coygeek!

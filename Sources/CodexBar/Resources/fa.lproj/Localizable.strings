@@ -2621,7 +2621,7 @@
 "Also restores the provider order in the menu bar. Can be undone." = "ترتیب ارائه‌دهندگان در نوار منو را نیز بازیابی می‌کند. قابل واگرد است.";
 "Local Codex details; excluded from combined totals." = "جزئیات محلی Codex؛ از مجموع‌های ترکیبی مستثنا شده‌اند.";
 
-"Auto uses an API key when configured, otherwise browser cookies." = "Auto uses an API key when configured, otherwise browser cookies.";
+"Auto uses the active saved session, otherwise an API key or browser cookies." = "حالت خودکار از نشست ذخیره‌شدهٔ فعال استفاده می‌کند؛ در غیر این صورت از کلید API یا کوکی‌های مرورگر استفاده می‌کند.";
 "Stored in the CodexBar config file. You can also set COMMAND_CODE_API_KEY." = "Stored in the CodexBar config file. You can also set COMMAND_CODE_API_KEY.";
 /* OpenAI organization rate limits and live usage */
 "%@ tokens · %@ requests" = "%@ توکن · %@ درخواست";
@@ -2802,6 +2802,7 @@
 "abliteration.ai request failed. Try refreshing later." = "درخواست abliteration.ai ناموفق بود. بعداً دوباره تازه‌سازی کنید.";
 "abliteration.ai returned an unrecognized response. Update CodexBar and try again." = "abliteration.ai پاسخی ناشناخته برگرداند. CodexBar را به‌روز کنید و دوباره امتحان کنید.";
 "Check your API key in Settings." = "کلید API خود را در تنظیمات بررسی کنید.";
+"Store multiple Command Code subscription sessions." = "چندین نشست اشتراک Command Code را ذخیره کنید.";
 
 "OpenCode local history" = "تاریخچهٔ محلی OpenCode";
 

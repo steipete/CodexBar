@@ -199,6 +199,12 @@ Example placeholder config:
 }
 ```
 
+Or write the same two fields from the CLI, which also works where the app is unavailable (for example on Linux):
+
+```bash
+pbpaste | codexbar config set-cookie --provider claude --stdin
+```
+
 Validate after editing:
 
 ```bash

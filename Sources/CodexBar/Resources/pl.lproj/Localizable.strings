@@ -2620,7 +2620,7 @@
 "Also restores the provider order in the menu bar. Can be undone." = "Przywraca również kolejność dostawców na pasku menu. Można cofnąć.";
 "Local Codex details; excluded from combined totals." = "Lokalne szczegóły Codex; wyłączone z łącznych sum.";
 
-"Auto uses an API key when configured, otherwise browser cookies." = "Auto uses an API key when configured, otherwise browser cookies.";
+"Auto uses the active saved session, otherwise an API key or browser cookies." = "Tryb automatyczny używa aktywnej zapisanej sesji, a w przeciwnym razie klucza API lub plików cookie przeglądarki.";
 "Stored in the CodexBar config file. You can also set COMMAND_CODE_API_KEY." = "Stored in the CodexBar config file. You can also set COMMAND_CODE_API_KEY.";
 /* OpenAI organization rate limits and live usage */
 "%@ tokens · %@ requests" = "%@ tokenów · %@ żądań";
@@ -2801,6 +2801,7 @@
 "abliteration.ai request failed. Try refreshing later." = "Żądanie abliteration.ai nie powiodło się. Spróbuj odświeżyć później.";
 "abliteration.ai returned an unrecognized response. Update CodexBar and try again." = "abliteration.ai zwrócił nierozpoznaną odpowiedź. Zaktualizuj CodexBar i spróbuj ponownie.";
 "Check your API key in Settings." = "Sprawdź klucz API w Ustawieniach.";
+"Store multiple Command Code subscription sessions." = "Przechowuj wiele sesji subskrypcji Command Code.";
 
 "OpenCode local history" = "Lokalna historia OpenCode";
 

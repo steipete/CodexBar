@@ -6,11 +6,22 @@ public enum WindsurfProviderDescriptor {
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
             id: .windsurf,
-            settingsSection: .init(WindsurfProviderSettingsKey.self, cookieSettings: { settings in
-                CookieProviderSettings(
-                    cookieSource: settings.cookieSource,
-                    manualCookieHeader: settings.manualCookieHeader)
-            }),
+            settingsSection: .init(
+                WindsurfProviderSettingsKey.self,
+                cookieSettings: { settings in
+                    CookieProviderSettings(
+                        cookieSource: settings.cookieSource,
+                        manualCookieHeader: settings.manualCookieHeader)
+                },
+                credentialSettings: { context in
+                    let cookies = context.cookieSettings(for: .windsurf)
+                    return WindsurfProviderSettings(
+                        usageDataSource: WindsurfUsageDataSource(rawValue: context.config?.source?
+                            .rawValue ?? "auto") ??
+                            .auto,
+                        cookieSource: cookies.cookieSource,
+                        manualCookieHeader: cookies.manualCookieHeader)
+                }),
             metadata: ProviderMetadata(
                 id: .windsurf,
                 displayName: "Windsurf",

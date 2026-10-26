@@ -2617,7 +2617,7 @@
 "Also restores the provider order in the menu bar. Can be undone." = "メニューバーのプロバイダー順序も戻します。取り消し可能です。";
 "Local Codex details; excluded from combined totals." = "ローカルの Codex 詳細。合計には含まれません。";
 
-"Auto uses an API key when configured, otherwise browser cookies." = "Auto uses an API key when configured, otherwise browser cookies.";
+"Auto uses the active saved session, otherwise an API key or browser cookies." = "自動では使用中の保存済みセッションを使用し、それ以外の場合は API キーまたはブラウザの Cookie を使用します。";
 "Stored in the CodexBar config file. You can also set COMMAND_CODE_API_KEY." = "Stored in the CodexBar config file. You can also set COMMAND_CODE_API_KEY.";
 /* OpenAI organization rate limits and live usage */
 "%@ tokens · %@ requests" = "%@ トークン · %@ リクエスト";
@@ -2798,6 +2798,7 @@
 "abliteration.ai request failed. Try refreshing later." = "abliteration.ai へのリクエストに失敗しました。後でもう一度更新してください。";
 "abliteration.ai returned an unrecognized response. Update CodexBar and try again." = "abliteration.ai から認識できない応答が返されました。CodexBar を更新して、もう一度お試しください。";
 "Check your API key in Settings." = "設定でAPIキーを確認してください。";
+"Store multiple Command Code subscription sessions." = "Command Code サブスクリプションのセッションを複数保存します。";
 
 "OpenCode local history" = "OpenCode のローカル履歴";
 

@@ -23,7 +23,7 @@ to your other AI coding providers.
 ## Authentication
 
 Command Code support uses an API key, browser cookies, or a manually pasted cookie header.
-Usage source `Auto` uses a configured API key first and otherwise uses browser cookies.
+Usage source `Auto` uses the selected saved subscription session when active; otherwise it uses a configured API key, or browser cookies when no key is configured.
 Select `API key` or `Browser cookies` to pin that source. A rejected key reports an error rather than switching accounts.
 
 ### API key
@@ -53,6 +53,25 @@ field.
 For cookie authentication on Linux, set `cookieSource` to `manual` and provide the
 Command Code `Cookie` header in `cookieHeader`. Auto uses it when no API key is configured;
 choose `web` to use cookies even when a key is present. Automatic browser import is macOS-only.
+
+### Saved subscription sessions
+
+Choose Cookie source **Manual** to add labeled accounts under **Session tokens**. Paste a bare session token,
+a full Cookie header, or a cURL capture. These accounts use the shared account controls and the existing
+[private config file](configuration.md#location); full headers retain their additional cookies.
+
+Selecting a saved session uses browser billing even when an API key is configured. Usage source **API key**
+keeps saved sessions passive. In the app, switching Cookie source to **Automatic** also keeps saved sessions
+passive until one is selected again. A missing or rejected manual session reports an error without trying a
+cached or browser account. Removing the final saved account leaves Manual selected; choose Automatic explicitly
+to resume browser discovery.
+
+The CLI uses the active saved session unless API source is selected. Explicit `--account`, `--account-index`,
+or `--all-accounts` selects saved sessions and uses web billing, including when `--source api` was supplied:
+
+```bash
+codexbar usage --provider commandcode --account Personal --json
+```
 
 The current Go plan (`individual-go-v1`) includes $10 in monthly credits for a
 $1/month subscription plus processing fees, as listed on the [public pricing page](https://commandcode.ai/pricing).
