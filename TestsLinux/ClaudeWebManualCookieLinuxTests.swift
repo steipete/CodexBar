@@ -13,20 +13,20 @@ struct ClaudeWebManualCookieLinuxTests {
     private static let manualHeader = "sessionKey=sk-ant-manual-token"
 
     @Test
-    func `manual cookie exempts Claude web from the Linux browser gate`() {
+    func `manual cookie exempts Claude web from the Linux browser gate`() async {
         let manual = ProviderSettingsSnapshot.make(claude: .init(
             usageDataSource: .auto,
             webExtrasEnabled: false,
             cookieSource: .manual,
             manualCookieHeader: Self.manualHeader))
 
-        #expect(!CodexBarCLI.sourceModeRequiresWebSupport(.web, provider: .claude, settings: manual))
-        #expect(!CodexBarCLI.sourceModeRequiresWebSupport(.auto, provider: .claude, settings: manual))
+        #expect(await !CodexBarCLI.sourceModeRequiresWebSupport(.web, provider: .claude, settings: manual))
+        #expect(await !CodexBarCLI.sourceModeRequiresWebSupport(.auto, provider: .claude, settings: manual))
 
         // No manual cookie: explicit web still needs the macOS-only browser import.
-        #expect(CodexBarCLI.sourceModeRequiresWebSupport(.web, provider: .claude, settings: .make()))
+        #expect(await CodexBarCLI.sourceModeRequiresWebSupport(.web, provider: .claude, settings: .make()))
         for header in ["", "   ", "other=1", "sessionKey=invalid"] {
-            #expect(CodexBarCLI.sourceModeRequiresWebSupport(
+            #expect(await CodexBarCLI.sourceModeRequiresWebSupport(
                 .web,
                 provider: .claude,
                 settings: ProviderSettingsSnapshot.make(claude: .init(

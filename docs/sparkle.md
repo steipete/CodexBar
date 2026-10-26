@@ -21,7 +21,7 @@ read_when:
 The [CI release workflow](https://github.com/steipete/CodexBar/blob/main/.github/workflows/release.yml) builds and notarizes the app, signs and verifies its appcast entry, publishes the verified assets, and updates the existing feed on main. See [the release process](RELEASING.md) for signed tags and no-publish dry runs. Prerelease versions such as `X.Y.Z-beta.N` stay on the opt-in beta channel and do not replace stable Homebrew packages.
 
 ## Notes
-- HTML release notes are embedded in the appcast entry; the Sparkle update dialog should show formatted bullets (not raw tags).
+- Release notes are embedded as Markdown in `<description sparkle:format="markdown">`, with linked GitHub issue and contributor references. Sparkle 2.9+ renders headings, lists, and wrapping text on macOS 12+; CodexBar supports macOS 14+. Older CodexBar builds carrying Sparkle 2.8.1 display these notes as readable plain text and can still install the update. Keep the format attribute: without it, Sparkle interprets the description as HTML.
 - If you change the feed host or key, update Info.plist (`SUFeedURL`, `SUPublicEDKey`) and bump the app.
 - Auto-check toggle is persisted via Sparkle; manual “Check for Updates…” remains in About.
 - Sparkle retains installation control after a background download. The install-on-quit delegate records update readiness and returns `false`; returning `true` stalls Sparkle's update session and causes manual checks to do nothing. Dismissing a downloaded or staged installation keeps the update-ready menu action available.

@@ -8,7 +8,7 @@ read_when:
 
 # Providers
 
-CodexBar currently registers 108 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
+CodexBar currently registers 110 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
 OpenCode vs OpenCode Go, because the auth source and quota shape differ.
 
 ## Fetch strategies (current)
@@ -186,6 +186,8 @@ complete when the available scan window covers fewer days.
 | [Claude Platform](claudeplatform.md) | Browser or manual platform.claude.com session cookies for Console API credit balance, expiring credit grants, and month-to-date spend. |
 | [Munito](munito.md) | Admin API key with Read account data permission for today's and this month's spend against the organization's spend limits. |
 | [Trae CN](traecn.md) | Browser session for account credit usage. |
+| [Chatbox AI](chatbox.md) | API token |
+| [abliteration.ai](abliteration.md) | API key for prepaid USD credits and cumulative usage. |
 
 <!-- End generated provider additions -->
 

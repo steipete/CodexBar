@@ -74,6 +74,9 @@ WorkBuddy uses this shared cookie host for its billing-only plugin. Its descript
 version because the website binds sessions to the browser User-Agent; cookie values stay opaque to the script.
 See [WorkBuddy](workbuddy.md) for the request contract, bounded optional reset lookup, and account coverage.
 
+[abliteration.ai](abliteration.md) uses a fixed-origin bearer request to read prepaid USD credits. It reuses the
+standard API-key field and classified errors, with no browser access or inferred reset schedule.
+
 [X API](xapi.md) uses the same cookie host with a bundled `ct0` header echo for account discovery and developer-console
 credits. Its script preserves dollar balances and debt without receiving cookie values or adding a native fetcher.
 
@@ -529,6 +532,8 @@ disabled, all plugins retain appended-card placement regardless of `topLevel`.
 A single plugin works without a redundant switcher, and multiple plugin tabs work even with no built-in providers
 enabled. Refresh and Cmd-R refresh the selected plugin; each card’s refresh button targets that card. Completed
 refreshes update visible plugin cards, and repeated requests for the same plugin share its in-flight refresh.
+When a refresh fails, the card keeps the last successful usage and shows the error plus how long ago that usage was
+captured. A later successful refresh clears both warnings.
 Overview continues to summarize built-in providers. This setting changes placement only: it grants no additional host
 capabilities and does not change network approval.
 

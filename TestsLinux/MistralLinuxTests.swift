@@ -5,8 +5,8 @@ import Testing
 
 struct MistralLinuxTests {
     @Test(arguments: [ProviderSourceMode.auto, .web])
-    func `Mistral manual cookie header does not require browser support`(sourceMode: ProviderSourceMode) {
-        #expect(!CodexBarCLI.sourceModeRequiresWebSupport(
+    func `Mistral manual cookie header does not require browser support`(sourceMode: ProviderSourceMode) async {
+        #expect(await !CodexBarCLI.sourceModeRequiresWebSupport(
             sourceMode,
             provider: .mistral,
             settings: ProviderSettingsSnapshot.make(
@@ -16,9 +16,9 @@ struct MistralLinuxTests {
     @Test(arguments: [ProviderSourceMode.auto, .web], [ProviderCookieSource.auto, .off])
     func `Mistral nonmanual cookie sources still require browser support`(
         sourceMode: ProviderSourceMode,
-        cookieSource: ProviderCookieSource)
+        cookieSource: ProviderCookieSource) async
     {
-        #expect(CodexBarCLI.sourceModeRequiresWebSupport(
+        #expect(await CodexBarCLI.sourceModeRequiresWebSupport(
             sourceMode,
             provider: .mistral,
             settings: ProviderSettingsSnapshot.make(
@@ -28,9 +28,9 @@ struct MistralLinuxTests {
     @Test(arguments: [ProviderSourceMode.auto, .web], [nil, "  ", "Cookie: \"\""] as [String?])
     func `Mistral manual source without a normalized header still requires browser support`(
         sourceMode: ProviderSourceMode,
-        header: String?)
+        header: String?) async
     {
-        #expect(CodexBarCLI.sourceModeRequiresWebSupport(
+        #expect(await CodexBarCLI.sourceModeRequiresWebSupport(
             sourceMode,
             provider: .mistral,
             settings: ProviderSettingsSnapshot.make(
@@ -38,8 +38,8 @@ struct MistralLinuxTests {
     }
 
     @Test(arguments: [ProviderSourceMode.auto, .web])
-    func `Mistral missing settings still require browser support`(sourceMode: ProviderSourceMode) {
-        #expect(CodexBarCLI.sourceModeRequiresWebSupport(sourceMode, provider: .mistral))
+    func `Mistral missing settings still require browser support`(sourceMode: ProviderSourceMode) async {
+        #expect(await CodexBarCLI.sourceModeRequiresWebSupport(sourceMode, provider: .mistral))
     }
 
     @Test
@@ -47,7 +47,7 @@ struct MistralLinuxTests {
         let header = "csrftoken=synthetic-private-value"
         let settings = ProviderSettingsSnapshot.make(
             mistral: .init(cookieSource: .manual, manualCookieHeader: header))
-        #expect(!CodexBarCLI.sourceModeRequiresWebSupport(.auto, provider: .mistral, settings: settings))
+        #expect(await !CodexBarCLI.sourceModeRequiresWebSupport(.auto, provider: .mistral, settings: settings))
         let browserDetection = BrowserDetection(cacheTTL: 0)
         let context = ProviderFetchContext(
             runtime: .cli,

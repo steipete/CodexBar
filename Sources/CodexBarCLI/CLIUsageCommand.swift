@@ -449,24 +449,6 @@ extension CodexBarCLI {
             account: account,
             codexVisibleAccount: codexVisibleAccount)
 
-        #if !os(macOS)
-        if Self.sourceModeRequiresWebSupport(
-            effectiveSourceMode,
-            provider: provider,
-            environment: env,
-            settings: settings)
-        {
-            return Self.webSourceUnsupportedOutput(
-                provider: provider,
-                account: (
-                    label: account?.label ?? codexVisibleAccount?.menuDisplayName,
-                    cacheKey: cacheAccountKey),
-                source: effectiveSourceMode.rawValue + command.sourceLabelSuffix,
-                status: status,
-                command: command)
-        }
-        #endif
-
         // Provider-specific by design: Codex PAT User-Agent needs the CLI version before the fetch starts.
         let resolvedCLIVersion = provider == .codex
             ? Self.detectVersion(for: provider, browserDetection: command.browserDetection)
@@ -491,6 +473,18 @@ extension CodexBarCLI {
             persistsCLISessions: Self.persistsCLISessions(provider: provider, command: command),
             persistentCLISessionIdleWindow: command.persistentCLISessionIdleWindow,
             resolvedCLIVersion: resolvedCLIVersion)
+        #if !os(macOS)
+        if await Self.sourceModeRequiresWebSupport(provider: provider, context: fetchContext) {
+            return Self.webSourceUnsupportedOutput(
+                provider: provider,
+                account: (
+                    label: account?.label ?? codexVisibleAccount?.menuDisplayName,
+                    cacheKey: cacheAccountKey),
+                source: effectiveSourceMode.rawValue + command.sourceLabelSuffix,
+                status: status,
+                command: command)
+        }
+        #endif
         let (outcome, lockedKeychainObserved) = await CLIUsageCache.observingLockedKeychain {
             await Self.fetchProviderUsage(provider: provider, context: fetchContext)
         }
@@ -772,26 +766,29 @@ extension CodexBarCLI {
     }
 
     static func sourceModeRequiresWebSupport(
-        _ sourceMode: ProviderSourceMode,
         provider: UsageProvider,
-        environment: [String: String]? = nil,
-        settings: ProviderSettingsSnapshot? = nil) -> Bool
+        context: ProviderFetchContext) async -> Bool
     {
         let descriptor = ProviderDescriptorRegistry.descriptor(for: provider)
         if descriptor.cli.isBrowserSupportExempt(
-            sourceMode: sourceMode,
-            environment: environment,
-            settings: settings)
+            sourceMode: context.sourceMode,
+            environment: context.env,
+            settings: context.settings)
         {
             return false
         }
-        return switch sourceMode {
+        switch context.sourceMode {
         case .web:
-            true
+            return true
         case .auto:
-            descriptor.fetchPlan.sourceModes.contains(.web)
+            guard descriptor.fetchPlan.sourceModes.contains(.web) else { return false }
+            let strategies = await descriptor.fetchPlan.pipeline.resolveStrategies(context)
+            for strategy in strategies where strategy.kind != .web && strategy.kind != .webDashboard {
+                if await strategy.isAvailable(context) { return false }
+            }
+            return true
         case .cli, .oauth, .api:
-            false
+            return false
         }
     }
 }

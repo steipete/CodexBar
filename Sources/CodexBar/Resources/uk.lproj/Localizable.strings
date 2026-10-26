@@ -2735,3 +2735,20 @@
 "Primary" = "Основне";
 "Secondary" = "Додаткове";
 "Tertiary" = "Третє";
+
+/* Chatbox AI */
+"Chatbox AI" = "Chatbox AI";
+"Show Chatbox AI usage" = "Показувати використання Chatbox AI";
+"Chatbox AI license key is invalid. Update it in Settings." = "Ключ ліцензії Chatbox AI недійсний. Оновіть його в налаштуваннях.";
+"Chatbox AI denied access. Check your license." = "Chatbox AI відмовив у доступі. Перевірте ліцензію.";
+"Chatbox AI is rate limiting requests. Try again later." = "Chatbox AI обмежує частоту запитів. Спробуйте пізніше.";
+"Chatbox AI request failed. Try refreshing later." = "Запит до Chatbox AI не виконано. Спробуйте оновити пізніше.";
+"Chatbox AI returned an unrecognized response. Update CodexBar and try again." = "Chatbox AI повернув невідому відповідь. Оновіть CodexBar і спробуйте знову.";
+
+/* abliteration.ai */
+"abliteration.ai" = "abliteration.ai";
+"Show abliteration.ai usage" = "Показувати використання abliteration.ai";
+"abliteration.ai is rate limiting requests. Try again later." = "abliteration.ai обмежує частоту запитів. Спробуйте пізніше.";
+"abliteration.ai request failed. Try refreshing later." = "Запит до abliteration.ai не виконано. Спробуйте оновити пізніше.";
+"abliteration.ai returned an unrecognized response. Update CodexBar and try again." = "abliteration.ai повернув невідому відповідь. Оновіть CodexBar і спробуйте знову.";
+"Check your API key in Settings." = "Перевірте ключ API в налаштуваннях.";

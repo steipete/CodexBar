@@ -13,21 +13,21 @@ import CSQLite3
 @Suite
 struct OpenCodeGoLinuxTests {
     @Test
-    func autoSourceDoesNotRequireWebSupport() {
-        #expect(!CodexBarCLI.sourceModeRequiresWebSupport(.auto, provider: .opencodego))
-        #expect(CodexBarCLI.sourceModeRequiresWebSupport(.web, provider: .opencodego))
+    func autoSourceDoesNotRequireWebSupport() async {
+        #expect(await !CodexBarCLI.sourceModeRequiresWebSupport(.auto, provider: .opencodego))
+        #expect(await CodexBarCLI.sourceModeRequiresWebSupport(.web, provider: .opencodego))
     }
 
     @Test
-    func commandCodeManualCookieDoesNotRequireMacOSWebSupport() {
+    func commandCodeManualCookieDoesNotRequireMacOSWebSupport() async {
         let settings = ProviderSettingsSnapshot.make(
             commandcode: .init(cookieSource: .manual, manualCookieHeader: "session=manual"))
 
-        #expect(!CodexBarCLI.sourceModeRequiresWebSupport(
+        #expect(await !CodexBarCLI.sourceModeRequiresWebSupport(
             .auto,
             provider: .commandcode,
             settings: settings))
-        #expect(!CodexBarCLI.sourceModeRequiresWebSupport(
+        #expect(await !CodexBarCLI.sourceModeRequiresWebSupport(
             .web,
             provider: .commandcode,
             settings: settings))
@@ -63,9 +63,9 @@ struct OpenCodeGoLinuxTests {
 
         let data = "{\"time\":{\"created\":\(createdMs)},\"cost\":6,\"providerID\":\"opencode-go\",\"role\":\"assistant\"}"
         let sql = """
-            CREATE TABLE message (id TEXT PRIMARY KEY, time_created INTEGER NOT NULL, data TEXT NOT NULL);
-            INSERT INTO message (id, time_created, data) VALUES ('message-1', \(createdMs), '\(data)');
-            """
+        CREATE TABLE message (id TEXT PRIMARY KEY, time_created INTEGER NOT NULL, data TEXT NOT NULL);
+        INSERT INTO message (id, time_created, data) VALUES ('message-1', \(createdMs), '\(data)');
+        """
         guard sqlite3_exec(database, sql, nil, nil, nil) == SQLITE_OK else {
             throw OpenCodeGoLocalUsageError.sqliteFailed("fixture creation failed")
         }

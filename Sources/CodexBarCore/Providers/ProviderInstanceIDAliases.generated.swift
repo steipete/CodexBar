@@ -111,6 +111,8 @@ extension ProviderInstanceID {
     public static let claudeplatform = UsageProvider.claudeplatform.instanceID
     public static let munito = UsageProvider.munito.instanceID
     public static let traecn = UsageProvider.traecn.instanceID
+    public static let chatbox = UsageProvider.chatbox.instanceID
+    public static let abliteration = UsageProvider.abliteration.instanceID
 }
 
 // swiftformat:enable sortDeclarations

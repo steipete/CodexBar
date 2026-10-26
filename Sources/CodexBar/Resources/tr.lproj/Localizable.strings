@@ -2737,3 +2737,20 @@
 "Primary" = "Birincil";
 "Secondary" = "İkincil";
 "Tertiary" = "Üçüncül";
+
+/* Chatbox AI */
+"Chatbox AI" = "Chatbox AI";
+"Show Chatbox AI usage" = "Chatbox AI kullanımını göster";
+"Chatbox AI license key is invalid. Update it in Settings." = "Chatbox AI lisans anahtarı geçersiz. Ayarlar’dan güncelleyin.";
+"Chatbox AI denied access. Check your license." = "Chatbox AI erişimi reddetti. Lisansınızı kontrol edin.";
+"Chatbox AI is rate limiting requests. Try again later." = "Chatbox AI istek sıklığını sınırlıyor. Daha sonra tekrar deneyin.";
+"Chatbox AI request failed. Try refreshing later." = "Chatbox AI isteği başarısız oldu. Daha sonra yeniden yenileyin.";
+"Chatbox AI returned an unrecognized response. Update CodexBar and try again." = "Chatbox AI tanınmayan bir yanıt döndürdü. CodexBar’ı güncelleyip tekrar deneyin.";
+
+/* abliteration.ai */
+"abliteration.ai" = "abliteration.ai";
+"Show abliteration.ai usage" = "abliteration.ai kullanımını göster";
+"abliteration.ai is rate limiting requests. Try again later." = "abliteration.ai istek sıklığını sınırlıyor. Daha sonra tekrar deneyin.";
+"abliteration.ai request failed. Try refreshing later." = "abliteration.ai isteği başarısız oldu. Daha sonra yeniden yenileyin.";
+"abliteration.ai returned an unrecognized response. Update CodexBar and try again." = "abliteration.ai tanınmayan bir yanıt döndürdü. CodexBar’ı güncelleyip tekrar deneyin.";
+"Check your API key in Settings." = "Ayarlar’dan API anahtarınızı kontrol edin.";

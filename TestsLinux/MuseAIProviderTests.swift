@@ -5,15 +5,15 @@ import Testing
 
 struct MuseAIProviderTests {
     @Test(arguments: [ProviderSourceMode.auto, .web])
-    func `manual cookies work without platform browser support`(mode: ProviderSourceMode) {
+    func `manual cookies work without platform browser support`(mode: ProviderSourceMode) async {
         let settings = ProviderSettingsSnapshot(
             CookieProviderSettings(cookieSource: .manual, manualCookieHeader: "hatch_sess=fixture"),
             for: MuseAIProviderSettingsKey.self)
-        #expect(!CodexBarCLI.sourceModeRequiresWebSupport(mode, provider: .museai, settings: settings))
+        #expect(await !CodexBarCLI.sourceModeRequiresWebSupport(mode, provider: .museai, settings: settings))
         for source in [ProviderCookieSource.auto, .off] {
             let settings = ProviderSettingsSnapshot(
                 CookieProviderSettings(cookieSource: source), for: MuseAIProviderSettingsKey.self)
-            #expect(CodexBarCLI.sourceModeRequiresWebSupport(mode, provider: .museai, settings: settings))
+            #expect(await CodexBarCLI.sourceModeRequiresWebSupport(mode, provider: .museai, settings: settings))
         }
     }
 

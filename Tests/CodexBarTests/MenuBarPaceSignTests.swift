@@ -61,7 +61,10 @@ struct MenuBarPaceSignTests {
     }
 
     @Test(arguments: [false, true], [23.0, -23.0, 0.0])
-    func `live editor preview renders every pace token with the saved sign`(reservePositive: Bool, delta: Double) {
+    func `live editor preview renders every pace token with the saved sign`(
+        reservePositive: Bool,
+        delta: Double) throws
+    {
         let (settings, store) = self.fixture(reservePositive: reservePositive)
         let now = Date()
         let window = { (minutes: Int) in
@@ -84,25 +87,32 @@ struct MenuBarPaceSignTests {
                 thenToken: .pace(window: window),
                 elseToken: .hidden)
             let renderer = MenuBarLayoutRenderer()
-            let output = MenuBarLayoutRenderer().render(
+            let expectedPace = self.expected(delta: delta, reservePositive: reservePositive)
+            let expectedTitle = window == .automatic ? "5h \(expectedPace)" : expectedPace
+            let output = renderer.render(
                 layout: MenuBarLayout(lines: [[.pace(window: window)]]),
                 data: data,
                 icon: nil,
                 options: self.options())
-            #expect(output.attributedTitle.string == self.expected(delta: delta, reservePositive: reservePositive))
+            #expect(output.attributedTitle.string == expectedTitle)
             let expectedColor: NSColor = delta > 0 ? .systemRed : (delta < 0 ? .systemGreen : .controlTextColor)
-            #expect(output.attributedTitle.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? NSColor
-                == expectedColor)
             let conditionalOutput = renderer.render(
                 layout: MenuBarLayout(lines: [[.conditional(id: conditional.id)]]),
                 data: data,
                 icon: nil,
                 options: self.options(conditionals: [conditional]))
             #expect(conditionalOutput.attributedTitle.string
-                == (delta > 0 ? self.expected(delta: delta, reservePositive: reservePositive) : ""))
-            if delta > 0 {
-                #expect(conditionalOutput.attributedTitle.attribute(
-                    .foregroundColor, at: 0, effectiveRange: nil) as? NSColor == .systemRed)
+                == (delta > 0 ? expectedTitle : ""))
+            for rendered in delta > 0 ? [output, conditionalOutput] : [output] {
+                let valueRange = (rendered.attributedTitle.string as NSString).range(of: expectedPace)
+                try #require(valueRange.location != NSNotFound)
+                rendered.attributedTitle.enumerateAttribute(.foregroundColor, in: valueRange) { color, _, _ in
+                    #expect(color as? NSColor == expectedColor)
+                }
+                if window == .automatic {
+                    #expect(rendered.attributedTitle.attribute(
+                        .foregroundColor, at: 0, effectiveRange: nil) as? NSColor == .controlTextColor)
+                }
             }
         }
     }

@@ -6,10 +6,10 @@ import Testing
 
 struct AlibabaTokenPlanLinuxTests {
     @Test
-    func `manual cookie source does not require macOS web support`() {
+    func `manual cookie source does not require macOS web support`() async {
         // The Alibaba/Qwen Token Plan fetch is plain URLSession + cookies, so a manually
         // configured cookie header must be usable off macOS (matches qoder/commandcode).
-        #expect(!CodexBarCLI.sourceModeRequiresWebSupport(
+        #expect(await !CodexBarCLI.sourceModeRequiresWebSupport(
             .web,
             provider: .alibabatokenplan,
             settings: ProviderSettingsSnapshot.make(
@@ -19,8 +19,8 @@ struct AlibabaTokenPlanLinuxTests {
     }
 
     @Test
-    func `auto cookie source still requires web support off macOS`() {
-        #expect(CodexBarCLI.sourceModeRequiresWebSupport(
+    func `auto cookie source still requires web support off macOS`() async {
+        #expect(await CodexBarCLI.sourceModeRequiresWebSupport(
             .web,
             provider: .alibabatokenplan,
             settings: ProviderSettingsSnapshot.make(

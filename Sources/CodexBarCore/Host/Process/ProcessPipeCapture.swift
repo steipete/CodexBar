@@ -17,6 +17,7 @@ package final class ProcessPipeCapture: @unchecked Sendable {
     private var isFinished = false
     private var didReachEOF = false
     private var isStopping = false
+    private var isStopped = false
     private var continuation: CheckedContinuation<Void, Never>?
     #if os(Linux)
     private let callbackQueue = DispatchQueue(label: "com.steipete.CodexBar.process-pipe-capture.callback")
@@ -48,7 +49,9 @@ package final class ProcessPipeCapture: @unchecked Sendable {
         #if os(Linux)
         self.start(linuxDescriptorSetup: Self.makeNonBlocking)
         #else
-        self.installReadabilityHandler()
+        self.handle.readabilityHandler = { [weak self] handle in
+            self?.handleReadableData(from: handle)
+        }
         #endif
     }
 
@@ -137,7 +140,7 @@ package final class ProcessPipeCapture: @unchecked Sendable {
 
     private func handleReadableData(from handle: FileHandle) {
         self.condition.lock()
-        guard !self.isStopping else {
+        guard !self.isStopping, !self.isFinished else {
             self.condition.unlock()
             return
         }
@@ -149,6 +152,8 @@ package final class ProcessPipeCapture: @unchecked Sendable {
 
         self.condition.lock()
         if chunk.isEmpty {
+            // Complete EOF monitor cleanup before stop can close the handle.
+            handle.readabilityHandler = nil
             self.isFinished = true
             self.didReachEOF = true
             continuation = self.continuation
@@ -165,9 +170,7 @@ package final class ProcessPipeCapture: @unchecked Sendable {
         }
         self.condition.unlock()
 
-        if chunk.isEmpty {
-            handle.readabilityHandler = nil
-        } else {
+        if !chunk.isEmpty {
             self.onData?()
         }
         continuation?.resume()
@@ -337,12 +340,6 @@ package final class ProcessPipeCapture: @unchecked Sendable {
     }
     #endif
 
-    private func installReadabilityHandler() {
-        self.handle.readabilityHandler = { [weak self] handle in
-            self?.handleReadableData(from: handle)
-        }
-    }
-
     private func waitUntilFinished() async {
         await withCheckedContinuation { continuation in
             self.condition.lock()
@@ -357,46 +354,41 @@ package final class ProcessPipeCapture: @unchecked Sendable {
     }
 
     private func stopAndSnapshot() -> Data {
-        let continuation: CheckedContinuation<Void, Never>?
-        let snapshot: Data
-        #if os(Linux)
         self.condition.lock()
+        while self.isStopping, !self.isStopped {
+            self.condition.wait()
+        }
+        guard !self.isStopped else {
+            let snapshot = self.data
+            self.condition.unlock()
+            return snapshot
+        }
         self.isStopping = true
-        let closeUnstartedReader = !self.readerStarted
-        if closeUnstartedReader {
+        #if os(Linux)
+        if !self.readerStarted {
+            try? self.handle.close()
             self.readerExited = true
         }
         self.condition.broadcast()
-        self.condition.unlock()
-        if closeUnstartedReader {
-            try? self.handle.close()
-        }
-        #else
-        self.handle.readabilityHandler = nil
-        #endif
-
-        self.condition.lock()
-        self.isStopping = true
-        #if os(Linux)
-        while self.activeCallbacks > 0 || (self.readerStarted && !self.readerExited) {
+        while self.readerStarted, !self.readerExited {
             self.condition.wait()
         }
         #else
         while self.activeCallbacks > 0 {
             self.condition.wait()
         }
-        #endif
-        self.isFinished = true
-        continuation = self.continuation
-        self.continuation = nil
-        snapshot = self.data
-        self.condition.unlock()
-
-        // Linux closes from the reader's single exit path (or the never-started path above). On Darwin,
-        // clearing readabilityHandler does not release its duplicated monitor descriptor immediately.
-        #if !os(Linux)
+        if !self.didReachEOF {
+            self.handle.readabilityHandler = nil
+        }
         try? self.handle.close()
         #endif
+        self.isFinished = true
+        self.isStopped = true
+        let continuation = self.continuation
+        self.continuation = nil
+        let snapshot = self.data
+        self.condition.broadcast()
+        self.condition.unlock()
 
         continuation?.resume()
         return snapshot

@@ -16,6 +16,7 @@ public struct CodeRabbitCLIProbe: Sendable {
             throw SubprocessRunnerError.binaryNotFound("coderabbit")
         }
         var commandEnvironment = environment
+        commandEnvironment["CODERABBIT_CLI_DISABLE_AUTO_UPDATE"] = "true"
         commandEnvironment["NO_COLOR"] = "1"
         commandEnvironment["PATH"] = PathBuilder.effectivePATH(
             purposes: [.tty, .nodeTooling], env: environment, loginPATH: loginPATH)

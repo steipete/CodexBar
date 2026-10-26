@@ -156,9 +156,9 @@ struct ProviderArchitectureGatekeeperTests {
             Self.hash(descriptor.branding.burnDownWidgetColor, into: &burnDownFingerprint)
         }
 
-        // Trae CN extends the merged palette without changing existing provider colors.
-        #expect(widgetFingerprint == 13_788_777_299_776_159_303)
-        #expect(burnDownFingerprint == 4_371_421_081_959_693_460)
+        // abliteration.ai extends the audited palette without changing existing provider colors.
+        #expect(widgetFingerprint == 15_607_976_071_525_726_946)
+        #expect(burnDownFingerprint == 15_045_926_470_290_336_419)
     }
 
     @Test
@@ -203,7 +203,7 @@ struct ProviderArchitectureGatekeeperTests {
         #expect(Set(descriptors.filter(\.metadata.usesDetailBackedWindow).map(\.id)) == [
             .perplexity,
             .warp, .kilo, .mistral, .deepseek, .deepinfra, .qoder, .chutes, .longcat, .litellm, .bifrost, .manus,
-            .mimo, .neuralwatt, .abacus, .v0, .llmman, .aixy, .raycast, .workbuddy, .claudeplatform,
+            .mimo, .neuralwatt, .abacus, .v0, .llmman, .aixy, .raycast, .workbuddy, .claudeplatform, .abliteration,
         ])
         #if os(macOS)
         // Antigravity and Muse use bounded local usage readers.

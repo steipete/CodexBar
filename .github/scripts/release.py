@@ -4,7 +4,6 @@ import argparse
 import base64
 import datetime as dt
 import hashlib
-import html
 import json
 import os
 from pathlib import Path
@@ -79,6 +78,55 @@ def notes(version, dry=False):
     body = match[2].strip()
     assert dry or body, 'Release notes are empty'
     return (body or f'Dry-run build of {version}; no publication.') + '\n'
+
+
+MARKDOWN_REFERENCE = re.compile(
+    r'(?P<code>`+[^`\n]*`+)|(?P<link>\[[^\]\n]*\]\([^\n)]*\))'
+    r'|(?P<issue>(?<![\w/])#(?P<number>\d+)\b)'
+    r'|(?P<user>(?<![\w.+-])@(?P<username>[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?)(?![A-Za-z0-9-]))'
+)
+
+
+def link_github_references(markdown):
+    """Link GitHub references while leaving existing links and code untouched."""
+    linked_lines = []
+    code_fence = None
+    for line in markdown.splitlines(keepends=True):
+        fence = re.match(r'^ {0,3}(`{3,}|~{3,})', line)
+        if code_fence is not None:
+            linked_lines.append(line)
+            if fence and fence.group(1)[0] == code_fence[0] and len(fence.group(1)) >= len(code_fence):
+                code_fence = None
+            continue
+        if fence:
+            code_fence = fence.group(1)
+            linked_lines.append(line)
+            continue
+
+        def link_reference(match):
+            if match.group('code') or match.group('link'):
+                return match.group()
+            if match.group('number'):
+                number = match.group('number')
+                return f'[#{number}](https://github.com/{CONFIG["repository"]}/issues/{number})'
+            username = match.group('username')
+            return f'[@{username}](https://github.com/{username})'
+
+        linked_lines.append(MARKDOWN_REFERENCE.sub(link_reference, line))
+    return ''.join(linked_lines)
+
+
+def appcast_markdown(version, dry=False):
+    """Return the release notes as Markdown for Sparkle's native renderer."""
+    title = f'## {CONFIG["app"]} {version}'
+    return f'{title}\n\n{link_github_references(notes(version, dry))}'
+
+
+def add_appcast_description(item, version, dry=False):
+    """Add a Sparkle description marked for native Markdown rendering."""
+    description = ET.SubElement(item, 'description', {f'{{{SPARKLE}}}format': 'markdown'})
+    description.text = appcast_markdown(version, dry)
+    return description
 
 
 def require_ci(sha):
@@ -215,7 +263,7 @@ if data.count == 32 {
     ET.SubElement(item, f'{{{SPARKLE}}}minimumSystemVersion').text = CONFIG['minimum_macos']
     if CONFIG['architectures'] == ['arm64']:
         ET.SubElement(item, f'{{{SPARKLE}}}hardwareRequirements').text = 'arm64'
-    ET.SubElement(item, 'description').text = '<pre>' + html.escape(notes(version, os.environ.get('DRY_RUN') == 'true')) + '</pre>'
+    add_appcast_description(item, version, os.environ.get('DRY_RUN') == 'true')
     ET.SubElement(item, 'enclosure', {'url': f'https://github.com/{CONFIG["repository"]}/releases/download/v{version}/{archive.name}', 'length': str(archive.stat().st_size), 'type': 'application/octet-stream', f'{{{SPARKLE}}}edSignature': signature})
     channel.insert(0, item)
     ET.indent(tree)

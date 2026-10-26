@@ -2736,3 +2736,20 @@
 "Primary" = "Principal";
 "Secondary" = "Secundària";
 "Tertiary" = "Terciària";
+
+/* Chatbox AI */
+"Chatbox AI" = "Chatbox AI";
+"Show Chatbox AI usage" = "Mostra l’ús de Chatbox AI";
+"Chatbox AI license key is invalid. Update it in Settings." = "La clau de llicència de Chatbox AI no és vàlida. Actualitzeu-la a la configuració.";
+"Chatbox AI denied access. Check your license." = "Chatbox AI ha denegat l’accés. Comproveu la llicència.";
+"Chatbox AI is rate limiting requests. Try again later." = "Chatbox AI limita la freqüència de les sol·licituds. Torneu-ho a provar més tard.";
+"Chatbox AI request failed. Try refreshing later." = "La sol·licitud a Chatbox AI ha fallat. Torneu a actualitzar més tard.";
+"Chatbox AI returned an unrecognized response. Update CodexBar and try again." = "Chatbox AI ha retornat una resposta desconeguda. Actualitzeu CodexBar i torneu-ho a provar.";
+
+/* abliteration.ai */
+"abliteration.ai" = "abliteration.ai";
+"Show abliteration.ai usage" = "Mostra l’ús de abliteration.ai";
+"abliteration.ai is rate limiting requests. Try again later." = "abliteration.ai limita la freqüència de les sol·licituds. Torneu-ho a provar més tard.";
+"abliteration.ai request failed. Try refreshing later." = "La sol·licitud a abliteration.ai ha fallat. Torneu a actualitzar més tard.";
+"abliteration.ai returned an unrecognized response. Update CodexBar and try again." = "abliteration.ai ha retornat una resposta desconeguda. Actualitzeu CodexBar i torneu-ho a provar.";
+"Check your API key in Settings." = "Comprova la teva clau API a Configuració.";

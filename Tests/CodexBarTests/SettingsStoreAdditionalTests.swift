@@ -243,6 +243,7 @@ struct SettingsStoreAdditionalTests {
             .raycast: [.automatic, .primary],
             .museai: [.automatic, .primary],
             .soniox: [.automatic, .primary],
+            .abliteration: [.automatic, .primary],
             .coderabbit: [.automatic],
             .replicate: [.automatic],
             .lithosai: [.automatic],

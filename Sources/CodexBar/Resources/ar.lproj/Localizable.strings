@@ -2738,3 +2738,20 @@
 "Primary" = "أساسية";
 "Secondary" = "ثانوية";
 "Tertiary" = "ثالثة";
+
+/* Chatbox AI */
+"Chatbox AI" = "Chatbox AI";
+"Show Chatbox AI usage" = "إظهار استخدام Chatbox AI";
+"Chatbox AI license key is invalid. Update it in Settings." = "مفتاح ترخيص Chatbox AI غير صالح. حدّثه في الإعدادات.";
+"Chatbox AI denied access. Check your license." = "رفض Chatbox AI الوصول. تحقّق من ترخيصك.";
+"Chatbox AI is rate limiting requests. Try again later." = "يفرض Chatbox AI حدًا على عدد الطلبات. حاول لاحقًا.";
+"Chatbox AI request failed. Try refreshing later." = "فشل طلب Chatbox AI. حاول التحديث لاحقًا.";
+"Chatbox AI returned an unrecognized response. Update CodexBar and try again." = "أعاد Chatbox AI استجابة غير معروفة. حدّث CodexBar وحاول مجددًا.";
+
+/* abliteration.ai */
+"abliteration.ai" = "abliteration.ai";
+"Show abliteration.ai usage" = "إظهار استخدام abliteration.ai";
+"abliteration.ai is rate limiting requests. Try again later." = "يفرض abliteration.ai حدًا على عدد الطلبات. حاول لاحقًا.";
+"abliteration.ai request failed. Try refreshing later." = "فشل طلب abliteration.ai. حاول التحديث لاحقًا.";
+"abliteration.ai returned an unrecognized response. Update CodexBar and try again." = "أعاد abliteration.ai استجابة غير معروفة. حدّث CodexBar وحاول مجددًا.";
+"Check your API key in Settings." = "تحقّق من مفتاح API في الإعدادات.";
