@@ -68,6 +68,7 @@ cookies to each request. A session is accepted into the cache only after a succe
   requests without `PackageCodes` (HTTP 400, code `10001`), so the plugin sends the paid and free package codes used by
   the WorkBuddy 5.6.2 client; packages added later are not considered for the reset. A failed or unexpected listing
   keeps the balance, including HTTP 401; a successful listing can still supply the reset if the other listing fails.
+  Free packages are queried only when no future paid reset is available.
   Both listings share at most five seconds, capped before the overall fetch deadline; a stalled listing cannot consume
   the balance's publication time. Only the first 100 accounts in each listing are considered. Cancelling a refresh still
   stops the fetch.
@@ -80,7 +81,7 @@ order, and resource IDs); the plugin never uses, displays, or logs them.
 | Field | Display |
 | --- | --- |
 | Summed `CycleTotalCapacity` / `CycleRemainCapacity` | One **Credits** meter when the total is above zero, with `450 / 500 credits left` under the bar. Used is `total − remaining`, so rollover above the grant shows 0% used. |
-| Earliest future `CycleEndTime` | The meter's reset line. The value has no zone and is read as China Standard Time (UTC+8), one second after the inclusive end, matching the dashboard. |
+| Earliest future `CycleEndTime` in the paid listing | The meter's reset line. The paid listing carries the subscription cycle, which is what refills the allowance; the free listing only supplies the reset when the paid listing has no future cycle end, so the trial grant that closes with the calendar month cannot shorten a paid cycle. The value has no zone and is read as China Standard Time (UTC+8), one second after the inclusive end, matching the dashboard. |
 | `CycleFrozenCapacity` | A **Reserved** row when above zero, as reported. |
 | `SubscriptionPackageName` | Header plan label, as returned (for example `体验版` for the free tier). |
 
@@ -91,6 +92,14 @@ Amounts use CodexBar's shared number formatting, including thousands separators.
 
 - The website billing routes are undocumented and can change without notice.
 - Paid-package and per-request usage (`get-user-request-usage`) shapes were checked only on a free-tier account.
+- The reset line follows the paid subscription listing, so reward and purchased credits that end earlier are not
+  reflected; the balance can drop before the reset.
 - CodeBuddy accounts share the billing system, but signing in on `www.codebuddy.cn` is not verified to authorize the
   `www.workbuddy.cn` origin.
 - Local WorkBuddy session history (`~/.workbuddy/projects/`) is not read.
+
+## Brand mark
+
+The app, website, and CLI dashboard use a monochrome version of the mascot from WorkBuddy’s
+[official logo](https://assets.workbuddy.cn/web/workbuddy/a5b2fb510f0e7b156f19d072fae0cd12ae1f2f19/assets/logo.svg).
+The template follows the system tint; the existing `#0DC8A6` provider accent is unchanged.

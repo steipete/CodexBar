@@ -2,6 +2,11 @@
 
 ## 0.81.1 — Unreleased
 
+### Fixed
+
+- Trae CN: distinguish the Usage meter from the Credits details in Visible usage items while preserving hidden choices (#4764, #4780). Thanks @LeoLin990405 and @liuyuplus!
+- WorkBuddy: use the official mascot instead of the placeholder letter icon (#4768). Thanks @codertesla!
+- WorkBuddy: keep resets on the paid subscription cycle instead of an earlier trial or reward expiry (#4767). Thanks @codertesla!
 ### Added
 
 - Plugins: allow detail progress bars to display native pace markers, respecting Show pace (#4776). Thanks @KLIEBHAN!
