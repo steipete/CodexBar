@@ -2,6 +2,48 @@
 <rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
   <channel>
     <item>
+      <title>0.82.0</title>
+      <pubDate>Mon, 26 Oct 2026 23:39:35 +0000</pubDate>
+      <sparkle:version>175</sparkle:version>
+      <sparkle:shortVersionString>0.82.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <description sparkle:format="markdown">## CodexBar 0.82.0
+
+### Highlights
+
+- Cursor works again with Cursor 3.27, which now encrypts its stored app token: CodexBar decrypts it through Cursor's Safe Storage Keychain item, prompting at most once on a manual refresh and never in the background.
+- Updates: automatic checks and automatic installs are now separate choices, and saved choices survive relaunches and Settings visits.
+- Usage and cost: OpenCode's local history can optionally feed Codex cost history, Codex usage reported over a fixed 30-day window gets pace, Kimi's monthly Total breaks down into Kimi Code and other features, and OpenCode Go can use the active CLI login.
+- Plugins and accounts: plugins can choose which quota window drives the menu-bar percentage and show native pace markers, Command Code keeps several saved subscription sessions, and the CLI gains `config set-cookie` and `config clear-credential`.
+
+### Added
+
+- Updates: separate automatic checks from automatic installs, preserve saved choices across relaunches and Settings visits, and retain the existing default-on behavior ([#4777](https://github.com/steipete/CodexBar/issues/4777), [#4778](https://github.com/steipete/CodexBar/issues/4778)). Thanks [@harveyrandall](https://github.com/harveyrandall)!
+- Codex: optionally include this device's recorded OpenCode usage in local cost history, preserving recorded $0 costs and keeping scoped accounts and Usage &amp; Spend excluded ([#4757](https://github.com/steipete/CodexBar/issues/4757), [#4752](https://github.com/steipete/CodexBar/issues/4752)). Thanks [@Danielweng0902](https://github.com/Danielweng0902)!
+- Plugins: choose which reported quota window drives the menu-bar percentage and switcher gauge, with automatic fallback when that window is unavailable ([#4781](https://github.com/steipete/CodexBar/issues/4781)). Thanks [@coygeek](https://github.com/coygeek)!
+- Plugins: allow detail progress bars to display native pace markers, respecting Show pace ([#4776](https://github.com/steipete/CodexBar/issues/4776)). Thanks [@KLIEBHAN](https://github.com/KLIEBHAN)!
+- Kimi: break the monthly Total usage pool down into Kimi Code and other features in menu and CLI details ([#4759](https://github.com/steipete/CodexBar/issues/4759)). Thanks [@Redwinam](https://github.com/Redwinam)!
+- Command Code: manage multiple saved subscription sessions in Settings and select them from the CLI ([#4774](https://github.com/steipete/CodexBar/issues/4774)). Thanks [@JavaGT](https://github.com/JavaGT)!
+- CLI: add `config set-cookie` and `config clear-credential` for stored manual cookies and API keys, preserving saved accounts and unrelated provider settings ([#4765](https://github.com/steipete/CodexBar/issues/4765)). Thanks [@johan456789](https://github.com/johan456789)!
+
+### Changed
+
+- OpenCode Go: use the active CLI login for server quotas when no configured key or usable browser session is available, preserving account selection and local cost history ([#4771](https://github.com/steipete/CodexBar/issues/4771)). Thanks [@sreejithraman](https://github.com/sreejithraman)!
+- Settings: fade the provider reorder Undo banner after inactivity, pausing while hovered or focused and respecting Reduce Motion ([#4760](https://github.com/steipete/CodexBar/issues/4760)). Thanks [@elijahfriedman](https://github.com/elijahfriedman)!
+
+### Fixed
+
+- Cursor: read encrypted Cursor.app tokens without background Keychain prompts, preserving account validation and browser fallback ([#4755](https://github.com/steipete/CodexBar/issues/4755)). Thanks [@micheltriana](https://github.com/micheltriana)!
+- Alibaba/Qwen: skip Safe Storage Keychain lookups when the browser-cookie fallback finds no matching encrypted cookies ([#4790](https://github.com/steipete/CodexBar/issues/4790)).
+- Codex: calculate pace for explicitly reported fixed 30-day usage windows using their actual duration ([#4766](https://github.com/steipete/CodexBar/issues/4766)). Thanks [@johan456789](https://github.com/johan456789)!
+- Settings: hide the Version row for web-only Cursor and Raycast providers instead of showing "not detected" for a detection they do not support ([#4769](https://github.com/steipete/CodexBar/issues/4769), [#4779](https://github.com/steipete/CodexBar/issues/4779)). Thanks [@LeoLin990405](https://github.com/LeoLin990405)!
+- Trae CN: distinguish the Usage meter from the Credits details in Visible usage items while preserving hidden choices ([#4764](https://github.com/steipete/CodexBar/issues/4764), [#4780](https://github.com/steipete/CodexBar/issues/4780)). Thanks [@LeoLin990405](https://github.com/LeoLin990405) and [@liuyuplus](https://github.com/liuyuplus)!
+- WorkBuddy: keep resets on the paid subscription cycle instead of an earlier trial or reward expiry ([#4767](https://github.com/steipete/CodexBar/issues/4767)). Thanks [@codertesla](https://github.com/codertesla)!
+- WorkBuddy: use the official mascot instead of the placeholder letter icon ([#4768](https://github.com/steipete/CodexBar/issues/4768)). Thanks [@codertesla](https://github.com/codertesla)!
+</description>
+      <enclosure url="https://github.com/steipete/CodexBar/releases/download/v0.82.0/CodexBar-macos-universal-0.82.0.zip" length="86347058" type="application/octet-stream" sparkle:edSignature="XH6dfOKnqmyhEaMp7o3aXAxW1UsZy6sT/ojXeE2YcgbbM4tiy6f8Nf/xGzltVtapfsfSCnKUl3rb3Cmz+SuaAA==" />
+    </item>
+    <item>
       <title>0.81.0</title>
       <pubDate>Sat, 24 Oct 2026 10:24:41 +0000</pubDate>
       <sparkle:version>174</sparkle:version>
