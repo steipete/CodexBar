@@ -1478,6 +1478,14 @@
 "menu_bar_layout_token_line_break" = "شکست خط";
 "menu_bar_layout_token_separator_accessibility" = "نقطهٔ جداکننده";
 "menu_bar_layout_token_separator_glyph_accessibility" = "جداکننده %@";
+"menu_bar_layout_separator_pipe" = "خط عمودی";
+"menu_bar_layout_separator_slash" = "خط مورب";
+"menu_bar_layout_separator_hyphen" = "خط تیره";
+"menu_bar_layout_separator_bullet" = "نشان گلوله‌ای";
+"menu_bar_layout_separator_diamond" = "لوزی توپر";
+"menu_bar_layout_separator_hollowDiamond" = "لوزی توخالی";
+"menu_bar_layout_separator_tilde" = "مد";
+"menu_bar_layout_separator_doubleBar" = "خط عمودی دوتایی";
 
 /* Menu bar layout accessibility */
 "Icon unavailable" = "آیکون: در دسترس نیست";

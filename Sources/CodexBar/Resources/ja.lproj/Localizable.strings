@@ -1475,6 +1475,14 @@
 "menu_bar_layout_token_line_break" = "改行";
 "menu_bar_layout_token_separator_accessibility" = "区切り点";
 "menu_bar_layout_token_separator_glyph_accessibility" = "区切り %@";
+"menu_bar_layout_separator_pipe" = "縦棒";
+"menu_bar_layout_separator_slash" = "スラッシュ";
+"menu_bar_layout_separator_hyphen" = "ハイフン";
+"menu_bar_layout_separator_bullet" = "中黒";
+"menu_bar_layout_separator_diamond" = "黒ひし形";
+"menu_bar_layout_separator_hollowDiamond" = "白ひし形";
+"menu_bar_layout_separator_tilde" = "チルダ";
+"menu_bar_layout_separator_doubleBar" = "二重縦棒";
 
 /* Menu bar layout accessibility */
 "Icon unavailable" = "アイコン: 利用不可";

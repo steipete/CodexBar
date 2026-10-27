@@ -1474,6 +1474,14 @@
 "menu_bar_layout_token_line_break" = "Saut de ligne";
 "menu_bar_layout_token_separator_accessibility" = "Point séparateur";
 "menu_bar_layout_token_separator_glyph_accessibility" = "Séparateur %@";
+"menu_bar_layout_separator_pipe" = "Barre verticale";
+"menu_bar_layout_separator_slash" = "Barre oblique";
+"menu_bar_layout_separator_hyphen" = "Trait d’union";
+"menu_bar_layout_separator_bullet" = "Puce";
+"menu_bar_layout_separator_diamond" = "Losange plein";
+"menu_bar_layout_separator_hollowDiamond" = "Losange vide";
+"menu_bar_layout_separator_tilde" = "Tilde";
+"menu_bar_layout_separator_doubleBar" = "Double barre verticale";
 
 /* Menu bar layout accessibility */
 "Icon unavailable" = "Icône: Indisponible";

@@ -1505,6 +1505,14 @@
 "menu_bar_layout_token_line_break" = "換行";
 "menu_bar_layout_token_separator_accessibility" = "分隔點";
 "menu_bar_layout_token_separator_glyph_accessibility" = "分隔符號 %@";
+"menu_bar_layout_separator_pipe" = "豎線";
+"menu_bar_layout_separator_slash" = "斜線";
+"menu_bar_layout_separator_hyphen" = "連字號";
+"menu_bar_layout_separator_bullet" = "項目符號";
+"menu_bar_layout_separator_diamond" = "實心菱形";
+"menu_bar_layout_separator_hollowDiamond" = "空心菱形";
+"menu_bar_layout_separator_tilde" = "波浪號";
+"menu_bar_layout_separator_doubleBar" = "雙豎線";
 
 /* Menu bar layout accessibility */
 "Icon unavailable" = "圖示: 無法使用";

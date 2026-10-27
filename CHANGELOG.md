@@ -2,6 +2,10 @@
 
 ## 0.82.1 — Unreleased
 
+### Added
+
+- Menu bar: add eight separator glyphs to layouts and conditional branches, with spoken accessibility names and safe downgrade projections (#4795). Thanks @urda!
+
 ## 0.82.0 — 2026-10-26
 
 ### Highlights

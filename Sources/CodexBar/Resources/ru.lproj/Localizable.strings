@@ -1476,6 +1476,14 @@
 "menu_bar_layout_token_line_break" = "Разрыв строки";
 "menu_bar_layout_token_separator_accessibility" = "Точка-разделитель";
 "menu_bar_layout_token_separator_glyph_accessibility" = "Разделитель %@";
+"menu_bar_layout_separator_pipe" = "Вертикальная черта";
+"menu_bar_layout_separator_slash" = "Косая черта";
+"menu_bar_layout_separator_hyphen" = "Дефис";
+"menu_bar_layout_separator_bullet" = "Маркер";
+"menu_bar_layout_separator_diamond" = "Закрашенный ромб";
+"menu_bar_layout_separator_hollowDiamond" = "Незакрашенный ромб";
+"menu_bar_layout_separator_tilde" = "Тильда";
+"menu_bar_layout_separator_doubleBar" = "Двойная вертикальная черта";
 
 /* Menu bar layout accessibility */
 "Icon unavailable" = "Значок: Недоступно";

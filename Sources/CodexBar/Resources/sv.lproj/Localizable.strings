@@ -1473,6 +1473,14 @@
 "menu_bar_layout_token_line_break" = "Radbrytning";
 "menu_bar_layout_token_separator_accessibility" = "Avgränsarpunkt";
 "menu_bar_layout_token_separator_glyph_accessibility" = "Avgränsare %@";
+"menu_bar_layout_separator_pipe" = "Lodrätt streck";
+"menu_bar_layout_separator_slash" = "Snedstreck";
+"menu_bar_layout_separator_hyphen" = "Bindestreck";
+"menu_bar_layout_separator_bullet" = "Punkt";
+"menu_bar_layout_separator_diamond" = "Fylld romb";
+"menu_bar_layout_separator_hollowDiamond" = "Ofylld romb";
+"menu_bar_layout_separator_tilde" = "Tilde";
+"menu_bar_layout_separator_doubleBar" = "Dubbelt lodrätt streck";
 
 /* Menu bar layout accessibility */
 "Icon unavailable" = "Ikon: Inte tillgänglig";

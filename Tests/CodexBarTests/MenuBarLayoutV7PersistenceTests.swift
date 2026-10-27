@@ -234,7 +234,7 @@ struct MenuBarLayoutV7PersistenceTests {
     }
 }
 
-/// Frozen V6 decoder surface (v0.77.0 to v0.81.0): no `separator` case, and a synthesized `Codable` enum throws
+/// Frozen V6 decoder surface (v0.77.0 to v0.82.0): no `separator` case, and a synthesized `Codable` enum throws
 /// on an unknown case, which discards the whole persisted blob.
 private enum V6Token: Codable, Equatable {
     case icon

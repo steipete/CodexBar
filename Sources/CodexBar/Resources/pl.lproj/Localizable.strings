@@ -1478,6 +1478,14 @@
 "menu_bar_layout_token_line_break" = "Podział wiersza";
 "menu_bar_layout_token_separator_accessibility" = "Kropka oddzielająca";
 "menu_bar_layout_token_separator_glyph_accessibility" = "Separator %@";
+"menu_bar_layout_separator_pipe" = "Pionowa kreska";
+"menu_bar_layout_separator_slash" = "Ukośnik";
+"menu_bar_layout_separator_hyphen" = "Łącznik";
+"menu_bar_layout_separator_bullet" = "Punktor";
+"menu_bar_layout_separator_diamond" = "Wypełniony romb";
+"menu_bar_layout_separator_hollowDiamond" = "Pusty romb";
+"menu_bar_layout_separator_tilde" = "Tylda";
+"menu_bar_layout_separator_doubleBar" = "Podwójna pionowa kreska";
 
 /* Menu bar layout accessibility */
 "Icon unavailable" = "Ikona: Niedostępne";

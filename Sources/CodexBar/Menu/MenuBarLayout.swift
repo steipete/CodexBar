@@ -531,6 +531,19 @@ enum MenuBarLayoutSeparator: String, Codable, CaseIterable, Sendable {
     case tilde
     case doubleBar
 
+    var accessibilityName: String {
+        switch self {
+        case .pipe: L("menu_bar_layout_separator_pipe")
+        case .slash: L("menu_bar_layout_separator_slash")
+        case .hyphen: L("menu_bar_layout_separator_hyphen")
+        case .bullet: L("menu_bar_layout_separator_bullet")
+        case .diamond: L("menu_bar_layout_separator_diamond")
+        case .hollowDiamond: L("menu_bar_layout_separator_hollowDiamond")
+        case .tilde: L("menu_bar_layout_separator_tilde")
+        case .doubleBar: L("menu_bar_layout_separator_doubleBar")
+        }
+    }
+
     var glyph: String {
         switch self {
         case .pipe: "|"

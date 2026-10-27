@@ -1253,7 +1253,9 @@ extension MenuBarLayoutToken {
     func editorAccessibilityLabel(provider: UsageProvider?, snapshot: UsageSnapshot? = nil) -> String {
         switch self {
         case .separatorDot: L("menu_bar_layout_token_separator_accessibility")
-        case let .separator(separator): L("menu_bar_layout_token_separator_glyph_accessibility", separator.glyph)
+        case let .separator(separator): L(
+                "menu_bar_layout_token_separator_glyph_accessibility",
+                separator.accessibilityName)
         default: self.editorLabel(provider: provider, snapshot: snapshot)
         }
     }
