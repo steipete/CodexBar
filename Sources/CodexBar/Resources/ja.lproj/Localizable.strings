@@ -1474,6 +1474,7 @@
 "menu_bar_layout_token_space" = "空白";
 "menu_bar_layout_token_line_break" = "改行";
 "menu_bar_layout_token_separator_accessibility" = "区切り点";
+"menu_bar_layout_token_separator_glyph_accessibility" = "区切り %@";
 
 /* Menu bar layout accessibility */
 "Icon unavailable" = "アイコン: 利用不可";

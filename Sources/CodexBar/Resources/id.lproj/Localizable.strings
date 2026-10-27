@@ -1478,6 +1478,7 @@
 "menu_bar_layout_token_space" = "Spasi";
 "menu_bar_layout_token_line_break" = "Pemisah baris";
 "menu_bar_layout_token_separator_accessibility" = "Titik pemisah";
+"menu_bar_layout_token_separator_glyph_accessibility" = "Pemisah %@";
 
 /* Menu bar layout accessibility */
 "Icon unavailable" = "Ikon: Tidak tersedia";

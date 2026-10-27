@@ -1475,6 +1475,7 @@
 "menu_bar_layout_token_space" = "Boşluk";
 "menu_bar_layout_token_line_break" = "Satır sonu";
 "menu_bar_layout_token_separator_accessibility" = "Ayırıcı nokta";
+"menu_bar_layout_token_separator_glyph_accessibility" = "Ayırıcı %@";
 
 /* Menu bar layout accessibility */
 "Icon unavailable" = "Simge: kullanılamıyor";

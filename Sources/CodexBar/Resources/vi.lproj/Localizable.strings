@@ -1474,6 +1474,7 @@
 "menu_bar_layout_token_space" = "Khoảng trắng";
 "menu_bar_layout_token_line_break" = "Ngắt dòng";
 "menu_bar_layout_token_separator_accessibility" = "Dấu chấm phân cách";
+"menu_bar_layout_token_separator_glyph_accessibility" = "Dấu phân cách %@";
 
 /* Menu bar layout accessibility */
 "Icon unavailable" = "Biểu tượng: Không có sẵn";

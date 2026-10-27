@@ -1443,6 +1443,7 @@
 "menu_bar_layout_token_space" = "공백";
 "menu_bar_layout_token_line_break" = "줄 바꿈";
 "menu_bar_layout_token_separator_accessibility" = "구분점";
+"menu_bar_layout_token_separator_glyph_accessibility" = "구분자 %@";
 
 /* Menu bar layout accessibility */
 "Icon unavailable" = "아이콘: 사용할 수 없음";

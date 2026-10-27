@@ -182,6 +182,18 @@ struct MenuBarLayoutEditorTests {
     }
 
     @Test
+    func `every separator glyph is a conditional branch choice with a glyph label`() {
+        let branch = MenuBarLayoutPaletteTokens.conditionalBranch
+        #expect(branch.contains(.separatorDot))
+        for separator in MenuBarLayoutSeparator.allCases {
+            let token = MenuBarLayoutToken.separator(separator)
+            #expect(branch.contains(token))
+            #expect(token.editorLabel(provider: nil, snapshot: nil) == separator.glyph)
+            #expect(token.editorAccessibilityLabel(provider: nil).contains(separator.glyph))
+        }
+    }
+
+    @Test
     func `reset window choices are available in layout and conditional palettes`() {
         let choices: [MenuBarLayoutToken] = [
             .resetCountdown,

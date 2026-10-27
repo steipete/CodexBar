@@ -1477,6 +1477,7 @@
 "menu_bar_layout_token_space" = "ช่องว่าง";
 "menu_bar_layout_token_line_break" = "ขึ้นบรรทัดใหม่";
 "menu_bar_layout_token_separator_accessibility" = "จุดคั่น";
+"menu_bar_layout_token_separator_glyph_accessibility" = "ตัวคั่น %@";
 
 /* Menu bar layout accessibility */
 "Icon unavailable" = "ไอคอน: ไม่พร้อมใช้งาน";

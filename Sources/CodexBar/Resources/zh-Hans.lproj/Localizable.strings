@@ -1479,6 +1479,7 @@
 "menu_bar_layout_token_space" = "空格";
 "menu_bar_layout_token_line_break" = "换行";
 "menu_bar_layout_token_separator_accessibility" = "分隔点";
+"menu_bar_layout_token_separator_glyph_accessibility" = "分隔符 %@";
 
 /* Menu bar layout accessibility */
 "Icon unavailable" = "图标: 不可用";

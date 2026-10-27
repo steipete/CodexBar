@@ -1473,6 +1473,7 @@
 "menu_bar_layout_token_space" = "Spatie";
 "menu_bar_layout_token_line_break" = "Regeleinde";
 "menu_bar_layout_token_separator_accessibility" = "Scheidingspunt";
+"menu_bar_layout_token_separator_glyph_accessibility" = "Scheidingsteken %@";
 
 /* Menu bar layout accessibility */
 "Icon unavailable" = "Pictogram: Niet beschikbaar";

@@ -1504,6 +1504,7 @@
 "menu_bar_layout_token_space" = "空格";
 "menu_bar_layout_token_line_break" = "換行";
 "menu_bar_layout_token_separator_accessibility" = "分隔點";
+"menu_bar_layout_token_separator_glyph_accessibility" = "分隔符號 %@";
 
 /* Menu bar layout accessibility */
 "Icon unavailable" = "圖示: 無法使用";

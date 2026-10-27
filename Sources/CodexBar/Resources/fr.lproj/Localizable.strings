@@ -1473,6 +1473,7 @@
 "menu_bar_layout_token_space" = "Espace";
 "menu_bar_layout_token_line_break" = "Saut de ligne";
 "menu_bar_layout_token_separator_accessibility" = "Point séparateur";
+"menu_bar_layout_token_separator_glyph_accessibility" = "Séparateur %@";
 
 /* Menu bar layout accessibility */
 "Icon unavailable" = "Icône: Indisponible";

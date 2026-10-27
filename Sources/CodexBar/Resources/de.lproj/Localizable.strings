@@ -1476,6 +1476,7 @@
 "menu_bar_layout_token_space" = "Leerraum";
 "menu_bar_layout_token_line_break" = "Zeilenumbruch";
 "menu_bar_layout_token_separator_accessibility" = "Trennpunkt";
+"menu_bar_layout_token_separator_glyph_accessibility" = "Trennzeichen %@";
 
 /* Menu bar layout accessibility */
 "Icon unavailable" = "Symbol: Nicht verfügbar";

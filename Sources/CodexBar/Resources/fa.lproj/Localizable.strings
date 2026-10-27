@@ -1477,6 +1477,7 @@
 "menu_bar_layout_token_space" = "فاصله";
 "menu_bar_layout_token_line_break" = "شکست خط";
 "menu_bar_layout_token_separator_accessibility" = "نقطهٔ جداکننده";
+"menu_bar_layout_token_separator_glyph_accessibility" = "جداکننده %@";
 
 /* Menu bar layout accessibility */
 "Icon unavailable" = "آیکون: در دسترس نیست";
