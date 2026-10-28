@@ -2,7 +2,7 @@ import Foundation
 
 public struct MiniMaxSettingsReader: Sendable {
     private static let endpointValidator = ProviderEndpointOverrideValidator(
-        allowedDomainSuffixes: ["minimax.io", "minimaxi.com"])
+        allowedDomainSuffixes: ["minimax.io", "minimaxi.com", "minimax.cn"])
 
     public static let cookieHeaderKeys = [
         "MINIMAX_COOKIE",
@@ -83,8 +83,8 @@ public enum MiniMaxSettingsError: LocalizedError, Sendable {
     public var errorDescription: String? {
         switch self {
         case .missingCookie:
-            "MiniMax session not found. Sign in to platform.minimax.io or platform.minimaxi.com " +
-                "in your browser and try again."
+            "MiniMax session not found. Sign in to platform.minimax.io, platform.minimax.cn, " +
+                "or platform.minimaxi.com in your browser and try again."
         }
     }
 }

@@ -89,6 +89,16 @@ public struct MiniMaxUsageFetcher: Sendable {
                     includeBillingHistory: includeBillingHistory,
                     now: now)
             }
+            if case let .apiError(message) = error,
+               message.contains("HTTP 302") || message.contains("HTTP 404") || message.contains("HTTP 405")
+            {
+                let snapshot = try await self.attachingSubscriptionMetadataIfAvailable(
+                    to: self.fetchCodingPlanRemains(context: context, groupID: groupID, now: now),
+                    context: context,
+                    groupID: groupID)
+                return try await self.attachingBillingIfAvailable(
+                    to: snapshot, context: context, includeBillingHistory: includeBillingHistory, now: now)
+            }
             throw error
         }
     }
@@ -245,7 +255,7 @@ public struct MiniMaxUsageFetcher: Sendable {
         case .invalidCredentials:
             retryRejectedCredentials
         case let .apiError(message):
-            message.contains("HTTP 404") || message.contains("HTTP 405")
+            message.contains("HTTP 302") || message.contains("HTTP 404") || message.contains("HTTP 405")
         case .networkError, .parseFailed:
             true
         }
@@ -333,12 +343,20 @@ public struct MiniMaxUsageFetcher: Sendable {
         groupID: String?,
         now: Date) async throws -> MiniMaxUsageSnapshot
     {
-        let remainsURL = self.appendGroupID(groupID, to: baseRemainsURL)
+        let isCurrentChinaEndpoint = baseRemainsURL.path == "/backend/account/token_plan/remains_percent"
+        let remainsURL = isCurrentChinaEndpoint ? baseRemainsURL : self.appendGroupID(groupID, to: baseRemainsURL)
         var request = self.makeWebRequest(
             url: remainsURL,
             context: context,
             accept: "application/json, text/plain, */*")
         request.setValue("XMLHttpRequest", forHTTPHeaderField: "x-requested-with")
+        if isCurrentChinaEndpoint {
+            let pageURL = self.resolveCodingPlanURL(region: context.region, environment: context.environment)
+            request.setValue(self.originURL(from: pageURL).absoluteString, forHTTPHeaderField: "origin")
+            if let groupID, !groupID.isEmpty {
+                request.setValue(groupID, forHTTPHeaderField: "X-Group-Id")
+            }
+        }
         let response = try await self.fetchResponse(for: request, transport: context.transport)
 
         if let contentType = response.response.value(forHTTPHeaderField: "Content-Type"),
@@ -518,7 +536,9 @@ public struct MiniMaxUsageFetcher: Sendable {
             return [hostURL]
         }
 
-        return [
+        let currentChinaURL = URL(string: "https://www.minimax.cn/backend/account/token_plan/remains_percent")!
+        let current = region == .chinaMainland ? [currentChinaURL] : []
+        return current + [
             region.remainsURL,
             URL(string: region.webBaseURLString)!.appendingPathComponent(MiniMaxAPIRegion.remainsPath),
         ]
@@ -798,7 +818,8 @@ enum MiniMaxUsageParser {
             if let intervalService = self.makeServiceUsage(
                 ServiceUsageInput(
                     serviceType: serviceTypeIdentifier,
-                    windowTypeOverride: nil,
+                    isWebPercentSchema: item.hasIntervalUsedPercent,
+                    windowTypeOverride: item.hasIntervalUsedPercent && item.startTime == nil ? "5 hours" : nil,
                     total: item.currentIntervalTotalCount,
                     remaining: item.currentIntervalUsageCount,
                     remainingPercent: item.currentIntervalRemainingPercent,
@@ -817,6 +838,7 @@ enum MiniMaxUsageParser {
                let weeklyService = self.makeServiceUsage(
                    ServiceUsageInput(
                        serviceType: serviceTypeIdentifier,
+                       isWebPercentSchema: item.hasWeeklyUsedPercent,
                        windowTypeOverride: "Weekly",
                        total: item.currentWeeklyTotalCount,
                        remaining: item.currentWeeklyUsageCount,
@@ -932,6 +954,7 @@ enum MiniMaxUsageParser {
             item.modelName?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "video" &&
                 self.isUnavailableQuotaPlaceholder(ServiceUsageInput(
                     serviceType: "Text to Video",
+                    isWebPercentSchema: false,
                     windowTypeOverride: nil,
                     total: item.currentIntervalTotalCount,
                     remaining: item.currentIntervalUsageCount,
@@ -1377,6 +1400,7 @@ enum MiniMaxUsageParser {
 
     private struct ServiceUsageInput {
         let serviceType: String
+        let isWebPercentSchema: Bool
         let windowTypeOverride: String?
         let total: Int?
         let remaining: Int?
@@ -1464,6 +1488,9 @@ enum MiniMaxUsageParser {
         let normalizedService = input.serviceType.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         let normalizedWindow = windowType.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         let unlimitedServices = ["text generation", "general"]
+        if input.isWebPercentSchema, input.status == 3, unlimitedServices.contains(normalizedService) {
+            return true
+        }
         return input.status == 3 &&
             unlimitedServices.contains(normalizedService) &&
             normalizedWindow == "weekly" &&

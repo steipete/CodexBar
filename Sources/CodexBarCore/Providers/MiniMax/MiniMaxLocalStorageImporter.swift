@@ -110,6 +110,9 @@ enum MiniMaxLocalStorageImporter {
         "https_platform.minimax.io_",
         "https_www.minimax.io_",
         "https_minimax.io_",
+        "https_platform.minimax.cn_",
+        "https_minimax.cn_",
+        "https_www.minimax.cn_",
         "https_platform.minimaxi.com_",
         "https_minimaxi.com_",
         "https_www.minimaxi.com_",
@@ -142,6 +145,9 @@ enum MiniMaxLocalStorageImporter {
             "https://platform.minimax.io",
             "https://www.minimax.io",
             "https://minimax.io",
+            "https://platform.minimax.cn",
+            "https://www.minimax.cn",
+            "https://minimax.cn",
             "https://platform.minimaxi.com",
             "https://www.minimaxi.com",
             "https://minimaxi.com",
@@ -178,7 +184,8 @@ enum MiniMaxLocalStorageImporter {
                 let key = entry.key.lowercased()
                 let value = entry.value.lowercased()
                 return key.contains("minimax.io") || value.contains("minimax.io") ||
-                    key.contains("minimaxi.com") || value.contains("minimaxi.com")
+                    key.contains("minimaxi.com") || value.contains("minimaxi.com") ||
+                    key.contains("minimax.cn") || value.contains("minimax.cn")
             }
             if !candidateEntries.isEmpty {
                 logger?("[minimax-storage] Local storage text entries: \(candidateEntries.count)")
@@ -252,6 +259,9 @@ enum MiniMaxLocalStorageImporter {
             "https://platform.minimax.io",
             "https://www.minimax.io",
             "https://minimax.io",
+            "https://platform.minimax.cn",
+            "https://www.minimax.cn",
+            "https://minimax.cn",
             "https://platform.minimaxi.com",
             "https://www.minimaxi.com",
             "https://minimaxi.com",
