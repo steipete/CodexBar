@@ -74,7 +74,13 @@ defineProvider({
         (pack) => pack && pack.group_type === 0 && (pack.status === undefined || pack.status === 1),
       );
       const plan = typeof subscription?.display_desc === "string" ? subscription.display_desc.trim() : undefined;
-      const number = (value) => ctx.format.number(value, { maximumFractionDigits: 2 });
+      const remaining = Math.max(0, total - used);
+      const hasFraction = [used, total, remaining].some((value) => !Number.isInteger(value));
+      const number = (value) =>
+        ctx.format.number(value, {
+          minimumFractionDigits: hasFraction ? 2 : 0,
+          maximumFractionDigits: 2,
+        });
       // Pack expiry and billing timestamps do not establish an aggregate reset or subscription renewal.
       return {
         primary: total > 0 ? { usedPercent: Math.min(100, (used / total) * 100) } : undefined,
@@ -85,7 +91,7 @@ defineProvider({
             rows: [
               { label: "Used", value: number(used) },
               { label: "Total", value: number(total) },
-              { label: "Remaining", value: number(Math.max(0, total - used)) },
+              { label: "Remaining", value: number(remaining) },
             ],
           },
         ],
