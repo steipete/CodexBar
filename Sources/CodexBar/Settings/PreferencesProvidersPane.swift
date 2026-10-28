@@ -28,6 +28,7 @@ struct ProvidersPane: View {
     @State private var activeConfirmation: ProviderSettingsConfirmationState?
     @State private var codexAccountsNotice: CodexAccountsSectionNotice?
     @State private var isAuthenticatingLiveCodexAccount = false
+    @State private var codexAccountTransferModel = CodexAccountTransferModel()
 
     init(
         // Provider-specific by design: Codex is the historical settings selection when no provider is supplied.
@@ -123,9 +124,24 @@ struct ProvidersPane: View {
                             Task { @MainActor in
                                 await self.addManagedCodexAccount()
                             }
-                        })
+                        },
+                        exportAccounts: { self.presentCodexAccountTransfer(.exportAccounts) },
+                        importAccounts: { self.presentCodexAccountTransfer(.importAccounts) })
                 }
             })
+            .sheet(isPresented: Binding(
+                get: { self.codexAccountTransferModel.isPresented },
+                set: { isPresented in
+                    if !isPresented { self.codexAccountTransferModel.dismiss() }
+                })) {
+                    CodexAccountTransferSheet(model: self.codexAccountTransferModel) {
+                        Task { @MainActor in
+                            await self.codexAccountTransferModel.run(afterImport: {
+                                await self.refreshCodexProvider()
+                            })
+                        }
+                    }
+            }
             .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
                 self.runSettingsDidBecomeActiveHooks()
             }
@@ -267,7 +283,20 @@ struct ProvidersPane: View {
             isRemovingManagedAccount: self.managedCodexAccountCoordinator.isRemovingManagedAccount,
             isAuthenticatingLiveAccount: self.isAuthenticatingLiveCodexAccount,
             isPromotingSystemAccount: self.codexAccountPromotionCoordinator.isPromotingSystemAccount,
-            notice: self.codexAccountsNotice ?? degradedNotice)
+            notice: self.codexAccountsNotice ?? degradedNotice,
+            isTransferringAccounts: self.codexAccountTransferModel.isBusy)
+    }
+
+    func presentCodexAccountTransfer(_ mode: CodexAccountTransferMode) {
+        self.codexAccountsNotice = nil
+        guard let state = self.codexAccountsSectionState(for: .codex) else { return }
+        switch mode {
+        case .exportAccounts:
+            guard state.canExportAccounts else { return }
+        case .importAccounts:
+            guard state.canImportAccounts else { return }
+        }
+        self.codexAccountTransferModel.present(mode)
     }
 
     func selectCodexVisibleAccount(id: String) async {
@@ -278,6 +307,7 @@ struct ProvidersPane: View {
 
     func requestCodexSystemVisibleAccount(id: String) async {
         self.codexAccountsNotice = nil
+        guard !self.codexAccountTransferModel.isBusy else { return }
         guard let account = self.settings.codexVisibleAccountProjection.visibleAccounts.first(where: { $0.id == id }),
               let managedAccountID = account.storedAccountID
         else {
@@ -349,6 +379,7 @@ struct ProvidersPane: View {
 
     func removeManagedCodexAccount(id: UUID) async {
         self.codexAccountsNotice = nil
+        guard !self.codexAccountTransferModel.isBusy else { return }
         do {
             try await self.managedCodexAccountCoordinator.removeManagedAccount(id: id)
             await self.refreshCodexProvider()

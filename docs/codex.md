@@ -164,6 +164,32 @@ error descriptions. Enable file logging in Settings → Debug to include app mut
 The logs can help investigate a future disappearance; they do not repair account loss, and missing log lines
 alone do not prove that an external process changed the registry.
 
+`codexbar codex-accounts import --from-home <absolute-path>` registers an existing OAuth profile as a managed
+account without login, network, or Keychain access. It copies only `auth.json` into a new `0700` managed home
+(file `0600`) under the registry lock and verifies the copy before committing; a failed save removes only the
+newly created home, and a home is kept if the registry cannot be re-read to prove it is unreferenced. It never
+modifies system authentication, config, or sessions, and never overwrites an existing account's credentials
+(differing credentials for the same email and workspace fail). Because the copy and the source rotate refresh
+tokens independently, stop using the source profile afterwards. See [CLI details](cli.md#managed-codex-accounts-macos).
+
+**Settings → Providers → Codex → Accounts** has **Export Accounts…** and **Import Accounts…** (macOS) for moving
+added accounts to another Mac without signing in again:
+
+- Export asks for a password (at least 12 characters, entered twice) and writes an encrypted
+  `.codexbar-accounts` file with owner-only (`0600`) permissions. An existing file at the chosen path is replaced
+  only after encryption succeeds.
+- The file includes each account's sign-in credentials, so treat it like a password. There is no password recovery:
+  a lost password means the file cannot be opened.
+- Import takes one file of at most 8 MiB and the same password, adds the accounts, and lists how many were
+  imported, were already present, or failed (with the account email and reason, never tokens). It does not select
+  or promote an imported account, change the system account, or restart the Codex daemon.
+- Only managed accounts' credentials travel, including a currently active account if it is also managed. Usage
+  history, MCP and other Codex config, local registry IDs/paths, and the system-account selection are not copied.
+- The source and imported copy initially share OAuth refresh credentials. Concurrent refresh can cause a copy to
+  require reauthentication; use a fresh sign-in when both Macs need independent sessions.
+- Both buttons are disabled while another account operation (add, re-auth, remove, promote) runs, and those
+  operations are blocked while a transfer is running.
+
 CLI promotion reads local files only and never requests Keychain access or starts login. It leaves
 the app's display selection and running Codex processes alone; `CODEX_HOME` selects the live destination.
 That destination must not alias a managed home, because the swap would overwrite its preserved credentials.

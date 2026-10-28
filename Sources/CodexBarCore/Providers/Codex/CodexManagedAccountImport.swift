@@ -130,7 +130,10 @@ package struct CodexManagedAccountImportTransaction {
         return URL(fileURLWithPath: raw, isDirectory: true).standardizedFileURL
     }
 
-    package func importProfile(fromHome sourceHome: URL) throws -> CodexManagedAccountImportReceipt {
+    package func importProfile(
+        fromHome sourceHome: URL,
+        workspaceLabel: String? = nil) throws -> CodexManagedAccountImportReceipt
+    {
         // URL(fileURLWithPath:) resolves relative input against the cwd, so callers must validate raw user
         // text (see `validateRawSourcePath`). Here only an explicit traversal component is refused.
         guard sourceHome.isFileURL, !sourceHome.pathComponents.contains("..") else {
@@ -139,12 +142,12 @@ package struct CodexManagedAccountImportTransaction {
         let home = sourceHome.standardizedFileURL
         return try ManagedCodexAccountLock.withLock(at: self.store.lockURL) {
             try FileManagedCodexAccountStore.$mutation.withValue(.addOrReauth) {
-                try self.importLocked(sourceHome: home)
+                try self.importLocked(sourceHome: home, workspaceLabel: workspaceLabel)
             }
         }
     }
 
-    private func importLocked(sourceHome: URL) throws -> CodexManagedAccountImportReceipt {
+    private func importLocked(sourceHome: URL, workspaceLabel: String?) throws -> CodexManagedAccountImportReceipt {
         guard let data = try self.authMaterialReader.readAuthData(homeURL: sourceHome) else {
             throw CodexManagedAccountImportError.sourceAuthMissing
         }
@@ -181,6 +184,7 @@ package struct CodexManagedAccountImportTransaction {
                 id: id,
                 email: source.email,
                 providerAccountID: source.workspaceAccountID,
+                workspaceLabel: workspaceLabel,
                 workspaceAccountID: source.workspaceAccountID,
                 authFingerprint: source.fingerprint,
                 managedHomePath: homeURL.path,
@@ -212,8 +216,8 @@ package struct CodexManagedAccountImportTransaction {
         }
         guard let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
               let tokens = json["tokens"] as? [String: Any],
-              Self.nonEmpty(tokens, "access_token", "accessToken") != nil,
-              Self.nonEmpty(tokens, "refresh_token", "refreshToken") != nil,
+              nonEmpty(tokens, "access_token", "accessToken") != nil,
+              nonEmpty(tokens, "refresh_token", "refreshToken") != nil,
               (try? CodexOAuthCredentialsStore.parse(data: data)) != nil,
               let account = try? PreparedPromotionContextBuilder.runtimeAccount(from: data)
         else { throw CodexManagedAccountImportError.sourceNotOAuth }

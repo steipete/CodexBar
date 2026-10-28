@@ -167,8 +167,12 @@ struct CodexManagedAccountImportTests {
         let home = fixture.managedHomes.appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
         try fixture.store.storeAccounts(ManagedCodexAccountSet(version: 3, accounts: [ManagedCodexAccount(
-            id: UUID(), email: "legacy@example.com", managedHomePath: home.path,
-            createdAt: 0, updatedAt: 0, lastAuthenticatedAt: nil)]))
+            id: UUID(),
+            email: "legacy@example.com",
+            managedHomePath: home.path,
+            createdAt: 0,
+            updatedAt: 0,
+            lastAuthenticatedAt: nil)]))
         _ = try fixture.writeSource(email: "legacy@example.com", accountID: "ws")
         #expect(throws: CodexManagedAccountImportError.accountExists) {
             try fixture.transaction().importProfile(fromHome: fixture.sourceHome)
@@ -267,7 +271,10 @@ private final class PersistThenFailStore: ManagedCodexAccountStoring, @unchecked
     let base: any ManagedCodexAccountStoring
     private(set) var storeCalls = 0
     private var loads = 0
-    var lockURL: URL? { self.base.lockURL }
+    var lockURL: URL? {
+        self.base.lockURL
+    }
+
     init(base: any ManagedCodexAccountStoring) { self.base = base }
     func loadAccounts() throws -> ManagedCodexAccountSet {
         self.loads += 1
@@ -317,7 +324,10 @@ private struct RootHomeFactory: ManagedCodexHomeProducing {
 struct ImportFixture {
     enum RejectedProfile: String, CaseIterable, CustomTestStringConvertible {
         case apiKeyOnly, noEmail, noWorkspace, malformedJSON, notAnObject, emptyRefresh, missingFile, oversized
-        var testDescription: String { self.rawValue }
+        var testDescription: String {
+            self.rawValue
+        }
+
         var expectedError: CodexManagedAccountImportError {
             switch self {
             case .apiKeyOnly, .malformedJSON, .notAnObject, .emptyRefresh: .sourceNotOAuth
@@ -337,8 +347,13 @@ struct ImportFixture {
     let store: FileManagedCodexAccountStore
     let homeFactory: any ManagedCodexHomeProducing
 
-    var sourceAuth: URL { self.sourceHome.appendingPathComponent("auth.json") }
-    var liveAuth: URL { self.liveHome.appendingPathComponent("auth.json") }
+    var sourceAuth: URL {
+        self.sourceHome.appendingPathComponent("auth.json")
+    }
+
+    var liveAuth: URL {
+        self.liveHome.appendingPathComponent("auth.json")
+    }
 
     init() throws {
         self.root = CodexCredentialFixtures.root.appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -395,9 +410,15 @@ struct ImportFixture {
         let data = Self.authJSON(email: email, accountID: accountID)
         try self.write(data, to: home)
         let account = ManagedCodexAccount(
-            id: id, email: email, providerAccountID: accountID, workspaceAccountID: accountID,
-            authFingerprint: CodexAuthFingerprint.fingerprint(data: data), managedHomePath: home.path,
-            createdAt: 1, updatedAt: 1, lastAuthenticatedAt: 1)
+            id: id,
+            email: email,
+            providerAccountID: accountID,
+            workspaceAccountID: accountID,
+            authFingerprint: CodexAuthFingerprint.fingerprint(data: data),
+            managedHomePath: home.path,
+            createdAt: 1,
+            updatedAt: 1,
+            lastAuthenticatedAt: 1)
         try self.store.storeAccounts(ManagedCodexAccountSet(
             version: FileManagedCodexAccountStore.currentVersion,
             accounts: self.store.loadAccounts().accounts + [account]))

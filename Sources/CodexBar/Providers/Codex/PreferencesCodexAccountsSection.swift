@@ -32,6 +32,8 @@ struct CodexAccountsSectionState: Equatable {
     let isAuthenticatingLiveAccount: Bool
     let isPromotingSystemAccount: Bool
     let notice: CodexAccountsSectionNotice?
+    /// True while an encrypted account export/import (including its post-import refresh) is running.
+    var isTransferringAccounts = false
 
     var showsActivePicker: Bool {
         self.visibleAccounts.count > 1
@@ -58,9 +60,19 @@ struct CodexAccountsSectionState: Equatable {
         !self.hasUnreadableManagedAccountStore && !self.hasAccountOperationInFlight
     }
 
-    private var hasAccountOperationInFlight: Bool {
+    /// Export needs at least one stored account, a readable store, and no other account operation in flight.
+    var canExportAccounts: Bool {
+        self.canAddAccount && self.visibleAccounts.contains { $0.storedAccountID != nil }
+    }
+
+    /// Import is gated exactly like adding an account.
+    var canImportAccounts: Bool {
+        self.canAddAccount
+    }
+
+    var hasAccountOperationInFlight: Bool {
         self.isAuthenticatingManagedAccount || self.isRemovingManagedAccount ||
-            self.isAuthenticatingLiveAccount || self.isPromotingSystemAccount
+            self.isAuthenticatingLiveAccount || self.isPromotingSystemAccount || self.isTransferringAccounts
     }
 
     var addAccountTitle: String {
@@ -122,6 +134,8 @@ struct CodexAccountsSectionView: View {
     let removeAccount: (CodexVisibleAccount) -> Void
     let requestSystemVisibleAccount: (String) -> Void
     let addAccount: () -> Void
+    var exportAccounts: () -> Void = {}
+    var importAccounts: () -> Void = {}
 
     var body: some View {
         Section {
@@ -150,11 +164,7 @@ struct CodexAccountsSectionView: View {
 
                     self.systemRow(selection: self.systemSelectionBinding)
                 }
-                .disabled(
-                    self.state.isAuthenticatingManagedAccount ||
-                        self.state.isRemovingManagedAccount ||
-                        self.state.isAuthenticatingLiveAccount ||
-                        self.state.isPromotingSystemAccount)
+                .disabled(self.state.hasAccountOperationInFlight)
             } else if let account = self.state.singleVisibleAccount {
                 VStack(alignment: .leading, spacing: 6) {
                     HStack(alignment: .firstTextBaseline, spacing: 10) {
@@ -198,12 +208,28 @@ struct CodexAccountsSectionView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            Button(self.state.addAccountTitle) {
-                self.addAccount()
+            HStack(spacing: 8) {
+                Button(self.state.addAccountTitle) {
+                    self.addAccount()
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .disabled(self.state.canAddAccount == false)
+
+                Button(L("Export Accounts…")) {
+                    self.exportAccounts()
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .disabled(self.state.canExportAccounts == false)
+
+                Button(L("Import Accounts…")) {
+                    self.importAccounts()
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .disabled(self.state.canImportAccounts == false)
             }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
-            .disabled(self.state.canAddAccount == false)
         } header: {
             Text(L("Accounts"))
         }

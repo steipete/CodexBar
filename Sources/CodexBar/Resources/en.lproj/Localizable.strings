@@ -2765,3 +2765,21 @@
 "OpenCode local history" = "OpenCode local history";
 
 "Show this Mac's recorded OpenCode usage in Codex history. Off by default; scoped or alternate CODEX_HOME locations always stay excluded." = "Show this Mac's recorded OpenCode usage in Codex history. Off by default; scoped or alternate CODEX_HOME locations always stay excluded.";
+"Export Accounts…" = "Export Accounts…";
+"Import Accounts…" = "Import Accounts…";
+"Export Codex Accounts" = "Export Codex Accounts";
+"Import Codex Accounts" = "Import Codex Accounts";
+"Encrypted CodexBar account file" = "Encrypted CodexBar account file";
+"Choose an encrypted CodexBar account file." = "Choose an encrypted CodexBar account file.";
+"Export" = "Export";
+"Import" = "Import";
+"Confirm password" = "Confirm password";
+"Working…" = "Working…";
+"Use at least %d characters." = "Use at least %d characters.";
+"Passwords do not match." = "Passwords do not match.";
+"The file contains the sign-in credentials of your added Codex accounts, encrypted with this password. Anyone with the file and password can use those accounts. If you lose the password, the file cannot be recovered." = "The file contains the sign-in credentials of your added Codex accounts, encrypted with this password. Anyone with the file and password can use those accounts. If you lose the password, the file cannot be recovered.";
+"Choose an account file exported from CodexBar and enter its password. Imported accounts are added without changing the system account or your current selection." = "Choose an account file exported from CodexBar and enter its password. Imported accounts are added without changing the system account or your current selection.";
+"Saved encrypted file “%@”." = "Saved encrypted file “%@”.";
+"%d imported, %d already present, %d failed." = "%d imported, %d already present, %d failed.";
+"The selected item is not a regular file." = "The selected item is not a regular file.";
+"The selected file is larger than the 8 MiB limit." = "The selected file is larger than the 8 MiB limit.";

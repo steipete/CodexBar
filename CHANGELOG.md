@@ -2,6 +2,10 @@
 
 ## 0.82.1 — Unreleased
 
+### Added
+
+- Codex: export and import added accounts as a password-encrypted `.codexbar-accounts` file from Settings → Providers → Codex → Accounts, so another Mac can use the same accounts without signing in again. The file includes sign-in credentials; imports add accounts without changing the system account or the current selection.
+
 ## 0.82.0 — 2026-10-26
 
 ### Highlights
