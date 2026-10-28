@@ -523,11 +523,26 @@ each other. The operating system releases the lock if a process exits or crashes
 lock file. A changed live or selected managed auth file detected before replacement requires retrying
 the operation. External writers do not share this lock, so avoid running `codex login` concurrently.
 
-This command does not add accounts, sign in, rotate accounts automatically, change the app's display
+`promote` does not add accounts, sign in, rotate accounts automatically, change the app's display
 selection, or restart existing Codex processes. Already-running processes may retain their old identity.
 External Codex clients do not participate in CodexBar's process lock.
 
-Both commands use local account metadata and auth files only: they do not access Keychain, import
+`codexbar codex-accounts import --from-home /absolute/path/to/profile [--json]` copies an existing
+profile's OAuth `auth.json` (and nothing else) into a new private managed home and registers it. It is not
+promotion: system authentication, `CODEX_HOME`, CodexBar config, profiles, and sessions are not changed or
+migrated, and the source profile is only read. The path must be absolute without `..`. The profile must hold
+non-empty OAuth tokens that identify an email and a provider workspace account; API-key-only, malformed, or
+oversized files are rejected. Importing the same email and workspace again returns the existing account only
+if the credentials are byte-identical; otherwise it fails with "account exists" and overwrites nothing. The
+receipt contains only the managed UUID, email, and `imported` or `existing`.
+
+Imported credentials are a plain file in a `0700` managed home, readable only by the current user (`0600`),
+the same protection as other Codex `auth.json` files. Use `promote` afterwards if the account should become the
+system account. Refresh tokens rotate: the copy and the source refresh independently, so using both can
+invalidate one of them. Stop using the source profile for that account. Already-running Codex sessions may
+keep their old authentication.
+
+These commands use local account metadata and auth files only: they do not access Keychain, import
 browser cookies, or make provider requests. `CODEX_HOME` selects the system destination; the managed
 account list still comes from CodexBar's account store for the current macOS user.
 The destination must be separate from every managed home, including symlink aliases, so preservation

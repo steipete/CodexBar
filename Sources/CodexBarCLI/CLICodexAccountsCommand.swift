@@ -6,7 +6,7 @@ extension CodexBarCLI {
     static func codexAccountsCommandDescriptor() -> CommandDescriptor {
         CommandDescriptor(
             name: "codex-accounts",
-            abstract: "List managed Codex accounts or promote one to the system account",
+            abstract: "List, import, or promote managed Codex accounts",
             discussion: nil,
             signature: CommandSignature(),
             subcommands: [
@@ -20,6 +20,11 @@ extension CodexBarCLI {
                     abstract: "Explicitly replace system auth after preserving its account",
                     discussion: nil,
                     signature: CommandSignature.describe(CodexAccountPromoteOptions()).flattened()),
+                CommandDescriptor(
+                    name: "import",
+                    abstract: "Copy an existing OAuth profile's auth.json into a new managed account",
+                    discussion: nil,
+                    signature: CommandSignature.describe(CodexAccountImportOptions()).flattened()),
             ],
             defaultSubcommandName: "list")
     }
@@ -42,6 +47,18 @@ extension CodexBarCLI {
                     for row in rows {
                         print("\(row.isSystemAccount ? "*" : " ") \(row.id) \(row.email)")
                     }
+                }
+                return
+            }
+            if path == ["codex-accounts", "import"] {
+                guard let raw = values.options["fromHome"]?.last, !raw.isEmpty else {
+                    throw CodexAccountCLIError.missingImportHome
+                }
+                let receipt = try Self.importCodexProfile(
+                    fromRawHome: raw, store: store, homeFactory: CLICodexManagedHomeFactory())
+                if output.format == .json { Self.printJSON(receipt, pretty: output.pretty) } else {
+                    let action = receipt.outcome == "imported" ? "Imported" : "Already imported:"
+                    print("\(action) \(receipt.id) \(receipt.email). System authentication was not changed.")
                 }
                 return
             }
@@ -75,6 +92,21 @@ extension CodexBarCLI {
             output: output,
             kind: .args)
         #endif
+    }
+
+    /// Imports an existing profile home's OAuth credentials; never changes system authentication.
+    static func importCodexProfile(
+        fromRawHome raw: String,
+        store: any ManagedCodexAccountStoring,
+        homeFactory: any ManagedCodexHomeProducing,
+        reader: any CodexAuthMaterialReading = CodexImportSourceAuthReader()) throws -> CodexAccountImportReceipt
+    {
+        let home = try CodexManagedAccountImportTransaction.validateRawSourcePath(raw)
+        let result = try CodexManagedAccountImportTransaction(
+            store: store, homeFactory: homeFactory, authMaterialReader: reader)
+            .importProfile(fromHome: home)
+        return CodexAccountImportReceipt(
+            id: result.id.uuidString, email: result.email, outcome: result.outcome.rawValue)
     }
 
     static func resolveCodexAccount(selector: String, accounts: [ManagedCodexAccount]) throws -> ManagedCodexAccount {
@@ -132,6 +164,18 @@ struct CodexAccountPromoteOptions: CommanderParsable {
     @Argument(help: "Exact managed account UUID or unambiguous email") var account: String = ""
 }
 
+struct CodexAccountImportOptions: CommanderParsable {
+    @OptionGroup var common: CLICommonOptions
+    @Option(name: .long("from-home"), help: "Absolute path of an existing Codex profile home containing auth.json")
+    var fromHome: String?
+}
+
+struct CodexAccountImportReceipt: Encodable, Equatable {
+    let id: String
+    let email: String
+    let outcome: String
+}
+
 struct CodexAccountListRow: Encodable {
     let id: String
     let email: String
@@ -144,9 +188,10 @@ private struct CodexAccountPromotionReceipt: Encodable {
 }
 
 enum CodexAccountCLIError: Error, LocalizedError, Equatable {
-    case missingSelector, unknownAccount, ambiguousAccount, unsafeHome
+    case missingImportHome, missingSelector, unknownAccount, ambiguousAccount, unsafeHome
     var errorDescription: String? {
         switch self {
+        case .missingImportHome: "Provide --from-home with an absolute profile home path."
         case .missingSelector: "Provide a managed account UUID or email."
         case .unknownAccount: "No matching managed Codex account."
         case .ambiguousAccount: "Several managed accounts share that email. Use an exact UUID."

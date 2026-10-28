@@ -8,6 +8,7 @@ extension CodexBarCLI {
 
         Usage:
           codexbar codex-accounts list [--json] [--pretty]
+          codexbar codex-accounts import --from-home <absolute-path> [--json] [--pretty]
           codexbar codex-accounts promote <exact-uuid-or-email> [--json] [--pretty]
 
         Description:
@@ -15,6 +16,12 @@ extension CodexBarCLI {
           Promote explicitly replaces system Codex authentication after preserving its account.
           Ambiguous emails require an exact UUID. Concurrent account changes fail without overwriting.
           Existing Codex processes may retain their current account; restart them to use the promoted account.
+          Import copies only an existing profile's OAuth auth.json into a new private managed home. It does not
+          change system authentication, sign in, edit config, or migrate sessions, and never modifies the source.
+          Credentials remain plain 0600 files. The copy refreshes tokens independently of the source, so using
+          both can invalidate one; stop using the source profile. Existing sessions may keep their old auth.
+          The same email and workspace imported again is a no-op only if the credentials are identical;
+          otherwise it fails without overwriting.
         """
     }
 
@@ -527,7 +534,7 @@ extension CodexBarCLI {
                        [--period month-to-date|all] [--days <days>] [--group-by project|session]
           codexbar sessions [--json|--json-v2] [--pretty]
           codexbar sessions focus <id>
-          codexbar codex-accounts <list|promote> [--json] [--pretty]
+          codexbar codex-accounts <list|import|promote> [--json] [--pretty]
           codexbar dashboard [--pretty] [--timeout <seconds>] [--output <path>]
           codexbar serve [--host <host>] [--port <port>] [--refresh-interval <seconds>]
                        [--request-timeout <seconds>]
