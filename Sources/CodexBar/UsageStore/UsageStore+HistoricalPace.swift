@@ -41,15 +41,16 @@ extension UsageStore {
             // Keep collecting history in the background so Automatic can resume historical pacing immediately.
             resolved = UsagePace.weekly(window: window, now: now, defaultWindowMinutes: 10080, workDays: workDays)
         } else {
-            // Generic providers must carry an explicit window duration. Using the 10080-minute fallback for
-            // windows without windowMinutes would fabricate a weekly pace for non-weekly windows
-            // (e.g. Factory monthly with only resetsAt).
-            guard window.windowMinutes != nil else { return nil }
             // Expand a monthly sentinel to the real calendar cycle before scoring. The menu card and the
             // CLI both resolve first, so skipping it here would score a billing period as a flat 30 days
             // and disagree with them — and a 31-day cycle would exceed the sentinel outright, dropping the
-            // pace for the first day of every long month.
+            // pace for the first day of every long month. Resolution also gives a duration to a reset-dated
+            // window whose provider infers its month (Copilot), so it must run before the duration check.
             let paceWindow = self.paceWindowForElapsedEligibility(provider: provider, window: window)
+            // Generic providers must carry an explicit window duration. Using the 10080-minute fallback for
+            // windows without windowMinutes would fabricate a weekly pace for non-weekly windows
+            // (e.g. Factory monthly with only resetsAt).
+            guard paceWindow.windowMinutes != nil else { return nil }
             elapsedWindow = paceWindow
             resolved = UsagePace.weekly(window: paceWindow, now: now, defaultWindowMinutes: 10080, workDays: workDays)
         }
@@ -117,7 +118,7 @@ extension UsageStore {
     /// while the returned pace still retains the learned expected-use value.
     func paceWindowForElapsedEligibility(provider: UsageProvider, window: RateWindow) -> RateWindow {
         // Provider-specific by design: Codex's consumer projection already resolves its historical window.
-        guard provider != .codex, window.windowMinutes != nil else { return window }
+        guard provider != .codex else { return window }
         return ProviderDescriptorRegistry.descriptor(for: provider)
             .pace
             .resolvedResetWindowForPace(window)
