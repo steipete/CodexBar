@@ -2,6 +2,8 @@
 
 ## 0.82.1 — Unreleased
 
+- CLI: expose descriptor-based authentication inputs and existing setup hints in provider inventory JSON. (#4705)
+
 ### Fixed
 
 - MiniMax: discover China web sessions and read the current console's quota percentages, boosted limits, and unlimited windows. (#4831, #4832) Thanks @tangwz!

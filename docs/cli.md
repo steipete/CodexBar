@@ -54,6 +54,15 @@ See [Configuration](configuration.md) for the schema and [Providers](providers.m
 sources and setup guide. The [provider ID list](provider-ids.md) is generated from the registry;
 `codexbar config providers` lists providers and their configured enablement without fetching usage.
 
+With `--json`, built-in entries also include `authentication` metadata from their registered descriptors:
+`sourceModes`, `supportsConfigAPIKey`, `supportsConfigCookieHeader`, and `environmentVariables` (the names of
+config-projected variables, never their values). Optional `loginCommand` and `tokenAccounts` (`title`, `setupHint`)
+describe existing setup routes; Copilot advertises `codexbar config login --provider copilot`.
+These are supported inputs, not a complete required-setup checklist or a credential-health check. Source modes
+describe fetching, not authentication methods, and cookie support can be optional enrichment. Environment aliases
+not declared by the descriptor are not enumerated. User-plugin entries currently omit this metadata. Listing it
+does not read credentials, launch login flows, import cookies, or contact providers; `enabled` keeps its existing meaning.
+
 Arguments are parsed strictly: unknown options, missing option values, and extra positional arguments
 fail before the command runs. For example, `codex-accounts promote` accepts one account identifier;
 a second identifier is an error. For an option value beginning with a dash, use the equals form
