@@ -61,7 +61,7 @@ struct CostUsageGrowingRolloutPerformanceTests {
                 now: day.addingTimeInterval(Double(pass)),
                 options: options)
             passes += 1
-            cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+            cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
             let usage = try #require(cache.files.values.first)
             offsets.append(usage.parsedBytes ?? 0)
             #expect(usage.codexScanTargetSize == originalSize)
@@ -77,7 +77,7 @@ struct CostUsageGrowingRolloutPerformanceTests {
         let tail = CostUsageScanner.loadDailyReport(
             provider: .codex, since: day, until: day, now: day.addingTimeInterval(30), options: options)
         #expect(tail.summary?.totalTokens == (4096 + appended) * 110)
-        cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
         #expect(cache.codexScanCatchUpPending == false)
         #expect(cache.files.values.first?.parsedBytes == CostUsageScanner.codexFileMetadata(fileURL: file).size)
         let attempts = recorder.snapshot().codexFileScanAttempts

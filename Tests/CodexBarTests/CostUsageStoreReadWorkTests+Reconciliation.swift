@@ -122,10 +122,12 @@ extension CostUsageStoreReadWorkTests {
             CostUsageScanner.loadDailyReport(provider: .codex, since: day, until: day, now: now, options: options)
         }
         let original = scan(day)
-        let recorder = CostUsageStoreReadWorkRecorder(databaseURL: CostUsageStore(cacheRoot: env.cacheRoot).databaseURL)
+        let recorder = CostUsageStoreReadWorkRecorder(databaseURL: CostUsageStore(
+            cacheRoot: env.cacheRoot,
+            home: env.codexStoreHome).databaseURL)
         var recordingHooks = CostUsageStoreTestHooks.current
         recordingHooks.readWorkRecorder = recorder
-        recordingHooks.scanStoreOverride = CostUsageStore(cacheRoot: env.cacheRoot)
+        recordingHooks.scanStoreOverride = CostUsageStore(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
         try CostUsageStoreTestHooks.$current.withValue(recordingHooks) {
             _ = scan(day.addingTimeInterval(1))
             recorder.reset()

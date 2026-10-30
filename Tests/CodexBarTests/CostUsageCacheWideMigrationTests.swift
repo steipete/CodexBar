@@ -29,9 +29,9 @@ struct CostUsageCacheWideMigrationTests {
             now: day,
             options: options)
 
-        var migrationCache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        var migrationCache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
         migrationCache.codexPricingKey = "legacy-pricing-key"
-        CostUsageStoreAccess.replace(cacheRoot: env.cacheRoot, cache: migrationCache)
+        CostUsageStoreAccess.replace(cacheRoot: env.cacheRoot, home: env.codexStoreHome, cache: migrationCache)
 
         options.maxCodexScanDurationPerRefresh = 60
         let recorder = CostUsageScanner.CodexScanWorkRecorder()
@@ -43,7 +43,7 @@ struct CostUsageCacheWideMigrationTests {
             now: day.addingTimeInterval(1),
             options: options)
 
-        let migratedCache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        let migratedCache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
         #expect(recorder.snapshot().codexFileScanAttempts == CostUsageScanner.codexCatchUpScanCandidateLimit)
         #expect(recorder.attemptedCodexFilePaths().contains(newestURL.path))
         #expect(!recorder.attemptedCodexFilePaths().contains(oldestURL.path))
@@ -72,11 +72,11 @@ struct CostUsageCacheWideMigrationTests {
             until: day,
             now: day,
             options: options)
-        var migrationCache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        var migrationCache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
         #expect(migrationCache.codexActiveLookbackState?.pendingFilePaths.isEmpty == true)
         #expect(migrationCache.codexActiveLookbackState?.currentWindowNextDayKeyByRoot?.isEmpty == false)
         migrationCache.codexPricingKey = "legacy-pricing-key"
-        CostUsageStoreAccess.replace(cacheRoot: env.cacheRoot, cache: migrationCache)
+        CostUsageStoreAccess.replace(cacheRoot: env.cacheRoot, home: env.codexStoreHome, cache: migrationCache)
 
         let recorder = CostUsageScanner.CodexScanWorkRecorder()
         options.codexScanWorkRecorderForTesting = recorder
@@ -87,7 +87,7 @@ struct CostUsageCacheWideMigrationTests {
             now: day.addingTimeInterval(1),
             options: options)
 
-        let migratedCache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        let migratedCache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
         #expect(recorder.snapshot().codexFileScanAttempts == CostUsageScanner.codexCatchUpScanCandidateLimit)
         #expect(recorder.attemptedCodexFilePaths().contains(newestURL.path))
         #expect(recorder.attemptedCodexFilePaths().contains(oldestURL.path))
@@ -122,7 +122,7 @@ struct CostUsageCacheWideMigrationTests {
             now: day,
             options: options)
 
-        var migrationCache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        var migrationCache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
         #expect(migrationCache.codexActiveLookbackState == nil)
         #expect(migrationCache.codexScanCatchUpPending == false)
         #expect(migrationCache.codexScanCompletedFiles == corpusSize)
@@ -153,7 +153,7 @@ struct CostUsageCacheWideMigrationTests {
                 body: "thread_id=migration-thread turn.id=migration-turn websocket request: "
                     + #"{"type":"response.create","model":"gpt-5.4","service_tier":"priority"}"#)
         }
-        CostUsageStoreAccess.replace(cacheRoot: env.cacheRoot, cache: migrationCache)
+        CostUsageStoreAccess.replace(cacheRoot: env.cacheRoot, home: env.codexStoreHome, cache: migrationCache)
 
         options.maxCodexScanDurationPerRefresh = 60
         let firstRecorder = CostUsageScanner.CodexScanWorkRecorder()
@@ -165,7 +165,7 @@ struct CostUsageCacheWideMigrationTests {
             now: day.addingTimeInterval(1),
             options: options)
         let firstMetrics = firstRecorder.snapshot()
-        let firstCache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        let firstCache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
         #expect(firstMetrics.codexCandidateSelectionVisits == CostUsageScanner.codexCatchUpScanCandidateLimit)
         #expect(firstMetrics.codexFileScanAttempts == CostUsageScanner.codexCatchUpScanCandidateLimit)
         #expect(firstMetrics.codexProgressAccountingVisits == 0)
@@ -190,7 +190,7 @@ struct CostUsageCacheWideMigrationTests {
             now: day.addingTimeInterval(2),
             options: options)
         let secondMetrics = secondRecorder.snapshot()
-        let secondCache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        let secondCache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
         #expect(secondMetrics.codexCandidateSelectionVisits
             == corpusSize - CostUsageScanner.codexCatchUpScanCandidateLimit)
         #expect(secondMetrics.codexFileScanAttempts
@@ -210,7 +210,7 @@ struct CostUsageCacheWideMigrationTests {
             until: day,
             now: day.addingTimeInterval(3),
             options: options)
-        let exactCache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        let exactCache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
         #expect(exactRecorder.snapshot().codexCandidateSelectionVisits == 0)
         #expect(exactRecorder.snapshot().codexFileScanAttempts == 0)
         #expect(exactRecorder.snapshot().codexProgressAccountingVisits == corpusSize)
@@ -234,7 +234,7 @@ struct CostUsageCacheWideMigrationTests {
             now: day.addingTimeInterval(4),
             options: options)
         let warmMetrics = warmRecorder.snapshot()
-        let warmCache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        let warmCache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
         #expect(warmMetrics.codexCandidateSelectionVisits == 0)
         #expect(warmMetrics.codexFileScanAttempts == 0)
         #expect(warmMetrics.codexProgressAccountingVisits == 0)

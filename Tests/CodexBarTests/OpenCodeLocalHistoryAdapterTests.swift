@@ -246,6 +246,7 @@ struct OpenCodeLocalHistoryAdapterTests {
                         path: path),
                     CostUsageStore.readDayAggregates(
                         database,
+                        home: store.home,
                         sinceDay: nil,
                         untilDay: nil))
             }

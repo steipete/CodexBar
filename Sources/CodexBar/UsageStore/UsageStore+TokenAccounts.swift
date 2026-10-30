@@ -348,6 +348,7 @@ extension UsageStore {
             CodexVisibleAccountProjection.make(from: snapshot),
             snapshot: snapshot,
             requireLiveManagedAuthFor: accountIDs)
+            .applyingCustomNames(self.settings.codexAccountNames)
     }
 
     private func codexManagedAccountIDsWithReadableAuth() -> Set<UUID> {

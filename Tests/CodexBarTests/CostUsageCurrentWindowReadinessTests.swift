@@ -47,7 +47,9 @@ extension CostUsageStoreReadWorkTests {
         defer { fixture.base.remove() }
         #expect(await fixture.strictSnapshot() != nil)
         var cache = CostUsageStoreAccess.read(
-            cacheRoot: fixture.base.env.cacheRoot, calendar: fixture.base.calendar)
+            cacheRoot: fixture.base.env.cacheRoot,
+            home: fixture.base.env.codexStoreHome,
+            calendar: fixture.base.calendar)
         let roots = try #require(cache.roots).keys.sorted()
         cache.codexSessionDiscovery = .init(
             roots: roots,
@@ -64,7 +66,10 @@ extension CostUsageStoreReadWorkTests {
             validationDirectoryIndex: 0,
             isComplete: false)
         CostUsageStoreAccess.replace(
-            cacheRoot: fixture.base.env.cacheRoot, cache: cache, calendar: fixture.base.calendar)
+            cacheRoot: fixture.base.env.cacheRoot,
+            home: fixture.base.env.codexStoreHome,
+            cache: cache,
+            calendar: fixture.base.calendar)
         let before = await fixture.base.store.readSnapshot()
         let bytes = try Data(contentsOf: fixture.pendingURL)
         let strict = await fixture.strictSnapshot()
@@ -83,7 +88,10 @@ extension CostUsageStoreReadWorkTests {
         cache.codexSessionDiscovery?.pendingSessionIds = []
         cache.codexSessionDiscovery?.headScan = nil
         CostUsageStoreAccess.replace(
-            cacheRoot: fixture.base.env.cacheRoot, cache: cache, calendar: fixture.base.calendar)
+            cacheRoot: fixture.base.env.cacheRoot,
+            home: fixture.base.env.codexStoreHome,
+            cache: cache,
+            calendar: fixture.base.calendar)
         #expect(await fixture.strictSnapshot()?.snapshot.last30DaysTokens == 52)
     }
 
@@ -300,7 +308,11 @@ struct CodexCurrentWindowFixture {
                     reportSinceKey: base.range.sinceKey,
                     reportUntilKey: base.range.untilKey)
             }
-            CostUsageStoreAccess.replace(cacheRoot: base.env.cacheRoot, cache: cache, calendar: base.calendar)
+            CostUsageStoreAccess.replace(
+                cacheRoot: base.env.cacheRoot,
+                home: base.env.codexStoreHome,
+                cache: cache,
+                calendar: base.calendar)
             self.base = base
             self.pendingURL = url
         } catch {

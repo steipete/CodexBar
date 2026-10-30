@@ -551,6 +551,7 @@ struct OpenCodeLocalHistoryRegressionTests {
         let snapshot = try #require(await native.store.withDatabase(default: CostUsageStoreSnapshot?.none) {
             try CostUsageStore.readSnapshot(
                 $0,
+                home: native.store.home,
                 loadTokenSnapshots: false,
                 loadUsageRows: false,
                 nativeOnly: true,

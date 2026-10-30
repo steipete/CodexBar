@@ -47,7 +47,7 @@ struct CodexSubagentFrozenTargetTests {
             now: day,
             options: options)
 
-        var cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        var cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
         var usage = try #require(cache.files.values.first)
         #expect(usage.codexScanComplete == false)
         #expect(usage.codexScanTargetSize == initialSize)
@@ -86,7 +86,7 @@ struct CodexSubagentFrozenTargetTests {
                 until: day,
                 now: day.addingTimeInterval(TimeInterval(pass)),
                 options: options)
-            cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+            cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
             usage = try #require(cache.files.values.first)
             if usage.parsedBytes == initialSize {
                 break
@@ -108,7 +108,7 @@ struct CodexSubagentFrozenTargetTests {
                 until: day,
                 now: day.addingTimeInterval(TimeInterval(pass)),
                 options: options)
-            cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+            cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
             usage = try #require(cache.files.values.first)
             if cache.codexScanCatchUpPending == false {
                 break

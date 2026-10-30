@@ -99,8 +99,8 @@ struct CodexWarmCacheResumeLinuxTests {
         report.data.reduce(0) { $0 + ($1.totalTokens ?? 0) }
     }
 
-    private static func persistedCache(cacheRoot: URL) throws -> CostUsageCache {
-        CostUsageStoreAccess.read(cacheRoot: cacheRoot)
+    private static func persistedCache(options: CostUsageScanner.Options) throws -> CostUsageCache {
+        CostUsageStoreAccess.read(cacheRoot: options.cacheRoot, home: CodexHomeCostStoreScope.key(options: options))
     }
 
     @Test
@@ -245,7 +245,7 @@ struct CodexWarmCacheResumeLinuxTests {
             options: options)
         #expect(Self.totalTokens(firstBudgeted) == Self.totalTokens(warmup))
         let firstState = try #require(
-            Self.persistedCache(cacheRoot: env.cacheRoot).codexActiveLookbackState)
+            Self.persistedCache(options: options).codexActiveLookbackState)
         let sessionsRootPath = env.codexSessionsRoot.standardizedFileURL.path
         let firstNextDay = try #require(firstState.nextDayKeyByRoot[sessionsRootPath])
         #expect(!firstState.pendingFilePaths.contains(oldFile.standardizedFileURL.path))
@@ -258,7 +258,7 @@ struct CodexWarmCacheResumeLinuxTests {
             options: options)
         #expect(Self.totalTokens(secondBudgeted) == Self.totalTokens(warmup))
         let secondState = try #require(
-            Self.persistedCache(cacheRoot: env.cacheRoot).codexActiveLookbackState)
+            Self.persistedCache(options: options).codexActiveLookbackState)
         #expect(secondState.nextDayKeyByRoot[sessionsRootPath].map { $0 > firstNextDay } == true)
         #expect(secondState.pendingFilePaths.contains(oldFile.standardizedFileURL.path))
 

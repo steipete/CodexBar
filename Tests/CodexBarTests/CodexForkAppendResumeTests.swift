@@ -57,7 +57,7 @@ struct CodexForkAppendResumeTests {
             now: day,
             options: options)
 
-        let firstCache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        let firstCache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
         let firstUsage = try #require(firstCache.files.values.first { $0.sessionId == "redacted-child" })
         let firstParsedBytes = try #require(firstUsage.parsedBytes)
         #expect(firstUsage.forkedFromId == "redacted-missing-parent")
@@ -104,7 +104,7 @@ struct CodexForkAppendResumeTests {
             now: day.addingTimeInterval(1),
             options: options)
 
-        let secondCache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        let secondCache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
         let secondUsage = try #require(secondCache.files.values.first { $0.sessionId == "redacted-child" })
         #expect(secondUsage.parsedBytes == appendedSize)
         #expect((secondUsage.parsedBytes ?? 0) >= firstParsedBytes)
@@ -168,7 +168,7 @@ struct CodexForkAppendResumeTests {
             now: day,
             options: options)
 
-        let firstCache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        let firstCache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
         let firstUsage = try #require(firstCache.files.values.first { $0.sessionId == "redacted-subagent" })
         let firstParsedBytes = try #require(firstUsage.parsedBytes)
         #expect(firstUsage.forkedFromId == "redacted-missing-parent")
@@ -237,7 +237,7 @@ struct CodexForkAppendResumeTests {
             now: day.addingTimeInterval(1),
             options: options)
 
-        let secondCache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        let secondCache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
         let secondUsage = try #require(secondCache.files.values.first { $0.sessionId == "redacted-subagent" })
         #expect(appendBudget.bytesConsumed == appendedBytes)
         #expect(secondUsage.parsedBytes == appendedMetadata.size)

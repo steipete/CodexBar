@@ -177,6 +177,7 @@
 "Individual credits" = "Créditos individuais";
 "Workspace" = "Espaço de trabalho";
 "Credits history" = "Histórico de créditos";
+"Cursor app session expired — open Cursor to sign in again, or sign in to cursor.com in your browser." = "A sessão do app Cursor expirou — abra o Cursor para entrar novamente ou entre em cursor.com no navegador.";
 "Cursor login failed" = "Falha no login do Cursor";
 "Custom" = "Personalizado";
 "Custom Path" = "Caminho personalizado";
@@ -2769,3 +2770,11 @@
 "Show this Mac's recorded OpenCode usage in Codex history. Off by default; scoped or alternate CODEX_HOME locations always stay excluded." = "Mostra no histórico do Codex o uso do OpenCode registrado neste Mac. Desativado por padrão; locais CODEX_HOME com escopo restrito ou alternativos são sempre excluídos.";
 "Auto uses the active saved session, otherwise an API key or browser cookies." = "Automático usa a sessão salva ativa; caso contrário, uma chave API ou cookies do navegador.";
 "Store multiple Command Code subscription sessions." = "Armazena várias sessões de assinatura do Command Code.";
+
+// Codex account names
+"Rename" = "Renomear";
+"Rename account" = "Renomear conta";
+"Account name" = "Nome da conta";
+"Leave blank to use the default name." = "Deixe em branco para usar o nome padrão.";
+"Rewards" = "Recompensas";
+"Reward expiry" = "Validade das recompensas";

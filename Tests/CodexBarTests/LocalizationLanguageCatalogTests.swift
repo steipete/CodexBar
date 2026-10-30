@@ -26,6 +26,7 @@ struct LocalizationLanguageCatalogTests {
             "By model and reasoning effort",
             "CodexBar follows",
             "Color by provider",
+            "Cursor app session expired — open Cursor to sign in again, or sign in to cursor.com in your browser.",
             "Pace sign",
             "Ahead of pace is +",
             "Reserve is +",

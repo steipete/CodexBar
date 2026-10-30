@@ -180,6 +180,7 @@
 "Individual credits" = "個人額度";
 "Workspace" = "工作區";
 "Credits history" = "額度歷史";
+"Cursor app session expired — open Cursor to sign in again, or sign in to cursor.com in your browser." = "Cursor App 工作階段已到期 — 請開啟 Cursor 重新登入，或在瀏覽器中登入 cursor.com。";
 "Cursor login failed" = "Cursor 登入失敗";
 "Custom" = "自訂";
 "Custom Path" = "自訂路徑";
@@ -2747,3 +2748,11 @@
 "Show this Mac's recorded OpenCode usage in Codex history. Off by default; scoped or alternate CODEX_HOME locations always stay excluded." = "在 Codex 歷史記錄中顯示此 Mac 上記錄的 OpenCode 用量。預設關閉；一律排除限定範圍或其他 CODEX_HOME 位置。";
 "Auto uses the active saved session, otherwise an API key or browser cookies." = "自動使用目前啟用的已儲存工作階段，否則使用 API 金鑰或瀏覽器 Cookie。";
 "Store multiple Command Code subscription sessions." = "儲存多個 Command Code 訂閱工作階段。";
+
+// Codex account names
+"Rename" = "重新命名";
+"Rename account" = "重新命名帳號";
+"Account name" = "帳號名稱";
+"Leave blank to use the default name." = "留空以使用預設名稱。";
+"Rewards" = "獎勵";
+"Reward expiry" = "獎勵到期日期";

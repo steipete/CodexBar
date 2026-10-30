@@ -15,7 +15,8 @@ Both legacy `message`/`part` history and v2 `session_message` history are suppor
 Auto and API sources can reuse the active OpenCode CLI login without another API key. Auto keeps configured API
 keys and usable browser sessions ahead of the CLI login. API mode uses the configured key when present, otherwise
 the CLI login, without importing cookies. A rejected configured key never borrows the CLI account. V2 credentials come from the CLI's SQLite database; older installs use the `opencode-go`
-API entry in `auth.json`. An active Go credential takes precedence over the general OpenCode OAuth login. Explicit
+API entry in `auth.json`. Both API keys and OAuth logins stored under the v2 `opencode` integration can supply Go
+quotas. An active `opencode-go` credential takes precedence over the general OpenCode login. Explicit
 CodexBar accounts, manual cookies, workspace overrides, and Web mode never borrow an unrelated CLI login.
 A successful CLI quota read reports `local+cli` when local history is available, or `cli` without local history.
 CLI quotas retain local daily history but never attach another browser account's balance.

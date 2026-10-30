@@ -72,8 +72,15 @@ struct CostUsageAstraPricingTests {
         cache.scanSinceKey = range.sinceKey
         cache.scanUntilKey = range.untilKey
         cache.timeZoneIdentifier = range.calendar.timeZone.identifier
-        _ = CostUsageStoreAccess.replace(cacheRoot: environment.cacheRoot, cache: cache, calendar: range.calendar)
-        let restored = CostUsageStoreAccess.read(cacheRoot: environment.cacheRoot, calendar: range.calendar)
+        _ = CostUsageStoreAccess.replace(
+            cacheRoot: environment.cacheRoot,
+            home: environment.codexStoreHome,
+            cache: cache,
+            calendar: range.calendar)
+        let restored = CostUsageStoreAccess.read(
+            cacheRoot: environment.cacheRoot,
+            home: environment.codexStoreHome,
+            calendar: range.calendar)
         let emptyCatalog = try JSONDecoder().decode(ModelsDevCatalog.self, from: Data("{}".utf8))
         let report = CostUsageScanner.buildCodexReportFromCache(
             cache: restored, range: range, modelsDevCatalog: emptyCatalog)

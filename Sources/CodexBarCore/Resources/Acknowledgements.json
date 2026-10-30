@@ -103,7 +103,7 @@
       }
     ],
     "identity": "commander",
-    "revision": "bd219c4ee9032fee3e009856f81fcc6ec09a85f4"
+    "revision": "3f5a3cb1f19ce7ca79fdc2111a09dfb3da200c1c"
   },
   {
     "name": "KeyboardShortcuts",
@@ -238,7 +238,7 @@
       }
     ],
     "identity": "sparkle",
-    "revision": "ac2def288cbff5cfc7df3ffef6abdf45b72bcb0a"
+    "revision": "ab7d71291238df6e0492143b120c9b696a35f603"
   },
   {
     "name": "Sucrase",
@@ -272,7 +272,7 @@
       }
     ],
     "identity": "sweetcookiekit",
-    "revision": "5b0aead7093a067c61a2b17bfd2b6560fbc71ef3"
+    "revision": "4f69aa7734d6f6a9c782764eb5c6cda95b9fc151"
   },
   {
     "name": "swift-asn1",
@@ -294,7 +294,7 @@
       }
     ],
     "identity": "swift-asn1",
-    "revision": "d9a5b37470adc940d22c3bcd5ca6953a516b727f"
+    "revision": "3b6410f7dee09eb33cdd26260c5fd47fda19b0e2"
   },
   {
     "name": "swift-crypto",
@@ -316,7 +316,7 @@
       }
     ],
     "identity": "swift-crypto",
-    "revision": "da9d28d69ebe3894b18376c8f2395c2f37b8448f"
+    "revision": "c2cbadd7263439d8015189668f96ff5b5be565ce"
   },
   {
     "name": "swift-log",
@@ -338,7 +338,7 @@
       }
     ],
     "identity": "swift-log",
-    "revision": "9c6fb14227f55d8f711ce3847dc2f419fb0ecacb"
+    "revision": "c9c6bb9d275ec0d95c3ad16391f3f045dc623104"
   },
   {
     "name": "ts-interface-checker",
@@ -419,6 +419,6 @@
         "text": "/*\n ---------------------------------------------------------------------------\n Copyright (c) 1998-2008, Brian Gladman, Worcester, UK. All rights reserved.\n\n LICENSE TERMS\n\n The redistribution and use of this software (with or without changes)\n is allowed without the payment of fees or royalties provided that:\n\n  1. source code distributions include the above copyright notice, this\n     list of conditions and the following disclaimer;\n\n  2. binary distributions include the above copyright notice, this list\n     of conditions and the following disclaimer in their documentation;\n\n  3. the name of the copyright holder is not used to endorse products\n     built using this software without specific written permission.\n\n DISCLAIMER\n\n This software is provided 'as is' with no explicit or implied warranties\n in respect of its properties, including, but not limited to, correctness\n and/or fitness for purpose.\n ---------------------------------------------------------------------------\n Issue Date: 20/12/2007\n Changes for ARM 9/9/2010\n*/"
       }
     ],
-    "revision": "da9d28d69ebe3894b18376c8f2395c2f37b8448f"
+    "revision": "c2cbadd7263439d8015189668f96ff5b5be565ce"
   }
 ]

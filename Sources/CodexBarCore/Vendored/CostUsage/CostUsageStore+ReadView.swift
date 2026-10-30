@@ -100,10 +100,8 @@ struct CostUsageStoreReadView: Sendable {
               scoped.cache.files.values.allSatisfy({ usage in
                   usage.codexScanComplete == true && usage.codexCostCacheComplete == true
                       && usage.hasCurrentCodexParser && !usage.hasPendingCodexForkRetry
-              })
-        else { return false }
-
-        guard let lookback = self.cache.codexActiveLookbackState,
+              }),
+              let lookback = self.cache.codexActiveLookbackState,
               lookback.scanSinceKey <= range.scanSinceKey
         else { return false }
         let rootPaths = Set(roots.map(Self.resolvedCodexPath))
@@ -282,28 +280,36 @@ extension CostUsageStore {
                     source: retained.source)
             }
             let (snapshot, usageRows, retryPresence, source) = try Self.inReadTransaction(database) {
-                let files = try Self.readFiles(database, recorder: recorder)
+                let files = try Self.readFiles(database, home: self.home, recorder: recorder)
                 let snapshot = try CostUsageStoreSnapshot(
                     metadata: Self.readSingleton(
-                        CostUsageStoreMetadata.self, database: database, table: "scan_metadata") ?? .empty,
+                        CostUsageStoreMetadata.self, database: database, table: "scan_metadata", home: self.home) ??
+                        .empty,
                     files: files,
                     tokenSnapshots: [],
                     usageRows: [],
                     fileDayAggregates: purpose != .status
-                        ? Self.readFileDayAggregates(database, path: nil, nativeOnly: true) : [],
+                        ? Self.readFileDayAggregates(database, path: nil, home: self.home, nativeOnly: true) : [],
                     dayAggregates: purpose != .status && !files.contains(where: \.belongsToOpenCodeLocalHistory)
-                        ? Self.readDayAggregates(database, sinceDay: nil, untilDay: nil) : [],
-                    forkLineage: Self.readForkLineage(database, path: nil),
+                        ? Self.readDayAggregates(database, home: self.home, sinceDay: nil, untilDay: nil) : [],
+                    forkLineage: Self.readForkLineage(database, path: nil, home: self.home),
                     bufferedLines: [],
                     discoveryState: Self.readSingleton(
-                        CostUsageStoreDiscoveryState.self, database: database, table: "discovery_state"),
+                        CostUsageStoreDiscoveryState.self,
+                        database: database,
+                        table: "discovery_state",
+                        home: self.home),
                     lookbackState: Self.readSingleton(
-                        CostUsageStoreLookbackState.self, database: database, table: "lookback_state"),
+                        CostUsageStoreLookbackState.self, database: database, table: "lookback_state", home: self.home),
                     accumulators: [])
                 let usageRows = purpose == .report
-                    ? try Self.readDecodedCodexUsageRows(database, files: snapshot.files, recorder: recorder)
+                    ? try Self.readDecodedCodexUsageRows(
+                        database,
+                        files: snapshot.files,
+                        home: self.home,
+                        recorder: recorder)
                     : nil
-                let retryPresence = try Self.readRetryBufferPresence(database, recorder: recorder)
+                let retryPresence = try Self.readRetryBufferPresence(database, home: self.home, recorder: recorder)
                 #if DEBUG
                 try self.runCodexReadCheckpointForTesting()
                 #endif

@@ -2,7 +2,7 @@ import Foundation
 
 public struct MiniMaxSettingsReader: Sendable {
     private static let endpointValidator = ProviderEndpointOverrideValidator(
-        allowedDomainSuffixes: ["minimax.io", "minimaxi.com"])
+        allowedDomainSuffixes: ["minimax.io", "minimaxi.com", "minimax.cn"])
 
     public static let cookieHeaderKeys = [
         "MINIMAX_COOKIE",

@@ -87,9 +87,11 @@ The sidecar currently uses SQLite schema version 5 and snapshot payload format
 
 ### Legacy JSON cache cutover
 
-The SQLite store rebuilds derived usage from session files instead of importing
+The SQLite store rebuilds missing derived usage from session files instead of importing
 the old monolithic `codex-v11.json` cache. When that legacy artifact is found,
-the store removes it and its temporary copies and rebuilds the SQLite cache.
+the store removes it and its temporary copies while retaining established SQLite history.
+Each Codex home's scan state and aggregates share the same database; scanning or pruning
+one home does not invalidate another home's rows or coverage.
 Source session files remain unchanged; subsequent scans reuse SQLite cursors.
 
 ### Sidecar rollback

@@ -177,6 +177,7 @@
 "Individual credits" = "Individuella krediter";
 "Workspace" = "Arbetsyta";
 "Credits history" = "Kredithistorik";
+"Cursor app session expired — open Cursor to sign in again, or sign in to cursor.com in your browser." = "Sessionen i Cursor-appen har gått ut — öppna Cursor för att logga in igen eller logga in på cursor.com i webbläsaren.";
 "Cursor login failed" = "Cursor-inloggning misslyckades";
 "Custom" = "Anpassat";
 "Custom Path" = "Anpassad sökväg";
@@ -2768,3 +2769,11 @@
 "Show this Mac's recorded OpenCode usage in Codex history. Off by default; scoped or alternate CODEX_HOME locations always stay excluded." = "Visar OpenCode-användningen som registrerats på den här Mac-datorn i Codex-historiken. Avstängt som standard; CODEX_HOME-platser med begränsad omfattning eller alternativa platser förblir alltid undantagna.";
 "Auto uses the active saved session, otherwise an API key or browser cookies." = "Automatiskt använder den aktiva sparade sessionen, annars en API-nyckel eller webbläsarcookies.";
 "Store multiple Command Code subscription sessions." = "Spara flera prenumerationssessioner för Command Code.";
+
+// Codex account names
+"Rename" = "Byt namn";
+"Rename account" = "Byt namn på konto";
+"Account name" = "Kontonamn";
+"Leave blank to use the default name." = "Lämna tomt för att använda standardnamnet.";
+"Rewards" = "Belöningar";
+"Reward expiry" = "Belöningarnas utgångsdatum";

@@ -206,6 +206,9 @@ public struct UsageSnapshot: Codable, Sendable {
     public let subscriptionExpiresAtIsDateOnly: Bool
     public let updatedAt: Date
     public let identity: ProviderIdentitySnapshot?
+    /// Raw plan provenance observed by the fetch that produced this snapshot. Nil when the
+    /// winning source did not report a plan identifier.
+    public let planObservation: ProviderPlanObservation?
     public let dataConfidence: UsageDataConfidence
 
     private enum CodingKeys: String, CodingKey {
@@ -226,6 +229,7 @@ public struct UsageSnapshot: Codable, Sendable {
         case subscriptionExpiresAtIsDateOnly
         case updatedAt
         case identity
+        case planObservation
         case dataConfidence
         case accountEmail
         case accountOrganization
@@ -261,6 +265,7 @@ public struct UsageSnapshot: Codable, Sendable {
         subscriptionExpiresAtIsDateOnly: Bool = false,
         updatedAt: Date,
         identity: ProviderIdentitySnapshot? = nil,
+        planObservation: ProviderPlanObservation? = nil,
         dataConfidence: UsageDataConfidence = .unknown)
     {
         precondition(
@@ -294,6 +299,7 @@ public struct UsageSnapshot: Codable, Sendable {
         self.subscriptionExpiresAtIsDateOnly = subscriptionExpiresAtIsDateOnly
         self.updatedAt = updatedAt
         self.identity = identity
+        self.planObservation = planObservation
         self.dataConfidence = dataConfidence
     }
 
@@ -416,6 +422,10 @@ public struct UsageSnapshot: Codable, Sendable {
             self.dataConfidence = .unknown
         }
         self.identity = decodedIdentity
+        // Lenient decode: a newer source value must not discard an otherwise readable snapshot.
+        self.planObservation = try? container.decodeIfPresent(
+            ProviderPlanObservation.self,
+            forKey: .planObservation)
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -442,6 +452,7 @@ public struct UsageSnapshot: Codable, Sendable {
         if self.subscriptionExpiresAtIsDateOnly { try container.encode(true, forKey: .subscriptionExpiresAtIsDateOnly) }
         try container.encode(self.updatedAt, forKey: .updatedAt)
         try container.encodeIfPresent(self.identity, forKey: .identity)
+        try container.encodeIfPresent(self.planObservation, forKey: .planObservation)
         if self.dataConfidence != .unknown {
             try container.encode(self.dataConfidence, forKey: .dataConfidence)
         }
@@ -651,6 +662,7 @@ public struct UsageSnapshot: Codable, Sendable {
                 .resolving(self.subscriptionExpiresAtIsDateOnly),
             updatedAt: self.updatedAt,
             identity: identity.resolving(self.identity),
+            planObservation: self.planObservation,
             dataConfidence: dataConfidence.resolving(self.dataConfidence))
     }
 }
@@ -674,15 +686,19 @@ public struct CodexCLIAccountSnapshot: Sendable {
     public let usage: UsageSnapshot?
     public let credits: CreditsSnapshot?
     public let identity: ProviderIdentitySnapshot?
+    /// Raw plan provenance observed by the RPC fetch, shared with credits-only snapshots.
+    public let planObservation: ProviderPlanObservation?
 
     public init(
         usage: UsageSnapshot?,
         credits: CreditsSnapshot?,
-        identity: ProviderIdentitySnapshot? = nil)
+        identity: ProviderIdentitySnapshot? = nil,
+        planObservation: ProviderPlanObservation? = nil)
     {
         self.usage = usage
         self.credits = credits
         self.identity = identity
+        self.planObservation = planObservation
     }
 }
 
@@ -1188,6 +1204,14 @@ public struct UsageFetcher: Sendable {
             let limits = limitsResponse.rateLimits
             let account = try? await rpc.fetchAccount()
             let rateLimitsPlan = Self.normalizedCodexAccountField(limits.planType)
+            let accountPlan = account?.account.flatMap { details in
+                if case let .chatgpt(_, plan) = details {
+                    plan
+                } else {
+                    nil
+                }
+            }
+            let observedAt = Date()
             // Provider-specific by design: Codex app-server responses construct Codex reconciled identity.
             let identity = ProviderIdentitySnapshot(
                 providerID: .codex,
@@ -1199,28 +1223,31 @@ public struct UsageFetcher: Sendable {
                     }
                 },
                 accountOrganization: nil,
-                loginMethod: rateLimitsPlan ?? account?.account.flatMap { details in
-                    if case let .chatgpt(_, plan) = details {
-                        plan
-                    } else {
-                        nil
-                    }
-                })
+                loginMethod: rateLimitsPlan ?? accountPlan)
+            let planObservation = ProviderPlanObservation(
+                rawPlan: rateLimitsPlan ?? Self.normalizedCodexAccountField(accountPlan),
+                source: .localRPC,
+                observedAt: observedAt)
             let credits = Self.makeCredits(from: limits, rateLimitsByLimitId: limitsResponse.rateLimitsByLimitId)
             let shouldReturnUnavailableUsage = credits == nil || rateLimitsPlan != nil
             let usage = CodexReconciledState.fromCLI(
                 primary: Self.makeWindow(from: limits.primary),
                 secondary: Self.makeWindow(from: limits.secondary),
-                identity: identity)?
+                identity: identity,
+                planObservation: planObservation,
+                updatedAt: observedAt)?
                 .toUsageSnapshot()
-                ?? (shouldReturnUnavailableUsage ? Self.emptyCodexUsageSnapshotIfIdentified(identity: identity) : nil)
+                ?? (shouldReturnUnavailableUsage ? Self.emptyCodexUsageSnapshotIfIdentified(
+                    identity: identity,
+                    planObservation: planObservation) : nil)
             guard usage != nil || credits != nil else {
                 throw UsageError.noRateLimitsFound
             }
             return CodexCLIAccountSnapshot(
                 usage: usage,
                 credits: credits,
-                identity: identity)
+                identity: identity,
+                planObservation: planObservation)
         } catch {
             let usage = Self.recoverUsageFromRPCError(error)
             let credits = Self.recoverCreditsFromRPCError(error)
@@ -1228,7 +1255,8 @@ public struct UsageFetcher: Sendable {
                 return CodexCLIAccountSnapshot(
                     usage: usage,
                     credits: credits,
-                    identity: usage?.identity)
+                    identity: usage?.identity,
+                    planObservation: usage?.planObservation)
             }
             throw CodexCLIBackendRateLimitError.classify(error, environment: self.environment) ?? error
         }
@@ -1403,28 +1431,39 @@ public struct UsageFetcher: Sendable {
         return trimmed
     }
 
-    private static func emptyCodexUsageSnapshotIfIdentified(identity: ProviderIdentitySnapshot) -> UsageSnapshot? {
+    private static func emptyCodexUsageSnapshotIfIdentified(
+        identity: ProviderIdentitySnapshot,
+        planObservation: ProviderPlanObservation? = nil) -> UsageSnapshot?
+    {
         guard identity.accountEmail != nil || identity.loginMethod != nil else { return nil }
         return UsageSnapshot(
             primary: nil,
             secondary: nil,
             tertiary: nil,
             updatedAt: Date(),
-            identity: identity)
+            identity: identity,
+            planObservation: planObservation)
     }
 
     private static func recoverUsageFromRPCError(_ error: Error) -> UsageSnapshot? {
         // Provider-specific by design: Codex RPC error bodies can still carry authoritative rate-limit payloads.
         guard let body = self.decodeRateLimitsErrorBody(from: error) else { return nil }
+        let observedAt = Date()
+        let rawPlan = self.normalizedCodexAccountField(body.planType)
         let identity = ProviderIdentitySnapshot(
             providerID: .codex,
             accountEmail: self.normalizedCodexAccountField(body.email),
             accountOrganization: nil,
-            loginMethod: self.normalizedCodexAccountField(body.planType))
+            loginMethod: rawPlan)
         guard let state = CodexReconciledState.fromCLI(
             primary: self.makeWindow(from: body.rateLimit?.primaryWindow),
             secondary: self.makeWindow(from: body.rateLimit?.secondaryWindow),
-            identity: identity)
+            identity: identity,
+            planObservation: ProviderPlanObservation(
+                rawPlan: rawPlan,
+                source: .localRPC,
+                observedAt: observedAt),
+            updatedAt: observedAt)
         else {
             return nil
         }

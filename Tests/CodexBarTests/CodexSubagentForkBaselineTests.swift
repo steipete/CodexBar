@@ -138,7 +138,7 @@ struct CodexSubagentForkBaselineTests {
             options.forceRescan = forced
             let report = try self.completedScan(env: env, day: day, options: options, clock: &clock)
             #expect(report.data.reduce(0) { $0 + ($1.totalTokens ?? 0) } == expected)
-            let cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+            let cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
             for level in 1...depth {
                 let child = try #require(cache.files.values.first { $0.sessionId == "fork-\(level)" })
                 #expect(child.days[dayKey]?["gpt-5.4"] == ownedUsage)
@@ -159,7 +159,7 @@ struct CodexSubagentForkBaselineTests {
             let report = CostUsageScanner.loadDailyReport(
                 provider: .codex, since: day, until: day, now: clock, options: options)
             options.forceRescan = false
-            let files = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot).files.values
+            let files = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome).files.values
             if !files.isEmpty, files.allSatisfy({ $0.codexScanComplete == true && $0.hasCurrentCodexParser }) {
                 return report
             }

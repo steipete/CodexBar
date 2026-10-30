@@ -29,7 +29,7 @@ struct CostUsageDiscoveryRecoveryTests {
             codexTraceDatabaseURL: env.root.appendingPathComponent("missing.sqlite"))
         options.refreshMinIntervalSeconds = 0
         _ = CostUsageScanner.loadDailyReport(provider: .codex, since: day, until: day, now: day, options: options)
-        var cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        var cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
         let controlDays = try #require(cache.files[control.path]).days
         #expect(!controlDays.isEmpty)
         for child in children {
@@ -56,9 +56,9 @@ struct CostUsageDiscoveryRecoveryTests {
         cache.codexSessionDiscovery = discovery
         cache.codexScanCatchUpPending = true
         cache.codexScanInventoryPaths = nil
-        CostUsageStoreAccess.replace(cacheRoot: env.cacheRoot, cache: cache)
+        CostUsageStoreAccess.replace(cacheRoot: env.cacheRoot, home: env.codexStoreHome, cache: cache)
         if removeCachedRows {
-            let reopened = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+            let reopened = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
             #expect(children.allSatisfy { reopened.files[$0.path] == nil })
         }
         CostUsageScanner.resetCodexDirectoryCursorsForTesting(under: env.root)
@@ -73,7 +73,7 @@ struct CostUsageDiscoveryRecoveryTests {
                 until: day,
                 now: day.addingTimeInterval(Double(pass)),
                 options: options)
-            cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+            cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
             if cache.codexScanCatchUpPending == false {
                 break
             }
@@ -83,7 +83,11 @@ struct CostUsageDiscoveryRecoveryTests {
         #expect(repaired.filePathBySessionId["parent-first"] == nil)
         #expect(repaired.filePathBySessionId["parent-second"] == nil)
         #expect(cache.codexScanCatchUpPending == false)
-        let view = CostUsageStoreAccess.readView(cacheRoot: env.cacheRoot, calendar: options.calendar, purpose: .report)
+        let view = CostUsageStoreAccess.readView(
+            cacheRoot: env.cacheRoot,
+            home: env.codexStoreHome,
+            calendar: options.calendar,
+            purpose: .report)
         #expect(view.historyCoverageIsEstablished(
             range: .init(since: day, until: day, calendar: options.calendar),
             rootsFingerprint: CostUsageScanner.codexRootsFingerprint(options: options)) == !keepSibling)
@@ -106,7 +110,7 @@ struct CostUsageDiscoveryRecoveryTests {
                 until: day,
                 now: day.addingTimeInterval(20),
                 options: options)
-            let resolvedCache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+            let resolvedCache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
             let resolvedChild = try #require(resolvedCache.files[sibling.path])
             #expect(!resolvedChild.days.isEmpty)
             #expect(!resolvedChild.hasBufferedCodexForkRetryLines)
@@ -118,7 +122,8 @@ struct CostUsageDiscoveryRecoveryTests {
                 options: options)
             #expect(stable.summary?.totalTokens == resolved.summary?.totalTokens)
             #expect(stable.summary?.totalCostUSD == resolved.summary?.totalCostUSD)
-            #expect(CostUsageStoreAccess.read(cacheRoot: env.cacheRoot).files[sibling.path]?.days == resolvedChild.days)
+            #expect(CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome).files[sibling.path]?
+                .days == resolvedChild.days)
         }
     }
 

@@ -42,7 +42,7 @@ struct CostUsageWarmScannerPassDecodeTests {
             cacheRoot: env.cacheRoot,
             codexTraceDatabaseURL: env.root.appendingPathComponent("missing-trace.sqlite"))
         options.refreshMinIntervalSeconds = TimeInterval(refreshMinIntervalSeconds)
-        let store = CostUsageStore(cacheRoot: env.cacheRoot)
+        let store = CostUsageStore(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
         let databaseURL = store.databaseURL
         _ = CostUsageScanner.loadDailyReport(provider: .codex, since: day, until: day, now: day, options: options)
 
@@ -185,7 +185,9 @@ extension CostUsageWarmScannerPassDecodeTests {
     func `replacement after metadata commit reopens the replacement database`() async throws {
         let fixture = try ReadWorkFixture(fileCount: 2, rowsPerFile: 4)
         defer { fixture.remove() }
-        let replacement = CostUsageStore(cacheRoot: fixture.env.root.appendingPathComponent("replacement"))
+        let replacement = CostUsageStore(
+            cacheRoot: fixture.env.root.appendingPathComponent("replacement"),
+            home: fixture.store.home)
         var replacementCache = fixture.canonical
         replacementCache.codexProjectMetadataVersion = 777
         #expect(!replacement.syncSaveCodexCache(
@@ -244,7 +246,10 @@ extension CostUsageWarmScannerPassDecodeTests {
     func `held writer lock rejects freshness without rebuilding and permits a retry`() async throws {
         let fixture = try ReadWorkFixture(fileCount: 2, rowsPerFile: 4)
         defer { fixture.remove() }
-        let store = CostUsageStore(cacheRoot: fixture.env.cacheRoot, busyTimeoutMilliseconds: 25)
+        let store = CostUsageStore(
+            cacheRoot: fixture.env.cacheRoot,
+            home: fixture.env.codexStoreHome,
+            busyTimeoutMilliseconds: 25)
         func save(_ loaded: CostUsageStoreLoad) -> CostUsageStoreBudgetResult {
             let incoming = Self.incoming(loaded.cache, change: .freshness, fixture: fixture)
             return store.syncSaveCodexCache(

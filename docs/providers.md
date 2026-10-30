@@ -62,6 +62,8 @@ double-count the same traffic. An optional toggle can hide native Codex while Op
 emits the currently aggregated model (provenance, mix, coverage). Invalid numeric fields are omitted while valid
 neighboring fields remain available. Existing cached rows are reparsed once after the numeric parser update;
 subsequent unchanged reads continue to reuse the corrected cache.
+Imports read 64 KiB chunks and preserve records spanning reads, avoiding a separate whole-file buffer and newline
+index. Decoded usage rows and the current unfinished record still require memory proportional to their size.
 Rows explicitly billed to `nous` appear under Nous Portal with OpenCodex provenance, even when their model IDs
 name another vendor. Their dollar amounts are estimates from exact Nous/model pricing, never Portal credits or
 the producer's ignored `_meta` values; missing rates stay unpriced. See [Nous local usage and spend](nous.md#local-usage-and-spend).
@@ -171,7 +173,7 @@ complete when the available scan window covers fewer days.
 | [X API](xapi.md) | Browser or manual console.x.com cookies for prepaid and free credits, including negative balances. |
 | [Future AGI](futureagi.md) | API key and secret key (billing-period usage, allowances, and estimated cost). |
 | [LithosAI](lithosai.md) | Browser or manual console cookies for prepaid USD balance and optional UTC spend. |
-| [WorkBuddy](workbuddy.md) | Chrome or manual www.workbuddy.cn cookies for the monthly credits allowance, plan name, and cycle reset. |
+| [WorkBuddy](workbuddy.md) | Chrome or manual www.workbuddy.cn cookies for the monthly credits allowance, plan name, cycle reset, and the platform reward credits. |
 | [Tavily](tavily.md) | API key for account-plan, per-key, and pay-as-you-go credit totals. |
 | [Linkup](linkup.md) | API key for the current prepaid USD credit balance. |
 | [TinyApi](tinyapi.md) | Browser or manual session cookies for aggregate available credits. |
