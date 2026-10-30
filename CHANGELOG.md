@@ -4,7 +4,7 @@
 
 ### Fixed
 
-- Kiro: run the `/usage` and `/context` probes with `--v2`, because the V3 harness answers them as model prompts in non-interactive runs, and fall back to `GetUsageLimits` plan usage when the CLI report fails.
+- Kiro: run the `/usage` and `/context` probes with `--v2`, because the V3 harness answers them as model prompts in non-interactive runs, and fall back to `GetUsageLimits` plan usage when the CLI report fails (#4853).
 - Codex: preserve established local cost coverage and catch-up progress when switching Codex homes (#4770, #4773). Thanks @harjothkhara!
 - OpenCodex: reduce temporary memory use when importing large usage logs (#4803).
 - Cursor: explain when the Cursor app session has expired and no browser session works, with steps to sign in again (#4804). Thanks @julianpinedayyz!
