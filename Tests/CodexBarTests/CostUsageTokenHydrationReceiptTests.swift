@@ -86,6 +86,7 @@ extension CostUsageStoreReadWorkTests {
         let before = await fixture.store.readSnapshot()
         let loaded = CostUsageStoreAccess.load(
             cacheRoot: fixture.env.cacheRoot,
+            home: fixture.env.codexStoreHome,
             calendar: fixture.calendar)
         let selectedPath = try #require(loaded.cache.files.keys.min())
         let databaseURL = fixture.store.databaseURL

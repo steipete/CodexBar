@@ -316,7 +316,7 @@ struct CLIUsageCacheTests {
 
     private static func command(provider: UsageProvider = .zai) throws -> UsageCommandContext {
         let values = try Program(descriptors: CodexBarCLI.commandDescriptors())
-            .resolve(argv: ["usage", "--no-color", "--json"]).parsedValues
+            .resolve(arguments: ["usage", "--no-color", "--json"]).parsedValues
         return try CLIUsageFetchSetup(
             values: values,
             providers: [provider],

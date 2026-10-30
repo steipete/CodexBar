@@ -990,7 +990,8 @@ extension CursorLoginRunnerTests {
         CursorLoginRunner(
             browserDetection: BrowserDetection(cacheTTL: 0),
             priorAccount: priorAccount,
-            timeout: 1,
+            // These fixtures test account transitions, so allow for executor contention on shared hosts.
+            timeout: 30,
             pollInterval: 0.001,
             launchRoute: launchRoute,
             loadSnapshot: loadSnapshot,

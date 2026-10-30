@@ -55,20 +55,13 @@ defineProvider({
         continue;
       }
       const payload = read(usageResponse);
-      const summary = payload?.usage_summary;
+      const { total_amount: total, consumed_amount: used } = payload?.usage_summary ?? {};
       if (payload?.code === 1001) {
         sessionRejected = true;
         ctx.browser.rejectCookie(domain, session);
         continue;
       }
-      if (
-        payload?.is_credits_billing !== true ||
-        !summary ||
-        !finite(summary.total_amount) ||
-        !finite(summary.consumed_amount)
-      )
-        return malformed();
-      const { total_amount: total, consumed_amount: used } = summary;
+      if (payload?.is_credits_billing !== true || !finite(total) || !finite(used)) return malformed();
       const packs = Array.isArray(payload.user_entitlement_pack_list) ? payload.user_entitlement_pack_list : [];
       const subscription = packs.find(
         (pack) => pack && pack.group_type === 0 && (pack.status === undefined || pack.status === 1),

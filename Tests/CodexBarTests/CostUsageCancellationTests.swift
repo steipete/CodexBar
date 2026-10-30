@@ -48,7 +48,9 @@ struct CostUsageCancellationTests {
 
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
-        let cacheBefore = try encoder.encode(CostUsageStoreAccess.read(cacheRoot: env.cacheRoot))
+        let cacheBefore = try encoder.encode(CostUsageStoreAccess.read(
+            cacheRoot: env.cacheRoot,
+            home: env.codexStoreHome))
 
         try self.codexSessionContents(iso: iso, tokenLineCount: 20000)
             .write(to: fileURL, atomically: true, encoding: .utf8)
@@ -71,7 +73,8 @@ struct CostUsageCancellationTests {
                 checkCancellation: checkCancellation)
         }
         #expect(checks >= 8)
-        #expect(try encoder.encode(CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)) == cacheBefore)
+        #expect(try encoder
+            .encode(CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome)) == cacheBefore)
     }
 
     @Test

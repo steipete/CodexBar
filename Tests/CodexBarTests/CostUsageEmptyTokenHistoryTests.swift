@@ -35,13 +35,13 @@ struct CostUsageEmptyTokenHistoryTests {
         _ = CostUsageScanner.loadDailyReport(provider: .codex, since: day, until: day, now: day, options: options)
 
         // Recreate the stored state observed in a real cache: an explicit empty history for the aborted file.
-        var cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        var cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
         let aborted = try #require(cache.files.keys.first { $0.contains("rollout-a-") })
         cache.files[aborted]?.codexTokenSnapshots = []
         cache.files[aborted]?.codexTokenCheckpoints = []
-        CostUsageStoreAccess.replace(cacheRoot: env.cacheRoot, cache: cache)
+        CostUsageStoreAccess.replace(cacheRoot: env.cacheRoot, home: env.codexStoreHome, cache: cache)
 
-        let store = CostUsageStore(cacheRoot: env.cacheRoot)
+        let store = CostUsageStore(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
         let loaded = store.syncLoadCodexScan(calendar: options.calendar)
         loaded.release()
         var writes: [Int] = []

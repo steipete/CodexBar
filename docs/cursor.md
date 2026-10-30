@@ -43,6 +43,8 @@ Linux. Explicit `web` mode never reads local Cursor credentials; macOS uses its 
    - The database is opened read-only. Active WAL state is read normally; an idle WAL-mode main file with no
      sidecars uses SQLite immutable mode so CodexBar does not recreate files in Cursor's directory.
    - The token is used only while its JWT expiry is more than 60 seconds away. CodexBar never refreshes it.
+     If the app token has expired and no fallback session works, CodexBar reports that the Cursor app session expired:
+     open Cursor to sign in again, or sign in to cursor.com in your browser. An available browser session still wins.
    - On macOS, a validated derived session is also persisted owner-only at
      `~/Library/Application Support/CodexBar/cursor-session.json` through the standard credential-file writer. Linux
      reads the Cursor database directly and does not persist the app token.
@@ -58,11 +60,14 @@ Linux. Explicit `web` mode never reads local Cursor credentials; macOS uses its 
 
 3) **Browser cookie import** (macOS only)
    - Cookie order from provider metadata, falling back to SweetCookieKit's default browser catalog, including Aside, Opera, Opera Neon, and Ego Lite.
-   - Domain filters: `cursor.com`, `cursor.sh`.
-   - Cookie names required (any one counts):
+   - Domain filters: `cursor.com`, `www.cursor.com`, `cursor.sh`, `authenticator.cursor.sh` (leading dots are normalized).
+   - Recognized session cookie names:
      - `WorkosCursorSessionToken`
      - `__Secure-next-auth.session-token`
      - `next-auth.session-token`
+     - `wos-session`, `__Secure-wos-session`
+     - `authjs.session-token`, `__Secure-authjs.session-token`
+   - If no recognized name is present, matching-domain cookies are still tried and validated through the API.
 
 4) **Stored session cookies** (legacy fallback on macOS and Linux)
    - Legacy sessions captured by older CodexBar releases remain readable.
@@ -84,6 +89,12 @@ Manual option:
 - **Switch Account** opens the same authenticator and waits for a different stable account ID when available, falling back to normalized email when IDs are unavailable.
 - When the system's HTTPS handler is a supported browser, CodexBar opens the route there automatically. When the handler is an intermediary app, CodexBar asks the user to choose a concrete supported browser before opening the route.
 - CodexBar pins the original HTTPS route to that concrete browser and polls cookies only from the same application. Interactive login never falls back to another browser, a stored session, or Cursor.app; cancelling browser selection or the absence of a supported browser stops before login opens.
+- Login polls every two seconds with a two-minute deadline, and API requests are capped by the remaining time. The timeout
+  reports the last validation error. A Switch waits for a different account, even if the current account is signed in.
+- Firefox imports persistent cookies from each profile, but does not expose container/partition identity to Cursor.
+  Session-only recovery files support only the default, unpartitioned context. If login is not detected,
+  try a regular Firefox window outside a container and include the exact timeout error when reporting the problem;
+  never share cookie values, tokens, or the browser database.
 - An installed non-Safari browser remains eligible before its first profile or cookie database exists, and CodexBar detects the store created during login. Browsers with access-blocked profile data remain unavailable, while Safari still requires an existing readable cookie source.
 - CodexBar preserves its cached and legacy stored Cursor sessions while login is in progress. An accepted browser session must be durably cached before the legacy session is cleared, so cancellation or failure leaves the previous session intact. Add completes only after the authenticated response includes a Cursor account identity. Switch compares stable account IDs when both sides provide them and otherwise compares normalized email.
 - CodexBar checks all available profiles in the selected browser. Add accepts a sole unambiguous account automatically, while Switch always asks for confirmation before replacing the current account, even when only one eligible alternative is found. Multiple eligible accounts always require an explicit choice, and CodexBar caches only the chosen session.

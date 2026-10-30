@@ -160,6 +160,7 @@
 "Individual credits" = "اعتبارات فردی";
 "Workspace" = "فضای کاری";
 "Credits history" = "تاریخچه اعتبارها";
+"Cursor app session expired — open Cursor to sign in again, or sign in to cursor.com in your browser." = "نشست برنامهٔ Cursor منقضی شده است — Cursor را باز کنید و دوباره وارد شوید، یا در مرورگر خود وارد cursor.com شوید.";
 "Cursor login failed" = "ورود Cursor ناموفق";
 "Custom" = "عرف";
 "Custom Path" = "مسیر سفارشی";

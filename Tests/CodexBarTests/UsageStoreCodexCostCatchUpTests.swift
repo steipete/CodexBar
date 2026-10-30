@@ -91,10 +91,14 @@ struct UsageStoreCodexCostCatchUpTests {
             advances += 1
             var cache = CostUsageStoreAccess.read(
                 cacheRoot: fixture.base.env.cacheRoot,
+                home: fixture.base.env.codexStoreHome,
                 calendar: fixture.base.calendar)
             cache.files[fixture.pendingURL.path]?.codexCostCacheComplete = true
             CostUsageStoreAccess.replace(
-                cacheRoot: fixture.base.env.cacheRoot, cache: cache, calendar: fixture.base.calendar)
+                cacheRoot: fixture.base.env.cacheRoot,
+                home: fixture.base.env.codexStoreHome,
+                cache: cache,
+                calendar: fixture.base.calendar)
             let status = await fetcher.codexScanCatchUpStatus()
             #expect(status.pending)
             #expect(status.progressKey == initialStatus.progressKey)

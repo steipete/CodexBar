@@ -123,6 +123,7 @@ struct TraeCNPluginTests {
     func `invalid credits and dollar billing do not become zero usage`(engine: ProviderPluginEngineKind) async {
         for body in [
             "null",
+            #"{"is_credits_billing":true}"#,
             #"{"is_credits_billing":true,"usage_summary":{"total_amount":100}}"#,
             #"{"is_credits_billing":true,"usage_summary":{"total_amount":100,"consumed_amount":-1}}"#,
             #"{"is_credits_billing":true,"usage_summary":{"total_amount":"100","consumed_amount":1}}"#,

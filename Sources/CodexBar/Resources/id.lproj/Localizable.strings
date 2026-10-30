@@ -160,6 +160,7 @@
 "Individual credits" = "Kredit individual";
 "Workspace" = "Ruang kerja";
 "Credits history" = "Riwayat kredit";
+"Cursor app session expired — open Cursor to sign in again, or sign in to cursor.com in your browser." = "Sesi aplikasi Cursor telah kedaluwarsa — buka Cursor untuk masuk kembali, atau masuk ke cursor.com di browser Anda.";
 "Cursor login failed" = "Login Cursor gagal";
 "Custom" = "Kustom";
 "Custom Path" = "Path Kustom";

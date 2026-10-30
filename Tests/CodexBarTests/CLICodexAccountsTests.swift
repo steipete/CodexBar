@@ -11,11 +11,11 @@ struct CLICodexAccountsTests {
     @Test
     func `account commands parse explicit selectors and advertise platform boundaries`() throws {
         let program = Program(descriptors: CodexBarCLI.commandDescriptors())
-        let list = try program.resolve(argv: ["codex-accounts", "--json"])
+        let list = try program.resolve(arguments: ["codex-accounts", "--json"])
         #expect(list.path == ["codex-accounts", "list"])
         #expect(list.parsedValues.flags.contains("jsonShortcut"))
         let id = UUID().uuidString
-        let promote = try program.resolve(argv: ["codex-accounts", "promote", id, "--json"])
+        let promote = try program.resolve(arguments: ["codex-accounts", "promote", id, "--json"])
         #expect(promote.path == ["codex-accounts", "promote"])
         #expect(promote.parsedValues.positional == [id])
         #expect(CodexBarCLI.codexAccountsHelp(version: "synthetic").contains("macOS only"))

@@ -274,7 +274,7 @@ struct MenuBarProviderColorTests {
         let title = output.attributedTitle
         let string = title.string
         let percentRange = (string as NSString).range(of: "25%")
-        let paceRange = (string as NSString).range(of: "+11%")
+        let paceRange = (string as NSString).range(of: "\u{FFFC}")
         try #require(percentRange.location != NSNotFound)
         try #require(paceRange.location != NSNotFound)
 

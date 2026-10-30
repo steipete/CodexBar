@@ -180,6 +180,7 @@
 "Individual credits" = "個人額度";
 "Workspace" = "工作區";
 "Credits history" = "額度歷史";
+"Cursor app session expired — open Cursor to sign in again, or sign in to cursor.com in your browser." = "Cursor App 工作階段已到期 — 請開啟 Cursor 重新登入，或在瀏覽器中登入 cursor.com。";
 "Cursor login failed" = "Cursor 登入失敗";
 "Custom" = "自訂";
 "Custom Path" = "自訂路徑";

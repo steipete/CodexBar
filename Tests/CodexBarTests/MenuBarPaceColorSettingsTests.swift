@@ -24,25 +24,25 @@ struct MenuBarPaceColorSettingsTests {
     }
 
     @Test
-    func `pace color defaults off persists and triggers menu observation`() {
+    func `pace state bars default on persist and trigger menu observation`() {
         let defaults = InMemoryUserDefaults()
         let store = testSettingsStore(suiteName: "pace-color", userDefaults: defaults)
-        #expect(!store.menuBarColorPace)
+        #expect(store.menuBarColorPace)
         let changed = ObservationFlag()
         withObservationTracking {
             _ = store.menuObservationToken
         } onChange: {
             changed.set()
         }
-        store.menuBarColorPace = true
+        store.menuBarColorPace = false
         #expect(changed.get())
-        #expect(defaults.bool(forKey: "menuBarColorPace"))
+        #expect(!defaults.bool(forKey: "menuBarColorPace"))
         let restored = testSettingsStore(suiteName: "pace-color-restored", userDefaults: defaults)
-        #expect(restored.menuBarColorPace)
+        #expect(!restored.menuBarColorPace)
     }
 
     @Test(arguments: [false, true])
-    func `upgraded preferences keep their layout and default to monochrome`(storedLayout: Bool) {
+    func `upgraded preferences keep their layout and default to state bars`(storedLayout: Bool) {
         let defaults = InMemoryUserDefaults()
         let previous = testSettingsStore(suiteName: "pace-color-upgrade", userDefaults: defaults)
         previous.menuBarDisplayMode = .both
@@ -56,9 +56,9 @@ struct MenuBarPaceColorSettingsTests {
         #expect(defaults.object(forKey: "menuBarColorPace") == nil)
 
         let upgraded = testSettingsStore(suiteName: "pace-color-upgraded", userDefaults: defaults)
-        #expect(!upgraded.menuBarColorPace)
+        #expect(upgraded.menuBarColorPace)
         #expect(defaults.object(forKey: "menuBarColorPace") == nil)
-        for enabled in [true, false] {
+        for enabled in [false, true] {
             upgraded.menuBarColorPace = enabled
             let restored = testSettingsStore(suiteName: "pace-color-reloaded", userDefaults: defaults)
             #expect(restored.menuBarColorPace == enabled)

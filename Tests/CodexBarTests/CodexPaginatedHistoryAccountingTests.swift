@@ -346,7 +346,8 @@ struct CodexPaginatedHistoryAccountingTests {
                 options: &options)
         }
         for pass in 201...220 {
-            let reopened = CostUsageStore(cacheRoot: env.cacheRoot).syncLoadCodexCache(calendar: .current)
+            let reopened = CostUsageStore(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
+                .syncLoadCodexCache(calendar: .current)
             if reopened.codexScanCatchUpPending != true { break }
             report = CostUsageScanner.loadDailyReport(
                 provider: .codex, since: day, until: day, now: day.addingTimeInterval(Double(pass)), options: options)
@@ -356,7 +357,8 @@ struct CodexPaginatedHistoryAccountingTests {
         // with each page owning only its suffix: 50 + 950 + 300 = 1,300.
         #expect(self.inputTokens(report) == 1300)
         #expect(report.data.map(\.outputTokens).reduce(0) { $0 + ($1 ?? 0) } == 110)
-        let completed = CostUsageStore(cacheRoot: env.cacheRoot).syncLoadCodexCache(calendar: .current)
+        let completed = CostUsageStore(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
+            .syncLoadCodexCache(calendar: .current)
         #expect(completed.files[pageTwoFile.path]?.codexRows?.map(\.input) == [100, 200])
         #expect(completed.files[pageTwoFile.path]?.codexScanComplete == true)
         #expect(completed.codexScanCatchUpPending != true)
@@ -477,7 +479,7 @@ struct CodexPaginatedHistoryAccountingTests {
             options: options)
         #expect(self.inputTokens(cold) == 1300)
 
-        var legacy = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        var legacy = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
         let pageTwoPath = try #require(legacy.files.keys.first { $0.contains("_page-two") })
         var pageTwo = try #require(legacy.files[pageTwoPath])
         let dayKey = CostUsageScanner.CostUsageDayRange.dayKey(from: day)
@@ -486,7 +488,7 @@ struct CodexPaginatedHistoryAccountingTests {
         pageTwo.codexParserRevision = CostUsageFileUsage.currentCodexParserRevision - 1
         legacy.files[pageTwoPath] = pageTwo
         legacy.days = [dayKey: [normalized: [2250, 1760, 185]]]
-        CostUsageStoreAccess.replace(cacheRoot: env.cacheRoot, cache: legacy)
+        CostUsageStoreAccess.replace(cacheRoot: env.cacheRoot, home: env.codexStoreHome, cache: legacy)
 
         options.forceRescan = false
         let warm = CostUsageScanner.loadDailyReport(
@@ -497,7 +499,8 @@ struct CodexPaginatedHistoryAccountingTests {
             options: options)
         #expect(self.inputTokens(warm) == 1300)
         #expect(
-            CostUsageStoreAccess.read(cacheRoot: env.cacheRoot).files[pageTwoPath]?.hasCurrentCodexParser
+            CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome).files[pageTwoPath]?
+                .hasCurrentCodexParser
                 == true)
     }
 
@@ -508,7 +511,8 @@ struct CodexPaginatedHistoryAccountingTests {
         sessionID: String,
         options: inout CostUsageScanner.Options) throws
     {
-        var partial = CostUsageStore(cacheRoot: env.cacheRoot).syncLoadCodexCache(calendar: .current)
+        var partial = CostUsageStore(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
+            .syncLoadCodexCache(calendar: .current)
         #expect(partial.files[file.path]?.hasBufferedCodexUnresolvedForkLines == true)
         let byteLimit = options.maxCodexSessionFileBytes
         // Hydration resolves the parent on a later refresh; stop immediately after replaying the first event.
@@ -521,13 +525,15 @@ struct CodexPaginatedHistoryAccountingTests {
                 until: day,
                 now: day.addingTimeInterval(Double(pass)),
                 options: options)
-            partial = CostUsageStore(cacheRoot: env.cacheRoot).syncLoadCodexCache(calendar: .current)
+            partial = CostUsageStore(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
+                .syncLoadCodexCache(calendar: .current)
         }
         options.maxCodexSessionFileBytes = 1
         options.maxCodexScanBytesPerRefresh = 1
         _ = CostUsageScanner.loadDailyReport(
             provider: .codex, since: day, until: day, now: day.addingTimeInterval(200), options: options)
-        partial = CostUsageStore(cacheRoot: env.cacheRoot).syncLoadCodexCache(calendar: .current)
+        partial = CostUsageStore(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
+            .syncLoadCodexCache(calendar: .current)
         let page = try #require(partial.files[file.path])
         #expect(page.codexScanComplete == false)
         #expect(page.codexRows?.map(\.input) == [100])
