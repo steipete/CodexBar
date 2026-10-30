@@ -12,6 +12,8 @@
 
 ### Changed
 
+- CLI: let HTTP clients request fresh usage and full dashboard measurements with `refresh=1`, coalescing concurrent requests and limiting forced measurements to one per provider every five seconds (#4785).
+
 - CLI: malformed or ambiguous arguments now fail with an error instead of being guessed (Commander 0.3.0).
 - Menu bar: make neutral pace percentages with font-scaled green/red state bars the default, preserving saved color choices (#4714, #4791). Thanks @arnodirlam!
 - Updates: refresh Sparkle to improve update installation, download progress, and release-note handling.
