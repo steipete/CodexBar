@@ -10,6 +10,7 @@
 - OpenCodex: reduce temporary memory use when importing large usage logs (#4803).
 - Cursor: explain when the Cursor app session has expired and no browser session works, with steps to sign in again (#4804). Thanks @julianpinedayyz!
 - OpenCode Go: use the active OpenCode CLI API key stored under `opencode` for server quotas instead of falling back to local estimates. (#4815) Thanks @sreejithraman!
+- Tests: keep Claude dashboard account-selection coverage independent of CI scheduling delays (#4821).
 
 ### Changed
 
