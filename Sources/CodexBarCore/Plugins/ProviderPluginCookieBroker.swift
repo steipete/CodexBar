@@ -522,17 +522,110 @@ final class ProviderPluginCookieBroker: @unchecked Sendable {
 }
 
 public enum UserProviderPluginCookieBroker {
+    typealias Resolvers = (
+        header: ProviderPluginRuntime.InstanceCookieResolver,
+        session: ProviderPluginRuntime.CookieSessionResolver,
+        invalidate: ProviderPluginRuntime.CookieInvalidator,
+        invalidateSession: ProviderPluginRuntime.CookieSessionInvalidator)
+
     public static func resolver(
         browserDetection: BrowserDetection) -> ProviderPluginRuntime.InstanceCookieResolver
     {
-        { _, domain in
-            guard let session = try ProviderPluginCookieBroker.importCookieHeaders(
-                domain: domain, browserDetection: browserDetection)?.first
-            else {
+        self.resolver(batches: self.importer(browserDetection: browserDetection))
+    }
+
+    static func resolver(
+        batches: @escaping ProviderPluginCookieBroker.BatchImporter) -> ProviderPluginRuntime.InstanceCookieResolver
+    {
+        // Header-only callers may reuse this closure across refreshes.
+        { provider, domain in try await self.resolvers(batches: batches).header(provider, domain) }
+    }
+
+    static func resolvers(browserDetection: BrowserDetection) -> Resolvers {
+        self.resolvers(batches: self.importer(browserDetection: browserDetection))
+    }
+
+    private static func importer(browserDetection: BrowserDetection) -> ProviderPluginCookieBroker.BatchImporter {
+        #if os(macOS)
+        let load = BrowserCookieAccessGate.operationPreservingAccessContext { (input: (String, Int)) in
+            try ProviderPluginCookieBroker.importCookieHeaders(
+                domain: input.0, browserDetection: browserDetection, batch: input.1)
+        }
+        return { try load(($0, $1)) }
+        #else
+        return { _, _ in nil }
+        #endif
+    }
+
+    static func resolvers(batches: @escaping ProviderPluginCookieBroker.BatchImporter) -> Resolvers {
+        let cursor = UserPluginCookieCursor(importer: batches)
+        return (
+            header: { _, domain in try cursor.header(domain: domain) },
+            session: { domain, cachedOnly in
+                guard !cachedOnly else { return nil }
+                return try cursor.next(domain: domain)
+            },
+            invalidate: { cursor.reject(domain: $0) },
+            invalidateSession: { cursor.reject(domain: $0, id: $1) })
+    }
+}
+
+private final class UserPluginCookieCursor: @unchecked Sendable {
+    private struct Position {
+        var batch = 0
+        var pending: [(header: String, source: String)] = []
+        var current: ProviderPluginCookieSession?
+        var exhausted = false
+    }
+
+    private let importer: ProviderPluginCookieBroker.BatchImporter
+    private let lock = NSLock()
+    private var positions: [String: Position] = [:]
+
+    init(importer: @escaping ProviderPluginCookieBroker.BatchImporter) {
+        self.importer = importer
+    }
+
+    func header(domain: String) throws -> String {
+        try self.lock.withLock {
+            if let current = self.positions[domain]?.current { return current.header }
+            guard let session = try self.advance(domain: domain) else {
                 throw ProviderPluginError.secretAccess("no browser session cookies were found")
             }
             return session.header
         }
+    }
+
+    func next(domain: String) throws -> ProviderPluginCookieSession? {
+        try self.lock.withLock { try self.advance(domain: domain) }
+    }
+
+    func reject(domain: String, id: String? = nil) {
+        self.lock.withLock {
+            guard let current = self.positions[domain]?.current,
+                  id == nil || id == current.id else { return }
+            self.positions[domain]?.current = nil
+        }
+    }
+
+    private func advance(domain: String) throws -> ProviderPluginCookieSession? {
+        var position = self.positions[domain] ?? Position()
+        defer { self.positions[domain] = position }
+        while position.pending.isEmpty, !position.exhausted {
+            try Task.checkCancellation()
+            guard let candidates = try self.importer(domain, position.batch) else {
+                position.exhausted = true
+                return nil
+            }
+            position.batch += 1
+            position.pending = candidates
+        }
+        guard !position.pending.isEmpty else { return nil }
+        let candidate = position.pending.removeFirst()
+        let session = ProviderPluginCookieSession(
+            header: candidate.header, source: candidate.source, origin: "https://\(domain)")
+        position.current = session
+        return session
     }
 }
 
@@ -547,8 +640,7 @@ extension ProviderPluginCookieSession {
         guard (provider.firstPartyProvider != nil && resolver != nil) || instanceResolver != nil else { return nil }
         let state = LegacySessionDomains()
         return { domain, cachedOnly in
-            guard !cachedOnly else { return nil }
-            guard state.take(domain, manual: source == .manual) else { return nil }
+            guard !cachedOnly, state.take(domain, manual: source == .manual) else { return nil }
             let header: String
             if let firstParty = provider.firstPartyProvider, let resolver {
                 header = try await resolver(firstParty, domain)

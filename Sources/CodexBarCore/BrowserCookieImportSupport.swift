@@ -16,7 +16,7 @@ public enum BrowserCookieImportSupport {
     #if os(macOS)
     static func importOrder(for provider: UsageProvider?) -> [Browser] {
         let order = provider.map { ProviderDefaults.metadata[$0]?.browserCookieOrder ?? Browser.defaultImportOrder }
-            ?? [.chrome]
+            ?? Browser.defaultImportOrder
         // Desktop app cookies require an explicit source choice in the owning provider.
         return order.filter { $0 != .claudeDesktop }
     }

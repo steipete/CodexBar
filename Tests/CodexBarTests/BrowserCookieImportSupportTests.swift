@@ -94,7 +94,10 @@ struct BrowserCookieImportSupportTests {
 
     @Test
     func `browser labels and keychain requirements follow catalog metadata without discovery`() {
-        #expect(BrowserCookieImportSupport.browserNames(for: nil) == "Chrome")
+        let userPluginOrder = Browser.defaultImportOrder.filter { $0 != .claudeDesktop }
+        #expect(BrowserCookieImportSupport.importOrder(for: nil) == userPluginOrder)
+        #expect(BrowserCookieImportSupport.browserNames(for: nil) == userPluginOrder.map(\.displayName)
+            .joined(separator: ", "))
         #expect(BrowserCookieImportSupport.importOrder(for: .museai) == Browser.defaultImportOrder)
         for browser in Browser.allCases {
             #expect(browser.usesKeychainForCookieDecryption == browser.usesChromiumProfileStore)
@@ -107,6 +110,7 @@ struct BrowserCookieImportSupportTests {
         #expect(browser.usesChromiumProfileStore)
         #expect(browser.usesKeychainForCookieDecryption)
         #expect(Browser.defaultImportOrder.contains(browser))
+        #expect(BrowserCookieImportSupport.importOrder(for: nil).contains(browser))
         var visited: [Browser] = []
         let sessions = try BrowserCookieImportSupport.collectSessions(
             from: BrowserCookieImportSupport.importOrder(for: .museai),
