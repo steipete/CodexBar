@@ -142,6 +142,7 @@
 "Show less" = "Show less";
 "Workspace" = "Workspace";
 "Credits history" = "Credits history";
+"Cursor app session expired — open Cursor to sign in again, or sign in to cursor.com in your browser." = "Cursor app session expired — open Cursor to sign in again, or sign in to cursor.com in your browser.";
 "Cursor login failed" = "Cursor login failed";
 "Custom" = "Custom";
 "Custom Path" = "Custom Path";

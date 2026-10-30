@@ -176,6 +176,7 @@
 "Individual credits" = "Créditos individuales";
 "Workspace" = "Espacio de trabajo";
 "Credits history" = "Historial de créditos";
+"Cursor app session expired — open Cursor to sign in again, or sign in to cursor.com in your browser." = "La sesión de la app Cursor ha caducado — abre Cursor para volver a iniciar sesión o inicia sesión en cursor.com desde tu navegador.";
 "Cursor login failed" = "El inicio de sesión de Cursor falló";
 "Custom" = "Personalizado";
 "Custom Path" = "Ruta personalizada";

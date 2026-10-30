@@ -177,6 +177,7 @@
 "Individual credits" = "Tín dụng cá nhân";
 "Workspace" = "Không gian làm việc";
 "Credits history" = "Lịch sử tín dụng";
+"Cursor app session expired — open Cursor to sign in again, or sign in to cursor.com in your browser." = "Phiên ứng dụng Cursor đã hết hạn — mở Cursor để đăng nhập lại hoặc đăng nhập vào cursor.com trong trình duyệt.";
 "Cursor login failed" = "Đăng nhập con trỏ không thành công";
 "Custom" = "Tùy chỉnh";
 "Custom Path" = "Đường dẫn tùy chỉnh";

@@ -177,6 +177,7 @@
 "Individual credits" = "Особисті кредити";
 "Workspace" = "Робоча область";
 "Credits history" = "Історія кредитів";
+"Cursor app session expired — open Cursor to sign in again, or sign in to cursor.com in your browser." = "Термін дії сеансу програми Cursor закінчився — відкрийте Cursor, щоб увійти знову, або увійдіть на cursor.com у браузері.";
 "Cursor login failed" = "Помилка входу в Cursor";
 "Custom" = "Користувацький";
 "Custom Path" = "Власний шлях";
