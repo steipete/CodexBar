@@ -15,6 +15,7 @@ public struct ProviderPluginApprovalBinding: Codable, Equatable, Sendable {
     public let secretNames: [String]
     public let capabilities: [String]
     public let cookieDomains: [String]
+    public let dashboardURL: String?
 
     public init(manifest: ProviderPluginManifest, settings: [String: String]) throws {
         var origins: Set<String> = []
@@ -54,10 +55,15 @@ public struct ProviderPluginApprovalBinding: Codable, Equatable, Sendable {
         self.secretNames = manifest.settings.filter { $0.kind == .secure }.map(\.key).sorted()
         self.capabilities = manifest.capabilities.map(\.rawValue).sorted()
         self.cookieDomains = manifest.cookieDomains.sorted()
+        self.dashboardURL = try manifest.dashboardURL(settings: settings)?.absoluteString
     }
 
     public var typedConfirmationOrigins: [String] {
-        self.origins.filter(Self.requiresTypedConfirmation)
+        let dashboardOrigin = self.dashboardURL.flatMap(URL.init(string:)).flatMap {
+            try? ProviderPluginOrigin.normalizedOrigin(of: $0, policy: .httpsOrPrivateNetworkHTTP)
+        }
+        return Set(self.origins + [dashboardOrigin].compactMap(\.self))
+            .filter(Self.requiresTypedConfirmation).sorted()
     }
 
     private static func requiresTypedConfirmation(_ origin: String) -> Bool {
@@ -144,6 +150,14 @@ public struct UserProviderPlugin: @unchecked Sendable {
 
     public func approvalBinding(settings: [String: String]) throws -> ProviderPluginApprovalBinding {
         try ProviderPluginApprovalBinding(manifest: self.manifest, settings: settings)
+    }
+
+    public func approvedDashboardURL(
+        settings: [String: String], approvalStore: ProviderPluginApprovalStore) -> URL?
+    {
+        guard let binding = try? self.approvalBinding(settings: settings),
+              approvalStore.isApproved(binding), let raw = binding.dashboardURL else { return nil }
+        return URL(string: raw)
     }
 
     public func fetchUsage(

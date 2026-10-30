@@ -180,6 +180,14 @@ defineProvider({
   authenticated HTTP for loopback, RFC 1918 IPv4, IPv4 link-local, IPv6 unique-local/link-local, and `.local` targets,
   but only through the separate typed approval described below. Public targets always require HTTPS.
 - `auth` (optional): one of the forms below. The named secret must be a declared `secure` setting.
+- `dashboardURL` (optional): a fixed URL such as `"https://example.com/usage"`, or `{setting: "DASHBOARD_URL"}`
+  referencing a declared `plain` setting. A settings-derived destination must match an approved endpoint origin.
+  A fixed HTTPS destination may use a separate origin; the complete URL appears in the approval sheet and CLI
+  approval output. HTTP links must match an endpoint with an appropriate loopback/private-network policy and retain
+  its typed approval requirements. Unsupported schemes, embedded credentials, and fragments are rejected.
+  An omitted, empty, or unresolved link shows no action. Once approved, the selected plugin's menu shows
+  **Usage Dashboard**, which opens that destination in the default browser only on a click. Changing the resolved
+  URL requires fresh approval; links add no HTTP, cookie, or script authority and never fall back to another provider.
 - `settings`: up to 32 setting definitions. Keys contain 1–64 ASCII letters, digits, or underscores and start with a
   letter. Each entry has `key`, `title`, optional `subtitle`, and `type: "plain" | "secure"` (default `secure`).
 - `capabilities` (optional): `"browser-cookies"`, `"http-status"`, and `"persistent-storage"`. With `"http-status"`, the plugin observes

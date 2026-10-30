@@ -2,6 +2,8 @@
 
 ## 0.82.1 — Unreleased
 
+- Plugins: support an explicitly approved Usage Dashboard link from a fixed URL or a plain setting. (#4725)
+
 ### Fixed
 
 - MiniMax: discover China web sessions and read the current console's quota percentages, boosted limits, and unlimited windows. (#4831, #4832) Thanks @tangwz!
