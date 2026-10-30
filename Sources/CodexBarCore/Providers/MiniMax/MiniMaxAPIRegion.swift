@@ -15,7 +15,7 @@ public enum MiniMaxAPIRegion: String, CaseIterable, Sendable {
         case .global:
             "Global (platform.minimax.io)"
         case .chinaMainland:
-            "China mainland (platform.minimax.cn)"
+            "China mainland (platform.minimaxi.com)"
         }
     }
 

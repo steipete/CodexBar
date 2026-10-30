@@ -37,7 +37,7 @@ falls back across the provider's supported web requests when needed.
    - Low-level no-settings runtime can read `MINIMAX_COOKIE` or `MINIMAX_COOKIE_HEADER`.
 
 ## Requests
-- Web sessions use the global host or China mainland host. China session discovery includes both `minimax.cn` and legacy `minimaxi.com` browser data; the current quota endpoint is tried before legacy endpoints.
+- Web sessions use the global host or China mainland host. China session discovery includes both `minimax.cn` and legacy `minimaxi.com` browser data; the current quota endpoint is tried before legacy endpoints. Cookie queries match the listed provider hosts exactly before Safe Storage access, excluding lookalike domains. Browser-storage diagnostics omit raw keys and values.
 - Region picker in Providers settings toggles the host; environment overrides:
   - `MINIMAX_HOST=platform.minimaxi.com`
   - `MINIMAX_CODING_PLAN_URL=...` (full URL override)
@@ -55,6 +55,11 @@ Endpoint fallback, rejected-credential handling, and optional billing enrichment
   `/v1/api/openplatform/coding_plan/remains`.
 - Copy the `Cookie` request header (or use “Copy as cURL” and paste the whole line).
 - Paste into Preferences → Providers → MiniMax only if automatic import fails.
+
+The current China console reports used and total percentages for five-hour and weekly windows. CodexBar divides
+used by total, including boosted totals above 100%, and retains the console's unlimited status. This mapping follows
+the public client served by [the China usage console](https://platform.minimax.cn/console/usage); token API requests
+and their region endpoints remain unchanged.
 
 ## Snapshot mapping
 - Primary usage, reset timing, and plan/tier are derived from Coding Plan response fields or page text.

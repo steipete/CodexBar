@@ -74,32 +74,27 @@ public struct MiniMaxUsageFetcher: Sendable {
                 includeBillingHistory: includeBillingHistory,
                 now: now)
         } catch let error as MiniMaxUsageError {
-            if case .parseFailed = error {
-                Self.log.debug("MiniMax coding plan HTML parse failed, trying remains API")
-                let snapshot = try await self.attachingSubscriptionMetadataIfAvailable(
-                    to: self.fetchCodingPlanRemains(
-                        context: context,
-                        groupID: groupID,
-                        now: now),
-                    context: context,
-                    groupID: groupID)
-                return try await self.attachingBillingIfAvailable(
-                    to: snapshot,
-                    context: context,
-                    includeBillingHistory: includeBillingHistory,
-                    now: now)
+            switch error {
+            case .parseFailed:
+                break
+            case let .apiError(message) where ["HTTP 302", "HTTP 404", "HTTP 405"].contains(where: message.contains):
+                break
+            default:
+                throw error
             }
-            if case let .apiError(message) = error,
-               message.contains("HTTP 302") || message.contains("HTTP 404") || message.contains("HTTP 405")
-            {
-                let snapshot = try await self.attachingSubscriptionMetadataIfAvailable(
-                    to: self.fetchCodingPlanRemains(context: context, groupID: groupID, now: now),
+            Self.log.debug("MiniMax coding plan page unavailable, trying remains API")
+            let snapshot = try await self.attachingSubscriptionMetadataIfAvailable(
+                to: self.fetchCodingPlanRemains(
                     context: context,
-                    groupID: groupID)
-                return try await self.attachingBillingIfAvailable(
-                    to: snapshot, context: context, includeBillingHistory: includeBillingHistory, now: now)
-            }
-            throw error
+                    groupID: groupID,
+                    now: now),
+                context: context,
+                groupID: groupID)
+            return try await self.attachingBillingIfAvailable(
+                to: snapshot,
+                context: context,
+                includeBillingHistory: includeBillingHistory,
+                now: now)
         }
     }
 
@@ -479,8 +474,8 @@ public struct MiniMaxUsageFetcher: Sendable {
     }
 
     private static func appendGroupID(_ groupID: String?, to url: URL) -> URL {
-        guard let groupID, !groupID.isEmpty else { return url }
-        guard var components = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return url }
+        guard let groupID, !groupID.isEmpty,
+              var components = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return url }
         var queryItems = components.queryItems ?? []
         queryItems.append(URLQueryItem(name: "GroupId", value: groupID))
         components.queryItems = queryItems
@@ -574,9 +569,8 @@ public struct MiniMaxUsageFetcher: Sendable {
     }
 
     static func url(from raw: String, path: String? = nil, query: String? = nil) -> URL? {
-        guard let cleaned = SettingsValue.cleaned(raw) else { return nil }
-
-        guard let base = ProviderEndpointOverrideValidator.normalizedHTTPSURL(from: cleaned) else { return nil }
+        guard let cleaned = SettingsValue.cleaned(raw),
+              let base = ProviderEndpointOverrideValidator.normalizedHTTPSURL(from: cleaned) else { return nil }
         var components = URLComponents(url: base, resolvingAgainstBaseURL: false)!
         if let path { components.path = "/" + path }
         if let query { components.query = query }
@@ -1051,8 +1045,8 @@ enum MiniMaxUsageParser {
 
     private static func nextDataJSONData(fromHTML html: String) -> Data? {
         let data = Data(html.utf8)
-        guard let idRange = data.range(of: self.nextDataNeedle) else { return nil }
-        guard let openTagEnd = data[idRange.upperBound...].firstIndex(of: UInt8(ascii: ">")) else { return nil }
+        guard let idRange = data.range(of: self.nextDataNeedle),
+              let openTagEnd = data[idRange.upperBound...].firstIndex(of: UInt8(ascii: ">")) else { return nil }
         let contentStart = data.index(after: openTagEnd)
         guard let closeRange = data.range(
             of: self.scriptCloseNeedle,
@@ -1072,9 +1066,8 @@ enum MiniMaxUsageParser {
         let unitRaw = match[2]
 
         let prompts = Int(promptsRaw.replacingOccurrences(of: ",", with: "")) ?? 0
-        guard prompts > 0 else { return nil }
-
-        guard let duration = Double(durationRaw),
+        guard prompts > 0,
+              let duration = Double(durationRaw),
               let windowMinutes = self.minutes(from: duration, unit: unitRaw),
               windowMinutes > 0 else { return nil }
         return (prompts, windowMinutes)
@@ -1102,7 +1095,7 @@ enum MiniMaxUsageParser {
             pattern: #"(?i)resets?\s+in\s+([0-9]+)\s*(seconds?|secs?|s|minutes?|mins?|m|hours?|hrs?|h|days?|d)"#,
             text: text),
             match.count >= 2,
-            let value = Double(match[0])
+           let value = Double(match[0])
         {
             let unit = match[1]
             let seconds = self.seconds(from: value, unit: unit)

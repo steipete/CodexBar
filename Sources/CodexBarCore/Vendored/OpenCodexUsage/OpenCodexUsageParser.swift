@@ -13,7 +13,7 @@ import Crypto
 import Foundation
 
 public enum OpenCodexUsageParser {
-    private static let newline: UInt8 = 0x0A
+    private static let newline = Data([0x0A])
     /// Must match `OpenCodexUsageStore`'s prefix-digest window.
     private static let prefixDigestByteLimit = 64 * 1024
 
@@ -22,6 +22,7 @@ public enum OpenCodexUsageParser {
     }
 
     @TaskLocal static var logReadRecorderForTesting: LogReadRecorder?
+    @TaskLocal static var readSizeObserverForTesting: (@Sendable (Int) -> Void)?
 
     final class LogReadRecorder: @unchecked Sendable {
         private let lock = NSLock()
@@ -113,25 +114,45 @@ public enum OpenCodexUsageParser {
             throw ChangedUnderReadError(path: fileURL.path)
         }
 
-        // Hold the snapshotted bytes instead of `.mappedIfSafe`. A mapping can SIGBUS if the
-        // file is truncated before those pages are touched; Swift cannot catch that. Full parse
-        // holds the file (~42 MB on a heavy machine) and only runs on a cold cache or rebuild.
-        // The steady-state path reads only the appended tail (`parsedOffset..<size`).
-        let byteCount = size - startOffset
-        let data: Data
-        if byteCount == 0 {
-            data = Data()
-        } else {
-            try handle.seek(toOffset: UInt64(startOffset))
-            data = try Self.readExact(handle, byteCount: byteCount, path: fileURL.path)
+        // Read the snapshotted extent in chunks. Keep only an unfinished record between reads;
+        // mapping the file would instead risk SIGBUS if another process truncated it.
+        var parsed = JSONLParseResult(
+            entries: [],
+            nextOffset: startOffset,
+            bytesRead: size - startOffset,
+            completeLineCount: 0,
+            newlineTerminatedEntryCount: 0)
+        var pending = Data()
+        var prefix: Data?
+        var readOffset = startOffset
+        try handle.seek(toOffset: UInt64(startOffset))
+        while readOffset < size {
+            try autoreleasepool {
+                let chunk = try Self.readExact(
+                    handle, byteCount: min(64 * 1024, size - readOffset), path: fileURL.path)
+                if readOffset == 0 { prefix = chunk }
+                readOffset += Int64(chunk.count)
+                guard let newline = chunk.range(of: Self.newline, options: .backwards)?.lowerBound else {
+                    pending.append(chunk)
+                    return
+                }
+                pending.append(chunk[...newline])
+                let batch = self.parseJSONL(pending, baseOffset: parsed.nextOffset)
+                parsed.entries.append(contentsOf: batch.entries)
+                parsed.nextOffset = batch.nextOffset
+                parsed.completeLineCount += batch.completeLineCount
+                parsed.newlineTerminatedEntryCount += batch.newlineTerminatedEntryCount
+                pending = Data(chunk[chunk.index(after: newline)...])
+            }
         }
-
-        var parsed = self.parseJSONL(data, baseOffset: startOffset)
+        let trailing = self.parseJSONL(pending, baseOffset: parsed.nextOffset)
+        parsed.entries.append(contentsOf: trailing.entries)
+        parsed.completeLineCount += trailing.completeLineCount
         parsed.fileIdentity = fileIdentity
         parsed.size = size
         parsed.prefixDigest = try Self.prefixDigest(
             handle: handle,
-            fileData: startOffset == 0 ? data : nil,
+            fileData: prefix,
             nextOffset: parsed.nextOffset,
             path: fileURL.path)
         self.logReadRecorderForTesting?.record(bytes: parsed.bytesRead, lines: parsed.completeLineCount)
@@ -182,8 +203,7 @@ public enum OpenCodexUsageParser {
         var completeLineCount = 0
         var lineStart = data.startIndex
         var lastCompleteEnd = data.startIndex
-        for newlineOffset in self.newlineOffsets(in: data) {
-            let newlineIndex = data.index(data.startIndex, offsetBy: newlineOffset)
+        while let newlineIndex = data.range(of: Self.newline, in: lineStart..<data.endIndex)?.lowerBound {
             if let entry = self.parseLineData(data[lineStart..<newlineIndex]) {
                 entries.append(entry)
             }
@@ -208,43 +228,6 @@ public enum OpenCodexUsageParser {
             bytesRead: Int64(data.count),
             completeLineCount: completeLineCount,
             newlineTerminatedEntryCount: newlineTerminatedEntryCount)
-    }
-
-    private static func newlineOffsets(in data: Data) -> [Int] {
-        #if canImport(Darwin) || canImport(Glibc) || canImport(Musl)
-        let scanned: [Int]? = data.withUnsafeBytes { rawBuffer in
-            guard let baseAddress = rawBuffer.baseAddress else { return nil }
-            let count = rawBuffer.count
-            var offsets: [Int] = []
-            offsets.reserveCapacity(max(1, count / 64))
-            var searchStart = 0
-            while searchStart < count {
-                guard let found = memchr(
-                    baseAddress.advanced(by: searchStart),
-                    Int32(Self.newline),
-                    count - searchStart)
-                else {
-                    break
-                }
-                let newlineOffset = baseAddress.distance(to: UnsafeRawPointer(found))
-                offsets.append(newlineOffset)
-                searchStart = newlineOffset + 1
-            }
-            return offsets
-        }
-        if let scanned {
-            return scanned
-        }
-        #endif
-        var offsets: [Int] = []
-        var index = data.startIndex
-        while index < data.endIndex {
-            if data[index] == Self.newline {
-                offsets.append(data.distance(from: data.startIndex, to: index))
-            }
-            index = data.index(after: index)
-        }
-        return offsets
     }
 
     private static func parseLineData(_ line: Data) -> OpenCodexUsageEntry? {
@@ -369,6 +352,7 @@ public enum OpenCodexUsageParser {
 
     private static func readExact(_ handle: FileHandle, byteCount: Int64, path: String) throws -> Data {
         let count = Int(byteCount)
+        self.readSizeObserverForTesting?(count)
         var data = Data()
         data.reserveCapacity(count)
         while data.count < count {
