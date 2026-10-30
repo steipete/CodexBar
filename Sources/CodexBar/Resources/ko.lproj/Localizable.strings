@@ -2729,3 +2729,12 @@
 "Show this Mac's recorded OpenCode usage in Codex history. Off by default; scoped or alternate CODEX_HOME locations always stay excluded." = "이 Mac에 기록된 OpenCode 사용량을 Codex 기록에 표시합니다. 기본적으로 꺼져 있으며, 범위가 제한된 CODEX_HOME 위치나 대체 위치는 항상 제외됩니다.";
 "Auto uses the active saved session, otherwise an API key or browser cookies." = "자동은 활성 저장된 세션을 사용하며, 활성 세션이 없으면 API 키 또는 브라우저 쿠키를 사용합니다.";
 "Store multiple Command Code subscription sessions." = "Command Code 구독 세션을 여러 개 저장합니다.";
+
+/* OpenDesign */
+"OpenDesign" = "OpenDesign";
+"Show OpenDesign usage" = "OpenDesign 사용량 표시";
+"Sign in to OpenDesign, then refresh CodexBar." = "OpenDesign에 로그인한 다음 CodexBar를 새로 고치세요.";
+"OpenDesign usage response format changed." = "OpenDesign 사용량 응답 형식이 변경되었습니다.";
+"OpenDesign billing access was denied." = "OpenDesign 결제 정보 접근이 거부되었습니다.";
+"OpenDesign request failed. Try again later." = "OpenDesign 요청에 실패했습니다. 나중에 다시 시도하세요.";
+"OpenDesign subscription usage is unavailable for this workspace." = "이 작업 공간에서는 OpenDesign 구독 사용량을 확인할 수 없습니다.";

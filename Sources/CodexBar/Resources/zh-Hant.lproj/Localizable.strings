@@ -2739,3 +2739,12 @@
 "Show this Mac's recorded OpenCode usage in Codex history. Off by default; scoped or alternate CODEX_HOME locations always stay excluded." = "在 Codex 歷史記錄中顯示此 Mac 上記錄的 OpenCode 用量。預設關閉；一律排除限定範圍或其他 CODEX_HOME 位置。";
 "Auto uses the active saved session, otherwise an API key or browser cookies." = "自動使用目前啟用的已儲存工作階段，否則使用 API 金鑰或瀏覽器 Cookie。";
 "Store multiple Command Code subscription sessions." = "儲存多個 Command Code 訂閱工作階段。";
+
+/* OpenDesign */
+"OpenDesign" = "OpenDesign";
+"Show OpenDesign usage" = "顯示 OpenDesign 用量";
+"Sign in to OpenDesign, then refresh CodexBar." = "登入 OpenDesign，然後重新整理 CodexBar。";
+"OpenDesign usage response format changed." = "OpenDesign 用量回應格式已變更。";
+"OpenDesign billing access was denied." = "OpenDesign 帳單存取遭到拒絕。";
+"OpenDesign request failed. Try again later." = "OpenDesign 請求失敗。請稍後再試。";
+"OpenDesign subscription usage is unavailable for this workspace." = "此工作區的 OpenDesign 訂閱用量無法取得。";

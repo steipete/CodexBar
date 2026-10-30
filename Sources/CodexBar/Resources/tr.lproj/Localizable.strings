@@ -2764,3 +2764,12 @@
 "Show this Mac's recorded OpenCode usage in Codex history. Off by default; scoped or alternate CODEX_HOME locations always stay excluded." = "Bu Mac’te kaydedilen OpenCode kullanımını Codex geçmişinde gösterir. Varsayılan olarak kapalıdır; kapsamı sınırlandırılmış veya alternatif CODEX_HOME konumları her zaman hariç tutulur.";
 "Auto uses the active saved session, otherwise an API key or browser cookies." = "Otomatik, etkin kayıtlı oturumu kullanır; yoksa bir API anahtarı veya tarayıcı çerezlerini kullanır.";
 "Store multiple Command Code subscription sessions." = "Birden fazla Command Code abonelik oturumunu depolayın.";
+
+/* OpenDesign */
+"OpenDesign" = "OpenDesign";
+"Show OpenDesign usage" = "OpenDesign kullanımını göster";
+"Sign in to OpenDesign, then refresh CodexBar." = "OpenDesign hesabınıza giriş yapın, ardından CodexBar’ı yenileyin.";
+"OpenDesign usage response format changed." = "OpenDesign kullanım yanıtının biçimi değişti.";
+"OpenDesign billing access was denied." = "OpenDesign fatura bilgilerine erişim reddedildi.";
+"OpenDesign request failed. Try again later." = "OpenDesign isteği başarısız oldu. Daha sonra tekrar deneyin.";
+"OpenDesign subscription usage is unavailable for this workspace." = "Bu çalışma alanı için OpenDesign abonelik kullanımı mevcut değil.";

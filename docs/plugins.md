@@ -102,6 +102,9 @@ nonpersistent cookie sessions use the shared access gate; the existing Gemini CL
 never sees cookie values. It lists organizations, then reads required `prepaid/credits` (a 403 tries the next API
 organization) and optional `current_spend`, whose failures keep the balance. Both plugin engines run it.
 
+[OpenDesign](opendesign.md) uses opaque, request-scoped cookies for two read-only GETs: current workspace and
+subscription windows. Its script validates workspace ownership and selects five-hour/weekly quotas by duration.
+
 Manus, Muse (muse.ai), Perplexity, Hyper, Raycast, Sakana, and T3 Chat use the shared app implementation. Helmcode retains its tenant
 picker/snapshot, and Qoder retains its regional dashboard action and source-label adapter while sharing cookie UI.
 Provider-owned values resolvers retain token normalization and captured-header allowlists. Replicate and TypeSafe

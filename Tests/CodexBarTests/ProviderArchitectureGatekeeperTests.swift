@@ -156,9 +156,9 @@ struct ProviderArchitectureGatekeeperTests {
             Self.hash(descriptor.branding.burnDownWidgetColor, into: &burnDownFingerprint)
         }
 
-        // abliteration.ai extends the audited palette without changing existing provider colors.
-        #expect(widgetFingerprint == 15_607_976_071_525_726_946)
-        #expect(burnDownFingerprint == 15_045_926_470_290_336_419)
+        // OpenDesign extends the audited palette without changing existing provider colors.
+        #expect(widgetFingerprint == 12_294_021_938_397_504_337)
+        #expect(burnDownFingerprint == 9_386_534_283_149_694_433)
     }
 
     @Test

@@ -2766,3 +2766,12 @@
 "OpenCode local history" = "OpenCode local history";
 
 "Show this Mac's recorded OpenCode usage in Codex history. Off by default; scoped or alternate CODEX_HOME locations always stay excluded." = "Show this Mac's recorded OpenCode usage in Codex history. Off by default; scoped or alternate CODEX_HOME locations always stay excluded.";
+
+/* OpenDesign */
+"OpenDesign" = "OpenDesign";
+"Show OpenDesign usage" = "Show OpenDesign usage";
+"Sign in to OpenDesign, then refresh CodexBar." = "Sign in to OpenDesign, then refresh CodexBar.";
+"OpenDesign usage response format changed." = "OpenDesign usage response format changed.";
+"OpenDesign billing access was denied." = "OpenDesign billing access was denied.";
+"OpenDesign request failed. Try again later." = "OpenDesign request failed. Try again later.";
+"OpenDesign subscription usage is unavailable for this workspace." = "OpenDesign subscription usage is unavailable for this workspace.";

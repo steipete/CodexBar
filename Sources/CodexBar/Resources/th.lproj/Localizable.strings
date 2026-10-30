@@ -2763,3 +2763,12 @@
 "Show this Mac's recorded OpenCode usage in Codex history. Off by default; scoped or alternate CODEX_HOME locations always stay excluded." = "แสดงการใช้งาน OpenCode ที่บันทึกไว้บน Mac เครื่องนี้ในประวัติ Codex ปิดอยู่ตามค่าเริ่มต้น โดยจะไม่รวมตำแหน่ง CODEX_HOME ที่จำกัดขอบเขตหรือตำแหน่งอื่นเสมอ";
 "Auto uses the active saved session, otherwise an API key or browser cookies." = "อัตโนมัติจะใช้เซสชันที่บันทึกไว้ซึ่งกำลังใช้งาน หากไม่มี จะใช้คีย์ API หรือคุกกี้ของเบราว์เซอร์";
 "Store multiple Command Code subscription sessions." = "จัดเก็บเซสชันการสมัครสมาชิก Command Code หลายรายการ";
+
+/* OpenDesign */
+"OpenDesign" = "OpenDesign";
+"Show OpenDesign usage" = "แสดงการใช้งาน OpenDesign";
+"Sign in to OpenDesign, then refresh CodexBar." = "ลงชื่อเข้าใช้ OpenDesign แล้วรีเฟรช CodexBar";
+"OpenDesign usage response format changed." = "รูปแบบการตอบกลับข้อมูลการใช้งาน OpenDesign เปลี่ยนไป";
+"OpenDesign billing access was denied." = "การเข้าถึงข้อมูลการเรียกเก็บเงินของ OpenDesign ถูกปฏิเสธ";
+"OpenDesign request failed. Try again later." = "คำขอ OpenDesign ล้มเหลว โปรดลองอีกครั้งภายหลัง";
+"OpenDesign subscription usage is unavailable for this workspace." = "ไม่มีข้อมูลการใช้งานการสมัครสมาชิก OpenDesign สำหรับพื้นที่ทำงานนี้";

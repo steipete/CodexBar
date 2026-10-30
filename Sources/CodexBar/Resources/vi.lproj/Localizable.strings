@@ -2762,3 +2762,12 @@
 "Show this Mac's recorded OpenCode usage in Codex history. Off by default; scoped or alternate CODEX_HOME locations always stay excluded." = "Hiển thị mức sử dụng OpenCode được ghi lại trên máy Mac này trong lịch sử Codex. Mặc định tắt; luôn loại trừ các vị trí CODEX_HOME có phạm vi giới hạn hoặc vị trí thay thế.";
 "Auto uses the active saved session, otherwise an API key or browser cookies." = "Tự động sử dụng phiên đã lưu đang hoạt động, nếu không thì sử dụng khóa API hoặc cookie trình duyệt.";
 "Store multiple Command Code subscription sessions." = "Lưu trữ nhiều phiên đăng ký Command Code.";
+
+/* OpenDesign */
+"OpenDesign" = "OpenDesign";
+"Show OpenDesign usage" = "Hiển thị mức sử dụng OpenDesign";
+"Sign in to OpenDesign, then refresh CodexBar." = "Đăng nhập vào OpenDesign, sau đó làm mới CodexBar.";
+"OpenDesign usage response format changed." = "Định dạng phản hồi mức sử dụng OpenDesign đã thay đổi.";
+"OpenDesign billing access was denied." = "Quyền truy cập thông tin thanh toán OpenDesign bị từ chối.";
+"OpenDesign request failed. Try again later." = "Yêu cầu OpenDesign thất bại. Vui lòng thử lại sau.";
+"OpenDesign subscription usage is unavailable for this workspace." = "Không có dữ liệu sử dụng gói đăng ký OpenDesign cho không gian làm việc này.";
