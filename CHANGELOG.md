@@ -5,6 +5,9 @@
 ### Fixed
 
 - OpenCodex: reduce temporary memory use when importing large usage logs (#4803).
+### Changed
+
+- Updates: refresh Sparkle to improve update installation, download progress, and release-note handling.
 
 ## 0.82.0 — 2026-10-26
 
