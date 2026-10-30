@@ -39,7 +39,7 @@ struct CopilotMenuBarPaceTests {
                 appearanceName: "aqua",
                 isDebugApp: false,
                 now: now,
-                colorPace: true))
+                colorPace: false))
         #expect(output.attributedTitle.string.hasSuffix("+20%"))
     }
 

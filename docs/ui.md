@@ -151,14 +151,16 @@ tokens, including conditional layouts, and both live and sample layout previews.
 pace stays an en dash. The menu card's reserve/deficit wording and the numeric meaning of saved conditional rules
 do not change: positive pace thresholds still mean usage ahead of pace.
 
-Enable **Color Pace Indicator** under **Menu Bar → Icon** to show usage behind pace (reserve) in green and usage ahead
-of pace (risk of running out early) in red. The option defaults off, applies to all four pace tokens and the layout
-preview, and keeps the signed percentages. Zero and unavailable pace stay neutral; stale pace colors are dimmed unless high-contrast rendering is active.
-It colors **Session pace**, **Weekly pace**, **Auto pace**, and **Spend pace** in the layout editor. Enabling it does not add tokens,
-rewrite stored layouts, or migrate legacy display modes. Existing installs stay monochrome until the option is enabled.
+Enable **Color Pace Indicator** under **Menu Bar → Icon** to show a green bar for usage behind pace (reserve) and a red bar
+for usage ahead of pace (risk of running out early). Signed percentages keep their neutral text color, and the bars scale
+with the font. The option defaults on and applies to all four pace tokens and the layout preview.
+Zero pace uses a neutral bar; unavailable pace stays a plain dash.
+Stale pace colors are dimmed unless high-contrast rendering is active.
+It applies to **Session pace**, **Weekly pace**, **Auto pace**, and **Spend pace** in the layout editor. Enabling it does not add tokens,
+rewrite stored layouts or migrate legacy display modes. Saved on/off choices are preserved; state bars are enabled when no choice has been saved.
 These colors keep the same meaning with either pace sign: reserve is green and deficit is red.
 
-Enable **Color by provider** under **Menu Bar → Icon** to tint each provider slot with its accent color, including custom accents. This single toggle defaults off and works with Critters, Meter bars, and Icon & percent, including stacked provider rows; it never changes the saved layout or the Brand/Monochrome artwork used in Usage & Spend. Pace tokens keep their independent green/red colors and VoiceOver keeps the same spoken labels.
+Enable **Color by provider** under **Menu Bar → Icon** to tint each provider slot with its accent color, including custom accents. This single toggle defaults off and works with Critters, Meter bars, and Icon & percent, including stacked provider rows; it never changes the saved layout or the Brand/Monochrome artwork used in Usage & Spend. Pace indicators keep their independent green/red colors and VoiceOver keeps the same spoken labels.
 
 Provider color falls back to monochrome while a menu is open, data is stale, system Increase Contrast is enabled, or the inactive-display contrast option is enabled. Color returns immediately when the menu closes. Accents must meet a 2:1 contrast threshold against conservative reference backgrounds (25% sRGB gray in dark appearance, 85% in light appearance); this is not a WCAG text-conformance claim or wallpaper sampling. Unsupported or low-contrast accents use the system template rendering. The layout preview follows its own light/dark and accessibility environment.
 

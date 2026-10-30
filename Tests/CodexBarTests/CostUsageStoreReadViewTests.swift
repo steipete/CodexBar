@@ -236,7 +236,11 @@ extension CostUsageStoreReadWorkTests {
             completedCurrentWindowRootPaths: roots,
             completedCurrentWindowFlatRootPaths: roots,
             cacheWideMigrationQueueActive: metadataOnlyPending ? nil : true)
-        CostUsageStoreAccess.replace(cacheRoot: fixture.env.cacheRoot, cache: cache, calendar: fixture.calendar)
+        CostUsageStoreAccess.replace(
+            cacheRoot: fixture.env.cacheRoot,
+            home: fixture.env.codexStoreHome,
+            cache: cache,
+            calendar: fixture.calendar)
 
         let status = await CostUsageFetcher(scannerOptions: fixture.options).codexScanCatchUpStatus()
         let cached = try #require(await fixture.cachedSnapshot())
@@ -360,7 +364,10 @@ extension ReadWorkFixture {
     func fullCachedSnapshot(cache: CostUsageCache? = nil) -> CostUsageTokenSnapshot {
         let roots = CostUsageScanner.codexSessionsRoots(options: self.options)
         let full = CostUsageScanner.codexCache(
-            cache ?? CostUsageStoreAccess.read(cacheRoot: self.env.cacheRoot, calendar: self.calendar), scopedTo: roots)
+            cache ?? CostUsageStoreAccess.read(
+                cacheRoot: self.env.cacheRoot,
+                home: self.env.codexStoreHome,
+                calendar: self.calendar), scopedTo: roots)
         return CostUsageFetcher.tokenSnapshot(
             from: .merged([self.fullReport(full)]),
             now: self.now,

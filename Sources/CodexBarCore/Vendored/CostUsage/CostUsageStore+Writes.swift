@@ -12,7 +12,7 @@ extension CostUsageStore {
     @discardableResult
     func upsertFile(_ file: CostUsageStoreFile) -> Bool {
         self.withDatabase(default: false) { database in
-            try Self.upsertFileIn(database, file: file)
+            try Self.upsertFileIn(database, file: file, home: self.home)
             return true
         }
     }
@@ -21,15 +21,16 @@ extension CostUsageStore {
     /// transaction (the adapter's atomic pass). Throws on bind/step failures.
     static func upsertFileIn(
         _ database: OpaquePointer,
-        file: CostUsageStoreFile) throws
+        file: CostUsageStoreFile,
+        home: String) throws
     {
         let state = try JSONEncoder().encode(file.scanState)
         let statement = try Self.prepare(database, """
         INSERT INTO files (
             path, inode, mtime_ms, size, parsed_bytes, anchor_indexed_bytes,
             anchor_window_start, anchor_sha256, scan_state, scan_target_size,
-            scan_complete, session_id, coverage_since_day, coverage_until_day, updated_at_ms
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            scan_complete, session_id, coverage_since_day, coverage_until_day, updated_at_ms, home
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(path) DO UPDATE SET
             inode = excluded.inode,
             mtime_ms = excluded.mtime_ms,
@@ -45,6 +46,7 @@ extension CostUsageStore {
             coverage_since_day = excluded.coverage_since_day,
             coverage_until_day = excluded.coverage_until_day,
             updated_at_ms = excluded.updated_at_ms
+        WHERE files.home = excluded.home
         """)
         defer { sqlite3_finalize(statement) }
         Self.bind(file.path, to: statement, at: 1)
@@ -62,7 +64,9 @@ extension CostUsageStore {
         Self.bind(file.coverageSinceDay, to: statement, at: 13)
         Self.bind(file.coverageUntilDay, to: statement, at: 14)
         sqlite3_bind_int64(statement, 15, file.updatedAtUnixMs)
+        Self.bind(home, to: statement, at: 16)
         try Self.stepDone(statement, database: database)
+        guard sqlite3_changes(database) > 0 else { throw StoreError.sqlite(SQLITE_CONSTRAINT) }
     }
 
     @discardableResult
@@ -70,40 +74,7 @@ extension CostUsageStore {
         guard !snapshots.isEmpty else { return true }
         return self.withDatabase(default: false) { database in
             try Self.inTransaction(database) {
-                let statement = try Self.prepare(database, """
-                INSERT INTO token_snapshots (
-                    file_id, event_index, timestamp, timestamp_ms, day,
-                    last_input, last_cached, last_output, last_reasoning,
-                    total_input, total_cached, total_output, total_reasoning, end_offset
-                ) VALUES ((SELECT id FROM files WHERE path = ?), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT(file_id, event_index) DO UPDATE SET
-                    timestamp = excluded.timestamp,
-                    timestamp_ms = excluded.timestamp_ms,
-                    day = excluded.day,
-                    last_input = excluded.last_input,
-                    last_cached = excluded.last_cached,
-                    last_output = excluded.last_output,
-                    last_reasoning = excluded.last_reasoning,
-                    total_input = excluded.total_input,
-                    total_cached = excluded.total_cached,
-                    total_output = excluded.total_output,
-                    total_reasoning = excluded.total_reasoning,
-                    end_offset = excluded.end_offset
-                """)
-                defer { sqlite3_finalize(statement) }
-                for snapshot in snapshots {
-                    sqlite3_reset(statement)
-                    sqlite3_clear_bindings(statement)
-                    Self.bind(snapshot.path, to: statement, at: 1)
-                    sqlite3_bind_int64(statement, 2, Int64(snapshot.eventIndex))
-                    Self.bind(snapshot.timestamp, to: statement, at: 3)
-                    Self.bind(snapshot.timestampUnixMs, to: statement, at: 4)
-                    Self.bind(snapshot.day, to: statement, at: 5)
-                    Self.bindTotals(snapshot.last, to: statement, startingAt: 6)
-                    Self.bindTotals(snapshot.total, to: statement, startingAt: 10)
-                    Self.bind(snapshot.endOffset, to: statement, at: 14)
-                    try Self.stepDone(statement, database: database)
-                }
+                try Self.insertTokenSnapshots(database, snapshots: snapshots, home: self.home)
             }
             return true
         }
@@ -115,12 +86,13 @@ extension CostUsageStore {
         return self.withDatabase(default: false) { database in
             try Self.inTransaction(database) {
                 let delete = try Self.prepare(database, """
-                DELETE FROM token_snapshots WHERE file_id = (SELECT id FROM files WHERE path = ?)
+                DELETE FROM token_snapshots WHERE file_id = (SELECT id FROM files WHERE path = ? AND home = ?)
                 """)
                 defer { sqlite3_finalize(delete) }
                 Self.bind(path, to: delete, at: 1)
+                Self.bind(self.home, to: delete, at: 2)
                 try Self.stepDone(delete, database: database)
-                try Self.insertTokenSnapshots(database, snapshots: snapshots)
+                try Self.insertTokenSnapshots(database, snapshots: snapshots, home: self.home)
             }
             return true
         }
@@ -131,7 +103,7 @@ extension CostUsageStore {
         guard rows.allSatisfy({ $0.path == path }) else { return false }
         return self.withDatabase(default: false) { database in
             try Self.inTransaction(database) {
-                try Self.replaceUsageRows(database, path: path, rows: rows)
+                try Self.replaceUsageRows(database, path: path, rows: rows, home: self.home)
             }
             return true
         }
@@ -142,7 +114,7 @@ extension CostUsageStore {
         guard !rows.isEmpty else { return true }
         return self.withDatabase(default: false) { database in
             try Self.inTransaction(database) {
-                try Self.insertUsageRows(database, rows: rows)
+                try Self.insertUsageRows(database, rows: rows, home: self.home)
             }
             return true
         }
@@ -230,11 +202,11 @@ extension CostUsageStore {
                             removed.append(identity)
                         }
                     }
-                    try Self.upsertFileIn(database, file: file)
+                    try Self.upsertFileIn(database, file: file, home: self.home)
                     try Self.deleteUsageRowsByIndices(database, path: file.path, rowIndices: removed)
-                    try Self.insertUsageRows(database, rows: rows)
-                    try Self.mergeDayAggregatesIn(database, deltas: deltas, path: file.path)
-                    try Self.mergeDayAggregatesIn(database, deltas: deltas)
+                    try Self.insertUsageRows(database, rows: rows, home: self.home)
+                    try Self.mergeDayAggregatesIn(database, deltas: deltas, path: file.path, home: self.home)
+                    try Self.mergeDayAggregatesIn(database, deltas: deltas, home: self.home)
                 }
                 return true
             } catch is StaleBaseline {
@@ -295,10 +267,11 @@ extension CostUsageStore {
             try Self.inTransaction(database) {
                 let delete = try Self.prepare(database, """
                 DELETE FROM file_day_aggregates
-                WHERE file_id = (SELECT id FROM files WHERE path = ?)
+                WHERE file_id = (SELECT id FROM files WHERE path = ? AND home = ?)
                 """)
                 defer { sqlite3_finalize(delete) }
                 Self.bind(path, to: delete, at: 1)
+                Self.bind(self.home, to: delete, at: 2)
                 try Self.stepDone(delete, database: database)
 
                 let insert = try Self.prepare(database, """
@@ -308,16 +281,18 @@ extension CostUsageStore {
                     standard_input_tokens, standard_cached_tokens, standard_output_tokens,
                     priority_input_tokens, priority_cached_tokens, priority_output_tokens,
                     standard_tokens, priority_tokens
-                ) VALUES ((SELECT id FROM files WHERE path = ?), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES ((SELECT id FROM files WHERE path = ? AND home = ?),
+                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """)
                 defer { sqlite3_finalize(insert) }
                 for aggregate in aggregates {
                     sqlite3_reset(insert)
                     sqlite3_clear_bindings(insert)
                     Self.bind(path, to: insert, at: 1)
-                    Self.bind(aggregate.day, to: insert, at: 2)
-                    Self.bind(aggregate.model, to: insert, at: 3)
-                    Self.bindAggregateValues(aggregate, to: insert, startingAt: 4)
+                    Self.bind(self.home, to: insert, at: 2)
+                    Self.bind(aggregate.day, to: insert, at: 3)
+                    Self.bind(aggregate.model, to: insert, at: 4)
+                    Self.bindAggregateValues(aggregate, to: insert, startingAt: 5)
                     try Self.stepDone(insert, database: database)
                 }
             }
@@ -330,7 +305,7 @@ extension CostUsageStore {
         guard !deltas.isEmpty else { return true }
         return self.withDatabase(default: false) { database in
             try Self.inTransaction(database) {
-                try Self.mergeDayAggregatesIn(database, deltas: deltas)
+                try Self.mergeDayAggregatesIn(database, deltas: deltas, home: self.home)
             }
             return true
         }
@@ -339,7 +314,8 @@ extension CostUsageStore {
     static func mergeDayAggregatesIn(
         _ database: OpaquePointer,
         deltas: [CostUsageStoreDayAggregate],
-        path: String? = nil) throws
+        path: String? = nil,
+        home: String) throws
     {
         guard !deltas.isEmpty else { return }
         let columns = [
@@ -349,8 +325,8 @@ extension CostUsageStore {
             "priority_tokens",
         ]
         let table = path == nil ? "day_aggregates" : "file_day_aggregates"
-        let keys = (path == nil ? [] : ["file_id"]) + ["day", "model"]
-        let values = (path == nil ? [] : ["(SELECT id FROM files WHERE path = ?)"])
+        let keys = (path == nil ? ["home"] : ["file_id"]) + ["day", "model"]
+        let values = (path == nil ? ["?"] : ["(SELECT id FROM files WHERE path = ? AND home = ?)"])
             + Array(repeating: "?", count: 2 + columns.count)
         let updates = columns.map { "\($0) = \($0) + excluded.\($0)" }.joined(separator: ", ")
         let statement = try Self.prepare(database, """
@@ -359,7 +335,9 @@ extension CostUsageStore {
         ON CONFLICT(\(keys.joined(separator: ", "))) DO UPDATE SET \(updates)
         """)
         defer { sqlite3_finalize(statement) }
-        let filePredicate = path == nil ? "" : "file_id = (SELECT id FROM files WHERE path = ?) AND "
+        let filePredicate = path == nil
+            ? "home = ? AND "
+            : "file_id = (SELECT id FROM files WHERE path = ? AND home = ?) AND "
         let removeEmpty = try Self.prepare(database, """
         DELETE FROM \(table) WHERE \(filePredicate)day = ? AND model = ?
         AND \(columns.map { "\($0) = 0" }.joined(separator: " AND "))
@@ -370,9 +348,10 @@ extension CostUsageStore {
             sqlite3_clear_bindings(statement)
             sqlite3_reset(removeEmpty)
             sqlite3_clear_bindings(removeEmpty)
-            let start: Int32 = path == nil ? 1 : 2
+            let start: Int32 = path == nil ? 2 : 3
             for target in [statement, removeEmpty] {
                 if let path { Self.bind(path, to: target, at: 1) }
+                Self.bind(home, to: target, at: path == nil ? 1 : 2)
                 Self.bind(delta.day, to: target, at: start)
                 Self.bind(delta.model, to: target, at: start + 1)
             }
@@ -386,8 +365,8 @@ extension CostUsageStore {
     func replaceDayAggregates(_ aggregates: [CostUsageStoreDayAggregate]) -> Bool {
         self.withDatabase(default: false) { database in
             try Self.inTransaction(database) {
-                try Self.execute(database, "DELETE FROM day_aggregates")
-                try Self.insertDayAggregates(database, aggregates: aggregates)
+                try Self.deleteHomeRows(database, table: "day_aggregates", home: self.home)
+                try Self.insertDayAggregates(database, aggregates: aggregates, home: self.home)
             }
             return true
         }
@@ -399,14 +378,15 @@ extension CostUsageStore {
 extension CostUsageStore {
     static func insertTokenSnapshots(
         _ database: OpaquePointer,
-        snapshots: [CostUsageStoreTokenSnapshot]) throws
+        snapshots: [CostUsageStoreTokenSnapshot],
+        home: String) throws
     {
         let statement = try self.prepare(database, """
         INSERT INTO token_snapshots (
             file_id, event_index, timestamp, timestamp_ms, day,
             last_input, last_cached, last_output, last_reasoning,
             total_input, total_cached, total_output, total_reasoning, end_offset
-        ) VALUES ((SELECT id FROM files WHERE path = ?), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES ((SELECT id FROM files WHERE path = ? AND home = ?), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(file_id, event_index) DO UPDATE SET
             timestamp = excluded.timestamp, timestamp_ms = excluded.timestamp_ms, day = excluded.day,
             last_input = excluded.last_input, last_cached = excluded.last_cached,
@@ -420,20 +400,22 @@ extension CostUsageStore {
             sqlite3_reset(statement)
             sqlite3_clear_bindings(statement)
             self.bind(snapshot.path, to: statement, at: 1)
-            sqlite3_bind_int64(statement, 2, Int64(snapshot.eventIndex))
-            self.bind(snapshot.timestamp, to: statement, at: 3)
-            self.bind(snapshot.timestampUnixMs, to: statement, at: 4)
-            self.bind(snapshot.day, to: statement, at: 5)
-            self.bindTotals(snapshot.last, to: statement, startingAt: 6)
-            self.bindTotals(snapshot.total, to: statement, startingAt: 10)
-            self.bind(snapshot.endOffset, to: statement, at: 14)
+            self.bind(home, to: statement, at: 2)
+            sqlite3_bind_int64(statement, 3, Int64(snapshot.eventIndex))
+            self.bind(snapshot.timestamp, to: statement, at: 4)
+            self.bind(snapshot.timestampUnixMs, to: statement, at: 5)
+            self.bind(snapshot.day, to: statement, at: 6)
+            self.bindTotals(snapshot.last, to: statement, startingAt: 7)
+            self.bindTotals(snapshot.total, to: statement, startingAt: 11)
+            self.bind(snapshot.endOffset, to: statement, at: 15)
             try self.stepDone(statement, database: database)
         }
     }
 
     static func insertDayAggregates(
         _ database: OpaquePointer,
-        aggregates: [CostUsageStoreDayAggregate]) throws
+        aggregates: [CostUsageStoreDayAggregate],
+        home: String) throws
     {
         let statement = try self.prepare(database, """
         INSERT INTO day_aggregates (
@@ -441,8 +423,8 @@ extension CostUsageStore {
             request_count, authoritative_cost_nanos,
             standard_input_tokens, standard_cached_tokens, standard_output_tokens,
             priority_input_tokens, priority_cached_tokens, priority_output_tokens,
-            standard_tokens, priority_tokens
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            standard_tokens, priority_tokens, home
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """)
         defer { sqlite3_finalize(statement) }
         for aggregate in aggregates {
@@ -451,6 +433,7 @@ extension CostUsageStore {
             self.bind(aggregate.day, to: statement, at: 1)
             self.bind(aggregate.model, to: statement, at: 2)
             self.bindAggregateValues(aggregate, to: statement, startingAt: 3)
+            self.bind(home, to: statement, at: 17)
             try self.stepDone(statement, database: database)
         }
     }
@@ -462,7 +445,7 @@ extension CostUsageStore {
             INSERT INTO fork_lineage (
                 file_id, session_id, forked_from_id, fork_timestamp, dependency_key,
                 subagent_state, accounting_state
-            ) VALUES ((SELECT id FROM files WHERE path = ?), ?, ?, ?, ?, ?, ?)
+            ) VALUES ((SELECT id FROM files WHERE path = ? AND home = ?), ?, ?, ?, ?, ?, ?)
             ON CONFLICT(file_id) DO UPDATE SET
                 session_id = excluded.session_id,
                 forked_from_id = excluded.forked_from_id,
@@ -473,12 +456,13 @@ extension CostUsageStore {
             """)
             defer { sqlite3_finalize(statement) }
             Self.bind(lineage.path, to: statement, at: 1)
-            Self.bind(lineage.sessionID, to: statement, at: 2)
-            Self.bind(lineage.forkedFromID, to: statement, at: 3)
-            Self.bind(lineage.forkTimestamp, to: statement, at: 4)
-            Self.bind(lineage.dependencyKey, to: statement, at: 5)
-            Self.bind(lineage.subagentState, to: statement, at: 6)
-            Self.bind(lineage.accountingState, to: statement, at: 7)
+            Self.bind(self.home, to: statement, at: 2)
+            Self.bind(lineage.sessionID, to: statement, at: 3)
+            Self.bind(lineage.forkedFromID, to: statement, at: 4)
+            Self.bind(lineage.forkTimestamp, to: statement, at: 5)
+            Self.bind(lineage.dependencyKey, to: statement, at: 6)
+            Self.bind(lineage.subagentState, to: statement, at: 7)
+            Self.bind(lineage.accountingState, to: statement, at: 8)
             try Self.stepDone(statement, database: database)
             return true
         }
@@ -495,27 +479,29 @@ extension CostUsageStore {
             try Self.inTransaction(database) {
                 let delete = try Self.prepare(database, """
                 DELETE FROM buffered_lines
-                WHERE file_id = (SELECT id FROM files WHERE path = ?) AND kind = ?
+                WHERE file_id = (SELECT id FROM files WHERE path = ? AND home = ?) AND kind = ?
                 """)
                 Self.bind(path, to: delete, at: 1)
-                Self.bind(kind.rawValue, to: delete, at: 2)
+                Self.bind(self.home, to: delete, at: 2)
+                Self.bind(kind.rawValue, to: delete, at: 3)
                 defer { sqlite3_finalize(delete) }
                 try Self.stepDone(delete, database: database)
 
                 let insert = try Self.prepare(database, """
                 INSERT INTO buffered_lines (file_id, kind, line_index, ordinal, end_offset, payload)
-                VALUES ((SELECT id FROM files WHERE path = ?), ?, ?, ?, ?, ?)
+                VALUES ((SELECT id FROM files WHERE path = ? AND home = ?), ?, ?, ?, ?, ?)
                 """)
                 defer { sqlite3_finalize(insert) }
                 for line in lines {
                     sqlite3_reset(insert)
                     sqlite3_clear_bindings(insert)
                     Self.bind(line.path, to: insert, at: 1)
-                    Self.bind(line.kind.rawValue, to: insert, at: 2)
-                    sqlite3_bind_int64(insert, 3, Int64(line.lineIndex))
-                    Self.bind(line.ordinal, to: insert, at: 4)
-                    Self.bind(line.endOffset, to: insert, at: 5)
-                    Self.bind(line.payload, to: insert, at: 6)
+                    Self.bind(self.home, to: insert, at: 2)
+                    Self.bind(line.kind.rawValue, to: insert, at: 3)
+                    sqlite3_bind_int64(insert, 4, Int64(line.lineIndex))
+                    Self.bind(line.ordinal, to: insert, at: 5)
+                    Self.bind(line.endOffset, to: insert, at: 6)
+                    Self.bind(line.payload, to: insert, at: 7)
                     try Self.stepDone(insert, database: database)
                 }
             }
@@ -549,7 +535,8 @@ extension CostUsageStore {
                 baseline_input, baseline_cached, baseline_output, baseline_reasoning,
                 watermark_input, watermark_cached, watermark_output, watermark_reasoning,
                 saw_divergent, saw_interleaved, seen_raw_totals, updated_at_ms
-            ) VALUES ((SELECT id FROM files WHERE path = ?), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES ((SELECT id FROM files WHERE path = ? AND home = ?),
+            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(file_id) DO UPDATE SET
                 event_count = excluded.event_count,
                 next_usage_row_index = excluded.next_usage_row_index,
@@ -572,15 +559,16 @@ extension CostUsageStore {
             """)
             defer { sqlite3_finalize(statement) }
             Self.bind(accumulator.path, to: statement, at: 1)
-            sqlite3_bind_int64(statement, 2, Int64(accumulator.eventCount))
-            Self.bind(accumulator.nextUsageRowIndex, to: statement, at: 3)
-            Self.bindTotals(accumulator.countedTotals, to: statement, startingAt: 4)
-            Self.bindTotals(accumulator.rawTotalsBaseline, to: statement, startingAt: 8)
-            Self.bindTotals(accumulator.rawTotalsWatermark, to: statement, startingAt: 12)
-            sqlite3_bind_int(statement, 16, accumulator.sawDivergentTotals ? 1 : 0)
-            sqlite3_bind_int(statement, 17, accumulator.sawInterleavedTotals ? 1 : 0)
-            Self.bind(seen, to: statement, at: 18)
-            sqlite3_bind_int64(statement, 19, accumulator.updatedAtUnixMs)
+            Self.bind(self.home, to: statement, at: 2)
+            sqlite3_bind_int64(statement, 3, Int64(accumulator.eventCount))
+            Self.bind(accumulator.nextUsageRowIndex, to: statement, at: 4)
+            Self.bindTotals(accumulator.countedTotals, to: statement, startingAt: 5)
+            Self.bindTotals(accumulator.rawTotalsBaseline, to: statement, startingAt: 9)
+            Self.bindTotals(accumulator.rawTotalsWatermark, to: statement, startingAt: 13)
+            sqlite3_bind_int(statement, 17, accumulator.sawDivergentTotals ? 1 : 0)
+            sqlite3_bind_int(statement, 18, accumulator.sawInterleavedTotals ? 1 : 0)
+            Self.bind(seen, to: statement, at: 19)
+            sqlite3_bind_int64(statement, 20, accumulator.updatedAtUnixMs)
             try Self.stepDone(statement, database: database)
             return true
         }
@@ -589,9 +577,9 @@ extension CostUsageStore {
     private func setSingleton(_ value: (some Encodable)?, table: String) -> Bool {
         self.withDatabase(default: false) { database in
             if let value {
-                try Self.writeSingleton(value, database: database, table: table)
+                try Self.writeSingleton(value, database: database, table: table, home: self.home)
             } else {
-                try Self.execute(database, "DELETE FROM \(table) WHERE id = 1")
+                try Self.deleteHomeRows(database, table: table, home: self.home)
             }
             return true
         }
@@ -645,21 +633,23 @@ extension CostUsageStore {
     static func replaceUsageRows(
         _ database: OpaquePointer,
         path: String,
-        rows: [CostUsageStoreUsageRow]) throws
+        rows: [CostUsageStoreUsageRow],
+        home: String) throws
     {
         let delete = try self.prepare(database, """
-        DELETE FROM usage_rows WHERE file_id = (SELECT id FROM files WHERE path = ?)
+        DELETE FROM usage_rows WHERE file_id = (SELECT id FROM files WHERE path = ? AND home = ?)
         """)
         defer { sqlite3_finalize(delete) }
         self.bind(path, to: delete, at: 1)
+        self.bind(home, to: delete, at: 2)
         try self.stepDone(delete, database: database)
-        try self.insertUsageRows(database, rows: rows)
+        try self.insertUsageRows(database, rows: rows, home: home)
     }
 
-    static func insertUsageRows(_ database: OpaquePointer, rows: [CostUsageStoreUsageRow]) throws {
+    static func insertUsageRows(_ database: OpaquePointer, rows: [CostUsageStoreUsageRow], home: String) throws {
         let statement = try self.prepare(database, """
         INSERT INTO usage_rows (file_id, row_index, payload)
-        VALUES ((SELECT id FROM files WHERE path = ?), ?, ?)
+        VALUES ((SELECT id FROM files WHERE path = ? AND home = ?), ?, ?)
         ON CONFLICT(file_id, row_index) DO UPDATE SET payload = excluded.payload
         """)
         defer { sqlite3_finalize(statement) }
@@ -667,10 +657,18 @@ extension CostUsageStore {
             sqlite3_reset(statement)
             sqlite3_clear_bindings(statement)
             self.bind(row.path, to: statement, at: 1)
-            sqlite3_bind_int64(statement, 2, Int64(row.rowIndex))
-            self.bind(row.payload, to: statement, at: 3)
+            self.bind(home, to: statement, at: 2)
+            sqlite3_bind_int64(statement, 3, Int64(row.rowIndex))
+            self.bind(row.payload, to: statement, at: 4)
             try self.stepDone(statement, database: database)
         }
+    }
+
+    static func deleteHomeRows(_ database: OpaquePointer, table: String, home: String) throws {
+        let statement = try self.prepare(database, "DELETE FROM \(table) WHERE home = ?")
+        defer { sqlite3_finalize(statement) }
+        self.bind(home, to: statement, at: 1)
+        try self.stepDone(statement, database: database)
     }
 
     static func inTransaction<T>(_ database: OpaquePointer, _ operation: () throws -> T) throws -> T {

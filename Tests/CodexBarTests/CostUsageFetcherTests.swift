@@ -306,9 +306,9 @@ extension CostUsageFetcherTests {
             piScannerOptions: piOptions)
         #expect(ambient.sessionTokens == 100)
 
-        var cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        var cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
         cache.roots = nil
-        CostUsageStoreAccess.replace(cacheRoot: env.cacheRoot, cache: cache)
+        CostUsageStoreAccess.replace(cacheRoot: env.cacheRoot, home: env.codexStoreHome, cache: cache)
 
         let managed = try await CostUsageFetcher.loadTokenSnapshot(
             provider: .codex,
@@ -359,10 +359,10 @@ extension CostUsageFetcherTests {
         #expect(narrow.daily.map(\.date) == ["2026-04-08"])
         #expect(narrow.last30DaysTokens == 30)
 
-        var legacyCache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        var legacyCache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
         legacyCache.scanSinceKey = nil
         legacyCache.scanUntilKey = nil
-        CostUsageStoreAccess.replace(cacheRoot: env.cacheRoot, cache: legacyCache)
+        CostUsageStoreAccess.replace(cacheRoot: env.cacheRoot, home: env.codexStoreHome, cache: legacyCache)
 
         let expanded = try await CostUsageFetcher.loadTokenSnapshot(
             provider: .codex,
@@ -480,9 +480,9 @@ extension CostUsageFetcherTests {
             allowPricingRefresh: false,
             includePiSessions: false,
             scannerOptions: options)
-        let cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        let cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
         let cacheFileExists = FileManager.default.fileExists(
-            atPath: CostUsageStore(cacheRoot: env.cacheRoot).databaseURL.path)
+            atPath: CostUsageStore(cacheRoot: env.cacheRoot, home: env.codexStoreHome).databaseURL.path)
 
         #expect(snapshot.daily.map(\.date) == ["2026-04-08"])
         #expect(snapshot.last30DaysTokens == 30)
@@ -547,7 +547,7 @@ extension CostUsageFetcherTests {
             refreshPricingInBackground: false,
             includePiSessions: false,
             scannerOptions: options)
-        let cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        let cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
 
         #expect(wide.last30DaysTokens == 45)
         #expect(narrow.last30DaysTokens == 30)
@@ -610,7 +610,7 @@ extension CostUsageFetcherTests {
             until: newDay,
             now: newDay.addingTimeInterval(1),
             options: rescanOptions)
-        let cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        let cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
 
         #expect(cache.files.keys.map(URL.init(fileURLWithPath:)).map(\.lastPathComponent).sorted() == ["new.jsonl"])
         #expect(cache.scanSinceKey == "2026-04-07")
@@ -662,7 +662,7 @@ extension CostUsageFetcherTests {
             allowPricingRefresh: false,
             includePiSessions: false,
             scannerOptions: options)
-        let cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        let cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
 
         #expect(first.last30DaysTokens == 30)
         #expect(second.last30DaysTokens == 30)
@@ -1133,7 +1133,7 @@ extension CostUsageFetcherTests {
         #expect(first.costUSD != nil)
         #expect(first.toolActivitySource == SessionToolActivitySource(fileURL: firstURL, sessionID: "first-session"))
 
-        let cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        let cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
         let range = CostUsageScanner.CostUsageDayRange(since: day, until: day)
         let unrelatedRoot = env.root.appendingPathComponent("unrelated/sessions", isDirectory: true)
         let filtered = CostUsageScanner.buildCodexSessionBreakdownsFromCache(

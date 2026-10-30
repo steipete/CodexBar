@@ -107,7 +107,10 @@ struct CodexLongContextThresholdTests {
             fetchedAt: day,
             cacheRoot: env.cacheRoot))
         let range = CostUsageScanner.CostUsageDayRange(since: day, until: day)
-        let reopened = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, calendar: range.calendar)
+        let reopened = CostUsageStoreAccess.read(
+            cacheRoot: env.cacheRoot,
+            home: env.codexStoreHome,
+            calendar: range.calendar)
         let corrected = CostUsageScanner.buildCodexReportFromCache(
             cache: reopened, range: range, modelsDevCacheRoot: env.cacheRoot)
         #expect(abs((corrected.summary?.totalCostUSD ?? -1) - 0.050) < 1e-12)

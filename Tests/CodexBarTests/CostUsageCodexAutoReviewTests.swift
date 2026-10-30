@@ -84,17 +84,17 @@ struct CostUsageCodexAutoReviewTests {
                 let isFree = creator == "account-fixture" && instant >= cutoff
                 for refresh in 0..<3 {
                     if refresh == 2 {
-                        var legacy = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+                        var legacy = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
                         for path in legacy.files.keys {
                             legacy.files[path]?.codexSession = nil
                             legacy.files[path]?.codexParserRevision = CostUsageFileUsage.currentCodexParserRevision - 1
                         }
-                        CostUsageStoreAccess.replace(cacheRoot: env.cacheRoot, cache: legacy)
+                        CostUsageStoreAccess.replace(cacheRoot: env.cacheRoot, home: env.codexStoreHome, cache: legacy)
                     }
                     _ = CostUsageScanner.loadDailyReport(
                         provider: .codex, since: instant, until: instant, now: cutoff, options: options)
                     let report = CostUsageScanner.buildCodexReportFromCache(
-                        cache: CostUsageStoreAccess.read(cacheRoot: env.cacheRoot),
+                        cache: CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome),
                         range: .init(since: instant, until: instant),
                         modelsDevCatalog: ModelsDevCatalog(providers: [:]))
                     let entry = try #require(report.data.first)

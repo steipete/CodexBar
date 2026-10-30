@@ -204,7 +204,7 @@ struct CostUsageCodexPartialPricingTests {
             codexTraceDatabaseURL: env.root.appendingPathComponent("missing-traces.sqlite"))
         options.refreshMinIntervalSeconds = 0
         _ = CostUsageScanner.loadDailyReport(provider: .codex, since: day, until: day, now: day, options: options)
-        return CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        return CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
     }
 
     /// Marks rows as retained history whose pricing could not be recovered, as source recovery stores them.

@@ -7,7 +7,10 @@ extension CostUsageStoreReadWorkTests {
     func `lean cache preserves full cache fields without token histories`(incomplete: Bool) throws {
         let fixture = try ReadWorkFixture(fileCount: 2, rowsPerFile: 4, incomplete: incomplete)
         defer { fixture.remove() }
-        let full = CostUsageStoreAccess.read(cacheRoot: fixture.env.cacheRoot, calendar: fixture.calendar)
+        let full = CostUsageStoreAccess.read(
+            cacheRoot: fixture.env.cacheRoot,
+            home: fixture.env.codexStoreHome,
+            calendar: fixture.calendar)
         #expect(full == fixture.canonical)
         #expect(full.files.values.allSatisfy { $0.codexTokenSnapshots?.count == 4 })
         #expect(full.files.values.allSatisfy { $0.codexTokenCheckpoints != nil })
@@ -18,6 +21,7 @@ extension CostUsageStoreReadWorkTests {
         try CostUsageStoreTestHooks.$current.withValue(recordingHooks) {
             let lean = CostUsageStoreAccess.readWithoutTokenSnapshots(
                 cacheRoot: fixture.env.cacheRoot,
+                home: fixture.env.codexStoreHome,
                 calendar: fixture.calendar)
             let work = recorder.snapshot()
             #expect(lean == Self.cacheWithoutTokenHistories(full))
@@ -63,9 +67,11 @@ extension CostUsageStoreReadWorkTests {
 
         #expect(CostUsageStoreAccess.read(
             cacheRoot: fixture.env.cacheRoot,
+            home: fixture.env.codexStoreHome,
             calendar: otherCalendar) == CostUsageCache())
         #expect(CostUsageStoreAccess.readWithoutTokenSnapshots(
             cacheRoot: fixture.env.cacheRoot,
+            home: fixture.env.codexStoreHome,
             calendar: otherCalendar) == CostUsageCache())
     }
 

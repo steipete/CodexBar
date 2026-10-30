@@ -48,9 +48,9 @@ extension CostUsageScannerCodexPriorityCursorTests {
             codexTraceDatabaseURL: dbURL)
         options.refreshMinIntervalSeconds = 0
         _ = CostUsageScanner.loadDailyReport(provider: .codex, since: earlier, until: now, now: now, options: options)
-        let original = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        let original = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
         let referenceRoot = env.root.appendingPathComponent("reference-cache")
-        _ = CostUsageStoreAccess.replace(cacheRoot: referenceRoot, cache: original)
+        _ = CostUsageStoreAccess.replace(cacheRoot: referenceRoot, home: env.codexStoreHome, cache: original)
         try Self.deleteTestLog(dbURL: dbURL, rowID: 1)
         try Self.deleteTestLog(dbURL: dbURL, rowID: 2)
         let rewritten = lines(changedInput: 250)
@@ -67,25 +67,29 @@ extension CostUsageScannerCodexPriorityCursorTests {
         options.maxCodexSessionFileBytes = budget
         _ = CostUsageScanner.loadDailyReport(
             provider: .codex, since: day, until: day, now: now.addingTimeInterval(1), options: options)
-        let partial = try #require(CostUsageStoreAccess.read(cacheRoot: env.cacheRoot).files[fileURL.path])
+        let partial = try #require(CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
+            .files[fileURL.path])
         #expect(partial.codexScanComplete == false)
         let partialInputs = Set(partial.codexRows?.map(\.input) ?? [])
         #expect(partialInputs.isSuperset(of: [10, 30]))
         #expect(partialInputs.isSubset(of: [10, 30, 250]))
-        #expect(await CostUsageStore(cacheRoot: env.cacheRoot).fetchBufferedLines(path: fileURL.path).isEmpty == false)
+        #expect(await CostUsageStore(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
+            .fetchBufferedLines(path: fileURL.path).isEmpty == false)
 
         for index in 2..<30 {
             CostUsageScanner._test_resetCodexPriorityTurnsMemo(forPath: dbURL.path)
             _ = CostUsageScanner.loadDailyReport(
                 provider: .codex, since: day, until: day, now: now.addingTimeInterval(Double(index)), options: options)
-            if CostUsageStoreAccess.read(cacheRoot: env.cacheRoot).codexScanCatchUpPending != true { break }
+            if CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
+                .codexScanCatchUpPending != true { break }
         }
-        let finalCache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        let finalCache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
         #expect(finalCache.codexScanCatchUpPending != true)
         let final = try #require(finalCache.files[fileURL.path])
         #expect(final.codexRows?.map(\.input).sorted() == [10, 30, 100, 250])
         #expect(final.codexRows?.first { $0.turnID == "unchanged" }?.eventIndex == 2)
-        #expect(await CostUsageStore(cacheRoot: env.cacheRoot).fetchBufferedLines(path: fileURL.path).isEmpty == true)
+        #expect(await CostUsageStore(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
+            .fetchBufferedLines(path: fileURL.path).isEmpty == true)
         let report = CostUsageScanner.buildCodexReportFromCache(
             cache: finalCache, range: .init(since: day, until: day))
         #expect(report.data == expected.data)

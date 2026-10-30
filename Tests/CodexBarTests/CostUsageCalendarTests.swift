@@ -91,7 +91,7 @@ struct CostUsageCalendarTests {
             until: secondDay,
             now: secondDay,
             options: options)
-        let cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, calendar: buddhist)
+        let cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome, calendar: buddhist)
 
         #expect(secondReport.data.map(\.date) == ["2026-07-23"])
         #expect(secondReport.data.first?.totalTokens == 20)
@@ -126,7 +126,7 @@ struct CostUsageCalendarTests {
             until: windowEnd,
             now: windowEnd,
             options: Self.codexOptions(env: env, calendar: utc))
-        let utcCache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, calendar: utc)
+        let utcCache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome, calendar: utc)
         #expect(utcReport.data.map(\.date) == ["2026-07-22"])
         #expect(utcCache.timeZoneIdentifier == utc.timeZone.identifier)
         #expect(utcCache.files.values.compactMap(\.sessionId) == ["calendar-time-zone-change.jsonl"])
@@ -137,7 +137,10 @@ struct CostUsageCalendarTests {
             until: windowEnd,
             now: windowEnd,
             options: Self.codexOptions(env: env, calendar: bangkok))
-        let bangkokCache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, calendar: bangkok)
+        let bangkokCache = CostUsageStoreAccess.read(
+            cacheRoot: env.cacheRoot,
+            home: env.codexStoreHome,
+            calendar: bangkok)
         #expect(bangkokReport.data.map(\.date) == ["2026-07-23"])
         #expect(bangkokReport.data.first?.totalTokens == 10)
         #expect(bangkokCache.timeZoneIdentifier == "Asia/Bangkok")

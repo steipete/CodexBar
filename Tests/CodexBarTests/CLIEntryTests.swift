@@ -20,7 +20,7 @@ final class CLIEntryTests: XCTestCase {
     func test_dashboardCommandIsRegisteredAndParsesOptions() throws {
         let program = Program(descriptors: CodexBarCLI.commandDescriptors())
         let invocation = try program.resolve(
-            argv: ["dashboard", "--pretty", "--timeout", "45", "--output", "/tmp/snapshot.json"])
+            arguments: ["dashboard", "--pretty", "--timeout", "45", "--output", "/tmp/snapshot.json"])
 
         XCTAssertEqual(invocation.path, ["dashboard"])
         XCTAssertTrue(invocation.parsedValues.flags.contains("pretty"))
@@ -965,5 +965,22 @@ extension CodexBarCLI {
             claudeFetcher: ClaudeUsageFetcher(browserDetection: browserDetection),
             browserDetection: browserDetection)
         return await self.sourceModeRequiresWebSupport(provider: provider, context: context)
+    }
+}
+
+extension CLIEntryTests {
+    func test_missingOptionValuesPreserveArgumentExitCodes() throws {
+        let cases: [(arguments: [String], expectedStatus: Int32)] = [
+            (["usage", "--provider"], 1),
+            (["guard", "--provider"], 64),
+            (["dashboard", "--output"], 1),
+        ]
+        for testCase in cases {
+            let result = try Self.runCLI(arguments: testCase.arguments)
+            XCTAssertEqual(result.status, testCase.expectedStatus)
+            XCTAssertTrue(result.stdout.isEmpty)
+            let stderr = try XCTUnwrap(String(bytes: result.stderr, encoding: .utf8))
+            XCTAssertTrue(stderr.contains("Missing value for option"))
+        }
     }
 }

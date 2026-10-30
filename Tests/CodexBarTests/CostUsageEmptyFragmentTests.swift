@@ -30,7 +30,7 @@ struct CostUsageEmptyFragmentTests {
             _ = Self.report(env: env, day: day, pass: pass, options: options)
         }
 
-        let cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        let cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
         let emptyPath = try #require(emptyURL).path
         let empty = try #require(cache.files[emptyPath])
         #expect(empty.codexRows?.isEmpty == true)
@@ -59,11 +59,13 @@ struct CostUsageEmptyFragmentTests {
             filename: "b-empty.jsonl",
             contents: Self.header(session: "shared", day: day, env: env) + Self.emptyEvent(day: day, env: env))
         #expect(Self.report(env: env, day: day, pass: 0, options: options).summary?.totalTokens == 110)
-        #expect(CostUsageStoreAccess.read(cacheRoot: env.cacheRoot).files[emptyURL.path]?.codexScanComplete == true)
+        #expect(CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome).files[emptyURL.path]?
+            .codexScanComplete == true)
 
         try Self.append(Self.emptyEvent(day: day, env: env), to: emptyURL)
         #expect(Self.report(env: env, day: day, pass: 1, options: options).summary?.totalTokens == 110)
-        #expect(CostUsageStoreAccess.read(cacheRoot: env.cacheRoot).files[emptyURL.path]?.codexScanComplete == true)
+        #expect(CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome).files[emptyURL.path]?
+            .codexScanComplete == true)
 
         try Self.append(Self.bareEvent(input: 17, output: 3, day: day, env: env), to: emptyURL)
         #expect(Self.report(env: env, day: day, pass: 2, options: options).summary?.totalTokens == 130)
@@ -86,7 +88,8 @@ struct CostUsageEmptyFragmentTests {
         let contributor = try env.seedCodexSessionFile(day: day, filename: "a-contributor.jsonl", contents: contents)
         let duplicate = try env.seedCodexSessionFile(day: day, filename: "b-duplicate.jsonl", contents: contents)
         #expect(Self.report(env: env, day: day, pass: 0, options: options).summary?.totalTokens == 110)
-        #expect(CostUsageStoreAccess.read(cacheRoot: env.cacheRoot).files[duplicate.path] == nil)
+        #expect(CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
+            .files[duplicate.path] == nil)
 
         if remove {
             try FileManager.default.removeItem(at: contributor)
@@ -118,11 +121,13 @@ struct CostUsageEmptyFragmentTests {
             contents: Self.header(session: "shared", day: day, env: env)
                 + Self.bareEvent(input: 100, output: 10, day: oldDay, env: env))
         #expect(Self.report(env: env, day: day, pass: 0, options: options).summary?.totalTokens == 110)
-        #expect(CostUsageStoreAccess.read(cacheRoot: env.cacheRoot).files[fragment.path]?.codexScanComplete == true)
+        #expect(CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome).files[fragment.path]?
+            .codexScanComplete == true)
 
         try Self.append(Self.bareEvent(input: 100, output: 10, day: day, env: env), to: fragment)
         #expect(Self.report(env: env, day: day, pass: 1, options: options).summary?.totalTokens == 220)
-        let rows = try #require(CostUsageStoreAccess.read(cacheRoot: env.cacheRoot).files[fragment.path]?.codexRows)
+        let rows = try #require(CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
+            .files[fragment.path]?.codexRows)
         #expect(rows.map(\.eventIndex) == [1])
     }
 

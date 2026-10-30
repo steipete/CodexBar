@@ -8,7 +8,7 @@ struct CLIConfigLoginTests {
     @Test
     func `config login resolves provider and JSON options`() throws {
         let invocation = try Program(descriptors: CodexBarCLI.commandDescriptors())
-            .resolve(argv: ["config", "login", "--provider", "copilot", "--json"])
+            .resolve(arguments: ["config", "login", "--provider", "copilot", "--json"])
         #expect(invocation.path == ["config", "login"])
         #expect(invocation.parsedValues.options["provider"] == ["copilot"])
         #expect(CLIOutputPreferences.from(values: invocation.parsedValues).format == .json)

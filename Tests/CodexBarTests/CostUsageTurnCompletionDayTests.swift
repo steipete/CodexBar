@@ -34,7 +34,8 @@ struct CostUsageTurnCompletionDayTests {
             until: end,
             now: end.addingTimeInterval(10),
             options: options)
-        let cache = CostUsageStore(cacheRoot: env.cacheRoot).syncLoadCodexCache(calendar: calendar)
+        let cache = CostUsageStore(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
+            .syncLoadCodexCache(calendar: calendar)
         let range = CostUsageScanner.CostUsageDayRange(since: end, until: end, calendar: calendar)
         let direct = cache.files.values
             .flatMap { CostUsageScanner.codexTurnPerformanceSamples(usage: $0, range: range) }

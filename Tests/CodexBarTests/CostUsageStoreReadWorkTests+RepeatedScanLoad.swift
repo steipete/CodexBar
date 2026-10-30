@@ -41,12 +41,21 @@ extension CostUsageStoreReadWorkTests {
         var recordingHooks = CostUsageStoreTestHooks.current
         recordingHooks.readWorkRecorder = recorder
         try CostUsageStoreTestHooks.$current.withValue(recordingHooks) {
-            let first = CostUsageStoreAccess.load(cacheRoot: fixture.env.cacheRoot, calendar: fixture.calendar)
+            let first = CostUsageStoreAccess.load(
+                cacheRoot: fixture.env.cacheRoot,
+                home: fixture.env.codexStoreHome,
+                calendar: fixture.calendar)
             first.release()
             _ = CostUsageStoreAccess.readView(
-                cacheRoot: fixture.env.cacheRoot, calendar: fixture.calendar, purpose: .report)
+                cacheRoot: fixture.env.cacheRoot,
+                home: fixture.env.codexStoreHome,
+                calendar: fixture.calendar,
+                purpose: .report)
             recorder.reset()
-            let second = CostUsageStoreAccess.load(cacheRoot: fixture.env.cacheRoot, calendar: fixture.calendar)
+            let second = CostUsageStoreAccess.load(
+                cacheRoot: fixture.env.cacheRoot,
+                home: fixture.env.codexStoreHome,
+                calendar: fixture.calendar)
             defer { second.release() }
             #expect(first.store === second.store)
             #expect(second.cache == first.cache)
@@ -94,7 +103,8 @@ extension CostUsageStoreReadWorkTests {
             defer { loaded.release() }
             #expect(recorder.snapshot().usageRowDecodeAttempts == fixture.rowCount)
             #expect(recorder.snapshot().scannerSnapshotReads == 1)
-            let fresh = CostUsageStore(cacheRoot: fixture.env.cacheRoot).syncLoadCodexScan(calendar: fixture.calendar)
+            let fresh = CostUsageStore(cacheRoot: fixture.env.cacheRoot, home: fixture.env.codexStoreHome)
+                .syncLoadCodexScan(calendar: fixture.calendar)
             defer { fresh.release() }
             #expect(loaded.cache == fresh.cache)
             #expect(loaded.unloadedTokenSnapshotPaths == fresh.unloadedTokenSnapshotPaths)
