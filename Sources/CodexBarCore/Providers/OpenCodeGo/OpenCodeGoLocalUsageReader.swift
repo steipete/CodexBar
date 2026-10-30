@@ -548,8 +548,6 @@ extension OpenCodeGoLocalUsageReader {
             sqlite3_column_text(statement, 0).map { String(cString: $0) } != selectedIntegration)
         else { throw OpenCodeGoUsageError.invalidCredentials }
         let credential = try JSONDecoder().decode(CLICredential.self, from: data)
-        // Provider-specific by design: only OAuth can reuse the generic OpenCode login for Go quotas.
-        if selectedIntegration == "opencode", credential.type != "oauth" { return nil }
         switch credential.type {
         case "key":
             return try Self.credentialToken(credential.key)

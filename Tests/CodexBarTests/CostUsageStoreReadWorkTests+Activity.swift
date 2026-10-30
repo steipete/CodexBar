@@ -8,7 +8,10 @@ extension CostUsageStoreReadWorkTests {
         let fixture = try ReadWorkFixture(fileCount: 2, rowsPerFile: 4)
         defer { fixture.remove() }
         let initial = CostUsageStoreAccess.readView(
-            cacheRoot: fixture.env.cacheRoot, calendar: fixture.calendar, purpose: .activity)
+            cacheRoot: fixture.env.cacheRoot,
+            home: fixture.env.codexStoreHome,
+            calendar: fixture.calendar,
+            purpose: .activity)
         let persisted = await fixture.store.readSnapshot()
         let predecessorHash = "4a593b5d59c7bcf3"
         let predecessorVersion = CostUsageStore.combinedSchemaVersion(
@@ -20,9 +23,15 @@ extension CostUsageStoreReadWorkTests {
         try writer.execute("COMMIT")
 
         _ = CostUsageStoreAccess.readView(
-            cacheRoot: fixture.env.cacheRoot, calendar: fixture.calendar, purpose: .activity)
+            cacheRoot: fixture.env.cacheRoot,
+            home: fixture.env.codexStoreHome,
+            calendar: fixture.calendar,
+            purpose: .activity)
         let recovered = CostUsageStoreAccess.readView(
-            cacheRoot: fixture.env.cacheRoot, calendar: fixture.calendar, purpose: .activity)
+            cacheRoot: fixture.env.cacheRoot,
+            home: fixture.env.codexStoreHome,
+            calendar: fixture.calendar,
+            purpose: .activity)
         #expect(recovered.days == initial.days)
         #expect(recovered.lastScanUnixMs == initial.lastScanUnixMs)
         #expect(await fixture.store.readSnapshot() == persisted)
@@ -33,7 +42,7 @@ extension CostUsageStoreReadWorkTests {
     func `incompatible warm schemas defer repair until the next access`() async throws {
         let fixture = try ReadWorkFixture(fileCount: 2, rowsPerFile: 4)
         defer { fixture.remove() }
-        let reader = CostUsageStore(cacheRoot: fixture.env.cacheRoot)
+        let reader = CostUsageStore(cacheRoot: fixture.env.cacheRoot, home: fixture.env.codexStoreHome)
         _ = reader.syncLoadCodexReadView(calendar: fixture.calendar, purpose: .activity)
         let writer = try BaselineSQLiteConnection(url: fixture.store.databaseURL)
         try writer.execute("BEGIN IMMEDIATE")
@@ -58,10 +67,16 @@ extension CostUsageStoreReadWorkTests {
         recordingHooks.readWorkRecorder = recorder
         try CostUsageStoreTestHooks.$current.withValue(recordingHooks) {
             let first = CostUsageStoreAccess.readView(
-                cacheRoot: fixture.env.cacheRoot, calendar: fixture.calendar, purpose: .activity)
+                cacheRoot: fixture.env.cacheRoot,
+                home: fixture.env.codexStoreHome,
+                calendar: fixture.calendar,
+                purpose: .activity)
             for _ in 0..<2 {
                 let report = CostUsageStoreAccess.readView(
-                    cacheRoot: fixture.env.cacheRoot, calendar: fixture.calendar, purpose: .report)
+                    cacheRoot: fixture.env.cacheRoot,
+                    home: fixture.env.codexStoreHome,
+                    calendar: fixture.calendar,
+                    purpose: .report)
                 let daily = report.dailyReport(range: fixture.range, cacheRoot: fixture.env.cacheRoot)
                 let full = fixture.fullReport(fixture.canonical)
                 #expect(daily.data == full.data)
@@ -72,7 +87,10 @@ extension CostUsageStoreReadWorkTests {
                     cacheRoot: fixture.env.cacheRoot,
                     roots: [fixture.env.codexSessionsRoot]).count == fixture.fileCount)
                 let activity = CostUsageStoreAccess.readView(
-                    cacheRoot: fixture.env.cacheRoot, calendar: fixture.calendar, purpose: .activity)
+                    cacheRoot: fixture.env.cacheRoot,
+                    home: fixture.env.codexStoreHome,
+                    calendar: fixture.calendar,
+                    purpose: .activity)
                 #expect(activity.days == first.days)
             }
             #expect(recorder.snapshot().usageRowDecodeAttempts == fixture.rowCount * 2)
@@ -93,12 +111,18 @@ extension CostUsageStoreReadWorkTests {
         recordingHooks.readWorkRecorder = recorder
         try await CostUsageStoreTestHooks.$current.withValue(recordingHooks) {
             let first = CostUsageStoreAccess.readView(
-                cacheRoot: fixture.env.cacheRoot, calendar: fixture.calendar, purpose: .activity)
+                cacheRoot: fixture.env.cacheRoot,
+                home: fixture.env.codexStoreHome,
+                calendar: fixture.calendar,
+                purpose: .activity)
             #expect(!first.hasPendingScan)
             let path = try #require(fixture.canonical.files.keys.min())
             try Data("changed fixture\n".utf8).write(to: URL(fileURLWithPath: path), options: .atomic)
             let second = CostUsageStoreAccess.readView(
-                cacheRoot: fixture.env.cacheRoot, calendar: fixture.calendar, purpose: .activity)
+                cacheRoot: fixture.env.cacheRoot,
+                home: fixture.env.codexStoreHome,
+                calendar: fixture.calendar,
+                purpose: .activity)
             #expect(second.hasPendingScan)
             #expect(recorder.snapshot().cacheConversions == 1)
             #expect(recorder.snapshot().readViewConversions == 2)
@@ -119,7 +143,10 @@ extension CostUsageStoreReadWorkTests {
             for index in [0, 1, 2, 3, 0, 4, 0, 1] {
                 let fixture = fixtures[index]
                 let view = CostUsageStoreAccess.readView(
-                    cacheRoot: fixture.env.cacheRoot, calendar: fixture.calendar, purpose: .activity)
+                    cacheRoot: fixture.env.cacheRoot,
+                    home: fixture.env.codexStoreHome,
+                    calendar: fixture.calendar,
+                    purpose: .activity)
                 #expect(view.days == fixture.canonical.days)
             }
             #expect(recorder.snapshot().integrityChecks == 2)
@@ -131,7 +158,7 @@ extension CostUsageStoreReadWorkTests {
     func `external commit during an activity read cannot make stale data authoritative`() async throws {
         let fixture = try ReadWorkFixture(fileCount: 2, rowsPerFile: 4)
         defer { fixture.remove() }
-        let reader = CostUsageStore(cacheRoot: fixture.env.cacheRoot)
+        let reader = CostUsageStore(cacheRoot: fixture.env.cacheRoot, home: fixture.env.codexStoreHome)
         let writer = try BaselineSQLiteConnection(url: fixture.store.databaseURL)
         var metadata = await fixture.store.readSnapshot().metadata
         metadata.lastScanUnixMs += 1000
@@ -260,7 +287,7 @@ extension CostUsageStoreReadWorkTests {
                 maximumDays: 365,
                 scannerOptions: fixture.options))
             let replacementRoot = fixture.env.root.appendingPathComponent("replacement")
-            let replacement = CostUsageStore(cacheRoot: replacementRoot)
+            let replacement = CostUsageStore(cacheRoot: replacementRoot, home: fixture.store.home)
             var reduced = fixture.canonical
             try reduced.files.removeValue(forKey: #require(reduced.files.keys.min()))
             #expect(!replacement.syncSaveCodexCache(

@@ -101,7 +101,7 @@ struct BrowserCookieImportSupportTests {
         }
     }
 
-    @Test(arguments: ["Aside", "Opera", "Opera Neon"])
+    @Test(arguments: ["Aside", "Brave Origin", "Opera", "Opera Neon"])
     func `catalog browsers participate in Muse automatic import`(name: String) throws {
         let browser = try #require(Browser.allCases.first { $0.displayName == name })
         #expect(browser.usesChromiumProfileStore)

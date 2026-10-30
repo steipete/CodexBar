@@ -117,7 +117,10 @@ struct CostUsageStoreReadWorkTests {
             }
             #expect(sameStore == fixture.canonical)
             let (freshStore, _) = await Self.measure("fresh-access-read", fixture: fixture, recorder: recorder) {
-                CostUsageStoreAccess.read(cacheRoot: fixture.env.cacheRoot, calendar: fixture.calendar)
+                CostUsageStoreAccess.read(
+                    cacheRoot: fixture.env.cacheRoot,
+                    home: fixture.env.codexStoreHome,
+                    calendar: fixture.calendar)
             }
             #expect(freshStore == fixture.canonical)
             let (status, _) = await Self.measure("status-only", fixture: fixture, recorder: recorder) {
@@ -191,6 +194,7 @@ struct CostUsageStoreReadWorkTests {
         try CostUsageStoreTestHooks.$current.withValue(recordingHooks) {
             let loaded = CostUsageStoreAccess.load(
                 cacheRoot: fixture.env.cacheRoot,
+                home: fixture.env.codexStoreHome,
                 calendar: fixture.calendar)
             let loadWork = recorder.snapshot()
             #expect(loadWork.scannerSnapshotReads == 1)
@@ -237,6 +241,7 @@ struct CostUsageStoreReadWorkTests {
 
             let reloaded = CostUsageStoreAccess.load(
                 cacheRoot: fixture.env.cacheRoot,
+                home: fixture.env.codexStoreHome,
                 calendar: fixture.calendar)
             var partiallyHydrated = reloaded.cache
             var selectedUsage = try #require(partiallyHydrated.files[selectedPath])
@@ -375,6 +380,7 @@ struct CostUsageStoreReadWorkTests {
                 #expect(scanWork.usageRowsRepriced == 0)
                 let reloaded = CostUsageStoreAccess.load(
                     cacheRoot: fixture.env.cacheRoot,
+                    home: fixture.env.codexStoreHome,
                     calendar: fixture.calendar)
                 #expect(reloaded.cache.files.values.allSatisfy { $0.codexTurnIDs?.count == rowsPerFile })
             }
@@ -538,9 +544,11 @@ struct CostUsageStoreReadWorkTests {
             until: day,
             now: day.addingTimeInterval(120),
             options: baselineOptions)
-        let baselineCache = CostUsageStoreAccess.read(cacheRoot: baselineOptions.cacheRoot)
+        let baselineCache = CostUsageStoreAccess.read(
+            cacheRoot: baselineOptions.cacheRoot,
+            home: CodexHomeCostStoreScope.key(options: baselineOptions))
 
-        let store = CostUsageStore(cacheRoot: env.cacheRoot)
+        let store = CostUsageStore(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
         let recorder = CostUsageStoreReadWorkRecorder(databaseURL: store.databaseURL)
         var recordingHooks = CostUsageStoreTestHooks.current
         recordingHooks.readWorkRecorder = recorder
@@ -555,7 +563,7 @@ struct CostUsageStoreReadWorkTests {
             var unrecordedHooks = CostUsageStoreTestHooks.current
             unrecordedHooks.readWorkRecorder = nil
             try CostUsageStoreTestHooks.$current.withValue(unrecordedHooks) {
-                let incrementalCache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+                let incrementalCache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
                 let baselineChild = try #require(baselineCache.files.values.first { $0.sessionId == "new-child" })
                 let incrementalChild = try #require(incrementalCache.files.values.first { $0.sessionId == "new-child" })
 
@@ -586,6 +594,7 @@ struct CostUsageStoreReadWorkTests {
         try await CostUsageStoreTestHooks.$current.withValue(recordingHooks) {
             let loaded = CostUsageStoreAccess.load(
                 cacheRoot: fixture.env.cacheRoot,
+                home: fixture.env.codexStoreHome,
                 calendar: fixture.calendar)
             var changed = loaded.cache
             changed.codexProjectMetadataVersion = (changed.codexProjectMetadataVersion ?? 0) + 1
@@ -630,7 +639,10 @@ struct CostUsageStoreReadWorkTests {
         var recordingHooks = CostUsageStoreTestHooks.current
         recordingHooks.readWorkRecorder = recorder
         try await CostUsageStoreTestHooks.$current.withValue(recordingHooks) {
-            #expect(CostUsageStoreAccess.read(cacheRoot: other.env.cacheRoot, calendar: other.calendar) == other
+            #expect(CostUsageStoreAccess.read(
+                cacheRoot: other.env.cacheRoot,
+                home: other.env.codexStoreHome,
+                calendar: other.calendar) == other
                 .canonical)
             #expect(!other.save(other.canonical).catchUpRequired)
             #expect(recorder.snapshot() == CostUsageStoreReadWorkMetrics())
@@ -810,7 +822,7 @@ struct ReadWorkFixture {
             cache.codexScanProcessedBytes = cache.files.values.reduce(0) { $0 + ($1.parsedBytes ?? 0) }
             cache.codexScanTotalBytes = cache.files.values.reduce(0) { $0 + $1.size }
             cache.codexScanInventoryPaths = cache.files.keys.sorted()
-            let store = CostUsageStore(cacheRoot: env.cacheRoot)
+            let store = CostUsageStore(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
             let saved = store.syncSaveCodexCache(
                 cache,
                 calendar: calendar,

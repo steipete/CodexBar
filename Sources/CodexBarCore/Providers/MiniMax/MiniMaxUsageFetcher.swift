@@ -74,22 +74,27 @@ public struct MiniMaxUsageFetcher: Sendable {
                 includeBillingHistory: includeBillingHistory,
                 now: now)
         } catch let error as MiniMaxUsageError {
-            if case .parseFailed = error {
-                Self.log.debug("MiniMax coding plan HTML parse failed, trying remains API")
-                let snapshot = try await self.attachingSubscriptionMetadataIfAvailable(
-                    to: self.fetchCodingPlanRemains(
-                        context: context,
-                        groupID: groupID,
-                        now: now),
-                    context: context,
-                    groupID: groupID)
-                return try await self.attachingBillingIfAvailable(
-                    to: snapshot,
-                    context: context,
-                    includeBillingHistory: includeBillingHistory,
-                    now: now)
+            switch error {
+            case .parseFailed:
+                break
+            case let .apiError(message) where ["HTTP 302", "HTTP 404", "HTTP 405"].contains(where: message.contains):
+                break
+            default:
+                throw error
             }
-            throw error
+            Self.log.debug("MiniMax coding plan page unavailable, trying remains API")
+            let snapshot = try await self.attachingSubscriptionMetadataIfAvailable(
+                to: self.fetchCodingPlanRemains(
+                    context: context,
+                    groupID: groupID,
+                    now: now),
+                context: context,
+                groupID: groupID)
+            return try await self.attachingBillingIfAvailable(
+                to: snapshot,
+                context: context,
+                includeBillingHistory: includeBillingHistory,
+                now: now)
         }
     }
 
@@ -245,7 +250,7 @@ public struct MiniMaxUsageFetcher: Sendable {
         case .invalidCredentials:
             retryRejectedCredentials
         case let .apiError(message):
-            message.contains("HTTP 404") || message.contains("HTTP 405")
+            message.contains("HTTP 302") || message.contains("HTTP 404") || message.contains("HTTP 405")
         case .networkError, .parseFailed:
             true
         }
@@ -333,12 +338,20 @@ public struct MiniMaxUsageFetcher: Sendable {
         groupID: String?,
         now: Date) async throws -> MiniMaxUsageSnapshot
     {
-        let remainsURL = self.appendGroupID(groupID, to: baseRemainsURL)
+        let isCurrentChinaEndpoint = baseRemainsURL.path == "/backend/account/token_plan/remains_percent"
+        let remainsURL = isCurrentChinaEndpoint ? baseRemainsURL : self.appendGroupID(groupID, to: baseRemainsURL)
         var request = self.makeWebRequest(
             url: remainsURL,
             context: context,
             accept: "application/json, text/plain, */*")
         request.setValue("XMLHttpRequest", forHTTPHeaderField: "x-requested-with")
+        if isCurrentChinaEndpoint {
+            let pageURL = self.resolveCodingPlanURL(region: context.region, environment: context.environment)
+            request.setValue(self.originURL(from: pageURL).absoluteString, forHTTPHeaderField: "origin")
+            if let groupID, !groupID.isEmpty {
+                request.setValue(groupID, forHTTPHeaderField: "X-Group-Id")
+            }
+        }
         let response = try await self.fetchResponse(for: request, transport: context.transport)
 
         if let contentType = response.response.value(forHTTPHeaderField: "Content-Type"),
@@ -461,8 +474,8 @@ public struct MiniMaxUsageFetcher: Sendable {
     }
 
     private static func appendGroupID(_ groupID: String?, to url: URL) -> URL {
-        guard let groupID, !groupID.isEmpty else { return url }
-        guard var components = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return url }
+        guard let groupID, !groupID.isEmpty,
+              var components = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return url }
         var queryItems = components.queryItems ?? []
         queryItems.append(URLQueryItem(name: "GroupId", value: groupID))
         components.queryItems = queryItems
@@ -518,7 +531,9 @@ public struct MiniMaxUsageFetcher: Sendable {
             return [hostURL]
         }
 
-        return [
+        let currentChinaURL = URL(string: "https://www.minimax.cn/backend/account/token_plan/remains_percent")!
+        let current = region == .chinaMainland ? [currentChinaURL] : []
+        return current + [
             region.remainsURL,
             URL(string: region.webBaseURLString)!.appendingPathComponent(MiniMaxAPIRegion.remainsPath),
         ]
@@ -554,9 +569,8 @@ public struct MiniMaxUsageFetcher: Sendable {
     }
 
     static func url(from raw: String, path: String? = nil, query: String? = nil) -> URL? {
-        guard let cleaned = SettingsValue.cleaned(raw) else { return nil }
-
-        guard let base = ProviderEndpointOverrideValidator.normalizedHTTPSURL(from: cleaned) else { return nil }
+        guard let cleaned = SettingsValue.cleaned(raw),
+              let base = ProviderEndpointOverrideValidator.normalizedHTTPSURL(from: cleaned) else { return nil }
         var components = URLComponents(url: base, resolvingAgainstBaseURL: false)!
         if let path { components.path = "/" + path }
         if let query { components.query = query }
@@ -798,7 +812,8 @@ enum MiniMaxUsageParser {
             if let intervalService = self.makeServiceUsage(
                 ServiceUsageInput(
                     serviceType: serviceTypeIdentifier,
-                    windowTypeOverride: nil,
+                    isWebPercentSchema: item.hasIntervalUsedPercent,
+                    windowTypeOverride: item.hasIntervalUsedPercent && item.startTime == nil ? "5 hours" : nil,
                     total: item.currentIntervalTotalCount,
                     remaining: item.currentIntervalUsageCount,
                     remainingPercent: item.currentIntervalRemainingPercent,
@@ -817,6 +832,7 @@ enum MiniMaxUsageParser {
                let weeklyService = self.makeServiceUsage(
                    ServiceUsageInput(
                        serviceType: serviceTypeIdentifier,
+                       isWebPercentSchema: item.hasWeeklyUsedPercent,
                        windowTypeOverride: "Weekly",
                        total: item.currentWeeklyTotalCount,
                        remaining: item.currentWeeklyUsageCount,
@@ -932,6 +948,7 @@ enum MiniMaxUsageParser {
             item.modelName?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "video" &&
                 self.isUnavailableQuotaPlaceholder(ServiceUsageInput(
                     serviceType: "Text to Video",
+                    isWebPercentSchema: false,
                     windowTypeOverride: nil,
                     total: item.currentIntervalTotalCount,
                     remaining: item.currentIntervalUsageCount,
@@ -1028,8 +1045,8 @@ enum MiniMaxUsageParser {
 
     private static func nextDataJSONData(fromHTML html: String) -> Data? {
         let data = Data(html.utf8)
-        guard let idRange = data.range(of: self.nextDataNeedle) else { return nil }
-        guard let openTagEnd = data[idRange.upperBound...].firstIndex(of: UInt8(ascii: ">")) else { return nil }
+        guard let idRange = data.range(of: self.nextDataNeedle),
+              let openTagEnd = data[idRange.upperBound...].firstIndex(of: UInt8(ascii: ">")) else { return nil }
         let contentStart = data.index(after: openTagEnd)
         guard let closeRange = data.range(
             of: self.scriptCloseNeedle,
@@ -1049,9 +1066,8 @@ enum MiniMaxUsageParser {
         let unitRaw = match[2]
 
         let prompts = Int(promptsRaw.replacingOccurrences(of: ",", with: "")) ?? 0
-        guard prompts > 0 else { return nil }
-
-        guard let duration = Double(durationRaw),
+        guard prompts > 0,
+              let duration = Double(durationRaw),
               let windowMinutes = self.minutes(from: duration, unit: unitRaw),
               windowMinutes > 0 else { return nil }
         return (prompts, windowMinutes)
@@ -1377,6 +1393,7 @@ enum MiniMaxUsageParser {
 
     private struct ServiceUsageInput {
         let serviceType: String
+        let isWebPercentSchema: Bool
         let windowTypeOverride: String?
         let total: Int?
         let remaining: Int?
@@ -1464,6 +1481,9 @@ enum MiniMaxUsageParser {
         let normalizedService = input.serviceType.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         let normalizedWindow = windowType.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         let unlimitedServices = ["text generation", "general"]
+        if input.isWebPercentSchema, input.status == 3, unlimitedServices.contains(normalizedService) {
+            return true
+        }
         return input.status == 3 &&
             unlimitedServices.contains(normalizedService) &&
             normalizedWindow == "weekly" &&

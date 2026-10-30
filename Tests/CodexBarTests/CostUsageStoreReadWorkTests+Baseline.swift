@@ -255,7 +255,7 @@ extension CostUsageStoreReadWorkTests {
         defer { first.release(); second.release() }
         #expect(await fixture.store.retainedCodexBaselineCountForTesting == 1)
         #expect(fixture.save(first.cache, load: first).catchUpRequired)
-        let other = CostUsageStore(cacheRoot: fixture.env.cacheRoot)
+        let other = CostUsageStore(cacheRoot: fixture.env.cacheRoot, home: fixture.env.codexStoreHome)
         #expect(other.syncSaveCodexCache(
             second.cache,
             calendar: fixture.calendar,
@@ -293,7 +293,7 @@ extension CostUsageStoreReadWorkTests {
     }
 
     @Test(arguments: [false, true])
-    func `connection reopen and legacy recovery reject old receipts`(recover: Bool) async throws {
+    func `connection reopen rejects receipts while legacy cleanup preserves them`(recover: Bool) async throws {
         let fixture = try ReadWorkFixture(fileCount: 2, rowsPerFile: 4)
         defer { fixture.remove() }
         let loaded = fixture.store.syncLoadCodexScan(calendar: fixture.calendar)
@@ -306,9 +306,9 @@ extension CostUsageStoreReadWorkTests {
             await fixture.store.closeConnectionForTesting()
         }
         let current = await fixture.store.readSnapshot()
-        #expect(fixture.save(loaded.cache, load: loaded).catchUpRequired)
+        #expect(fixture.save(loaded.cache, load: loaded).catchUpRequired == !recover)
         #expect(await fixture.store.readSnapshot() == current)
-        #expect(await fixture.store.rebuildCount == (recover ? 1 : 0))
+        #expect(await fixture.store.rebuildCount == 0)
     }
 
     @Test
@@ -340,11 +340,14 @@ extension CostUsageStoreReadWorkTests {
         try writer.execute("UPDATE meta SET value = '\(predecessorHash)' WHERE key = 'parser_hash'")
         try writer.execute("PRAGMA user_version = \(predecessorVersion)")
         let predecessor = CostUsageStore(
-            cacheRoot: fixture.env.cacheRoot, schemaVersion: predecessorVersion, parserHash: predecessorHash)
+            cacheRoot: fixture.env.cacheRoot,
+            home: fixture.env.codexStoreHome,
+            schemaVersion: predecessorVersion,
+            parserHash: predecessorHash)
         let loaded = predecessor.syncLoadCodexScan(calendar: fixture.calendar)
         defer { loaded.release() }
         #expect(loaded.unloadedTokenSnapshotPaths.count == fixture.fileCount)
-        let adopter = CostUsageStore(cacheRoot: fixture.env.cacheRoot)
+        let adopter = CostUsageStore(cacheRoot: fixture.env.cacheRoot, home: fixture.env.codexStoreHome)
         let adopted = adopter.syncLoadCodexCache(calendar: fixture.calendar)
         #expect(adopted == fixture.canonical)
         #expect(predecessor.syncSaveCodexCache(
@@ -363,7 +366,9 @@ extension CostUsageStoreReadWorkTests {
         defer { fixture.remove() }
         let loaded = fixture.store.syncLoadCodexScan(calendar: fixture.calendar)
         defer { loaded.release() }
-        let replacement = CostUsageStore(cacheRoot: fixture.env.root.appendingPathComponent("replacement"))
+        let replacement = CostUsageStore(
+            cacheRoot: fixture.env.root.appendingPathComponent("replacement"),
+            home: fixture.store.home)
         var replacementCache = fixture.canonical
         replacementCache.codexProjectMetadataVersion = 777
         #expect(!replacement.syncSaveCodexCache(

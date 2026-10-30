@@ -156,7 +156,7 @@ struct CostUsageCompletedSnapshotTests {
         let options = Self.options(env: env)
         if invalidity != "missing" {
             let url = try await Self.seedNative(env: env, day: day, options: options)
-            var cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+            var cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
             var storedCalendar = options.calendar
             switch invalidity {
             case "pending":
@@ -168,7 +168,11 @@ struct CostUsageCompletedSnapshotTests {
             case "window": cache.scanSinceKey = "2026-04-08"
             default: cache.roots = [:]
             }
-            CostUsageStoreAccess.replace(cacheRoot: env.cacheRoot, cache: cache, calendar: storedCalendar)
+            CostUsageStoreAccess.replace(
+                cacheRoot: env.cacheRoot,
+                home: env.codexStoreHome,
+                cache: cache,
+                calendar: storedCalendar)
         }
 
         let result = await CostUsageFetcher.loadCachedCodexTokenSnapshotResult(

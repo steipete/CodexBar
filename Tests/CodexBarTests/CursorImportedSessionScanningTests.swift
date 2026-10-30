@@ -397,10 +397,11 @@ struct CursorImportedSessionScanningTests {
             accountName: nil,
             rawJSON: nil)
 
-        let result = await probe.scanImportedSessions([
+        let sessions = [
             Self.makeSessionInfo(sourceLabel: "Chrome"),
             Self.makeSessionInfo(sourceLabel: "Safari"),
-        ]) { session in
+        ]
+        let result = await probe.scanBrowsers([.chrome], importSessions: { _ in sessions }, attemptFetch: { session in
             switch session.sourceLabel {
             case "Chrome":
                 .failed(.networkError("HTTP 500"))
@@ -409,7 +410,7 @@ struct CursorImportedSessionScanningTests {
             default:
                 .tryNextBrowser
             }
-        }
+        })
 
         switch result {
         case let .succeeded(snapshot):
@@ -425,11 +426,12 @@ struct CursorImportedSessionScanningTests {
     func `imported session scan preserves first non auth failure after exhausting sessions`() async {
         let probe = CursorStatusProbe(browserDetection: BrowserDetection(cacheTTL: 0))
 
-        let result = await probe.scanImportedSessions([
+        let sessions = [
             Self.makeSessionInfo(sourceLabel: "Chrome"),
             Self.makeSessionInfo(sourceLabel: "Safari"),
             Self.makeSessionInfo(sourceLabel: "Arc"),
-        ]) { session in
+        ]
+        let result = await probe.scanBrowsers([.chrome], importSessions: { _ in sessions }, attemptFetch: { session in
             switch session.sourceLabel {
             case "Chrome":
                 .failed(.networkError("HTTP 500"))
@@ -440,7 +442,7 @@ struct CursorImportedSessionScanningTests {
             default:
                 .tryNextBrowser
             }
-        }
+        })
 
         switch result {
         case .succeeded:

@@ -1200,7 +1200,8 @@ extension CursorStatusProbeTests {
             browserDetection: BrowserDetection(cacheTTL: 0),
             urlSession: testSession.urlSession)
 
-        let snapshot = try await probe.fetchWithAppAuthSession(CursorAppAuthSession(accessToken: accessToken))
+        let session = CursorAppAuthSession(accessToken: accessToken)
+        let snapshot = try await probe.fetchWithCookieHeader(session.cookieHeader(), identityFallback: session.identity)
         #expect(snapshot.requestsUsed == 240)
         #expect(snapshot.requestsLimit == 500)
         #expect(snapshot.toUsageSnapshot().primary?.usedPercent == 48)
@@ -1230,19 +1231,39 @@ extension CursorStatusProbeTests {
         }
 
         let accessToken = try makeCursorAppAuthToken(expiration: Date(timeIntervalSinceNow: -60))
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("cursor-expired-app-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let databaseURL = directory.appendingPathComponent("state.vscdb")
+        var database: OpaquePointer?
+        try #require(sqlite3_open(databaseURL.path, &database) == SQLITE_OK)
+        defer { sqlite3_close(database) }
+        let sql = """
+        CREATE TABLE ItemTable(key TEXT PRIMARY KEY, value TEXT);
+        INSERT INTO ItemTable VALUES('cursorAuth/accessToken', '\(accessToken)');
+        INSERT INTO ItemTable VALUES('cursorAuth/refreshToken', '\(accessToken)');
+        """
+        try #require(sqlite3_exec(database, sql, nil, nil, nil) == SQLITE_OK)
+        let databaseBefore = try Data(contentsOf: databaseURL)
         let baseURL = try #require(URL(string: "https://cursor-web.test"))
         let probe = CursorStatusProbe(
             baseURL: baseURL,
             browserDetection: BrowserDetection(cacheTTL: 0),
             browserCookieImportOrder: [],
             urlSession: testSession.urlSession,
-            appAuthStore: CursorAppAuthSessionProviderStub(session: CursorAppAuthSession(
-                accessToken: accessToken)))
+            appAuthStore: CursorAppAuthStore(dbPath: databaseURL.path),
+            sessionStore: CursorSessionStore(fileURL: directory.appendingPathComponent("session.json")))
 
-        await #expect(throws: CursorStatusProbeError.self) {
+        do {
             _ = try await probe.fetch(allowCachedSessions: false)
+            Issue.record("Expected the expired app session diagnostic")
+        } catch {
+            #expect(error.localizedDescription == "Cursor app session expired — open Cursor to sign in again, "
+                + "or sign in to cursor.com in your browser.")
         }
         #expect(testSession.requestCount == 0)
+        #expect(try Data(contentsOf: databaseURL) == databaseBefore)
     }
 
     @Test

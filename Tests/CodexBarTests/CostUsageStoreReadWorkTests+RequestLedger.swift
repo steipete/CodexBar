@@ -49,7 +49,7 @@ extension CostUsageStoreReadWorkTests {
         let scanned = fixture.store.syncLoadCodexCache(calendar: fixture.calendar)
         #expect(scanned.files[path]?.codexRequestLedgerState == ledger)
 
-        let reader = CostUsageStore(cacheRoot: fixture.env.cacheRoot)
+        let reader = CostUsageStore(cacheRoot: fixture.env.cacheRoot, home: fixture.env.codexStoreHome)
         _ = reader.syncLoadCodexReadView(calendar: fixture.calendar, purpose: .status)
         _ = reader.syncLoadCodexReadView(calendar: fixture.calendar, purpose: .status)
         let retainedStatus = try #require(await reader.retainedCodexRead)

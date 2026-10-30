@@ -567,6 +567,7 @@ public enum CursorStatusProbeError: LocalizedError, Sendable {
     case networkError(String)
     case parseFailed(String)
     case noSessionCookie
+    case appSessionExpired
     case costRequestForbidden
 
     static let safariFullDiskAccessHint =
@@ -587,6 +588,8 @@ public enum CursorStatusProbeError: LocalizedError, Sendable {
             "Cursor API error: HTTP 403"
         case let .parseFailed(msg):
             "Could not parse Cursor usage: \(msg)"
+        case .appSessionExpired:
+            "Cursor app session expired — open Cursor to sign in again, or sign in to cursor.com in your browser."
         case .noSessionCookie:
             #if os(macOS)
             "No Cursor session found. \(Self.safariFullDiskAccessHint) "
@@ -1032,27 +1035,6 @@ public struct CursorStatusProbe: Sendable {
                 case let .failed(error):
                     firstFailure = firstFailure ?? error
                 }
-            }
-        }
-
-        return .exhausted(firstFailure)
-    }
-
-    func scanImportedSessions(
-        _ sessions: [CursorCookieImporter.SessionInfo],
-        attemptFetch: (CursorCookieImporter.SessionInfo) async -> ImportedSessionFetchOutcome) async
-        -> ImportedSessionScanResult
-    {
-        var firstFailure: CursorStatusProbeError?
-
-        for session in sessions {
-            switch await attemptFetch(session) {
-            case let .succeeded(snapshot):
-                return .succeeded(snapshot)
-            case .tryNextBrowser:
-                continue
-            case let .failed(error):
-                firstFailure = firstFailure ?? error
             }
         }
 

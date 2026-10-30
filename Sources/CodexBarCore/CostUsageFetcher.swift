@@ -419,6 +419,7 @@ public struct CostUsageFetcher: Sendable {
             options: options, environment: environment, range: requiredRange)
         let view = CostUsageStoreAccess.readView(
             cacheRoot: options.cacheRoot,
+            home: CodexHomeCostStoreScope.key(options: options),
             calendar: options.calendar,
             purpose: .status,
             sourceScope: sourceScope)
@@ -1147,7 +1148,7 @@ public struct CostUsageFetcher: Sendable {
     {
         let roots = CostUsageScanner.codexSessionsRoots(options: options)
         let rootsFingerprint = CostUsageScanner.codexRootsFingerprint(options: options)
-        let store = CostUsageStore(cacheRoot: options.cacheRoot)
+        let store = CostUsageStore(cacheRoot: options.cacheRoot, home: CodexHomeCostStoreScope.key(options: options))
         func read(_ purpose: CostUsageStoreReadPurpose) -> CostUsageStoreReadView {
             store.syncLoadCodexReadView(calendar: options.calendar, purpose: purpose, sourceScope: sourceScope)
                 .scoped(to: roots)
@@ -1262,9 +1263,8 @@ public struct CostUsageFetcher: Sendable {
                 if provider == .antigravity {
                     pricingTargets = AntigravityLocalReader.pricingRefreshTargets(for: breakdown.modelName)
                 } else if provider == .codex {
-                    guard OpenCodexRouteDispatcher.countsTowardCodexSubscription(modelName: breakdown.modelName)
-                    else { continue }
-                    guard !CostUsagePricing.isCodexUnattributedModel(breakdown.modelName) else { continue }
+                    guard OpenCodexRouteDispatcher.countsTowardCodexSubscription(modelName: breakdown.modelName),
+                          !CostUsagePricing.isCodexUnattributedModel(breakdown.modelName) else { continue }
                     pricingTargets = CostUsagePricing.codexModelsDevPricingTargets(for: breakdown.modelName)
                 } else {
                     pricingTargets = CostUsagePricing.claudeModelsDevPricingTargets(for: breakdown.modelName)
@@ -1361,6 +1361,7 @@ public struct CostUsageFetcher: Sendable {
             let rootsFingerprint = CostUsageScanner.codexRootsFingerprint(options: options)
             let cache = CostUsageStoreAccess.readView(
                 cacheRoot: options.cacheRoot,
+                home: CodexHomeCostStoreScope.key(options: options),
                 calendar: options.calendar,
                 purpose: .activity).scoped(to: roots)
             guard cache.timeZoneIdentifier == options.calendar.timeZone.identifier,

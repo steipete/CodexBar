@@ -106,14 +106,19 @@ enum MiniMaxLocalStorageImporter {
 
     // MARK: - Chromium storage discovery
 
-    static let indexedDBStorage = ChromiumLocalStorageDiscovery.Storage.indexedDB(originPrefixes: [
-        "https_platform.minimax.io_",
-        "https_www.minimax.io_",
-        "https_minimax.io_",
-        "https_platform.minimaxi.com_",
-        "https_minimaxi.com_",
-        "https_www.minimaxi.com_",
-    ])
+    private static let origins = [
+        "https://platform.minimax.io",
+        "https://www.minimax.io",
+        "https://minimax.io",
+        "https://platform.minimax.cn",
+        "https://www.minimax.cn",
+        "https://minimax.cn",
+        "https://platform.minimaxi.com",
+        "https://www.minimaxi.com",
+        "https://minimaxi.com",
+    ]
+    static let indexedDBStorage = ChromiumLocalStorageDiscovery.Storage.indexedDB(
+        originPrefixes: Self.origins.map { $0.replacingOccurrences(of: "://", with: "_") + "_" })
 
     static func storageCandidates(
         browserDetection: BrowserDetection,
@@ -138,16 +143,8 @@ enum MiniMaxLocalStorageImporter {
         from levelDBURL: URL,
         logger: ((String) -> Void)? = nil) -> LocalStorageSnapshot
     {
-        let origins = [
-            "https://platform.minimax.io",
-            "https://www.minimax.io",
-            "https://minimax.io",
-            "https://platform.minimaxi.com",
-            "https://www.minimaxi.com",
-            "https://minimaxi.com",
-        ]
         var entries: [SweetCookieKit.ChromiumLocalStorageEntry] = []
-        for origin in origins {
+        for origin in self.origins {
             entries.append(contentsOf: SweetCookieKit.ChromiumLocalStorageReader.readEntries(
                 for: origin,
                 in: levelDBURL,
@@ -178,7 +175,8 @@ enum MiniMaxLocalStorageImporter {
                 let key = entry.key.lowercased()
                 let value = entry.value.lowercased()
                 return key.contains("minimax.io") || value.contains("minimax.io") ||
-                    key.contains("minimaxi.com") || value.contains("minimaxi.com")
+                    key.contains("minimaxi.com") || value.contains("minimaxi.com") ||
+                    key.contains("minimax.cn") || value.contains("minimax.cn")
             }
             if !candidateEntries.isEmpty {
                 logger?("[minimax-storage] Local storage text entries: \(candidateEntries.count)")
@@ -218,24 +216,6 @@ enum MiniMaxLocalStorageImporter {
             }
         }
 
-        if tokens.isEmpty, !entries.isEmpty {
-            let sample = entries.prefix(6).map { "\($0.key) (\($0.value.count) chars)" }
-            logger?("[minimax-storage] Local storage key sample: \(sample.joined(separator: ", "))")
-            for entry in entries
-                where entry.key == "user_detail" || entry.key == "persist:root" || entry.key == "access_token"
-            {
-                let preview = entry.value.prefix(200)
-                if entry.key == "access_token" {
-                    logger?("[minimax-storage] \(entry.key) preview: \(preview) (raw \(entry.rawValueLength) bytes)")
-                } else {
-                    logger?("[minimax-storage] \(entry.key) preview: \(preview)")
-                }
-                if entry.key == "persist:root" {
-                    self.logPersistRootKeys(entry.value, logger: logger)
-                }
-            }
-        }
-
         return LocalStorageSnapshot(tokens: tokens, groupID: groupID)
     }
 
@@ -248,15 +228,7 @@ enum MiniMaxLocalStorageImporter {
             logger: logger)
         guard !entries.isEmpty else { return [] }
 
-        let origins = [
-            "https://platform.minimax.io",
-            "https://www.minimax.io",
-            "https://minimax.io",
-            "https://platform.minimaxi.com",
-            "https://www.minimaxi.com",
-            "https://minimaxi.com",
-        ]
-        let mapIDs = self.sessionStorageMapIDs(in: entries, origins: origins, logger: logger)
+        let mapIDs = self.sessionStorageMapIDs(in: entries, logger: logger)
         if mapIDs.isEmpty {
             logger?("[minimax-storage] No MiniMax session storage namespaces found")
             return []
@@ -271,17 +243,6 @@ enum MiniMaxLocalStorageImporter {
             return []
         }
 
-        let tokenKeySample = mapEntries
-            .filter { entry in
-                entry.key.localizedCaseInsensitiveContains("token") ||
-                    entry.key.localizedCaseInsensitiveContains("auth")
-            }
-            .prefix(8)
-            .map(\.key)
-        if !tokenKeySample.isEmpty {
-            logger?("[minimax-storage] MiniMax session storage token keys: \(tokenKeySample.joined(separator: ", "))")
-        }
-
         var tokens: [String] = []
         var seen = Set<String>()
         for entry in mapEntries {
@@ -290,13 +251,6 @@ enum MiniMaxLocalStorageImporter {
                 seen.insert(token)
                 tokens.append(token)
             }
-        }
-
-        if tokens.isEmpty {
-            let sample = mapEntries.prefix(8).map { entry in
-                "\(entry.key) (\(entry.value.count) chars)"
-            }
-            logger?("[minimax-storage] MiniMax session storage sample: \(sample.joined(separator: ", "))")
         }
 
         return tokens
@@ -335,26 +289,17 @@ enum MiniMaxLocalStorageImporter {
             }
         }
 
-        if tokens.isEmpty {
-            let sample = entries.prefix(8).map { entry in
-                "\(entry.key) (\(entry.value.count) chars)"
-            }
-            if !sample.isEmpty {
-                logger?("[minimax-storage] IndexedDB sample: \(sample.joined(separator: ", "))")
-            }
-        }
         return tokens
     }
 
     private static func sessionStorageMapIDs(
         in entries: [SweetCookieKit.ChromiumLevelDBTextEntry],
-        origins: [String],
         logger: ((String) -> Void)? = nil) -> Set<Int>
     {
         var mapIDs = Set<Int>()
         for entry in entries where entry.key.hasPrefix("namespace-") {
-            for origin in origins where entry.key.localizedCaseInsensitiveContains(origin) {
-                if let mapID = self.sessionStorageMapID(fromValue: entry.value) {
+            for origin in self.origins where entry.key.localizedCaseInsensitiveContains(origin) {
+                if let mapID = Int(entry.value.trimmingCharacters(in: .whitespacesAndNewlines)) {
                     mapIDs.insert(mapID)
                 }
             }
@@ -364,11 +309,6 @@ enum MiniMaxLocalStorageImporter {
             logger?("[minimax-storage] Session storage map ids for MiniMax: \(values)")
         }
         return mapIDs
-    }
-
-    private static func sessionStorageMapID(fromValue value: String) -> Int? {
-        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        return Int(trimmed)
     }
 
     private static func sessionStorageMapID(fromKey key: String) -> Int? {
@@ -465,31 +405,6 @@ enum MiniMaxLocalStorageImporter {
         return trimmed.count >= 60 && trimmed.range(of: #"^[A-Za-z0-9._\-+=/]+$"#, options: .regularExpression) != nil
     }
 
-    private static func logPersistRootKeys(_ value: String, logger: ((String) -> Void)?) {
-        guard let data = value.data(using: .utf8),
-              let json = try? JSONSerialization.jsonObject(with: data, options: []),
-              let root = json as? [String: Any]
-        else { return }
-
-        let rootKeys = root.keys.sorted()
-        if !rootKeys.isEmpty {
-            let sample = rootKeys.prefix(10).joined(separator: ", ")
-            logger?("[minimax-storage] persist:root keys: \(sample)")
-        }
-
-        if let authString = root["auth"] as? String,
-           let authData = authString.data(using: .utf8),
-           let authJSON = try? JSONSerialization.jsonObject(with: authData, options: []),
-           let auth = authJSON as? [String: Any]
-        {
-            let authKeys = auth.keys.sorted()
-            if !authKeys.isEmpty {
-                let sample = authKeys.prefix(10).joined(separator: ", ")
-                logger?("[minimax-storage] persist:root auth keys: \(sample)")
-            }
-        }
-    }
-
     private static func matchJWTs(in value: String) -> [String]? {
         let pattern = #"[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}"#
         guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else { return nil }
@@ -570,8 +485,7 @@ enum MiniMaxLocalStorageImporter {
     }
 
     private static func groupID(fromJWT token: String) -> String? {
-        guard token.contains(".") else { return nil }
-        guard let claims = self.decodeJWTClaims(token) else { return nil }
+        guard token.contains("."), let claims = self.decodeJWTClaims(token) else { return nil }
 
         let directKeys = [
             "group_id",
@@ -602,8 +516,8 @@ enum MiniMaxLocalStorageImporter {
         let parts = token.split(separator: ".")
         guard parts.count >= 2 else { return nil }
         let payload = String(parts[1])
-        guard let data = self.base64URLDecode(payload) else { return nil }
-        guard let object = try? JSONSerialization.jsonObject(with: data, options: []),
+        guard let data = self.base64URLDecode(payload),
+              let object = try? JSONSerialization.jsonObject(with: data, options: []),
               let dict = object as? [String: Any]
         else { return nil }
         return dict

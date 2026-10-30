@@ -29,7 +29,7 @@ struct CostUsageScannerCodexPriorityAllHistoryTests {
         // The spend dashboard scans from `Date.distantPast`; per-day bookkeeping must stay proportional to the
         // days that actually hold turns, not to the ~740k calendar days in that window.
         Self.loadCodexDailyReport(env: env, databaseURL: dbURL, since: .distantPast, now: now)
-        let cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        let cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
         let turnIDsByDay = try #require(cache.codexPriorityTurnIDsByDay)
         #expect(turnIDsByDay.count == 1)
         #expect(turnIDsByDay.values.first == ["turn-all"])
@@ -38,7 +38,7 @@ struct CostUsageScannerCodexPriorityAllHistoryTests {
         // A second pass over the same window must see no change and keep the compact state.
         CostUsageScanner._test_resetCodexPriorityTurnsMemo(forPath: dbURL.path)
         Self.loadCodexDailyReport(env: env, databaseURL: dbURL, since: .distantPast, now: now.addingTimeInterval(1))
-        let second = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        let second = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
         #expect(second.codexPriorityTurnIDsByDay == turnIDsByDay)
         #expect(second.codexPriorityTurnKeys == cache.codexPriorityTurnKeys)
     }
@@ -83,6 +83,7 @@ struct CostUsageScannerCodexPriorityAllHistoryTests {
 
         let predecessor = CostUsageStore(
             cacheRoot: env.cacheRoot,
+            home: env.codexStoreHome,
             schemaVersion: CostUsageStore.combinedSchemaVersion(
                 base: CostUsageStore.baseSchemaVersion,
                 parserHash: Self.releasedPredecessorHash),
@@ -92,7 +93,7 @@ struct CostUsageScannerCodexPriorityAllHistoryTests {
         #expect(await predecessor.setMetadata(metadata))
 
         // Opening with the current producer must adopt the released database in place.
-        let current = CostUsageStore(cacheRoot: env.cacheRoot)
+        let current = CostUsageStore(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
         let adopted = current.syncLoadCodexCache(calendar: .current)
         #expect(await current.rebuildCount == 0)
         #expect(adopted.codexPriorityTurnIDsByDay?.count == denseIDs.count)
@@ -100,7 +101,7 @@ struct CostUsageScannerCodexPriorityAllHistoryTests {
 
         // One all-history refresh drops the empty days and keeps only days that hold recorded turns.
         Self.loadCodexDailyReport(env: env, databaseURL: dbURL, since: .distantPast, now: now)
-        let refreshed = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        let refreshed = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
         let turnIDsByDay = try #require(refreshed.codexPriorityTurnIDsByDay)
         #expect(turnIDsByDay.count == 2)
         #expect(turnIDsByDay[oldDay] == ["turn-old"])
