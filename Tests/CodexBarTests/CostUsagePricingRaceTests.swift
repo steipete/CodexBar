@@ -130,6 +130,7 @@ struct CostUsagePricingRaceTests {
         cache.timeZoneIdentifier = range.calendar.timeZone.identifier
         _ = CostUsageStoreAccess.replace(
             cacheRoot: environment.cacheRoot,
+            home: environment.codexStoreHome,
             cache: cache,
             calendar: range.calendar)
 
@@ -140,6 +141,7 @@ struct CostUsagePricingRaceTests {
             cacheRead: 999)
         let restored = CostUsageStoreAccess.read(
             cacheRoot: environment.cacheRoot,
+            home: environment.codexStoreHome,
             calendar: range.calendar)
         let report = CostUsageScanner.buildCodexReportFromCache(
             cache: restored,
@@ -232,6 +234,7 @@ private struct PricingRaceFixture {
     func readReport() -> CostUsageDailyReport {
         let cache = CostUsageStoreAccess.read(
             cacheRoot: self.environment.cacheRoot,
+            home: self.environment.codexStoreHome,
             calendar: self.range.calendar)
         return CostUsageScanner.buildCodexReportFromCache(
             cache: cache,

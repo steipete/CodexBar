@@ -37,12 +37,17 @@ struct CodexDayAttributionTests {
         let fixture = try CodexCurrentWindowFixture(kind: .historical)
         defer { fixture.base.remove() }
         var cache = CostUsageStoreAccess.read(
-            cacheRoot: fixture.base.env.cacheRoot, calendar: fixture.base.calendar)
+            cacheRoot: fixture.base.env.cacheRoot,
+            home: fixture.base.env.codexStoreHome,
+            calendar: fixture.base.calendar)
         let roots = try #require(cache.codexActiveLookbackState).rootPaths
         cache.codexActiveLookbackState?.completedCurrentWindowRootPaths = []
         cache.codexActiveLookbackState?.completedCurrentWindowFlatRootPaths = []
         CostUsageStoreAccess.replace(
-            cacheRoot: fixture.base.env.cacheRoot, cache: cache, calendar: fixture.base.calendar)
+            cacheRoot: fixture.base.env.cacheRoot,
+            home: fixture.base.env.codexStoreHome,
+            cache: cache,
+            calendar: fixture.base.calendar)
         #expect(await fixture.strictSnapshot() == nil)
         let retained = try #require(await fixture.base.cachedSnapshot())
         #expect(retained.snapshot.last30DaysTokens == 13)
@@ -51,7 +56,10 @@ struct CodexDayAttributionTests {
         cache.codexActiveLookbackState?.completedCurrentWindowRootPaths = roots
         cache.codexActiveLookbackState?.completedCurrentWindowFlatRootPaths = roots
         CostUsageStoreAccess.replace(
-            cacheRoot: fixture.base.env.cacheRoot, cache: cache, calendar: fixture.base.calendar)
+            cacheRoot: fixture.base.env.cacheRoot,
+            home: fixture.base.env.codexStoreHome,
+            cache: cache,
+            calendar: fixture.base.calendar)
         let completed = try #require(await fixture.strictSnapshot())
         #expect(completed.snapshot.last30DaysTokens == 52)
         #expect(completed.snapshot.updatedAt == fixture.base.now)
@@ -113,7 +121,7 @@ struct CodexDayAttributionTests {
         options.forceRescan = force
         let report = CostUsageScanner.loadDailyReport(
             provider: .codex, since: firstDate, until: nextDate, now: nextDate, options: options)
-        let cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, calendar: calendar)
+        let cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome, calendar: calendar)
         let saved = try #require(cache.files.values.first)
         #expect(saved.parsedBytes == CostUsageScanner.codexFileMetadata(fileURL: file).size)
         #expect(saved.codexScanComplete == true)
@@ -145,11 +153,15 @@ struct CodexDayAttributionTests {
             provider: .codex, since: firstDate, until: thirdDate, now: thirdDate, options: options)
         #expect(rotated.data.map(\.totalTokens) == [1100, 132, 66])
         #expect(rotated.summary?.totalTokens == 1298)
-        var legacy = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, calendar: calendar)
+        var legacy = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome, calendar: calendar)
         for path in Array(legacy.files.keys) {
             legacy.files[path]?.codexParserRevision = CostUsageFileUsage.currentCodexParserRevision - 1
         }
-        CostUsageStoreAccess.replace(cacheRoot: env.cacheRoot, cache: legacy, calendar: calendar)
+        CostUsageStoreAccess.replace(
+            cacheRoot: env.cacheRoot,
+            home: env.codexStoreHome,
+            cache: legacy,
+            calendar: calendar)
         let migrated = CostUsageScanner.loadDailyReport(
             provider: .codex,
             since: firstDate,
@@ -157,7 +169,7 @@ struct CodexDayAttributionTests {
             now: thirdDate.addingTimeInterval(1),
             options: options)
         #expect(migrated.data == rotated.data)
-        let upgraded = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, calendar: calendar)
+        let upgraded = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome, calendar: calendar)
         let allFilesUpgraded = upgraded.files.values.allSatisfy(\.hasCurrentCodexParser)
         #expect(allFilesUpgraded)
     }

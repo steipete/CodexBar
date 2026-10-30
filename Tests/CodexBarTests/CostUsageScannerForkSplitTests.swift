@@ -94,6 +94,7 @@ struct CostUsageScannerForkSplitTests {
         let predecessorHash = "43609cc56f76a003"
         let predecessorStore = CostUsageStore(
             cacheRoot: environment.cacheRoot,
+            home: environment.codexStoreHome,
             schemaVersion: CostUsageStore.combinedSchemaVersion(
                 base: CostUsageStore.baseSchemaVersion,
                 parserHash: predecessorHash),
@@ -102,7 +103,7 @@ struct CostUsageScannerForkSplitTests {
             cache,
             calendar: range.calendar,
             requestedScanWindow: (sinceKey: dayKey, untilKey: dayKey))
-        let currentStore = CostUsageStore(cacheRoot: environment.cacheRoot)
+        let currentStore = CostUsageStore(cacheRoot: environment.cacheRoot, home: environment.codexStoreHome)
         let restored = currentStore.syncLoadCodexCache(calendar: range.calendar)
         let warmReport = CostUsageScanner.buildCodexReportFromCache(cache: restored, range: range)
         #expect(await currentStore.rebuildCount == 0)
@@ -696,7 +697,10 @@ struct CostUsageScannerForkSplitTests {
         let contaminatedReport = CostUsageScanner.buildCodexReportFromCache(cache: cache, range: fixture.range)
         #expect(contaminatedReport.summary?.totalTokens == canonicalTokens)
         #expect(contaminatedReport.summary?.totalCostUSD == nil)
-        #expect(!CostUsageStoreAccess.replace(cacheRoot: fixture.environment.cacheRoot, cache: cache).catchUpRequired)
+        #expect(!CostUsageStoreAccess.replace(
+            cacheRoot: fixture.environment.cacheRoot,
+            home: fixture.environment.codexStoreHome,
+            cache: cache).catchUpRequired)
         var options = fixture.options
         options.forceRescan = false
         options.refreshMinIntervalSeconds = 3600
@@ -708,7 +712,9 @@ struct CostUsageScannerForkSplitTests {
             options: options)
         #expect(report.data == originalReport.data)
         #expect(report.summary == originalReport.summary)
-        let recovered = CostUsageStoreAccess.read(cacheRoot: fixture.environment.cacheRoot)
+        let recovered = CostUsageStoreAccess.read(
+            cacheRoot: fixture.environment.cacheRoot,
+            home: fixture.environment.codexStoreHome)
         #expect(recovered.files[child.key]?.codexRows == child.value.codexRows)
         #expect(recovered.files[parent.key]?.codexRows == parent.value.codexRows)
         let breakdown = try #require(report.data.first?.modelBreakdowns?.first)
@@ -849,7 +855,10 @@ extension CostUsageScannerForkSplitTests {
             range: range,
             dayKey: range.sinceKey,
             model: model,
-            cache: CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, calendar: range.calendar),
+            cache: CostUsageStoreAccess.read(
+                cacheRoot: env.cacheRoot,
+                home: env.codexStoreHome,
+                calendar: range.calendar),
             options: options)
     }
 

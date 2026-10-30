@@ -49,7 +49,7 @@ struct CostUsageWhitespaceRowReplacementTests {
             provider: .codex, since: day, until: day, now: day, options: options)
         #expect(clean.summary?.totalTokens == 250)
 
-        var legacy = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        var legacy = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
         let firstPath = try #require(legacy.files.keys.first { $0.hasSuffix("/a.jsonl") })
         let otherPath = try #require(legacy.files.keys.first { $0.hasSuffix("/b.jsonl") })
         var first = try #require(legacy.files[firstPath])
@@ -69,7 +69,7 @@ struct CostUsageWhitespaceRowReplacementTests {
         first.codexParserRevision = nil
         legacy.files[firstPath] = first
         legacy.files[otherPath]?.codexParserRevision = nil
-        CostUsageStoreAccess.replace(cacheRoot: env.cacheRoot, cache: legacy)
+        CostUsageStoreAccess.replace(cacheRoot: env.cacheRoot, home: env.codexStoreHome, cache: legacy)
         if growing {
             let handle = try FileHandle(forWritingTo: URL(fileURLWithPath: firstPath))
             try handle.seekToEnd()
@@ -84,7 +84,7 @@ struct CostUsageWhitespaceRowReplacementTests {
         _ = CostUsageScanner.loadDailyReport(
             provider: .codex, since: day, until: day, now: day.addingTimeInterval(3), options: options)
         if limited {
-            let partial = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+            let partial = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
             let started = try #require(partial.files[firstPath])
             #expect(started.codexScanComplete == false)
             #expect(started.hasCurrentCodexParser)
@@ -95,7 +95,7 @@ struct CostUsageWhitespaceRowReplacementTests {
         let final = CostUsageScanner.loadDailyReport(
             provider: .codex, since: day, until: day, now: day.addingTimeInterval(4), options: options)
         #expect(final.data == expected.data)
-        let reopenedStore = CostUsageStore(cacheRoot: env.cacheRoot)
+        let reopenedStore = CostUsageStore(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
         let reopened = reopenedStore.syncLoadCodexCache(calendar: .current)
         #expect(reopened.files[firstPath]?.codexRows?.map(\.input) == (growing ? [100, 100, 100] : [100, 100]))
         #expect(reopened.files[firstPath]?.codexTokenSnapshots?.compactMap { $0.total?.input }

@@ -2114,6 +2114,26 @@ struct MenuBarLayoutRendererTests {
     }
 
     @Test
+    func `pace state bars keep signed text neutral and scale with the font`() throws {
+        for size in MenuBarLayoutSize.allCases {
+            let rendered = MenuBarLayoutRenderer().render(
+                layout: MenuBarLayout(lines: [[.pace(window: .weekly)]]),
+                data: self.data(),
+                icon: nil,
+                options: self.options(size: size, colorPace: true))
+            let title = rendered.attributedTitle
+            let attachment = try #require(title.attribute(.attachment, at: 0, effectiveRange: nil)
+                as? NSTextAttachment)
+            let font = try #require(title.attribute(.font, at: 0, effectiveRange: nil) as? NSFont)
+            #expect(attachment.bounds.height == font.capHeight)
+            #expect(attachment.bounds.width == font.capHeight / 2)
+            #expect(title.attribute(.foregroundColor, at: title.length - 1, effectiveRange: nil) as? NSColor
+                == .controlTextColor)
+            #expect(rendered.accessibilityLabel.contains("+11%"))
+        }
+    }
+
+    @Test
     func `pace colors follow reserve and ahead values and toggle invalidates cache`() {
         let renderer = MenuBarLayoutRenderer()
         let cases: [(PercentWindow, NSColor)] = [
@@ -2129,7 +2149,7 @@ struct MenuBarLayoutRendererTests {
                 == .controlTextColor)
             #expect(colored.attributedTitle.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? NSColor
                 == expectedColor)
-            #expect(colored.attributedTitle.string == plain.attributedTitle.string)
+            #expect(colored.accessibilityLabel == plain.accessibilityLabel)
             #expect(plain.statusImage?.isTemplate == true)
             #expect((colored.statusImage == nil) == (window != .automatic))
             let button = NSButton()
@@ -2183,11 +2203,11 @@ struct MenuBarLayoutRendererTests {
         let options = self.options(conditionals: [conditional], colorPace: true)
         let colored = renderer.render(layout: layout, data: self.data(), icon: nil, options: options)
         #expect(colored.statusImage == nil)
-        #expect(colored.attributedTitle.string.contains("+11%"))
+        #expect(colored.accessibilityLabel.contains("+11%"))
         let neutral = renderer.render(
             layout: layout, data: self.data(automaticUsedPercent: 100), icon: nil, options: options)
         #expect(neutral.statusImage?.isTemplate == true)
-        #expect(!neutral.attributedTitle.string.contains("+11%"))
+        #expect(!neutral.accessibilityLabel.contains("+11%"))
     }
 
     @Test(arguments: ["aqua", "darkAqua"], ["regular", "stale", "highContrast", "staleHighContrast"])
@@ -2213,7 +2233,7 @@ struct MenuBarLayoutRendererTests {
                 options: options)
             #expect(output.statusImage == nil)
             _ = StatusItemController.applyMenuBarLayoutContent(output, for: button, gap: .regular)
-            let range = (button.attributedTitle.string as NSString).range(of: "+11%")
+            let range = (button.attributedTitle.string as NSString).range(of: "\u{FFFC}", options: .backwards)
             try #require(range.location != NSNotFound)
             let expected = mode == "stale" ? NSColor.systemRed.withAlphaComponent(0.5) : .systemRed
             #expect(button.attributedTitle.attribute(

@@ -59,7 +59,7 @@ struct CostUsageScannerWhitespaceTests {
         #expect(today.totalTokens == 220)
         #expect(try abs(#require(today.costUSD) - 0.0000568) < 0.000_000_001)
         // The older parser could retain the first compact event and omit the spaced next-day event.
-        var legacy = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        var legacy = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
         let path = try #require(legacy.files.keys.first)
         var legacyFile = try #require(legacy.files[path])
         legacyFile.codexParserRevision = nil
@@ -67,8 +67,9 @@ struct CostUsageScannerWhitespaceTests {
         legacyFile.days = ["2026-09-06": ["gpt-5.6-luna": [10, 2, 1]]]
         legacy.days = legacyFile.days
         legacy.files[path] = legacyFile
-        CostUsageStoreAccess.replace(cacheRoot: env.cacheRoot, cache: legacy)
-        #expect(CostUsageStoreAccess.read(cacheRoot: env.cacheRoot).files[path]?.codexParserRevision == nil)
+        CostUsageStoreAccess.replace(cacheRoot: env.cacheRoot, home: env.codexStoreHome, cache: legacy)
+        #expect(CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome).files[path]?
+            .codexParserRevision == nil)
         options.refreshMinIntervalSeconds = 3600
         if limited {
             options.maxCodexScanBytesPerRefresh = Int64(prefix.utf8.count)
@@ -78,7 +79,7 @@ struct CostUsageScannerWhitespaceTests {
                 until: historicalFirst ? firstDay : nextDay,
                 now: nextDay.addingTimeInterval(1),
                 options: options)
-            let partial = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+            let partial = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
             #expect(partial.files[path]?.hasCurrentCodexParser == true)
             #expect(partial.files[path]?.codexScanComplete == false)
             options.maxCodexScanBytesPerRefresh = 512 * 1024 * 1024
@@ -99,6 +100,7 @@ struct CostUsageScannerWhitespaceTests {
             options: options)
         #expect(cached.summary?.totalTokens == 330)
         #expect(cached.data == appended.data)
-        #expect(CostUsageStoreAccess.read(cacheRoot: env.cacheRoot).files[path]?.hasCurrentCodexParser == true)
+        #expect(CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome).files[path]?
+            .hasCurrentCodexParser == true)
     }
 }

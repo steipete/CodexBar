@@ -40,7 +40,7 @@ struct CostUsageScannerReserveTests {
         #expect(try abs(#require(fresh.summary?.totalCostUSD) - 0.0248) < 0.000_000_001)
 
         // Older scans can store the raw alias; it must still contribute after repricing.
-        var cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        var cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
         let path = try #require(cache.files.keys.first)
         var file = try #require(cache.files[path])
         file.codexRows = [CostUsageScanner.CodexUsageRow(
@@ -56,13 +56,14 @@ struct CostUsageScannerReserveTests {
         file.codexPriorityCostNanos = nil
         cache.files[path] = file
         cache.codexPricingKey = "builtin-before-reserve"
-        CostUsageStoreAccess.replace(cacheRoot: env.cacheRoot, cache: cache)
+        CostUsageStoreAccess.replace(cacheRoot: env.cacheRoot, home: env.codexStoreHome, cache: cache)
         options.refreshMinIntervalSeconds = 3600
         let cached = CostUsageScanner.loadDailyReport(
             provider: .codex, since: day, until: day, now: day.addingTimeInterval(1), options: options)
         #expect(cached.summary?.totalTokens == 110_000)
         #expect(try abs(#require(cached.summary?.totalCostUSD) - 0.0248) < 0.000_000_001)
-        let retained = try #require(CostUsageStoreAccess.read(cacheRoot: env.cacheRoot).files[path])
+        let retained = try #require(CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
+            .files[path])
         #expect(retained.parsedBytes == file.parsedBytes)
     }
 }

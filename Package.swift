@@ -45,7 +45,7 @@ let package = Package(
     }(),
     dependencies: [
         .package(url: "https://github.com/sparkle-project/Sparkle", from: "2.10.1"),
-        .package(url: "https://github.com/steipete/Commander", from: "0.2.4"),
+        .package(url: "https://github.com/steipete/Commander", from: "0.3.0"),
         .package(url: "https://github.com/apple/swift-crypto.git", "4.5.2"..<"6.0.0"),
         .package(url: "https://github.com/apple/swift-log", from: "1.16.2"),
         .package(url: "https://github.com/sindresorhus/KeyboardShortcuts", from: "3.1.0"),

@@ -91,7 +91,7 @@ struct CodexSubagentOrdinalBoundaryTests {
         options.refreshMinIntervalSeconds = 0
         var clock = day
         _ = try self.scan(env: env, day: day, options: options, clock: &clock)
-        var legacy = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        var legacy = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
         let path = try #require(legacy.files.keys.first)
         var usage = try #require(legacy.files[path])
         let dayKey = CostUsageScanner.CostUsageDayRange.dayKey(from: day)
@@ -121,16 +121,17 @@ struct CodexSubagentOrdinalBoundaryTests {
             summary: nil)
         legacy.codexPreviousReport = CostUsageCodexPreviousReport(
             report: report, cache: legacy, reportSinceKey: dayKey, reportUntilKey: dayKey)
-        CostUsageStoreAccess.replace(cacheRoot: env.cacheRoot, cache: legacy)
-        #expect(CostUsageStoreAccess.read(cacheRoot: env.cacheRoot).files[path]?.codexRows?.first?.input == 70)
+        CostUsageStoreAccess.replace(cacheRoot: env.cacheRoot, home: env.codexStoreHome, cache: legacy)
+        #expect(CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome).files[path]?.codexRows?
+            .first?.input == 70)
         if bounded { options.maxCodexScanBytesPerRefresh = 512 }
         let repaired = try self.scan(env: env, day: day, options: options, clock: &clock)
         #expect(self.totalTokens(repaired) == 0)
-        let reopened = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        let reopened = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
         #expect(reopened.files[path]?.hasCurrentCodexParser == true)
         #expect((reopened.files[path]?.codexRows ?? []).isEmpty)
         #expect(try Data(contentsOf: file) == contents)
-        let store = CostUsageStore(cacheRoot: env.cacheRoot)
+        let store = CostUsageStore(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
         let persisted = await store.readSnapshot()
         #expect(persisted.usageRows.isEmpty)
         #expect(persisted.files.contains { $0.path == path })
@@ -190,7 +191,7 @@ struct CodexSubagentOrdinalBoundaryTests {
                 until: day,
                 now: clock,
                 options: options)
-            let files = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot).files.values
+            let files = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome).files.values
             if !files.isEmpty, files.allSatisfy({ $0.codexScanComplete == true && $0.hasCurrentCodexParser }) {
                 return report
             }
