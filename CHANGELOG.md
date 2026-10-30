@@ -4,6 +4,7 @@
 
 ### Changed
 
+- CLI: malformed or ambiguous arguments now fail with an error instead of being guessed (Commander 0.3.0).
 - Updates: refresh Sparkle to improve update installation, download progress, and release-note handling.
 
 ## 0.82.0 — 2026-10-26
