@@ -14,8 +14,12 @@ Kiro uses `kiro-cli` to fetch usage data. The CLI owns authentication; CodexBar 
 ## Data sources
 
 1) **CLI command** (primary)
-   - Command: `kiro-cli chat --no-interactive "/usage"`
-   - A separate `kiro-cli chat --no-interactive "/context"` probe supplies context details; seeing
+   - Command: `kiro-cli chat --no-interactive "/usage" --v2`
+   - `--v2` selects the V2 harness for that run only, leaving the saved `chat.agentEngine` unchanged.
+     The V3 harness sends `/usage` and `/context` to the model in non-interactive runs instead of
+     printing the report. When the CLI report fails, CodexBar uses `GetUsageLimits` plan usage if the
+     API states an unambiguous plan allowance; otherwise the CLI error surfaces.
+   - A separate `kiro-cli chat --no-interactive "/context" --v2` probe supplies context details; seeing
      `/context` in the process tree is expected. Both commands start chat sessions. `--no-interactive`
      does not promise session-free execution, and Kiro CLI 2.33.1 is reported to save empty session
      pairs for these probes (#4746). The public command and headless references do not document a

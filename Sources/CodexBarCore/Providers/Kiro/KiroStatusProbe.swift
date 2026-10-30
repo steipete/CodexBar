@@ -385,10 +385,14 @@ public struct KiroStatusProbe: Sendable {
             _ = await accountTask.value
             throw CancellationError()
         } catch {
-            if try await self.awaitAccountStatus(accountTask) == .notLoggedIn {
+            let accountStatus = try await self.awaitAccountStatus(accountTask)
+            if accountStatus == .notLoggedIn {
                 throw KiroStatusProbeError.notLoggedIn
             }
-            throw error
+            if case KiroStatusProbeError.notLoggedIn? = error as? KiroStatusProbeError {
+                throw error
+            }
+            return try await self.usageLimitsFallback(after: error, account: accountStatus.account)
         }
 
         var contextUsage: KiroContextUsageSnapshot?
@@ -413,6 +417,12 @@ public struct KiroStatusProbe: Sendable {
                 contextUsage: contextUsage)
         } catch KiroStatusProbeError.parseError where accountStatus == .notLoggedIn {
             throw KiroStatusProbeError.notLoggedIn
+        } catch let error as KiroStatusProbeError {
+            guard case .parseError = error else { throw error }
+            return try await self.usageLimitsFallback(
+                after: error,
+                account: accountInfo,
+                contextUsage: contextUsage)
         }
         let limits = try await self.fetchUsageLimits()
         return snapshot.withUsageLimits(limits)
@@ -629,7 +639,8 @@ public struct KiroStatusProbe: Sendable {
 
     private func runUsageCommand() async throws -> String {
         let result = try await self.runCommand(
-            arguments: ["chat", "--no-interactive", "/usage"],
+            // V3 sends slash commands to the model in non-interactive runs; V2 still prints the report.
+            arguments: ["chat", "--no-interactive", "/usage", "--v2"],
             timeout: self.usageProbeTimeout,
             idleTimeout: 4.0,
             kind: .usage)
@@ -647,7 +658,7 @@ public struct KiroStatusProbe: Sendable {
 
     private func fetchContextUsage() async throws -> KiroContextUsageSnapshot? {
         let result = try await self.runCommand(
-            arguments: ["chat", "--no-interactive", "/context"],
+            arguments: ["chat", "--no-interactive", "/context", "--v2"],
             timeout: self.contextProbeTimeout,
             idleTimeout: 3.0,
             kind: .context)
@@ -1475,5 +1486,37 @@ extension KiroStatusProbe {
 extension String {
     fileprivate var nilIfEmpty: String? {
         self.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : self
+    }
+}
+
+extension KiroStatusProbe {
+    /// Keeps usage visible when the CLI report fails, e.g. a V3 harness answering `/usage` as a prompt.
+    ///
+    /// Only an unambiguous plan allowance replaces the CLI error; otherwise the original error surfaces.
+    private func usageLimitsFallback(
+        after error: Error,
+        account: KiroAccountInfo?,
+        contextUsage: KiroContextUsageSnapshot? = nil) async throws -> KiroUsageSnapshot
+    {
+        guard let limits = try await self.fetchUsageLimits(),
+              !limits.hasUnseparatedBonus,
+              limits.planLimit > 0
+        else { throw error }
+        Self.logger.debug("Kiro CLI usage unavailable, using usage API: \(error.localizedDescription)")
+        return KiroUsageSnapshot(
+            planName: "Kiro",
+            accountEmail: account?.email?.nilIfEmpty,
+            authMethod: account?.authMethod?.nilIfEmpty,
+            creditsUsed: 0,
+            creditsTotal: 0,
+            creditsPercent: 0,
+            hasUsageMetrics: false,
+            bonusCreditsUsed: nil,
+            bonusCreditsTotal: nil,
+            bonusExpiryDays: nil,
+            contextUsage: contextUsage,
+            resetsAt: nil,
+            updatedAt: Date())
+            .withUsageLimits(limits)
     }
 }
