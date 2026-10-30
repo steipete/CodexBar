@@ -2,6 +2,16 @@
 
 ## 0.82.1 — Unreleased
 
+### Fixed
+
+- Localization: correctly validate reordered plural arguments after ordinary placeholders. (#4817) Thanks @xuancao1953-1!
+- OpenCodex: reduce temporary memory use when importing large usage logs (#4803).
+- Cursor: explain when the Cursor app session has expired and no browser session works, with steps to sign in again (#4804). Thanks @julianpinedayyz!
+
+### Changed
+
+- Updates: refresh Sparkle to improve update installation, download progress, and release-note handling.
+
 ## 0.82.0 — 2026-10-26
 
 ### Highlights
