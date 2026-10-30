@@ -1444,6 +1444,15 @@
 "menu_bar_layout_token_space" = "공백";
 "menu_bar_layout_token_line_break" = "줄 바꿈";
 "menu_bar_layout_token_separator_accessibility" = "구분점";
+"menu_bar_layout_token_separator_glyph_accessibility" = "구분자 %@";
+"menu_bar_layout_separator_pipe" = "세로줄";
+"menu_bar_layout_separator_slash" = "슬래시";
+"menu_bar_layout_separator_hyphen" = "하이픈";
+"menu_bar_layout_separator_bullet" = "글머리 기호";
+"menu_bar_layout_separator_diamond" = "채운 마름모";
+"menu_bar_layout_separator_hollowDiamond" = "빈 마름모";
+"menu_bar_layout_separator_tilde" = "물결표";
+"menu_bar_layout_separator_doubleBar" = "이중 세로줄";
 
 /* Menu bar layout accessibility */
 "Icon unavailable" = "아이콘: 사용할 수 없음";
@@ -2729,3 +2738,11 @@
 "Show this Mac's recorded OpenCode usage in Codex history. Off by default; scoped or alternate CODEX_HOME locations always stay excluded." = "이 Mac에 기록된 OpenCode 사용량을 Codex 기록에 표시합니다. 기본적으로 꺼져 있으며, 범위가 제한된 CODEX_HOME 위치나 대체 위치는 항상 제외됩니다.";
 "Auto uses the active saved session, otherwise an API key or browser cookies." = "자동은 활성 저장된 세션을 사용하며, 활성 세션이 없으면 API 키 또는 브라우저 쿠키를 사용합니다.";
 "Store multiple Command Code subscription sessions." = "Command Code 구독 세션을 여러 개 저장합니다.";
+
+// Codex account names
+"Rename" = "이름 변경";
+"Rename account" = "계정 이름 변경";
+"Account name" = "계정 이름";
+"Leave blank to use the default name." = "기본 이름을 사용하려면 비워 두세요.";
+"Rewards" = "보상";
+"Reward expiry" = "보상 만료일";

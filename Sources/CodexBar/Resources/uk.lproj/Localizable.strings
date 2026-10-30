@@ -1475,6 +1475,15 @@
 "menu_bar_layout_token_space" = "Пробіл";
 "menu_bar_layout_token_line_break" = "Розрив рядка";
 "menu_bar_layout_token_separator_accessibility" = "Крапка-роздільник";
+"menu_bar_layout_token_separator_glyph_accessibility" = "Роздільник %@";
+"menu_bar_layout_separator_pipe" = "Вертикальна риска";
+"menu_bar_layout_separator_slash" = "Скісна риска";
+"menu_bar_layout_separator_hyphen" = "Дефіс";
+"menu_bar_layout_separator_bullet" = "Маркер";
+"menu_bar_layout_separator_diamond" = "Заповнений ромб";
+"menu_bar_layout_separator_hollowDiamond" = "Порожній ромб";
+"menu_bar_layout_separator_tilde" = "Тильда";
+"menu_bar_layout_separator_doubleBar" = "Подвійна вертикальна риска";
 
 /* Menu bar layout accessibility */
 "Icon unavailable" = "Значок недоступний";
@@ -2762,3 +2771,11 @@
 "Show this Mac's recorded OpenCode usage in Codex history. Off by default; scoped or alternate CODEX_HOME locations always stay excluded." = "Показує використання OpenCode, записане на цьому Mac, в історії Codex. Типово вимкнено; розташування CODEX_HOME з обмеженою областю дії або альтернативні розташування завжди виключаються.";
 "Auto uses the active saved session, otherwise an API key or browser cookies." = "Автоматичний режим використовує активний збережений сеанс, інакше — ключ API або файли cookie браузера.";
 "Store multiple Command Code subscription sessions." = "Зберігати кілька сеансів передплати Command Code.";
+
+// Codex account names
+"Rename" = "Перейменувати";
+"Rename account" = "Перейменувати обліковий запис";
+"Account name" = "Назва облікового запису";
+"Leave blank to use the default name." = "Залиште поле порожнім, щоб використовувати назву за замовчуванням.";
+"Rewards" = "Винагороди";
+"Reward expiry" = "Термін дії винагород";

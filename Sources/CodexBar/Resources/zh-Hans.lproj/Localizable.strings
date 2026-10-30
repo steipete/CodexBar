@@ -1480,6 +1480,15 @@
 "menu_bar_layout_token_space" = "空格";
 "menu_bar_layout_token_line_break" = "换行";
 "menu_bar_layout_token_separator_accessibility" = "分隔点";
+"menu_bar_layout_token_separator_glyph_accessibility" = "分隔符 %@";
+"menu_bar_layout_separator_pipe" = "竖线";
+"menu_bar_layout_separator_slash" = "斜杠";
+"menu_bar_layout_separator_hyphen" = "连字符";
+"menu_bar_layout_separator_bullet" = "项目符号";
+"menu_bar_layout_separator_diamond" = "实心菱形";
+"menu_bar_layout_separator_hollowDiamond" = "空心菱形";
+"menu_bar_layout_separator_tilde" = "波浪号";
+"menu_bar_layout_separator_doubleBar" = "双竖线";
 
 /* Menu bar layout accessibility */
 "Icon unavailable" = "图标: 不可用";
@@ -2753,3 +2762,11 @@
 "Show this Mac's recorded OpenCode usage in Codex history. Off by default; scoped or alternate CODEX_HOME locations always stay excluded." = "在 Codex 历史记录中显示此 Mac 上记录的 OpenCode 用量。默认关闭；始终排除限定范围或其他 CODEX_HOME 位置。";
 "Auto uses the active saved session, otherwise an API key or browser cookies." = "自动使用当前启用的已保存会话，否则使用 API 密钥或浏览器 Cookie。";
 "Store multiple Command Code subscription sessions." = "存储多个 Command Code 订阅会话。";
+
+// Codex account names
+"Rename" = "重命名";
+"Rename account" = "重命名账户";
+"Account name" = "账户名称";
+"Leave blank to use the default name." = "留空以使用默认名称。";
+"Rewards" = "奖励";
+"Reward expiry" = "奖励到期日期";

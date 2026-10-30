@@ -1479,6 +1479,15 @@
 "menu_bar_layout_token_space" = "Spasi";
 "menu_bar_layout_token_line_break" = "Pemisah baris";
 "menu_bar_layout_token_separator_accessibility" = "Titik pemisah";
+"menu_bar_layout_token_separator_glyph_accessibility" = "Pemisah %@";
+"menu_bar_layout_separator_pipe" = "Garis vertikal";
+"menu_bar_layout_separator_slash" = "Garis miring";
+"menu_bar_layout_separator_hyphen" = "Tanda hubung";
+"menu_bar_layout_separator_bullet" = "Bulatan";
+"menu_bar_layout_separator_diamond" = "Wajik terisi";
+"menu_bar_layout_separator_hollowDiamond" = "Wajik kosong";
+"menu_bar_layout_separator_tilde" = "Tilde";
+"menu_bar_layout_separator_doubleBar" = "Garis vertikal ganda";
 
 /* Menu bar layout accessibility */
 "Icon unavailable" = "Ikon: Tidak tersedia";
@@ -2763,3 +2772,11 @@
 "Show this Mac's recorded OpenCode usage in Codex history. Off by default; scoped or alternate CODEX_HOME locations always stay excluded." = "Menampilkan penggunaan OpenCode yang tercatat di Mac ini dalam riwayat Codex. Nonaktif secara bawaan; lokasi CODEX_HOME dengan cakupan terbatas atau lokasi alternatif selalu dikecualikan.";
 "Auto uses the active saved session, otherwise an API key or browser cookies." = "Otomatis menggunakan sesi tersimpan yang aktif, atau kunci API atau cookie browser jika tidak ada sesi yang aktif.";
 "Store multiple Command Code subscription sessions." = "Simpan beberapa sesi langganan Command Code.";
+
+// Codex account names
+"Rename" = "Ubah nama";
+"Rename account" = "Ubah nama akun";
+"Account name" = "Nama akun";
+"Leave blank to use the default name." = "Biarkan kosong untuk menggunakan nama bawaan.";
+"Rewards" = "Hadiah";
+"Reward expiry" = "Kedaluwarsa hadiah";

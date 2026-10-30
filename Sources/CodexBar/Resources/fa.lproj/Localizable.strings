@@ -1478,6 +1478,15 @@
 "menu_bar_layout_token_space" = "فاصله";
 "menu_bar_layout_token_line_break" = "شکست خط";
 "menu_bar_layout_token_separator_accessibility" = "نقطهٔ جداکننده";
+"menu_bar_layout_token_separator_glyph_accessibility" = "جداکننده %@";
+"menu_bar_layout_separator_pipe" = "خط عمودی";
+"menu_bar_layout_separator_slash" = "خط مورب";
+"menu_bar_layout_separator_hyphen" = "خط تیره";
+"menu_bar_layout_separator_bullet" = "نشان گلوله‌ای";
+"menu_bar_layout_separator_diamond" = "لوزی توپر";
+"menu_bar_layout_separator_hollowDiamond" = "لوزی توخالی";
+"menu_bar_layout_separator_tilde" = "مد";
+"menu_bar_layout_separator_doubleBar" = "خط عمودی دوتایی";
 
 /* Menu bar layout accessibility */
 "Icon unavailable" = "آیکون: در دسترس نیست";
@@ -2765,3 +2774,11 @@
 "Show this Mac's recorded OpenCode usage in Codex history. Off by default; scoped or alternate CODEX_HOME locations always stay excluded." = "مصرف ثبت‌شدهٔ OpenCode در این Mac را در تاریخچهٔ Codex نمایش می‌دهد. به‌طور پیش‌فرض خاموش است؛ مسیرهای CODEX_HOME با دامنهٔ محدود یا جایگزین همیشه مستثنا هستند.";
 "Auto uses the active saved session, otherwise an API key or browser cookies." = "حالت خودکار از نشست ذخیره‌شدهٔ فعال استفاده می‌کند؛ در غیر این صورت از کلید API یا کوکی‌های مرورگر استفاده می‌کند.";
 "Store multiple Command Code subscription sessions." = "چندین نشست اشتراک Command Code را ذخیره کنید.";
+
+// Codex account names
+"Rename" = "تغییر نام";
+"Rename account" = "تغییر نام حساب";
+"Account name" = "نام حساب";
+"Leave blank to use the default name." = "برای استفاده از نام پیش‌فرض، این قسمت را خالی بگذارید.";
+"Rewards" = "پاداش‌ها";
+"Reward expiry" = "انقضای پاداش‌ها";

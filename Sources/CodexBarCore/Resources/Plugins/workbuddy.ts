@@ -103,6 +103,16 @@ defineProvider({
       // The dashboard refreshes one second after the inclusive end time.
       return new Date(end.getTime() + 1000);
     };
+    // Spent grants stay in the listing until their cycle ends. The dashboard reports the lapse of the
+    // grants that still carry credits, so a grant with nothing left must not bound the reward window.
+    const creditsLeft = (value: unknown): number | undefined => {
+      try {
+        return amount(value, "CycleCapacityRemain");
+      } catch (error) {
+        void error;
+        return undefined;
+      }
+    };
     // Package codes the WorkBuddy client sends for its paid and free listings (WorkBuddy 5.6.2).
     const paidPackageCodes = [
       "TCACA_code_002_AkiJS3ZHF5",
@@ -128,17 +138,26 @@ defineProvider({
       "TCACA_code_029_6wCGEWquYy",
       "TCACA_code_030_BjSt89qTvr",
     ];
-    // Reset time is optional: a failed or unexpected package listing must not discard the balance.
-    const nextReset = async (session: CodexBarCookieSession, agent: string | undefined): Promise<Date | undefined> => {
+    // Platform reward grants are aggregated under one package code in the summary. Only the free listing
+    // carries each grant's own cycle, so the reward expiry has to be read from there.
+    const benefitPackageCode = "TCACA_code_007_nzdH5h4Nl0";
+    // Reset and reward expiry are optional: a failed or unexpected package listing must not discard the balance.
+    const listings = async (
+      session: CodexBarCookieSession,
+      agent: string | undefined,
+      wantsRewards: boolean,
+    ): Promise<{ reset?: Date; rewardExpiry?: Date }> => {
       const now = ctx.date.now().getTime();
       // Share five seconds across listings, retaining the host's margin for publishing the balance.
       const hostDeadline = Number(ctx.settings.get("resetDeadlineMillis"));
       const deadline = Math.min(Date.now() + 5000, hostDeadline > 0 ? hostDeadline : Infinity);
-      let earliest: Date | undefined;
-      for (const [path, codes] of [
-        ["/billing/meter/get-user-resource-paid-packages", paidPackageCodes],
-        ["/billing/meter/get-user-resource-free-packages", freePackageCodes],
-      ] as Array<[string, string[]]>) {
+      let paidReset: Date | undefined;
+      let freeReset: Date | undefined;
+      let rewardExpiry: Date | undefined;
+      for (const [path, codes, isFree] of [
+        ["/billing/meter/get-user-resource-paid-packages", paidPackageCodes, false],
+        ["/billing/meter/get-user-resource-free-packages", freePackageCodes, true],
+      ] as Array<[string, string[], boolean]>) {
         const budget = (deadline - Date.now()) / 1000;
         if (budget < 1) break;
         try {
@@ -150,20 +169,41 @@ defineProvider({
             { PageNumber: 1, PageSize: 100, PackageCodes: codes, Status: [0, 3] },
             Math.min(timeoutSeconds, budget),
           );
-          if (!Array.isArray(page.Accounts)) continue;
-          for (const raw of page.Accounts) {
-            if (raw === null || typeof raw !== "object" || Array.isArray(raw)) continue;
-            const account = raw as Record<string, unknown>;
-            if (account.CapacityUnit !== "credits") continue;
-            const end = cycleEnd(account.CycleEndTime);
-            if (end && end.getTime() > now && (!earliest || end.getTime() < earliest.getTime())) earliest = end;
+          if (Array.isArray(page.Accounts)) {
+            for (const raw of page.Accounts) {
+              if (raw === null || typeof raw !== "object" || Array.isArray(raw)) continue;
+              const account = raw as Record<string, unknown>;
+              if (account.CapacityUnit !== "credits") continue;
+              const end = cycleEnd(account.CycleEndTime);
+              if (!end || end.getTime() <= now) continue;
+              if (isFree) {
+                // Reward grants expire piecewise; the earliest grant that still holds credits bounds the window.
+                const left = creditsLeft(account.CycleCapacityRemain);
+                if (
+                  account.PackageCode === benefitPackageCode &&
+                  left !== undefined &&
+                  left > 0 &&
+                  (!rewardExpiry || end.getTime() < rewardExpiry.getTime())
+                ) {
+                  rewardExpiry = end;
+                }
+                // Reward grants expire; they never supply the allowance's fallback reset.
+                if (account.PackageCode !== benefitPackageCode && (!freeReset || end.getTime() < freeReset.getTime())) {
+                  freeReset = end;
+                }
+              } else if (!paidReset || end.getTime() < paidReset.getTime()) {
+                paidReset = end;
+              }
+            }
           }
         } catch (error) {
           if ((error as CodexBarHTTPError).transportClass === "cancelled") throw error;
         }
-        // Paid cycles refill the allowance; free grants may expire earlier.
-        if (earliest) return earliest;
+        // Paid cycles refill the allowance; free grants may expire earlier. The free listing is only
+        // worth a request when it answers the reset or bounds the reward window.
+        if (!isFree && paidReset && !wantsRewards) break;
       }
+      return { reset: paidReset ?? freeReset, rewardExpiry };
     };
 
     let rejected = false;
@@ -199,21 +239,58 @@ defineProvider({
         remaining += amount(item.CycleRemainCapacity, "CycleRemainCapacity");
         if (item.CycleFrozenCapacity !== undefined) frozen += amount(item.CycleFrozenCapacity, "CycleFrozenCapacity");
       }
+      // Credit groups split the same allowance by origin. Rewards are optional, so an unexpected group
+      // shape must not discard the balance the dashboard shows.
+      let rewardTotal = 0;
+      let rewardRemaining = 0;
+      for (const raw of Array.isArray(summary.CreditGroups) ? summary.CreditGroups : []) {
+        if (raw === null || typeof raw !== "object" || Array.isArray(raw)) continue;
+        const group = raw as Record<string, unknown>;
+        if (group.Kind !== "benefit" || group.CapacityUnit !== "credits") continue;
+        try {
+          const groupTotal = amount(group.CycleTotalCapacity, "CycleTotalCapacity");
+          const groupRemaining = amount(group.CycleRemainCapacity, "CycleRemainCapacity");
+          rewardTotal += groupTotal;
+          rewardRemaining += groupRemaining;
+        } catch (error) {
+          void error;
+        }
+      }
       const plan = text(summary.SubscriptionPackageName);
       // Frozen credits are listed as reported; the meter uses the remaining amount the dashboard shows.
       const rows: CodexBarDetailRow[] = frozen > 0 ? [{ label: "Reserved", value: format(frozen) }] : [];
       if (total <= 0) {
         rows.unshift({ label: "Left", value: format(remaining) }, { label: "Total", value: format(total) });
       }
+      const wantsRewards = rewardTotal > 0;
+      const cycle = await listings(session, agent, wantsRewards);
+      // The window carries the balance; it cannot carry a countdown, because reward credits lapse
+      // grant by grant instead of resetting, so the expiry stays a detail row.
+      if (wantsRewards && cycle.rewardExpiry) {
+        rows.push({ label: "Reward expiry", value: ctx.format.monthDay(cycle.rewardExpiry.getTime()) });
+      }
+      const extraWindows: CodexBarNamedRateWindow[] = wantsRewards
+        ? [
+            {
+              id: "rewards",
+              title: "Rewards",
+              window: {
+                usedPercent: ctx.pct(Math.max(0, rewardTotal - rewardRemaining), rewardTotal),
+                resetDescription: `${format(rewardRemaining)} / ${format(rewardTotal)} credits left`,
+              },
+            },
+          ]
+        : [];
       return {
         primary:
           total > 0
             ? {
                 usedPercent: ctx.pct(Math.max(0, total - remaining), total),
-                resetsAt: await nextReset(session, agent),
+                resetsAt: cycle.reset,
                 resetDescription: `${format(remaining)} / ${format(total)} credits left`,
               }
             : undefined,
+        extraWindows: extraWindows.length ? extraWindows : undefined,
         details: rows.length ? [{ title: "Credits", rows }] : undefined,
         identity: plan ? { loginMethod: plan } : undefined,
         dataConfidence: "exact",

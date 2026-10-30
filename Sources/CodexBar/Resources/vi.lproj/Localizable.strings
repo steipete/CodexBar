@@ -1475,6 +1475,15 @@
 "menu_bar_layout_token_space" = "Khoảng trắng";
 "menu_bar_layout_token_line_break" = "Ngắt dòng";
 "menu_bar_layout_token_separator_accessibility" = "Dấu chấm phân cách";
+"menu_bar_layout_token_separator_glyph_accessibility" = "Dấu phân cách %@";
+"menu_bar_layout_separator_pipe" = "Gạch đứng";
+"menu_bar_layout_separator_slash" = "Dấu gạch chéo";
+"menu_bar_layout_separator_hyphen" = "Dấu gạch nối";
+"menu_bar_layout_separator_bullet" = "Dấu đầu dòng";
+"menu_bar_layout_separator_diamond" = "Hình thoi đặc";
+"menu_bar_layout_separator_hollowDiamond" = "Hình thoi rỗng";
+"menu_bar_layout_separator_tilde" = "Dấu ngã";
+"menu_bar_layout_separator_doubleBar" = "Gạch đứng kép";
 
 /* Menu bar layout accessibility */
 "Icon unavailable" = "Biểu tượng: Không có sẵn";
@@ -2762,3 +2771,11 @@
 "Show this Mac's recorded OpenCode usage in Codex history. Off by default; scoped or alternate CODEX_HOME locations always stay excluded." = "Hiển thị mức sử dụng OpenCode được ghi lại trên máy Mac này trong lịch sử Codex. Mặc định tắt; luôn loại trừ các vị trí CODEX_HOME có phạm vi giới hạn hoặc vị trí thay thế.";
 "Auto uses the active saved session, otherwise an API key or browser cookies." = "Tự động sử dụng phiên đã lưu đang hoạt động, nếu không thì sử dụng khóa API hoặc cookie trình duyệt.";
 "Store multiple Command Code subscription sessions." = "Lưu trữ nhiều phiên đăng ký Command Code.";
+
+// Codex account names
+"Rename" = "Đổi tên";
+"Rename account" = "Đổi tên tài khoản";
+"Account name" = "Tên tài khoản";
+"Leave blank to use the default name." = "Để trống để dùng tên mặc định.";
+"Rewards" = "Phần thưởng";
+"Reward expiry" = "Ngày hết hạn phần thưởng";

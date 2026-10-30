@@ -1477,6 +1477,15 @@
 "menu_bar_layout_token_space" = "Leerraum";
 "menu_bar_layout_token_line_break" = "Zeilenumbruch";
 "menu_bar_layout_token_separator_accessibility" = "Trennpunkt";
+"menu_bar_layout_token_separator_glyph_accessibility" = "Trennzeichen %@";
+"menu_bar_layout_separator_pipe" = "Senkrechter Strich";
+"menu_bar_layout_separator_slash" = "Schrägstrich";
+"menu_bar_layout_separator_hyphen" = "Bindestrich";
+"menu_bar_layout_separator_bullet" = "Aufzählungspunkt";
+"menu_bar_layout_separator_diamond" = "Ausgefüllte Raute";
+"menu_bar_layout_separator_hollowDiamond" = "Leere Raute";
+"menu_bar_layout_separator_tilde" = "Tilde";
+"menu_bar_layout_separator_doubleBar" = "Doppelter senkrechter Strich";
 
 /* Menu bar layout accessibility */
 "Icon unavailable" = "Symbol: Nicht verfügbar";
@@ -2759,3 +2768,11 @@
 "Show this Mac's recorded OpenCode usage in Codex history. Off by default; scoped or alternate CODEX_HOME locations always stay excluded." = "Zeigt die auf diesem Mac erfasste OpenCode-Nutzung im Codex-Verlauf. Standardmäßig deaktiviert; CODEX_HOME-Verzeichnisse mit eingeschränktem Geltungsbereich sowie alternative Verzeichnisse bleiben immer ausgeschlossen.";
 "Auto uses the active saved session, otherwise an API key or browser cookies." = "Auto verwendet die aktive gespeicherte Sitzung, andernfalls einen API-Schlüssel oder Browser-Cookies.";
 "Store multiple Command Code subscription sessions." = "Speichern Sie mehrere Command Code-Abonnementsitzungen.";
+
+// Codex account names
+"Rename" = "Umbenennen";
+"Rename account" = "Konto umbenennen";
+"Account name" = "Kontoname";
+"Leave blank to use the default name." = "Leer lassen, um den Standardnamen zu verwenden.";
+"Rewards" = "Prämien";
+"Reward expiry" = "Ablauf der Prämien";

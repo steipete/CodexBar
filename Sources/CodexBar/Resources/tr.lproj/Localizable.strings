@@ -1476,6 +1476,15 @@
 "menu_bar_layout_token_space" = "Boşluk";
 "menu_bar_layout_token_line_break" = "Satır sonu";
 "menu_bar_layout_token_separator_accessibility" = "Ayırıcı nokta";
+"menu_bar_layout_token_separator_glyph_accessibility" = "Ayırıcı %@";
+"menu_bar_layout_separator_pipe" = "Dikey çizgi";
+"menu_bar_layout_separator_slash" = "Eğik çizgi";
+"menu_bar_layout_separator_hyphen" = "Kısa çizgi";
+"menu_bar_layout_separator_bullet" = "Madde imi";
+"menu_bar_layout_separator_diamond" = "Dolu baklava";
+"menu_bar_layout_separator_hollowDiamond" = "Boş baklava";
+"menu_bar_layout_separator_tilde" = "Yaklaşık işareti";
+"menu_bar_layout_separator_doubleBar" = "Çift dikey çizgi";
 
 /* Menu bar layout accessibility */
 "Icon unavailable" = "Simge: kullanılamıyor";
@@ -2764,3 +2773,11 @@
 "Show this Mac's recorded OpenCode usage in Codex history. Off by default; scoped or alternate CODEX_HOME locations always stay excluded." = "Bu Mac’te kaydedilen OpenCode kullanımını Codex geçmişinde gösterir. Varsayılan olarak kapalıdır; kapsamı sınırlandırılmış veya alternatif CODEX_HOME konumları her zaman hariç tutulur.";
 "Auto uses the active saved session, otherwise an API key or browser cookies." = "Otomatik, etkin kayıtlı oturumu kullanır; yoksa bir API anahtarı veya tarayıcı çerezlerini kullanır.";
 "Store multiple Command Code subscription sessions." = "Birden fazla Command Code abonelik oturumunu depolayın.";
+
+// Codex account names
+"Rename" = "Yeniden adlandır";
+"Rename account" = "Hesabı yeniden adlandır";
+"Account name" = "Hesap adı";
+"Leave blank to use the default name." = "Varsayılan adı kullanmak için boş bırakın.";
+"Rewards" = "Ödüller";
+"Reward expiry" = "Ödüllerin son kullanma tarihi";

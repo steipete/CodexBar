@@ -1478,6 +1478,15 @@
 "menu_bar_layout_token_space" = "Spazio";
 "menu_bar_layout_token_line_break" = "Interruzione di riga";
 "menu_bar_layout_token_separator_accessibility" = "Punto separatore";
+"menu_bar_layout_token_separator_glyph_accessibility" = "Separatore %@";
+"menu_bar_layout_separator_pipe" = "Barra verticale";
+"menu_bar_layout_separator_slash" = "Barra obliqua";
+"menu_bar_layout_separator_hyphen" = "Trattino";
+"menu_bar_layout_separator_bullet" = "Punto elenco";
+"menu_bar_layout_separator_diamond" = "Rombo pieno";
+"menu_bar_layout_separator_hollowDiamond" = "Rombo vuoto";
+"menu_bar_layout_separator_tilde" = "Tilde";
+"menu_bar_layout_separator_doubleBar" = "Doppia barra verticale";
 
 /* Menu bar layout accessibility */
 "Icon unavailable" = "Icona: Non disponibile";
@@ -2765,3 +2774,11 @@
 "Show this Mac's recorded OpenCode usage in Codex history. Off by default; scoped or alternate CODEX_HOME locations always stay excluded." = "Mostra nella cronologia di Codex l’uso di OpenCode registrato su questo Mac. Disattivato per impostazione predefinita; le posizioni CODEX_HOME con ambito limitato o alternative restano sempre escluse.";
 "Auto uses the active saved session, otherwise an API key or browser cookies." = "Auto usa la sessione salvata attiva, altrimenti una chiave API o i cookie del browser.";
 "Store multiple Command Code subscription sessions." = "Memorizza più sessioni di abbonamento a Command Code.";
+
+// Codex account names
+"Rename" = "Rinomina";
+"Rename account" = "Rinomina account";
+"Account name" = "Nome account";
+"Leave blank to use the default name." = "Lascia vuoto per usare il nome predefinito.";
+"Rewards" = "Premi";
+"Reward expiry" = "Scadenza dei premi";

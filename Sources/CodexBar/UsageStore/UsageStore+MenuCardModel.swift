@@ -43,8 +43,12 @@ extension UsageStore {
         context: UsageMenuCardContext = .menu,
         now: Date = Date()) -> UsageMenuCardView.Model
     {
-        UsageMenuCardView.Model.make(self.menuCardInput(for: provider, context: context, now: now))
+        var model = UsageMenuCardView.Model.make(self.menuCardInput(for: provider, context: context, now: now))
             .applyingUsageItemVisibility(hiddenItemIDs: self.settings.hiddenUsageItemIDs(for: provider))
+        if let name = self.codexMenuAccountName(for: provider, context: context) {
+            model.providerName = name
+        }
+        return model
     }
 
     func menuCardInput(

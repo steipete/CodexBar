@@ -26,6 +26,7 @@ extension CostUsageStore {
         let primary = roots.first(where: { $0.lastPathComponent == "sessions" }) ?? roots.first
         let home = primary.map { CodexHomeCostStoreScope.key(sessionsRoot: $0) }
             ?? CodexHomeCostStoreScope.key()
+        let sharedHome = CodexHomeCostStoreScope.key()
 
         for table in ["scan_metadata", "discovery_state", "lookback_state"] {
             try Self.execute(database, "ALTER TABLE \(table) RENAME TO legacy_\(table)")
@@ -45,19 +46,23 @@ extension CostUsageStore {
         }
 
         try Self.execute(database, "ALTER TABLE files ADD COLUMN home TEXT NOT NULL DEFAULT ''")
-        let files = try Self.prepare(database, "UPDATE files SET home = ?")
+        let files = try Self.prepare(database, """
+        UPDATE files SET home = CASE
+            WHEN json_extract(CAST(scan_state AS TEXT), '$.source') = 'opencodeLocalHistory' THEN ?
+            ELSE ? END
+        """)
         defer { sqlite3_finalize(files) }
-        Self.bind(home, to: files, at: 1)
+        Self.bind(sharedHome, to: files, at: 1)
+        Self.bind(home, to: files, at: 2)
         try Self.stepDone(files, database: database)
         try Self.execute(database, "CREATE INDEX files_home_path_idx ON files(home, path)")
 
         // Aggregates are small; token, request, buffer and checkpoint rows keep their existing file IDs.
         try Self.execute(database, "ALTER TABLE day_aggregates RENAME TO legacy_day_aggregates")
         try Self.execute(database, Self.dayAggregatesSchemaSQL)
-        let aggregates = try Self.prepare(database, "INSERT INTO day_aggregates SELECT ?, * FROM legacy_day_aggregates")
-        defer { sqlite3_finalize(aggregates) }
-        Self.bind(home, to: aggregates, at: 1)
-        try Self.stepDone(aggregates, database: database)
         try Self.execute(database, "DROP TABLE legacy_day_aggregates")
+        for scopedHome in Set([home, sharedHome]) {
+            try Self.rebuildDayAggregates(database, home: scopedHome)
+        }
     }
 }

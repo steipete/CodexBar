@@ -25,9 +25,14 @@ public enum WorkBuddyProviderDescriptor {
         noDataMessage: "No cost history data.",
         menuBarMetrics: ProviderMenuBarMetricCapabilities(supported: [.automatic, .primary]),
         presentation: ProviderUsagePresentation(
+            // Plugin snapshots default to no extra windows; the reward bucket is worth its own row.
+            extraRateWindowSelector: { $0.extraRateWindows ?? [] },
             menuCard: ProviderMenuCardPresentation(
                 showsPrimaryBalanceDescription: true,
-                hidesPrimaryResetWithoutDate: true),
+                hidesPrimaryResetWithoutDate: true,
+                // Reward credits lapse instead of resetting, so the window carries the balance
+                // rather than a countdown the API cannot supply.
+                extraRateWindowUsesResetDescriptionAsDetail: { $0.id == "rewards" }),
             menu: ProviderMenuDescriptorPresentation(
                 primaryDescriptionIsDetail: { _ in true }),
             planRow: ProviderPlanRowPresentation(label: "Plan")),
