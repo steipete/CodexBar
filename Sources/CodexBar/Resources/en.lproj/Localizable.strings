@@ -2766,3 +2766,11 @@
 "OpenCode local history" = "OpenCode local history";
 
 "Show this Mac's recorded OpenCode usage in Codex history. Off by default; scoped or alternate CODEX_HOME locations always stay excluded." = "Show this Mac's recorded OpenCode usage in Codex history. Off by default; scoped or alternate CODEX_HOME locations always stay excluded.";
+
+// Codex account names
+"Rename" = "Rename";
+"Rename account" = "Rename account";
+"Account name" = "Account name";
+"Leave blank to use the default name." = "Leave blank to use the default name.";
+"Rewards" = "Rewards";
+"Reward expiry" = "Reward expiry";

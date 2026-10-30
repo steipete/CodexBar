@@ -2762,3 +2762,11 @@
 "Show this Mac's recorded OpenCode usage in Codex history. Off by default; scoped or alternate CODEX_HOME locations always stay excluded." = "Показывает использование OpenCode, записанное на этом Mac, в истории Codex. По умолчанию выключено; каталоги CODEX_HOME с ограниченной областью действия и альтернативные каталоги всегда исключены.";
 "Auto uses the active saved session, otherwise an API key or browser cookies." = "Автоматический режим использует активный сохранённый сеанс, иначе — ключ API или файлы cookie браузера.";
 "Store multiple Command Code subscription sessions." = "Хранить несколько сеансов подписки Command Code.";
+
+// Codex account names
+"Rename" = "Переименовать";
+"Rename account" = "Переименовать аккаунт";
+"Account name" = "Имя аккаунта";
+"Leave blank to use the default name." = "Оставьте поле пустым, чтобы использовать имя по умолчанию.";
+"Rewards" = "Награды";
+"Reward expiry" = "Срок действия наград";

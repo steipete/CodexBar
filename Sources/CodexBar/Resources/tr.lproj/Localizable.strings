@@ -2764,3 +2764,11 @@
 "Show this Mac's recorded OpenCode usage in Codex history. Off by default; scoped or alternate CODEX_HOME locations always stay excluded." = "Bu Mac’te kaydedilen OpenCode kullanımını Codex geçmişinde gösterir. Varsayılan olarak kapalıdır; kapsamı sınırlandırılmış veya alternatif CODEX_HOME konumları her zaman hariç tutulur.";
 "Auto uses the active saved session, otherwise an API key or browser cookies." = "Otomatik, etkin kayıtlı oturumu kullanır; yoksa bir API anahtarı veya tarayıcı çerezlerini kullanır.";
 "Store multiple Command Code subscription sessions." = "Birden fazla Command Code abonelik oturumunu depolayın.";
+
+// Codex account names
+"Rename" = "Yeniden adlandır";
+"Rename account" = "Hesabı yeniden adlandır";
+"Account name" = "Hesap adı";
+"Leave blank to use the default name." = "Varsayılan adı kullanmak için boş bırakın.";
+"Rewards" = "Ödüller";
+"Reward expiry" = "Ödüllerin son kullanma tarihi";

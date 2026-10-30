@@ -247,7 +247,9 @@ a second identifier is an error. For an option value beginning with a dash, use 
   `docs/configuration.md#external-event-hooks` for the event, payload, timeout, and security contract.
 - The macOS app and `hooks watch` emit `usage_updated` after a successful current refresh, throttled to at most
   one attempt per 600 seconds for each provider/account. Its primary and secondary positional quota windows include their cadence in
-  minutes. Synthetic placeholder windows are omitted.
+  minutes. Synthetic placeholder windows are omitted. When the provider reported a raw plan identifier, the same
+  payload also carries `plan`, `planSource`, and `planObservedAt`; see the sampled plan-observation contract in
+  `docs/configuration.md#external-event-hooks`.
 - `codexbar hooks watch` polls enabled providers and fires matching hooks on real quota and status transitions.
   Without it, hook rules only ever fire from the macOS app, so a headless install can configure hooks that never run.
   - `--interval <seconds>`: poll period. Default `300`, minimum `60`; a smaller value is rejected rather than

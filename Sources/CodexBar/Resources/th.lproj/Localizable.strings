@@ -2763,3 +2763,11 @@
 "Show this Mac's recorded OpenCode usage in Codex history. Off by default; scoped or alternate CODEX_HOME locations always stay excluded." = "แสดงการใช้งาน OpenCode ที่บันทึกไว้บน Mac เครื่องนี้ในประวัติ Codex ปิดอยู่ตามค่าเริ่มต้น โดยจะไม่รวมตำแหน่ง CODEX_HOME ที่จำกัดขอบเขตหรือตำแหน่งอื่นเสมอ";
 "Auto uses the active saved session, otherwise an API key or browser cookies." = "อัตโนมัติจะใช้เซสชันที่บันทึกไว้ซึ่งกำลังใช้งาน หากไม่มี จะใช้คีย์ API หรือคุกกี้ของเบราว์เซอร์";
 "Store multiple Command Code subscription sessions." = "จัดเก็บเซสชันการสมัครสมาชิก Command Code หลายรายการ";
+
+// Codex account names
+"Rename" = "เปลี่ยนชื่อ";
+"Rename account" = "เปลี่ยนชื่อบัญชี";
+"Account name" = "ชื่อบัญชี";
+"Leave blank to use the default name." = "เว้นว่างไว้เพื่อใช้ชื่อเริ่มต้น";
+"Rewards" = "รางวัล";
+"Reward expiry" = "วันหมดอายุของรางวัล";

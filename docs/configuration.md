@@ -104,6 +104,8 @@ Events:
   successful poll. It can fire when values are unchanged. `usagePercent`, `windowMinutes`, and `resetAt`
   describe the positional primary window; `secondaryUsagePercent`, `secondaryWindowMinutes`, and
   `secondaryResetAt` describe the positional secondary window. Synthetic placeholder windows are omitted.
+  When the provider reported a raw plan identifier, the event also carries `plan`, `planSource`, and
+  `planObservedAt` as described below.
 - `provider_unavailable`: a provider status changes to a minor, major, or critical outage.
 - `provider_recovered`: that tracked outage returns to normal.
 - `refresh_failed`: a provider refresh fails; `CODEXBAR_STATUS` is a coarse category such as `timeout`, `offline`,
@@ -121,6 +123,20 @@ Payload environment variables are `CODEXBAR_EVENT`, `CODEXBAR_PROVIDER`, `CODEXB
 `CODEXBAR_WINDOW_MINUTES`, `CODEXBAR_RESET_AT`, `CODEXBAR_SECONDARY_USAGE_PERCENT`,
 `CODEXBAR_SECONDARY_WINDOW_MINUTES`, `CODEXBAR_SECONDARY_RESET_AT`, and `CODEXBAR_STATUS`. Enabling Hide personal info
 omits `CODEXBAR_ACCOUNT` and the matching JSON field.
+
+`usage_updated` can also carry sampled plan provenance. The fields are omitted entirely when the provider did not
+report a raw identifier:
+
+- `plan` (`CODEXBAR_PLAN`): the provider's raw plan/tier identifier, for example `pro`. It is not the display label
+  (`Pro 20x`) and it does not establish an allowance multiplier, baseline, or quota window.
+- `planSource` (`CODEXBAR_PLAN_SOURCE`): the provider surface that reported it. Current values are `usage_response`
+  (provider usage/rate-limit response), `oauth_claims` (OAuth ID-token claims), `pat_whoami` (token-auth whoami
+  response), and `local_rpc` (local Codex app-server response).
+- `planObservedAt` (`CODEXBAR_PLAN_OBSERVED_AT`): when CodexBar observed the value, not when the plan took effect.
+
+Only Codex currently reports raw plan identifiers. Display labels, pricing, and web-dashboard values are never
+promoted to these fields. `usage_updated` is throttled to one matching attempt per 600 seconds per account with no trailing
+delivery, so the fields describe a sampled observation rather than a complete plan transition history.
 
 The stdin JSON uses the same camel-case field names without the `CODEXBAR_` prefix. Dates are UTC ISO 8601 strings,
 usage percentages are `0...1` fractions, unavailable optional fields are omitted rather than encoded as `null`, and
