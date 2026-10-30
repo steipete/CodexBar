@@ -1,9 +1,9 @@
 import CodexBarCore
 import Foundation
+import Testing
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
-import Testing
 
 /// BigModel CN pay-as-you-go account balance, surfaced by the bundled zai plugin
 /// as a best-effort detail row (endpoint verified against the live console API:
@@ -67,6 +67,27 @@ struct ZaiPluginBalanceTests {
     }
 
     @Test
+    func `CN prepaid-only account reports balance without quota`() async throws {
+        let snapshot = try await Self.fetch(
+            region: "bigmodel-cn",
+            balanceBody: #"{"code":200,"success":true,"data":{"availableBalance":8.663060440}}"#,
+            quotaBody: #"{"code":500,"msg":"当前用户不存在coding plan","success":false}"#)
+
+        #expect(snapshot.primary == nil)
+        #expect(snapshot.detailRow(label: "Account balance")?.value == "¥8.66")
+    }
+
+    @Test
+    func `CN prepaid-only account keeps failure when balance is unavailable`() async {
+        await #expect(throws: (any Error).self) {
+            try await Self.fetch(
+                region: "bigmodel-cn",
+                balanceBody: "{}",
+                quotaBody: #"{"code":500,"msg":"当前用户不存在coding plan","success":false}"#)
+        }
+    }
+
+    @Test
     func `region-aware validation rejects invalid balance override`() {
         #expect(throws: ZaiSettingsError.self) {
             try ZaiSettingsReader.validateEndpointOverrides(
@@ -115,6 +136,7 @@ struct ZaiPluginBalanceTests {
         region: String,
         balanceBody: String,
         balanceStatus: Int = 200,
+        quotaBody: String = Self.quotaFixture,
         recorder: BalanceRequestRecorder? = nil) async throws -> UsageSnapshot
     {
         let runtime = try ProviderPluginRuntime(
@@ -123,7 +145,7 @@ struct ZaiPluginBalanceTests {
                 if let recorder {
                     await recorder.append(request)
                 }
-                let body = request.url?.host == "www.bigmodel.cn" ? balanceBody : Self.quotaFixture
+                let body = request.url?.host == "www.bigmodel.cn" ? balanceBody : quotaBody
                 let status = request.url?.host == "www.bigmodel.cn" ? balanceStatus : 200
                 return try Self.response(request: request, body: body, status: status)
             })
