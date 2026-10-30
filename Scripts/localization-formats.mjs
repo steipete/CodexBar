@@ -10,6 +10,10 @@ export function hasPrintfArguments(value) {
 }
 
 export function printfSignature(value) {
+  return parsePrintfFormat(value);
+}
+
+function parsePrintfFormat(value, onValueArgument = () => {}) {
   const signature = {};
   let implicitIndex = 1;
   let usesImplicit = false;
@@ -24,6 +28,7 @@ export function printfSignature(value) {
       throw new Error(`conflicting types for argument ${slot}`);
     }
     signature[slot] = type;
+    return slot;
   }
   for (let index = 0; index < value.length; index++) {
     if (value[index] !== "%") continue;
@@ -37,7 +42,7 @@ export function printfSignature(value) {
     if (conversion === "n") throw new Error("%n is not permitted in localization formats");
     if (width) consume(widthPosition, "d");
     if (precision) consume(precisionPosition, "d");
-    consume(position, length + conversion);
+    onValueArgument(index, consume(position, length + conversion));
     index += match[0].length - 1;
   }
   return signature;
@@ -57,22 +62,33 @@ export function pluralCatalogErrors(catalog, reference = catalog) {
         if (typeof rules.NSStringLocalizedFormatKey !== "string") throw new Error("missing format template");
         const variables = new Set();
         const bindings = {};
-        let implicitPosition = 1;
-        const format = rules.NSStringLocalizedFormatKey.replace(/%(\d+\$)?#@([^@]+)@/g, (_, position = "", name) => {
-          const rule = rules[name];
-          if (!rule || rule.NSStringFormatSpecTypeKey !== "NSStringPluralRuleType") {
-            throw new Error(`missing plural rule ${name}`);
-          }
-          const type = rule.NSStringFormatValueTypeKey;
-          if (typeof type !== "string" || !/^(?:hh|ll|[hlqzjt])?[diuoxX]$/.test(type)) {
-            throw new Error(`unsupported plural variable type ${name}`);
-          }
-          variables.add(name);
-          bindings[position ? Number(position.slice(0, -1)) : implicitPosition++] = `${name}:${type}`;
-          return `%${position}${type}`;
-        });
+        const pluralOffsets = new Map();
+        let lengthDelta = 0;
+        const format = rules.NSStringLocalizedFormatKey.replace(
+          /%(\d+\$)?#@([^@]+)@/g,
+          (match, position = "", name, offset) => {
+            const rule = rules[name];
+            if (!rule || rule.NSStringFormatSpecTypeKey !== "NSStringPluralRuleType") {
+              throw new Error(`missing plural rule ${name}`);
+            }
+            const type = rule.NSStringFormatValueTypeKey;
+            if (typeof type !== "string" || !/^(?:hh|ll|[hlqzjt])?[diuoxX]$/.test(type)) {
+              throw new Error(`unsupported plural variable type ${name}`);
+            }
+            variables.add(name);
+            const replacement = `%${position}${type}`;
+            pluralOffsets.set(offset + lengthDelta, `${name}:${type}`);
+            lengthDelta += replacement.length - match.length;
+            return replacement;
+          },
+        );
         if (variables.size === 0) throw new Error("missing plural variable reference");
-        return { signature: printfSignature(format), variables, bindings };
+        // Share the printf argument cursor so ordinary values and star widths/precisions
+        // consume their slots before a plural variable, while escaped %% consumes none.
+        const signature = parsePrintfFormat(format, (offset, slot) => {
+          if (pluralOffsets.has(offset)) bindings[slot] = pluralOffsets.get(offset);
+        });
+        return { signature, variables, bindings };
       }
       const expected = templateSignature(original);
       const actual = templateSignature(entry);

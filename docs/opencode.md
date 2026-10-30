@@ -128,8 +128,8 @@ The base OpenCode provider still tracks its web dashboard, and OpenCode Go's loc
 - The app honors an explicit API or Web source even when a manual Cookie is configured. Its source label shows the configured source before a successful fetch, then the source that actually supplied the result.
 - The local monthly window is an estimate anchored at the earliest local row and can drift from the real billing
   cycle. The local strategy prefers API-reported rolling/weekly/monthly percentages and reset timestamps. Without an
-  explicit credential or account scope, it can reuse the CLI's active Go credential or OpenCode OAuth login. V2 stores
-  these in SQLite; a modern credential table takes precedence over stale legacy `auth.json`. CLI credentials stay
+  explicit credential or account scope, it can reuse the CLI's active Go credential or OpenCode API key or OAuth login.
+  V2 stores these in SQLite; a modern credential table takes precedence over stale legacy `auth.json`. CLI credentials stay
   read-only, and expired OAuth logins must be renewed through OpenCode. Cached, manual, or automatically discovered
   sessions overlay Console quotas (plus Zen balance) before an implicit CLI login is tried. CLI quotas never attach a
   browser account's balance. Discovery uses the provider's default browser order and shared access gate; background

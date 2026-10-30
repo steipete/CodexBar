@@ -14,7 +14,7 @@ struct MiniMaxTransportIdentityTests {
     @Test(arguments: Route.allCases)
     func `cancelled transports do not try another endpoint`(route: Route) async throws {
         let transport = ProviderHTTPTransportStub { request in
-            if route == .remains, let url = request.url, url.path.contains("coding-plan") {
+            if route == .remains, let url = request.url, url.path == "/console/usage" {
                 let response = try #require(HTTPURLResponse(
                     url: url, statusCode: 200, httpVersion: nil, headerFields: ["Content-Type": "text/html"]))
                 return (Data("<html>synthetic fixture</html>".utf8), response)
@@ -94,7 +94,7 @@ struct MiniMaxTransportIdentityTests {
         route: Route) async throws
     {
         let transport = ProviderHTTPTransportStub { request in
-            if route == .remains, let url = request.url, url.path.contains("coding-plan") {
+            if route == .remains, let url = request.url, url.path == "/console/usage" {
                 let response = try #require(HTTPURLResponse(
                     url: url,
                     statusCode: 200,
@@ -136,6 +136,6 @@ struct MiniMaxTransportIdentityTests {
             #expect(ProviderDiagnosticFetchAttempt.errorCategoryLabel(error.localizedDescription) == "network")
         }
         let requests = await transport.requests()
-        #expect(requests.count == (route == .api ? 2 : route == .html ? 1 : 3))
+        #expect(requests.count == (route == .api ? 2 : route == .html ? 1 : 4))
     }
 }

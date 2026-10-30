@@ -1242,23 +1242,26 @@ struct MiniMaxAPIRegionTests {
     }
 
     @Test
-    func `uses china mainland hosts`() {
+    func `uses current china web endpoints with legacy fallbacks`() {
         let codingPlan = MiniMaxUsageFetcher.resolveCodingPlanURL(region: .chinaMainland, environment: [:])
-        let remains = MiniMaxUsageFetcher.resolveRemainsURLs(region: .chinaMainland, environment: [:])[0]
-        #expect(codingPlan.host == "platform.minimaxi.com")
-        #expect(remains.host == "platform.minimaxi.com")
-        #expect(codingPlan.query == "cycle_type=3")
+        let remains = MiniMaxUsageFetcher.resolveRemainsURLs(region: .chinaMainland, environment: [:])
+        #expect(codingPlan.absoluteString == "https://platform.minimax.cn/console/usage")
+        #expect(remains.map(\.absoluteString) == [
+            "https://www.minimax.cn/backend/account/token_plan/remains_percent",
+            "https://platform.minimaxi.com/v1/api/openplatform/coding_plan/remains",
+            "https://www.minimaxi.com/v1/api/openplatform/coding_plan/remains",
+        ])
     }
 
     @Test
-    func `resolves web remains fallback hosts`() {
-        let global = MiniMaxUsageFetcher.resolveRemainsURLs(region: .global, environment: [:])
-        let china = MiniMaxUsageFetcher.resolveRemainsURLs(region: .chinaMainland, environment: [:])
-
-        #expect(global.map(\.host).contains("platform.minimax.io"))
-        #expect(global.map(\.host).contains("www.minimax.io"))
-        #expect(china.map(\.host).contains("platform.minimaxi.com"))
-        #expect(china.map(\.host).contains("www.minimaxi.com"))
+    func `strict overrides accept current china domain but reject lookalikes`() {
+        let strict = MiniMaxSettingsReader.requireProviderEndpointOverridesKey
+        #expect(MiniMaxSettingsReader.hostOverride(environment: [
+            strict: "true", MiniMaxSettingsReader.hostKey: "www.minimax.cn",
+        ]) == "www.minimax.cn")
+        #expect(MiniMaxSettingsReader.hostOverride(environment: [
+            strict: "true", MiniMaxSettingsReader.hostKey: "www.minimax.cn.example.com",
+        ]) == nil)
     }
 
     @Test

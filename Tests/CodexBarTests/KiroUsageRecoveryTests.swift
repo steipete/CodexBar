@@ -18,7 +18,7 @@ struct KiroUsageRecoveryTests {
         #expect(snapshot.creditsTotal == 50)
         #expect(snapshot.contextUsage?.totalPercentUsed == 7.5)
         #expect(snapshot.accountEmail == "kiro@example.com")
-        #expect(await calls.callCount == 1)
+        #expect(await calls.callCount == 2)
         for transport in requiresPTY ? ["pipe", "pty"] : ["pipe"] {
             #expect(try fixture.arguments(for: "usage", transport: transport)
                 == ["chat", "--no-interactive", "/usage", "--v2"])
@@ -29,7 +29,7 @@ struct KiroUsageRecoveryTests {
     }
 
     @Test(arguments: UsageFailure.allCases, [0.0, 1470.38])
-    func `CLI failures recover only API plan metrics and retain CLI identity`(
+    func `usable API metrics avoid chats and retain CLI identity`(
         failure: UsageFailure,
         planUsed: Double) async throws
     {
@@ -61,11 +61,9 @@ struct KiroUsageRecoveryTests {
         #expect(snapshot.bonusExpiryDays == nil)
         #expect(snapshot.toUsageSnapshot().primary?.usedPercent == snapshot.creditsPercent)
         #expect(snapshot.toUsageSnapshot().secondary == nil)
-        if failure == .v3Prompt {
-            #expect(snapshot.contextUsage?.totalPercentUsed == 7.5)
-        } else {
-            #expect(snapshot.contextUsage == nil)
-        }
+        #expect(snapshot.contextUsage == nil)
+        #expect(!FileManager.default.fileExists(atPath: fixture.root.appendingPathComponent("usage.pipe").path))
+        #expect(!FileManager.default.fileExists(atPath: fixture.root.appendingPathComponent("context.pipe").path))
     }
 
     @Test(arguments: UsageFailure.allCases, UnsafeAllowance.allCases)
@@ -99,7 +97,7 @@ struct KiroUsageRecoveryTests {
                 throw apiError.error
             }.fetch()
         } throws: { failure.matches($0) }
-        #expect(await calls.callCount == 1)
+        #expect(await calls.callCount == 2)
     }
 
     @Test(arguments: UsageFailure.allCases)
@@ -127,13 +125,13 @@ struct KiroUsageRecoveryTests {
         await #expect {
             try await fixture.probe {
                 await calls.record()
-                return Self.limits()
+                throw KiroUsageLimitsError.requestFailed("Synthetic expired token")
             }.fetch()
         } throws: { error in
             guard case KiroStatusProbeError.notLoggedIn = error else { return false }
             return true
         }
-        #expect(await calls.callCount == 0)
+        #expect(await calls.callCount == 1)
     }
 
     @Test(arguments: UsageFailure.allCases)
@@ -204,7 +202,7 @@ struct KiroUsageRecoveryTests {
         let task = Task {
             try await fixture.probe {
                 await calls.record()
-                return Self.limits()
+                throw KiroUsageLimitsError.requestFailed("Synthetic expired token")
             }.fetch()
         }
         defer { task.cancel() }
@@ -217,8 +215,41 @@ struct KiroUsageRecoveryTests {
         }
         task.cancel()
         await #expect(throws: CancellationError.self) { try await task.value }
-        #expect(await calls.callCount == 0)
+        #expect(await calls.callCount == 1)
         #expect(fixture.registry.activePIDs().isEmpty)
+    }
+
+    @Test
+    func `API retry recovers the exact V3 model reply after CLI token refresh`() async throws {
+        let fixture = try Fixture(usage: UsageFailure.v3Prompt.script)
+        defer { fixture.remove() }
+        let calls = APICalls()
+        let snapshot = try await fixture.probe {
+            await calls.record()
+            if await calls.callCount == 1 {
+                throw KiroUsageLimitsError.requestFailed("Synthetic expired token")
+            }
+            return Self.limits()
+        }.fetch()
+        #expect(await calls.callCount == 2)
+        #expect(snapshot.creditsUsed == 1470.38)
+        #expect(snapshot.creditsTotal == 2000)
+    }
+
+    @Test
+    func `older CLI rejecting V2 retains usage when the API is unavailable`() async throws {
+        let fixture = try Fixture(rejectsV2: true)
+        defer { fixture.remove() }
+        let snapshot = try await fixture.probe {
+            throw KiroUsageLimitsError.credentialsUnavailable("Synthetic missing CLI token")
+        }.fetch()
+        #expect(snapshot.creditsUsed == 20)
+        #expect(snapshot.contextUsage?.totalPercentUsed == 7.5)
+        for command in ["usage", "context"] {
+            let arguments = try fixture.arguments(for: command, transport: "pipe")
+            #expect(arguments.contains("--v2"))
+            #expect(Array(arguments.suffix(3)) == ["chat", "--no-interactive", "/\(command)"])
+        }
     }
 
     enum UsageFailure: CaseIterable, Sendable {
@@ -228,7 +259,14 @@ struct KiroUsageRecoveryTests {
         var script: String {
             switch self {
             case .v3Prompt:
-                "printf 'I cannot show usage or quota data.\\n'; exit 0"
+                """
+                cat <<'KIRO_V3_OUTPUT'
+                I can't show usage or quota data. The `/usage` command \
+                isn't something I have access to from here, and I can't see your account's usage, \
+                token counts, or billing details.
+                KIRO_V3_OUTPUT
+                exit 0
+                """
             case .unsupportedV2:
                 "printf 'error: unexpected argument --v2\\n' >&2; exit 2"
             }
@@ -308,7 +346,8 @@ struct KiroUsageRecoveryTests {
         init(
             usage: String = "printf 'Plan: KIRO FREE | 1 usage breakdowns\\nCredits (20 of 50 covered in plan)\\n'",
             account: String = "printf 'Logged in with Google\\nEmail: kiro@example.com\\n'",
-            requiresPTY: Bool = false) throws
+            requiresPTY: Bool = false,
+            rejectsV2: Bool = false) throws
         {
             self.root = FileManager.default.temporaryDirectory
                 .appendingPathComponent("codexbar-kiro-recovery-\(UUID().uuidString)", isDirectory: true)
@@ -331,6 +370,10 @@ struct KiroUsageRecoveryTests {
             esac
             printf '%s\\n' "$@" >> "${0%/*}/$command.$transport"
             if [ '\(requiresPTY)' = 'true' ] && [ "$transport" = pipe ]; then exit 23; fi
+            if [ '\(rejectsV2)' = 'true' ] && [ "$4" = '--v2' ]; then
+              printf "\\033[31merror:\\033[0m unexpected argument '--v2' found\\n" >&2
+              exit 2
+            fi
             if [ "$command" = usage ]; then
               \(usage)
               exit 0

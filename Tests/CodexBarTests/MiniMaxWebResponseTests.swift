@@ -49,13 +49,13 @@ struct MiniMaxWebResponseTests {
                 #expect(request.value(forHTTPHeaderField: "x-group-id") == "fixture-group")
                 throw URLError(.resourceUnavailable)
             }
-            let isPage = url.path.contains("coding-plan")
+            let isPage = url.path == "/console/usage"
             #expect(request.httpMethod == "GET")
             #expect(request.value(forHTTPHeaderField: "Cookie") == "HERTZ-SESSION=fixture")
             #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer fixture-token")
-            #expect(request.value(forHTTPHeaderField: "origin") == "https://platform.minimaxi.com")
+            #expect(request.value(forHTTPHeaderField: "origin") == "https://platform.minimax.cn")
             #expect(request.value(forHTTPHeaderField: "referer") ==
-                "https://platform.minimaxi.com/user-center/payment/coding-plan")
+                "https://platform.minimax.cn/console/usage")
             #expect(request.value(forHTTPHeaderField: "accept-language") == "en-US,en;q=0.9")
             #expect(request.value(forHTTPHeaderField: "user-agent")?.contains("Chrome/143.0.0.0") == true)
             #expect(request.value(forHTTPHeaderField: "accept") == (isPage
@@ -63,8 +63,7 @@ struct MiniMaxWebResponseTests {
                     : "application/json, text/plain, */*"))
             #expect(request.value(forHTTPHeaderField: "x-requested-with") == (isPage ? nil : "XMLHttpRequest"))
             if !isPage {
-                #expect(URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?
-                    .contains(URLQueryItem(name: "GroupId", value: "fixture-group")) == true)
+                #expect(request.value(forHTTPHeaderField: "X-Group-Id") == "fixture-group")
             }
             let needsFallback = fallback && isPage
             let body = needsFallback ? "<html>fixture without usage</html>" : Self.usageJSON
@@ -93,7 +92,7 @@ struct MiniMaxWebResponseTests {
     func `page and remains failures preserve HTTP error classification`(fallback: Bool, statusCode: Int) async {
         let transport = ProviderHTTPTransportStub { request in
             let url = request.url!
-            let needsFallback = fallback && url.path.contains("coding-plan")
+            let needsFallback = fallback && url.path == "/console/usage"
             let response = HTTPURLResponse(
                 url: url,
                 statusCode: needsFallback ? 200 : statusCode,

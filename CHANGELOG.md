@@ -4,10 +4,14 @@
 
 ### Fixed
 
-- Kiro: run the `/usage` and `/context` probes with `--v2`, because the V3 harness answers them as model prompts in non-interactive runs, and fall back to `GetUsageLimits` plan usage when the CLI report fails (#4853).
+- MiniMax: discover China web sessions and read the current console's quota percentages, boosted limits, and unlimited windows. (#4831, #4832) Thanks @tangwz!
+- Localization: correctly validate reordered plural arguments after ordinary placeholders. (#4817) Thanks @xuancao1953-1!
 - Codex: preserve established local cost coverage and catch-up progress when switching Codex homes (#4770, #4773). Thanks @harjothkhara!
 - OpenCodex: reduce temporary memory use when importing large usage logs (#4803).
 - Cursor: explain when the Cursor app session has expired and no browser session works, with steps to sign in again (#4804). Thanks @julianpinedayyz!
+- OpenCode Go: use the active OpenCode CLI API key stored under `opencode` for server quotas instead of falling back to local estimates. (#4815) Thanks @sreejithraman!
+- Kiro: prefer stateless usage reads to avoid probe chats when available, and use the V2 harness with older-CLI fallback when a CLI report is needed. (#4853, #4854, #4746) Thanks @jeanroloff!
+
 ### Changed
 
 - CLI: malformed or ambiguous arguments now fail with an error instead of being guessed (Commander 0.3.0).
