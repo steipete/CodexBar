@@ -1,4 +1,5 @@
 /* English localization for CodexBar (base/fallback) */
+"Copilot subscription ended" = "Das Copilot-Abonnement ist abgelaufen";
 
 /* iCloud Sync */
 "+ %d more" = "+ %d weitere";

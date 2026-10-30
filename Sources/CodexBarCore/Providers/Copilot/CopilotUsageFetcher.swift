@@ -11,6 +11,14 @@ public enum CopilotCreditDetailRows {
 }
 
 public struct CopilotUsageFetcher: Sendable {
+    public enum Error: Swift.Error, LocalizedError, Sendable {
+        case subscriptionEnded
+
+        public var errorDescription: String? {
+            UsageFormatter.localized("Copilot subscription ended")
+        }
+    }
+
     public struct GitHubUserIdentity: Decodable, Equatable, Sendable {
         public let id: Int64
         public let login: String
@@ -80,6 +88,9 @@ public struct CopilotUsageFetcher: Sendable {
     }
 
     func snapshot(from usage: CopilotUsageResponse) throws -> UsageSnapshot {
+        if usage.accessTypeSKU == "subscription_ended" {
+            throw Error.subscriptionEnded
+        }
         let resetsAt = Self.parseQuotaResetDate(usage.quotaResetDate)
         let premiumSnapshot = usage.quotaSnapshots.premiumInteractions
         let chatSnapshot = usage.quotaSnapshots.chat
