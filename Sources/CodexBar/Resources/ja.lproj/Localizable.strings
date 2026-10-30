@@ -177,6 +177,7 @@
 "Individual credits" = "個人クレジット";
 "Workspace" = "ワークスペース";
 "Credits history" = "クレジット履歴";
+"Cursor app session expired — open Cursor to sign in again, or sign in to cursor.com in your browser." = "Cursorアプリのセッションの有効期限が切れました。Cursorを開いて再度ログインするか、ブラウザでcursor.comにログインしてください。";
 "Cursor login failed" = "Cursor のログインに失敗しました";
 "Custom" = "カスタム";
 "Custom Path" = "カスタムパス";
