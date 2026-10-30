@@ -22,6 +22,8 @@ struct ProviderPluginContextOptions: Sendable {
 
     var storage: ProviderPluginStorage?
     var beforeHTTPAttempt: (@Sendable (URLRequest) async throws -> Void)?
+    // Internal test observation; production never installs a completion hook.
+    var didCollectHTTPCompletion: (@Sendable (ProviderPluginHTTPResponse.Completion) -> Void)?
     var cookieSource: ProviderCookieSource = .auto
     var cookieInvalidator: ProviderPluginRuntime.CookieInvalidator?
     var cookieSessionResolver: ProviderPluginRuntime.CookieSessionResolver?
