@@ -41,6 +41,12 @@ All macOS release jobs use Apple Silicon `xcode-27` runners and Xcode 27 while
 retaining the macOS 14 deployment target. The x86_64 CLI is cross-built and
 executed under Rosetta. Signed app verification launches both architectures.
 
+Sparkle 2.10 requires macOS 12 or later, below the app's macOS 14 minimum. CI builds
+the appcast directly with an explicit Markdown format and minimum system version;
+it downloads its pinned `sign_update` separately from the app's SwiftPM dependency.
+The retired `generate_appcast` path and `.mac-release.env` arguments do not affect
+publication, and release jobs do not require tools inside `.build/artifacts`.
+
 ## iCloud sync (CloudKit)
 Upstream-team identity-signed release builds embed `Scripts/profiles/CodexBar-DeveloperID.provisionprofile` at `Contents/embedded.provisionprofile` and claim the iCloud entitlements (`Scripts/package_app.sh` does both automatically; it fails hard if the profile file is missing). Packaging derives the team from the selected `APP_IDENTITY`; other teams omit upstream CloudKit resources. `sign-and-notarize.sh` honors that same identity, with required timestamping and hardened runtime. The profile expires 2044-07-29; Gatekeeper re-validates it at every launch.
 
