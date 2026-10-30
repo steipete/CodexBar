@@ -1095,7 +1095,7 @@ enum MiniMaxUsageParser {
             pattern: #"(?i)resets?\s+in\s+([0-9]+)\s*(seconds?|secs?|s|minutes?|mins?|m|hours?|hrs?|h|days?|d)"#,
             text: text),
             match.count >= 2,
-           let value = Double(match[0])
+            let value = Double(match[0])
         {
             let unit = match[1]
             let seconds = self.seconds(from: value, unit: unit)
