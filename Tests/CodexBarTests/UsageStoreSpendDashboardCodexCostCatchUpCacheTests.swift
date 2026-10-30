@@ -84,7 +84,7 @@ struct UsageStoreSpendDashboardCodexCostCatchUpCacheTests {
         #expect(completed.completionIsConfirmed)
         #expect(completed.completedFiles == 1)
         #expect(completed.processedBytes == completed.totalBytes)
-        #expect(CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, calendar: calendar)
+        #expect(CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome, calendar: calendar)
             .files[file.path]?.codexScanComplete == true)
         let revision = store.spendDashboardCodexCostCatchUpRevision
         store.synchronizeSpendDashboardCodexCostCatchUp(accounts: accounts)

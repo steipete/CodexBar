@@ -29,7 +29,7 @@ extension CursorStatusProbe {
 
     private enum AppSessionFetchResult<Value> {
         case succeeded(Value)
-        case resumeFallback(storedCookies: [HTTPCookie])
+        case resumeFallback(storedCookies: [HTTPCookie], error: CursorStatusProbeError = .noSessionCookie)
     }
     #endif
 
@@ -63,6 +63,7 @@ extension CursorStatusProbe {
         #endif
         #if os(macOS)
 
+        let noSessionError: CursorStatusProbeError
         let hasExplicitBrowserSelection = cachedEntry?.sourceLabel != Self.appAuthSourceLabel &&
             cachedEntry?.authenticationFailurePolicy == .stopFallback
         if allowAppAuthFallback, !hasExplicitBrowserSelection {
@@ -75,28 +76,33 @@ extension CursorStatusProbe {
             switch try await self.fetchPreferredAppSession(context: context) {
             case let .succeeded(value):
                 return value
-            case let .resumeFallback(updatedStoredCookies):
+            case let .resumeFallback(updatedStoredCookies, error):
                 storedCookies = updatedStoredCookies
+                noSessionError = error
             }
+        } else {
+            noSessionError = .noSessionCookie
         }
+        #else
+        let noSessionError = CursorStatusProbeError.noSessionCookie
         #endif
 
         if allowCachedSessions,
            let cached = cachedEntry,
            !cached.cookieHeader.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         {
+            let context = CachedSessionFetchContext(
+                cookieHeaderOverride: cookieHeaderOverride,
+                allowAppAuthFallback: allowAppAuthFallback,
+                logger: logger,
+                log: log,
+                perform: perform)
             #if os(macOS)
             if cached.sourceLabel == Self.appAuthSourceLabel {
                 if CookieHeaderCache.clearIfCurrent(provider: .cursor, expected: cached) {
                     cacheObservation = cacheObservation.afterOwnedClear()
                 }
             } else {
-                let context = CachedSessionFetchContext(
-                    cookieHeaderOverride: cookieHeaderOverride,
-                    allowAppAuthFallback: allowAppAuthFallback,
-                    logger: logger,
-                    log: log,
-                    perform: perform)
                 switch try await self.fetchCachedSession(cached, context: context) {
                 case let .succeeded(value):
                     return value
@@ -105,12 +111,6 @@ extension CursorStatusProbe {
                 }
             }
             #else
-            let context = CachedSessionFetchContext(
-                cookieHeaderOverride: cookieHeaderOverride,
-                allowAppAuthFallback: allowAppAuthFallback,
-                logger: logger,
-                log: log,
-                perform: perform)
             switch try await self.fetchCachedSession(cached, context: context) {
             case let .succeeded(value):
                 return value
@@ -181,7 +181,7 @@ extension CursorStatusProbe {
             return try await self.fetchLinuxAppSession(log: log, perform: perform)
         }
         #endif
-        throw CursorStatusProbeError.noSessionCookie
+        throw noSessionError
     }
 
     private func fetchStoredSession<Value: Sendable>(
@@ -255,7 +255,9 @@ extension CursorStatusProbe {
             }
             let storedCookies = Self.removingPersistedAppSessions(from: context.storedCookies)
             await self.sessionStore.setCookies(storedCookies)
-            return .resumeFallback(storedCookies: storedCookies)
+            let expired = (try? appSession.userID()) != nil &&
+                (try? appSession.expiresAt()).map { $0 <= Date() } == true
+            return .resumeFallback(storedCookies: storedCookies, error: expired ? .appSessionExpired : .noSessionCookie)
         }
 
         let appIdentity = appSession.identity

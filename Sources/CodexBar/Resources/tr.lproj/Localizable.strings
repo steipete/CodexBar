@@ -160,6 +160,7 @@
 "Individual credits" = "Bireysel krediler";
 "Workspace" = "Çalışma alanı";
 "Credits history" = "Kredi geçmişi";
+"Cursor app session expired — open Cursor to sign in again, or sign in to cursor.com in your browser." = "Cursor uygulama oturumunun süresi doldu — yeniden giriş yapmak için Cursor’ı açın veya tarayıcınızda cursor.com’a giriş yapın.";
 "Cursor login failed" = "Cursor girişi başarısız";
 "Custom" = "Özel";
 "Custom Path" = "Özel yol";

@@ -10,6 +10,34 @@ import Testing
 @testable import CodexBarCore
 
 struct OpenCodexUsageParserTests {
+    @Test
+    func `large logs use bounded reads and preserve records across chunk boundaries`() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("OpenCodexBoundedReads-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let url = root.appendingPathComponent("usage.jsonl")
+        let record = """
+        {"requestId":"bounded","timestamp":1784179200,"provider":"openai","model":"gpt-5.4",\
+        "note":"\(String(repeating: "x", count: 96 * 1024))"}
+        """
+        let contents = record + "\n" + record
+        try contents.write(to: url, atomically: true, encoding: .utf8)
+        let largestRead = LockIsolated(0)
+        let observer: @Sendable (Int) -> Void = { count in
+            largestRead.setValue(max(largestRead.value, count))
+        }
+        let parsed = try OpenCodexUsageParser.$readSizeObserverForTesting.withValue(observer) {
+            try OpenCodexUsageParser.parseLog(fileURL: url, from: 0, fileManager: .default)
+        }
+        #expect(largestRead.value <= 64 * 1024)
+        #expect(parsed.entries.count == 2)
+        #expect(parsed.bytesRead == contents.utf8.count)
+        #expect(parsed.nextOffset == record.utf8.count + 1)
+        #expect(parsed.newlineTerminatedEntryCount == 1)
+        #expect(parsed.completeLineCount == 2)
+    }
+
     @Test(arguments: ["9.223372036854776e18", "1e40", "-1"])
     func `out of range token counts retain valid usage fields`(literal: String) throws {
         let line = """

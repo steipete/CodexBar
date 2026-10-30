@@ -41,7 +41,7 @@ struct CostUsageLazyHistoryBenchmarkTests {
             now: day,
             options: options)
         #expect(initial.summary?.totalTokens == fileCount * 110)
-        let store = CostUsageStore(cacheRoot: env.cacheRoot)
+        let store = CostUsageStore(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
         let seeded = store.syncLoadCodexCache(calendar: options.calendar)
         #expect(seeded.files.values.reduce(0) { $0 + ($1.codexTokenSnapshots?.count ?? 0) } ==
             fileCount * snapshotsPerFile)

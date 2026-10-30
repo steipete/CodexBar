@@ -160,6 +160,7 @@
 "Individual credits" = "الاعتمادات الفردية";
 "Workspace" = "مساحة العمل";
 "Credits history" = "تاريخ الاعتمادات";
+"Cursor app session expired — open Cursor to sign in again, or sign in to cursor.com in your browser." = "انتهت صلاحية جلسة تطبيق Cursor — افتح Cursor لتسجيل الدخول مجددًا، أو سجّل الدخول إلى cursor.com في متصفحك.";
 "Cursor login failed" = "فشل تسجيل الدخول Cursor";
 "Custom" = "العرف";
 "Custom Path" = "المسار المخصص";

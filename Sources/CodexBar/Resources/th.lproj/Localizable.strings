@@ -160,6 +160,7 @@
 "Individual credits" = "หน่วยกิตส่วนบุคคล";
 "Workspace" = "พื้นที่ทํางาน";
 "Credits history" = "ประวัติเครดิต";
+"Cursor app session expired — open Cursor to sign in again, or sign in to cursor.com in your browser." = "เซสชันของแอป Cursor หมดอายุแล้ว — เปิด Cursor เพื่อเข้าสู่ระบบอีกครั้ง หรือเข้าสู่ระบบที่ cursor.com ในเบราว์เซอร์ของคุณ";
 "Cursor login failed" = "การเข้าสู่ระบบ Cursor ล้มเหลว";
 "Custom" = "กําหนดเอง";
 "Custom Path" = "เส้นทางที่กําหนดเอง";

@@ -22,6 +22,7 @@ extension CostUsageStoreReadWorkTests {
         #expect(baseline.total.totalTokens == fixture.rowCount * 13)
         let rawCache = CostUsageStoreAccess.readWithoutTokenSnapshots(
             cacheRoot: fixture.env.cacheRoot,
+            home: fixture.env.codexStoreHome,
             calendar: fixture.calendar)
         let sidecar = CodexWorkspaceUsageSidecar(cacheRoot: fixture.env.cacheRoot)
         let sources = try sidecar.usageCache(roots: baseline.rootsFingerprint)
@@ -45,6 +46,7 @@ extension CostUsageStoreReadWorkTests {
             #expect(checkpointFired.value)
             #expect(CostUsageStoreAccess.readWithoutTokenSnapshots(
                 cacheRoot: fixture.env.cacheRoot,
+                home: fixture.env.codexStoreHome,
                 calendar: fixture.calendar) == rawCache)
             #expect(CodexLocalProjectUsageIndexer.cachedSnapshot(
                 now: fixture.now,
@@ -68,6 +70,7 @@ extension CostUsageStoreReadWorkTests {
             options: options)
         let rawCache = CostUsageStoreAccess.readWithoutTokenSnapshots(
             cacheRoot: fixture.env.cacheRoot,
+            home: fixture.env.codexStoreHome,
             calendar: fixture.calendar)
         let sidecar = CodexWorkspaceUsageSidecar(cacheRoot: fixture.env.cacheRoot)
         let sources = try sidecar.usageCache(roots: baseline.rootsFingerprint)
@@ -92,6 +95,7 @@ extension CostUsageStoreReadWorkTests {
 
         #expect(CostUsageStoreAccess.readWithoutTokenSnapshots(
             cacheRoot: fixture.env.cacheRoot,
+            home: fixture.env.codexStoreHome,
             calendar: fixture.calendar) == rawCache)
         #expect(CodexLocalProjectUsageIndexer.cachedSnapshot(
             now: fixture.now,
@@ -127,6 +131,7 @@ extension CostUsageStoreReadWorkTests {
         #expect(snapshot.sessions.isEmpty)
         #expect(CostUsageStoreAccess.readWithoutTokenSnapshots(
             cacheRoot: env.cacheRoot,
+            home: env.codexStoreHome,
             calendar: scannerOptions.calendar).roots == CostUsageScanner.codexRootsFingerprint(options: scannerOptions))
         #expect(CodexLocalProjectUsageIndexer.cachedSnapshot(
             now: now,

@@ -177,6 +177,7 @@
 "Individual credits" = "Individuella krediter";
 "Workspace" = "Arbetsyta";
 "Credits history" = "Kredithistorik";
+"Cursor app session expired — open Cursor to sign in again, or sign in to cursor.com in your browser." = "Sessionen i Cursor-appen har gått ut — öppna Cursor för att logga in igen eller logga in på cursor.com i webbläsaren.";
 "Cursor login failed" = "Cursor-inloggning misslyckades";
 "Custom" = "Anpassat";
 "Custom Path" = "Anpassad sökväg";
