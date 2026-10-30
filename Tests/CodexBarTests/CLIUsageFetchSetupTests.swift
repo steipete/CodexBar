@@ -88,7 +88,7 @@ struct CLIUsageFetchSetupTests {
         providers: [UsageProvider] = [.codex]) throws -> CLIUsageFetchSetup
     {
         let values = try Program(descriptors: CodexBarCLI.commandDescriptors())
-            .resolve(argv: [name] + arguments).parsedValues
+            .resolve(arguments: [name] + arguments).parsedValues
         return try CLIUsageFetchSetup(
             values: values,
             providers: providers,

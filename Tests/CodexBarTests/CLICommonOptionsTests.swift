@@ -12,7 +12,7 @@ struct CLICommonOptionsTests {
     @Test(arguments: Self.paths)
     func `common flags survive real command resolution`(path: [String]) throws {
         let program = Program(descriptors: CodexBarCLI.commandDescriptors())
-        let parsed = try program.resolve(argv: path + [
+        let parsed = try program.resolve(arguments: path + [
             "-v", "--json-output", "--log-level", "debug", "--format", "json", "--json", "--json-only", "--pretty",
         ]).parsedValues
         #expect(parsed.flags == ["verbose", "jsonOutput", "jsonShortcut", "jsonOnly", "pretty"])
@@ -20,12 +20,12 @@ struct CLICommonOptionsTests {
         #expect(CLIOutputPreferences.from(values: parsed).format == .json)
         #expect(CLIOutputPreferences.from(values: parsed).pretty)
 
-        let defaults = try program.resolve(argv: path).parsedValues
+        let defaults = try program.resolve(arguments: path).parsedValues
         #expect(defaults.flags.isEmpty)
         #expect(defaults.options.isEmpty)
         #expect(CLIOutputPreferences.from(values: defaults).format == .text)
         #expect(!CLIOutputPreferences.from(values: defaults).pretty)
-        let logs = try program.resolve(argv: path + ["--json-output", "--verbose"]).parsedValues
+        let logs = try program.resolve(arguments: path + ["--json-output", "--verbose"]).parsedValues
         #expect(logs.flags == ["jsonOutput", "verbose"])
         #expect(CLIOutputPreferences.from(values: logs).format == .text)
     }
@@ -67,7 +67,7 @@ extension CLICommonOptionsTests {
     @Test(arguments: ["usage", "cards"])
     func `shared fetch flags retain labels and command specific options`(command: String) throws {
         let program = Program(descriptors: CodexBarCLI.commandDescriptors())
-        let invocation = try program.resolve(argv: [
+        let invocation = try program.resolve(arguments: [
             command, "--provider", "codex", "--account", "fixture", "--account-index", "2", "--all-accounts",
             "--source", "api", "--web-timeout", "12", "--no-credits", "--no-color", "--status", "--web",
             "--web-debug-dump-html", "--antigravity-plan-debug", "--augment-debug", "--log-level", "info", "-v",
@@ -83,15 +83,15 @@ extension CLICommonOptionsTests {
         ])
         let ownFlag = command == "usage" ? "--app-auto-verifier" : "--brief"
         let otherFlag = command == "usage" ? "--brief" : "--app-auto-verifier"
-        #expect(try program.resolve(argv: [command, ownFlag]).parsedValues.flags.count == 1)
+        #expect(try program.resolve(arguments: [command, ownFlag]).parsedValues.flags.count == 1)
         #expect(throws: CommanderProgramError.self) {
-            try program.resolve(argv: [command, otherFlag])
+            try program.resolve(arguments: [command, otherFlag])
         }
     }
 
     @Test(arguments: [["hooks", "test", "quota_reached"], ["hooks", "watch"]])
     func `hooks output groups retain their own help and flags`(path: [String]) throws {
-        let invocation = try Program(descriptors: CodexBarCLI.commandDescriptors()).resolve(argv: path + [
+        let invocation = try Program(descriptors: CodexBarCLI.commandDescriptors()).resolve(arguments: path + [
             "--format", "json", "--json", "--json-only", "--pretty",
         ])
         #expect(invocation.parsedValues.options == ["format": ["json"]])

@@ -46,7 +46,7 @@ enum CodexBarCLI {
         let program = Program(descriptors: Self.commandDescriptors())
 
         do {
-            let invocation = try program.resolve(argv: argv)
+            let invocation = try program.resolve(arguments: argv)
             Self.bootstrapLogging(path: invocation.path, values: invocation.parsedValues)
             UserProviderPluginRegistry.refresh()
             switch invocation.path {

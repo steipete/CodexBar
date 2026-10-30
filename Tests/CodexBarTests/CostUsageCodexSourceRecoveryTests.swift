@@ -15,7 +15,7 @@ struct CostUsageCodexSourceRecoveryTests {
             contents: Self.sourceLines(inputs: inputs, day: day, env: env).joined(separator: "\n") + "\n")
         var options = Self.options(env: env)
         let original = Self.report(day: day, options: options)
-        let canonical = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        let canonical = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
         let canonicalRows = try #require(canonical.files[file.path]?.codexRows)
         #expect(canonicalRows.map(\.input) == inputs)
         #expect(canonicalRows.allSatisfy { $0.turnID == "synthetic-shared-turn" })
@@ -24,7 +24,7 @@ struct CostUsageCodexSourceRecoveryTests {
         #expect(try abs(#require(original.summary?.totalCostUSD) - (longRequest ? 2.5 : 1.5)) < 1e-9)
 
         try Self.contaminate(file: file, cache: canonical, day: day, env: env, suffixFits: suffixFits)
-        let contaminated = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        let contaminated = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
         #expect(contaminated.files[file.path]?.days == canonical.files[file.path]?.days)
         #expect(contaminated.files[file.path]?.mtimeUnixMs == canonical.files[file.path]?.mtimeUnixMs)
         #expect(contaminated.files[file.path]?.size == canonical.files[file.path]?.size)
@@ -43,7 +43,8 @@ struct CostUsageCodexSourceRecoveryTests {
         #expect(repaired.data == cold.data)
         #expect(repaired.summary == cold.summary)
         #expect(recorder.snapshot().usageRowsProcessed == inputs.count)
-        let reopened = CostUsageStore(cacheRoot: env.cacheRoot).syncLoadCodexCache(calendar: .current)
+        let reopened = CostUsageStore(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
+            .syncLoadCodexCache(calendar: .current)
         #expect(reopened.files[file.path]?.codexRows == canonicalRows)
         #expect(reopened.files[file.path]?.days == canonical.files[file.path]?.days)
         #expect(reopened.codexScanCatchUpPending != true)
@@ -70,7 +71,7 @@ struct CostUsageCodexSourceRecoveryTests {
             contents: Self.sourceLines(inputs: inputs, day: day, env: env).joined(separator: "\n") + "\n")
         var options = Self.options(env: env)
         let original = Self.report(day: day, options: options)
-        let canonical = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        let canonical = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
         var usage = try #require(canonical.files[file.path])
         let originalRows = try #require(usage.codexRows)
         let orphanModel = "gpt-5.4-mini"
@@ -92,8 +93,9 @@ struct CostUsageCodexSourceRecoveryTests {
 
         var contaminated = canonical
         contaminated.files[file.path] = usage
-        #expect(!CostUsageStoreAccess.replace(cacheRoot: env.cacheRoot, cache: contaminated).catchUpRequired)
-        let store = CostUsageStore(cacheRoot: env.cacheRoot)
+        #expect(!CostUsageStoreAccess.replace(cacheRoot: env.cacheRoot, home: env.codexStoreHome, cache: contaminated)
+            .catchUpRequired)
+        let store = CostUsageStore(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
         let persisted = store.syncLoadCodexCache(calendar: .current)
         #expect(persisted.files[file.path]?.hasCurrentCodexParser == true)
         #expect(persisted.files[file.path]?.mtimeUnixMs == usage.mtimeUnixMs)
@@ -112,7 +114,7 @@ struct CostUsageCodexSourceRecoveryTests {
             #expect(repaired.summary?.totalTokens == 600_000)
             #expect(try abs(#require(repaired.summary?.totalCostUSD) - 1.5) < 1e-9)
         }
-        let reopened = CostUsageStore(cacheRoot: env.cacheRoot)
+        let reopened = CostUsageStore(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
         let recovered = reopened.syncLoadCodexCache(calendar: .current)
         #expect(recovered.files[file.path]?.codexRows == originalRows)
         #expect(recovered.files[file.path]?.days == canonical.files[file.path]?.days)
@@ -136,7 +138,7 @@ struct CostUsageCodexSourceRecoveryTests {
                 .joined(separator: "\n") + "\n")
         let options = Self.options(env: env)
         _ = Self.report(day: day, options: options)
-        var cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        var cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
         var usage = try #require(cache.files[file.path])
         var rows = Self.contaminatedRows(day: day)
         // Identical request identity cannot establish which conflicting saved price was observed.
@@ -151,13 +153,15 @@ struct CostUsageCodexSourceRecoveryTests {
         }
         usage.codexRows = rows
         cache.files[file.path] = usage
-        #expect(!CostUsageStoreAccess.replace(cacheRoot: env.cacheRoot, cache: cache).catchUpRequired)
+        #expect(!CostUsageStoreAccess.replace(cacheRoot: env.cacheRoot, home: env.codexStoreHome, cache: cache)
+            .catchUpRequired)
 
         let refreshed = Self.report(day: day, options: options, elapsed: 1)
         #expect(refreshed.summary?.totalTokens == 600_000)
         #expect(refreshed.data.first?.costUSD == nil)
         #expect(refreshed.summary?.totalCostUSD == nil)
-        let reopened = CostUsageStore(cacheRoot: env.cacheRoot).syncLoadCodexCache(calendar: .current)
+        let reopened = CostUsageStore(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
+            .syncLoadCodexCache(calendar: .current)
         let cached = CostUsageScanner.buildCodexReportFromCache(
             cache: reopened,
             range: .init(since: day, until: day),
@@ -189,7 +193,7 @@ struct CostUsageCodexSourceRecoveryTests {
             contents: lines.joined(separator: "\n") + "\n")
         var options = Self.options(env: env)
         _ = Self.report(day: day, options: options)
-        var canonical = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        var canonical = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
         if priority {
             var usage = try #require(canonical.files[file.path])
             usage.codexRows = usage.codexRows?.map { row in
@@ -198,8 +202,9 @@ struct CostUsageCodexSourceRecoveryTests {
                 return row
             }
             canonical.files[file.path] = usage
-            #expect(!CostUsageStoreAccess.replace(cacheRoot: env.cacheRoot, cache: canonical).catchUpRequired)
-            canonical = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+            #expect(!CostUsageStoreAccess.replace(cacheRoot: env.cacheRoot, home: env.codexStoreHome, cache: canonical)
+                .catchUpRequired)
+            canonical = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
         }
         let expected = Self.cachedReport(cache: canonical, day: day)
         let canonicalRows = try #require(canonical.files[file.path]?.codexRows)
@@ -216,12 +221,14 @@ struct CostUsageCodexSourceRecoveryTests {
         options.maxCodexSessionFileBytes = budget
         _ = Self.report(day: day, options: options, elapsed: 1)
         var initialPass = 1
-        var partial = CostUsageStore(cacheRoot: env.cacheRoot).syncLoadCodexCache(calendar: .current)
+        var partial = CostUsageStore(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
+            .syncLoadCodexCache(calendar: .current)
         // A tiny budget may first be consumed by bounded session discovery.
         while partial.files[file.path]?.codexScanComplete != false, initialPass < 5 {
             initialPass += 1
             _ = Self.report(day: day, options: options, elapsed: Double(initialPass))
-            partial = CostUsageStore(cacheRoot: env.cacheRoot).syncLoadCodexCache(calendar: .current)
+            partial = CostUsageStore(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
+                .syncLoadCodexCache(calendar: .current)
         }
         let partialFile = try #require(partial.files[file.path])
         let initialOffset = try #require(partialFile.parsedBytes)
@@ -236,13 +243,15 @@ struct CostUsageCodexSourceRecoveryTests {
         #expect(partialFile.codexTokenIndexAnchor?.indexedBytes == initialOffset)
         if staleRevision {
             partial.files[file.path]?.codexParserRevision = CostUsageFileUsage.currentCodexParserRevision - 1
-            #expect(!CostUsageStoreAccess.replace(cacheRoot: env.cacheRoot, cache: partial).catchUpRequired)
+            #expect(!CostUsageStoreAccess.replace(cacheRoot: env.cacheRoot, home: env.codexStoreHome, cache: partial)
+                .catchUpRequired)
         }
 
         var completed = false
         for pass in (initialPass + 1)..<(initialPass + 60) {
             _ = Self.report(day: day, options: options, elapsed: Double(pass))
-            let reopened = CostUsageStore(cacheRoot: env.cacheRoot).syncLoadCodexCache(calendar: .current)
+            let reopened = CostUsageStore(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
+                .syncLoadCodexCache(calendar: .current)
             if reopened.files[file.path]?.codexPendingSourcePricing != nil {
                 #expect(reopened.files[file.path]?.codexPendingSourcePricingAnchor == recoveryAnchor)
             }
@@ -252,7 +261,8 @@ struct CostUsageCodexSourceRecoveryTests {
             }
         }
         #expect(completed)
-        let final = CostUsageStore(cacheRoot: env.cacheRoot).syncLoadCodexCache(calendar: .current)
+        let final = CostUsageStore(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
+            .syncLoadCodexCache(calendar: .current)
         let finalFile = try #require(final.files[file.path])
         #expect(finalFile.codexScanComplete == true)
         #expect(try #require(finalFile.parsedBytes) > initialOffset)
@@ -279,14 +289,15 @@ struct CostUsageCodexSourceRecoveryTests {
         let file = try env.writeCodexSessionFile(day: day, filename: "growing-recovery.jsonl", contents: contents)
         var options = Self.options(env: env)
         _ = Self.report(day: day, options: options)
-        let canonical = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        let canonical = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
         try Self.contaminate(file: file, cache: canonical, day: day, env: env)
 
         let budget = Int64((lines.prefix(4).joined(separator: "\n") + "\n").utf8.count)
         options.maxCodexScanBytesPerRefresh = budget
         options.maxCodexSessionFileBytes = budget
         _ = Self.report(day: day, options: options, elapsed: 1)
-        let partial = CostUsageStore(cacheRoot: env.cacheRoot).syncLoadCodexCache(calendar: .current)
+        let partial = CostUsageStore(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
+            .syncLoadCodexCache(calendar: .current)
         #expect(partial.files[file.path]?.codexScanComplete == false)
         #expect(partial.files[file.path]?.codexScanTargetSize == originalSize)
 
@@ -320,7 +331,8 @@ struct CostUsageCodexSourceRecoveryTests {
         var completed = false
         for pass in 2..<30 {
             _ = Self.report(day: day, options: options, elapsed: Double(pass))
-            let reopened = CostUsageStore(cacheRoot: env.cacheRoot).syncLoadCodexCache(calendar: .current)
+            let reopened = CostUsageStore(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
+                .syncLoadCodexCache(calendar: .current)
             let usage = try #require(reopened.files[file.path])
             if usage.parsedBytes == originalSize {
                 sawCompletedOriginalTarget = true
@@ -335,7 +347,8 @@ struct CostUsageCodexSourceRecoveryTests {
         }
         #expect(sawCompletedOriginalTarget)
         #expect(completed)
-        let final = CostUsageStore(cacheRoot: env.cacheRoot).syncLoadCodexCache(calendar: .current)
+        let final = CostUsageStore(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
+            .syncLoadCodexCache(calendar: .current)
         let rows = try #require(final.files[file.path]?.codexRows)
         #expect(rows.map(\.input) == [200_000, 200_000, 200_000, 50000])
         let appended = try #require(rows.last)
@@ -411,7 +424,7 @@ struct CostUsageCodexSourceRecoveryTests {
         let original = Self.report(day: day, options: options)
         #expect(original.summary?.totalTokens == 700_000)
         #expect(try abs(#require(original.summary?.totalCostUSD) - 1.75) < 1e-9)
-        let canonical = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        let canonical = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
         let originalChild = try #require(canonical.files[child.path])
         #expect(originalChild.forkedFromId == "synthetic-parent-session")
         #expect(originalChild.codexRows?.map(\.input) == [200_000, 200_000, 200_000])
@@ -427,7 +440,8 @@ struct CostUsageCodexSourceRecoveryTests {
         #expect(repaired.data == cold.data)
         #expect(repaired.summary == cold.summary)
         #expect(recorder.snapshot().usageRowsProcessed == 3)
-        let reopened = CostUsageStore(cacheRoot: env.cacheRoot).syncLoadCodexCache(calendar: .current)
+        let reopened = CostUsageStore(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
+            .syncLoadCodexCache(calendar: .current)
         #expect(reopened.files[parent.path] == canonical.files[parent.path])
         #expect(reopened.files[child.path]?.codexRows == originalChild.codexRows)
         #expect(reopened.files[child.path]?.days == originalChild.days)
@@ -447,9 +461,9 @@ struct CostUsageCodexSourceRecoveryTests {
                 .joined(separator: "\n") + "\n")
         var options = Self.options(env: env)
         _ = Self.report(day: day, options: options)
-        let canonical = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        let canonical = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
         try Self.contaminate(file: file, cache: canonical, day: day, env: env)
-        let before = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        let before = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
         try FileManager.default.removeItem(at: file)
 
         let recorder = CostUsageScanner.CodexScanWorkRecorder()
@@ -460,7 +474,8 @@ struct CostUsageCodexSourceRecoveryTests {
         #expect(refreshed.summary?.totalCostUSD == nil)
         #expect(recorder.snapshot().codexFileScanAttempts == 0)
         #expect(recorder.snapshot().usageRowsProcessed == 0)
-        let after = CostUsageStore(cacheRoot: env.cacheRoot).syncLoadCodexCache(calendar: .current)
+        let after = CostUsageStore(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
+            .syncLoadCodexCache(calendar: .current)
         #expect(after.files[file.path]?.codexRows == before.files[file.path]?.codexRows)
         #expect(after.files[file.path]?.days == before.files[file.path]?.days)
         #expect(after.lastScanUnixMs == before.lastScanUnixMs)
@@ -488,11 +503,12 @@ struct CostUsageCodexSourceRecoveryTests {
         var options = Self.options(env: env)
         let original = Self.report(day: day, options: options)
         #expect(original.summary?.totalTokens == 1_200_000)
-        let canonical = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        let canonical = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
         var contaminated = canonical
         contaminated.files[available.path]?.codexRows = Self.contaminatedRows(day: day)
         contaminated.files[unavailable.path]?.codexRows = Self.contaminatedRows(day: day)
-        #expect(!CostUsageStoreAccess.replace(cacheRoot: env.cacheRoot, cache: contaminated).catchUpRequired)
+        #expect(!CostUsageStoreAccess.replace(cacheRoot: env.cacheRoot, home: env.codexStoreHome, cache: contaminated)
+            .catchUpRequired)
         try FileManager.default.removeItem(at: unavailable)
 
         let recorder = CostUsageScanner.CodexScanWorkRecorder()
@@ -502,7 +518,8 @@ struct CostUsageCodexSourceRecoveryTests {
         #expect(refreshed.summary?.totalTokens == 1_200_000)
         #expect(refreshed.summary?.totalCostUSD == nil)
         #expect(recorder.snapshot().usageRowsProcessed == 3)
-        let reopened = CostUsageStore(cacheRoot: env.cacheRoot).syncLoadCodexCache(calendar: .current)
+        let reopened = CostUsageStore(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
+            .syncLoadCodexCache(calendar: .current)
         #expect(reopened.files[available.path]?.codexRows == canonical.files[available.path]?.codexRows)
         #expect(reopened.files[unavailable.path]?.codexRows == contaminated.files[unavailable.path]?.codexRows)
         #expect(reopened.files[unavailable.path]?.days == canonical.files[unavailable.path]?.days)
@@ -521,7 +538,7 @@ struct CostUsageCodexSourceRecoveryTests {
                 .joined(separator: "\n") + "\n")
         var options = Self.options(env: env)
         _ = Self.report(day: day, options: options)
-        let canonical = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        let canonical = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
         try Self.contaminate(file: file, cache: canonical, day: day, env: env)
         options.refreshMinIntervalSeconds = 3600
         let refreshed = Self.report(day: day, options: options, elapsed: 1)
@@ -536,7 +553,8 @@ struct CostUsageCodexSourceRecoveryTests {
         #expect(abs((refreshed.summary?.totalCostUSD ?? -1) - pricedSubtotal) < 1e-9)
         #expect(refreshed.data.first?.unpricedRequestCount == 2)
         #expect(refreshed.data.first?.pricedRequestCount == 1)
-        let reopened = CostUsageStore(cacheRoot: env.cacheRoot).syncLoadCodexCache(calendar: .current)
+        let reopened = CostUsageStore(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
+            .syncLoadCodexCache(calendar: .current)
         let rows = try #require(reopened.files[file.path]?.codexRows)
         #expect(rows.map(\.input) == [100_000, 200_000, 300_000])
         #expect(rows.map(\.unpricedTokens) == [100_000, nil, 300_000])
@@ -555,7 +573,8 @@ struct CostUsageCodexSourceRecoveryTests {
         #expect(repeated.quotaSlices == refreshed.quotaSlices)
         #expect(recorder.snapshot().usageRowsProcessed == 0)
         #expect(recorder.snapshot().usageRowsRepriced == 0)
-        #expect(CostUsageStoreAccess.read(cacheRoot: env.cacheRoot).files[file.path]?.codexRows == rows)
+        #expect(CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome).files[file.path]?
+            .codexRows == rows)
     }
 
     @Test
@@ -652,7 +671,7 @@ struct CostUsageCodexSourceRecoveryTests {
         let original = Self.report(day: day, options: options)
         #expect(original.summary?.totalTokens == (partialBeforeUpgrade ? 200_000 : 600_000))
 
-        var cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        var cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
         var usage = try #require(cache.files[file.path])
         usage.codexRows = usage.codexRows?.map { row in
             var row = row
@@ -664,8 +683,10 @@ struct CostUsageCodexSourceRecoveryTests {
         let historicalRows = try #require(usage.codexRows)
         #expect(historicalRows.count == (partialBeforeUpgrade ? 1 : 3))
         cache.files[file.path] = usage
-        #expect(!CostUsageStoreAccess.replace(cacheRoot: env.cacheRoot, cache: cache).catchUpRequired)
-        #expect(CostUsageStoreAccess.read(cacheRoot: env.cacheRoot).files[file.path]?.hasCurrentCodexParser == false)
+        #expect(!CostUsageStoreAccess.replace(cacheRoot: env.cacheRoot, home: env.codexStoreHome, cache: cache)
+            .catchUpRequired)
+        #expect(CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome).files[file.path]?
+            .hasCurrentCodexParser == false)
 
         if appendBeforeUpgrade {
             // The appended request has the same pricing key; only the validated historical prefix owns its old price.
@@ -678,7 +699,8 @@ struct CostUsageCodexSourceRecoveryTests {
         options.maxCodexSessionFileBytes = 0
         var repaired = Self.report(day: day, options: options, elapsed: 1)
         for pass in 2...5 {
-            let checkpoint = CostUsageStore(cacheRoot: env.cacheRoot).syncLoadCodexCache(calendar: .current)
+            let checkpoint = CostUsageStore(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
+                .syncLoadCodexCache(calendar: .current)
             let fileUsage = checkpoint.files[file.path]
             if checkpoint.codexScanCatchUpPending != true,
                fileUsage?.parsedBytes == fileUsage?.size { break }
@@ -688,7 +710,8 @@ struct CostUsageCodexSourceRecoveryTests {
         let expectedModes: [String?] = Array(repeating: "priority", count: historicalRows.count)
             + Array(repeating: "standard", count: expectedInputs.count - historicalRows.count)
         #expect(repaired.summary?.totalTokens == expectedInputs.reduce(0, +))
-        let reopened = CostUsageStore(cacheRoot: env.cacheRoot).syncLoadCodexCache(calendar: .current)
+        let reopened = CostUsageStore(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
+            .syncLoadCodexCache(calendar: .current)
         let recovered = try #require(reopened.files[file.path])
         #expect(recovered.hasCurrentCodexParser)
         #expect(recovered.codexRows?.map(\.input) == expectedInputs)
@@ -699,7 +722,8 @@ struct CostUsageCodexSourceRecoveryTests {
         options.refreshMinIntervalSeconds = 0
         let again = Self.report(day: day, options: options, elapsed: 6)
         #expect(again.summary?.totalTokens == expectedInputs.reduce(0, +))
-        let persisted = CostUsageStore(cacheRoot: env.cacheRoot).syncLoadCodexCache(calendar: .current)
+        let persisted = CostUsageStore(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
+            .syncLoadCodexCache(calendar: .current)
         #expect(persisted.files[file.path]?.codexRows?.map(\.pricingMode) == expectedModes)
     }
 
@@ -739,7 +763,8 @@ struct CostUsageCodexSourceRecoveryTests {
         usage.codexRows = self.contaminatedRows(day: day, pricingMode: pricingMode)
         if suffixFits { usage.codexRows?.removeLast() }
         cache.files[file.path] = usage
-        #expect(!CostUsageStoreAccess.replace(cacheRoot: env.cacheRoot, cache: cache).catchUpRequired)
+        #expect(!CostUsageStoreAccess.replace(cacheRoot: env.cacheRoot, home: env.codexStoreHome, cache: cache)
+            .catchUpRequired)
     }
 
     private static func cachedReport(cache: CostUsageCache, day: Date) -> CostUsageDailyReport {
@@ -831,20 +856,22 @@ extension CostUsageCodexSourceRecoveryTests {
         var options = Self.options(env: env)
         let original = Self.report(day: day, options: options)
         #expect(original.summary?.totalTokens == 600_000)
-        var contaminated = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        var contaminated = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
         #expect(contaminated.files[file.path]?.codexRows?.map(\.input) == [200_000, 200_000, 200_000])
         contaminated.files[file.path]?.codexRows = Self.contaminatedRows(day: day, pricingMode: "priority").map { row in
             var row = row
             row.pricingModel = "gpt-5.5"
             return row
         }
-        #expect(!CostUsageStoreAccess.replace(cacheRoot: env.cacheRoot, cache: contaminated).catchUpRequired)
+        #expect(!CostUsageStoreAccess.replace(cacheRoot: env.cacheRoot, home: env.codexStoreHome, cache: contaminated)
+            .catchUpRequired)
 
         let budget: Int64 = 512
         options.maxCodexScanBytesPerRefresh = budget
         options.maxCodexSessionFileBytes = budget
         _ = Self.report(day: day, options: options, elapsed: 1)
-        let interrupted = CostUsageStore(cacheRoot: env.cacheRoot).syncLoadCodexCache(calendar: .current)
+        let interrupted = CostUsageStore(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
+            .syncLoadCodexCache(calendar: .current)
         let partial = try #require(interrupted.files[file.path])
         #expect(partial.codexScanComplete == false)
         #expect(partial.codexScanTargetSize == originalSize)
@@ -862,13 +889,14 @@ extension CostUsageCodexSourceRecoveryTests {
         coldOptions.cacheRoot = env.root.appendingPathComponent("subagent-cold-cache")
         let cold = Self.report(day: day, options: coldOptions, elapsed: 2)
         #expect(cold.summary?.totalTokens == 1_800_000)
-        let coldCache = CostUsageStoreAccess.read(cacheRoot: coldOptions.cacheRoot)
+        let coldCache = CostUsageStoreAccess.read(cacheRoot: coldOptions.cacheRoot, home: env.codexStoreHome)
 
         var sawBufferedTail = false
         var completed = false
         for pass in 2..<50 {
             _ = Self.report(day: day, options: options, elapsed: Double(pass))
-            let reopened = CostUsageStore(cacheRoot: env.cacheRoot).syncLoadCodexCache(calendar: .current)
+            let reopened = CostUsageStore(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
+                .syncLoadCodexCache(calendar: .current)
             let usage = try #require(reopened.files[file.path])
             if usage.hasBufferedCodexSubagentLines,
                (usage.parsedBytes ?? 0) >= originalSize,
@@ -887,7 +915,7 @@ extension CostUsageCodexSourceRecoveryTests {
         }
         #expect(sawBufferedTail)
         #expect(completed)
-        let store = CostUsageStore(cacheRoot: env.cacheRoot)
+        let store = CostUsageStore(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
         let final = store.syncLoadCodexCache(calendar: .current)
         let usage = try #require(final.files[file.path])
         let rows = try #require(usage.codexRows)
@@ -932,9 +960,9 @@ extension CostUsageCodexSourceRecoveryTests {
         let file = try env.writeCodexSessionFile(day: day, filename: "large-recovery.jsonl", contents: contents)
         let options = Self.options(env: env)
         _ = Self.report(day: day, options: options)
-        let canonical = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        let canonical = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
         try Self.contaminate(file: file, cache: canonical, day: day, env: env, pricingMode: "priority")
-        let selected = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        let selected = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
         let cached = try #require(selected.files[file.path])
         let anchor = try #require(cached.codexTokenIndexAnchor)
         #expect(anchor.windowStart > markerOffset + "before".utf8.count)
@@ -984,7 +1012,7 @@ extension CostUsageCodexSourceRecoveryTests {
         let file = try env.writeCodexSessionFile(day: day, filename: "rewritten-tail.jsonl", contents: contents)
         var options = Self.options(env: env)
         _ = Self.report(day: day, options: options)
-        let canonical = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        let canonical = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
         let originalAnchor = try #require(canonical.files[file.path]?.codexTokenIndexAnchor)
         #expect(originalAnchor.windowStart == 0)
         try Self.contaminate(file: file, cache: canonical, day: day, env: env, pricingMode: "priority")
@@ -1000,7 +1028,8 @@ extension CostUsageCodexSourceRecoveryTests {
             options.maxCodexScanBytesPerRefresh = remaining
             options.maxCodexSessionFileBytes = remaining
             _ = Self.report(day: day, options: options, elapsed: Double(pass))
-            let interrupted = CostUsageStore(cacheRoot: env.cacheRoot).syncLoadCodexCache(calendar: .current)
+            let interrupted = CostUsageStore(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
+                .syncLoadCodexCache(calendar: .current)
             let usage = try #require(interrupted.files[file.path])
             guard usage.codexScanComplete == false else { continue }
             consumedPrefix = try #require(usage.parsedBytes)
@@ -1036,13 +1065,15 @@ extension CostUsageCodexSourceRecoveryTests {
         options.maxCodexScanBytesPerRefresh = 100
         options.maxCodexSessionFileBytes = 100
         _ = Self.report(day: day, options: options, elapsed: Double(setupPass + 1))
-        let resumed = CostUsageStore(cacheRoot: env.cacheRoot).syncLoadCodexCache(calendar: .current)
+        let resumed = CostUsageStore(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
+            .syncLoadCodexCache(calendar: .current)
         #expect(resumed.files[file.path]?.codexScanComplete == false)
         #expect(try #require(resumed.files[file.path]?.codexPendingSourcePricing).isEmpty)
         var completed = false
         for pass in (setupPass + 2)..<(setupPass + 40) {
             _ = Self.report(day: day, options: options, elapsed: Double(pass))
-            let reopened = CostUsageStore(cacheRoot: env.cacheRoot).syncLoadCodexCache(calendar: .current)
+            let reopened = CostUsageStore(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
+                .syncLoadCodexCache(calendar: .current)
             if reopened.codexScanCatchUpPending != true {
                 completed = true
                 break
@@ -1052,7 +1083,8 @@ extension CostUsageCodexSourceRecoveryTests {
             }
         }
         #expect(completed)
-        let final = CostUsageStore(cacheRoot: env.cacheRoot).syncLoadCodexCache(calendar: .current)
+        let final = CostUsageStore(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
+            .syncLoadCodexCache(calendar: .current)
         let rows = try #require(final.files[file.path]?.codexRows)
         #expect(rows.map(\.input) == [200_000, 200_000, 200_000])
         #expect(rows.suffix(2).allSatisfy { $0.unpricedTokens == 200_000 && $0.pricingMode != "priority" })
@@ -1073,9 +1105,9 @@ extension CostUsageCodexSourceRecoveryTests {
         let file = try env.writeCodexSessionFile(day: day, filename: "selected-growth.jsonl", contents: contents)
         let options = Self.options(env: env)
         _ = Self.report(day: day, options: options)
-        let canonical = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        let canonical = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
         try Self.contaminate(file: file, cache: canonical, day: day, env: env, pricingMode: "priority")
-        let selected = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        let selected = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
         let cached = try #require(selected.files[file.path])
         let range = CostUsageScanner.CostUsageDayRange(since: day, until: day)
         #expect(CostUsageScanner.codexSourceRowRecoveryPathKeys(
@@ -1111,19 +1143,21 @@ extension CostUsageCodexSourceRecoveryTests {
         let file = try env.writeCodexSessionFile(day: day, filename: "replaced-recovery.jsonl", contents: contents)
         var options = Self.options(env: env)
         _ = Self.report(day: day, options: options)
-        var contaminated = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        var contaminated = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
         contaminated.files[file.path]?.codexRows = Self.contaminatedRows(day: day, pricingMode: "priority").map { row in
             var row = row
             row.pricingModel = "gpt-5.5"
             return row
         }
-        #expect(!CostUsageStoreAccess.replace(cacheRoot: env.cacheRoot, cache: contaminated).catchUpRequired)
+        #expect(!CostUsageStoreAccess.replace(cacheRoot: env.cacheRoot, home: env.codexStoreHome, cache: contaminated)
+            .catchUpRequired)
 
         let budget = Int64((lines.prefix(4).joined(separator: "\n") + "\n").utf8.count)
         options.maxCodexScanBytesPerRefresh = budget
         options.maxCodexSessionFileBytes = budget
         _ = Self.report(day: day, options: options, elapsed: 1)
-        let interrupted = CostUsageStore(cacheRoot: env.cacheRoot).syncLoadCodexCache(calendar: .current)
+        let interrupted = CostUsageStore(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
+            .syncLoadCodexCache(calendar: .current)
         let previous = try #require(interrupted.files[file.path])
         #expect(previous.codexScanComplete == false)
         let previousIdentity = try #require(previous.codexScanFileId)
@@ -1157,7 +1191,8 @@ extension CostUsageCodexSourceRecoveryTests {
         }
 
         _ = Self.report(day: day, options: options, elapsed: 2)
-        let restarted = CostUsageStore(cacheRoot: env.cacheRoot).syncLoadCodexCache(calendar: .current)
+        let restarted = CostUsageStore(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
+            .syncLoadCodexCache(calendar: .current)
         let partial = try #require(restarted.files[file.path])
         #expect(partial.codexScanComplete == false)
         #expect(partial.sessionId == previous.sessionId)
@@ -1167,7 +1202,8 @@ extension CostUsageCodexSourceRecoveryTests {
         var completed = false
         for pass in 3..<30 {
             _ = Self.report(day: day, options: options, elapsed: Double(pass))
-            let reopened = CostUsageStore(cacheRoot: env.cacheRoot).syncLoadCodexCache(calendar: .current)
+            let reopened = CostUsageStore(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
+                .syncLoadCodexCache(calendar: .current)
             if reopened.codexScanCatchUpPending != true {
                 completed = true
                 break
@@ -1177,7 +1213,8 @@ extension CostUsageCodexSourceRecoveryTests {
             }
         }
         #expect(completed)
-        let final = CostUsageStore(cacheRoot: env.cacheRoot).syncLoadCodexCache(calendar: .current)
+        let final = CostUsageStore(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
+            .syncLoadCodexCache(calendar: .current)
         let usage = try #require(final.files[file.path])
         let rows = try #require(usage.codexRows)
         #expect(rows.map(\.input) == [200_000, 200_000, 200_000])

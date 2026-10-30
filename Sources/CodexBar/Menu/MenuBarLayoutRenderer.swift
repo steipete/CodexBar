@@ -778,19 +778,31 @@ final class MenuBarLayoutRenderer {
             return self.renderPercent(window, data: data, style: style, options: options)
         case let .pace(window):
             let accessibilityPrefix = item.editorLabel(provider: data.provider)
+            let pace = Self.pace(window, data: data)
+            let neutralColor = Self.neutralForegroundColor(options)
             var attributes = style.attributes
-            attributes[.foregroundColor] = Self.neutralForegroundColor(options)
-            if options.colorPace, let delta = Self.paceDelta(window, data: data), delta.isFinite, delta != 0 {
-                // Use the same rounded numeric delta as the displayed text, never its localized sign.
-                let color: NSColor = delta < 0 ? .systemGreen : .systemRed
-                attributes[.foregroundColor] = options.isStale && !options.highContrast ? color
-                    .withAlphaComponent(0.5) : color
-            }
-            return self.optionalTextToken(
-                Self.pace(window, data: data),
+            attributes[.foregroundColor] = neutralColor
+            let rendered = self.optionalTextToken(
+                pace,
                 unavailableLabel: L("%@ unavailable", accessibilityPrefix),
                 accessibilityPrefix: accessibilityPrefix,
                 attributes: attributes)
+            guard options.colorPace, let pace, !pace.isEmpty else { return rendered }
+
+            var indicatorColor = neutralColor
+            var isMonochrome = true
+            if let delta = Self.paceDelta(window, data: data), delta.isFinite, delta != 0 {
+                // Use the same rounded numeric delta as the displayed text, never its localized sign.
+                let color: NSColor = delta < 0 ? .systemGreen : .systemRed
+                indicatorColor = options.isStale && !options.highContrast ? color
+                    .withAlphaComponent(0.5) : color
+                isMonochrome = false
+            }
+            let result = NSMutableAttributedString(attributedString: Self.paceIndicator(
+                color: indicatorColor, style: style, isMonochrome: isMonochrome))
+            result.append(NSAttributedString(string: "\u{2009}", attributes: attributes))
+            result.append(rendered.value)
+            return (result, rendered.accessibilityText)
         case .resetCountdown, .resetAbsolute, .windowResetCountdown, .windowResetAbsolute:
             let window = item.resetWindow ?? .automatic
             let qualified = item != .resetCountdown && item != .resetAbsolute
@@ -1431,6 +1443,27 @@ extension MenuBarLayoutRenderer {
             showUsed: options.showUsed).text
         let accessibility = L("%@ %@", accessibilityPrefix, percentText)
         return (result, accessibility)
+    }
+
+    private static func paceIndicator(color: NSColor, style: TokenStyle, isMonochrome: Bool) -> NSAttributedString {
+        let height = style.font.capHeight
+        let size = NSSize(width: height / 2, height: height)
+        let image = NSImage(size: size, flipped: false) { rect in
+            color.setFill()
+            NSBezierPath(rect: rect).fill()
+            return true
+        }
+        image.isTemplate = isMonochrome
+        let attachment = NSTextAttachment()
+        attachment.image = image
+        attachment.bounds = NSRect(
+            x: 0,
+            y: Self.attachmentYOrigin(height: size.height, style: style),
+            width: size.width,
+            height: size.height)
+        let value = NSMutableAttributedString(attributedString: Self.attachmentText(attachment, style: style))
+        value.addAttribute(.foregroundColor, value: color, range: NSRange(location: 0, length: value.length))
+        return value
     }
 
     private static func progressBarSize(size: MenuBarLayoutSize, font: NSFont) -> NSSize {

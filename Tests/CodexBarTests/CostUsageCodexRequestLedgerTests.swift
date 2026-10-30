@@ -100,7 +100,7 @@ struct CostUsageCodexRequestLedgerTests {
         }
         let initial = try await fetch(sameWindow ? end : start)
         #expect(initial.sessionTokens == (sameWindow ? 0 : 1100))
-        _ = await CostUsageStore(cacheRoot: env.cacheRoot).readSnapshot()
+        _ = await CostUsageStore(cacheRoot: env.cacheRoot, home: env.codexStoreHome).readSnapshot()
         let handle = try FileHandle(forWritingTo: file)
         try handle.seekToEnd()
         try handle.write(contentsOf: Data(env.jsonl([
@@ -123,12 +123,12 @@ struct CostUsageCodexRequestLedgerTests {
         try handle.close()
         let resumed = try await fetch(end)
         #expect(resumed.sessionTokens == 132)
-        let saved = await CostUsageStore(cacheRoot: env.cacheRoot).readSnapshot()
+        let saved = await CostUsageStore(cacheRoot: env.cacheRoot, home: env.codexStoreHome).readSnapshot()
         #expect(saved.files.allSatisfy { $0.scanState.isComplete == true })
         #expect(saved.usageRows.count == 3)
         let stable = try await fetch(end.addingTimeInterval(120))
         #expect(stable.daily == resumed.daily)
-        let reopened = await CostUsageStore(cacheRoot: env.cacheRoot).readSnapshot()
+        let reopened = await CostUsageStore(cacheRoot: env.cacheRoot, home: env.codexStoreHome).readSnapshot()
         #expect(reopened.usageRows == saved.usageRows)
     }
 
@@ -294,7 +294,7 @@ struct CostUsageCodexRequestLedgerTests {
                 provider: .codex, since: date, until: date, now: date, options: selected)
         }
         #expect(fetch().summary?.totalTokens == 110)
-        let prefix = try #require(CostUsageStore(cacheRoot: env.cacheRoot)
+        let prefix = try #require(CostUsageStore(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
             .syncLoadCodexCache(calendar: calendar).files[file.path])
         let record = Self.record(
             id: "second",
@@ -324,7 +324,8 @@ struct CostUsageCodexRequestLedgerTests {
         #expect(delta.rows.reduce(0) { $0 + $1.input + $1.output } == 66)
         let resumed = fetch()
         #expect(resumed.summary?.totalTokens == 176)
-        let cache = CostUsageStore(cacheRoot: env.cacheRoot).syncLoadCodexCache(calendar: calendar)
+        let cache = CostUsageStore(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
+            .syncLoadCodexCache(calendar: calendar)
         #expect(cache.files[file.path]?.codexRows?.compactMap(\.responseID) == ["first", "second"])
         #expect(cache.files[file.path]?.codexRows?.count == 2)
         #expect(fetch().data == resumed.data)
@@ -357,7 +358,8 @@ struct CostUsageCodexRequestLedgerTests {
                 provider: .codex, since: date, until: date, now: date, options: options)
         }
         _ = fetch()
-        var saved = CostUsageStore(cacheRoot: env.cacheRoot).syncLoadCodexCache(calendar: calendar)
+        var saved = CostUsageStore(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
+            .syncLoadCodexCache(calendar: calendar)
         var cached = try #require(saved.files[file.path])
         var rows = try #require(cached.codexRows)
         #expect(rows.count == 1)
@@ -367,7 +369,11 @@ struct CostUsageCodexRequestLedgerTests {
         if pricing == "unpriced" { rows[0].unpricedTokens = 110_000 }
         cached.codexRows = rows
         saved.files[file.path] = cached
-        #expect(!CostUsageStoreAccess.replace(cacheRoot: env.cacheRoot, cache: saved, calendar: calendar)
+        #expect(!CostUsageStoreAccess.replace(
+            cacheRoot: env.cacheRoot,
+            home: env.codexStoreHome,
+            cache: saved,
+            calendar: calendar)
             .catchUpRequired)
         let expectedCost = CostUsageScanner.codexResolvedCostUSD(
             for: rows[0], modelsDevCatalog: nil, modelsDevCacheRoot: nil)
@@ -379,7 +385,8 @@ struct CostUsageCodexRequestLedgerTests {
             total: differentTotals ? [200_000, 40000, 20000, 8000] : usage)]).utf8))
         try handle.close()
         let resumed = fetch()
-        let reopened = CostUsageStore(cacheRoot: env.cacheRoot).syncLoadCodexCache(calendar: calendar)
+        let reopened = CostUsageStore(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
+            .syncLoadCodexCache(calendar: calendar)
         let replaced = try #require(reopened.files[file.path]?.codexRows)
         #expect(replaced.count == 1)
         let row = try #require(replaced.first)
@@ -572,7 +579,8 @@ struct CostUsageCodexRequestLedgerTests {
             CostUsageScanner.loadDailyReport(provider: .codex, since: start, until: end, now: end, options: options)
         }
         _ = fetch()
-        var cache = CostUsageStore(cacheRoot: env.cacheRoot).syncLoadCodexCache(calendar: calendar)
+        var cache = CostUsageStore(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
+            .syncLoadCodexCache(calendar: calendar)
         var file = try #require(cache.files[legacyFile.path])
         var savedPrice = try #require(file.codexRows?.first)
         savedPrice.pricingModel = "gpt-5.4"
@@ -581,7 +589,11 @@ struct CostUsageCodexRequestLedgerTests {
         if pricing == "unpriced" { savedPrice.unpricedTokens = 110 }
         file.codexRows = [savedPrice]
         cache.files[legacyFile.path] = file
-        #expect(!CostUsageStoreAccess.replace(cacheRoot: env.cacheRoot, cache: cache, calendar: calendar)
+        #expect(!CostUsageStoreAccess.replace(
+            cacheRoot: env.cacheRoot,
+            home: env.codexStoreHome,
+            cache: cache,
+            calendar: calendar)
             .catchUpRequired)
         // The paired page proves which legacy observation mirrors this response across midnight.
         _ = try env.writeCodexSessionFile(
@@ -591,7 +603,8 @@ struct CostUsageCodexRequestLedgerTests {
         let report = fetch()
         #expect(report.summary?.totalTokens == 110)
         #expect(report.data.filter { ($0.totalTokens ?? 0) > 0 }.map(\.date) == ["2026-08-30"])
-        let reopened = CostUsageStore(cacheRoot: env.cacheRoot).syncLoadCodexCache(calendar: calendar)
+        let reopened = CostUsageStore(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
+            .syncLoadCodexCache(calendar: calendar)
         let rows = reopened.files.values.flatMap { $0.codexRows ?? [] }
         #expect(rows.compactMap(\.responseID) == ["owned"])
         let row = try #require(rows.first)
@@ -650,7 +663,8 @@ struct CostUsageCodexRequestLedgerTests {
         let report = CostUsageScanner.loadDailyReport(
             provider: .codex, since: day, until: day, now: day, options: options)
         #expect(report.summary?.totalTokens == 110)
-        let cache = CostUsageStore(cacheRoot: env.cacheRoot).syncLoadCodexCache(calendar: .current)
+        let cache = CostUsageStore(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
+            .syncLoadCodexCache(calendar: .current)
         let rows: [CostUsageScanner.CodexUsageRow] = cache.files.values.flatMap { $0.codexRows ?? [] }
         let responseIDs: [String] = rows.compactMap(\CostUsageScanner.CodexUsageRow.responseID)
         #expect(responseIDs == ["partial"])

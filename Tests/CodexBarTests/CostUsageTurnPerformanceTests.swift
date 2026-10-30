@@ -141,7 +141,8 @@ struct CostUsageTurnPerformanceTests {
             changed[changed.count - 1]["payload"] = payload
             _ = try Self.write(env: env, day: day, objects: changed)
             #expect(Self.samples(env: env, day: day).isEmpty)
-            let cache = CostUsageStore(cacheRoot: env.cacheRoot).syncLoadCodexCache(calendar: .current)
+            let cache = CostUsageStore(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
+                .syncLoadCodexCache(calendar: .current)
             let rows = cache.files.values.flatMap { $0.codexRows ?? [] }
             #expect(rows.reduce(0) { $0 + $1.input + $1.output } == 220)
         }
@@ -347,13 +348,14 @@ struct CostUsageTurnPerformanceTests {
                 day: day)
             #expect(expected.count == 1)
             #expect(expected.first?.reasoningEffort == "high")
-            var old = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+            var old = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
             var usage = try #require(old.files[url.path])
             let rows = usage.codexRows
             usage.codexParserRevision = revision
             usage.codexRequestLedgerState?.turnPerformance = nil
             old.files[url.path] = usage
-            #expect(!CostUsageStoreAccess.replace(cacheRoot: env.cacheRoot, cache: old).catchUpRequired)
+            #expect(!CostUsageStoreAccess.replace(cacheRoot: env.cacheRoot, home: env.codexStoreHome, cache: old)
+                .catchUpRequired)
             var observed: [CostUsageTurnPerformanceSample] = []
             for _ in 0..<40 {
                 observed = Self.samples(
@@ -363,7 +365,8 @@ struct CostUsageTurnPerformanceTests {
                 if !observed.isEmpty { break }
             }
             #expect(observed == expected)
-            let reopened = CostUsageStore(cacheRoot: env.cacheRoot).syncLoadCodexCache(calendar: .current)
+            let reopened = CostUsageStore(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
+                .syncLoadCodexCache(calendar: .current)
             #expect(reopened.files[url.path]?.codexRows == rows)
             #expect(reopened.files[url.path]?.hasCurrentCodexParser == true)
         }
@@ -589,7 +592,8 @@ struct CostUsageTurnPerformanceTests {
             now: modified.addingTimeInterval(1),
             options: options)
         #expect((report.summary?.totalTokens ?? 0) <= 220)
-        let cache = CostUsageStore(cacheRoot: env.cacheRoot).syncLoadCodexCache(calendar: options.calendar)
+        let cache = CostUsageStore(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
+            .syncLoadCodexCache(calendar: options.calendar)
         return CostUsageScanner.buildCodexSessionBreakdownsFromCache(
             cache: cache,
             range: .init(

@@ -42,9 +42,9 @@ struct UsageStoreCodexCostCatchUpPublicationTests {
         #expect(initial.historyCoverageIsEstablished)
         #expect(initial.last30DaysTokens == 100)
         // A pricing refresh starts the same durable migration/discovery queue as the reported corpus.
-        var cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        var cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
         cache.codexPricingKey = "previous-pricing-generation"
-        CostUsageStoreAccess.replace(cacheRoot: env.cacheRoot, cache: cache)
+        CostUsageStoreAccess.replace(cacheRoot: env.cacheRoot, home: env.codexStoreHome, cache: cache)
         try Self.append(Self.tokenRecord(iso: iso, input: 200), to: today)
         let instant = ContinuousClock.now
         options.codexScanBudgetForTesting = .init(
@@ -56,7 +56,7 @@ struct UsageStoreCodexCostCatchUpPublicationTests {
             until: now,
             now: now.addingTimeInterval(1),
             options: options)
-        cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
         #expect(cache.codexScanCatchUpPending == true)
         #expect(cache.codexActiveLookbackState?.currentWindowNextDayKeyByRoot?.isEmpty == false)
         _ = try env.writeCodexSessionFile(
@@ -182,7 +182,8 @@ struct UsageStoreCodexCostCatchUpPublicationTests {
                 scannerOptions: scannerOptions)
             #expect(completed.last30DaysTokens == 200)
             #expect(completed.historyCoverageIsEstablished)
-            completedOffset = try #require(CostUsageStoreAccess.read(cacheRoot: env.cacheRoot).files[url.path]?
+            completedOffset = try #require(CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
+                .files[url.path]?
                 .parsedBytes)
             didAdvance = true
             // Growth after completion belongs to the next refresh, not the publication handoff.
@@ -202,7 +203,8 @@ struct UsageStoreCodexCostCatchUpPublicationTests {
         let widget = try #require(widgetSnapshots.last?.entries.first { $0.provider == .codex })
         #expect(widget.tokenUsage?.last30DaysTokens == 200)
         #expect(widget.tokenUsage?.updatedAt == tokenUpdatedAt)
-        #expect(CostUsageStoreAccess.read(cacheRoot: env.cacheRoot).files[url.path]?.parsedBytes == completedOffset)
+        #expect(CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome).files[url.path]?
+            .parsedBytes == completedOffset)
 
         let next = try await CostUsageFetcher.loadTokenSnapshot(
             provider: .codex,

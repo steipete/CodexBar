@@ -5,7 +5,7 @@ import Testing
 @Suite(.serialized)
 struct CostUsageStoreCutoverTests {
     @Test
-    func `legacy artifact cleanup deletes JSON and rebuilds SQLite from source`() async throws {
+    func `legacy artifact cleanup removes JSON without discarding another homes SQLite history`() async throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }
         let day = try env.makeLocalNoon(year: 2026, month: 8, day: 8)
@@ -15,8 +15,13 @@ struct CostUsageStoreCutoverTests {
             filename: "current.jsonl",
             contents: Self.session(timestamp: timestamp, sessionID: "current", input: 7))
 
-        let store = CostUsageStore(cacheRoot: env.cacheRoot)
+        let store = CostUsageStore(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
         #expect(await store.upsertFile(Self.staleStoreFile()))
+        let other = CostUsageStore(cacheRoot: env.cacheRoot, home: "/fixture/other-home/sessions")
+        var otherFile = Self.staleStoreFile()
+        otherFile.path = "/fixture/other-home/sessions/retained.jsonl"
+        #expect(await other.upsertFile(otherFile))
+        let retained = await other.readSnapshot()
         let directory = store.databaseURL.deletingLastPathComponent()
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let legacy = directory.appendingPathComponent("codex-v11.json")
@@ -39,9 +44,10 @@ struct CostUsageStoreCutoverTests {
         #expect(!FileManager.default.fileExists(atPath: legacy.path))
         #expect(!FileManager.default.fileExists(atPath: temporary.path))
         #expect(FileManager.default.fileExists(atPath: store.databaseURL.path))
-        let snapshot = await CostUsageStore(cacheRoot: env.cacheRoot).readSnapshot()
+        let snapshot = await CostUsageStore(cacheRoot: env.cacheRoot, home: env.codexStoreHome).readSnapshot()
         #expect(snapshot.files.map(\.path).contains("/stale.jsonl") == false)
         #expect(snapshot.files.contains { $0.path.hasSuffix("current.jsonl") })
+        #expect(await other.readSnapshot() == retained)
     }
 
     @Test
@@ -72,7 +78,10 @@ struct CostUsageStoreCutoverTests {
             until: until,
             calendar: options.calendar)
         let stored = CostUsageScanner.buildCodexReportFromCache(
-            cache: CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, calendar: options.calendar),
+            cache: CostUsageStoreAccess.read(
+                cacheRoot: env.cacheRoot,
+                home: env.codexStoreHome,
+                calendar: options.calendar),
             range: range,
             modelsDevCacheRoot: env.cacheRoot)
         let storedUnits = stored.data.reduce(0) {
@@ -122,9 +131,9 @@ struct CostUsageStoreCutoverTests {
         #expect(appendRecorder.snapshot().tokenTimestampComparisons == 1)
         #expect(appended.summary?.totalInputTokens == prefixCount + 1)
 
-        let cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        let cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
         let path = try #require(cache.files.keys.first { $0.hasSuffix("linear.jsonl") })
-        let store = CostUsageStore(cacheRoot: env.cacheRoot)
+        let store = CostUsageStore(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
         #expect(await store.fetchUsageRows(path: path).count == prefixCount + 1)
         #expect(await store.fetchAccumulator(path: path)?.eventCount == prefixCount + 1)
 
@@ -159,15 +168,19 @@ struct CostUsageStoreCutoverTests {
             codexSessionsRoot: env.codexSessionsRoot, cacheRoot: env.cacheRoot)
         options.refreshMinIntervalSeconds = 0
         _ = CostUsageScanner.loadDailyReport(provider: .codex, since: day, until: day, now: day, options: options)
-        var cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, calendar: options.calendar)
+        var cache = CostUsageStoreAccess.read(
+            cacheRoot: env.cacheRoot,
+            home: env.codexStoreHome,
+            calendar: options.calendar)
         let path = try #require(cache.files.keys.first { $0.hasSuffix("reopened.jsonl") })
         let prefixCheckpoints = try #require(cache.files[path]?.codexTokenCheckpoints)
         #expect(prefixCheckpoints.last?.state.countedTotals?.input == 2)
         cache.files[path]?.codexTokenTimestampsMonotonic = state == "unknown" ? nil : state == "true"
         let key = CostUsageScanner.CostUsageDayRange.dayKey(from: day, calendar: options.calendar)
-        _ = CostUsageStore(cacheRoot: env.cacheRoot).syncSaveCodexCache(
+        _ = CostUsageStore(cacheRoot: env.cacheRoot, home: env.codexStoreHome).syncSaveCodexCache(
             cache, calendar: options.calendar, requestedScanWindow: (key, key))
-        let reopened = CostUsageStore(cacheRoot: env.cacheRoot).syncLoadCodexCache(calendar: options.calendar)
+        let reopened = CostUsageStore(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
+            .syncLoadCodexCache(calendar: options.calendar)
         #expect(reopened.files[path]?.codexTokenTimestampsMonotonic == cache.files[path]?.codexTokenTimestampsMonotonic)
         try Self.append(Self.tokenLine(timestamp: timestamp, input: 3) + "\n", to: file)
         let recorder = CostUsageScanner.CodexScanWorkRecorder()
@@ -176,7 +189,8 @@ struct CostUsageStoreCutoverTests {
             provider: .codex, since: day, until: day, now: day.addingTimeInterval(1), options: options)
         #expect(report.summary?.totalInputTokens == 3)
         #expect(recorder.snapshot().tokenTimestampComparisons == (state == "unknown" ? 2 : state == "true" ? 1 : 0))
-        let final = CostUsageStore(cacheRoot: env.cacheRoot).syncLoadCodexCache(calendar: options.calendar)
+        let final = CostUsageStore(cacheRoot: env.cacheRoot, home: env.codexStoreHome)
+            .syncLoadCodexCache(calendar: options.calendar)
         let usage = try #require(final.files[path])
         #expect(usage.codexTokenTimestampsMonotonic == (state != "false"))
         #expect(usage.codexTokenSnapshots?.count == 3)

@@ -168,6 +168,7 @@ struct SpendDashboardTokenActivityIntegrationTests {
         }
         CostUsageStoreAccess.replace(
             cacheRoot: env.cacheRoot,
+            home: env.codexStoreHome,
             cache: cache,
             calendar: options.calendar)
     }

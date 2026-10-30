@@ -215,7 +215,7 @@ struct CLIUsageClaudeSwapTests {
         provider.claudeSwapSource = source.rawValue
         provider.claudeSwapExecutablePath = executable.path
         let values = try Program(descriptors: CodexBarCLI.commandDescriptors())
-            .resolve(argv: ["usage", "--provider", "claude", "--no-color"] + (json ? ["--json"] : []) + arguments)
+            .resolve(arguments: ["usage", "--provider", "claude", "--no-color"] + (json ? ["--json"] : []) + arguments)
             .parsedValues
         let setup = try CLIUsageFetchSetup(
             values: values, providers: [.claude], output: CLIOutputPreferences.from(values: values))

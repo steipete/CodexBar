@@ -165,9 +165,10 @@ extension CostUsageScanner {
 extension CostUsageStore {
     func fetchFile(path: String) -> CostUsageStoreFile? {
         self.withDatabase(default: nil) { database in
-            let statement = try Self.prepare(database, Self.fileSelectSQL + " WHERE path = ?")
+            let statement = try Self.prepare(database, Self.fileSelectSQL + " WHERE path = ? AND home = ?")
             defer { sqlite3_finalize(statement) }
             Self.bind(path, to: statement, at: 1)
+            Self.bind(self.home, to: statement, at: 2)
             guard sqlite3_step(statement) == SQLITE_ROW else { return nil }
             self.scopedReadWorkRecorderForTesting?.recordFile()
             return try Self.decodeFile(statement)
@@ -176,32 +177,40 @@ extension CostUsageStore {
 
     func fetchTokenSnapshots(path: String) -> [CostUsageStoreTokenSnapshot] {
         self.withDatabase(default: []) { database in
-            try Self.readTokenSnapshots(database, path: path, recorder: self.scopedReadWorkRecorderForTesting)
+            try Self.readTokenSnapshots(
+                database,
+                path: path,
+                home: self.home,
+                recorder: self.scopedReadWorkRecorderForTesting)
         }
     }
 
     func fetchUsageRows(path: String) -> [CostUsageStoreUsageRow] {
         self.withDatabase(default: []) { database in
-            try Self.readUsageRows(database, path: path, recorder: self.scopedReadWorkRecorderForTesting)
+            try Self.readUsageRows(
+                database,
+                path: path,
+                home: self.home,
+                recorder: self.scopedReadWorkRecorderForTesting)
         }
     }
 
     func fetchDayAggregates(sinceDay: String, untilDay: String) -> [CostUsageStoreDayAggregate] {
         guard sinceDay <= untilDay else { return [] }
         return self.withDatabase(default: []) { database in
-            try Self.readDayAggregates(database, sinceDay: sinceDay, untilDay: untilDay)
+            try Self.readDayAggregates(database, home: self.home, sinceDay: sinceDay, untilDay: untilDay)
         }
     }
 
     func fetchFileDayAggregates(path: String) -> [CostUsageStoreDayAggregate] {
         self.withDatabase(default: []) { database in
-            try Self.readFileDayAggregates(database, path: path).map(\.aggregate)
+            try Self.readFileDayAggregates(database, path: path, home: self.home).map(\.aggregate)
         }
     }
 
     func fetchForkLineage(path: String) -> CostUsageStoreForkLineage? {
         self.withDatabase(default: nil) { database in
-            let values = try Self.readForkLineage(database, path: path)
+            let values = try Self.readForkLineage(database, path: path, home: self.home)
             return values.first
         }
     }
@@ -212,13 +221,17 @@ extension CostUsageStore {
     {
         self.withDatabase(default: []) { database in
             try Self.readBufferedLines(
-                database, path: path, kind: kind, recorder: self.scopedReadWorkRecorderForTesting)
+                database, path: path, home: self.home, kind: kind, recorder: self.scopedReadWorkRecorderForTesting)
         }
     }
 
     func fetchAccumulator(path: String) -> CostUsageStoreAccumulator? {
         self.withDatabase(default: nil) { database in
-            try Self.readAccumulators(database, path: path, recorder: self.scopedReadWorkRecorderForTesting).first
+            try Self.readAccumulators(
+                database,
+                path: path,
+                home: self.home,
+                recorder: self.scopedReadWorkRecorderForTesting).first
         }
     }
 
@@ -231,9 +244,11 @@ extension CostUsageStore {
                 let metadata = try Self.readSingleton(
                     CostUsageStoreMetadata.self,
                     database: database,
-                    table: "scan_metadata") ?? .empty
+                    table: "scan_metadata",
+                    home: self.home) ?? .empty
                 let aggregates = try Self.readDayAggregates(
                     database,
+                    home: self.home,
                     sinceDay: sinceDay,
                     untilDay: untilDay)
                 return CostUsageStoreReport(metadata: metadata, aggregates: aggregates)
@@ -280,5 +295,11 @@ extension CostUsageStore {
             guard result == SQLITE_OK else { throw StoreError.sqlite(result) }
             return true
         }
+    }
+}
+
+extension CostUsageTestEnvironment {
+    var codexStoreHome: String {
+        CodexHomeCostStoreScope.key(sessionsRoot: self.codexSessionsRoot)
     }
 }

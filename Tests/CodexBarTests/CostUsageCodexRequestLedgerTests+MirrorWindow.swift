@@ -73,12 +73,13 @@ extension CostUsageCodexRequestLedgerTests {
             CostUsageScanner.loadDailyReport(provider: .codex, since: start, until: end, now: now, options: options)
         }
         func load() -> CostUsageFileUsage? {
-            CostUsageStore(cacheRoot: env.cacheRoot).syncLoadCodexCache(calendar: calendar).files[file.path]
+            CostUsageStore(cacheRoot: env.cacheRoot, home: env.codexStoreHome).syncLoadCodexCache(calendar: calendar)
+                .files[file.path]
         }
         #expect(report(end).summary?.totalTokens == 1100)
 
         // Recreate what revision 8 saved: the ledger row with Priority evidence plus the unpaired mirror row.
-        var stored = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, calendar: calendar)
+        var stored = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, home: env.codexStoreHome, calendar: calendar)
         var usageFile = try #require(stored.files[file.path])
         var ledger = try #require(usageFile.codexRows?.first)
         ledger.pricingMode = "priority"
@@ -105,7 +106,11 @@ extension CostUsageCodexRequestLedgerTests {
         usageFile.codexRows = [ledger, duplicateRow]
         usageFile.codexParserRevision = 8
         stored.files[file.path] = usageFile
-        #expect(!CostUsageStoreAccess.replace(cacheRoot: env.cacheRoot, cache: stored, calendar: calendar)
+        #expect(!CostUsageStoreAccess.replace(
+            cacheRoot: env.cacheRoot,
+            home: env.codexStoreHome,
+            cache: stored,
+            calendar: calendar)
             .catchUpRequired)
         #expect(load()?.codexRows?.count == 2)
 
