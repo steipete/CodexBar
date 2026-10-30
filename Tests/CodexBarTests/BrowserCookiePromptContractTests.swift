@@ -156,7 +156,9 @@ struct BrowserCookiePromptContractTests {
             "CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT); INSERT INTO meta VALUES ('version', '24'); " +
                 "CREATE TABLE cookies (host_key TEXT, name TEXT, path TEXT, expires_utc INTEGER, " +
                 "is_secure INTEGER, is_httponly INTEGER, value TEXT, encrypted_value BLOB); " +
-                "INSERT INTO cookies VALUES ('unrelated.example', 'session', '/', 0, 1, 1, '', X'763130')",
+                "INSERT INTO cookies VALUES ('unrelated.example', 'session', '/', 0, 1, 1, '', X'763130'), " +
+                "('platform.minimax.cn.evil.example', 'session', '/', 0, 1, 1, '', X'763130'), " +
+                "('notminimax.cn', 'session', '/', 0, 1, 1, '', X'763130')",
             nil,
             nil,
             nil) == SQLITE_OK)
@@ -172,11 +174,35 @@ struct BrowserCookiePromptContractTests {
             BrowserCookieKeychainAccessGate.isDisabled = true
             try KeychainAccessPreflight.withCheckGenericPasswordOverrideForTesting { _, _ in .allowed } operation: {
                 try ProviderInteractionContext.$current.withValue(.background) {
-                    let records = try client.codexBarRecords(
-                        matching: BrowserCookieQuery(domains: ["xiaomimimo.com"], domainMatch: .exact), in: store)
-                    #expect(records.isEmpty)
+                    for query in [
+                        BrowserCookieQuery(domains: ["xiaomimimo.com"], domainMatch: .exact),
+                        MiniMaxCookieImporter.cookieQuery,
+                    ] {
+                        let records = try client.codexBarRecords(matching: query, in: store)
+                        #expect(records.isEmpty)
+                    }
                 }
             }
+        }
+    }
+
+    @Test
+    func `MiniMax cookies include current and legacy hosts without admitting lookalikes`() {
+        let query = MiniMaxCookieImporter.cookieQuery
+        for domain in [
+            ".minimax.cn", "platform.minimax.cn", "www.minimax.cn", "account.minimax.cn",
+            ".minimaxi.com", "platform.minimax.io", "account.minimax.io",
+        ] {
+            #expect(BrowserCookieDomainMatcher.matches(
+                domain: domain,
+                patterns: query.domains,
+                match: query.domainMatch))
+        }
+        for domain in ["notminimax.cn", "minimax.cn.example.com", "platform.minimax.io.evil.example"] {
+            #expect(!BrowserCookieDomainMatcher.matches(
+                domain: domain,
+                patterns: query.domains,
+                match: query.domainMatch))
         }
     }
 
