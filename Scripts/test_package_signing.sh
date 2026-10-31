@@ -77,6 +77,7 @@ fi
 unset MOCK_CODESIGN_STATUS
 
 python3 - "$PACKAGE_SCRIPT" "$RELEASE_SCRIPT" "$ROOT/Scripts/compile_and_run.sh" <<'PY'
+import datetime
 import itertools
 import os
 import plistlib
@@ -89,6 +90,7 @@ source = Path(sys.argv[1]).read_text()
 start = source.index('BUNDLE_ID="com.steipete.codexbar"')
 end = source.index('BUILD_TIMESTAMP=', start)
 generation = source[start:end]
+assert source.index('validate_cloudkit_profile.py') < source.index('  swift build'), 'profile must be checked before compilation'
 start = source.index('if [[ "$EMBED_PROVISIONING_PROFILE" == "1" ]]; then')
 end = source.index('\nfi', start) + len('\nfi')
 embedding = source[start:end]
@@ -99,27 +101,66 @@ if 'resolve_package_signing_identity() {' in source:
     end = source.index('\n}\n', start) + 3
     helper = source[start:end]
 
-for team, configuration, signing, profile_present in itertools.product(
-    ['Y5PE65HELJ', 'TESTTEAM01'], ['release', 'debug'], ['identity', 'adhoc'], [False, True],
+profile_cases = ['production', 'missing-push', 'development', 'expired', 'wrong-app', 'wrong-team',
+                 'no-cloudkit', 'wrong-container', 'wrong-environment', 'corrupt']
+for team, configuration, signing, profile_present, profile_case in itertools.product(
+    ['Y5PE65HELJ', 'TESTTEAM01'], ['release', 'debug'], ['identity', 'adhoc'], [False, True], profile_cases,
 ):
     with tempfile.TemporaryDirectory(prefix='codexbar-entitlement-test-') as directory:
         root = Path(directory)
         app = root / 'CodexBar.app'
         (app / 'Contents').mkdir(parents=True)
+        (root / 'Scripts').mkdir()
+        validator = Path(sys.argv[1]).parent / 'validate_cloudkit_profile.py'
+        if validator.exists():
+            (root / 'Scripts/validate_cloudkit_profile.py').write_bytes(validator.read_bytes())
+        mock_bin = root / 'bin'
+        mock_bin.mkdir()
+        security = mock_bin / 'security'
+        security.write_text('#!/bin/bash\n[[ "$1 $2 $3" == "cms -D -i" ]] || exit 99\ncat "$4"\n')
+        security.chmod(0o755)
         profile = root / 'Scripts/profiles/CodexBar-DeveloperID.provisionprofile'
         if profile_present:
             profile.parent.mkdir(parents=True)
-            # Marker tests selection/copying only, not certificate or profile validity.
-            profile.write_text('synthetic profile selection marker\n')
+            entitlements = {
+                'com.apple.application-identifier': 'Y5PE65HELJ.com.steipete.codexbar',
+                'com.apple.developer.team-identifier': 'Y5PE65HELJ',
+                'com.apple.developer.aps-environment': 'production',
+                'com.apple.developer.icloud-services': '*',
+                'com.apple.developer.icloud-container-identifiers': ['iCloud.com.steipete.codexbar'],
+                'com.apple.developer.icloud-container-environment': 'Production',
+            }
+            overrides = {
+                'development': ('com.apple.developer.aps-environment', 'development'),
+                'wrong-app': ('com.apple.application-identifier', 'Y5PE65HELJ.com.example.other'),
+                'wrong-team': ('com.apple.developer.team-identifier', 'TESTTEAM01'),
+                'no-cloudkit': ('com.apple.developer.icloud-services', ['CloudDocuments']),
+                'wrong-container': ('com.apple.developer.icloud-container-identifiers', ['iCloud.example.other']),
+                'wrong-environment': ('com.apple.developer.icloud-container-environment', 'Development'),
+            }
+            if profile_case in overrides:
+                key, value = overrides[profile_case]
+                entitlements[key] = value
+            if profile_case == 'missing-push':
+                del entitlements['com.apple.developer.aps-environment']
+            expiry = datetime.datetime(2000 if profile_case == 'expired' else 2099, 1, 1)
+            profile.write_bytes(plistlib.dumps({'Entitlements': entitlements, 'ExpirationDate': expiry}))
+            if profile_case == 'corrupt':
+                profile.write_text('invalid profile')
         env = dict(os.environ, ROOT=str(root), APP=str(app), APP_TEAM_ID=team,
                    LOWER_CONF=configuration, SIGNING_MODE=signing, ALLOW_LLDB='0',
-                   APP_IDENTITY=f'Developer ID Application: Fixture ({team})')
+                   APP_IDENTITY=f'Developer ID Application: Fixture ({team})',
+                   PATH=str(mock_bin) + os.pathsep + os.environ['PATH'])
         identity_stub = f'security() {{ echo \'  1) {"A" * 40} "{env["APP_IDENTITY"]}"\'; }}'
         result = subprocess.run(['bash', '-eu', '-c', identity_stub + '\n' + helper + '\n' + generation + '\n' + embedding],
                                 env=env, capture_output=True, text=True)
         cloudkit = team == 'Y5PE65HELJ' and configuration == 'release' and signing == 'identity'
         if cloudkit and not profile_present:
             assert result.returncode != 0 and 'Missing' in result.stderr, result.stderr
+            continue
+        if cloudkit and profile_case != 'production':
+            assert result.returncode != 0, f'{profile_case} profile unexpectedly accepted'
+            assert 'Push Notifications' in result.stderr and str(profile) in result.stderr, result.stderr
             continue
         assert result.returncode == 0, (team, configuration, signing, profile_present, result.stderr)
         bundle = 'com.steipete.codexbar' + ('.debug' if configuration == 'debug' else '')
@@ -136,10 +177,11 @@ for team, configuration, signing, profile_present in itertools.product(
             assert app_entitlements['com.apple.application-identifier'] == expected_group
             assert app_entitlements['com.apple.developer.team-identifier'] == team
             assert app_entitlements['com.apple.developer.icloud-services'] == ['CloudKit']
+            assert app_entitlements['com.apple.developer.aps-environment'] == 'production'
             assert app_entitlements['com.apple.developer.icloud-container-identifiers'] == [f'iCloud.{bundle}']
         else:
             assert set(app_entitlements) == {'com.apple.security.application-groups'}
-print('16 entitlement/profile configuration cases passed.')
+print(f'{16 * len(profile_cases)} entitlement/profile configuration cases passed.')
 
 # Execute the actual entitlement block against synthetic identity listings only.
 # A direct APP_IDENTITY call must not inherit upstream team-bound resources.
