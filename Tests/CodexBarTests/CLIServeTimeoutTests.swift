@@ -1171,3 +1171,74 @@ private actor ServeManualSleeper {
         }
     }
 }
+
+extension CLIServeTimeoutTests {
+    @Test
+    func `forced refresh bypasses a fresh cache and joins the active measurement`() async {
+        let cache = CLIServeResponseCache()
+        let source = ServeFetchGate<CLILocalHTTPResponse>()
+        let old = CLILocalHTTPResponse(status: .ok, body: Data(#"{"value":"old"}"#.utf8))
+        let fresh = CLILocalHTTPResponse(status: .ok, body: Data(#"{"value":"fresh"}"#.utf8))
+        _ = await CodexBarCLI.cachedServeResponse(
+            key: "usage:claude", cache: cache, refreshInterval: 60, requestTimeout: 0) { old }
+        let first = Task {
+            await CodexBarCLI.cachedServeResponse(
+                key: "usage:claude",
+                cache: cache,
+                refreshInterval: 60,
+                requestTimeout: 0,
+                staleWhileRevalidate: true,
+                forceRefresh: true) { await source.run(fresh) }
+        }
+        await source.waitForStarts(1)
+        let second = Task {
+            await CodexBarCLI.cachedServeResponse(
+                key: "usage:claude",
+                cache: cache,
+                refreshInterval: 60,
+                requestTimeout: 0,
+                staleWhileRevalidate: true,
+                forceRefresh: true) { await source.run(fresh) }
+        }
+        await self.waitForWaiterCount(2, coordinator: cache.operations)
+        await source.releaseAll()
+        #expect(await first.value.body == fresh.body)
+        #expect(await second.value.body == fresh.body)
+        #expect(await source.startCount() == 1)
+        let cached = await CodexBarCLI.cachedServeResponse(
+            key: "usage:claude", cache: cache, refreshInterval: 60, requestTimeout: 0) { old }
+        #expect(cached.body == fresh.body)
+    }
+
+    @Test
+    func `forced measurement intervals are isolated by provider`() async throws {
+        let clock = ServeManualDeadlineClock()
+        let coordinator: CLIServeOperationCoordinator<Int> = self.makeCoordinator(clock: clock)
+        try await coordinator.waitForRefreshInterval(for: "claude", minimumInterval: .zero)
+        let waiting = Task {
+            try await coordinator.waitForRefreshInterval(for: "claude", minimumInterval: .seconds(5))
+        }
+        await clock.waitForPendingSleeps(1)
+        try await coordinator.waitForRefreshInterval(for: "codex", minimumInterval: .seconds(5))
+        #expect(await clock.pendingSleepCount() == 1)
+        clock.advance(by: .seconds(5))
+        await clock.fireAll()
+        try await waiting.value
+        #expect(await clock.pendingSleepCount() == 0)
+    }
+
+    @Test
+    func `cancelling a forced measurement wait does not start its fetch`() async throws {
+        let clock = ServeManualDeadlineClock()
+        let coordinator: CLIServeOperationCoordinator<Int> = self.makeCoordinator(clock: clock)
+        try await coordinator.waitForRefreshInterval(for: "claude", minimumInterval: .zero)
+        let waiting = Task {
+            try await coordinator.waitForRefreshInterval(for: "claude", minimumInterval: .seconds(5))
+            Issue.record("Cancelled refresh started a fetch")
+        }
+        await clock.waitForPendingSleeps(1)
+        waiting.cancel()
+        await #expect(throws: CancellationError.self) { try await waiting.value }
+        #expect(await clock.pendingSleepCount() == 0)
+    }
+}

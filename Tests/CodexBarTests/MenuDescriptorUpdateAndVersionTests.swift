@@ -54,11 +54,23 @@ struct MenuDescriptorUpdateAndVersionTests {
         #expect(MenuDescriptor.MenuAction.installUpdate.systemImageName == "arrow.down.circle")
     }
 
+    @Test(arguments: [false, true])
+    func `plugin dashboard action requires an approved destination`(approved: Bool) {
+        let descriptor = self.descriptor(
+            available: false, ready: false, version: "", pluginDashboardAvailable: approved)
+        let dashboards = descriptor.sections.flatMap(\.entries).filter { entry in
+            guard case .action(_, .dashboard) = entry else { return false }
+            return true
+        }
+        #expect(dashboards.count == (approved ? 1 : 0))
+    }
+
     private func descriptor(
         available: Bool,
         ready: Bool,
         version: String,
-        providerVersion: String? = nil) -> MenuDescriptor
+        providerVersion: String? = nil,
+        pluginDashboardAvailable: Bool = false) -> MenuDescriptor
     {
         let settings = testSettingsStore(
             suiteName: "MenuDescriptorUpdateAndVersionTests",
@@ -82,6 +94,7 @@ struct MenuDescriptorUpdateAndVersionTests {
             updateReady: ready,
             canCheckForUpdates: available,
             versionText: version,
-            includeContextualActions: false)
+            includeContextualActions: false,
+            pluginDashboardAvailable: pluginDashboardAvailable)
     }
 }

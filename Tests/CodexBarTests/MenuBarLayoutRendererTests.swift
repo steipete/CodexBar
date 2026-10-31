@@ -115,6 +115,14 @@ struct MenuBarLayoutRendererTests {
             (.costToday, "$1.25"),
             (.costWindow, "$20.00"),
             (.separatorDot, "·"),
+            (.separator(.pipe), "|"),
+            (.separator(.slash), "/"),
+            (.separator(.hyphen), "-"),
+            (.separator(.bullet), "•"),
+            (.separator(.diamond), "◆"),
+            (.separator(.hollowDiamond), "◇"),
+            (.separator(.tilde), "~"),
+            (.separator(.doubleBar), "‖"),
             (.space, " "),
         ]
 
@@ -393,6 +401,18 @@ struct MenuBarLayoutRendererTests {
             icon: nil,
             options: self.options())
         #expect(result.attributedTitle.string == "¥100.00\u{2009}·\u{2009}$1.25")
+    }
+
+    @Test
+    func `duplicate reset removal keeps the glyph of a new separator`() {
+        let result = MenuBarLayoutRenderer().render(
+            layout: MenuBarLayout(lines: [[
+                .percent(window: .automatic), .separator(.pipe), .resetCountdown, .separator(.pipe), .costToday,
+            ]]),
+            data: self.data(automaticText: "¥100.00", automaticBalanceFallback: "¥100.00"),
+            icon: nil,
+            options: self.options())
+        #expect(result.attributedTitle.string == "¥100.00\u{2009}|\u{2009}$1.25")
     }
 
     @Test

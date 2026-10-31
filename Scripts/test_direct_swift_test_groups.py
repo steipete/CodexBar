@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 import json
 import io
+import errno
 import os
 from pathlib import Path
+import shutil
+import subprocess
 import tempfile
 import threading
 from types import SimpleNamespace
@@ -11,6 +14,83 @@ from unittest.mock import patch
 
 import ci_swift_test_by_suite as runner
 from direct_swift_test_groups import InventoryMismatch, checked, pool_timeout, prepare_runtime, run_pool, run_worker, runtime_environment, selected_tests, xctest_inventory
+
+
+class DiscoveryHomeCleanupTests(unittest.TestCase):
+    def test_discovery_unmounts_toolchain_before_removing_home(self):
+        home = None
+        mount = None
+        mounted = True
+        unlink = os.unlink
+
+        def command(arguments, **kwargs):
+            nonlocal home, mount, mounted
+            if arguments == ["swift", "test", "list"]:
+                home = Path(kwargs["env"]["HOME"])
+                mount = home / "Library/Developer/Toolchains/Metal.xctoolchain"
+                mount.mkdir(parents=True)
+                (mount / "tool").write_text("synthetic toolchain")
+                # A symlink to another mount must not authorize unmounting outside this home.
+                (home / "outside").symlink_to("/Volumes", target_is_directory=True)
+                return subprocess.CompletedProcess(arguments, 0, "CodexBarTests.Example/test()\n", "")
+            self.assertEqual(arguments, ["/usr/sbin/diskutil", "unmount", str(mount)])
+            self.assertTrue(kwargs["check"])
+            mounted = False
+            return subprocess.CompletedProcess(arguments, 0)
+
+        def remove(path, *args, **kwargs):
+            if mounted and Path(path).name == "tool":
+                raise OSError(errno.EROFS, "Read-only file system", str(path))
+            return unlink(path, *args, **kwargs)
+
+        try:
+            with patch.object(runner.sys, "platform", "darwin"), \
+                    patch.object(runner.subprocess, "run", side_effect=command), \
+                    patch.object(runner.os.path, "ismount", side_effect=lambda path:
+                                 Path(path) == mount or Path(path).name == "outside"), \
+                    patch.object(runner.os, "unlink", side_effect=remove):
+                selections = runner.swift_test_list(["swift"])
+            self.assertEqual([selection.name for selection in selections], ["CodexBarTests.Example"])
+            self.assertFalse(mounted)
+            self.assertFalse(home.exists())
+        finally:
+            if home is not None and home.exists():
+                shutil.rmtree(home)
+
+    def test_unmount_failure_is_not_suppressed_or_followed_by_deletion(self):
+        with tempfile.TemporaryDirectory() as home:
+            mount = Path(home) / "Metal.xctoolchain"
+            mount.mkdir()
+            error = subprocess.CalledProcessError(1, "diskutil")
+            with patch.object(runner.sys, "platform", "darwin"), \
+                    patch.object(runner.os.path, "ismount", return_value=True), \
+                    patch.object(runner.subprocess, "run", side_effect=error), \
+                    patch.object(runner.shutil, "rmtree") as remove:
+                with self.assertRaises(subprocess.CalledProcessError):
+                    runner.cleanup_discovery_home(home)
+                remove.assert_not_called()
+
+    def test_other_cleanup_errors_still_fail(self):
+        with tempfile.TemporaryDirectory() as home:
+            for error in [PermissionError(errno.EACCES, "denied"), OSError(errno.EROFS, "not a mount")]:
+                with self.subTest(error=error), \
+                        patch.object(runner.shutil, "rmtree", side_effect=error):
+                    with self.assertRaises(OSError) as raised:
+                        runner.cleanup_discovery_home(home)
+                    self.assertIs(raised.exception, error)
+
+    def test_directory_enumeration_errors_still_fail(self):
+        error = PermissionError(errno.EACCES, "cannot inspect home")
+
+        def walk(home, *, onerror):
+            onerror(error)
+
+        with patch.object(runner.sys, "platform", "darwin"), \
+                patch.object(runner.os, "walk", side_effect=walk), \
+                patch.object(runner.shutil, "rmtree") as remove:
+            with self.assertRaises(PermissionError):
+                runner.cleanup_discovery_home("synthetic-home")
+            remove.assert_not_called()
 
 
 class DirectSwiftTestGroupsTests(unittest.TestCase):

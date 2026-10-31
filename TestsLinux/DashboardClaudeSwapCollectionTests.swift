@@ -16,8 +16,9 @@ struct DashboardClaudeSwapCollectionTests {
             config: config,
             configFingerprint: "fixture-\(adapterEnabled)-\(expanded)",
             refreshInterval: 0,
-            providerTimeout: 10,
-            providerDeadline: .now.advanced(by: .seconds(10)),
+            // Account selection is independent of elapsed time; CLIServeTimeoutTests covers deadlines.
+            providerTimeout: nil,
+            providerDeadline: nil,
             providerOperations: operations,
             includeAllCodexAccounts: expanded,
             includeAllAccounts: expanded,

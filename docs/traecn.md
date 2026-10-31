@@ -26,7 +26,8 @@ Traversal stops at the first valid response. Refreshes do not send model prompts
 
 The primary gauge uses `usage_summary.consumed_amount / total_amount` across all credit packs.
 Used, total, and remaining counts stay visible when the allowance is zero. Missing or invalid numbers
-and non-credit billing fail closed instead of becoming zero usage.
+and non-credit billing fail closed instead of becoming zero usage. When any amount is fractional,
+all three credit-summary rows use two decimal places; entirely integral summaries stay compact.
 
 The meter is labeled **Usage**, and its Used / Total / Remaining block is labeled **Credits**.
 These names distinguish the two **Visible usage items** controls without changing existing hidden choices.

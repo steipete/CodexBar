@@ -122,6 +122,7 @@ actor CostUsageStore {
         parserHash: CodexParserHash.value)
     static let cacheGeneration = "sqlite:\(CostUsageStore.schemaVersion)"
     static let compatiblePredecessorParserHashes: Set<String> = [
+        "5a57546c60494379", // Home-scoped main before archived-row retention; rows and checkpoints are unchanged.
         "e5909f60274b2c47", // Home scoping preserves the released rows and scan checkpoints.
         "4e1358d00a4a47b5", // Optional source ownership preserves existing native Codex rows and checkpoints.
         "54a95e8fe7bd6ee9", // Validating inspection checkpoints leaves persisted rows and scan progress unchanged.
@@ -719,11 +720,15 @@ extension CostUsageStore {
         let predecessorVersion = Self.combinedSchemaVersion(
             base: Self.baseSchemaVersion,
             parserHash: storedHash)
+        let versionMatches = actualVersion == Int64(predecessorVersion)
+            || actualVersion == Int64(Self.combinedSchemaVersion(base: 3, parserHash: storedHash))
+        let knownParser = Self.compatiblePredecessorParserHashes.contains(storedHash)
+            || storedHash == self.expectedParserHash
+        let preservesArchives = try !isCurrent && versionMatches && !knownParser
+            && Self.readFiles(database).contains { CostUsageScanner.isArchivedCodexRollout($0.path) }
         let canAdoptPredecessor = self.expectedParserHash == CodexParserHash.value
             && self.expectedSchemaVersion == Self.schemaVersion
-            && (Self.compatiblePredecessorParserHashes.contains(storedHash) || storedHash == self.expectedParserHash)
-            && (actualVersion == Int64(predecessorVersion)
-                || actualVersion == Int64(Self.combinedSchemaVersion(base: 3, parserHash: storedHash)))
+            && versionMatches && (knownParser || preservesArchives)
         return (storedHash, isCurrent, canAdoptPredecessor)
     }
 
@@ -746,6 +751,9 @@ extension CostUsageStore {
         {
             try self.migrateHomeScope(database)
         }
+        if storedHash != self.expectedParserHash, !Self.compatiblePredecessorParserHashes.contains(storedHash) {
+            try self.preserveArchivedRowsAfterParserChange(database)
+        }
         if Self.incompatibleRetainedReportPredecessorParserHashes.contains(storedHash) {
             let rows = try Self.prepare(database, "SELECT home, payload FROM scan_metadata")
             defer { sqlite3_finalize(rows) }
@@ -767,6 +775,38 @@ extension CostUsageStore {
         try Self.stepDone(statement, database: database)
         guard sqlite3_changes(database) == 1 else { throw StoreError.incompatibleSchema }
         try Self.execute(database, "PRAGMA user_version = \(self.expectedSchemaVersion)")
+    }
+
+    private func preserveArchivedRowsAfterParserChange(_ database: OpaquePointer) throws {
+        let owner = try Self.prepare(database, "SELECT home FROM files WHERE path = ?")
+        let delete = try Self.prepare(database, "DELETE FROM files WHERE path = ?")
+        defer { sqlite3_finalize(owner); sqlite3_finalize(delete) }
+        var changedHomes: Set<String> = []
+        for file in try Self.readFiles(database)
+            where !file.belongsToOpenCodeLocalHistory && !CostUsageScanner.isArchivedCodexRollout(file.path)
+        {
+            sqlite3_reset(owner)
+            Self.bind(file.path, to: owner, at: 1)
+            guard sqlite3_step(owner) == SQLITE_ROW, let home = Self.columnText(owner, at: 0) else {
+                throw StoreError.invalidData
+            }
+            changedHomes.insert(home)
+            sqlite3_reset(delete)
+            Self.bind(file.path, to: delete, at: 1)
+            try Self.stepDone(delete, database: database)
+        }
+        for home in changedHomes {
+            var metadata = try Self.readSingleton(
+                CostUsageStoreMetadata.self, database: database, table: "scan_metadata", home: home) ?? .empty
+            metadata.lastScanUnixMs = 0
+            metadata.catchUpPending = true
+            metadata.scanInventoryPaths = nil
+            metadata.previousReportPayload = nil
+            try Self.writeSingleton(metadata, database: database, table: "scan_metadata", home: home)
+            try Self.rebuildDayAggregates(database, home: home)
+            try Self.deleteHomeRows(database, table: "discovery_state", home: home)
+            try Self.deleteHomeRows(database, table: "lookback_state", home: home)
+        }
     }
 
     private func createSchema(_ database: OpaquePointer) throws {

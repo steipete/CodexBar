@@ -10,30 +10,6 @@ public enum PerplexityCookieImporter {
     private static let cookieImportOrder: BrowserCookieImportOrder =
         ProviderDefaults.metadata[.perplexity]?.browserCookieOrder ?? Browser.defaultImportOrder
     #if DEBUG
-    final class ImportSessionOverrideStore: @unchecked Sendable {
-        let importSession: (BrowserDetection, ((String) -> Void)?) throws -> SessionInfo
-        private let lock = NSLock()
-        private var cachedSessions: [SessionInfo]?
-
-        init(importSession: @escaping (BrowserDetection, ((String) -> Void)?) throws -> SessionInfo) {
-            self.importSession = importSession
-        }
-
-        func sessions(
-            browserDetection: BrowserDetection,
-            logger: ((String) -> Void)?) throws -> [SessionInfo]
-        {
-            try self.lock.withLock {
-                if let cachedSessions = self.cachedSessions {
-                    return cachedSessions
-                }
-                let sessions = try [self.importSession(browserDetection, logger)]
-                self.cachedSessions = sessions
-                return sessions
-            }
-        }
-    }
-
     final class ImportSessionsOverrideStore: @unchecked Sendable {
         let importSessions: (BrowserDetection, ((String) -> Void)?) throws -> [SessionInfo]
         private let lock = NSLock()
@@ -58,17 +34,7 @@ public enum PerplexityCookieImporter {
         }
     }
 
-    @TaskLocal private static var taskImportSessionOverrideStore: ImportSessionOverrideStore?
     @TaskLocal private static var taskImportSessionsOverrideStore: ImportSessionsOverrideStore?
-
-    static func withImportSessionOverrideForTesting<T>(
-        _ override: ((BrowserDetection, ((String) -> Void)?) throws -> SessionInfo)?,
-        operation: () async throws -> T) async rethrows -> T
-    {
-        try await self.$taskImportSessionOverrideStore.withValue(override.map(ImportSessionOverrideStore.init)) {
-            try await operation()
-        }
-    }
 
     static func withImportSessionsOverrideForTesting<T>(
         _ override: ((BrowserDetection, ((String) -> Void)?) throws -> [SessionInfo])?,
@@ -111,9 +77,6 @@ public enum PerplexityCookieImporter {
     {
         #if DEBUG
         if let overrideStore = self.taskImportSessionsOverrideStore {
-            return try AnySequence(overrideStore.sessions(browserDetection: browserDetection, logger: logger))
-        }
-        if let overrideStore = self.taskImportSessionOverrideStore {
             return try AnySequence(overrideStore.sessions(browserDetection: browserDetection, logger: logger))
         }
         #endif

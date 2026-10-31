@@ -816,6 +816,11 @@ struct ClaudeOAuthFetchStrategy: ProviderFetchStrategy {
             loginMethod: usage.loginMethod,
             widgetAccountOwnerID: usage.accountID)
         var details = usage.resetCredits?.detailSections(now: usage.updatedAt) ?? []
+        if let notice = usage.rawText.flatMap({ ClaudeStatusProbe.modelBreakdownNotice(in: $0) }) {
+            details.append(.makeSection(rows: [
+                .makeRow(id: "claude-model-breakdown", label: "Status", value: notice),
+            ]))
+        }
         if includeOptionalUsage {
             details += usage.cloudCredits?.detailSections(now: usage.updatedAt) ?? []
         }
@@ -939,8 +944,8 @@ struct ClaudeWebFetchStrategy: ProviderFetchStrategy {
     }
 
     func shouldFallback(on error: Error, context: ProviderFetchContext) -> Bool {
-        guard context.sourceMode == .auto else { return false }
-        guard !Task.isCancelled,
+        guard context.sourceMode == .auto,
+              !Task.isCancelled,
               !(error is CancellationError),
               (error as? URLError)?.code != .cancelled
         else {
@@ -1195,8 +1200,9 @@ struct ClaudeCLIFetchStrategy: ProviderFetchStrategy {
     }
 
     func shouldFallback(on error: Error, context: ProviderFetchContext) -> Bool {
-        guard context.runtime == .app, context.sourceMode == .auto else { return false }
-        guard !ClaudeStatusProbe.isSubscriptionQuotaUnavailableDescription(error.localizedDescription) else {
+        guard context.runtime == .app, context.sourceMode == .auto,
+              !ClaudeStatusProbe.isSubscriptionQuotaUnavailableDescription(error.localizedDescription)
+        else {
             return false
         }
         // Reuse the bounded planning result instead of repeating browser/Keychain work after CLI failure.

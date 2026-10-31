@@ -512,6 +512,11 @@ protocol SessionQuotaNotifying: AnyObject {
         window: QuotaWarningWindow,
         accountDisplayName: String?,
         isCurrent: @escaping @MainActor () -> Bool)
+    func postUpcomingResetWarning(
+        event: UpcomingResetWarningEvent,
+        provider: UsageProvider,
+        now: Date,
+        isCurrent: @escaping @MainActor () -> Bool)
 }
 
 @MainActor
@@ -528,6 +533,13 @@ extension SessionQuotaNotifying {
         provider _: UsageProvider,
         window _: QuotaWarningWindow,
         accountDisplayName _: String?,
+        isCurrent _: @escaping @MainActor () -> Bool)
+    {}
+
+    func postUpcomingResetWarning(
+        event _: UpcomingResetWarningEvent,
+        provider _: UsageProvider,
+        now _: Date,
         isCurrent _: @escaping @MainActor () -> Bool)
     {}
 }
@@ -623,6 +635,22 @@ final class SessionQuotaNotifier: SessionQuotaNotifying {
             window: window,
             accountDisplayName: accountDisplayName)
         let idPrefix = "limit-reset-\(provider.rawValue)-\(window.rawValue)"
+        self.logger.info("enqueuing", metadata: ["prefix": idPrefix])
+        AppNotifications.shared.post(idPrefix: idPrefix, title: copy.title, body: copy.body, isCurrent: isCurrent)
+    }
+
+    func postUpcomingResetWarning(
+        event: UpcomingResetWarningEvent,
+        provider: UsageProvider,
+        now: Date,
+        isCurrent: @escaping @MainActor () -> Bool)
+    {
+        let providerName = ProviderDescriptorRegistry.descriptor(for: provider).metadata.displayName
+        let copy = UpcomingResetNotificationLogic.notificationCopy(
+            providerName: providerName,
+            event: event,
+            now: now)
+        let idPrefix = "upcoming-reset-\(provider.rawValue)"
         self.logger.info("enqueuing", metadata: ["prefix": idPrefix])
         AppNotifications.shared.post(idPrefix: idPrefix, title: copy.title, body: copy.body, isCurrent: isCurrent)
     }

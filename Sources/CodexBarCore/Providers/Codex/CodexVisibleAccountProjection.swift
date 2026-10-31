@@ -8,6 +8,7 @@ import Foundation
 public struct CodexVisibleAccount: Equatable, Identifiable, Sendable {
     public let id: String
     public let email: String
+    public private(set) var customName: String?
     public let workspaceLabel: String?
     public private(set) var displayDiscriminator: String?
     public let workspaceAccountID: String?
@@ -46,13 +47,56 @@ public struct CodexVisibleAccount: Equatable, Identifiable, Sendable {
     }
 
     public var displayName: String {
+        if let customName { return self.disambiguatedCustomName(customName) }
         guard let label = self.disambiguatedWorkspaceLabel ?? self.workspaceLabel else { return self.email }
         return "\(self.email) — \(label)"
     }
 
     public var menuDisplayName: String {
+        if let customName { return self.disambiguatedCustomName(customName) }
         guard let menuWorkspaceLabel else { return self.email }
         return "\(self.email) — \(menuWorkspaceLabel)"
+    }
+
+    /// A presentation preference follows the login and workspace, never the active source or auth token.
+    public var customNameKey: String {
+        guard let workspace = ManagedCodexAccount.normalizeWorkspaceAccountID(self.workspaceAccountID) else {
+            return self.customNameRecoveryKey
+        }
+        return self.customNameHash(scope: workspace)
+    }
+
+    /// Missing-auth accounts can be named before their workspace is known. Recover that name only
+    /// for the same saved account or profile, never for another workspace sharing its email.
+    public var customNameRecoveryKey: String {
+        let source = if let storedAccountID {
+            "stored:\(storedAccountID.uuidString.lowercased())"
+        } else {
+            switch self.selectionSource {
+            case let .managedAccount(id): "stored:\(id.uuidString.lowercased())"
+            case let .profileHome(path): "profile:\(CodexHomeScope.normalizedHomePath(path) ?? path)"
+            case .liveSystem: "system"
+            }
+        }
+        return self.customNameHash(scope: "unresolved:\(source)")
+    }
+
+    private func customNameHash(scope: String) -> String {
+        let email = self.email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return SHA256.hash(data: Data("\(email)\0\(scope)".utf8))
+            .map { String(format: "%02x", $0) }.joined()
+    }
+
+    public func withCustomName(_ name: String?) -> Self {
+        var result = self
+        let trimmed = name?.trimmingCharacters(in: .whitespacesAndNewlines)
+        result.customName = trimmed.flatMap { $0.isEmpty ? nil : $0 }
+        return result
+    }
+
+    private func disambiguatedCustomName(_ name: String) -> String {
+        guard let displayDiscriminator else { return name }
+        return "\(name) · \(displayDiscriminator)"
     }
 
     public var menuWorkspaceLabel: String? {
@@ -135,6 +179,16 @@ public struct CodexVisibleAccountProjection: Equatable, Sendable {
         self.activeVisibleAccountID = activeVisibleAccountID
         self.liveVisibleAccountID = liveVisibleAccountID
         self.hasUnreadableAddedAccountStore = hasUnreadableAddedAccountStore
+    }
+
+    public func applyingCustomNames(_ names: [String: String]) -> Self {
+        Self(
+            visibleAccounts: self.visibleAccounts.map {
+                $0.withCustomName(names[$0.customNameKey] ?? names[$0.customNameRecoveryKey])
+            },
+            activeVisibleAccountID: self.activeVisibleAccountID,
+            liveVisibleAccountID: self.liveVisibleAccountID,
+            hasUnreadableAddedAccountStore: self.hasUnreadableAddedAccountStore)
     }
 
     public func source(forVisibleAccountID id: String) -> CodexActiveSource? {
