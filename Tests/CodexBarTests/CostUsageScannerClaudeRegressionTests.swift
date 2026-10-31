@@ -2,6 +2,96 @@ import Foundation
 import Testing
 @testable import CodexBarCore
 
+extension CostUsageScannerClaudeRegressionTests {
+    @Test(arguments: [false, true])
+    func `accounting observer retains ordinary rows`(terminated: Bool) throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let day = try env.makeLocalNoon(year: 2025, month: 12, day: 21)
+        let content = try env.jsonl([[
+            "type": "assistant", "timestamp": env.isoString(for: day), "requestId": "request",
+            "message": [
+                "id": "message",
+                "model": "claude-sonnet-4-20250514",
+                "usage": ["input_tokens": 50, "output_tokens": 7],
+            ],
+        ]])
+        let file = try env.writeClaudeProjectFile(
+            relativePath: "project/observer.jsonl",
+            contents: terminated ? content : content.trimmingCharacters(in: .newlines))
+        let range = CostUsageScanner.CostUsageDayRange(since: day, until: day)
+        let resolver = CostUsagePricing.ClaudeResolver(catalog: ModelsDevCatalog(providers: [:]))
+        let expected = try CostUsageScanner.parseClaudeFileCancellable(
+            fileURL: file, range: range, providerFilter: .all, pricingResolver: resolver)
+        var observations = 0
+        let recorder = CostUsageScanner.ClaudeScanWorkRecorder()
+        let actual = try CostUsageScanner.withClaudeScanWorkRecorderForTesting(recorder) {
+            try CostUsageScanner.parseClaudeFileCancellable(
+                fileURL: file,
+                range: range,
+                providerFilter: .all,
+                pricingResolver: resolver,
+                observation: { _ in observations += 1 })
+        }
+        #expect(observations == 1)
+        #expect(expected.rows.count == 1)
+        #expect(actual.rows == expected.rows)
+        #expect(actual.parsedBytes == expected.parsedBytes)
+        #expect(recorder.snapshot().claudeLineDecodes == 1)
+        let observationOnly = CostUsageScanner.ClaudeScanWorkRecorder()
+        let empty = try CostUsageScanner.withClaudeScanWorkRecorderForTesting(observationOnly) {
+            try CostUsageScanner.parseClaudeFileCancellable(
+                fileURL: file,
+                range: range,
+                providerFilter: .all,
+                pricingResolver: resolver,
+                observation: { _ in observations += 1 },
+                retainRows: false)
+        }
+        #expect(observations == 2)
+        #expect(empty.rows.isEmpty)
+        #expect(observationOnly.snapshot().claudeLineDecodes == 1)
+        #expect(observationOnly.snapshot().claudeCostCalculations == 0)
+    }
+
+    @Test(arguments: ["usage", "metadata", "message.metadata"], [false, true])
+    func `duplicate accounting keys retain Foundation ordinary values`(
+        path: String, reversed: Bool) throws
+    {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let day = try env.makeLocalNoon(year: 2025, month: 12, day: 21)
+        let names = reversed ? ["second", "first"] : ["first", "second"]
+        let metadata = #""metadata":{"sessionId":"\#(names[0])","sessionId":"\#(names[1])"},"#
+        let identity = path == "metadata" ? metadata : path == "usage" ? #""requestId":"duplicate","# : ""
+        let counts = path == "usage"
+            ? (reversed ? #""input_tokens":20,"input_tokens":10"# : #""input_tokens":10,"input_tokens":20"#)
+            : #""input_tokens":10"#
+        let raw = """
+        {"type":"assistant","timestamp":"\(env.isoString(for: day))",\(identity)\
+        "message":{\(path == "message.metadata" ? metadata : "")"id":"message",\
+        "model":"claude-sonnet-4-20250514","usage":{\(counts),"output_tokens":7}}}
+        """
+        let decoded = try #require(try JSONSerialization.jsonObject(with: Data(raw.utf8)) as? [String: Any])
+        let message = try #require(decoded["message"] as? [String: Any])
+        let usage = try #require(message["usage"] as? [String: Any])
+        let selected = try #require(usage["input_tokens"] as? NSNumber).intValue
+        let file = try env.writeClaudeProjectFile(relativePath: "project/duplicate.jsonl", contents: raw + "\n")
+        let ordinary = try CostUsageScanner.parseClaudeFileCancellable(
+            fileURL: file,
+            range: .init(since: day, until: day),
+            providerFilter: .all,
+            pricingResolver: .init(catalog: ModelsDevCatalog(providers: [:])),
+            observation: { _ in })
+        #expect(ordinary.rows.count == 1)
+        #expect(ordinary.rows.first?.input == selected)
+        let selectedMetadata = (path == "metadata" ? decoded["metadata"] : message["metadata"]) as? [String: Any]
+        if path != "usage" {
+            #expect(try ordinary.rows.first?.sessionId == #require(selectedMetadata?["sessionId"] as? String))
+        }
+    }
+}
+
 struct CostUsageScannerClaudeRegressionTests {
     @Test
     func `parseClaudeFile snapshots keep the last streaming chunk`() throws {

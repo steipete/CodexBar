@@ -954,6 +954,7 @@ extension CostUsageStoreTests {
 
 extension CostUsageStoreTests {
     private static let testedPredecessorParserHashes = [
+        "6b42e42bafad1922", // 0.83.0 rows, checkpoints, and corrected reports survive shared Claude accounting.
         "f98b2d0afc00443c", // Corrected revision-14 reports survive the identified-pricing export change.
         "0ef5e15cc00e8e25", // Current main before resumed-tier and Fast pricing correction.
         "5a57546c60494379", // Home-scoped main before archived-row retention.
@@ -1098,8 +1099,9 @@ extension CostUsageStoreTests {
         let current = CostUsageStore(cacheRoot: fixture.root)
         let after = await current.readSnapshot()
         var expected = before
-        // Only predecessors from before the Fast pricing correction need report totals discarded.
-        if predecessorHash != "f98b2d0afc00443c" { expected.metadata.previousReportPayload = nil }
+        if !["f98b2d0afc00443c", "6b42e42bafad1922"].contains(predecessorHash) {
+            expected.metadata.previousReportPayload = nil
+        }
         #expect(after == expected)
         let legacy = try JSONDecoder().decode(
             CostUsageScanner.CodexBufferedFastLine.self, from: #require(after.bufferedLines.first).payload)

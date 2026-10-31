@@ -34,6 +34,11 @@ enum CostUsageJsonl {
         fileprivate let lineBytes: Int
         fileprivate let truncated: Bool
         fileprivate let jsonTailState: JSONTailState
+
+        /// Optional observers can validate a bounded tail with their own lossless accounting decoder.
+        var bufferedLine: Data? {
+            self.truncated ? nil : self.prefix
+        }
     }
 
     struct ScanProgress {
@@ -320,7 +325,8 @@ enum CostUsageJsonl {
         resumeState: ResumeState?,
         shouldStop: ((Int64) -> Bool)? = nil,
         checkCancellation: (() throws -> Void)? = nil,
-        onLine: (Line) -> Void) throws -> ScanProgress
+        tailValidator: ((Data) throws -> Bool)? = nil,
+        onLine: (Line) throws -> Void) throws -> ScanProgress
     {
         let handle = try FileHandle(forReadingFrom: fileURL)
         defer { try? handle.close() }
@@ -355,14 +361,14 @@ enum CostUsageJsonl {
             }
         }
 
-        func flushLine(endOffset: Int64) {
+        func flushLine(endOffset: Int64) throws {
             guard lineBytes > 0 else { return }
             let line = Line(
                 bytes: current,
                 wasTruncated: truncated,
                 startOffset: lineStartOffset,
                 endOffset: endOffset)
-            onLine(line)
+            try onLine(line)
             current.removeAll(keepingCapacity: true)
             lineBytes = 0
             truncated = false
@@ -380,7 +386,7 @@ enum CostUsageJsonl {
                 jsonTailState: jsonTailState)
         }
 
-        func hasCompleteJSONTail() -> Bool {
+        func hasCompleteJSONTail() throws -> Bool {
             guard jsonTailState.isStructurallyComplete else { return false }
             if truncated {
                 // The full record is intentionally not retained. Its incremental state is enough
@@ -388,6 +394,7 @@ enum CostUsageJsonl {
                 return true
             }
             guard lineBytes == current.count else { return false }
+            if let tailValidator { return try tailValidator(current) }
             return (try? JSONSerialization.jsonObject(with: current, options: [.fragmentsAllowed])) != nil
         }
 
@@ -398,8 +405,8 @@ enum CostUsageJsonl {
             }
             let remaining = maxBytesToRead.map { max(0, $0 - bytesRead) }
             if remaining == 0 {
-                if let fileSize, startOffset + bytesRead >= fileSize, hasCompleteJSONTail() {
-                    flushLine(endOffset: startOffset + bytesRead)
+                if let fileSize, startOffset + bytesRead >= fileSize, try hasCompleteJSONTail() {
+                    try flushLine(endOffset: startOffset + bytesRead)
                     committedOffset = startOffset + bytesRead
                     lineStartOffset = committedOffset
                 }
@@ -409,8 +416,8 @@ enum CostUsageJsonl {
                 let readCount = min(256 * 1024, Int(remaining ?? Int64(256 * 1024)))
                 let chunk = try handle.read(upToCount: readCount) ?? Data()
                 if chunk.isEmpty {
-                    if hasCompleteJSONTail() {
-                        flushLine(endOffset: startOffset + bytesRead)
+                    if try hasCompleteJSONTail() {
+                        try flushLine(endOffset: startOffset + bytesRead)
                         committedOffset = startOffset + bytesRead
                         lineStartOffset = committedOffset
                     }
@@ -420,7 +427,7 @@ enum CostUsageJsonl {
                 try checkCancellation?()
                 bytesRead += Int64(chunk.count)
                 let chunkStartOffset = startOffset + bytesRead - Int64(chunk.count)
-                chunk.withUnsafeBytes { rawBuffer in
+                try chunk.withUnsafeBytes { rawBuffer in
                     guard let base = rawBuffer.bindMemory(to: UInt8.self).baseAddress else { return }
                     var segmentStart = 0
                     while segmentStart < rawBuffer.count {
@@ -445,7 +452,7 @@ enum CostUsageJsonl {
                         }
                         appendSegment(base.advanced(by: segmentStart), count: index - segmentStart)
                         let lineEndOffset = chunkStartOffset + Int64(index + 1)
-                        flushLine(endOffset: lineEndOffset)
+                        try flushLine(endOffset: lineEndOffset)
                         committedOffset = lineEndOffset
                         lineStartOffset = committedOffset
                         segmentStart = index + 1

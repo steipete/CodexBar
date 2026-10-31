@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- CLI: export and combine identified Claude requests across SSH hosts, preserving conflicts and exact unpriced counts (#4835). Thanks @salmonumbrella!
+
 ## 0.83.0 — 2026-10-31
 
 ### Highlights

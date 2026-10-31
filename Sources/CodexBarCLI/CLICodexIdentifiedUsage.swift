@@ -2,16 +2,16 @@ import CodexBarCore
 import Commander
 import Foundation
 
-struct CodexIdentifiedSource: Codable, Sendable {
+struct IdentifiedSource<Ledger: IdentifiedRequestLedger>: Codable, Sendable {
     let host: String
     let source: String
     let collectedAt: Date?
-    let ledger: CodexRequestLedger?
+    let ledger: Ledger?
     let error: String?
 }
 
-struct CodexIdentifiedResult: Codable, Sendable {
-    let reports: [CodexIdentifiedSource]
+struct IdentifiedResult<Ledger: IdentifiedRequestLedger>: Codable, Sendable {
+    let reports: [IdentifiedSource<Ledger>]
     let subtotal: CodexRequestSubtotal?
     let allSourcesAvailable: Bool
     let partial: Bool
@@ -29,8 +29,10 @@ extension CodexBarCLI {
         let end = values.options["identifiedEnd"]?.last.flatMap(Int64.init)
             ?? Int64((Date().timeIntervalSince1970 * 1000).rounded())
         let hosts = values.options["remote"] ?? []
-        // Provider-specific by design: this native strong-identity export supports only explicit Codex JSON.
-        guard values.flags.contains("identifiedOnly"), values.options["provider"] == ["codex"],
+        let provider = values.options["provider"]?.first ?? ""
+        // Provider-specific by design: only Codex and Claude own native strong-identity ledgers.
+        guard values.flags.contains("identifiedOnly"), values.options["provider"]?.count == 1,
+              ["codex", "claude"].contains(provider),
               output.format == .json, (1...365).contains(days), (0...253_402_300_799_999).contains(end),
               values.options["period"] == nil, values.options["groupBy"] == nil,
               !values.flags.contains("summaryOnly"), !values.flags.contains("breakdown"),
@@ -40,7 +42,7 @@ extension CodexBarCLI {
         else {
             Self.exit(
                 code: .failure,
-                message: "Use --identified-only --provider codex with JSON, --days 1...365 and optional " +
+                message: "Use --identified-only --provider codex|claude with JSON, --days 1...365 and optional " +
                     "repeated --remote hosts. --identified-end must be Unix milliseconds; " +
                     "period, grouping, breakdown and separate host summaries are unsupported.",
                 output: output,
@@ -58,19 +60,54 @@ extension CodexBarCLI {
                 Self.exit(code: .failure, message: error.localizedDescription, output: output, kind: .args)
             }
         }
+        // Provider-specific by design: each ledger keeps its own identity, reconciliation and pricing rules.
+        if provider == "claude" {
+            await Self.runIdentifiedCollection(
+                hosts: hosts,
+                start: start,
+                end: end,
+                output: output,
+                local: { try await ClaudeRequestLedger.load(startUnixMs: start, endUnixMs: end) },
+                remote: { try await RemoteCodexCostFetcher().fetchIdentifiedUsage(
+                    host: $0,
+                    historyDays: days,
+                    startUnixMs: start,
+                    endUnixMs: end,
+                    ledgerType: ClaudeRequestLedger.self) }, makeMerger: ClaudeRequestLedger.makeMerger)
+        } else {
+            await Self.runIdentifiedCollection(
+                hosts: hosts,
+                start: start,
+                end: end,
+                output: output,
+                local: { try await CodexRequestLedger.load(startUnixMs: start, endUnixMs: end) },
+                remote: { try await RemoteCodexCostFetcher().fetchIdentifiedUsage(
+                    host: $0, historyDays: days, startUnixMs: start, endUnixMs: end) },
+                makeMerger: { CodexRequestLedger.makeMerger() })
+        }
+    }
+
+    // swiftlint:disable:next function_parameter_count
+    private static func runIdentifiedCollection<Ledger: IdentifiedRequestLedger>(
+        hosts: [String],
+        start: Int64,
+        end: Int64,
+        output: CLIOutputPreferences,
+        local: @escaping @Sendable () async throws -> Ledger,
+        remote: @escaping @Sendable (String) async throws -> Ledger,
+        makeMerger: @escaping @Sendable () -> ([Ledger]) throws -> CodexRequestSubtotal) async
+    {
         let cancellation = CodexHostCostCancellation()
         let monitor = CLITerminationSignalMonitor { cancellation.request(signal: $0) }
         let operation = Task {
-            try await Self.collectCodexIdentifiedUsage(
+            try await Self.collectIdentifiedUsage(
                 remotes: hosts,
                 startUnixMs: start,
                 endUnixMs: end,
                 pretty: output.pretty,
-                local: { try await CodexRequestLedger.load(startUnixMs: start, endUnixMs: end) },
-                fetchRemote: {
-                    try await RemoteCodexCostFetcher().fetchIdentifiedUsage(
-                        host: $0, historyDays: days, startUnixMs: start, endUnixMs: end)
-                })
+                local: local,
+                fetchRemote: remote,
+                makeMerger: makeMerger)
         }
         cancellation.bind { operation.cancel() }
         let result = await operation.result
@@ -88,24 +125,28 @@ extension CodexBarCLI {
             }
             Self.exit(code: report.allSourcesAvailable ? .success : .failure, output: output, kind: .provider)
         } catch {
-            Self.exit(code: .failure, message: "Identified Codex collection cancelled or unavailable.", output: output)
+            Self.exit(
+                code: .failure,
+                message: "Identified \(Ledger.providerName.capitalized) collection cancelled or unavailable.",
+                output: output)
         }
     }
 
-    /// Preserve available identified requests when a source fails; cancellation prevents further SSH work.
-    static func collectCodexIdentifiedUsage(
+    // swiftlint:disable:next function_parameter_count
+    static func collectIdentifiedUsage<Ledger: IdentifiedRequestLedger>(
         remotes: [String],
         startUnixMs: Int64,
         endUnixMs: Int64,
         pretty: Bool = false,
         now: @Sendable () -> Date = { Date() },
-        local: @Sendable () async throws -> CodexRequestLedger,
-        fetchRemote: @Sendable (String) async throws -> CodexRequestLedger) async throws -> CodexIdentifiedResult
+        local: @Sendable () async throws -> Ledger,
+        fetchRemote: @Sendable (String) async throws -> Ledger,
+        makeMerger: () -> ([Ledger]) throws -> CodexRequestSubtotal) async throws -> IdentifiedResult<Ledger>
     {
-        var reports: [CodexIdentifiedSource] = []
+        var reports: [IdentifiedSource<Ledger>] = []
         var subtotal: CodexRequestSubtotal?
         var localLedgerJSON: String?
-        let merge = remotes.isEmpty ? nil : CodexRequestLedger.makeMerger()
+        let merge = remotes.isEmpty ? nil : makeMerger()
         let hosts = ["local"] + remotes
         for (sourceIndex, host) in hosts.enumerated() {
             try Task.checkCancellation()
@@ -139,16 +180,16 @@ extension CodexBarCLI {
                     source: sourceIndex == 0 ? "local" : "ssh",
                     collectedAt: nil,
                     ledger: nil,
-                    error: sourceIndex == 0
-                        ? "Local native Codex identified usage is unavailable."
-                        :
-                        "Remote identified usage is unavailable. Check SSH and update its CLI " +
-                        "for schema 2 --identified-only."))
+                    error: (sourceIndex == 0
+                        ? "Local native \(Ledger.providerName.capitalized) identified usage is unavailable. "
+                        : "Remote \(Ledger.providerName.capitalized) identified usage is unavailable. Check SSH " +
+                        "and update its CLI for schema \(Ledger.supportedSchemaVersion) --identified-only. ") +
+                        "For large histories, try fewer --days; exports are limited to 50,000 records and 32 MiB."))
             }
         }
         try Task.checkCancellation()
         let available = reports.allSatisfy { $0.ledger != nil }
-        return CodexIdentifiedResult(
+        return IdentifiedResult(
             reports: reports,
             subtotal: subtotal,
             allSourcesAvailable: available,

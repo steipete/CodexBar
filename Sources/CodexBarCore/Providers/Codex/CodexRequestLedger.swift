@@ -426,11 +426,11 @@ public struct CodexRequestLedger: Codable, Sendable {
             pricingResolver: resolver)
     }
 
-    private static func isDigest(_ value: String) -> Bool {
+    static func isDigest(_ value: String) -> Bool {
         value.utf8.count == 64 && value.utf8.allSatisfy { (48...57).contains($0) || (97...102).contains($0) }
     }
 
-    private static func digest(_ components: [String]) -> String {
+    static func digest(_ components: [String]) -> String {
         let framed = components.map { "\($0.utf8.count):\($0)" }.joined()
         return SHA256.hash(data: Data(framed.utf8)).map { String(format: "%02x", $0) }.joined()
     }
@@ -463,5 +463,22 @@ public struct CodexRequestSubtotal: Codable, Sendable {
         try container.encode(self.partial, forKey: .partial)
         try container.encode(self.costUSD, forKey: .costUSD)
         try container.encode(self.unpricedRequestCount, forKey: .unpricedRequestCount)
+    }
+}
+
+/// Only transport and source admission are shared; each provider owns its accounting and identity.
+public protocol IdentifiedRequestLedger: Codable, Sendable {
+    static var providerName: String { get }
+    static var supportedSchemaVersion: Int { get }
+    func validate(startUnixMs: Int64, endUnixMs: Int64) throws
+}
+
+extension CodexRequestLedger: IdentifiedRequestLedger {
+    public static var providerName: String {
+        "codex"
+    }
+
+    public static var supportedSchemaVersion: Int {
+        2
     }
 }

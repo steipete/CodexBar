@@ -122,6 +122,7 @@ actor CostUsageStore {
         parserHash: CodexParserHash.value)
     static let cacheGeneration = "sqlite:\(CostUsageStore.schemaVersion)"
     static let compatiblePredecessorParserHashes: Set<String> = [
+        "6b42e42bafad1922", // 0.83.0 rows, checkpoints, and corrected reports survive shared Claude accounting.
         "f98b2d0afc00443c", // Identified pricing export preserves revision-14 rows and corrected report totals.
         "0ef5e15cc00e8e25", // Revision 14 refreshes resumed tiers without changing stored token rows.
         "5a57546c60494379", // Home-scoped main before archived-row retention; rows and checkpoints are unchanged.
@@ -198,7 +199,7 @@ actor CostUsageStore {
     ]
     /// Keep corrected report totals; earlier predecessors still need Fast repricing.
     static let incompatibleRetainedReportPredecessorParserHashes = CostUsageStore.compatiblePredecessorParserHashes
-        .subtracting(["f98b2d0afc00443c"])
+        .subtracting(["f98b2d0afc00443c", "6b42e42bafad1922"])
 
     /// Connections to one canonical database share a serial queue, preserving the single-writer
     /// contract without letting a busy database stall independent account stores.

@@ -620,6 +620,9 @@ with the next successful breakdown. The compact `/dashboard/v1/snapshot` schema 
     a configuration issue and recommend checking the provider source/settings, rather than re-authenticating.
 
 ## Cost usage (local log scan)
+
+For identified-request CLI exports and multi-host deduplication, see [CLI cost modes](cli.md#command).
+
 - Coverage is local usage-bearing transcripts only. Cloud-backed Code Projects run remotely; unless their token usage is available in a supported local JSONL transcript, it is absent from token totals and API-rate estimates. Account quota percentages are fetched separately, so changing the quota source does not expand history coverage.
 - Source roots:
   - Native Claude logs:

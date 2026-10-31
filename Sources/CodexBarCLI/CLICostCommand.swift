@@ -981,7 +981,9 @@ struct CostOptions: CommanderParsable {
     @Flag(name: .long("summary-only"), help: "Versioned native Codex JSON totals without account or session details")
     var summaryOnly: Bool = false
 
-    @Flag(name: .long("identified-only"), help: "Native Codex identified-request subtotal JSON; prices unavailable")
+    @Flag(
+        name: .long("identified-only"),
+        help: "Native Codex/Claude identified-request subtotal JSON; priced after deduplication")
     var identifiedOnly: Bool = false
 
     @Option(name: .long("identified-end"), help: "Identified subtotal window end, inclusive Unix milliseconds (UTC)")

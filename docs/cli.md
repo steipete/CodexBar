@@ -119,12 +119,24 @@ a second identifier is an error. For an option value beginning with a dash, use 
   - `--provider codex --format json --summary-only` emits a one-element, versioned summary array with no account identity, project paths, model rows, or session content. Schema version 1 retains `updatedAt`, `bucketTimeZone`, `historyDays`, `currencyCode`, `historyCoverageIsEstablished`, and separate `today`/`history` totals with optional `totalTokens`/`costUSD`, incomplete-request counts, coverage categories, and provenance. Missing totals remain unavailable.
   - Host reports always scan native Codex history only. `--days` and `--refresh` apply on both hosts; each host retains its own calendar and pricing. Both modes reject `--group-by` and `--breakdown`; `--remote` and `--summary-only` cannot be combined. Ordinary `cost` output remains compatible.
   - Remote capture is bounded to 16 KiB per stream during execution, with a 60-second client process timeout. Unsupported versions, invalid totals, overflow, and unexpected output fail closed. Remote failure retains a successful local row and exits nonzero; JSON remains one document. Ctrl-C and termination signals cancel collection and await local SSH subprocess cleanup. The remote scanner follows its SSH server's disconnect behavior and may finish after the client exits.
+- `codexbar cost --provider claude --identified-only --format json --remote build-a --remote build-b`
+  uses the same UTC-window and multi-host transport below, with Claude-owned request identity and accounting.
+  Native assistant usage shares the ordinary history parser; Vertex AI entries are filtered before exclusions.
+  Request IDs qualify message IDs, with session/message fallback when a request ID is absent. Copies count once.
+  Streaming snapshots keep the greatest compatible output count; terminal and legacy accounting must agree.
+  Contradictory or malformed token/cache evidence permanently quarantines that identity, including across hosts.
+  Preliminary proxy estimates stay pending until authoritative usage arrives. Missing model evidence stays sticky.
+  Combined pricing uses one Claude catalog snapshot after deduplication, including historical and one-hour cache
+  rates. Every accepted request without a price contributes to `unpricedRequestCount`; its tokens remain available
+  and `costUSD` is null. This is an API-equivalent subtotal, not complete billed account spend.
+  Local-only output is a schema 1 accounting ledger without source prices or conversation content.
+  For example, pin the same window with `--days 1 --identified-end 1788177600000` on each participating host.
 - `codexbar cost --provider codex --identified-only --format json --days 30` exports an experimental,
   versioned native request ledger. Local-only output contains per-request rows, without `costUSD` or
   `unpricedRequestCount`. Repeat `--remote` to return source reports and a combined
   **identified-request subtotal** from this machine and every requested SSH host, for example:
   `codexbar cost --provider codex --identified-only --format json --remote build-a --remote build-b`.
-  Every host needs a CLI supporting schema 2. `--identified-end <Unix milliseconds>` pins the inclusive end;
+  Codex hosts need schema 2; Claude hosts need their provider-discriminated schema 1. `--identified-end <Unix milliseconds>` pins the inclusive end;
   the start is UTC midnight
   `days - 1` days earlier. Saved periods and time zones do not change this window.
   - Only owned native `token_usage_record` events with session/thread and response IDs contribute.
