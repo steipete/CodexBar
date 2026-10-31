@@ -143,6 +143,12 @@ public struct RemoteCodexCostFetcher: Sendable {
         else { throw RemoteCodexCostError.invalidHost }
     }
 
+    /// Manual hosts that may count toward spend: sanitized and strict-charset valid, in input order.
+    public static func costUsageCandidates(in manualHosts: [String]) -> [String] {
+        RemoteSessionFetcher.sanitizedHosts(manualHosts)
+            .filter { (try? self.validateHost($0)) != nil }
+    }
+
     package static func arguments(host: String, historyDays: Int, force: Bool) throws -> [String] {
         guard (1...365).contains(historyDays) else { throw RemoteCodexCostError.invalidReport }
         let options =

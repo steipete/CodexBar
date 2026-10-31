@@ -1187,8 +1187,7 @@ extension SettingsStore {
     }
 
     static func availableCostUsageHosts(_ manualHosts: String) -> [String] {
-        RemoteSessionFetcher.sanitizedHosts(manualHosts.components(separatedBy: ","))
-            .filter { (try? RemoteCodexCostFetcher.validateHost($0)) != nil }
+        RemoteCodexCostFetcher.costUsageCandidates(in: manualHosts.components(separatedBy: ","))
     }
 
     var selectableCostUsageHosts: [String] {

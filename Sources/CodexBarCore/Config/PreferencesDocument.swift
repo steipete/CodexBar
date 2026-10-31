@@ -52,7 +52,7 @@ public struct PreferencesDocument: Codable, Sendable {
     private static var keys: Set<String> {
         self.boolKeys.union(self.stringChoices.keys).union(self.thresholdKeys).union([
             "weeklyProgressWorkDays", "preferredCurrencyCode", "mergedOverviewSelectedProviders",
-            "switcherShortcuts",
+            "switcherShortcuts", "agentSessionsManualHosts", "costUsageHosts",
         ])
     }
 
@@ -138,10 +138,10 @@ public struct PreferencesDocument: Codable, Sendable {
             switch value {
             case .bool: valid = Self.boolKeys.contains(key)
             case let .string(raw):
-                valid = Self.stringChoices[key]?.contains(raw)
-                    ??
-                    (key == "preferredCurrencyCode" &&
-                        (raw == "auto" || (raw.count == 3 && raw.utf8.allSatisfy { (65...90).contains($0) })))
+                valid = key == "agentSessionsManualHosts"
+                    || (Self.stringChoices[key]?.contains(raw)
+                        ?? (key == "preferredCurrencyCode" &&
+                            (raw == "auto" || (raw.count == 3 && raw.utf8.allSatisfy { (65...90).contains($0) }))))
             case let .integer(number): valid = key == "weeklyProgressWorkDays" && (1...7).contains(number)
             case .null: valid = key == "weeklyProgressWorkDays"
             case let .array(values):
@@ -151,6 +151,11 @@ public struct PreferencesDocument: Codable, Sendable {
                             if case let .integer(n) = $0 { return QuotaWarningThresholds.allowedRange.contains(Int(n))
                             }; return false
                         }
+                } else if key == "costUsageHosts" {
+                    // Spend membership is re-filtered against the manual hosts by the app's setter.
+                    valid = values.allSatisfy {
+                        if case .string = $0 { return true }; return false
+                    }
                 } else {
                     valid = key == "mergedOverviewSelectedProviders" && values.count <= 6 && values.allSatisfy {
                         if case let .string(raw) = $0 { return ProviderInstanceID(rawValue: raw) != nil }; return false

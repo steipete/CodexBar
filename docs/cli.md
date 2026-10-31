@@ -272,6 +272,28 @@ a second identifier is an error. For an option value beginning with a dash, use 
   - Warnings keep exit code 0; errors exit non-zero.
 - `codexbar config dump` prints normalized config JSON with secrets redacted by default. `--show-secrets` explicitly includes raw credentials; `--pretty` formats the output.
 - `codexbar hooks list` shows the local hook configuration; `--format json` and `--pretty` are supported.
+- `codexbar config hosts` configures the SSH hosts the app tracks, so an agent can set up
+  cross-machine tracking without opening Settings (macOS only; fails clearly elsewhere).
+  - `list` prints every manual host with `valid` (it can count toward spend) and `costUsage`
+    (it does); `--format json` returns `{"hosts":[{"host","valid","costUsage","check"?}]}`.
+  - `add <host>` appends to the app's manual hosts, and with `--cost` also counts it toward
+    spend; `remove <host>` drops it, or with `--cost` only its spend tracking. Both are
+    idempotent and report `changed`; JSON is `{"host","changed","costUsage","check"?}`.
+  - Hosts use the app's validation: one alias or `user@host`, no options, spaces, or control
+    characters; invalid input fails with a nonzero exit and writes nothing. A host Settings
+    typed without strict validation can still be removed.
+  - `--check` verifies each host (list) or the changed host (add) with the same one-shot,
+    noninteractive SSH boundary as `cost --remote`: trusted host key only, no forwarding,
+    bounded output, 60-second timeout, and Ctrl-C cleanup. Each result carries
+    `{"ok": bool, "error": string|null}`; a failed check exits nonzero but leaves the host
+    configured. Fix the named cause yourself: untrusted host key, noninteractive SSH auth,
+    or an outdated remote CLI (`--identified-only`, schema 2).
+  - Writes queue like `config preferences import`: a running app applies them immediately;
+    a closed app reads them at next launch. `--defaults-domain` selects an alternate domain
+    for testing. `config preferences export` includes the two host keys.
+  - Set up hosts from an agent:
+    `codexbar config hosts add devbox --cost --check --format json`, then
+    `codexbar config hosts list --check --format json --pretty` to confirm every machine.
 - `codexbar hooks enable|disable` changes the explicit top-level opt-in switch in the local config file.
 - `codexbar hooks test <event> --provider <id>` invokes matching enabled rules with a representative event. Hook
   commands run directly without a shell and receive `CODEXBAR_*` variables plus JSON on stdin. `--format json` and

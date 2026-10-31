@@ -309,6 +309,12 @@ extension CodexBarCLI {
           codexbar config preferences export [--file <preferences.json>]
           codexbar config preferences import --file <preferences.json> [--json]
           codexbar config login --provider copilot [--json]
+          codexbar config hosts list [--check] [--defaults-domain <domain>]
+                                   [--format text|json] [--json] [--json-only] [--pretty]
+          codexbar config hosts add <host> [--cost] [--check] [--defaults-domain <domain>]
+                                   [--format text|json] [--json] [--json-only] [--pretty]
+          codexbar config hosts remove <host> [--cost] [--defaults-domain <domain>]
+                                   [--format text|json] [--json] [--json-only] [--pretty]
           codexbar config providers [--format text|json] [--json] [--json-only] [--pretty]
           codexbar config enable --provider <name> [--format text|json] [--json] [--json-only] [--pretty]
           codexbar config disable --provider <name> [--format text|json] [--json] [--json-only] [--pretty]
@@ -330,6 +336,15 @@ extension CodexBarCLI {
           (use --show-secrets to reveal raw values).
           preferences transfers allowlisted UI settings on macOS; import applies in the running app or next launch.
           Export writes JSON to stdout unless --file is supplied. --defaults-domain selects an alternate app domain.
+          hosts configures the SSH hosts the app tracks, without opening Settings (macOS only):
+          list shows each manual host, whether it can count toward spend, and whether it does;
+          add appends a host and, with --cost, makes it count toward spend; remove drops it,
+          or with --cost only its spend tracking. add and remove are idempotent and report changed.
+          Hosts use the same validation as Settings: one alias or user@host, no options or spaces.
+          --check verifies hosts with one noninteractive SSH run that requires a trusted host key
+          and a remote CLI supporting --identified-only; a failed check leaves the host configured.
+          Changes queue like preferences import: a running app applies them immediately, a closed
+          app at next launch. --defaults-domain selects an alternate app domain.
           providers lists persistent provider enablement.
           enable/disable updates the same provider toggle used by Settings.
           set-source stores a supported data source without changing provider enablement; auto clears the override.
@@ -353,6 +368,10 @@ extension CodexBarCLI {
             --label Team --usage-scope team --organization-id org_... --workspace-id proj_...
           pbpaste | codexbar config set-cookie --provider claude --stdin
           codexbar config clear-credential --provider claude --cookie
+          # Agent setup: track devbox spend, then verify every host
+          codexbar config hosts add devbox --cost --check --format json
+          codexbar config hosts list --check --format json
+          codexbar config hosts remove devbox --cost --format json
         """
     }
 

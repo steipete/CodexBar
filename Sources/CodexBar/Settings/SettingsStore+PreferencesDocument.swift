@@ -59,6 +59,13 @@ extension SettingsStore {
         if let value: [String: String] = try document.value("switcherShortcuts") {
             try self.setProviderSwitcherShortcuts(value)
         }
+        // Manual hosts first; the spend setter re-filters membership to valid manual hosts.
+        if let value: String = try document.value("agentSessionsManualHosts") {
+            self.agentSessionsManualHosts = value
+        }
+        if let value: [String] = try document.value("costUsageHosts") {
+            self.costUsageHosts = value
+        }
     }
 
     func setProviderSwitcherShortcuts(_ shortcuts: [String: String]) throws {

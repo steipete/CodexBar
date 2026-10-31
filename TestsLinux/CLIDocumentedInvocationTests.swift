@@ -104,6 +104,23 @@ struct CLIDocumentedInvocationTests {
             options: ["provider": ["openai"]],
             flags: ["stdin"]),
         .init(
+            "config hosts add devbox --cost --check --format json",
+            path: "config hosts add",
+            options: ["format": ["json"]],
+            flags: ["cost", "check"],
+            positional: ["devbox"]),
+        .init(
+            "config hosts list --check --format json --pretty",
+            path: "config hosts list",
+            options: ["format": ["json"]],
+            flags: ["check", "pretty"]),
+        .init(
+            "config hosts remove devbox --cost --format json",
+            path: "config hosts remove",
+            options: ["format": ["json"]],
+            flags: ["cost"],
+            positional: ["devbox"]),
+        .init(
             "config set-cookie --provider claude --stdin",
             path: "config set-cookie",
             options: ["provider": ["claude"]],
