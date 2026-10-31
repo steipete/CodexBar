@@ -221,11 +221,8 @@ extension CodexBarCLI {
         throws -> ConfigHostsMutation
     {
         let host = rawHost.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !host.isEmpty, !host.contains(","),
-              !host.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains)
-        else {
-            throw PreferencesDocument.Error
-                .invalid("Remove one stored host token at a time, without control characters.")
+        guard !host.isEmpty, !host.contains(",") else {
+            throw PreferencesDocument.Error.invalid("Remove one nonempty stored host token at a time.")
         }
         var next = state
         var changed = false
@@ -289,7 +286,6 @@ extension CodexBarCLI {
         for host in hosts {
             try Task.checkCancellation()
             do {
-                try RemoteCodexCostFetcher.validateHost(host)
                 try await resolvedFetch(host)
                 results.append(ConfigHostsCheckResult(ok: true, error: nil))
             } catch is CancellationError {

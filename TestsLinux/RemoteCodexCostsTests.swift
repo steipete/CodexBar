@@ -105,10 +105,23 @@ struct RemoteCodexCostsTests {
         #expect(text == "\(title): Fixture unavailable.")
     }
 
-    @Test(arguments: ["", "-oProxyCommand=bad", "user@host other", "host,other", "host\nother", "host'", "host;bad"])
-    func `unsafe or multiple SSH destinations are rejected`(host: String) {
-        #expect(throws: RemoteCodexCostError.self) {
-            try RemoteCodexCostFetcher.validateHost(host)
+    @Test(arguments: [
+        "",
+        "-oProxyCommand=bad",
+        "user@host other",
+        "host,other",
+        "host\nother",
+        "host'",
+        "host;bad",
+        String(repeating: "x", count: 256)
+    ])
+    func `unsafe or multiple SSH destinations are rejected`(host: String) async {
+        let fetcher = RemoteCodexCostFetcher { _, _ in
+            Issue.record("An invalid SSH destination reached the runner")
+            return ""
+        }
+        await #expect(throws: RemoteCodexCostError.invalidHost) {
+            try await fetcher.fetchIdentifiedUsage(host: host, historyDays: 1, startUnixMs: 0, endUnixMs: 0)
         }
     }
 

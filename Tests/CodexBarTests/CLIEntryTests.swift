@@ -969,7 +969,7 @@ extension CodexBarCLI {
 }
 
 extension CLIEntryTests {
-    func test_missingOptionValuesPreserveArgumentExitCodes() throws {
+    func test_argumentHandlingPreservesExitCodesAndLiteralOptionTokens() throws {
         let cases: [(arguments: [String], expectedStatus: Int32)] = [
             (["usage", "--provider"], 1),
             (["guard", "--provider"], 64),
@@ -981,6 +981,19 @@ extension CLIEntryTests {
             XCTAssertTrue(result.stdout.isEmpty)
             let stderr = try XCTUnwrap(String(bytes: result.stderr, encoding: .utf8))
             XCTAssertTrue(stderr.contains("Missing value for option"))
+        }
+        for flag in ["-h", "--help", "-V", "--version"] {
+            let global = try Self.runCLI(arguments: [flag])
+            XCTAssertEqual(global.status, 0)
+            XCTAssertFalse(global.stdout.isEmpty)
+            let literal = try Self.runCLI(arguments: [
+                "config", "hosts", "remove", "--defaults-domain", "CLIEntryTests-\(UUID().uuidString)",
+                "--format", "json", "--", flag,
+            ])
+            XCTAssertEqual(literal.status, 0)
+            let mutation = try XCTUnwrap(JSONSerialization.jsonObject(with: literal.stdout) as? [String: Any])
+            XCTAssertEqual(mutation["host"] as? String, flag)
+            XCTAssertEqual(mutation["changed"] as? Bool, false)
         }
     }
 }

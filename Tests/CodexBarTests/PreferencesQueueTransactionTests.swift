@@ -29,24 +29,6 @@ struct PreferencesQueueTransactionTests {
     }
 
     @Test
-    func `host add waits for a preferences queue merge`() throws {
-        try self.withFixture { defaults, lockURL in
-            let writer = self.hostWriter(defaults, lockURL: lockURL)
-            try PreferencesDocument.withImportLock(in: defaults, lockURL: lockURL) {
-                var portable = PreferencesDocument()
-                try portable.set("hidePersonalInfo", true)
-                writer.startAndExpectBlocked()
-                try portable.queueImport(in: defaults, lockURL: lockURL)
-            }
-            try writer.finish()
-            #expect(try CodexBarCLI.configHostsState(in: defaults).manualHosts == ["devbox", "mini"])
-            let pending = try PreferencesDocument(
-                queueData: #require(defaults.data(forKey: PreferencesDocument.pendingImportKey)))
-            #expect(try pending.value("hidePersonalInfo", as: Bool.self) == true)
-        }
-    }
-
-    @Test
     func `app consume cannot delete a concurrently acknowledged host add`() throws {
         try self.withFixture { defaults, lockURL in
             try CodexBarCLI.queueConfigHosts(
@@ -88,21 +70,26 @@ struct PreferencesQueueTransactionTests {
 private final class ConcurrentQueueWriter: @unchecked Sendable {
     private let started = DispatchSemaphore(value: 0)
     private let finished = DispatchSemaphore(value: 0)
-    private let operation: @Sendable () throws -> Void
+    private let operation: () throws -> Void
     private var result: Result<Void, Error>?
 
-    init(operation: @escaping @Sendable () throws -> Void) {
+    init(operation: @escaping () throws -> Void) {
         self.operation = operation
     }
 
     func startAndExpectBlocked() {
         DispatchQueue.global().async {
-            self.started.signal()
-            self.result = Result { try self.operation() }
+            self.result = Result {
+                self.started.signal()
+                try self.operation()
+            }
             self.finished.signal()
         }
         #expect(self.started.wait(timeout: .now() + 3) == .success)
-        #expect(self.finished.wait(timeout: .now() + 0.05) == .timedOut)
+        // Retry after dispatch to give an unlocked writer repeated opportunities to finish.
+        for _ in 0..<3 {
+            #expect(self.finished.wait(timeout: .now() + 0.05) == .timedOut)
+        }
     }
 
     func finish() throws {

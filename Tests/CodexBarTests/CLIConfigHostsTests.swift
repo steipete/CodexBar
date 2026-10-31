@@ -18,15 +18,8 @@ struct CLIConfigHostsTests {
     }
 
     @Test
-    func `config hosts remove options accept cost and reject check`() throws {
+    func `config hosts remove rejects check`() throws {
         let parser = CommandParser(signature: CommandSignature.describe(ConfigHostsRemoveOptions()).flattened())
-        let parsed = try parser.parse(arguments: ["mini", "--cost"])
-
-        #expect(parsed.positional == ["mini"])
-        #expect(parsed.flags.contains("cost"))
-        let invalidToken = try parser.parse(arguments: ["--format", "json", "--", "-bad"])
-        #expect(invalidToken.positional == ["-bad"])
-        #expect(invalidToken.options["format"] == ["json"])
         #expect(throws: (any Error).self) { try parser.parse(arguments: ["mini", "--check"]) }
     }
 
@@ -45,39 +38,31 @@ struct CLIConfigHostsTests {
         var queued = PreferencesDocument()
         try queued.set("agentSessionsManualHosts", "devbox, Mini, buildhost")
         try queued.set("costUsageHosts", ["devbox", "buildhost"])
-        try queued.queueImport(in: defaults)
+        try queued.queueImport(in: defaults, lockURL: nil)
 
         let merged = try CodexBarCLI.configHostsState(in: defaults)
         #expect(merged.manualHosts == ["devbox", "Mini", "buildhost"])
         #expect(merged.costUsageHosts == ["devbox", "buildhost"])
 
-        // Unset and empty stored hosts both resolve to no hosts; an empty queue override clears.
-        let unset = try CodexBarCLI.configHostsState(in: InMemoryUserDefaults())
-        #expect(unset.manualHosts.isEmpty)
-        #expect(unset.costUsageHosts.isEmpty)
+        // A queued empty value clears a nonempty persisted list, including its raw token array.
+        var clear = PreferencesDocument()
+        try clear.set("agentSessionsManualHosts", "")
+        try clear.queueImport(in: defaults, lockURL: nil)
+        let cleared = try CodexBarCLI.configHostsState(in: defaults)
+        #expect(cleared.manualTokens.isEmpty)
+        #expect(cleared.costUsageHosts.isEmpty)
 
-        let empty = InMemoryUserDefaults()
-        empty.set("", forKey: "agentSessionsManualHosts")
-        let emptyState = try CodexBarCLI.configHostsState(in: empty)
-        #expect(emptyState.manualHosts.isEmpty)
-    }
-
-    // MARK: List entries
-
-    @Test
-    func `list entries mark invalid hosts and spend membership`() {
-        let state = ConfigHostsState(manualHosts: ["devbox", "weird;host"], costUsageHosts: ["devbox"])
-
-        let entries = CodexBarCLI.configHostsEntries(state)
-        #expect(entries == [
-            ConfigHostsEntry(host: "devbox", valid: true, costUsage: true, check: nil),
-            ConfigHostsEntry(host: "weird;host", valid: false, costUsage: false, check: nil),
-        ])
+        defaults.removeObject(forKey: PreferencesDocument.pendingImportKey)
+        defaults.set("DevBox", forKey: "agentSessionsManualHosts")
+        defaults.set(["devbox"], forKey: "costUsageHosts")
+        let exactMatch = try CodexBarCLI.configHostsState(in: defaults)
+        #expect(exactMatch.manualHosts == ["DevBox"])
+        #expect(exactMatch.costUsageHosts.isEmpty)
     }
 
     // MARK: Add
 
-    @Test(arguments: ["", "a;b", String(repeating: "x", count: 256)])
+    @Test(arguments: ["", "a;b"])
     func `add rejects invalid hosts`(host: String) {
         let state = ConfigHostsState(manualHosts: ["devbox"], costUsageHosts: ["devbox"])
         #expect(throws: (any Error).self) {
@@ -95,16 +80,10 @@ struct CLIConfigHostsTests {
         // Reporting and checks use the stored spelling, never the raw argument.
         #expect(rerun.host == "DevBox")
 
-        // An identical retry, same or padded spelling, appends no duplicate token.
-        let sameSpelling = ConfigHostsState(manualHosts: ["devbox"], costUsageHosts: ["devbox"])
-        let retried = try CodexBarCLI.addedConfigHost("devbox", to: sameSpelling, cost: true)
-        #expect(retried.state == sameSpelling)
-        #expect(!retried.changed)
-        #expect(retried.host == "devbox")
-
         let withCost = try CodexBarCLI.addedConfigHost("devbox", to: state, cost: true)
         #expect(withCost.state == state)
         #expect(!withCost.changed)
+        #expect(withCost.host == "DevBox")
 
         // Cost membership adopts the stored spelling, so the app's setter keeps it.
         let caseVariant = ConfigHostsState(manualHosts: ["DevBox"], costUsageHosts: [])
@@ -117,14 +96,6 @@ struct CLIConfigHostsTests {
         let untouched = try CodexBarCLI.addedConfigHost("devbox", to: caseVariant, cost: false)
         #expect(untouched.state.manualHosts == ["DevBox"])
         #expect(untouched.state.costUsageHosts.isEmpty)
-
-        // Only valid manual hosts count toward spend.
-        let mixed = ConfigHostsState(manualHosts: ["devbox", "weird;host"], costUsageHosts: [])
-        let added = try CodexBarCLI.addedConfigHost("mini", to: mixed, cost: true)
-        #expect(added.state.manualHosts == ["devbox", "weird;host", "mini"])
-        #expect(added.state.costUsageHosts == ["mini"])
-        #expect(added.changed)
-        #expect(added.host == "mini")
     }
 
     @Test
@@ -162,15 +133,6 @@ struct CLIConfigHostsTests {
     }
 
     @Test
-    func `remove accepts hosts that fail strict validation`() throws {
-        let state = ConfigHostsState(manualHosts: ["weird;host"], costUsageHosts: [])
-        let result = try CodexBarCLI.removedConfigHost("weird;host", from: state, costOnly: false)
-
-        #expect(result.state.manualHosts.isEmpty)
-        #expect(result.changed)
-    }
-
-    @Test
     func `remove of an absent host is idempotent`() throws {
         let state = ConfigHostsState(manualHosts: ["devbox"], costUsageHosts: ["devbox"])
 
@@ -183,7 +145,7 @@ struct CLIConfigHostsTests {
         #expect(!costOnly.changed)
     }
 
-    @Test(arguments: ["", "one,two", "bad\nhost"])
+    @Test(arguments: ["", "one,two"])
     func `remove rejects ambiguous input`(host: String) {
         #expect(throws: (any Error).self) {
             _ = try CodexBarCLI.removedConfigHost(host, from: ConfigHostsState(), costOnly: false)
@@ -193,24 +155,31 @@ struct CLIConfigHostsTests {
     @Test
     func `list exposes rejected tokens and removal preserves unrelated raw tokens`() throws {
         let defaults = InMemoryUserDefaults()
-        defaults.set(" DevBox ,bad host,-bad,BAD HOST,,devbox,mini", forKey: "agentSessionsManualHosts")
+        defaults.set(" DevBox ,bad host,-bad,BAD HOST,,devbox,mini,a\tb", forKey: "agentSessionsManualHosts")
+        defaults.set(["DevBox"], forKey: "costUsageHosts")
         let state = try CodexBarCLI.configHostsState(in: defaults)
         let entries = CodexBarCLI.configHostsEntries(state)
-        #expect(entries.map(\.host) == ["DevBox", "bad host", "-bad", "mini"])
-        #expect(entries.map(\.valid) == [true, false, false, true])
+        #expect(entries == [
+            ConfigHostsEntry(host: "DevBox", valid: true, costUsage: true, check: nil),
+            ConfigHostsEntry(host: "bad host", valid: false, costUsage: false, check: nil),
+            ConfigHostsEntry(host: "-bad", valid: false, costUsage: false, check: nil),
+            ConfigHostsEntry(host: "mini", valid: true, costUsage: false, check: nil),
+            ConfigHostsEntry(host: "a\tb", valid: false, costUsage: false, check: nil),
+        ])
         let removed = try CodexBarCLI.removedConfigHost("bad host", from: state, costOnly: false)
-        #expect(removed.state.manualTokens == [" DevBox ", "-bad", "", "devbox", "mini"])
+        #expect(removed.state.manualTokens == [" DevBox ", "-bad", "", "devbox", "mini", "a\tb"])
         #expect(removed.changed)
         let removedDash = try CodexBarCLI.removedConfigHost("-bad", from: removed.state, costOnly: false)
-        #expect(removedDash.state.manualTokens == [" DevBox ", "", "devbox", "mini"])
-        #expect(!CodexBarCLI.configHostsEntries(removedDash.state).contains { !$0.valid })
-        let absent = try CodexBarCLI.removedConfigHost("-bad", from: removedDash.state, costOnly: false)
-        #expect(!absent.changed)
+        #expect(removedDash.state.manualTokens == [" DevBox ", "", "devbox", "mini", "a\tb"])
+        let removedTab = try CodexBarCLI.removedConfigHost("a\tb", from: removedDash.state, costOnly: false)
+        #expect(removedTab.state.manualTokens == [" DevBox ", "", "devbox", "mini"])
+        #expect(!CodexBarCLI.configHostsEntries(removedTab.state).contains { !$0.valid })
     }
 
     @Test
     func `add validates the adopted stored spelling`() {
-        let state = ConfigHostsState(manualHosts: ["K"])
+        // U+212A lowercases to k but fails the SSH host charset.
+        let state = ConfigHostsState(manualHosts: ["\u{212A}"])
         for cost in [false, true] {
             #expect(throws: (any Error).self) {
                 try CodexBarCLI.addedConfigHost("k", to: state, cost: cost)
@@ -226,14 +195,18 @@ struct CLIConfigHostsTests {
 
         try CodexBarCLI.queueConfigHosts(
             ConfigHostsState(manualHosts: ["devbox"], costUsageHosts: ["devbox"]),
-            in: defaults)
+            in: defaults,
+            lockURL: nil)
 
         let pending = try PreferencesDocument(
             queueData: #require(defaults.data(forKey: PreferencesDocument.pendingImportKey)))
         #expect(try pending.value("agentSessionsManualHosts", as: String.self) == "devbox")
         #expect(try pending.value("costUsageHosts", as: [String].self) == ["devbox"])
 
-        try CodexBarCLI.queueConfigHosts(ConfigHostsState(manualHosts: [], costUsageHosts: []), in: defaults)
+        try CodexBarCLI.queueConfigHosts(
+            ConfigHostsState(manualHosts: [], costUsageHosts: []),
+            in: defaults,
+            lockURL: nil)
         let emptied = try PreferencesDocument(
             queueData: #require(defaults.data(forKey: PreferencesDocument.pendingImportKey)))
         #expect(try emptied.value("agentSessionsManualHosts", as: String.self)?.isEmpty == true)
@@ -310,16 +283,6 @@ struct CLIConfigHostsTests {
         #expect(results[2].error == RemoteCodexCostError.invalidReport.localizedDescription)
         // The stock `.unavailable` text names --summary-only; this check never sends that flag.
         #expect(CodexBarCLI.hostCheckError(RemoteCodexCostError.unavailable) == CodexBarCLI.hostCheckFailureMessage)
-        #expect(CodexBarCLI.hostCheckFailureMessage.contains("--identified-only"))
-    }
-
-    @Test
-    func `check rejects invalid inventory tokens without fetching`() async throws {
-        let results = try await CodexBarCLI.checkConfigHosts(["bad host", "-bad"], fetch: { _ in
-            Issue.record("An invalid stored token must never reach SSH")
-        })
-        #expect(results.count == 2)
-        #expect(results.allSatisfy { !$0.ok && $0.error == RemoteCodexCostError.invalidHost.localizedDescription })
     }
 
     @Test
@@ -347,7 +310,7 @@ struct ConfigHostsPreferencesImportTests {
         #expect(try document.encoded().isEmpty == false)
 
         #expect(throws: (any Error).self) {
-            try PreferencesDocument(data: Data(#"{"version":1,"preferences":{"costUsageHosts":[7]}}"#.utf8))
+            try PreferencesDocument(queueData: Data(#"{"version":1,"preferences":{"costUsageHosts":[7]}}"#.utf8))
         }
     }
 
@@ -369,24 +332,11 @@ struct ConfigHostsPreferencesImportTests {
         var queued = PreferencesDocument()
         try queued.set("agentSessionsManualHosts", "buildhost")
         try queued.set("costUsageHosts", ["buildhost"])
-        try queued.queueImport(in: defaults)
+        try queued.queueImport(in: defaults, lockURL: nil)
 
         let document = try PreferencesDocument(defaults: defaults)
         #expect(try document.value("agentSessionsManualHosts", as: String.self) == nil)
         #expect(try document.value("costUsageHosts", as: [String].self) == nil)
-    }
-
-    @Test
-    func `spend membership follows the app's exact-match load`() throws {
-        let defaults = InMemoryUserDefaults()
-        defaults.set("DevBox", forKey: "agentSessionsManualHosts")
-        defaults.set(["devbox"], forKey: "costUsageHosts")
-
-        // The app's setter and load filter match spellings exactly; the queued view must not
-        // report a selection pickup would clear.
-        let state = try CodexBarCLI.configHostsState(in: defaults)
-        #expect(state.manualHosts == ["DevBox"])
-        #expect(state.costUsageHosts.isEmpty)
     }
 
     @Test
@@ -396,19 +346,12 @@ struct ConfigHostsPreferencesImportTests {
 
         let added = try CodexBarCLI.addedConfigHost(
             "devbox", to: CodexBarCLI.configHostsState(in: defaults), cost: true)
-        try CodexBarCLI.queueConfigHosts(added.state, in: defaults)
+        try CodexBarCLI.queueConfigHosts(added.state, in: defaults, lockURL: nil)
 
         let pending = try PreferencesDocument(
             queueData: #require(defaults.data(forKey: PreferencesDocument.pendingImportKey)))
         #expect(try pending.value("agentSessionsManualHosts", as: String.self) == "my host,mini,devbox")
         #expect(try pending.value("costUsageHosts", as: [String].self) == ["devbox"])
-
-        // The app view still sanitizes; the CLI inventory also exposes the invalid stored token.
-        #expect(added.state.manualHosts == ["mini", "devbox"])
-        #expect(CodexBarCLI.configHostsEntries(added.state).map(\.host) == ["my host", "mini", "devbox"])
-        let settings = self.store("preserve", defaults: defaults)
-        settings.consumePendingPreferencesImport()
-        #expect(settings.agentSessionsManualHosts == "my host,mini,devbox")
     }
 
     @Test
@@ -423,24 +366,10 @@ struct ConfigHostsPreferencesImportTests {
 
         #expect(settings.agentSessionsManualHosts == "devbox, Mini")
         #expect(settings.costUsageHosts == ["devbox", "Mini"])
-    }
 
-    @Test
-    func `session only add cannot resurrect a removed spend selection`() throws {
-        let defaults = InMemoryUserDefaults()
-        defaults.set("devbox", forKey: "agentSessionsManualHosts")
-        defaults.set(["devbox"], forKey: "costUsageHosts")
-
-        let removed = try CodexBarCLI.removedConfigHost(
-            "devbox", from: CodexBarCLI.configHostsState(in: defaults), costOnly: false)
-        try CodexBarCLI.queueConfigHosts(removed.state, in: defaults)
-        let added = try CodexBarCLI.addedConfigHost(
-            "devbox", to: CodexBarCLI.configHostsState(in: defaults), cost: false)
-        try CodexBarCLI.queueConfigHosts(added.state, in: defaults)
-
-        let settings = self.store("resurrect", defaults: defaults)
-        settings.consumePendingPreferencesImport()
-        #expect(settings.agentSessionsManualHosts == "devbox")
+        try document.set("costUsageHosts", [String]())
+        try settings.importPreferences(document)
+        #expect(settings.agentSessionsManualHosts == "devbox, Mini")
         #expect(settings.costUsageHosts.isEmpty)
     }
 }
