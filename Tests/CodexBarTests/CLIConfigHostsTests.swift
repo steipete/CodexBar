@@ -24,6 +24,9 @@ struct CLIConfigHostsTests {
 
         #expect(parsed.positional == ["mini"])
         #expect(parsed.flags.contains("cost"))
+        let invalidToken = try parser.parse(arguments: ["--format", "json", "--", "-bad"])
+        #expect(invalidToken.positional == ["-bad"])
+        #expect(invalidToken.options["format"] == ["json"])
         #expect(throws: (any Error).self) { try parser.parse(arguments: ["mini", "--check"]) }
     }
 
@@ -180,11 +183,38 @@ struct CLIConfigHostsTests {
         #expect(!costOnly.changed)
     }
 
-    @Test
-    func `remove rejects unsafe input`() {
-        let state = ConfigHostsState(manualHosts: ["devbox"], costUsageHosts: [])
+    @Test(arguments: ["", "one,two", "bad\nhost"])
+    func `remove rejects ambiguous input`(host: String) {
         #expect(throws: (any Error).self) {
-            _ = try CodexBarCLI.removedConfigHost("-evil", from: state, costOnly: false)
+            _ = try CodexBarCLI.removedConfigHost(host, from: ConfigHostsState(), costOnly: false)
+        }
+    }
+
+    @Test
+    func `list exposes rejected tokens and removal preserves unrelated raw tokens`() throws {
+        let defaults = InMemoryUserDefaults()
+        defaults.set(" DevBox ,bad host,-bad,BAD HOST,,devbox,mini", forKey: "agentSessionsManualHosts")
+        let state = try CodexBarCLI.configHostsState(in: defaults)
+        let entries = CodexBarCLI.configHostsEntries(state)
+        #expect(entries.map(\.host) == ["DevBox", "bad host", "-bad", "mini"])
+        #expect(entries.map(\.valid) == [true, false, false, true])
+        let removed = try CodexBarCLI.removedConfigHost("bad host", from: state, costOnly: false)
+        #expect(removed.state.manualTokens == [" DevBox ", "-bad", "", "devbox", "mini"])
+        #expect(removed.changed)
+        let removedDash = try CodexBarCLI.removedConfigHost("-bad", from: removed.state, costOnly: false)
+        #expect(removedDash.state.manualTokens == [" DevBox ", "", "devbox", "mini"])
+        #expect(!CodexBarCLI.configHostsEntries(removedDash.state).contains { !$0.valid })
+        let absent = try CodexBarCLI.removedConfigHost("-bad", from: removedDash.state, costOnly: false)
+        #expect(!absent.changed)
+    }
+
+    @Test
+    func `add validates the adopted stored spelling`() {
+        let state = ConfigHostsState(manualHosts: ["K"])
+        for cost in [false, true] {
+            #expect(throws: (any Error).self) {
+                try CodexBarCLI.addedConfigHost("k", to: state, cost: cost)
+            }
         }
     }
 
@@ -284,6 +314,15 @@ struct CLIConfigHostsTests {
     }
 
     @Test
+    func `check rejects invalid inventory tokens without fetching`() async throws {
+        let results = try await CodexBarCLI.checkConfigHosts(["bad host", "-bad"], fetch: { _ in
+            Issue.record("An invalid stored token must never reach SSH")
+        })
+        #expect(results.count == 2)
+        #expect(results.allSatisfy { !$0.ok && $0.error == RemoteCodexCostError.invalidHost.localizedDescription })
+    }
+
+    @Test
     func `check maps cancellation to a thrown error`() async {
         do {
             _ = try await CodexBarCLI.checkConfigHosts(["devbox"], fetch: { _ in throw CancellationError() })
@@ -364,8 +403,9 @@ struct ConfigHostsPreferencesImportTests {
         #expect(try pending.value("agentSessionsManualHosts", as: String.self) == "my host,mini,devbox")
         #expect(try pending.value("costUsageHosts", as: [String].self) == ["devbox"])
 
-        // The list view still sanitizes; the stored text keeps the untouched entry verbatim.
+        // The app view still sanitizes; the CLI inventory also exposes the invalid stored token.
         #expect(added.state.manualHosts == ["mini", "devbox"])
+        #expect(CodexBarCLI.configHostsEntries(added.state).map(\.host) == ["my host", "mini", "devbox"])
         let settings = self.store("preserve", defaults: defaults)
         settings.consumePendingPreferencesImport()
         #expect(settings.agentSessionsManualHosts == "my host,mini,devbox")

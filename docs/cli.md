@@ -280,8 +280,9 @@ a second identifier is an error. For an option value beginning with a dash, use 
     spend; `remove <host>` drops it, or with `--cost` only its spend tracking. Both are
     idempotent and report `changed`; JSON is `{"host","changed","costUsage","check"?}`.
   - Hosts use the app's validation: one alias or `user@host`, no options, spaces, or control
-    characters; invalid input fails with a nonzero exit and writes nothing. A host Settings
-    typed without strict validation can still be removed.
+    characters; invalid add input fails with a nonzero exit and writes nothing. `list` also
+    exposes invalid stored tokens. Remove them by exact token, using `remove -- -bad` for a
+    token beginning with a dash.
   - `--check` verifies each host (list) or the changed host (add) with the same one-shot,
     noninteractive SSH boundary as `cost --remote`: trusted host key only, no forwarding,
     bounded output, 60-second timeout, and Ctrl-C cleanup. Each result carries
@@ -296,8 +297,9 @@ a second identifier is an error. For an option value beginning with a dash, use 
     ships this CLI (older apps, including 0.83.0, reject the queued document until updated,
     which also holds back later queued preferences). Hosts feed Usage & Spend immediately;
     the Agent Sessions menu list additionally needs its existing remote-sessions toggle,
-    which stays off until enabled in Settings. Host writes hold a per-user lock; a concurrent
-    `config hosts` command exits nonzero with a retry hint instead of losing the update.
+    which stays off until enabled in Settings. Host changes, preference imports, and app
+    consumption share a per-user lock and wait for pending writes, preserving each update.
+    SSH checks run one host at a time after releasing the lock.
   - Set up hosts from an agent:
     `codexbar config hosts add devbox --cost --check --format json`, then
     `codexbar config hosts list --check --format json --pretty` to confirm every machine.

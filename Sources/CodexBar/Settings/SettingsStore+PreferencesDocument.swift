@@ -75,14 +75,8 @@ extension SettingsStore {
     }
 
     func consumePendingPreferencesImport() {
-        self.userDefaults.synchronize()
-        guard let data = self.userDefaults.data(forKey: PreferencesDocument.pendingImportKey) else { return }
         do {
-            try self.importPreferences(PreferencesDocument(queueData: data))
-            if self.userDefaults.data(forKey: PreferencesDocument.pendingImportKey) == data {
-                self.userDefaults.removeObject(forKey: PreferencesDocument.pendingImportKey)
-                self.userDefaults.synchronize()
-            }
+            try PreferencesDocument.consumePendingImport(in: self.userDefaults, apply: self.importPreferences)
         } catch {
             CodexBarLog.logger(LogCategories.settings).error("Could not import portable preferences: \(error)")
         }

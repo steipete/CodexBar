@@ -141,10 +141,43 @@ public struct PreferencesDocument: Codable, Sendable {
         if synced.weeklyProgressWorkDays == nil { self.preferences["weeklyProgressWorkDays"] = .null }
     }
 
-    public func queueImport(in defaults: UserDefaults) throws {
-        let previous = try defaults.data(forKey: Self.pendingImportKey).map(Self.init(queueData:)) ?? Self()
-        try defaults.set(previous.merging(self).encoded(), forKey: Self.pendingImportKey)
-        defaults.synchronize()
+    public static var importLockURL: URL? {
+        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first?
+            .appendingPathComponent("CodexBar/preferences-import.lock", isDirectory: false)
+    }
+
+    /// Host read/modify/write, queue merges, and app consumption share one transaction.
+    /// Waiting keeps a notification arriving during a CLI write from leaving its queue unapplied.
+    public static func withImportLock<T>(
+        in defaults: UserDefaults,
+        lockURL: URL? = Self.importLockURL,
+        operation: () throws -> T) throws -> T
+    {
+        try ManagedCodexAccountLock.withLock(at: lockURL, wait: true) {
+            defaults.synchronize()
+            return try operation()
+        }
+    }
+
+    public func queueImport(in defaults: UserDefaults, lockURL: URL? = Self.importLockURL) throws {
+        try Self.withImportLock(in: defaults, lockURL: lockURL) {
+            let previous = try defaults.data(forKey: Self.pendingImportKey).map(Self.init(queueData:)) ?? Self()
+            try defaults.set(previous.merging(self).encoded(), forKey: Self.pendingImportKey)
+            defaults.synchronize()
+        }
+    }
+
+    public static func consumePendingImport(
+        in defaults: UserDefaults,
+        lockURL: URL? = Self.importLockURL,
+        apply: (Self) throws -> Void) throws
+    {
+        try self.withImportLock(in: defaults, lockURL: lockURL) {
+            guard let data = defaults.data(forKey: Self.pendingImportKey) else { return }
+            try apply(Self(queueData: data))
+            defaults.removeObject(forKey: Self.pendingImportKey)
+            defaults.synchronize()
+        }
     }
 
     public func validate() throws {

@@ -42,39 +42,14 @@ extension CodexBarCLI {
             guard let defaults = UserDefaults(suiteName: domain) else {
                 throw PreferencesDocument.Error.invalid("Cannot open preferences domain")
             }
-            // Pick up values the running app may have written moments ago. Reads are
-            // coherent without a lock; mutations hold the shared writer lock so parallel
-            // host commands report contention instead of losing each other's updates.
-            defaults.synchronize()
-            let result: ConfigHostsMutation
-            do {
-                result = try ManagedCodexAccountLock.withLock(at: action == .list ? nil : Self.configHostsLockURL()) {
-                    let state = try Self.configHostsState(in: defaults)
-                    guard action != .list else {
-                        return ConfigHostsMutation(state: state, changed: false, host: "")
-                    }
-                    guard let argument = values.positional.first, !argument.isEmpty else {
-                        throw PreferencesDocument.Error.invalid("\(action) requires one <host> argument")
-                    }
-                    let mutation = action == .add
-                        ? try Self.addedConfigHost(argument, to: state, cost: values.flags.contains("cost"))
-                        : try Self.removedConfigHost(argument, from: state, costOnly: values.flags.contains("cost"))
-                    if mutation.changed {
-                        try Self.queueConfigHosts(mutation.state, in: defaults)
-                        if domain == PreferencesDocument.defaultsDomain {
-                            DistributedNotificationCenter.default().postNotificationName(
-                                Notification.Name(PreferencesDocument.importNotification),
-                                object: nil,
-                                userInfo: nil,
-                                deliverImmediately: true)
-                        }
-                    }
-                    return ConfigHostsMutation(
-                        state: mutation.state, changed: mutation.changed, host: mutation.host)
-                }
-            } catch ManagedCodexAccountLockError.busy {
-                throw PreferencesDocument.Error.invalid(
-                    "Another codexbar process is changing hosts. Try again after it finishes.")
+            let result = try Self.configHostsMutation(
+                action, host: values.positional.first, cost: values.flags.contains("cost"), in: defaults)
+            if result.changed, domain == PreferencesDocument.defaultsDomain {
+                DistributedNotificationCenter.default().postNotificationName(
+                    Notification.Name(PreferencesDocument.importNotification),
+                    object: nil,
+                    userInfo: nil,
+                    deliverImmediately: true)
             }
             let next = result.state
             let changed = result.changed
@@ -93,6 +68,7 @@ extension CodexBarCLI {
                 if output.format == .json {
                     Self.printJSON(ConfigHostsListResult(hosts: entries), pretty: output.pretty)
                 } else {
+                    if entries.isEmpty { print("No SSH hosts configured.") }
                     for entry in entries {
                         print(Self.renderConfigHostEntry(entry))
                     }
@@ -138,9 +114,25 @@ extension CodexBarCLI {
         #endif
     }
 
-    static func configHostsLockURL(fileManager: FileManager = .default) -> URL? {
-        fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first?
-            .appendingPathComponent("CodexBar/config-hosts.lock", isDirectory: false)
+    static func configHostsMutation(
+        _ action: ConfigHostsAction,
+        host: String?,
+        cost: Bool,
+        in defaults: UserDefaults,
+        lockURL: URL? = PreferencesDocument.importLockURL) throws -> ConfigHostsMutation
+    {
+        try PreferencesDocument.withImportLock(in: defaults, lockURL: action == .list ? nil : lockURL) {
+            let state = try Self.configHostsState(in: defaults)
+            guard action != .list else { return ConfigHostsMutation(state: state, changed: false, host: "") }
+            guard let host, !host.isEmpty else {
+                throw PreferencesDocument.Error.invalid("\(action) requires one <host> argument")
+            }
+            let mutation = action == .add
+                ? try Self.addedConfigHost(host, to: state, cost: cost)
+                : try Self.removedConfigHost(host, from: state, costOnly: cost)
+            if mutation.changed { try Self.queueConfigHosts(mutation.state, in: defaults, lockURL: lockURL) }
+            return mutation
+        }
     }
 
     /// One Ctrl-C must cancel the check and reap SSH children, like the cost report.
@@ -175,7 +167,7 @@ extension CodexBarCLI {
     }
 
     static func configHostsEntries(_ state: ConfigHostsState) -> [ConfigHostsEntry] {
-        state.manualHosts.map { host in
+        state.listedHosts.map { host in
             ConfigHostsEntry(
                 host: host,
                 valid: (try? RemoteCodexCostFetcher.validateHost(host)) != nil,
@@ -188,7 +180,7 @@ extension CodexBarCLI {
         _ rawHost: String,
         to state: ConfigHostsState,
         cost: Bool)
-        throws -> (state: ConfigHostsState, changed: Bool, host: String)
+        throws -> ConfigHostsMutation
     {
         guard let host = RemoteSessionFetcher.sanitizedHosts([rawHost]).first else {
             throw PreferencesDocument.Error.invalid(RemoteCodexCostError.invalidHost.localizedDescription)
@@ -202,6 +194,10 @@ extension CodexBarCLI {
         if let existing = next.manualHosts.first(where: {
             RemoteSessionFetcher.hostIdentityKey($0) == RemoteSessionFetcher.hostIdentityKey(host)
         }) {
+            guard (try? RemoteCodexCostFetcher.validateHost(existing)) != nil else {
+                throw PreferencesDocument.Error.invalid(
+                    "Stored host \(existing) is invalid. Remove it, then add \(host) again.")
+            }
             canonical = existing
         } else {
             canonical = host
@@ -215,23 +211,27 @@ extension CodexBarCLI {
             next.costUsageHosts.append(canonical)
             changed = true
         }
-        return (next, changed, canonical)
+        return ConfigHostsMutation(state: next, changed: changed, host: canonical)
     }
 
     static func removedConfigHost(
         _ rawHost: String,
         from state: ConfigHostsState,
         costOnly: Bool)
-        throws -> (state: ConfigHostsState, changed: Bool, host: String)
+        throws -> ConfigHostsMutation
     {
-        guard let host = RemoteSessionFetcher.sanitizedHosts([rawHost]).first else {
-            throw PreferencesDocument.Error.invalid(RemoteCodexCostError.invalidHost.localizedDescription)
+        let host = rawHost.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !host.isEmpty, !host.contains(","),
+              !host.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains)
+        else {
+            throw PreferencesDocument.Error
+                .invalid("Remove one stored host token at a time, without control characters.")
         }
         var next = state
         var changed = false
         let spend = next.costUsageHosts
         let key = RemoteSessionFetcher.hostIdentityKey(host)
-        let canonical = next.manualHosts.first {
+        let canonical = next.listedHosts.first {
             RemoteSessionFetcher.hostIdentityKey($0) == key
         } ?? host
         if costOnly {
@@ -249,14 +249,18 @@ extension CodexBarCLI {
             next.costUsageHosts = spend.filter(candidates.contains)
             changed = changed || spend != next.costUsageHosts
         }
-        return (next, changed, canonical)
+        return ConfigHostsMutation(state: next, changed: changed, host: canonical)
     }
 
-    static func queueConfigHosts(_ state: ConfigHostsState, in defaults: UserDefaults) throws {
+    static func queueConfigHosts(
+        _ state: ConfigHostsState,
+        in defaults: UserDefaults,
+        lockURL: URL? = PreferencesDocument.importLockURL) throws
+    {
         var document = PreferencesDocument()
         try document.set("agentSessionsManualHosts", state.manualTokens.joined(separator: ","))
         try document.set("costUsageHosts", state.costUsageHosts)
-        try document.queueImport(in: defaults)
+        try document.queueImport(in: defaults, lockURL: lockURL)
     }
 
     // MARK: Host check
@@ -281,26 +285,21 @@ extension CodexBarCLI {
             _ = try await RemoteCodexCostFetcher().fetchIdentifiedUsage(
                 host: host, historyDays: 1, startUnixMs: start, endUnixMs: end)
         }
-        return try await withThrowingTaskGroup(of: (Int, ConfigHostsCheckResult).self) { group in
-            for (index, host) in hosts.enumerated() {
-                group.addTask {
-                    do {
-                        try await resolvedFetch(host)
-                        return (index, ConfigHostsCheckResult(ok: true, error: nil))
-                    } catch is CancellationError {
-                        throw CancellationError()
-                    } catch {
-                        try Task.checkCancellation()
-                        return (index, ConfigHostsCheckResult(ok: false, error: Self.hostCheckError(error)))
-                    }
-                }
+        var results: [ConfigHostsCheckResult] = []
+        for host in hosts {
+            try Task.checkCancellation()
+            do {
+                try RemoteCodexCostFetcher.validateHost(host)
+                try await resolvedFetch(host)
+                results.append(ConfigHostsCheckResult(ok: true, error: nil))
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch {
+                try Task.checkCancellation()
+                results.append(ConfigHostsCheckResult(ok: false, error: Self.hostCheckError(error)))
             }
-            var indexed: [(Int, ConfigHostsCheckResult)] = []
-            for try await result in group {
-                indexed.append(result)
-            }
-            return indexed.sorted { $0.0 < $1.0 }.map(\.1)
         }
+        return results
     }
 
     /// Keep the named cause: an invalid host and an outdated remote CLI stay distinguishable.
@@ -395,6 +394,16 @@ struct ConfigHostsState: Equatable, Sendable {
     /// The sanitized, deduplicated host list the app itself reads from the stored setting.
     var manualHosts: [String] {
         RemoteSessionFetcher.sanitizedHosts(self.manualTokens)
+    }
+
+    /// Include rejected Settings tokens in the inventory, preserving the first stored spelling.
+    var listedHosts: [String] {
+        var seen = Set<String>()
+        return self.manualTokens.compactMap { token in
+            let host = token.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !host.isEmpty, seen.insert(RemoteSessionFetcher.hostIdentityKey(host)).inserted else { return nil }
+            return host
+        }
     }
 
     init(manualHosts: [String] = [], costUsageHosts: [String] = []) {
