@@ -291,8 +291,10 @@ a second identifier is an error. For an option value beginning with a dash, use 
   - Writes queue like `config preferences import`: a running app applies them immediately;
     a closed app reads them at next launch. `--defaults-domain` selects an alternate domain
     for testing. The host keys are queue-only: `config preferences export` omits them, since
-    host lists belong to one machine. Applying a queued host change needs CodexBar 0.83.0+;
-    an older app rejects the queued document until it is updated.
+    host lists belong to one machine. Applying a queued host change needs an app build from
+    the cross-machine spend series (#4841) or newer; an older app rejects the queued document
+    until it is updated, which also holds back later queued preferences. Run host commands
+    one at a time; concurrent invocations can lose an update.
   - Set up hosts from an agent:
     `codexbar config hosts add devbox --cost --check --format json`, then
     `codexbar config hosts list --check --format json --pretty` to confirm every machine.

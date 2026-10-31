@@ -103,9 +103,11 @@ public struct PreferencesDocument: Codable, Sendable {
             self.preferences[key] = try JSONDecoder().decode(ProviderConfigExtensionValue.self, from: data)
         }
         if let pending = defaults.data(forKey: Self.pendingImportKey) {
-            self = try self.merging(Self(data: pending))
+            var queued = try Self(data: pending)
+            // Queue-only keys (host lists) stay machine-local even while queued.
+            queued.preferences = queued.preferences.filter { Self.keys.contains($0.key) }
+            self = try self.merging(queued)
         }
-        try self.validate()
     }
 
     public func applying(to current: SyncedPreferences) throws -> SyncedPreferences {
