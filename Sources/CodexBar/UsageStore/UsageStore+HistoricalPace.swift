@@ -16,12 +16,11 @@ extension UsageStore {
         guard ProviderDescriptorRegistry.descriptor(for: provider).pace.allowsPace(dataConfidence: dataConfidence),
               window.remainingPercent > 0 else { return nil }
         let resolved: UsagePace?
-        let elapsedWindow: RateWindow
+        let paceWindow = self.paceWindowForElapsedEligibility(provider: provider, window: window)
         let workDays = self.settings.weeklyProgressWorkDays
         // Provider-specific by design: only Codex's dashboard yields an account-scoped daily curve for learned pace;
         // other providers use the generic linear window calculation.
         if provider == .codex, self.settings.historicalTrackingEnabled, workDays == nil {
-            elapsedWindow = window
             let codexAccountKey = self.codexOwnershipContext().canonicalKey
             if self.codexHistoricalDatasetAccountKey == codexAccountKey,
                let historical = CodexHistoricalPaceEvaluator.evaluate(
@@ -36,28 +35,29 @@ extension UsageStore {
             // Provider-specific by design: explicit Codex work-day scheduling keeps this branch on the
             // shared pace calculation while learned history remains disabled by the user's declared plan.
         } else if provider == .codex, self.settings.historicalTrackingEnabled {
-            elapsedWindow = window
             // An explicit work-day schedule is the user's declared plan and takes precedence over learned history.
             // Keep collecting history in the background so Automatic can resume historical pacing immediately.
             resolved = UsagePace.weekly(window: window, now: now, defaultWindowMinutes: 10080, workDays: workDays)
         } else {
-            // Generic providers must carry an explicit window duration. Using the 10080-minute fallback for
-            // windows without windowMinutes would fabricate a weekly pace for non-weekly windows
-            // (e.g. Factory monthly with only resetsAt).
-            guard window.windowMinutes != nil else { return nil }
             // Expand a monthly sentinel to the real calendar cycle before scoring. The menu card and the
             // CLI both resolve first, so skipping it here would score a billing period as a flat 30 days
             // and disagree with them — and a 31-day cycle would exceed the sentinel outright, dropping the
-            // pace for the first day of every long month.
-            let paceWindow = self.paceWindowForElapsedEligibility(provider: provider, window: window)
-            elapsedWindow = paceWindow
-            resolved = UsagePace.weekly(window: paceWindow, now: now, defaultWindowMinutes: 10080, workDays: workDays)
+            // pace for the first day of every long month. Resolution also gives a duration to a reset-dated
+            // window whose provider infers its month (Copilot), so it must run before the duration check.
+            // Generic providers must carry an explicit window duration. Using the 10080-minute fallback for
+            // windows without windowMinutes would fabricate a weekly pace for non-weekly windows
+            // (e.g. Factory monthly with only resetsAt).
+            guard paceWindow.windowMinutes != nil else { return nil }
+            resolved = UsagePace.weekly(
+                window: paceWindow,
+                now: now,
+                workDays: workDays)
         }
 
         guard let resolved else { return nil }
         let expectedFloorMet = resolved.expectedUsedPercent >= minimumExpectedPercent
         let elapsedFloorMet = minimumElapsedPercent.map { minimum in
-            (Self.windowElapsedPercent(window: elapsedWindow, now: now) ?? 0) >= minimum
+            (Self.windowElapsedPercent(window: paceWindow, now: now) ?? 0) >= minimum
         } ?? false
         guard expectedFloorMet || elapsedFloorMet else { return nil }
         return resolved
@@ -117,7 +117,7 @@ extension UsageStore {
     /// while the returned pace still retains the learned expected-use value.
     func paceWindowForElapsedEligibility(provider: UsageProvider, window: RateWindow) -> RateWindow {
         // Provider-specific by design: Codex's consumer projection already resolves its historical window.
-        guard provider != .codex, window.windowMinutes != nil else { return window }
+        guard provider != .codex else { return window }
         return ProviderDescriptorRegistry.descriptor(for: provider)
             .pace
             .resolvedResetWindowForPace(window)
@@ -196,8 +196,8 @@ extension UsageStore {
         authorityDecision: CodexDashboardAuthorityDecision,
         attachedAccountEmail: String?)
     {
-        guard self.settings.historicalTrackingEnabled else { return }
-        guard authorityDecision.allowedEffects.contains(.historicalBackfill) else { return }
+        guard self.settings.historicalTrackingEnabled,
+              authorityDecision.allowedEffects.contains(.historicalBackfill) else { return }
         let usageBreakdown = OpenAIDashboardDailyBreakdown.removingSkillUsageServices(
             from: dashboard.usageBreakdown)
         guard !usageBreakdown.isEmpty else { return }

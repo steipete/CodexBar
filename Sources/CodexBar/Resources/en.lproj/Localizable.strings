@@ -1048,11 +1048,8 @@
 "Today cash" = "Today cash";
 "DeepSeek 30 day token usage trend" = "DeepSeek 30 day token usage trend";
 "DeepSeek this month token usage trend" = "DeepSeek this month token usage trend";
-"Chrome profile" = "Chrome profile";
 "Choose which signed-in DeepSeek Platform session supplies detailed usage." = "Choose which signed-in DeepSeek Platform session supplies detailed usage.";
 "Detailed usage unavailable." = "Detailed usage unavailable.";
-"Sign in to DeepSeek Platform in Chrome for detailed usage." = "Sign in to DeepSeek Platform in Chrome for detailed usage.";
-"Select a DeepSeek Chrome profile in Settings." = "Select a DeepSeek Chrome profile in Settings.";
 "Select profile…" = "Select profile…";
 "cache-hit input" = "cache-hit input";
 "cache-miss input" = "cache-miss input";
@@ -2766,3 +2763,34 @@
 "OpenCode local history" = "OpenCode local history";
 
 "Show this Mac's recorded OpenCode usage in Codex history. Off by default; scoped or alternate CODEX_HOME locations always stay excluded." = "Show this Mac's recorded OpenCode usage in Codex history. Off by default; scoped or alternate CODEX_HOME locations always stay excluded.";
+
+/* OpenDesign */
+"OpenDesign" = "OpenDesign";
+"Show OpenDesign usage" = "Show OpenDesign usage";
+"Sign in to OpenDesign, then refresh CodexBar." = "Sign in to OpenDesign, then refresh CodexBar.";
+"OpenDesign usage response format changed." = "OpenDesign usage response format changed.";
+"OpenDesign billing access was denied." = "OpenDesign billing access was denied.";
+"OpenDesign request failed. Try again later." = "OpenDesign request failed. Try again later.";
+"OpenDesign subscription usage is unavailable for this workspace." = "OpenDesign subscription usage is unavailable for this workspace.";
+"upcoming_reset_notifications_title" = "Upcoming reset warnings";
+"upcoming_reset_notifications_subtitle" = "Warns for Codex before the weekly limit resets while quota is unused.";
+"upcoming_reset_notification_title" = "%1$@ %2$@ reset soon";
+"upcoming_reset_notification_body" = "%1$@ of the quota is still unused. It resets in %2$@ and unused quota is lost.";
+"upcoming_reset_notification_body_with_account" = "Account %1$@. %2$@ of the quota is still unused. It resets in %3$@ and unused quota is lost.";
+"Sign in to DeepSeek Platform in a Chromium-based browser for detailed usage." = "Sign in to DeepSeek Platform in a Chromium-based browser for detailed usage.";
+"Select a DeepSeek browser profile in Settings." = "Select a DeepSeek browser profile in Settings.";
+"menu_bar_layout_token_separator_glyph_accessibility" = "Separator %@";
+"menu_bar_layout_separator_pipe" = "Vertical bar";
+"menu_bar_layout_separator_slash" = "Slash";
+"menu_bar_layout_separator_hyphen" = "Hyphen";
+"menu_bar_layout_separator_bullet" = "Bullet";
+"menu_bar_layout_separator_diamond" = "Solid diamond";
+"menu_bar_layout_separator_hollowDiamond" = "Hollow diamond";
+"menu_bar_layout_separator_tilde" = "Tilde";
+"menu_bar_layout_separator_doubleBar" = "Double vertical bar";
+"Rename" = "Rename";
+"Rename account" = "Rename account";
+"Account name" = "Account name";
+"Leave blank to use the default name." = "Leave blank to use the default name.";
+"Rewards" = "Rewards";
+"Reward expiry" = "Reward expiry";

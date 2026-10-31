@@ -281,12 +281,14 @@ struct MenuBarLayoutConditionalEditorSheet: View {
                         token.editorLabel(provider: self.provider),
                         systemImage: token.editorSystemImage)
                 }
+                .accessibilityLabel(token.editorAccessibilityLabel(provider: self.provider))
             }
         } label: {
             MenuBarLayoutChipLabel(
                 title: selection.wrappedValue.editorLabel(provider: self.provider),
                 systemImage: selection.wrappedValue.editorSystemImage,
                 isSelected: false)
+                .accessibilityLabel(selection.wrappedValue.editorAccessibilityLabel(provider: self.provider))
         }
     }
 }

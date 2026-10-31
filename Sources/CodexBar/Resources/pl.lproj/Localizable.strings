@@ -1065,11 +1065,8 @@
 "Today cash" = "Dzisiejsza gotówka";
 "DeepSeek 30 day token usage trend" = "Trend użycia tokenów DeepSeek z 30 dni";
 "DeepSeek this month token usage trend" = "Trend użycia tokenów DeepSeek w tym miesiącu";
-"Chrome profile" = "Profil Chrome";
 "Choose which signed-in DeepSeek Platform session supplies detailed usage." = "Wybierz zalogowaną sesję DeepSeek Platform, która ma dostarczać szczegółowe dane użycia.";
 "Detailed usage unavailable." = "Szczegółowe dane użycia są niedostępne.";
-"Sign in to DeepSeek Platform in Chrome for detailed usage." = "Zaloguj się do DeepSeek Platform w Chrome, aby uzyskać szczegółowe dane użycia.";
-"Select a DeepSeek Chrome profile in Settings." = "Wybierz profil Chrome DeepSeek w Ustawieniach.";
 "Select profile…" = "Wybierz profil…";
 "cache-hit input" = "wejście trafienia pamięci podręcznej";
 "cache-miss input" = "wejście chybienia pamięci podręcznej";
@@ -2764,3 +2761,34 @@
 "Show this Mac's recorded OpenCode usage in Codex history. Off by default; scoped or alternate CODEX_HOME locations always stay excluded." = "Pokazuje użycie OpenCode zapisane na tym Macu w historii Codex. Domyślnie wyłączone; lokalizacje CODEX_HOME o ograniczonym zakresie lub alternatywne są zawsze wykluczone.";
 "Auto uses the active saved session, otherwise an API key or browser cookies." = "Tryb automatyczny używa aktywnej zapisanej sesji, a w przeciwnym razie klucza API lub plików cookie przeglądarki.";
 "Store multiple Command Code subscription sessions." = "Przechowuj wiele sesji subskrypcji Command Code.";
+
+/* OpenDesign */
+"OpenDesign" = "OpenDesign";
+"Show OpenDesign usage" = "Pokaż użycie OpenDesign";
+"Sign in to OpenDesign, then refresh CodexBar." = "Zaloguj się do OpenDesign, a następnie odśwież CodexBar.";
+"OpenDesign usage response format changed." = "Format odpowiedzi z danymi użycia OpenDesign uległ zmianie.";
+"OpenDesign billing access was denied." = "Odmówiono dostępu do rozliczeń OpenDesign.";
+"OpenDesign request failed. Try again later." = "Żądanie do OpenDesign nie powiodło się. Spróbuj ponownie później.";
+"OpenDesign subscription usage is unavailable for this workspace." = "Dane użycia subskrypcji OpenDesign są niedostępne dla tego obszaru roboczego.";
+"upcoming_reset_notifications_title" = "Ostrzeżenia o zbliżającym się resecie";
+"upcoming_reset_notifications_subtitle" = "Ostrzega przed resetem limitu tygodniowego Codex, gdy limit jest jeszcze niewykorzystany.";
+"upcoming_reset_notification_title" = "Niedługo reset limitu %1$@ (%2$@)";
+"upcoming_reset_notification_body" = "%1$@ limitu jest jeszcze niewykorzystane. Reset nastąpi za %2$@, a niewykorzystany limit przepadnie.";
+"upcoming_reset_notification_body_with_account" = "Konto %1$@. %2$@ limitu jest jeszcze niewykorzystane. Reset nastąpi za %3$@, a niewykorzystany limit przepadnie.";
+"Sign in to DeepSeek Platform in a Chromium-based browser for detailed usage." = "Zaloguj się do DeepSeek Platform w przeglądarce opartej na Chromium, aby uzyskać szczegółowe dane użycia.";
+"Select a DeepSeek browser profile in Settings." = "Wybierz profil przeglądarki DeepSeek w Ustawieniach.";
+"menu_bar_layout_token_separator_glyph_accessibility" = "Separator %@";
+"menu_bar_layout_separator_pipe" = "Pionowa kreska";
+"menu_bar_layout_separator_slash" = "Ukośnik";
+"menu_bar_layout_separator_hyphen" = "Łącznik";
+"menu_bar_layout_separator_bullet" = "Punktor";
+"menu_bar_layout_separator_diamond" = "Wypełniony romb";
+"menu_bar_layout_separator_hollowDiamond" = "Pusty romb";
+"menu_bar_layout_separator_tilde" = "Tylda";
+"menu_bar_layout_separator_doubleBar" = "Podwójna pionowa kreska";
+"Rename" = "Zmień nazwę";
+"Rename account" = "Zmień nazwę konta";
+"Account name" = "Nazwa konta";
+"Leave blank to use the default name." = "Pozostaw puste, aby użyć domyślnej nazwy.";
+"Rewards" = "Nagrody";
+"Reward expiry" = "Wygaśnięcie nagród";

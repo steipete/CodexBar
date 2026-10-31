@@ -17,8 +17,12 @@ public enum PerplexityProviderDescriptor {
         confetti: [0x016A71, 0x313131, 0xFDFBFA],
         noDataMessage: "Perplexity cost tracking is not supported.",
         menuBarMetrics: ProviderMenuBarMetricCapabilities(
-            supported: [.automatic, .primary, .secondary, .tertiary]),
+            supported: [.automatic, .primary, .secondary, .tertiary],
+            namedExtras: ["org-credits": "Organization"]),
         presentation: ProviderUsagePresentation(
+            extraRateWindowSelector: { snapshot in
+                (snapshot.extraRateWindows ?? []).filter { $0.id == "org-credits" }
+            },
             iconWindowResolver: { context in
                 let windows = context.snapshot.orderedPerplexityDisplayWindows()
                 return ProviderUsageWindowPair(primary: windows.first, secondary: windows.dropFirst().first)
@@ -37,6 +41,8 @@ public enum PerplexityProviderDescriptor {
                 guard context.metric == .automatic else { return .unhandled }
                 return .resolved(context.snapshot.automaticPerplexityWindow())
             },
+            menuCard: ProviderMenuCardPresentation(
+                extraRateWindowUsesResetDescriptionAsDetail: { $0.id == "org-credits" }),
             menu: ProviderMenuDescriptorPresentation(
                 secondaryDescriptionMode: .resetOverride,
                 tertiaryDescriptionOverridesReset: true)),

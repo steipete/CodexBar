@@ -1065,11 +1065,8 @@
 "Today cash" = "Kas hari ini";
 "DeepSeek 30 day token usage trend" = "Tren penggunaan token 30 hari DeepSeek";
 "DeepSeek this month token usage trend" = "Tren penggunaan token DeepSeek bulan ini";
-"Chrome profile" = "Profil Chrome";
 "Choose which signed-in DeepSeek Platform session supplies detailed usage." = "Pilih sesi DeepSeek Platform yang telah masuk untuk menyediakan rincian penggunaan.";
 "Detailed usage unavailable." = "Rincian penggunaan tidak tersedia.";
-"Sign in to DeepSeek Platform in Chrome for detailed usage." = "Masuk ke DeepSeek Platform di Chrome untuk melihat rincian penggunaan.";
-"Select a DeepSeek Chrome profile in Settings." = "Pilih profil Chrome DeepSeek di Pengaturan.";
 "Select profile…" = "Pilih profil…";
 "cache-hit input" = "input cache-hit";
 "cache-miss input" = "input cache-miss";
@@ -2763,3 +2760,34 @@
 "Show this Mac's recorded OpenCode usage in Codex history. Off by default; scoped or alternate CODEX_HOME locations always stay excluded." = "Menampilkan penggunaan OpenCode yang tercatat di Mac ini dalam riwayat Codex. Nonaktif secara bawaan; lokasi CODEX_HOME dengan cakupan terbatas atau lokasi alternatif selalu dikecualikan.";
 "Auto uses the active saved session, otherwise an API key or browser cookies." = "Otomatis menggunakan sesi tersimpan yang aktif, atau kunci API atau cookie browser jika tidak ada sesi yang aktif.";
 "Store multiple Command Code subscription sessions." = "Simpan beberapa sesi langganan Command Code.";
+
+/* OpenDesign */
+"OpenDesign" = "OpenDesign";
+"Show OpenDesign usage" = "Tampilkan penggunaan OpenDesign";
+"Sign in to OpenDesign, then refresh CodexBar." = "Masuk ke OpenDesign, lalu segarkan CodexBar.";
+"OpenDesign usage response format changed." = "Format respons penggunaan OpenDesign telah berubah.";
+"OpenDesign billing access was denied." = "Akses penagihan OpenDesign ditolak.";
+"OpenDesign request failed. Try again later." = "Permintaan OpenDesign gagal. Coba lagi nanti.";
+"OpenDesign subscription usage is unavailable for this workspace." = "Penggunaan langganan OpenDesign tidak tersedia untuk ruang kerja ini.";
+"upcoming_reset_notifications_title" = "Peringatan reset mendatang";
+"upcoming_reset_notifications_subtitle" = "Memperingatkan Codex sebelum batas mingguan direset selagi kuota masih ada yang belum terpakai.";
+"upcoming_reset_notification_title" = "Batas %2$@ %1$@ segera direset";
+"upcoming_reset_notification_body" = "%1$@ kuota masih belum terpakai. Batas direset dalam %2$@ dan kuota yang belum terpakai akan hilang.";
+"upcoming_reset_notification_body_with_account" = "Akun %1$@. %2$@ kuota masih belum terpakai. Batas direset dalam %3$@ dan kuota yang belum terpakai akan hilang.";
+"Sign in to DeepSeek Platform in a Chromium-based browser for detailed usage." = "Masuk ke DeepSeek Platform di browser berbasis Chromium untuk melihat rincian penggunaan.";
+"Select a DeepSeek browser profile in Settings." = "Pilih profil browser DeepSeek di Pengaturan.";
+"menu_bar_layout_token_separator_glyph_accessibility" = "Pemisah %@";
+"menu_bar_layout_separator_pipe" = "Garis vertikal";
+"menu_bar_layout_separator_slash" = "Garis miring";
+"menu_bar_layout_separator_hyphen" = "Tanda hubung";
+"menu_bar_layout_separator_bullet" = "Bulatan";
+"menu_bar_layout_separator_diamond" = "Wajik terisi";
+"menu_bar_layout_separator_hollowDiamond" = "Wajik kosong";
+"menu_bar_layout_separator_tilde" = "Tilde";
+"menu_bar_layout_separator_doubleBar" = "Garis vertikal ganda";
+"Rename" = "Ubah nama";
+"Rename account" = "Ubah nama akun";
+"Account name" = "Nama akun";
+"Leave blank to use the default name." = "Biarkan kosong untuk menggunakan nama bawaan.";
+"Rewards" = "Hadiah";
+"Reward expiry" = "Kedaluwarsa hadiah";

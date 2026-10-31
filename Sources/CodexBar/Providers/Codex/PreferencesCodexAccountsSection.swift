@@ -32,6 +32,7 @@ struct CodexAccountsSectionState: Equatable {
     let isAuthenticatingLiveAccount: Bool
     let isPromotingSystemAccount: Bool
     let notice: CodexAccountsSectionNotice?
+    var hidePersonalInfo = false
 
     var showsActivePicker: Bool {
         self.visibleAccounts.count > 1
@@ -51,7 +52,15 @@ struct CodexAccountsSectionState: Equatable {
     }
 
     var systemDisplayName: String {
-        self.systemVisibleAccount?.displayName ?? L("No system account")
+        self.systemVisibleAccount.map { self.displayName(for: $0) } ?? L("No system account")
+    }
+
+    func displayName(for account: CodexVisibleAccount) -> String {
+        guard self.hidePersonalInfo else { return account.displayName }
+        return CodexAccountSwitcherLabeling.label(
+            for: account,
+            ordinal: CodexAccountSwitcherLabeling.ordinals(for: self.visibleAccounts)[account.id],
+            hidePersonalInfo: true)
     }
 
     var canAddAccount: Bool {
@@ -122,6 +131,7 @@ struct CodexAccountsSectionView: View {
     let removeAccount: (CodexVisibleAccount) -> Void
     let requestSystemVisibleAccount: (String) -> Void
     let addAccount: () -> Void
+    var renameAccount: (CodexVisibleAccount, String) -> Void = { _, _ in }
 
     var body: some View {
         Section {
@@ -134,7 +144,7 @@ struct CodexAccountsSectionView: View {
 
                         Picker("", selection: selection) {
                             ForEach(self.state.visibleAccounts) { account in
-                                Text(account.displayName).tag(account.id)
+                                Text(self.state.displayName(for: account)).tag(account.id)
                             }
                         }
                         .labelsHidden()
@@ -162,7 +172,7 @@ struct CodexAccountsSectionView: View {
                             .font(.subheadline.weight(.semibold))
                             .frame(width: ProviderSettingsMetrics.pickerLabelWidth, alignment: .leading)
 
-                        Text(account.displayName)
+                        Text(self.state.displayName(for: account))
                             .font(.subheadline)
 
                         Spacer(minLength: 0)
@@ -181,12 +191,15 @@ struct CodexAccountsSectionView: View {
                     ForEach(self.state.visibleAccounts) { account in
                         CodexAccountsSectionRowView(
                             account: account,
+                            displayName: self.state.displayName(for: account),
+                            hidePersonalInfo: self.state.hidePersonalInfo,
                             showsSystemBadge: self.state.showsLiveBadge(for: account),
                             reauthenticateTitle: self.state.reauthenticateTitle(for: account),
                             canReauthenticate: self.state.canReauthenticate(account),
                             canRemove: self.state.canRemove(account),
                             onReauthenticate: { self.reauthenticateAccount(account) },
-                            onRemove: { self.removeAccount(account) })
+                            onRemove: { self.removeAccount(account) },
+                            onRename: { self.renameAccount(account, $0) })
                     }
                 }
             }
@@ -236,7 +249,7 @@ struct CodexAccountsSectionView: View {
             if let selection {
                 Picker("", selection: selection) {
                     ForEach(self.state.visibleAccounts) { account in
-                        Text(account.displayName)
+                        Text(self.state.displayName(for: account))
                             .tag(account.id)
                     }
                 }
@@ -247,7 +260,7 @@ struct CodexAccountsSectionView: View {
             } else if self.state.showsSystemPicker {
                 Menu {
                     ForEach(self.state.visibleAccounts) { account in
-                        Button(account.displayName) {
+                        Button(self.state.displayName(for: account)) {
                             self.requestSystemVisibleAccount(account.id)
                         }
                         .disabled(self.state.canPromoteToSystem(account) == false)
@@ -275,24 +288,34 @@ struct CodexAccountsSectionView: View {
 
 private struct CodexAccountsSectionRowView: View {
     let account: CodexVisibleAccount
+    let displayName: String
+    let hidePersonalInfo: Bool
     let showsSystemBadge: Bool
     let reauthenticateTitle: String
     let canReauthenticate: Bool
     let canRemove: Bool
     let onReauthenticate: () -> Void
     let onRemove: () -> Void
+    let onRename: (String) -> Void
+    @State private var isRenaming = false
+    @State private var editedName = ""
 
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Text(self.account.displayName)
+                    Text(self.displayName)
                         .font(.subheadline.weight(.semibold))
                     if self.showsSystemBadge {
                         Text(L("(System)"))
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(.secondary)
                     }
+                }
+                if self.account.customName != nil, !self.hidePersonalInfo {
+                    Text(self.account.withCustomName(nil).displayName)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
                 if let health = self.account.authenticationHealthLabel {
                     Text(health)
@@ -302,6 +325,14 @@ private struct CodexAccountsSectionRowView: View {
             }
 
             Spacer(minLength: 8)
+
+            Button(L("Rename")) {
+                self.editedName = self.account.customName ?? ""
+                self.isRenaming = true
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .disabled(self.hidePersonalInfo)
 
             if self.account.canReauthenticate {
                 Button(self.reauthenticateTitle) {
@@ -320,6 +351,18 @@ private struct CodexAccountsSectionRowView: View {
                 .controlSize(.small)
                 .disabled(self.canRemove == false)
             }
+        }
+        .alert(L("Rename account"), isPresented: self.$isRenaming) {
+            TextField(L("Account name"), text: self.$editedName)
+            Button(L("Save")) {
+                self.onRename(self.editedName)
+            }
+            Button(L("Cancel"), role: .cancel) {}
+        } message: {
+            Text(L("Leave blank to use the default name."))
+        }
+        .onChange(of: self.hidePersonalInfo) {
+            if self.hidePersonalInfo { self.isRenaming = false }
         }
     }
 }

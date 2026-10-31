@@ -59,7 +59,7 @@ Linux. Explicit `web` mode never reads local Cursor credentials; macOS uses its 
    - Keychain cache: `com.steipete.codexbar.cache` (account `cookie.cursor`).
 
 3) **Browser cookie import** (macOS only)
-   - Cookie order from provider metadata, falling back to SweetCookieKit's default browser catalog, including Aside, Opera, Opera Neon, and Ego Lite.
+   - Cookie order from provider metadata, falling back to SweetCookieKit's default browser catalog, including Aside, Brave Origin, Opera, Opera Neon, and Ego Lite.
    - Domain filters: `cursor.com`, `www.cursor.com`, `cursor.sh`, `authenticator.cursor.sh` (leading dots are normalized).
    - Recognized session cookie names:
      - `WorkosCursorSessionToken`
@@ -85,6 +85,7 @@ Manual option:
 ## Add and switch account
 - **Add Account** opens `https://authenticator.cursor.sh/` in a supported browser.
 - Aside, Opera, and Opera Neon are supported with SweetCookieKit 0.5.5. The selected application's bundle identifier pins login to that browser's cookie store.
+- SweetCookieKit 0.5.11 adds Brave Origin cookie imports and Add/Switch Account support. Its `com.brave.Browser.origin` bundle identifier pins login to the separate `BraveSoftware/Brave-Origin` profile store, using the shared browser import order and Keychain prompt safeguards.
 - SweetCookieKit 0.5.6 adds Ego Lite cookie imports. Add/Switch Account does not offer Ego Lite until its application has a verified, unambiguous bundle-identifier mapping; display names and storage paths are insufficient for interactive login.
 - **Switch Account** opens the same authenticator and waits for a different stable account ID when available, falling back to normalized email when IDs are unavailable.
 - When the system's HTTPS handler is a supported browser, CodexBar opens the route there automatically. When the handler is an intermediary app, CodexBar asks the user to choose a concrete supported browser before opening the route.

@@ -124,7 +124,11 @@ struct CodexPATFetchStrategy: ProviderFetchStrategy {
                     secondary: nil,
                     tertiary: nil,
                     updatedAt: updatedAt,
-                    identity: CodexReconciledState.patIdentity(response: usageResponse, whoami: whoami)),
+                    identity: CodexReconciledState.patIdentity(response: usageResponse, whoami: whoami),
+                    planObservation: CodexReconciledState.patPlanObservation(
+                        response: usageResponse,
+                        whoami: whoami,
+                        observedAt: updatedAt)),
                 credits: credits),
             credits: credits)
     }
