@@ -2791,3 +2791,8 @@
 "Leave blank to use the default name." = "Leer lassen, um den Standardnamen zu verwenden.";
 "Rewards" = "Prämien";
 "Reward expiry" = "Ablauf der Prämien";
+"By machine" = "Nach Rechner";
+"Machine %d" = "Rechner %d";
+"Codex identified requests" = "Identifizierte Codex-Anfragen";
+"Shared requests count once." = "Gemeinsame Anfragen zählen einmal.";
+"Other Codex homes on this Mac aren't included." = "Andere Codex-Verzeichnisse auf diesem Mac sind nicht enthalten.";

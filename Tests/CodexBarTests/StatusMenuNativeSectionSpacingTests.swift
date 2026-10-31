@@ -206,7 +206,11 @@ struct StatusMenuNativeSectionSpacingTests {
         #expect(menu.items[storageIndex].view == nil)
         #expect(menu.items[storageIndex].title.hasPrefix("Storage"))
         #expect(menu.items[storageIndex].title.contains("1 KB"))
-        #expect(menu.items[storageIndex + 1].isSeparatorItem)
+        let machineActionIndex = try #require(menu.items.firstIndex {
+            ($0.representedObject as? String) == "machineCostAction"
+        })
+        #expect(machineActionIndex == storageIndex + 1)
+        #expect(menu.items[machineActionIndex + 1].isSeparatorItem)
         #expect(!zip(menu.items, menu.items.dropFirst()).contains { first, second in
             first.isSeparatorItem && second.isSeparatorItem
         })

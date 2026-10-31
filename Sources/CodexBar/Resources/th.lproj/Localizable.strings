@@ -2795,3 +2795,8 @@
 "Leave blank to use the default name." = "เว้นว่างไว้เพื่อใช้ชื่อเริ่มต้น";
 "Rewards" = "รางวัล";
 "Reward expiry" = "วันหมดอายุของรางวัล";
+"By machine" = "ตามเครื่อง";
+"Machine %d" = "เครื่อง %d";
+"Codex identified requests" = "คำขอ Codex ที่ระบุได้";
+"Shared requests count once." = "คำขอที่ใช้ร่วมกันนับเพียงครั้งเดียว";
+"Other Codex homes on this Mac aren't included." = "ไม่รวมไดเรกทอรี Codex อื่นบน Mac เครื่องนี้";

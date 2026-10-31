@@ -2793,3 +2793,8 @@
 "Leave blank to use the default name." = "空欄にするとデフォルトの名前を使用します。";
 "Rewards" = "報酬";
 "Reward expiry" = "報酬の有効期限";
+"By machine" = "マシン別";
+"Machine %d" = "マシン %d";
+"Codex identified requests" = "識別済みのCodexリクエスト";
+"Shared requests count once." = "共有リクエストは1回だけ数えます。";
+"Other Codex homes on this Mac aren't included." = "このMacの他のCodexホームは含まれません。";

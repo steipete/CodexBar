@@ -2792,3 +2792,8 @@
 "Leave blank to use the default name." = "Lämna tomt för att använda standardnamnet.";
 "Rewards" = "Belöningar";
 "Reward expiry" = "Belöningarnas utgångsdatum";
+"By machine" = "Per dator";
+"Machine %d" = "Dator %d";
+"Codex identified requests" = "Identifierade Codex-anrop";
+"Shared requests count once." = "Delade anrop räknas en gång.";
+"Other Codex homes on this Mac aren't included." = "Andra Codex-kataloger på denna Mac ingår inte.";

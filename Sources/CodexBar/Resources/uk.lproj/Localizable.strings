@@ -2794,3 +2794,8 @@
 "Leave blank to use the default name." = "Залиште поле порожнім, щоб використовувати назву за замовчуванням.";
 "Rewards" = "Винагороди";
 "Reward expiry" = "Термін дії винагород";
+"By machine" = "За комп’ютерами";
+"Machine %d" = "Комп’ютер %d";
+"Codex identified requests" = "Ідентифіковані запити Codex";
+"Shared requests count once." = "Спільні запити враховуються один раз.";
+"Other Codex homes on this Mac aren't included." = "Інші каталоги Codex на цьому Mac не включено.";

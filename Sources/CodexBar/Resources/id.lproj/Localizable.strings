@@ -2795,3 +2795,8 @@
 "Leave blank to use the default name." = "Biarkan kosong untuk menggunakan nama bawaan.";
 "Rewards" = "Hadiah";
 "Reward expiry" = "Kedaluwarsa hadiah";
+"By machine" = "Menurut mesin";
+"Machine %d" = "Mesin %d";
+"Codex identified requests" = "Permintaan Codex teridentifikasi";
+"Shared requests count once." = "Permintaan bersama dihitung sekali.";
+"Other Codex homes on this Mac aren't included." = "Direktori Codex lain di Mac ini tidak disertakan.";

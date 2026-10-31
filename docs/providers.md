@@ -33,6 +33,10 @@ timezone stored when cost tracking is first enabled. Heatmap and ledger dates re
 days across daylight-saving transitions, including zones where midnight is skipped. Coverage counts civil days,
 and daily/hourly chart labels use the bucket time zone. Their ranges end at the next local day boundary rather than a fixed 24 hours.
 
+**By machine** collects Codex identified usage on demand: when opened, refreshed, or its period changes while
+expanded. SSH aliases come from Settings → Menu → Agent Sessions → Additional SSH hosts.
+See [Codex machine collection](codex.md#cost-usage-local-log-scan).
+
 Regular token-history publications also refresh outdated independent Usage & Spend sources, including Claude,
 through their own 365-day scan. The dashboard never substitutes the shorter menu history for that scan. Updates
 arriving during a scan coalesce into a follow-up; a failed attempt waits for a new token publication or manual

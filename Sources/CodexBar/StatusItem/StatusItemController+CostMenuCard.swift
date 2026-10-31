@@ -73,6 +73,44 @@ extension StatusItemController {
         return item
     }
 
+    /// Provider-specific by design: only Codex has the manual identified-request collector.
+    func showsMachineCostMenu(for provider: UsageProvider) -> Bool {
+        provider == .codex && self.settings.costSummaryShowsSubmenu(for: provider) &&
+            self.store.enabledFirstPartyProvidersForDisplay().contains(.codex)
+    }
+
+    func addCostMenuItems(
+        to menu: NSMenu,
+        model: UsageMenuCardView.Model,
+        submenu: NSMenu?,
+        width: CGFloat,
+        includeLocalCost: Bool = true)
+    {
+        if includeLocalCost, model.tokenUsage != nil {
+            menu.addItem(self.makeCostMenuCardItem(model: model, submenu: submenu, width: width))
+        }
+        self.addMachineCostMenuItems(to: menu, provider: model.provider)
+    }
+
+    func addMachineCostMenuItems(to menu: NSMenu, provider: UsageProvider) {
+        guard self.showsMachineCostMenu(for: provider) else { return }
+        if menu.items.last?.isSeparatorItem != true { menu.addItem(.separator()) }
+        let action = NSMenuItem(
+            title: "\(L("By machine"))…",
+            action: #selector(self.openMachineSpend),
+            keyEquivalent: "")
+        action.target = self
+        action.representedObject = "machineCostAction"
+        menu.addItem(action)
+    }
+
+    @objc private func openMachineSpend() {
+        // Provider-specific by design: this action opens Codex's manual identified-request detail.
+        guard self.showsMachineCostMenu(for: .codex), self.openSettings(pane: .usageSpend) else { return }
+        SessionUsageNavigation.shared.request = nil
+        self.store.sharedSpendDashboardController().revealMachineSpend()
+    }
+
     private static func makeNativeCostMenuCardItem(
         title: String,
         visibleDetailLines: [String],

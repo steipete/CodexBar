@@ -771,6 +771,7 @@ extension StatusItemController {
             heightCacheScope: context.currentProvider.rawValue,
             heightCacheFingerprint: renderedModel.heightFingerprint(section: "card"),
             containsInteractiveControls: true))
+        self.addMachineCostMenuItems(to: menu, provider: context.currentProvider)
         self.addFleetAccountMenuCards(fleetProjection.additionalAccounts, to: menu, context: context)
         if self.addStorageMenuCardSection(to: menu, provider: context.currentProvider, width: context.menuWidth) {
             menu.addItem(.separator())
@@ -1382,14 +1383,11 @@ extension StatusItemController {
                 heightCacheFingerprint: layoutModel.heightFingerprint(section: "extraUsage"),
                 submenu: extraUsageSubmenu))
         }
-        if hasCost {
+        if hasCost || self.showsMachineCostMenu(for: provider) {
             addSectionSeparator()
             let costSubmenu = webItems.hasCostHistory ? self
                 .makeCostHistorySubmenu(provider: provider, width: width) : nil
-            menu.addItem(self.makeCostMenuCardItem(
-                model: model,
-                submenu: costSubmenu,
-                width: width))
+            self.addCostMenuItems(to: menu, model: model, submenu: costSubmenu, width: width)
         }
         if !hasCredits, webItems.hasCreditsHistory, self.settings.showOptionalCreditsAndExtraUsage {
             addSectionSeparator()

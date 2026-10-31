@@ -663,15 +663,17 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
         return CGPoint(x: screenFrame.midX, y: screenFrame.midY)
     }
 
-    private func openSettings(pane: SettingsPane?) {
+    @discardableResult
+    func openSettings(pane: SettingsPane?) -> Bool {
         // End status-menu tracking before AppDelegate schedules activation and presentation.
         // Otherwise AppKit can restore the previously active app after Settings is already visible.
         _ = self.closeOpenMenusFromShortcutIfNeeded()
         guard let settingsOpenHandler else {
             self.menuLogger.error("Settings open handler was not configured")
-            return
+            return false
         }
         settingsOpenHandler(pane)
+        return true
     }
 
     @objc func quit() {

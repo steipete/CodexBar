@@ -108,6 +108,7 @@ struct SettingsDefaultsState {
     var agentSessionsEnabled: Bool
     var agentSessionsRemoteEnabled: Bool
     var agentSessionLabelStyleRaw: String
+    var costUsageHosts: [String]
     var agentSessionsManualHosts: String
     var agentSessionsHideUnreachableHosts: Bool
     var preferredCurrencyCode: String

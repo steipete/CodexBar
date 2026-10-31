@@ -2790,3 +2790,8 @@
 "Leave blank to use the default name." = "Laat dit veld leeg om de standaardnaam te gebruiken.";
 "Rewards" = "Beloningen";
 "Reward expiry" = "Vervaldatum beloningen";
+"By machine" = "Per machine";
+"Machine %d" = "Machine %d";
+"Codex identified requests" = "Geïdentificeerde Codex-verzoeken";
+"Shared requests count once." = "Gedeelde verzoeken tellen één keer mee.";
+"Other Codex homes on this Mac aren't included." = "Andere Codex-mappen op deze Mac zijn niet inbegrepen.";

@@ -130,6 +130,15 @@ struct SpendDashboardPane: View {
     }
 
     var body: some View {
+        ScrollViewReader { reader in
+            self.dashboardScrollView
+                .onChange(of: self.controller.machineRevealRevision, initial: true) { _, _ in
+                    if self.controller.machineExpanded { reader.scrollTo("machineSpend", anchor: .top) }
+                }
+        }
+    }
+
+    private var dashboardScrollView: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 if let request = self.sessionNavigation.request {
@@ -147,6 +156,11 @@ struct SpendDashboardPane: View {
                 } else {
                     self.header
                     SpendTimeZoneControls(settings: self.settings)
+                    // Provider-specific by design: by-machine detail runs the Codex-only identified-request collector.
+                    if SpendDashboardSource.costCapableProviders(store: self.store).contains(.codex) {
+                        MachineSpendDetail(settings: self.settings, store: self.store, controller: self.controller)
+                            .id("machineSpend")
+                    }
                     self.refreshStatus
                     self.codexCostCatchUpPanel
                     self.content

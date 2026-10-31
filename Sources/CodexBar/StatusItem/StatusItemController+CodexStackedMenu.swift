@@ -74,18 +74,21 @@ extension StatusItemController {
 
     func addAccountAgnosticCostMenuSection(to menu: NSMenu, context: MenuCardContext) {
         let provider = context.currentProvider
-        guard self.store.tokenCostIsAccountAgnostic(for: provider),
+        let sharedLocalCost = self.store.tokenCostIsAccountAgnostic(for: provider)
+        guard sharedLocalCost || self.showsMachineCostMenu(for: provider),
               let model = self.menuCardModel(for: provider),
-              model.inlineUsageDashboard != nil || model.tokenUsage != nil
+              model.inlineUsageDashboard != nil || model.tokenUsage != nil || self.showsMachineCostMenu(for: provider)
         else { return }
         if menu.items.last?.isSeparatorItem != true {
             menu.addItem(.separator())
         }
-        let scope = NSMenuItem(title: L("This Mac"), action: nil, keyEquivalent: "")
-        scope.isEnabled = false
-        scope.representedObject = "sharedCodexCostScope"
-        menu.addItem(scope)
-        if let dashboard = model.inlineUsageDashboard {
+        if sharedLocalCost, model.inlineUsageDashboard != nil || model.tokenUsage != nil {
+            let scope = NSMenuItem(title: L("This Mac"), action: nil, keyEquivalent: "")
+            scope.isEnabled = false
+            scope.representedObject = "sharedCodexCostScope"
+            menu.addItem(scope)
+        }
+        if sharedLocalCost, let dashboard = model.inlineUsageDashboard {
             menu.addItem(self.makeMenuCardItem(
                 InlineUsageDashboardContent(model: dashboard)
                     .padding(.horizontal, UsageMenuCardLayout.horizontalPadding)
@@ -96,12 +99,12 @@ extension StatusItemController {
                 heightCacheScope: provider.rawValue,
                 heightCacheFingerprint: model.heightFingerprint(section: "usage")))
         }
-        if model.tokenUsage != nil {
-            menu.addItem(self.makeCostMenuCardItem(
-                model: model,
-                submenu: self.makeCostHistorySubmenu(provider: provider, width: context.menuWidth),
-                width: context.menuWidth))
-        }
+        self.addCostMenuItems(
+            to: menu,
+            model: model,
+            submenu: sharedLocalCost ? self.makeCostHistorySubmenu(provider: provider, width: context.menuWidth) : nil,
+            width: context.menuWidth,
+            includeLocalCost: sharedLocalCost)
         menu.addItem(.separator())
     }
 

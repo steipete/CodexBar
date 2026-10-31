@@ -2761,3 +2761,8 @@
 "Leave blank to use the default name." = "기본 이름을 사용하려면 비워 두세요.";
 "Rewards" = "보상";
 "Reward expiry" = "보상 만료일";
+"By machine" = "컴퓨터별";
+"Machine %d" = "컴퓨터 %d";
+"Codex identified requests" = "식별된 Codex 요청";
+"Shared requests count once." = "공유 요청은 한 번만 계산됩니다.";
+"Other Codex homes on this Mac aren't included." = "이 Mac의 다른 Codex 홈은 포함되지 않습니다.";

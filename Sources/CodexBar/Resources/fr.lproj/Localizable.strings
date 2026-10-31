@@ -2792,3 +2792,8 @@
 "Leave blank to use the default name." = "Laissez ce champ vide pour utiliser le nom par défaut.";
 "Rewards" = "Récompenses";
 "Reward expiry" = "Expiration des récompenses";
+"By machine" = "Par machine";
+"Machine %d" = "Machine %d";
+"Codex identified requests" = "Requêtes Codex identifiées";
+"Shared requests count once." = "Les requêtes partagées comptent une seule fois.";
+"Other Codex homes on this Mac aren't included." = "Les autres répertoires Codex de ce Mac ne sont pas inclus.";

@@ -1186,9 +1186,31 @@ extension SettingsStore {
         set { self.setDefault(\.agentSessionLabelStyleRaw, newValue.rawValue, key: "agentSessionLabelStyle") }
     }
 
+    static func availableCostUsageHosts(_ manualHosts: String) -> [String] {
+        RemoteSessionFetcher.sanitizedHosts(manualHosts.components(separatedBy: ","))
+            .filter { (try? RemoteCodexCostFetcher.validateHost($0)) != nil }
+    }
+
+    var selectableCostUsageHosts: [String] {
+        Self.availableCostUsageHosts(self.agentSessionsManualHosts)
+    }
+
+    var costUsageHosts: [String] {
+        get { self.defaultsState.costUsageHosts }
+        set {
+            self.setDefault(
+                \.costUsageHosts,
+                self.selectableCostUsageHosts.filter(newValue.contains),
+                key: "costUsageHosts")
+        }
+    }
+
     var agentSessionsManualHosts: String {
         get { self.defaultsState.agentSessionsManualHosts }
-        set { self.setDefault(\.agentSessionsManualHosts, newValue, key: "agentSessionsManualHosts") }
+        set {
+            self.setDefault(\.agentSessionsManualHosts, newValue, key: "agentSessionsManualHosts")
+            self.costUsageHosts = self.costUsageHosts
+        }
     }
 
     var agentSessionsHideUnreachableHosts: Bool {

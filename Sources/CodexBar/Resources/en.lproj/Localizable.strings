@@ -2798,3 +2798,8 @@
 "Leave blank to use the default name." = "Leave blank to use the default name.";
 "Rewards" = "Rewards";
 "Reward expiry" = "Reward expiry";
+"By machine" = "By machine";
+"Machine %d" = "Machine %d";
+"Codex identified requests" = "Codex identified requests";
+"Shared requests count once." = "Shared requests count once.";
+"Other Codex homes on this Mac aren't included." = "Other Codex homes on this Mac aren't included.";

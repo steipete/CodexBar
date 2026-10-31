@@ -176,20 +176,33 @@ struct AgentSessionHostsEditor: View {
     static let inputFormatHint = "user@host, user@host"
 
     @Bindable var settings: SettingsStore
+    @State private var draft: String
+    @FocusState private var isHostsFieldFocused: Bool
+
+    init(settings: SettingsStore) {
+        self.settings = settings
+        self._draft = State(initialValue: settings.agentSessionsManualHosts)
+    }
 
     var body: some View {
         LabeledContent(L("agent_sessions_hosts_title")) {
-            TextField(
-                L("agent_sessions_hosts_title"),
-                text: self.$settings.agentSessionsManualHosts,
-                prompt: Text(verbatim: Self.inputFormatHint))
+            TextField(L("agent_sessions_hosts_title"), text: self.$draft, prompt: Text(verbatim: Self.inputFormatHint))
                 .labelsHidden()
+                .focused(self.$isHostsFieldFocused)
+                .onSubmit { self.settings.agentSessionsManualHosts = self.draft }
                 .textFieldStyle(.roundedBorder)
                 .frame(minWidth: 220, idealWidth: 280)
                 .accessibilityLabel(L("agent_sessions_hosts_title"))
+            if self.settings.agentSessionsManualHosts.split(separator: ",").contains(where: {
+                let host = $0.trimmingCharacters(in: .whitespacesAndNewlines)
+                return !host.isEmpty && (try? RemoteCodexCostFetcher.validateHost(host)) == nil
+            }) { Text(RemoteCodexCostError.invalidHost.localizedDescription).foregroundStyle(.red) }
         }
-        .disabled(!self.settings.agentSessionsEnabled || !self.settings.agentSessionsRemoteEnabled)
         .help(L("agent_sessions_remote_subtitle"))
+        .onDisappear { self.settings.agentSessionsManualHosts = self.draft }
+        .onChange(of: self.isHostsFieldFocused) { _, focused in
+            if !focused { self.settings.agentSessionsManualHosts = self.draft }
+        }
     }
 }
 

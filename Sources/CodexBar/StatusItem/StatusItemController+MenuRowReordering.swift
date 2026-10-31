@@ -17,7 +17,7 @@ extension StatusItemController {
             ($0.representedObject as? String) == "usageHistorySubmenu"
         }) else { return }
 
-        let rowIDs = ["menuCardCost", "menuCardStorage"]
+        let rowIDs = ["menuCardCost", "menuCardStorage", "machineCostAction"]
         let rowsToMove = rowIDs.compactMap { rowID in
             menu.items.first { ($0.representedObject as? String) == rowID }
         }
