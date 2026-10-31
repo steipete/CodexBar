@@ -229,22 +229,36 @@ struct MachineSpendTests {
         store._test_providerRefreshOverride = { _ in Issue.record("Unexpected provider transport") }
         store._test_widgetSnapshotSaveOverride = { _ in }
         let received = LockIsolated<[String]?>(nil)
+        let pending = PendingMachineCollection()
         let controller = SpendDashboardController(
             userDefaults: InMemoryUserDefaults(),
             requestBuilder: Self.loadRequest,
-            machineLoader: { hosts, _, _, _ in
+            machineLoader: { hosts, days, _, _ in
                 received.setValue(hosts)
-                return CodexIdentifiedResult(reports: [], subtotal: nil, allSourcesAvailable: true, partial: false)
+                return await pending.load(hosts, days: days)
             })
         defer {
             controller.stop()
             store.stopSharedSpendDashboardPublication()
             settings.configFileWatcher?.stop()
         }
+        MachineSpendDetail(settings: settings, store: store, controller: controller).run()
+        while await pending.calls.isEmpty {
+            await Task.yield()
+        }
+        await pending.finish()
+        try await SpendDashboardStateWait.until { controller.machineResult != nil }
+        try #require(controller.machineResult?.reports.contains { $0.host == "devbox" } == true)
         _ = try CodexBarCLI.configHostsMutation(.remove, host: "devbox", cost: true, in: defaults, lockURL: nil)
         try #require(settings.costUsageHosts == ["devbox", "mini"], "No notification was delivered.")
         MachineSpendDetail(settings: settings, store: store, controller: controller).run()
         try #require(controller.machineRunning && controller.machineRequestedHosts == ["mini"])
+        controller.reconcileMachineSpendHosts(["mini"])
+        #expect(controller.machineResult == nil, "Revoked-host rows must disappear while the fresh request is pending.")
+        while await pending.calls.count < 2 {
+            await Task.yield()
+        }
+        await pending.finish()
         try await SpendDashboardStateWait.until { controller.machineResult != nil }
         #expect(received.value == ["mini"])
         #expect(settings.costUsageHosts == ["mini"])
@@ -324,12 +338,15 @@ private actor PendingMachineCollection {
 
     func finish() {
         self.continuation?.resume(returning: CodexIdentifiedResult(
-            reports: [.init(
-                host: "local",
-                source: "local",
-                collectedAt: nil,
-                ledger: nil,
-                error: "Local native Codex identified usage is unavailable.")],
+            reports: (["local"] + (self.calls.last?.0 ?? [])).map { host in
+                .init(
+                    host: host,
+                    source: host == "local" ? "local" : "ssh",
+                    collectedAt: nil,
+                    ledger: nil,
+                    error: host == "local" ? "Local native Codex identified usage is unavailable." :
+                        "Fixture unavailable.")
+            },
             subtotal: nil,
             allSourcesAvailable: false,
             partial: true))

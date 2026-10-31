@@ -290,7 +290,7 @@ a second identifier is an error. For an option value beginning with a dash, use 
     `{"ok": bool, "error": string|null}`; a failed check exits nonzero but leaves the host
     configured. Invalid reports identify an unsupported remote CLI; other failures share
     guidance to check the trusted host key, noninteractive SSH auth, and remote CLI support
-    for `--identified-only` (schema 2).
+    for `--identified-only`.
   - Writes persist the same machine-local values as Settings under a shared per-user lock.
     The accompanying app picks them up on notification, next launch, and before a manual
     machine refresh; older apps read their supported host settings at next launch. Host

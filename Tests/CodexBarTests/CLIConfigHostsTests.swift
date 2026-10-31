@@ -93,8 +93,15 @@ struct CLIConfigHostsTests {
 
     @Test
     func `remove drops the host from manual and spend lists`() throws {
-        let state = HostPreferences.State(manualHosts: ["devbox", "mini"], costUsageHosts: ["devbox"])
-        let result = try HostPreferences.removing("devbox", from: state, costOnly: false)
+        let defaults = InMemoryUserDefaults(values: [
+            "agentSessionsManualHosts": "devbox,mini", "costUsageHosts": ["devbox"],
+        ])
+        let result = try CodexBarCLI.configHostsMutation(
+            .remove,
+            host: "devbox",
+            cost: false,
+            in: defaults,
+            lockURL: nil)
 
         #expect(result.state.manualHosts == ["mini"])
         #expect(result.state.costUsageHosts.isEmpty)
@@ -122,6 +129,15 @@ struct CLIConfigHostsTests {
         let costOnly = try HostPreferences.removing("ghost", from: state, costOnly: true)
         #expect(costOnly.state == state)
         #expect(!costOnly.changed)
+
+        let defaults = InMemoryUserDefaults(values: ["agentSessionsManualHosts": "devbox"])
+        let unchanged = try CodexBarCLI.configHostsMutation(
+            .remove, host: "devbox", cost: true, in: defaults, lockURL: nil)
+        #expect(!unchanged.changed && unchanged.state.manualHosts == ["devbox"])
+        #expect(CodexBarCLI.renderConfigHostMutation(
+            ConfigHostsMutationResult(host: unchanged.host, changed: false, costUsage: false, check: nil),
+            action: .remove,
+            costOnly: true) == "Host unchanged: devbox")
     }
 
     @Test(arguments: ["", "one,two"])
@@ -145,6 +161,7 @@ struct CLIConfigHostsTests {
             ConfigHostsEntry(host: "mini", valid: true, costUsage: false, check: nil),
             ConfigHostsEntry(host: "a\tb", valid: false, costUsage: false, check: nil),
         ])
+        #expect(CodexBarCLI.renderConfigHostEntry(entries[1]) == "bad host: invalid for spend")
         let removed = try HostPreferences.removing("bad host", from: state, costOnly: false)
         #expect(removed.state.manualTokens == [" DevBox ", "-bad", "", "devbox", "mini", "a\tb"])
         #expect(removed.changed)
@@ -257,14 +274,36 @@ struct CLIConfigHostsTests {
         #expect(CodexBarCLI.hostCheckError(RemoteCodexCostError.unavailable) == CodexBarCLI.hostCheckFailureMessage)
     }
 
-    @Test
-    func `check maps cancellation to a thrown error`() async {
+    @Test(arguments: [false, true])
+    func `cancelled check never starts another host after a suspended fetch finishes`(ordinaryFailure: Bool) async {
+        struct SSHFailure: Error {}
+        let started = AsyncStream<Void>.makeStream()
+        let pending = LockIsolated<CheckedContinuation<Void, Never>?>(nil)
+        let calls = LockIsolated<[String]>([])
+        let task = Task {
+            try await CodexBarCLI.checkConfigHosts(["devbox", "mini"], fetch: { host in
+                calls.setValue(calls.value + [host])
+                if host == "devbox" {
+                    await withCheckedContinuation {
+                        pending.setValue($0)
+                        started.continuation.yield(())
+                        started.continuation.finish()
+                    }
+                }
+                if ordinaryFailure { throw SSHFailure() }
+            })
+        }
+        var iterator = started.stream.makeAsyncIterator()
+        _ = await iterator.next()
+        task.cancel()
+        pending.value?.resume()
         do {
-            _ = try await CodexBarCLI.checkConfigHosts(["devbox"], fetch: { _ in throw CancellationError() })
+            _ = try await task.value
             Issue.record("Expected cancellation to propagate")
         } catch {
             #expect(error is CancellationError)
         }
+        #expect(calls.value == ["devbox"])
     }
 }
 

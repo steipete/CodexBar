@@ -55,7 +55,6 @@ extension CodexBarCLI {
             let changed = result.changed
             // Report and check the host as it is stored, never the raw argument.
             let host = result.host
-            try Task.checkCancellation()
             switch action {
             case .list:
                 var entries = Self.configHostsEntries(next)
@@ -100,8 +99,6 @@ extension CodexBarCLI {
                     output: output,
                     kind: .provider)
             }
-        } catch is CancellationError {
-            Self.exit(code: .failure, message: "Host check cancelled.", output: output, kind: .runtime)
         } catch {
             Self.exit(code: .failure, message: error.localizedDescription, output: output, kind: .config)
         }
@@ -181,10 +178,7 @@ extension CodexBarCLI {
             do {
                 try await resolvedFetch(host)
                 results.append(ConfigHostsCheckResult(ok: true, error: nil))
-            } catch is CancellationError {
-                throw CancellationError()
             } catch {
-                try Task.checkCancellation()
                 results.append(ConfigHostsCheckResult(ok: false, error: Self.hostCheckError(error)))
             }
         }
@@ -209,7 +203,7 @@ extension CodexBarCLI {
         let spend: String = if entry.valid {
             entry.costUsage ? "valid, counts toward spend" : "valid, session host only"
         } else {
-            "invalid for spend, session host only"
+            "invalid for spend"
         }
         var line = "\(entry.host): \(spend)"
         if let check = entry.check {
@@ -224,7 +218,7 @@ extension CodexBarCLI {
         costOnly: Bool) -> String
     {
         var line: String = if !result.changed {
-            "Host already \(action == .add ? "configured" : "absent"): \(result.host)"
+            "Host unchanged: \(result.host)"
         } else if action == .add {
             result.costUsage ? "Host added: \(result.host) (cost usage)" : "Host added: \(result.host)"
         } else {

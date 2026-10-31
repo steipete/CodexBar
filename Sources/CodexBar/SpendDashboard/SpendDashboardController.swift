@@ -1975,7 +1975,7 @@ extension SpendDashboardController {
     func runMachineSpend(hosts: [String], eligible: Bool, localPartial: Bool) {
         guard eligible else { self.cancelMachineSpend(); return }
         self.machineTask?.cancel()
-        if self.machineLocalPartial != localPartial { self.machineResult = nil }
+        if self.machineLocalPartial != localPartial || self.machineRequestedHosts != hosts { self.machineResult = nil }
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = .gmt
         let now = self.nowProvider()

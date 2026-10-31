@@ -158,6 +158,12 @@ struct HostPreferencesTests {
         let defaults = InMemoryUserDefaults(values: ["agentSessionsManualHosts": "devbox"])
         let settings = testSettingsStore(suiteName: #function, userDefaults: defaults, hostPreferencesLockURL: root)
         let previous = defaults.dictionaryRepresentation() as NSDictionary
+        do {
+            _ = try CodexBarCLI.configHostsMutation(.list, host: nil, cost: false, in: defaults, lockURL: root)
+            Issue.record("The directory must reject a regular-file host lock.")
+        } catch {
+            #expect(error.localizedDescription == "Could not acquire the CodexBar data lock.")
+        }
         settings.setCostUsageHost("devbox", enabled: true)
         settings.agentSessionsManualHosts = "replacement"
         #expect(!settings.refreshHostPreferences())

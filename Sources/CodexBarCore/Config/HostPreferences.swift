@@ -68,14 +68,8 @@ public enum HostPreferences {
             next.manualTokens.append(host)
             changed = true
         }
-        if cost,
-           // Spend members are valid manual hosts spelled exactly as stored, as the app keeps them.
-           !next.costUsageHosts.contains(canonical)
-        {
-            next.costUsageHosts.append(canonical)
-            changed = true
-        }
-        return Mutation(state: next, changed: changed, host: canonical)
+        if cost { next.setCostUsage(canonical, enabled: true) }
+        return Mutation(state: next, changed: changed || next.costUsageHosts != state.costUsageHosts, host: canonical)
     }
 
     public static func removing(
@@ -105,10 +99,6 @@ public enum HostPreferences {
                 RemoteSessionFetcher.hostIdentityKey($0.trimmingCharacters(in: .whitespacesAndNewlines)) != key
             }
             changed = tokens != next.manualTokens
-            // Dropping a manual host drops its spend membership, as the app's setter does.
-            let candidates = Set(RemoteCodexCostFetcher.costUsageCandidates(in: next.manualTokens))
-            next.costUsageHosts = spend.filter(candidates.contains)
-            changed = changed || spend != next.costUsageHosts
         }
         return Mutation(state: next, changed: changed, host: canonical)
     }
@@ -139,7 +129,6 @@ public enum HostPreferences {
         tokens += state.manualTokens.filter { oldGroups[key($0)] == nil && newGroups[key($0)] == nil }
         var next = state
         next.manualTokens = tokens
-        next.filterSelection()
         return next
     }
 
@@ -185,7 +174,6 @@ public enum HostPreferences {
             } else {
                 self.costUsageHosts.removeAll { RemoteSessionFetcher.hostIdentityKey($0) == identity }
             }
-            self.filterSelection()
         }
 
         mutating func filterSelection() {
