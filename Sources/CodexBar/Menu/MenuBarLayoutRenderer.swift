@@ -316,6 +316,7 @@ final class MenuBarLayoutRenderer {
     }
 
     private let cache: MenuBarLayoutTitleCache
+    let pluginSummary = PluginMenuBarSummaryRenderer()
 
     init(cache: MenuBarLayoutTitleCache = MenuBarLayoutTitleCache()) {
         self.cache = cache
@@ -376,6 +377,7 @@ final class MenuBarLayoutRenderer {
 
     func removeAll() {
         self.cache.removeAll()
+        self.pluginSummary.removeAll()
     }
 
     /// Joins two rows independently rendered for different providers (each with
@@ -571,38 +573,50 @@ final class MenuBarLayoutRenderer {
               lines.joined().contains(.percent(window: .automatic))
               || lines.joined().contains(.progressBar(window: .automatic))
         else { return }
-        let separators: Set<MenuBarLayoutToken> = [.separatorDot, .space]
+        func isSpacing(_ token: MenuBarLayoutToken) -> Bool {
+            token.isVisibleSeparator || token == .space
+        }
         lines = lines.map { line in
             guard line.contains(.resetCountdown) || line.contains(.resetAbsolute) else { return line }
             var tokens = line
             while let index = tokens.firstIndex(where: { $0 == .resetCountdown || $0 == .resetAbsolute }) {
                 tokens.remove(at: index)
-                if tokens.prefix(index).allSatisfy(separators.contains) {
-                    while let first = tokens.first, separators.contains(first) {
+                if tokens.prefix(index).allSatisfy(isSpacing) {
+                    while let first = tokens.first, isSpacing(first) {
                         tokens.removeFirst()
                     }
-                } else if tokens.dropFirst(index).allSatisfy(separators.contains) {
-                    while let last = tokens.last, separators.contains(last) {
+                } else if tokens.dropFirst(index).allSatisfy(isSpacing) {
+                    while let last = tokens.last, isSpacing(last) {
                         tokens.removeLast()
                     }
                 } else {
                     var left = index
                     var right = index
-                    while left > 0, separators.contains(tokens[left - 1]) {
+                    while left > 0, isSpacing(tokens[left - 1]) {
                         left -= 1
                     }
-                    while right < tokens.count, separators.contains(tokens[right]) {
+                    while right < tokens.count, isSpacing(tokens[right]) {
                         right += 1
                     }
                     if left < index, right > index {
-                        let keepRight = tokens[index..<right].contains(.separatorDot)
-                            || !tokens[left..<index].contains(.separatorDot)
+                        let keepRight = tokens[index..<right].contains(where: \.isVisibleSeparator)
+                            || !tokens[left..<index].contains(where: \.isVisibleSeparator)
                         tokens.removeSubrange(keepRight ? left..<index : index..<right)
                     }
                 }
             }
             return tokens
         }.filter { !$0.isEmpty }
+    }
+
+    static func pluginSummaryTitle(
+        _ title: NSAttributedString, accessibilityLabel: String, highContrast: Bool) -> MenuBarLayoutRenderedTitle
+    {
+        MenuBarLayoutRenderedTitle(
+            attributedTitle: title,
+            accessibilityLabel: accessibilityLabel,
+            leadingIcon: nil,
+            statusImage: highContrast ? nil : self.statusImage(title: title, foregroundColor: .labelColor))
     }
 
     private static func statusImage(title: NSAttributedString, foregroundColor: NSColor) -> NSImage? {
@@ -842,6 +856,8 @@ final class MenuBarLayoutRenderer {
                 attributes: style.attributes)
         case .separatorDot:
             return self.textToken("·", accessibilityText: nil, attributes: style.attributes)
+        case let .separator(separator):
+            return self.textToken(separator.glyph, accessibilityText: nil, attributes: style.attributes)
         case .space:
             return self.textToken(" ", accessibilityText: nil, attributes: style.attributes)
         case .hidden:

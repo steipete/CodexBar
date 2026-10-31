@@ -67,12 +67,53 @@ struct CostUsageStoreHomeMigrationTests {
         #expect(fileID == 7)
     }
 
+    @Test
+    func `legacy OpenCode rows retain their shared writer after a custom home scan`() async throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let path = "opencode-sqlite:fixture"
+        var metadata = CostUsageStoreMetadata.empty
+        metadata.rootMtimes = [env.codexSessionsRoot.path: 1]
+        try Self.seedLegacy(
+            CostUsageStore.databaseURL(cacheRoot: env.cacheRoot),
+            path: path,
+            metadata: metadata,
+            discovery: .init(
+                roots: [],
+                directoryPaths: [],
+                nextDirectoryIndex: 0,
+                filePaths: [],
+                nextFileIndex: 0,
+                filePathBySessionID: [:],
+                missingSessionIDs: [],
+                pendingSessionIDs: [],
+                validationDirectoryIndex: 0,
+                isComplete: true),
+            lookback: .init(
+                scanSinceDay: "2026-04-01",
+                rootPaths: [],
+                nextDayByRoot: [:],
+                completedRootPaths: [],
+                pendingFilePaths: [],
+                legacyRecursivePendingRootPaths: []),
+            source: .opencodeLocalHistory)
+        let writer = CostUsageStore(cacheRoot: env.cacheRoot)
+        let snapshot = await writer.readSnapshot()
+        var file = try #require(snapshot.files.first)
+        #expect(file.path == path)
+        #expect(snapshot.dayAggregates.first?.inputTokens == 303)
+        file.size = 2
+        #expect(await writer.upsertFile(file))
+        #expect(await writer.readSnapshot().files.first?.size == 2)
+    }
+
     private static func seedLegacy(
         _ url: URL,
         path: String,
         metadata: CostUsageStoreMetadata,
         discovery: CostUsageStoreDiscoveryState,
-        lookback: CostUsageStoreLookbackState) throws
+        lookback: CostUsageStoreLookbackState,
+        source: CostUsageStoreSource? = nil) throws
     {
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         var raw: OpaquePointer?
@@ -107,7 +148,10 @@ struct CostUsageStoreHomeMigrationTests {
         """)
         defer { sqlite3_finalize(file) }
         CostUsageStore.bind(path, to: file, at: 1)
-        try CostUsageStore.bind(encoder.encode(CostUsageStoreScanState(isComplete: true)), to: file, at: 2)
+        try CostUsageStore.bind(
+            encoder.encode(CostUsageStoreScanState(source: source, isComplete: true)),
+            to: file,
+            at: 2)
         try CostUsageStore.stepDone(file, database: database)
         try CostUsageStore.execute(database, """
         INSERT INTO token_snapshots (file_id, event_index, timestamp, total_input, total_cached, total_output)

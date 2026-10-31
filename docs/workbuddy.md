@@ -2,8 +2,8 @@
 summary: "WorkBuddy provider: website session cookies and the monthly credits allowance from the WorkBuddy billing API."
 provider_id: workbuddy
 provider_name: WorkBuddy
-provider_source: Chrome or manual www.workbuddy.cn cookies for the monthly credits allowance, plan name, and cycle reset.
-plugin_scope: Host-owned website session cookies with the matching Chrome User-Agent; billing summary plus optional package listings for the cycle reset on both engines.
+provider_source: Chrome or manual www.workbuddy.cn cookies for the monthly credits allowance, plan name, cycle reset, and the platform reward credits.
+plugin_scope: Host-owned website session cookies with the matching Chrome User-Agent; billing summary plus optional package listings for the cycle reset and the reward expiry on both engines.
 read_when:
   - Configuring WorkBuddy credit tracking
   - Debugging WorkBuddy session-cookie or billing parsing
@@ -62,13 +62,18 @@ cookies to each request. A session is accepted into the cache only after a succe
 
 - `get-user-resource-summary` (required): `data.Packages[]` with `CycleTotalCapacity`, `CycleRemainCapacity`, and
   optional `CycleFrozenCapacity` (decimal strings), `CapacityUnit` (`credits`), plus `SubscriptionPackageName`.
-  Only `credits` packages are summed.
+  Only `credits` packages are summed. Optional `data.CreditGroups[]` splits the same allowance by origin
+  (`Kind`: `plan_base`, `plan_bonus`, `addon`, `benefit`); only `benefit` is read, for the reward window, and an
+  unexpected group shape is ignored rather than failing the balance.
 - `get-user-resource-paid-packages` and `get-user-resource-free-packages` (optional, `{"PageNumber":1,"PageSize":100,
   "PackageCodes":[…],"Status":[0,3]}`): `data.Accounts[].CycleEndTime` supplies the reset time. The listings reject
   requests without `PackageCodes` (HTTP 400, code `10001`), so the plugin sends the paid and free package codes used by
   the WorkBuddy 5.6.2 client; packages added later are not considered for the reset. A failed or unexpected listing
   keeps the balance, including HTTP 401; a successful listing can still supply the reset if the other listing fails.
-  Free packages are queried only when no future paid reset is available.
+  Free packages are queried when no future paid reset is available, and also whenever reward credits exist, because the
+  per-grant expiries live only in the free listing. Reward grants never supply the main allowance’s fallback reset.
+  For reward expiry, `CycleEndTime` is ignored for accounts whose `PackageCode` is not the
+  reward code, so the trial grant that closes with the calendar month cannot bound the reward window.
   Both listings share at most five seconds, capped before the overall fetch deadline; a stalled listing cannot consume
   the balance's publication time. Only the first 100 accounts in each listing are considered. Cancelling a refresh still
   stops the fetch.
@@ -81,8 +86,10 @@ order, and resource IDs); the plugin never uses, displays, or logs them.
 | Field | Display |
 | --- | --- |
 | Summed `CycleTotalCapacity` / `CycleRemainCapacity` | One **Credits** meter when the total is above zero, with `450 / 500 credits left` under the bar. Used is `total − remaining`, so rollover above the grant shows 0% used. |
-| Earliest future `CycleEndTime` in the paid listing | The meter's reset line. The paid listing carries the subscription cycle, which is what refills the allowance; the free listing only supplies the reset when the paid listing has no future cycle end, so the trial grant that closes with the calendar month cannot shorten a paid cycle. The value has no zone and is read as China Standard Time (UTC+8), one second after the inclusive end, matching the dashboard. |
+| Earliest future `CycleEndTime` in the paid listing | The meter's reset line. The paid listing carries the subscription cycle, which is what refills the allowance; non-reward free grants only supply the reset when the paid listing has no future cycle end, so the trial grant that closes with the calendar month cannot shorten a paid cycle. The value has no zone and is read as China Standard Time (UTC+8), one second after the inclusive end, matching the dashboard. |
 | `CycleFrozenCapacity` | A **Reserved** row when above zero, as reported. |
+| `benefit` credit group | A **Rewards** window with its own bar and `621 / 2,139 credits left` under it. These grants are already inside the **Credits** meter; the window only breaks them out. |
+| Earliest `CycleEndTime` of the reward grants that still carry credits | A **Reward expiry** row, because reward credits lapse grant by grant instead of resetting; the window carries the balance and no countdown. Spent grants stay in the listing until their cycle ends, and the dashboard ignores them, so they never pull this date forward. Grants without a readable remaining balance are omitted from the expiry lookup. |
 | `SubscriptionPackageName` | Header plan label, as returned (for example `体验版` for the free tier). |
 
 **Left** and **Total** rows appear instead of the meter when the total is zero; any reserved credits remain visible.
@@ -92,8 +99,8 @@ Amounts use CodexBar's shared number formatting, including thousands separators.
 
 - The website billing routes are undocumented and can change without notice.
 - Paid-package and per-request usage (`get-user-request-usage`) shapes were checked only on a free-tier account.
-- The reset line follows the paid subscription listing, so reward and purchased credits that end earlier are not
-  reflected; the balance can drop before the reset.
+- The reset line follows the paid subscription listing, so purchased (`addon`) credits that end earlier are not
+  reflected; the balance can drop before the reset. Reward credits carry their own expiry row instead.
 - CodeBuddy accounts share the billing system, but signing in on `www.codebuddy.cn` is not verified to authorize the
   `www.workbuddy.cn` origin.
 - Local WorkBuddy session history (`~/.workbuddy/projects/`) is not read.

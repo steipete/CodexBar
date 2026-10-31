@@ -1147,7 +1147,7 @@ extension CostUsageScanner {
     {
         guard isForceRescan else { return }
         for key in cache.files.keys {
-            guard let old = cache.files[key] else { continue }
+            guard let old = cache.files[key], old.codexArchived != true else { continue }
             guard !old.touchesCodexScanWindow(
                 sinceKey: range.scanSinceKey,
                 untilKey: range.scanUntilKey,

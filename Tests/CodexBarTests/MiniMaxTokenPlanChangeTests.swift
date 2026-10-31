@@ -246,11 +246,14 @@ struct MiniMaxTokenPlanChangeTests {
         let now = Date(timeIntervalSince1970: 1_780_282_340)
         let transport = ProviderHTTPTransportStub { request in
             let url = try #require(request.url)
-            if url.path.contains("coding-plan") {
+            if url.path == "/console/usage" {
                 return Self.httpResponse(
                     url: url,
                     body: "<html><main>Coding Plan</main></html>",
                     contentType: "text/html")
+            }
+            if url.host == "www.minimax.cn" {
+                return Self.httpResponse(url: url, body: "not json", contentType: "application/json")
             }
             if url.host == "platform.minimaxi.com", url.path.contains("coding_plan/remains") {
                 return Self.httpResponse(url: url, body: "not json", contentType: "application/json")
@@ -283,13 +286,13 @@ struct MiniMaxTokenPlanChangeTests {
         let now = Date(timeIntervalSince1970: 1_780_282_340)
         let transport = ProviderHTTPTransportStub { request in
             let url = try #require(request.url)
-            if url.path.contains("coding-plan") {
+            if url.path == "/console/usage" {
                 return Self.httpResponse(
                     url: url,
                     body: "<html><main>Coding Plan</main></html>",
                     contentType: "text/html")
             }
-            if url.host == "platform.minimaxi.com", url.path.contains("coding_plan/remains") {
+            if url.host == "www.minimax.cn" || url.host == "platform.minimaxi.com" {
                 throw URLError(.timedOut)
             }
             #expect(url.host == "www.minimaxi.com")
@@ -308,7 +311,8 @@ struct MiniMaxTokenPlanChangeTests {
 
         #expect(snapshot.toUsageSnapshot().primary?.usedPercent == 4)
         #expect(requests.map { $0.url?.host } == [
-            "platform.minimaxi.com",
+            "platform.minimax.cn",
+            "www.minimax.cn",
             "platform.minimaxi.com",
             "www.minimaxi.com",
         ])
@@ -318,7 +322,7 @@ struct MiniMaxTokenPlanChangeTests {
     func `web usage fetch preserves coding plan json auth failure`() async throws {
         let transport = ProviderHTTPTransportStub { request in
             let url = try #require(request.url)
-            #expect(url.path.contains("coding-plan"))
+            #expect(url.path == "/console/usage")
             return Self.httpResponse(
                 url: url,
                 body: #"{"base_resp":{"status_code":1004,"status_msg":"cookie is missing, log in again"}}"#,
@@ -341,13 +345,13 @@ struct MiniMaxTokenPlanChangeTests {
     func `web usage fetch preserves remains json auth failure`() async throws {
         let transport = ProviderHTTPTransportStub { request in
             let url = try #require(request.url)
-            if url.path.contains("coding-plan") {
+            if url.path == "/console/usage" {
                 return Self.httpResponse(
                     url: url,
                     body: "<html><main>Coding Plan</main></html>",
                     contentType: "text/html")
             }
-            #expect(url.path.contains("coding_plan/remains"))
+            #expect(url.path == "/backend/account/token_plan/remains_percent")
             return Self.httpResponse(
                 url: url,
                 body: #"{"base_resp":{"status_code":1004,"status_msg":"cookie is missing, log in again"}}"#,
@@ -364,8 +368,8 @@ struct MiniMaxTokenPlanChangeTests {
         }
         let requests = await transport.requests()
         #expect(requests.map { $0.url?.path } == [
-            "/user-center/payment/coding-plan",
-            "/v1/api/openplatform/coding_plan/remains",
+            "/console/usage",
+            "/backend/account/token_plan/remains_percent",
         ])
     }
 
@@ -585,13 +589,13 @@ struct MiniMaxTokenPlanChangeTests {
         let now = Date(timeIntervalSince1970: 1_780_282_340)
         let transport = ProviderHTTPTransportStub { request in
             let url = try #require(request.url)
-            if url.path.contains("coding-plan") {
+            if url.path == "/console/usage" {
                 return Self.httpResponse(
                     url: url,
                     body: "<html><main>Coding Plan</main></html>",
                     contentType: "text/html")
             }
-            if url.path.contains("coding_plan/remains") {
+            if url.path.contains("coding_plan/remains") || url.path.contains("remains_percent") {
                 return Self.httpResponse(url: url, body: Self.percentBasedRemainsJSON, contentType: "application/json")
             }
             #expect(url.host == "www.minimaxi.com")
@@ -672,13 +676,13 @@ struct MiniMaxTokenPlanChangeTests {
         let now = Date(timeIntervalSince1970: 1_780_282_340)
         let transport = ProviderHTTPTransportStub { request in
             let url = try #require(request.url)
-            if url.path.contains("coding-plan") {
+            if url.path == "/console/usage" {
                 return Self.httpResponse(
                     url: url,
                     body: "<html><main>Coding Plan</main></html>",
                     contentType: "text/html")
             }
-            if url.path.contains("coding_plan/remains") {
+            if url.path.contains("coding_plan/remains") || url.path.contains("remains_percent") {
                 return Self.httpResponse(url: url, body: Self.percentBasedRemainsJSON, contentType: "application/json")
             }
             throw CancellationError()
@@ -701,13 +705,13 @@ struct MiniMaxTokenPlanChangeTests {
         let now = Date(timeIntervalSince1970: 1_780_282_340)
         let transport = ProviderHTTPTransportStub { request in
             let url = try #require(request.url)
-            if url.path.contains("coding-plan") {
+            if url.path == "/console/usage" {
                 return Self.httpResponse(
                     url: url,
                     body: "<html><main>Coding Plan</main></html>",
                     contentType: "text/html")
             }
-            if url.path.contains("coding_plan/remains") {
+            if url.path.contains("coding_plan/remains") || url.path.contains("remains_percent") {
                 return Self.httpResponse(url: url, body: Self.percentBasedRemainsJSON, contentType: "application/json")
             }
             return Self.httpResponse(

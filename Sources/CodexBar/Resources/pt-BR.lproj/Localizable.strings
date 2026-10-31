@@ -562,6 +562,11 @@
 "limit_reset_notification_title" = "%1$@: limite redefinido (%2$@)";
 "limit_reset_notification_body" = "Há cota nova disponível.";
 "limit_reset_notification_body_with_account" = "Conta %@. Há cota nova disponível.";
+"upcoming_reset_notifications_title" = "Avisos de redefinição próxima";
+"upcoming_reset_notifications_subtitle" = "Avisa sobre o Codex antes que o limite semanal seja redefinido enquanto ainda há cota sem usar.";
+"upcoming_reset_notification_title" = "%1$@: redefinição em breve (%2$@)";
+"upcoming_reset_notification_body" = "%1$@ da cota ainda está sem uso. Ela será redefinida em %2$@ e a cota não usada será perdida.";
+"upcoming_reset_notification_body_with_account" = "Conta %1$@. %2$@ da cota ainda está sem uso. Ela será redefinida em %3$@ e a cota não usada será perdida.";
 "quota_warning_warn_at" = "Alertar em";
 "quota_warning_global_threshold_subtitle" = "Percentuais restantes para as janelas de sessão e semanal, a menos que um provedor defina valores próprios.";
 "quota_warning_sound" = "Reproduzir som de notificação";
@@ -1347,11 +1352,11 @@
 "Share Stats…" = "Compartilhar estatísticas…";
 "Stats copied" = "Estatísticas copiadas";
 "DeepSeek this month token usage trend" = "Tendência de uso de tokens do DeepSeek neste mês";
-"Chrome profile" = "Perfil do Chrome";
+"Browser profile" = "Perfil do navegador";
 "Choose which signed-in DeepSeek Platform session supplies detailed usage." = "Escolha qual sessão conectada do DeepSeek Platform fornece o uso detalhado.";
 "Detailed usage unavailable." = "Uso detalhado indisponível.";
-"Sign in to DeepSeek Platform in Chrome for detailed usage." = "Entre no DeepSeek Platform pelo Chrome para ver o uso detalhado.";
-"Select a DeepSeek Chrome profile in Settings." = "Selecione um perfil do Chrome para o DeepSeek nos Ajustes.";
+"Sign in to DeepSeek Platform in a Chromium-based browser for detailed usage." = "Entre no DeepSeek Platform por um navegador baseado em Chromium para ver o uso detalhado.";
+"Select a DeepSeek browser profile in Settings." = "Selecione um perfil de navegador do DeepSeek nos Ajustes.";
 "Select profile…" = "Selecionar perfil…";
 
 "%@: %@" = "%@: %@";
@@ -1475,6 +1480,15 @@
 "menu_bar_layout_token_space" = "Espaço";
 "menu_bar_layout_token_line_break" = "Quebra de linha";
 "menu_bar_layout_token_separator_accessibility" = "Ponto separador";
+"menu_bar_layout_token_separator_glyph_accessibility" = "Separador %@";
+"menu_bar_layout_separator_pipe" = "Barra vertical";
+"menu_bar_layout_separator_slash" = "Barra";
+"menu_bar_layout_separator_hyphen" = "Hífen";
+"menu_bar_layout_separator_bullet" = "Marcador";
+"menu_bar_layout_separator_diamond" = "Losango preenchido";
+"menu_bar_layout_separator_hollowDiamond" = "Losango vazio";
+"menu_bar_layout_separator_tilde" = "Til";
+"menu_bar_layout_separator_doubleBar" = "Barra vertical dupla";
 
 /* Menu bar layout accessibility */
 "Icon unavailable" = "Ícone: Indisponível";
@@ -2761,3 +2775,11 @@
 "Show this Mac's recorded OpenCode usage in Codex history. Off by default; scoped or alternate CODEX_HOME locations always stay excluded." = "Mostra no histórico do Codex o uso do OpenCode registrado neste Mac. Desativado por padrão; locais CODEX_HOME com escopo restrito ou alternativos são sempre excluídos.";
 "Auto uses the active saved session, otherwise an API key or browser cookies." = "Automático usa a sessão salva ativa; caso contrário, uma chave API ou cookies do navegador.";
 "Store multiple Command Code subscription sessions." = "Armazena várias sessões de assinatura do Command Code.";
+
+// Codex account names
+"Rename" = "Renomear";
+"Rename account" = "Renomear conta";
+"Account name" = "Nome da conta";
+"Leave blank to use the default name." = "Deixe em branco para usar o nome padrão.";
+"Rewards" = "Recompensas";
+"Reward expiry" = "Validade das recompensas";

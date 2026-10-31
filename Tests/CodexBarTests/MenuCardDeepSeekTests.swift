@@ -352,7 +352,7 @@ struct MenuCardDeepSeekTests {
             now: now))
 
         #expect(model.inlineUsageDashboard == nil)
-        #expect(model.usageNotes == ["Sign in to DeepSeek Platform in Chrome for detailed usage."])
+        #expect(model.usageNotes == ["Sign in to DeepSeek Platform in a Chromium-based browser for detailed usage."])
     }
 
     @Test
@@ -390,7 +390,7 @@ struct MenuCardDeepSeekTests {
             now: now))
 
         #expect(model.metrics.isEmpty)
-        #expect(model.usageNotes == ["Sign in to DeepSeek Platform in Chrome for detailed usage."])
+        #expect(model.usageNotes == ["Sign in to DeepSeek Platform in a Chromium-based browser for detailed usage."])
     }
 
     @Test
@@ -419,7 +419,7 @@ struct MenuCardDeepSeekTests {
             now: now))
 
         #expect(model.inlineUsageDashboard == nil)
-        #expect(model.usageNotes == ["Select a DeepSeek Chrome profile in Settings."])
+        #expect(model.usageNotes == ["Select a DeepSeek browser profile in Settings."])
     }
 
     @Test

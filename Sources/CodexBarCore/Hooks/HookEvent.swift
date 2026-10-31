@@ -48,6 +48,14 @@ public struct HookEvent: Codable, Sendable, Equatable {
     public let secondaryUsagePercent: Double?
     public let secondaryWindowMinutes: Int?
     public let secondaryResetAt: Date?
+    /// Raw provider plan identifier observed for this `usage_updated` sample (e.g. `pro`).
+    /// This is provenance, not a display label or an inferred allowance multiplier.
+    public let plan: String?
+    /// The provider surface that reported `plan`; stable raw values live in
+    /// `ProviderPlanObservation.Source`.
+    public let planSource: ProviderPlanObservation.Source?
+    /// When CodexBar observed `plan`, not when the plan took effect.
+    public let planObservedAt: Date?
     public let status: String?
     public let timestamp: Date
 
@@ -64,6 +72,9 @@ public struct HookEvent: Codable, Sendable, Equatable {
         secondaryUsagePercent: Double? = nil,
         secondaryWindowMinutes: Int? = nil,
         secondaryResetAt: Date? = nil,
+        plan: String? = nil,
+        planSource: ProviderPlanObservation.Source? = nil,
+        planObservedAt: Date? = nil,
         status: String? = nil,
         timestamp: Date)
     {
@@ -79,6 +90,9 @@ public struct HookEvent: Codable, Sendable, Equatable {
         self.secondaryUsagePercent = secondaryUsagePercent
         self.secondaryWindowMinutes = secondaryWindowMinutes
         self.secondaryResetAt = secondaryResetAt
+        self.plan = plan
+        self.planSource = planSource
+        self.planObservedAt = planObservedAt
         self.status = status
         self.timestamp = timestamp
     }
@@ -103,6 +117,9 @@ public struct HookEvent: Codable, Sendable, Equatable {
             env["CODEXBAR_SECONDARY_WINDOW_MINUTES"] = String(secondaryWindowMinutes)
         }
         if let secondaryResetAt { env["CODEXBAR_SECONDARY_RESET_AT"] = Self.iso8601String(secondaryResetAt) }
+        if let plan { env["CODEXBAR_PLAN"] = plan }
+        if let planSource { env["CODEXBAR_PLAN_SOURCE"] = planSource.rawValue }
+        if let planObservedAt { env["CODEXBAR_PLAN_OBSERVED_AT"] = Self.iso8601String(planObservedAt) }
         if let status { env["CODEXBAR_STATUS"] = status }
         return env
     }

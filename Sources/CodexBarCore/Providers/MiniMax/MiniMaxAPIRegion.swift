@@ -45,6 +45,7 @@ public enum MiniMaxAPIRegion: String, CaseIterable, Sendable {
     }
 
     public var codingPlanURL: URL {
+        if self == .chinaMainland { return URL(string: "https://platform.minimax.cn/console/usage")! }
         var components = URLComponents(string: self.baseURLString)!
         components.path = "/" + Self.codingPlanPath
         components.query = Self.codingPlanQuery
@@ -52,6 +53,7 @@ public enum MiniMaxAPIRegion: String, CaseIterable, Sendable {
     }
 
     public var codingPlanRefererURL: URL {
+        if self == .chinaMainland { return self.codingPlanURL }
         var components = URLComponents(string: self.baseURLString)!
         components.path = "/" + Self.codingPlanPath
         return components.url!

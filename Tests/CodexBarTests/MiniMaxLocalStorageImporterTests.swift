@@ -37,6 +37,7 @@ struct MiniMaxLocalStorageImporterTests {
         defer { try? FileManager.default.removeItem(at: root) }
         let allowed = [
             "https_platform.minimax.io_0", "https_www.minimax.io_0", "https_minimax.io_0",
+            "https_platform.minimax.cn_0", "https_www.minimax.cn_0", "https_minimax.cn_0",
             "https_platform.minimaxi.com_0", "https_www.minimaxi.com_0", "https_minimaxi.com_0",
         ].map { "\($0).indexeddb.leveldb" }
         let excluded = [
@@ -56,7 +57,7 @@ struct MiniMaxLocalStorageImporterTests {
         try Data().write(to: nonDirectory)
         let candidates = ChromiumLocalStorageDiscovery.profileCandidates(
             root: root, labelPrefix: "Fixture", storage: MiniMaxLocalStorageImporter.indexedDBStorage)
-        #expect(candidates.count == 18)
+        #expect(candidates.count == 27)
         #expect(Set(candidates.map(\.url.lastPathComponent)) == Set(allowed))
         #expect(candidates.map(\.label) == ["Default", "Profile 2", "user-work"].flatMap { profile in
             Array(repeating: "Fixture \(profile) (IndexedDB)", count: allowed.count)

@@ -105,13 +105,43 @@ enum CloudSyncBatchRecordProvider {
     static func record(
         for recordID: CKRecord.ID,
         desiredRecords: [CKRecord.ID: CKRecord],
+        pendingSaveHashes: inout [String: String],
         removePendingChange: (CKSyncEngine.PendingRecordZoneChange) -> Void) -> CKRecord?
     {
         guard let record = desiredRecords[recordID] else {
             removePendingChange(.saveRecord(recordID))
+            // Dropped saves receive no result callback to clear their in-flight marker.
+            pendingSaveHashes.removeValue(forKey: recordID.recordName)
             return nil
         }
         return record
+    }
+
+    static func snapshot(_ record: CKRecord) throws -> AccountSnapshotSyncPayload? {
+        guard let providerRaw = record["provider"] as? String,
+              let provider = ProviderInstanceID(rawValue: providerRaw),
+              let deviceID = record["deviceID"] as? String,
+              let accountKey = record["accountKey"] as? String,
+              let fetchedAt = record["fetchedAt"] as? Date,
+              let displayLabel = record.encryptedValues["displayLabel"] as? String,
+              let usagePayload = record.encryptedValues["usagePayload"] as? String
+        else { return nil }
+        let usage = try CanonicalSyncJSON.decode(UsageSnapshot.self, from: usagePayload)
+        return AccountSnapshotSyncPayload(
+            provider: provider,
+            deviceID: deviceID,
+            accountKey: accountKey,
+            fetchedAt: fetchedAt,
+            displayLabel: displayLabel,
+            usage: usage,
+            schemaVersion: (record["schemaVersion"] as? NSNumber)?.intValue ?? 0)
+    }
+
+    static func shouldApplySaveResult(_ record: CKRecord, pendingSaveHashes: [String: String]) -> Bool {
+        guard record.recordType == SyncRecordType.accountSnapshot.rawValue else { return true }
+        guard let payload = try? self.snapshot(record), let hash = try? CanonicalSyncJSON.hash(payload)
+        else { return false }
+        return pendingSaveHashes[record.recordID.recordName] == hash
     }
 }
 
@@ -352,10 +382,6 @@ enum CloudSyncSnapshotMigration {
         guard self.retryDelay(for: error) == nil else { return }
         guard let hash = pendingSaveHashes.removeValue(forKey: recordName) else { return }
         skippedTerminalReplacementHashes[recordName] = hash
-    }
-
-    static func hasInFlightSave(recordName: String, pendingSaveHashes: [String: String]) -> Bool {
-        pendingSaveHashes[recordName] != nil
     }
 
     static func mergingPendingSnapshots(
@@ -825,19 +851,32 @@ final class CloudSyncEngine: CKSyncEngineDelegate {
             if !changes.savedRecords.isEmpty || !changes.deletedRecordIDs.isEmpty {
                 self.quotaRetryState.reset()
             }
-            for record in changes.savedRecords {
+            let savedRecords = changes.savedRecords.filter { record in
+                guard CloudSyncBatchRecordProvider.shouldApplySaveResult(
+                    record,
+                    pendingSaveHashes: self.pendingSaveHashes)
+                else {
+                    if let desired = self.desiredRecords[record.recordID] {
+                        self.cacheSystemFields(record)
+                        self.desiredRecords[record.recordID] = Self.copyUserFields(from: desired, onto: record)
+                    }
+                    return false
+                }
                 self.cacheSystemFields(record)
                 self.desiredRecords.removeValue(forKey: record.recordID)
+                return true
             }
             CloudSyncDirtyState.clearSavedRecords(
-                changes.savedRecords.map(\.recordID.recordName),
+                savedRecords.map(\.recordID.recordName),
                 envelope: &self.persistenceEnvelope)
             // Evaluate confirmed saves before abandoning terminal failures so a mixed batch
             // still counts a failed sibling's shared predecessor as referenced.
             self.finishConfirmedSnapshotMigrations(
-                savedRecordNames: changes.savedRecords.map(\.recordID.recordName),
+                savedRecordNames: savedRecords.map(\.recordID.recordName),
                 syncEngine: syncEngine)
-            for failure in changes.failedRecordSaves {
+            for failure in changes.failedRecordSaves where CloudSyncBatchRecordProvider.shouldApplySaveResult(
+                failure.record, pendingSaveHashes: self.pendingSaveHashes)
+            {
                 await self.handleSaveFailure(failure.record, error: failure.error, syncEngine: syncEngine)
             }
             self.handleSentRecordDeletes(
@@ -872,15 +911,20 @@ final class CloudSyncEngine: CKSyncEngineDelegate {
         _ context: CKSyncEngine.SendChangesContext,
         syncEngine: CKSyncEngine) async -> CKSyncEngine.RecordZoneChangeBatch?
     {
+        guard self.enabled, self.engine === syncEngine else { return nil }
         let changes = syncEngine.state.pendingRecordZoneChanges.filter(context.options.scope.contains)
-        return await CKSyncEngine.RecordZoneChangeBatch(pendingChanges: changes) { [weak self] recordID in
+        let batch = await CKSyncEngine.RecordZoneChangeBatch(pendingChanges: changes) { [weak self] recordID in
             guard let self else { return nil }
             return await self.recordForPendingSave(recordID, syncEngine: syncEngine)
         }
+        return self.enabled && self.engine === syncEngine ? batch : nil
     }
 
     func recordForPendingSave(_ recordID: CKRecord.ID, syncEngine: CKSyncEngine? = nil) -> CKRecord? {
-        CloudSyncBatchRecordProvider.record(for: recordID, desiredRecords: self.desiredRecords) { change in
+        guard syncEngine == nil || (self.enabled && self.engine === syncEngine) else { return nil }
+        return CloudSyncBatchRecordProvider.record(
+            for: recordID, desiredRecords: self.desiredRecords, pendingSaveHashes: &self.pendingSaveHashes)
+        { change in
             syncEngine?.state.remove(pendingRecordZoneChanges: [change])
         }
     }
@@ -1001,27 +1045,9 @@ final class CloudSyncEngine: CKSyncEngineDelegate {
     }
 
     private func applyAccountSnapshot(_ record: CKRecord) throws {
-        guard !CloudSyncSnapshotMigration.hasInFlightSave(
-            recordName: record.recordID.recordName,
-            pendingSaveHashes: self.pendingSaveHashes)
+        guard self.pendingSaveHashes[record.recordID.recordName] == nil,
+              let payload = try CloudSyncBatchRecordProvider.snapshot(record)
         else { return }
-        guard let providerRaw = record["provider"] as? String,
-              let provider = ProviderInstanceID(rawValue: providerRaw),
-              let deviceID = record["deviceID"] as? String,
-              let accountKey = record["accountKey"] as? String,
-              let fetchedAt = record["fetchedAt"] as? Date,
-              let displayLabel = record.encryptedValues["displayLabel"] as? String,
-              let usagePayload = record.encryptedValues["usagePayload"] as? String
-        else { return }
-        let usage = try CanonicalSyncJSON.decode(UsageSnapshot.self, from: usagePayload)
-        let payload = AccountSnapshotSyncPayload(
-            provider: provider,
-            deviceID: deviceID,
-            accountKey: accountKey,
-            fetchedAt: fetchedAt,
-            displayLabel: displayLabel,
-            usage: usage,
-            schemaVersion: self.schemaVersion(record))
         self.persistenceEnvelope.fleetSnapshots[record.recordID.recordName] = payload
         self.state.fleetSnapshots[record.recordID.recordName] = payload
     }
@@ -1469,10 +1495,7 @@ extension CloudSyncEngine {
                     }
                     continue
                 }
-                if CloudSyncSnapshotMigration.hasInFlightSave(
-                    recordName: payload.recordName,
-                    pendingSaveHashes: self.pendingSaveHashes)
-                {
+                if self.pendingSaveHashes[payload.recordName] != nil {
                     self.persistenceEnvelope.fleetSnapshots[payload.recordName] = payload
                     stillPending.append(payload)
                     continue

@@ -107,6 +107,7 @@ enum MenuBarLayoutPaletteTokens {
         .spendAmount,
         .spendBudget,
         .separatorDot,
+    ] + MenuBarLayoutSeparator.allCases.map(MenuBarLayoutToken.separator) + [
         .space,
         .hidden,
     ]
@@ -373,7 +374,8 @@ struct MenuBarLayoutEditor: View {
             MenuBarLayoutPaletteGroup(
                 id: "structure",
                 title: L("menu_bar_layout_group_structure"),
-                tokens: [.separatorDot, .space],
+                tokens: [.separatorDot] + MenuBarLayoutSeparator.allCases.map(MenuBarLayoutToken.separator)
+                    + [.space],
                 includesLineBreak: true),
         ]
     }
@@ -1220,6 +1222,7 @@ extension MenuBarLayoutToken {
         case .spendAmount: L("Spend")
         case .spendBudget: L("menu_bar_layout_token_spend_budget")
         case .separatorDot: "·"
+        case let .separator(separator): separator.glyph
         case .space: L("menu_bar_layout_token_space")
         case .conditional: L("menu_bar_layout_token_conditional")
         case .hidden: L("menu_bar_layout_conditional_hide")
@@ -1250,6 +1253,9 @@ extension MenuBarLayoutToken {
     func editorAccessibilityLabel(provider: UsageProvider?, snapshot: UsageSnapshot? = nil) -> String {
         switch self {
         case .separatorDot: L("menu_bar_layout_token_separator_accessibility")
+        case let .separator(separator): L(
+                "menu_bar_layout_token_separator_glyph_accessibility",
+                separator.accessibilityName)
         default: self.editorLabel(provider: provider, snapshot: snapshot)
         }
     }
@@ -1270,7 +1276,7 @@ extension MenuBarLayoutToken {
         case .tokensSparkline: "chart.bar.xaxis"
         case .costToday, .spendAmount, .spendBudget: "dollarsign.circle"
         case .costWindow: "calendar.badge.clock"
-        case .separatorDot: "smallcircle.filled.circle"
+        case .separatorDot, .separator: "smallcircle.filled.circle"
         case .space: "space"
         case .conditional: "switch.2"
         case .hidden: "eye.slash"

@@ -41,8 +41,8 @@ struct DeepSeekProviderImplementation: ProviderImplementation {
 
         return [
             ProviderSettingsPickerDescriptor(
-                id: "deepseek-chrome-profile",
-                title: "Chrome profile",
+                id: "deepseek-browser-profile",
+                title: "Browser profile",
                 subtitle: "Choose which signed-in DeepSeek Platform session supplies detailed usage.",
                 dynamicSubtitle: {
                     context.store.refreshingProviders.contains(.deepseek)

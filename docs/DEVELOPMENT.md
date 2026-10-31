@@ -34,6 +34,10 @@ read_when:
 4. **Optional file log**: enable Debug → Logging → "Enable file logging" to write
    `~/Library/Logs/CodexBar/CodexBar.log` (verbosity defaults to "Verbose")
 
+## Plural format validation
+
+Plural references share printf argument positions with ordinary values and star width/precision arguments. For example, `%d: %#@count@` can be translated as `%2$#@count@ (%1$d)`; swapping the count to `%1$#@count@` is invalid even though both arguments are integers. Run `node --test Scripts/test_localization_formats.mjs` for focused validator tests and `node Scripts/check-app-locales.mjs` for the catalogs.
+
 ## Localized countdowns
 
 `UsageFormatter.resetCountdownDescription` returns a complete relative phrase. Use `resetCountdownDuration` inside sentences that already include a preposition, such as “Runs out in %@”. Countdown wrappers such as “Regenerates %@” and “Expires %@” receive the complete relative phrase; keep their grammar without repeating its time words. Countdown units come from each language’s existing abbreviated templates; Ukrainian uses `дн.`, `год`, and `хв`, which do not require plural inflection. Keep widget catalogs generated from the app catalogs with `node Scripts/sync-widget-locales.mjs`.
@@ -705,6 +709,8 @@ eight with a 120-second suite timeout and no retries for ordinary test failures.
 the existing isolated-selection retry policy; each retry has its own deadline. Three independent
 hosted complete-inventory runs validated this mode before enabling it.
 Both serial and direct modes print ordered selection groups and timing summaries.
+Discovery-home cleanup unmounts volumes Xcode mounted beneath that temporary home before deleting it,
+without following symlinks. Unmount, traversal, and deletion errors still fail discovery.
 
 Each macOS job restores a compiled SwiftPM cache bound to its toolchain, SDK, architecture,
 package state and build scripts/options. The helper verifies tracked input contents and permissions
