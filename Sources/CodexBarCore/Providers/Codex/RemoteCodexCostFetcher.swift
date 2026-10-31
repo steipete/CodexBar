@@ -191,16 +191,46 @@ public struct RemoteCodexCostFetcher: Sendable {
         endUnixMs: Int64,
         environment: [String: String] = ProcessInfo.processInfo.environment) async throws -> CodexRequestLedger
     {
+        try await self.fetchIdentifiedLedger(
+            host: host,
+            historyDays: historyDays,
+            startUnixMs: startUnixMs,
+            endUnixMs: endUnixMs,
+            environment: environment)
+    }
+
+    public func fetchPiIdentifiedUsage(
+        host: String,
+        historyDays: Int,
+        startUnixMs: Int64,
+        endUnixMs: Int64,
+        environment: [String: String] = ProcessInfo.processInfo.environment) async throws -> PiRequestLedger
+    {
+        try await self.fetchIdentifiedLedger(
+            host: host,
+            historyDays: historyDays,
+            startUnixMs: startUnixMs,
+            endUnixMs: endUnixMs,
+            environment: environment)
+    }
+
+    private func fetchIdentifiedLedger<Ledger: IdentifiedRequestLedger>(
+        host: String,
+        historyDays: Int,
+        startUnixMs: Int64,
+        endUnixMs: Int64,
+        environment: [String: String]) async throws -> Ledger
+    {
         guard (1...365).contains(historyDays), startUnixMs >= 0, endUnixMs >= startUnixMs,
               endUnixMs <= 253_402_300_799_999
         else { throw RemoteCodexCostError.invalidReport }
-        let options = "cost --provider codex --format json --identified-only --days \(historyDays)" +
+        let options = "cost --provider \(Ledger.providerName) --format json --identified-only --days \(historyDays)" +
             " --identified-end \(endUnixMs)"
         let output = try await self.output(
             arguments: Self.arguments(host: host, options: options),
-            maximumOutputBytes: CodexRequestLedger.maximumOutputBytes,
+            maximumOutputBytes: IdentifiedRequestLimits.maximumOutputBytes,
             environment: environment)
-        guard let ledger = try? JSONDecoder().decode(CodexRequestLedger.self, from: Data(output.utf8))
+        guard let ledger = try? JSONDecoder().decode(Ledger.self, from: Data(output.utf8))
         else { throw RemoteCodexCostError.invalidReport }
         try ledger.validate(startUnixMs: startUnixMs, endUnixMs: endUnixMs)
         return ledger

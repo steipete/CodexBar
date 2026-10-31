@@ -159,6 +159,9 @@ a second identifier is an error. For an option value beginning with a dash, use 
     Files are read and validated even for a short window; reducing `--days` does not skip older files.
   - Requires explicit `--provider codex` and JSON. Do not combine with `--summary-only`,
     `--period`, `--group-by` or `--breakdown`; the existing separate-host summary command is unchanged.
+- `codexbar cost --provider pi --identified-only --format json` exports Pi/OMP identified token history.
+  Repeat `--remote <host>` to deduplicate across SSH hosts; omit it for a bare local ledger.
+  See [Pi identified history](pi.md#identified-token-history-over-ssh) for accounting, identity and source details.
 - `codexbar cards` prints a one-shot usage snapshot as a responsive terminal card grid.
   - Reuses the same provider, source, account, credits, and status flags as `codexbar usage`.
   - Account lines and plan badges are included in the card grid by default.

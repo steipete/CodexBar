@@ -88,6 +88,12 @@ enum PiSessionCostScanner {
         let pricingProvider: UsageProvider?
     }
 
+    private struct AccountingObservation {
+        let entryID: String?
+        let date: Date?
+        let accounting: PiRequestAccounting?
+    }
+
     private struct ModelsDevPricingContext {
         let catalog: ModelsDevCatalog?
         let cacheRoot: URL?
@@ -667,7 +673,8 @@ enum PiSessionCostScanner {
         root: URL,
         startCutoffLocal: Date,
         calendar: Calendar,
-        missingIsKnownEmpty: Bool) -> SessionFileListResult
+        missingIsKnownEmpty: Bool,
+        includeAllDates: Bool = false) -> SessionFileListResult
     {
         guard FileManager.default.fileExists(atPath: root.path) else {
             // A missing default store is a known empty store, but a missing configured root may
@@ -711,7 +718,7 @@ enum PiSessionCostScanner {
 
             let startedAt = self.parseSessionStartFromFilename(item.lastPathComponent)
             let modifiedAt = values.contentModificationDate
-            if self
+            if includeAllDates || self
                 .shouldIncludeFile(
                     startedAt: startedAt,
                     modifiedAt: modifiedAt,
@@ -836,7 +843,9 @@ enum PiSessionCostScanner {
         initialSessionID: String? = nil,
         initialModelContext: PiModelContext? = nil,
         pricingContext: ModelsDevPricingContext? = nil,
-        checkCancellation: CostUsageScanner.CancellationCheck? = nil) throws -> ParseResult
+        checkCancellation: CostUsageScanner.CancellationCheck? = nil,
+        accountingObserver: ((AccountingObservation) throws -> Void)? = nil)
+        throws -> ParseResult
     {
         self.sessionParseObserverForTesting?()
         var sessionID = initialSessionID
@@ -847,6 +856,7 @@ enum PiSessionCostScanner {
         var unsupportedAssistantDayKeys: Set<String> = []
         var hasUndatedUnsupportedAssistant = false
         var isComplete = true
+        var observationError: (any Error)?
 
         func add(
             provider: UsageProvider,
@@ -887,15 +897,10 @@ enum PiSessionCostScanner {
                 prefixBytes: Self.maxLineBytes,
                 checkCancellation: checkCancellation,
                 onLine: { line in
-                    guard !line.bytes.isEmpty else { return }
-                    if line.wasTruncated {
-                        // Dropping an oversized record must not advance the cache past usage we
-                        // could not parse; retain the previous file snapshot and retry later.
-                        isComplete = false
-                        return
-                    }
+                    guard observationError == nil, !line.bytes.isEmpty else { return }
                     autoreleasepool {
-                        guard let objectValue = try? JSONSerialization.jsonObject(with: line.bytes),
+                        guard !line.wasTruncated,
+                              let objectValue = try? JSONSerialization.jsonObject(with: line.bytes),
                               let object = objectValue as? [String: Any]
                         else {
                             // A terminated but malformed/non-object record means the file was not
@@ -915,9 +920,18 @@ enum PiSessionCostScanner {
                             return
                         }
 
-                        guard type == "message", let message = object["message"] as? [String: Any] else { return }
-                        guard (message["role"] as? String) == "assistant" else { return }
+                        guard type == "message", let message = object["message"] as? [String: Any],
+                              (message["role"] as? String) == "assistant" else { return }
 
+                        if let accountingObserver {
+                            do {
+                                try accountingObserver(.init(
+                                    entryID: self.entryIdentifier(from: object),
+                                    date: self.timestampDate(entry: object, message: message),
+                                    accounting: self.extractAccounting(message: message)))
+                            } catch { observationError = error }
+                            return
+                        }
                         let identity = self.resolveAssistantIdentity(
                             entry: object,
                             message: message,
@@ -988,6 +1002,7 @@ enum PiSessionCostScanner {
             isComplete = false
         }
 
+        if let observationError { throw observationError }
         return ParseResult(
             contributions: contributions,
             unkeyedContributions: unkeyedContributions,
@@ -998,6 +1013,106 @@ enum PiSessionCostScanner {
             isComplete: isComplete,
             unsupportedAssistantDayKeys: unsupportedAssistantDayKeys,
             hasUndatedUnsupportedAssistant: hasUndatedUnsupportedAssistant)
+    }
+
+    static func loadIdentified(
+        startUnixMs: Int64,
+        endUnixMs: Int64,
+        options: Options,
+        checkCancellation: @escaping CostUsageScanner.CancellationCheck) throws -> PiRequestLedger
+    {
+        var ledger = PiRequestLedger(
+            startUnixMs: startUnixMs,
+            endUnixMs: endUnixMs)
+        try ledger.validate(
+            startUnixMs: startUnixMs,
+            endUnixMs: endUnixMs)
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = .gmt
+        let range = CostUsageScanner.CostUsageDayRange(
+            since: Date(timeIntervalSince1970: Double(startUnixMs) / 1000),
+            until: Date(timeIntervalSince1970: Double(endUnixMs) / 1000),
+            calendar: calendar)
+        // Only retained root scope is reused. Cached accounting and pricing never enter this scan.
+        let previous = PiSessionCostCacheIO.load(cacheRoot: options.cacheRoot).sessionRootsFingerprint
+        let roots = self.defaultSessionRoots(options: options, previousSessionRootsFingerprint: previous)
+        var files = Set<URL>()
+        var available = false
+        for root in roots {
+            try checkCancellation()
+            let inventory = self.listPiSessionFiles(
+                root: root.url,
+                startCutoffLocal: Date(timeIntervalSince1970: Double(startUnixMs) / 1000),
+                calendar: calendar,
+                missingIsKnownEmpty: root.missingIsKnownEmpty,
+                includeAllDates: true)
+            available = available || inventory.isComplete
+            ledger.partial = ledger.partial || !inventory.isComplete || !root.resolutionIsComplete
+            files.formUnion(inventory.files.map(self.canonicalSessionFileURL))
+        }
+        guard available || !files.isEmpty else { throw RemoteCodexCostError.unavailable }
+        var combined = PiRequestReducer()
+        func exclude(_ count: Int = 1) throws {
+            guard count > 0 else { return }
+            guard let value = CheckedSum.integers([ledger.excludedCount, count]) else {
+                throw RemoteCodexCostError.invalidReport
+            }
+            ledger.excludedCount = value
+            ledger.partial = true
+        }
+        for file in files.sorted(by: { $0.path < $1.path }) {
+            try checkCancellation()
+            let before = self.sessionFileMetadata(at: file)
+            var entries = PiRequestReducer()
+            var positiveEntries = Set<String>()
+            let parsed = try self.parsePiSessionFile(
+                fileURL: file,
+                range: range,
+                checkCancellation: checkCancellation,
+                accountingObserver: { observation in
+                    let accounting = observation.accounting
+                    guard let date = observation.date else { try exclude(); return }
+                    let milliseconds = (date.timeIntervalSince1970 * 1000).rounded()
+                    guard (Double(startUnixMs)...Double(endUnixMs)).contains(milliseconds) else { return }
+                    guard let entry = observation.entryID else {
+                        if accounting?.totalTokens != 0 { try exclude() }
+                        return
+                    }
+                    guard let accounting else {
+                        entries.reject(entry)
+                        try entries.checkSourceBounds()
+                        try exclude()
+                        return
+                    }
+                    if accounting.totalTokens > 0 { positiveEntries.insert(entry) }
+                    entries.observe(.init(
+                        id: entry,
+                        timestampUnixMs: Int64(milliseconds),
+                        accounting: accounting))
+                    try entries.checkSourceBounds()
+                })
+            // Provider-specific by design: Pi and OMP share session/entry identities in the Pi namespace.
+            if let session = parsed.sessionID {
+                for entry in entries.conflicts {
+                    combined.reject(CodexRequestLedger.digest(["pi", session, entry]))
+                    try combined.checkSourceBounds()
+                }
+                for var row in entries.records.values {
+                    row.id = CodexRequestLedger.digest(["pi", session, row.id])
+                    combined.observe(row)
+                    try combined.checkSourceBounds()
+                }
+            } else {
+                try exclude(positiveEntries.count)
+            }
+            ledger.partial = ledger.partial || !parsed.isComplete || before == nil || !entries.conflicts.isEmpty
+                || before != self.sessionFileMetadata(at: file)
+        }
+        ledger.records = combined.records.values.sorted { $0.id < $1.id }
+        ledger.conflictingIDs = combined.conflicts.sorted()
+        ledger.partial = ledger.partial || !combined.conflicts.isEmpty
+        try ledger.validate(startUnixMs: startUnixMs, endUnixMs: endUnixMs)
+        return ledger
     }
 
     private static func sessionIdentifier(from object: [String: Any]) -> String? {
@@ -1148,13 +1263,7 @@ enum PiSessionCostScanner {
         return Date(timeIntervalSince1970: raw > 1_000_000_000_000 ? raw / 1000 : raw)
     }
 
-    private static func extractUsage(
-        provider: UsageProvider?,
-        modelName: String,
-        message: [String: Any],
-        pricingDate: Date? = nil,
-        pricingContext: ModelsDevPricingContext? = nil) -> PiPackedUsage?
-    {
+    private static func extractAccounting(message: [String: Any]) -> PiRequestAccounting? {
         guard let usage = message["usage"] as? [String: Any] else { return nil }
         var hasCounter = false
         func read(_ value: Any?) -> Int? {
@@ -1209,6 +1318,30 @@ enum PiSessionCostScanner {
         else { return nil }
         let totalTokens = max(directTotal, derivedTotal)
 
+        return PiRequestAccounting(
+            inputTokens: input,
+            outputTokens: output,
+            cacheReadTokens: cacheRead,
+            cacheWriteTokens: cacheWrite,
+            cacheWrite1hTokens: cacheWrite1h,
+            totalTokens: totalTokens)
+    }
+
+    private static func extractUsage(
+        provider: UsageProvider?,
+        modelName: String,
+        message: [String: Any],
+        pricingDate: Date? = nil,
+        pricingContext: ModelsDevPricingContext? = nil) -> PiPackedUsage?
+    {
+        guard let accounting = self.extractAccounting(message: message) else { return nil }
+        let input = accounting.inputTokens
+        let output = accounting.outputTokens
+        let cacheRead = accounting.cacheReadTokens
+        let cacheWrite = accounting.cacheWriteTokens
+        let cacheWrite1h = accounting.cacheWrite1hTokens
+        let totalTokens = accounting.totalTokens
+        let derivedTotal = input + output + cacheRead + cacheWrite
         var rawUsage = PiPackedUsage(
             inputTokens: input,
             cacheReadTokens: cacheRead,

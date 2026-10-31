@@ -59,7 +59,7 @@ struct CodexRequestSubtotalTests {
     func `local identified export enforces the emitted byte limit`() async throws {
         let ledger = try Self.ledger(outputBytes: CodexRequestLedger.maximumOutputBytes, pretty: true)
         let remote = Self.source([Self.accountingRow(id: "b")])
-        let accepted = try await CodexBarCLI.collectCodexIdentifiedUsage(
+        let accepted = try await CodexBarCLI.collectIdentifiedUsage(
             remotes: [],
             startUnixMs: Self.start,
             endUnixMs: Self.end,
@@ -72,7 +72,7 @@ struct CodexRequestSubtotalTests {
         #expect(accepted.localLedgerJSON.map { $0.utf8.count + 1 } == CodexRequestLedger.maximumOutputBytes)
 
         let oversized = try Self.ledger(outputBytes: CodexRequestLedger.maximumOutputBytes + 1, pretty: true)
-        let rejected = try await CodexBarCLI.collectCodexIdentifiedUsage(
+        let rejected = try await CodexBarCLI.collectIdentifiedUsage(
             remotes: ["fixture-host"],
             startUnixMs: Self.start,
             endUnixMs: Self.end,
@@ -110,7 +110,7 @@ struct CodexRequestSubtotalTests {
         let wire = try #require(String(data: encoder.encode(remote), encoding: .utf8))
         #expect(wire.utf8.count < CodexRequestLedger.maximumOutputBytes)
         let fetcher = RemoteCodexCostFetcher(runner: { _, _ in wire })
-        let report = try await CodexBarCLI.collectCodexIdentifiedUsage(
+        let report = try await CodexBarCLI.collectIdentifiedUsage(
             remotes: ["fixture-host"],
             startUnixMs: Self.start,
             endUnixMs: Self.end,
@@ -127,7 +127,7 @@ struct CodexRequestSubtotalTests {
     @Test
     func `local-only identified collection keeps the ledger without pricing a subtotal`() async throws {
         let ledger = Self.ledger()
-        let report = try await CodexBarCLI.collectCodexIdentifiedUsage(
+        let report = try await CodexBarCLI.collectIdentifiedUsage(
             remotes: [],
             startUnixMs: Self.start,
             endUnixMs: Self.end,
@@ -152,7 +152,7 @@ struct CodexRequestSubtotalTests {
             cacheReadTokens: 0,
             outputTokens: 0,
             reasoningTokens: nil) }
-        let report = try await CodexBarCLI.collectCodexIdentifiedUsage(
+        let report = try await CodexBarCLI.collectIdentifiedUsage(
             remotes: ["fixture-host"],
             startUnixMs: Self.start,
             endUnixMs: Self.end,
@@ -341,7 +341,7 @@ struct CodexRequestSubtotalTests {
             endUnixMs: Self.end,
             environment: ["UNRELATED_TOKEN": "fixture-secret"])
         #expect(received.records == ledger.records)
-        let combined = try await CodexBarCLI.collectCodexIdentifiedUsage(
+        let combined = try await CodexBarCLI.collectIdentifiedUsage(
             remotes: ["fixture-host"],
             startUnixMs: Self.start,
             endUnixMs: Self.end,
@@ -349,7 +349,7 @@ struct CodexRequestSubtotalTests {
             fetchRemote: { _ in received })
         #expect(combined.allSourcesAvailable)
         #expect(combined.subtotal?.totalTokens == 110)
-        let report = try await CodexBarCLI.collectCodexIdentifiedUsage(
+        let report = try await CodexBarCLI.collectIdentifiedUsage(
             remotes: ["fixture-host"],
             startUnixMs: Self.start,
             endUnixMs: Self.end,
@@ -361,11 +361,11 @@ struct CodexRequestSubtotalTests {
         #expect(report.reports[0].ledger != nil)
         #expect(report.reports[1].ledger == nil)
         let cancelled = Task {
-            try await CodexBarCLI.collectCodexIdentifiedUsage(
+            try await CodexBarCLI.collectIdentifiedUsage(
                 remotes: ["fixture-host"],
                 startUnixMs: Self.start,
                 endUnixMs: Self.end,
-                local: { throw CancellationError() },
+                local: { () -> CodexRequestLedger in throw CancellationError() },
                 fetchRemote: { _ in
                     Issue.record("Cancellation must prevent SSH")
                     return ledger
@@ -807,7 +807,7 @@ extension CodexRequestSubtotalTests {
         if failure == "window" { rejected.endUnixMs += 1 }
         let invalid = rejected
         let stamp = Date(timeIntervalSince1970: 1234)
-        let result = try await CodexBarCLI.collectCodexIdentifiedUsage(
+        let result = try await CodexBarCLI.collectIdentifiedUsage(
             remotes: ["first", "bad", "local", "last", "last"],
             startUnixMs: Self.start,
             endUnixMs: Self.end,
@@ -843,7 +843,7 @@ extension CodexRequestSubtotalTests {
         if state == "empty" { ledger.records = [] }
         ledger.partial = state == "partial"
         let source = ledger
-        let result = try await CodexBarCLI.collectCodexIdentifiedUsage(
+        let result = try await CodexBarCLI.collectIdentifiedUsage(
             remotes: ["host"],
             startUnixMs: Self.start,
             endUnixMs: Self.end,
@@ -869,7 +869,7 @@ extension CodexRequestSubtotalTests {
     @Test(arguments: ["local-throws", "remote-cancels"])
     func `cancellation prevents the next SSH fetch`(cancellation: String) async {
         let task = Task {
-            try await CodexBarCLI.collectCodexIdentifiedUsage(
+            try await CodexBarCLI.collectIdentifiedUsage(
                 remotes: ["first", "never"],
                 startUnixMs: Self.start,
                 endUnixMs: Self.end,

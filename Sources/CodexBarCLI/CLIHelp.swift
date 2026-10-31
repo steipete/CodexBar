@@ -148,13 +148,14 @@ extension CodexBarCLI {
           Experimental: use --provider-native-only to exclude pi and OMP session mirrors.
           Use --provider codex --remote <host> for separate local and SSH-host summaries.
           --summary-only emits versioned Codex JSON totals without account or session details.
-          --identified-only requires --provider codex and JSON. It exports strong native request identities
+          --identified-only requires --provider codex or pi and JSON. It exports strong native request identities
           over one UTC window (30 days by default); legacy and unidentified usage are excluded.
           Repeat --remote to deduplicate exports from several SSH hosts using the same millisecond window.
-          Every host needs schema 2 support. Combined API-price estimates use the collector’s pricing snapshot;
+          Every host needs schema 2 support. Codex API-price estimates use the collector’s pricing snapshot;
           unknown prices remain null with unpricedRequestCount. Pricing disagreements retain tokens, unpriced;
           timestamp/token conflicts exclude requests. Failed hosts retain successful sources and exit nonzero.
           Source rows include local/ssh origin and collection time; failed rows omit that time.
+          Pi exports tokens only; its merged subtotal costUSD is always null.
           These modes accept --days 1...365, not --period, --summary-only, grouping or breakdown.
 
         Examples:

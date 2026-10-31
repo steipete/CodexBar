@@ -54,3 +54,41 @@ Files replaced while being read leave the refresh incomplete. A pricing-catalog 
 The one-hour counter correction invalidates the Pi pricing key once, including estimates mirrored into Claude or Codex reports. Existing Pi cache rows do not retain the one-hour split, so all Pi sessions in the scan window must be reparsed before publishing corrected prices. The cache schema and native Claude/Codex caches are unchanged; subsequent refreshes resume normal cache reuse.
 
 The addition of unsupported-backend token history also invalidates the Pi pricing key once so previously ignored rows are collected. The cache schema stays unchanged.
+
+## Identified token history over SSH
+
+`codexbar cost --provider pi --identified-only --format json --days 30 --remote build-a --remote build-b`
+combines local Pi/OMP history with each SSH host, counting copies with the same session and entry IDs once.
+Omit `--remote` for a bare local ledger. This read-only mode scans native records afresh without pricing or updating the
+ordinary cost cache. Retained live-root scope and current process selectors still participate.
+
+Pi uses the shared schema 2 envelope with `provider: "pi"`. Identity comes from the first valid
+session header ID (`id`, `sessionId`, `session_id`, using scanner precedence) and assistant entry `id`.
+IDs are trimmed, bounded to 1,024 UTF-8 bytes, length-framed and SHA-256 hashed with a `pi` discriminator.
+Pi and OMP share this namespace; backend, model, host, filename and path do not distinguish a turn.
+Copied turns deduplicate only when both session and entry IDs are retained. A fork with a new session
+header has a distinct identity even when its entry IDs match the original.
+
+Every in-window copy participates before ordinary last-entry selection. Timestamp or accounting
+contradictions, including malformed accounting for a known dated identity, permanently exclude that
+identity, even after a later clean copy. Zero-token copies remain witnesses without adding requests.
+Missing identities and unresolved accounting are excluded explicitly; unsupported backends remain eligible.
+
+Rows contain only the digest, timestamp and six counters: input, output, cache read, cache write,
+one-hour write and total. Backend/model metadata is absent regardless of its native value. Input and
+both cache categories are disjoint; one-hour writes are a subset of cache writes. Total is the larger
+of the recorded total and checked sum of disjoint categories. No prompt, account identity, raw ID or
+path is exported. The merged subtotal always has `costUSD: null`, including empty history;
+`unpricedRequestCount` counts accepted positive-token requests.
+
+All sources use the same inclusive UTC millisecond window. Sources are collected locally first,
+then sequentially in argument order, including repeated aliases. Reports retain `host`, `source`
+(`local` or `ssh`) and successful `collectedAt` completion times. Unavailable or rejected sources
+retain successful sources, mark the result partial and exit nonzero. Missing default stores are known
+empty; readable damage is available partial data. Undated or damaged history conservatively marks
+coverage partial even when file metadata is old.
+
+The shared transport limits each source to 50,000 records/conflict IDs and 32 MiB of actual JSON
+stdout, including its trailing newline. Combined totals must fit an integer. Fewer `--days` reduce
+retained in-window rows, not files scanned. Every host requires schema 2 support. See [CLI usage](cli.md)
+for window and argument restrictions. Ordinary Pi reports and their cache selection are unchanged.
