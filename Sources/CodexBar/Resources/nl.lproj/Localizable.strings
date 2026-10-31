@@ -565,6 +565,11 @@
 "limit_reset_notification_title" = "%1$@ %2$@ limiet gereset";
 "limit_reset_notification_body" = "Er is weer nieuw quotum beschikbaar.";
 "limit_reset_notification_body_with_account" = "Account %@. Er is weer nieuw quotum beschikbaar.";
+"upcoming_reset_notifications_title" = "Waarschuwingen voor aankomende reset";
+"upcoming_reset_notifications_subtitle" = "Waarschuwt voor Codex voordat het weeklimiet wordt gereset terwijl er nog quotum ongebruikt is.";
+"upcoming_reset_notification_title" = "%1$@ %2$@ limiet wordt binnenkort gereset";
+"upcoming_reset_notification_body" = "%1$@ van het quotum is nog ongebruikt. Het wordt over %2$@ gereset en ongebruikt quotum gaat verloren.";
+"upcoming_reset_notification_body_with_account" = "Account %1$@. %2$@ van het quotum is nog ongebruikt. Het wordt over %3$@ gereset en ongebruikt quotum gaat verloren.";
 "quota_warning_warn_at" = "Waarschuw bij";
 "quota_warning_global_threshold_subtitle" = "Resterende percentages voor sessie- en wekelijkse vensters, tenzij een provider deze overschrijft.";
 "quota_warning_sound" = "Meldingsgeluid afspelen";
@@ -1346,11 +1351,11 @@
 "Share Stats…" = "Statistieken delen…";
 "Stats copied" = "Statistieken gekopieerd";
 "DeepSeek this month token usage trend" = "Trend van DeepSeek-tokengebruik deze maand";
-"Chrome profile" = "Chrome-profiel";
+"Browser profile" = "Browserprofiel";
 "Choose which signed-in DeepSeek Platform session supplies detailed usage." = "Kies welke aangemelde DeepSeek Platform-sessie gedetailleerd gebruik levert.";
 "Detailed usage unavailable." = "Gedetailleerd gebruik niet beschikbaar.";
-"Sign in to DeepSeek Platform in Chrome for detailed usage." = "Meld je in Chrome aan bij DeepSeek Platform voor gedetailleerd gebruik.";
-"Select a DeepSeek Chrome profile in Settings." = "Selecteer een DeepSeek Chrome-profiel in Instellingen.";
+"Sign in to DeepSeek Platform in a Chromium-based browser for detailed usage." = "Meld je in een op Chromium gebaseerde browser aan bij DeepSeek Platform voor gedetailleerd gebruik.";
+"Select a DeepSeek browser profile in Settings." = "Selecteer een DeepSeek-browserprofiel in Instellingen.";
 "Select profile…" = "Profiel selecteren…";
 
 "%@: %@" = "%@: %@";
@@ -1474,6 +1479,15 @@
 "menu_bar_layout_token_space" = "Spatie";
 "menu_bar_layout_token_line_break" = "Regeleinde";
 "menu_bar_layout_token_separator_accessibility" = "Scheidingspunt";
+"menu_bar_layout_token_separator_glyph_accessibility" = "Scheidingsteken %@";
+"menu_bar_layout_separator_pipe" = "Verticale streep";
+"menu_bar_layout_separator_slash" = "Schuine streep";
+"menu_bar_layout_separator_hyphen" = "Koppelteken";
+"menu_bar_layout_separator_bullet" = "Opsommingsteken";
+"menu_bar_layout_separator_diamond" = "Gevulde ruit";
+"menu_bar_layout_separator_hollowDiamond" = "Open ruit";
+"menu_bar_layout_separator_tilde" = "Tilde";
+"menu_bar_layout_separator_doubleBar" = "Dubbele verticale streep";
 
 /* Menu bar layout accessibility */
 "Icon unavailable" = "Pictogram: Niet beschikbaar";
@@ -2758,3 +2772,11 @@
 "Show this Mac's recorded OpenCode usage in Codex history. Off by default; scoped or alternate CODEX_HOME locations always stay excluded." = "Toont het op deze Mac vastgelegde OpenCode-gebruik in de Codex-geschiedenis. Standaard uitgeschakeld; CODEX_HOME-locaties met een beperkt bereik en alternatieve locaties blijven altijd uitgesloten.";
 "Auto uses the active saved session, otherwise an API key or browser cookies." = "Automatisch gebruikt de actieve opgeslagen sessie, anders een API-sleutel of browsercookies.";
 "Store multiple Command Code subscription sessions." = "Bewaar meerdere Command Code-abonnementssessies.";
+
+// Codex account names
+"Rename" = "Naam wijzigen";
+"Rename account" = "Accountnaam wijzigen";
+"Account name" = "Accountnaam";
+"Leave blank to use the default name." = "Laat dit veld leeg om de standaardnaam te gebruiken.";
+"Rewards" = "Beloningen";
+"Reward expiry" = "Vervaldatum beloningen";

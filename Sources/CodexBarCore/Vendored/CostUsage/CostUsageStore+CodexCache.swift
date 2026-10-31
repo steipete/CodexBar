@@ -580,6 +580,12 @@ extension CostUsageStore {
 
         for file in persistence.files where !file.belongsToOpenCodeLocalHistory {
             guard var usage = cache.files[file.path] else { continue }
+            let archived: Bool? = CostUsageScanner.isArchivedCodexRollout(file.path) ? true : nil
+            if usage.codexArchived != archived {
+                usage.codexArchived = archived
+                cache.files[file.path] = usage
+            }
+            if archived == true { continue }
             let normalizedIdentity = Self.normalizedCodexFileIdentity(
                 file: file,
                 currentRootDevices: currentRootDevices)

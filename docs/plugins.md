@@ -32,7 +32,8 @@ the most-used reported seven-day window, otherwise the first available primary, 
 Choose **Primary**, **Secondary**, **Tertiary**, or a named extra window to use that quota for both the Icon & percent
 number and the provider-switcher gauge. Reported window titles replace the generic labels; named extras appear after
 the plugin reports them. For example, choosing a monthly window at 76.9% used displays **77%** even just after a weekly
-reset. Both surfaces honor the existing used/remaining display preference.
+reset. Both surfaces honor the existing used/remaining display preference. The menu-bar percentage refreshes when
+its selected window changes, even while Auto stays unchanged.
 
 The choice is saved per plugin using the existing menu-bar layout preferences and applies without another fetch.
 If the selected window is missing or has unknown usage, the display falls back to Auto and resumes the selected
@@ -318,6 +319,9 @@ so portable third-party plugins must use the host helpers below instead of ECMA-
   February 28, or February 29 in a leap year). Offsets are limited to ±120,000 months, and invalid dates, time zones,
   fractional offsets, or results outside JavaScript's Date range throw.
 - `ctx.env.timeZone` is the host's current IANA time-zone identifier; zero-offset GMT aliases are normalized to `UTC`.
+- `ctx.env.supportsMenuBarItems === true` means snapshots may include a compact multi-quota menu-bar summary.
+- `ctx.env.supportsIconProvider === true` means snapshots may request built-in provider branding with `iconProvider`.
+  Older hosts omit this flag; omit the snapshot field on those hosts to retain the manifest icon without a fetch error.
 - `ctx.format.number(value, options?)`, `usd(value)`, and `monthDay(date)` provide deterministic formatting on both
   engines. Number options support `minimumFractionDigits` and `maximumFractionDigits`.
 - `ctx.format.currency(value, currencyCode)` uses the same native `UsageFormatter` as the app, with `en_US` currency
@@ -404,6 +408,45 @@ and 120 characters per detail string. Wrong types and limit violations fail the 
 Standard windows (`primary`, `secondary`, and `tertiary`) may include an optional `title`. Generic menu cards and
 `plugins fetch` text output use it instead of Primary, Secondary, or Tertiary. Titles are trimmed, limited to 256 UTF-8
 bytes, and must be strings; omitted, null, or blank titles use the default label. JSON snapshots retain the title.
+
+Snapshots may set `iconProvider` to a built-in provider ID (for example `claude`, `codex`, `antigravity`, or `zai`)
+to use that provider's cached logo for the menu-bar brand icon and provider switcher. This is presentation metadata:
+it does not change the plugin's name, identity, credentials, quotas, permissions, or menu-card heading. It loads no
+external images. Missing/null values, or an unavailable bundled image, use the existing manifest SVG/monogram.
+Unknown IDs and non-string values fail validation. An icon alone does not count as measured usage or identity.
+Send the field only when the host advertises support:
+
+```js
+if (ctx.env.supportsIconProvider === true && selectedProvider !== "auto") {
+  snapshot.iconProvider = selectedProvider;
+}
+return snapshot;
+```
+
+Returning to `auto` means omitting the field in the next snapshot, which restores the manifest icon even if the
+percentage did not change. The option applies when the menu bar is configured to show the brand icon; it does not
+replace the quota meter in meter-only mode.
+
+For an aggregator, `menuBarItems` can show up to eight ordered logo/percentage pairs in the existing status item:
+
+```js
+if (ctx.env.supportsMenuBarItems === true) {
+  snapshot.menuBarItems = [
+    { title: "Claude", iconProvider: "claude", windowID: "claude-weekly" },
+    { title: "Codex", iconProvider: "codex", windowID: "codex-weekly" },
+  ];
+}
+```
+
+Each `windowID` references an existing native `extraWindows` ID; the script chooses its intended quota explicitly.
+Missing, unmeasured or unknown references show unavailable, never another quota. Genuine 0% remaining stays 0%.
+Titles and references are limited to 120 characters. The summary is presentation metadata, not another usage source.
+It appears in merged **Icon & percent** mode with this plugin selected; clicking the group opens the same plugin menu.
+The app preserves the configured order, used/remaining preference, accessibility labels, template tinting and existing
+status-item placement. Meter-only mode keeps its existing rendering. A nonempty summary takes precedence over the
+saved **Menu bar metric** selection. Empty/omitted items restore the normal single indicator using that saved selection.
+Scripts must omit the entire field on older hosts. Summary rendering caches unchanged frames and uses only bundled
+provider images (or manifest fallback), without new timers, status items or network requests.
 
 Plugin cards show `resetsAt` using the app's countdown or absolute-time preference. When no usable timestamp is
 available, `resetDescription` supplies the reset text through the same formatter as built-in providers. A refresh

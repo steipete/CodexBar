@@ -5,6 +5,56 @@ import Testing
 @testable import CodexBar
 
 struct UserPluginPercentWindowTests {
+    @Test(arguments: [false, true], [false, true])
+    @MainActor
+    func `icon observation follows the saved monthly window on data updates`(namedExtra: Bool, showUsed: Bool) throws {
+        let settings = testSettingsStore(suiteName: "plugin-icon-window", userDefaults: InMemoryUserDefaults())
+        settings.usageBarsShowUsed = showUsed
+        settings.menuBarShowsBrandIconWithPercent = true
+        let plugin = try #require(ProviderInstanceID(rawValue: "example-pool"))
+        settings.setMenuBarLayout(
+            MenuBarLayout(lines: [[namedExtra ? .extraPercent(id: "monthly") : .lanePercent(lane: .tertiary)]]),
+            forInstanceID: plugin)
+
+        func signature(monthlyPercent: Double, weeklyPercent: Double = 0) -> String {
+            let monthly = RateWindow(
+                usedPercent: monthlyPercent, windowMinutes: 43200, resetsAt: nil, resetDescription: nil)
+            let snapshot = UsageSnapshot(
+                primary: Self.pooledSnapshot.primary,
+                secondary: RateWindow(
+                    usedPercent: weeklyPercent, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
+                tertiary: namedExtra ? nil : monthly,
+                extraRateWindows: namedExtra ? [NamedRateWindow(id: "monthly", title: "Monthly", window: monthly)] :
+                    nil,
+                updatedAt: .distantPast)
+            return StatusItemController.pluginStoreIconObservationSignature(
+                for: plugin, snapshot: snapshot, settings: settings, hasError: false, sourceHash: "fixture")
+        }
+
+        let before = signature(monthlyPercent: 76.9)
+        let after = signature(monthlyPercent: 80)
+        #expect(before != after)
+        #expect(after == signature(monthlyPercent: 80, weeklyPercent: 5))
+        settings.menuBarShowsBrandIconWithPercent = false
+        #expect(signature(monthlyPercent: 80) != signature(monthlyPercent: 80, weeklyPercent: 5))
+    }
+
+    @Test(arguments: [false, true])
+    @MainActor
+    func `icon observation keeps automatic fallback when a saved window is unavailable`(showUsed: Bool) throws {
+        let settings = testSettingsStore(suiteName: "plugin-icon-fallback", userDefaults: InMemoryUserDefaults())
+        settings.usageBarsShowUsed = showUsed
+        settings.menuBarShowsBrandIconWithPercent = true
+        let plugin = try #require(ProviderInstanceID(rawValue: "example-pool"))
+        let snapshot = Self.pooledSnapshot
+        let automatic = StatusItemController.pluginStoreIconObservationSignature(
+            for: plugin, snapshot: snapshot, settings: settings, hasError: false, sourceHash: "fixture")
+        settings.setMenuBarLayout(MenuBarLayout(lines: [[.extraPercent(id: "missing")]]), forInstanceID: plugin)
+        let fallback = StatusItemController.pluginStoreIconObservationSignature(
+            for: plugin, snapshot: snapshot, settings: settings, hasError: false, sourceHash: "fixture")
+        #expect(fallback == automatic)
+    }
+
     @Test
     func `monthly selection shows 77 percent after the weekly reset`() throws {
         let snapshot = Self.pooledSnapshot
